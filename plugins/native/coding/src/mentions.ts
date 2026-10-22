@@ -51,7 +51,7 @@ export function mentionedPaths(task: string): string[] {
   return [...new Set(found)].slice(0, MENTION_LIMIT);
 }
 
-export interface WorkspaceSymbol { name: string; kind: string; line: number }
+interface WorkspaceSymbol { name: string; kind: string; line: number }
 const SYMBOL_LIMIT = 300, BLOCK_LINES = 400;
 const extension = (path: string) => path.slice(path.lastIndexOf(".") + 1).toLowerCase();
 const INDENTED = new Set(["py", "pyi"]);

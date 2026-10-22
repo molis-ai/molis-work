@@ -1,4 +1,5 @@
 import { renderPaletteTokens, renderPluginTintBindings, renderShapeTokens, renderShellTokens } from "../palette.js";
+import { HIDDEN_SCROLLBAR_STYLES } from "./scrollbars.js";
 
 /** Linear × Coss interaction texture. Loaded after every page stylesheet so it owns the
  * final colour ramp, elevation, motion and icon calibration without moving any layout.
@@ -10,8 +11,6 @@ const RAISED_SURFACE = ":is(.navigator-project-menu-popover, .tree-filter, .glob
 /** Modals that dim the app behind them. */
 const SCRIMMED = ":is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog)";
 
-/** Scroll regions that already show a scrollbar. `.document-pane` keeps its scrollbar-free rule. */
-const SCROLL_REGION = "body :is(.settings-body, .project-settings-stage, .tab-pane-body, .feed-detail-scroll, .goal-info-body)";
 
 export const INTERACTION_TEXTURE_STYLES = `
   :root,
@@ -45,11 +44,11 @@ export const INTERACTION_TEXTURE_STYLES = `
   /* One shared interaction curve. Rest → hover → press is a tone step, never a lift. */
   :where(button, a, summary, [role="button"], .tree-entry, .tab-item, .desktop-module-item, .immersive-plugin-link) {
     transition:
-      background-color var(--motion-instant) var(--ease-quint),
-      color var(--motion-instant) var(--ease-quint),
-      border-color var(--motion-instant) var(--ease-quint),
-      box-shadow var(--motion-fast) var(--ease-quint),
-      opacity var(--motion-fast) var(--ease-quint);
+      background-color var(--dur-hover) var(--ease-quint),
+      color var(--dur-hover) var(--ease-quint),
+      border-color var(--dur-hover) var(--ease-quint),
+      box-shadow var(--dur-hover) var(--ease-quint),
+      opacity var(--dur-hover) var(--ease-quint);
   }
   body :is(button, [role="button"], summary, a.top-action, a.tree-tool):active:not(:disabled, [aria-disabled="true"], [aria-expanded], [aria-haspopup]) {
     filter: brightness(.96);
@@ -67,7 +66,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   body:is(.immersive-workbench, .settings-page, .project-preferences-page) svg { stroke-width: 2; }
   body.immersive-workbench :is(.tui-empty-mark, .goal-canvas-empty, .work-empty) svg { stroke-width: 1.6; }
   body.immersive-workbench :is(.immersive-plugin-link, .tree-tool, .tab-item-close, .workspace-history-button) svg {
-    transition: color var(--motion-instant) var(--ease-quint), opacity var(--motion-instant) var(--ease-quint);
+    transition: color var(--dur-hover) var(--ease-quint), opacity var(--dur-hover) var(--ease-quint);
   }
   body.immersive-workbench :is(.navigator-project-settings, .navigator-project-search, .navigator-project-notifications, .workspace-history-button, .tab-add-button, .tab-split-button) svg {
     width: var(--icon-md); height: var(--icon-md);
@@ -152,28 +151,8 @@ export const INTERACTION_TEXTURE_STYLES = `
   }
   body.immersive-workbench .tab-item:active:not(.is-active) { background: var(--nav-press); }
 
-  /* Scrollbars stay out of the way until the region is used. */
-  ${SCROLL_REGION} {
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
-    transition: scrollbar-color var(--motion-normal) var(--ease-quint);
-  }
-  ${SCROLL_REGION}:hover {
-    scrollbar-color: color-mix(in srgb, var(--ink) 22%, transparent) transparent;
-  }
-  ${SCROLL_REGION}::-webkit-scrollbar { width: 10px; height: 10px; }
-  ${SCROLL_REGION}::-webkit-scrollbar-track { background: transparent; }
-  ${SCROLL_REGION}::-webkit-scrollbar-thumb {
-    border: 3px solid transparent;
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--ink) 18%, transparent);
-    background-clip: content-box;
-  }
-  ${SCROLL_REGION}::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in srgb, var(--ink) 32%, transparent);
-    background-clip: content-box;
-  }
-  ${SCROLL_REGION}::-webkit-scrollbar-corner { background: transparent; }
+  /* No scrollbar is drawn; the edge fade says where more is. */
+  ${HIDDEN_SCROLLBAR_STYLES}
 
   /* Fields answer focus with a 1px --ink stroke inside the control, never an outer halo. */
   body :is(input, select, textarea):not([type="checkbox"], [type="radio"], [type="range"], .mw-slider, .mw-input, .mw-textarea, .mw-select, .assistant-composer-input, [data-plain-field]):focus-visible {
@@ -183,7 +162,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     box-shadow: none;
   }
   body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input), select:not(.mw-select), textarea:not(.mw-textarea)) {
-    transition: border-color var(--motion-fast) var(--ease-quint), box-shadow var(--motion-fast) var(--ease-quint), background-color var(--motion-fast) var(--ease-quint);
+    transition: border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint);
   }
   body :is(input, textarea)::placeholder { color: var(--faint); }
 
@@ -195,10 +174,10 @@ export const INTERACTION_TEXTURE_STYLES = `
   .goal-status,
   body[data-desktop-shell="true"] .goal-status {
     border-color: transparent;
-    border-radius: 5px;
+    border-radius: 6px;
     background: color-mix(in srgb, var(--goal-status-tone, var(--muted)) 11%, transparent);
     color: var(--goal-status-tone);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 400;
     letter-spacing: 0;
   }
@@ -281,7 +260,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   .goal-canvas-node {
     border-color: var(--line);
     box-shadow: inset 0 1px 0 var(--edge-highlight);
-    transition: border-color var(--motion-fast) var(--ease-quint), background-color var(--motion-fast) var(--ease-quint), box-shadow var(--motion-fast) var(--ease-quint);
+    transition: border-color var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint);
   }
   .goal-canvas-node:hover {
     border-color: var(--line-strong);
@@ -302,7 +281,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     gap: 4px;
     padding: 4px;
     border: 0;
-    border-radius: 9px;
+    border-radius: 10px;
     background: var(--control-fill);
     box-shadow: none;
   }
@@ -316,7 +295,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     font-size: 12px;
     font-weight: var(--weight-control, 500);
     box-shadow: none;
-    transition: color var(--motion-normal, 250ms) var(--ease-quint), background-color var(--motion-fast, 130ms) var(--ease-quint), box-shadow var(--motion-normal, 250ms) var(--ease-quint);
+    transition: color var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint), box-shadow var(--dur-move, 250ms) var(--ease-quint);
   }
   body :is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group) > :is(button, a):hover { color: var(--ink); background: transparent; }
   body :is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group) > :is([aria-current="true"], [aria-current="page"], [aria-pressed="true"], .is-current, .is-active) {
@@ -392,18 +371,10 @@ export const INTERACTION_TEXTURE_STYLES = `
     box-shadow: inset 0 0 0 1px var(--line-strong);
   }
 
-  /* Transient surfaces arrive with opacity and a short rise, and leave without a jump. */
-  :where(dialog[open]) { animation: surface-arrive var(--motion-normal) var(--ease-quint); }
-  @keyframes surface-arrive {
-    from { opacity: 0; transform: translateY(6px) scale(.985); }
-    to { opacity: 1; transform: none; }
-  }
-
   @media (prefers-reduced-motion: reduce) {
     :where(button, a, summary, [role="button"], .tree-entry, .tab-item, .desktop-module-item, .immersive-plugin-link) { transition: none; }
     body :is(button, [role="button"], summary):active:not(:disabled, [aria-disabled="true"], [aria-expanded], [aria-haspopup]) { filter: none; }
     body :is(input, select, textarea) { transition: none; }
     .goal-canvas-node { transition: none; }
-    :where(dialog[open]) { animation: none; }
   }
 `;

@@ -2,7 +2,7 @@ import { bindActionClient, requireSynchronous, type ActionCallContext, type Acti
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { shownProjectPlugins, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
-import { observeGitOperations } from "./git-operation-notifications.js";
+import { observeReviewSettlements } from "./review-settlement-events.js";
 import { localWebActionContext, type bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { bindGoalsWebActions } from "./goals-actions.js";
@@ -37,8 +37,8 @@ export interface ProjectRuntimeContext extends ProjectRequestContext {
   readonly readWebView: () => Promise<MolisWorkWebView>;
 }
 
-/** The services every project plugin surface is given: the unified action client, the Home, the native-Agent workspaces and terminal, and Git operation updates. */
-export type ProjectPluginServices = Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "characterWorkspaces" | "characterSpawn" | "observeGitOperations">;
+/** The services every project plugin surface is given: the unified action client, the Home and settled reviews. */
+type ProjectPluginServices = Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "observeReviewSettlements">;
 
 export function projectRequestContext(context: WebRequestContext, options: ResolvedWebBoardOptions): ProjectRequestContext {
   const { localHost, composition, serverOptions } = context;
@@ -62,12 +62,10 @@ export function homeRouteProjectPlugins({ composition, serverOptions }: WebReque
 /** `/projects/<id>` for a project page; empty for the board a fixture serves at the root. */
 export const projectRoutePrefix = (options: ResolvedWebBoardOptions) => options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "";
 
-export function projectPluginServices({ localHost, hostReference, options, agentHost, ptyHost, composition, serverOptions }: ProjectRequestContext): ProjectPluginServices {
+export function projectPluginServices({ localHost, hostReference, options, agentHost, serverOptions }: ProjectRequestContext): ProjectPluginServices {
   return {
     actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, project_id: hostReference.project_id, inspect: caller => localHost.inspectActions(caller, hostReference) },
-    observeGitOperations: listener => observeGitOperations(agentHost.reviews, options.projectId, listener),
-    characterSpawn: request => ptyHost.spawn(request),
-    characterWorkspaces: () => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => options.project ? catalog.listWorkspaceDirectory(options.project.project_id) : []),
+    observeReviewSettlements: listener => observeReviewSettlements(agentHost.reviews, options.projectId, listener),
     homeDirectory: serverOptions.homeDirectory,
     capabilities: localHost.client(hostReference),
   };

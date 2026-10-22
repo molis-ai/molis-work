@@ -1,6 +1,6 @@
 import type { ServerResponse } from "node:http";
 import type { ServerDatabase } from "./database.js";
-export interface Change { scopeKind: "project" | "room"; scopeId: string; kind: string; entityId: string; threadId?: string | null }
+interface Change { scopeKind: "project" | "room"; scopeId: string; kind: string; entityId: string; threadId?: string | null }
 /** Appends in the caller's transaction; notify only after commit. */
 export class ServerEvents {
   private readonly streams = new Set<() => void>();

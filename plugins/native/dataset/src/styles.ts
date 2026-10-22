@@ -5,7 +5,7 @@ export const DATASET_STYLES = `
     display: inline-flex; align-items: center; flex: none; height: 28px; max-width: 28px;
     margin-right: 4px; padding: 0; overflow: hidden; border: 0; border-radius: 6px;
     background: transparent; color: var(--muted); cursor: pointer;
-    transition: background-color var(--motion-fast, 130ms) var(--ease-quint), color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint), color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .creative-artifact-act svg { width: 14px; height: 14px; flex: none; margin: 0 8px; }
   .creative-artifact-act span { overflow: hidden; white-space: nowrap; font-size: 12px; line-height: 28px; padding-right: 8px; }
@@ -44,7 +44,7 @@ export const DATASET_STYLES = `
     background: var(--paper);
     box-shadow: inset 0 0 0 1px var(--line);
   }
-  .dataset-table-wrap tbody tr { transition: background-color var(--motion-fast, 130ms) var(--ease-quint); }
+  .dataset-table-wrap tbody tr { transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
   .dataset-table-wrap tbody tr:hover td { background: color-mix(in srgb, var(--plugin-dataset, var(--ink)) 6%, transparent); }
   .dataset-table-wrap:has([data-dataset-table-empty]:not([hidden])),
   .dataset-table-wrap:has([data-dataset-filter-empty]:not([hidden])) { width: min(100%, 28rem); }
@@ -104,15 +104,8 @@ export const DATASET_STYLES = `
   .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 16px 24px 16px; }
   .creative-confirm-form p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
   .creative-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
-  .plugin-stage-workspace.is-arriving,
-  .is-arriving { animation: creative-arrive var(--motion-normal, 130ms) var(--ease-quint) both; }
-  @keyframes creative-arrive {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: none; }
-  }
   @media (max-width: 720px) { .dataset-identity { grid-template-columns: 1fr; } }
   @media (prefers-reduced-motion: reduce) {
-    .is-arriving, .plugin-stage-workspace.is-arriving { animation: none; }
     .dataset-table-wrap tbody tr { transition: none; }
   }
   body.immersive-workbench .plugin-stage-workspace > .dataset-workspace { flex: 1; min-height: 0; }

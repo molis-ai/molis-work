@@ -6,13 +6,11 @@ import { SessionTuiRecorder } from "@molis-ai/molis-work-plugin-work";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { LocalProjectDatabase, createPluginPlatform, seedDemoBoard, DEMO_PROJECT_ID, attachMolisWorkPtySocket, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, seedDemoBoard, DEMO_PROJECT_ID, attachMolisWorkPtySocket, openWorkSessionRegistry, charactersProvider, handleCharactersHttp, type CharactersInvoke } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { ActionError, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { createCharactersActionHandlers, openCharacters, type CharactersActionPorts } from "@molis-ai/molis-work-module-characters";
-import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { createCharactersPlugin, type CharactersPluginPorts } from "@molis-ai/molis-work-plugin-characters";
+import { CHARACTER_ACTION_PERMISSIONS, openCharacters, type CharactersActionPorts } from "@molis-ai/molis-work-module-characters";
 import type { CharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
 import { characterNativeExecution, characterNativeArgs } from "../apps/local-host/dist/character-native-execution.js";
 
@@ -98,14 +96,14 @@ for (const phase of ["workspace", "final-check"] as const) test(`native Characte
   assert.equal(spawned, 1, "lost response reattaches the original session");
 });
 
-// W2-18-CHARACTER-LAUNCH-01: production action and HTTP route, actual publication/store/native owner, and recovery.
+// W2-18-CHARACTER-LAUNCH-01: the Host's door and the Module's bound actions in the action service (CHR-1), actual publication/store/native owner, and recovery.
 for (const invalidation of ["cancel", "revoke", "publication", "provider"] as const) test(`Character HTTP launch has no late native effects after ${invalidation}`, { timeout: 30_000 }, async t => {
   const home = mkdtempSync(join(tmpdir(), "character-action-tail-")), file = join(home, "project.db"); seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), opened = openCharacters(home, "user"), personal = opened.service;
   const imported = personal.import({ runtime_id: "codex", config_root: "/fixture", captured_at: new Date().toISOString(), rules: [{ path: "/fixture/AGENTS.md", scope: "global", content: "Fixed imported instructions" }], skills: [] }, { rule_paths: ["/fixture/AGENTS.md"], skill_ids: [] }).draft;
   const artifacts = new ArtifactsModule({ db: store.db, homeOwner: "user", appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
-  const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) }), service = new ActionService();
-  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), finished = Promise.withResolvers<void>(); let holding = true, valid = true, spawns = 0, withdraw = () => {};
+  const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), finished = Promise.withResolvers<void>(); let holding = true, valid = true, spawns = 0;
   const native = characterNativeExecution({ home, actorId: "user", projectId: DEMO_PROJECT_ID, executable: () => "/fixture/codex",
     workspaces: async () => { if (holding) { entered.resolve(); await release.promise; } return [{ workspace_id: "work", canonical_path: home, realpath_verified: true, display_name: "Fixture" }]; },
     spawn: () => { spawns++; return { attached: false, started: true, replay: "" }; } });
@@ -113,41 +111,41 @@ for (const invalidation of ["cancel", "revoke", "publication", "provider"] as co
     references: () => artifacts.query.listArtifacts(DEMO_PROJECT_ID).map(record => ({ artifact_id: record.artifact_id, version: record.version })),
     publish: (id, revision, publisher) => personal.publish(id, revision, publisher),
     imports: { ...native, discover: () => [], previewFile: () => { throw new Error("not used"); }, import: () => { throw new Error("not used"); } } };
-  // RAC-63: the handlers are the Module's, built from these ports; the plugin only binds them (here through the real Runtime and routes).
-  const ports: CharactersPluginPorts = { actorId: "user", handlers: runtime => createCharactersActionHandlers(actionPorts, runtime) };
-  const register = service.registerProvider.bind(service);
-  t.mock.method(service, "registerProvider", registration => {
-    const remove = register({ ...registration, handlers: registration.handlers?.map((binding: ActionHandlerBinding) => binding.capability_id !== "characters.launch" ? binding : {
-      ...binding, handle: async (caller, input) => { try { return await binding.handle(caller, input); } finally { finished.resolve(); } },
-    }) });
-    if (registration.handlers?.some(binding => binding.capability_id === "characters.launch")) withdraw = remove; return remove;
-  });
-  const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "user", db: store.db, artifacts, processItems, home: null, ui: new UiHost(),
-    actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID }, privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
-  const definition = createCharactersPlugin(ports), start = () => platform.start([{ definition, grants: ["artifact:read", "artifact:write"] }]); await start();
-  const router = platform.router(), controller = new AbortController(); let controlled = false;
-  const assertCurrent = () => { controller.signal.throwIfAborted(); if (!valid) throw new ActionError("actions.forbidden", "original Character caller revoked"); };
-  const server = createServer((request, response) => { void (async () => {
-    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    const result = await router.dispatch({ method: request.method!, pathname: new URL(request.url!, "http://localhost").pathname, actor_id: "user", body: JSON.parse(Buffer.concat(chunks).toString()),
-      ...(controlled ? { execution: { signal: controller.signal, beforeEffect: async () => assertCurrent(), assert_authority_current: assertCurrent } } : {}) });
-    response.writeHead(result?.status ?? 404, { "content-type": "application/json" }); response.end(JSON.stringify(result?.body ?? {}));
-  })().catch(error => { response.writeHead(500); response.end(JSON.stringify({ error: String(error) })); }); });
+  // The Host's last synchronous check before each effect: a revoked caller is refused there.
+  const service = new ActionService(undefined, { assertCurrent: () => { if (!valid) throw new ActionError("actions.forbidden", "original Character caller revoked"); } });
+  // RAC-63: the handlers are the Module's, built from these ports; the Host's provider binds them and writes the 成果库 for each call.
+  const registration = charactersProvider({ project_id: DEMO_PROJECT_ID, coordinator: { artifacts, processItems } }, actionPorts);
+  const handlers = registration.handlers!.map(binding => binding.capability_id !== "characters.launch" ? binding : {
+    ...binding, handle: async (caller: ActionExecutionContext, input: unknown) => { try { return await binding.handle(caller, input); } finally { finished.resolve(); } } });
+  const register = () => service.registerProvider({ ...registration, handlers });
+  let withdraw = register(), launchSignal: AbortSignal | undefined;
+  const invoke: CharactersInvoke = (signal, reference, input) => {
+    if (reference.capability_id === "characters.launch") launchSignal = signal;
+    return service.invoke({ actor_id: "user", project_id: DEMO_PROJECT_ID, audience: "user", permissions: CHARACTER_ACTION_PERMISSIONS, signal }, reference, input);
+  };
+  const server = createServer((request, response) => { void handleCharactersHttp(request, response, new URL(request.url!, "http://localhost"), invoke)
+    .then(handled => { if (!handled) { response.writeHead(404); response.end("{}"); } }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve)); const address = server.address(); assert.ok(address && typeof address === "object");
-  const call = async (path: string, input: unknown) => { const response = await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.characters` + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) }); return { status: response.status, body: await response.json() }; };
-  t.after(async () => { release.resolve(); await new Promise<void>(resolve => server.close(() => resolve())); await platform.closeCoordination(); for (const id of platform.supervisor.enabledPluginIds()) { const install = platform.supervisor.state(id); platform.supervisor.revoke(id); if (install?.install_id) await platform.runtime.stop(install.install_id); } opened.close(); store.close(); rmSync(home, { recursive: true, force: true }); });
-  const published = await call(`/drafts/${imported.character_id}/publish`, { expected_revision: imported.revision }); assert.equal(published.status, 200);
-  controlled = true; const pending = call("/execution/native", { reference: published.body.reference, workspace_id: "work", task: "Use the fixed Character", request_id: randomUUID() });
+  const call = async (path: string, input: unknown, signal?: AbortSignal) => { const response = await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.characters` + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input), signal }); return { status: response.status, body: await response.json() }; };
+  t.after(async () => { release.resolve(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); withdraw(); opened.close(); store.close(); rmSync(home, { recursive: true, force: true }); });
+  const published = await call(`/drafts/${imported.character_id}/publish`, { expected_revision: imported.revision }); assert.equal(published.status, 200, JSON.stringify(published.body));
+  const leaving = new AbortController();
+  const pending = call("/execution/native", { reference: published.body.reference, workspace_id: "work", task: "Use the fixed Character", request_id: randomUUID() }, leaving.signal)
+    .then(reply => reply.status, () => "left");
   await entered.promise;
-  if (invalidation === "cancel") controller.abort(); else if (invalidation === "revoke") valid = false;
+  if (invalidation === "cancel") {
+    // RAC-71: the page leaves: the door ends the call once the connection closes.
+    leaving.abort(); const signal = launchSignal!;
+    if (!signal.aborted) await new Promise(resolve => signal.addEventListener("abort", resolve, { once: true }));
+  } else if (invalidation === "revoke") valid = false;
   else if (invalidation === "publication") personal.setState(imported.character_id, personal.get(imported.character_id)!.revision, "disabled"); else withdraw();
-  holding = false; release.resolve(); assert.ok((await pending).status >= 400); await finished.promise;
+  holding = false; release.resolve();
+  const settled = await pending; assert.ok(invalidation === "cancel" ? settled === "left" : typeof settled === "number" && settled >= 400, String(settled)); await finished.promise;
   assert.equal(spawns, 0); assert.equal(existsSync(join(home, "characters", "runs")), false); assert.deepEqual(await native.runs(imported.character_id), []);
-  controlled = false;
+  valid = true;
   if (invalidation === "publication") personal.setState(imported.character_id, personal.get(imported.character_id)!.revision, "active");
-  if (invalidation === "provider") { const active = platform.supervisor.state("io.molis.work.characters")!; platform.supervisor.revoke("io.molis.work.characters"); if (active.install_id) await platform.runtime.stop(active.install_id);
-    // A revoked plugin comes back only when it is enabled again; starting the platform once more does not lift the revocation.
-    assert.equal((await platform.supervisor.enable("io.molis.work.characters")).status, "running"); }
+  // A withdrawn provider answers again only once it is registered again.
+  if (invalidation === "provider") withdraw = register();
   const fresh = await call("/execution/native", { reference: published.body.reference, workspace_id: "work", task: "Fresh authorized launch", request_id: randomUUID() });
   assert.equal(fresh.status, 200, JSON.stringify(fresh.body)); assert.equal(spawns, 1); assert.equal((await native.runs(imported.character_id)).length, 1);
 });

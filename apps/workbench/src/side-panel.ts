@@ -70,7 +70,7 @@ html body.immersive-workbench .side-panel{position:fixed;display:flex;flex-direc
 html body.immersive-workbench .side-panel[hidden]{display:none}
 html body.immersive-workbench[data-side-open=true] .side-panel{opacity:1;transform:none;pointer-events:auto}
 .side-panel-head{display:flex;align-items:center;gap:8px;flex:none;height:44px;padding:0 6px 0 8px;border-bottom:1px solid var(--line)}
-.side-panel-tabs{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+.side-panel-tabs{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto}
 .side-panel-tab{display:inline-flex;align-items:center;gap:6px;flex:none;height:30px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:13px;cursor:pointer}
 :is(.side-panel-tab,.side-panel-close){transition:background-color var(--dur-hover) var(--ease-quint),color var(--dur-hover) var(--ease-quint)}
 .side-panel-tab[hidden]{display:none}
@@ -81,10 +81,9 @@ html body.immersive-workbench[data-side-open=true] .side-panel{opacity:1;transfo
 .side-busy-mark{display:inline-flex;flex:none;width:16px;height:16px}
 .side-panel-close{display:inline-grid;place-items:center;flex:none;width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
 .side-panel-close svg{width:16px;height:16px}
-.side-panel-body{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;animation:side-panel-body-in var(--dur-move) var(--ease-quint)}
+.side-panel-body{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;animation:craft-fade-in var(--dur-move) var(--ease-quint)}
 .side-panel-body[hidden]{display:none}
 .side-panel-body>iframe{border:0;display:block;flex:1;width:100%;min-height:0}
-@keyframes side-panel-body-in{from{opacity:0}to{opacity:1}}
 @container side-panel (max-width:420px){.side-panel-tab span{display:none}.side-panel-tab{padding:0 8px}}
 .side-panel-divider{position:fixed;right:calc(var(--side-panel-width,35vw) + var(--sheet-inset,14px) + var(--side-gap)/2 - 6px);top:var(--desktop-titlebar-height,32px);bottom:var(--dock-h,48px);width:12px;z-index:11;cursor:col-resize;touch-action:none;border:0;padding:0;background:transparent}
 .side-panel-divider:after{content:"";position:absolute;top:calc(50% - 14px);left:calc(50% - 1.5px);width:3px;height:28px;border-radius:4px;background:var(--line-strong,var(--line));opacity:0;transition:opacity var(--dur-hover) var(--ease-quint),background-color var(--dur-hover) var(--ease-quint)}
@@ -212,7 +211,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     if(event.data?.type==='molis:im-connect'&&projectId){
       const answer=(error)=>frame.contentWindow.postMessage({type:'molis:im-connected',requestId:event.data.requestId,error},location.origin);
       try{await molisWorkRequest('/projects/'+encodeURIComponent(projectId)+'/api/im/connect',{body:{}});answer(null);}
-      catch(error){answer(molisWorkRequest.text(error,'项目连接失败'));}
+      catch(error){answer(molisWorkRequest.text(error,L('项目连接失败')));}
     }
   });
   let drag=null;

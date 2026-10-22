@@ -1,9 +1,9 @@
 export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] {
     --plugin-tint: var(--plugin-workflows);
-    --wf-hover: var(--motion-instant, 130ms) var(--ease-quint);
-    --wf-row: var(--motion-normal, 130ms) var(--ease-quint);
-    --wf-edge: var(--motion-fast, 130ms) var(--ease-quint);
+    --wf-hover: var(--dur-hover, 130ms) var(--ease-quint);
+    --wf-row: var(--dur-move, 250ms) var(--ease-quint);
+    --wf-edge: var(--dur-hover, 130ms) var(--ease-quint);
   }
   [data-workflows="workbench"] .wf-muted { color: var(--muted); font-size: 12px; }
   [data-workflows="workbench"] .wf-hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
@@ -13,8 +13,9 @@ export const WORKFLOWS_STYLES = `
 
   /* List */
   [data-workflows="workbench"] .wf-rows { display: grid; gap: 4px; }
+  /* The name comes first; the stations give way. */
   [data-workflows="workbench"] .wf-row {
-    display: grid; grid-template-columns: minmax(10rem, 1fr) minmax(0, 2fr) 10rem; align-items: center; gap: 16px;
+    display: grid; grid-template-columns: minmax(10rem, 3fr) minmax(0, 2fr) 10rem; align-items: center; gap: 16px;
     width: 100%; min-height: 36px; padding: 4px 12px; border: 0; border-radius: var(--radius-item, 8px);
     background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer;
     transition: background-color var(--wf-row);
@@ -65,7 +66,7 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-return { flex: none; color: var(--plugin-tint); }
   [data-workflows="workbench"] .wf-return:hover { color: var(--plugin-tint); background: color-mix(in srgb, var(--plugin-tint) 10%, transparent); }
   [data-workflows="workbench"] .wf-save-state { flex: none; display: inline-flex; align-items: center; gap: 4px; min-width: 4.5em; justify-content: flex-end; color: var(--faint); font-size: 12px; }
-  [data-workflows="workbench"] .wf-save-state svg { width: 12px; height: 12px; }
+  [data-workflows="workbench"] .wf-save-state svg:not(.mw-state-ring) { width: 12px; height: 12px; }
   [data-workflows="workbench"] .wf-save-state .mw-spinner { width: 11px; height: 11px; border-width: 1.5px; }
   [data-workflows="workbench"] .wf-save-state[data-state="saving"] { color: var(--muted); }
   [data-workflows="workbench"] .wf-save-state[data-state="saved"] { animation: wf-saved 640ms var(--ease-quint) both; }
@@ -80,7 +81,7 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-chain {
     display: flex; align-items: center; gap: 0; min-width: 0; overflow-x: auto; padding: 16px 12px 32px;
     border: 1px solid var(--line); border-radius: var(--radius-surface, 12px); background: var(--page);
-    scrollbar-width: thin; scroll-padding-inline: 24px;
+    scroll-padding-inline: 24px;
   }
   [data-workflows="workbench"] .wf-chain.is-empty { justify-content: center; padding: 24px; }
   [data-workflows="workbench"] .wf-drop {
@@ -192,9 +193,9 @@ export const WORKFLOWS_STYLES = `
     padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-surface, 12px); background: var(--paper); color: var(--ink);
     box-shadow: var(--shadow-raised);
   }
-  [data-workflows="workbench"] .wf-pop:popover-open { display: grid; gap: 12px; animation: creative-arrive var(--motion-fast, 130ms) var(--ease-quint) both; }
-  [data-workflows="workbench"] .wf-pop[data-side="above"]:popover-open { animation-name: wf-arrive-down; }
-  @keyframes wf-arrive-down { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  [data-workflows="workbench"] .wf-pop:popover-open { display: grid; gap: 12px; animation: craft-drop var(--dur-move) var(--ease-quint) both; }
+  /* Grows from its control: down from one above it, up toward one below it. */
+  [data-workflows="workbench"] .wf-pop[data-side="above"]:popover-open { animation-name: craft-rise-from-bar; }
   [data-workflows="workbench"] .wf-pop[data-mode="gap"] { width: min(260px, calc(100vw - 24px)); }
   [data-workflows="workbench"] .wf-pop__head { display: grid; gap: 4px; }
   [data-workflows="workbench"] .wf-pop__head strong { font-size: 13px; font-weight: var(--weight-control, 500); }
@@ -363,7 +364,7 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-record > summary { gap: 8px; min-height: 36px; padding: 0 12px; font-size: 13px; color: var(--ink-soft); }
   [data-workflows="workbench"] .wf-record > summary .wf-muted { margin-left: auto; }
   [data-workflows="workbench"] .wf-record__body { display: grid; gap: 8px; padding: 0 12px 12px; max-height: 40vh; overflow: auto; }
-  [data-workflows="workbench"] .wf-record[open] .wf-record__body { animation: creative-arrive var(--motion-fast, 130ms) var(--ease-quint) both; }
+  [data-workflows="workbench"] .wf-record[open] .wf-record__body { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   [data-workflows="workbench"] .wf-record__body > .mw-btn { justify-self: start; }
   [data-workflows="workbench"] .wf-record__label { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
   [data-workflows="workbench"] .wf-payload { display: grid; gap: 8px; padding: 12px 12px; border-radius: var(--radius-control, 8px); background: var(--paper); border: 1px solid var(--line); }
@@ -375,7 +376,7 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-stage__frame.is-empty { display: grid; align-content: start; }
   [data-workflows="workbench"] .wf-stage__frame iframe {
     position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; background: var(--paper);
-    transition: opacity var(--motion-normal, 130ms) var(--ease-quint);
+    transition: opacity var(--dur-move, 250ms) var(--ease-quint);
   }
   [data-workflows="workbench"] .wf-stage__frame iframe.is-entering { opacity: 0; }
   [data-workflows="workbench"] .wf-frame-skeleton {
@@ -383,7 +384,7 @@ export const WORKFLOWS_STYLES = `
     opacity: 0; pointer-events: none; transition: opacity var(--wf-edge);
   }
   [data-workflows="workbench"] .wf-frame-skeleton .mw-skeleton:first-child { height: 16px; margin-bottom: 8px; }
-  [data-workflows="workbench"] .wf-stage__frame.is-cold.is-loading .wf-frame-skeleton { opacity: 1; transition-delay: 130ms; }
+  [data-workflows="workbench"] .wf-stage__frame.is-cold.is-loading .wf-frame-skeleton { opacity: 1; transition-delay: var(--dur-move); }
   [data-workflows="workbench"] .wf-stage__empty { margin: 24px 16px; }
   [data-workflows="workbench"] .wf-stage__frame.is-empty { overflow: auto; }
   [data-workflows="workbench"] .wf-stage__result { display: grid; gap: 24px; align-content: start; padding: 24px; min-width: 0; }
@@ -394,29 +395,21 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-result-summary .mw-btn { margin-top: 4px; }
   [data-workflows="workbench"] .wf-result-details { min-width: 0; border-top: 1px solid var(--line); padding-top: 8px; }
   [data-workflows="workbench"] .wf-result-details summary { cursor: pointer; padding: 12px 0; font-size: 13px; color: var(--ink-soft); }
-  [data-workflows="workbench"] .wf-result-details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  [data-workflows="workbench"] .wf-result-details summary:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
   [data-workflows="workbench"] .wf-stage__result .wf-rule { padding: 12px 12px; border: 1px solid var(--line); border-radius: var(--radius-control, 8px); background: var(--page); font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
   [data-workflows="workbench"] .wf-uncertain { flex-wrap: wrap; }
   [data-workflows="workbench"] .wf-uncertain > span { flex: 1 1 240px; min-width: 0; }
   [data-workflows="workbench"] .wf-uncertain .mw-btn { margin-left: 0; }
   [data-workflows="workbench"] .wf-uncertain .mw-btn:first-of-type { margin-left: auto; }
+  /* The one toast (.mw-toast) placed at the foot of the stage: in on the move clock, out on the short one; a failure nudges once. */
   [data-workflows="workbench"] .wf-toast {
-    position: absolute; left: 50%; bottom: 20px; z-index: 30; margin: 0; padding: 8px 16px;
-    border-radius: var(--radius-control, 10px); background: var(--action); color: var(--action-ink); font-size: 12px; box-shadow: var(--shadow-raised);
-    opacity: 0; transform: translate(-50%, 6px); pointer-events: none;
-    transition: opacity var(--wf-edge), transform var(--motion-normal, 130ms) var(--ease-quint);
+    position: absolute; inset-inline: 0; bottom: 20px; z-index: 30; margin: 0 auto; max-width: calc(100% - 24px);
+    animation: none; opacity: 0; transform: translateY(12px) scale(.97); pointer-events: none;
+    transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint);
   }
-  [data-workflows="workbench"] .wf-toast.is-on { opacity: 1; transform: translate(-50%, 0); }
-  [data-workflows="workbench"] .wf-toast.has-action { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; }
+  [data-workflows="workbench"] .wf-toast.is-on { opacity: 1; transform: none; transition-duration: var(--dur-move); }
   [data-workflows="workbench"] .wf-toast.has-action.is-on { pointer-events: auto; }
-  [data-workflows="workbench"] .wf-toast__action {
-    height: 24px; padding: 0 12px; border: 0; border-radius: 7px; background: color-mix(in srgb, var(--action-ink) 14%, transparent);
-    color: inherit; font: inherit; font-size: 12px; cursor: pointer; transition: background-color var(--wf-hover);
-  }
-  [data-workflows="workbench"] .wf-toast__action:hover { background: color-mix(in srgb, var(--action-ink) 24%, transparent); }
-  [data-workflows="workbench"] .wf-toast__action:focus-visible { outline: 1px solid var(--action-ink); outline-offset: 1px; }
-  [data-workflows="workbench"] .wf-toast[data-tone="error"] { background: var(--red); color: var(--on-accent); }
-  [data-workflows="workbench"] .wf-toast[hidden] { display: none; }
+  [data-workflows="workbench"] .wf-toast.is-on[data-tone="error"] { animation: mw-toast-nudge var(--dur-arrive) var(--ease-quint) var(--dur-hover); }
   @media (max-width: 760px) {
     [data-workflows="workbench"] .wf-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
     [data-workflows="workbench"] .wf-row__meta { display: none; }
@@ -436,5 +429,6 @@ export const WORKFLOWS_STYLES = `
   }
   @media (prefers-reduced-motion: reduce) {
     [data-workflows="workbench"] *, [data-workflows="workbench"] *::after, [data-workflows="workbench"] .wf-pop:popover-open { transition: none !important; animation: none !important; }
+    [data-workflows="workbench"] .wf-stage__frame.is-cold.is-loading .wf-frame-skeleton { transition: opacity 0s var(--dur-move) !important; }
   }
 `;

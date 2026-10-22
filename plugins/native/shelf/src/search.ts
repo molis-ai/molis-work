@@ -19,7 +19,7 @@ export const shelfClipboardSearchEntriesAction = defineSearchEntriesAction("shel
 const reader = defineSubjectContextAction("shelf.subject.read", "shelf_item", "置物架材料", ["shelf:read"], "home");
 export const shelfSubjectAction: ActionDefinition<{ subject_id: string }, ActionSubjectContext> = { ...reader, action: { ...reader.action, audiences: ["user", "workflow", "agent", "mcp"] } };
 
-export function shelfSubjectContext(snapshot: ShelfSnapshot, id: string): ActionSubjectContext {
+function shelfSubjectContext(snapshot: ShelfSnapshot, id: string): ActionSubjectContext {
   const item = [...snapshot.materials, ...snapshot.results].find(entry => entry.item_id === id);
   if (!item) throw shelfErrors.not_found("这份材料已不在 Shelf 中");
   const content = [item.preview_text, item.failure_reason].filter(Boolean).join("\n");
@@ -27,7 +27,7 @@ export function shelfSubjectContext(snapshot: ShelfSnapshot, id: string): Action
     goal_ids: [], session_id: null, open: { surface: "shelf", id } });
 }
 
-export function shelfSearchEntries(snapshot: ShelfSnapshot): SearchEntry[] {
+function shelfSearchEntries(snapshot: ShelfSnapshot): SearchEntry[] {
   return [...snapshot.materials, ...snapshot.results].filter(item => !item.hidden).map((item): SearchEntry => {
     const summary = searchText([item.preview_text, item.failure_reason].filter(Boolean).join("\n"), 4000);
     return { subject: { kind: "shelf_item", id: item.item_id }, revision: searchRevisionOf([item.status, item.name, summary]), title: item.name, summary,
@@ -35,7 +35,7 @@ export function shelfSearchEntries(snapshot: ShelfSnapshot): SearchEntry[] {
   });
 }
 
-export function shelfClipboardSearchEntries(snapshot: ShelfSnapshot): SearchEntry[] {
+function shelfClipboardSearchEntries(snapshot: ShelfSnapshot): SearchEntry[] {
   return snapshot.clipboard.map((clip): SearchEntry => ({ subject: { kind: "shelf_clip", id: clip.clip_id }, revision: clip.fingerprint,
     title: clip.title || searchText(clip.body, 80) || "剪贴板", summary: searchText(clip.body, 4000), updated_at: clip.created_at, content: "summary", open: { surface: "shelf", id: clip.clip_id } }));
 }
@@ -48,7 +48,7 @@ export const shelfFileContentAction = defineFileContentAction("shelf.files.conte
 const shelfMedia = (item: ShelfSnapshot["materials"][number]) => item.kind === "markdown" ? "text/markdown" : item.kind === "text" || item.kind === "url" || item.kind === "website" ? "text/plain"
   : /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/u.test(item.mime) ? item.mime : "application/octet-stream";
 
-export function shelfFileEntries(snapshot: ShelfSnapshot) {
+function shelfFileEntries(snapshot: ShelfSnapshot) {
   return [...snapshot.materials, ...snapshot.results].filter(item => !item.hidden && item.kind !== "folder" && item.status !== "failed").map(item => ({
     subject: { kind: "shelf_item", id: item.item_id }, revision: searchRevisionOf([item.status, item.name, item.origin_hash]), title: item.name,
     folder: [item.group === "result" ? "结果" : "材料"], media_type: shelfMedia(item), size: item.size_bytes || null, updated_at: item.created_at,

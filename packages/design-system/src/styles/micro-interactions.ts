@@ -6,6 +6,7 @@ import { SHOW_MORE_STYLES } from "../show-more.js";
 import { MEDIA_ZOOM_STYLES } from "../media-zoom.js";
 import { STREAM_TEXT_STYLES } from "../stream-text.js";
 import { FIELD_FIT_STYLES } from "../field-fit.js";
+import { FOLLOW_STYLES } from "../scroll-follow.js";
 
 /** Micro-interactions, in the places where movement carries information.
  *
@@ -115,16 +116,12 @@ export const MICRO_INTERACTION_STYLES = `
   }
 
 
-  /* Stages, menus and the assistant sheet share one 6px rise. Menus stay on the fast clock. */
-  @keyframes creative-arrive {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: none; }
-  }
+  /* A stage arrives once with the shared rise; menus grow from their control (keyframes: styles/motion.ts). */
   .plugin-stage-workspace.is-arriving,
-  .is-arriving { animation: creative-arrive var(--motion-normal, 130ms) var(--ease-quint) both; }
+  .is-arriving { animation: craft-rise var(--dur-arrive, 420ms) var(--ease-quint) both; }
   :is(.mw-menu, .mw-select-picker__menu, .assistant-composer):popover-open,
   .mw-select-picker__menu.is-open {
-    animation: creative-arrive var(--motion-fast, 130ms) var(--ease-quint) both;
+    animation: craft-drop var(--dur-move, 250ms) var(--ease-quint) both;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -135,7 +132,7 @@ export const MICRO_INTERACTION_STYLES = `
     :is(.mw-menu, .mw-select-picker__menu, .assistant-composer):popover-open,
     .mw-select-picker__menu.is-open { animation: none; }
   }
-${OVERFLOW_FADE_STYLES}${COPY_FEEDBACK_STYLES}${DISCLOSURE_STYLES}${NUMBER_STYLES}${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${STREAM_TEXT_STYLES}${FIELD_FIT_STYLES}`;
+${OVERFLOW_FADE_STYLES}${COPY_FEEDBACK_STYLES}${DISCLOSURE_STYLES}${NUMBER_STYLES}${FOLLOW_STYLES}${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${STREAM_TEXT_STYLES}${FIELD_FIT_STYLES}`;
 
 /** The travelling thumb is positioned inside the scrollable track, so visible deltas are not enough. */
 export function segmentThumbOffsets(

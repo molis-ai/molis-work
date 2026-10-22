@@ -540,7 +540,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       await loadList();
       if (outReq !== attempt || !outBox.open) return;
       if ((textarea?.value || "") === attempt.text && outlineMode === attempt.mode && outlineKind === attempt.source && (!pageId || outBox.querySelector("[data-ppt-outline-page]")?.value === pageId)) { if (textarea) textarea.value = ""; endOutline(); outBox.close(); }
-      showNote(L("已生成 {count} 页").replace("{count}", String(payload.slide_count)), false);
+      showNote(L("已生成 {count} 页", { count: payload.slide_count }), false);
     } catch (error) {
       if (outReq === attempt && !attempt.controller.signal.aborted) showOutlineError(error.message || L("演示稿请求失败"));
     } finally {

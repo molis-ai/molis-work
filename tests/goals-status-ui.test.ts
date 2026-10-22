@@ -12,15 +12,16 @@ test("public status mounts prefer collection state, retain hooks and escape tran
   for (const status of ["archived", "trashed"] as const) {
     const item = { status, display_status: "continue" as const };
     assert.match(renderer.renderVisibleGoalStatus(item), new RegExp("goal-status--" + status));
-    assert.equal(renderer.visibleGoalStatusIcon(item), renderStateRing({ state: status, size: 20 }));
+    assert.equal(renderer.visibleGoalStatusIcon(item), renderStateRing({ state: status }));
   }
   const visible = renderer.renderVisibleGoalStatus({ status: "executing", display_status: "waiting_user" }, 'data-state="current"', 'data-label="current"');
   assert.match(visible, /goal-status--waiting_user/);
   assert.match(visible, /data-state="current"/);
   assert.match(visible, /data-label="current"/);
   assert.match(visible, /等你/);
-  // RING-05: an answer is needed; this is not a running or completed Goal.
-  assert.equal(renderer.visibleGoalStatusIcon({ status: "executing", display_status: "waiting_user" }), renderStateRing({ state: "answer", size: 20 }));
+  // RING-05: an answer is needed; this is not a running or completed Goal. RING-08: the ring is as tall as its words, so it
+  // carries no size of its own.
+  assert.equal(renderer.visibleGoalStatusIcon({ status: "executing", display_status: "waiting_user" }), renderStateRing({ state: "answer" }));
   const untrusted = createWorkbenchGoalsStatusRenderer({ translate: () => 'Text "<unsafe>', escapeHtml, icon });
   const html = untrusted.renderStatus("waiting_for_human");
   assert.match(html, /title="Text &quot;&lt;unsafe&gt;"/);

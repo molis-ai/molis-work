@@ -1,7 +1,7 @@
 import type { KnowledgeSection } from "@molis-ai/molis-work-contracts/services/knowledge";
 
 /** A section as the text has it; its note, if any, comes from the card. `own` is its text before its first subsection. */
-export type TextSection = Omit<KnowledgeSection, "summary"> & { own: number };
+type TextSection = Omit<KnowledgeSection, "summary"> & { own: number };
 
 /** Text without headings is cut into sections of about this many characters, at paragraph breaks. */
 export const PLAIN_SECTION_CHARS = 2_000;

@@ -25,7 +25,7 @@ export interface TodoOrganizeParse {
 }
 
 /** One model call reads at most this much material; longer sets are read in parts. */
-export const TODO_ORGANIZE_PART_CHARS = 40_000;
+const TODO_ORGANIZE_PART_CHARS = 40_000;
 /** A single material is cut here; the batch says so. */
 export const TODO_ORGANIZE_MATERIAL_CHARS = 60_000;
 

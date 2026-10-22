@@ -16,7 +16,9 @@
 - **位置不重复**：工作台标签条已经写了插件名，舞台里不再放一行插件名大标题；独立打开（预览、试用页）时才显示。
 - **浅色和深色都成立**：颜色一律用 token，不写死；在两种主题下各看一眼。
 - **反馈可见**：按下有回弹，保存后新记录可见（上浮进入），成功提示短暂出现后淡出，失败提示留下直到下次成功。
-- **共有机制直接用，不自己写**（组件板「视觉机制」有样例，工作台与侧栏页面都带着）：放不下的横向条（标签、chip、视图切换）标 `data-overflow-fade`，只在真有更多的一侧淡出；复制按钮调 `window.molisCopy(button, 文本, { done: "已复制", failed: "复制失败" })`，剪贴板真的收下才显示「已复制」、宽度不跳，返回是否成功，失败时再告诉人怎么手动复制；可折叠的明细写成 `<details class="mw-collapsible"><summary>…</summary><div class="mw-collapsible__body">…</div></details>`，按自然高度展开、途中反向接着走；会变的数字（计时、计数、序号）写成 `<span class="mw-num" data-num-ghost="取值范围里最宽的值">值</span>`，数字等宽，位数变化和字体切换都不推旁边的控件。
+- **Toast 只有一种**：用设计系统的 `.mw-toast`（服务端用 `renderToast`）；成功或失败设 `data-mw-state`（`done`、`failed`）带标记，失败加 `is-error` 会轻摇一次；撤销或下一步是 `.mw-toast__action`。插件只写它放在哪里（居中用 `inset-inline: 0` 加 `margin-inline: auto`，不用 `transform`），不写颜色、圆角和动效。
+- **共有机制直接用，不自己写**（组件板「视觉机制」有样例，工作台与侧栏页面都带着）：哪里都不画滚动条，设计系统一条规则管全部页面，插件不写 `scrollbar-width`、`scrollbar-color`、`::-webkit-scrollbar`（`tests/scrollbars-hidden.test.ts` 拦）；放不下的横向条（标签、chip、视图切换）标 `data-overflow-fade`，只在真有更多的一侧淡出；复制按钮调 `window.molisCopy(button, 文本, { done: "已复制", failed: "复制失败" })`，剪贴板真的收下才显示「已复制」、宽度不跳（只有图标的按钮换成对勾或叉，文字由读屏读出），返回是否成功，失败时再告诉人怎么手动复制；可折叠的明细写成 `<details class="mw-collapsible"><summary>…</summary><div class="mw-collapsible__body">…</div></details>`，按自然高度展开、途中反向接着走；会变的数字（计时、计数、序号）写成 `<span class="mw-num" data-num-ghost="取值范围里最宽的值">值</span>`，数字等宽，位数变化和字体切换都不推旁边的控件；会一直长的对话或日志用 `window.molisFollow(滚动容器)` 管滚动：到底就跟着，人往上滚、按键或选字就停，新内容来了调 `pin()`、「回到最新」调 `toLatest()`、跳到某张卡之前调 `release()`，切到另一段对话时放回记下的位置用 `restore(top)`、新对话用 `resume()`，客户端卸载时 `lifetime.own(() => follow.dispose())`；同一个容器只有一个主人，后来的调用者拿到的是同一个，它传的 `onChange` 不生效；页面自己的滚动不会被当成人的操作，不自己判断离底多少像素；很长的列表画完后调 `window.molisShowMore(列表, { key, label: "再显示 {n} 项", keep })`，先给前五项、其余收在一个按钮后面（只多一项就直接显示），`keep` 标出必须一直看得见的项（失败），人点开后同一个 `key` 重画也保持展开。
+- **流式的代码块原地长**：边写边显示的回复用 `window.molisStreamText(容器, html, { reveal, grow })`；代码块交给 `grow`，用 Coding 的 `growCodeTokens` 从变了的那一行起着色（写的时候就是最后一行），块、复制按钮、已着色的片段和人打开的折叠都留着，复制取现在的原文；不要每次整块换掉、从头着色（1,000 行一次 19.5 ms，原地长 3.7 ms）。Diff 按块读：块里一行按首字符算，像文件头的行也是内容。
 - **窄屏可用**：可点目标约 44px，列表行在窄屏把操作换到下一行；工具条放不下时名称收成图标（名称仍是可访问名称）。
 - **悬停才出现的操作，键盘和触控也拿得到**：行里平时藏起、指针停上去才出现的按钮，同一条规则也要写 `:focus-within`（焦点进到行里就出现），并在 `@media (hover: none)` 里一直显示；只有选中后才出现的（选中即点一下）可以不写。键盘停点之外的按钮（如标签上的关闭）在行上用 `aria-keyshortcuts` 写明等价的键。
 - **被截的名字找得回来**：名称、路径、摘要可以用省略号或限定行数截短，但要放在能按下或能移到的控件或行里，平台的提示会在指针停留、键盘聚焦和触控按住时给出全文；不给被截的文字另写 `title` 或自己的提示，错误、状态与操作的标签不截在没有控件包着的地方。
@@ -50,7 +52,7 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 - 插件的工作要在侧栏浏览器里打开或操作某些网站，就在 `permissions` 里声明 `{ permission: "surface:browser", required, reason, origins: ["https://shop.example.com"] }`。`origins` 必须是完整来源，不带路径、查询串或片段，否则 Manifest 当场被拒；其他权限不能带 `origins`。声明会出现在插件市场的卡片上（「会在侧栏浏览器里使用：…」），`molis-work-plugin validate` 的输出里也会列出 `browser_sites`。声明只是告诉用户，不代替每一步的确认：动手仍按侧栏浏览器的规则逐步确认，上传文件永远要确认。
 - 门禁：`inspectManifest` 拒绝未知槽和未声明的 contribution；`tests/side-panel-platform.test.ts` 用一个未知插件只靠声明接入、停用后撤下。
 
-`settings-page` 只能挂 `workbench.settings`。来源账号、Inbox 列表仍是插件内容，不进全局设置。 设置分类是一张表（`apps/workbench/src/settings-sections.ts`）：`settings` view 的 `order` 决定位置（宿主 10 界面与语言、20 模型、30 助理、40 提示词、50 AI 与执行工具、60 能力、90 诊断；不写为 100，进「插件」组）。页面由项目里运行的插件渲染时（Characters），根元素标 `data-settings-page="<id>"`，工作台设置覆盖层直接挂载它；页面里指向 `/settings/*` 的链接一律在覆盖层里打开，不离开外壳。
+`settings-page` 只能挂 `workbench.settings`。来源账号、Inbox 列表仍是插件内容，不进全局设置。 设置分类是一张表（`apps/workbench/src/settings-sections.ts`）：`settings` view 的 `order` 决定位置（宿主 10 界面与语言、20 模型、30 助理、35 角色、40 提示词、50 AI 与执行工具、60 能力、90 诊断；不写为 100，进「插件」组）。宿主的一节自己渲染成工作面时（角色，`apps/workbench/src/characters/ui.ts`；Characters 不是插件），根元素标 `data-settings-page="<id>"`，工作台设置覆盖层直接挂载它；页面里指向 `/settings/*` 的链接一律在覆盖层里打开，不离开外壳。
 
 不是所有一等入口都是「列表点开详情」：Goals 是树、画布和 Goal 文档；Feed 是文章列 + 阅读页；判断规则编辑器在「能力」；Sessions 是会话/终端；Shelf 是置物架。抄最近的同类，不要强套 plugin-stage。
 
@@ -119,7 +121,8 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 - 状态色走 tone/status（文字 + 圆点或图标，不只靠颜色）。禁止系统下拉、系统色盘、`alert` / `confirm` / `prompt`、裸 `<select>`。
 - 色用 token，组件规则里不要写死 hex。
 - 尺寸：控件 32px（紧凑密度 28，窄屏/粗指针 44）；圆角 控件 8、行 10、卡片 12、工作面 14、对话框 16。
-- 动效：`--dur-press` 130ms（按下与悬停）、`--dur-move` 250ms（状态移动）、`--dur-arrive` 420ms（到达），曲线 `--ease-quint`、`--ease-spring`。`mw-btn` 回弹、菜单从控件长出、对话框与侧边面板入场、列表到达都由 Host 提供，不要重写。`prefers-reduced-motion` 与自动化下全部静止。
+- 秩序（DESIGN「Order」）：状态环、圆点与字等高——`renderStateRing` 不传 `size` 就跟随所在文字（`1em + 2px`），不要在自己的行里给环定尺寸；图标与文字同号或大一级（12–15px 字旁 12–16px）。并排的按钮同一尺寸（变体不改变高度）、同一行、间距 8（紧凑组 4，只有图标按钮或工具条 2）；页头的动作在标题那一行。字号只用 11/12/13/15/17/20/24/30。圆角只用 4（比控件小的标记）、6（标签）、8（控件）、10（行）、12（卡片）、14、16 与胶囊或圆；套着圆角零件的框取零件的圆角加内距，两条曲线同心；紧凑密度和暗色不改圆角、不把状态词改画成描边胶囊。列表里就地增删、上移下移的条目用 `window.molisReflow(列表, 改动)`（类型 `Reflow` 从设计系统引用），改动要保留元素、不整体重画，否则所有条目都算新来的。空状态用 `mw-empty`：居中、标题 15px/600、动作用次按钮（页头已有石墨的新建，空状态不再放第二个）。`tests/visual-order.e2e.test.ts` 会拦。
+- 动效：`--dur-press` 130ms（按下与悬停）、`--dur-move` 250ms（状态移动）、`--dur-arrive` 420ms（到达），曲线 `--ease-quint`、`--ease-spring`。`mw-btn` 回弹、菜单从控件长出、对话框与侧边面板入场、列表到达都由 Host 提供，不要重写。自己的元素要入场时只用共有的关键帧名：到达 `craft-rise`、再显示 `craft-fade-in`、控件下方的菜单 `craft-drop`、上方的 `craft-rise-from-bar`；不写自己的 `@keyframes`（`tests/one-motion.test.ts` 会拦）。时长用 `--dur-*`，不用旧的 `--motion-*`。`prefers-reduced-motion` 与自动化下全部静止。
 - 不引入 React/shadcn。HTML Slot：`mw-*` + `data-slot`。
 - 插件样式放包内 `styles.ts`，经 Workbench pack 的 `stylesheet` 注入；只写本插件的布局，不重画共享控件。
 
@@ -128,7 +131,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 终层（`packages/design-system/src/styles/craft-finish.ts`，最后加载）：
 
 - 舞台已经在连续的白色工作面上。不要再给自己的舞台画外框、圆角卡片或整页阴影；需要分区用间距、字重和分隔线。
-- 插件自己的「完成」和「新到达」可以调用 `molisCraft.celebrate(元素)` / `molisCraft.land(元素)`（只做呈现，减少动效时自动静止）。只在真实完成或真实到达时调用，首次渲染不要调用。
+- 插件自己的「完成」和「新到达」可以调用 `molisCraft.celebrate(元素)` / `molisCraft.land(元素)`（只做呈现，减少动效时自动静止）；服务端渲染的新行也可以直接带 `data-craft-new`，是同一层淡去的底色。只在真实完成或真实到达时调用，首次渲染不要调用。
 - 位置由标签条最前的插件芯片说明，舞台不需要再放一行「插件名」大标题。
 
 硬规则与用法：`packages/design-system/README.md`。
@@ -136,6 +139,8 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 ## 文案与 i18n
 
 - UI 字符串用中文当 key：`p.text("加入 Inbox")`。英文写插件 `src/en.ts`，**还要**在 `apps/workbench/src/i18n/en.ts` 里 `import { X_EN }` 并展开进总表。只写插件文件，英文界面仍是中文 key。两种漏写都由 `pnpm health:check` 拦下（CI 也跑）：调用的中文原文没有英文，和 `X_EN` 写了却没并进总表；`node scripts/gates/translations.mjs --missing` 列出缺哪句、该加到哪个词典，哪本词典没接上。检查靠变量名以 `_EN` 结尾认词典。
+- 带数的句子整句当一个 key，数用 `{name}` 填（`L("已选 {count} 项", { count })`），不要把数和半句拼起来。英文里跟着数变的词写成 `{count|one|other}`：`"{count} {count|file|files} selected"`，数是 1 时取前一个；同一个名字还要照常写一次 `{count}` 让数本身出现。填值只有一份写法，插件 SDK 的 `fillMessage`（Host 的 `L`、页面的 `L` 和 Coding 的 `codingText` 都用它），自己填值的地方也调它，不另写替换。`tests/fill-message.test.ts` 查英文里没有「{count} 名词s」这种不论单复数都用复数的写法。
+- 路由与动作送回页面显示的字（错误、说明、状态名）跟页面语言走（用户 2026-10-20 定）：宿主按请求（页面的语言 cookie，没有就看 Accept-Language）把语言放在调用上下文的 `locale`（`"zh" | "en"`），处理器用自己的词典按它写出要显示的字。`locale` 只选字、不授予任何东西，也从不从输入里读；没有页面的调用（模型的工具调用、定时器、后台工作）没有它，用插件自己的默认语言。存进库里的记录照原样，不按读取者的语言改写。写给模型的话不跟页面语言走。Coding 的写法见 `plugins/native/coding/src/words.ts`：深处抛出的错误用 `codingError`/`codingFailure` 从稳定键写成中文，离开路由时 `codingErrorIn` 按调用方的语言重写，类、码、kind 与 details 不变。
 - 按钮说人做的事，不说机制（不要「提交 Attention Command」）。
 - 空态说明下一步能做什么，不要空讲架构。
 
@@ -151,7 +156,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 
 Files/Git 的目录子树独立挂载，避免和 Coding 根节点争用同一个挂载。Host 审查组件接收调用方生命周期和当前可见性 signal，并以自己的容器管理监听与卸载；不要用审查容器因空数据而 hidden 来判断是否该读取，也不要让旧显示世代的决定回调操作重新进入的界面。普通刷新不使同一显示世代的在途决定失效，过期回执只可触发读取当前状态，不能重放命令。
 
-需要事件刷新时复用 `scope.watchRevision(read, refresh)`；可见时只查轻量 revision，变化后读原状态，隐藏/卸载停止，重连重新读当前事实。忙碌时 refresh 返回 false，避免丢失发生在当前读取期间的通知。revision 不是业务执行身份或成功回执，不能重放写命令。参考 Files/Git。
+需要事件刷新时复用 `scope.watchRevision(read, refresh)`；可见时只查轻量 revision，变化后读原状态，隐藏/卸载停止，重连重新读当前事实。忙碌时 refresh 返回 false，避免丢失发生在当前读取期间的通知。revision 不是业务执行身份或成功回执，不能重放写命令。参考 Files/Git。服务端让自己的页面重新读取，调 `context.services.ui.invalidate()`：不带参数，只推自己的 revision；Manifest 声明了 `ui.views` 就能调，不要权限；动作里、事件回调或定时器里都行。`start()` 里还没运行时调用什么也不做，激活停了（停用、重启）再调被拒（`ui_host.plugin_denied`）。被拒是同步抛错：会调它的定时器、监听器要在 `stop` 里清掉，否则停用或重启以后它们再触发，抛出的错没人接，会让整个宿主进程退出（BL-411）。
 
 ## 生成插件的页面组合
 

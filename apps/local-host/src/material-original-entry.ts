@@ -8,7 +8,7 @@ import type { HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/pla
  * refuses to let `fetch` or `XMLHttpRequest` set a header whose name starts with `Sec-`. A page the Host serves to a plugin holds the
  * control token, so the token alone proves nothing about who chose the file; this header is what says the Host's entry did.
  */
-export const ORIGINAL_PATH_HEADER = "sec-molis-work-original-path";
+const ORIGINAL_PATH_HEADER = "sec-molis-work-original-path";
 const MAX_PATH_LENGTH = 4096;
 
 /**

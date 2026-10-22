@@ -19,7 +19,7 @@ import { watchSettlements, type Settlement } from "./fixtures/settlements.js";
 // Goals actions, and an action client can be asked not to start the project's Runtime plugins first.
 
 const CONTROL_TOKEN = "onboarding-goals-actions-control-token-0123456789";
-const RUNTIME_PLUGINS = ["io.molis.work.characters", "io.molis.work.coding", "io.molis.work.diff", "io.molis.work.shelf", "io.molis.work.text-stats"];
+const RUNTIME_PLUGINS = ["io.molis.work.coding", "io.molis.work.diff", "io.molis.work.shelf", "io.molis.work.text-stats"];
 
 const personCaller = (projectId: string): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
   permissions: ["goals:read", "goals:write", "artifact:read", "files:read", "git:read"] });

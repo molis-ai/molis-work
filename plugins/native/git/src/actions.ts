@@ -11,7 +11,7 @@ import { gitErrors } from "./errors.js";
 
 const STATUS_WORD: Record<string, string> = { A: "新增", M: "修改", D: "删除", R: "重命名", C: "复制", T: "类型变化" };
 /** A starting point the person edits: a title from what is staged and one line per file. Never sent on its own. */
-export function commitDraft(summary: WorkspaceGitSummary): string {
+function commitDraft(summary: WorkspaceGitSummary): string {
   const files = summary.staged;
   if (!files.length) return "";
   const base = (file: string) => file.slice(file.lastIndexOf("/") + 1), folders = new Set(files.map(file => file.path.includes("/") ? file.path.slice(0, file.path.lastIndexOf("/")) : ""));
@@ -61,7 +61,7 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
   const key = (result: GitReviewedResult) => JSON.stringify([result.workspace_id, result.operation_id]);
   const results = async () => {
     const current = await workspace();
-    const items = await services.capabilities!.invoke(readGitResultsCapability, { workspace_id: current.workspace_id });
+    const items = await services.actions!.invoke(readGitResultsCapability, { workspace_id: current.workspace_id });
     if ((await workspace()).workspace_id !== current.workspace_id) throw gitErrors.invalid("工作目录已改变，请重新读取结果");
     return { workspace: current, items };
   };
@@ -104,8 +104,8 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
       if (!input || input.workspace_id !== current.workspace_id || !["stage", "unstage"].includes(String(input.action))
         || typeof input.revision !== "string" || typeof input.operation_id !== "string") throw gitErrors.invalid("暂存请求无效或工作区已切换");
       await beforeWrite();
-      const result = await services.capabilities!.invoke(prepareGitIndexCapability, { workspace_id: current.workspace_id, path: parseFilePath(input.path),
-        action: input.action as "stage" | "unstage", revision: input.revision, operation_id: input.operation_id }, { before_effect: beforeWrite });
+      const result = await services.actions!.invoke(prepareGitIndexCapability, { workspace_id: current.workspace_id, path: parseFilePath(input.path),
+        action: input.action as "stage" | "unstage", revision: input.revision, operation_id: input.operation_id }, { beforeEffect: beforeWrite });
       return result;
     }, [...browsing, prepareGitIndexCapability]),
     // Source control: commit, branch, push and PR, each prepared against the repository as the person saw it and run
@@ -127,7 +127,7 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
     }, browsing),
     bindOwnerPluginAction(context, gitActions.operations, async () => {
       const current = await workspace();
-      const operations = await services.capabilities!.invoke(readGitOperationsCapability, { workspace_id: current.workspace_id });
+      const operations = await services.actions!.invoke(readGitOperationsCapability, { workspace_id: current.workspace_id });
       if ((await workspace()).workspace_id !== current.workspace_id) throw gitErrors.invalid("工作目录已改变，请重新读取操作记录");
       return { workspace: current, operations };
     }, [...browsing, readGitOperationsCapability]),
@@ -136,8 +136,8 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
       if (!input || input.workspace_id !== current.workspace_id || typeof input.revision !== "string" || typeof input.operation_id !== "string") throw gitErrors.invalid("Git 操作请求无效或工作区已切换");
       const operation = gitOperation(input.operation);
       await beforeWrite();
-      return services.capabilities!.invoke(prepareGitOperationCapability, { workspace_id: current.workspace_id, operation_id: input.operation_id, revision: input.revision, operation },
-        { before_effect: beforeWrite });
+      return services.actions!.invoke(prepareGitOperationCapability, { workspace_id: current.workspace_id, operation_id: input.operation_id, revision: input.revision, operation },
+        { beforeEffect: beforeWrite });
     }, [...browsing, prepareGitOperationCapability]),
     bindOwnerPluginAction(context, gitActions.state, async () => {
       onReady(false);

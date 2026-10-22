@@ -28,7 +28,6 @@ export const PROJECT_OPERATIONS_STYLES = `
   .session-stage-list {
     position: absolute; inset: 0; z-index: 0; overflow: auto; overscroll-behavior: contain;
     padding: 52px 24px 32px; background: var(--paper);
-    scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
   }
   [data-session-stage-chrome] {
     position: absolute; top: 16px; left: 20px; z-index: 20;
@@ -48,12 +47,12 @@ export const PROJECT_OPERATIONS_STYLES = `
     width: var(--control-h, 28px); min-width: var(--control-h, 28px);
     height: var(--control-h, 28px); min-height: var(--control-h, 28px);
     padding: 0; display: inline-grid; place-items: center;
-    border: 1px solid var(--line); border-radius: var(--radius-control, 8px);
-    background: var(--paper); color: var(--ink); cursor: pointer; list-style: none;
+    border: 0; border-radius: var(--radius-control, 8px);
+    background: transparent; color: var(--ink-soft); cursor: pointer; list-style: none;
   }
   [data-session-stage-chrome] .project-record-filter-menu > summary::-webkit-details-marker { display: none; }
   [data-session-stage-chrome] .project-record-filter-menu > summary svg { width: 14px; height: 14px; }
-  [data-session-stage-chrome] .project-record-filter-menu[open] > summary { background: var(--nav-hover); }
+  [data-session-stage-chrome] .project-record-filter-menu:is([open], :hover) > summary { background: var(--nav-hover); color: var(--ink); }
   [data-session-stage-chrome] .project-record-filter-menu > div {
     position: absolute; z-index: 30; top: 36px; left: 0; width: 218px;
     padding: 12px; border: 1px solid var(--line); border-radius: 10px;
@@ -155,8 +154,7 @@ export const PROJECT_OPERATIONS_STYLES = `
   .project-record-filter-menu label { color: var(--muted); display: grid; gap: 4px; font-size: 11px; }
   .project-record-filter-menu select { min-width: 0; height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: var(--page); font-size: 11px; }
   .project-record-add-compact { display: none; }
-  .project-record-scroll { min-height: 0; overflow: auto; padding: 4px 8px 12px; scrollbar-width: none; }
-  .project-record-scroll::-webkit-scrollbar { display: none; }
+  .project-record-scroll { min-height: 0; overflow: auto; padding: 4px 8px 12px; }
   .project-record-row { width: 100%; min-width: 0; min-height: 92px; padding: 12px 8px; border: 0; border-radius: 9px; color: var(--ink-soft); background: transparent; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(42px, auto) 22px; column-gap: 8px; align-items: center; text-align: left; cursor: pointer; }
   body[data-desktop-shell="true"] .project-record-directory .project-record-row:hover { color: var(--ink); background: var(--nav-hover); }
   body[data-desktop-shell="true"] .project-record-directory .project-record-row.is-selected { color: var(--ink); background: var(--nav-active); box-shadow: none; }
@@ -324,7 +322,7 @@ export const PROJECT_OPERATIONS_STYLES = `
   .session-handoff-editor h3 { margin: 0; font-size: 12px; }
   .session-handoff-editor header p { max-width: 62ch; margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
   .session-handoff-editor header > span { flex: none; padding: 4px 8px; border-radius: 999px; color: var(--ink); background: var(--nav-hover); font-size: 11px; font-weight: 400; }
-  .session-handoff-editor textarea { width: 100%; min-height: 0; padding: 16px 16px 24px; resize: none; border: 0; outline: 0; color: var(--ink-soft); caret-color: var(--blue); background: transparent; font: 11px/1.62 ui-monospace, SFMono-Regular, Menlo, monospace; tab-size: 2; scrollbar-color: var(--line-strong) transparent; }
+  .session-handoff-editor textarea { width: 100%; min-height: 0; padding: 16px 16px 24px; resize: none; border: 0; outline: 0; color: var(--ink-soft); caret-color: var(--blue); background: transparent; font: 11px/1.62 ui-monospace, SFMono-Regular, Menlo, monospace; tab-size: 2; }
   .session-handoff-editor textarea:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); box-shadow: none; }
   .session-handoff-editor textarea::selection { color: var(--ink); background: color-mix(in srgb, var(--blue) 24%, transparent); }
   .session-handoff-dialog[data-handoff-busy="true"] .session-handoff-editor textarea { opacity: .62; }

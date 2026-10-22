@@ -30,7 +30,7 @@ export function installedPluginExposure(c: ExposurePorts) {
     try {
       exposure = exposeInstalledPlugin(c.actions, release, async (id, operation, input, context) =>
         await c.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + id + '/call', actor_id: context.actor_id,
-          execution: { signal: context.signal, beforeEffect: context.beforeEffect, page_context: context.page_context, assert_authority_current: context.assert_authority_current }, body: { operation, input } })
+          execution: { signal: context.signal, beforeEffect: context.beforeEffect, page_context: context.page_context, locale: context.locale, assert_authority_current: context.assert_authority_current }, body: { operation, input } })
         ?? { status: 409, body: { error: '这个插件当前没有运行（可能已停用）' } },
         () => current() ? { available: true } : { available: false, code: 'actions.plugin_unavailable', reason: '插件已停用或版本已变更' }, record.install_id);
       c.exposed.set(pluginId, exposure); c.changed();

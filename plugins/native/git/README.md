@@ -1,16 +1,16 @@
 # @molis-ai/molis-work-plugin-git
 
-Shows what is in the working tree, publishes each change as a comparable change
-set, and holds the decision to take a Coding Run's changes into the workspace.
+Shows what is in the working tree and publishes each change as a comparable
+change set.
 
 This Plugin never runs `git`. The Host runs it; the parse of porcelain v1 lives
 here so that renames, every conflict letter pair, and awkward paths are testable
 without a repository — which is exactly where a hand-rolled split goes wrong.
 
-Accepting a Run's changes is a **decision a person makes**, never a consequence
-of the Run finishing. This Plugin decides only whether the decision is still
-offerable: it refuses when a file moved since the change was prepared, when a
-conflict is open, and when the changes already landed.
+Taking a Coding Run's changes into the workspace does not go through Git: a Run
+in the main workspace writes each file only after a person reviews that write,
+and a parallel writer's result comes back through Coding's integration review
+(`review:git-integration`).
 
 - Status: `partial`
 - Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
@@ -20,15 +20,15 @@ Directory candidates and browsing preferences come from the [current-project set
 
 ## 开发要求
 
-- 负责：工作树变更、提交草稿与已接受的变更集。
+- 负责：工作树变更与提交草稿。
 - 不负责：运行 git、批准操作、渲染比较。
 - 公开入口：`@molis-ai/molis-work-plugin-git`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 插件从不运行 `git`；写操作经 Host 与审查。
-  - 接受一轮变更是人的决定，不是自动后果；插件只判断该决定是否仍然适用。
+  - 页面重新读取由插件自己调 `services.ui.invalidate()`，只在事件回调和宿主的操作回执监听里调；监听在 `stop` 一开始就清掉（BL-411）。
 - 前端目录子树通过 Host 注入的 `mountPluginClient` 管理请求与监听；隐藏取消查询，重新进入读当前状态；已派出的写入不随切页重试。嵌入与独立页面共用此契约。
 - 改动后必跑：`node scripts/run-tests.mjs tests/git-plugin.test.ts tests/git-operations.test.ts tests/git-operation-review.test.ts tests/git-worktrees.test.ts tests/git-writer-integration.test.ts tests/git-product-http.test.ts tests/companion-client-lifecycle.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/elements.md](../../../skills/molis-plugin-dev/elements.md)、[docs/horizontal/agent-host.md](../../../docs/horizontal/agent-host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
-Host 从 Prologue 已核对的真实操作回执通知 Git 插件；当前 activation 发布 v1 `operation-updated` 并刷新自身视图，Files 消费同一通知。失败/未知不冒充成功，读取历史不产生新执行事件，停用注销。客户端可见时跟随 Host revision 重新读取状态，固定差异保持原版本。
+Git 在 Manifest 订阅宿主事件 `host.review.settled@1`：Git 发起、人批准的操作（`review:git-index`、`review:git-operation`）执行完、结果定下后，宿主只发给 Git 这个安装（S-54）；Git 在 `onEvent` 里发布 v1 `operation-updated` 并刷新自身视图，Files 消费同一通知。Coding 发起的工作树与整合审查只发给 Coding，不经 Git。失败/未知不冒充成功，读取历史和恢复出来的审查不产生事件；宿主事件不落库、不重投，停着的安装就收不到。客户端可见时跟随 Host revision 重新读取状态，固定差异保持原版本。

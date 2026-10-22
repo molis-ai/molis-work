@@ -9,7 +9,11 @@ import {
   type AgentPromptText,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { AgentHost, emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
-import { codingAgentManifest, codingPrompts, projectCodingIdentity, renderCodingIdentity } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_MESSAGES, codingAgentManifest, codingPrompts, projectCodingIdentity, renderCodingIdentity } from "@molis-ai/molis-work-plugin-coding";
+import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
+
+// Coding's renderers word stable keys; the page words them through the shipped table (the default language, Chinese, here).
+const zh = (key: string, values: Record<string, string | number> = {}) => fillMessage((CODING_MESSAGES as Record<string, { zh: string }>)[key]?.zh ?? key, values);
 import { scheduleAgentManifest } from "@molis-ai/molis-work-plugin-schedule";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
@@ -204,7 +208,7 @@ test("这一轮不能调工具时，说出来而不是画一个空列表", () =>
     primitives: {
       escape: (value) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;"),
       icon: (name) => `<i data-icon="${name}"></i>`,
-      text: (value) => value,
+      text: zh,
       formatDate: (value) => value,
     },
   });
@@ -230,7 +234,7 @@ test("身份面是只读的：渲染出来不含任何控件", () => {
     primitives: {
       escape: (value) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;"),
       icon: (name) => `<i data-icon="${name}"></i>`,
-      text: (value) => value,
+      text: zh,
       formatDate: (value) => value,
     },
   });

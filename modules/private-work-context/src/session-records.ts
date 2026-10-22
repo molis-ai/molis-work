@@ -25,7 +25,7 @@ import {
   requiredText,
 } from "./session-schema.js";
 
-export interface InsertSessionRecordInput {
+interface InsertSessionRecordInput {
   sessionId: string;
   runtimeId: string;
   nativeId: string | null;

@@ -22,7 +22,7 @@ import {
   agreementChangeCommitmentCurrent,
   laterComparableDecision,
 } from "./event-state-authorization.js";
-import { syncClosedState } from "./event-state-completion.js";
+import { reopenCompletion } from "./event-state-completion.js";
 import type { GoalEventStateCore, GoalEventStateHost } from "./event-state-host.js";
 import type { GoalEventStateRepository } from "./event-state-repository.js";
 import { agreementView } from "./event-state-repository.js";
@@ -110,7 +110,7 @@ export class GoalEventStateAgreement {
           .run(nextOutcome, event.received_at, goal.goal_id);
       }
       if (this.records.workStatus(goal.project_id, goal.goal_id) === "completed") {
-        this.reopenCompletion(
+        reopenCompletion(this.records, this.context, this.core,
           goal,
           input.actor_id,
           actorKind,
@@ -187,24 +187,5 @@ export class GoalEventStateAgreement {
     if (later) {
       throw goalErrors["goals.event_decision.superseded"]("已有更新的决定覆盖了这个授权，不能把旧决定当作当前有效结果");
     }
-  }
-
-  private reopenCompletion(
-    goal: GoalRecord,
-    actorId: string,
-    actorKind: "user" | "runtime" | null,
-    requirementIds: string[],
-    reason: string,
-  ): void {
-    const previous = this.records.workStatus(goal.project_id, goal.goal_id);
-    const at = this.context.now().toISOString();
-    this.records.supersedeAppliedClosures(goal.project_id, goal.goal_id, reason);
-    syncClosedState(this.records, goal, "open", at);
-    this.core.insertSystem(goal, actorId, actorKind, "相关事实使完成效果不再成立", {
-      operation: "completion_reopened",
-      requirement_ids: requirementIds,
-      reason,
-      previous_work_status: previous,
-    });
   }
 }

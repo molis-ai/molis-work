@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 import { LocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
 import { agentHostCapabilities as agent, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
@@ -109,10 +109,13 @@ test("typed start revocation at SDK commit rejects only its invocation; accepted
   let adapter = await make(); const agentHost = new AgentHost(); agentHost.register(adapter);
   const local = new LocalHost<{ project_id: string }>({ runtimeFactory: { open: project => ({ project_id: project.project_id }), close: () => {} } });
   const finished = Promise.withResolvers<void>(); let originalSession = "";
-  registerAgentHostCapabilities({ register: (definition, handler) => local.register(definition, async (source, input, invocation) => {
-    try { return await handler(source, input, invocation); }
-    finally { if (definition.capability_id === agent.startRun.capability_id && (input as [string, { session: { session_id: string } }])[1].session.session_id === originalSession) finished.resolve(); }
-  }) }, { agentHost: () => agentHost, projectId: runtime => runtime.project_id,
+  registerAgentHostCapabilities({ register: (definition, inner) => {
+    const handler: typeof inner = async (source, input, invocation) => {
+      try { return await inner(source, input, invocation); }
+      finally { if (definition.capability_id === agent.startRun.capability_id && (input as [string, { session: { session_id: string } }])[1].session.session_id === originalSession) finished.resolve(); }
+    };
+    return definition.action ? local.registerAction(definition as typeof definition & ActionDefinition, handler) : local.register(definition, handler);
+  } }, { agentHost: () => agentHost, projectId: runtime => runtime.project_id,
     authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home] }) });
   const client = local.client({ project_id: owner.project_id, storage_key: join(home, "project") });
   const session = await client.invoke(agent.createSession, ["prologue", { ...owner, directory, title: "Revoked" }]);
@@ -207,7 +210,7 @@ for (const stage of ["configuration", "credential", "sdk-acceptance"] as const) 
       } });
     const host = new AgentHost(); host.register(adapter);
     const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } });
-    registerAgentHostCapabilities<null>({ register: (definition, handler) => local.register(definition, handler) }, { agentHost: () => host, projectId: () => "project", authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home] }) });
+    registerAgentHostCapabilities<null>({ register: (definition, handler) => definition.action ? local.registerAction(definition as typeof definition & ActionDefinition, handler) : local.register(definition, handler) }, { agentHost: () => host, projectId: () => "project", authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home] }) });
     const client = local.client({ project_id: "project", storage_key: join(home, "project.db") });
     const owner = { project_id: "project", plugin_id: "io.molis.work.coding", install_id: "install", actor_id: "person" }, directory = { canonical_path: home, realpath_verified: true };
     const controller = new AbortController();
@@ -273,7 +276,7 @@ for (const invalidation of ["plugin-stopped", "character-disabled"] as const)
     };
     const host = new AgentHost(); host.register(adapter);
     const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } });
-    registerAgentHostCapabilities<null>({ register: (definition, handler) => local.register(definition, handler) }, { agentHost: () => host, projectId: () => "project",
+    registerAgentHostCapabilities<null>({ register: (definition, handler) => definition.action ? local.registerAction(definition as typeof definition & ActionDefinition, handler) : local.register(definition, handler) }, { agentHost: () => host, projectId: () => "project",
       authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home], resolveCharacter }) });
     const reference = { project_id: "project", storage_key: join(home, "project.db") }, client = local.client(reference);
     // The plugin instance that starts the round, started by the Host for the person: its calls present the caller the Host issued

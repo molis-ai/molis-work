@@ -1,8 +1,8 @@
 import { WORK_REUSE_STYLES } from "./work-reuse/ui.js";
-/** The `[data-expanded="false"]` rule centres an empty collection on the list page, like the other plugins' empty states (the comment stays out of the served string). */
+/** The `[data-expanded="false"]` rule centres an empty collection on the list page, like the other plugins' empty states; bare controls take the page's words while a shared `.mw-btn` keeps its own role, 13 / 500 (the comment stays out of the served string). */
 export const ALCHEMIST_STYLES = WORK_REUSE_STYLES + `
 [data-alchemist=workbench] { color:var(--ink); font-size:13px; }
-[data-alchemist=workbench] button,[data-alchemist=workbench] input,[data-alchemist=workbench] textarea { font:inherit; }
+[data-alchemist=workbench] :is(button:not(.mw-btn),input,textarea) { font:inherit; }
 .alc-list { padding-top:56px; }
 .alc-collections { display:flex; flex-wrap:wrap; gap:4px; margin:0 0 16px; }
 .alc-collections [aria-pressed=true],.alc-tabs [aria-pressed=true] { background:var(--nav-active); color:var(--ink); }
@@ -29,7 +29,7 @@ export const ALCHEMIST_STYLES = WORK_REUSE_STYLES + `
 .alc-workspace { overflow:hidden; }
 .alc-detail-layout { flex:1; display:flex; min-height:0; }
 .alc-document { flex:1; display:flex; flex-direction:column; min-height:0; min-width:0; }
-.alc-content { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; padding:24px 32px 32px; scrollbar-width:thin; }
+.alc-content { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; padding:24px 32px 32px; }
 .alc-content > * { max-width:760px; }
 .alc-content h2 { font-size:17px; font-weight: var(--weight-title, 600); margin:0 0 16px; overflow-wrap:anywhere; }
 .alc-content h3 { font-size:13px; font-weight: var(--weight-title, 600); margin:24px 0 8px; }

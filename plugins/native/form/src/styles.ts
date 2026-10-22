@@ -5,7 +5,7 @@ export const FORM_STYLES = `
     display: inline-flex; align-items: center; flex: none; height: 28px; max-width: 28px;
     margin-right: 4px; padding: 0; overflow: hidden; border: 0; border-radius: 6px;
     background: transparent; color: var(--muted); cursor: pointer;
-    transition: background-color var(--motion-fast, 130ms) var(--ease-quint), color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint), color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .creative-artifact-act svg { width: 14px; height: 14px; flex: none; margin: 0 8px; }
   .creative-artifact-act span { overflow: hidden; white-space: nowrap; font-size: 12px; line-height: 28px; padding-right: 8px; }
@@ -22,7 +22,7 @@ export const FORM_STYLES = `
   .form-tabs [data-form-tab=editor] { --tab-tone: var(--plugin-form, var(--tone-idle)); }
   .form-tabs [data-form-tab=preview] { --tab-tone: var(--tone-progress); }
   .form-tabs [data-form-tab=results] { --tab-tone: var(--tone-done); }
-  .form-tabs .mw-btn { transition: background-color var(--motion-fast, 130ms) var(--ease-quint), color var(--motion-fast, 130ms) var(--ease-quint); }
+  .form-tabs .mw-btn { transition: background-color var(--dur-hover, 130ms) var(--ease-quint), color var(--dur-hover, 130ms) var(--ease-quint); }
   .form-tabs .mw-btn.is-current {
     background: color-mix(in srgb, var(--tab-tone) 16%, var(--paper));
     color: var(--tab-tone);
@@ -57,7 +57,7 @@ export const FORM_STYLES = `
     gap: 8px; align-items: center; width: 100%;
     padding: 12px 12px 12px; border-radius: 8px;
     background: color-mix(in srgb, var(--rail) 82%, var(--paper));
-    transition: background-color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .form-question:hover { background: color-mix(in srgb, var(--plugin-tint, var(--ink)) 8%, var(--rail)); }
   .form-question > label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
@@ -67,7 +67,7 @@ export const FORM_STYLES = `
   .form-option-row .mw-input { flex: 1; min-width: 0; width: auto; }
   .form-question-options .mw-btn { flex: none; width: auto; }
   [data-form-pane=preview], [data-form-pane=results] { max-width: 40rem; }
-  [data-form-pane]:not([hidden]) { animation: creative-pane var(--motion-normal, 130ms) var(--ease-quint); }
+  [data-form-pane]:not([hidden]) { animation: craft-rise var(--dur-move) var(--ease-quint); }
   [data-form-preview] {
     display: flex; flex-direction: column; gap: 24px;
     padding: 24px 24px; border-radius: 10px;
@@ -81,7 +81,7 @@ export const FORM_STYLES = `
     display: flex; align-items: center; gap: 8px;
     margin: 0 -8px; padding: 8px 8px; border-radius: 6px; cursor: pointer;
     color: var(--ink); font-size: 13px; font-weight: 400;
-    transition: background-color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .form-preview-option:hover, .form-preview-option:has(:focus-visible) {
     background: color-mix(in srgb, var(--plugin-form, var(--ink)) 8%, transparent);
@@ -117,16 +117,6 @@ export const FORM_STYLES = `
   }
   .plugin-stage-detail-bar [data-form-delete] { margin-left: 8px; }
   .plugin-stage-list .mw-empty { max-width: min(100%, 30em); padding: 8px 8px 16px; }
-  .plugin-stage-workspace.is-arriving,
-  .is-arriving { animation: creative-arrive var(--motion-normal, 130ms) var(--ease-quint) both; }
-  @keyframes creative-arrive {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: none; }
-  }
-  @keyframes creative-pane {
-    from { transform: translateY(4px); }
-    to { transform: none; }
-  }
   @media (max-width: 720px) {
     .form-identity { grid-template-columns: 1fr; }
     .form-question { grid-template-columns: minmax(0, 1fr) auto auto; }
@@ -138,7 +128,7 @@ export const FORM_STYLES = `
     .form-question [data-option-remove] { min-width: 44px; min-height: 44px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .is-arriving, .plugin-stage-workspace.is-arriving, [data-form-pane]:not([hidden]) { animation: none; }
+    [data-form-pane]:not([hidden]) { animation: none; }
     .form-question, .form-tabs .mw-btn, .form-preview-option { transition: none; }
   }
   dialog.mw-dialog.creative-confirm { width: min(360px, calc(100vw - 32px)); }

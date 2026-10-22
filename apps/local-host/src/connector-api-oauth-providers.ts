@@ -1,5 +1,5 @@
 /** Official API OAuth protocols. MCP has its own resource authorization lifecycle. */
-export interface ApiOAuthProvider {
+interface ApiOAuthProvider {
   authorize: string;
   token: string;
   scope: string;

@@ -3,8 +3,9 @@ export const GOAL_CANVAS_STYLES = `
   .immersive-plugin-stage > .goal-canvas-shell, .tab-pane-body > .goal-canvas-shell { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: hidden; overscroll-behavior: contain; background: var(--canvas); container: goal-board / inline-size; }
   .goal-canvas-shell [hidden] { display: none !important; }
   .goal-canvas-shell .goal-canvas-map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; padding: 0; margin: 0; overflow: hidden; background: transparent; }
-  .goal-canvas-shell .goal-kanban { position: absolute; inset: 0; display: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; background: var(--canvas); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
-  .goal-canvas-shell .goal-stage-list { display: none; position: absolute; inset: 0; z-index: 0; overflow: auto; overscroll-behavior: contain; padding: calc(var(--control-h, 32px) + 20px) 24px 32px; background: var(--paper); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .goal-canvas-shell .goal-kanban { position: absolute; inset: 0; display: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; background: var(--canvas); }
+  /* Below the toolbar, not under it: no row scrolls through its buttons. */
+  .goal-canvas-shell .goal-stage-list { display: none; position: absolute; inset: calc(var(--control-h, 32px) + 20px) 0 0; z-index: 0; overflow: auto; overscroll-behavior: contain; padding: 0 24px 32px; background: var(--paper); }
   .goal-canvas-shell[data-board-view="list"] .goal-stage-list { display: block; }
   .goal-canvas-shell[data-board-view="list"] { background: var(--paper); }
   .goal-canvas-shell[data-expanded="true"]:not([data-board-view="list"]) .goal-stage-list { display: none !important; }
@@ -79,7 +80,7 @@ export const GOAL_CANVAS_STYLES = `
     body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list :is(.tree-toggle, .tree-guide) { margin-top: 1px; }
     body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .tree-node { height: auto; min-height: 20px; align-items: flex-start; }
     body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .tree-title-line strong { display: -webkit-box; white-space: normal; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 20px; }
-    body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .directory-row-state { grid-column: 1; grid-row: 2; padding-left: calc((var(--tree-depth, 0) + 1) * 16px + 18px); font-size: 11px; }
+    body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .directory-row-state { grid-column: 1; grid-row: 2; padding-left: calc((var(--tree-depth, 0) + 1) * 16px + 18px); font-size: 12px; }
   }
   .goal-canvas-shell[data-board-view="list"] > [data-goal-momentum] { display: none !important; }
   .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: flex; position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -228,6 +229,8 @@ export const GOAL_CANVAS_STYLES = `
   body.immersive-workbench .goal-stage-list .directory-row-state {
     display: flex;
     align-items: center;
+    /* Start of the column, so the rings stand one above another down the list. */
+    justify-content: flex-start;
     grid-column: 2;
     grid-row: 1;
     min-width: 0;
@@ -252,14 +255,14 @@ export const GOAL_CANVAS_STYLES = `
     border-radius: 0;
     background: transparent;
     box-shadow: none;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 400;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .goal-stage-list .goal-status svg { display: block;  flex: none; }
-  .goal-stage-list .tree-progress { display: inline-flex; align-items: center; gap: 8px; grid-column: 3; grid-row: 1; min-width: 0; width: auto; margin: 0; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+  .goal-stage-list .tree-progress { display: inline-flex; align-items: center; gap: 8px; grid-column: 3; grid-row: 1; min-width: 0; width: auto; margin: 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
   .goal-stage-list .tree-progress.is-empty { visibility: hidden; }
   .goal-stage-list .tree-progress > i { width: 34px; height: 2px; overflow: hidden; background: var(--line-strong); flex: none; }
   .goal-stage-list .tree-progress > i > b { display: block; width: var(--tree-progress); height: 100%; background: var(--green); }
@@ -307,7 +310,7 @@ export const GOAL_CANVAS_STYLES = `
   .goal-kanban-chevron { display: none; width: 16px; height: 16px; color: var(--muted); flex: none; place-items: center; }
   .goal-kanban-chevron svg { display: block; width: 12px; height: 12px; }
   .goal-kanban-status { width: 16px; height: 16px; display: grid; place-items: center; flex: none; color: var(--ink-soft); }
-  .goal-kanban-status svg { display: block; width: 16px; height: 16px; overflow: visible; }
+  .goal-kanban-status svg { display: block; overflow: visible; }
   .goal-kanban-column[data-kanban-column="continue"] .goal-kanban-status { color: var(--tone-idle, var(--ink-soft)); }
   .goal-kanban-column[data-kanban-column="in_progress"] .goal-kanban-status { color: var(--tone-progress, var(--blue)); }
   .goal-kanban-column[data-kanban-column="waiting_user"] .goal-kanban-status { color: var(--tone-attention, var(--amber)); }
@@ -318,8 +321,8 @@ export const GOAL_CANVAS_STYLES = `
   .goal-kanban-group-name { min-width: 0; white-space: nowrap; }
   .goal-kanban-count { color: var(--muted); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; flex: none; }
   .goal-kanban-empty { margin: 0; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 6px; color: var(--muted); font-size: 12px; }
-  .goal-kanban-column [data-kanban-cards] { position: absolute; inset: 36px 0 0; flex: none; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; padding: 0 0 8px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
-  .goal-kanban-card { transition: border-color var(--motion-fast), background-color var(--motion-fast); flex: none; display: grid; gap: 4px; min-width: 0; padding: 8px 8px; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; text-align: left; cursor: pointer; }
+  .goal-kanban-column [data-kanban-cards] { position: absolute; inset: 36px 0 0; flex: none; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; padding: 0 0 8px; }
+  .goal-kanban-card { transition: border-color var(--dur-hover), background-color var(--dur-hover); flex: none; display: grid; gap: 4px; min-width: 0; padding: 8px 8px; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; text-align: left; cursor: pointer; }
   .goal-kanban-card:hover { border-color: color-mix(in srgb, var(--ink) 22%, var(--line)); }
   .goal-kanban-card.is-selected { border-color: var(--ink); }
   .goal-kanban-card.is-complete strong { color: color-mix(in srgb, var(--ink) 82%, var(--muted)); }
@@ -327,11 +330,11 @@ export const GOAL_CANVAS_STYLES = `
   .goal-kanban-card-outcome { color: color-mix(in srgb, var(--ink) 78%, var(--muted)); font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .goal-kanban-card-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .goal-kanban-card-meta small { min-width: 0; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  body.immersive-workbench .goal-kanban-card .goal-status { display: inline-flex; align-items: center; gap: 4px; width: max-content; max-width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 11px; font-weight: 400; color: var(--goal-status-tone); }
+  body.immersive-workbench .goal-kanban-card .goal-status { display: inline-flex; align-items: center; gap: 4px; width: max-content; max-width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 12px; font-weight: 400; color: var(--goal-status-tone); }
   .goal-kanban-card:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   @container goal-board (max-width: 839px) {
-    .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: block; overflow-x: hidden; overflow-y: auto; background: var(--paper); min-width: 0; max-width: 100%; }
-    .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-board { flex-direction: column; align-items: stretch; gap: 8px; box-sizing: border-box; min-width: 0; max-width: 100%; flex: none; width: 100%; height: auto; min-height: 100%; margin: 0; padding: 48px 12px 24px; background: transparent; border: 0; border-radius: 0; overflow-x: hidden; }
+    .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: block; top: calc(var(--control-h, 32px) + 20px); height: auto; overflow-x: hidden; overflow-y: auto; background: var(--paper); min-width: 0; max-width: 100%; }
+    .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-board { flex-direction: column; align-items: stretch; gap: 8px; box-sizing: border-box; min-width: 0; max-width: 100%; flex: none; width: 100%; height: auto; min-height: 100%; margin: 0; padding: 4px 12px 24px; background: transparent; border: 0; border-radius: 0; overflow-x: hidden; }
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-column { flex: none; width: auto; min-width: 0; max-width: 100%; height: auto; overflow: visible; }
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-card { max-width: 100%; }
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-column > details { display: block; height: auto; overflow: visible; }
@@ -359,7 +362,7 @@ export const GOAL_CANVAS_STYLES = `
   }
   @media (max-width: 760px) {
     @container goal-board (max-width: 839px) {
-      .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-board { padding: 48px 8px 16px; }
+      .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-board { padding: 4px 8px 16px; }
       .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-column > details > summary, .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-card { height: 44px; min-height: 44px; }
     }
   }
@@ -380,7 +383,7 @@ export const GOAL_CANVAS_STYLES = `
     .goal-canvas-open, .goal-canvas-frame { opacity: 0; }
     .goal-canvas-node:hover .goal-canvas-open, .goal-canvas-node:hover .goal-canvas-frame, .goal-canvas-node:focus-within .goal-canvas-open, .goal-canvas-node:focus-within .goal-canvas-frame, .goal-canvas-node.is-selected .goal-canvas-open, .goal-canvas-node.is-selected .goal-canvas-frame { opacity: 1; }
   }
-  .goal-canvas-node > .goal-status { display: inline-flex; align-items: center; gap: 8px; grid-row: 3; grid-column: 1; align-self: end; width: max-content; padding: 0; border: 0; background: transparent; max-width: none; font-size: 11px; font-weight: 400; color: var(--goal-status-tone); }
+  .goal-canvas-node > .goal-status { display: inline-flex; align-items: center; gap: 4px; grid-row: 3; grid-column: 1; align-self: end; width: max-content; padding: 0; border: 0; background: transparent; max-width: none; font-size: 12px; font-weight: 400; color: var(--goal-status-tone); }
   .goal-canvas-node:focus-visible, .goal-canvas-open:focus-visible, .goal-canvas-frame:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .goal-canvas-viewport.is-reject { background-color: color-mix(in srgb, var(--amber) 8%, var(--canvas)); }
   .goal-canvas-node:hover { border-color: color-mix(in srgb, var(--ink) 22%, var(--line)); }
@@ -488,7 +491,7 @@ export const GOAL_CANVAS_STYLES = `
   .goal-info-popover > summary::-webkit-details-marker, .timeline-compose > summary::-webkit-details-marker { display: none; }
   .goal-info-popover .goal-info-collapsed-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .goal-info-popover:not([open]) .goal-info-label, .goal-info-popover[open] .goal-info-collapsed-title { display: none; }
-  .goal-info-popover > summary > .goal-status { margin-left: auto; font-size: 11px; }
+  .goal-info-popover > summary > .goal-status { margin-left: auto; font-size: 12px; }
   .goal-info-popover > summary > svg { width: 14px; height: 14px; flex: none; color: var(--muted); transform: rotate(-90deg); }
   .goal-info-popover[open] > summary > svg { transform: none; }
   .goal-info-body { padding: 0 16px 8px; max-height: min(43vh, 365px); overflow: auto; overscroll-behavior: contain; }
@@ -565,7 +568,6 @@ export const GOAL_CANVAS_STYLES = `
   .goal-canvas-shell :focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .goal-canvas-shell ::selection { background: var(--blue-soft); color: var(--ink); }
   .goal-canvas-shell :is(input, textarea) { caret-color: var(--blue); }
-  .goal-canvas-shell :is(.goal-info-body, [data-event-timeline], .reader-content, .event-form) { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
   @container goal-workspace (max-width: 839px) {
     .goal-node-workbench { grid-template-columns: minmax(0, 1fr); }
     .goal-node-workspace:not([data-view-mode="document"]) .goal-details-aside { grid-area: 1 / 1; position: absolute; inset: 0 0 0 auto; width: min(330px, 100%); z-index: 5; background: var(--paper); box-shadow: none; }
@@ -632,8 +634,7 @@ export const GOAL_CANVAS_STYLES = `
   .frame-session-events span { overflow-wrap: anywhere; }
   .goal-frame-tools { z-index: 6; }
   @media (prefers-reduced-motion: no-preference) {
-    .goal-node-workspace:not([hidden]) { animation: immersive-goal-open 250ms var(--ease-quint); }
-    @keyframes immersive-goal-open { from { opacity: .8; } to { opacity: 1; } }
+    .goal-node-workspace:not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
   }
 
   .goal-frame-surface { display:flex; flex-direction:column; }
@@ -644,9 +645,7 @@ export const GOAL_CANVAS_STYLES = `
   .frame-goal-summary > p { max-width:76ch; margin:8px 0 12px; color:var(--ink-soft); font-size:13px; line-height:1.7; }
   .frame-goal-actions { display:flex; flex-wrap:wrap; gap:8px; }
   [data-frame-goal-status],
-  [data-workspace-goal-status] { display:inline-flex; gap:4px; align-items:center; min-height: 18px; padding: 1px 8px; border: 0; border-radius: 5px; background: color-mix(in srgb, var(--goal-status-tone, var(--muted)) 11%, transparent); color: var(--goal-status-tone, var(--ink-soft)); font-size: 11px; font-weight: 400; }
-  [data-frame-goal-status] svg,
-  [data-workspace-goal-status] svg { width: 12px; height: 12px; }
+  [data-workspace-goal-status] { display:inline-flex; gap:4px; align-items:center; min-height: 18px; padding: 1px 8px; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--goal-status-tone, var(--muted)) 11%, transparent); color: var(--goal-status-tone, var(--ink-soft)); font-size: 12px; font-weight: 400; }
   .frame-goal-actions svg { width:14px; height:14px; }
   .goal-frame-surface > .goal-frame-canvas { position:relative; inset:auto; flex:1; min-height:0; }
   .frame-empty { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:12px; padding:32px; text-align:center; pointer-events:none; }

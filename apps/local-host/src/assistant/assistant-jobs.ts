@@ -28,7 +28,7 @@ function setPath(target: Record<string, unknown>, path: string, value: unknown):
   return target;
 }
 
-export interface JobPorts {
+interface JobPorts {
   store: AssistantStore;
   actorId: string;
   host(): Promise<AgentHost>;

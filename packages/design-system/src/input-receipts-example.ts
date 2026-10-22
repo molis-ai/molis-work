@@ -22,11 +22,11 @@ const BOARD = { nodes: [{ state: 'running', reports: [] }, { state: 'not-started
 const STATIC_STYLES = `
 .mw-rc-specimens{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:24px;align-items:start}
 .mw-rc-coding,.mw-rc-assistant{display:grid;gap:14px;padding:16px;border-radius:var(--r-row);background:var(--paper);box-shadow:var(--lift-1)}
-.mw-rc-coding article{padding:10px 12px;border-radius:var(--r-row);background:var(--wash);color:var(--ink);font-size:14px}
+.mw-rc-coding article{padding:10px 12px;border-radius:var(--r-row);background:var(--wash);color:var(--ink);font-size:13px}
 .mw-rc-coding article[data-kind=notice]{padding-left:12px;border-left:2px solid var(--line);background:none;color:var(--muted)}
 .mw-rc-assistant{max-width:380px}
 .mw-rc-assistant>div{display:flex;flex-direction:column;gap:12px}
-.mw-rc-assistant p.msg{align-self:flex-end;max-width:85%;margin:0;padding:8px 12px;border-radius:14px;background:var(--wash);color:var(--ink);font-size:14px}
+.mw-rc-assistant p.msg{align-self:flex-end;max-width:85%;margin:0;padding:8px 12px;border-radius:14px;background:var(--wash);color:var(--ink);font-size:13px}
 .mw-rc-assistant p.msg[data-kind=notice]{align-self:stretch;background:none;color:var(--muted);font-size:12px}
 .mw-rc-assistant .mw-receipt{align-self:flex-end;max-width:88%;margin-top:-8px}
 .mw-rc-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:16px;font-size:12px;color:var(--muted)}

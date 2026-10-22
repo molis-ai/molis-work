@@ -91,7 +91,7 @@ Goals 的结构提案（新建 Goal 与关系）与最近结果是 Goals Native 
 
 - `apps/workbench` 已拥有稳定 HTML 文档 Shell 和 `workbench.directory`、`workbench.main`、`workbench.overlay`、`workbench.settings`、`workbench.side` 五个命名 Slot；插件视图按 Manifest 的 `navigator`、`stage`、`settings`、`island`、`side` 声明位置。`settings-page` contribution 只能挂到 `workbench.settings`，由全局设置目录列出；插件工作台仍走 directory/main/overlay。
   - 设置分类只有一张表（`apps/workbench/src/settings-sections.ts`）：宿主分类有固定 order（10–90），插件设置页按 Manifest 里 `settings` view 的 `order` 插入，并跟随它前面那个宿主分类的分组；不写 order（默认 100）的进「插件」组。宿主不按插件名排位置。
-  - 页面由项目里运行的插件渲染、又要作为设置页出现时（如 Characters 的「角色」），插件把工作台页面声明为 `stage` view（不进导航），在渲染出的根元素上标 `data-settings-page="<设置分类 id>"`，再另外声明一个 `settings` view；工作台的设置覆盖层会直接挂载这块已绑定的页面，独立设置页则由宿主转回带项目的工作台（`/projects/<id>/?settings=<id>`）。
+  - 页面由项目里运行的插件渲染、又要作为设置页出现时，插件把工作台页面声明为 `stage` view（不进导航），在渲染出的根元素上标 `data-settings-page="<设置分类 id>"`，再另外声明一个 `settings` view；工作台的设置覆盖层会直接挂载这块已绑定的页面，独立设置页则由宿主转回带项目的工作台（`/projects/<id>/?settings=<id>`）。目前没有插件这样用：「角色」原来是这个例子，现在是宿主自己的一节设置（`settings-sections.ts` 的 `HOST_SECTIONS`，`order: 35`），页面由 `apps/workbench/src/characters/ui.ts` 渲染，根元素同样标 `data-settings-page="characters"`；Characters 不再是插件（CHR-1，2026-10-22）。
 - `packages/ui-host` 在 mount 时校验 contribution、surface、目标 Slot 与 format；Plugin 不能向未声明或不兼容的 Slot 插入内容。
 - Feed Native Plugin 已按 surface 显式声明可装载位置，Workbench 通过 UI Host mount，不直接调用 Plugin renderer。
 - `packages/design-system` 已接管主题、密度、browser bootstrap 和分层视觉样式；旧 `src/web/visual-foundation.ts` 已删除。
@@ -114,6 +114,8 @@ Planning contribution 通过显式 renderPage 原语使用原设置页外框，�
 UI Host 的 `UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT` 由 Workbench 或独立页面实例化，提供 `mountPluginClient(root)`。它拥有挂载去重、文档/祖先 hidden 变化、卸载取消与资源清理；不拥有插件状态。Images、Coding 及子面板、Files/Git 伴随面板和独立 Diff/Text Stats、Host 审查视图、Builder 两套界面、Shelf 及结果面板已接入，Pages 与灵光在离开时收回空白项这一处也用它（`whenVisible` 与 `own`）。同源 iframe 还观察父页面的隐藏与移除。API、隐藏/卸载差异及异步响应检查见 [UI Host README](../../packages/ui-host/README.md#浏览器生命周期)。浏览器回归覆盖真实请求中止、SSE 断开重连、隐藏轮询停止及同一 DOM 重新挂载。
 
 轻量刷新提示可用 `scope.watchRevision(read, refresh)`：可见时每两秒查询 revision，首次进入、变化及断线恢复后重新读取事实，隐藏/卸载清理。`refresh` 在业务交互忙碌时返回 false，保留未消费 revision 待下次读取。Host 按项目提供当前运行插件的 `/api/plugins/<id>/view-revision`，进程更换 epoch；只含不透明 revision，不包含事件正文或授权。Files/Git 已实际接入，固定 Artifact 差异仍保留原版本。
+
+revision 由插件自己推动：服务端在改了页面显示的内容以后调 `services.ui.invalidate()`（PG-061）。它不带参数，只推自己这一个安装，插件 id 取自启动上下文。不要权限，只要 Manifest 声明了 `ui.views`，没声明就以 `ui_host.plugin_denied` 拒绝。动作、随激活的作业、事件回调、定时器里都能调；它不进调用记录，页面重读用的是读的人自己的授权。`start()` 里调用不做任何事：插件还没运行，启动完页面本来就会读一次。停用或重启开始以后，这次激活拿到的 client 再调一律被拒，版本号不动。被拒是同步抛错。激活在 `stop` 钩子之前就已撤下，所以会调它的定时器、监听器要在 `stop` 一开始就清掉；停用或重启以后再触发的回调里抛出的错没人接，宿主进程没有兜底，会整个退出（BL-411）。Home 实例推的是 Home 路由的 revision；双实例两半各推各的。宿主自己只剩一处在推：Home 插件的命令成功以后推一次。Files 和 Git 都在事件回调里自己调；Git 另在宿主的操作回执监听里调，这个监听在 `stop` 一开始就清掉。沙箱插件的 SDK 还没有 `ui`。
 
 ### 浏览器请求
 

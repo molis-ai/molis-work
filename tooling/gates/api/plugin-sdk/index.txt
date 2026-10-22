@@ -318,6 +318,8 @@ export declare function bindPluginActionRoute<Input, Output>(context: PluginStar
 export { bindSearchEntriesHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare function canonicalJsonValue(value: unknown): unknown;
+
 export declare function cardInputValues(values: unknown, zone: string | undefined): Record<string, string>;
 
 export declare function cardSubject(view: Pick<ActionView, "action" | "operation">, input: unknown): {
@@ -376,6 +378,8 @@ export declare function draftActionCard(cardId: string, offer: AgentActionOffer,
 
 export { fileContentOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { fileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function fillMessage(text: string, values?: Readonly<Record<string, string | number>>): string;
 
 export declare function inspectActionCrossReferences(definitions: unknown): string[];
 

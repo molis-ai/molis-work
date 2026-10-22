@@ -1,4 +1,4 @@
-import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, renderMolisWorkCapabilitiesClientScript, renderMolisWorkKnowledgeClientScript } from "@molis-ai/molis-work-app-workbench";
+import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkKnowledgeClientScript } from "@molis-ai/molis-work-app-workbench";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -70,6 +70,9 @@ export function createLocalWebAssets(ports: {
         ? { body: renderMolisWorkCapabilitiesClientScript(), contentType: "text/javascript; charset=utf-8" }
         : pathname === "/assets/molis-work-knowledge.js"
         ? { body: renderMolisWorkKnowledgeClientScript(), contentType: "text/javascript; charset=utf-8" }
+        // 角色 is the Host's page since CHR-1; its client keeps the address its plugin pack had (D5, BL-378).
+        : pathname === "/assets/molis-work-plugins/characters.js"
+        ? { body: renderMolisWorkCharactersClientScript(), contentType: "text/javascript; charset=utf-8" }
         : pathname === "/assets/molis-work-arrival.css"
           ? { body: renderMolisWorkArrivalStylesheet(), contentType: "text/css; charset=utf-8" }
         : pathname === "/assets/molis-work-settings.css"

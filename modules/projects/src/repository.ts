@@ -12,7 +12,7 @@ import { createDeletionStepsSchema } from "./deletion-steps.js";
 
 type Row = Record<string, unknown>;
 
-export interface ProjectsSqliteStatement {
+interface ProjectsSqliteStatement {
   all(...params: unknown[]): unknown[];
   get(...params: unknown[]): unknown;
   run(...params: unknown[]): { changes: number | bigint; lastInsertRowid?: number | bigint };
@@ -449,7 +449,7 @@ function mapStoredProjectDeletion(row: Row): StoredProjectDeletion {
   };
 }
 
-function deletionRecord(record: StoredProjectDeletion): ProjectDeletionReceipt {
+export function deletionRecord(record: StoredProjectDeletion): ProjectDeletionReceipt {
   return {
     deletion_id: record.deletion_id,
     project_id: record.project_id,

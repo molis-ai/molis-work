@@ -50,7 +50,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | kind | 何时 | 现在 |
 | --- | --- | --- |
 | `native` | 一等产品入口。新的内置插件经 Plugin Runtime 监督器启动（`apps/local-host/src/project-plugins.ts`，例如 Shelf）；构建期装配只剩 `tests/builtin-plugin-assembly-gate.test.ts` 冻结的旧名单，只许减少 | 监督器：Shelf；构建期（冻结）：Feed、Inbox、Goals、Pages、灵光、Jelly… |
-| `app` | Plugin Runtime **真的** `start()`，兑现 views/routes/actions | Coding、Files、Git、Diff、Text stats、Characters |
+| `app` | Plugin Runtime **真的** `start()`，兑现 views/routes/actions | Coding、Files、Git、Diff、Text stats |
 | `integration` | 外部世界 → Connector / Signal | GitHub、Gmail、RSS、YouTube、Catalog、Web Query |
 
 没跑在 Runtime 里就不要标 `app`。插件不 import 另一个插件的 implementation。
@@ -83,7 +83,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 9. 可搜索内容：每种对象一个读取器，再声明一个搜索来源（`defineSearchEntriesAction`），按版本列出条目。不写索引、不调用搜索服务。见 [search.md](search.md)。
 10. 对外调用：新注册动作按 `audiences` 和真实授权进入共同 MCP 目录，不另写业务处理器或工具总表（工具名 `molis_work_v1_action_<动作>__v<版本>`）；Manifest 没有 MCP 导出块。schema 不接收可信身份；声明 mcp 入口不授予权限，外部客户端在「能力 → 对外接入」逐客户端授权。
 11. Artifacts：可保存、同步、按类型消费的内容。判断记录不是 Artifact。新类型先写合同，再 `produces`。
-12. 插件事件总线：只给经 Plugin Runtime 启动的插件（监督器里的 Coding 族、Characters、Shelf，以及已安装插件）。构建期 Native 没有这条总线。id 放合同，发布用 `services.events.publish`，接收写 `onEvent`。不要和判断场景（`action_scenes`）、Integration 的 Signal 混在一起。
+12. 插件事件总线：只给经 Plugin Runtime 启动的插件（监督器里的 Coding 族、Shelf，以及已安装插件）。构建期 Native 没有这条总线。id 放合同，发布用 `services.events.publish`，接收写 `onEvent`。不要和判断场景（`action_scenes`）、Integration 的 Signal 混在一起。
 13. ports：只在已有真实 Artifact 类型可连时声明。可选口用 `optional: true`。Diff 用 `input_groups`。上游到齐走 `onUpstreamReady`。缺绑定不挡启动。产品里没有通用连线页：输入口由默认连线接上，或由人在成果库详情把某一版接给插件输入。细则 [elements.md](elements.md)。
 14. `agent`：Agent 驱动才加。Schedule 是 native 带 agent；Coding 是 app 带 agent。提示词正文还要进 catalog，见 [host.md](host.md)。`agent.mcp` 不是对外贡献开关。
 15. Integration：外部协议 → Signal / Feed。账号设置挂 `workbench.settings`；来源任务留在 Feed。
@@ -105,7 +105,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 底栏右侧的个人常驻入口（岛） | slot `island` | 当成普通插件条 |
 | 当前项目关联目录 / 浏览目录 | `projectSettingsCapabilities`，Manifest 按项 consumes | 读其他插件 storage、Workspace ports、传 project_id |
 | 本机偏好 | `settings-page` → `workbench.settings` | 把 Feed 账号做成全局设置 |
-| 属于人、说明 AI 怎么做事的配置页（角色、提示词一类） | `settings` view 带 `order`（宿主分类 10–90，跟随前一个宿主分类的分组）；页面由运行中的插件渲染时声明为 `stage` view，根元素标 `data-settings-page` | 放进插件切换器；在宿主里按插件名排位置 |
+| 属于人、说明 AI 怎么做事的配置页（提示词一类；角色是宿主自己的一节设置，不是插件） | `settings` view 带 `order`（宿主分类 10–90，跟随前一个宿主分类的分组）；页面由运行中的插件渲染时声明为 `stage` view，根元素标 `data-settings-page` | 放进插件切换器；在宿主里按插件名排位置 |
 | 点按钮改数据 | HTTP + 已有 Module API 或私人库 | 抢 Module 的业务表 |
 | 判断亮哪颗按钮 | 真实场景 → action_scenes → 绑定与消费 | 只声明标签，或再加 Host 去向白名单 |
 | Agent 做同一件事 | 共同 actions 目录和授权调用 | 重复 handler / 写死 tool-catalog |
@@ -118,7 +118,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 ## 接到哪里（写完声明立刻看）
 
 - **内置插件**：workspace 包，包里 `src/registration.ts` 写目录条目（manifest、personal、summary、workbench pack；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`），再 `node scripts/generate-plugin-registry.mjs` 生成 `builtin-plugins.ts`（不手改）+ `apps/local-host/src/project-plugins.ts` 的监督器条目（`bundled: true` + `nativePluginReleaseArtifact`），并把 id 加进 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED`（+ i18n），在 `specs/repository-anti-corruption/spec.md` §5.1 的包清单表里补一行（`node scripts/gates/package-inventory.mjs --table` 生成；缺行或状态与监督器不符，`pnpm health:check` 变红）。构建期 Native 的 Host HTTP 与动作装配已冻结，只许减少。清单：[host.md](host.md)。
-- **Runtime 插件**（Coding 族、Characters、Shelf）：`createXPlugin` 加监督器 `start()`。`start()` 必须兑现 Manifest 每一条 view、route、action、action_scene，以及 commands、events.subscribes、ports.inputs 对应的处理器。
+- **Runtime 插件**（Coding 族、Shelf）：`createXPlugin` 加监督器 `start()`。`start()` 必须兑现 Manifest 每一条 view、route、action、action_scene，以及 commands、events.subscribes、ports.inputs 对应的处理器。
 - **integration**：`definePollingIntegrationPlugin` + Connector Host；OAuth/secret 见 [integrations.md](integrations.md)。
 - **第三方 / 本地样例**：`molis-work plugin create` → `validate` → `dev` → `pack`。今天脚手架是 integration 样例，不是产品一级入口插件。
 

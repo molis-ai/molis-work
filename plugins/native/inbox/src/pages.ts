@@ -4,7 +4,7 @@ import { ActionError, type ActionCallContext, type ActionExecutionContext, type 
 import { PAGES_PLUGIN_ID, type PagesGenerationRecord, type PagesInputSnapshot, type PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { InboxPagesInput, InboxPagesMaterialRef } from "./actions.js";
 
-export interface InboxPagesPorts {
+interface InboxPagesPorts {
   generation(requestId: string, caller: ActionCallContext): Promise<PagesGenerationRecord | null>;
   generations(caller: ActionCallContext): Promise<PagesGenerationRecord[]>;
   readDocument(id: string, caller: ActionCallContext): Promise<PagesRecord>;

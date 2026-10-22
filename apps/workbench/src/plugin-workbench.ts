@@ -103,6 +103,14 @@ export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[
   });
 }
 
+/** Surfaces the Host renders itself with their own bundle, served under the plugin pack address (CHR-1 D5: 角色). */
+const HOST_SURFACE_CLIENTS: readonly Pick<PluginSurfaceClient, "id" | "bundle" | "assets">[] = [{ id: "characters", bundle: "characters", assets: [] }];
+
+/** Every surface the deferred loader mounts on first show: the plugins' and the Host's own. */
+export function deferredSurfaceClients(): (Pick<PluginSurfaceClient, "id" | "bundle" | "assets"> & Partial<Pick<PluginSurfaceClient, "plugin_id">>)[] {
+  return [...pluginSurfaceClients(), ...HOST_SURFACE_CLIENTS];
+}
+
 /** Fixed-build client assets derived from the same registration as styles and UI: one per bundle, none for a borrowed client. */
 export function pluginWorkbenchClientAsset(id: string): string | null {
   const pack = BUILTIN_PLUGIN_WORKBENCH.find(pack => pack.project_plugin_id === id);

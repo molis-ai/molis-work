@@ -151,7 +151,6 @@ export const SHELF_STYLES = `
   }
   [data-shelf="settings"] .shelf-hotkey-row.is-recording .shelf-hotkey-record { color: var(--da-accent); }
 
-  [data-shelf] .shelf-side-scroll::-webkit-scrollbar { width: 0; height: 0; }
   [data-shelf] .shelf-fold {
     display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 4px;
     border: 0; background: transparent; color: var(--da-muted); font-size: 12px; font-weight: 400;
@@ -201,7 +200,6 @@ export const SHELF_STYLES = `
     max-width: 16px; overflow: hidden; opacity: 1;
     transition: opacity var(--da-t) var(--da-ease);
   }
-  [data-shelf] .shelf-row .shelf-status svg { width: 14px; height: 14px; }
   [data-shelf] .shelf-row:is(:hover, :focus-within, .is-on):not(.is-child) :is(.shelf-when, .shelf-status, .shelf-now) {
     max-width: 0; margin: 0; opacity: 0; pointer-events: none;
   }

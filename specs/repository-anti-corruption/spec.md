@@ -685,6 +685,48 @@ W5-01-WORKFLOWS（Runtime 迁移，2026-10-20，分支 `migrate/workflows-runtim
 - `check-health-gates.mjs --base origin/main` 通过，数字对 merge-base：巨大单元 126 → 124（`createCharactersPlugin`、`start` 两个函数）；浏览器脚本里的空 catch 128 → 127；`*_SCRIPT` 文本常量 127 → 126（改名，见上，不是脚本已变成 TypeScript）；直接 `fetch` 63 → 61；插件在自己包外被点名的文件 `characters#outside-files` 11 → 10（总数 367 → 366）；`as unknown as` 177 → 176。其余数字不变；`--update --base origin/main` 已刷新本地快查。
 - 没验证：真实浏览器里角色页的点击与导入流程、真实 Home、其他机器；原生 CLI 执行没有重跑（`characters-native-execution` 用的是测试替身）。
 
+### W5-01 Characters 换宿主装配、删插件（CHR-1，2026-10-22，③；分支 `migrate/characters-chr1`）
+
+状态：本地实现与定向验证完成，待评审与集成批次全量（改了 contracts 与 Module，算共享核心）。这是 Characters 迁到宿主的第二片：CHR-0 把处理器搬进 `modules/characters`，这一片换掉装配，删掉插件包 `plugins/native/characters`。用户批准的裁定 D1～D5 见迁移线笔记 `characters-into-module-plan.md`。
+
+- **搬了什么**：
+  - 动作定义 `actions.ts` 从插件搬进 `modules/characters`。为宿主提供方逐个绑定的 `bindCharactersActions` 也在那里（`action-bindings.ts`）：只服务本人，别的调用方是 `actions.owner_mismatch`；写之前先做本次调用的检查，再把检查交给处理器。
+  - 宿主在 `characters-host.ts` 的 `charactersActionProvider` 里给每个项目登记 Characters 提供方：草稿在 Home，发布进本项目的成果库，写成果时用本次调用的调用方。
+  - 页面的门在 `apps/local-host/src/characters-http.ts`：原来插件的 14 个地址不变，每个地址经项目的动作目录调用本人的 Characters 动作。请求提前结束，就取消这次调用。
+  - 界面（`ui.ts`、`import-ui.ts`、`styles.ts`）搬到 `apps/workbench/src/characters/`。浏览器程序改写成 `apps/workbench/src/browser/characters/` 下的 TypeScript，由 esbuild 打成 `dist/characters-client.js`，不再是 `_SCRIPT` 文本。
+  - 设置 › 角色是宿主自己的一节（`HOST_SECTIONS`，AI 组，`order: 35`）。成果库对 Characters 生产方的声明由工作台的 `HOST_ARTIFACT_PRODUCERS` 给出，宿主检查写入时与内置 Manifest 同等对待。
+  - 删掉的：监督器条目、目录条目、生成的插件登记、插件包、锁文件与 workspace 登记里的条目；冻结名单与混合插件名单去掉 characters。
+- **裁定**：
+  - D1：提供方仍是 `io.molis.work.characters`，`kind: "plugin"`。合同里只有 `system`、`plugin`、`mcp` 三种，等有 Module 提供方的种类再改（BL-378）。
+  - D2：已有项目库里 Characters 留下的安装记录，不在产品代码里处理，作为一项维护写进 `docs/releases/CHECKLIST.md` §4.3 维护八。
+  - D3：设置 › 角色是宿主的一节，不再能按项目隐藏。
+  - D4：发布的 `producer_plugin_version` 是 `PRODUCT_VERSION`。
+  - D5：客户端仍发在 `/assets/molis-work-plugins/characters.js`，体积只许变小。这个名字不准确，记在 BL-378。
+- **对外不变**：19 个 `characters.*@1` 的 id、版本、schema、受众、权限、提供方 id 与 MCP 工具名都不变。`pnpm actions:update` 只把这 19 行从 `actions.tsv` 挪到 `host-actions.tsv`，各列哈希一致。页面地址与路径也不变。
+- **行为变化**（PR 里逐条写明）：
+  - 门的状态码改用共同的动作错误映射：`characters.not_found` 由 404 改为 400；没带错误码的异常是 500 `actions.execution_failed`；不是对象的请求体是 400 `actions.input_invalid`；非本人是 403 `actions.owner_mismatch`。页面够得着的拒绝原来靠插件把无码错误一律映射成 400，现在都带码，仍是 400：宿主里导入、文件预览与原生启动的拒绝（越界路径、过期的扫描、不支持的来源、缺任务、原生终端未接通等），Module 里发布核对、文件预览与 Agent 动作校验的拒绝，都是 `characters.invalid`；`runs` 找不到角色是 `characters.not_found`。经 MCP、工作流调用时它们原来是 `actions.execution_failed`，现在带 Characters 自己的码。Module 里「导入服务、能力目录尚未接通」两处装配缺口仍无码（宿主总会给，走不到）。
+  - 发布读取改走宿主成果库的 `getArtifactVersion`，不再兜底过程项库。发布前仍检查这个 id 没被过程项用过；用过时是 400 `characters.invalid`（原来经插件的成果客户端是 `artifacts.plugin_incompatible`，也是 400），宿主不为此引入 Artifacts 插件的错误码。
+  - `character` 不再出现在 `hostReferenceKinds()` 里。
+  - Characters 安装带来的 8 个 `sdk.artifacts.plugin-install-…` 动作消失。
+  - 项目里不能再隐藏角色：`DELETE /api/settings/projects/<项目>/plugins` 带 `plugin_id: "characters"` 返回 400。
+  - S-18 的测试名改成宿主写成果。
+  - 全局集合目前已经含 `artifact:*`，按提供方限定在 PG-007 第 4 阶段做。
+  - 公开 API 快照 `contracts/modules/characters` 新增 `CHARACTER_ARTIFACT_PRODUCER` 与 `characterArtifactPreviewAction`：原来在插件的 Manifest 与 `artifact-preview.ts` 里，现在由合同给出，供宿主的生产方表与 Module 共用。
+
+#### 验收（RAC-70～74）
+- **RAC-70**：Characters 不再是插件：磁盘上没有 `plugins/native/characters`，监督器、目录与生成的登记里都没有它。宿主登记的提供方 `io.molis.work.characters` 恰好带每个 Characters 动作，冻结名单与混合插件名单不含它。`tests/builtin-plugin-assembly-gate.test.ts`、`tests/characters-actions.test.ts`、`tests/characters-action-handlers.test.ts`（RAC-68 那条改读 `host-actions.tsv`，并断言 `actions.tsv` 没有 Characters 行）。
+- **RAC-71**：门的每个地址都调用本人的 Characters 动作。页面离开就取消这次调用，原生启动没有迟到的副作用。错误照动作给的码回答：缺草稿 400 `characters.not_found`，非对象请求体 400 `actions.input_invalid`，过期修订 409，导入预览的越界路径与伪造候选 400 `characters.invalid`。`tests/characters-publication-http.test.ts`、`tests/characters-native-execution.test.ts`、`tests/characters-import-http.test.ts`。
+- **RAC-72**：发布经宿主成果库按本人写入，生产方版本是 `PRODUCT_VERSION`。调用方在 `beforeWrite` 之后消失的，这一次的成果写入被拒（S-18）。`tests/characters-publication-http.test.ts`、`tests/security-invariants-plugin-original-caller.test.ts`。
+- **RAC-73**：设置 › 角色是宿主的一节，项目隐藏不了（`DELETE` 返回 400），设置目录里没有 Characters 插件项，「角色」排在助理与提示词之间。客户端是打包的 TypeScript，不超过 29988 字节，没有 `_SCRIPT` 文本。`tests/plugin-global-settings.test.ts`、`tests/project-plugins.test.ts`、`tests/characters-appearance.test.ts`、`tests/characters-action-handlers.test.ts`（RAC-69 那条读 `src/browser/characters/`）、`tests/page-assets-budget.test.ts`（宿主自己的客户端也算发出的包）、`pnpm page-assets:check`。
+- **RAC-74**：项目库里留着旧 Characters 安装记录时，宿主不启动它也不改写它，设置 › 角色照常列出本人的草稿。`tests/cross-plugin-recovery.e2e.test.ts`（浏览器用例，本机不跑，交给 CI）。
+
+#### 证据（2026-10-22）
+- 构建：这台机器上 local-host 的 Swift 步骤失败（CLT 16.2），所以逐包构建 contracts、ui-host、coding、`module-characters`、workbench（含 esbuild 打的 `characters-client.js`）与 local-host 的 `tsc`，再写构建清单。
+- 定向用例（`--jobs 2`，不含浏览器用例，没跑全量）：
+  - 合并 main 之前：从 `affected-tests` 列出的相关文件里选 112 个，102 个通过。失败的 10 个里，6 个由本片引起，改完重跑通过；另 4 个与本片无关：两个缺本机 Swift 产物 `native/computer/bin`，两个的失败落在本片没动的文件上。
+  - 合并 origin/main `4591a1484` 之后：14 个文件全部通过，含动作快照 25/25、S-18 17/17，以及 main 新加的 `coding-work-executor`、`plugin-ui-invalidate`。
+- 门禁：动作快照、`boundary:check`、§5.1 包清单（71 个包）、页面资源与 health 门禁都对 merge-base `4591a148` 通过；`secrets:check` 扫了 1830 行，没有发现。RAC-74 的浏览器用例交给集成批次。
+
 ## 0. 现场与范围
 
 - **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。
@@ -1648,7 +1690,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `horizontal/search` | 横向 | 1 | 575 | `index.ts` 575 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/artifacts` | 模块 | 7 | 1,080 | `service.ts` 344 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/attention-resumption` | 模块 | 1 | 429 | `index.ts` 429 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `modules/characters` | 模块 | 4 | 203 | `service.ts` 128 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
+| `modules/characters` | 模块 | 12 | 593 | `action-handlers.ts` 129 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `modules/context-ledger` | 模块 | 4 | 292 | `service.ts` 102 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `modules/feed` | 模块 | 2 | 776 | `index.ts` 733 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `modules/functions` | 模块 | 9 | 1,777 | `store.ts` 939 | 1 | 2 | 1 | 在用 | 中 | 已审 |
@@ -1671,7 +1713,6 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `packages/ui-host` | 基础 | 4 | 441 | `client-lifecycle.ts` 152 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
 | `plugins/native/alchemist` | 内置插件 | 97 | 10,327 | `studio/server/db/pulse-repository.ts` 567 | 1 | 4 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/artifacts` | 内置插件 | 19 | 1,628 | `browser-ui.ts` 242 | 1 | 2 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/characters` | 内置插件 | 13 | 978 | `client.ts` 217 | 1 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/coding` | 内置插件 | 79 | 11,574 | `client.ts` 1,644 | 1 | 3 | 2 | Runtime | 深 | 已审 |
 | `plugins/native/cognia` | 内置插件 | 15 | 757 | `store.ts` 173 | 1 | 4 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/dataset` | 内置插件 | 16 | 2,124 | `client.ts` 711 | 1 | 4 | 2 | Runtime | 中 | 待审 |

@@ -9,7 +9,7 @@ export function renderProgressSource(source: GoalProgressArtifactSource | undefi
   return `<p>${escapeHtml(source.title)} · v${source.version}</p><p><button type="button" class="mw-btn mw-btn--secondary" aria-label="打开固定成果：${escapeHtml(source.title)} · v${source.version}" data-workbench-item-plugin="${escapeHtml(source.origin.plugin_id)}" data-workbench-item-id="${escapeHtml(source.origin.item_id)}" data-workbench-item-title="${escapeHtml(source.title)}">打开固定成果 · v${source.version}</button></p>`;
 }
 
-export interface GoalHistoryBodyLookups {
+interface GoalHistoryBodyLookups {
   workEvent?: GoalWorkEventRecord | null;
   journal?: GoalsDecisionEvent | null;
   requirementNames?: Readonly<Record<string, string>>;

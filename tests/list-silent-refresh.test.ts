@@ -57,7 +57,8 @@ test("个人插件列表在创建、删除、返回后重新 GET，并保住滚�
   }
   // Forms: the list keeps its scroll on every repaint (read before the rows are replaced, written back after), and creating,
   // deleting and going back each load the list again.
-  const formList = sliceFn(formSource("list.ts"), "export const renderList", "export const markSelected");
+  // CLN-04: these helpers are internal; the scroll contract does not depend on an export modifier.
+  const formList = sliceFn(formSource("list.ts"), "const renderList", "const markSelected");
   assert.match(formList, /const top = page\.list\?\.scrollTop[\s\S]*page\.rowsEl\.replaceChildren\(\)[\s\S]*page\.list\.scrollTop = top/, "form 要保住列表滚动，画完写回 scrollTop");
   const formCommands = formSource("commands.ts");
   assert.match(sliceFn(formCommands, "const create", "};"), /await loadList\(page\)/, "form 新建后要重新拉列表");

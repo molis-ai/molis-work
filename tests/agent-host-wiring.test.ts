@@ -10,6 +10,7 @@ import {
   emptyCapabilityMatrix,
   registerAgentHostCapabilities,
 } from "@molis-ai/molis-work-service-agent-host";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type {
   AgentManifest,
@@ -82,7 +83,7 @@ test("组合根把 Agent Host 接进宿主之后，插件经 Capability 够得�
 
     // 这一步就是原先缺的那一环：生产装配调用注册入口
     registerAgentHostCapabilities(
-      { register: (definition, handler) => localHost.registerCapability(definition, handler) },
+      { register: (definition, handler) => definition.action ? localHost.registerAction(definition as typeof definition & ActionDefinition, handler) : localHost.registerCapability(definition, handler) },
       {
         agentHost: () => agentHost,
         authority: () => ({ manifest: AGENT, authorizedDirectories: [directory] }),

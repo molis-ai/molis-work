@@ -36,10 +36,10 @@ import { hostLog } from "../host-log.js";
  */
 
 /** This Home's person. Agents, plugins and external clients act on their behalf, so personal memories are theirs. */
-export const LOCAL_PERSON = LOCAL_PERSON_ACTOR_ID;
+const LOCAL_PERSON = LOCAL_PERSON_ACTOR_ID;
 const RUNTIME = "prologue";
 
-export interface MemoryHost {
+interface MemoryHost {
   readonly service: MemoryService;
   /** Who the call is for, from its trusted context: the consumer from the audience, never from input. */
   caller(context: ActionCallContext, work?: { work_id: string; title: string } | null): MemoryCaller;
@@ -57,7 +57,7 @@ export function memoryHostFor(localHost: MolisWorkLocalHost): MemoryHost | undef
   return hosts.get(localHost)?.host;
 }
 
-export interface MemoryHostPorts {
+interface MemoryHostPorts {
   localHost: MolisWorkLocalHost;
   homeDirectory: string;
   agentHost: AgentHost;

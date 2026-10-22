@@ -236,16 +236,18 @@ const headErrors = (measured, budget, base) => {
   return errors;
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
-// deleted in the next change to this gate (none is open now).
+// deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/cognia.js": [24042, 24112],
-  "/assets/molis-work-plugins/todo.js": [62036, 62126],
-  "/assets/molis-work-plugins/jelly.js": [91267, 91338],
-  "/assets/molis-work-workbench.css": [1610654, 1610689],
-  "/assets/molis-work-workbench.js": [1176789, 1176833],
-  "/assets/molis-work-arrival.css": [702945, 704315],
-  "/assets/molis-work-settings.css": [992921, 994287],
-  "/assets/molis-work-plugins/coding.js": [370756, 372329],};
+  "/assets/molis-work-arrival.css": [703659, 704435],
+  // Forms reflow (slice 85): moved and removed questions and options ease through the page's molisReflow, with the fallback when it is absent. 30244 → 30383 (+139).
+  "/assets/molis-work-plugins/form.js": [30244, 30383],
+  "/assets/molis-work-plugins/workflows.js": [83019, 83135],
+  // Order sweep (slices 82–88): settings' shared buttons keep their role (13 / 500) instead of 12 / 400 for every button, and the models pane's
+  // empty state is centred like every pane's (+141); the corner and empty-state slices win back 118 of it in the same sheet. 994428 → 994451 (+23).
+  "/assets/molis-work-settings.css": [994428, 994451],
+  // Select-item fix (#1003): a page that shows a blank item takes "no item" back instead of dropping it as a repeat. 1182810 → 1182868 (+58).
+  "/assets/molis-work-workbench.js": [1182810, 1182868],
+};
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

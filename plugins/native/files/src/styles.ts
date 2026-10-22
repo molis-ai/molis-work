@@ -31,7 +31,8 @@ export const FILES_STYLES = `
 .files-results .stats-counts { display:grid; grid-template-columns:1fr auto; gap:8px; max-width:400px; font-variant-numeric:tabular-nums; }
 .files-results .stats-counts dd { margin:0; }
 .files-results .stats-origin { display:block; color:var(--muted); overflow-wrap:anywhere; }
-.files-results[aria-busy=true] .files-reader-body { opacity:.65; }
+.files-results[aria-busy=true] .files-reader-body { animation:mw-busy-dim var(--dur-move) var(--ease-quint) var(--dur-move) both; }
+@media (prefers-reduced-motion:reduce) { .files-results[aria-busy=true] .files-reader-body { animation-duration:0s; } }
 @container coding-companion (max-width:600px) {
   .files-reader-head { flex-wrap:wrap; padding:8px 12px; gap:4px 8px; }
   .files-reader-head > div:not(.mw-group) { order:3; flex-basis:100%; padding:4px; }

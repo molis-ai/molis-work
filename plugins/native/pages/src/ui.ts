@@ -84,8 +84,8 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         <p>${p.text("先建一篇，在纸面上写。刷新之后还在。")}</p>
         <p data-placement-target></p>
         <div class="mw-empty__actions">
-          <button class="mw-btn mw-btn--ghost" type="button" data-pages-templates>${icon("library")}<span>${p.text("从模板新建")}</span></button>
-          <button class="mw-btn mw-btn--ghost" type="button" data-pages-import>${icon("upload")}<span>${p.text("导入已有文档")}</span></button>
+          <button class="mw-btn mw-btn--secondary" type="button" data-pages-templates>${icon("library")}<span>${p.text("从模板新建")}</span></button>
+          <button class="mw-btn mw-btn--secondary" type="button" data-pages-import>${icon("upload")}<span>${p.text("导入已有文档")}</span></button>
         </div>
       </div>
       <p class="pages-placement-line" data-placement-target></p>
@@ -134,10 +134,10 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         </div>
       </form>
     </dialog>
-    <dialog class="mw-dialog creative-confirm" data-pages-name>
+    <dialog class="mw-dialog creative-confirm" data-pages-name aria-labelledby="pages-name-label">
       <form class="creative-confirm-form" method="dialog">
-        <p data-name-label></p>
-        <input class="mw-input" data-name-input autocomplete="off">
+        <p id="pages-name-label" data-name-label></p>
+        <input class="mw-input" data-name-input autocomplete="off" aria-labelledby="pages-name-label">
         <div class="creative-confirm-actions">
           <button class="mw-btn mw-btn--ghost" value="cancel">${p.text("取消")}</button>
           <button class="mw-btn mw-btn--primary" value="ok">${p.text("确定")}</button>

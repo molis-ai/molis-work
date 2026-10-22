@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 
 /** What the Workspace form can show after the system folder window closes. */
-export type DirectoryPickResult =
+type DirectoryPickResult =
   | { status: "picked"; path: string }
   | { status: "cancelled" }
   | { status: "busy" }
@@ -20,7 +20,7 @@ export interface DirectoryPickerCommandResult {
   timedOut?: boolean;
 }
 
-export type DirectoryPickerRun = (
+type DirectoryPickerRun = (
   command: string,
   args: readonly string[],
   signal?: AbortSignal,
@@ -54,7 +54,7 @@ function dialogCommand(prompt = PROMPT): { command: string; args: string[] } | n
 }
 
 /** The last non-empty line, without a trailing separator, when it is absolute. */
-export function cleanPickedPath(raw: string): string | null {
+function cleanPickedPath(raw: string): string | null {
   const line = raw.split(/\r?\n/).map((item) => item.trim()).filter(Boolean).at(-1) ?? "";
   if (!line || line.includes("\0")) return null;
   const value = line.length > 1 && !/^[A-Za-z]:\\$/.test(line) ? line.replace(/[/\\]+$/, "") : line;

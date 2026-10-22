@@ -90,7 +90,7 @@ export const STATE_RING_CLIENT_SCRIPT = `(() => {
         if (state) { node.parentElement.dataset.mwState = state; mount(node.parentElement); }
       } else if (node.localName === 'svg') mount(node);
       else if (!node.querySelector(':scope > .mw-state-ring')) {
-        const svg = svgNode('svg'); svg.dataset.mwState = node.dataset.mwState || 'running'; svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('width', '20'); svg.setAttribute('height', '20');
+        const svg = svgNode('svg'); svg.dataset.mwState = node.dataset.mwState || 'running'; svg.setAttribute('aria-hidden', 'true');
         if (node.hasAttribute('data-ring-progress')) svg.dataset.ringProgress = node.dataset.ringProgress;
         node.dataset.ringMounted = ''; node.prepend(svg); mount(svg);
       }

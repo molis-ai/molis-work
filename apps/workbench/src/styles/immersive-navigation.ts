@@ -44,11 +44,10 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   }
   body.immersive-workbench .plugin-rail-items {
     display: flex; flex: 1; flex-direction: column; align-items: center; gap: 4px; min-height: 0;
-    overflow: auto; scrollbar-width: none;
+    overflow: auto;
   }
   body.immersive-workbench .plugin-rail [data-plugin-id="market"] { position: relative; }
   body.immersive-workbench .plugin-rail-update-count { position: absolute; top: 0; right: -1px; min-width: 14px; height: 14px; box-sizing: border-box; padding: 0 4px; border-radius: 8px; background: var(--accent, #b75337); color: white; font-size: 11px; line-height: 14px; text-align: center; font-weight: 600; }
-  body.immersive-workbench .plugin-rail-items::-webkit-scrollbar { width: 0; height: 0; }
   body.immersive-workbench .plugin-rail-rule {
     flex: none; width: 16px; height: 1px; margin: 4px 0; border: 0; border-radius: 1px; background: var(--line);
   }
@@ -180,9 +179,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   }
   body.immersive-workbench .directory-content-scroll {
     display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain;
-    scrollbar-width: none; -ms-overflow-style: none;
   }
-  body.immersive-workbench .directory-content-scroll::-webkit-scrollbar { width: 0; height: 0; }
   body.immersive-workbench .tree-pane .goal-list-view { display: block; }
   body.immersive-workbench[data-desktop-shell="true"] .plugin-section.is-expanded .desktop-goal-directory:not([hidden]),
   body.immersive-workbench .plugin-section.is-expanded > .plugin-section-body > .desktop-directory-panel:not([hidden]) { display: flex; flex-direction: column; }
@@ -207,8 +204,8 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .tree-search:focus-within { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   body.immersive-workbench .tree-tools,
   body.immersive-workbench[data-desktop-shell="true"] .tree-pane .tree-tools { gap: 4px; padding: 0; margin: 0; border: 0; display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-start; width: 100%; min-width: 0; }
-  body.immersive-workbench .tree-create { flex: 1; min-width: 0; height: var(--control-h, 28px); min-height: var(--control-h, 28px); padding: 0 var(--control-pad-x, 12px); border: 1px solid var(--line); border-radius: var(--radius-control, 8px); background: var(--paper); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: inherit; font-size: 12px; font-weight: 400; cursor: pointer; }
-  body.immersive-workbench .tree-create span { display: inline; font-size: 12px; font-weight: 400; color: inherit; }
+  body.immersive-workbench .tree-create { flex: 1; min-width: 0; height: var(--control-h, 28px); min-height: var(--control-h, 28px); padding: 0 var(--control-pad-x, 12px); border: 1px solid var(--line); border-radius: var(--radius-control, 8px); background: var(--paper); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: inherit; font-size: 13px; font-weight: var(--weight-control, 500); cursor: pointer; }
+  body.immersive-workbench .tree-create span { display: inline; font: inherit; color: inherit; }
   body.immersive-workbench .tree-create svg { width: 14px; height: 14px; flex: none; color: inherit; }
   body.immersive-workbench .tree-create:hover { background: var(--nav-hover); color: var(--ink); }
   body.immersive-workbench [data-tree-filter-trigger] { width: var(--control-h, 28px); min-width: var(--control-h, 28px); height: var(--control-h, 28px); min-height: var(--control-h, 28px); padding: 0; display: inline-grid; place-items: center; flex: none; border: 1px solid var(--line); border-radius: var(--radius-control, 8px); background: var(--paper); color: var(--ink); cursor: pointer; }
@@ -298,8 +295,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   html[data-native-desktop="true"] body.immersive-workbench .tab-strip .tab-strip-spacer,
   body.immersive-workbench[data-native-desktop="true"] .tab-strip .tab-strip-spacer { flex: 1 1 48px; min-width: 48px; -webkit-app-region: drag; }
   body.immersive-workbench .immersive-titlebar > strong { font-size: 11px; font-weight: var(--weight-control, 500); }
-  body.immersive-workbench .container-tabs { min-width: 0; flex: 1; height: 44px; padding-block: 8px; display: flex; align-items: stretch; overflow: auto; scrollbar-width: none; gap: 4px; }
-  body.immersive-workbench .container-tabs::-webkit-scrollbar { display: none; }
+  body.immersive-workbench .container-tabs { min-width: 0; flex: 1; height: 44px; padding-block: 8px; display: flex; align-items: stretch; overflow: auto; gap: 4px; }
   body.immersive-workbench .container-tab { max-width: 168px; min-width: 72px; flex: 0 1 auto; display: flex; align-items: center; gap: 8px; padding: 0 8px; font: inherit; font-size: 12px; font-weight: 400; color: var(--muted); background: transparent; border: 0; border-radius: 8px; cursor: pointer; box-shadow: none; }
   body.immersive-workbench .container-tab:hover { color: var(--ink); }
   body.immersive-workbench .container-tab[aria-current] { color: var(--ink); font-weight: 400; background: var(--nav-raised); box-shadow: var(--surface-shadow); }
@@ -466,14 +462,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench :is(.immersive-titlebar button, .navigator-native-row button, .immersive-plugin-link, .navigator-project-search):focus-visible { outline-offset: var(--focus-stroke-inset); }
   body.immersive-workbench ::selection { color: var(--ink); background: var(--blue-soft); }
   body.immersive-workbench :is(input, textarea) { caret-color: var(--blue); }
-  body.immersive-workbench * { scrollbar-width: thin; scrollbar-color: transparent transparent; }
-  body.immersive-workbench *:hover { scrollbar-color: color-mix(in srgb, var(--ink) 22%, transparent) transparent; }
-  body.immersive-workbench *::-webkit-scrollbar { width: 10px; height: 10px; }
-  body.immersive-workbench *::-webkit-scrollbar-track,
-  body.immersive-workbench *::-webkit-scrollbar-corner { background: transparent; }
-  body.immersive-workbench *::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 8px; background: transparent; background-clip: content-box; }
-  body.immersive-workbench *:hover::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--ink) 18%, transparent); background-clip: content-box; }
-  body.immersive-workbench *::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--ink) 32%, transparent); background-clip: content-box; }
   body.immersive-workbench button:disabled { cursor: default; opacity: .45; }
   @media (max-width: 1050px) { body.immersive-workbench { --immersive-sidebar-width: 220px; } }
   @media (max-width: 600px) {

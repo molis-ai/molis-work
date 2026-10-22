@@ -13,6 +13,7 @@ import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
 import {
   PluginEventBus,
+  PluginHostEvents,
   PluginInputGraph,
   PluginRouteRouter,
   PluginRuntime,
@@ -99,6 +100,8 @@ export interface PluginPlatform {
   readonly runtime: PluginRuntime;
   readonly supervisor: PluginSupervisor;
   readonly events: PluginEventBus;
+  /** What the Host itself tells one running installation (X-6, S-54): not stored, never replayed. */
+  readonly hostEvents: PluginHostEvents;
   readonly wiring: PluginInputGraph;
   /** Ephemeral projection hints, never business delivery acknowledgements. */
   invalidateView(pluginId: string): void;
@@ -130,12 +133,19 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const providerFor = identity.providerFor;
   // The Runtime and the executor read the same records: an activation's jobs check the installation the Runtime keeps.
   const records = pluginInstallRecords(options.db);
+  const viewEpoch = randomUUID(), viewRevisions = new Map<string, number>();
+  let closed = false;
+  // The Host and the plugin itself (`services.ui.invalidate`, PG-061) bump the same count; only a running plugin's moves.
+  const invalidateView = (pluginId: string) => {
+    if (!closed && supervisor.state(pluginId)?.status === "running") viewRevisions.set(pluginId, (viewRevisions.get(pluginId) ?? 0) + 1);
+  };
   // The same holds for a library in the Home: the Host's list declares it about a definition object, so another definition that
   // carries the same plugin_id is given none.
   const installations = openPluginInstallationDirectory(options.db, records, pluginId => supervisor.manifest(pluginId));
   const executor = new PluginHostExecutor({
     installations: installations.client,
     record: installId => records.get(installId),
+    invalidateView,
     providerFor,
     databaseFor: identity.databaseFor,
     projectLibrary: projectLibraryOf(options.db), scheduler: options.scheduler,
@@ -177,15 +187,15 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     lifecycle: supervisor,
     repository: new SqlitePluginEventsRepository(options.db),
   });
+  const hostEvents = new PluginHostEvents({ projectId: options.project_id, lifecycle: supervisor });
   executor.attach({
     events,
+    hostEvents,
     wiring,
     ...(options.capabilities === undefined ? {} : { capabilities: options.capabilities }),
     scopeKey: options.scopeKey ?? options.project_id,
   });
 
-  const viewEpoch = randomUUID(), viewRevisions = new Map<string, number>();
-  let closed = false;
   // Work queued for a Plugin survives a restart of that Plugin, so replay what
   // it never acknowledged once it is running again.
   let stopArtifactRefresh: (() => void) | undefined;
@@ -202,10 +212,9 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     runtime,
     supervisor,
     events,
+    hostEvents,
     wiring,
-    invalidateView(pluginId) {
-      if (!closed && supervisor.state(pluginId)?.status === "running") viewRevisions.set(pluginId, (viewRevisions.get(pluginId) ?? 0) + 1);
-    },
+    invalidateView,
     viewRevision(pluginId) { return `${viewEpoch}:${viewRevisions.get(pluginId) ?? 0}`; },
     async closeCoordination() {
       closed = true; installations.dispose();
@@ -213,6 +222,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       detachActivation();
       await wiring.close();
       await events.close();
+      await hostEvents.close();
     },
     router: () => new PluginRouteRouter(supervisor, supervisor.states().flatMap(state => {
       const manifest = supervisor.manifest(state.plugin_id);

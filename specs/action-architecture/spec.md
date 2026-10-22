@@ -199,6 +199,8 @@ flowchart TB
 
 Host 的既有 typed capability 与新动作服务共用同一个 Kernel registry。项目调用继续使用现有 Runtime 生命周期、串行调用和关闭等待；可信身份与业务 Runtime 由 Host 在调用期间关联，不能放入模型参数。相同插件在不同项目的激活允许复用公开能力 ID/版本，注册实例以可信项目作用域区分；全局与项目同名能力不得互相遮蔽。项目关闭或插件停用时撤回对应实例，其他项目不受影响。旧的内部客户端默认没有额外授权；需要权限的能力必须由 Host 调用方显式提供可信上下文。
 
+Host 上一种东西只有一个登记口（PG-035）：动作只走 `registerAction`（进动作服务，按动作声明检查，声明不全是 `actions.definition_invalid`），`register` / `registerCapability` 只收 typed 条目，拿到带 `action` 的定义直接拒绝（`host.registration_seam`）；组合根按定义上有没有 `action` 分到两边。新能力只登记成动作，不再加 typed 条目。模型起草 `agent.draft-text.v1` 是第一个转过来的宿主能力：只给插件、要 `model:invoke`，插件经 `services.actions.invoke` 调；宿主为每个项目登记的工作区读取与浏览选择（7 条）也只在动作这一边。agent 其余的 typed 条目记在 BL-364，scheduler 的 4 条在 BL-365。
+
 ### 动作：一项有明确输入和结果的操作
 
 每个可复用能力声明：稳定身份、来源及版本、用户可读名称、适用对象、输入 schema、可用的输出合同、所需权限及处理器。操作可以是查询、判断或写入；界面导航是本地展示能力。能否使用还取决于当前项目启用情况、账号连接、对象状态和权限；不能只检查 manifest 是否声明。
@@ -735,7 +737,7 @@ Files/Git 的原九个路由现仅作参数转发，业务已移入插件动作�
 
 公共动作的 required_actions 继续检查同一调用者的权限与递归依赖。旧 typed Capability SDK 补充只读 availability 查询，仅检查 Manifest 已声明消费的能力，使用原 Host Kernel 注册表和当前项目身份，不运行 handler、不打开业务运行实例、不授予权限。无法提供检查的嵌入端明确返回不可检查，不能假定可用。
 
-Files/Git 在自己的 handler 绑定中声明实际使用的宿主依赖：浏览设置、审阅准备和结果读取按动作分别检查；文件与 Git 的读取已是动作 `projects.workspace.files.read`、`projects.workspace.git.inspect`（2026-10-09，W2-09，原来的两个 typed id 已删），依赖它的动作写 `action.required_actions` 和 `workspace:read`，由内核按调用者检查，插件经 `capabilities.consumes` 和 `services.actions` 调用它（`docs/platform/PLUGIN-PLATFORM.md` 第 3 节）。目录、实际调用及保存前的既有 checkpoint 共用这些状态；缺失依赖不能先读文件或发布 Artifact。此查询检查注册与同步就绪状态，不替代输入中的工作区授权、连接选择、异步项目策略或既有执行权限验证。Host 私有 typed capability 仍不成为公共 MCP 工具；公共化迁移继续保留在总清单。
+Files/Git 在自己的 handler 绑定中声明实际使用的宿主依赖：浏览设置、审阅准备和结果读取按动作分别检查；文件与 Git 的读取已是动作 `projects.workspace.files.read`、`projects.workspace.git.inspect`（2026-10-09，W2-09，原来的两个 typed id 已删），依赖它的动作写 `action.required_actions` 和 `workspace:read`，由内核按调用者检查，插件经 `capabilities.consumes` 和 `services.actions` 调用它（`docs/platform/PLUGIN-PLATFORM.md` 第 3 节）。目录、实际调用及保存前的既有 checkpoint 共用这些状态；缺失依赖不能先读文件或发布 Artifact。此查询检查注册与同步就绪状态，不替代输入中的工作区授权、连接选择、异步项目策略或既有执行权限验证。Git 的暂存、操作准备与两项读取是宿主登记、只给插件的动作（PG-035，2026-10-22）：插件问它们的依赖时，宿主按插件受众、带动作本身要的权限去问（`apps/local-host/src/plugin-callers.ts` 的 `dependencyCaller`），所以持有与不持有那种审查的安装得到同一个答案；能不能调，由调用时网关按它持有的权限查（S-15）。Host 私有 typed capability 仍不成为公共 MCP 工具；公共化迁移继续保留在总清单。
 ### 跨进程动作转发
 
 复用已有常驻 Web Host 作为执行方，增加通用的本机动作协议：发现与调用均按项目 ID 从原目录解析，不接收数据库路径、权限数组或任意 actor 覆盖。协议端点只接受经过本机 origin、control token 与一次性键校验的 POST，并校验预期 Home 身份和 Host 实例。客户端只连接数字 loopback 地址，禁止重定向和发送凭据到其他地址。

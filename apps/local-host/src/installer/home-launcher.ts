@@ -1,7 +1,7 @@
 import path from "node:path";
 import { NODE_LAUNCHER_HEADER, BUNDLED_NODE_LAUNCHER_HEADER } from "./home-contract.js";
 
-export function shellQuote(value: string): string {
+function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 

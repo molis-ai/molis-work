@@ -1,15 +1,13 @@
 import { createSchedulePlugin } from "@molis-ai/molis-work-plugin-schedule";
 import { scheduleServiceFor } from "./project-clock.js";
-import { createCharactersPlugin } from "@molis-ai/molis-work-plugin-characters";
-import { charactersPluginPorts } from "./characters-host.js";
 import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
-import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
+import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
-import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
+import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { FORM_DATABASE, createFormPlugin } from "@molis-ai/molis-work-plugin-form";
 import { DATASET_DATABASE, createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
@@ -20,18 +18,18 @@ import { WORKFLOWS_DATABASE, createWorkflowsPlugin } from "@molis-ai/molis-work-
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { SqlitePluginPrivateStorage, outsidePluginAction, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
+import { SqlitePluginPrivateStorage, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 import { projectScopeEntries } from "./plugin-scope-entries.js";
 import { projectPluginEnablement, projectPluginEnablementRefresh } from "./project-plugin-enablement.js";
 import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
+import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./review-settlement-events.js";
 
 export interface ProjectPluginPorts {
-  observeGitOperations?(listener: (event: GitOperationUpdate) => void): () => void;
-  characterWorkspaces?: () => Promise<readonly ProjectWorkspaceRef[]>;
-  characterSpawn?: (request: import("@molis-ai/molis-work-contracts/services/runtime-host").PtySpawnRequest) => import("@molis-ai/molis-work-contracts/services/runtime-host").PtySpawnResult;
+  /** Settled person-reviewed plugin operations, sent to the installation that asked as `host.review.settled@1` (X-6). */
+  observeReviewSettlements?: ObserveReviewSettlements;
   store: LocalProjectDatabase;
   projectId: string;
   actorId: string;
@@ -110,7 +108,7 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
     if (existing.ports.actorId !== ports.actorId || existing.ports.homeDirectory !== ports.homeDirectory
       || existing.ports.actions.project_id !== ports.actions.project_id) throw new Error("项目插件实例的 Home、用户或项目身份不一致");
     // Entry-point adapters can arrive after headless discovery; identity and storage stay bound.
-    for (const key of ["characterSpawn", "characterWorkspaces", "workspaces", "routePrefix", "observeGitOperations"] as const) {
+    for (const key of ["workspaces", "routePrefix", "observeReviewSettlements"] as const) {
       if (ports[key] !== undefined) Object.assign(existing.ports, { [key]: ports[key] });
     }
     const state = await existing.ready;
@@ -148,39 +146,16 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.platform = platform;
     // Start independent companions together so their Artifact inputs and outputs
     // can connect. Browsing roots come from current-project settings capabilities.
-    const charactersPorts = charactersPluginPorts(ports.homeDirectory, ports.actorId, ports.projectId, artifacts.query,
-      () => ports.characterWorkspaces?.() ?? Promise.resolve(ports.workspaces ?? []), request => {
-        if (!ports.characterSpawn) throw new Error("原生终端尚未接通");
-        return ports.characterSpawn(request);
-      });
-    const filesPorts = { readable: () => currentWorkspaceId(ports) !== null,
-      onWorkspaceChanged: () => { platform.invalidateView(FILES_PLUGIN_ID); } };
-    const operationListeners = new Set<(event: GitOperationUpdate) => void>();
-    let observer: ProjectPluginPorts["observeGitOperations"], unsubscribe: (() => void) | undefined, closed = false;
-    record.updateObservers = () => {
-      if (closed || observer === ports.observeGitOperations) return;
-      unsubscribe?.(); observer = ports.observeGitOperations;
-      // The Host delivers a settled operation on its own behalf, outside whichever action settled it: Git publishes for its own installation (S-18).
-      unsubscribe = observer?.(event => { if (!closed) outsidePluginAction(() => { for (const listener of operationListeners) listener(event); }); });
-    };
-    record.stopObservers = () => { closed = true; unsubscribe?.(); operationListeners.clear(); };
+    const filesPorts = { readable: () => currentWorkspaceId(ports) !== null };
+    let closed = false;
+    const settlements = reviewSettlementForwarder(platform.hostEvents);
+    record.updateObservers = () => { if (!closed) settlements.update(ports.observeReviewSettlements); };
+    record.stopObservers = () => { closed = true; settlements.stop(); };
     record.updateObservers();
-    const gitPorts = {
-      observeOperationSettled(listener: (event: GitOperationUpdate) => void) {
-        operationListeners.add(listener); return () => { operationListeners.delete(listener); };
-      },
-      onWorkingTreeChanged: () => { platform.invalidateView(GIT_PLUGIN_ID); },
-    };
     const entries: PluginPlatformEntry[] = [
       { definition: createSchedulePlugin(), bundled: true,
         releaseArtifact: nativePluginReleaseArtifact<typeof createSchedulePlugin>(
           "@molis-ai/molis-work-plugin-schedule", "createSchedulePlugin", factory => factory()) },
-      {
-        definition: createCharactersPlugin(charactersPorts),
-        bundled: true,
-        releaseArtifact: nativePluginReleaseArtifact<typeof createCharactersPlugin>(
-          "@molis-ai/molis-work-plugin-characters", "createCharactersPlugin", factory => factory(charactersPorts)),
-      },
       {
         definition: createShelfPlugin(),
         bundled: true,
@@ -207,10 +182,10 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           "@molis-ai/molis-work-plugin-diff", "createDiffPlugin", factory => factory()),
       },
       {
-        definition: createGitPlugin(gitPorts),
+        definition: createGitPlugin(),
         bundled: true,
         releaseArtifact: nativePluginReleaseArtifact<typeof createGitPlugin>(
-          "@molis-ai/molis-work-plugin-git", "createGitPlugin", factory => factory(gitPorts)),
+          "@molis-ai/molis-work-plugin-git", "createGitPlugin", factory => factory()),
       },
       {
         definition: createTextStatsPlugin(),

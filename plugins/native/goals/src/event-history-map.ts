@@ -3,10 +3,10 @@ import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { BoardSnapshot } from "./goal-entry-contract.js";
 import { GOALS_RELATION_LABELS } from "./relation-presentation.js";
 
-export const NEW_WORK_JOURNAL_PREFIXES = ["goal.event_config.", "goal.work_event.", "goal.event_state."] as const;
+const NEW_WORK_JOURNAL_PREFIXES = ["goal.event_config.", "goal.work_event.", "goal.event_state."] as const;
 
 /** Event work, or the Goals journal's own records (creation, relations). */
-export type GoalHistorySource = "event_work" | "journal";
+type GoalHistorySource = "event_work" | "journal";
 
 export interface GoalHistoryIndexItem {
   item_id: string;
@@ -39,7 +39,7 @@ export function isNewWorkJournalType(type: string): boolean {
   return NEW_WORK_JOURNAL_PREFIXES.some((prefix) => type.startsWith(prefix));
 }
 
-export function mapWorkTimelineItems(items: readonly GoalEventTimelineItem[]): GoalHistoryIndexItem[] {
+function mapWorkTimelineItems(items: readonly GoalEventTimelineItem[]): GoalHistoryIndexItem[] {
   return items.map(indexItemFromTimeline);
 }
 
@@ -60,7 +60,7 @@ export function indexItemFromTimeline(item: GoalEventTimelineItem): GoalHistoryI
   };
 }
 
-export function workLane(item: Pick<GoalEventTimelineItem, "kind" | "semantic_family" | "system_operation">): GoalHistoryLane {
+function workLane(item: Pick<GoalEventTimelineItem, "kind" | "semantic_family" | "system_operation">): GoalHistoryLane {
   if (item.kind === "report") {
     return item.semantic_family === "delivery" || item.semantic_family === "verification" ? "result" : "other";
   }

@@ -26,6 +26,12 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   let days = [];
   const esc = (value) => String(value ?? "")
     .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+  const writeHTML = (node, html) => {
+    if (!node || node.dataset.html === html) return false;
+    node.innerHTML = html;
+    node.dataset.html = html;
+    return true;
+  };
   const ico = (name) => '<svg aria-hidden="true"><use href="#icon-' + esc(document.getElementById('icon-' + name) ? name : 'inbox') + '"></use></svg>';
   const $ = (sel, root) => (root || home).querySelector(sel);
   const $$ = (sel, root) => [...(root || home).querySelectorAll(sel)];
@@ -35,8 +41,8 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const labels = {
     todayEmpty: L("今天还没有事件走进来"),
     empty: L("这一天没有事件"),
-    todaySum: L("今天接到 {n} 件事"),
-    daySum: L("这一天有 {n} 件事"),
+    todaySum: (n) => L("今天接到 {n} 件事", { n }),
+    daySum: (n) => L("这一天有 {n} 件事", { n }),
     attentionLead: L("有事项需要处理。"),
     emptyLead: L("插件提供的新事项和待处理事项会出现在这里。"),
   };
@@ -99,13 +105,13 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   };
   const shortWeek = (id) => new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(id + "T12:00:00"));
   const renderDates = () => {
-    $("[data-home-dates]").innerHTML = days.map((day) => {
+    writeHTML($("[data-home-dates]"), days.map((day) => {
       const list = homeFlow.eventsOnDay(events, day.id);
-      const count = list.length ? " · " + L("{n} 件事").replace("{n}", String(list.length)) : "";
+      const count = list.length ? " · " + L("{n} 件事", { n: list.length }) : "";
       return '<button class="home-day" type="button" data-home-day="' + day.id + '" aria-label="' + esc(day.week + " " + day.n + (day.today ? " · " + L("今天") : "") + count) + '">' +
         '<span class="home-day__w">' + esc(shortWeek(day.id)) + '</span><b class="home-day__n">' + day.n + '</b>' +
         (day.today ? '<em class="home-day__today">' + L("今天") + '</em>' : '<span class="home-day__dots">' + dotsHTML(list) + '</span>') + '</button>';
-    }).join("");
+    }).join(""));
     $$("[data-home-day]").forEach((btn) => {
       const on = btn.dataset.homeDay === dayId;
       btn.classList.toggle("is-on", on);
@@ -121,13 +127,13 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const hero = $("[data-home-hero]");
     const dayChanged = hero.dataset.day !== dayId;
     hero.dataset.day = dayId;
-    hero.className = "home-heading home-hero home-enter";
+    if (dayChanged) { hero.className = "home-heading home-hero home-enter"; enter(hero); }
     const hour = new Date().getHours();
     const greeting = hour >= 5 && hour < 11 ? L("早上好") : hour >= 11 && hour < 13 ? L("中午好")
       : hour >= 13 && hour < 18 ? L("下午好") : hour >= 18 && hour < 23 ? L("晚上好") : L("夜深了");
     const date = new Intl.DateTimeFormat(locale, { month: "long", day: "numeric" }).format(new Date(stamp + "T12:00:00"));
     const sum = loadingEvents && !eventRows.length ? L("正在读取事项…") : eventIssues.length && !eventRows.length ? L("事项暂时无法完整读取") : summary.sum;
-    hero.innerHTML =
+    const html =
       '<div class="home-heading__main"><h1>' + esc(day.today ? L("今天的工作") : L("{date}的工作").replace("{date}", date)) + '</h1>' +
       '<p class="home-heading__sub">' + (day.today ? '<span class="craft-greeting">' + esc(greeting) + '</span><i>·</i>' : '') +
         '<time data-home-date datetime="' + stamp + '">' + esc(L("{week}，{date}").replace("{week}", day.week).replace("{date}", date)) + '</time><i>·</i>' +
@@ -136,11 +142,13 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       '<div data-home-event-status role="status">' + eventIssues.map(issue => '<p>' + esc(issueText(issue)) + '</p>').join('') +
       (eventIssues.length ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-events-reload>' + L('重新读取') + '</button>' : '') + '</div></div>' +
       '<p class="home-month">' + ico("calendar") + esc(new Intl.DateTimeFormat(locale, { year: "numeric", month: "long" }).format(new Date(stamp + "T12:00:00"))) + '</p>';
-    $("[data-home-list-stats]").innerHTML = list.length
+    if (writeHTML(hero, html)) {
+      const problems=[...hero.querySelectorAll('[data-home-event-status] p')];eventIssues.forEach((issue,index)=>{if(typeof issue!=='string' && problems[index])molisWorkRequest.show(problems[index],issue);});
+    }
+    writeHTML($("[data-home-list-stats]"), list.length
       ? L("个人") + ' <b>' + summary.me + '</b> · ' + L("组织") + ' <b>' + summary.org + '</b>'
-      : '';
-    const problems=[...hero.querySelectorAll('[data-home-event-status] p')];eventIssues.forEach((issue,index)=>{if(typeof issue!=='string' && problems[index])molisWorkRequest.show(problems[index],issue);});
-    if (dayChanged) enter(hero); else hero.classList.add("is-in");
+      : '');
+    if (!dayChanged) hero.classList.add("is-in");
   };
   // The Goal in progress: the project's active Goal while it is moving, otherwise the first moving Goal, otherwise
   // the first waiting on a decision. Nothing is shown when no Goal is in play.
@@ -221,8 +229,8 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         chip('data-home-start="market"', 'grid', '浏览更多工具') + '</div></div>');
       return;
     }
-    const nowAt = Date.now(), nowLabel = homeFlow.clockLabel(new Date(nowAt));
-    const nowLine = '<div class="home-tl__now"><span>' + L("此刻") + " " + nowLabel + "</span><u></u></div>";
+    const nowAt = Date.now();
+    const nowLine = '<div class="home-tl__now" data-home-now><span></span><u></u></div>';
     let html = "";
     let nowDrawn = false;
     list.forEach((event) => {
@@ -244,6 +252,8 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     // Everything today has already happened: "now" comes after the last of it.
     if (day?.today && !nowDrawn) html += nowLine;
     paint(html);
+    const nowNode = $("[data-home-now] span", rows);
+    if (nowNode) nowNode.textContent = L("此刻") + " " + homeFlow.clockLabel(new Date(nowAt));
     const slot = $("[data-home-slot]", rows);
     if (slot && detailNode.parentElement !== slot) slot.append(detailNode);
     if (!slot) parkDetail();
@@ -251,17 +261,17 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const renderDetail = () => {
     const event = current();
     if (!event) return;
-    $("[data-home-detail-head]", detailNode).innerHTML =
+    writeHTML($("[data-home-detail-head]", detailNode),
       '<span class="home-detail__src">' + ico(event.icon) + esc(event.origin.title) + "</span>" +
       "<time>" + esc(event.when) + "</time>" +
-      '<button class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" type="button" data-home-close-event aria-label="' + L("收起详情") + '">' + ico("x") + "</button>";
-    $("[data-home-detail-body]", detailNode).innerHTML =
+      '<button class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" type="button" data-home-close-event aria-label="' + L("收起详情") + '">' + ico("x") + "</button>");
+    writeHTML($("[data-home-detail-body]", detailNode),
       "<h2>" + esc(event.title) + "</h2>" +
       '<p class="home-detail__kind">' + ico(event.kind === "org" ? "review" : "user") +
         (event.kind === "org" ? L("组织事件") : L("个人事件")) + "</p>" +
       '<p class="home-detail__text">' + esc(event.text) + "</p>" +
       '<dl class="home-detail__facts">' + event.facts.map((fact) =>
-        "<div><dt>" + esc(fact[0]) + "</dt><dd>" + esc(fact[1]) + "</dd></div>").join("") + "</dl>";
+        "<div><dt>" + esc(fact[0]) + "</dt><dd>" + esc(fact[1]) + "</dd></div>").join("") + "</dl>");
     const talkOn = home.dataset.dock === "open";
     const left = event.open ? '<button class="mw-btn mw-btn--primary" type="button" data-home-open-target' + (opening === event.id ? ' disabled' : '') + '>' + ico("arrow") +
       esc(opening === event.id ? L('正在打开…') : L(event.open.label)) + '</button>' : '';
@@ -350,7 +360,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       if (item) openItem?.("goals", item.goal.goal_id, item.goal.title);
       return;
     }
-    if (event.target.closest('[data-home-events-reload]')) { await sync(); return; }
+    if (event.target.closest('[data-home-events-reload]')) { await sync(true); return; }
     if (event.target.closest('[data-home-today]')) {
       dayId = homeFlow.civilKey(new Date());
       dayPinned = false;
@@ -396,20 +406,27 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   // Leaving Home folds the open event away; coming back shows the day as a list again.
   new MutationObserver(() => { if (document.body.dataset.desktopSurface !== "home" && eventId) { closeEvent(); render(); } })
     .observe(document.body, { attributes: true, attributeFilter: ["data-desktop-surface"] });
-  const sync = () => {
+  let syncVisible = false;
+  const sync = (visible = false) => {
     // A request still in flight must not hold the clock: the day turns over now, events follow when they arrive.
+    syncVisible = syncVisible || visible;
     if (syncInFlight) { refreshAgain = true; render(); return syncInFlight; }
     syncInFlight = (async () => {
       do {
+        const showLoading = syncVisible || !eventWindow;
+        syncVisible = false;
         refreshAgain = false;
+        // Draw the new day before asking. Loading replaces the day only the first time, or when the person asks again.
+        if (showLoading) loadingEvents = true;
+        render();
         const window = homeFlow.buildHomeWindow(new Date());
-        loadingEvents = true; render();
         try {
           const result = await api('/api/home/events', 'POST', window);
           eventRows = result.events; eventIssues = result.issues; eventWindow = window;
           collect(); offers.refresh();
-        } catch (error) { eventRows = []; eventWindow = null; eventIssues=[error]; }
-        finally { loadingEvents = false; render(); }
+        } catch (error) {
+          if (showLoading) { eventRows = []; eventWindow = null; eventIssues = [error]; }
+        } finally { loadingEvents = false; render(); }
       } while (refreshAgain);
     })().finally(() => { syncInFlight = null; });
     return syncInFlight;

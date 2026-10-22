@@ -9,6 +9,8 @@ export { inspectActionDeclarations, isHomeAggregateQuery } from "./action-declar
 export { inspectActionCrossReferences } from "./action-cross-references.js";
 /** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */
 export { DIFF_STEP_BUDGET, splitLines, joinLines, reconstructSides, compareTexts, textDiffRow, alignSplitRows } from "./text-diff.js";
+/** A message's `{name}` values filled in, with `{count|one|other}` for a word that agrees with a number. */
+export { fillMessage } from "./message-text.js";
 export { questionAnswer } from "./question-answers.js";
 export { QUESTION_REASK, questionDraftMaterial } from "./question-drafts.js";
 export { cardSubject, draftActionCard, runActionCard, dismissActionCard, sweepActionCard, type ActionCard, type ActionCardStatus, type ActionCardPorts, type ActionCardRefusal, type CardStore, type CardAuthority } from "./action-cards.js";
@@ -249,3 +251,4 @@ export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } fro
 export type { PluginInstallationClient, PluginInstallationView } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export type { PluginNotificationClient, PluginNotificationInput, PluginNotificationReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { canonicalJsonValue } from "./json-value.js";

@@ -104,7 +104,7 @@ export function createNodeGitReviews(options: PrologueNodeAdapterOptions, host: 
   });
 }
 
-export interface PortDeps extends RunDeps {
+interface PortDeps extends RunDeps {
   readonly host: NodeHost;
   readonly schedule: ReturnType<typeof createPrologueSchedule>;
   readonly recovery: ReturnType<typeof createPrologueRecovery>;

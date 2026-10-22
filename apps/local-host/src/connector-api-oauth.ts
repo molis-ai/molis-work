@@ -220,7 +220,7 @@ async function enrichContext(config: OAuthConfiguration, json: Json, fetchImpl: 
     config.context.site_url = site;
   }
 }
-export async function apiOAuthIdentity(service: string, token: string, context: Record<string, string>, fetchImpl: typeof fetch = fetch): Promise<string> {
+async function apiOAuthIdentity(service: string, token: string, context: Record<string, string>, fetchImpl: typeof fetch = fetch): Promise<string> {
   if (["gmail", "google-calendar", "google-drive"].includes(service)) {
     const profile = await jsonRequest(fetchImpl, "https://openidconnect.googleapis.com/v1/userinfo", { headers: { authorization: `Bearer ${token}`, accept: "application/json" } });
     if (!text(profile.sub)) throw new ApiOAuthError("Google 未返回稳定账号身份，请重新授权");

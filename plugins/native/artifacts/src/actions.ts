@@ -101,7 +101,7 @@ export const artifactsActions = {
  * A version in the 成果库 as the first station of a workflow run (artifact-positioning 五.1): any version starts a run with
  * its text; workflows never hand content to the 成果库.
  */
-export const artifactsContentActions = defineWorkflowContentActions({ id: "artifacts", title: "成果", icon: "package", receive: false,
+const artifactsContentActions = defineWorkflowContentActions({ id: "artifacts", title: "成果", icon: "package", receive: false,
   subject_kind: ARTIFACT_SUBJECT_KIND, read_permissions: read, write_permissions: read });
 export const ARTIFACT_ACTIONS: readonly ActionDefinition[] = [...Object.values(artifactsActions), ...Object.values(artifactsContentActions)];
 export const ARTIFACT_ACTION_PERMISSIONS = [...new Set(ARTIFACT_ACTIONS.flatMap(value => value.action.permissions))];
@@ -125,7 +125,7 @@ export interface ArtifactActionPorts {
   bindPluginInput?(artifact: ArtifactVersionRecord, input: { plugin_id: string; port: string; restore: boolean }, caller: ActionExecutionContext): Promise<ArtifactPluginInput[]>;
 }
 /** Who refers to one version (A4b, 「被谁引用」): Goals that take it as input, hand it in, or have it proposed as either; other links counted. */
-export interface ArtifactReferences {
+interface ArtifactReferences {
   goals: Array<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" | "proposed_input" }>;
   other: number;
 }

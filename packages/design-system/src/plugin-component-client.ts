@@ -306,8 +306,8 @@ export function createPluginComponentClient(options: PluginComponentClientOption
         const item = make(table ? 'tr' : kind === 'accordion' ? 'details' : kind === 'card' ? 'article' : 'div', undefined, 'pc-record');
         item.dataset.recordId = text(at(row, node.props.idField)) || String(index);
         item.id = 'pc-' + node.id + '-' + encodeURIComponent(item.dataset.recordId); seen.add(item.dataset.recordId);
-        // A record that was not here before arrives visibly, so the person sees what their action added.
-        if (fresh && node.props.idField && part.seen && !part.seen.has(item.dataset.recordId)) item.classList.add('pc-new');
+        // A record that was not here before carries the shared landing wash, so the person sees what their action added.
+        if (fresh && node.props.idField && part.seen && !part.seen.has(item.dataset.recordId)) item.dataset.craftNew = '';
         if (node.props.roleField) item.dataset.role = text(at(row, node.props.roleField));
         const actions: HTMLButtonElement[] = [];
         const citations = node.props.citationsField ? at(row, node.props.citationsField) : undefined;
@@ -482,7 +482,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     part.feedback.className = tone === 'error' ? 'pc-error mw-alert mw-alert--danger' : tone === 'success' ? 'pc-success mw-badge mw-badge--success' : tone === 'working' ? 'pc-working' : '';
     part.feedback.textContent = message;
     // Clear the status itself, including when reduced motion disables the CSS fade.
-    if (tone === 'success') part.feedbackTimer = setTimeout(() => report(part, '', ''), 3400);
+    if (tone === 'success') part.feedbackTimer = setTimeout(() => { part.feedback.classList.add('is-leaving'); part.feedbackTimer = setTimeout(() => report(part, '', ''), 250); }, 3150);
     const mirror = part.dialog?.querySelector<HTMLElement>('.pc-dialog-error'); if (mirror) { mirror.hidden = tone !== 'error'; mirror.textContent = tone === 'error' ? message : ''; }
   }
   function refresh() {

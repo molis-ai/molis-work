@@ -8,9 +8,9 @@ import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
-test("SYS-15 S-47 Character isolated terminal renders actual output, accepts keyboard input and reattaches without launching", { timeout: 90_000 }, async t => {
+test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard input and reattachment without relaunch", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
-  const child = await pluginFrameBrowser(t, browser, "characters");
+  const child = browser; // CHR-1 moved Characters into the trusted Host; only actual plugins are isolated.
   const bin = join(browser.homeDirectory, "test-bin"), config = join(browser.homeDirectory, "test-config");
   await mkdir(bin); await mkdir(config);
   await writeFile(join(bin, "codex"), "#!/bin/sh\nprintf 'ISOLATED_TERMINAL_READY\\n'\nexec /bin/cat\n", { mode: 0o700 });
@@ -38,7 +38,7 @@ test("SYS-15 S-47 Character isolated terminal renders actual output, accepts key
     if (running) await child.waitFor("document.querySelector('.xterm-rows')?.textContent.includes('ISOLATED_TERMINAL_READY')");
   };
   await open();
-  assert.equal(await child.evaluate("Boolean(document.querySelector('meta[name=molis-work-control-token]'))"), false);
+  assert.equal(await browser.evaluate("document.querySelector('[data-work-surface=characters] iframe') === null"), true, "Characters retains the Host surface from CHR-1");
   await browser.command("Input.insertText", { text: "TYPED_THROUGH_RESTRICTED_CHANNEL" }, browser.sessionId);
   await browser.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" }, browser.sessionId);
   await child.waitFor("document.querySelector('.xterm-rows').textContent.includes('TYPED_THROUGH_RESTRICTED_CHANNEL')");

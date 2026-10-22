@@ -128,7 +128,7 @@ export function replaceTopLevelJsonProperty(
   return `${JSON.stringify({ ...root, [key]: value }, null, detectJsonIndent(original))}${original.endsWith("\n") ? "\n" : ""}`;
 }
 
-export function findTopLevelJsonValueSpan(contents: string, requestedKey: string): [number, number] | null {
+function findTopLevelJsonValueSpan(contents: string, requestedKey: string): [number, number] | null {
   let index = skipWhitespace(contents, 0);
   if (contents[index] !== "{") return null;
   index += 1;
@@ -154,7 +154,7 @@ export function findTopLevelJsonValueSpan(contents: string, requestedKey: string
   return null;
 }
 
-export function scanJsonString(contents: string, start: number): number {
+function scanJsonString(contents: string, start: number): number {
   let escaped = false;
   for (let index = start + 1; index < contents.length; index += 1) {
     const character = contents[index];
@@ -171,7 +171,7 @@ export function scanJsonString(contents: string, start: number): number {
   throw installerErrors["installer.config_invalid"]("JSON 字符串没有结束");
 }
 
-export function scanJsonValue(contents: string, start: number): number {
+function scanJsonValue(contents: string, start: number): number {
   const first = contents[start];
   if (first === '"') return scanJsonString(contents, start);
   if (first === "{" || first === "[") {
@@ -219,7 +219,7 @@ export function parseJsoncObject(contents: string, label: string): Record<string
   }
 }
 
-export function stripJsonc(contents: string): string {
+function stripJsonc(contents: string): string {
   let result = "";
   let index = 0;
   let inString = false;
@@ -272,12 +272,12 @@ export function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-export function detectJsonIndent(contents: string): number {
+function detectJsonIndent(contents: string): number {
   const match = contents.match(/\n( +)"/);
   return match ? Math.min(match[1].length, 8) : 2;
 }
 
-export function skipWhitespace(contents: string, start: number): number {
+function skipWhitespace(contents: string, start: number): number {
   let index = start;
   while (index < contents.length && /\s/.test(contents[index])) index += 1;
   return index;

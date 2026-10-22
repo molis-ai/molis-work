@@ -5,7 +5,7 @@ export const PPT_STYLES = `
     display: inline-flex; align-items: center; flex: none; height: 28px; max-width: 28px;
     margin-right: 4px; padding: 0; overflow: hidden; border: 0; border-radius: 6px;
     background: transparent; color: var(--muted); cursor: pointer;
-    transition: background-color var(--motion-fast, 130ms) var(--ease-quint), color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint), color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .creative-artifact-act svg { width: 14px; height: 14px; flex: none; margin: 0 8px; }
   .creative-artifact-act span { overflow: hidden; white-space: nowrap; font-size: 12px; line-height: 28px; padding-right: 8px; }
@@ -49,7 +49,7 @@ export const PPT_STYLES = `
     display: flex; align-items: center; gap: 8px;
     flex: 1; min-width: 0; text-align: left; border: 0; background: transparent;
     color: inherit; font: inherit; padding: 8px 8px; border-radius: 6px; cursor: pointer;
-    transition: background-color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .ppt-slide-row > button:first-child:hover { background: var(--nav-hover); }
   .ppt-slide-row.is-selected > button:first-child {
@@ -57,7 +57,7 @@ export const PPT_STYLES = `
   }
   .ppt-slide-index {
     display: inline-grid; place-items: center; flex: none;
-    width: 18px; height: 18px; border-radius: 5px;
+    width: 18px; height: 18px; border-radius: 4px;
     font-size: 11px; font-variant-numeric: tabular-nums;
     background: color-mix(in srgb, var(--plugin-ppt, var(--ink)) 12%, transparent);
     color: var(--plugin-ppt, var(--muted));
@@ -78,7 +78,7 @@ export const PPT_STYLES = `
   .ppt-card {
     aspect-ratio: 16 / 9; min-height: 140px; max-width: 100%; padding: 16px 24px; border-radius: 10px;
     border: 1px solid transparent; display: flex; flex-direction: column; justify-content: center; gap: 8px;
-    transition: box-shadow var(--motion-fast, 130ms) var(--ease-quint);
+    transition: box-shadow var(--dur-hover, 130ms) var(--ease-quint);
   }
   .ppt-card.is-current {
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--plugin-ppt, var(--focus)) 72%, var(--focus));
@@ -112,19 +112,12 @@ export const PPT_STYLES = `
   .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 16px 24px 16px; }
   .creative-confirm-form p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
   .creative-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
-  .plugin-stage-workspace.is-arriving,
-  .is-arriving { animation: creative-arrive var(--motion-normal, 130ms) var(--ease-quint) both; }
-  @keyframes creative-arrive {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: none; }
-  }
   @media (max-width: 900px) { .ppt-split { grid-template-columns: 1fr; } }
   @media (max-width: 720px) {
     .ppt-meta { grid-template-columns: 1fr; }
     .ppt-swatch { width: 44px; height: 44px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .is-arriving, .plugin-stage-workspace.is-arriving { animation: none; }
     .ppt-slide-row > button:first-child, .ppt-card, .ppt-swatch { transition: none; }
   }
   body.immersive-workbench .plugin-stage-workspace > .ppt-workspace { flex: 1; min-height: 0; }

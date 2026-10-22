@@ -18,7 +18,7 @@ export const NODE_LAUNCHER_HEADER = "#!/usr/bin/env node\n// molis-work-home-lau
 
 export const BUNDLED_NODE_LAUNCHER_HEADER = "#!/bin/sh\n# molis-work-home-launcher-v2";
 
-export const OWNED_LAUNCHER_HEADERS = [
+const OWNED_LAUNCHER_HEADERS = [
   NODE_LAUNCHER_HEADER,
   BUNDLED_NODE_LAUNCHER_HEADER,
 ] as const;

@@ -157,6 +157,7 @@ tests/coding-session-title.test.ts
 tests/coding-step-claims.test.ts
 tests/coding-store.test.ts
 tests/coding-ui.test.ts
+tests/coding-work-executor.test.ts
 tests/coding-writers.test.ts
 
 # connector
@@ -475,3 +476,4 @@ tests/connector-consumer-usages.test.ts
 tests/knowledge-cards.test.ts
 tests/knowledge-reads.test.ts
 tests/security-invariants-knowledge-lifecycle.test.ts
+tests/canonical-json-value.test.ts

@@ -17,7 +17,7 @@ icon("copy"); // 页面已注入 sprite 时也可以 <svg><use href="#icon-copy"
 
 媒体预览缩放用 `window.molisMediaZoom(viewport, image, { onChange })`（`src/browser/media-zoom.ts`，VUX-32）：围绕实际看的位置缩放，平移有边界，`0` 回到适应；页面自己不再写第二套 pan/zoom。
 
-状态统一用 `renderStateRing({ state, label?, size?, progress? })` 或 `renderStatusMark({ state, label })`。`state-ring-states.ts` 的 43 个状态复用 21 套环刻样式，业务词义和本地化文案仍归调用方。`doing` 静止，`running` 等实际执行状态持续运动，`round-ended` 只表示一轮结束。部分完成和中断的 `progress` 只接真实完成比例；未知时省略。
+状态统一用 `renderStateRing({ state, label?, size?, progress? })` 或 `renderStatusMark({ state, label })`。`state-ring-states.ts` 的 43 个状态复用 21 套环刻样式，业务词义和本地化文案仍归调用方。`doing` 静止，`running` 等实际执行状态持续运动，`round-ended` 只表示一轮结束。部分完成和中断的 `progress` 只接真实完成比例；未知时省略。不传 `size` 时环跟随所在文字（`1em + 2px`，笔画随尺寸换算），与旁边的字等高；只有单独站着的环（规格板标本、空状态的大标记）才传 `size`，页面不再给某一行的环另定尺寸（DESIGN「Order」）。
 
 客户端与插件公开脚本保留原文；宿主沿统一 HTTP 资源入口用 esbuild 压缩交付程序，状态文字与模板字符串内容不改变。
 
@@ -66,7 +66,8 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 - **字：** 系统字体栈 `FONT_STACK`；字重只有 400 / 500 / 600，用 `--weight-body` / `--weight-control` / `--weight-title`。不准全局强制字重，不准合成粗体（`font-synthesis-weight: none`）。代码与 ID 用 `--font-mono`。
 - **尺寸：** 控件 32px（紧凑 28，手机/粗指针 44），`--control-h` 只在早层声明，好让密度和触控规则赢。圆角：tag 6、control 8、row 10、card 12、sheet 14、composer 15、dialog 16。
 - **焦点：** 只用 `--focus-stroke`（2px 铜色、偏移 1px）；字段是铜色边框加 3px 铜色光晕。不准用 ink 或蓝色描焦点，不准去掉焦点。危险态用 `--red`。
-- **动效：** 只用 `--dur-*`（按压/悬停 130、状态 250、到达 420、时刻 640）和 `--ease-quint` / `--ease-spring`。按下回弹到 .97；菜单从触发处长出，底栏菜单从栏升起；面板从边缘滑入；悬停只变色调。打开弹层的控件不缩放。完成与新到达用 `molisCraft.celebrate` / `molisCraft.land`。`prefers-reduced-motion` 与自动化下控件入场动画静止。状态环刻的语义周期为 2.8–5.8 秒，由共享组件维护；减少动效时静止，浏览器回归可以显式验证正常运动。
+- **动效：** 只用 `--dur-*`（按压/悬停 130、状态 250、到达 420、时刻 640）和 `--ease-quint` / `--ease-spring`。按下回弹到 .97；菜单从触发处长出，底栏菜单从栏升起；面板从边缘滑入；悬停只变色调。打开弹层的控件不缩放。入场只有四个关键帧（`src/styles/motion.ts`：到达 `craft-rise`、再显示 `craft-fade-in`、菜单 `craft-drop` / `craft-rise-from-bar`），页面与插件不另写；完成与新到达用 `molisCraft.celebrate` / `molisCraft.land`（新到达的那一层底色是 `[data-craft-new]`）。`prefers-reduced-motion` 与自动化下控件入场动画静止。状态环刻的语义周期为 2.8–5.8 秒，由共享组件维护；减少动效时静止，浏览器回归可以显式验证正常运动。
+- **不画滚动条。** `HIDDEN_SCROLLBAR_STYLES`（`src/styles/scrollbars.ts`）在每一页把滚动条藏起来，滚动照常；强制颜色下系统滚动条回来。别处不写 `scrollbar-width`、`scrollbar-color`、`::-webkit-scrollbar`；不在共有样式表里的页面（胶囊、IM、接续页）自己带上这条。
 - **不准露出操作系统默认控件。** 选择打开后是 `mw-menu`；禁止系统色盘、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。原生 `<select>` 只可隐藏当值，原生 `<dialog>` 只留行为。
 - 选项组用 `renderChoice` / `mw-choice`：选中是石墨底加对勾，不能只靠光影或颜色表达选中。
 - 图标从库取：`icon("name")` 或 `#icon-name`。不要第二套 emoji/Unicode 图标。
@@ -103,7 +104,7 @@ node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home /tmp/m
   - 生产只从包名（或 `/floating`）导入，不深入 `src/`；改源码后编进 `dist`，预览和测试读的是包导出。`/floating` 必须保持叶子：不 import 任何东西、不碰 Node（`tests/design-system-floating.test.ts` 看住）。
   - 改共享控件先看规格板 `/__ui/catalog`。
   - 禁止系统色盘、系统日期/时间弹出、`alert`/`confirm`/`prompt` 与未换肤的 `range`。
-  - 键盘焦点只用 `--focus-stroke`；动效只用 `--dur-*`、`--motion-*`、`--ease-*`。
+  - 键盘焦点只用 `--focus-stroke`；动效只用 `--dur-*`、`--ease-*`（`--motion-*` 只是给旧插件的别名，新规则不用）。
   - 进入工作台之前的页面用到的部件（`mw-wordmark`、`mw-caption`、`mw-steps`、`mw-goal-track`、`mw-bar-context`、`mw-bar-status`、`mw-file-kind/row/group`、`mw-brief`、按钮上的 `mw-btn__key`）在这里定义，规格板的「到达」一节各有标本；页面（`apps/workbench/src/arrival/`）只排版，不重画。打字与飞入动效是一段脚本（`ARRIVAL_MOTION_CLIENT_SCRIPT`），在减少动态效果与自动化下静止。
   - AI 交互部件只收展示参数，不认识 Run、回执或授权；读人的文字由调用方给。浏览器端行为（`interaction-client.ts`）只读写 DOM、不存值；它的函数各自不依赖 import，改它要保持这一点。`INTERACTION_STYLES` 只用令牌，不进共享页面样式表，直到产品真正采用。
 - 共用 select 增强器保留原字段显式的 `aria-required`；没有声明时才跟随原生 `required`，不改变原表单的提交校验。动态更改与键盘、原生校验回归见 `tests/select-menu-interaction.e2e.test.ts`。

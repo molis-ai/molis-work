@@ -1,3 +1,5 @@
+import type { GoalsCommandContext } from "./command-support.js";
+import type { GoalEventStateCore } from "./event-state-host.js";
 import type {
   GoalEventDecisionRequestView,
   GoalEventRequirementStatus,
@@ -111,7 +113,7 @@ export function completionUnmetReasons(input: {
   return reasons;
 }
 
-export function fulfillmentForWorkStatus(status: GoalEventWorkStatus): "unmet" | "satisfied" {
+function fulfillmentForWorkStatus(status: GoalEventWorkStatus): "unmet" | "satisfied" {
   return status === "completed" ? "satisfied" : "unmet";
 }
 
@@ -156,4 +158,27 @@ function hasCurrentHumanApproval(
     && decisionHasEffect(latest, "authorize_action", "complete")
     && forThisAgreement.has(latest.decision_id),
   );
+}
+
+
+export function reopenCompletion(
+  records: GoalEventStateRepository,
+  context: GoalsCommandContext,
+  core: GoalEventStateCore,
+  goal: GoalRecord,
+  actorId: string,
+  actorKind: "user" | "runtime" | null,
+  requirementIds: string[],
+  reason: string,
+): void {
+  const previous = records.workStatus(goal.project_id, goal.goal_id);
+  const at = context.now().toISOString();
+  records.supersedeAppliedClosures(goal.project_id, goal.goal_id, reason);
+  syncClosedState(records, goal, "open", at);
+  core.insertSystem(goal, actorId, actorKind, "相关事实使完成效果不再成立", {
+    operation: "completion_reopened",
+    requirement_ids: requirementIds,
+    reason,
+    previous_work_status: previous,
+  });
 }

@@ -1,5 +1,6 @@
 /** Shared mw-* control language. Loaded with the visual foundation. */
 
+import { TOAST_STYLES } from "./toast.js";
 import { SELECT_MENU_STYLES } from "../select-menu-client.js";
 import { SR_ONLY_STYLES } from "./sr-only.js";
 import { STATE_RING_STYLES } from "./state-ring.js";
@@ -40,11 +41,11 @@ export const PRIMITIVE_STYLES = `
     appearance: none;
     -webkit-appearance: none;
     transition:
-      background-color var(--motion-instant, 130ms) var(--ease-quint),
-      color var(--motion-instant, 130ms) var(--ease-quint),
-      border-color var(--motion-instant, 130ms) var(--ease-quint),
-      box-shadow var(--motion-fast, 130ms) var(--ease-quint),
-      opacity var(--motion-fast, 130ms) var(--ease-quint);
+      background-color var(--dur-hover, 130ms) var(--ease-quint),
+      color var(--dur-hover, 130ms) var(--ease-quint),
+      border-color var(--dur-hover, 130ms) var(--ease-quint),
+      box-shadow var(--dur-hover, 130ms) var(--ease-quint),
+      opacity var(--dur-hover, 130ms) var(--ease-quint);
   }
   body .mw-btn:active { filter: none; }
   .mw-btn svg { width: 14px; height: 14px; flex: none; }
@@ -75,15 +76,9 @@ export const PRIMITIVE_STYLES = `
   .mw-btn--primary:active:not(:disabled) {
     background: color-mix(in srgb, var(--action) 82%, var(--action-ink));
   }
-  /* Secondary is the soft button: a wash on whatever surface it sits on, no outline. */
-  .mw-btn--secondary {
-    min-height: var(--control-h, 32px);
-    padding: 0 var(--control-pad-x, 12px);
-    border: 1px solid transparent;
-    border-radius: var(--radius-control);
-    background: var(--control-fill);
-    color: var(--ink);
-  }
+  /* Secondary is the soft button: a wash on whatever surface it sits on, no outline. Its size is the button's own
+     (.mw-btn and --sm, --md, --lg), so a small secondary stands as tall as the small primary and ghost beside it. */
+  .mw-btn--secondary { background: var(--control-fill); color: var(--ink); }
   .mw-btn--secondary:hover:not(:disabled) {
     border-color: transparent;
     background: var(--nav-hover);
@@ -161,7 +156,7 @@ export const PRIMITIVE_STYLES = `
     border-radius: var(--radius-control, 8px);
     color: var(--ink);
     background-color: var(--paper);
-    transition: border-color var(--motion-fast, 130ms) var(--ease-quint), box-shadow var(--motion-normal, 250ms) var(--ease-quint), background-color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: border-color var(--dur-hover, 130ms) var(--ease-quint), box-shadow var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
     font: inherit;
     font-size: 13px;
     box-shadow: none;
@@ -214,7 +209,7 @@ export const PRIMITIVE_STYLES = `
     border: 1px solid transparent;
     border-radius: var(--radius-control, 8px);
     background: var(--control-fill);
-    transition: border-color var(--motion-fast, 130ms) var(--ease-quint), box-shadow var(--motion-normal, 250ms) var(--ease-quint), background-color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: border-color var(--dur-hover, 130ms) var(--ease-quint), box-shadow var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .mw-input-group:hover { background: var(--nav-hover); }
   .mw-input-group .mw-input,
@@ -245,7 +240,7 @@ export const PRIMITIVE_STYLES = `
     border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); background: var(--paper);
     display: inline-grid; place-items: center; color: var(--action-ink);
   }
-  .mw-check { border-radius: 5px; }
+  .mw-check { border-radius: 4px; }
   .mw-radio { border-radius: 50%; }
   .mw-check:hover:not(:disabled), .mw-radio:hover:not(:disabled) { border-color: color-mix(in srgb, var(--control-input) 60%, var(--ink)); }
   .mw-check:checked, .mw-radio:checked { border-color: var(--action); background: var(--action); }
@@ -265,7 +260,7 @@ export const PRIMITIVE_STYLES = `
     display: block; width: 32px; height: 18px; border-radius: 99px;
     background: color-mix(in srgb, var(--ink) 16%, var(--paper));
     border: 1px solid transparent;
-    transition: background-color var(--motion-instant, 130ms) var(--ease-quint), border-color var(--motion-instant, 130ms) var(--ease-quint);
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint), border-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .mw-switch__track::after {
     content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
@@ -321,7 +316,7 @@ export const PRIMITIVE_STYLES = `
     color: var(--status-tone, var(--ink-soft));
     white-space: nowrap;
   }
-  .mw-status svg { width: 12px; height: 12px; flex: none; }
+  .mw-status svg { width: calc(1em + 2px); height: calc(1em + 2px); flex: none; }
   .mw-status > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .mw-status--plain {
     min-height: 0; padding: 0; background: transparent; border-radius: 0;
@@ -353,28 +348,24 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-empty__mark, .mw-empty > svg { color: var(--plugin-tint, var(--muted)); }
   .mw-empty__mark svg, .mw-empty > svg { width: 16px; height: 16px; stroke-width: 2; }
-  .mw-empty h1, .mw-empty h2, .mw-empty strong { margin: 0; font-size: 15px; font-weight: var(--weight-control, 500); color: var(--ink); }
+  .mw-empty h1, .mw-empty h2, .mw-empty strong { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); color: var(--ink); }
   .mw-empty p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-soft); }
-  .mw-empty__actions { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 0 -8px; }
+  .mw-empty__actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 0; }
   .frame-empty.mw-empty {
     display: flex; flex-direction: column; justify-content: center; align-items: center;
     gap: 12px; padding: 32px; text-align: center;
   }
   .frame-empty.mw-empty .mw-btn { margin-top: 4px; }
 
-  .mw-toast {
-    min-height: 36px; padding: 12px 16px; border: 0;
-    border-radius: 12px; background: var(--action);
-    box-shadow: var(--shadow); color: var(--action-ink); font-size: 13px;
-  }
+  ${TOAST_STYLES}
   .mw-spinner { width: 20px; height: 20px; display: inline-block; color: currentColor; }
-  /* One loading rule everywhere: a quiet line with the spinner, which appears only if the wait passes 250ms
-     (a quick load never flashes). Skeletons (static, never shimmer) and busy buttons wait the same; reduced motion drops only the fade. */
+  /* One loading rule everywhere: a quiet line with the spinner, shown only past a 250ms wait (a quick load never flashes). Skeletons (static),
+     busy buttons and a plugin's dimmed region (mw-busy-dim to --busy-dim) wait the same, as animations; reduced motion drops only the fade. */
   .mw-loading {
     display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px;
     animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both;
   }
-  @keyframes mw-loading-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes mw-loading-in { from { opacity: 0; } to { opacity: 1; } } @keyframes mw-busy-dim { to { opacity: var(--busy-dim, .65); } }
   @media (prefers-reduced-motion: reduce) { .mw-loading, .mw-skeleton, .mw-btn[data-loading] > * { animation-duration: 0s; } }
   .mw-skeleton {
     display: block; height: 12px; border-radius: 4px; animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both;
@@ -510,7 +501,7 @@ export const PRIMITIVE_STYLES = `
   .mw-tabs__tab {
     min-height: 30px; padding: 0 12px; border: 0; border-radius: 8px;
     background: transparent; color: var(--muted); font: inherit; font-weight: var(--weight-control, 500);
-    transition: background-color var(--motion-fast, 130ms) var(--ease-quint), color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint), color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .mw-tabs__tab:hover { color: var(--ink); background: var(--nav-hover); }
   .mw-tabs__tab:focus-visible, .mw-toggle:focus-visible, .mw-pagination__page:focus-visible { ${CONTAINED_FOCUS}; }
@@ -519,12 +510,12 @@ export const PRIMITIVE_STYLES = `
   .mw-toggle-group {
     display: inline-flex; gap: 4px; padding: 4px;
     border: 0;
-    border-radius: 9px; background: var(--control-fill);
+    border-radius: 10px; background: var(--control-fill);
   }
   .mw-toggle {
     min-height: 26px; padding: 0 12px; border: 0; border-radius: 6px;
     background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: var(--weight-control, 500);
-    transition: color var(--motion-normal, 250ms) var(--ease-quint), background-color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: color var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .mw-toggle:hover:not(:disabled):not(.is-current) { color: var(--ink); background: var(--nav-hover); }
   .mw-toggle:disabled { opacity: .42; cursor: not-allowed; }
@@ -801,7 +792,7 @@ export const PRIMITIVE_STYLES = `
   :is(.mw-catalog, .mw-layout-primitives) .mw-frame__action { flex: none; padding-top: 4px; }
   :is(.mw-catalog, .mw-layout-primitives) .mw-frame__action .mw-btn {
     min-height: 0; padding: 0; border: 0; border-radius: 0;
-    background: transparent; color: var(--muted); font-weight: 400; box-shadow: none;
+    background: transparent; color: var(--muted); font-weight: var(--weight-control, 500); box-shadow: none;
   }
   :is(.mw-catalog, .mw-layout-primitives) .mw-frame__action .mw-btn:hover:not(:disabled) {
     background: transparent; color: var(--ink); text-decoration: underline; text-underline-offset: 3px;
@@ -826,7 +817,7 @@ export const PRIMITIVE_STYLES = `
   .mw-card--tile {
     border: 0; background: transparent; overflow: visible; width: auto; display: block;
   }
-  .mw-scroll { overflow: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .mw-scroll { overflow: auto; min-height: 0; }
   .mw-table-wrap {
     overflow: auto; border: 1px solid var(--line);
     border-radius: 12px; background: var(--paper);
@@ -835,7 +826,7 @@ export const PRIMITIVE_STYLES = `
   .mw-table th, .mw-table td { padding: 12px 16px; border: 0; text-align: left; }
   .mw-table th { color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); letter-spacing: .01em; }
   .mw-table tbody tr + tr td { box-shadow: inset 0 1px 0 var(--line); }
-  .mw-table tbody tr { transition: background-color var(--motion-fast, 130ms) var(--ease-quint); }
+  .mw-table tbody tr { transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
   .mw-table tbody tr:hover { background: var(--nav-hover); }
   .mw-table thead th { padding-bottom: 8px; }
   .mw-catalog .mw-card { width: min(280px, 100%); }
@@ -880,7 +871,9 @@ export const PRIMITIVE_STYLES = `
   .mw-catalog__specimens {
     display: grid; gap: 24px;
   }
-  .mw-catalog__specimen { display: grid; gap: 12px; min-width: 0; }
+  .mw-catalog__specimen { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+  .mw-catalog__toasts { display: grid; justify-items: start; gap: 8px; }
+  .mw-catalog__toasts > .mw-toast { max-width: 100%; }
   .mw-catalog__specimen figcaption,
   .mw-catalog__specimen > span {
     margin: 0; color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); letter-spacing: .01em;
@@ -926,7 +919,7 @@ export const PRIMITIVE_STYLES = `
   .mw-compose__code { overflow-x: auto; margin: 0 0 12px; padding: 12px 12px; border-radius: 8px; background: var(--rail); color: var(--ink); font-size: 12px; white-space: pre; }
   .mw-compose__nested { max-height: 110px; overflow: auto; overscroll-behavior: contain; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); }
   .mw-compose__nested p { margin: 4px 0; }
-  .mw-compose--narrow { display: grid; gap: 12px; }
+  .mw-compose--narrow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .mw-compose__density { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); }
   .mw-compose__resizable { container-type: inline-size; resize: horizontal; overflow: auto; width: 560px; min-width: 260px; max-width: 100%; padding: 12px; border-radius: 14px; background: var(--paper); box-shadow: var(--surface-shadow); }
   .mw-compose__resizable .mw-toolbar { margin-bottom: 8px; flex-wrap: nowrap; }
@@ -1042,7 +1035,7 @@ export const PRIMITIVE_STYLES = `
     position: relative; min-width: 0;
     display: grid; grid-template-columns: minmax(0, 1fr);
     align-items: stretch; border-radius: var(--radius-item, 8px);
-    transition: background-color var(--motion-normal, 250ms) var(--ease-quint);
+    transition: background-color var(--dur-move, 250ms) var(--ease-quint);
   }
   body[data-desktop-shell="true"] .mw-dir-row,
   body.immersive-workbench .tree-pane .mw-dir-row,
@@ -1145,7 +1138,7 @@ export const PRIMITIVE_STYLES = `
     background: transparent; color: var(--status-tone, var(--faint));
     font-size: 12px; font-weight: 400; line-height: 16px;
   }
-  .mw-dir-row .mw-dir-row__status svg { width: 12px; height: 12px; color: inherit; }
+  .mw-dir-row .mw-dir-row__status svg:not(.mw-state-ring) { width: 12px; height: 12px; color: inherit; }
   .mw-dir-row.is-selected .mw-dir-row__status,
   .mw-dir-row[aria-current="page"] .mw-dir-row__status { color: var(--status-tone, var(--muted)); }
   .mw-dir-row-wrap:hover { background: var(--nav-hover); }
@@ -1236,6 +1229,7 @@ export const PRIMITIVE_STYLES = `
 
   @media (max-width: 760px), (pointer: coarse) {
     .mw-form__footer .mw-btn:not(.mw-btn--icon-only), .mw-btn--lg, .mw-menu__item { min-height: 44px; }
+    .mw-btn--sm { min-height: var(--control-h, 44px); }
     .mw-input, .mw-textarea, .mw-select { font-size: 16px; }
     dialog.mw-sheet { inset: 0; width: 100vw; height: 100dvh; max-height: 100dvh; }
     dialog.mw-dialog--form { width: calc(100vw - 24px); max-height: calc(100dvh - 32px); }

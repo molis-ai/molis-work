@@ -14,7 +14,7 @@ import {
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 
-export const AGENT_DEFINITIONS_STORE = "agent-definitions";
+const AGENT_DEFINITIONS_STORE = "agent-definitions";
 const USES_KEPT = 200;
 
 /** The agent definitions store's one current schema (repository-anti-corruption §4.1). */

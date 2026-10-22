@@ -11,6 +11,8 @@ import { createMcpActionGrant } from "../apps/local-host/dist/mcp-action-grants.
 import { writeMcpActionGrant } from "../apps/local-host/dist/mcp-settings-store.js";
 import type { ActionDefinition, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
+const actionToolsModule = () => import('../horizontal/agent-host/dist/adapters/prologue-action-tools.js');
+
 async function until<T>(read: () => T | Promise<T>): Promise<NonNullable<T>> {
   for (let i = 0; i < 300; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
   throw new Error("Expected SDK state not reached");
@@ -198,7 +200,7 @@ test("real SDK binds identical tools to separate callers and cancellation reache
 });
 
 test("Agent tool declarations preserve provider deadlines within the Agent ceiling", async () => {
-  const { prologueActionTools } = await import('../horizontal/agent-host/dist/adapters/prologue-action-tools.js');
+  const { prologueActionTools } = await actionToolsModule();
   const { ActionService } = await import('@molis-ai/molis-work-kernel');
   const service = new ActionService();
   const definitions: ActionDefinition[] = [2_000, 120_000, undefined].map((timeout_ms, index) => ({ capability_id: 'arbitrary.tool' + index, version: 1, operation: 'query',
@@ -223,4 +225,46 @@ test("Agent tool declarations preserve provider deadlines within the Agent ceili
   assert.equal(kind('arbitrary.tool0'), 'safe-read');
   assert.equal(kind('arbitrary.writes'), 'mutate-external');
   assert.equal(kind('arbitrary.command'), 'mutate-external');
+});
+
+test("a round's action pack id names one declaration: the suggest tool and each provider's title are in it", async () => {
+  // The SDK keeps a pack by id for the whole process and refuses a second, different declaration under the same id
+  // (SCENARIO_PACK_INVALID): Coding's 执行 round may suggest and its 修改 round may not, with the same action tools.
+  const { prologueActionTools, actionToolRefs } = await actionToolsModule();
+  const { ActionService } = await import('@molis-ai/molis-work-kernel');
+  const definition: ActionDefinition = { capability_id: 'arbitrary.read', version: 1, operation: 'query',
+    action: { title: 'read', description: 'read', kind: 'query', scope: 'home', audiences: ['agent'], permissions: [], subject_kinds: [], input_schema: { type: 'object' } } };
+  const context = { actor_id: 'agent', project_id: null, audience: 'agent' as const, permissions: [] };
+  const actions = (title: string) => {
+    const service = new ActionService();
+    service.registerProvider({ provider: { provider_id: 'fixture', title, kind: 'system' }, definitions: [definition], handlers: [{ ...definition, handle: () => ({}) }] });
+    return { tools: service.discover(context), client: { discover: () => service.discover(context), invoke: (ref: ExactActionReference, input: unknown, signal?: AbortSignal) => service.invoke({ ...context, signal }, ref, input) } };
+  };
+  const rounds = {
+    plain: prologueActionTools(actions('fixture'), 60_000),
+    again: prologueActionTools(actions('fixture'), 60_000),
+    suggesting: prologueActionTools(actions('fixture'), 60_000, undefined, true),
+    renamed: prologueActionTools(actions('renamed'), 60_000),
+    sooner: prologueActionTools(actions('fixture'), 30_000),
+    empty: prologueActionTools({ ...actions('fixture'), tools: [] }, 60_000),
+    emptySuggesting: prologueActionTools({ ...actions('fixture'), tools: [] }, 60_000, undefined, true),
+  };
+  assert.ok(rounds.suggesting.names.some(name => name.startsWith('molis-suggest-')), 'the suggesting round carries the suggest tool');
+  // One id, one declaration: whatever two rounds declare under the same id is the same pack.
+  const byId = new Map<string, string>();
+  for (const [round, projected] of Object.entries(rounds)) {
+    const declared = JSON.stringify(projected.pack);
+    assert.equal(byId.get(projected.pack.id) ?? declared, declared, `${round}: another declaration already holds ${projected.pack.id}`);
+    byId.set(projected.pack.id, declared);
+  }
+  assert.equal(new Set([rounds.plain, rounds.suggesting, rounds.renamed, rounds.sooner, rounds.empty].map(projected => projected.pack.id)).size, 5);
+  // The same choice reuses its pack, and nothing to suggest from is the same pack as no suggesting.
+  assert.equal(rounds.again.pack.id, rounds.plain.pack.id);
+  assert.deepEqual(rounds.again.names, rounds.plain.names);
+  assert.equal(rounds.emptySuggesting.pack.id, rounds.empty.pack.id);
+  // A round's stored scope still names its own action tools back to their references.
+  const refs = [{ capability_id: definition.capability_id, version: definition.version, provider_id: 'fixture' }];
+  for (const projected of [rounds.plain, rounds.suggesting, rounds.renamed]) {
+    assert.deepEqual([...actionToolRefs(refs, projected.scope).keys()], projected.names.filter(name => name.startsWith('molis-action-')));
+  }
 });

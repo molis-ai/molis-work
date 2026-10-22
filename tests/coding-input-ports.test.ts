@@ -10,7 +10,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { CODING_PLUGIN_ID, CODING_UI_CONTRIBUTION_ID, codingManifest, type CodingUiHostModel } from "@molis-ai/molis-work-plugin-coding";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, PluginHostExecutor, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
-import { charactersActions } from "@molis-ai/molis-work-plugin-characters";
+import { charactersActions } from "@molis-ai/molis-work-module-characters";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -56,12 +56,14 @@ function directoryHtml(platform: { supervisor: { contribution(pluginId: string):
 const until = async (done: () => boolean, ms = 5_000) => { for (const end = Date.now() + ms; !done() && Date.now() < end;) await new Promise(resolve => setTimeout(resolve, 50)); assert.ok(done(), "the awaited step happened"); };
 const registration = (service: ActionService) => ({ registry: service, client: service, project_id: DEMO_PROJECT_ID });
 
-test("W5-01-CODING-23 Coding declares model:read and never model:invoke, and lists the Goals and Characters actions it reads through under consumes", () => {
+test("W5-01-CODING-23 PG035-07 Coding declares model:read, model:invoke only as optional for its two explicit drafts, and lists the draft, Goals and Characters actions it reads through under consumes", () => {
   const modelPermissions = codingManifest.permissions.filter(declared => declared.permission.startsWith("model:"));
-  assert.deepEqual(modelPermissions.map(({ permission, required }) => ({ permission, required })), [{ permission: "model:read", required: true }]);
-  // No action of Coding's can ask the model for text either: a call to complete() needs an own action that declares model:invoke.
+  assert.deepEqual(modelPermissions.map(({ permission, required }) => ({ permission, required })), [{ permission: "model:read", required: true }, { permission: "model:invoke", required: false }]);
+  // model:invoke is for the platform's draft action alone (the commit message, the digest of earlier rounds); no action of Coding's
+  // asks the model for text itself: a call to complete() needs an own action that declares model:invoke.
   for (const action of codingManifest.actions) assert.equal(action.action.permissions.includes("model:invoke"), false, `${action.capability_id} does not declare model:invoke`);
   const consumed = codingManifest.capabilities.consumes;
+  assert.ok(consumed.includes(agent.draftText.capability_id), "Coding lists the draft action under consumes");
   for (const definition of [goalPluginActions.list, goalPluginActions.contract, characterPluginActions.list, characterPluginActions.runnable]) {
     assert.ok(consumed.includes(definition.capability_id), `Coding lists ${definition.capability_id} under consumes`);
   }

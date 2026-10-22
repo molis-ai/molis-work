@@ -57,7 +57,7 @@ export function renderKnowledgeSettings({ L, projectId }: { L(text: string): str
  * later, the side panel's import, and the one picker of project knowledge. It needs the page's `L` and `molisWorkRequest`
  * first, so its tag comes after the page's own scripts.
  */
-export const KNOWLEDGE_CLIENT_ASSET = "/assets/molis-work-knowledge.js";
+const KNOWLEDGE_CLIENT_ASSET = "/assets/molis-work-knowledge.js";
 export const knowledgeClientTag = (): string => `<script src="${KNOWLEDGE_CLIENT_ASSET}"></script>`;
 let client: string | null = null;
 export function renderMolisWorkKnowledgeClientScript(): string {

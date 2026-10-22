@@ -81,7 +81,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       body: payloadBody === undefined || method === "GET" ? undefined : JSON.stringify(payloadBody),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || L("文档请求失败"));
+    if (!response.ok) throw Object.assign(new Error(payload.error || L("文档请求失败")), { status: response.status });
     return payload;
   };
   const showNote = (text, isError) => {
@@ -585,7 +585,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     filling = true;
     sel = record;
     bench.setAttribute("data-expanded", "true");
-    workspace.hidden = false;
+    workspace.hidden = false; delete workspace.dataset.missing;
     titleEl.textContent = record.title;
     statusEl.textContent = L("已保存"); statusEl.dataset.mwState = "saved";
     titleInput.value = record.title;
@@ -612,7 +612,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     sel = null; editorEpoch += 1;
     syncEditorChrome();
     bench.setAttribute("data-expanded", "false");
-    workspace.hidden = true;
+    workspace.hidden = true; delete workspace.dataset.missing;
     closeMore();
     closeCreate();
     closeMove();
@@ -704,7 +704,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       dirty = false;
       editRev += 1;
       showNote("", false);
-    })().catch((error) => { if (seq === selectionSeq) showNote(error.message || L("保存失败"), true); })
+    })().catch((error) => { if (seq !== selectionSeq) return; if (error.status === 404) bench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: id } })); if (!sel && !event.detail?.quiet) { bench.setAttribute("data-expanded", "true"); workspace.hidden = false; workspace.dataset.missing = ""; titleEl.textContent = L("文档"); } showNote(error.message || L("保存失败"), true); })
       .finally(() => { if (seq === selectionSeq) openingId = null; });
   });
   /** Tell the workbench what just happened, so it can say where the result is and what comes next. */

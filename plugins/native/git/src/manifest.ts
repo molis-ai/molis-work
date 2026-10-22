@@ -1,5 +1,5 @@
 import { GIT_ACTIONS } from "./action-definitions.js";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_REVIEW_SETTLED_EVENT, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   CODING_CHANGESET_TYPE,
@@ -20,7 +20,7 @@ import { GIT_UI_CONTRIBUTION_ID } from "./ui.js";
 
 export const GIT_PLUGIN_ID = "io.molis.work.git";
 /** Named, not imported: subscribing to a Plugin is not depending on its code. */
-export const CODING_PLUGIN_ID = "io.molis.work.coding";
+const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */
 export const GIT_PROJECT_PLUGIN_ID = "git";
 
@@ -106,6 +106,8 @@ export const gitManifest: PluginManifest = {
         type_version: 1,
         from_plugin_ids: [CODING_PLUGIN_ID],
       },
+      // Operations Git asked for, once a person approved and the Host ran them. Only the Host sends it, so no source is named.
+      { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1 },
     ],
   },
   routes: [
@@ -127,13 +129,7 @@ export const gitManifest: PluginManifest = {
       {
         command_id: "git.open-change",
         title: "查看这处改动",
-        input_kinds: ["current", "object"],
-        opens_view_id: "changes",
-      },
-      {
-        command_id: "git.accept-run-changes",
-        title: "把这一轮的改动放进工作区",
-        input_kinds: ["agent-session", "artifacts"],
+        input_kinds: ["object"],
         opens_view_id: "changes",
       },
     ],

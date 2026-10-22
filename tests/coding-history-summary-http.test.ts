@@ -9,7 +9,8 @@ import { LocalHost, LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releas
 import { HISTORY_DIGEST_MARKER, digestTask } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentDraftTextRequest, type AgentRunView, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { ActionCallContext, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
@@ -31,7 +32,15 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
   const earlier: AgentRunView[] = [run(1, "给习惯加归档"), run(2, "周报跳过已归档的习惯")];
   const starts: AgentStartRequest[] = [], drafts: AgentDraftTextRequest[] = [];
   let draftFails = false;
-  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
+  // The draft is an action like every other the plugin consumes (PG-035): served here by a provider on the project's action service.
+  const actions = pluginActions(store, DEMO_PROJECT_ID);
+  actions.registry.registerProvider({ provider: { provider_id: "agent-fixture", title: "Agent", kind: "system" }, definitions: [agent.draftText],
+    handlers: [{ ...agent.draftText, handle: (_caller, input) => {
+      drafts.push(structuredClone(input as AgentDraftTextRequest));
+      if (draftFails) throw new ActionError("actions.timeout", "模型两分钟内没有写完，已停止");
+      return { text: "```\n1. 目标与要求：给习惯加归档并让周报跳过已归档的习惯。\n```", usage: { input: 5000, output: 400 } };
+    } }] });
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
@@ -39,11 +48,6 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: earlier.map(item => item.ref) } as Output;
       if (definition.capability_id === agent.readRun.capability_id) return earlier.find(item => item.ref.run_id === (args as any[])[1].run_id) as Output;
-      if (definition.capability_id === agent.draftText.capability_id) {
-        drafts.push(structuredClone(args as AgentDraftTextRequest));
-        if (draftFails) throw new Error("模型两分钟内没有写完，已停止");
-        return { text: "```\n1. 目标与要求：给习惯加归档并让周报跳过已归档的习惯。\n```", usage: { input: 5000, output: 400 } } as Output;
-      }
       if (definition.capability_id === agent.startRun.capability_id) {
         const request = structuredClone((args as any[])[1]) as AgentStartRequest; starts.push(request);
         return { ref: { session_id: "sdk", run_id: `r${earlier.length + 1}` }, frozen: { history: request.history } } as Output;
@@ -116,6 +120,12 @@ test("a round whose digest the model is still writing runs beside the project's 
   const ping = { capability_id: "fixture.queue.ping", version: 1, operation: "command" as const, action: { title: "ping", description: "a serial command of the same project", kind: "operation" as const,
     scope: "project" as const, audiences: ["user" as const], permissions: [], subject_kinds: [], input_schema: { type: "object" } } };
   localHost.actionRegistry(reference).registerProvider({ provider: { provider_id: "fixture", title: "Fixture", kind: "system" }, definitions: [ping], handlers: [{ ...ping, handle: () => ({}) }] });
+  // The draft is the Host's action (PG-035), registered on its action seam like the composition root registers it.
+  localHost.registerAction(agent.draftText, async () => {
+    asked.resolve(); await gate.promise;
+    if (modelFails) throw new ActionError("actions.timeout", "模型两分钟内没有写完，已停止");
+    return { text: "1. 目标与要求：给习惯加归档。", usage: { input: 5000, output: 400 } };
+  });
   // The page's own request can be cancelled: the signal reaches the action's call context.
   let cancel = new AbortController();
   const actions = { registry: localHost.actionRegistry(reference), project_id: DEMO_PROJECT_ID, client: { ...localHost.actionClient(reference),
@@ -128,7 +138,6 @@ test("a round whose digest the model is still writing runs beside the project's 
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: earlier.map(item => item.ref) } as Output;
       if (definition.capability_id === agent.readRun.capability_id) return earlier.find(item => item.ref.run_id === (args as any[])[1].run_id) as Output;
-      if (definition.capability_id === agent.draftText.capability_id) { asked.resolve(); await gate.promise; if (modelFails) throw new Error("模型两分钟内没有写完，已停止"); return { text: "1. 目标与要求：给习惯加归档。", usage: { input: 5000, output: 400 } } as Output; }
       if (definition.capability_id === agent.startRun.capability_id) {
         const request = structuredClone((args as any[])[1]) as AgentStartRequest; starts.push(request);
         return { ref: { session_id: "sdk", run_id: `r${earlier.length + 1}` }, frozen: { history: request.history } } as Output;
@@ -190,4 +199,76 @@ test("a round whose digest the model is still writing runs beside the project's 
     assert.equal(carried.status, 200, JSON.stringify(carried.body));
     assert.equal(carried.body.digest.source, "records"); assert.equal(starts.length, 2);
   } finally { gate.resolve(); await new Promise<void>(resolve => server.close(() => resolve())); await localHost.close(); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("PG035-07 with model:invoke switched off Coding's two drafts are refused with a code, not a 500, and the rest of Coding works", { timeout: 30_000 }, async () => {
+  const root = mkdtempSync(join(tmpdir(), "coding-draft-grant-")), dbPath = join(root, "board.db");
+  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  const sessions = codingSessions(store);
+  await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "long", title: "长会话", runtime_id: "prologue", at: new Date().toISOString() });
+  await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "long", "sdk", new Date().toISOString());
+  const earlier: AgentRunView[] = [run(1, "给习惯加归档"), run(2, "周报跳过已归档的习惯")];
+  const starts: AgentStartRequest[] = [], drafts: AgentDraftTextRequest[] = [];
+  const actions = pluginActions(store, DEMO_PROJECT_ID);
+  actions.registry.registerProvider({ provider: { provider_id: "agent-fixture", title: "Agent", kind: "system" }, definitions: [agent.draftText],
+    handlers: [{ ...agent.draftText, handle: (_caller, input) => { drafts.push(structuredClone(input as AgentDraftTextRequest)); return { text: "补上归档", usage: { input: 50, output: 5 } }; } }] });
+  // Each round wrote one file and the write was applied: what a commit message is drafted from.
+  const applied = (view: AgentRunView) => [{ request: { review_id: `review-${view.ref.run_id}`, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: view.ref, kind: "text-edit",
+    document: { kind: "text-edit", target_path: `src/f-${view.ref.run_id}.ts`, exists: true, before_text: "a\n", after_text: "b\n" }, requested_at: "2026-09-26T00:00:00.000Z", expires_at: null },
+    receipt: { review_id: `review-${view.ref.run_id}`, status: "approved", decided_by: "web-user", decided_at: "2026-09-26T00:00:30.000Z", note: null, effect_settled: true, effect_error: null } }];
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
+    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
+    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
+      if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
+      if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
+      if (definition.capability_id === agent.readSession.capability_id) return { runs: earlier.map(item => item.ref) } as Output;
+      if (definition.capability_id === agent.readRun.capability_id) return earlier.find(item => item.ref.run_id === (args as [unknown, { run_id: string }])[1].run_id) as Output;
+      if (definition.capability_id === agent.readRunReviews.capability_id) return applied(earlier.find(item => item.ref.run_id === (args as [unknown, { run_id: string }])[1].run_id)!) as Output;
+      if (definition.capability_id === agent.startRun.capability_id) {
+        const request = structuredClone((args as [unknown, AgentStartRequest])[1]); starts.push(request);
+        return { ref: { session_id: "sdk", run_id: `r${earlier.length + 1}` }, frozen: { history: request.history } } as Output;
+      }
+      throw new Error(`Unexpected capability ${definition.capability_id}`);
+    } },
+  });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address !== "string");
+  const base = `http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/long`;
+  const post = async (path: string, body: unknown) => {
+    const result = await fetch(`${base}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    return { status: result.status, body: await result.json() };
+  };
+  const commitDraft = () => post("/runs/r2/commit-draft", {});
+  const round = (task: string) => post("/runs", { task, intent: "execute", workspace_id: "work", provider_id: "p", model_id: "m" });
+  try {
+    // Granted (a fresh bundled install holds every permission it declares): the commit message is drafted.
+    const granted = await commitDraft();
+    assert.equal(granted.status, 200, JSON.stringify(granted.body));
+    assert.equal(drafts.length, 1);
+
+    // The person switches model:invoke off; the next start keeps it off (a bundled plugin keeps an optional permission left off).
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
+    const repository = new SqlitePluginRuntimeRepository(store.db);
+    const coding = repository.list().find(record => record.plugin_id === "io.molis.work.coding" && record.state !== "uninstalled");
+    assert.ok(coding?.grants.includes("model:invoke"));
+    repository.save({ ...coding, grants: coding.grants.filter(permission => permission !== "model:invoke") });
+
+    // The commit message: refused with the platform's code for a permission the plugin does not hold, not a 500.
+    const refused = await commitDraft();
+    assert.equal(refused.status, 400, JSON.stringify(refused.body));
+    assert.match(JSON.stringify(refused.body), /plugin\.grant_denied/);
+    // The digest of earlier rounds: the round still starts, carried by the Host's record-based digest, and the page is told why.
+    const carried = await round("把 unarchiveHabit 也补上");
+    assert.equal(carried.status, 200, JSON.stringify(carried.body));
+    assert.equal(carried.body.digest.source, "records");
+    assert.match(carried.body.digest.problem, /model:invoke/);
+    assert.equal(starts.length, 1);
+    assert.equal(drafts.length, 1, "no draft was asked for without the permission");
+    // The rest of Coding works as before.
+    const read = await fetch(`${base}?window=20`);
+    assert.equal(read.status, 200);
+    assert.equal((await read.json()).usage_total.rounds, 2);
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

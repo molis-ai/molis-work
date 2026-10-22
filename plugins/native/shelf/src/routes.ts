@@ -1,4 +1,4 @@
-export type ShelfPluginHttpMethod = "GET" | "POST";
+type ShelfPluginHttpMethod = "GET" | "POST";
 
 export interface ShelfPluginRouteRequest {
   readonly method: ShelfPluginHttpMethod;
@@ -16,7 +16,7 @@ export interface ShelfPluginRouteResponse {
   readonly mime?: string;
 }
 
-export interface ShelfPluginRouteContext {
+interface ShelfPluginRouteContext {
   readonly params: Readonly<Record<string, string>>;
   readonly request: ShelfPluginRouteRequest;
 }
@@ -25,7 +25,7 @@ export type ShelfPluginRouteHandler = (
   context: ShelfPluginRouteContext,
 ) => ShelfPluginRouteResponse | Promise<ShelfPluginRouteResponse>;
 
-export interface ShelfPluginRouteDefinition {
+interface ShelfPluginRouteDefinition {
   readonly route_id: string;
   readonly method: ShelfPluginRouteRequest["method"];
   readonly path: string;
@@ -33,7 +33,7 @@ export interface ShelfPluginRouteDefinition {
   readonly param_names?: readonly string[];
 }
 
-export interface ShelfPluginRouteBinding extends ShelfPluginRouteDefinition {
+interface ShelfPluginRouteBinding extends ShelfPluginRouteDefinition {
   readonly handle: ShelfPluginRouteHandler;
 }
 

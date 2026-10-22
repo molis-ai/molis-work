@@ -21,7 +21,7 @@ export interface ProjectPluginHttpPorts extends ProjectPluginPorts {
 }
 
 /** One plugin route on its way through the project entry. */
-export interface ProjectPluginRoute {
+interface ProjectPluginRoute {
   readonly platform: PluginPlatform;
   readonly pluginId: string;
   readonly request: IncomingMessage;

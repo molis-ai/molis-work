@@ -1,21 +1,21 @@
+import { ledgerDatabase } from "./context-ledger-database.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionHandlerBinding, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   PLACEMENT_PROVIDER_ID, placementActions, placementGoalActions, type PlacedObject, type PlacementConvertRequest, type PlacementCreateRequest, type PlacementSpaceView,
 } from "@molis-ai/molis-work-contracts/services/placement";
 import { PlacementService, PLACEMENT_LEDGER_ACCESS, type PlacementPorts } from "@molis-ai/molis-work-service-placement";
-import { CONTEXT_LEDGER_SCHEMA, createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
+import { CONTEXT_LEDGER_SCHEMA, createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { L } from "./web-locale.js";
 import { placementCallPorts } from "./placement-call.js";
 
-type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 
 /** The one catalog record a partition needs to be opened. */
 export interface PlacementProjectRecord { project_id: string; display_name: string; database_path: string }
 
-export interface PlacementHostPorts {
+interface PlacementHostPorts {
   homeDirectory: string;
   registry: ActionRegistryPort;
   /** Every project in this Home's catalog, the personal space included once it exists; null before the catalog is configured. */
@@ -33,21 +33,6 @@ export interface PlacementHostPorts {
 export interface PlacementHost {
   readonly service: PlacementService;
   close(): void;
-}
-
-/** `node:sqlite` in the shape the Ledger's repository expects: one immediate transaction, joined when already inside one. */
-function ledgerDatabase(db: DatabaseSync): ContextLedgerDatabase {
-  const run = <T>(operation: () => T): T => {
-    if (db.isTransaction) return operation();
-    db.exec("BEGIN IMMEDIATE");
-    try { const value = operation(); db.exec("COMMIT"); return value; }
-    catch (error) { db.exec("ROLLBACK"); throw error; }
-  };
-  return {
-    exec: sql => db.exec(sql),
-    prepare: sql => db.prepare(sql) as unknown as ReturnType<ContextLedgerDatabase["prepare"]>,
-    transaction: <T>(operation: () => T) => Object.assign(() => run(operation), { immediate: () => run(operation) }),
-  };
 }
 
 /**

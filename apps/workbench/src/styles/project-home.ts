@@ -44,8 +44,7 @@ export const PROJECT_HOME_STYLES = `
   /* The day strip: the chosen day is the graphite choice; days with events carry a few quiet dots. */
   .immersive-home .home-dates { --dot-me: color-mix(in srgb, var(--ink) 28%, transparent); --dot-org: var(--accent);
     display: flex; align-items: center; gap: 8px; margin: 0 0 16px; min-width: 0; }
-  .immersive-home .home-dates__list { display: flex; gap: 8px; min-width: 0; overflow-x: auto; scrollbar-width: none; padding: 4px 4px 8px; margin: -4px -4px -8px; }
-  .immersive-home .home-dates__list::-webkit-scrollbar { height: 0; }
+  .immersive-home .home-dates__list { display: flex; gap: 8px; min-width: 0; overflow-x: auto; padding: 4px 4px 8px; margin: -4px -4px -8px; }
   .immersive-home .home-day {
     position: relative; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center;
     width: 55px; height: 70px; padding: 0; border: 0; border-radius: 10px; background: transparent;
@@ -200,7 +199,7 @@ export const PROJECT_HOME_STYLES = `
     border-radius: 16px; background: var(--paper);
     box-shadow: var(--shadow); color: var(--ink);
   }
-  .immersive-home[data-dock="open"] .home-talk { display: flex; animation: surface-arrive var(--motion-normal, 250ms) var(--ease-quint); }
+  .immersive-home[data-dock="open"] .home-talk { display: flex; animation: craft-rise var(--dur-move) var(--ease-quint); }
   @media (prefers-reduced-motion: reduce) {
     .immersive-home .home-erow { transition: none; }
     .immersive-home[data-dock="open"] .home-talk { animation: none; }
@@ -260,7 +259,7 @@ export const PROJECT_HOME_STYLES = `
   }
   /* Hover answers with a wash, not a shift: nothing moves under the pointer. */
   .immersive-home :is(.home-quick__item, .home-shortcut-main):hover { background: var(--nav-hover); }
-  .immersive-home .home-shortcut-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--rail); color: var(--ink-soft); }
+  .immersive-home .home-shortcut-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--rail); color: var(--ink-soft); }
   .immersive-home .home-shortcut-icon svg { width: 16px; height: 16px; }
   .immersive-home .home-quick__text { flex: 1; min-width: 0; }
   .immersive-home .home-quick__text small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }

@@ -3,12 +3,12 @@ import { constants, accessSync, closeSync, existsSync, fstatSync, lstatSync, ope
 import { delimiter, isAbsolute, join, relative, resolve, sep, basename, extname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { RUNTIME_DISPLAY_NAMES } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { CHARACTER_IMPORT_LIMITS as LIMITS, CHARACTER_IMPORT_RUNTIMES, parseCharacterImportSnapshot,
+import { CHARACTER_IMPORT_LIMITS as LIMITS, CHARACTER_IMPORT_RUNTIMES, characterErrors, parseCharacterImportSnapshot,
   type CharacterImportCandidate, type CharacterImportFile, type CharacterImportRule, type CharacterImportRuntimeId,
   type CharacterImportSkill, type CharacterImportSnapshot } from "@molis-ai/molis-work-contracts/modules/characters";
 
-export interface CharacterDiscoveryOptions { userHome: string; env?: NodeJS.ProcessEnv; now?: () => string }
-export interface CharacterDiscoveryInput { runtime_id?: CharacterImportRuntimeId; config_root?: string; project_root?: string }
+interface CharacterDiscoveryOptions { userHome: string; env?: NodeJS.ProcessEnv; now?: () => string }
+interface CharacterDiscoveryInput { runtime_id?: CharacterImportRuntimeId; config_root?: string; project_root?: string }
 // The four Runtimes Molis also runs take their names from the shared table; Cursor is import-only, so its name stays here.
 const LABELS: Record<CharacterImportRuntimeId, string> = { codex: RUNTIME_DISPLAY_NAMES.codex, "claude-code": RUNTIME_DISPLAY_NAMES["claude-code"],
   cursor: "Cursor", opencode: RUNTIME_DISPLAY_NAMES.opencode, "grok-build": RUNTIME_DISPLAY_NAMES["grok-build"] };
@@ -17,7 +17,7 @@ const sensitive = (name: string) => /^(?:\.git|node_modules|outputs?|\.cache|__p
   || /\.(?:pem|key|p12|pfx|sqlite|sqlite3|db|log)$/i.test(name);
 const directory = (path: string) => { try { return statSync(path).isDirectory(); } catch { return false; } };
 function confirmedDirectory(path: string, label: string): string {
-  if (typeof path !== "string" || !isAbsolute(path) || /[\0\r\n]/.test(path) || !directory(path)) throw new Error(`${label}必须是存在的绝对目录`);
+  if (typeof path !== "string" || !isAbsolute(path) || /[\0\r\n]/.test(path) || !directory(path)) throw characterErrors.invalid(`${label}必须是存在的绝对目录`);
   return realpathSync(path);
 }
 
@@ -75,15 +75,15 @@ export function createCharacterDiscovery(options: CharacterDiscoveryOptions) {
   };
   return {
     executable(runtime: CharacterImportRuntimeId): string | null {
-      if (!CHARACTER_IMPORT_RUNTIMES.includes(runtime)) throw new Error("不支持的 Agent 来源");
+      if (!CHARACTER_IMPORT_RUNTIMES.includes(runtime)) throw characterErrors.invalid("不支持的 Agent 来源");
       return executable(runtime);
     },
     get(candidateId: string): CharacterImportSnapshot | null {
       const snapshot = captures.get(candidateId); return snapshot ? structuredClone(snapshot) : null;
     },
     discover(input: CharacterDiscoveryInput = {}): CharacterImportCandidate[] {
-      if (input.runtime_id !== undefined && !CHARACTER_IMPORT_RUNTIMES.includes(input.runtime_id)) throw new Error("不支持的 Agent 来源");
-      if (input.config_root !== undefined && !input.runtime_id) throw new Error("手动目录必须指定对应 Agent");
+      if (input.runtime_id !== undefined && !CHARACTER_IMPORT_RUNTIMES.includes(input.runtime_id)) throw characterErrors.invalid("不支持的 Agent 来源");
+      if (input.config_root !== undefined && !input.runtime_id) throw characterErrors.invalid("手动目录必须指定对应 Agent");
       const manualRoot = input.config_root === undefined ? undefined : confirmedDirectory(input.config_root, "配置目录");
       const projectRoot = input.project_root === undefined ? undefined : confirmedDirectory(input.project_root, "项目目录");
       const codexHome = env.CODEX_HOME && isAbsolute(env.CODEX_HOME) ? resolve(env.CODEX_HOME) : join(home, ".codex");

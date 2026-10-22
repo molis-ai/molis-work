@@ -95,8 +95,8 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const toast = (msg, tone, act) => {
     toastAct = act || null;
-    toastEl.innerHTML = '<span>' + esc(msg) + '</span>' + (act ? '<button type="button" class="wf-toast__action" data-wf-toast-action>' + esc(act.label) + '</button>' : '');
-    toastEl.dataset.tone = tone || '';
+    toastEl.innerHTML = '<span>' + esc(msg) + '</span>' + (act ? '<button type="button" class="mw-toast__action" data-wf-toast-action>' + esc(act.label) + '</button>' : '');
+    toastEl.dataset.tone = tone || ''; if (tone === 'error') toastEl.dataset.mwState = 'failed'; else { delete toastEl.dataset.mwState; delete toastEl.dataset.ringMounted; }
     toastEl.classList.toggle('has-action', Boolean(act));
     toastEl.hidden = false;
     void toastEl.offsetWidth;
@@ -187,7 +187,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   }).catch((err) => toast(err.message, 'error')));
   let navId = 0;
   async function showFlow(id, { keepInstance = false, revision:rev = ++navId } = {}) {
-    flushSave();
+    flushSave(); root.querySelector('[data-wf-gone]').hidden = true;
     const res = await api('/' + id);
     if (rev !== navId) return;
     if (ui.workflow?.workflow_id !== id) undos.length = 0;
@@ -240,7 +240,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       listEl.innerHTML = '<div class="mw-empty wf-empty"><span class="mw-empty__mark">' + ico('workflow') + '</span><strong>' + tx('还没有工作流程') + '</strong>'
         + '<p>' + tx('把已有插件按顺序串起来，定好上一步的结果怎样交给下一步。每走一次都会留下这一次自己的内容。') + '</p>'
         + '<p class="wf-example"><b>Feed</b><i>' + tx('手动') + '</i><b>Inbox</b><i>AI</i><b>Pages</b></p>'
-        + '<div class="mw-empty__actions"><button class="mw-btn mw-btn--ghost" type="button" data-wf-action="example">' + ico('sparkles') + '<span>' + tx('用这个例子新建') + '</span></button></div></div>';
+        + '<button class="mw-btn mw-btn--secondary" type="button" data-wf-action="example">' + ico('sparkles') + '<span>' + tx('用这个例子新建') + '</span></button></div>';
       return;
     }
     listEl.innerHTML = '<nav class="mw-dir__list wf-rows" aria-label="' + tx('工作流程') + '">' + ui.workflows.map((flow) => {
@@ -1317,11 +1317,11 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
 
   let started = false;
   let listReady = null;
-  let pickedItem;
+  let pickedItem, pickedQuiet = false;
   const selectFlow = async (id, rev) => {
     if (id) {
       try { await showFlow(id, { revision:rev }); }
-      catch (err) { if (rev === navId) toast(err.message, 'error'); }
+      catch (err) { if (rev !== navId) return; if (err.status !== 404) { if (!pickedQuiet) toast(err.message, 'error'); return; } root.dispatchEvent(new CustomEvent('molis-work:item-unreadable', { bubbles: true, detail: { itemId: id } })); ui.workflow = null; ui.instance = null; ui.returnTo = null; remember(); setMode('list'); drawList(); const note = root.querySelector('[data-wf-gone]'); if (!pickedQuiet) { note.textContent = L('这条流程不存在或已删除'); note.hidden = false; } }
       return;
     }
     ui.workflow = null; ui.instance = null; ui.returnTo = null; remember(); setMode('list'); drawList();
@@ -1344,7 +1344,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   };
   new MutationObserver(start).observe(root, { attributes: true, attributeFilter: ['hidden'] });
   root.addEventListener('molis-work:select-item', async (ev) => {
-    const id = ev.detail?.itemId || null; pickedItem = id;
+    const id = ev.detail?.itemId || null; pickedItem = id; pickedQuiet = Boolean(ev.detail?.quiet);
     const rev = ++navId;
     if (!started) { await start(); return; }
     await listReady;

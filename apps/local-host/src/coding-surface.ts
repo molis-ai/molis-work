@@ -1,13 +1,11 @@
 import { isTerminalAgentPhase, type AgentRunPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ensureProjectPlugins, projectPluginProblem, type ProjectPluginState as Started } from "./project-plugins.js";
+import { ensureProjectPlugins, projectPluginProblem } from "./project-plugins.js";
 import type { ProjectPluginHttpPorts, ProjectPluginRouteHooks } from "./project-plugin-http.js";
 import { agentQuestionHtml } from "./agent-question-card.js";
 import { CARD_RESULT_OPEN, cardOutcomeSteps, interactionNextSteps } from "./agent-next-steps.js";
 import { assistantCardHtml, cardView } from "./assistant/assistant-card-view.js";
 import type { StoredCard } from "./assistant/assistant-store.js";
 import { L } from "./web-locale.js";
-import { CHARACTERS_UI_CONTRIBUTION_ID, type CharactersUiModel } from "@molis-ai/molis-work-plugin-characters";
-import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { icon, escapeHtml, renderPluginStageShell, renderEmpty, renderSidebar, renderInteractionNextSteps, type InteractionNextStep } from "@molis-ai/molis-work-design-system";
 import {
   CODING_PLUGIN_ID,
@@ -22,38 +20,21 @@ import {
 } from "@molis-ai/molis-work-plugin-coding";
 import {
   DIFF_PLUGIN_ID,
-  DIFF_PROJECT_PLUGIN_ID,
   DIFF_UI_CONTRIBUTION_ID,
   renderDiff,
   unifiedPatch,
   compareRunChangeSet,
   type DiffView,
-  emptyDiff,
-  type DiffUiModel,
 } from "@molis-ai/molis-work-plugin-diff";
 import {
   FILES_PLUGIN_ID,
-  FILES_PROJECT_PLUGIN_ID,
-  FILES_UI_CONTRIBUTION_ID,
   renderFilesBrowserDirectory,
   renderFilesBrowserResult,
-  pathKey,
-  projectFileTree,
-  type DirectoryListing,
-  type FilesUiModel,
 } from "@molis-ai/molis-work-plugin-files";
 import {
-  GIT_PLUGIN_ID,
-  GIT_PROJECT_PLUGIN_ID,
-  GIT_UI_CONTRIBUTION_ID,
-  projectGit,
-  parsePorcelainStatus,
   renderGitBrowserDirectory,
   renderGitBrowserResult,
-  type GitUiModel,
 } from "@molis-ai/molis-work-plugin-git";
-import { listWorkspaceDirectory } from "./workspace-files.js";
-import { readWorkspaceGit } from "./workspace-git.js";
 import { TEXT_STATS_PLUGIN_ID, TEXT_STATS_UI_CONTRIBUTION_ID, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
 
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
@@ -130,19 +111,6 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
   } catch (error) {
     return { plugin_id: CODING_PROJECT_PLUGIN_ID, panel: failedStage("coding", error instanceof Error ? error.message : "Coding 页面读取失败") };
   }
-}
-
-/** Independent personal Character manager rendered by its running Plugin. */
-export async function charactersWorkbenchPanel(ports: CodingSurfacePorts): Promise<{ panel: string; plugin_id: string }> {
-  const record = await ensureProjectPlugins(ports);
-  const active = record.platform?.supervisor.state(CHARACTER_PLUGIN_ID);
-  const contribution = record.platform?.supervisor.contribution(CHARACTER_PLUGIN_ID);
-  const views = (contribution as { views?: ReadonlyArray<{ descriptor: { contribution_id: string }; render(request: { surface: string; model: CharactersUiModel }): string }> } | null)?.views ?? [];
-  const view = views.find(item => item.descriptor.contribution_id === CHARACTERS_UI_CONTRIBUTION_ID);
-  if (active?.status !== "running" || !view) return { plugin_id: "characters", panel: `<section class="desktop-work-surface characters-page" data-work-surface="characters" data-work-surface-label="角色" data-settings-page="characters" hidden><div class="mw-empty" role="alert"><p>${escapeHtml(active?.message ?? "角色插件未能启动，请重新打开项目。")}</p></div></section>` };
-  return { plugin_id: "characters", panel: view.render({ surface: "workbench", model: {
-    route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) },
-  } }) };
 }
 
 /** Files hands its snapshots on as process items (artifact-positioning A2); either declaration list can name them. */
@@ -270,139 +238,6 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
   }
 }
 
-/**
- * Find one view a running Plugin contributed.
- *
- * A Plugin that is not running, or one whose view is missing, contributes
- * nothing and the shell renders as it did before. A degraded page is a better
- * answer than a page that fails because one Plugin did.
- */
-function viewOf<TModel>(
-  record: Started,
-  pluginId: string,
-  contributionId: string,
-): { render(request: { surface: string; model: TModel }): string } | null {
-  if (record.platform === null) return null;
-  const contribution = record.platform.supervisor.contribution(pluginId);
-  const views = (contribution as { views?: ReadonlyArray<{
-    descriptor: { contribution_id: string };
-    render(request: { surface: string; model: TModel }): string;
-  }> } | null)?.views ?? [];
-  return views.find((entry) => entry.descriptor.contribution_id === contributionId) ?? null;
-}
-
-function primitivesFor(ports: CodingSurfacePorts) {
-  return {
-    escape: ports.escapeHtml,
-    text: L,
-    icon: (name: string) => icon(name as Parameters<typeof icon>[0]),
-  };
-}
-
-/**
- * The workspace root this project reads through, or null.
- *
- * Null covers three different situations — nothing bound, several bound with
- * nothing to choose between them, and a directory the Host could not verify —
- * and each Plugin says which one it is in its own words. What they share is
- * that none of them is a directory anybody may read.
- */
-function workspaceRoot(ports: CodingSurfacePorts): string | null {
-  const workspaces = ports.workspaces ?? [];
-  if (workspaces.length !== 1) return null;
-  const only = workspaces[0]!;
-  return only.realpath_verified ? only.canonical_path : null;
-}
-
-/** Files' tree, from what the Host actually read off disk. */
-export async function filesDirectoryPanel(
-  ports: CodingSurfacePorts,
-): Promise<{ panel: string; plugin_id: string } | null> {
-  const record = await ensureProjectPlugins(ports);
-  const view = viewOf<FilesUiModel>(record, FILES_PLUGIN_ID, FILES_UI_CONTRIBUTION_ID);
-  if (view === null) return null;
-  const root = workspaceRoot(ports);
-  try {
-    const listing: DirectoryListing = root === null
-      ? { entries: [], truncated: false }
-      : await listWorkspaceDirectory({ root });
-    const model: FilesUiModel = {
-      route_prefix: "",
-      workspace_name: root === null ? null : (ports.workspaces ?? [])[0]!.display_name,
-      // Only the root is listed until the user opens a folder: expanding is an
-      // action, and walking the whole tree to draw it would read far more than
-      // was asked for.
-      nodes: projectFileTree({ root: listing, children: new Map(), expanded: new Set<string>() }),
-      preview: { status: "none", hint: root === null ? "这个项目还没有绑定工作目录" : "选一个文件来读" },
-      truncated: listing.truncated,
-      primitives: primitivesFor(ports),
-    };
-    void pathKey;
-    return { panel: view.render({ surface: "tree", model }), plugin_id: FILES_PROJECT_PLUGIN_ID };
-  } catch {
-    return null;
-  }
-}
-
-/** Git's changes, from a real `git status` the Host ran. */
-export async function gitDirectoryPanel(
-  ports: CodingSurfacePorts,
-): Promise<{ panel: string; plugin_id: string } | null> {
-  const record = await ensureProjectPlugins(ports);
-  const view = viewOf<GitUiModel>(record, GIT_PLUGIN_ID, GIT_UI_CONTRIBUTION_ID);
-  if (view === null) return null;
-  const root = workspaceRoot(ports);
-  try {
-    const read = root === null ? null : await readWorkspaceGit({ kind: "status", workspace_id: ports.workspaces![0]!.workspace_id }, ports.workspaces!);
-    const result = read === null ? { phase: "waiting" as const, status: null }
-      : read.outcome === "status" ? { phase: "ready" as const, status: parsePorcelainStatus({ stdout: read.porcelain }) }
-      : { phase: read.outcome === "not-a-repository" ? "not-a-repository" as const : "error" as const, status: null,
-          message: "message" in read ? read.message : "Git 状态不可读" };
-    if (result.status && result.status.head.kind !== "unborn" && read?.outcome === "status" && read.head_commit) result.status.head = { ...result.status.head, commit: read.head_commit };
-    const model: GitUiModel = {
-      route_prefix: "",
-      view: projectGit({
-        phase: result.phase,
-        status: result.status,
-        ...(result.message === undefined ? {} : { message: result.message }),
-      }),
-      // A Run's proposal is only offerable once a change set is bound, and
-      // nothing binds one yet. Null says "there is none", not "it was refused".
-      acceptance: null,
-      commit_message: "",
-      primitives: primitivesFor(ports),
-    };
-    return { panel: view.render({ surface: "changes", model }), plugin_id: GIT_PROJECT_PLUGIN_ID };
-  } catch {
-    return null;
-  }
-}
-
-/** Diff's comparison surface, waiting on whichever group the user wired. */
-export async function diffStagePanel(
-  ports: CodingSurfacePorts,
-): Promise<{ panel: string; plugin_id: string } | null> {
-  const record = await ensureProjectPlugins(ports);
-  const view = viewOf<DiffUiModel>(record, DIFF_PLUGIN_ID, DIFF_UI_CONTRIBUTION_ID);
-  if (view === null) return null;
-  try {
-    const model: DiffUiModel = {
-      route_prefix: "",
-      // No group is selected, and the Host deliberately never picks one on the
-      // user's behalf. `null` is that state, with its own sentence — not an
-      // empty frame, and not the snapshots message for a choice nobody made.
-      view: emptyDiff(record.platform === null
-        ? null
-        : record.platform.wiring.selectedGroup(DIFF_PLUGIN_ID) as never ?? null),
-      primitives: primitivesFor(ports),
-    };
-    return { panel: view.render({ surface: "comparison", model }), plugin_id: DIFF_PROJECT_PLUGIN_ID };
-  } catch {
-    return null;
-  }
-}
-
-
 function failedStage(plugin: string, message: string): string {
   return renderPluginStageShell({ surface: plugin, label: plugin, dataset: plugin + "-error",
     body: `<div class="mw-empty" role="alert"><p>${escapeHtml(message)}</p><a class="mw-btn" href="">${escapeHtml(L("重新打开页面"))}</a></div>` });
@@ -410,11 +245,10 @@ function failedStage(plugin: string, message: string): string {
 
 /** The stage panels the Host renders itself, and the contribution ids the Manifest fallback must not render again. */
 export async function builtinStagePanels(ports: CodingSurfacePorts, enabled: readonly string[]): Promise<{ html: string[]; ids: string[] }> {
-  const character = await charactersWorkbenchPanel(ports);
-  const ids = [CHARACTERS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID];
+  const ids = [CODING_UI_CONTRIBUTION_ID];
   if (enabled.includes("diff")) ids.push(DIFF_UI_CONTRIBUTION_ID);
   if (enabled.includes("text-stats")) ids.push(TEXT_STATS_UI_CONTRIBUTION_ID);
-  return { html: [character.panel, ...await codingCompanionStages(ports, enabled)], ids };
+  return { html: await codingCompanionStages(ports, enabled), ids };
 }
 
 /** Compose the running companions into the same main-stage contract as other apps. */

@@ -57,3 +57,31 @@ test("VUX-31: quick loads never flash a waiting mark, and a slow refresh shows i
   await waitFor("!document.querySelector('[data-files-refresh]').hasAttribute('data-loading')", 15_000);
   assert.deepEqual(await evaluate(parts), { busy: false, label: 1, spinner: 0 }, "when the read answers the label comes back at once");
 });
+
+// The plugins' own waits follow the same 250ms: switching the Goal shown in the work view keeps the old document and shows
+// no mark while the read is quick, and past the wait fades it out under "正在载入 Goal…". Before, the mark showed on the
+// first frame of every switch, and the old document never faded in the work view (the rule only reached a direct child).
+test("VUX-31: switching the Goal in the work view keeps the old document until the wait passes", { timeout: 300_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, click, openGoalFrame, openGoalWork, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
+  await openGoalFrame('.tree-node[data-select-goal="CORE"]');
+  await openGoalWork();
+  await waitFor("document.querySelector('.document-pane [data-goal-view]')?.dataset.goalView === 'CORE' && document.querySelector('.document-pane').getClientRects().length > 0", 15_000);
+  const parts = `(() => { const pane = document.querySelector('.document-pane'), view = pane.querySelector('[data-goal-view]'), mark = pane.querySelector('[data-goal-document-loading]');
+    return { busy: pane.getAttribute('aria-busy') === 'true', view: view.dataset.goalView, opacity: Math.round(+getComputedStyle(view).opacity * 100) / 100, mark: mark ? Math.round(+getComputedStyle(mark).opacity * 100) / 100 : null }; })()`;
+  const barrier = await sendBarrier(browser as never, [{ urlPattern: "*/api/goals/V1/document*", requestStage: "Request" }]);
+  await evaluate(`[...document.querySelectorAll('.tree-node[data-select-goal="V1"]')].find((node) => node.getClientRects().length).click()`);
+  const held = await barrier.next();
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.deepEqual(await evaluate(parts), { busy: true, view: "CORE", opacity: 1, mark: 0 }, "just after the switch the old document stays and no mark shows");
+  await new Promise((resolve) => setTimeout(resolve, 700));
+  assert.deepEqual(await evaluate(parts), { busy: true, view: "CORE", opacity: 0, mark: 1 }, "past the wait the old document has faded under the mark");
+  await barrier.release(held); await barrier.close();
+  await waitFor("document.querySelector('.document-pane [data-goal-view]')?.dataset.goalView === 'V1'", 15_000);
+  assert.deepEqual(await evaluate(parts), { busy: false, view: "V1", opacity: 1, mark: null }, "the new document shows at once when it answers");
+});

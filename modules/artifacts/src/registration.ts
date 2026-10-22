@@ -9,7 +9,7 @@ import { artifactErrors } from "./errors.js";
 import { libraryFields, nonNegativeInteger, normalizedDigest, normalizedMetadata, positiveInteger, requiredText } from "./validation.js";
 
 /** What a registration is checked against: whether it is the 成果库 (which also records origin and title), and how an owner reads. */
-export interface RegistrationContext {
+interface RegistrationContext {
   library: boolean;
   readOwner(stored: string, scope: ArtifactScope): string;
 }

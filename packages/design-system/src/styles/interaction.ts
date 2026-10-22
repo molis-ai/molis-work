@@ -12,7 +12,7 @@ export const INTERACTION_QUESTION_STYLES = `
 .mw-ix-head { display: flex; align-items: flex-start; gap: 10px; }
 .mw-ix-heading { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .mw-ix-kicker { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
-.mw-ix-kicker > svg { width: 12px; height: 12px; }
+.mw-ix-kicker > svg:not(.mw-state-ring) { width: 12px; height: 12px; }
 .mw-ix-card h3 { margin: 0; color: var(--ink); font-size: 15px; font-weight: var(--weight-title, 600); }
 .mw-ix-card h4 { margin: 0; color: var(--ink); font-size: 13px; font-weight: var(--weight-title, 600); }
 .mw-ix-card p, .mw-ix-card dl { margin: 0; }
@@ -76,7 +76,6 @@ export const INTERACTION_QUESTION_STYLES = `
 .mw-ix-answered dl, .mw-ix-preview dl { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 6px 14px; width: 100%; font-size: 12px; }
 .mw-ix-answered dt, .mw-ix-preview dt { color: var(--muted); }
 .mw-ix-answered dd, .mw-ix-preview dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; white-space: pre-line; }
-@keyframes mw-ix-arrive { from { opacity: .4; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 @media (max-width: 760px), (pointer: coarse) {
   :is(.mw-ix-option, .mw-ix-choices .mw-choice) { min-height: 44px; }
   .mw-ix-card .mw-btn { min-height: 44px; }
@@ -158,7 +157,7 @@ export const INTERACTION_OPERATION_STYLES = `
 .mw-ix-target svg, .mw-ix-impact svg { width: 14px; height: 14px; flex: none; color: var(--ink-soft); }
 .mw-ix-impact svg { margin-top: 2px; }
 .mw-ix-preview { display: grid; gap: 10px; padding: 12px 14px; border-radius: var(--r-row, 10px); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); outline: 0; }
-.mw-ix-preview:not([hidden]) { animation: mw-ix-arrive var(--dur-move) var(--ease-quint); }
+.mw-ix-preview:not([hidden]) { animation: craft-rise var(--dur-move) var(--ease-quint); }
 .mw-ix-status { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 12px; }
 .mw-ix-status:empty { display: none; }
 .mw-ix-status[data-tone="failed"] { color: var(--red); }
@@ -172,7 +171,7 @@ export const INTERACTION_OPERATION_STYLES = `
 /** Next steps and the mark inside a composer. */
 export const INTERACTION_STEP_STYLES = `
 /* Next steps beside a composer: views of the records above; the input gives them room and takes it back. */
-.mw-ix-steps { --mw-ix-step-h: 50px; flex: none; display: flex; gap: 6px; }
+.mw-ix-steps { --mw-ix-step-h: 50px; flex: none; display: flex; gap: 8px; }
 .mw-ix-steps:not(:has(.mw-ix-step:not([hidden]))) { display: none; }
 .mw-ix-step { display: inline-flex; align-items: center; gap: 8px; height: var(--mw-ix-step-h); padding: 0 14px 0 12px; border: 0; border-radius: var(--r-composer, 15px); background: var(--paper); color: var(--ink); font: inherit;
   font-weight: var(--weight-control, 500); white-space: nowrap; cursor: pointer; box-shadow: var(--lift-2);
@@ -200,8 +199,8 @@ export const INTERACTION_STEP_STYLES = `
 }
 `;
 /**
- * What carries a card across time: where its facts came from, a field's raised question, a value that landed or was
- * refreshed in the background, an answered summary, a version that moved, a result, the composer's mark. Needs the question segment.
+ * What carries a card across time: where its facts came from, a field's raised question, a value that landed (the shared
+ * data-craft-new wash) or was refreshed in the background, an answered summary, a version that moved, a result, the composer's mark. Needs the question segment.
  */
 export const INTERACTION_TRACE_STYLES = `
 .mw-ix-card h5 { margin: 0 0 4px; font-size: 12px; font-weight: var(--weight-title, 600); }
@@ -216,16 +215,14 @@ export const INTERACTION_TRACE_STYLES = `
 .mw-ix-evidence dt { color: var(--faint); }
 .mw-ix-evidence dd { margin: 0; color: var(--ink-soft); overflow-wrap: anywhere; }
 .mw-ix-refreshed { color: var(--accent); font-size: 11px; font-weight: var(--weight-body, 400); }
-.mw-ix-row[data-landed]::before { content: ""; position: absolute; z-index: -1; inset: -6px -8px; border-radius: var(--r-row, 10px); background: var(--accent-soft); opacity: 0; pointer-events: none; animation: mw-ix-wash 1.4s var(--ease-quint); }
-@keyframes mw-ix-wash { from { opacity: 1; } to { opacity: 0; } }
 /* A question the field raises before it changes. */
 .mw-ix-notice { display: grid; gap: 8px; width: 100%; padding: 10px 12px; border-radius: var(--r-control, 8px); background: var(--accent-soft); color: var(--ink); font-size: 12px; }
-.mw-ix-notice:not([hidden]) { animation: mw-ix-arrive var(--dur-move) var(--ease-quint); }
+.mw-ix-notice:not([hidden]) { animation: craft-rise var(--dur-move) var(--ease-quint); }
 .mw-ix-answered { display: grid; gap: 8px; justify-items: start; }
 .mw-ix-version { display: inline-flex; padding: 0 6px; border-radius: var(--r-tag, 6px); background: var(--control-fill); color: var(--ink-soft); font-size: 11px; line-height: 18px; }
 .mw-ix-version[data-changed] { background: color-mix(in srgb, var(--amber) 16%, transparent); color: var(--ink); }
 .mw-ix-result { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; padding: 12px 14px; border-radius: var(--r-row, 10px); background: color-mix(in srgb, var(--green) 7%, var(--paper)); outline: 0; }
-.mw-ix-result:not([hidden]) { animation: mw-ix-arrive var(--dur-arrive) var(--ease-quint); }
+.mw-ix-result:not([hidden]) { animation: craft-rise var(--dur-arrive) var(--ease-quint); }
 .mw-ix-result__mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--green-soft); color: var(--green); }
 .mw-ix-result__mark > svg { width: 16px; height: 16px; }
 .mw-ix-result__body { display: grid; gap: 6px; }
@@ -235,7 +232,6 @@ export const INTERACTION_TRACE_STYLES = `
 .mw-ix-into svg { width: 12px; height: 12px; }
 @media (prefers-reduced-motion: reduce) {
   :is(.mw-ix-notice, .mw-ix-result) { animation: none; transition: none; }
-  .mw-ix-row[data-landed]::before { animation: none; }
 }
 `;
 /** Every segment: the component board, and a page that draws all of them. */

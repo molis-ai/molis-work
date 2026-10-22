@@ -636,7 +636,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(browser.slice(homeStart), /class="home-scroll"[\s\S]*data-home-dates[\s\S]*data-home-focus[\s\S]*class="home-shortcuts"[\s\S]*data-home-shortcut-add[\s\S]*data-home-list/);
     assert.doesNotMatch(browser.slice(homeStart, homeStart + 8000), /home-composer|home-calendar|data-home-agent-input/);
     assert.doesNotMatch(browser.slice(homeStart, homeStart + 8000), /home-note|data-home-note/, "Home keeps no scratch note");
-    assert.match(browser, /scrollbar-width: none/);
+    assert.match(browser, /\*\{scrollbar-width:none\}/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /tree-footer[\s\S]*display: none !important/);
     assert.match(directGoal, /data-desktop-directory="root"/);
     assert.match(directGoal, /data-desktop-surface="goal"/);
@@ -697,9 +697,11 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /复制命令/);
     assert.match(desktop, /data-tui-copy/);
     assert.doesNotMatch(desktop, /molis-work:tui-collapse/);
-    assert.match(desktop, /\.document-pane::-webkit-scrollbar/);
+    assert.match(desktop, /\*::-webkit-scrollbar\{display:none/);
     assert.match(desktop, /在这个 Goal 上打开终端/);
-    assert.match(desktop, /querySelector\("\[data-tree-resizer\]"\)/);
+    // #994 gathered the page's lookups behind one `q`; the tree resizer is still found in the page's own document.
+    assert.match(desktop, /const q = \(selector\) => document\.querySelector\(selector\);/);
+    assert.match(desktop, /const treeResizer = q\("\[data-tree-resizer\]"\);/);
     assert.match(desktop, /treeWidth: parseFloat\(workspace\.style\.getPropertyValue\("--tree-width"\)\)/);
     assert.match(desktop, /\.workspace\.is-desktop-tui \{ grid-template-columns: var\(--tree-width, 240px\)/);
     assert.match(desktop, /class="immersive-workspace is-desktop-tui is-plugin-directory-empty"/);
@@ -744,8 +746,8 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktop, /class="desktop-workbench-actions"/);
     assert.doesNotMatch(desktop, /class="desktop-workbench-bar" data-tauri-drag-region/);
     assert.match(desktop, /data-plugin-id="settings"[^>]*data-directory-open="settings"[^>]*aria-label="打开全局设置"/);
-    // Who you are is shown, not offered as a control that does nothing.
-    assert.match(desktop, /<div class="personal-account" data-account-link>/);
+    // The sign-in placeholder explains why it cannot be activated yet.
+    assert.match(desktop, /<button class="personal-account" type="button" data-account-link disabled title="登录功能暂未开放">/);
     // 能力 is part of settings (specs/artifact-positioning S6b): its entry opens the settings at the library, not a framed page.
     assert.doesNotMatch(desktop, /data-capabilities-frame|data-work-surface="capabilities"/);
     assert.match(desktop, /href="\/capabilities\/library(?:\?[^"]*)?"[^>]*data-capabilities-open/);
@@ -763,7 +765,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(settingsDirectory, /mw-dir-row--compact/);
     assert.match(settingsDirectory, /mw-dir-row__icon/);
     assert.doesNotMatch(settingsDirectory, /data-theme-option/);
-    assert.match(desktop, />一骏<\/strong><small>本地空间<\/small>/);
+    assert.match(desktop, />未登录<\/strong><small>登录<\/small>/);
     assert.match(desktop, /class="container-tabs" data-container-tabs/);
     assert.match(desktop, /data-titlebar-chrome/);
     assert.match(desktop, /data-titlebar-tabs/);

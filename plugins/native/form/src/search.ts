@@ -12,7 +12,7 @@ export const formSearchActions = {
   subject: defineSubjectContextAction("form.subject.read", "form", "问卷", ["form:read"]),
 };
 
-export function formSearchContent(form: FormRecord): string {
+function formSearchContent(form: FormRecord): string {
   return [form.description, ...form.questions.map(question => [question.title, ...(question.options ?? []).map(option => option.label)].filter(Boolean).join("\n"))]
     .filter(Boolean).join("\n\n");
 }

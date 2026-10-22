@@ -32,6 +32,11 @@ test("SYS-15 S-47 real opaque page cannot read owner credentials, bypass its bro
   for (const path of ["/api/host/plugin-pages", "/api/plugins/io.molis.work.cognia/disable"]) {
     assert.equal(await child.evaluate(`fetch(${JSON.stringify(`/projects/${browser.projectId}` + path)},{method:'POST',body:'{}'}).then(response=>response.status)`), 403, path);
   }
+  for (const operation of ["prepare", "attach"]) {
+    const path = `/projects/${browser.projectId}/api/contextual/${operation}`;
+    assert.equal(await child.evaluate(`fetch(${JSON.stringify(path)},{method:'POST',headers:{'x-molis-context-page':'invented'},body:'{}'}).then(response=>response.status)`), 403,
+      "a child cannot turn its ordinary fetch into a trusted toolbar callback");
+  }
   const blocked = await child.evaluate(`new Promise(resolve=>{
     let violation=false,errored=false;const done=()=>{if(violation&&errored)resolve(true)};
     document.addEventListener('securitypolicyviolation',event=>{if(event.effectiveDirective==='connect-src'){violation=true;done()}},{once:true});

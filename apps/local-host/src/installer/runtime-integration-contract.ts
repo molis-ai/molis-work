@@ -2,7 +2,7 @@ import type { McpLauncherValidationContext } from "@molis-ai/molis-work-app-mcp"
 
 export const INTEGRATION_OWNER = "molis-work-runtime-integration-v1";
 
-export const INSTALLER_OWNER = "molis-work-home-install-v1";
+const INSTALLER_OWNER = "molis-work-home-install-v1";
 
 export function isOwnedInstallerOwner(installer: unknown): boolean {
   return installer === INSTALLER_OWNER;

@@ -10,7 +10,7 @@ import { precompileActionSchemas, refuseCall, type CallSettled } from "@molis-ai
 import { workActionProvider } from "./work-actions.js";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 import { projectWorkspaceActionProvider } from "./project-workspace-actions.js";
-import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
+import type { PtySpawnRequest, PtySpawnResult, RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { artifactActionProvider } from "./artifact-actions.js";
 import { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
 import { PersonalPlanningActions } from "./personal-planning-actions.js";
@@ -18,6 +18,7 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { createWebCatalogAccess } from "./web-catalog-access.js";
 import { goalsActionProvider } from "./goals-actions.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
+import { charactersActionProvider } from "./characters-host.js";
 import { actionUsagesProvider } from "./action-usage-actions.js";
 import { ActionCallLog } from "./action-call-log.js";
 import { connectorAccountActionProvider } from "./connector-account-actions.js";
@@ -33,7 +34,7 @@ import path from "node:path";
 import { closeConnectorResources } from "./connector-lifecycle.js";
 import { randomUUID } from "node:crypto";
 import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
-import { LocalHost, type LocalHostOptions } from "./local-host.js";
+import { LocalHost, type HostCapabilityHandler, type LocalHostOptions } from "./local-host.js";
 import { GoalProjectApplication } from "./goal-project-application.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { registerProjectCapabilities } from "./project-capabilities.js";
@@ -41,7 +42,7 @@ import { releaseProjectPlugins } from "./project-plugins.js";
 import type { HostCapabilityDefinition, LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionProviderRegistration, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActionProvider } from "./inbox-actions.js";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
@@ -97,6 +98,8 @@ export interface MolisWorkLocalHostOptions {
    */
   workspacesFor?: (projectId: string) => readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
   workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
+  /** The native terminal a Character launch starts in; the web entry owns it and supplies it once it is up. */
+  characterSpawn?: (request: PtySpawnRequest) => PtySpawnResult;
 }
 
 export function molisWorkHostProjectReference(input: {
@@ -173,6 +176,7 @@ export class MolisWorkLocalHost {
             for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) add(provider);
             add(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions }, feed));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
+            if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.client(reference)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes, functions: options.functions }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,
@@ -285,19 +289,16 @@ export class MolisWorkLocalHost {
   }
 
   /**
-   * Register one more Capability against this Host.
-   *
-   * The seam exists so a composition root can wire in services this package
-   * must not depend on — the Agent Host above all, which drags a vendored SDK
-   * behind it. Whoever owns that service registers it; `local-host` stays free
-   * of the dependency, and a service nobody wired is simply not registered,
-   * which is what a Plugin should then see.
+   * The two seams a composition root wires in services this package must not depend on (the Agent Host above all, which
+   * drags a vendored SDK behind it); a service nobody wired is simply not registered, which is what a Plugin then sees.
+   * A typed entry goes to `registerCapability`, an action to `registerAction`; each refuses the other kind (PG-035).
    */
-  registerCapability<Input, Output>(
-    definition: HostCapabilityDefinition<Input, Output>,
-    handler: (runtime: MolisWorkProjectRuntime, input: Input, invocation: import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityInvocation) => Output | Promise<Output>,
-  ): () => void {
+  registerCapability<Input, Output>(definition: HostCapabilityDefinition<Input, Output>, handler: HostCapabilityHandler<MolisWorkProjectRuntime, Input, Output>): () => void {
     return this.host.register(definition, handler);
+  }
+
+  registerAction<Input, Output>(definition: ActionDefinition<Input, Output>, handler: HostCapabilityHandler<MolisWorkProjectRuntime, Input, Output>): () => void {
+    return this.host.registerAction(definition, handler);
   }
 
   client(reference: LocalHostProjectReference): LocalHostProjectClient {

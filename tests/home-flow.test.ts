@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildHomeDays, buildHomeWindow, civilKey, eventsOnDay, projectHomeEvents, summarizeDay } from "../apps/workbench/src/home-flow.ts";
 import type { HomeEventView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 const now = new Date(2026, 8, 19, 13, 20);
 const row = (overrides: Partial<HomeEventView> = {}): HomeEventView => ({
   id: "opaque-id", event_id: "owner-id", source: { capability_id: "unknown.events", version: 1, provider_id: "installed-plugin" },
@@ -29,7 +30,7 @@ test("Home projects arbitrary providers without inferring their business semanti
   assert.deepEqual(events.find(event => event.id === "recent")?.suggested_behavior_ids, ["plugin.choice"]);
   assert.equal(events.find(event => event.id === "today")?.kind, "org");
   assert.equal(events[0]?.text, "正文");
-  const labels = { todayEmpty: "今天暂无事项", empty: "暂无事项", todaySum: "今天 {n} 件", daySum: "{n} 件", attentionLead: "有事项需要处理", emptyLead: "插件事项会出现在这里" };
+  const labels = { todayEmpty: "今天暂无事项", empty: "暂无事项", todaySum: (n) => `今天 ${n} 件`, daySum: (n) => `${n} 件`, attentionLead: "有事项需要处理", emptyLead: "插件事项会出现在这里" };
   assert.deepEqual(summarizeDay(buildHomeDays(now)[3]!, events, labels), { sum: "今天 3 件", lead: "有事项需要处理", me: 2, org: 1 });
   assert.equal(summarizeDay(buildHomeDays(now)[3]!, [], labels).sum, "今天暂无事项");
 });
@@ -41,4 +42,12 @@ test("an event kept on today from an earlier day shows its own date, and today's
   assert.equal(events.find(event => event.id === "recent")?.when, "13:20");
   // The earlier moment still sorts first; the page draws "now" by time, not by comparing these labels.
   assert.deepEqual(events.map(event => event.id), ["pinned", "recent"]);
+});
+
+test("Home's English count agrees with one and with more than one", () => {
+  const label = (text: string) => (n: number) => fillMessage(text, { n });
+  const labels = { todayEmpty: "No events today", empty: "No events", todaySum: label("{n} {n|item|items} arrived today"), daySum: label("{n} {n|item|items} on this day"), attentionLead: "", emptyLead: "" };
+  const day = buildHomeDays(now)[3]!;
+  assert.equal(summarizeDay(day, [row({ placement: "today" })], labels).sum, "1 item arrived today");
+  assert.equal(summarizeDay(day, [row({ id: "a", placement: "today" }), row({ id: "b", placement: "today" })], labels).sum, "2 items arrived today");
 });

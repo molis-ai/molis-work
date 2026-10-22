@@ -6,6 +6,7 @@
  * cannot be undone): each is tagged `data-cut-audit` so the test can point at it and read the tooltip.
  * - `keyboard`: a control or row holds it but nothing in or around it takes keyboard focus, so a keyboard never reaches it.
  * A cut text nothing holds (a heading) is shown to a pointer or a finger; it is not a place keyboard focus goes.
+ * Inside the element marked `data-audit-scope` only, when there is one (an open dialog or menu).
  */
 export const TRUNCATION_AUDIT = `(() => {
   const HOLDERS = 'a[href], button, summary, [role=button], [role=tab], [role=option], [role=menuitem], [role=treeitem], [role=row], [tabindex]:not([tabindex="-1"]), li';
@@ -13,7 +14,7 @@ export const TRUNCATION_AUDIT = `(() => {
   const shown = (el) => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !el.closest('[inert], [aria-hidden=true]');
   document.querySelectorAll('[data-cut-audit]').forEach(el => el.removeAttribute('data-cut-audit'));
   const found = [], held = [];
-  for (const el of document.body.querySelectorAll('*')) {
+  for (const el of (document.querySelector('[data-audit-scope]') || document.body).querySelectorAll('*')) {
     if (!(el instanceof HTMLElement) || !el.textContent.trim() || el.closest('pre, code, textarea, input, select, [contenteditable=true], .craft-tip')) continue;
     const style = getComputedStyle(el);
     const clamped = style.webkitLineClamp !== 'none' && style.webkitLineClamp !== '' && el.scrollHeight > el.clientHeight + 1;

@@ -12,7 +12,7 @@ import { hydrateFeedItemContent } from "./feed-content.js";
  * promotion is recorded as the Runtime's. Likewise the input is taken as confirmed only when the person promoted; Goals records every
  * other caller's as a proposal, and the receipt's reason does not say the user confirmed it.
  */
-export function feedGoalsThroughActions(actions: ActionClient, caller: ActionExecutionContext): FeedGoalPromotionGoals {
+function feedGoalsThroughActions(actions: ActionClient, caller: ActionExecutionContext): FeedGoalPromotionGoals {
   // Every nested Goals call first runs the promotion's own check, so a promotion that was stopped, disabled or reloaded while
   // Goals worked starts no further write there (the platform pattern: packages/plugin-sdk/README.md, retainActionAuthority).
   const nested = bindActionClient(actions, () => retainActionAuthority(caller, { ...feedItemActions.promote, provider_id: FEED_PLUGIN_ID }, () => caller.beforeEffect()));

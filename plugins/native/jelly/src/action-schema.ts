@@ -10,16 +10,16 @@ export const revision = { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_
 export const date = { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" };
 export const ids = { ...array(id), uniqueItems: true };
 export const priority = { enum: ["P0", "P1", "P2", "none"] };
-export const scheduleFields = { start_date: date, end_date: date, start_time: nullable({ type: "integer", minimum: 0, maximum: 1439 }), end_time: nullable({ type: "integer", minimum: 0, maximum: 1439 }) };
+const scheduleFields = { start_date: date, end_date: date, start_time: nullable({ type: "integer", minimum: 0, maximum: 1439 }), end_time: nullable({ type: "integer", minimum: 0, maximum: 1439 }) };
 export const schedule = object(scheduleFields);
-export const mutableItemFields = { kind: { enum: ["task", "event"] }, title: { ...id, pattern: "\\S" }, category_id: id, priority, pinned: boolean, ...scheduleFields, completion_description: text, notes: text, untimed_rank: { type: "number" } };
-export const itemFields = { id, ...mutableItemFields, kind: { enum: ["task", "event"] }, completed_at: nullable(text), created_at: text, updated_at: text, time_zone: text };
+const mutableItemFields = { kind: { enum: ["task", "event"] }, title: { ...id, pattern: "\\S" }, category_id: id, priority, pinned: boolean, ...scheduleFields, completion_description: text, notes: text, untimed_rank: { type: "number" } };
+const itemFields = { id, ...mutableItemFields, kind: { enum: ["task", "event"] }, completed_at: nullable(text), created_at: text, updated_at: text, time_zone: text };
 export const item = object(itemFields);
 // Creation owns generated timestamps; updates cannot change identity or completion state.
-export const createItemFields = { id, ...mutableItemFields, completed_at: nullable(text), time_zone: text };
+const createItemFields = { id, ...mutableItemFields, completed_at: nullable(text), time_zone: text };
 export const itemInput = object(createItemFields, ["title", "start_date"]);
 export const itemPatch = object(mutableItemFields, []);
-export const seriesFields = { weekdays: { type: "array", items: { type: "integer", minimum: 1, maximum: 7 }, uniqueItems: true, minItems: 1 }, until: nullable(date) };
+const seriesFields = { weekdays: { type: "array", items: { type: "integer", minimum: 1, maximum: 7 }, uniqueItems: true, minItems: 1 }, until: nullable(date) };
 export const seriesInput = object({ ...createItemFields, ...seriesFields }, ["title", "start_date", "weekdays"]);
 export const seriesPatch = object({ ...mutableItemFields, ...seriesFields }, []);
 export const series = object({ ...itemFields, ...seriesFields,
@@ -33,8 +33,8 @@ const blockFields = { id, kind: { enum: ["paragraph", "heading1", "heading2", "h
   indent: { type: "integer", minimum: 0 }, completed_at: nullable(text), completion_description: text, language: text,
   inline_spans: array(object({ text, marks: array({ enum: ["bold", "italic", "code"] }), link_url: text }, ["text", "marks"])),
 };
-export const block = object(blockFields, ["id", "kind", "text", "indent", "completed_at", "completion_description"]);
-export const blockInput = object(blockFields, []);
+const block = object(blockFields, ["id", "kind", "text", "indent", "completed_at", "completion_description"]);
+const blockInput = object(blockFields, []);
 export const note = object({ id, title: text, category_id: id, blocks: array(block), pinned: boolean, archived_at: nullable(text), revision, created_at: text, updated_at: text });
 export const noteInputFields = { title: text, category_id: id, blocks: array(blockInput), html: text, markdown: text };
 const sha = { type: "string", pattern: "^[a-f0-9]{64}$" };

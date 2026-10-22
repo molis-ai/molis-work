@@ -10,7 +10,7 @@ import { createFeedSourceSyncGuard } from "./source-sync-guard.js";
 import type { FeedConnectorSyncPorts, FeedConnectorListener, ConnectorSyncMode } from "./connector-sync-ports.js";
 import { normalizeIdempotencyKey, stableId } from "./source-input.js";
 import { toFeedPublicError } from "./application-errors.js";
-import { safeErrorCode } from "./source-sync-result.js";
+import { resolveSourceFaults, safeErrorCode } from "./source-sync-result.js";
 
 export class FeedConnectorSync {
   private readonly feed: FeedApplication;
@@ -156,7 +156,7 @@ export class FeedConnectorSync {
       created: listenerResult.created_count,
       deduped: listenerResult.deduped_count,
     });
-    if (mode === "live") this.resolveSourceFaults(source.source_id);
+    if (mode === "live") resolveSourceFaults(this.feed, this.projectId, source.source_id);
     return {
       source: durableSource,
       run: this.feed.getSourceRunByOperationId(this.projectId, operationId)!,
@@ -190,18 +190,6 @@ export class FeedConnectorSync {
     });
     if (stored.entry.status === "done" || stored.entry.status === "dismissed") {
       this.feed.setInboxEntryStatus(this.projectId, stored.entry.entry_id, "open", stored.entry.revision);
-    }
-  }
-
-  private resolveSourceFaults(sourceId: string): void {
-    for (const entry of this.feed.listInboxEntries(this.projectId)) {
-      if (
-        entry.subject_type === "source_fault"
-        && entry.subject_id === sourceId
-        && (entry.status === "open" || entry.status === "in_progress")
-      ) {
-        this.feed.setInboxEntryStatus(this.projectId, entry.entry_id, "done", entry.revision);
-      }
     }
   }
 

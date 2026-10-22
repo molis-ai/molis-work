@@ -188,7 +188,7 @@ function craftSection(): string {
   ].map(([token, value, role]) => `<tr><td><code>${token}</code></td><td>${value}</td><td>${role}</td></tr>`).join("") +
     `<tr><td><code>--ease-quint</code></td><td>cubic-bezier(.22, 1, .36, 1)</td><td>到达、移动、展开、离开——除按下回弹外的一切</td></tr><tr><td><code>--ease-spring</code></td><td>cubic-bezier(.2, 1.35, .4, 1)</td><td>只用于按下后的回弹与勾选落定</td></tr>`;
   const monograms = [["Molis Work 示例项目", "project-demo"], ["增长实验", "project-growth"], ["Research", "project-research"], ["品牌手册", "project-brand"], ["Onboarding", "project-onboard"]]
-    .map(([name, id]) => `<span class="mw-craft-mono">${renderProjectMonogram(name, id, escape)}<small>${escape(name)}</small></span>`).join("");
+    .map(([name, id]) => `<span class="mw-craft-mono">${renderProjectMonogram(name, id, escape)}<span>${escape(name)}</span></span>`).join("");
   return section("craft", "空间 · 层次 · 动效", `<p class="mw-catalog__hint">珍珠灰桌面承载标题栏与常驻底栏；工作是一张连续的白色工作面，插件目录是工作面里的一列。普通内容靠间距、字重与少量分隔线组织；只有抬升的东西——输入条、当前 Dock 项、菜单、对话框、Toast——才有柔和阴影，浮层不再同时画描边。按下回弹，状态 250ms 过渡，内容到达时上浮淡入；减少动态效果时全部静止。</p>
     <div class="mw-catalog__specimens">
       ${specimen("空间 · 桌面、工作面与常驻底栏", `<div class="mw-craft-space" aria-hidden="true"><i class="mw-craft-space__dir"></i><div class="mw-craft-space__main"><i class="mw-craft-space__tabs"></i><div class="mw-craft-space__sheet"><b></b><b></b><b></b></div></div><div class="mw-craft-space__bar"><i></i><em></em><i></i></div></div>`)}
@@ -226,17 +226,17 @@ function iconInventorySection(): string {
 /** Every motion in the product, one specimen each, all on the four durations and two curves. */
 function motionSection(): string {
   const demo = (id: string, label: string) => renderButton({ label, variant: "secondary", size: "sm", attrs: { "data-motion-demo": id } });
-  return section("motion", "动效标本", `<p class="mw-catalog__hint">时长只用 130 / 250 / 420 / 640ms，曲线只用 --ease-quint 与 --ease-spring；只动 transform 与 opacity。刷新、重绘、切回页面不重放入场；动画中点击与键盘照常响应；减少动态效果时全部关闭，状态照常切换。</p>
+  return section("motion", "动效标本", `<p class="mw-catalog__hint">时长只用 130 / 250 / 420 / 640ms，曲线只用 --ease-quint 与 --ease-spring；只动 transform 与 opacity，例外三处：新写出的文字显现时的 filter，拖动标签时让出的空位宽度，折叠按自然高度开合时的内容高度。页面第一次出现时升起一次，之后切回只用 130ms 淡入；刷新、重绘、切回页面不重放入场；动画中点击与键盘照常响应；减少动态效果时全部关闭，状态照常切换。</p>
     <div class="mw-catalog__specimens mw-motion-grid">
       ${specimen("按压回弹 · 130ms spring", `<div class="mw-craft-row">${renderButton({ label: "按住再松开", variant: "primary" })}</div>`)}
       ${specimen("悬停 · 130ms", `<div class="mw-motion-rows"><button type="button" class="mw-motion-row">移上来看洗底</button><button type="button" class="mw-motion-row">同一种灰，全站一致</button></div>`)}
-      ${specimen("菜单展开 · 250ms", `<details class="mw-motion-menu"><summary class="mw-btn mw-btn--secondary mw-btn--sm">打开菜单</summary><div class="mw-menu"><button type="button" class="mw-menu__item">重命名</button><button type="button" class="mw-menu__item">移动到…</button></div></details>`)}
-      ${specimen("弹窗进出 · 250ms", `<div class="mw-motion-stack"><div class="mw-craft-row">${demo("dialog", "打开对话框")}</div><dialog class="mw-dialog" data-motion-dialog><p>对话框从控件方向升起，关闭时原路退下。</p><div class="mw-craft-row">${renderButton({ label: "关闭", variant: "primary", attrs: { "data-motion-close": "" } })}</div></dialog></div>`)}
+      ${specimen("菜单开合 · 进 250ms，出 130ms", `<details class="mw-motion-menu"><summary class="mw-btn mw-btn--secondary mw-btn--sm">打开菜单</summary><div class="mw-menu"><button type="button" class="mw-menu__item">重命名</button><button type="button" class="mw-menu__item">移动到…</button></div></details>`)}
+      ${specimen("弹窗进出 · 进 250ms，出 130ms", `<div class="mw-motion-stack"><div class="mw-craft-row">${demo("dialog", "打开对话框")}</div><dialog class="mw-dialog" data-motion-dialog><p>对话框从控件方向升起，关闭时原路退下。</p><div class="mw-craft-row">${renderButton({ label: "关闭", variant: "primary", attrs: { "data-motion-close": "" } })}</div></dialog></div>`)}
       ${specimen("侧板滑入 · 420ms", `<div class="mw-motion-stack"><div class="mw-craft-row">${demo("sheet", "打开侧板")}</div><dialog class="mw-dialog mw-sheet" data-motion-sheet><p>侧板从右缘滑入，关闭时滑回。</p><div class="mw-craft-row">${renderButton({ label: "关闭", variant: "primary", attrs: { "data-motion-close": "" } })}</div></dialog></div>`)}
       ${specimen("标签切换 · 250ms", `<div class="mw-motion-tabs" role="tablist"><button type="button" class="tab-item" aria-selected="true" data-motion-tab>概览</button><button type="button" class="tab-item" data-motion-tab>终端</button></div>`)}
       ${specimen("分段滑块 · 250ms", `<div class="mw-toggle-group" data-slot="toggle-group" data-seg-thumb role="group"><button class="mw-toggle is-current" type="button" aria-pressed="true">全部</button><button class="mw-toggle" type="button" aria-pressed="false">未读</button><button class="mw-toggle" type="button" aria-pressed="false">已保存</button></div>`)}
       ${specimen("列表首次到达 · 420ms，逐行 ≤12", `<div class="mw-motion-stack"><div class="mw-craft-row">${demo("arrive", "重放到达")}</div><ol class="mw-motion-list" data-motion-list><li>第一行</li><li>第二行</li><li>第三行</li><li>第四行</li><li>第五行</li></ol></div>`)}
-      ${specimen("行展开收起 · 250ms", `<details class="mw-motion-row-detail mw-disclosure"><summary>展开这一行</summary><p>内容从上方落定；收起立即完成，不拉动其他行。</p></details>`)}
+      ${specimen("行展开收起 · 250ms", `<details class="mw-motion-row-detail mw-disclosure"><summary>展开这一行</summary><p>内容按自然高度展开、收起，和箭头同一个时钟；途中反向从当前高度接着走。</p></details>`)}
       ${specimen("页面 / 插件切换 · 130ms", `<div class="mw-motion-stack"><div class="mw-craft-row">${demo("switch", "切换页面")}</div><div class="mw-motion-pages"><section data-motion-page>Goals 页面</section><section data-motion-page hidden>Feed 页面</section></div></div>`)}
       ${specimen("Toast · 250ms", `<div class="mw-craft-row">${demo("toast", "显示提示")}</div>`)}
       ${specimen("完成时刻 · 640ms", `<p class="mw-catalog__hint">见上方「试一下 → 完成这一条」：状态换成完成、一次落定，不循环。</p>`)}
@@ -366,7 +366,7 @@ export function renderPrimitiveCatalog(): string {
     icon: "note",
     title: "还没有文档",
     body: "先建一篇，在纸面上写；也可以从模板或已有文件开始。",
-    action: `<div class="mw-empty__actions">${renderButton({ label: "从模板新建", icon: "library", variant: "ghost" })}${renderButton({ label: "导入已有文档", icon: "upload", variant: "ghost" })}</div>`,
+    action: `<div class="mw-empty__actions">${renderButton({ label: "从模板新建", icon: "library", variant: "secondary" })}${renderButton({ label: "导入已有文档", icon: "upload", variant: "secondary" })}</div>`,
   });
 
   const sheet = renderSheet({
@@ -701,7 +701,7 @@ export function renderPrimitiveCatalog(): string {
       ${specimen("空态 · 几个起点", emptyStarts)}
     </div>`)}
     ${section("feedback", "Toast / Spinner / Skeleton / Progress / Kbd / Avatar", `<div class="mw-catalog__specimens">
-      ${mark("toast", specimen("短反馈", renderToast({ message: "已保存" })))}
+      ${mark("toast", specimen("短反馈 · 一种 Toast", `<div class="mw-catalog__toasts">${renderToast({ message: "已保存", tone: "success" })}${renderToast({ message: "已移到回收站", action: { label: "撤销" } })}${renderToast({ message: "没有存上，请重试", tone: "danger" })}</div>`))}
       ${mark("spinner", specimen("加载", renderSpinner({ label: "加载中" })))}
       ${mark("skeleton", specimen("占位", renderSkeleton()))}
       ${mark("progress", specimen("进度", renderProgress({ value: 40, label: "子项进度" })))}
@@ -777,7 +777,7 @@ export function renderPrimitiveCatalog(): string {
         if (kind === "sheet") document.querySelector("[data-motion-sheet]")?.showModal();
         if (kind === "arrive") { const list = document.querySelector("[data-motion-list]"); list.classList.remove("is-arriving"); void list.offsetWidth; list.classList.add("is-arriving"); }
         if (kind === "switch") document.querySelectorAll("[data-motion-page]").forEach((page) => { page.hidden = !page.hidden; });
-        if (kind === "toast") { const toast = document.querySelector(".toast") || Object.assign(document.body.appendChild(document.createElement("div")), { className: "toast" }); toast.textContent = "已保存"; toast.classList.add("is-visible"); setTimeout(() => toast.classList.remove("is-visible"), 1600); }
+        if (kind === "toast") { const toast = document.querySelector(".toast") || Object.assign(document.body.appendChild(document.createElement("div")), { className: "mw-toast toast" }); toast.textContent = "已保存"; toast.classList.add("is-visible"); setTimeout(() => toast.classList.remove("is-visible"), 1600); }
         return;
       }
       const demo = event.target.closest("[data-craft-demo]");

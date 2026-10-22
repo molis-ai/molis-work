@@ -8,12 +8,12 @@ interface JsonNode {
   text?: unknown;
 }
 
-export interface ExtractedKnowledgePage {
+interface ExtractedKnowledgePage {
   readonly title: string;
   readonly body: PagesBody;
 }
 
-export interface ExtractResult {
+interface ExtractResult {
   readonly body: PagesBody;
   readonly cards: number;
   readonly knowledge: readonly ExtractedKnowledgePage[];

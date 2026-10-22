@@ -21,7 +21,7 @@ import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { WebRequestContext, WebRoute } from "./web-route-table.js";
 
 /** A request outside any project: the chooser, the global settings, and what the Home shows there. */
-export interface CatalogIndexContext extends WebRequestContext {
+interface CatalogIndexContext extends WebRequestContext {
   readonly projects: WebProjectNavigation[];
   readonly assistant: (AssistantHttpPorts & { projectRef?: LocalHostProjectReference }) | null;
 }

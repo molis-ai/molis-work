@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { icon, renderStateRing, renderStatusMark, renderSpinner, stateRingFamily, STATE_RING_FAMILIES } from "@molis-ai/molis-work-design-system";
+import { icon, renderStateRing, renderStatusMark, renderSpinner, stateRingFamily, STATE_RING_FAMILIES, STATE_RING_STYLES } from "@molis-ai/molis-work-design-system";
 import { createWorkbenchGoalsStatusRenderer } from "@molis-ai/molis-work-app-workbench";
 
 test("RING-01 aliases share presentation without replacing the caller's business meaning", () => {
@@ -58,10 +58,15 @@ test("RING-05 Goals keep their labels while only real execution moves", () => {
   assert.match(renderer.renderActionStatus("completed"), /data-mw-state="done"/);
 });
 
-test("RING-08 common marks stay legible while the catalog can demonstrate compact sizes", () => {
+test("RING-08 common marks stand as tall as their words and stay legible while the catalog can demonstrate compact sizes", () => {
+  // Without a size a ring follows its text (styles/state-ring.ts: 1em + 2px), and its stroke is at least 1.4 CSS px on
+  // screen at the 13px it is drawn for, beside 11px words (user 2026-10-22, VUX-46).
   for (const html of [renderStateRing({ state: "idle" }), icon("status-done"), renderStatusMark({ state: "failed", label: "失败" }), renderSpinner()]) {
-    assert.match(html, /width="20" height="20"/);
+    assert.doesNotMatch(html, /<svg[^>]* width="/);
+    assert.ok(Number(/--ring-stroke:([\d.]+)/.exec(html)![1]) * 13 / 24 >= 1.399);
   }
+  assert.match(STATE_RING_STYLES, /width: var\(--ring-size, calc\(1em \+ 2px\)\); height: var\(--ring-size, calc\(1em \+ 2px\)\);/);
+  assert.ok(Number(/--ring-stroke:([\d.]+)/.exec(renderStateRing({ state: "done", size: 20 }))![1]) * 20 / 24 >= 1.399);
   assert.match(renderStateRing({ state: "done", size: 12 }), /width="12" height="12"/);
   for (const state of ["idle", "read", "failed", "answer"] as const) {
     const opacity = [...renderStateRing({ state }).matchAll(/opacity="([\d.]+)"/g)].map(match => Number(match[1]));

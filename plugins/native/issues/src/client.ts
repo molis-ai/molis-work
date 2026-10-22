@@ -20,7 +20,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     for (const text of [...node.childNodes, ...node.attributes])
       if (text.nodeType === 3 || ['placeholder', 'aria-label', 'title'].includes(text.name)) text.textContent = L(text.textContent);
   }
-  const home = $('home'), detail = $('detail'), composer = $('composer'), editor = $('editor'), list = $('list'), toastBox = $('toast');
+  const home = $('home'), detail = $('detail'), composer = $('composer'), editor = $('editor'), list = $('list'), toastBox = $('toast'), gone = $('gone');
   const desc = composer.elements.description, titleInput = editor.elements.title, detailInput = editor.elements.description;
   const kinds = { bug: 'Bug', experience: '体验问题', feature: '功能需求' };
   const via = { assistant: '自动整理', manual: '手动记录', mcp: '外部客户端' }, mac = /Mac|iP/.test(navigator.platform);
@@ -44,10 +44,15 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   };
   const read = id => api('read?id=' + encodeURIComponent(id));
   const primary = (key, yes = true) => { $(key).className = 'mw-btn mw-btn--sm mw-btn--' + (yes ? 'primary' : 'secondary'); };
-  const run = work => { void Promise.resolve().then(work).catch(error => { if (error.name !== 'AbortError') toast(error.message); }); };
-  const toast = (text, action = '', then = null) => {
+  const run = work => { void Promise.resolve().then(work).catch(error => { if (error.name !== 'AbortError') toast(error.message, '', null, true); }); };
+  // The one toast (.mw-toast): a failure carries the failed mark and nudges once; anything else has no mark.
+  const toast = (text, action = '', then = null, failed = false) => {
     scope.clearTimeout(toastTimer); toastRun = then;
-    toastBox.firstChild.textContent = text; toastBox.lastChild.textContent = action; toastBox.hidden = false;
+    toastBox.querySelector(':scope > span').textContent = text; toastBox.querySelector('[data-issue-toast-action]').textContent = action;
+    toastBox.classList.toggle('is-error', failed);
+    if (failed) toastBox.dataset.mwState = 'failed';
+    else { delete toastBox.dataset.mwState; delete toastBox.dataset.ringMounted; toastBox.querySelector(':scope > .mw-state-ring')?.remove(); }
+    toastBox.hidden = false;
     toastTimer = scope.timeout(() => { toastBox.hidden = true; toastRun = null; }, action ? 7000 : 3500);
   };
   // A description grows with the page (data-fit with no max); a value set here sends no input event.
@@ -60,7 +65,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   };
   const full = iso => new Date(iso).toLocaleString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   const excerpt = item => item.text.trim().split('\n')[0].slice(0, 90) || L('截图') + ' ×' + item.images.length;
-  const row = (id, title, meta, state = '') => '<li><button type="button" class="issues-row' + (id === fresh ? ' is-new' : '') + '" data-issue-id="' + esc(id) + '"'
+  const row = (id, title, meta, state = '') => '<li><button type="button" class="issues-row"' + (id === fresh ? ' data-craft-new' : '') + ' data-issue-id="' + esc(id) + '"'
     + (state ? ' data-state="' + state + '"' : '') + '>' + (state ? '<span data-mw-state="' + (state === 'organizing' ? 'running' : 'answer') + '" aria-hidden="true"></span>' : '')
     + '<span><b>' + esc(title) + '</b><small>' + esc(meta) + '</small></span></button></li>';
   let reported = '';
@@ -109,7 +114,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     if (editing) scope.frame(() => fit(detailInput));
   };
   const show = issue => {
-    void stopReview(); current = issue; editing = false; flag(); home.hidden = true; detail.hidden = false;
+    void stopReview(); current = issue; editing = false; flag(); home.hidden = true; detail.hidden = false; gone.hidden = true;
     $('type').textContent = L(kinds[issue.type]); $('when').textContent = full(issue.created_at); $('title').textContent = issue.title;
     $('text').textContent = issue.description; $('view-shots').innerHTML = shots(issue.images, false);
     $('source').textContent = [issue.context?.page?.title && L('记录于 ') + issue.context.page.title, L(via[issue.entered_via]),
@@ -190,7 +195,18 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     else if (is('reload')) await refresh();
     else if (is('toast-action') && toastRun) { const then = toastRun; toastBox.hidden = true; toastRun = null; await then(); }
   }));
-  scope.listen(root, 'molis-work:select-item', event => { if (typeof event.detail?.itemId === 'string') run(() => open(event.detail.itemId)); });
+  // An item that is gone is said where it would have been, and the workbench is told so it neither names it nor carries it;
+  // a reopen nobody asked for (quiet) forgets it without a word.
+  scope.listen(root, 'molis-work:select-item', event => {
+    const id = event.detail?.itemId, quiet = event.detail?.quiet === true;
+    if (typeof id !== 'string') return;
+    gone.hidden = true;
+    run(() => open(id).catch(error => {
+      if (error.status !== 404) throw error;
+      root.dispatchEvent(new CustomEvent('molis-work:item-unreadable', { bubbles: true, detail: { itemId: id } }));
+      if (!quiet) { gone.textContent = error.message; gone.hidden = false; }
+    }));
+  });
   scope.listen(window, 'beforeunload', event => {
     if (importing || pictureWrites || pictureFault || pending.some(item => item.state === 'organizing') || editing && !draft() && Object.keys(changed()).length) { event.preventDefault(); event.returnValue = ''; }
   });

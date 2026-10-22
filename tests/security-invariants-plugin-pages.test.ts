@@ -84,6 +84,28 @@ test("SYS-15 S-47 closing a page cancels a running command without revoking the 
   assert.equal((await f.request(`/api/plugins/${probe.id}/state`)).status, 200);
 });
 
+test("SYS-15 S-47 toolbar callbacks retain the exact page, project and lifetime; an ordinary page cannot call them", async t => {
+  const f = await serveHomeRuntime(t), p = await f.project("Toolbar owner"), q = await f.project("Other toolbar");
+  const prefix = `/projects/${p.project_id}`;
+  const opened = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: "io.molis.work.cognia" } });
+  assert.equal(opened.status, 200);
+  const { page_id } = await opened.json(), headers = { "x-molis-context-page": page_id };
+  const post = (path: string, selected = headers) => f.request(path, { method: "POST", headers: selected, body: {} });
+  for (const operation of ["prepare", "attach"]) {
+    const path = prefix + "/api/contextual/" + operation;
+    const selected = await post(path);
+    assert.equal(selected.status, 400, await selected.clone().text());
+    assert.equal((await selected.json()).code, "contextual.input_invalid", "only the bound callback reaches contextual input validation");
+    assert.equal((await f.request(path, { method: "POST", body: {}, headers: { "x-molis-plugin-page": page_id } })).status, 403);
+    assert.equal((await f.request(path, { method: "POST", body: {}, headers: { ...headers, "x-molis-plugin-page": page_id } })).status, 403);
+    assert.equal((await post(path, { "x-molis-context-page": "invented" })).status, 403);
+    assert.equal((await post(`/projects/${q.project_id}/api/contextual/${operation}`)).status, 403);
+  }
+  assert.equal((await post(prefix + "/api/contextual/create")).status, 403, "the callback does not grant arbitrary owner operations");
+  await f.request(prefix + "/api/host/plugin-pages/" + page_id, { method: "DELETE" });
+  assert.equal((await post(prefix + "/api/contextual/prepare")).status, 403, "closing the page also closes its offered callback");
+});
+
 test("SYS-15 S-47 an opaque frame cannot navigate into owner HTML to recover a token", async t => {
   const f = await serveHomeRuntime(t);
   const refused = await f.request("/", { authorized: false, headers: { "sec-fetch-dest": "iframe", "sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate" } });

@@ -4,11 +4,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { CHARACTERS_ACTIONS, charactersActions as c } from "@molis-ai/molis-work-plugin-characters";
+import { CHARACTERS_ACTIONS, charactersActions as c } from "@molis-ai/molis-work-module-characters";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 
-// RAC-63: the Module's handlers, bound by the plugin, are what the project Runtime redeems; RAC-64: other people are refused.
+// RAC-63: the Module's handlers, bound by the Host's provider (CHR-1), are what the project's directory redeems; RAC-64: other people are refused.
+// RAC-70: no plugin answers for Characters: the Host registers the provider io.molis.work.characters with every Characters action.
 test("Character management is redeemed by the project Runtime and bound to the person who owns the drafts", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "characters-actions-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });

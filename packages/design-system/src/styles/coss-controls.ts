@@ -16,12 +16,9 @@ export const COSS_CONTROL_STYLES = `
   body { caret-color: var(--ink); }
   ::selection { background: var(--blue-soft); color: var(--ink); }
   :where(button, a, summary, input, select, textarea) { -webkit-tap-highlight-color: transparent; }
-  :where(button, a, summary) { transition: background-color var(--motion-fast) var(--ease-quint), color var(--motion-fast) var(--ease-quint), border-color var(--motion-fast) var(--ease-quint), box-shadow var(--motion-fast) var(--ease-quint); }
+  :where(button, a, summary) { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint); }
   :where(input, select, textarea) { accent-color: var(--action); }
   :where(button:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
-  :where(dialog[open]) { animation: surface-arrive var(--motion-normal) var(--ease-quint); }
-  @keyframes surface-arrive { from { transform: translateY(6px) scale(.985); } to { transform: none; } }
-  :where(.tree-scroll, .settings-body, .project-settings-stage, .tab-pane-body, .feed-detail-scroll, .goal-info-body) { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 
   /* Create and filter in a plugin toolbar are soft buttons: a wash, no outline, the control height. */
   body.immersive-workbench .tree-create,
@@ -216,19 +213,18 @@ export const COSS_CONTROL_STYLES = `
   /* Motion communicates focus and feedback; moving panes remain under the pointer. */
   :where(button:not(:disabled), summary):active { filter: brightness(.94); }
   :where(input, textarea, select) { transition: border-color 130ms var(--ease-quint), box-shadow 130ms var(--ease-quint); }
-  :where(dialog) { transition: opacity 130ms var(--ease-quint), transform 130ms var(--ease-quint), overlay 130ms allow-discrete, display 130ms allow-discrete; opacity: 0; transform: scale(.985); }
-  :where(dialog[open]) { opacity: 1; transform: none; }
-  :where(dialog)::backdrop { background: var(--scrim); transition: opacity 130ms var(--ease-quint), overlay 130ms allow-discrete, display 130ms allow-discrete; opacity: 0; }
-  :where(dialog[open])::backdrop { opacity: 1; }
-  @starting-style { :where(dialog[open]) { opacity: 0; transform: scale(.985); } :where(dialog[open])::backdrop { opacity: 0; } }
-  [popover]:popover-open { animation: feedback-reveal 130ms var(--ease-quint); }
-  :is([data-toast], [data-settings-toast]).is-visible { animation: feedback-reveal 130ms var(--ease-quint); }
-  :is(.form-error, .event-form-status, .event-field-error)[role=alert]:not([hidden]) { animation: feedback-reveal 130ms var(--ease-quint); }
+  /* The one dialog motion (user 2026-10-21): in over 250ms from 8px below at .98, out the same way over 130ms. */
+  :where(dialog) { transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint), overlay var(--dur-hover) allow-discrete, display var(--dur-hover) allow-discrete; opacity: 0; transform: translateY(8px) scale(.98); }
+  :where(dialog[open]) { opacity: 1; transform: none; transition-duration: var(--dur-move); }
+  :where(dialog)::backdrop { background: var(--scrim); transition: opacity var(--dur-hover) var(--ease-quint), overlay var(--dur-hover) allow-discrete, display var(--dur-hover) allow-discrete; opacity: 0; }
+  :where(dialog[open])::backdrop { opacity: 1; transition-duration: var(--dur-move); }
+  @starting-style { :where(dialog[open]) { opacity: 0; transform: translateY(8px) scale(.98); } :where(dialog[open])::backdrop { opacity: 0; } }
+  [popover]:popover-open { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
+  :is(.form-error, .event-form-status, .event-field-error)[role=alert]:not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
   .form-disclosure[open] { border-color: var(--line-strong); }
-  :is(.form-disclosure, .feed-task-extra) summary { transition: color 130ms var(--ease-quint); }
+  :is(.form-disclosure, .feed-task-extra) summary { transition: color var(--dur-hover) var(--ease-quint); }
   :is(.form-disclosure, .feed-task-extra) summary:hover { color: var(--ink); }
   body.immersive-workbench .tab-item[aria-current] { box-shadow: inset 0 1px 0 color-mix(in srgb,var(--ink) 6%,transparent); }
-  @keyframes feedback-reveal { from { opacity: .35; } to { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) {
     :where(dialog), :where(dialog)::backdrop { transform: none; transition: none; animation: none; }
     [popover]:popover-open { animation: none; }

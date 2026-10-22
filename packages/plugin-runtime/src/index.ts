@@ -48,6 +48,8 @@ export { loadDevelopmentPlugin } from "./development-loader.js";
 export { assertContributionMatchesManifest, offeredManifest, viewContributionId, type RedemptionScope } from "./contribution.js";
 export { resolvePluginActivation } from "./resolution.js";
 export { PluginEventBus } from "./events.js";
+export { PluginHostEvents } from "./host-events.js";
+export type { HostEventInput, HostEventRecipient, PluginHostEventsLifecycle } from "./host-events.js";
 export type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
 export { buildEventContract } from "./event-contract.js";
 export type { PluginEventContract, PluginEventSubscription } from "./event-contract.js";

@@ -11,7 +11,7 @@ import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
 import type { StoredWork } from "./assistant-store.js";
 
 /** The Assistant acts for the local person; its calls are audited as the Assistant's, and its grants are its own. */
-export const ASSISTANT_ACTOR = LOCAL_PERSON_ACTOR_ID;
+const ASSISTANT_ACTOR = LOCAL_PERSON_ACTOR_ID;
 
 export const actionKey = (ref: Pick<ActionReference, "capability_id" | "version" | "provider_id">) => JSON.stringify([ref.capability_id, ref.version, ref.provider_id ?? ""]);
 

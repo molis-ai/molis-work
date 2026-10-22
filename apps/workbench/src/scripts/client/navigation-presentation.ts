@@ -15,30 +15,18 @@ export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
   const stageHost = document.querySelector('.immersive-plugin-stage');
   if (stageHost) new MutationObserver(titleStages).observe(stageHost, { childList: true });
   const dismiss = (event) => {
-    // The project menu and the account menu close once something in them is chosen, on Escape, or on a click outside.
+    // The project menu, the account menu and the Feed source menu also close once something in them is chosen. Escape and a
+    // press outside close them as every floating details closes (design-system browser/floating-details.ts).
     // The path is taken at dispatch, so a row that re-rendered under the click still counts as inside its menu.
     const path = typeof event.composedPath === 'function' ? event.composedPath().filter((node) => node.nodeType === 1) : [];
     const along = (selector) => path.some((node) => node.matches(selector)) || Boolean(event.target?.nodeType === 1 && event.target.closest(selector));
     for (const menu of document.querySelectorAll('[data-project-menu][open], [data-global-menu][open], [data-feed-source-menu][open]')) {
-      const inside = event.type !== 'keydown' && (path.includes(menu) || menu.contains(event.target));
+      const inside = path.includes(menu) || menu.contains(event.target);
       // Ticking a plugin for the Dock is a setting, not a destination: the menu stays for the next one.
-      const chosen = inside && along('a, button') && !along('summary, [data-dock-choice]');
-      if (event.type === 'keydown' ? event.key === 'Escape' : (!inside || chosen)) {
-        const restore = menu.contains(document.activeElement) && event.type === 'keydown';
-        menu.open = false;
-        if (restore) menu.querySelector('summary').focus();
-      }
-    }
-    for (const menu of document.querySelectorAll('.plugin-stage-more[open]')) {
-      if (event.type === 'keydown' ? event.key === 'Escape' : !menu.contains(event.target)) {
-        const restore = menu.contains(document.activeElement);
-        menu.open = false;
-        if (restore) menu.querySelector('summary').focus();
-      }
+      if (inside && along('a, button') && !along('summary, [data-dock-choice]')) menu.open = false;
     }
   };
   document.addEventListener('click', dismiss);
-  document.addEventListener('keydown', dismiss);
 }`;
 
 /** The bottom bar. Left: the Dock menu, 项目首页 and the plugins chosen to stay; those that do not fit fold into

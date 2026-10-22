@@ -52,7 +52,7 @@ export class AssistantFollowUpRecords {
 }
 
 /** A work as the follow-ups see it. */
-export interface FollowUpWork {
+interface FollowUpWork {
   work_id: string;
   title: string;
   session_id: string | null;
@@ -61,7 +61,7 @@ export interface FollowUpWork {
 }
 
 /** The person's own actions in their Home, each call already bounded in time by the caller. */
-export interface FollowUpHomeActions {
+interface FollowUpHomeActions {
   discover(): Promise<readonly ActionView[]>;
   invoke(reference: ExactActionReference, input: unknown): Promise<unknown>;
 }
@@ -91,7 +91,7 @@ export interface AssistantFollowUpPorts<W extends FollowUpWork> {
   schedule(): Promise<AgentScheduleCapability>;
 }
 
-export function followUpTask(followUp: AssistantFollowUp, sessionId: string) {
+function followUpTask(followUp: AssistantFollowUp, sessionId: string) {
   return { key: `fu-${followUp.followup_id}-${Date.parse(followUp.next_at!)}`, session_id: sessionId, kind: FOLLOW_UP_KIND,
     payload: { followup_id: followUp.followup_id }, due_at: followUp.next_at!, max_attempts: 1 };
 }

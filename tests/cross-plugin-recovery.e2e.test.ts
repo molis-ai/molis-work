@@ -2,34 +2,31 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { openHostShelfStore } from '@molis-ai/molis-work-app-local-host';
 import { openCharacters } from '@molis-ai/molis-work-module-characters';
-import { charactersManifest } from '@molis-ai/molis-work-plugin-characters';
-import { PluginRuntime, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
+import { CHARACTER_PLUGIN_ID } from '@molis-ai/molis-work-contracts/modules/characters';
+import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
-import { olderCharactersManifest } from './fixtures/older-characters-manifest.js';
 
-test('Characters opens an existing project after its manifest upgrade without losing personal drafts', { timeout: 60_000 }, async t => {
+test('Characters still lists the person\'s drafts in a project that keeps the removed Characters plugin\'s install record', { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const personal = openCharacters(b.homeDirectory, 'web-user');
   t.after(() => personal.close());
   const draft = personal.service.create();
   personal.service.update(draft.character_id, 1, { title: '升级前的角色草稿', instructions: '保留原有做事方式', host_tools: null });
-  // An older install: no import routes, no declared actions, no upgrade range, and no produced type (see the fixture).
-  const legacy = olderCharactersManifest();
+  // RAC-74: what an install of the Characters plugin left before Characters moved into the Host (CHR-1). Nothing starts or rewrites it;
+  // it stays until the maintenance in docs/releases/CHECKLIST.md removes it.
+  const left: PluginInstanceRecord = { install_id: 'plugin-install-characters-left', installation_generation: 'generation-1', plugin_id: CHARACTER_PLUGIN_ID,
+    version: '1.6.0', publisher_id: 'io.molis.work', publisher_signature: 'builtin', manifest_digest: 'sha256:left-behind', deployment: 'local',
+    selected_entrypoint: 'builtin', grants: ['artifact:read', 'artifact:write'], execution: 'host', state: 'running', recovery_count: 0, last_error_code: null,
+    installed_at: '2026-10-01T00:00:00.000Z', updated_at: '2026-10-01T00:00:00.000Z', uninstalled_at: null, retain_private_data: true };
   const repository = new SqlitePluginRuntimeRepository(b.store.db);
-  const installed = new PluginRuntime(repository).install({ definition: { manifest: legacy, async start() { return {}; } },
-    deployment: 'local', grants: legacy.permissions.filter(p => p.required).map(p => p.permission) });
+  repository.save(left);
   await b.navigate(() => b.command('Page.navigate', { url: `${b.origin}/projects/${b.projectId}/` }, b.sessionId));
-  // Characters' page is Settings › 角色 (specs/archive/page-interaction-flow).
+  // Characters' page is Settings › 角色 (specs/archive/page-interaction-flow), now a section of the Host's own settings.
   await b.click('[data-directory-open="settings"]');
   await b.click('[data-directory-panel=settings] [data-settings-section="characters"]');
   await b.waitFor("document.querySelector('[data-character-list]')?.textContent.includes('升级前的角色草稿')");
-  const upgraded = repository.get(installed.install.install_id)!;
-  // Characters ships with the Host, so the same install moves up to the Host's version on start (2026-10-04) with no
-  // list of versions it may come from; the record says what runs, and the person's grants and drafts stay.
-  assert.equal(upgraded.version, charactersManifest.version);
-  assert.equal(charactersManifest.upgrade_compatibility, undefined);
-  assert.deepEqual(upgraded.grants, [...new Set([...installed.install.grants, ...charactersManifest.permissions.filter(p => p.required).map(p => p.permission)])].sort());
-  assert.equal(upgraded.installed_at, installed.install.installed_at);
+  assert.deepEqual(repository.get(left.install_id), left, 'the left-behind record is neither started nor rewritten');
   assert.equal(personal.service.get(draft.character_id)?.instructions, '保留原有做事方式');
 });
 

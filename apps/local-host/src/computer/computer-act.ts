@@ -17,7 +17,7 @@ export function roleName(node: TreeNode): string {
 }
 
 /** A coordinate from an accessibility-tree look is not reused after this long. */
-export const OBSERVATION_TTL_MS = 10_000;
+const OBSERVATION_TTL_MS = 10_000;
 
 const CONTAINERS = new Set(["AXGroup", "AXScrollArea", "AXWindow", "AXToolbar", "AXList", "AXTable", "AXOutline", "AXWebArea"]);
 

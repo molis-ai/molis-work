@@ -26,7 +26,6 @@ const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 /** Started by `createPluginPlatform` in `project-plugins.ts`; the package name proves it. */
 const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map([
   ["schedule", "@molis-ai/molis-work-plugin-schedule"],
-  ["characters", "@molis-ai/molis-work-plugin-characters"],
   ["shelf", "@molis-ai/molis-work-plugin-shelf"],
   ["coding", "@molis-ai/molis-work-plugin-coding"],
   ["files", "@molis-ai/molis-work-plugin-files"],
@@ -96,7 +95,6 @@ const hostSourceFiles = async (): Promise<string[]> => {
   await walk("apps/local-host/src");
   return out.sort();
 };
-const stemsOf = (id: string): string[] => [id, ...(id === "characters" ? ["character"] : [])];
 
 test("the frozen lists name exactly what exists: no id, route file or Runtime plugin is missing or left behind", async () => {
   const catalogIds = new Set(BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id as string));
@@ -122,24 +120,23 @@ test("the frozen lists name exactly what exists: no id, route file or Runtime pl
  * Runtime shape (declarations only) nor the frozen build-time shape, and the name list above cannot see it. Frozen on
  * 2026-10-08; a plugin leaves this list when its Host code is gone, and none joins.
  *  - shelf: shelf-native-plugin-http.ts, shelf-actions.ts, shelf-ai.ts, and shelfActionProvider / shelfProjectActionProvider
- *  - characters: characters-host.ts and character-*.ts. Decision 26 (2026-10-08): Characters is no longer a Runtime plugin
- *    long-term; its code merges into the Host or a Module and its interface stays a section of Settings (a wave 4 slice)
  *  - coding, git: the workspace surface adapters in the Host (coding-*.ts, git-*.ts), the part R-03 asks to move behind
  *    declarations
+ * RAC-70: Characters left with CHR-1: it is no plugin any more; its handlers are in modules/characters and its page is a section of
+ * the Host's Settings.
  */
-const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set(["characters", "coding", "git", "shelf"]);
+const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set(["coding", "git", "shelf"]);
 
 test("Runtime plugins that the Host also assembles by hand are named, and no plugin joins them", async () => {
   const sources = await hostSourceFiles();
   const projectHost = await readFile(join(repoRoot, "apps/local-host/src/project-host.ts"), "utf8");
   const camel = (name: string) => name.replace(/-([a-z0-9])/g, (_, letter: string) => letter.toUpperCase());
   const hybrid = [...RUNTIME_ASSEMBLED.keys()].filter(id => {
-    const stems = stemsOf(id);
     const named = sources.some(file => {
       const base = file.slice(file.lastIndexOf("/") + 1);
-      return stems.some(stem => base.startsWith(`${stem}-`) || base === `${stem}.ts`);
+      return base.startsWith(`${id}-`) || base === `${id}.ts`;
     });
-    const registered = stems.some(stem => new RegExp(`registerProvider\\(\\s*${camel(stem)}[A-Za-z]*Provider\\(`).test(projectHost));
+    const registered = new RegExp(`registerProvider\\(\\s*${camel(id)}[A-Za-z]*Provider\\(`).test(projectHost);
     return named || registered;
   }).sort();
   assert.deepEqual(hybrid, [...HYBRID_RUNTIME_PLUGINS].sort(),

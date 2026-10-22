@@ -5,6 +5,7 @@ import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "@moli
 import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { CHARACTER_ARTIFACT_PRODUCER, characterArtifactPreviewAction } from "@molis-ai/molis-work-contracts/modules/characters";
 export { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 
 /**
@@ -237,7 +238,7 @@ function placedEntries(enabled: readonly ProjectPluginId[], slot: "navigator" | 
  * there, as it always has, even when it also has a side view; one whose only place is a side view opens that tab of the
  * side panel. The answer is the side tab (`plugin:<plugin>/<view>`) of each plugin that opens in the panel.
  */
-export interface PlacedPluginDeclarations {
+interface PlacedPluginDeclarations {
   readonly project_plugin_id: string;
   readonly manifest: { readonly ui: { readonly views?: readonly { readonly view_id: string; readonly slot: string }[] } };
   readonly workbench?: { readonly contributions: readonly { readonly descriptor: { readonly surfaces?: readonly { readonly target_slot_id: string }[] } }[] };
@@ -321,7 +322,7 @@ export function pluginStageSummaries(): Record<string, string> {
  * The English interface's names for the built-in plugins whose Manifest name is Chinese (user decision 2026-10-15). The
  * Chinese interface keeps the Manifest name; the plugins already named in English keep theirs in both.
  */
-export const PLUGIN_ENGLISH_NAMES: Readonly<Record<string, string>> = {
+const PLUGIN_ENGLISH_NAMES: Readonly<Record<string, string>> = {
   artifacts: "Artifacts", "plugin-builder": "Plugin Studio", images: "Images", lingguang: "Lingguang", todo: "To-do",
   alchemist: "Alchemist", workflows: "Workflows",
 };
@@ -388,14 +389,39 @@ export function artifactReferrerActions(): readonly ArtifactContinuer[] {
     .map(action => ({ plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name, action })));
 }
 
-/** Each declared 成果 type: display name, preview and pin actions and owner, from the built-in Manifests. */
+/**
+ * A 成果 producer that is part of the Host, not a plugin (Characters): what it writes, declared as a Manifest's `artifacts.produces`
+ * would be, its actions, and the workbench surface its work objects open on. Wherever the built-in Manifests' declarations are
+ * read, these are read with them.
+ */
+export interface HostArtifactProducer {
+  readonly plugin_id: string;
+  readonly name: string;
+  readonly surface: string;
+  readonly produces: PluginManifest["artifacts"]["produces"];
+  readonly actions: readonly ActionDefinition[];
+}
+
+export const HOST_ARTIFACT_PRODUCERS: readonly HostArtifactProducer[] = [
+  { ...CHARACTER_ARTIFACT_PRODUCER, produces: [...CHARACTER_ARTIFACT_PRODUCER.produces], surface: "characters", actions: [characterArtifactPreviewAction] },
+];
+
+/** Each declared 成果 type: display name, preview and pin actions and owner, from the built-in Manifests and the Host's own producers. */
 export function artifactTypeDeclarations(): ReadonlyMap<string, ArtifactTypeDeclaration> {
   const declarations = new Map<string, ArtifactTypeDeclaration>();
-  for (const entry of BUILTIN_PLUGIN_CATALOG) for (const type of entry.manifest.artifacts.produces) {
+  const producers = [...BUILTIN_PLUGIN_CATALOG.map(entry => ({ plugin_id: entry.manifest.plugin_id, name: entry.manifest.name, surface: entry.project_plugin_id,
+    produces: entry.manifest.artifacts.produces, actions: entry.manifest.actions ?? [] })), ...HOST_ARTIFACT_PRODUCERS];
+  for (const producer of producers) for (const type of producer.produces) {
     if (!type.title) continue;
-    const action = (declared?: { capability_id: string; version: number }) => declared ? entry.manifest.actions?.find(item => item.capability_id === declared.capability_id && item.version === declared.version) ?? null : null;
-    declarations.set(type.artifact_type_id, { title: type.title, plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name,
-      surface: entry.project_plugin_id, preview: action(type.preview), pin: action(type.pin), compare: action(type.compare) });
+    const action = (declared?: { capability_id: string; version: number }) => declared ? producer.actions.find(item => item.capability_id === declared.capability_id && item.version === declared.version) ?? null : null;
+    declarations.set(type.artifact_type_id, { title: type.title, plugin_id: producer.plugin_id, plugin_title: producer.name,
+      surface: producer.surface, preview: action(type.preview), pin: action(type.pin), compare: action(type.compare) });
   }
   return declarations;
+}
+
+/** Every 成果 type the built-in Manifests and the Host's own producers declare, as consumers name types (id and schema version). */
+export function declaredArtifactTypes(): Array<{ artifact_type_id: string; schema_version: number }> {
+  return [...BUILTIN_PLUGIN_CATALOG.map(entry => entry.manifest.artifacts.produces), ...HOST_ARTIFACT_PRODUCERS.map(producer => producer.produces)].flat()
+    .map(type => ({ artifact_type_id: type.artifact_type_id, schema_version: type.schema_version }));
 }

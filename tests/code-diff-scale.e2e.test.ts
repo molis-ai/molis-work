@@ -75,13 +75,8 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
     const start = performance.now(), span = document.createElement('span'); span.className = 'tok-keyword'; span.textContent = 'x'; code.append(span); getComputedStyle(span).color;
     const ms = performance.now() - start; span.remove(); return ms; })()`);
   assert.ok(insert < 50, `one node put in the coloured change: ${insert.toFixed(1)} ms`);
-  // Nor does one put in the conversation beside it (the dialogue's and the stage's :has() rules did: 2.4 s with a long turn).
-  const turn = await evaluate<number>(`(() => { const turns = document.querySelector('${coding} [data-coding-turns]'), pre = document.createElement('pre');
-    for (let i = 0; i < 30000; i++) { const span = document.createElement('span'); span.className = 'tok-keyword'; span.textContent = 'x '; pre.append(span); } turns.append(pre); turns.offsetHeight;
-    const start = performance.now(), span = document.createElement('span'); span.className = 'tok-keyword'; span.textContent = 'x'; pre.append(span); getComputedStyle(span).color;
-    const ms = performance.now() - start; pre.remove(); return ms; })()`);
-  assert.ok(turn < 50, `one node put in a long turn: ${turn.toFixed(1)} ms`);
+  // The independent long-conversation style guard and its negative control live in code-turn-style.e2e.test.ts (LTP-01/02).
   assert.deepEqual(await expensiveHasSelectors(evaluate), [], "no :has() rule on the Coding page ends in a bare tag or a broad part (VUX-36)");
   const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
-  await writeFile(new URL("diff-line-scale.json", evidence), JSON.stringify({ rows: expected, plain_line: minified.length, coloured_line: wide.length, frames: painting.length, longest: Math.round(longest), median: Math.round(median), gaps: gaps.map(Math.round), insert: Math.round(insert * 10) / 10, turn_insert: Math.round(turn * 10) / 10 }, null, 2));
+  await writeFile(new URL("diff-line-scale.json", evidence), JSON.stringify({ rows: expected, plain_line: minified.length, coloured_line: wide.length, frames: painting.length, longest: Math.round(longest), median: Math.round(median), gaps: gaps.map(Math.round), insert: Math.round(insert * 10) / 10 }, null, 2));
 });

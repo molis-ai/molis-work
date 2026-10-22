@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
-const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
+// SYS-15-B1 / SYS-15-V2: accepted background generation, visible pixels and a real browser download.
+const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
 
 for (const [width, locale] of [[1440, "zh"], [390, "zh"], [1440, "en"], [390, "en"]] as const) test(`RAC-58 Images ${locale} ${width}px: revoked and missing selections stay explicit, then user chooses and generates`, { timeout: 90_000 }, async t => {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND;
@@ -79,8 +81,17 @@ for (const [width, locale] of [[1440, "zh"], [390, "zh"], [1440, "en"], [390, "e
   assert.equal(await evaluate("document.querySelector('[data-images-title]').textContent"), locale === "en" ? "Results" : "生成结果");
   assert.equal(await evaluate("document.querySelector('[data-images-result] h2').textContent"), locale === "en" ? "Generated" : "已生成");
   assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-images=workbench]').textContent"), /images\.(?:compose|service|history|account|result|status|error)\./);
-  const imageUrl = await evaluate<string>("document.querySelector('[data-images-result] img').src");
-  assert.deepEqual(Buffer.from(await (await fetch(imageUrl + "?download=1")).arrayBuffer()), Buffer.from(PNG, "base64"));
+  const downloads = join(homeDirectory, "image-downloads"); await mkdir(downloads);
+  await command("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloads });
+  await click("[data-images-result] a[download]");
+  const deadline = Date.now() + 4000;
+  let bytes: Buffer | undefined;
+  while (!bytes?.length) {
+    try { bytes = await readFile(join(downloads, "雨后树叶上的水珠.png")); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    if (!bytes?.length) { if (Date.now() > deadline) throw new Error("Image download missing"); await new Promise(resolve => setTimeout(resolve, 50)); }
+  }
+  assert.deepEqual(bytes, Buffer.from(PNG, "base64"));
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
   await screenshot("result");
 });

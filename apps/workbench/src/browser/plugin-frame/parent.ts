@@ -101,12 +101,15 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     } catch (error) { host.showToast?.(error instanceof Error ? error.message : String(error), true); }
   };
   scope.listen(root, "molis-work:select-item", event => { port.postMessage({ type: "select", detail: (event as CustomEvent).detail }); });
+  scope.observe(new MutationObserver(() => {
+    if (root.dataset.expanded === "false") port.postMessage({ type: "collapse" });
+  }), root, { attributes: true, attributeFilter: ["data-expanded"] });
   scope.listen(document, "molis-work:model-ready", () => port.postMessage({ type: "model-ready" }));
   let loaded = false;
   frame.onload = () => {
     if (loaded) { fail(new Error("Plugin page navigated")); scope.dispose(); return; }
     loaded = true;
-    const config: FrameConfig = { origin: location.origin, bundle: pack.bundle, assets: pack.assets,
+    const config: FrameConfig = { origin: location.origin, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow,
       nativeFiles: Boolean(nativeFileInvoke()),
       projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,
       messages: globalThis.MOLIS_WORK_MESSAGES ?? {}, titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage };

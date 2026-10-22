@@ -7,7 +7,7 @@ import { deferredSurfaceClients } from "../../plugin-workbench.js";
 export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const failure = () => L('无法加载界面，请重试');
-  const packs = ${JSON.stringify(deferredSurfaceClients().map(({ id, plugin_id, bundle, assets }) => [id, plugin_id, bundle, assets]))}.map(([id, plugin_id, bundle, assets]) => ({ id, plugin_id, bundle, assets }));
+  const packs = ${JSON.stringify(deferredSurfaceClients().map(({ id, plugin_id, bundle, assets, searchRow }) => [id, plugin_id, bundle, assets, searchRow]))}.map(([id, plugin_id, bundle, assets, searchRow]) => ({ id, plugin_id, bundle, assets, searchRow }));
   const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap();
   const scope = host.scope;
   const load = url => {

@@ -91,14 +91,14 @@ export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWork
 }
 
 /** A surface's client: the bundle that carries its factory (its own, or the one `clientFrom` names) and what it prepares first. */
-export interface PluginSurfaceClient { readonly id: string; readonly plugin_id: string; readonly bundle: string; readonly assets: readonly string[]; readonly factory: string }
+export interface PluginSurfaceClient { readonly id: string; readonly plugin_id: string; readonly bundle: string; readonly assets: readonly string[]; readonly factory: string; readonly searchRow?: PluginWorkbenchRegistration["searchRow"] }
 
 /** Every surface with a client, each pointing at the one bundle that serves it. */
 export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): PluginSurfaceClient[] {
   return packs.flatMap((pack) => {
     const source = pack.clientFrom ? packs.find(candidate => candidate.project_plugin_id === pack.clientFrom) : pack;
     return source?.clientFactory
-      ? [{ id: pack.project_plugin_id, plugin_id: BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === pack.project_plugin_id)?.manifest.plugin_id ?? "", bundle: source.project_plugin_id, assets: source.clientAssets ?? [], factory: source.clientFactory }]
+      ? [{ id: pack.project_plugin_id, plugin_id: BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === pack.project_plugin_id)?.manifest.plugin_id ?? "", bundle: source.project_plugin_id, assets: source.clientAssets ?? [], factory: source.clientFactory, searchRow: pack.searchRow }]
       : [];
   });
 }
@@ -107,7 +107,7 @@ export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[
 const HOST_SURFACE_CLIENTS: readonly Pick<PluginSurfaceClient, "id" | "bundle" | "assets">[] = [{ id: "characters", bundle: "characters", assets: [] }];
 
 /** Every surface the deferred loader mounts on first show: the plugins' and the Host's own. */
-export function deferredSurfaceClients(): (Pick<PluginSurfaceClient, "id" | "bundle" | "assets"> & Partial<Pick<PluginSurfaceClient, "plugin_id">>)[] {
+export function deferredSurfaceClients(): (Pick<PluginSurfaceClient, "id" | "bundle" | "assets"> & Partial<Pick<PluginSurfaceClient, "plugin_id" | "searchRow">>)[] {
   return [...pluginSurfaceClients(), ...HOST_SURFACE_CLIENTS];
 }
 

@@ -4,7 +4,7 @@ import { childMessages } from "./messages.js";
 import { pageFiles } from "./files.js";
 import { childTerminal } from "./terminal.js";
 import { pageDialogs } from "./dialogs.js";
-import { childView } from "./view.js";
+import { childView, collapsePage, pageSelection } from "./view.js";
 import { childCopy } from "./clipboard.js";
 import { childNativeFiles } from "./native-files.js";
 import { pageEventSource } from "./events.js";
@@ -54,6 +54,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   Object.defineProperty(navigator, "clipboard", { value: { writeText: copyText } });
   Object.assign(globalThis, { molisWorkOpenExternalUrl: async (url: string) => send({ type: "link", url: new URL(url, config.origin).href, download: false }) });
   const terminal = globalThis.molisPageTerminal = childTerminal(port, scope, config.origin);
+  const select = pageSelection(root, scope, config.searchRow);
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
   const host: FrameHost & UiPageActions & Record<string, unknown> = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
     ...pageDialogs(scope, L),
@@ -80,7 +81,8 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
       document.body.hidden = !message.visible; Object.assign(document.documentElement.dataset, message.theme);
       if (prior !== document.documentElement.dataset.resolvedTerminalTheme) window.dispatchEvent(new CustomEvent("molis-work:terminal-theme-change"));
     }
-    else if (message.type === "select") root.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: message.detail }));
+    else if (message.type === "select") select(message.detail);
+    else if (message.type === "collapse") collapsePage(root);
     else if (message.type === "model-ready") document.dispatchEvent(new CustomEvent("molis-work:model-ready"));
     else if (message.type === "dispose") scope.dispose();
   });

@@ -6,6 +6,8 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
+// SYS-15-V1: selection, return to list and reopening keep the isolated document in sync with its shell.
+
 // What the Assistant and the context bar read for the open document: Pages' own naming with its version and title,
 // not the workbench's fallback (named_by: "workbench", kind and id only).
 const namesItself = (title: string, version?: number) => `(() => {

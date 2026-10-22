@@ -3,6 +3,8 @@ import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
+// SYS-15-V2: local media is allowed while independent network, socket and owner-credential access is refused.
+
 test("SYS-15 S-47 real opaque page cannot read owner credentials, bypass its broker or navigate to owner HTML", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "cognia");
@@ -25,6 +27,12 @@ test("SYS-15 S-47 real opaque page cannot read owner credentials, bypass its bro
   })()`), { owner: "SecurityError", token: false, native: false });
   const own = `/projects/${browser.projectId}/api/plugins/io.molis.work.cognia/library`;
   assert.equal(await child.evaluate(`fetch(${JSON.stringify(own)}).then(response=>response.status)`), 200);
+  assert.equal(await child.evaluate(`new Promise(resolve=>{
+    const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII='),character=>character.charCodeAt(0));
+    const address=URL.createObjectURL(new Blob([bytes],{type:'image/png'})),image=new Image();
+    const finish=value=>{image.remove();URL.revokeObjectURL(address);resolve(value)};
+    image.onload=()=>finish(image.naturalWidth===1);image.onerror=()=>finish(false);image.src=address;document.body.append(image);
+  })`), true, "authorized bytes can be displayed as a local blob inside the opaque page");
   for (const path of ["/api/settings/projects", `/projects/${browser.projectId}/api/plugins/io.molis.work.todo/items`,
     "/projects/another-project/api/plugins/io.molis.work.cognia/library", "/api/plugins/io.molis.work.cognia/library"]) {
     assert.equal(await child.evaluate(`fetch(${JSON.stringify(path)}).then(response=>response.status)`), 403, path);

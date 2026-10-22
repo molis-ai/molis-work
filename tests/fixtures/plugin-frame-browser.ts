@@ -48,11 +48,15 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     throw new Error(expression, { cause: failure });
   }
   async function click(target: string): Promise<void> {
-    const point = await evaluate<{ x: number; y: number }>(`(async()=>{const element=[...document.querySelectorAll(${JSON.stringify(target)})].find(node=>node.getClientRects().length);
-      if(!element)throw Error('Missing target');element.scrollIntoView({block:'center',behavior:'instant'});
-      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-      const box=element.getBoundingClientRect(),x=box.x+box.width/2,y=box.y+box.height/2;
-      if(!box.width||!box.height||element.disabled||!element.contains(document.elementFromPoint(x,y)))throw Error('Target is hidden, disabled or covered: '+JSON.stringify({target:element.outerHTML,box:box.toJSON(),cover:document.elementFromPoint(x,y)?.outerHTML}));return{x,y};})()`);
+    const point = await evaluate<{ x: number; y: number }>(`(async()=>{const deadline=Date.now()+10000;let last='Missing target';
+      while(Date.now()<deadline){const element=[...document.querySelectorAll(${JSON.stringify(target)})].find(node=>node.getClientRects().length);
+        if(element){element.scrollIntoView({block:'center',behavior:'instant'});
+          await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+          const box=element.getBoundingClientRect(),x=box.x+box.width/2,y=box.y+box.height/2;
+          if(element.isConnected&&box.width&&box.height&&!element.disabled&&element.contains(document.elementFromPoint(x,y)))return{x,y};
+          last=JSON.stringify({target:element.outerHTML,box:box.toJSON(),cover:document.elementFromPoint(x,y)?.outerHTML});}
+        await new Promise(resolve=>setTimeout(resolve,40));
+      }throw Error('Target is hidden, disabled or covered: '+last);})()`);
     const frame = await browser.evaluate<{ x: number; y: number }>(`(()=>{const frame=document.querySelector(${JSON.stringify(selector)}), box=frame.getBoundingClientRect();
       if(document.elementFromPoint(box.x+${point.x},box.y+${point.y})!==frame)throw Error('Frame is covered');return{x:box.x,y:box.y};})()`);
     for (const type of ["mousePressed", "mouseReleased"]) await browser.command("Input.dispatchMouseEvent", { type, x: frame.x + point.x, y: frame.y + point.y, button: "left", clickCount: 1 }, browser.sessionId);

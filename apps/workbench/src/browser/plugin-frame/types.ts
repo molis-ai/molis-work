@@ -30,8 +30,10 @@ export interface FrameHost {
   status?(...args: unknown[]): void;
 }
 export interface FramePack { id: string; plugin_id: string; bundle: string; assets: string[];
+  searchRow?: { selector: string; idDataset: string };
   authorization?: { page_id: string; storage_scope: string } }
 export interface FrameConfig {
+  searchRow?: FramePack["searchRow"];
   nativeFiles: boolean;
   origin: string; bundle: string; assets: string[]; projectId: string; projectTitle: string; routePrefix: string; side: boolean; page: unknown;
   messages: Record<string, string>; titles: Record<string, string>; storage: Record<"localStorage" | "sessionStorage", Record<string, string>>;
@@ -59,7 +61,7 @@ export type FrameDown = FrameAnswer | ContextDown | { type: "state"; visible: bo
   | { type: "model-ready" }
   | { type: "terminal-event"; event: UiTerminalEvent } | { type: "terminal-sent"; id: number; error?: string }
   | { type: "page-message"; message: UiPageMessage }
-  | { type: "select"; detail: unknown } | { type: "dispose" };
+  | { type: "select"; detail: unknown } | { type: "collapse" } | { type: "dispose" };
 
 declare global {
   var molisWorkRequest: UiRequest;

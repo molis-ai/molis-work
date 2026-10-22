@@ -1,6 +1,50 @@
 import type { UiPageView } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { FrameDown, FramePack, FrameScope, FrameUp } from "./types.js";
 
+/** Existing row-based clients and clients that open directly by id share the shell's selection intent. */
+export function pageSelection(root: HTMLElement, scope: FrameScope, row: FramePack["searchRow"]) {
+  let stop = () => {};
+  scope.own(() => stop());
+  return (detail: unknown) => {
+    stop();
+    const itemId = detail && typeof detail === "object" && "itemId" in detail ? detail.itemId : undefined;
+    root.dispatchEvent(new CustomEvent("molis-work:select-item", { detail }));
+    if (!row || typeof itemId !== "string" || !itemId) return;
+    const observer = new MutationObserver(check), deadline = setTimeout(() => stop(), 10000);
+    stop = () => { observer.disconnect(); clearTimeout(deadline); };
+    function check() {
+      if (!scope.alive) { stop(); return; }
+      try {
+        if (JSON.parse(root.getAttribute("data-assistant-context") || "{}").object?.id === itemId) { stop(); return; }
+      } catch { /* Only a valid object identity marks the requested record open. */ }
+      const element = [...root.querySelectorAll<HTMLElement>(row!.selector)].find(element => element.dataset[row!.idDataset] === itemId);
+      if (element) { stop(); element.click(); }
+    }
+    observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-assistant-context"] });
+    queueMicrotask(check);
+  };
+}
+
+/** The shell's return-to-list intent applies inside the isolated document as it does to Host surfaces. */
+export function collapsePage(root: HTMLElement): void {
+  if (root.dataset.expanded === "false") return;
+  root.dataset.expanded = "false";
+  const workspace = root.querySelector<HTMLElement>(".plugin-stage-workspace, [data-session-stage-workspace], [data-artifact-stage-workspace], [data-schedule-stage-workspace]");
+  if (workspace) workspace.hidden = true;
+  root.querySelectorAll(".is-selected").forEach(row => {
+    row.classList.remove("is-selected");
+    if (row.hasAttribute("aria-selected")) row.setAttribute("aria-selected", "false");
+  });
+  [root, ...root.querySelectorAll("[data-assistant-context]")].forEach(node => {
+    try {
+      const context = JSON.parse(node.getAttribute("data-assistant-context") ?? "null");
+      if (!context?.object) return;
+      delete context.object; delete context.unsaved; node.setAttribute("data-assistant-context", JSON.stringify(context));
+    } catch { /* An invalid context does not describe an open record. */ }
+  });
+  root.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: null } }));
+}
+
 export function childView(port: MessagePort, scope: FrameScope): UiPageView {
   let sequence = 0;
   const pending = new Map<number, { resolve(html: string): void; reject(error: Error): void }>();

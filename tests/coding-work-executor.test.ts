@@ -99,14 +99,14 @@ test("W5-01-CODING-71..76 the roles open, read and set a Coding session the page
     await assert.rejects(invoke("session.update", { session_id: plain.session_id, mode: "collaborate" }), (error: { code?: string }) => error.code === "coding.executor_mode_unknown");
     assert.equal((await invoke<Session>("session.read", { session_id: plain.session_id })).mode, "review");
     await assert.rejects(invoke("session.read", { session_id: "missing" }), (error: { code?: string }) => error.code === "coding.session_unknown");
-    await assert.rejects(invoke("run.control", { session_id: plain.session_id, run_id: "run-1", kind: "stop" }));
+    await assert.rejects(invoke("run.control", { session_id: plain.session_id, run_id: "run-1", kind: "stop" }), /这个会话尚未执行/);
   } finally {
     await host.close();
     await rm(home, { recursive: true, force: true });
   }
 });
 
-test("W5-01-CODING-77..79 a round the Assistant starts is the page's round: same settings, its supplement's receipt, its stop", { timeout: 90_000 }, async t => {
+test("W5-01-CODING-77..81 a round the Assistant starts is the page's round: same settings, its supplement's receipt, its stop", { timeout: 90_000 }, async t => {
   let release = () => {};
   const held = new Promise<void>(resolve => { release = resolve; });
   const f = await codingProductHost(t, async () => { await held; return cogniaModelResponse("好的。"); });
@@ -143,4 +143,26 @@ test("W5-01-CODING-77..79 a round the Assistant starts is the page's round: same
   assert.equal(read.runtime_session_id, shown.body.session.runtime_session_id);
   assert.deepEqual(read.runs.map(run => run.ref.run_id), [run_id]);
   assert.equal(read.recovery, null);
+
+  // W5-01-CODING-80: the round carries the session's own choices as the page's start sends them: its methods, and writer assignments
+  // only for parallel writers, so a session set up for them on the page and switched to another way still starts.
+  const chose = await invoke<{ session_id: string }>("session.open", { title: "按方法修改" });
+  await client.invoke(owner, find("coding.update-session"), { session_id: chose.session_id, methods: [{ skill_id: "coding-review-change", version: 1 }],
+    configuration: { intent: "parallel", provider_id: "fixture", model_id: "fixture-model", workspace_id: f.workspaceId, writer_assignments: [{ workspace_id: "writer-1", task: "改登录" }] } });
+  await invoke("session.update", { session_id: chose.session_id, mode: "execute" });
+  const second = await invoke<{ run_id: string }>("run.start", { session_id: chose.session_id, task: "按方法修改登录" });
+  let edited = await invoke<Session>("session.read", { session_id: chose.session_id });
+  for (const end = Date.now() + 15_000; !["completed", "failed", "cancelled", "stopped"].includes(edited.runs[0]?.phase ?? ""); edited = await invoke<Session>("session.read", { session_id: chose.session_id })) {
+    assert.ok(Date.now() < end, `the round ends: ${edited.runs[0]?.phase}`); await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  assert.deepEqual(edited.runs.map(run => run.ref.run_id), [second.run_id]);
+  assert.deepEqual(edited.runs[0]!.frozen.skills.map(skill => [skill.skill_id, skill.version]), [["coding-review-change", 1]]);
+
+  // W5-01-CODING-81: a start that is refused leaves the session as it was: nothing chosen, so the page still asks.
+  const unread = await invoke<{ session_id: string }>("session.open", { title: "材料读不到" });
+  await client.invoke(owner, find("coding.update-session"), { session_id: unread.session_id, materials: [{ kind: "note", id: "missing", title: "不存在的材料" }] });
+  await assert.rejects(invoke("run.start", { session_id: unread.session_id, task: "按材料修改" }), /不存在的材料/);
+  const asked = await page(unread.session_id);
+  assert.equal(asked.status, 200, JSON.stringify(asked.body));
+  assert.equal(asked.body.configuration, null);
 });

@@ -52,6 +52,18 @@ async function settings(call: CodingActionCall, own: Settings | null, mode?: str
 /** Saved to the session itself, so the page starts its next round the same way. */
 const keep = (call: CodingActionCall, sessionId: string, configuration: Settings) =>
   call.routed("coding.update-session", { method: "PATCH", params: { sessionId }, query: {}, body: { configuration } });
+/**
+ * What the page sends with every round it starts besides the settings (`client.ts` startRound): the session's methods and MCP
+ * choices, and writer assignments only for parallel writers. The start reads the session's other choices itself.
+ */
+const roundOf = (a: CodingActivation, sessionId: string, { writer_assignments, ...chosen }: Settings, task: string) => {
+  const saved = (key: string) => {
+    const value = a.context.services?.storage?.get(`${key}:${sessionId}`);
+    return typeof value === "string" ? JSON.parse(value) as unknown : undefined;
+  };
+  return { ...chosen, ...(chosen.intent === "parallel" && writer_assignments ? { writer_assignments } : {}),
+    methods: saved("methods"), mcp_tools: saved("mcp"), mcp_sources: saved("mcp-sources"), task };
+};
 
 /**
  * Coding's answers to the work-executor protocol (PG-036). Each role runs a route's own handler, under the role action's fence: a work the
@@ -89,8 +101,13 @@ export function codingExecutor(a: CodingActivation): void {
   });
   action(codingExecutorActions["run.start"], async (input, call) => {
     const own = kept(a, input.session_id), chosen = await settings(call, own);
-    if (!own) await keep(call, input.session_id, chosen);
-    const started = await call.routed("coding.start-run", { method: "POST", params: { sessionId: input.session_id }, query: {}, body: { ...chosen, task: input.task } }) as { run: { ref: { run_id: string } } };
+    const started = await call.routed("coding.start-run", { method: "POST", params: { sessionId: input.session_id }, query: {},
+      body: roundOf(a, input.session_id, chosen, input.task) }) as { run: { ref: { run_id: string } } };
+    // Kept once the round runs, so a refused start leaves the session as it was; settings the person chose meanwhile stay theirs.
+    if (!own) {
+      await call.beforeWrite();
+      if (!kept(a, input.session_id)) await keep(call, input.session_id, chosen);
+    }
     return { run_id: started.run.ref.run_id };
   });
   action(codingExecutorActions["run.control"], async ({ session_id, ...body }, call) => {

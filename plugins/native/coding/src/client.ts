@@ -1105,7 +1105,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(data.error) status(data.error,true);
       if(fresh && offsets.has(id)) follow.restore(offsets.get(id));
       renderDirectory(); controls();
-    } catch(error) {if(!lifetime.alive)return; if(error.name!=='AbortError'&&current===id && ticket===generation){status(error.message,true);taskboard.fail(id,error.message);} }
+    } catch(error) {if(!lifetime.alive)return; if(error.name!=='AbortError'&&current===id && ticket===generation){if(error.code==='coding.session_unknown')root.dispatchEvent(new CustomEvent('molis-work:item-unreadable',{bubbles:true,detail:{itemId:id}}));status(error.message,true);taskboard.fail(id,error.message);} }
     finally { if(ticket===generation) loading=false; }
   };
   const select = async(id) => {

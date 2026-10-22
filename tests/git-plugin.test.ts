@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_EVENT_SOURCE, HOST_REVIEW_SETTLED_EVENT, type HostReviewSettledPayload, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginEventDeliveryContext, PluginEventRecord } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import { CODING_FILE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import {
@@ -11,7 +11,6 @@ import {
   createGitPlugin,
   draftIsEmpty,
   gitManifest,
-  type GitOperationUpdate,
   headLabel,
   mayHaveChangedFiles,
   parseGitFileChanged,
@@ -165,21 +164,21 @@ test("Run 变更集是可选输入：没有 Coding 的项目里 Git 照样起得
   assert.equal(workspacePort, undefined, "工作目录从当前项目设置读取，不使用输入端口");
 });
 
-test("PG061-GIT-01 Git's own pages read again after a delivery or a settled operation; a refused one moves nothing, and stop clears the Host listener first", async () => {
+test("PG061-GIT-01 Git's own pages read again after a delivery or a settled operation; a refused one moves nothing, and nothing calls Git after stop", async () => {
   // G2a: the Host's `onWorkingTreeChanged` port is gone; Git moves its own revision through `services.ui.invalidate()` (PG-061).
-  let invalidated = 0, published = 0, refusal: Error | null = null, listenersAtStop = -1;
-  const listeners = new Set<(event: GitOperationUpdate) => void>();
+  // G2b: so is the Host's settlement port; a settled operation arrives as the host event `host.review.settled@1` (PG-044, S-54).
+  let invalidated = 0, refusal: Error | null = null;
+  const published: unknown[] = [];
   const context: PluginStartContext = { install_id: "git-invalidate", plugin_id: gitManifest.plugin_id, version: gitManifest.version,
     deployment: "local", grants: gitManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user",
     requireGrant: () => {}, services: {
       ui: { register: () => {}, unregister: () => {}, invalidate: () => { if (refusal) throw refusal; invalidated++; } },
-      events: { publish: input => { published++; return { accepted: true, ref: { event_id: `event-${published}`, project_id: "project", sequence: published,
+      events: { publish: input => { published.push(input); return { accepted: true, ref: { event_id: `event-${published.length}`, project_id: "project", sequence: published.length,
         event_type_id: input.event_type_id, type_version: input.type_version, source_plugin_id: gitManifest.plugin_id, source_install_id: "git-invalidate" } }; } },
     } };
-  const plugin = createGitPlugin({
-    observeOperationSettled: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    onStop: () => { listenersAtStop = listeners.size; },
-  });
+  const plugin = createGitPlugin();
+  assert.ok(gitManifest.events?.subscribes.some(item => item.event_type_id === HOST_REVIEW_SETTLED_EVENT && item.type_version === 1 && item.from_plugin_ids === undefined),
+    "Git subscribes to the Host's settlement by type and version only");
   const contribution = await plugin.start(context);
   const record: PluginEventRecord = { event_id: "event-1", project_id: "project", sequence: 1, event_type_id: CODING_FILE_CHANGED_EVENT, type_version: 1,
     source_plugin_id: "io.molis.work.coding", source_install_id: "coding", payload: {}, correlation_id: null, occurred_at: new Date(0).toISOString() };
@@ -197,16 +196,24 @@ test("PG061-GIT-01 Git's own pages read again after a delivery or a settled oper
   await contribution.onUpstreamUnavailable!({ binding_id: "binding", code: "binding_removed", message: "the Run's change set is gone" });
   assert.equal(invalidated, 3, "a new or withdrawn Run change set reads again; a delivery no longer current is refused before it moves anything");
 
-  for (const listener of listeners) listener({ workspace_id: "ws-1", operation_id: "op-1", outcome: "succeeded" });
-  assert.deepEqual([published, invalidated], [1, 4], "a settled operation is published, then Git's pages read again");
+  assert.equal(published.length, 0, "only a settled operation is published");
+
+  const settled = (payload: HostReviewSettledPayload): PluginEventRecord => ({ event_id: `host-${payload.review_id}`, project_id: "project", sequence: 0,
+    event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1, source_plugin_id: HOST_EVENT_SOURCE, source_install_id: HOST_EVENT_SOURCE, payload,
+    correlation_id: payload.review_id, occurred_at: new Date(0).toISOString() });
+  await contribution.onEvent!(settled({ review_id: "review-1", kind: "git-operation", workspace_id: "ws-1", operation_id: "op-1", outcome: "unknown" }), delivery(() => {}));
+  assert.deepEqual(published, [{ event_type_id: "io.molis.work.git.operation-updated", type_version: 1, payload: { workspace_id: "ws-1", operation_id: "op-1", outcome: "unknown" } }],
+    "a settled operation is published in Git's own shape, outcome as the Host recorded it, and nothing else of the review");
+  assert.equal(invalidated, 4, "then Git's pages read again");
+  await assert.rejects(async () => contribution.onEvent!(settled({ review_id: "review-2", kind: "git-index", workspace_id: "ws-1", operation_id: "op-2", outcome: "succeeded" }),
+    delivery(() => { throw stale; })), error => error === stale);
+  assert.deepEqual([published.length, invalidated], [1, 4], "a settlement no longer current for this activation publishes nothing and reads nothing again");
   refusal = new Error("Plugin 已停止，不能再让页面重新读取");
-  assert.doesNotThrow(() => { for (const listener of listeners) listener({ workspace_id: "ws-1", operation_id: "op-2", outcome: "succeeded" }); },
-    "revoked before stop: the refusal stays inside Git's listener and never reaches the Host's loop");
-  assert.equal(invalidated, 4);
+  await assert.rejects(async () => contribution.onEvent!(settled({ review_id: "review-3", kind: "git-index", workspace_id: "ws-1", operation_id: "op-3", outcome: "succeeded" }),
+    delivery(() => {})), error => error === refusal, "a refusal reaches the Host's delivery, which reports it once and does not retry (S-54)");
 
   refusal = null;
   await plugin.stop!(context);
-  assert.equal(listenersAtStop, 0, "stop clears the Host listener before anything else (BL-411)");
   await new Promise(resolve => setTimeout(resolve, 20));
-  assert.equal(invalidated, 4, "after stop nothing is left to call it");
+  assert.equal(invalidated, 4, "after stop nothing is left to call it (BL-411)");
 });

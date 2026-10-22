@@ -96,7 +96,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 - `storage`：字符串 get/set/delete，仅自身安装数据，须声明并授予 storage:private。支持的 Host 还提供可选 `compareAndSet(key, expected, value)`，原子地按旧值更新；null 表示仅在 key 不存在时创建。冲突返回 false 且不写入。需要此能力的插件须检查方法是否存在，不能用 get/set 模拟；它不是跨 key 事务或团队同步。
 - `artifacts`：同步 publish 个人内容、按 id + version read；Host 按安装实例自动注册到共同动作 Kernel，绑定项目、用户、生产者并检查实时 grant。通过 Artifact type/schema 互通，不要求指定哪个插件生产；这类私有 SDK 动作不导出成普通 MCP 工具。
-- `ui`：注册 Manifest 声明的自身 contribution，由 UI Host 检查挂载格式，停止后撤销。
+- `ui`：注册 Manifest 声明的自身 contribution，由 UI Host 检查挂载格式，停止后撤销。`invalidate()` 让自己已打开的页面重新读取（页面用 `scope.watchRevision` 看着），只要 Manifest 声明了 `ui.views`，不要权限；停用以后再调被拒（PG-061，见 [UI-PLATFORM](UI-PLATFORM.md#原生客户端生命周期)）。
 
 这些是公开 Contract，不向作者开放 Store、SQL 或其他模块内部路径。缺权限、停用的旧上下文和未声明的类型/界面贡献都会被实际 owner 拒绝。本样例不请求网络、不自动 Team 分享；分享仍是用户明确选择的业务操作。
 

@@ -129,7 +129,7 @@ export const ARRIVAL_STYLES = String.raw`
   html[data-resolved-theme="dark"] .welcome::before { opacity: .5; }
   .welcome-q { align-self: center; padding: 0 clamp(32px, 7vw, 120px); }
   .welcome-q h1 { font-size: 30px; font-weight: var(--weight-title, 600); letter-spacing: -.035em; line-height: 1.25; outline: none; }
-  .welcome-q > p { margin-top: 12px; max-width: 40ch; color: var(--muted); font-size: 13px; line-height: 1.8; }
+  .welcome-q > p, .ob-q > p { margin-top: 12px; max-width: 40ch; color: var(--muted); font-size: 13px; line-height: 1.8; }
   .welcome-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
   .welcome-label { margin-top: 28px; color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); }
   .welcome-label + .welcome-options { margin-top: 12px; }
@@ -144,7 +144,7 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-mini-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
   html[data-density="compact"] .ob-mini-row { padding: 8px 0; }
   .ob-mini-row:last-child { border-bottom: 0; }
-  .ob-mini-row i { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: var(--rail); color: var(--ink-soft); }
+  .ob-mini-row i { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--rail); color: var(--ink-soft); }
   .ob-mini-row i svg { width: 12px; height: 12px; }
   .ob-mini-row span { flex: 1; display: grid; gap: 4px; }
   .ob-mini-row b { display: block; height: 6px; border-radius: 3px; background: var(--ink); opacity: .5; }
@@ -158,15 +158,14 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-mini-composer em { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
   .ob-mini-avatar { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); }
 
-  /* ───────── New project: the question and its sources on the desk, the materials on the sheet ───────── */
-  .onboard { --side-w: clamp(380px, 31vw, 460px); }
-  .ob-left { display: flex; flex-direction: column; gap: 16px; overflow: auto; padding: 8px 14px 12px 20px; }
-  .ob-q h1 { font-size: 24px; font-weight: var(--weight-title, 600); line-height: 1.3; letter-spacing: -.02em; outline: none; }
-  .ob-q p { margin-top: 6px; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.7; }
-  .ob-right { padding: 28px clamp(24px, 3.4vw, 48px) 32px; }
-  .ob-right.is-empty { display: grid; align-items: center; }
-  .ob-right > .mw-empty { max-width: 30em; margin: 0 auto; padding: 0; justify-items: center; text-align: center; }
-  .ob-quick { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
+  /* ───────── New project: each step is a Welcome step — the question on the left, what it makes on a card on the right ───────── */
+  .welcome.onboard { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
+  .ob-left { align-self: stretch; min-height: 0; overflow: auto; display: flex; flex-direction: column; justify-content: safe center; gap: 16px; padding-block: 48px; }
+  .ob-left > .ob-q + * { margin-top: 8px; }
+  .onboard .welcome-scene { min-height: 0; padding: 48px clamp(24px, 5vw, 72px) 48px 0; }
+  .ob-right { width: min(600px, 100%); max-height: 100%; overflow: auto; padding: 20px 24px 24px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: var(--lift-1); }
+  .ob-right.is-empty { display: grid; justify-items: center; gap: 16px; background: none; box-shadow: none; }
+  .ob-scene-note { color: var(--muted); font-size: 12px; text-align: center; }
   .ob-stage-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
   .ob-stage-head h2 { font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; }
   .ob-stage-head span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -179,13 +178,15 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-error[hidden] { display: none; }
   .ob-error svg { width: 14px; height: 14px; flex: none; }
   .ob-quiet { color: var(--muted); font-size: 13px; }
-  .ob-sources { display: flex; flex-direction: column; gap: 1px; margin: 0 -8px; }
+  .ob-sources { display: flex; flex-direction: column; gap: 1px; max-width: 480px; margin: 0 -8px; }
   .ob-source .mw-dir-row--meta { height: auto; min-height: 48px; padding-block: 7px; border-radius: var(--r-row, 10px); }
   .ob-source .mw-dir-row--meta .mw-dir-row__copy { grid-template-rows: 18px 16px; row-gap: 1px; }
-  .ob-source .mw-dir-row__count { color: var(--faint); font-size: 12px; }
-  .ob-source.has-items .mw-dir-row__count { color: var(--green); font-weight: var(--weight-control, 500); }
-  .ob-source .is-unavailable { opacity: .55; }
+  .ob-source .mw-dir-row__count { color: var(--ink-soft); font-size: 12px; font-weight: var(--weight-control, 500); }
+  .ob-source.has-items .mw-dir-row__count { color: var(--green); }
+  .ob-source .is-unavailable { opacity: .55; cursor: default; }
+  .ob-source .is-unavailable .mw-dir-row__count { color: var(--faint); font-weight: var(--weight-body, 400); }
   .ob-source__cfg { display: grid; gap: 14px; padding: 6px 12px 18px 32px; }
+  .ob-notes { display: grid; gap: 4px; max-width: 480px; }
   .ob-cfg-block { display: grid; gap: 8px; }
   .ob-cfg-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .ob-cfg-actions .ob-note { flex-basis: 100%; }
@@ -219,7 +220,7 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-name__input.mw-input { min-height: 44px; padding: 0 2px; border: 0; border-radius: 0; border-bottom: 1.5px solid var(--line-strong); background: transparent; font-size: 20px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; box-shadow: none; }
   .ob-name__input.mw-input:focus, .ob-name__input.mw-input:focus-visible { border-color: var(--accent); box-shadow: none; outline: none; background: transparent; }
   .ob-name__input::placeholder { color: var(--faint); font-weight: var(--weight-body, 400); }
-  .ob-preview { margin: -28px calc(-1 * clamp(24px, 3.4vw, 48px)) 8px; }
+  .ob-preview { margin: -20px -24px 8px; }
   .ob-preview .mw-brief { width: min(100%, 860px); padding-top: 32px; padding-bottom: 8px; }
   .ob-preview .mw-brief__cols { grid-template-columns: minmax(0, 1fr); margin-top: 24px; }
   .ob-resume { display: flex; align-items: center; gap: 8px; margin: -4px 0 0; padding: 8px 12px; border-radius: var(--r-row, 10px); background: var(--accent-soft); color: var(--ink-soft); font-size: 12px; }
@@ -267,6 +268,11 @@ export const ARRIVAL_STYLES = String.raw`
   @media (max-width: 980px) {
     .welcome { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; align-content: center; }
     .welcome-scene { display: none; }
+    /* A step's card stays: it goes under the question and the sheet scrolls as one page. */
+    .welcome.onboard { display: block; overflow: auto; }
+    .welcome.onboard .ob-left { overflow: visible; padding-block: 32px 20px; }
+    .onboard .welcome-scene { display: block; justify-items: stretch; padding: 0 clamp(32px, 7vw, 120px) 32px; }
+    .ob-right { width: auto; max-height: none; }
     .arrival-tools .mw-btn [data-slot="button-label"] { display: none; }
     .arrival-bg .mw-btn { padding-right: 30px; }
   }
@@ -275,8 +281,6 @@ export const ARRIVAL_STYLES = String.raw`
     .stage-sheet { border-radius: var(--r-sheet, 14px) var(--r-sheet, 14px) 0 0; }
     .stage-single { padding: 0; }
     .mw-caption { display: none; }
-    .ob-left { padding-inline: 14px; }
-    .ob-right { padding-inline: 20px; }
   }
   /* Narrow and tall (a phone upright): the directory stacks over the sheet and is capped, so the sheet keeps most of the stage; the directory keeps room for two rows and its footnote steps aside.
      Narrow and short (a phone on its side): the two columns stay, each scrolling on its own. */
@@ -303,7 +307,8 @@ export const ARRIVAL_STYLES = String.raw`
     .arrival-bar .arrival-back [data-slot="button-label"] { display: none; }
     .arrival-bar .arrival-back:not(:has(svg)) [data-slot="button-label"] { display: inline; }
     .mw-bar-status__text small { display: none; }
-    .welcome-q { padding-inline: 28px; }
+    .welcome-q, .onboard .welcome-scene { padding-inline: 28px; }
+    .ob-model { grid-template-columns: 16px minmax(0, 1fr); } .ob-model > .mw-btn { grid-column: 2; justify-self: start; }
     .welcome-q h1 { font-size: 24px; }
   }
   @media (prefers-reduced-motion: reduce) {

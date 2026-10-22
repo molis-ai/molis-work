@@ -178,7 +178,8 @@ function projectWebView({ coordinator, options, webViewCache, store, homeActions
         inbox_entries: view.feed.inbox_entries.map(entry => { const judgment = byEntry.get(entry.entry_id) ?? null;
           return { ...entry, next_judgment: judgment, suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [] }; }) } };
     } catch (error) { optional(error); }
-    return { ...view, plugin_stages: await renderHomePluginStages(localHost.homePlugins) };
+    const homeStages = await renderHomePluginStages(localHost.homePlugins);
+    return { ...view, plugin_stages: homeStages.html, plugin_stage_ids: homeStages.ids };
   };
 }
 

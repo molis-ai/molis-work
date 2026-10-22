@@ -238,16 +238,17 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // VUX-40 English coverage (Git): the page says the Host's and the actions' Chinese sentences that carry a name, a path or a count (a remote's host, the
-  // files a merge stopped on, a branch that already exists) in its own language, by finding which of 33 templates a sentence is. The templates' Chinese
-  // text is about 2.8 KB of the growth and the lookup function the rest; the page has only the language it is shown in, so the Chinese side must travel
-  // with the script. Pinned-result times follow the page's language (no growth). 378072 → 382021 (+3949).
-  "/assets/molis-work-plugins/coding.js": [378072, 382021],
+  // VUX-43 (slice 93): a round's live time goes from minutes to hours at an hour instead of counting minutes past its reserved width, one new
+  // phrase in both languages. 382021 → 382125 (+104).
+  "/assets/molis-work-plugins/coding.js": [382021, 382125],
   // Forms reflow (slice 85): moved and removed questions and options ease through the page's molisReflow, with the fallback when it is absent. 30244 → 30383 (+139).
   "/assets/molis-work-plugins/form.js": [30244, 30383],
   "/assets/molis-work-plugins/workflows.js": [83019, 83135],
-  // Real-scene fixes (slice 89): the same phone field primitive as workbench.css. 994451 → 994522 (+71).
-  "/assets/molis-work-settings.css": [994451, 994522],
+  // VUX-36 (slice 94): the menu exit's 130 ms hold moves off the `:has()` + `::details-content` rule that cost about 30 ms per inserted node
+  // to a custom property on the menu's details plus one zero-specificity pseudo-element rule (+55 per sheet; this branch shrinks them first).
+  "/assets/molis-work-settings.css": [994513, 994568],
+  "/assets/molis-work-arrival.css": [704608, 704663],
+  "/assets/molis-work-workbench.css": [1612945, 1613000],
   // Real-scene fixes (slice 89): a result the assistant made on the project chooser opens on its project's page, and attachments do the same.
   // 1182783 → 1182907 (+124).
   "/assets/molis-work-workbench.js": [1182783, 1182907],

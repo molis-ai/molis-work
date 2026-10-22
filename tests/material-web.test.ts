@@ -9,12 +9,11 @@ import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { shelfActions, SHELF_ACTION_PERMISSIONS } from '@molis-ai/molis-work-plugin-shelf';
 import { readMaterialWebsite } from '../apps/local-host/src/material-web.js';
-import { extractMaterial } from '../apps/local-host/src/material-extraction.js';
 import { openHostShelfStore } from '../apps/local-host/src/shelf-actions.js';
 import { shelfStoreProvider } from './shelf-direct-actions.js';
 
-/** The Host's own page reader and extractor behind Shelf, as the Home instance's materials service runs them. */
-const hostShelf = (home: string) => shelfStoreProvider(() => openHostShelfStore(home, { disabled: true }, { readWebsite: readMaterialWebsite, extract: extractMaterial }));
+/** The Host's own page reader behind Shelf, as the Home instance's materials service runs it. */
+const hostShelf = (home: string) => shelfStoreProvider(() => openHostShelfStore(home, { disabled: true }, { readWebsite: readMaterialWebsite }));
 
 async function fixture(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), 'material-web-'));

@@ -1407,9 +1407,7 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} ${DROPDOWN}:is(:popover-open, [open], .is-open, :not([hidden])) { animation: craft-drop var(--dur-move) var(--ease-quint); }
   ${PAGES} details[open] > :is(${MENU_EXIT}) { animation: craft-drop var(--dur-move) var(--ease-quint); }
   ${PAGES} details[open] > .navigator-project-menu-popover { transform-origin: top left; }
-  /* Closing plays the opening backwards on the short clock: a menu in a <details> stays drawn while it fades (its content
-   * keeps its visibility for that long), a popover or a hidden-toggled menu keeps its box for the same time and takes no
-   * pointer while it goes. */
+  /* Closing plays the opening backwards on the short clock; a closing menu keeps its box and takes no pointer meanwhile. */
   ${PAGES} details:has(> :is(${MENU_EXIT}))::details-content { transition: content-visibility var(--dur-hover) allow-discrete; }
   ${PAGES} :is(${MENU_EXIT}) { transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint), display var(--dur-hover) allow-discrete, overlay var(--dur-hover) allow-discrete; }
   ${PAGES} :is(details:not([open]) > :is(${MENU_EXIT}), :is(${MENU_EXIT})[hidden], :is(${MENU_EXIT})[popover]:not(:popover-open)) { opacity: 0; transform: translateY(-4px) scale(.97); pointer-events: none; }
@@ -1550,16 +1548,9 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .tui-empty { border-radius: var(--r-card); }
 
   /* ─── Arrival ─── */
-  /* A surface rises a few pixels the first time it appears (is-arriving, once per surface); showing it again — a tab
-   * switch, a return — is a quick cross-fade, never a second arrival. */
-  ${WORKBENCH} .tab-pane-body > [data-work-surface]:not([hidden]),
-  ${WORKBENCH} .tab-workspace-exclusive > :not([hidden]) {
-    animation: craft-fade-in var(--dur-hover) var(--ease-quint) both;
-  }
-  ${WORKBENCH} .tab-pane-body > [data-work-surface].is-arriving:not([hidden]),
-  ${WORKBENCH} .tab-workspace-exclusive > .is-arriving:not([hidden]) {
-    animation: craft-rise var(--dur-arrive) var(--ease-quint) both;
-  }
+  /* A surface rises a few pixels the first time it appears (is-arriving, once); shown again it only cross-fades. */
+  ${WORKBENCH} .tab-pane-body > [data-work-surface]:not([hidden]), ${WORKBENCH} .tab-workspace-exclusive > :not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint) both; }
+  ${WORKBENCH} .tab-pane-body > [data-work-surface].is-arriving:not([hidden]), ${WORKBENCH} .tab-workspace-exclusive > .is-arriving:not([hidden]) { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
   ${WORKBENCH}[data-pane-embedded] .tab-pane-body > [data-work-surface] { animation: none; }
   @keyframes craft-rise { from { opacity: .4; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 

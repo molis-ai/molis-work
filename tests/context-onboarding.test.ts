@@ -451,7 +451,7 @@ test('ONB-LIM-04 a file over 6 MB with over 2 MB of text reaches adoption whole:
     assert.match(text,/原标题：Big notes/);assert.match(text,/Line 119999 of the long record/);assert.match(text,/END OF BIG FILE/);
   }finally{pages.close();}
   const actions=await ports.actions(dir,adopted.project_id);
-  const stored=await actions.invoke(artifactsActions.read,{reference:adopted.artifact_references![0]!});const payload=stored.selected!.payload as any;
+  const stored=await actions.invoke(artifactsActions.read,{reference:adopted.artifact_references![0]!});const payload=stored.selected!.payload as {original_file:{data_base64?:string;sha256?:string;size_bytes?:number}};
   assert.equal(payload.original_file.data_base64,undefined,'over 6 MB, the original is kept by reference');
   assert.equal(payload.original_file.size_bytes,Buffer.byteLength(big));assert.equal(payload.original_file.sha256,createHash('sha256').update(big).digest('hex'));
 });

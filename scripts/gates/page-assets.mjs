@@ -238,6 +238,9 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
+  // Onboarding without limits (slice 91, user 2026-10-22): the 资料导入 sends a non-text file over 6 MB as the raw body of the 成果库's
+  // original route, its name in a header. 26305 → 26689 (+384).
+  "/assets/molis-work-knowledge.js": [26305, 26689],
   "/assets/molis-work-plugins/coding.js": [376592, 378072],
   // Real-scene fixes (slice 89): a field and a select are 16 px on a phone so the page does not zoom on focus, and a field group's icon is 16 px
   // (+71, the same primitive in each sheet that carries it). 1612922 → 1612993 (+71).
@@ -251,8 +254,9 @@ const APPROVED_CEILINGS = {
   // Real-scene fixes (slice 89): the same phone field primitive as workbench.css. 994451 → 994522 (+71).
   "/assets/molis-work-settings.css": [994451, 994522],
   // Real-scene fixes (slice 89): a result the assistant made on the project chooser opens on its project's page, and attachments do the same.
-  // 1182783 → 1182907 (+124).
-  "/assets/molis-work-workbench.js": [1182783, 1182907],
+  // 1182783 → 1182907 (+124). Then onboarding without limits (slice 91): the shared request client sends a Blob as a raw body
+  // (+138). 1182783 → 1183045 (+262 in all).
+  "/assets/molis-work-workbench.js": [1182783, 1183045],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

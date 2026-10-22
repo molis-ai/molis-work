@@ -161,7 +161,10 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   // Confirm the scope: each file is a choice, and unchecking one makes its group read as partly chosen.
   await click("[data-action=prepare]");
   await waitFor(obView("preview"));
-  assert.ok(await evaluate("document.querySelectorAll('.ob-right .mw-file-row .mw-check').length >= 4 && document.querySelectorAll('.ob-meter').length === 2"));
+  assert.ok(await evaluate("document.querySelectorAll('.ob-right .mw-file-row .mw-check').length >= 4"));
+  // No count or size limit (user 2026-10-22): no meters against a cap, no “up to 200 files / 50 MB”.
+  assert.equal(await evaluate("document.querySelectorAll('.ob-meter, .ob-meters').length"), 0);
+  assert.doesNotMatch(await evaluate<string>("document.querySelector('.ob-left').textContent"), /200 份|50 MB|上限/);
   await click(".ob-right .mw-file-row .mw-check[data-file]");
   await waitFor("document.querySelector('.mw-file-group__count')?.textContent.trim() === '3/4'");
   assert.equal(await evaluate("document.querySelector('.mw-file-group__head .mw-check').indeterminate"), true);
@@ -303,6 +306,13 @@ async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof open
     item.adoption = { title: LONG_NAME, body: SUMMARY, blank: false };
     item.summary = { title: "新版方案", body: SUMMARY, references: [reference(1)] };
   });
+  // A long round stopped part-way: the checkpoint says how far reading, the summary's batches and the todo batches came.
+  const longQueue = seed(item => {
+    item.sources = [{ kind: "files", selected: true, files: fileMeta(12).map(file => ({ path: file.path, staged: MAIL_SHA256 })), reading: { done: 120, total: 300, references: [], issues: [] } }];
+    item.phase = "failed"; item.error = "读取在第 121 份时中断，已读的会沿用。";
+    item.synthesis = { key: "fixture", stage: 1, completed: 3, total: 8, notes: [] };
+    item.todo = { status: "pending", batches: [], total: 6, error: null };
+  });
   const reselect = seed(item => {
     item.sources = [{ kind: "browser", selected: true, references: [{ ...reference(1), original: undefined as never }] }];
     item.phase = "review";
@@ -312,6 +322,7 @@ async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof open
     ["sources, materials added", `/onboarding?mode=new-project&journey=${added}`, `${obView("sources")} && document.querySelectorAll('.ob-right .mw-file-group').length === 2`],
     ["scope, long names", `/onboarding?mode=new-project&journey=${scope}`, `${obView("preview")} && document.querySelectorAll('.mw-file-row').length > 20`],
     ["reading, interrupted", `/onboarding?mode=new-project&journey=${interrupted}`, obView("reading")],
+    ["reading, a long queue interrupted", `/onboarding?mode=new-project&journey=${longQueue}`, `${obView("reading")} && document.querySelectorAll('.ob-phase').length === 3 && /120\\D+300/.test(document.querySelector('.ob-phases').textContent) && /8\\D+4/.test(document.querySelectorAll('.ob-phase')[1].textContent) && /6\\D+1/.test(document.querySelectorAll('.ob-phase')[2].textContent)`],
     ["materials ready", `/onboarding?mode=new-project&journey=${needsModel}`, obView("materials")],
     ["review with drafts", `/onboarding?mode=new-project&journey=${reviewWithDrafts}`, `${obView("review")} && document.querySelectorAll('[data-draft]').length === 3`],
     ["review, long name, no drafts", `/onboarding?mode=new-project&journey=${reviewPlain}`, obView("review")],

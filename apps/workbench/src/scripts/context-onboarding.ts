@@ -196,13 +196,14 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function selectionTotal() {
     let count=0,bytes=0;
     for(const s of picked()) {
-      if(s.references?.length){count+=s.references.length;bytes+=s.references.reduce((n,r)=>n+(r.original?.data_base64?.length||0)*.75,0);}
+      if(s.references?.length){count+=s.references.length;bytes+=s.references.reduce((n,r)=>n+(r.original?.size_bytes||0),0);}
       else if(s.metadata){const files=included(s);count+=files.length;bytes+=files.reduce((n,f)=>n+f.size,0);}
       else if(s.kind==='browser'&&s.text?.trim()){count++;bytes+=new TextEncoder().encode(s.text).length;}
     }
     return {count,bytes};
   }
-  const LIMIT = {count: 200, bytes: 50000000};
+  // No count or size limit (user 2026-10-22); past this much, the page says the files are read in a queue it may leave.
+  const QUEUED = {count: 50, bytes: 50000000};
   const modelLine = () => config.model ? '<div class="ob-model"><span data-mw-state="connected" aria-hidden="true"></span><span class="ob-model__text"><strong>' + L('文字模型') + ' · ' + esc(config.model) + '</strong><small>' + L('已连接 · 选中的正文会发给它整理') + '</small></span>' + linkBtn({variant:'ghost', size:'sm', label:L('更换'), href:route('/settings/models'), blank:true}) + '</div>'
     : '<div class="ob-model is-off"><span data-mw-state="disconnected" aria-hidden="true"></span><span class="ob-model__text"><strong>' + L('尚未连接文字模型') + '</strong><small>' + L('原文先暂存在本机，连接后再生成摘要') + '</small></span>' + linkBtn({variant:'secondary', size:'sm', label:L('连接文字模型'), href:route('/settings/models'), blank:true}) + '</div>';
   function missingBlock(s) {
@@ -220,21 +221,19 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const tools = directory(s) ? toggles(L(names[s.kind]) + L('时间范围'), RANGES.map(([days, label]) => ({label:L(label), current:(s.days ?? 30) === days, attrs:{'data-range':s.kind, 'data-days':String(days)}}))) + btn({variant:'ghost', size:'sm', icon:'refresh', label:L('刷新预览'), attrs:{'data-refresh':s.kind}}) : '';
     return fileGroup({...add, icon:sourceIcons[s.kind], title:directory(s) ? L('文件夹') + ' · ' + L(names[s.kind]) : L(names[s.kind]), caption:s.kind === 'gmail' ? gmailCaption() : (grants[s.kind]?.path || s.path || ''), count:selected.length + '/' + items.length,
       check:{checked:selected.length === items.length && items.length > 0, mixed:selected.length > 0 && selected.length < items.length, attrs:{id:'cx-all-' + s.kind, 'data-files-all':s.kind}}, tools, rows,
-      note:!items.length ? L('这个时间范围没有支持的文件。可扩大范围或跳过。') : s.metadata.truncated ? L('仅展示最近 200 份；扫描范围有上限，未列出的文件不会读取。') : s.metadata.skipped ? s.metadata.skipped + ' ' + L('项因时间、类型或访问范围未列入。') : ''});
+      note:!items.length ? L('这个时间范围没有支持的文件。可扩大范围或跳过。') : s.metadata.truncated ? L('文件夹里的条目太多，只扫描了一部分；未列出的文件不会读取，可以选更小的文件夹。') : s.metadata.skipped ? s.metadata.skipped + ' ' + L('项因时间、类型或访问范围未列入。') : ''});
   }
   function scopeView() {
-    const total = selectionTotal(), missing = picked().some(s => !previewReady(s)), over = total.count > LIMIT.count || total.bytes > LIMIT.bytes;
-    const meter = (label, value, max, text) => '<div class="ob-meter"><p><span>' + L(label) + '</span><span>' + text + '</span></p>' + progressBar(value, max, L(label)) + '</div>';
+    const total = selectionTotal(), missing = picked().some(s => !previewReady(s)), queued = total.count > QUEUED.count || total.bytes > QUEUED.bytes;
     const left = question(L('确认这次读取的范围'), L(picked().some(s => s.references?.length) ? '沿用已暂存正文，新选文件只显示信息。' : '取消不需要的文件；开始后才读取正文。')) + errorLine(error)
-      + '<div class="ob-meters' + (over ? ' is-over' : '') + '">' + meter('份数', total.count, LIMIT.count, '<b>' + total.count + '</b> / ' + LIMIT.count) + meter('大小', total.bytes, LIMIT.bytes, '<b>' + (total.bytes / 1e6).toFixed(1) + '</b> / 50 MB')
-      + (over ? '<p class="ob-error">' + glyph('alert') + '<span>' + L('超过 200 份或 50 MB，请取消部分文件。') + '</span></p>' : '') + '</div>'
+      + (queued ? note(L('材料较多，开始后排队逐份读取；可以离开此页，回来时从断点继续。'), 'clock') : '')
       + modelLine() + note(L(config.ai_available ? '开始后读取选中正文并发给所选模型；原文件保持原样。' : '开始后读取选中正文，暂存在本机；原文件保持原样。'), 'shield')
-      + (picked().some(s => s.kind === 'gmail') ? note(L('最多 20 封邮件，也计入本轮上限。'), 'mail') : '')
-      + collapsible(L('读取规则'), '<p>' + L('本轮最多 200 份、50 MB，单个文件 20 MB 以内，邮件也计入。PDF 读取文本层，Word 读取正文；单个文件失败会保留原因，不影响其他文件。只做本次整理，不自动持续同步。') + '</p>');
+      + (picked().some(s => s.kind === 'gmail') ? note(L('读取所选时间内最近的 20 封邮件。'), 'mail') : '')
+      + collapsible(L('读取规则'), '<p>' + L('不限份数和大小：文件逐份上传、排队读取，长文全文读入。PDF 读取文本层，Word 读取正文；单个文件失败会保留原因，不影响其他文件。只做本次整理，不自动持续同步。') + '</p>');
     const right = stageHead(L('逐项确认'), L('已选 {n} 份 · {size}', {n:total.count, size:size(total.bytes)})) + picked().map(scopeGroup).join('');
-    const canStart = !(busy || missing || over || (!total.count && !picked().some(s => s.kind === 'gmail')));
+    const canStart = !(busy || missing || (!total.count && !picked().some(s => s.kind === 'gmail')));
     return {kind:'onboard', view:'preview', step:'确认', left, right,
-      bar:{start:exitButton() + stepsBar('确认'), center:barStatus({glyph:'shield', title:L('已选 {n} 份 · {size}', {n:total.count, size:size(total.bytes)}), caption:over ? L('超过本轮上限，请取消部分文件') : missing ? L('先补齐上方来源，或跳过本次不需要的内容。') : config.ai_available ? L('开始后读取正文并发给所选模型整理') : L('开始后读取正文，暂存在本机')}),
+      bar:{start:exitButton() + stepsBar('确认'), center:barStatus({glyph:'shield', title:L('已选 {n} 份 · {size}', {n:total.count, size:size(total.bytes)}), caption:missing ? L('先补齐上方来源，或跳过本次不需要的内容。') : config.ai_available ? L('开始后读取正文并发给所选模型整理') : L('开始后读取正文，暂存在本机')}),
         end:secondary('上一步','sources',{icon:'back'}) + primary(busy ? (uploading ? L('正在上传第 {k} / {n} 份', uploading) : readingLocal ? L('正在读取 {name}', {name:L(readingLocal)}) : '正在准备…') : config.ai_available ? '开始整理' : '先带入资料', 'start', {disabled:!canStart})}};
   }
 
@@ -244,7 +243,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function receipts() {
     return '<ul class="mw-file-list is-receipts">' + picked().map(s => {
       const state = docState(s), label = s.error ? '未读取' : s.references ? '已读取' : journey.phase === 'reading' ? '等待中' : sourceStatus(s);
-      const detail = s.error || (s.references ? L('{n} 份正文已保存', {n:s.references.length}) + (s.skipped ? ' · ' + L('{n} 项已跳过', {n:s.skipped}) : '') : '');
+      const detail = s.error || (s.references ? L('{n} 份正文已保存', {n:s.references.length}) + (s.skipped ? ' · ' + L('{n} 项已跳过', {n:s.skipped}) : '') : s.reading ? L('第 {k} / {n} 份', {k:Math.min(s.reading.done + 1, s.reading.total), n:s.reading.total}) : '');
       return fileRow({name:L(names[s.kind]), chip:'<span class="mw-file-kind" data-slot="file-kind">' + glyph(sourceIcons[s.kind]) + '</span>', size:detail, state:status(L(label), state === 'done' ? 'done' : state === 'failed' ? 'blocked' : 'idle', null, state === 'done' || state === 'failed' ? state : journey.phase === 'reading' ? 'waiting' : state === 'ready' ? 'ready' : 'idle')});
     }).join('') + '</ul>' + picked().map(issues).join('');
   }
@@ -259,14 +258,20 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     }
     const reading = journey.phase==='reading', failed = journey.phase==='failed';
     const heading = reading ? (done===picked().length ? '正在整理工作脉络' : '正在读入你的材料') : '材料已保留';
-    const phases = [['读入材料', L('{done} / {total} 份', {done, total:picked().length}), done >= picked().length ? 'done' : 'progress'], ['整理工作脉络', L('背景、进展与时间线'), done >= picked().length && reading ? 'progress' : 'idle']];
+    // Files, not sources: each source is read file by file, and its checkpoint says how far it has come.
+    const files = picked().reduce((n, s) => ({done:n.done + (s.references ? s.references.length + (s.issues?.length || 0) : s.reading?.done || 0), total:n.total + (s.references ? s.references.length + (s.issues?.length || 0) : s.reading?.total || 0)}), {done:0, total:0});
+    const synthesis = journey.synthesis, todo = journey.todo;
+    const phases = [['读入材料', files.total ? L('{done} / {total} 份', {done:files.done, total:files.total}) : L('{done} / {total} 份', {done, total:picked().length}), done >= picked().length ? 'done' : 'progress'],
+      ['整理工作脉络', synthesis && synthesis.total > 1 ? L('整理分 {n} 批，第 {k} 批', {n:synthesis.total, k:Math.min(synthesis.completed + 1, synthesis.total)}) : L('背景、进展与时间线'), done >= picked().length && reading ? 'progress' : 'idle'],
+      ...(todo && todo.total > 1 ? [['待办草稿', todo.status === 'pending' ? L('待办草稿分 {n} 批整理，第 {k} 批…', {n:todo.total, k:Math.min(todo.batches.length + 1, todo.total)}) : L('{done} / {total} 批', {done:todo.batches.length, total:todo.total}), todo.status === 'ready' ? 'done' : todo.status === 'pending' && reading ? 'progress' : 'idle']] : [])];
+    const queuedHint = reading && (files.total > 1 || (synthesis && synthesis.total > 1)) ? note(L(files.done < files.total ? '材料较多，排队逐份读取；可以离开此页，回来时从断点继续。' : '可以离开此页，回来时从断点继续。'), 'clock') : '';
     const left = question(L(heading), L(reading ? '可以离开，回来后接着整理。' : '修复连接或模型设置后，可以接着完成。'))
       + '<ol class="ob-phases" role="list">' + phases.map(([name, sub, tone]) => '<li class="ob-phase is-' + tone + '"><span class="ob-phase__mark" data-mw-state="' + (tone === 'done' ? 'done' : tone === 'progress' ? (reading ? 'running' : failed ? 'failed' : 'doing') : 'idle') + '"></span><span class="ob-phase__text"><strong>' + L(name) + '</strong><small>' + esc(sub) + '</small></span></li>').join('') + '</ol>'
       + (journey.synthesis ? '<p class="cx-hint ob-note">' + glyph('info') + '<span>' + L('分批整理') + ' · ' + L('第 {n} 轮',{n:journey.synthesis.stage}) + ' · ' + journey.synthesis.completed + ' / ' + journey.synthesis.total + '</span></p>' : '')
-      + errorLine(journey.error||error)
+      + queuedHint + errorLine(journey.error||error)
       + (failed ? '<div class="ob-cfg-actions">' + btn({variant:'secondary', size:'sm', label:L('返回清单，调整范围'), attrs:{'data-action':'restart'}}) + (picked().some(s=>s.references?.length) ? btn({variant:'secondary', size:'sm', label:L('带入资料，先开始'), attrs:{'data-action':'materials-only'}}) : '') + '</div>' : '') + note(L('只读取刚才选中的范围。'), 'shield');
     return {kind:'onboard', view:'reading', step:'整理', left,
-      right:stageHead(L('读入材料'), L('{done} / {total} 份', {done:'<b>' + done + '</b>', total:picked().length})) + progressBar(done, total, L('读入进度')) + receipts(),
+      right:stageHead(L('读入材料'), files.total ? L('{done} / {total} 份', {done:'<b>' + files.done + '</b>', total:files.total}) : L('{done} / {total} 份', {done:'<b>' + done + '</b>', total:picked().length})) + (files.total ? progressBar(files.done, files.total, L('读入进度')) : progressBar(done, total, L('读入进度'))) + receipts(),
       bar:{start:exitButton() + stepsBar('整理'), center:barStatus({spin:reading, glyph:'alert', title:L(heading), caption:L(reading ? '可以离开，回来后接着整理' : '材料已保留')}),
         end:failed ? linkBtn({variant:'secondary', size:'lg', label:L('模型设置'), href:route('/settings/models'), blank:true, attrs:{}}) + primary('继续整理','retry',{disabled:busy}) : btn({variant:'primary', size:'lg', icon:'clock', label:L('整理中'), disabled:true})}};
   }
@@ -587,7 +592,6 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
         s.excluded=[...excluded];changed=true;
       } else if(el.dataset.upload){
         const chosen=[...el.files].filter(f=>!/(^|\/)(\.[^/]*|node_modules|vendor|dist|build)(\/|$)/.test(f.webkitRelativePath||f.name)&&/\.(md|markdown|txt|csv|json|html?|pdf|docx)$/i.test(f.name));
-        if(chosen.length>200)throw new Error(L('最多预览 200 份文件，请选择更小的文件夹。'));
         if(!chosen.length)throw new Error(L('没有找到支持的文件。'));
         const s=source(el.dataset.upload);if(s.kind!=='directory'&&uploads.has(s.kind)){const had=uploads.get(s.kind);chosen.unshift(...had.filter(f=>!chosen.some(c=>c.name===f.name&&c.size===f.size)));}invalidateSource(s);uploads.set(s.kind,chosen);s.metadata={files:chosen.map(f=>({path:f.webkitRelativePath||f.name,size:f.size,modified_ms:f.lastModified,identity:'upload'})),skipped:el.files.length-chosen.length,truncated:false};s.excluded=[];s.selected=true;error='';changed=true;
       }

@@ -9,7 +9,8 @@ import { orderAudit } from "./fixtures/order-audit.js";
 // height, on one line, one gap apart.
 // Light at 1440 reads every page; dark, compact density and a touch phone read the pages whose layout they change.
 
-const PAGES = ["goals", "todo", "pages", "ppt", "workflows", "lingguang", "form", "dataset", "inbox", "images", "sessions", "feed", "issues"];
+const PAGES = ["goals", "todo", "pages", "ppt", "workflows", "lingguang", "form", "dataset", "inbox", "images", "sessions", "feed", "issues",
+  "jelly", "coding", "alchemist", "artifacts", "cognia", "diff", "files", "git", "schedule", "text-stats", "plugin-builder"];
 const MODE_PAGES = ["goals", "pages", "lingguang", "inbox", "sessions", "feed", "jelly", "coding"];
 // Left out, each with why it is not one row of peers or one line of words.
 const SKIP = [

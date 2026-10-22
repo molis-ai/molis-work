@@ -185,6 +185,11 @@ export interface UiRequestInit {
   readonly method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   /** Sent as JSON. A `GET` carries none. */
   readonly body?: unknown;
+  /**
+   * A file sent as the raw body, in place of `body`, with its own type (`application/octet-stream` when it has none): an upload of
+   * any size that is never read into a string. Its name goes in a header the route names.
+   */
+  readonly file?: Blob;
   /** How an answer is read: `json` (default; an empty answer is `null`), `text`, or the untouched `response` for any status. */
   readonly as?: "json" | "text" | "response";
   /** Statuses outside 2xx that still are an answer to read (a 404 that carries a result fragment, say). */

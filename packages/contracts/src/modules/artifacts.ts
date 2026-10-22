@@ -33,13 +33,23 @@ export const ARTIFACT_SUBJECT_KIND = "artifact";
  * (bytes for any file, or the text of an older text import). The 成果库 shows it; a plugin that continues from it reads it.
  */
 export const IMPORTED_DOCUMENT_TYPE = "io.molis.work.document";
-export interface ImportedDocumentFile { filename: string; mime: string; data_base64?: string; text?: string }
+/**
+ * `data_base64`: the original's bytes, kept inline in the version (up to 6 MB). `stored`: a bigger original, kept in the 成果库's own
+ * store and read through the 成果库 (its file route, or the Host's reader); `text` then is the text read out of it, for a reader
+ * that continues from text. Both are current shapes, chosen by the original's size (onboarding limits, 2026-10-22).
+ */
+export interface ImportedDocumentFile { filename: string; mime: string; data_base64?: string; stored?: { sha256: string; size_bytes: number }; text?: string }
 export function importedDocumentFile(artifact: Pick<FixedVersionRecord, "artifact_type_id" | "availability" | "content_kind" | "payload"> & { title: string } | null): ImportedDocumentFile | null {
   if (!artifact || artifact.artifact_type_id !== IMPORTED_DOCUMENT_TYPE || artifact.availability !== "available" || artifact.content_kind !== "inline") return null;
-  const payload = artifact.payload as { content?: unknown; format?: unknown; original_file?: { filename?: unknown; mime?: unknown; data_base64?: unknown } } | null;
+  const payload = artifact.payload as { content?: unknown; format?: unknown; original_file?: { filename?: unknown; mime?: unknown; data_base64?: unknown; sha256?: unknown; size_bytes?: unknown } } | null;
   const original = payload?.original_file;
   if (original && typeof original.filename === "string" && typeof original.mime === "string" && typeof original.data_base64 === "string") {
     return { filename: original.filename, mime: original.mime, data_base64: original.data_base64 };
+  }
+  if (original && typeof original.filename === "string" && typeof original.mime === "string" && typeof original.sha256 === "string"
+    && /^[0-9a-f]{64}$/u.test(original.sha256) && Number.isSafeInteger(original.size_bytes) && Number(original.size_bytes) >= 0) {
+    return { filename: original.filename, mime: original.mime, stored: { sha256: original.sha256, size_bytes: Number(original.size_bytes) },
+      ...typeof payload?.content === "string" ? { text: payload.content } : {} };
   }
   if (typeof payload?.content !== "string") return null;
   const text = payload.format === "text";

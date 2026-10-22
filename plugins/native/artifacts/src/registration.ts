@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest, artifactReferenceUiContribution, artifactBrowserUiContribution } from "./index.js";
+import { ARTIFACTS_PROJECT_PLUGIN_ID, ARTIFACTS_HOME_STORE, artifactsManifest, artifactsProjectData, artifactReferenceUiContribution, artifactBrowserUiContribution } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -8,6 +8,9 @@ import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest, artifactReferenceUiCont
 export const registration: PluginRegistration = {
   project_plugin_id: ARTIFACTS_PROJECT_PLUGIN_ID, catalog_order: 21,
   manifest: artifactsManifest,
+  // Originals over 6 MB, kept by digest per project (original-store.ts); the project's deletion removes its directory.
+  home_store: ARTIFACTS_HOME_STORE,
+  project_data: artifactsProjectData,
   summary: "项目的固定成果，各版本可回看。",
   workbench: {
     order: 18,

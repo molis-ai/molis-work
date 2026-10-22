@@ -77,7 +77,7 @@ artifacts.export	1	io.molis.work.artifacts	io.molis.work.artifacts	query	query	p
 artifacts.files.entries	1	io.molis.work.artifacts	io.molis.work.artifacts	query	query	project	read	concurrent	user	artifacts:read	artifact	molis.files.entries.window.v1	molis.files.entries.page.v1	09d161bb4729	fef9b910b93e	f52791a84678
 artifacts.goals.embeds	1	io.molis.work.artifacts	io.molis.work.artifacts	query	query	project	read	-	agent,mcp,user,workflow	artifacts:read	artifact	-	-	148bcf75e74d	ec55c508603a	-
 artifacts.import.external	1	io.molis.work.artifacts	io.molis.work.artifacts	command	operation	project	write	concurrent	agent,mcp,user,workflow	artifacts:read,artifacts:write,connectors:document:read	artifact	-	-	f0987372ca07	0785f17ae8d5	-
-artifacts.import.file	1	io.molis.work.artifacts	io.molis.work.artifacts	command	operation	project	write	concurrent	agent,mcp,user,workflow	artifacts:read,artifacts:write	artifact	-	-	7c120030c8b8	0785f17ae8d5	-
+artifacts.import.file	1	io.molis.work.artifacts	io.molis.work.artifacts	command	operation	project	write	concurrent	agent,mcp,user,workflow	artifacts:read,artifacts:write	artifact	-	-	8e9c06f0d050	0785f17ae8d5	-
 artifacts.import.sources	1	io.molis.work.artifacts	io.molis.work.artifacts	query	query	project	read	-	agent,mcp,user,workflow	artifacts:read	artifact	-	-	d746974fa9af	1550df385cb3	-
 artifacts.links	1	io.molis.work.artifacts	io.molis.work.artifacts	query	query	project	read	-	agent,mcp,user,workflow	artifacts:read	artifact	-	-	610de7a569d4	25a7feef4264	-
 artifacts.plugin_inputs	1	io.molis.work.artifacts	io.molis.work.artifacts	query	query	project	read	-	agent,mcp,user,workflow	artifacts:read	artifact	-	-	610de7a569d4	1a4f56d04de4	-

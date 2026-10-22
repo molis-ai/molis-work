@@ -65,7 +65,7 @@ export async function writeLongChinese(evaluate: Evaluate, projectId: string): P
       issues: await api(plugin("issues", "/create"), { title, description: `${LONG}。${MARKS}`, type: "feature" }),
       ppt: await api(plugin("ppt", "/ppt"), { title: short }),
       form: await api(plugin("form", "/forms"), { title: short }),
-      workflows: await api(`/projects/${projectId}/api/workflows`, { title }),
+      workflows: await api(plugin("native.workflows", "/workflows"), { title }),
     };
     for (const [id, reply] of Object.entries(made)) opened[id] ??= idOf(reply);
   }

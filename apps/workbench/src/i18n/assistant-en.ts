@@ -56,7 +56,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "过程": "Steps",
   "步": "steps",
   "步没有完成": "did not finish",
-  "{what} · {n} 步": "{what} · {n} steps",
+  "{what} · {n} 步": "{what} · {n} {n|step|steps}",
   "{what}等": "{what} and more",
   "调用的能力": "Capability called",
   "返回的说明": "What came back",

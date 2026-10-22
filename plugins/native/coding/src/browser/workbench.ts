@@ -77,7 +77,7 @@ export function codingWorkbench(host: CodingWorkbenchHost, coding: CodingClient,
   const lent = { mountPluginClient, translate: host.translate };
   const headers = () => host.headers();
   const request: CompanionRequest = (plugin, path, method = "GET", body, signal) => molisWorkRequest(route(`/api/plugins/io.molis.work.${plugin}${path}`),
-    { method, body: method === "GET" ? undefined : body ?? {}, signal, fallback: "无法读取文件工作区" });
+    { method, body: method === "GET" ? undefined : body ?? {}, signal, fallback: host.translate("无法读取文件工作区") });
   const codingRoot = host.root.matches("[data-coding-workbench]") ? host.root as HTMLElement : null;
   const openCompanionResult = (name: string) => {
     if (codingRoot) { codingRoot.dataset.codingDetail = "true"; codingRoot.dataset.codingResults = "true"; }
@@ -150,7 +150,7 @@ function companionPage(root: HTMLElement, ports: CompanionPorts): void {
   const load = async () => {
     if (!lifetime.visible) return;
     const signal = view, id = ++read;
-    busy(true); note.textContent = "正在读取固定内容…";
+    busy(true); note.textContent = ports.translate("正在读取固定内容…");
     try {
       const state = await ports.request(plugin, `/state${plugin === "diff" ? `?change_index=${index}` : ""}`, "GET", undefined, signal) as { html?: string };
       lifetime.assertCurrent(signal);
@@ -158,7 +158,7 @@ function companionPage(root: HTMLElement, ports: CompanionPorts): void {
       body.innerHTML = state.html || ""; note.textContent = "";
       body.querySelectorAll<HTMLElement>("[data-change-index]").forEach(button => button.setAttribute("aria-pressed", String(Number(button.dataset.changeIndex) === index)));
     } catch (error) {
-      if (!signal?.aborted && lifetime.visible && id === read) { body.replaceChildren(); molisWorkRequest.show(note, error); note.append(document.createTextNode("。请点击刷新重试。")); }
+      if (!signal?.aborted && lifetime.visible && id === read) { body.replaceChildren(); molisWorkRequest.show(note, error); note.append(document.createTextNode(ports.translate("。请点击刷新重试。"))); }
     } finally {
       if (lifetime.alive && id === read) busy(false);
     }

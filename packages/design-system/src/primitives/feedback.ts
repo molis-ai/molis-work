@@ -50,8 +50,11 @@ export function renderEmpty(options: {
   }<h2>${escapeHtml(options.title)}</h2><p>${escapeHtml(options.body)}</p>${options.action ?? ""}</div>`;
 }
 
-export function renderToast(options: { message: string; tone?: MwTone; className?: string; attrs?: Record<string, AttrValue> }): string {
-  return `<div class="${cx("mw-toast", `mw-toast--${options.tone ?? "neutral"}`, options.className)}" data-slot="toast" role="status"${renderAttrs(options.attrs)}>${escapeHtml(options.message)}</div>`;
+/** The one toast's markup (styles: `.mw-toast`). A success or a failure carries its state mark; a failure also nudges once. */
+export function renderToast(options: { message: string; tone?: MwTone; action?: { label: string; attrs?: Record<string, AttrValue> }; className?: string; attrs?: Record<string, AttrValue> }): string {
+  const state = options.tone === "success" ? "done" : options.tone === "danger" ? "failed" : "";
+  const action = options.action ? `<button type="button" class="mw-toast__action"${renderAttrs(options.action.attrs)}>${escapeHtml(options.action.label)}</button>` : "";
+  return `<div class="${cx("mw-toast", options.tone === "danger" && "is-error", options.className)}" data-slot="toast" role="status"${state ? ` data-mw-state="${state}"` : ""}${renderAttrs(options.attrs)}><span>${escapeHtml(options.message)}</span>${action}</div>`;
 }
 
 export function renderSpinner(options: { label?: string; className?: string } = {}): string {

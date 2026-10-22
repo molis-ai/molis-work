@@ -212,7 +212,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
     <div class="settings-content">${content}</div>
   </main>
   ${renderRuntimePlanDialog({ L, icon })}
-  <div class="toast" data-settings-toast role="status" aria-live="polite"></div>
+  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>
   <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
 </body></html>`;
 }

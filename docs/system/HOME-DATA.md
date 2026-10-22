@@ -50,7 +50,7 @@ Home 里有 30 种 SQLite 文件：权威库 26 种（Home 级 23 种，按项�
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
 | `assistant/assistant.db` | 宿主；`apps/local-host/src/assistant/assistant-http.ts:43` 打开，`apps/local-host/src/assistant/assistant-store.ts:18` 基线、`:158` 套用。基线末尾拼进 `modules/context-ledger` 的 `context_edges`（`:63`），所以这个库有 13 张表，其中一张不归宿主 | SQLite 带版本 · `user_version` = 2 | 必备份 | purge |
-| `memory/memory.db` | `packages/storage/src/adapters/memory-ledger.ts:62-64`，基线 `:22` | SQLite 带版本 · WAL · 2 | 必备份。记忆的正文在 Prologue 条目里（即 `agent-runtime/`），账本只存修订、候选、使用回执等（`packages/storage/src/adapters/memory-ledger.ts:13-17`），两者取同一时点 | purge（`memory` 已登记） |
+| `memory/memory.db` | `packages/storage/src/adapters/memory-ledger.ts:62-64`，基线 `:22` | SQLite 带版本 · WAL · 3 | 必备份。记忆的正文在 Prologue 条目里（即 `agent-runtime/`），账本只存修订、候选、使用回执等（`packages/storage/src/adapters/memory-ledger.ts:13-17`），两者取同一时点。旧格式须显式采用；启动时不自动补齐旧偏好 | purge（`memory` 已登记） |
 | `knowledge/knowledge.db` | `packages/storage/src/adapters/knowledge-cards.ts` 的 `openKnowledgeCards`，基线 `KNOWLEDGE_CARDS_BASELINE`，由 `apps/local-host/src/knowledge-actions.ts` 打开 | SQLite 带版本 · WAL · 1 | 必备份。项目资料的卡片（含人改过的字段、「不给 Agent 用」）、每天的整理用量，与资料原文被谁在哪一轮读过的使用记录（保留 30 天、每个项目最多 5000 条）；不存资料正文 | purge（`knowledge` 已登记；删项目时按 `project_id` 清） |
 | `placement/placement.db` | 宿主；`apps/local-host/src/placement-actions.ts:63-64` 打开，`:58` 基线 | SQLite 带版本 · 1 | 必备份 | purge |
 | `agent-definitions/agent-definitions.db` | 宿主；`apps/local-host/src/agent-definitions/agent-definitions.ts:316` 打开，`:20` 基线、`:57` 套用 | SQLite 带版本 · 1 | 必备份（用户改过的提示词与历史） | purge |

@@ -32,6 +32,7 @@ import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { ensureProjectPluginActions, prepareInstalledPlugins } from "./project-plugin-ports.js";
 import path from "node:path";
+import { prepareMemoryHome } from "./memory/memory-adoption.js";
 import { closeConnectorResources } from "./connector-lifecycle.js";
 import { randomUUID } from "node:crypto";
 import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
@@ -142,6 +143,7 @@ export class MolisWorkLocalHost {
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     assertFixtureScopes(options.pluginFixtures, Boolean(options.homeDirectory));
+    if (options.homeDirectory) prepareMemoryHome(path.resolve(options.homeDirectory));
     this.sessions = new SessionRuntimeService(options);
     this.personalPlanningHome = options.homeDirectory ? path.resolve(options.homeDirectory) : undefined;
     if (options.homeDirectory) this.callLog = new ActionCallLog(options.homeDirectory);

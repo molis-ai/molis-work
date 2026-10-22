@@ -62,8 +62,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       ? options.localHost.ensureWebCatalog(storageHome, platform.openCatalog)
       : createWebCatalogAccess(storageHome, platform.openCatalog) : undefined;
     const withCatalog = catalogAccess?.withCatalog ?? platform.withCatalog;
-    const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome);
-    const { serveWorkbenchAsset } = composition;
     const serverOptions: WebServerOptions = { ...options, homeDirectory: storageHome };
     const fixture = fixtureWebBoardOptions(serverOptions);
     const catalogAvailability = projectActionAvailability(withCatalog, storageHome);
@@ -103,6 +101,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     localHost.configurePersonalPlanning(storageHome, withCatalog);
     const ownsLocalHost = !serverOptions.localHost;
     const agents = ensureSystemAgentService(localHost, storageHome, withCatalog);
+    const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome);
+    const { serveWorkbenchAsset } = composition;
     const controlToken = resolveWebControlToken(serverOptions);
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();

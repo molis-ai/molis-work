@@ -28,7 +28,7 @@
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 194,
     "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 186,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
-      "lines": 278,
+      "lines": 273,
       "methods": 41
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 255,

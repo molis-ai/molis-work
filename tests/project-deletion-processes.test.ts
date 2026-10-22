@@ -310,6 +310,7 @@ test("the public CLI removes the demo, says what waits for a running Molis Work,
   const directory = await mkdtemp(join(tmpdir(), "molis-project-deletion-cli-"));
   const home = join(directory, "home");
   t.after(() => rm(directory, { recursive: true, force: true }));
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
   ranBefore(home);
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const demo = (action: string, ...flags: string[]) => spawnSync(process.execPath, [join(root, "dist", "cli", "main.js"), "demo", action, "--home", home, "--confirm", ...flags], { cwd: root, env: process.env, encoding: "utf8" });
@@ -336,6 +337,7 @@ test("the public CLI rebuilds the demo in a Home that has an Agent runtime, and 
   const directory = await mkdtemp(join(tmpdir(), "molis-project-deletion-cli-reset-"));
   const home = join(directory, "home");
   t.after(() => rm(directory, { recursive: true, force: true }));
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
   ranBefore(home);
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const demo = (action: string, ...flags: string[]) => spawnSync(process.execPath, [join(root, "dist", "cli", "main.js"), "demo", action, "--home", home, "--confirm", ...flags], { cwd: root, env: process.env, encoding: "utf8" });

@@ -488,6 +488,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "只显示了开头一部分。": "Only the beginning is shown.",
   "这种文件不能在这里预览，可以下载后打开。": "This kind of file can't be previewed here; download it to open it.",
   // Issue: capture, list and record (plugins/native/issues).
+  "你在哪个页面做了什么，出现了什么问题？也可以补充截图。": "What did you do on which page, and what went wrong? You can also add screenshots.",
   "截图草稿未能保存在本机，请重试后再离开页面。": "Screenshot draft could not be saved on this device. Retry before leaving this page.",
   "已记录：": "Recorded: ",
   "整理超时，点开补全标题和类型": "Organizing timed out. Open it to add a title and type",

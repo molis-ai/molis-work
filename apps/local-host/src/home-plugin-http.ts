@@ -173,13 +173,15 @@ function homeViewModel() {
 }
 
 /** A fresh Runtime view for every page render; the catalog does not grant activation or render a stopped instance. */
-export async function renderHomePluginStages(host?: HomePluginHost): Promise<string[]> {
-  if (!host) return [];
+export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ html: string[]; ids: string[] }> {
+  if (!host) return { html: [], ids: [] };
   let platform: HomePluginPlatform | undefined, failure: string | undefined;
   try { platform = await host.ready(); }
   catch (error) { failure = error instanceof Error ? error.message : String(error); }
-  const sideOnly = sideOpenedPlugins();
-  return BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home" && !Object.hasOwn(sideOnly, entry.project_plugin_id)).map(entry => {
+  const ids: string[] = [], sideOnly = sideOpenedPlugins();
+  const html = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home" && !Object.hasOwn(sideOnly, entry.project_plugin_id)).map(entry => {
+    const declared = entry.manifest.ui?.views?.find(view => view.slot === "stage");
+    if (declared) ids.push(declared.contribution_id ?? `${entry.manifest.plugin_id}.${declared.view_id}`);
     const install = host.installation(entry.manifest.plugin_id);
     const contribution = install?.state === "running" ? platform?.runtime.contribution(install.install_id) : null;
     const view = contribution?.kind === "app" ? contribution.views?.find(view => view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench")) : undefined;
@@ -187,4 +189,5 @@ export async function renderHomePluginStages(host?: HomePluginHost): Promise<str
     return renderPluginStageShell({ surface: entry.project_plugin_id, label: entry.manifest.name, dataset: "home-plugin-unavailable",
       body: `<div class="mw-empty" role="alert"><h2>${escapeHtml(entry.manifest.name)} 暂不可用</h2><p>${escapeHtml(failure ?? platform?.supervisor.state(entry.manifest.plugin_id)?.message ?? "插件已停用")}</p><a class="mw-btn mw-btn--secondary" href="/plugins/${encodeURIComponent(entry.project_plugin_id)}">查看插件状态</a></div>` });
   });
+  return { html, ids };
 }

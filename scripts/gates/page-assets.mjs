@@ -244,6 +244,7 @@ const APPROVED_CEILINGS = {
   // SYS-15: Builder uses public dialogs, file/settings messages and the isolated page lifecycle. Its removed owner access
   // pays for most of the bridge; the remaining served program is 115519 → 116132 (+613).
   "/assets/molis-work-plugins/plugin-builder.js": [115519, 116132],
+
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

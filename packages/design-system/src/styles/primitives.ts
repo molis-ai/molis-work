@@ -240,7 +240,7 @@ export const PRIMITIVE_STYLES = `
     border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); background: var(--paper);
     display: inline-grid; place-items: center; color: var(--action-ink);
   }
-  .mw-check { border-radius: 5px; }
+  .mw-check { border-radius: 4px; }
   .mw-radio { border-radius: 50%; }
   .mw-check:hover:not(:disabled), .mw-radio:hover:not(:disabled) { border-color: color-mix(in srgb, var(--control-input) 60%, var(--ink)); }
   .mw-check:checked, .mw-radio:checked { border-color: var(--action); background: var(--action); }
@@ -510,7 +510,7 @@ export const PRIMITIVE_STYLES = `
   .mw-toggle-group {
     display: inline-flex; gap: 4px; padding: 4px;
     border: 0;
-    border-radius: 9px; background: var(--control-fill);
+    border-radius: 10px; background: var(--control-fill);
   }
   .mw-toggle {
     min-height: 26px; padding: 0 12px; border: 0; border-radius: 6px;

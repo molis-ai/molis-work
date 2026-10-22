@@ -132,7 +132,7 @@ const CRAFT_BASE_STYLES = `
   /* A cover (market, settings) names itself ahead of the tabs. */
   ${PAGES} .tab-view-chip {
     flex: none; display: inline-flex; align-items: center; gap: 8px; height: 26px; margin: 0 4px 0 0; padding: 0 12px 0 8px;
-    border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
+    border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
     transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-quint);
   }
   ${PAGES} .tab-view-chip svg { width: 14px; height: 14px; color: var(--ink-soft); }
@@ -1345,7 +1345,6 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} .mw-btn:disabled, ${PAGES} .mw-btn[aria-disabled="true"] { box-shadow: none; background-image: none; }
 
   /* Segmented controls: the thumb settles on a spring; slots brighten on hover. */
-  ${PAGES} .mw-toggle-group { border-radius: 9px; }
   ${PAGES} .mw-toggle-group[data-seg-thumb]::before { border-radius: 6px; background: var(--paper); box-shadow: var(--lift-1); transition-timing-function: var(--ease-quint); }
   ${PAGES} .mw-toggle-group > .mw-toggle:not(.is-current, [aria-pressed="true"], [aria-current]):hover { color: var(--ink); }
   ${PAGES} .mw-toggle svg { transition: transform var(--dur-move) var(--ease-spring); }
@@ -1714,7 +1713,7 @@ const CRAFT_BASE_STYLES = `
   .mw-catalog .mw-craft-space__main { grid-row: 1; display: grid; grid-template-rows: 18px 1fr; }
   .mw-catalog .mw-craft-space__tabs { align-self: center; width: 64px; height: 10px; border-radius: 4px; background: var(--paper); box-shadow: var(--lift-1); }
   .mw-catalog .mw-craft-space__sheet { display: grid; align-content: start; gap: 8px; padding: 16px; border-radius: 0 10px 10px 0; background: var(--paper); box-shadow: var(--sheet-shadow); }
-  .mw-catalog .mw-craft-space__sheet b { display: block; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 10%, transparent); }
+  .mw-catalog .mw-craft-space__sheet b { display: block; height: 6px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 10%, transparent); }
   .mw-catalog .mw-craft-space__sheet b:first-child { width: 40%; height: 9px; background: color-mix(in srgb, var(--ink) 20%, transparent); }
   .mw-catalog .mw-craft-space__sheet b:last-child { width: 70%; }
   .mw-catalog .mw-craft-space__bar { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 4px; }

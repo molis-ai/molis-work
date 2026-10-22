@@ -16,6 +16,11 @@
  *   it stands: an action 13px / 500; a view choice (a pressed toggle, a filter or menu trigger) 12 or 13px / 500; a tool in
  *   the context toolbar 12px / 500.
  *
+ * - radius: a painted box (a fill, a border or a shadow) whose corner is off the corner scale (DESIGN「Corners」): 4 for a
+ *   mark smaller than a control, 6 a tag, 8 a control, 10 a row, 11 a Dock tile, 12 a card, 14 a sheet, 15 the composer,
+ *   16 a dialog, 18 the onboarding window, or a capsule or circle (the corner at least half the box's layout size); a box
+ *   that holds a rounded part at an inset may be that part's corner plus the inset, so the two curves stay concentric.
+ *
  * `sizes` is the histogram of font sizes on the page, for the type-scale decision. `skip` names the places the caller
  * has reasons to leave out (a specimen that shows sizes side by side, a reference list); nothing inside them is read.
  */
@@ -111,6 +116,25 @@ export const orderAudit = (skip: string) => String.raw`(() => {
     const gaps = sameLine.slice(1).map((b, i) => round(b.left - sameLine[i].right)).filter((g) => g > 0.5 && g < 48);
     const allowed = worded(buttons[0]) && !row.matches('[role=toolbar], [role=group]') ? [4, 8] : [2, 4, 8];
     if (gaps.length && (Math.max(...gaps) - Math.min(...gaps) > 1 || gaps.some((g) => allowed.every((a) => Math.abs(g - a) > 1)))) findings.push({ kind: 'row-gap', a: label(row), gaps });
+  }
+  // Corners: on the scale, a capsule, or concentric with a rounded part inside it.
+  const CORNERS = [4, 6, 8, 10, 11, 12, 14, 15, 16, 18], cornered = new Set();
+  const corner = (style) => ['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'].map((k) => parseFloat(style['border' + k + 'Radius']) || 0).find((r) => r > 0) || 0;
+  const painted = (style) => !/rgba\(0, 0, 0, 0\)|transparent/.test(style.backgroundColor) || style.backgroundImage !== 'none' || style.boxShadow !== 'none'
+    || ['Top', 'Right', 'Bottom', 'Left'].some((k) => parseFloat(style['border' + k + 'Width']) > 0 && !/, 0\)$|transparent/.test(style['border' + k + 'Color']));
+  for (const el of scope.querySelectorAll('*')) {
+    if (!shown(el) || el.closest('svg, .cm-editor, .tui-root, canvas')) continue;
+    const style = getComputedStyle(el), r = corner(style);
+    if (!r || !painted(style) || r >= Math.min(el.offsetWidth || Infinity, el.offsetHeight || Infinity) / 2 - 0.5) continue;
+    if (CORNERS.some((c) => Math.abs(r - c) < 0.5)) continue;
+    const box = el.getBoundingClientRect(), before = getComputedStyle(el, '::before');
+    const parts = [...el.children].map((child) => [corner(getComputedStyle(child)), child.getBoundingClientRect().top - box.top]);
+    if (before.content !== 'none') parts.push([corner(before), parseFloat(before.top) || 0]);
+    if (parts.some(([inner, inset]) => inner && Math.abs(r - inner - inset) < 0.75)) continue;
+    const key = label(el).replace(/「.*$/, '') + r;
+    if (cornered.has(key)) continue;
+    cornered.add(key);
+    findings.push({ kind: 'radius', a: label(el), radius: round(r), box: [el.offsetWidth, el.offsetHeight] });
   }
   return { findings, sizes };
 })()`;

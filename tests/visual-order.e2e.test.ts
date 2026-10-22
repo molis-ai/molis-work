@@ -5,7 +5,8 @@ import { orderAudit } from "./fixtures/order-audit.js";
 
 // DESIGN「Order」(VUX-46 to VUX-50): on the project page, the common plugin pages, settings and the component board, a
 // state mark stands as tall as its words and on their line, an icon beside words is the words' size or one step up, the
-// words use the type scale and their role, and buttons that sit together are one height, on one line, one gap apart.
+// words use the type scale and their role, a painted box's corner is on the corner scale, and buttons that sit together are one
+// height, on one line, one gap apart.
 // Light at 1440 reads every page; dark, compact density and a touch phone read the pages whose layout they change.
 
 const PAGES = ["goals", "todo", "pages", "ppt", "workflows", "lingguang", "form", "dataset", "inbox", "images", "sessions", "feed", "issues"];

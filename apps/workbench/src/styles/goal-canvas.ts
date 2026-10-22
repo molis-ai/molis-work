@@ -645,7 +645,7 @@ export const GOAL_CANVAS_STYLES = `
   .frame-goal-summary > p { max-width:76ch; margin:8px 0 12px; color:var(--ink-soft); font-size:13px; line-height:1.7; }
   .frame-goal-actions { display:flex; flex-wrap:wrap; gap:8px; }
   [data-frame-goal-status],
-  [data-workspace-goal-status] { display:inline-flex; gap:4px; align-items:center; min-height: 18px; padding: 1px 8px; border: 0; border-radius: 5px; background: color-mix(in srgb, var(--goal-status-tone, var(--muted)) 11%, transparent); color: var(--goal-status-tone, var(--ink-soft)); font-size: 12px; font-weight: 400; }
+  [data-workspace-goal-status] { display:inline-flex; gap:4px; align-items:center; min-height: 18px; padding: 1px 8px; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--goal-status-tone, var(--muted)) 11%, transparent); color: var(--goal-status-tone, var(--ink-soft)); font-size: 12px; font-weight: 400; }
   .frame-goal-actions svg { width:14px; height:14px; }
   .goal-frame-surface > .goal-frame-canvas { position:relative; inset:auto; flex:1; min-height:0; }
   .frame-empty { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:12px; padding:32px; text-align:center; pointer-events:none; }

@@ -179,7 +179,7 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
     :is(.project-preferences-page, .settings-stage) *, :is(.project-preferences-page, .settings-stage) *::after { transition: none !important; animation: none !important; }
   }
 
-  .settings-segmented { display: flex; flex: none; padding: 4px; gap: 4px; border: 1px solid var(--line); border-radius: 9px; background: var(--nav-bg); }
+  .settings-segmented { display: flex; flex: none; padding: 4px; gap: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--nav-bg); }
   .settings-segmented > :is(button, a) { display: flex; align-items: center; justify-content: center; min-height: 30px; padding: 0 12px; border: 1px solid transparent; border-radius: 6px; color: var(--muted); background: transparent; text-decoration: none; font-size: 12px; white-space: nowrap; box-shadow: none; }
   .settings-segmented > :is([aria-pressed="true"], [aria-current="true"]) { border-color: var(--line); color: var(--ink); background: var(--paper); box-shadow: var(--lift-1); }
   :is(.project-preferences-page, .settings-stage) .settings-record-list { gap: 0; margin: 0 0 12px; padding: 4px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }

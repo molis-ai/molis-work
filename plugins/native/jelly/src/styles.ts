@@ -13,7 +13,7 @@ export const JELLY_STYLES = `
   .jelly-toolbar h1 { font-size:20px; font-weight: var(--weight-title, 600); margin:0 8px 0 0; letter-spacing:-.02em; white-space:nowrap; }
   .jelly-period .mw-btn > svg + span { display:none; }
   .jelly-toolbar-end { flex-wrap:wrap; }
-  .jelly-calendar-modes { display:flex; padding:4px; border:1px solid var(--hairline); border-radius:9px; background:var(--control-fill); }
+  .jelly-calendar-modes { display:flex; padding:4px; border:1px solid var(--hairline); border-radius:10px; background:var(--control-fill); }
   .jelly-calendar-modes .mw-btn { min-width:36px; }
   .jelly-filters { gap:12px; margin-bottom:16px; flex-wrap:wrap; }
   .jelly-search { width:220px; max-width:100%; }
@@ -29,7 +29,7 @@ export const JELLY_STYLES = `
   .jelly-day.is-outside { background:var(--surface-soft); }.jelly-day.is-outside .jelly-day-number { color:var(--faint); }
   .jelly-day.is-drop { background:var(--accent-soft); box-shadow:inset 0 0 0 1px var(--focus-stroke); }
   .jelly-day-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
-  .jelly-day-number { display:grid; place-items:center; min-width:26px; min-height:26px; padding:0; color:var(--ink-soft); border:0; border-radius:7px; background:transparent; cursor:pointer; font-size:12px; }
+  .jelly-day-number { display:grid; place-items:center; min-width:26px; min-height:26px; padding:0; color:var(--ink-soft); border:0; border-radius:8px; background:transparent; cursor:pointer; font-size:12px; }
   .jelly-day-number:hover { background:var(--nav-hover); }.jelly-day.is-today .jelly-day-number { color:var(--action-ink); background:var(--action); }
   .jelly-day-add { opacity:0; color:var(--muted); padding:0 4px; min-width:22px; height:24px; }.jelly-day-add span { display:none; }.jelly-day:hover .jelly-day-add,.jelly-day:focus-within .jelly-day-add { opacity:1; }
   .jelly-occurrence { display:flex; align-items:center; gap:4px; width:100%; min-width:0; margin:4px 0; padding:4px 4px; background:var(--nav-hover); border:0; border-radius:5px; color:var(--ink); text-align:left; font-size:11px; cursor:pointer; }

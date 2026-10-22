@@ -17,7 +17,10 @@ test("The project button holds settings and the account, and opens settings in t
   await command("Network.setCookie",{name:"molis_work_locale",value:"en",url:origin},sessionId);
   await navigate(()=>command("Page.navigate",{url:origin+"/projects/"+projectId+"/"},sessionId));
   await waitFor("document.body.dataset.desktopSurface==='home'");
-  assert.equal(await evaluate("document.querySelector('.personal-account-copy strong').textContent"), "Not set");
+  assert.equal(await evaluate("document.querySelector('.personal-account-copy strong').textContent"), "Not signed in");
+  assert.equal(await evaluate("document.querySelector('.personal-account-copy small').textContent"), "Sign in");
+  assert.equal(await evaluate("document.querySelector('.personal-account').disabled"), true);
+  assert.equal(await evaluate("document.querySelector('.personal-account').title"), "Sign-in is not available yet");
   for(const width of [761,760,600,390]){
     await command("Emulation.setDeviceMetricsOverride",{width,height:844,deviceScaleFactor:1,mobile:width<=600},sessionId);
     for(const theme of ["light","dark"]){

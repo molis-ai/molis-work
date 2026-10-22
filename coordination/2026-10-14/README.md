@@ -2505,3 +2505,10 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - PG-035 交出去以后，先修 agent-host 的撞包缺陷（共享笔记 `agent-host-pack-suggest-1022.md`）：同一个 Home 里先「执行」后换别的方式开一轮，第二轮就报 `SCENARIO_PACK_INVALID`，原因是 `suggest` 没算进包 id。这个缺陷从 #571 起就有，用户能碰到，所以排在 X-6 前面。
   - 接着是 X-6，设计稿里先补上它的定义；然后是 BL-411。
 - **10-22 视觉线新红的 5 个浏览器用例**（⑤ 已在来源 PR 下评论，尚未修）：`coding-state-rings`（#929）、`coding-taskboard`（#928）、`has-anchors` 和 `code-diff-scale`（#954）、`assistant-process-info`（#966）。Product subset 还红 #922 带来的 3 个。
+- **10-22 合入 main**：#999（PG-035）、#1001（agent-host 撞包，07:20Z）、#988（视觉线重放 VUX 46–53、60–75，`e3524a0d6`，07:09Z）、#1009（C6 后半，`170405438`）。#936、#940、#950～952 已关闭，都被 #988 取代；#915、#916、#921、#922、#955、#958 早已合入。所以 C7、C8-3、G3、G4 不再等视觉线。
+- **10-22 ① 批 X-6 设计**（共享笔记 `x6-host-events-design.md`，第一条宿主事件 `host.review.settled@1`，只投给发起审查的那个安装）：
+  - 四项都照推荐：D1 不落库、至多一次（落库要动项目库版本和真实 Home 维护，要用户）；D2 只发执行完的结算；D3 单列新 S 行，现在是 S-54（#1008 只改 S-18 的一句），开 PR 时再核；D4 统一定义，两种来源，本片只做宿主事件。
+  - 附带：收件条件在调用处理器时再核一次；插件拿不到 `notify`；G2b 在同一个 PR 里加订阅、删端口。
+- **10-22 ② 的顺序**：X-6 → C7 公开包（PG-062，SDK 的 `/highlight`、`/rich-text`、根入口的 `redactSecrets`，尽量和 X-6 同批）→ C8-3 → BL-411（先出设计）。
+- **10-22 ③ 的顺序**：G2a（#1009 已合，merge main 后问用户推送）→ G3 → G4（两片都改 `agent-host-composition.ts` 和 `workspace-artifacts.ts`，一前一后）。C7 插件一半等 ② 的公开包，合入后可以开子会话并行。G2b 等 X-6。G1、PG-038 Coding 一半的卡仍要用户启动。
+- **10-22 ② 没卡住**：06:48 之后一直在等 ① 审 X-6，#1001 也已交出并合入。

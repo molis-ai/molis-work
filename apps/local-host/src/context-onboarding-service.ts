@@ -280,8 +280,8 @@ async function adoptTodoDrafts(journey: ContextJourney, actions: BoundActionClie
 }
 
 function validateContextBudget(references: ContextReference[]): void {
-  if (references.length > 50) throw new Error("材料已暂存，但超过本次 50 份上限，请返回清单缩小范围。");
-  if (references.reduce((total, ref) => total + Buffer.from(ref.original.data_base64, "base64").length, 0) > 6_000_000) throw new Error("材料已暂存，但超过本次 6 MB 上限，请返回清单缩小范围。");
+  if (references.length > 200) throw new Error("材料已暂存，但超过本次 200 份上限，请返回清单缩小范围。");
+  if (references.reduce((total, ref) => total + Buffer.from(ref.original.data_base64, "base64").length, 0) > 50_000_000) throw new Error("材料已暂存，但超过本次 50 MB 上限，请返回清单缩小范围。");
 }
 
 function pageTitle(title: string): string {

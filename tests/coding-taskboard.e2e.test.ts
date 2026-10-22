@@ -114,6 +114,7 @@ test("TaskBoard：每一步显示负责人（本会话/子任务/你/没人认�
     })()`);
     assert.equal(result.steps.one.agent, "writers"); assert.match(result.steps.one.avatar, /负责：本会话/);
     assert.equal(result.steps.two.agent, "子任务「two」"); assert.match(result.steps.two.avatar, /子代理 构建者/);
+    assert.match(result.steps.two.avatar, /负责：子任务「two」/, "the holder's label and the subagent's role remain distinct");
     assert.deepEqual(result.under, ["child-c1"], "the subtask sits under the step it holds");
     assert.equal(result.steps.three.agent, "你"); assert.equal(result.steps.three.owner, "person");
     assert.ok(result.steps.three.tools.includes("标记完成") && result.steps.three.tools.includes("标记失败") && result.steps.three.tools.includes("交回本会话"));

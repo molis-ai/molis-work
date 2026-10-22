@@ -244,14 +244,14 @@ const APPROVED_CEILINGS = {
   // Forms reflow (slice 85): moved and removed questions and options ease through the page's molisReflow, with the fallback when it is absent. 30244 → 30383 (+139).
   "/assets/molis-work-plugins/form.js": [30244, 30383],
   "/assets/molis-work-plugins/workflows.js": [83019, 83135],
-  // VUX-36 (slice 94): the menu exit's 130 ms hold moves off the `:has()` + `::details-content` rule that cost about 30 ms per inserted node
-  // to a custom property on the menu's details plus one zero-specificity pseudo-element rule (+55 per sheet; this branch shrinks them first).
-  "/assets/molis-work-settings.css": [994513, 994568],
-  "/assets/molis-work-arrival.css": [704608, 704663],
-  "/assets/molis-work-workbench.css": [1612945, 1613000],
+  // VUX-36 / VUX-22: details menus reverse the same 250/130 ms transition when closed during entry, retaining the bar direction.
+  // Exact menu-only selectors preserve ordinary disclosures, popovers and Assistant motion; +1426 bytes per sheet, reviewed under #17.
+  "/assets/molis-work-settings.css": [994568, 995994],
+  "/assets/molis-work-arrival.css": [704663, 706089],
+  "/assets/molis-work-workbench.css": [1612954, 1614380],
   // Roving focus: child-list parents only affect their own group; added subtrees and attribute changes still visit descendant groups.
   // The explicit mutation-kind branch costs 39 bytes; no unrelated code or comments were removed to disguise the cost.
-  "/assets/molis-work-workbench.js": [1182907, 1182946],
+  "/assets/molis-work-workbench.js": [1182906, 1182945],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

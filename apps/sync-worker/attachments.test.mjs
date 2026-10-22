@@ -130,7 +130,8 @@ function artifactDevice(t,f,name,fetcher=f.transport){
   const home=mkdtempSync(join(tmpdir(),'molis-r2-'+name+'-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
   const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
   const db=new Database(join(home,'fixture.db'));t.after(()=>db.close());
-  db.exec('CREATE TABLE boards(project_id TEXT PRIMARY KEY);CREATE TABLE events(seq INTEGER PRIMARY KEY AUTOINCREMENT,project_id TEXT);');db.prepare('INSERT INTO boards VALUES (?)').run('project');createArtifactsSchema(db);db.exec(replicaSchemaSql());initializeReplica(db);
+  db.pragma('foreign_keys=ON');
+  db.exec('CREATE TABLE project_root(project_id TEXT PRIMARY KEY);CREATE TABLE events(seq INTEGER PRIMARY KEY AUTOINCREMENT,project_id TEXT);');db.prepare('INSERT INTO project_root VALUES (?)').run('project');createArtifactsSchema(db);db.exec(replicaSchemaSql());initializeReplica(db);
   const options={eventCursor:()=>0,appendEvent:()=>0,now:()=> '2026-10-17T00:00:00Z'};
   const owner=new ArtifactsModule({db,...options}),replication=createArtifactReplication(db,{spaceId:space.spaceId,projectId:'project',authorize(){}},options),key=JSON.stringify(['project','artifact','asset']);
   const replica=createSqliteReplica(db,{authorize(){},read:()=>{const artifact=replication.read('asset');return artifact?{project:{id:'project',title:'R2 fixture'},artifact}:null;},apply:(_,value)=>replication.apply(value.artifact)});

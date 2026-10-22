@@ -1,4 +1,5 @@
-import {imageRuntimeFixture} from './fixtures/images-runtime.js';
+import {imageRuntimeFixture,imageTerminal,IMAGE_PNG} from './fixtures/images-runtime.js';
+import {compileActionSchema} from '@molis-ai/molis-work-kernel';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdtempSync, rmSync, readFileSync, mkdirSync, symlinkSync, writeFileSync,utimesSync,existsSync } from 'node:fs';
@@ -8,6 +9,37 @@ import { DatabaseSync } from 'node:sqlite';
 import {imagesActions} from '@molis-ai/molis-work-plugin-images';
 import { openImagesSyncStore } from '@molis-ai/molis-work-plugin-images';
 import { ensureStorageSpace, personalStorageSpace, openBaselineHomeSqlite } from '@molis-ai/molis-work-storage';
+
+test('S-76 PCSYNC-IMG-READ-01/02 restored images are readable without a local service, never authority to generate',async t=>{
+ const root=mkdtempSync(join(tmpdir(),'images-read-sync-'));
+ const space=personalStorageSpace('https://auth.example.test','work','alice'),homes=['source','target'].map(name=>join(root,name));homes.forEach(home=>ensureStorageSpace(home,space));
+ const source=await imageRuntimeFixture(t,{home:homes[0]}),target=await imageRuntimeFixture(t,{home:homes[1]});
+ t.after(()=>rmSync(root,{recursive:true,force:true}));
+ const left=source.client('project'),right=target.client('project'),{connection}=await source.connection();
+ const {job:started}=await left.invoke(imagesActions.start,{request_id:'saved-picture',connection_id:connection.id,prompt:'A saved cat'});
+ const saved=await imageTerminal(left,started.id);assert.equal(saved.status,'succeeded');assert.equal(source.calls.length,1);
+ const stores=homes.map(home=>openImagesSyncStore(home!));t.after(()=>stores.forEach(store=>store.close()));
+ const context={spaceId:space.spaceId,authorize(){},canUploadProject:()=>true,project:()=>({title:'Pictures'}),hasArtifact:()=>false};
+ const [x,y]=stores.map(store=>store.replica(context)),message=x!.next()!;assert.ok(message);y!.receive({...message,revision:1});assert.deepEqual(y!.conflicts(),[]);
+ assert.deepEqual((await target.client(null).invoke(imagesActions.connections,{})).connections,[]);
+ const {job}=await right.invoke(imagesActions.get,{id:saved.id});assert.equal(job.connection_id,'');assert.equal(job.prompt,saved.prompt);
+ assert.deepEqual((await right.invoke(imagesActions.list,{})).jobs,[job]);
+ const input={id:job.id,image_id:job.images[0]!.id};assert.equal((await right.invoke(imagesActions.image,input)).base64,IMAGE_PNG);
+ assert.equal((await right.invoke(imagesActions.cancel,{id:job.id})).job.status,'succeeded','cancel on saved history must not require a service or restart execution');
+ const reader=target.client('project',{audience:'mcp',permissions:['images:read']});assert.equal((await reader.invoke(imagesActions.get,{id:job.id})).job.id,job.id);
+ await assert.rejects(target.client('other-project').invoke(imagesActions.get,{id:job.id}),{code:'images.not_found'});
+ await assert.rejects(target.client('other-project').invoke(imagesActions.image,input),{code:'images.not_found'});
+ await assert.rejects(target.client('project',{permissions:[]}).invoke(imagesActions.get,{id:job.id}),{code:'actions.forbidden'});
+ for(const connection_id of ['', '  '])await assert.rejects(right.invoke(imagesActions.start,{request_id:'invalid-connection',connection_id,prompt:'Do not generate'}),{code:'actions.input_invalid'});
+ await assert.rejects(right.invoke(imagesActions.start,{request_id:'unknown-connection',connection_id:connection.id,prompt:'Do not inherit the source service'}),{code:'images.not_found'});
+ const validate=compileActionSchema(imagesActions.get.action.output_schema!);
+ for(const status of ['succeeded','failed','cancelled','interrupted'])assert.equal(validate({job:{...job,status}}),true);
+ assert.equal(validate({job:{...job,status:'running'}}),false,'a running job must have a service binding');
+ assert.equal(validate({job:{...job,status:'running',connection_id:connection.id}}),true);
+ assert.equal(validate({job:{...job,connection_id:'  '}}),false,'blank IDs are not the explicit absent binding');
+ await target.platform.supervisor.restart('io.molis.work.images');
+ assert.equal((await right.invoke(imagesActions.image,input)).base64,IMAGE_PNG);assert.equal(target.calls.length,0);assert.equal(source.calls.length,1);
+});
 
 test('S-76 PCSYNC-01/23 image restoration refuses foreign identities, execution state and filesystem paths without effects',t=>{
  const home=mkdtempSync(join(tmpdir(),'image-sync-boundary-'));t.after(()=>rmSync(home,{recursive:true,force:true}));

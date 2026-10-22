@@ -3,6 +3,7 @@ import {syncNamespace} from '@molis-ai/molis-work-module-sync-replication';
 import type {SyncEvent} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import {createServer} from 'node:http';
 import {once} from 'node:events';
+import {spawnSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import test,{type TestContext} from 'node:test';
 import {mkdtempSync,readFileSync,readdirSync,mkdirSync,rmSync,writeFileSync} from 'node:fs';
@@ -157,6 +158,35 @@ test('PCSYNC-20 partial WAL refuses before opening SQLite and does not create mi
   db.pragma('journal_mode=WAL');db.pragma('wal_autocheckpoint=0');db.exec("CREATE TABLE catalog_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);INSERT INTO catalog_meta VALUES('owner','molis-work-project-catalog-v1'),('schema_version','22');PRAGMA wal_checkpoint(TRUNCATE);UPDATE catalog_meta SET value='23' WHERE key='schema_version';");
   const wal=readFileSync(file+'-wal');db.close();writeFileSync(file+'-wal',wal);const main=readFileSync(file),files=readdirSync(f.root);
   assert.throws(()=>inspectCatalogFile(file),{code:'storage.catalog_probe_busy'});assert.deepEqual(readFileSync(file),main);assert.deepEqual(readFileSync(file+'-wal'),wal);assert.deepEqual(readdirSync(f.root),files);
+});
+
+test('PCSYNC-MCP-RECONNECT-01 catalog inspection preserves live WAL ownership across another process closing',t=>{
+  const f=homes(t),file=join(f.root,'live-lock.db'),db=new Database(file);t.after(()=>db.close());
+  db.pragma('journal_mode=WAL');db.pragma('wal_autocheckpoint=0');
+  db.exec("CREATE TABLE catalog_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);INSERT INTO catalog_meta VALUES('owner','molis-work-project-catalog-v1'),('schema_version','25');");
+  const files=readdirSync(f.root),main=readFileSync(file),wal=readFileSync(file+'-wal');
+  for(let attempt=0;attempt<3;attempt++){
+    assert.deepEqual(inspectCatalogFile(file),{owner:'molis-work-project-catalog-v1',version:25});
+    const child=spawnSync(process.execPath,['--input-type=module','-e',
+      'import Database from "better-sqlite3";const db=new Database(process.argv[1]);db.prepare("SELECT * FROM catalog_meta").all();db.close();',file],{encoding:'utf8',timeout:10000});
+    assert.equal(child.status,0,child.stderr);
+    assert.deepEqual(readdirSync(f.root),files,'a different process must not unlink the resident connection’s WAL/SHM');
+    assert.deepEqual(readFileSync(file),main);assert.deepEqual(readFileSync(file+'-wal'),wal);
+  }
+  db.exec("UPDATE catalog_meta SET value='26' WHERE key='schema_version'");
+  assert.equal(inspectCatalogFile(file).version,26,'resident writes remain readable after repeated probes and reconnects');
+});
+
+test('PCSYNC-MCP-RECONNECT-02 readonly inspection cannot release another connection’s active write lock',t=>{
+  const f=homes(t),file=join(f.root,'write-lock.db'),db=new Database(file);t.after(()=>db.close());
+  db.pragma('journal_mode=WAL');db.exec("CREATE TABLE catalog_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);INSERT INTO catalog_meta VALUES('owner','molis-work-project-catalog-v1'),('schema_version','25');BEGIN IMMEDIATE;UPDATE catalog_meta SET value='26' WHERE key='schema_version';");
+  try{
+    assert.equal(inspectCatalogFile(file).version,25,'the probe sees committed metadata, never the writer’s pending change');
+    const child=spawnSync(process.execPath,['--input-type=module','-e',
+      'import Database from "better-sqlite3";const db=new Database(process.argv[1],{timeout:0});try{db.exec("BEGIN IMMEDIATE;ROLLBACK");process.stdout.write("unlocked");}catch(error){process.stdout.write(error.code);}finally{db.close();}',file],{encoding:'utf8',timeout:10000});
+    assert.equal(child.status,0,child.stderr);assert.equal(child.stdout,'SQLITE_BUSY','probing must not release the resident writer’s lock');
+  }finally{db.exec('ROLLBACK');}
+  assert.equal(inspectCatalogFile(file).version,25);
 });
 
 test('PCSYNC-20 actual Host passive creation and fresh catalog journal round-trip rename without source paths or automatic activation',async t=>{

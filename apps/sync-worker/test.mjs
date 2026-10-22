@@ -65,8 +65,8 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
     const databases=[new Database(':memory:'),new Database(':memory:')];
     try{
       const replicas=databases.map((d,index)=>{
-        d.pragma('foreign_keys=ON');d.exec('CREATE TABLE boards(project_id TEXT PRIMARY KEY);CREATE TABLE events(seq INTEGER PRIMARY KEY AUTOINCREMENT,project_id TEXT);');
-        const board='project-artifact';d.prepare('INSERT INTO boards VALUES (?)').run(board);createArtifactsSchema(d);
+        d.pragma('foreign_keys=ON');d.exec('CREATE TABLE project_root(project_id TEXT PRIMARY KEY);CREATE TABLE events(seq INTEGER PRIMARY KEY AUTOINCREMENT,project_id TEXT);');
+        const board='project-artifact';d.prepare('INSERT INTO project_root VALUES (?)').run(board);createArtifactsSchema(d);
         const options={now:()=> '2026-09-30T00:00:00.000Z',appendEvent:()=>Number(d.prepare('INSERT INTO events(project_id) VALUES (?)').run(board).lastInsertRowid)};
         const owner=new ArtifactsModule({db:d,...options});
         const replica=createArtifactReplication(d,{spaceId:space.spaceId,projectId:board,authorize:check},options);

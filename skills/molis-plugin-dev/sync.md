@@ -84,6 +84,10 @@ Runtime 私有文档使用 `scope:'project-private-values'`、固定 `namespace/
 
 ## 后续增量接入要求
 
+可撤销的个人内容不以来源设备作为权限边界。Todo 接收时把历史 `revision_after` 与当前项的修订一同映射到目标编辑高水位，保持原版本间隙，不把旧历史强行改成最新；历史按修订而非设备时钟排序。接收不自动执行撤销，用户仍通过原动作和作用域检查操作，后续编辑、重复撤销和旧页面写入继续拒绝。数据库与传输格式不变。
+
+恢复后的只读动作合同必须能表示「有保存内容、无本机执行绑定」，不能为通过输出校验补造连接或同步密钥。Images 的终态记录允许空 `connection_id`，运行中记录和新生成输入仍严格要求连接；`images.jobs.list/get/cancel@2`、`images.jobs.start@3` 使用此规则，后台状态查询指向 get v2。恢复验收须通过正常动作读取原件，而不只查数据库。
+
 项目同步的日志安装和内容准备也由同一 `registration.sync` 声明，不向 Host 添加插件名或实现 import：`project-database` 的可选 `install(db, projectId)` 在个人项目库打开、schema 校验通过后、首次业务变更之前调用；普通本地库不调用。`project-sections.owners` 中的字符串只引用 Module owner；插件自己的 owner 写 `{ create(services), prepareUpload?(db, context) }`。`create` 返回 `ProjectReplicaDefinition`，只得到纯 `validateSavedHistory`，发现目录不能启动 SDK；空集合、未知 Module owner、重复 owner ID 均拒绝。`prepareUpload` 仅在选中的集合上传冻结前、已启用且库可用的项目调用，身份取声明所属插件，`context` 提供绑定当前项目/插件/本人及原授权的 `readSavedHistory`、`authorize` 和纯校验。Host 在异步调用前后复查，插件在自己的提交点仍须 `authorize()`；不能把历史导出放进 `create`、`refresh` 或状态查询。此接口是可信目录装配，不改变独立 Runtime 接入状态、不授予新权限，也不变更数据格式。
 
 `ProjectReplicaDefinition.beforeClear` 是 owner 的目标端事务护栏：读取刚捕获的本机事实，在删除任何行前校验，普通替换和墓碑都必须经过。拒绝时不保留可供另一次写入复用的旧捕获；`restore` 只合并同事务捕获的本机状态。Coding 用它保护活动执行和后台命令，恢复会话/计划不携带 Runtime 绑定、执行状态或原确认授权；计划和输入的编辑高水位只留本机，删除和恢复不倒退。其元数据、计划、未发送文本与待答内容是同一一致性单元；Runtime 对话由原执行 owner 导出完整保存档案，被动展示不建立执行绑定。

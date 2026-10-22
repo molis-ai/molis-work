@@ -10,6 +10,7 @@ export function validateStudioRelationships(g:StudioContentGraph):void{
  const lensKey=['idea_id','idea_version','mvp_scope_version','lens'];
  const target=(input:unknown)=>{const t=studioObject(input);if(t.kind==='idea_brief')version(t.objectId,t.revision);else if(t.kind==='lens_report'||t.kind==='pulse_report'){if(by(t.kind==='lens_report'?'lens_reports':'pulse_reports',t.objectId).revision!==t.revision)invalidStudio();}else invalidStudio();};
  for(const rows of Object.values(g))for(const r of rows)if('actor_id'in r)by('workspace_actors',r.actor_id);
+ for(const r of g.research_playbook_revisions!)by('workspace_actors',studioObject(JSON.parse(String(r.snapshot_json))).actorId);
  for(const d of g.directions!){const source=studioObject(JSON.parse(String(d.source_json)));if(source.kind!==d.source_kind)invalidStudio();if(source.kind==='pulse_opportunity'){const o=by('opportunities',source.opportunityId);if(o.report_id!==source.pulseReportId||o.converted_direction_id!==d.id)invalidStudio();}}
  for(const idea of g.ideas!)version(idea.id,idea.current_version);
  for(const card of g.idea_cards!){if(by('exploration_runs',card.exploration_run_id).direction_id!==card.direction_id)invalidStudio();if(card.status==='kept'&&by('ideas',card.kept_idea_id).direction_id!==card.direction_id)invalidStudio();}

@@ -15,7 +15,7 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 数据：`{home}/images/images.db` 与 `{home}/images/assets/`。任务按宿主项目隔离，配置属于本机。Web 和独立 MCP 进程共享原数据库、请求去重与并发上限；每个任务记录执行进程，关闭或崩溃只中断该进程负责的任务。跨进程取消会通知原执行者停止等待，打开或关闭管理页面不影响任务。当前基线 v2 含同步日志，旧库仅拒绝并保留，维护需要另行批准；禁止新旧执行器同时修改任务。
 
 个人空间的 `saved_images` 集合由本包声明和实现，只传已保存终态的提示词、生成资料、结果与实际图片。运行中记录暂不上传，接收不调用厂商，不继承连接、请求幂等键、input hash 或 runner。图片经过共同 R2 内容通道，长度、编码及 MIME 与实际格式一致后才加入 owner 事务；文件名由目标 owner 生成，不接受网络路径或覆盖唯一本机文件。同步连接不取得生成运行锁、不恢复执行进程，停用的项目仍由 Host 拒绝接收。
-生成动作 `images.jobs.start@2` 使用 Runtime 并发后台受理并要求 `model:invoke`；输入输出保持，旧固定版本须重新选择，MCP 当前工具为 `images.jobs.start__v2`。
+生成动作 `images.jobs.start@3` 使用 Runtime 并发后台受理并要求 `model:invoke`，后台状态查询指向 `images.jobs.get@2`。`images.jobs.list/get/cancel@2` 的终态结果允许 `connection_id` 为空，表示同步或复制后的历史没有本机生图绑定；列出历史、预览和下载不要求配置服务。运行中记录仍要求非空连接；新生成输入仍要求有效本机服务和当前授权。HTTP/页面从共同描述符取版本，MCP 使用对应新版本名，旧固定引用须重新选择，不提供别名；数据库和同步格式不变。
 
 插件声明统一动作：`images.connections.list/save/delete`、`images.jobs.list/start/get/cancel/delete` 和 `images.images.read`。HTTP 仅转发到同一动作服务；标准 MCP 导出相同合同。配置操作遵守 Home 权限，任务和图片遵守项目权限；模型参数不能改变调用者的项目。启动返回持久任务，`request_id` 对相同输入去重；图片读取返回实际 Base64 字节、MIME 和文件名。
 

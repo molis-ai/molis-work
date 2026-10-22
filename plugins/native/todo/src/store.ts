@@ -143,7 +143,7 @@ export class TodoStore {
 
   history(id: string, access: TodoAccess): TodoChange[] {
     this.get(id, access);
-    const rows = this.db.all("SELECT * FROM todo_changes WHERE item_id = ? ORDER BY at DESC, rowid DESC LIMIT 100", [id]) as unknown as ChangeRow[];
+    const rows = this.db.all("SELECT * FROM todo_changes WHERE item_id = ? ORDER BY revision_after DESC, at DESC, rowid DESC LIMIT 100", [id]) as unknown as ChangeRow[];
     return rows.map(changeFromRow);
   }
 
@@ -352,7 +352,7 @@ export class TodoStore {
    */
   revert(target: { change_id?: string; batch_id?: string }, access: TodoAccess): { items: TodoItem[]; removed_ids: string[] } {
     const rows = target.batch_id
-      ? this.db.all("SELECT * FROM todo_changes WHERE batch_id = ? ORDER BY rowid", [target.batch_id]) as unknown as ChangeRow[]
+      ? this.db.all("SELECT * FROM todo_changes WHERE batch_id = ? ORDER BY revision_after, rowid", [target.batch_id]) as unknown as ChangeRow[]
       : this.db.all("SELECT * FROM todo_changes WHERE change_id = ?", [target.change_id ?? ""]) as unknown as ChangeRow[];
     if (!rows.length) throw todoErrors.not_found("找不到要撤销的修改");
     const changes = rows.map(changeFromRow);

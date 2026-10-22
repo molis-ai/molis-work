@@ -1,5 +1,9 @@
 # 本地 Plugin 开发
 
+同步恢复后，正常只读动作须能返回没有本机执行绑定的已保存内容，不能补造连接或传递密钥来通过校验。Images 的 `images.jobs.list/get/cancel@2` 和 `images.jobs.start@3` 允许终态结果的 `connection_id` 为空，运行中结果与新生成输入仍要求非空连接；生成继续核对本机服务及当前授权。后台状态查询使用 get v2，旧固定版本引用须重新选择。恢复测试应通过公共动作读取记录与原件，不仅检查底层库。
+
+个人内容的来源设备不是撤销权限边界。Todo 接收时将历史修订与当前项一起映射到目标高水位，保留版本间隙，按修订而非设备时钟排列历史；用户可经正常动作撤销其他设备的最新修改，但后续编辑、重复撤销、旧页面版本及作用域越界仍拒绝。规则不改变库和传输格式，回归见 `tests/todo-replication.test.ts`。
+
 `SyncReplicaAdapter.hasProjectChanges(projectId)` 是 owner 对指定项目未结算内容的只读判断，覆盖待提交变化、冻结上传及保留冲突（包括等待依赖）；删除后的键仍须可判定归属，其他项目不能误计。缺少此端口或归属不可知必须报告不支持/不可用，不能返回 false 冒充已同步；它不确认上传，也不授权回收。SQLite owner 通过可信 `belongsToProject(key,projectId)` 投影现有日志键的业务归属，共同 Storage 不猜键、不跨 owner 查表，查询不受上传启用筛选影响。当前 Aggregate、Pages、Images、Workflows 及已有项目分区已兑现；分区映射由可信组合根显式提供，不从输入猜测，失效分区拒绝观察。Todo 已按当前/删除后归属及未确认保留内容判断；Work 已按 work.project 关系及未确认保留内容判断，交接目标不作为归属；Home 文档和未启用分区的完整被动读取尚待接线，项目云端生命周期仍未因此启用。
 
 SQLite 冲突确认由可信组合根把 SDK 的 `createSyncConflictState` 通过 contracts `SyncConflictState` 端口传入 owner Context；Storage 只使用这个端口，不增加工作区依赖，也不复制公共算法。缺少端口明确拒绝用户比较和带指纹确认，原内容与队列保留。

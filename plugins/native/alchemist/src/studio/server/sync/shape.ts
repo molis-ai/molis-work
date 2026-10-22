@@ -23,7 +23,8 @@ export function studioGraph(value:unknown):StudioContentGraph{
    return row as StudioContentRow;
   });
  }
- if(graph.workspaces!.length!==1||graph.workspaces![0]!.id!=='workspace-local'||!graph.workspace_actors!.some(a=>a.id==='actor-local'))invalidStudio();
+ // Authors are historical identities, not account authority; relationships validates every actor reference.
+ if(graph.workspaces!.length!==1||graph.workspaces![0]!.id!=='workspace-local'||graph.workspace_actors!.length===0)invalidStudio();
  for(const name of ['jobs','exploration_runs','lens_runs','pulse_runs'])for(const row of graph[name]!)if(!['completed','partial','failed','cancelled','interrupted'].includes(String(row.status)))invalidStudio();
  return graph;
 }

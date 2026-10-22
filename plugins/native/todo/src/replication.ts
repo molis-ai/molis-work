@@ -82,7 +82,7 @@ export function createTodoReplica(db: DatabaseSync, context: AggregateReplicaCon
       const id = decode(key);
       const item = db.prepare("SELECT * FROM todo_items WHERE id=?").get(id) as Row | undefined;
       if (!item) return null;
-      const changes = db.prepare("SELECT * FROM todo_changes WHERE item_id=? ORDER BY at,change_id").all(id) as Row[];
+      const changes = db.prepare("SELECT * FROM todo_changes WHERE item_id=? ORDER BY revision_after,at,change_id").all(id) as Row[];
       const requests = db.prepare("SELECT * FROM todo_requests WHERE item_id=? ORDER BY request_id").all(id) as Row[];
       const project = item.project_id ? { id: item.project_id, title: context.project(String(item.project_id)).title } : null;
       const value = { format: 1, spaceId: context.spaceId, project, item, changes, requests };
@@ -104,13 +104,17 @@ export function createTodoReplica(db: DatabaseSync, context: AggregateReplicaCon
       if (wire.project) context.project(wire.project.id);
       const old = db.prepare("SELECT revision FROM todo_items WHERE id=?").get(id) as { revision: number } | undefined;
       const high = db.prepare("SELECT revision FROM todo_editor_versions WHERE id=?").get(id) as { revision: number } | undefined;
-      wire.item.revision = Math.max(Number(wire.item.revision), old?.revision ?? 0, high?.revision ?? 0) + 1;
+      const sourceRevision = Number(wire.item.revision);
+      const revision = Math.max(sourceRevision, old?.revision ?? 0, high?.revision ?? 0) + 1;
+      if (!Number.isSafeInteger(revision)) invalid("待办编辑版本超出安全范围");
+      // Rebase history with the item: preserve undo eligibility and gaps, while invalidating stale editors.
+      const offset = revision - sourceRevision;
       db.prepare("DELETE FROM todo_imported_changes WHERE change_id IN (SELECT change_id FROM todo_changes WHERE item_id=?)").run(id);
       db.prepare("DELETE FROM todo_changes WHERE item_id=?").run(id);
       db.prepare("DELETE FROM todo_requests WHERE item_id=?").run(id);
-      upsert(db, "todo_items", itemColumns, "id", wire.item);
+      upsert(db, "todo_items", itemColumns, "id", { ...wire.item, revision });
       for (const change of wire.changes) {
-        insert(db, "todo_changes", changeColumns, change);
+        insert(db, "todo_changes", changeColumns, { ...change, revision_after: Number(change.revision_after) + offset });
         db.prepare("INSERT OR IGNORE INTO todo_imported_changes(change_id) VALUES (?)").run(change.change_id as string);
       }
       for (const request of wire.requests) insert(db, "todo_requests", requestColumns, request);

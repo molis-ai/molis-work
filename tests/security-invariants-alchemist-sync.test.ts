@@ -8,15 +8,21 @@ import {openAlchemistSyncStore,createAlchemistStudioRuntime,alchemistActions as 
 import {ensureStorageSpace,personalStorageSpace,describeSqliteSchema} from '@molis-ai/molis-work-storage';
 import {personalStudio,savedStudio} from './fixtures/alchemist-sync.js';
 
-test('S-78 PCSYNC-01/11/22/23 Studio retains reports, evidence, methods and decisions without restoring execution or credentials',async t=>{
+test('S-78 PCSYNC-ALC-ACTOR-01 Studio retains real authors, reports, evidence, methods and decisions without restoring execution or credentials',async t=>{
  const root=mkdtempSync(join(tmpdir(),'studio-sync-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
  const left=personalStudio(join(root,'a')),saved=await savedStudio(left);t.after(()=>left.runtime.close());
+ const {annotation}=await left.runtime.actionsFor('assistant:reviewer').invoke(a.annotationCreate,{target:{kind:'lens_report',objectId:saved.report.id,revision:saved.report.revision,blockId:'summary'},quotedSnapshot:saved.report.summary,comment:'Independent review'});
+ const actors=left.runtime.database.prepare('SELECT * FROM workspace_actors ORDER BY id').all();
+ assert.deepEqual(actors.map(row=>row.id),['alice','assistant:reviewer'],'trusted callers do not create a placeholder actor');
  const home=join(root,'b');ensureStorageSpace(home,left.space);
  const source=openAlchemistSyncStore(join(root,'a'),'project'),target=openAlchemistSyncStore(home,'project');t.after(()=>{source.close();target.close();});
  const context={spaceId:left.space.spaceId,projectId:'project',title:'Research',authorize(){}};
  const x=source.replica(context),y=target.replica(context),first=x.next()!;assert.ok(first);assert.doesNotMatch(JSON.stringify(first.value),/input_json|checkpoint_json|lease_owner|runtime_settings|source_settings|ui_context/);
  y.receive({...first,revision:1});assert.deepEqual(y.conflicts(),[]);x.acknowledge(first.key,first.operationId,1);assert.equal(y.next(),null);
  const right=personalStudio(home);t.after(()=>right.runtime.close());
+ assert.deepEqual(right.runtime.database.prepare('SELECT * FROM workspace_actors ORDER BY id').all(),actors);
+ assert.equal(right.runtime.database.prepare('SELECT actor_id FROM annotations WHERE id=?').get(annotation.id).actor_id,'assistant:reviewer');
+ assert.equal(right.runtime.database.prepare('SELECT actor_id FROM decisions LIMIT 1').get().actor_id,'alice');
  assert.equal((await right.call(a.researchGet,{id:saved.idea.id,version:1})).lenses.market_space.report!.summary,saved.report.summary);
  assert.equal((await right.call(a.memoryGet,{})).playbook[0]!.version,2);assert.equal((await right.call(a.decisionsList,{})).log.length,1);
  assert.equal((await right.call(a.pulseReports,{})).reports.length,1);assert.equal((await right.call(a.conversationList,{})).messages.length,2);
@@ -35,13 +41,19 @@ test('S-78 PCSYNC-01/11/22/23 Studio retains reports, evidence, methods and deci
  const schema=new DatabaseSync(':memory:');try{schema.exec(readFileSync(new URL('./fixtures/home-store-schemas/alchemist-studio-v2.sql',import.meta.url),'utf8'));assert.deepEqual(describeSqliteSchema(right.runtime.database),describeSqliteSchema(schema));}finally{schema.close();}
 });
 
-test('S-78 PCSYNC-14 Studio refuses injected scope, task execution and broken references atomically',async t=>{
+test('S-78 PCSYNC-ALC-ACTOR-02 Studio refuses invalid authors, injected scope, task execution and broken references atomically',async t=>{
  const root=mkdtempSync(join(tmpdir(),'studio-sync-invalid-'));t.after(()=>rmSync(root,{recursive:true,force:true}));const f=personalStudio(join(root,'source'));t.after(()=>f.runtime.close());await savedStudio(f);
  const home=join(root,'target');ensureStorageSpace(home,f.space);const source=openAlchemistSyncStore(join(root,'source'),'project'),target=openAlchemistSyncStore(home,'project');t.after(()=>{source.close();target.close();});
  const context={spaceId:f.space.spaceId,projectId:'project',title:'Research',authorize(){}};const x=source.replica(context),y=target.replica(context),m=x.next()!;
- type Wire={spaceId:string;graph:Record<string,Record<string,string|number|null>[]>};
- const changes=[(w:Wire)=>{w.spaceId='foreign';},(w:Wire)=>{w.graph.jobs![0]!.status='queued';},(w:Wire)=>{w.graph.jobs![0]!.input_json='{"execute":"no"}';},(w:Wire)=>{w.graph.lens_runs![0]!.idea_version=999;},(w:Wire)=>{w.graph.claim_evidence![0]!.evidence_id='missing';},(w:Wire)=>{w.graph.research_playbook_rules![0]!.positive_examples_json='null';}];
- let revision=0;for(const corrupt of changes){const value=structuredClone(m.value) as Wire;corrupt(value);y.receive({...m,value,operationId:'invalid:'+revision,revision:++revision});assert.equal(y.conflicts().length,1);assert.throws(()=>y.resolve(m.key,'remote',revision));assert.equal(y.counts().pending,0);}
+ const targetDb=new DatabaseSync(join(home,'alchemist/projects/project/studio.sqlite'),{readOnly:true});t.after(()=>targetDb.close());
+ type Wire={spaceId:string;project:{id:string};graph:Record<string,Record<string,string|number|null>[]>};
+ const changes=[(w:Wire)=>{w.spaceId='foreign';},(w:Wire)=>{w.project.id='foreign-project';},(w:Wire)=>{w.graph.jobs![0]!.status='queued';},(w:Wire)=>{w.graph.jobs![0]!.input_json='{"execute":"no"}';},(w:Wire)=>{w.graph.lens_runs![0]!.idea_version=999;},(w:Wire)=>{w.graph.claim_evidence![0]!.evidence_id='missing';},(w:Wire)=>{w.graph.research_playbook_rules![0]!.positive_examples_json='null';},
+  (w:Wire)=>{w.graph.workspace_actors=[];},(w:Wire)=>{w.graph.workspace_actors![0]!.workspace_id='foreign-workspace';},
+  (w:Wire)=>{w.graph.workspace_actors![0]!.id='';},(w:Wire)=>{w.graph.workspace_actors![0]!.kind='administrator';},
+  (w:Wire)=>{w.graph.workspace_actors!.push({...w.graph.workspace_actors![0]!});},(w:Wire)=>{w.graph.annotations![0]!.actor_id='missing-author';},
+  (w:Wire)=>{const row=w.graph.research_playbook_revisions![0]!,snapshot=JSON.parse(String(row.snapshot_json));snapshot.actorId='missing-author';row.snapshot_json=JSON.stringify(snapshot);},
+ ];
+ let revision=0;for(const corrupt of changes){const value=structuredClone(m.value) as Wire;corrupt(value);y.receive({...m,value,operationId:'invalid:'+revision,revision:++revision});assert.equal(y.conflicts().length,1);assert.throws(()=>y.resolve(m.key,'remote',revision));assert.equal(y.counts().pending,0);assert.equal(targetDb.prepare('SELECT (SELECT COUNT(*) FROM workspaces)+(SELECT COUNT(*) FROM workspace_actors) AS n').get().n,0,'invalid graphs must roll back workspace and author rows too');}
  y.receive({...m,revision:++revision});y.resolve(m.key,'remote',revision);assert.deepEqual(y.conflicts(),[]);assert.equal(y.next(),null);
  let revoked=true;const fenced=target.replica({...context,authorize(){if(revoked)throw Error('Withdrawn');}});assert.throws(()=>fenced.receive({...m,revision:++revision}),/Withdrawn/);revoked=false;assert.equal(fenced.cursor(),revision-1);
 });

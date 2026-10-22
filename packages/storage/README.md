@@ -17,7 +17,7 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 
 `describeSqliteBaseline` 用内存 SQLite 描述当前基线的完整 DDL，连接在返回前关闭，不碰 Home 库。Host 用它与 `describeSqliteSchema` 的实测结果比较，确认完整结构后才构造可能创建表的 Repository；SQLite 连接技术留在 storage。
 
-`inspectCatalogFile` 只返回目录库已有 owner/version，不建库、改日志模式、修复或 checkpoint。没有 WAL/SHM 的已关闭文件用 Node SQLite 单连接只读 immutable 观察，前后核对文件与日志状态；已有完整活动 WAL 则按普通只读事务读取，不能忽略尚未 checkpoint 的已提交版本。部分日志、回滚日志或观察期间文件变化直接拒绝重试。它只用于前置拒绝，正常写连接仍须复查自身 owner/version；不把 mutable 文件的 immutable 观察当最终写入授权。旧 WAL 主文件的拒绝不留下新侧文件，相关验证在 `tests/security-invariants-project-metadata-sync.test.ts`。
+`inspectCatalogFile` 只返回目录库已有 owner/version，不建库、改日志模式、修复或 checkpoint。没有 WAL/SHM 的已关闭文件用 Node SQLite 单连接只读 immutable 观察，前后核对文件与日志状态；已有完整活动 WAL 则使用与目录 owner 相同的 better-sqlite3 驱动按普通只读事务读取，不能忽略尚未 checkpoint 的已提交版本。同进程不能用另一套 SQLite 实例探测活动库，否则关闭探测连接会干扰常驻连接的 POSIX 锁，让其他进程误清理 WAL/SHM 或取得仍被占用的写锁。部分日志、回滚日志或观察期间文件变化直接拒绝重试。它只用于前置拒绝，正常写连接仍须复查自身 owner/version；不把 mutable 文件的 immutable 观察当最终写入授权。旧 WAL 主文件的拒绝不留下新侧文件，相关验证在 `tests/security-invariants-project-metadata-sync.test.ts`（含 PCSYNC-MCP-RECONNECT-01/02 跨进程锁回归）；标准 MCP 异常退出重连见 `tests/images-concurrency.test.ts`。
 
 `eventCursor(projectId, objectType?)` 可以只读取某类对象的 journal 游标。Host 用它发现同项目其他连接已提交的变化；调用方负责避开本连接尚未提交的事务。它不提供业务订阅身份、确认或副作用重放，这些仍由各 owner 管理。
 

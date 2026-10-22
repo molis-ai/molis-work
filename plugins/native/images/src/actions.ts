@@ -11,12 +11,14 @@ const connectionFields={id,name:text,api_format:format,base_url:text,model:text,
 const connection=object({...connectionFields,auth_connection_id:id,available:{type:"boolean"},unavailable_reason:text},Object.keys(connectionFields));
 const auth=object({connection_id:id,service_id:text,display_name:text,account_label:{type:["string","null"]},auth_method:text,source:text,enabled:{type:"boolean"},state:text,target_origin:text},["connection_id","service_id","display_name","account_label","auth_method","source","enabled","state"]);
 const image=object({id,mime_type:mime,byte_length:{type:"integer",minimum:0},filename:text});
-const job=object({id,project_id:id,request_id:id,connection_id:id,connection_name:text,api_format:format,model:text,prompt:text,size:text,aspect_ratio:text,
-  status:{enum:["running","succeeded","failed","cancelled","interrupted"]},images:array(image),error:text,created_at:text,finished_at:{type:["string","null"]}});
+// A restored terminal record has no local service binding; active execution still requires one.
+const job={...object({id,project_id:id,request_id:id,connection_id:{anyOf:[id,{const:""}]},connection_name:text,api_format:format,model:text,prompt:text,size:text,aspect_ratio:text,
+  status:{enum:["running","succeeded","failed","cancelled","interrupted"]},images:array(image),error:text,created_at:text,finished_at:{type:["string","null"]}}),
+  if:{properties:{status:{const:"running"}}},then:{properties:{connection_id:id}}};
 const changed=object({job});
 function define<I,O>(name:string,title:string,description:string,operation:"query"|"command",scope:"home"|"project",input:ActionSchema,output:ActionSchema,permissions:readonly string[],execution?:ActionDefinition["action"]["execution"]):ActionDefinition<I,O>{
-  return {capability_id:`images.${name}`,version:name === "jobs.start" ? 2 : 1,operation,action:{title,description,...(execution?{execution}:{}),...(name === "jobs.start" ? {scheduling:"concurrent" as const,background_job:{
-    status:{capability_id:"images.jobs.get",version:1},id:"job.id",input:"id",state:"job.status",done:["succeeded","cancelled"],failed:["failed","interrupted"]}}:{}),kind:operation==="query"?"query":"operation",scope,audiences:["user","workflow","agent","mcp"],subject_kinds:["image"],input_schema:input,output_schema:output,permissions}};
+  return {capability_id:`images.${name}`,version:name === "jobs.start" ? 3 : ["jobs.list","jobs.get","jobs.cancel"].includes(name) ? 2 : 1,operation,action:{title,description,...(execution?{execution}:{}),...(name === "jobs.start" ? {scheduling:"concurrent" as const,background_job:{
+    status:{capability_id:"images.jobs.get",version:2},id:"job.id",input:"id",state:"job.status",done:["succeeded","cancelled"],failed:["failed","interrupted"]}}:{}),kind:operation==="query"?"query":"operation",scope,audiences:["user","workflow","agent","mcp"],subject_kinds:["image"],input_schema:input,output_schema:output,permissions}};
 }
 export const imagesActions={
   connectionUsages:defineConnectorUsagesAction("images.connection.usages","生图配置使用的连接",["images:connections:read"],"home"),

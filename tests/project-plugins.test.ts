@@ -143,8 +143,11 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
   const restoredPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
   assert.match(restoredPage, /data-plugin-id="pages"/);
   // RAC-73: Characters is no plugin since CHR-1: Settings › 角色 is the Host's own section, which no project hides.
-  assert.equal((await change("DELETE", project.project_id, "characters")).status, 400);
-  assert.match(hiddenPage, /data-settings-section="characters"/);
+  const characters = await change("DELETE", project.project_id, "characters");
+  assert.equal(characters.status, 400);
+  assert.equal((await characters.json()).code, "catalog.plugin_not_found");
+  assert.deepEqual(catalog.listHiddenPlugins(project.project_id), [], "the refusal hides nothing");
+  assert.match(await (await fetch(`${origin}/projects/${project.project_id}/`)).text(), /data-settings-section="characters"/, "the section is still there after the refusal");
   assert.deepEqual(catalog.listProjectPlugins(other.project_id), ["goals"]);
   assert.deepEqual(catalog.listHiddenPlugins(other.project_id), []);
   const db = new Database(join(homeDirectory, "projects/catalog.db"), { readonly: true });
@@ -152,5 +155,6 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_removed' AND payload_json LIKE '%pages%'").get(project.project_id).n, 1);
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_added' AND payload_json LIKE '%pages%'").get(project.project_id).n, 1);
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND payload_json LIKE '%shelf%'").get(project.project_id).n, 0);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND payload_json LIKE '%characters%'").get(project.project_id).n, 0);
   } finally { db.close(); }
 });

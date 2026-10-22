@@ -132,24 +132,29 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
   const removedInbox = await change("DELETE", project.project_id, "inbox");
   assert.deepEqual((await removedInbox.json()).plugins, ["goals"]);
   assert.equal((await change("DELETE", project.project_id, "inbox")).status, 200);
-  const hidden = await change("DELETE", project.project_id, "characters");
+  const hidden = await change("DELETE", project.project_id, "pages");
   assert.equal(hidden.status, 200);
-  assert.deepEqual(await hidden.json(), { project_id: project.project_id, plugins: ["goals"], hidden: ["characters"] });
-  assert.equal((await change("DELETE", project.project_id, "characters")).status, 200);
-  // Characters' page is Settings › 角色 (specs/archive/page-interaction-flow): hiding it removes that settings category.
+  assert.deepEqual(await hidden.json(), { project_id: project.project_id, plugins: ["goals"], hidden: ["pages"] });
+  assert.equal((await change("DELETE", project.project_id, "pages")).status, 200);
   const hiddenPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
-  assert.doesNotMatch(hiddenPage, /data-settings-section="characters"/);
-  assert.doesNotMatch(hiddenPage, /data-plugin-id="characters"/);
-  const restored = await change("POST", project.project_id, "characters");
+  assert.doesNotMatch(hiddenPage, /data-plugin-id="pages"/);
+  const restored = await change("POST", project.project_id, "pages");
   assert.deepEqual(await restored.json(), { project_id: project.project_id, plugins: ["goals"], hidden: [] });
   const restoredPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
-  assert.match(restoredPage, /data-settings-section="characters"/);
+  assert.match(restoredPage, /data-plugin-id="pages"/);
+  // RAC-73: Characters is no plugin since CHR-1: Settings › 角色 is the Host's own section, which no project hides.
+  const characters = await change("DELETE", project.project_id, "characters");
+  assert.equal(characters.status, 400);
+  assert.equal((await characters.json()).code, "catalog.plugin_not_found");
+  assert.deepEqual(catalog.listHiddenPlugins(project.project_id), [], "the refusal hides nothing");
+  assert.match(await (await fetch(`${origin}/projects/${project.project_id}/`)).text(), /data-settings-section="characters"/, "the section is still there after the refusal");
   assert.deepEqual(catalog.listProjectPlugins(other.project_id), ["goals"]);
   assert.deepEqual(catalog.listHiddenPlugins(other.project_id), []);
   const db = new Database(join(homeDirectory, "projects/catalog.db"), { readonly: true });
   try {
-    assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_removed' AND payload_json LIKE '%characters%'").get(project.project_id).n, 1);
-    assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_added' AND payload_json LIKE '%characters%'").get(project.project_id).n, 1);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_removed' AND payload_json LIKE '%pages%'").get(project.project_id).n, 1);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_added' AND payload_json LIKE '%pages%'").get(project.project_id).n, 1);
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND payload_json LIKE '%shelf%'").get(project.project_id).n, 0);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND payload_json LIKE '%characters%'").get(project.project_id).n, 0);
   } finally { db.close(); }
 });

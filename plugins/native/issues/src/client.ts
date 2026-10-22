@@ -65,7 +65,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   };
   const full = iso => new Date(iso).toLocaleString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   const excerpt = item => item.text.trim().split('\n')[0].slice(0, 90) || L('截图') + ' ×' + item.images.length;
-  const row = (id, title, meta, state = '') => '<li><button type="button" class="issues-row' + (id === fresh ? ' is-new' : '') + '" data-issue-id="' + esc(id) + '"'
+  const row = (id, title, meta, state = '') => '<li><button type="button" class="issues-row"' + (id === fresh ? ' data-craft-new' : '') + ' data-issue-id="' + esc(id) + '"'
     + (state ? ' data-state="' + state + '"' : '') + '>' + (state ? '<span data-mw-state="' + (state === 'organizing' ? 'running' : 'answer') + '" aria-hidden="true"></span>' : '')
     + '<span><b>' + esc(title) + '</b><small>' + esc(meta) + '</small></span></button></li>';
   let reported = '';

@@ -196,6 +196,9 @@ test("a surface rises once; menus and dialogs each have one entrance and one exi
     assert.doesNotMatch(css, /var\(--motion-normal, ?130ms\)/, `${name}: the state clock's fallback is its own 250ms`);
   }
   assert.match(workbench, /details:not\(\[open\]\) > :is\([^)]*\.mw-menu[^)]*\)[^{]*\{ opacity: 0; transform: translateY\(-4px\) scale\(\.97\); pointer-events: none; \}/);
+  // Only closing holds the content on screen: a hold on opening kept the opening menu undrawn and unclickable for 130ms.
+  assert.match(workbench, /details:not\(\[open\]\):has\(> :is\([^)]*\.mw-menu[^)]*\)\)::details-content \{ transition: content-visibility var\(--dur-hover\) allow-discrete; \}/);
+  assert.doesNotMatch(workbench, /(^|[\s,}])details:has\(> :is\([^)]*\.mw-menu[^)]*\)\)::details-content \{ transition/);
   // Dialogs: in over 250ms from 8px below at .98, out the same way over 130ms; one recipe, nothing restates it.
   assert.match(workbench, /:where\(dialog\) \{ transition: opacity var\(--dur-hover\)[^}]*transform: translateY\(8px\) scale\(\.98\); \}/);
   assert.match(workbench, /:where\(dialog\[open\]\) \{ opacity: 1; transform: none; transition-duration: var\(--dur-move\); \}/);
@@ -205,6 +208,6 @@ test("a surface rises once; menus and dialogs each have one entrance and one exi
 test("a generated plugin's success note stays readable for its whole life before it fades", () => {
   // The note lives 3.4 s (plugin-component-client): it rises in, holds, and the timer fades it out over the state clock.
   // It used to run a 640ms keyframe that ended invisible after about half a second, leaving a blank note for 3 seconds.
-  assert.match(PLUGIN_COMPONENT_STYLES, /\.pc-success\{margin-top:12px;animation:pc-rise var\(--dur-move\) var\(--ease-quint\);transition:opacity var\(--dur-move\) var\(--ease-quint\)\}\.pc-success\.is-leaving\{opacity:0\}/);
+  assert.match(PLUGIN_COMPONENT_STYLES, /\.pc-success\{margin-top:12px;animation:craft-rise var\(--dur-move\) var\(--ease-quint\);transition:opacity var\(--dur-move\) var\(--ease-quint\)\}\.pc-success\.is-leaving\{opacity:0\}/);
   assert.doesNotMatch(PLUGIN_COMPONENT_STYLES, /pc-toast/);
 });

@@ -25,7 +25,7 @@ export const JELLY_STYLES = `
   [data-jelly="workbench"] .jelly-content { min-height:260px; width:100%; max-width:none; margin:0; }
   .jelly-month { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); border-left:1px solid var(--line); border-top:1px solid var(--line); border-radius:8px; overflow:hidden; }
   .jelly-week-label { text-align:center; color:var(--muted); font-size:11px; padding:8px; border-bottom:1px solid var(--line); border-right:1px solid var(--line); background:var(--surface-soft); }
-  .jelly-day { min-height:116px; padding:8px 4px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); min-width:0; transition:background var(--motion-fast) var(--ease-quint); }
+  .jelly-day { min-height:116px; padding:8px 4px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); min-width:0; transition:background var(--dur-hover) var(--ease-quint); }
   .jelly-day.is-outside { background:var(--surface-soft); }.jelly-day.is-outside .jelly-day-number { color:var(--faint); }
   .jelly-day.is-drop { background:var(--accent-soft); box-shadow:inset 0 0 0 1px var(--focus-stroke); }
   .jelly-day-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }

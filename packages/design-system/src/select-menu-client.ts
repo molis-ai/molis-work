@@ -34,7 +34,7 @@ export const SELECT_MENU_STYLES = `
   .mw-select-picker__menu.is-open { display: flex; flex-direction: column; }
   .mw-select-picker__menu:popover-open,
   .mw-select-picker__menu.is-open {
-    animation: creative-arrive var(--dur-hover, 130ms) var(--ease-quint) both;
+    animation: craft-drop var(--dur-move, 250ms) var(--ease-quint) both;
   }
   @media (prefers-reduced-motion: reduce) {
     .mw-select-picker__menu:popover-open, .mw-select-picker__menu.is-open { animation: none; }

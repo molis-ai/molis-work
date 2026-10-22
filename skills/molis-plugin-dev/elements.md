@@ -48,11 +48,11 @@ Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略
 
 ## 个人 vs 项目
 
-插件 `registration`（各包 `src/registration.ts`）的 `personal: true`：每个项目都可用，不进项目启用列表。今天（`BUILTIN_PLUGIN_CATALOG`，由各包的 `registration` 生成）：Cognia、插件创作台、Images、Jelly、Shelf、灵光、Todo、Characters、Pages、Forms、Dataset、PPT、Alchemist、Workflows、Issues。
+插件 `registration`（各包 `src/registration.ts`）的 `personal: true`：每个项目都可用，不进项目启用列表。今天（`BUILTIN_PLUGIN_CATALOG`，由各包的 `registration` 生成）：Cognia、插件创作台、Images、Jelly、Shelf、灵光、Todo、Pages、Forms、Dataset、PPT、Alchemist、Workflows、Issues。
 
 其余按项目启用。必选输入口会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。Feed 启用会带上 Inbox（Feed `registration` 上的 `companions`）。
 
-市场卡片要同时有 catalog 的 `summary` 和一个 `navigator` 或 `island` 视图；没有这两种视图、页面只放在设置里的插件（Characters）不进内建市场。
+市场卡片要同时有 catalog 的 `summary` 和一个 `navigator` 或 `island` 视图；没有这两种视图、页面只放在设置里的插件不进内建市场（Characters 是宿主的一节设置，不是插件，不在市场里）。
 
 ## UI
 
@@ -126,9 +126,9 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 总线规则：
 
-- `events.publishes` / `subscribes`。订阅必须列出 `from_plugin_ids`。来源没装只是不匹配，不算激活失败。
+- `events.publishes` / `subscribes`。订阅必须列出 `from_plugin_ids`。来源没装只是不匹配，不算激活失败。宿主事件（`host.review.settled@1`）例外：不写来源，只投给发起审查的那个安装，不落库，写法见 `host.md`。
 - 正文上限 16 KiB。更大的走 Artifact 引用。
-- 禁止 `molis.` / `host.` 命名空间。
+- 禁止发布 `molis.` / `host.` 命名空间的事件；订阅只能订宿主登记过的那几种。
 - **事件 id 放合同**，不放发布者插件包。Coding 的 `file-changed` 在 `workspace-artifacts` 合同里，Files 只点名 id，不 import Coding 实现。
 - `PluginDefinition.event_types` 的 `validate` 必须覆盖自己 publishes 的每一种；Host 只存校验通过的。
 - 发布：`context.services.events.publish({ event_type_id, type_version, payload })`。没声明 publishes 就没有 `services.events`。
@@ -137,7 +137,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 - 处理前持久记录 delivering，确认前重查实例、版本和订阅。处理器已开始但崩溃或被撤销，结果未知则隔离，不能自动重试；启动失败且没有派出处理器时可以恢复。普通处理器异常记录后不自动重投，不能声称任意副作用 exactly-once。Host 关闭先 `await events.close()` 再关闭数据库。
 - 隔离事件由人从项目「插件 → 待核对的插件通知」核对，填写依据后明确 retry/skip。插件不能给自己恢复，普通启用不能补权。所见 revision、首条事件、安装世代与版本必须保持一致，决定及历史同事务保存；不替换原安装，不跳过后续事件。重试存在重复副作用的可能，必须在确认中说明。
 
-**总线只在 Plugin Runtime（`createPluginPlatform`）启动的插件里跑**：监督器里的 Coding 族、Characters、Shelf，以及已安装插件。Feed / Inbox / Pages 这类构建期 Native 没有；给它们抄 Coding 的 `events:` 块，运行时不会投递。
+**总线只在 Plugin Runtime（`createPluginPlatform`）启动的插件里跑**：监督器里的 Coding 族、Shelf，以及已安装插件。Feed / Inbox / Pages 这类构建期 Native 没有；给它们抄 Coding 的 `events:` 块，运行时不会投递。
 
 对照：Files 订阅 Coding/Git 的文件变更；Coding 发布 file-changed / workspace-invalidated。
 

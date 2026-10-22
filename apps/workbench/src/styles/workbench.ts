@@ -401,7 +401,6 @@ ${GOALS_EVENT_DOCUMENT_STYLES}
   .event-ledger-pagination button:disabled { cursor: wait; opacity: .58; }
   .event-ledger-pagination [role="alert"] { flex-basis: 100%; margin: 0; color: var(--red); font-size: 11px; }
   .event-ledger-pagination:has([role="alert"]:not([hidden])) { flex-wrap: wrap; }
-  @keyframes document-in { from { opacity: .5; transform: translateY(5px); } }
   @keyframes pulse { 50% { opacity: .35; } }
 `;
 

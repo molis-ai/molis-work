@@ -1,5 +1,6 @@
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { ActionError, type ActionCallContext, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 
@@ -50,3 +51,18 @@ export function fakeGoalDirectory(actions: ReturnType<typeof pluginActions>, tit
   return actions;
 }
 const directories = new WeakSet<object>();
+
+/**
+ * The parallel writers' Host side as its four plugin-only actions answer it (PG-035), for a Coding test without the Host's Git
+ * reviews (the real ones are tested in tests/security-invariants-review-kinds.test.ts and tests/writer-integration-host.test.ts).
+ * `answer` gives what an action returns for its input, which must fit the action's output schema; `seen` records every call.
+ */
+export function fakeWriterActions(actions: ReturnType<typeof pluginActions>, answer: (definition: ActionDefinition, input: unknown) => unknown, seen?: Array<[string, unknown]>) {
+  if (writers.has(actions.registry)) return actions;
+  writers.add(actions.registry);
+  const definitions: ActionDefinition[] = [...Object.values(writerDirectoryCapabilities), ...Object.values(writerIntegrationCapabilities)];
+  actions.registry.registerProvider({ provider: { provider_id: "writers-fixture", title: "并行写入", kind: "system" }, definitions,
+    handlers: definitions.map(definition => ({ ...definition, handle: (_caller: ActionCallContext, input: unknown) => { seen?.push([definition.capability_id, input]); return answer(definition, input); } })) });
+  return actions;
+}
+const writers = new WeakSet<object>();

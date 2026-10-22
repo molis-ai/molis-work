@@ -137,7 +137,7 @@ Home 级字体/皮肤选择、入口侧语言偏好，以及首期不提供项�
 **英文界面里仍是中文的，按主人分：**
 
 1. 插件声明的文字（FSS-36 的范围，要改合同：声明引用主人语言文件里的键）：动作目录的标题与说明（设置 › 助理的能力列表、能力库、对外授权）；内置 Character 与提示词段的名称与说明（设置 › 角色、提示词）；规划方法库的卡片（名称、说明、标签）；连接器目录 `plugins/official-integrations/catalog` 的标题、简介、凭据字段与权限说明。这些字也交给模型与 MCP，界面本地化不改原始声明（§6 末段）。
-2. 平台与插件自己写、但没接翻译的界面：Agent 操作审批卡（`apps/workbench/src/agent-review-surface.ts` 与 `apps/workbench/src/scripts/client/agent-review.ts`，整块没有 `L`）；Characters 插件的页面、导入对话框和脚本（`plugins/native/characters/src/` 的 `ui.ts`、`import-ui.ts`、`client.ts`、`import-client.ts`、`action-client.ts`，约 230 句）与原生终端的提示（`apps/workbench/src/character-terminal-client.ts`）；提示词设置里的「组成角色：…」。
+2. 平台与插件自己写、但没接翻译的界面：Agent 操作审批卡（`apps/workbench/src/agent-review-surface.ts` 与 `apps/workbench/src/scripts/client/agent-review.ts`，整块没有 `L`）；Characters 的页面、导入对话框和脚本（CHR-1 后归工作台：`apps/workbench/src/characters/` 的 `ui.ts`、`import-ui.ts` 与 `apps/workbench/src/browser/characters/` 的脚本，约 230 句）与原生终端的提示（`apps/workbench/src/character-terminal-client.ts`）；提示词设置里的「组成角色：…」。
 3. 按中文词序拼句、夹全角标点：`L("关闭") + "：" + 标题` 一类拼接在英文里成了「Close：…」，约 70 处（`assistant-island.ts` 22、`settings-memory.ts` 10、`todo/src/client.ts` 8、`settings-assistant.ts` 6 最多）。应整句一个键带参数（FSS-39「不按中文词序拼接」）；连接器卡片的可访问名称已改作样例（`{name}，{action}` → “{name}, {action}”）。
 
 4. 同一个中文键在不同主人那里意思不同，合并进一本英文词典后后写的覆盖先写的：Pages 的 `en.ts` 把「复制」译成「Duplicate」（复制一份页面），合并后助理代码块与整条回复的复制按钮在英文里也读作「Duplicate」（视觉细节目标第六十片在组件板上看到，未改）。翻译冲突的门禁按中文键计数、只许减少（现 192 条），但不会拦住这种已有键的覆盖；要按主人分键（语言包的稳定键），或让 Pages 用自己的中文键，属措辞决定。

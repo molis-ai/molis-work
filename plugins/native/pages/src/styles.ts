@@ -96,8 +96,8 @@ export const PAGES_STYLES = `
     border-radius: 6px;
   }
   .pages-editor-host .ProseMirror > * {
-    transition: background var(--motion-fast, 130ms) var(--ease-quint),
-      box-shadow var(--motion-fast, 130ms) var(--ease-quint);
+    transition: background var(--dur-hover, 130ms) var(--ease-quint),
+      box-shadow var(--dur-hover, 130ms) var(--ease-quint);
   }
   .pages-editor-host .ProseMirror .is-block-hover {
     background: var(--content-hover, color-mix(in srgb, var(--ink) 5.5%, var(--paper)));
@@ -277,11 +277,7 @@ export const PAGES_STYLES = `
   .pages-block-ghost[hidden],
   .pages-create-menu[hidden] { display: none; }
   .pages-slash:not([hidden]), .pages-pop:not([hidden]), .pages-more-menu:not([hidden]), .pages-block-menu:not([hidden]), .pages-create-menu:not([hidden]) {
-    animation: pages-rise var(--motion-fast, 130ms) var(--ease-quint);
-  }
-  @keyframes pages-rise {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: none; }
+    animation: craft-drop var(--dur-move) var(--ease-quint);
   }
   .pages-note {
     position: absolute; left: 50%; bottom: 22px; z-index: 8;
@@ -361,7 +357,7 @@ export const PAGES_STYLES = `
     display: inline-flex; align-items: center; flex: none; height: 28px; max-width: 28px;
     margin-right: 4px; padding: 0; overflow: hidden; border: 0; border-radius: 6px;
     background: transparent; color: var(--muted); cursor: pointer;
-    transition: background-color var(--motion-fast, 130ms) var(--ease-quint), color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint), color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .creative-artifact-act svg { width: 14px; height: 14px; flex: none; margin: 0 8px; }
   .creative-artifact-act span { overflow: hidden; white-space: nowrap; font-size: 12px; line-height: 28px; padding-right: 8px; }
@@ -378,9 +374,9 @@ export const PAGES_STYLES = `
   .pages-row-act {
     flex: none; width: 24px; height: 24px; margin: 0; padding: 0;
     border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
-    opacity: 0; transition: opacity var(--motion-fast, 130ms) var(--ease-quint),
-      color var(--motion-fast, 130ms) var(--ease-quint),
-      background-color var(--motion-fast, 130ms) var(--ease-quint);
+    opacity: 0; transition: opacity var(--dur-hover, 130ms) var(--ease-quint),
+      color var(--dur-hover, 130ms) var(--ease-quint),
+      background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .pages-row-act svg { width: 14px; height: 14px; display: block; margin: 0 auto; }
   .pages-doc-row:hover .pages-row-act, .pages-doc-row:focus-within .pages-row-act,
@@ -396,7 +392,7 @@ export const PAGES_STYLES = `
     background: var(--nav-active); color: var(--ink);
   }
   .pages-folder-actions { display: flex; gap: 4px; margin-left: auto; opacity: 0;
-    transition: opacity var(--motion-fast, 130ms) var(--ease-quint);
+    transition: opacity var(--dur-hover, 130ms) var(--ease-quint);
   }
   .goal-collection-fold > summary:hover .pages-folder-actions,
   .pages-folder-actions:focus-within { opacity: 1; } @media (hover: none) { .pages-folder-actions { opacity: 1; } }
@@ -430,12 +426,11 @@ export const PAGES_STYLES = `
     margin: 0; padding: 0; pointer-events: auto;
   }
   .pages-block-handle:not([hidden]) {
-    animation: pages-fade var(--motion-fast, 130ms) var(--ease-quint);
+    animation: craft-fade-in var(--dur-hover) var(--ease-quint);
   }
   .pages-block-handle.is-caret { opacity: 0.55; }
   .pages-block-handle.is-caret:hover,
   .pages-block-handle.is-caret:focus-within { opacity: 1; }
-  @keyframes pages-fade { from { opacity: 0; } to { opacity: 1; } }
   .pages-block-handle button {
     width: 22px; height: 24px; padding: 0; border: 0; border-radius: 4px;
     background: transparent; color: var(--faint); cursor: grab; display: grid; place-items: center;
@@ -620,7 +615,7 @@ export const PAGES_STYLES = `
   ${CALLOUT_TONE_RULES}
   .pages-callout-mark[data-pages-callout-pick] {
     border: 0; padding: 0; background: transparent; cursor: pointer; border-radius: 6px;
-    transition: background var(--motion-fast, 130ms) var(--ease-quint);
+    transition: background var(--dur-hover, 130ms) var(--ease-quint);
   }
   .pages-callout-mark[data-pages-callout-pick]:hover { background: color-mix(in srgb, var(--ink) 9%, transparent); }
   .pages-callout-mark[data-pages-callout-pick]:focus-visible { outline: none; box-shadow: var(--focus-stroke); }
@@ -629,7 +624,7 @@ export const PAGES_STYLES = `
     width: 26px; height: 26px; padding: 0; border-radius: 6px; cursor: pointer;
     border: 1px solid transparent; background: transparent; color: var(--muted);
     display: grid; place-items: center;
-    transition: background var(--motion-fast, 130ms) var(--ease-quint);
+    transition: background var(--dur-hover, 130ms) var(--ease-quint);
   }
   .pages-icon-pick svg { width: 16px; height: 16px; display: block; }
   .pages-icon-pick:hover { background: var(--nav-hover); color: var(--ink); }
@@ -667,7 +662,7 @@ export const PAGES_STYLES = `
   .pages-code-copy {
     width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px; cursor: pointer;
     background: transparent; color: var(--faint); display: grid; place-items: center;
-    opacity: 0; transition: opacity var(--motion-fast, 130ms) var(--ease-quint);
+    opacity: 0; transition: opacity var(--dur-hover, 130ms) var(--ease-quint);
   }
   .pages-code-block:hover .pages-code-copy,
   .pages-code-copy:focus-visible, .pages-code-copy[data-copy] { opacity: 1; } @media (hover: none) { .pages-code-copy { opacity: 1; } }
@@ -714,7 +709,7 @@ export const PAGES_STYLES = `
   }
   .pages-toggle-caret svg {
     width: 14px; height: 14px;
-    transition: transform var(--motion-fast, 130ms) var(--ease-quint);
+    transition: transform var(--dur-hover, 130ms) var(--ease-quint);
   }
   .pages-toggle.is-open .pages-toggle-caret svg { transform: rotate(90deg); }
   .pages-toggle-caret:hover { background: var(--nav-hover); color: var(--ink); }

@@ -1,40 +1,94 @@
-import { createCharactersActionHandlers, openCharacters, type CharactersActionPorts, type CharactersService } from "@molis-ai/molis-work-module-characters";
+import { bindCharactersActions, CHARACTERS_ACTIONS, createCharactersActionHandlers, openCharacters, type CharacterCallGuard, type CharactersActionPorts, type CharactersActionRuntime, type CharactersAgentCatalog, type CharactersService } from "@molis-ai/molis-work-module-characters";
 import { hostLog } from "./host-log.js";
-import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, parseCharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
+import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, characterErrors, parseCharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { ArtifactsQueryApi, ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { CharactersPluginPorts } from "@molis-ai/molis-work-plugin-characters";
+import { agentHostCapabilities, type AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { LOCAL_PERSON_ACTOR_ID, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { CodingCharacterChoice, CodingCharacterPorts } from "@molis-ai/molis-work-plugin-coding";
 import { resolveConfiguredHome } from "./product-home.js";
+import { PRODUCT_VERSION } from "./product-version.js";
 import { homedir } from "node:os";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createCharacterDiscovery } from "./character-import-discovery.js";
 import { characterNativeExecution } from "./character-native-execution.js";
-import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
+import type { PtySpawnRequest } from "@molis-ai/molis-work-contracts/services/runtime-host";
+import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
+
+/** What the Host gives Characters in one project besides its own stores: the project's folders and the native terminal. */
+export type CharactersHostOptions = Pick<MolisWorkLocalHostOptions, "characterSpawn" | "workspacesFor" | "workspaceFor"> & { readonly homeDirectory: string };
 
 /**
- * Host composition binds personal ownership and project publication; Plugins never open databases. The handlers of every action are
- * Characters' own (modules/characters); the plugin gets them built from these ports, for the runtime it supplies when it starts.
+ * Characters in one project, registered by the Host as its own provider: the person's drafts in the Home, publications in the
+ * project's 成果库, and local Agent imports and launches. `capabilities` is read at each call: the built-in Agent's engines and
+ * the actions it may be given.
  */
-export function charactersPluginPorts(homeDirectory: string | undefined, actorId: string, projectId: string, artifacts: ArtifactsQueryApi,
-  workspaces: () => Promise<readonly ProjectWorkspaceRef[]> = async () => [], spawn: (request: PtySpawnRequest) => PtySpawnResult = () => { throw new Error("原生终端尚未接通"); }): CharactersPluginPorts {
-  const home = resolveConfiguredHome(homeDirectory);
+export function charactersActionProvider(runtime: MolisWorkProjectRuntime, options: CharactersHostOptions, capabilities: () => Pick<LocalHostProjectClient, "invoke">): ActionProviderRegistration {
+  return charactersProvider(runtime, characterActionPorts(options, LOCAL_PERSON_ACTOR_ID, runtime.project_id, runtime.coordinator.artifacts.query), {
+    listRuntimes: () => capabilities().invoke(agentHostCapabilities.listRuntimes, []),
+    listActions: () => capabilities().invoke(agentHostCapabilities.listActions, ["prologue", CHARACTER_PLUGIN_ID]),
+  });
+}
+
+/** The project stores a Characters call writes through: its 成果库, and the process items an id must not already name. */
+export interface CharactersProject { readonly project_id: string; readonly coordinator: Pick<MolisWorkProjectRuntime["coordinator"], "artifacts" | "processItems"> }
+
+/**
+ * The provider over the stores it is given. The handlers are Characters' own (modules/characters); the Host binds them for the
+ * ports' owner (`bindCharactersActions`) and gives each call a 成果库 that writes for that call's caller.
+ */
+export function charactersProvider(project: CharactersProject, actionPorts: CharactersActionPorts, agent?: CharactersAgentCatalog): ActionProviderRegistration {
+  return {
+    provider: { provider_id: CHARACTER_PLUGIN_ID, plugin_id: CHARACTER_PLUGIN_ID, title: "Characters", kind: "plugin", project_id: project.project_id },
+    definitions: CHARACTERS_ACTIONS,
+    handlers: bindCharactersActions(actionPorts.actorId, (caller, guard) => createCharactersActionHandlers(actionPorts,
+      { projectId: project.project_id, artifacts: characterArtifacts(project, caller, guard), ...(agent ? { agent } : {}) })),
+  };
+}
+
+/**
+ * The 成果库 as Characters reads and writes it in one call. A read returns the version as the 成果库 holds it, archived or not
+ * (Characters decides what it lists and runs); a publish is written as the caller, with Characters as producer, once the call
+ * is still current.
+ */
+function characterArtifacts(project: CharactersProject, caller: ActionExecutionContext, guard: CharacterCallGuard): CharactersActionRuntime["artifacts"] {
+  const { artifacts, processItems } = project.coordinator, projectId = project.project_id;
+  return {
+    read: reference => artifacts.query.getArtifactVersion(projectId, reference),
+    publish: value => {
+      if (processItems.query.latestArtifactVersion(projectId, value.artifact_id)) throw characterErrors.invalid("这个 ID 已用于过程项");
+      guard.current();
+      return artifacts.commands.registerVersion({ ...value, project_id: projectId, actor_id: caller.actor_id, scope: "personal",
+        producer: { plugin_id: CHARACTER_PLUGIN_ID, plugin_version: PRODUCT_VERSION, binding_signature: CHARACTER_PUBLISHER_SIGNATURE } });
+    },
+  };
+}
+
+/** The person's drafts in the Home (opened for each use), the project's publication list, and local Agent imports and launches. */
+function characterActionPorts(options: CharactersHostOptions, actorId: string, projectId: string, artifacts: ArtifactsQueryApi): CharactersActionPorts {
+  const home = resolveConfiguredHome(options.homeDirectory);
   const use = <T>(action: (service: CharactersService) => T): T => {
     const handle = openCharacters(home, actorId);
     try { return action(handle.service); } finally { handle.close(); }
   };
   const discovery = createCharacterDiscovery({ userHome: homedir() });
-  const actionPorts: CharactersActionPorts = { actorId,
+  const spawn = (request: PtySpawnRequest) => {
+    if (!options.characterSpawn) throw characterErrors.invalid("原生终端尚未接通");
+    return options.characterSpawn(request);
+  };
+  const workspaces = async () => options.workspacesFor ? await options.workspacesFor(projectId)
+    : options.workspaceFor ? [await options.workspaceFor(projectId)].filter((value): value is ProjectWorkspaceRef => !!value) : [];
+  return { actorId,
     imports: {
       previewFile: (candidateId, input) => {
         const file = discovery.get(candidateId)?.skills.find(skill => skill.id === input.skill_id)?.files.find(file => file.path === input.path);
-        if (!file) throw new Error("文件不在已预览的导入快照中，请重新扫描");
+        if (!file) throw characterErrors.invalid("文件不在已预览的导入快照中，请重新扫描");
         return file.encoding === "utf8" ? file : { path: file.path, encoding: file.encoding, bytes: Buffer.byteLength(file.content, "base64") };
       },
       discover: input => discovery.discover(input),
       import: (candidateId, selection, existing) => {
         const snapshot = discovery.get(candidateId);
-        if (!snapshot) throw new Error("预览已过期，请重新扫描本地 Agent");
+        if (!snapshot) throw characterErrors.invalid("预览已过期，请重新扫描本地 Agent");
         return use(service => service.import(snapshot, selection, existing));
       },
       ...characterNativeExecution({ home, actorId, projectId, workspaces, spawn, executable: runtime => discovery.executable(runtime) }),
@@ -48,7 +102,6 @@ export function charactersPluginPorts(homeDirectory: string | undefined, actorId
       .map(({ artifact_id, version }) => ({ artifact_id, version })),
     publish: (id, revision, publisher) => use(service => service.publish(id, revision, publisher)),
   };
-  return { actorId, handlers: runtime => createCharactersActionHandlers(actionPorts, runtime) };
 }
 
 /** Resolve the exact publication for a new Run; history uses its frozen body and never calls this. */

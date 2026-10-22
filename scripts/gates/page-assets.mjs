@@ -239,8 +239,8 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // VUX-33: complete-line layout blocks bound accumulated inline layout while preserving readable text, selected prefixes and the long-line slice budget.
-  // Reviewed 2026-10-23: 4 KB flat slices and a stable tail did not improve the measured bottleneck; 382075 → 383712 (+1637).
-  "/assets/molis-work-plugins/coding.js": [382075, 383712],
+  // Reviewed 2026-10-23: 4 KB flat slices and a stable tail did not improve the bottleneck; preserving pre/code font struts also retains line and tab geometry. 382075 → 384285 (+2210).
+  "/assets/molis-work-plugins/coding.js": [382075, 384285],
   // Forms reflow (slice 85): moved and removed questions and options ease through the page's molisReflow, with the fallback when it is absent. 30244 → 30383 (+139).
   "/assets/molis-work-plugins/form.js": [30244, 30383],
   "/assets/molis-work-plugins/workflows.js": [83019, 83135],

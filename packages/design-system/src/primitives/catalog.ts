@@ -188,7 +188,7 @@ function craftSection(): string {
   ].map(([token, value, role]) => `<tr><td><code>${token}</code></td><td>${value}</td><td>${role}</td></tr>`).join("") +
     `<tr><td><code>--ease-quint</code></td><td>cubic-bezier(.22, 1, .36, 1)</td><td>到达、移动、展开、离开——除按下回弹外的一切</td></tr><tr><td><code>--ease-spring</code></td><td>cubic-bezier(.2, 1.35, .4, 1)</td><td>只用于按下后的回弹与勾选落定</td></tr>`;
   const monograms = [["Molis Work 示例项目", "project-demo"], ["增长实验", "project-growth"], ["Research", "project-research"], ["品牌手册", "project-brand"], ["Onboarding", "project-onboard"]]
-    .map(([name, id]) => `<span class="mw-craft-mono">${renderProjectMonogram(name, id, escape)}<small>${escape(name)}</small></span>`).join("");
+    .map(([name, id]) => `<span class="mw-craft-mono">${renderProjectMonogram(name, id, escape)}<span>${escape(name)}</span></span>`).join("");
   return section("craft", "空间 · 层次 · 动效", `<p class="mw-catalog__hint">珍珠灰桌面承载标题栏与常驻底栏；工作是一张连续的白色工作面，插件目录是工作面里的一列。普通内容靠间距、字重与少量分隔线组织；只有抬升的东西——输入条、当前 Dock 项、菜单、对话框、Toast——才有柔和阴影，浮层不再同时画描边。按下回弹，状态 250ms 过渡，内容到达时上浮淡入；减少动态效果时全部静止。</p>
     <div class="mw-catalog__specimens">
       ${specimen("空间 · 桌面、工作面与常驻底栏", `<div class="mw-craft-space" aria-hidden="true"><i class="mw-craft-space__dir"></i><div class="mw-craft-space__main"><i class="mw-craft-space__tabs"></i><div class="mw-craft-space__sheet"><b></b><b></b><b></b></div></div><div class="mw-craft-space__bar"><i></i><em></em><i></i></div></div>`)}

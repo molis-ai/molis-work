@@ -24,7 +24,7 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .tree-pane .tree-guide { width: 16px; height: 28px; min-height: 28px; flex: 0 0 16px; }
   body.immersive-workbench .tree-pane .tree-children { margin-left: 8px; padding-left: 8px; }
   body.immersive-workbench .tree-pane .tree-entry > .directory-row-state { display: inline-flex; align-items: center; flex: none; width: auto; height: 22px; min-height: 0; margin: 0 4px 0 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
-  body.immersive-workbench .tree-pane .tree-entry .goal-status { padding: 0; border: 0; background: transparent; box-shadow: none; gap: 4px; font-size: 11px; line-height: 18px; white-space: nowrap; }
+  body.immersive-workbench .tree-pane .tree-entry .goal-status { padding: 0; border: 0; background: transparent; box-shadow: none; gap: 4px; font-size: 12px; line-height: 18px; white-space: nowrap; }
   body.immersive-workbench .tree-pane .tree-entry .goal-status > span { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
 
 

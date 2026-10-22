@@ -204,8 +204,8 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .tree-search:focus-within { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   body.immersive-workbench .tree-tools,
   body.immersive-workbench[data-desktop-shell="true"] .tree-pane .tree-tools { gap: 4px; padding: 0; margin: 0; border: 0; display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-start; width: 100%; min-width: 0; }
-  body.immersive-workbench .tree-create { flex: 1; min-width: 0; height: var(--control-h, 28px); min-height: var(--control-h, 28px); padding: 0 var(--control-pad-x, 12px); border: 1px solid var(--line); border-radius: var(--radius-control, 8px); background: var(--paper); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: inherit; font-size: 12px; font-weight: 400; cursor: pointer; }
-  body.immersive-workbench .tree-create span { display: inline; font-size: 12px; font-weight: 400; color: inherit; }
+  body.immersive-workbench .tree-create { flex: 1; min-width: 0; height: var(--control-h, 28px); min-height: var(--control-h, 28px); padding: 0 var(--control-pad-x, 12px); border: 1px solid var(--line); border-radius: var(--radius-control, 8px); background: var(--paper); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: inherit; font-size: 13px; font-weight: var(--weight-control, 500); cursor: pointer; }
+  body.immersive-workbench .tree-create span { display: inline; font: inherit; color: inherit; }
   body.immersive-workbench .tree-create svg { width: 14px; height: 14px; flex: none; color: inherit; }
   body.immersive-workbench .tree-create:hover { background: var(--nav-hover); color: var(--ink); }
   body.immersive-workbench [data-tree-filter-trigger] { width: var(--control-h, 28px); min-width: var(--control-h, 28px); height: var(--control-h, 28px); min-height: var(--control-h, 28px); padding: 0; display: inline-grid; place-items: center; flex: none; border: 1px solid var(--line); border-radius: var(--radius-control, 8px); background: var(--paper); color: var(--ink); cursor: pointer; }

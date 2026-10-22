@@ -106,7 +106,6 @@ ${F} .plugin-stage-list .feed-stage-entry .feed-entry-preview { display: block; 
 ${F} .feed-entry-foot { display: flex; align-items: center; min-height: 0; margin-top: 8px; }
 ${F} .feed-entry-foot:not(:has(.feed-entry-status:not(:has([data-feed-read-state])))) { display: none; }
 ${F} .plugin-stage-list .feed-stage-entry .feed-entry-status { justify-self: start; font-size: 12px; }
-${F} .plugin-stage-list .feed-stage-entry .feed-entry-status svg { width: 12px; height: 12px; }
 ${F} .plugin-stage-list .feed-stage-entry .feed-entry-status:has([data-feed-read-state]) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 ${F} .plugin-stage-list .feed-stage-entry[data-feed-entry-status="saved"] .feed-entry-status { color: var(--tone-done, var(--green)); }
 ${F} .feed-list-empty.mw-empty { display: grid; justify-items: center; gap: 8px; margin: 32px auto 0; padding: 24px 16px; max-width: 30em; text-align: center; color: var(--muted); background: transparent; }

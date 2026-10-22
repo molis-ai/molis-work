@@ -180,7 +180,7 @@ Inbox 的 `GET/POST /api/inbox/pages` 由 Host 注入当前项目。POST 接收 
 
 Text stats 是最小完整 app：一个必选输入口、一个 `navigator` 入口加一个 `stage` 视图、无存储、无事件。新端口消费者先抄它的声明形状，再抄 Diff 的 `input_groups`。默认连线把它的输入口接到 Files 的 `before` 快照（它的输入口声明 `default_source`）；默认连线现在只在随 Host 发布的插件之间生效：已安装的插件即使照抄 `default_source` 也不会自己接上（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议；2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行，改完之前仍按此）；不写 `default_source`，新插件的输入口也不会自己接上，要接就由人在成果库详情把某一版接给插件输入。端口何时投递见 [elements.md](elements.md)。
 
-Kernel `registerCapability` 是 Module/Host 的事（Goals、Agent Host），不是插件包自己登记一份。插件只 `requires` / `capabilities.consumes`，由 Host 注入 `services.capabilities.invoke`。宿主能力里登记成动作的（模型起草 `agent.draft-text.v1`、工作区读取），插件和调别的动作一样经 `services.actions.invoke` 调，按本插件自己的授权（起草要 `model:invoke`）；宿主那边动作只走 `registerAction`，`register` / `registerCapability` 只收 typed，交错了直接拒绝（PG-035）。
+Kernel `registerCapability` 是 Module/Host 的事（Goals、Agent Host），不是插件包自己登记一份。插件只 `requires` / `capabilities.consumes`，由 Host 注入 `services.capabilities.invoke`。宿主能力里登记成动作的（模型起草 `agent.draft-text.v1`、工作区读取、Git 的暂存与操作准备及两项读取），插件和调别的动作一样经 `services.actions.invoke` 调，按本插件自己的授权（起草要 `model:invoke`，Git 的暂存与操作要 `review:git-index`、`review:git-operation`）；宿主那边动作只走 `registerAction`，`register` / `registerCapability` 只收 typed，交错了直接拒绝（PG-035）。
 
 Agent 会话的一步在等（回信、后台命令、别的会话那一步）时，等待和接续归 Agent Host 的任务图，插件不存副本：读与控制调宿主登记的动作 `agent.collaboration.read.v1`、`agent.collaboration.control.v1`（合同 `packages/contracts/src/services/agent-collaboration.ts`），接续由插件起下一轮来接；开跑被拒时不留言、不动接续。Coding 的 `plugins/native/coding/src/wake-loop.ts` 是现行写法，细节见 [molis-prologue-ai](../molis-prologue-ai/SKILL.md) 第 7 步。
 

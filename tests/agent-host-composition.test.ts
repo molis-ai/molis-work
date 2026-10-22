@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  LocalProjectDatabase,
   MolisWorkLocalHost,
   composeAgentHost,
   molisWorkHostProjectReference,
@@ -20,6 +21,7 @@ import { serveTestHost } from "./fixtures/test-home.js";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { callerPlugin, startPlugin } from "./fixtures/plugin-callers.js";
 
 /** 产品装配真的构造了 Agent Host，插件经 Capability 够得到它。 */
 
@@ -262,7 +264,12 @@ test("插件不能拿一个宿主没授权的目录开会话", async () => {
 test('Git result projection excludes active, uncertain, undelivered and foreign reviews without turning approval into success', async () => {
   const { readGitResultsCapability } = await import('@molis-ai/molis-work-contracts/modules/workspace-artifacts');
   const item = await fixture({ workspace_id: 'w', canonical_path: '/unused', realpath_verified: true } as ProjectWorkspaceRef);
+  const store = new LocalProjectDatabase(join(item.directory, 'plugins.sqlite'));
   try {
+    // A plugin-only action (PG-035): read the way Git reads it, by an installation that consumes it and holds workspace:read.
+    const reader = callerPlugin('gitresults', 'project', { 'workspace:read': true }, [readGitResultsCapability.capability_id]);
+    await startPlugin(item.localHost, item.reference, store, reader);
+    const actions = reader.actions(item.reference.project_id);
     const queue = item.composition.agentHost.reviews;
     for (const id of ['pending', 'approved', 'unknown', 'undelivered', 'done', 'failed', 'denied', 'other-workspace', 'other-project']) {
       queue.request({ review_id: id, project_id: id === 'other-project' ? 'project-b' : 'project-a', run: null, plugin_id: 'io.molis.work.git', kind: 'git-index',
@@ -280,11 +287,11 @@ test('Git result projection excludes active, uncertain, undelivered and foreign 
     }
     const reconciliation = { actor_id: 'reconciler', at: '2026-09-22T00:05:00Z', reason: 'original process ended before dispatch' };
     queue.recordReconciliation('failed', reconciliation);
-    const result = await item.client.invoke(readGitResultsCapability, { workspace_id: 'w' });
+    const result = await actions.invoke(readGitResultsCapability, { workspace_id: 'w' });
     assert.deepEqual(result.map(one => [one.operation_id, one.outcome]).sort(), [['denied', 'denied'], ['done', 'succeeded'], ['failed', 'failed']]);
     assert.ok(result.every(one => one.review.decided_by === 'reviewer'));
     assert.deepEqual(result.find(one => one.operation_id === 'failed')?.review.reconciliation, reconciliation);
     assert.equal(result.find(one => one.operation_id === 'failed')?.review.failure_reason, 'refused changed version');
-    await assert.rejects(item.client.invoke(readGitResultsCapability, { workspace_id: 'unlinked' }), /授权/);
-  } finally { await close(item); }
+    await assert.rejects(actions.invoke(readGitResultsCapability, { workspace_id: 'unlinked' }), { code: 'git.workspace_unavailable' });
+  } finally { await close(item); store.close(); }
 });

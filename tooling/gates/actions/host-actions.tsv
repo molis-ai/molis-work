@@ -116,6 +116,10 @@ placement.spaces	1	system.placement	query	query	home	read	concurrent	agent,user	
 placement.unlink	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	767463c0e660	ffe64f3e9a62	-
 projects.workspace.files.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	workspace:read	workspace	-	-	9a0d0d76ae5b	a2c799262a3c	-
 projects.workspace.git.inspect	1	platform	query	query	project	read	-	agent,mcp,user,workflow	workspace:read	workspace	-	-	5c51a17cf8a5	a2c799262a3c	-
+projects.workspace.git.operation.prepare.v1	1	platform	command	operation	project	write	-	plugin	review:git-operation	workspace	-	-	3994c5ceffab	18a6c013818d	-
+projects.workspace.git.operations.v1	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	52405559fce7	-
+projects.workspace.git.prepare-index.v1	1	platform	command	operation	project	write	-	plugin	review:git-index	workspace	-	-	f2b96d30b920	18a6c013818d	-
+projects.workspace.git.results.v1	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	5f1692d9fc51	-
 projects.workspace.read.v1	1	platform	query	query	project	read	-	agent,mcp,user,workflow	-	project	-	project.workspace.optional	9cecb8ebe607	bff4d7a70ea2	-
 projects.workspaces.add	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	-	950c0f3c0eb8	3b9e6ac25f38	-
 projects.workspaces.repair	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	-	2bdd0f77dff7	71f9d6e31713	-

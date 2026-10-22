@@ -67,7 +67,7 @@ export const FORM_STYLES = `
   .form-option-row .mw-input { flex: 1; min-width: 0; width: auto; }
   .form-question-options .mw-btn { flex: none; width: auto; }
   [data-form-pane=preview], [data-form-pane=results] { max-width: 40rem; }
-  [data-form-pane]:not([hidden]) { animation: creative-pane var(--motion-normal, 130ms) var(--ease-quint); }
+  [data-form-pane]:not([hidden]) { animation: creative-pane var(--motion-normal, 250ms) var(--ease-quint); }
   [data-form-preview] {
     display: flex; flex-direction: column; gap: 24px;
     padding: 24px 24px; border-radius: 10px;
@@ -117,12 +117,6 @@ export const FORM_STYLES = `
   }
   .plugin-stage-detail-bar [data-form-delete] { margin-left: 8px; }
   .plugin-stage-list .mw-empty { max-width: min(100%, 30em); padding: 8px 8px 16px; }
-  .plugin-stage-workspace.is-arriving,
-  .is-arriving { animation: creative-arrive var(--motion-normal, 130ms) var(--ease-quint) both; }
-  @keyframes creative-arrive {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: none; }
-  }
   @keyframes creative-pane {
     from { transform: translateY(4px); }
     to { transform: none; }
@@ -138,7 +132,7 @@ export const FORM_STYLES = `
     .form-question [data-option-remove] { min-width: 44px; min-height: 44px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .is-arriving, .plugin-stage-workspace.is-arriving, [data-form-pane]:not([hidden]) { animation: none; }
+    [data-form-pane]:not([hidden]) { animation: none; }
     .form-question, .form-tabs .mw-btn, .form-preview-option { transition: none; }
   }
   dialog.mw-dialog.creative-confirm { width: min(360px, calc(100vw - 32px)); }

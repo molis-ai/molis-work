@@ -423,7 +423,7 @@ ${CODING_COMPOSER_BAR_STYLES}
   [data-coding-workbench] :is(.mw-btn,.mw-toggle,.mw-dir-row,.mw-dir__add,.mw-select-picker__trigger) { min-height:44px; }
 }
 @media (prefers-reduced-motion:no-preference) {
-  [data-coding-results=true] .coding-tools { animation:creative-arrive var(--motion-normal,130ms) var(--ease-quint) both; }
+  [data-coding-results=true] .coding-tools { animation:creative-arrive var(--motion-normal,250ms) var(--ease-quint) both; }
 }
 
   .coding-method-heading { display:flex; align-items:center; justify-content:space-between; gap:var(--space-2); }
@@ -475,6 +475,7 @@ ${CODING_COMPOSER_BAR_STYLES}
 .coding-live-time { font-variant-numeric:tabular-nums; color:var(--faint); }
 .coding-live-quiet { margin:8px 0 0 16px; color:var(--muted); font-size:12px; line-height:1.5; }
 .coding-run-card { padding:12px 16px; border:1px solid var(--line); border-radius:12px; background:var(--paper); animation:coding-rise 250ms var(--ease-quint); }
+.coding-run-card[data-settled] { animation:none; }
 .coding-run-card header { display:flex; align-items:center; gap:8px; }
 .coding-run-card header strong { font-weight:500; font-size:13px; color:var(--ink); }
 .coding-run-mark { display:inline-grid; place-items:center; width:20px; height:20px; border-radius:50%; background:var(--green-soft); color:var(--green); }
@@ -573,7 +574,7 @@ ${CODING_COMPOSER_BAR_STYLES}
 .coding-change-write { cursor:pointer; transition:background-color 130ms var(--ease-quint),color 130ms var(--ease-quint); }
 .coding-change-write:hover { background:var(--nav-hover); }
 .coding-change-write[aria-pressed=true] { background:var(--nav-active); }
-.coding-change-write:focus-visible { outline:2px solid var(--focus,var(--blue)); outline-offset:-2px; }
+.coding-change-write:focus-visible { outline:var(--focus-stroke); outline-offset:-2px; }
 .coding-change-write:not(.is-file) { padding-left:32px; color:var(--muted); font-size:12px; }
 .coding-change-write:not(.is-file)[aria-pressed=true] { color:var(--ink); }
 .coding-change-write.is-net { color:var(--ink); }
@@ -603,7 +604,7 @@ ${CODING_COMPOSER_BAR_STYLES}
 [data-coding-change-reader] .diff [data-kind=delete] .diff-sign { color:var(--red); }
 [data-coding-change-reader] [data-coding-line] { all:unset; box-sizing:border-box; display:block; width:100%; padding-right:4px; border-radius:4px; text-align:right; cursor:pointer; }
 [data-coding-change-reader] [data-coding-line]:hover { background:color-mix(in srgb,var(--blue) 14%,transparent); color:var(--blue); }
-[data-coding-change-reader] [data-coding-line]:focus-visible { outline:2px solid var(--focus,var(--blue)); outline-offset:-2px; color:var(--blue); }
+[data-coding-change-reader] [data-coding-line]:focus-visible { outline:var(--focus-stroke); outline-offset:-2px; color:var(--blue); }
 [data-coding-change-reader] li[data-coding-commented] { box-shadow:inset 3px 0 0 var(--blue); }
 .coding-change-feedback { position:sticky; bottom:0; z-index:1; display:grid; gap:8px; margin-top:auto; padding:12px 12px 16px 24px; border-top:1px solid var(--line); background:var(--paper); }
 .coding-change-feedback > header { display:flex; align-items:baseline; gap:8px; }
@@ -700,7 +701,7 @@ ${CODING_PLAN_PROGRESS_STYLES}
 .coding-children-head { display:flex; align-items:center; gap:8px; margin:0; padding-left:4px; font-size:12px; color:var(--muted); }
 .coding-children-compare { all:unset; margin-left:auto; padding:4px 8px; border-radius:999px; font-size:12px; color:var(--muted); cursor:pointer; }
 .coding-children-compare:hover,.coding-children-compare[aria-pressed=true] { background:var(--nav-hover); color:var(--ink); }
-.coding-children-compare:focus-visible { outline:2px solid var(--focus,var(--blue)); }
+.coding-children-compare:focus-visible { outline:var(--focus-stroke); }
 /* Side by side, the column widens past the reading measure so two agents' work sits next to each other. */
 .coding-children[data-layout=compare] { max-width:min(100%,1200px); grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); align-items:start; }
 .coding-children[data-layout=compare] > .coding-children-head { grid-column:1 / -1; }

@@ -209,8 +209,7 @@ export const TAB_WORKSPACE_STYLES = `
 
   .workspace-layout-menu { position:fixed; inset:auto; margin:0; width:260px; max-height:calc(100vh - 60px); overflow:auto; padding:8px; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:10px; box-shadow:var(--control-shadow); }
   .workspace-tab-menu > strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .workspace-tab-menu:popover-open { animation: tab-menu-in 130ms var(--ease-quint); }
-  @keyframes tab-menu-in { from { opacity: .6; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+  .workspace-tab-menu:popover-open { animation: craft-drop var(--dur-move) var(--ease-quint); }
   @media(prefers-reduced-motion:reduce) { .workspace-tab-menu:popover-open { animation: none; } }
   .workspace-layout-menu > strong { display:block; padding:12px 12px 8px; font-size:12px; font-weight: var(--weight-control, 500); color:var(--muted); }
   .workspace-layout-menu button { display:flex; align-items:center; gap:12px; width:100%; min-height:34px; padding:8px 12px; text-align:left; border:0; background:transparent; border-radius:5px; font-size:13px; }

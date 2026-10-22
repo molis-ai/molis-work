@@ -39,6 +39,8 @@ const SESSIONS_LIST = "body.immersive-workbench .session-stage-shell:not([data-e
 const CENTRED_DIALOG = ":is(dialog.mw-dialog, dialog.global-search-dialog, dialog.runtime-plan-dialog, dialog.inbox-compose-dialog):not(.mw-sheet)";
 
 /** Popovers and menus that drop from the control that opened them. */
+/** The menus whose closing plays back (the Assistant's composer, also in DROPDOWN, keeps its own motion). */
+const MENU_EXIT = ".mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .project-record-filter-menu > div, .tui-menu";
 const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu, .assistant-composer)";
 
 const CRAFT_BASE_STYLES = `
@@ -1061,7 +1063,7 @@ const CRAFT_BASE_STYLES = `
   }
   @keyframes craft-dock-rise { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: none; } }
   /* Everything that opens from the bar rises from it, anchored at the edge nearest its control. */
-  @keyframes craft-rise-from-bar { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
+  @keyframes craft-rise-from-bar { from { opacity: 0; transform: translateY(4px) scale(.97); } to { opacity: 1; transform: none; } }
   html ${SHELL} .workbench-bar :is(.account-global-popover, .plugin-picker-popover:not([hidden])) { transform-origin: bottom left; animation: craft-rise-from-bar 250ms var(--ease-quint) both; }
   html ${SHELL} .workbench-bar details[open] > .navigator-project-menu-popover { transform-origin: bottom right; animation: craft-rise-from-bar 250ms var(--ease-quint) both; }
 
@@ -1375,8 +1377,6 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} :is(.mw-disclosure, details > summary) > svg:is(:first-child, :last-child) { transition: transform var(--dur-move) var(--ease-quint); }
 
   /* ─── Overlays ─── */
-  ${PAGES} ${CENTRED_DIALOG}[open] { animation: craft-dialog-in 250ms var(--ease-quint); }
-  ${PAGES} ${CENTRED_DIALOG}[open]::backdrop { animation: craft-fade-in 250ms var(--ease-quint); }
   /* Creating a Goal is writing: two borderless lines; focus draws a pen line under the one you are on. */
   :root ${WORKBENCH} dialog[data-create-dialog] .create-compose :is(.create-compose-title, .create-compose-outcome) {
     border: 0; border-radius: 6px 6px 0 0; box-shadow: none; background: transparent;
@@ -1388,26 +1388,31 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} dialog.mw-dialog:not(.mw-sheet) { border-radius: var(--r-dialog); box-shadow: var(--lift-3); }
   ${PAGES} dialog.mw-sheet[open] { animation: craft-sheet-in 420ms var(--ease-quint); }
   ${PAGES} dialog.mw-sheet[open]::backdrop { animation: craft-fade-in 250ms var(--ease-quint); }
-  /* Leaving mirrors arriving: a closing dialog or sheet fades and settles back instead of vanishing. */
-  ${PAGES} :is(${CENTRED_DIALOG}, dialog.mw-sheet) {
+  /* Leaving mirrors arriving: a closing sheet slides back instead of vanishing (centred dialogs: coss-controls). */
+  ${PAGES} dialog.mw-sheet {
     transition: opacity var(--dur-move) var(--ease-quint), transform var(--dur-move) var(--ease-quint), overlay var(--dur-move) allow-discrete, display var(--dur-move) allow-discrete;
   }
-  ${PAGES} ${CENTRED_DIALOG}:not([open]) { opacity: 0; transform: translateY(8px) scale(.98); }
   ${PAGES} dialog.mw-sheet:not([open]) { opacity: 0; transform: translateX(32px); }
-  ${PAGES} :is(${CENTRED_DIALOG}, dialog.mw-sheet)::backdrop { transition: opacity var(--dur-move) var(--ease-quint), overlay var(--dur-move) allow-discrete, display var(--dur-move) allow-discrete; }
-  ${PAGES} :is(${CENTRED_DIALOG}, dialog.mw-sheet):not([open])::backdrop { opacity: 0; }
+  ${PAGES} dialog.mw-sheet::backdrop { transition: opacity var(--dur-move) var(--ease-quint), overlay var(--dur-move) allow-discrete, display var(--dur-move) allow-discrete; }
+  ${PAGES} dialog.mw-sheet:not([open])::backdrop { opacity: 0; }
   /* A tab switch: the current tab's paper settles in; the pane's content comes up with a short fade. */
   ${WORKBENCH} .tab-item { transition: background-color var(--dur-move) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
   ${WORKBENCH} iframe.tab-content-frame:not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint) both; }
   /* A disclosure the person opens (never one rendered open) lets its content settle in. */
   ${PAGES} details[data-just-opened] > :not(summary) { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   ${WORKBENCH} .immersive-home .home-erow__slot[data-just-opened] { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
-  @keyframes craft-dialog-in { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
   @keyframes craft-sheet-in { from { opacity: 0; transform: translateX(48px); } to { opacity: 1; transform: none; } }
   @keyframes craft-fade-in { from { opacity: 0; } to { opacity: 1; } }
   ${PAGES} ${DROPDOWN} { transform-origin: top left; }
-  ${PAGES} ${DROPDOWN}:is(:popover-open, [open], .is-open, :not([hidden])) { animation: craft-drop 250ms var(--ease-quint); }
-  ${PAGES} details[open] > .navigator-project-menu-popover { animation: craft-drop 250ms var(--ease-quint); transform-origin: top left; }
+  ${PAGES} ${DROPDOWN}:is(:popover-open, [open], .is-open, :not([hidden])) { animation: craft-drop var(--dur-move) var(--ease-quint); }
+  ${PAGES} details[open] > :is(${MENU_EXIT}) { animation: craft-drop var(--dur-move) var(--ease-quint); }
+  ${PAGES} details[open] > .navigator-project-menu-popover { transform-origin: top left; }
+  /* Closing plays the opening backwards on the short clock: a menu in a <details> stays drawn while it fades (its content
+   * keeps its visibility for that long), a popover or a hidden-toggled menu keeps its box for the same time and takes no
+   * pointer while it goes. */
+  ${PAGES} details:has(> :is(${MENU_EXIT}))::details-content { transition: content-visibility var(--dur-hover) allow-discrete; }
+  ${PAGES} :is(${MENU_EXIT}) { transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint), display var(--dur-hover) allow-discrete, overlay var(--dur-hover) allow-discrete; }
+  ${PAGES} :is(details:not([open]) > :is(${MENU_EXIT}), :is(${MENU_EXIT})[hidden], :is(${MENU_EXIT})[popover]:not(:popover-open)) { opacity: 0; transform: translateY(-4px) scale(.97); pointer-events: none; }
   ${PAGES} :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover) { border: 0; border-radius: var(--r-card); box-shadow: var(--lift-3); }
   /* Dark reads as three layers: whatever floats (menus, popovers, dialogs, the Assistant panel) sits a step above the
      work surface on --popover, edged by the light ring in its lift rather than by a darker shadow. */
@@ -1415,7 +1420,6 @@ const CRAFT_BASE_STYLES = `
     .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu,
     [data-plugin-picker-popover], .account-global-popover, .shelf-side-menu, .shelf-find, .feed-source-rail, ${CENTRED_DIALOG},
     dialog.mw-sheet, .assistant-panel, .home-talk) { background-color: var(--popover); }
-  @keyframes craft-drop { from { opacity: 0; transform: translateY(-5px) scale(.97); } to { opacity: 1; transform: none; } }
   ${PAGES} .mw-menu :is([role="menuitem"], [role="option"], button) { transition: background-color 130ms var(--ease-quint), color 130ms var(--ease-quint); }
 
   /* Toasts: a graphite note that rises above the bar and says, with a mark, how it went. */
@@ -1546,12 +1550,16 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .tui-empty { border-radius: var(--r-card); }
 
   /* ─── Arrival ─── */
-  /* A surface rises a few pixels as it appears. Surfaces restart this whenever they are shown. */
+  /* A surface rises a few pixels the first time it appears (is-arriving, once per surface); showing it again — a tab
+   * switch, a return — is a quick cross-fade, never a second arrival. */
   ${WORKBENCH} .tab-pane-body > [data-work-surface]:not([hidden]),
   ${WORKBENCH} .tab-workspace-exclusive > :not([hidden]) {
+    animation: craft-fade-in var(--dur-hover) var(--ease-quint) both;
+  }
+  ${WORKBENCH} .tab-pane-body > [data-work-surface].is-arriving:not([hidden]),
+  ${WORKBENCH} .tab-workspace-exclusive > .is-arriving:not([hidden]) {
     animation: craft-rise var(--dur-arrive) var(--ease-quint) both;
   }
-  ${WORKBENCH}.is-craft-resting .tab-pane-body > [data-work-surface],
   ${WORKBENCH}[data-pane-embedded] .tab-pane-body > [data-work-surface] { animation: none; }
   @keyframes craft-rise { from { opacity: .4; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 

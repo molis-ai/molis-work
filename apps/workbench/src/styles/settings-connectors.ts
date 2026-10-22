@@ -9,7 +9,7 @@ export const CONNECTOR_EXPERIENCE_STYLES = `
   [data-connectors-settings] .mw-input { min-width: 0; width: 100%; min-height: 42px; }
   [data-connectors-settings] .mw-btn { min-height: 40px; max-width: 100%; white-space: normal; }
   [data-connectors-settings] a { text-underline-offset: 3px; }
-  [data-connectors-settings] :is(button, a, input, select, textarea, summary):focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  [data-connectors-settings] :is(button, a, input, select, textarea, summary):focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
   [data-connectors-settings] .settings-connectors-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }
   [data-connectors-settings] button.settings-connector-card { padding: 16px 4px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; gap: 12px; text-align: start; min-height: 92px; }
   [data-connectors-settings] button.settings-connector-card:hover { background: var(--nav-hover); }

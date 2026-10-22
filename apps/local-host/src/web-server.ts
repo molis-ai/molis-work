@@ -16,8 +16,8 @@ import { ensureSystemAgentService } from "./system-agent-service.js";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "./project-host.js";
 import { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import { MolisWorkWebServiceManager } from "./installer/web-service.js";
-import { resolveWebControlToken } from "./web-control-token.js";
-import { sendLocalWebJson as sendJson, authorizeLocalWebRequest, refuseForeignRequest, type LocalMutationState } from "./web-http.js";
+import { resolveWebControlToken, sendWebHealth } from "./web-control-token.js";
+import { sendUnhandledWebError, authorizeLocalWebRequest, refuseForeignRequest, type LocalMutationState } from "./web-http.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
 import { seedDemoBoard } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
@@ -176,11 +176,11 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
           if (request.method === "GET" && url.pathname === "/health" && catalogAccess) {
             const ready = server.listening && Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
-            sendJson(response, ready ? 200 : 503, {
+            sendWebHealth(response, ready ? 200 : 503, {
               status: ready ? "ok" : "starting", process_id: process.pid,
               service_process_id: serviceProcessId(), desktop_tui: Boolean(pty.host),
               ...(fixture ? { project_id: fixture.projectId } : { project_count: catalogAccess.projectCount }),
-            });
+            }, controlToken, url.searchParams.get("challenge"));
             return;
           }
           if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists, sites, decideSite: decision => agents.decideSurfaceSite(decision) })) return;
@@ -209,7 +209,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           );
         });
       } catch (error) {
-        sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
+        runWithLocale(resolveWebLocale(request.headers.cookie, request.headers["accept-language"]), () => sendUnhandledWebError(response, error));
       }
     }))));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit

@@ -2,8 +2,6 @@ use crate::runtime_env::login_shell_path;
 use semver::Version;
 use serde::Deserialize;
 use std::fs;
-use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpStream};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -40,32 +38,11 @@ fn web_launcher(home: &Path) -> PathBuf {
 }
 
 pub(crate) fn web_healthy() -> bool {
-    health_body()
-        .map(|body| body.contains("\"status\":\"ok\"") || body.contains("\"status\": \"ok\""))
-        .unwrap_or(false)
+    crate::web_identity::health().is_ok()
 }
 
 fn web_desktop_ready() -> bool {
-    health_body()
-        .map(|body| body.contains("\"desktop_tui\":true") || body.contains("\"desktop_tui\": true"))
-        .unwrap_or(false)
-}
-
-fn health_body() -> Option<String> {
-    let addr = SocketAddr::from(([127, 0, 0, 1], 4173));
-    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(250)).ok()?;
-    let _ = stream.set_read_timeout(Some(Duration::from_millis(400)));
-    let _ = stream.set_write_timeout(Some(Duration::from_millis(400)));
-    stream
-        .write_all(b"GET /health HTTP/1.1\r\nHost: 127.0.0.1:4173\r\nConnection: close\r\n\r\n")
-        .ok()?;
-    let mut body = String::new();
-    let _ = stream.read_to_string(&mut body);
-    if body.contains("200") {
-        Some(body)
-    } else {
-        None
-    }
+    crate::web_identity::health().is_ok_and(|health| health.desktop_tui)
 }
 
 fn embedded_molis_work_source(resource_dir: &Path) -> Option<(PathBuf, PathBuf)> {

@@ -130,7 +130,7 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   assert.equal(await evaluate("document.querySelector('#ob-title').textContent"), "带入已有的材料");
   // The sources are a list on the Welcome steps' sheet; the bar is theirs too (the way back, then skip and go on), and the empty card says what goes there.
   assert.equal(await evaluate("document.querySelectorAll('.welcome.onboard .ob-sources .ob-source').length"), 5);
-  assert.equal(await evaluate("document.querySelector('[data-open=files] .mw-dir-row__count').textContent"), "添加", "a row says what pressing it does");
+  assert.equal(await evaluate("document.querySelector('[data-open=files] .ob-source__act.mw-btn').textContent"), "添加", "a row says what pressing it does, drawn as a button");
   assert.equal(await evaluate("document.querySelector('[data-action=prepare]').disabled"), true, "nothing to confirm yet");
   assert.equal(await evaluate("document.querySelector('.arrival-bar .mw-bar-status')"), null);
   assert.match(await evaluate<string>("document.querySelector('.ob-right .ob-scene-note').textContent"), /材料会按来源排在这里/);
@@ -146,7 +146,7 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   await setFiles("#cx-upload-directory", [folder]);
   await waitFor("document.querySelectorAll('.ob-right .mw-file-group .mw-file-row').length === 4");
   assert.match(await evaluate<string>("document.querySelector('.ob-right .ob-stage-head span').textContent"), /^4 份/);
-  assert.equal(await evaluate("document.querySelector('[data-open=folder] .mw-dir-row__count').textContent"), "已添加 4");
+  assert.equal(await evaluate("document.querySelector('[data-open=folder] .ob-source__act.is-added').textContent"), "已添加 4");
   assert.ok(await evaluate("!!document.querySelector('.arrival-bar [data-action=blank]')"), "the step can still be skipped");
   await assertLayoutClean(evaluate, "sources, folder added");
   await click("[data-open=browser]");

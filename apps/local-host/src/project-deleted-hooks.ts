@@ -17,6 +17,8 @@ export interface ProjectDeletedOwner {
    * null for an owner whose clean-up is only internal (a runtime to close, a cache).
    */
   readonly label: string | null;
+  /** Manifest names substituted when the confirmation is rendered in the person's language. */
+  readonly label_values?: Readonly<Record<string, string>>;
   /** Owners run in ascending order of this (default 0), those with the same value in registration order. */
   readonly priority?: number;
   /**

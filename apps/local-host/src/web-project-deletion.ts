@@ -40,7 +40,7 @@ export function createProjectDeletionHttp(withMolisWorkProjectCatalog: LocalWebC
     const scopeMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/delete-scope$/);
     if (request.method === "GET" && scopeMatch) {
       // Every owner of project data in this Home that names itself, in the person's language.
-      const owners = projectDeletedHooksFor(homeDirectory ?? resolveConfiguredHome()).owners().flatMap(owner => owner.label ? [{ owner_id: owner.id, label: L(owner.label) }] : []);
+      const owners = projectDeletedHooksFor(homeDirectory ?? resolveConfiguredHome()).owners().flatMap(owner => owner.label ? [{ owner_id: owner.id, label: L(owner.label, owner.label_values) }] : []);
       sendJson(response, 200, { project_id: decodeURIComponent(scopeMatch[1]), owners });
       return true;
     }

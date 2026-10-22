@@ -1,3 +1,4 @@
+import { hostLog } from "./host-log.js";
 import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   PluginDatabase, PluginDatabaseDeclaration, PluginDatabaseReader, PluginDatabaseTransaction, PluginSqlRow, PluginSqlValue,
@@ -44,9 +45,15 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
     authorize("storage:private"); authorize(permission);
   };
   const permitWrite = () => { permit(declaration.write_permission); assertPluginActionCurrent(installId); };
+  // A transaction reads its uncommitted rows on the writer. SQLite, not the leading keyword, rejects CTE writes.
+  const readOnly = <T>(db: Connection, read: () => T): T => {
+    if (db !== writer) return read();
+    db.exec("PRAGMA query_only = ON");
+    try { return read(); } finally { db.exec("PRAGMA query_only = OFF"); }
+  };
   const reads = (db: Connection, check: () => void): PluginDatabaseReader => ({
-    get(sql, parameters = []) { check(); query(sql); connections.check?.(db, sql, parameters, "read"); return (db.prepare(sql).get(...parameters) as PluginSqlRow | undefined) ?? null; },
-    all(sql, parameters = []) { check(); query(sql); connections.check?.(db, sql, parameters, "read"); return db.prepare(sql).all(...parameters) as PluginSqlRow[]; },
+    get(sql, parameters = []) { check(); query(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => (db.prepare(sql).get(...parameters) as PluginSqlRow | undefined) ?? null); },
+    all(sql, parameters = []) { check(); query(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => db.prepare(sql).all(...parameters) as PluginSqlRow[]); },
   });
   return Object.freeze({
     ...reads(reader, () => permit(declaration.read_permission)),
@@ -75,7 +82,8 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
         writer.exec("COMMIT");
         return result;
       } catch (error) {
-        if (connections.inTransaction()) writer.exec("ROLLBACK");
+        try { if (connections.inTransaction()) writer.exec("ROLLBACK"); }
+        catch (rollbackError) { hostLog.error("plugin_database", "rollback_failed", rollbackError); }
         throw error;
       } finally { active = false; }
     },

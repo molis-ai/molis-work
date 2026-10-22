@@ -1,16 +1,17 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { directoryForHome } from "@molis-ai/molis-work-app-local-host";
 import { createDatasetActionHandlers, createDatasetContentHandlers, datasetActions, datasetContentActions, datasetManifest, DATASET_ACTION_PERMISSIONS, openDatasetStore, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
 import { createFormActionHandlers, formActions, formManifest, FORM_ACTION_PERMISSIONS, formResultsCsv, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { createPagesActionHandlers, createPagesContentHandlers, pagesActions, pagesContentActions, pagesManifest, PAGES_ACTION_PERMISSIONS, openPagesStore, ownPagesStores, type PagesActionPorts } from "@molis-ai/molis-work-plugin-pages";
 import { createPptActionHandlers, pptActions, pptManifest, PPT_ACTION_PERMISSIONS, openPptStore, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
-import { createCogniaActionHandlers, ownCogniaStores, cogniaActions, cogniaManifest, COGNIA_ACTION_PERMISSIONS, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
+import { createCogniaActionHandlers, ownCogniaStores, cogniaActions, cogniaManifest, COGNIA_ACTION_PERMISSIONS, openCogniaStore, scanCogniaDirectory } from "@molis-ai/molis-work-plugin-cognia";
 
 const paragraph = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; };
@@ -132,22 +133,33 @@ test("W2-18-COGNIA-EFFECT-01: only the originating grant is revoked during real 
   const store = openCogniaStore(home), db = openHomeSqliteDatabase(home, "cognia"), service = new ActionService();
   t.after(async () => { db.close(); store.close(); await rm(home, { recursive: true, force: true }); });
   const entered = deferred(), release = deferred(), grants = new Set(Object.values(cogniaActions).map(action => action.capability_id));
-  const check = (reference?: { capability_id: string }) => { if (reference && !grants.has(reference.capability_id)) throw new ActionError("mcp.permission_revoked", "Origin grant revoked"); };
-  const caller: ActionCallContext = { actor_id: "external-client", audience: "mcp", permissions: COGNIA_ACTION_PERMISSIONS,
+  const check = (reference?: { capability_id: string }) => { if (reference && !grants.has(reference.capability_id)) throw new ActionError("actions.forbidden", "Origin grant revoked"); };
+  const caller: ActionCallContext = { actor_id: "knowledge-owner", actor_kind: "user", audience: "user", permissions: COGNIA_ACTION_PERMISSIONS,
     validate_authority: check, assert_authority_current: check };
-  await writeFile(join(home, "vault.md"), "# Fixed evidence\nActual bytes read before the barrier.");
+  const vault = join(home, "vault"); await mkdir(vault);
+  await writeFile(join(vault, "vault.md"), "# Fixed evidence\nActual bytes read before the barrier.");
+  const directory = directoryForHome(home), grant = await directory.authorize(vault);
+  let scans = 0;
   service.registerProvider({ provider: { provider_id: cogniaManifest.plugin_id, title: "Cognia", kind: "plugin" }, definitions: cogniaManifest.actions!, handlers: createCogniaActionHandlers({
     ...ownCogniaStores(run => run(store)), model: () => ({}), ai: () => ({}), actions: bindActionClient(service, () => caller),
-    scan: async path => { const data = await readFile(join(path, "vault.md")); entered.resolve(); await release.promise; return { locator: path, name: "Vault", files: [{ path: "vault.md", data: data.toString("base64") }] }; },
+    scan: async (grantId, path, signal) => { scans++; const scanned = await scanCogniaDirectory(directory, grantId, path, signal); entered.resolve(); await release.promise; return scanned; },
   }) });
   const counts = () => ["cognia_previews", "cognia_materials", "cognia_sources"].map(table => Number(db.prepare(`SELECT count(*) AS total FROM ${table}`).get()!.total));
   const before = counts(), bound = bindActionClient(service, () => caller);
-  const pending = bound.invoke(cogniaActions.previewDirectory, { path: home, kind: "markdown" });
+  const input = { grant_id: grant.grant_id, path: ".", kind: "markdown" as const };
+  const external = bindActionClient(service, () => ({ ...caller, actor_id: "external-client", actor_kind: null, audience: "mcp" as const }));
+  await assert.rejects(external.invoke(cogniaActions.previewDirectory, input), { code: "actions.forbidden" });
+  await assert.rejects(external.invoke(cogniaActions.scan, { grant_id: grant.grant_id, path: "." }), { code: "actions.forbidden" });
+  assert.equal(scans, 0, "MCP cannot enter directory IO even with a person's valid directory grant");
+  assert.deepEqual(counts(), before);
+  const pending = bound.invoke(cogniaActions.previewDirectory, input);
   await entered.promise; grants.delete(cogniaActions.previewDirectory.capability_id); release.resolve();
-  await assert.rejects(pending, { code: "mcp.permission_revoked" }); assert.deepEqual(counts(), before);
+  await assert.rejects(pending, { code: "actions.forbidden" }); assert.deepEqual(counts(), before);
+  assert.equal(scans, 1); assert.ok(grants.has(cogniaActions.scan.capability_id), "only the originating preview grant was revoked");
   grants.add(cogniaActions.previewDirectory.capability_id);
-  const preview = await bound.invoke(cogniaActions.previewDirectory, { path: home, kind: "markdown" });
+  const preview = await bound.invoke(cogniaActions.previewDirectory, input);
   await bound.invoke(cogniaActions.commit, { preview_id: preview.preview.id });
+  assert.equal(scans, 2);
   assert.equal(store.materials().length, 1); assert.match(store.materials()[0]!.body, /Actual bytes read before the barrier/);
 });
 

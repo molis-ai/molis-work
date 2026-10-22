@@ -144,7 +144,7 @@ test("a transport never reaches a Host wait: its action clients run declared act
   const declared: ActionDefinition<Record<string, never>, string> = { capability_id: "test.transport.declared", version: 1, operation: "wait",
     action: { title: "跟随", description: "等下一轮", kind: "operation", scope: "project", audiences: ["user", "mcp"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } };
-  assert.throws(() => host.register(declared, () => "never"), /operation 与 kind 不一致/, "an action is a query or a command, never a wait");
+  assert.throws(() => host.registerAction(declared, () => "never"), /operation 与 kind 不一致/, "an action is a query or a command, never a wait");
   const caller = (project_id: string | null): ActionCallContext => ({ actor_id: "alice", project_id, audience: "mcp", permissions: [] });
   await assert.rejects(host.actionClient({ project_id: "p", storage_key: "memory:p" }).invoke(caller("p"), wait, undefined), { code: "actions.missing" });
   await assert.rejects(host.homeActionClient().invoke(caller(null), wait, undefined), { code: "actions.missing" }, "nor does the Home line ever hold one");

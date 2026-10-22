@@ -187,7 +187,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   }).catch((err) => toast(err.message, 'error')));
   let navId = 0;
   async function showFlow(id, { keepInstance = false, revision:rev = ++navId } = {}) {
-    flushSave();
+    flushSave(); root.querySelector('[data-wf-gone]').hidden = true;
     const res = await api('/' + id);
     if (rev !== navId) return;
     if (ui.workflow?.workflow_id !== id) undos.length = 0;
@@ -1317,11 +1317,11 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
 
   let started = false;
   let listReady = null;
-  let pickedItem;
+  let pickedItem, pickedQuiet = false;
   const selectFlow = async (id, rev) => {
     if (id) {
       try { await showFlow(id, { revision:rev }); }
-      catch (err) { if (rev === navId) toast(err.message, 'error'); }
+      catch (err) { if (rev !== navId) return; if (err.status !== 404) { if (!pickedQuiet) toast(err.message, 'error'); return; } root.dispatchEvent(new CustomEvent('molis-work:item-unreadable', { bubbles: true, detail: { itemId: id } })); ui.workflow = null; ui.instance = null; ui.returnTo = null; remember(); setMode('list'); drawList(); const note = root.querySelector('[data-wf-gone]'); if (!pickedQuiet) { note.textContent = L('这条流程不存在或已删除'); note.hidden = false; } }
       return;
     }
     ui.workflow = null; ui.instance = null; ui.returnTo = null; remember(); setMode('list'); drawList();
@@ -1344,7 +1344,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   };
   new MutationObserver(start).observe(root, { attributes: true, attributeFilter: ['hidden'] });
   root.addEventListener('molis-work:select-item', async (ev) => {
-    const id = ev.detail?.itemId || null; pickedItem = id;
+    const id = ev.detail?.itemId || null; pickedItem = id; pickedQuiet = Boolean(ev.detail?.quiet);
     const rev = ++navId;
     if (!started) { await start(); return; }
     await listReady;

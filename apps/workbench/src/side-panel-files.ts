@@ -306,7 +306,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const openFile=async(sourceId,kind,id,fallback)=>{
     const source=sources.find(item=>item.id===sourceId),item=find(sourceId,kind,id)||fallback||null;
     const request=current={source:sourceId,kind,id};paint();show(true);
-    // The file shown is the object a selection in it is about: what is in hand on the right (context-landing.ts).
+    // The file shown is the object a selection in it is about: what is in hand on the right (context-landing.ts); one it could not read is not.
     if(source?.plugin_id)body.dataset.assistantContext=JSON.stringify({plugin_id:source.plugin_id,object:{kind,id,title:item?.title||''}});else delete body.dataset.assistantContext;
     title.textContent=item?.title||L('文件');
     meta.textContent=[source?.title,item?.updated_at?new Date(item.updated_at).toLocaleString():'',sizeText(item?.size)].filter(Boolean).join(' · ');
@@ -318,7 +318,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
       if(!result.content){body.innerHTML='<p class="side-files-note">'+esc(L('这个插件没有提供预览，可以在插件中打开。'))+'</p>';return;}
       const raw=host.route('/api/side/files/raw?source='+encodeURIComponent(sourceId)+'&kind='+encodeURIComponent(kind)+'&id='+encodeURIComponent(id));
       render({...result.content,raw});
-    }catch(error){if(current===request)body.innerHTML='<p class="side-files-problem">'+esc(error.message)+'</p>';}
+    }catch(error){if(current===request){delete body.dataset.assistantContext;body.innerHTML='<p class="side-files-problem">'+esc(error.message)+'</p>';}}
   };
   // A preview another surface hands over (the Assistant's attachment, a result it made): shown as given.
   // Only same-origin paths and inline images: a preview never loads another site or a script-bearing data URL.
@@ -356,7 +356,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     if(target?.subject){
       const request=current={source:target.source||'',kind:target.subject.kind,id:target.subject.id};await load(false);if(current!==request)return;
       const source=target.source||sources.find(item=>item.kinds.some(kind=>kind.kind===target.subject.kind))?.id;
-      if(source)void openFile(source,target.subject.kind,target.subject.id,target.entry);
+      if(source)void openFile(source,target.subject.kind,target.subject.id,target.entry||(target.title?{title:target.title,open:target.open||null}:null));
       else openGiven({title:target.title||L('文件'),problem:L('这个文件所在的插件没有向侧栏提供文件，或当前没有读取权限。'),open:target.open});
     }else await load(false);
   });

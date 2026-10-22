@@ -9,13 +9,15 @@ export const CONNECTOR_EXPERIENCE_STYLES = `
   [data-connectors-settings] .mw-input { min-width: 0; width: 100%; min-height: 42px; }
   [data-connectors-settings] .mw-btn { min-height: 40px; max-width: 100%; white-space: normal; }
   [data-connectors-settings] a { text-underline-offset: 3px; }
-  [data-connectors-settings] :is(button, a, input, select, textarea, summary):focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  [data-connectors-settings] :is(button, a, input, select, textarea, summary):focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
   [data-connectors-settings] .settings-connectors-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }
   [data-connectors-settings] button.settings-connector-card { padding: 16px 4px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; gap: 12px; text-align: start; min-height: 92px; }
   [data-connectors-settings] button.settings-connector-card:hover { background: var(--nav-hover); }
   [data-connectors-settings] .settings-connector-card__title { align-items: start; flex-wrap: wrap; gap: 4px 8px; }
   [data-connectors-settings] .settings-connector-card__title strong { font-weight: 600; }
   [data-connectors-settings] .settings-state { line-height: 1.5; }
+  /* A card's state is a short phrase that may be longer in another language: it wraps inside the card rather than running out of it. */
+  .settings-connector-card__title .settings-state { min-width: 0; white-space: normal; text-wrap: balance; }
   [data-connectors-settings] .settings-connector-subgroup h3 { font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-bottom: 4px; }
   [data-connectors-settings] .settings-connector-detail { width: 100%; max-width: var(--connector-width); gap: 24px; padding-top: 0; }
   .settings-connector-purpose { margin: -8px 0 0; max-width: 65ch; color: var(--muted); font-size: 13px; line-height: 1.65; }

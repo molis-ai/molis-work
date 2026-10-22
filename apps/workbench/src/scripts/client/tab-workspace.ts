@@ -1259,7 +1259,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     };
     cancelRecordJump = finish;
     // Not among the rows shown now (another view or filter): a plugin that opens records by id is asked directly.
-    asked = setTimeout(() => { if (!done && current()) surfaceIn(frame ? frame.contentDocument : document)?.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId } })); }, 1500);
+    asked = setTimeout(() => { if (!done && current()) surfaceIn(frame ? frame.contentDocument : document)?.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId, quiet } })); }, 1500);
     timer = setTimeout(() => {
       const stillCurrent = current(); const opened = showsIt(frame ? frame.contentDocument : document); finish();
       if (opened) return;
@@ -1657,7 +1657,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   /* Esc steps out of a cover, unless something smaller is open in it (a field being typed in, a menu, a dialog, a
      page's own editor marked data-cover-layer) or a save is under way: those take the Esc first. */
   let escapeHadLayer = false;
-  const openLayer = () => Boolean(document.querySelector("dialog[open], :popover-open, details[open][data-project-menu], details[open][data-global-menu], [data-plugin-picker-popover]:not([hidden]), [data-dock-overflow]:not([hidden]), [data-assistant-panel]:not([hidden]), [data-cover-layer]:not([hidden]), form[aria-busy=true]"));
+  const openLayer = () => Boolean(document.querySelector("dialog[open], :popover-open, details[open][data-layer-open], details[open][data-project-menu], details[open][data-global-menu], [data-plugin-picker-popover]:not([hidden]), [data-dock-overflow]:not([hidden]), [data-assistant-panel]:not([hidden]), [data-cover-layer]:not([hidden]), form[aria-busy=true]"));
   document.addEventListener("keydown", (event) => { if (event.key === "Escape") escapeHadLayer = openLayer(); }, true);
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || embedded || !state.exclusive || escapeHadLayer || event.defaultPrevented || editable(event.target)) return;

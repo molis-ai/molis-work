@@ -149,7 +149,7 @@ test("W5-01-CODING-77..81 a round the Assistant starts is the page's round: same
   const chose = await invoke<{ session_id: string }>("session.open", { title: "按方法修改" });
   await client.invoke(owner, find("coding.update-session"), { session_id: chose.session_id, methods: [{ skill_id: "coding-review-change", version: 1 }],
     configuration: { intent: "parallel", provider_id: "fixture", model_id: "fixture-model", workspace_id: f.workspaceId, writer_assignments: [{ workspace_id: "writer-1", task: "改登录" }] } });
-  await invoke("session.update", { session_id: chose.session_id, mode: "execute" });
+  await invoke("session.update", { session_id: chose.session_id, mode: "edit" });
   const second = await invoke<{ run_id: string }>("run.start", { session_id: chose.session_id, task: "按方法修改登录" });
   let edited = await invoke<Session>("session.read", { session_id: chose.session_id });
   for (const end = Date.now() + 15_000; !["completed", "failed", "cancelled", "stopped"].includes(edited.runs[0]?.phase ?? ""); edited = await invoke<Session>("session.read", { session_id: chose.session_id })) {

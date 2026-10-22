@@ -7,13 +7,41 @@
  */
 export type CodeTokenKind = "comment" | "string" | "number" | "keyword" | "type" | "function" | "property" | "operator" | "tag" | "attribute" | "inserted" | "deleted" | "meta";
 
-export function codeTokens(text: string, language: string): Array<[CodeTokenKind | null, string]> {
+/**
+ * `from` picks the colouring up part way through: an offset where one of the pieces a whole run gave starts. What comes out
+ * from there is exactly what a whole run gives from there, because no piece looks past the end of its own line (a word is a
+ * call when "(" follows on its line, a quoted key a property when ":" does), a piece running over several lines (an open
+ * comment or string) starts where it opens, and a diff's hunk is read again from its header. See `growCodeTokens`.
+ */
+export function codeTokens(text: string, language: string, from = 0): Array<[CodeTokenKind | null, string]> {
   const lang = ({ typescript: "ts", tsx: "ts", javascript: "js", jsx: "js", mjs: "js", cjs: "js", python: "py", shell: "sh", bash: "sh", zsh: "sh", console: "sh",
     yml: "yaml", htm: "html", xml: "html", svg: "html", vue: "html", golang: "go", rs: "rust", patch: "diff", jsonc: "json", md: "markdown", kt: "java", kotlin: "java", cs: "java", csharp: "java", cpp: "c", h: "c", hpp: "c" } as Record<string, string>)[language.toLowerCase()] ?? language.toLowerCase();
   const out: Array<[CodeTokenKind | null, string]> = [];
   const push = (kind: CodeTokenKind | null, value: string) => { if (!value) return; const last = out[out.length - 1]; if (last && last[0] === kind) last[1] += value; else out.push([kind, value]); };
   if (lang === "diff") {
-    for (const line of text.split(/(?<=\n)/)) push(/^\+(?!\+\+)/.test(line) ? "inserted" : /^-(?!--)/.test(line) ? "deleted" : /^(@@|\+\+\+|---|diff |index )/.test(line) ? "meta" : null, line);
+    // A hunk's header says how many old and new lines follow; inside it a line is what its first character says, even one
+    // that reads like a header ("--- x" is a deleted "-- x"), and "\" notes are meta. Outside a hunk the file's headers and
+    // an unfinished hunk header are meta, and a snippet with no header at all still reads by its signs.
+    const HUNK = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/;
+    let left = { old: 0, now: 0 };
+    const read = (line: string): CodeTokenKind | null => {
+      if (left.old > 0 || left.now > 0) {
+        const sign = line[0];
+        if (sign === "\\") return "meta";
+        if (sign === "-" && left.old > 0) { left.old -= 1; return "deleted"; }
+        if (sign === "+" && left.now > 0) { left.now -= 1; return "inserted"; }
+        if ((sign === " " || line === "\n" || line === "") && left.old > 0 && left.now > 0) { left.old -= 1; left.now -= 1; return null; }
+        left = { old: 0, now: 0 };
+      }
+      const hunk = HUNK.exec(line);
+      if (hunk) { left = { old: Number(hunk[1] ?? 1), now: Number(hunk[2] ?? 1) }; return "meta"; }
+      if (/^(@@|\+\+\+(\s|$)|---(\s|$)|diff |index |new file|deleted file|similarity |rename |Binary |\\ )/.test(line)) return "meta";
+      return line[0] === "+" ? "inserted" : line[0] === "-" ? "deleted" : null;
+    };
+    // Picking up part way, the hunk being read is read again from its header to where the colouring starts.
+    const header = text.lastIndexOf("\n@@ ", from - 1), begin = from === 0 ? 0 : header >= 0 ? header + 1 : text.startsWith("@@ ") ? 0 : from;
+    for (const line of text.slice(begin, from).split(/(?<=\n)/)) if (line) read(line);
+    for (const line of text.slice(from).split(/(?<=\n)/)) push(read(line), line);
     return out;
   }
   const words: Record<string, string> = {
@@ -32,9 +60,12 @@ export function codeTokens(text: string, language: string): Array<[CodeTokenKind
   const lineComment = ["py", "sh", "yaml", "rust"].includes(lang) ? (lang === "rust" ? "//" : "#") : lang === "sql" ? "--" : ["json", "html", "css", "markdown"].includes(lang) ? "" : "//";
   const blockComment = ["js", "ts", "css", "go", "rust", "java", "c"].includes(lang) || !words[lang];
   if (lang === "html") {
-    const pattern = /<!--[\s\S]*?-->|<\/?[A-Za-z][\w:-]*|\s[\w:-]+(?==)|"[^"]*"|'[^']*'|\/?>/g;
-    let at = 0;
-    for (const match of text.matchAll(pattern)) {
+    // A comment left open runs to the end, as it does in HTML; a quoted value ends on its line. So no piece reaches back over
+    // another when the text changes further down (see `from`).
+    const pattern = /<!--[\s\S]*?(?:-->|$)|<\/?[A-Za-z][\w:-]*|\s[\w:-]+(?==)|"[^"\n]*"|'[^'\n]*'|\/?>/g;
+    let at = from;
+    pattern.lastIndex = from;
+    for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
       push(null, text.slice(at, match.index));
       const value = match[0];
       push(value.startsWith("<!--") ? "comment" : /^<|^\/?>$/.test(value) ? "tag" : /^\s/.test(value) ? "attribute" : "string", value);
@@ -43,7 +74,7 @@ export function codeTokens(text: string, language: string): Array<[CodeTokenKind
     push(null, text.slice(at));
     return out;
   }
-  let at = 0;
+  let at = from;
   while (at < text.length) {
     const rest = text.slice(at), char = text[at]!;
     let match: RegExpExecArray | null;
@@ -55,11 +86,11 @@ export function codeTokens(text: string, language: string): Array<[CodeTokenKind
       while (end < text.length && text[end] !== char && !(char !== "`" && text[end] === "\n")) end += text[end] === "\\" ? 2 : 1;
       const value = text.slice(at, Math.min(end + 1, text.length));
       // A quoted key followed by a colon reads as a property in JSON and YAML-like data.
-      push(["json", "yaml"].includes(lang) && /^\s*:/.test(text.slice(at + value.length)) ? "property" : "string", value); at += value.length; continue;
+      push(["json", "yaml"].includes(lang) && /^[ \t]*:/.test(text.slice(at + value.length)) ? "property" : "string", value); at += value.length; continue;
     }
     if ((match = /^(0x[\da-fA-F_]+|\d[\d_]*(\.\d+)?([eE][+-]?\d+)?n?)/.exec(rest)) && !/[\w$]/.test(text[at - 1] ?? "")) { push("number", match[0]); at += match[0].length; continue; }
     if ((match = /^[A-Za-z_$][\w$]*/.exec(rest))) {
-      const word = match[0], next = text.slice(at + word.length).match(/^\s*(.)/)?.[1];
+      const word = match[0], next = text.slice(at + word.length).match(/^[ \t]*(.)/)?.[1];
       const kind: CodeTokenKind | null = keywords.has(lang === "sql" ? word.toLowerCase() : word) ? "keyword"
         : lang === "yaml" && next === ":" && /^\s*$/.test(text.slice(text.lastIndexOf("\n", at) + 1, at)) ? "property"
         : lang === "css" && next === ":" ? "property"
@@ -70,6 +101,36 @@ export function codeTokens(text: string, language: string): Array<[CodeTokenKind
     push(null, char); at++;
   }
   return out;
+}
+
+/** A text's colouring as last put on the page: its pieces, where each starts, and the first piece new since the time before. */
+export interface CodeColouring { text: string; language: string; pieces: Array<[CodeTokenKind | null, string]>; starts: number[]; from: number }
+
+/**
+ * The colouring of a text that changed from the one coloured last (a code block being streamed or corrected, VUX-33): the
+ * pieces before the one covering the line break before the line where the two first differ stay as they were, and only the rest is
+ * coloured, from that piece's start. A streamed block that only grew is coloured from its last line; one corrected higher up,
+ * from the corrected line. A piece that would have joined the last kept one (the same kind) is joined, so the result is
+ * exactly what colouring the whole text gives. Another language is coloured whole. `from` is the first piece that differs
+ * from last time: the page keeps the nodes before it. Takes the tokenizer so the page can carry both as source.
+ */
+export function growCodeTokens(last: CodeColouring | null, text: string, language: string,
+  tokens: (text: string, language: string, from?: number) => Array<[CodeTokenKind | null, string]>): CodeColouring {
+  const startsOf = (pieces: Array<[CodeTokenKind | null, string]>, at: number) => pieces.map(([, value]) => { const start = at; at += value.length; return start; });
+  if (!last || last.language !== language) { const pieces = tokens(text, language); return { text, language, pieces, starts: startsOf(pieces, 0), from: 0 }; }
+  let same = 0;
+  const shorter = Math.min(last.text.length, text.length);
+  while (same < shorter && last.text.charCodeAt(same) === text.charCodeAt(same)) same += 1;
+  if (same === last.text.length && same === text.length) return { ...last, from: last.pieces.length };
+  // From the piece covering the line break before that line: a piece may begin with the break (an HTML attribute after it).
+  const line = same === 0 ? 0 : Math.max(0, last.text.lastIndexOf("\n", same - 1));
+  let index = 0;
+  for (let at = last.starts.length - 1; at >= 0; at -= 1) if (last.starts[at]! <= line) { index = at; break; }
+  const kept = last.pieces.slice(0, index), fresh = tokens(text, language, last.starts[index] ?? 0);
+  let from = index, start = last.starts[index] ?? 0;
+  const joined = kept[kept.length - 1];
+  if (joined && fresh[0] && joined[0] === fresh[0][0]) { kept.pop(); from -= 1; start = last.starts[from]!; fresh[0] = [joined[0], joined[1] + fresh[0][1]]; }
+  return { text, language, pieces: [...kept, ...fresh], starts: [...last.starts.slice(0, from), ...startsOf(fresh, start)], from };
 }
 
 /**

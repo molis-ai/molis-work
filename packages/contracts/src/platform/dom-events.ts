@@ -241,6 +241,11 @@ export const DOM_EVENTS = [
     summary: "A Goal event panel is present in the document; the shell re-reads whether to offer the panel layout.",
   },
   {
+    name: "molis-work:item-unreadable", kind: "request", owner: "context-actions", on: "element", bubbles: true,
+    detail: "{ itemId }",
+    summary: "A plugin surface could not read the item the workbench asked it to show (molis-work:select-item): it is gone. The surface says so on itself; the workbench does not name the surface after the item, so the Assistant does not carry it as what the person is looking at. Raised from the surface root and bubbling.",
+  },
+  {
     name: "molis-work:knowledge-pick", kind: "request", owner: "knowledge-picker", on: "document",
     detail: "{ request_id, selected?: Array<{ kind, id, title }>, max? }",
     summary: "Open the project knowledge picker with these pieces already chosen. Sent by an input that brings pieces into a round: the Assistant's ＋ and Coding's 材料.",
@@ -292,8 +297,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis-work:select-item", kind: "announcement", owner: "tab-workspace", on: "element",
-    detail: "{ itemId }",
-    summary: "The workbench opened an item in a plugin surface; the surface shows it. Dispatched on the surface root, not bubbling.",
+    detail: "{ itemId, quiet? }",
+    summary: "The workbench opened an item in a plugin surface; the surface shows it. quiet: a reopen the person did not ask for (a reload, Back), so an item that is gone is forgotten without a word. Dispatched on the surface root, not bubbling.",
   },
   {
     name: "molis-work:settings-embed", kind: "announcement", owner: "settings-directory", on: "document",

@@ -44,8 +44,7 @@ export const PROJECT_HOME_STYLES = `
   /* The day strip: the chosen day is the graphite choice; days with events carry a few quiet dots. */
   .immersive-home .home-dates { --dot-me: color-mix(in srgb, var(--ink) 28%, transparent); --dot-org: var(--accent);
     display: flex; align-items: center; gap: 8px; margin: 0 0 16px; min-width: 0; }
-  .immersive-home .home-dates__list { display: flex; gap: 8px; min-width: 0; overflow-x: auto; scrollbar-width: none; padding: 4px 4px 8px; margin: -4px -4px -8px; }
-  .immersive-home .home-dates__list::-webkit-scrollbar { height: 0; }
+  .immersive-home .home-dates__list { display: flex; gap: 8px; min-width: 0; overflow-x: auto; padding: 4px 4px 8px; margin: -4px -4px -8px; }
   .immersive-home .home-day {
     position: relative; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center;
     width: 55px; height: 70px; padding: 0; border: 0; border-radius: 10px; background: transparent;

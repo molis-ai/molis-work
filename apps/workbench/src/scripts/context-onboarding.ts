@@ -20,7 +20,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const names = {downloads:'下载',documents:'文稿',desktop:'桌面',custom:'其他文件夹',files:'单独选文件',directory:'文件夹资料',browser:'浏览器内容',gmail:'Gmail',chat:'聊天记录'};
   const sourceIcons = {downloads:'folder',documents:'folder',desktop:'folder',custom:'folder',files:'file',directory:'folder',browser:'globe',gmail:'mail',chat:'message'};
   const grants = {}, uploads = new Map();
-  let preparing = '', readingLocal = '';
+  let preparing = '', readingLocal = '', uploading = null;
   const invoke = (command,args) => globalThis.__TAURI__.core.invoke(command,args);
   const directory = s => directories.includes(s.kind);
   const size = bytes => bytes < 1000 ? Math.max(1, Math.round(bytes)) + ' B' : bytes < 1000000 ? Math.max(1, Math.round(bytes/1000)) + ' KB' : (bytes/1000000).toFixed(1) + ' MB';
@@ -39,7 +39,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const ready = s => s.references?.length ? true : directory(s) ? native && grants[s.kind]?.state==='ready' : s.kind==='gmail' ? Boolean(s.connection_id && connected().some(c=>c.connection_id===s.connection_id)) : s.kind==='browser' ? Boolean(s.text?.trim()) : Boolean(s.files?.length||uploads.has(s.kind));
   const readable = () => picked().filter(ready);
   const sourceStatus = s => s.references?.length ? '已暂存' : directory(s) ? (grants[s.kind]?.state==='ready'?'已授权':grants[s.kind]?.state==='unavailable'?'需要重新授权':'待授权') : ready(s)?'已添加':s.kind==='gmail'?(config.gmail_configured?'待连接':'暂不可连接'):'待添加';
-  const startLabel = () => busy ? (preparing?'正在准备…':readingLocal?'正在读取…':'正在保存…') : '确认范围';
+  const startLabel = () => busy ? (preparing?'正在准备…':uploading?L('正在上传第 {k} / {n} 份', uploading):readingLocal?'正在读取…':'正在保存…') : '确认范围';
 
   /* ───────── Markup: the design system's parts, drawn in the browser (same classes as primitives/*.ts) ───────── */
   const attrs = map => Object.keys(map || {}).filter(k => map[k] !== undefined && map[k] !== null && map[k] !== false).map(k => map[k] === true ? ' ' + k : ' ' + k + '="' + esc(map[k]) + '"').join('');
@@ -235,7 +235,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const canStart = !(busy || missing || over || (!total.count && !picked().some(s => s.kind === 'gmail')));
     return {kind:'onboard', view:'preview', step:'确认', left, right,
       bar:{start:exitButton() + stepsBar('确认'), center:barStatus({glyph:'shield', title:L('已选 {n} 份 · {size}', {n:total.count, size:size(total.bytes)}), caption:over ? L('超过本轮上限，请取消部分文件') : missing ? L('先补齐上方来源，或跳过本次不需要的内容。') : config.ai_available ? L('开始后读取正文并发给所选模型整理') : L('开始后读取正文，暂存在本机')}),
-        end:secondary('上一步','sources',{icon:'back'}) + primary(busy ? (readingLocal ? L('正在读取 {name}', {name:L(readingLocal)}) : '正在准备…') : config.ai_available ? '开始整理' : '先带入资料', 'start', {disabled:!canStart})}};
+        end:secondary('上一步','sources',{icon:'back'}) + primary(busy ? (uploading ? L('正在上传第 {k} / {n} 份', uploading) : readingLocal ? L('正在读取 {name}', {name:L(readingLocal)}) : '正在准备…') : config.ai_available ? '开始整理' : '先带入资料', 'start', {disabled:!canStart})}};
   }
 
   /* ───────── Reading: the Host reads and sorts; the person may leave and come back ───────── */
@@ -513,16 +513,20 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       for(const s of picked()) {
         if(s.references?.length)continue;
         readingLocal=names[s.kind];render();
-        if(directory(s)) {const result=await invoke('context_directory_read',{id:s.kind,files:included(s)});s.files=result.files;}
-        else if(uploads.has(s.kind)) {
-          s.files=[];
-          for(const file of uploads.get(s.kind).filter(file=>included(s).some(f=>f.path===(file.webkitRelativePath||file.name)))) {
-            const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
-            s.files.push({path:file.webkitRelativePath||file.name,data:btoa(binary)});
-          }
-        }
+        // No limits (2026-10-22): each chosen file goes up on its own into the round's staging, and the selection names it by digest.
+        const chosen=directory(s)?included(s):uploads.has(s.kind)?uploads.get(s.kind).filter(file=>included(s).some(f=>f.path===(file.webkitRelativePath||file.name))):[];
+        if(!chosen.length)continue;
+        s.files=[];
+        try{for(const [index,item] of chosen.entries()) {
+          uploading={k:index+1,n:chosen.length};render();
+          const file=directory(s)?(await invoke('context_directory_read',{id:s.kind,files:[item]})).files[0]:{path:item.webkitRelativePath||item.name,blob:item};
+          if(!file.blob&&!file.data){s.files.push({path:file.path,reason:file.reason||L('无法读取文件')});continue;}
+          const blob=file.blob||new Blob([Uint8Array.from(atob(file.data),c=>c.charCodeAt(0))]);
+          const staged=await molisWorkRequest(endpoint('files')+'?path='+encodeURIComponent(file.path),{file:blob,fallback:L('上传失败，请重试')});
+          s.files.push({path:staged.path,staged:staged.staged});
+        }}finally{uploading=null;}
       }
-      readingLocal='';await save();
+      readingLocal='';uploading=null;await save();
     }
     journey=await api(endpoint('start'),{});render();timer=setTimeout(poll,800);
   }
@@ -600,7 +604,11 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     if(b.dataset.pick){folderKind=b.dataset.pick;render();return;}
     if(b.dataset.rangePick!==undefined){const s=source(folderKind);s.days=Number(b.dataset.rangePick);invalidateSource(s);delete s.metadata;s.excluded=[];busy=true;error='';render();try{if(grants[folderKind]?.state==='ready'){await metadata(s);s.selected=Boolean(s.metadata);}await save();}catch(err){error=keepFailure(err);}finally{busy=false;render();}return;}
     if(b.dataset.remove){busy=true;render();try{await removeSource(b.dataset.remove);}catch(err){error=keepFailure(err);}finally{busy=false;render();}return;}
-    if(b.dataset.cite){const ref=journey.summary.references.find(r=>r.label===b.dataset.cite);if(!ref)return;opener=b;dialog.innerHTML='<h2 id="cx-dialog-title">'+esc(ref.title)+'</h2><div class="cx-source-meta">'+esc(L('{path} · 版本 {version}',{path:ref.path,version:ref.version}))+'</div><div class="cx-source-body">'+esc(ref.body)+'</div><div class="cx-actions">'+btn({variant:'secondary',size:'md',label:L('关闭'),attrs:{'data-close':true}})+'</div>';dialog.showModal();return;}
+    if(b.dataset.cite){const ref=journey.summary.references.find(r=>r.label===b.dataset.cite);if(!ref)return;opener=b;
+      // The text is staged on the Host, not in the journey; a long one shows its beginning here and is whole in Pages after adoption.
+      let read;try{read=await api(endpoint('text/'+ref.text.sha256));}catch(err){error=keepFailure(err);render();return;}
+      const shown=esc(read.text)+(read.chars>read.text.length?'<p class="cx-source-meta">'+esc(L('只显示开头 {shown} 字，全文 {chars} 字；采用后在 Pages 里读全文。',{shown:read.text.length,chars:read.chars}))+'</p>':'');
+      dialog.innerHTML='<h2 id="cx-dialog-title">'+esc(ref.title)+'</h2><div class="cx-source-meta">'+esc(L('{path} · 版本 {version}',{path:ref.path,version:ref.version}))+'</div><div class="cx-source-body">'+shown+'</div><div class="cx-actions">'+btn({variant:'secondary',size:'md',label:L('关闭'),attrs:{'data-close':true}})+'</div>';dialog.showModal();return;}
     if(b.dataset.authorize||b.dataset.forget||b.dataset.refresh||b.dataset.skip||b.dataset.range||b.dataset.add){
       busy=true;error='';render();
       try{

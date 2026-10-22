@@ -3,12 +3,20 @@ import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/a
 import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
 
 export type ContextSourceKind = "files" | "directory" | "downloads" | "documents" | "desktop" | "custom" | "browser" | "gmail" | "chat";
-export interface ImportFile { path: string; data?: string; reason?: string }
+/**
+ * One file of a source: staged in the journey by digest (an upload, a folder read), or bytes the Host itself read for this pass
+ * (pasted web text, mail) that are staged before reading, or the reason it was not read. Bytes never reach the journey's row.
+ */
+export interface ImportFile { path: string; staged?: string; bytes?: Buffer; reason?: string }
 export interface ContextFileMetadata { path: string; size: number; modified_ms: number; identity: string }
+/** A read material: its text and its original are staged in the journey (context-onboarding-staging.ts), named here by digest. */
 export interface ContextReference {
-  source_id: string; version: 1; label: string; title: string; path: string; body: string;
-  original: { filename: string; mime: string; data_base64: string };
+  source_id: string; version: 1; label: string; title: string; path: string;
+  text: { sha256: string; bytes: number; chars: number };
+  original: { filename: string; mime: string; sha256: string; size_bytes: number };
   artifact?: ArtifactReference;
+  /** The Pages documents adoption made from it, one per part of a long text. */
+  documents?: string[];
 }
 export interface ContextSource {
   kind: ContextSourceKind; selected: boolean; path?: string; files?: ImportFile[];
@@ -16,6 +24,8 @@ export interface ContextSource {
   metadata?: { files: ContextFileMetadata[]; skipped: number; truncated: boolean };
   excluded?: string[];
   references?: ContextReference[]; skipped?: number; issues?: { path: string; reason: string }[]; error?: string;
+  /** Reading in progress, one file at a time: what is read so far survives a restart, and reading resumes after it. */
+  reading?: { done: number; total: number; references: ContextReference[]; issues: { path: string; reason: string }[] };
 }
 export interface ContextJourney {
   id: string; phase: "selecting" | "reading" | "review" | "failed" | "adopting" | "complete";
@@ -33,7 +43,8 @@ export interface ContextJourney {
   oauth_status?: "pending" | "connected" | "cancelled" | "failed";
   oauth_state?: string;
   oauth_expires_at?: number;
-  synthesis?: { key: string; stage: number; completed: number; total: number; notes: Record<string, string> };
+  /** The summary's batches: the round, its batches done and in all; `notes` are the batches whose notes are staged (by digest). */
+  synthesis?: { key: string; stage: number; completed: number; total: number; notes: string[] };
 }
 const CONTEXT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 export function contextJourneyId(value: unknown): string {

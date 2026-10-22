@@ -1,14 +1,16 @@
-import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { BoundActionClient, HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { Readable } from "node:stream";
 import { fencedMaterials, instructed, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { ONBOARDING_NOTES, ONBOARDING_OWNER, ONBOARDING_PROPOSAL } from "./agent-definitions/system-prompts.js";
 import { createHash, randomUUID } from "node:crypto";
 import { pagesActions, blocksFromMarkdown } from "@molis-ai/molis-work-plugin-pages";
 import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
 import { withContextJourneys, type ContextJourney, type ContextReference } from "./context-onboarding-store.js";
-import { contextSources, readContextSource } from "./context-onboarding-sources.js";
+import { contextFilePath, contextSources, readContextSource } from "./context-onboarding-sources.js";
+import { dropStagedNotes, readStagedNote, readStagedText, removeJourneyStaging, stageContextUpload, stageNote, stagedFilePath, isStagedDigest } from "./context-onboarding-staging.js";
 import { configuredTextPort, type TextModelPort } from "./configured-text-port.js";
-import { prepareContextDocuments } from "./context-onboarding-documents.js";
-import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
+import { prepareContextDocument } from "./context-onboarding-documents.js";
+import { ARTIFACTS_PLUGIN_ID, artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
 import { completeMolisWorkOnboarding } from "./onboarding.js";
 import { descriptionFromSummary, setProjectDescription } from "./project-arrival.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -18,7 +20,8 @@ import { L } from "./web-locale.js";
 
 export interface ContextOnboardingPorts {
   withCatalog: LocalWebCatalogRunner;
-  actions?: (home: string, projectId: string) => Promise<BoundActionClient>;
+  /** The person's actions in the new project; with `original_file`, for one import that comes with a file the Host staged. */
+  actions?: (home: string, projectId: string, original_file?: HostOfferedOriginalFile) => Promise<BoundActionClient>;
   /** The person's own (Home) actions, for todo drafts made before the project exists. */
   homeActions?: (home: string, signal: AbortSignal) => BoundActionClient;
   model?: (home: string) => Promise<TextModelPort>;
@@ -30,10 +33,10 @@ const running = new Map<string, Promise<void>>();
 const key = (home: string, id: string) => home + ":" + id;
 export function readContextJourney(home: string, id: string): ContextJourney {
   const journey = withContextJourneys(home, store => store.get(id));
-  // Do not reinterpret old Cognia identities as Artifact identities. Keep the
-  // historical journey intact and offer a fresh selection without reading its old store.
+  // Do not reinterpret old Cognia identities as Artifact identities, nor a material whose text sat in the row before staging
+  // (2026-10-22). Keep the historical journey intact and offer a fresh selection without reading its old store.
   if (journey.phase !== "complete" && [...journey.sources.flatMap(s => s.references ?? []), ...(journey.summary?.references ?? [])]
-    .some(ref => !ref.source_id || !ref.original)) {
+    .some(ref => !ref.source_id || !isStagedDigest(ref.original?.sha256) || !isStagedDigest(ref.text?.sha256))) {
     journey.requires_reselection = true;
     journey.error = "这轮资料使用旧版存储。原记录已保留，请重新选择资料开始一轮整理。";
     return journey;
@@ -67,6 +70,26 @@ export function selectContextSources(home: string, id: string, input: Record<str
   }
   return withContextJourneys(home, store => store.save(journey));
 }
+/**
+ * One file the person chose, sent as the raw body while the round is still being chosen: staged in the journey under its digest,
+ * any size. The selection then names it by that digest; its bytes never pass through the selection or the journey's row.
+ */
+export async function stageContextFile(home: string, id: string, path: unknown, body: Readable | Buffer): Promise<{ path: string; staged: string; size_bytes: number }> {
+  const journey = readContextJourney(home, id);
+  if (journey.requires_reselection) throw new Error(journey.error!);
+  if (journey.phase !== "selecting" || journey.adoption) throw new Error("整理已经开始；请返回清单调整范围");
+  const name = contextFilePath(path);
+  const staged = await stageContextUpload(home, id, body);
+  return { path: name, staged: staged.sha256, size_bytes: staged.size_bytes };
+}
+/** The whole text read out of one of this round's materials (the cite dialog shows it); only a material of this journey. */
+export async function contextReferenceText(home: string, id: string, sha256: string): Promise<string> {
+  const journey = readContextJourney(home, id);
+  const refs = [...journey.summary?.references ?? [], ...journey.sources.flatMap(s => s.references ?? [])];
+  const ref = isStagedDigest(sha256) ? refs.find(r => r.text?.sha256 === sha256) : undefined;
+  if (!ref) throw new Error("找不到这份材料的正文");
+  return readStagedText(home, id, ref.text);
+}
 export function reopenContextJourney(home: string, id: string): ContextJourney {
   const journey = readContextJourney(home, id);
   if (running.has(key(home, id)) || journey.adoption || journey.phase === "complete") throw new Error("当前正在保存或已经采用，不能更改来源");
@@ -97,15 +120,21 @@ export async function waitContextJourney(home: string, id: string): Promise<Cont
 async function organize(home: string, journey: ContextJourney, ports: ContextOnboardingPorts): Promise<void> {
   const save = () => withContextJourneys(home, store => store.save(journey));
   try {
+    // Reading is a queue: one file at a time, each saved as it is read, so a restart resumes after the last one (no limits, 2026-10-22).
     for (const source of journey.sources.filter(s => s.selected)) {
       if (source.references) continue;
       source.error = undefined; save();
       try {
         const input = await (ports.readSource ?? readContextSource)(home, source);
-        const prepared = await prepareContextDocuments(source.kind, input.files);
-        source.references = prepared.references;
-        source.issues = prepared.issues; source.skipped = prepared.issues.length;
-        source.files = undefined; source.text = undefined;
+        const reading = source.reading?.total === input.files.length ? source.reading : { done: 0, total: input.files.length, references: [], issues: [] };
+        source.reading = reading; save();
+        for (const file of input.files.slice(reading.done)) {
+          const read = await prepareContextDocument(home, journey.id, source.kind, file);
+          if ("reference" in read) reading.references.push(read.reference); else reading.issues.push(read.issue);
+          reading.done++; save();
+        }
+        source.references = reading.references; source.issues = reading.issues; source.skipped = reading.issues.length;
+        source.reading = undefined; source.files = undefined; source.text = undefined;
       } catch (error) {
         source.error = error instanceof Error ? error.message : "读取失败，请重试";
       }
@@ -114,70 +143,93 @@ async function organize(home: string, journey: ContextJourney, ports: ContextOnb
     const refs = journey.sources.filter(s => s.selected).flatMap(s => s.references ?? []);
     const unique = [...new Map(refs.map(r => [r.source_id + ":" + r.version, r])).values()].map((r, i) => ({ ...r, label: "S" + (i + 1) }));
     if (!unique.length) throw new Error("还没有读到正文，请检查来源范围后重试");
-    validateContextBudget(unique);
     const ai = await contextModel(home, ports); journey.model = ai.runtimeLabel ?? null; save();
     if (!ai.completeText) { journey.needs_model = true; throw new Error(ai.unavailableReason ?? "材料已保存。请在设置中连接文字模型，再回来继续整理。"); }
     // Todo drafts come from the same materials, beside the overview; a failure there never stops the overview.
     const drafts = draftTodos(home, journey, unique, ports, save);
-    const raw = await summarizeContext(unique, ai, journey, save);
+    const raw = await summarizeContext(home, unique, ai, journey, save);
     await drafts;
     journey.summary = parseContextSummary(raw, unique); journey.phase = "review"; journey.error = null; save();
   } catch (error) {
     journey.phase = "failed"; journey.error = error instanceof Error ? error.message.slice(0, 600) : "整理失败，材料已保留"; save();
   }
 }
-// Keep all original bodies staged locally; only bounded evidence batches go to a model.
-async function summarizeContext(references: ContextReference[], ai: TextModelPort, journey: ContextJourney, save: () => unknown): Promise<string> {
-  const limit = 80_000;
-  const cacheKey = JSON.stringify([journey.model, references.map(r => [r.source_id, r.version, r.label])]);
-  if (journey.synthesis?.key !== cacheKey) journey.synthesis = { key: cacheKey, stage: 1, completed: 0, total: 0, notes: {} };
-  const checkpoint = journey.synthesis;
-  // Registered instructions (editable in “Prompt 与 Character”), then this batch's materials, fenced under the fixed notice (S-13).
-  const wrap = (instruction: InstructionPrompt, data: unknown) => instructed(instruction, fencedMaterials(data, "MATERIALS_" + randomUUID()));
-  let evidence: { body: string; labels: string[]; title?: string; part?: number }[] = [];
+type Evidence = { body: string; labels: string[]; title?: string; part?: number };
+const BATCH_LIMIT = 80_000;
+
+/** Every material's text, in parts of at most 12,000 characters, read from the journey's staging one material at a time. */
+async function* materialEvidence(home: string, id: string, references: ContextReference[]): AsyncGenerator<Evidence> {
   for (const ref of references) {
+    const body = await readStagedText(home, id, ref.text);
     let offset = 0, part = 1;
-    while (offset < ref.body.length) {
-      let end = Math.min(offset + 12_000, ref.body.length);
-      if (end < ref.body.length && /[\uD800-\uDBFF]/u.test(ref.body[end - 1]!)) end--;
-      evidence.push({ labels: [ref.label], title: ref.title, part: part++, body: ref.body.slice(offset, end) });
+    while (offset < body.length) {
+      let end = Math.min(offset + 12_000, body.length);
+      if (end < body.length && /[\uD800-\uDBFF]/u.test(body[end - 1]!)) end--;
+      yield { labels: [ref.label], title: ref.title, part: part++, body: body.slice(offset, end) };
       offset = end;
     }
   }
-  let stage = 1;
-  while (JSON.stringify(evidence).length > limit) {
-    const batches: typeof evidence[] = [];
-    let batch: typeof evidence = [], size = 2;
-    for (const item of evidence) {
-      const length = JSON.stringify(item).length + 1;
-      if (length > limit) throw new Error("单份材料的标题信息过长，请缩短标题后重试；原文已保留。");
-      if (batch.length && size + length > limit) { batches.push(batch); batch = []; size = 2; }
-      batch.push(item); size += length;
-    }
-    if (batch.length) batches.push(batch);
-    checkpoint.stage = stage++; checkpoint.completed = 0; checkpoint.total = batches.length; save();
-    const notes: typeof evidence = [];
-    for (const batch of batches) {
-      const key = createHash("sha256").update(JSON.stringify(batch)).digest("hex");
+}
+async function* noteEvidence(home: string, id: string, notes: { labels: string[]; key: string }[]): AsyncGenerator<Evidence> {
+  for (const note of notes) yield { labels: note.labels, body: (await readStagedNote(home, id, note.key)) ?? "" };
+}
+/** Consecutive evidence in batches whose serialized size stays within one model call. */
+async function* batchesOf(items: AsyncIterable<Evidence>): AsyncGenerator<Evidence[]> {
+  let batch: Evidence[] = [], size = 2;
+  for await (const item of items) {
+    const length = JSON.stringify(item).length + 1;
+    if (length > BATCH_LIMIT) throw new Error("单份材料的标题信息过长，请缩短标题后重试；原文已保留。");
+    if (batch.length && size + length > BATCH_LIMIT) { yield batch; batch = []; size = 2; }
+    batch.push(item); size += length;
+  }
+  if (batch.length) yield batch;
+}
+
+/**
+ * The summary, built in rounds of batches however much there is (no limits, 2026-10-22): the texts are read from staging as the
+ * batches need them, each batch's note is staged under the batch's digest, and the checkpoint keeps only the round and counts.
+ * A round that is one batch is the final proposal. Only bounded batches ever go to a model.
+ */
+async function summarizeContext(home: string, references: ContextReference[], ai: TextModelPort, journey: ContextJourney, save: () => unknown): Promise<string> {
+  const cacheKey = JSON.stringify([journey.model, references.map(r => [r.source_id, r.version, r.label])]);
+  if (journey.synthesis?.key !== cacheKey || !Array.isArray(journey.synthesis.notes)) journey.synthesis = { key: cacheKey, stage: 1, completed: 0, total: 0, notes: [] };
+  const checkpoint = journey.synthesis;
+  // Registered instructions (editable in “Prompt 与 Character”), then this batch's materials, fenced under the fixed notice (S-13).
+  const wrap = (instruction: InstructionPrompt, data: unknown) => instructed(instruction, fencedMaterials(data, "MATERIALS_" + randomUUID()));
+  let evidence = () => materialEvidence(home, journey.id, references), stage = 1;
+  for (;;) {
+    let total = 0;
+    for await (const _ of batchesOf(evidence())) total++;
+    if (total <= 1) break;
+    checkpoint.stage = stage++; checkpoint.completed = 0; checkpoint.total = total; save();
+    const notes: { labels: string[]; key: string }[] = [];
+    let inSize = 0, outSize = 0;
+    for await (const batch of batchesOf(evidence())) {
+      const key = createHash("sha256").update(cacheKey + JSON.stringify(batch)).digest("hex");
       const labels = [...new Set(batch.flatMap(item => item.labels))];
-      let note = checkpoint.notes[key];
-      if (!note) {
+      let note = await readStagedNote(home, journey.id, key);
+      if (note === null) {
         note = await ai.completeText!(wrap(ONBOARDING_NOTES, batch), { signal: AbortSignal.timeout(180_000) });
         parseContextSummary(note, references.filter(r => labels.includes(r.label)));
         if (note.length > 8_000) throw new Error("分批整理结果过长，请重试；已完成批次和原文已保留。");
-        checkpoint.notes[key] = note;
+        await stageNote(home, journey.id, key, note);
+        checkpoint.notes.push(key);
       }
-      notes.push({ labels, body: note }); checkpoint.completed++; save();
+      notes.push({ labels, key }); inSize += JSON.stringify(batch).length; outSize += JSON.stringify({ labels, body: note }).length;
+      checkpoint.completed++; save();
     }
-    if (JSON.stringify(notes).length >= JSON.stringify(evidence).length) {
-      for (const batch of batches) delete checkpoint.notes[createHash("sha256").update(JSON.stringify(batch)).digest("hex")];
-      checkpoint.completed = 0; save();
+    if (outSize >= inSize) {
+      const keys = notes.map(note => note.key);
+      await dropStagedNotes(home, journey.id, keys);
+      checkpoint.notes = checkpoint.notes.filter(key => !keys.includes(key)); checkpoint.completed = 0; save();
       throw new Error("模型未能归纳长材料，请重试或更换模型；原文与此前完成的批次已保留。");
     }
-    evidence = notes;
+    evidence = () => noteEvidence(home, journey.id, notes);
   }
+  const final: Evidence[] = [];
+  for await (const item of evidence()) final.push(item);
   checkpoint.stage = stage; checkpoint.completed = 0; checkpoint.total = 1; save();
-  const result = await ai.completeText!(wrap(ONBOARDING_PROPOSAL, evidence), { signal: AbortSignal.timeout(180_000) });
+  const result = await ai.completeText!(wrap(ONBOARDING_PROPOSAL, final), { signal: AbortSignal.timeout(180_000) });
   checkpoint.completed = 1; save();
   return result;
 }
@@ -196,7 +248,7 @@ async function draftTodos(home: string, journey: ContextJourney, references: Con
     const actions = ports.homeActions(home, AbortSignal.timeout(20 * 60_000));
     // The journey id makes a retried pass return the same drafts instead of organizing twice.
     const { batch } = await actions.invoke(todoOrganizeActions.extract, { title: "开始使用时整理的待办", origin: "onboarding", request_id: "onboarding:" + journey.id,
-      materials: references.slice(0, 50).map(ref => ({ title: ref.title, text: ref.body })) });
+      materials: await Promise.all(references.slice(0, 50).map(async ref => ({ title: ref.title, text: await readStagedText(home, journey.id, ref.text) }))) });
     journey.todo = { status: "ready", batch_id: batch.batch_id, batch, error: null };
   } catch (error) {
     journey.todo = { status: "failed", batch_id: null, batch: null, error: error instanceof Error ? error.message.slice(0, 300) : "待办草稿没整理成" };
@@ -212,7 +264,6 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   const journey = readContextJourney(home, id);
   if (journey.requires_reselection) throw new Error(journey.error!);
   if (journey.phase === "complete") return journey;
-  if (!(journey.adoption?.blank ?? input.blank === true)) validateContextBudget(journey.summary?.references ?? journey.sources.filter(s => s.selected).flatMap(s => s.references ?? []));
   if (!journey.adoption && input.blank !== true && !(journey.phase === "review" && journey.summary)
     && !(input.materials_only === true && journey.phase === "failed" && journey.sources.some(s => s.selected && s.references?.length))) throw new Error("请先完成整理");
   const title = journey.adoption?.title ?? (typeof input.title === "string" ? input.title.trim() : "");
@@ -233,19 +284,31 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
       // The chooser introduces the new project in the words the person accepted (a blank start has none). Safe to repeat.
       if (!journey.adoption!.blank) setProjectDescription(home, journey.project_id, descriptionFromSummary(journey.adoption!.body));
       if (!ports.actions) throw new Error("当前环境没有提供动作服务，已确认内容仍保留");
-      const actions = await ports.actions(home, journey.project_id);
+      const client = await ports.actions(home, journey.project_id);
+      const actions = Object.assign(client, { forOriginal: (path: string) => ports.actions!(home, journey.project_id, { path, install_id: ARTIFACTS_PLUGIN_ID }) });
       {
-        const refs = journey.adoption!.blank ? [] : journey.summary?.references ?? journey.sources.filter(s => s.selected).flatMap(s => s.references ?? []).map((r, i) => ({ ...r, label: "S" + (i + 1) }));
-        journey.artifact_references = [];
+        const refs = journey.adoption!.blank ? [] : journey.summary?.references ?? journey.sources.filter(s => s.selected).flatMap(s => s.references ?? []);
+        if (!journey.summary) refs.forEach((ref, index) => { ref.label = "S" + (index + 1); });
+        journey.artifact_references = refs.flatMap(ref => ref.artifact ? [ref.artifact] : []);
+        // One material at a time, each saved as it lands, so a retry goes on after the last one; its staged original is offered to
+        // the 成果库 by the Host (any size), and its whole text becomes its Pages documents.
         for (const ref of refs) {
-          const registered = await actions.invoke(artifactsActions.importFile, { source: "file", filename: "material.md", title: ref.title,
-            source_id: "onboarding:" + id + ":" + ref.source_id, content: ref.body, original_file: ref.original });
-          ref.artifact = { artifact_id: registered.artifact_id, version: registered.version };
-          journey.artifact_references.push(ref.artifact);
-          withContextJourneys(home, store => store.save(journey));
+          if (!ref.artifact) {
+            const offered = await actions.forOriginal(await stagedFilePath(home, id, ref.original.sha256));
+            const registered = await offered.invoke(artifactsActions.importFile, { source: "file", filename: "material.md", title: ref.title,
+              source_id: "onboarding:" + id + ":" + ref.source_id, content: await readStagedText(home, id, ref.text), original_file: { filename: ref.original.filename, mime: ref.original.mime } });
+            ref.artifact = { artifact_id: registered.artifact_id, version: registered.version };
+            journey.artifact_references.push(ref.artifact);
+            withContextJourneys(home, store => store.save(journey));
+          }
+          if (!ref.documents) {
+            const body = await readStagedText(home, id, ref.text);
+            ref.documents = (await actions.invoke(pagesActions.importDocuments, { request_id: id + ":sources:" + ref.label, request_hash: id,
+              documents: [{ title: pageTitle(`[${ref.label}] ${ref.title}`), body: pageBody(`原标题：${ref.title}\n\n来源：${ref.path} · 版本 ${ref.version}\n\n${body}`) }] })).documents.map(document => document.id);
+            withContextJourneys(home, store => store.save(journey));
+          }
         }
-        const documents = refs.length ? (await actions.invoke(pagesActions.importDocuments, { request_id: id + ":sources", request_hash: id, documents: refs.map(r => ({ title: pageTitle(`[${r.label}] ${r.title}`), body: pageBody(`原标题：${r.title}\n\n来源：${r.path} · 版本 ${r.version}\n\n${r.body}`) })) })).documents : [];
-        const sources = refs.map((r, i) => `[${r.label}] [${r.title.replace(/[\[\]]/gu, "")}](/projects/${journey.project_id}/?openPlugin=pages&openItem=${documents[i]!.id}&openTitle=${encodeURIComponent(r.title)}) · ${r.path} · 版本 ${r.version}`).join("\n\n");
+        const sources = refs.map(r => `[${r.label}] [${r.title.replace(/[\[\]]/gu, "")}](/projects/${journey.project_id}/?openPlugin=pages&openItem=${r.documents![0]}&openTitle=${encodeURIComponent(r.title)}) · ${r.path} · 版本 ${r.version}`).join("\n\n");
         // The page is the person's, written in the interface language they made the project in (user decision 2026-10-15).
         const text = journey.adoption!.body + (sources ? "\n\n## " + L("资料来源") + "\n\n" + sources : "");
         const summaryTitle = L("{title} · 工作摘要", { title: journey.adoption!.title });
@@ -260,6 +323,8 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
       }
       await adoptTodoDrafts(journey, actions);
       completeMolisWorkOnboarding(home, journey.project_id); journey.phase = "complete"; journey.error = null;
+      // The project now holds the materials; what the round staged goes.
+      await removeJourneyStaging(home, id);
     } catch (error) { journey.phase = "failed"; journey.error = error instanceof Error ? error.message : "项目保存未完成，请重试"; }
     withContextJourneys(home, store => store.save(journey));
   }).finally(() => running.delete(key(home, id)));
@@ -277,11 +342,6 @@ async function adoptTodoDrafts(journey: ContextJourney, actions: BoundActionClie
     .map(candidate => ({ candidate_id: candidate.candidate_id, action: candidate.existing ? relation[candidate.existing.relation] : "add" as const }));
   const applied = decisions.length ? await actions.invoke(todoOrganizeActions.apply, { id: batch.batch_id, expected_revision: batch.revision, decisions }) : null;
   journey.todo = { ...journey.todo, batch: applied?.batch ?? batch, added: (applied?.results ?? []).flatMap(result => result.item_id ? [result.item_id] : []) };
-}
-
-function validateContextBudget(references: ContextReference[]): void {
-  if (references.length > 200) throw new Error("材料已暂存，但超过本次 200 份上限，请返回清单缩小范围。");
-  if (references.reduce((total, ref) => total + Buffer.from(ref.original.data_base64, "base64").length, 0) > 50_000_000) throw new Error("材料已暂存，但超过本次 50 MB 上限，请返回清单缩小范围。");
 }
 
 function pageTitle(title: string): string {

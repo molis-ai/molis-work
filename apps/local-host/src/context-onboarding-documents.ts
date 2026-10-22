@@ -1,51 +1,37 @@
 import { createHash } from "node:crypto";
-import { pagesSchema, nodesToMarkdown, preparePagesImport } from "@molis-ai/molis-work-plugin-pages";
-import { readMaterialUploads } from "./material-documents.js";
-import { extractMaterial } from "./material-extraction.js";
+import { readWholeMaterial } from "./material-extraction.js";
 import type { ContextReference, ContextSourceKind, ImportFile } from "./context-onboarding-store.js";
+import { readStagedFile, stageContextText, stageContextUpload } from "./context-onboarding-staging.js";
 
-/** Extract locally after explicit start. Originals stay in the journey until project adoption. */
-export async function prepareContextDocuments(kind: ContextSourceKind, files: ImportFile[], signal?: AbortSignal) {
-  const references: ContextReference[] = [], issues: { path: string; reason: string }[] = [];
-  for (const file of files) {
+const MIME: Record<string, string> = { pdf: "application/pdf", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  html: "text/html", htm: "text/html", md: "text/markdown", markdown: "text/markdown" };
+
+/**
+ * One file read in full after the explicit start (no limits, user 2026-10-22): its bytes come from the journey's staging (or are staged
+ * first), its whole text is staged beside them, and the reference names both by digest. A file that cannot be read is an issue of
+ * its own and never stops the others.
+ */
+export async function prepareContextDocument(home: string, journeyId: string, kind: ContextSourceKind, file: ImportFile, signal?: AbortSignal)
+  : Promise<{ reference: ContextReference } | { issue: { path: string; reason: string } }> {
+  signal?.throwIfAborted();
+  try {
+    if (file.reason || (file.staged === undefined && file.bytes === undefined)) throw new Error(file.reason || "没有读取到文件");
+    const original = file.bytes ? await stageContextUpload(home, journeyId, file.bytes) : null;
+    const sha256 = original?.sha256 ?? file.staged!;
+    const bytes = file.bytes ?? await readStagedFile(home, journeyId, sha256), filename = file.path.split("/").at(-1)!;
+    const extension = filename.toLowerCase().match(/\.([a-z0-9]+)$/u)?.[1] ?? "";
+    const result = await readWholeMaterial({ file_name: filename, bytes }, signal);
     signal?.throwIfAborted();
-    try {
-      if (file.reason || file.data === undefined) throw new Error(file.reason || "没有读取到文件");
-      const bytes = Buffer.from(file.data, "base64"), filename = file.path.split("/").at(-1)!;
-      if (bytes.length > 20_000_000) throw new Error("文件超过 20 MB");
-      let body = "", title = filename.replace(/\.[^.]+$/u, ""), mime = "text/plain";
-      if (/\.docx$/iu.test(filename)) {
-        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-        const materials = await readMaterialUploads([{ file_name: filename, data_base64: file.data }], { signal });
-        signal?.throwIfAborted();
-        const doc = preparePagesImport(materials).documents[0]!;
-        body = nodesToMarkdown(pagesSchema.nodeFromJSON(doc.body).content.content);
-        title = doc.title || title;
-      } else {
-        const result = await extractMaterial({ file_name: filename, bytes }, { signal, textFormat: "markdown", pdfMode: "text",
-          limits: { maxBytes: 20_000_000, maxCharacters: 2_000_000, maxTextBytes: 2_000_000, maxPages: 200 } });
-        body = result.text; title = result.title || title;
-        if (/\.pdf$/iu.test(filename)) {
-          mime = "application/pdf";
-          if (result.coverage.status !== "sufficient") throw new Error(result.coverage.issues.join("；") || "PDF 没有可读取的文本层");
-        } else {
-          // HTML omits external content by design; a capacity truncation must still reject the import.
-          if (result.coverage.truncated) throw new Error("正文超过 2 MB，请拆分后导入");
-          if (/\.html?$/iu.test(filename)) mime = "text/html";
-          else if (/\.(md|markdown)$/iu.test(filename)) mime = "text/markdown";
-        }
-      }
-      signal?.throwIfAborted();
-      if (!body.trim()) throw new Error("文件没有可读取的正文");
-      if (Buffer.byteLength(body) > 2_000_000) throw new Error("正文超过 2 MB，请拆分后导入");
-      references.push({ source_id: createHash("sha256").update(JSON.stringify([kind, file.path, file.data])).digest("hex"),
-        version: 1, label: "", title: title.slice(0, 500), path: file.path, body: body.trim(),
-        original: { filename, mime, data_base64: file.data } });
-    } catch (error) {
-      signal?.throwIfAborted();
-      const message = error instanceof Error ? error.message : "无法读取文件";
-      issues.push({ path: file.path, reason: /password/iu.test(message) ? "PDF 已加密，请解密后导入" : message.slice(0, 600) });
-    }
+    if (extension === "pdf" && result.coverage.status !== "sufficient") throw new Error(result.coverage.issues.join("；") || "PDF 没有可读取的文本层");
+    const body = result.text.trim();
+    if (!body) throw new Error("文件没有可读取的正文");
+    const title = (result.title || filename.replace(/\.[^.]+$/u, "")).slice(0, 500);
+    return { reference: { source_id: createHash("sha256").update(JSON.stringify([kind, file.path, sha256])).digest("hex"),
+      version: 1, label: "", title, path: file.path, text: await stageContextText(home, journeyId, body),
+      original: { filename, mime: MIME[extension] ?? "text/plain", sha256, size_bytes: bytes.length } } };
+  } catch (error) {
+    signal?.throwIfAborted();
+    const message = error instanceof Error ? error.message : "无法读取文件";
+    return { issue: { path: file.path, reason: /password/iu.test(message) ? "PDF 已加密，请解密后导入" : message.slice(0, 600) } };
   }
-  return { references, issues };
 }

@@ -4,8 +4,8 @@ import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/
 import { MolisWorkLocalHost, homeAgentDefinitions, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
-import { mkdtemp, mkdir, writeFile, symlink, rm } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdtemp, mkdir, writeFile, symlink, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
@@ -15,7 +15,7 @@ import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
 import { readProjectArrival } from "../apps/local-host/dist/project-arrival.js";
-import { selectContextSources, startContextJourney, waitContextJourney, adoptContextJourney, parseContextSummary, readContextJourney, reopenContextJourney, updateContextDraft } from "../apps/local-host/dist/context-onboarding-service.js";
+import { contextReferenceText, selectContextSources, stageContextFile, startContextJourney, waitContextJourney, adoptContextJourney, parseContextSummary, readContextJourney, reopenContextJourney, updateContextDraft } from "../apps/local-host/dist/context-onboarding-service.js";
 import { contextSources, readContextSource, readOnboardingGmail } from "../apps/local-host/dist/context-onboarding-sources.js";
 import { createContextOnboardingHttp } from "../apps/local-host/dist/web-context-onboarding.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -32,14 +32,18 @@ async function home(t: Parameters<Parameters<typeof test>[1]>[0]) {
   t.after(async () => { await hosts.get(dir)?.close(); hosts.delete(dir); await rm(dir, {recursive:true,force:true}); }); return dir;
 }
 function pagesPorts(dir: string) {
-  return { withCatalog, actions: async (_home: string, projectId: string) => {
+  return { withCatalog, actions: async (_home: string, projectId: string, original_file?: { path: string; install_id: string }) => {
     const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     let host = hosts.get(dir); if (!host) { host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }); hosts.set(dir, host); }
-    return bindActionClient(host.actionClient(reference), () => ({ actor_id: "context-test", project_id: projectId, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write"] }));
+    return bindActionClient(host.actionClient(reference), () => ({ actor_id: "context-test", project_id: projectId, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write"], ...original_file ? { original_file } : {} }));
   } };
 }
-const refs = [{label:'S1',source_id:'m1',version:1 as const,original:{filename:'alpha.md',mime:'text/markdown',data_base64:Buffer.from('Launch October 8').toString('base64')},title:'Alpha',path:'alpha.md',body:'Launch October 8'}];
+/** One chosen file, uploaded into the journey's staging the way the page does it; the selection names it by digest. */
+async function staged(dir: string, id: string, path: string, content: string | Buffer) {
+  const file = await stageContextFile(dir, id, path, Buffer.from(content)); return { path: file.path, staged: file.staged };
+}
+const refs = [{label:'S1',source_id:'m1',version:1 as const,original:{filename:'alpha.md',mime:'text/markdown',sha256:'a'.repeat(64),size_bytes:16},title:'Alpha',path:'alpha.md',text:{sha256:'b'.repeat(64),bytes:16,chars:16}}];
 
 test('adoption resumes after the summary action fails without replacing imported material edits or accepted intent', async t => {
   const dir = await home(t), id = randomUUID();
@@ -51,8 +55,8 @@ test('adoption resumes after the summary action fails without replacing imported
   const ready = await waitContextJourney(dir, id); assert.equal(ready.phase, 'review');
   const failed = await adoptContextJourney(dir, id, { title: ready.summary!.title, body: ready.summary!.body }, {
     ...ports,
-    actions: async (home, projectId): Promise<BoundActionClient> => {
-      const client = await base.actions(home, projectId);
+    actions: async (home, projectId, original_file): Promise<BoundActionClient> => {
+      const client = await base.actions(home, projectId, original_file);
       return { discover: () => client.discover(), invoke: async (definition, input) => {
         if ((input as { request_id?: string }).request_id === id + ':summary') throw new Error('Summary storage temporarily unavailable');
         return client.invoke(definition, input);
@@ -78,7 +82,7 @@ test('adoption resumes after the summary action fails without replacing imported
 test('large materials keep their ending and resume completed model batches after failure', async t => {
   const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
   const original='# Long material\n\n'+('Ordinary work context.\n'.repeat(9000))+'FINAL FACT: launch is postponed to October 10.\n';
-  selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[{path:'long.md',data:Buffer.from(original).toString('base64')}]}]});
+  selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[await staged(dir,id,'long.md',original)]}]});
   const prompts:string[]=[],notePrompts:string[]=[];let readCalls=0,failed=false;
   const ports={...pagesPorts(dir),readSource:async(h:string,s:Parameters<typeof readContextSource>[1])=>{readCalls++;return readContextSource(h,s);},model:async()=>({runtimeLabel:'batch fixture',completeText:async(input:ModelPromptInput)=>{const prompt=modelPromptText(input);
     assert.ok(prompt.length<82_000,'each model call has a bounded serialized prompt');prompts.push(prompt);
@@ -91,7 +95,7 @@ test('large materials keep their ending and resume completed model batches after
   startContextJourney(dir,id,ports);j=await waitContextJourney(dir,id);assert.equal(j.phase,'review');assert.equal(readCalls,1);assert.equal(prompts.filter(p=>p.split('\n').at(-2)===firstBatch).length,1);
   const uniqueBatches=[...new Set(notePrompts.map(p=>p.split('\n').at(-2)!))];
   const processed=uniqueBatches.flatMap(p=>JSON.parse(p) as {body:string}[]).map(p=>p.body).join('');
-  assert.equal(processed,j.summary!.references[0]!.body);assert.match(processed,/FINAL FACT: launch is postponed to October 10/);
+  assert.equal(processed,await contextReferenceText(dir,id,j.summary!.references[0]!.text.sha256));assert.match(processed,/FINAL FACT: launch is postponed to October 10/);
   assert.match(j.summary!.body,/October 10/);assert.equal(j.summary!.references.length,1);
 });
 
@@ -111,7 +115,11 @@ test('the person\'s versions of both onboarding instructions are what the model 
   };
   const long = '# Long material\n\n' + 'Ordinary work context.\n'.repeat(9000);
   await post('/api/onboarding/context', { id });
-  await post(`/api/onboarding/context/${id}/selection`, { sources: [{ kind: 'files', selected: true, files: [{ path: 'long.md', data: Buffer.from(long).toString('base64') }] }] });
+  // The page uploads each chosen file as the raw body, then names it by the digest it got back.
+  const upload = await fetch(`${served.origin}/api/onboarding/context/${id}/files?path=long.md`, { method: 'POST', headers: { origin: served.origin, 'content-type': 'application/octet-stream', 'x-molis-work-control-token': served.controlToken, 'x-molis-work-idempotency-key': randomUUID() }, body: Buffer.from(long) });
+  assert.equal(upload.status, 201, await upload.clone().text()); const file = await upload.json() as { path: string; staged: string; size_bytes: number };
+  assert.equal(file.size_bytes, Buffer.byteLength(long));
+  await post(`/api/onboarding/context/${id}/selection`, { sources: [{ kind: 'files', selected: true, files: [{ path: file.path, staged: file.staged }] }] });
   await post(`/api/onboarding/context/${id}/start`, {});
   let journey: { phase: string; error: string | null } = { phase: 'reading', error: null };
   for (let i = 0; i < 300 && ['selecting', 'reading'].includes(journey.phase); i++) {
@@ -135,7 +143,7 @@ test('the person\'s versions of both onboarding instructions are what the model 
 
 test('a batch cannot cite a source outside its input or pass invented evidence to final synthesis',async t=>{
   const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
-  selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[{path:'long.md',data:Buffer.from('Work facts\n'.repeat(11000)).toString('base64')}]}]});
+  selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[await staged(dir,id,'long.md','Work facts\n'.repeat(11000))]}]});
   let calls=0;startContextJourney(dir,id,{...pagesPorts(dir),model:async()=>({completeText:async()=>{calls++;return '# Invalid\nInvented evidence [S99]';}})});
   const j=await waitContextJourney(dir,id);assert.equal(j.phase,'failed');assert.match(j.error!,/有效来源/);assert.equal(calls,1);assert.equal(Object.keys(j.synthesis!.notes).length,0);assert.equal(j.summary,null);
 });
@@ -143,7 +151,7 @@ test('a batch cannot cite a source outside its input or pass invented evidence t
 test('local scope → grounded summary → one real project and editable source documents; retries preserve edits', async t => {
   const dir=await home(t), folder=join(dir,'selected');await mkdir(folder);await writeFile(join(folder,'brief.md'),'# Brief\nLaunch October 8');await writeFile(join(folder,'.secret.txt'),'private hidden');await symlink(join(folder,'brief.md'),join(folder,'link.md'));
   const id=randomUUID();withContextJourneys(dir,s=>s.create(id));
-  selectContextSources(dir,id,{sources:[{kind:'directory',selected:true,files:[{path:'brief.md',data:Buffer.from('# Brief\nLaunch October 8').toString('base64')}]},{kind:'gmail',selected:true,days:7}]});
+  selectContextSources(dir,id,{sources:[{kind:'directory',selected:true,files:[await staged(dir,id,'brief.md','# Brief\nLaunch October 8')]},{kind:'gmail',selected:true,days:7}]});
   let calls=0;
   const ports={...pagesPorts(dir),model:async()=>({runtimeLabel:'test model',completeText:async(input:ModelPromptInput)=>{const prompt=modelPromptText(input);calls++;assert.match(prompt,/Launch October 8/);assert.doesNotMatch(prompt,/private hidden/);return '# 秋季发布\n## 当前进展\n计划于 10 月 8 日发布。[S1]\n## 下一步\n建议核对发布物料。[S1]';}})};
   startContextJourney(dir,id,ports);startContextJourney(dir,id,ports);
@@ -168,7 +176,7 @@ test('local scope → grounded summary → one real project and editable source 
 test('long source and project titles fit Pages while full titles, original bodies and retry identity survive',async t=>{
   const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
   const sourceTitle='A'.repeat(73)+'🙂'+'B'.repeat(40),projectTitle='项目'.repeat(50);
-  selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[{path:'message.md',data:Buffer.from('# '+sourceTitle+'\n\nOriginal mail body.').toString('base64')}]}]});
+  selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[await staged(dir,id,'message.md','# '+sourceTitle+'\n\nOriginal mail body.')]}]});
   const ports={...pagesPorts(dir),model:async()=>({completeText:async()=> '# Work\nOriginal mail body. [S1]'})};
   startContextJourney(dir,id,ports);const ready=await waitContextJourney(dir,id);assert.equal(ready.summary!.references[0]!.title,sourceTitle);
   const saved=await adoptContextJourney(dir,id,{title:projectTitle,body:ready.summary!.body},ports);assert.equal(saved.phase,'complete',saved.error??'');
@@ -208,7 +216,7 @@ test('failed source read retains input and retry stages exactly one immutable sn
   startContextJourney(dir,id,{...ports,readSource:async()=>{throw Error('Temporary read failure');}});
   const failed=await waitContextJourney(dir,id);assert.equal(failed.phase,'failed');assert.equal(failed.sources[0]!.text,'Preserved across restart');
   startContextJourney(dir,id,ports);const recovered=await waitContextJourney(dir,id);assert.equal(recovered.phase,'review');assert.equal(recovered.summary!.references.length,1);
-  assert.equal(Buffer.from(recovered.summary!.references[0]!.original.data_base64,'base64').toString(),'# 网页内容\n\nPreserved across restart');
+  assert.equal(recovered.summary!.references[0]!.original.sha256,createHash('sha256').update('# 网页内容\n\nPreserved across restart').digest('hex'));
 });
 
 test('Gmail reads only chosen account/time with real MIME body parsing; network requests stay on Gmail',async t=>{
@@ -221,7 +229,7 @@ test('Gmail reads only chosen account/time with real MIME body parsing; network 
       if(url.pathname.endsWith('/messages')){assert.equal(url.searchParams.get('q'),'newer_than:7d -in:spam -in:trash');assert.equal(url.searchParams.get('maxResults'),'20');return Response.json({messages:[{id:'abc123'}]});}
       assert.equal(url.searchParams.get('format'),'full');return Response.json({payload:{mimeType:'multipart/mixed',headers:[{name:'Subject',value:'Launch details'}],parts:[{mimeType:'text/plain',body:{data:Buffer.from('Real full body content').toString('base64url')}},{mimeType:'text/plain',filename:'secret.txt',body:{data:Buffer.from('Attachment excluded').toString('base64url')}}]}});
     });
-    assert.equal(calls.length,2);const body=Buffer.from(result.files[0]!.data!,'base64').toString();assert.match(body,/Real full body content/);assert.doesNotMatch(body,/Attachment excluded/);
+    assert.equal(calls.length,2);const body=result.files[0]!.bytes!.toString();assert.match(body,/Real full body content/);assert.doesNotMatch(body,/Attachment excluded/);
   });
 });
 
@@ -288,7 +296,7 @@ for (const mode of ["expired", "401", "401-repeated", "disconnect"] as const) {
     } else {
       const read = await readOnboardingGmail(dir, source, transport);
       assert.equal(read.name, "Gmail · b@example.test");
-      assert.match(Buffer.from(read.files[0]!.data!, "base64").toString(), /Selected account mail/);
+      assert.match(read.files[0]!.bytes!.toString(), /Selected account mail/);
       assert.deepEqual(refreshes, ["b"]);
       assert.equal(gmail.at(-1)!.authorization, "Bearer fresh-b");
     }
@@ -356,7 +364,7 @@ test('ordinary entry can discover unfinished work without empty or completed att
 
 test('partial failure can be adjusted and retried while successful material snapshots stay fixed',async t=>{
   const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
-  selectContextSources(dir,id,{sources:[{kind:'browser',selected:true,text:'First confirmed fact'},{kind:'chat',selected:true,files:[{path:'chat.txt',data:Buffer.from('Second confirmed fact').toString('base64')}]}]});
+  selectContextSources(dir,id,{sources:[{kind:'browser',selected:true,text:'First confirmed fact'},{kind:'chat',selected:true,files:[await staged(dir,id,'chat.txt','Second confirmed fact')]}]});
   let browserReads=0,chatReads=0;
   const ports={...pagesPorts(dir),readSource:async(h:string,s:Parameters<typeof readContextSource>[1])=>{if(s.kind==='browser')browserReads++;if(s.kind==='chat'&&++chatReads===1)throw Error('Temporary chat import failure');return readContextSource(h,s);},model:async()=>({completeText:async()=> '# Work\nConfirmed fact [S1]'})};
   startContextJourney(dir,id,ports);let j=await waitContextJourney(dir,id);assert.equal(j.phase,'review');assert.match(j.sources[1]!.error!,/Temporary/);const savedId=j.sources[0]!.references![0]!.source_id;
@@ -364,7 +372,7 @@ test('partial failure can be adjusted and retried while successful material snap
   startContextJourney(dir,id,ports);j=await waitContextJourney(dir,id);assert.equal(j.summary!.references.length,2);assert.equal(browserReads,1);assert.equal(chatReads,2);assert.equal(j.sources[0]!.references![0]!.source_id,savedId);
   j=reopenContextJourney(dir,id);j.sources[0]!.text='Changed scope';j.sources[1]!.selected=false;
   selectContextSources(dir,id,{sources:j.sources});startContextJourney(dir,id,ports);j=await waitContextJourney(dir,id);
-  assert.equal(browserReads,2);assert.equal(chatReads,2,'unselected chat must not be read');assert.equal(j.summary!.references.length,1);assert.match(j.summary!.references[0]!.body,/Changed scope/);assert.notEqual(j.summary!.references[0]!.source_id,savedId);
+  assert.equal(browserReads,2);assert.equal(chatReads,2,'unselected chat must not be read');assert.equal(j.summary!.references.length,1);assert.match(await contextReferenceText(dir,id,j.summary!.references[0]!.text.sha256),/Changed scope/);assert.notEqual(j.summary!.references[0]!.source_id,savedId);
 });
 
 test('interrupted blank adoption resumes persisted acceptance without requiring a nonexistent summary',async t=>{
@@ -399,18 +407,27 @@ test('old unfinished Cognia identities remain intact and cannot become undefined
 });
 
 
-test('materials-only adoption cannot bypass the total file budget',async t=>{
-  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>{const j=s.create(id);j.phase='failed';j.sources=[{kind:'files',selected:true,references:Array.from({length:201},(_,i)=>({...refs[0]!,source_id:'file-'+i}))}];s.save(j);});
-  await assert.rejects(adoptContextJourney(dir,id,{title:'Too many',materials_only:true},pagesPorts(dir)),/200 份/);
-  assert.equal(readContextJourney(dir,id).adoption,undefined);
+// No limits on a round (user 2026-10-22, replaces slice 90's 200 files / 50 MB / 20 MB): the selection names staged files by digest,
+// however many; a file's bytes never travel in the selection, and reading queues the files one at a time.
+test('ONB-LIM-02 a round has no file count or size limit, and its selection carries only staged digests',()=>{
+  const many=Array.from({length:1000},(_,i)=>({path:'f-'+i+'.md',staged:createHash('sha256').update(String(i)).digest('hex')}));
+  assert.equal(contextSources([{kind:'files',selected:true,files:many}])[0]!.files!.length,1000);
+  assert.throws(()=>contextSources([{kind:'files',selected:true,files:[{path:'inline.md',data:Buffer.from('x').toString('base64')}]}]),/重新选择/);
+  assert.throws(()=>contextSources([{kind:'files',selected:true,files:[{path:'other.md',staged:'../files/'+'a'.repeat(55)}]}]),/重新选择/);
 });
 
-// specs/visual-ui-experience slice 90 (user, 2026-10-22: the old 50 files / 6 MB was too small): a round takes up to 200
-// files and 50 MB, a single file up to 20 MB; one more file, or one more byte in total, is refused.
-test('a round takes up to 200 files and 50 MB, 20 MB per file',()=>{
-  const file=(i:number,bytes=1)=>({path:'f-'+i+'.md',data:Buffer.alloc(bytes,97).toString('base64')});
-  assert.equal(contextSources([{kind:'files',selected:true,files:Array.from({length:200},(_,i)=>file(i))}])[0]!.files!.length,200);
-  assert.throws(()=>contextSources([{kind:'files',selected:true,files:Array.from({length:201},(_,i)=>file(i))}]),/200 份/);
-  assert.equal(contextSources([{kind:'files',selected:true,files:[file(0,20_000_000),file(1,20_000_000),file(2,10_000_000)]}])[0]!.files!.length,3);
-  assert.throws(()=>contextSources([{kind:'files',selected:true,files:[file(0,20_000_000),file(1,20_000_000),file(2,10_000_001)]}]),/50 MB/);
+test('ONB-LIM-03 a round of 300 files is read one by one and adopted whole: every material in Pages and the 成果库, staging cleared',{timeout:240_000},async t=>{
+  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
+  const files=[];for(let i=0;i<300;i++)files.push(await staged(dir,id,'notes/n-'+i+'.md','# Note '+i+'\n\nFact number '+i+'.'));
+  selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files}]});
+  const seen:number[]=[];const ports={...pagesPorts(dir),model:async()=>({})};
+  const timer=setInterval(()=>{const r=withContextJourneys(dir,s=>s.get(id)).sources[0]?.reading;if(r)seen.push(r.done);},5);t.after(()=>clearInterval(timer));
+  startContextJourney(dir,id,ports);const read=await waitContextJourney(dir,id);clearInterval(timer);
+  assert.equal(read.phase,'failed');assert.equal(read.needs_model,true);assert.equal(read.sources[0]!.references!.length,300);assert.equal(read.sources[0]!.reading,undefined);
+  assert.ok(seen.some(n=>n>0&&n<300),'the checkpoint says how far reading has come');
+  assert.ok(JSON.stringify(withContextJourneys(dir,s=>s.get(id))).length<300*1_000,'the journey row names materials by digest, without their text');
+  const adopted=await adoptContextJourney(dir,id,{title:'Three hundred',materials_only:true},ports);assert.equal(adopted.phase,'complete',adopted.error??'');
+  const pages=openPagesStore(dir);try{assert.equal(pages.list(adopted.project_id).length,301);}finally{pages.close();}
+  assert.equal(adopted.artifact_references!.length,301);
+  await assert.rejects(stat(join(dir,'context-onboarding','journeys',id)),{code:'ENOENT'});
 });

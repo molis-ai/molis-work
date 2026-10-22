@@ -52,7 +52,7 @@ export function contextSources(value: unknown): ContextSource[] {
       result.excluded = [...new Set(source.excluded.map(relativePath))];
     }
     if (source.files !== undefined) {
-      if (!Array.isArray(source.files) || source.files.length > 50) throw new Error("每次最多选择 50 份文件");
+      if (!Array.isArray(source.files) || source.files.length > 200) throw new Error("每次最多选择 200 份文件");
       const paths = new Set<string>();
       result.files = source.files.map((file: ImportFile) => {
         const path = relativePath(file?.path);
@@ -60,9 +60,9 @@ export function contextSources(value: unknown): ContextSource[] {
         paths.add(path);
         if ((isContextDirectory(result.kind) || result.metadata) && !includedContextFiles(result).some(f => f.path === path)) throw new Error("文件不在本次预览选定范围内");
         if (typeof file.reason === "string" && file.reason.length <= 600 && file.data === undefined) return { path, reason: file.reason };
-        if (typeof file.data !== "string" || file.data.length > 8_000_000 || file.data.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(file.data)) throw new Error("文件内容无效");
+        if (typeof file.data !== "string" || file.data.length > 28_000_000 || file.data.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(file.data)) throw new Error("文件内容无效");
         if (result.selected) { totalFiles++; totalBytes += Buffer.from(file.data, "base64").length; }
-        if (totalFiles > 50 || totalBytes > 6_000_000) throw new Error("本次最多 50 份文件、总大小 6 MB，请缩小选择");
+        if (totalFiles > 200 || totalBytes > 50_000_000) throw new Error("本次最多 200 份文件、总大小 50 MB，请缩小选择");
         return { path, data: file.data };
       });
     }

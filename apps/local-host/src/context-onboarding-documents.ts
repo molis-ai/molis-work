@@ -12,7 +12,7 @@ export async function prepareContextDocuments(kind: ContextSourceKind, files: Im
     try {
       if (file.reason || file.data === undefined) throw new Error(file.reason || "没有读取到文件");
       const bytes = Buffer.from(file.data, "base64"), filename = file.path.split("/").at(-1)!;
-      if (bytes.length > 6_000_000) throw new Error("文件超过 6 MB");
+      if (bytes.length > 20_000_000) throw new Error("文件超过 20 MB");
       let body = "", title = filename.replace(/\.[^.]+$/u, ""), mime = "text/plain";
       if (/\.docx$/iu.test(filename)) {
         mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -23,7 +23,7 @@ export async function prepareContextDocuments(kind: ContextSourceKind, files: Im
         title = doc.title || title;
       } else {
         const result = await extractMaterial({ file_name: filename, bytes }, { signal, textFormat: "markdown", pdfMode: "text",
-          limits: { maxBytes: 6_000_000, maxCharacters: 2_000_000, maxTextBytes: 2_000_000, maxPages: 200 } });
+          limits: { maxBytes: 20_000_000, maxCharacters: 2_000_000, maxTextBytes: 2_000_000, maxPages: 200 } });
         body = result.text; title = result.title || title;
         if (/\.pdf$/iu.test(filename)) {
           mime = "application/pdf";

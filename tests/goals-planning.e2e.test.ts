@@ -42,6 +42,11 @@ for (const width of [1440, 390]) test(`Planning ${width}px copies a template, re
   const row = '[data-planning-row-list="steps"] [data-planning-row]';
   const count = await evaluate<number>("document.querySelectorAll(" + JSON.stringify(row) + ").length");
   await click('.planning-edit-section.form-disclosure > summary');
+  // The natural-height disclosure clips its children while opening. Wait until it contains the last control before
+  // the click helper scrolls that control into view; scrolling during the clipped phase leaves it below the viewport.
+  await waitFor(`(() => { const button = document.querySelector('[data-add-planning-row="steps"]');
+    const disclosure = button.closest('details');
+    return disclosure.open && disclosure.getBoundingClientRect().bottom >= button.getBoundingClientRect().bottom; })()`);
   await click('[data-add-planning-row="steps"]');
   assert.equal(await evaluate("document.activeElement.name"), "steps");
   assert.equal(await evaluate("document.querySelectorAll(" + JSON.stringify(row) + ").length"), count + 1);

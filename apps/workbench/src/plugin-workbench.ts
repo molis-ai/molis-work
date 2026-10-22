@@ -91,14 +91,14 @@ export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWork
 }
 
 /** A surface's client: the bundle that carries its factory (its own, or the one `clientFrom` names) and what it prepares first. */
-export interface PluginSurfaceClient { readonly id: string; readonly bundle: string; readonly assets: readonly string[]; readonly factory: string }
+export interface PluginSurfaceClient { readonly id: string; readonly plugin_id: string; readonly bundle: string; readonly assets: readonly string[]; readonly factory: string }
 
 /** Every surface with a client, each pointing at the one bundle that serves it. */
 export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): PluginSurfaceClient[] {
   return packs.flatMap((pack) => {
     const source = pack.clientFrom ? packs.find(candidate => candidate.project_plugin_id === pack.clientFrom) : pack;
     return source?.clientFactory
-      ? [{ id: pack.project_plugin_id, bundle: source.project_plugin_id, assets: source.clientAssets ?? [], factory: source.clientFactory }]
+      ? [{ id: pack.project_plugin_id, plugin_id: BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === pack.project_plugin_id)?.manifest.plugin_id ?? "", bundle: source.project_plugin_id, assets: source.clientAssets ?? [], factory: source.clientFactory }]
       : [];
   });
 }

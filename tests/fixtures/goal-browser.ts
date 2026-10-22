@@ -7,7 +7,7 @@ import type { Socket } from "node:net";
 import type { TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
-import { DEMO_PROJECT_ID, seedDemoBoard, MolisWorkLocalHost, projectActionAvailability, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard, MolisWorkLocalHost, projectActionAvailability, type HostCompleteText, type WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
@@ -18,7 +18,9 @@ const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void = seedDemoBoard, completion?: HostCompleteText | null,
   runtimeSessionTransport?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["runtimeSessionTransport"],
-  functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"]) {
+  functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"],
+  webOptions: Pick<WebServerOptions, "chooseDirectory"> = {},
+  pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"]) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Goals UI E2E"); return null; }
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goals-browser-"));
@@ -84,10 +86,10 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     }
   } else seed(databasePath);
   store = new LocalProjectDatabase(databasePath);
-  localHost = completion === undefined && !runtimeSessionTransport && !functions && !workspaceFor ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, runtimeSessionTransport, functions, workspaceFor,
+  localHost = completion === undefined && !runtimeSessionTransport && !functions && !workspaceFor && !pluginFixtures ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, runtimeSessionTransport, functions, workspaceFor, pluginFixtures,
     ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });
   server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
-    controlToken: CONTROL_TOKEN });
+    controlToken: CONTROL_TOKEN, ...webOptions });
   server.on("connection", connection => {
     connections.add(connection);
     connection.once("close", () => connections.delete(connection));
@@ -198,7 +200,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     // Feature tests below still wait for the state they operate on (loaded rows, saved results, etc.).
     const loaded = new Promise<void>((resolve, reject) => {
       timer = setTimeout(() => reject(timeoutError), 30_000);
-      stopListening = browser.on("Page.domContentEventFired", () => resolve());
+      stopListening = browser.on("Page.domContentEventFired", (_event, eventSession) => { if (eventSession === sessionId) resolve(); });
     });
     try {
       await Promise.all([loaded, action()]);

@@ -1,12 +1,11 @@
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { hostLog } from "./host-log.js";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
-import { bindScheduledTaskRunner, closeHostSchedule, scheduleServiceFor } from "./schedule-runtime.js";
-import { createHostScheduledTaskRunner, scheduledTaskMemory } from "./schedule-task-runner.js";
+import { closeProjectClock, scheduleServiceFor } from "./project-clock.js";
 import { createProjectFeedScheduler } from "./workflow-feed-options.js";
 import type { FeedSchedulerRuntime } from "./web-types.js";
 
-type Composition = Omit<Parameters<typeof createHostScheduledTaskRunner>[0], "projectId" | "memory"> & {
+type Composition = {
   runtimes: Map<string, FeedSchedulerRuntime>;
   changed(databasePath: string): void;
 };
@@ -37,7 +36,7 @@ export function bindProjectSchedulers(host: MolisWorkLocalHost, composition: Com
     state.composition = undefined;
     for (const { scheduler } of composition.runtimes.values()) scheduler.close?.();
     composition.runtimes.clear();
-    await Promise.all([...state.projects.values()].map(({ runtime }) => closeHostSchedule(runtime.store.db)));
+    await Promise.all([...state.projects.values()].map(({ runtime }) => closeProjectClock(runtime.store.db)));
   };
 }
 
@@ -47,7 +46,7 @@ export async function closeProjectSchedulers(host: MolisWorkLocalHost, runtime: 
   state?.projects.delete(reference.storage_key);
   state?.composition?.runtimes.get(reference.storage_key)?.scheduler.close?.();
   state?.composition?.runtimes.delete(reference.storage_key);
-  await closeHostSchedule(runtime.store.db);
+  await closeProjectClock(runtime.store.db);
 }
 
 
@@ -56,8 +55,6 @@ function activate(host: MolisWorkLocalHost, composition: Composition, runtime: M
   const scheduler = createProjectFeedScheduler(host, runtime, reference);
   const schedule = scheduleServiceFor(runtime.store.db);
   if (!schedule.active) schedule.start();
-  bindScheduledTaskRunner(runtime.store.db, createHostScheduledTaskRunner({ ...composition, projectId: reference.project_id,
-    memory: scheduledTaskMemory(host, reference.project_id) }));
   composition.runtimes.set(reference.storage_key, { scheduler, schedule });
   void scheduler.tick().then(result => { if (result.completed || result.failed) composition.changed(reference.storage_key); })
     .catch(error => { hostLog.warn("schedule", "round_failed", error, { schedule: "feed", first: true }); });

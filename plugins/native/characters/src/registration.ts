@@ -15,5 +15,6 @@ export const registration: PluginRegistration = {
     order: 14,
     contributions: [charactersSettingsUiContribution],
     clientFactory: CHARACTERS_CLIENT_FACTORY_SCRIPT,
+    clientAssets: ["/desktop/pty-client.js"],
   },
 };

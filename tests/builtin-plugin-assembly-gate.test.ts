@@ -25,6 +25,7 @@ const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
 /** Started by `createPluginPlatform` in `project-plugins.ts`; the package name proves it. */
 const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map([
+  ["schedule", "@molis-ai/molis-work-plugin-schedule"],
   ["characters", "@molis-ai/molis-work-plugin-characters"],
   ["shelf", "@molis-ai/molis-work-plugin-shelf"],
   ["coding", "@molis-ai/molis-work-plugin-coding"],
@@ -46,13 +47,13 @@ const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project
 /** Frozen on 2026-09-30. Remove an id here once its plugin is started by the Runtime. */
 const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
   "alchemist", "artifacts", "feed", "goals",
-  "inbox", "plugin-builder", "schedule", "sessions",
+  "inbox", "plugin-builder", "sessions",
 ]);
 
 /** `apps/local-host/src/<name>-native-plugin-http.ts` files that exist today. */
 const NATIVE_PLUGIN_HTTP_FILES: ReadonlySet<string> = new Set([
   "alchemist", "artifact", "feed", "inbox",
-  "personal", "schedule", "shelf",
+  "personal", "shelf",
 ]);
 
 test("every built-in catalog entry is either Runtime-assembled or on the frozen build-time list", () => {

@@ -21,6 +21,12 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 ## 3. 嵌入
 
+### 插件页面隔离与公共服务（SYS-15，迁移中）
+
+已迁移的插件客户端在不透明来源的 `sandbox="allow-scripts allow-forms"` iframe 中运行；表单由页面 JavaScript 处理，CSP 的 `form-action 'none'` 拒绝原生表单导航，`connect-src 'none'` 拒绝直接网络连接。可信外壳持有控制令牌、页面授权和 MessageChannel，子页面不能读父 DOM、原生 IPC 或其他插件页面。页面授权绑定实际激活、安装、项目与 actor，生命周期由 Host 撤销。当前迁移范围及未完成页面见 [系统修复 spec](../../specs/system-review-fixes/spec.md)。
+
+客户端的 `host` 提供同一组受限服务（类型在 contracts 的 `platform/ui`，SDK 重导出）：`invokeAction(reference,input)` 调用自身或 Manifest 声明消费的动作，服务端使用实际定义、当前 grants 与 audience；`messages.send/listen` 承接已登记的主区与侧栏上下文消息；`download`、`printDocument`、`loadMedia` 负责导出、无脚本打印与经授权读取的图片/PDF；`terminal.send/listen` 只连接本安装、本项目在服务端创建的终端，返回事件确认结果，不能提交启动命令。直接读父窗口、拼接控制头、任意 URL 代理与从页面传入可信身份都不属于公共服务。
+
 被插入内容的 Plugin 必须显式开放 Slot，声明接受的 Contribution Contract。贡献方声明自己提供的 view/command 与权限；UI Host 决定是否装载、放在哪里、何时销毁，并隔离错误和权限。
 
 不允许：
@@ -122,3 +128,9 @@ UI Host 的 `UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT` 由 Workbench 或独立页面�
 - **谁拥有什么。** 键、头、错误形状、编号按钮归助手；错误文案、放在页面哪里、要不要保留输入仍归各界面。
 
 `molisWorkControlHeaders()` 留着，是同一助手只给头的入口，供还没迁的调用方使用（删除条件见 [UI Host README](../../packages/ui-host/README.md#浏览器请求)）。进度：W3-10-1a 把助手装到不进 `/assets/` 的内联页面（设置、项目设置、引导、新建项目旅程、选择页、侧栏独立页、创作台页）；W3-10-1b 让工作台主程序（`/assets/molis-work-workbench.js`）以助手开头，所以挂进工作台的页面（设置里的各页、侧栏）不用自带，并先迁了设置一组（模型、提示词、助理、记忆、诊断、常驻服务、项目与项目说明、Runtime 接入预览）、侧栏（含浏览器与文件）、设置目录、后台任务和插件通知；工作台的其余请求（导航、Feed、插件挂载、助理底栏、放置、搜索，W3-10-2～4）和插件客户端（W5-04）还在用各自的包装。挂进工作台的页面里的「诊断编号」按钮只有一个复制入口（`data-molis-call-id`，助手的点击处理），不再另挂 `data-copy-value`。
+
+隔离视图另可调用 `host.confirm(message)`、`host.prompt(message, initial)` 和 `host.copyText(text)`：前两者是当前视图内可取消的异步组件对话框，后者只在真实用户操作后复制文字，不提供系统剪贴板读取。模型设置更新的通知由外壳传给各视图，再由插件按自身权限重读状态。
+
+隔离页面的 `host.terminal.mount(element, { panelId, onEvent })` 按需加载平台已有终端资源。返回的视图提供 `focus()`、`fit()` 和 `dispose()`；卸载视图不停止已接受的进程，停止须显式发送 `kill`。共享滚动、流式文字与复制反馈在子页面中初始化；`navigator.clipboard.writeText` 也接到同一受限复制通道，宿主仍检查真实用户激活，不提供剪贴板读取。
+
+服务端投影的页面使用 `host.view.readDocument(): Promise<string>` 获取自己当前贡献的 HTML。宿主固定读取页面来源，提取该贡献的惰性内容，并在读取前后验证页面授权；页面不能请求其他贡献或宿主整页。普通业务变更仍走自身声明的动作或路由。

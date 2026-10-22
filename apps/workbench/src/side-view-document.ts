@@ -1,3 +1,4 @@
+import { renderPluginFrameSurface } from "./plugin-frame.js";
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { COPY_FEEDBACK_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
@@ -52,7 +53,7 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
   const route = JSON.stringify(input.routePrefix);
   const surfaceClient = pluginSurfaceClients().find(entry => entry.id === input.projectPluginId);
   const client = surfaceClient
-    ? `(${surfaceClient.factory})({ mountPluginClient, translate: L, projectId: () => ${JSON.stringify(input.projectId)}, projectTitle: () => "", route: path => ${route} + path, side: true });`
+    ? `void molisPluginFrames.mount(document.querySelector('[data-deferred-surface]'), {mountPluginClient, translate:L, projectId:()=>${JSON.stringify(input.projectId)}, projectTitle:()=>"", route:path=>${route}+path, side:true}, ${JSON.stringify(surfaceClient ? {id:surfaceClient.id,plugin_id:surfaceClient.plugin_id,bundle:surfaceClient.bundle,assets:surfaceClient.assets} : null)}).catch(error=>molisWorkRequest.show(document.querySelector('[data-side-view-root]'),error));`
     : "";
   return renderWorkbenchDocument({
     lang: input.lang,
@@ -60,8 +61,8 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
     // The workbench's own stylesheet (cached with the page), so a plugin's view looks here as it does on the stage.
     head_html: `<script>${input.themeBootstrapScript}</script>${input.headHtml}<link rel="stylesheet" href="/assets/molis-work-workbench.css"><style>${SIDE_VIEW_STYLES}</style>`,
     body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${view.view_id}` },
-    body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root>${html}</main>
-    ${(surfaceClient?.assets ?? []).map(path => `<script src="${escape(path)}"></script>`).join("")}
+    body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root>${surfaceClient ? renderPluginFrameSurface(html, input.projectPluginId, view.title, false) : html}</main>
+    <script src="/assets/molis-work-plugin-frame.js"></script>
     <script>${OVERFLOW_FADE_CLIENT_SCRIPT}
 ${COPY_FEEDBACK_CLIENT_SCRIPT}
 ${SCROLL_FOLLOW_CLIENT_SCRIPT}
@@ -103,7 +104,7 @@ ${TIP_CLIENT_SCRIPT}
 const SIDE_VIEW_STYLES = `
 html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink)}
 .icon-sprite{position:absolute;width:0;height:0;overflow:hidden}
-.side-view{box-sizing:border-box;min-height:100vh;padding:16px;font-size:13px;line-height:1.6}
+.side-view{box-sizing:border-box;height:100dvh;display:flex;font-size:13px;line-height:1.6}.side-view>[data-work-surface]{position:relative;display:flex;flex:1;min-width:0}
 `;
 
 /** Every enabled side view's key, for the Host to answer 404 on anything else. */

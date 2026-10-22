@@ -17,9 +17,8 @@ const record = (required: readonly string[]) => ({ type: "object", required });
 const item = record(["item_id", "group", "kind", "name", "mime", "size_bytes", "hidden", "status", "created_at"]);
 const job = record(["job_id", "recipe", "status", "item_ids", "created_at"]);
 const itemId = object({ item_id: id });
-const read = ["shelf:read"], write = ["shelf:write"];
-// The personal store belongs to the Home, not to a project Runtime installation: the Host registers these from the plugin
-// package, as it does Jelly and Cognia. The Manifest's `actions` stays reserved for what the Runtime instance redeems.
+const read = ["shelf:read"], write = [...read, "shelf:write"];
+// The Home Runtime instance owns the personal store and redeems these actions.
 /** Clipboard history, device settings and the local folder path stay with the person at this computer. */
 const LOCAL: readonly ActionAudience[] = ["user"];
 const SHARED: readonly ActionAudience[] = ["user", "workflow", "agent", "mcp"];
@@ -43,6 +42,7 @@ const AI_RECIPES = [...SHELF_RECIPES, SHELF_SHORTCUT_RECIPE].filter(recipe => re
 export type { ShelfAdmitActionInput };
 export interface ShelfTextView { item_id: string; title: string; text: string; content_hash: string; fingerprint: string }
 export const shelfActions = {
+  terminal: define<Record<string, never>, { panelId: string }>("terminal.open", "打开置物架终端", "在置物架副本目录打开本机 Agent", "command", object({}), object({ panelId: id }), [...read, "terminal:run"], LOCAL),
   snapshot: define<Record<string, never>, ShelfSnapshot>("snapshot", "读取置物架面板",
     "读取置物架全部状态，含剪贴板历史、设备设置与本机目录，仅供本机界面使用", "query", object({}), { type: "object", required: ["materials", "results", "clipboard"] }, read, LOCAL),
   list: define<Record<string, never>, { materials: ShelfItemRecord[]; results: ShelfItemRecord[]; running_jobs: ShelfJobRecord[] }>("items.list", "Shelf 材料列表",
@@ -67,8 +67,8 @@ export const shelfActions = {
   useAsMaterial: define<{ item_id: string }, { item: ShelfItemRecord }>("items.use-material", "结果转为材料", "把处理结果复制为新的材料，供下一次处理", "command", itemId, object({ item }), write, SHARED),
   edit: define<{ item_id: string; text: string }, { item: ShelfItemRecord }>("items.edit", "修改 Shelf 文字", "用新的正文覆盖置物架里一份文字材料的副本，原件不受影响，旧正文不保留；只有可编辑的文字材料能改，正文最多 512 KB", "command",
     object({ item_id: id, text: { type: "string", maxLength: 2_000_000 } }), object({ item }), write, SHARED),
-  generate: jobDefinition("jobs.generate", "用 AI 处理 Shelf 材料", "通过配置的模型和共享 Prologue 生成结果，可能产生模型费用；不执行终端命令", AI_RECIPES, "metered", [...write, "model:invoke"]),
-  extract: jobDefinition("jobs.extract", "在本机提取 Shelf 文字", "在本机提取 PDF 或图片文字，不调用模型或联网", ["extract_text"], "none", write),
+  generate: jobDefinition("jobs.generate", "用 AI 处理 Shelf 材料", "通过配置的模型和共享 Prologue 生成结果，可能产生模型费用；不执行终端命令", AI_RECIPES, "metered", [...write, "model:invoke", "materials:read"]),
+  extract: jobDefinition("jobs.extract", "在本机提取 Shelf 文字", "在本机提取 PDF 或图片文字，不调用模型或联网", ["extract_text"], "none", [...write, "materials:read"]),
   cancelJob: define<{ job_id: string }, { job: ShelfJobRecord }>("jobs.cancel", "取消 Shelf 任务", "中止一个运行中的处理任务并把它标为已取消；已经结束的任务原样返回，不报错", "command", object({ job_id: id }), object({ job }), write, SHARED),
   settings: define<Record<string, never>, ShelfDeviceSettings>("settings.read", "读取 Shelf 设置", "读取本机快捷键、动作排序与运行时设置", "query", object({}), { type: "object" }, read, LOCAL),
   saveSettings: define<Record<string, unknown>, ShelfDeviceSettings>("settings.write", "保存 Shelf 设置", "修改本机快捷键、动作排序与运行时设置", "command", { type: "object" }, { type: "object" }, write, LOCAL),
@@ -77,7 +77,7 @@ export const shelfActions = {
     object({ text: { type: "string", maxLength: 2_000_000 }, concealed: { type: "boolean" }, types: { type: "array", maxItems: 50, items: { type: "string", maxLength: 200 } } }, ["text"]),
     object({ clip: { anyOf: [record(["clip_id", "kind", "title", "body"]), { type: "null" }] } }), write, LOCAL),
   deleteClip: define<{ clip_id: string }, { deleted: true }>("clipboard.delete", "删除剪贴板记录", "删除一条剪贴板历史", "command", object({ clip_id: id }), object({ deleted: { const: true } }), write, LOCAL),
-  clipToMaterial: define<{ clip_id: string }, { item: ShelfItemRecord }>("clipboard.material", "剪贴板放进 Shelf", "把一条剪贴板历史放进置物架", "command", object({ clip_id: id }), object({ item }), write, LOCAL),
+  clipToMaterial: define<{ clip_id: string }, { item: ShelfItemRecord }>("clipboard.material", "剪贴板放进 Shelf", "把一条剪贴板历史放进置物架", "command", object({ clip_id: id }), object({ item }), [...write, "materials:read", "materials:fetch"], LOCAL),
   searchEntries: shelfSearchEntriesAction,
   subject: shelfSubjectAction,
   files: shelfFileEntriesAction,
@@ -179,7 +179,7 @@ export interface ShelfMaterialPreview { payload: import("@molis-ai/molis-work-co
 function defineProject<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   output: ActionSchema, permissions: readonly string[]): ActionDefinition<I, O> {
   return { capability_id: `shelf.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
-    scope: "project", audiences: LOCAL, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output } };
+    scope: "project", scheduling: "concurrent", audiences: LOCAL, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output } };
 }
 const material = object({ title: text, text, content_hash: text, source: { type: "object", required: ["item_id"] } });
 export const shelfProjectActions = {
@@ -188,7 +188,7 @@ export const shelfProjectActions = {
   saveMaterial: defineProject<{ item_id: string; expected_fingerprint: string }, { reference: { artifact_id: string; version: number }; title: string }>("material.save", "存到项目资料",
     "按已预览的指纹把 Shelf 文字存进当前项目的资料（成果库里的一份导入文档，项目里的 Agent 都能找到）；内容变化时拒绝", "command",
     object({ item_id: id, expected_fingerprint: { type: "string", minLength: 1 } }),
-    object({ reference: object({ artifact_id: id, version: { type: "integer", minimum: 1 } }), title: text }), [...read, "artifacts:read", "artifacts:write"]),
+    object({ reference: object({ artifact_id: id, version: { type: "integer", minimum: 1 } }), title: text }), [...read, "artifacts:read", "artifacts:write", "actions:invoke"]),
 };
 export const SHELF_PROJECT_ACTIONS: readonly ActionDefinition[] = Object.values(shelfProjectActions);
 export const SHELF_PROJECT_ACTION_PERMISSIONS = [...new Set(SHELF_PROJECT_ACTIONS.flatMap(definition => definition.action.permissions))];

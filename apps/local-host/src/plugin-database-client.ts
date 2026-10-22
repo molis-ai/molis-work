@@ -1,3 +1,4 @@
+import { bindPluginTransaction } from "./plugin-transaction.js";
 import { hostLog } from "./host-log.js";
 import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
@@ -55,7 +56,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
     get(sql, parameters = []) { check(); query(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => (db.prepare(sql).get(...parameters) as PluginSqlRow | undefined) ?? null); },
     all(sql, parameters = []) { check(); query(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => db.prepare(sql).all(...parameters) as PluginSqlRow[]); },
   });
-  return Object.freeze({
+  const client: PluginDatabase = Object.freeze({
     ...reads(reader, () => permit(declaration.read_permission)),
     async transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginDatabaseTransaction) => T): Promise<T> {
       permitWrite();
@@ -68,26 +69,31 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
         if (!active) throw new ActionError("actions.forbidden", "事务已结束，不能继续访问");
         permitWrite();
       };
-      try {
-        const result = write(Object.freeze({ ...reads(writer, check),
+      const handle: PluginDatabaseTransaction = Object.freeze({ ...reads(writer, check),
           run(sql: string, parameters: readonly PluginSqlValue[] = []) {
             check();
             if (!/^\s*(INSERT|UPDATE|DELETE)\b/iu.test(sql)) throw new Error("事务写入仅接受 INSERT、UPDATE 或 DELETE");
             connections.check?.(writer, sql, parameters, "write");
             return writer.prepare(sql).run(...parameters) as { changes: number | bigint };
           },
-        }));
+        });
+      const binding = bindPluginTransaction(handle, client, check);
+      let result: T;
+      try {
+        result = write(handle);
         requireSynchronous(result, "插件数据库事务必须同步完成，不能包含异步等待");
         check();
         writer.exec("COMMIT");
-        return result;
       } catch (error) {
         try { if (connections.inTransaction()) writer.exec("ROLLBACK"); }
         catch (rollbackError) { hostLog.error("plugin_database", "rollback_failed", rollbackError); }
         throw error;
-      } finally { active = false; }
+      } finally { active = false; binding.close(); }
+      binding.committed();
+      return result;
     },
   });
+  return client;
 }
 
 function query(sql: string): void {

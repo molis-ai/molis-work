@@ -148,3 +148,6 @@ export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter, type 
 export { renderMolisWorkKnowledgeClientScript } from "./settings-knowledge.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";
+
+export { renderPluginFrameClientScript } from "./plugin-frame.js";
+export { renderPluginDocumentShell } from "./plugin-document-shell.js";

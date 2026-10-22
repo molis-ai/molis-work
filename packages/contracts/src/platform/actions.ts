@@ -163,6 +163,8 @@ export interface ActionExecutionContext extends ActionCallContext {
 export interface ActionMetadata {
   readonly title: string;
   readonly description: string;
+  /** Stable name inside this provider. Consumers resolve it within one plugin, then invoke the exact public reference. */
+  readonly local_id?: string;
   readonly kind: "query" | "judgment" | "operation" | "navigation";
   readonly scope: "home" | "project";
   /**

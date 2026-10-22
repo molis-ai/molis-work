@@ -133,7 +133,6 @@ export { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
 export { handleFeedNativePluginHttp, type FeedNativePluginHttpOptions } from "./feed-native-plugin-http.js";
 export { handleInboxNativePluginHttp, type InboxNativePluginHttpOptions } from "./inbox-native-plugin-http.js";
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
-export { handleScheduleNativePluginHttp, type ScheduleNativePluginHttpOptions } from "./schedule-native-plugin-http.js";
 export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 export { handleFunctionsHttp } from "./functions-http.js";
 
@@ -157,10 +156,9 @@ export { draftRequest } from "./contextual/contextual-draft.js";
 export { createChosen, undoCreated, type ContextualCreated, type UndoOwner } from "./contextual/contextual-create.js";
 export { draftIntake, type DraftInput, type DraftModel, type DraftPorts } from "./drafting/draft-service.js";
 export type { DraftTarget } from "./drafting/draft-data.js";
-export { bindScheduledTaskRunner, bindScheduleDeliveryFeed, scheduleServiceFor } from "./schedule-runtime.js";
-export { createHostScheduledTaskRunner, scheduledTaskReadiness } from "./schedule-task-runner.js";
+export { scheduleServiceFor } from "./project-clock.js";
 
-export { sendLocalWebJson, readLocalWebBody, authorizeLocalWebRequest, type LocalMutationState } from "./web-http.js";
+export { sendLocalWebJson, sendUnhandledWebError, readLocalWebBody, authorizeLocalWebRequest, type LocalMutationState } from "./web-http.js";
 export { createLocalWebAssets } from "./web-assets.js";
 
 export * from "./web-session.js";
@@ -290,3 +288,5 @@ export { connectorLocalActions } from "./connector-local-actions.js";
 export { connectorCliActions } from "./connector-cli-actions.js";
 
 export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService } from "./plugin-directory-service.js";
+
+export { pluginPagesFor } from "./plugin-page-authority.js";

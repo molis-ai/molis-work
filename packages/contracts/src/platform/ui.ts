@@ -1,4 +1,66 @@
 import type { ContractDescriptor } from "./package.js";
+import type { ActionReference } from "./actions.js";
+
+/** The isolated page calls only its installation's own or declared consumed actions. Identity and grants stay with the Host. */
+/** The current contribution only; the Host chooses its address and rechecks its installation. */
+/** Refreshing the shell always uses its current address; plugins cannot select a host URL. */
+export interface UiPageView { readDocument(): Promise<string>; refreshShell(): void }
+
+export interface UiPageActions {
+  invokeAction<Output = unknown>(reference: ActionReference, input: unknown): Promise<Output>;
+}
+
+/** Modal page interactions work without native browser dialogs in an isolated view. Closing the view cancels them. */
+export interface UiPageDialogs {
+  confirm(message: string): Promise<boolean>;
+  prompt(message: string, initial?: string): Promise<string | null>;
+}
+
+/** Page commands only address a terminal already created by this installation in the current project. */
+export type UiTerminalCommand = { type: "attach"; panelId: string; cols?: number; rows?: number }
+  | { type: "write"; panelId: string; data: string } | { type: "resize"; panelId: string; cols: number; rows: number }
+  | { type: "kill"; panelId: string };
+export type UiTerminalEvent = { type: "disconnected" }
+  | { type: "spawned"; panelId: string; attached: boolean; started: boolean; replay: string }
+  | { type: "data"; panelId: string; data: string } | { type: "exit"; panelId: string; exitCode: number; signal: number }
+  | { type: "error"; panelId?: string; message: string };
+export interface UiTerminalView {
+  focus(): void;
+  fit(): void;
+  /** Release the view. The accepted server process continues. */
+  dispose(): void;
+}
+export interface UiTerminalMountOptions {
+  readonly panelId: string;
+  readonly onEvent?: (event: UiTerminalEvent) => void;
+}
+export interface UiPageTerminal<Element = unknown> {
+  /** The Host supplies rendering, keyboard input, replay, theme and resize handling. */
+  mount(element: Element, options: UiTerminalMountOptions): Promise<UiTerminalView>;
+  /** Resolves after handing the command to the transport; terminal events confirm its effect. */
+  send(command: UiTerminalCommand): Promise<void>;
+  listen(receive: (event: UiTerminalEvent) => void): () => void;
+}
+
+/** Presentation messages between one plugin's stage and contextual side view, routed by the shell. */
+export interface UiPageMessage {
+  type: "molis:side-open" | "molis:side-ready" | "molis:side-context" | "molis:side-shown" | "molis:side-context-command" | "molis:side-context-result";
+  [key: string]: unknown;
+}
+export interface UiPageMessages {
+  send(message: UiPageMessage): void;
+  listen(receive: (message: UiPageMessage) => void): () => void;
+}
+/** Export content created by this page, or load media through its installation-bound request channel. */
+export interface UiPageFiles<Element = unknown> {
+  /** Desktop handoff of files inside this installation's declared owner directory. Paths must be relative. */
+  readonly nativeFiles?: { copy(paths: readonly string[]): Promise<void>; drag(paths: readonly string[], itemIds?: readonly string[]): Promise<void> };
+  /** Write text after a user interaction; no clipboard read permission is granted. */
+  copyText(text: string): Promise<void>;
+  download(blob: Blob, filename: string): Promise<void>;
+  printDocument(html: string): void;
+  loadMedia(element: Element, path: string): void;
+}
 
 export const platformUiContract = {
   contractId: "io.molis.work.platform.ui.v1",

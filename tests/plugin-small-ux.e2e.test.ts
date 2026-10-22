@@ -45,7 +45,7 @@ test("Schedule's new-task dialog says what a due task still needs, and creating 
   await click("[data-schedule-create-form] footer [data-schedule-create-close]");
   // Each opening asks again, so a model or a folder added meanwhile is not claimed missing.
   await evaluate(`window.realFetch = window.fetch; window.readinessAnswer = { model: true, workspace: false };
-    window.fetch = (url, options) => String(url).endsWith('/api/schedule/readiness')
+    window.fetch = (url, options) => String(url).endsWith('/api/plugins/io.molis.work.schedule/readiness')
       ? (window.readinessAnswer ? Promise.resolve(new Response(JSON.stringify(window.readinessAnswer), { status: 200, headers: { 'content-type': 'application/json' } })) : Promise.reject(new Error('offline')))
       : window.realFetch(url, options);`);
   await click("[data-schedule-collapse]");

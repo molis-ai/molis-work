@@ -756,7 +756,7 @@
     "type": "application/json",
     "error": "页面或接口不存在"
   },
-  "GET <project>/api/schedule": {
+  "GET <project>/api/plugins/io.molis.work.schedule/list": {
     "status": 200,
     "type": "application/json",
     "keys": [

@@ -159,6 +159,7 @@ function requiredCompanions(projectPluginId: ProjectPluginId): ProjectPluginId[]
 /** The registry Projects validates against, derived from what this build ships. */
 export const BUILTIN_PLUGIN_REGISTRY: ProjectPluginRegistry = {
   has: (pluginId) => PROJECT_SCOPED_PLUGIN_IDS.includes(pluginId),
+  initial: () => BUILTIN_PLUGIN_CATALOG.filter(entry => entry.default_enabled).map(entry => entry.project_plugin_id),
   companions: (pluginId) => [
     ...(entryFor(pluginId)?.companions ?? []),
     ...requiredCompanions(pluginId),

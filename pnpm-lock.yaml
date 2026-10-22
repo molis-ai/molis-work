@@ -687,6 +687,12 @@ importers:
       '@molis-ai/molis-work-ui-host':
         specifier: workspace:*
         version: link:../../packages/ui-host
+      '@xterm/addon-fit':
+        specifier: ^0.11.0
+        version: 0.11.0
+      '@xterm/xterm':
+        specifier: ^6.0.0
+        version: 6.0.0
 
   horizontal/agent-host:
     dependencies:

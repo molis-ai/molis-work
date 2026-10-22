@@ -1,5 +1,7 @@
+import { renderPluginFrameSurface } from "./plugin-frame.js";
 import { pluginSurfaceClients } from "./plugin-workbench.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
 import type { UiContribution, UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionView, type GoalCollectionModel } from "@molis-ai/molis-work-plugin-goals";
@@ -197,7 +199,7 @@ function renderMolisWorkWeb(
     const match = html.match(/^(\s*<([a-z][a-z0-9-]*)\b[^>]*data-work-surface="([^"]+)"[^>]*>)([\s\S]*)(<\/\2>\s*)$/);
     if (!match || !deferredIds.has(match[3]!)) return html;
     if (view.pane_plugin && view.pane_plugin !== match[3]) return match[1]!.replace(/>$/, ' data-pane-placeholder>') + match[5];
-    return match[1]!.replace(/>$/, ' data-deferred-surface>') + '<template data-deferred-content>' + match[4] + '</template>' + match[5];
+    return renderPluginFrameSurface(html, match[3]!, L(BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === match[3])?.manifest.name ?? match[3]!), true, listPluginSettingsNavItems(enabledPlugins, view.hidden_plugins).some(item => item.section_id === match[3]));
   };
   const pluginEnabled = (id: string) => enabledPlugins.includes(id);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });

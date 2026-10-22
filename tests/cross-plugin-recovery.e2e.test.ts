@@ -104,7 +104,7 @@ test('Schedule keeps the submitting draft stable, retries failures, and opens th
     form.elements.title.value = '第二轮交互检查'; form.elements.instructions.value = '仅用于隔离测试'; form.elements.time.value = '23:59';
     const original = window.fetch; window.scheduleRequests = 0;
     window.fetch = async (url, options) => {
-      if (String(url).endsWith('/api/schedule/tasks') && options?.method === 'POST') {
+      if (String(url).endsWith('/api/plugins/io.molis.work.schedule/tasks') && options?.method === 'POST') {
         window.scheduleRequests++;
         if (window.scheduleRequests === 1) return new Response(JSON.stringify({ error: '服务暂时不可用' }), { status: 503 });
         const response = await original(url, options);
@@ -135,7 +135,7 @@ test('Schedule keeps the submitting draft stable, retries failures, and opens th
   assert.equal(await evaluate("document.querySelector('[data-schedule-create-form] [type=submit]').disabled"), false);
   assert.equal(await evaluate("document.querySelector('[data-schedule-create-form] .mw-form__body').inert"), false);
   await click('[data-schedule-create-form] footer [data-schedule-create-close]');
-  const response = await fetch(`${origin}/projects/${projectId}/api/schedule`);
+  const response = await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.schedule/list`);
   const saved = await response.json();
   assert.equal(saved.tasks.filter((task: { title: string }) => task.title === '第二轮交互检查').length, 1);
 });

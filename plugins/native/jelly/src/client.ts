@@ -85,7 +85,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const loadList = async () => { const result = await request('GET',API+'/'); state = result.state; await renderView(); };
   const matches = (record, body = '') => (!filterCategory || record.category_id === filterCategory) && (!query || (record.title + ' ' + body).toLowerCase().includes(query.toLowerCase()));
   const empty = (title, message, label) => '<div class="jelly-empty">' + glyph(view === 'calendar' ? 'calendar' : view === 'notes' ? 'note' : 'idea') + '<h2>' + tx(title) + '</h2><p>' + tx(message) + '</p>' + (label ? btn(label,'data-jelly-new','plus') : '') + '</div>';
-  const download = (filename, body, type) => { const url=URL.createObjectURL(new Blob([body],{type})); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); };
+  const download = (filename, body, type) => host.download(new Blob([body], {type}), filename);
   const setStatus = (value) => { const status=$('[data-jelly-save-status]');status.textContent=L(value);status.dataset.mwState=({'已保存':'saved','正在编辑':'unsaved','正在保存':'saving','保存失败，编辑已保留':'failed'})[value]||'verify'; };
   const closeWorkspace = () => { selected=null; dirty=false; root.dataset.expanded='false'; workspace.hidden=true; documentEl.replaceChildren(); root.removeAttribute('data-assistant-context'); };
   const openGeneric = (title, html, ok, submit, cleanup) => {
@@ -144,7 +144,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if(target.matches('[data-jelly-undo],[data-jelly-redo]'))return void run(async()=>{await flushEditor();await command({type:target.hasAttribute('data-jelly-undo')?'undo':'redo'});if(selected)openRecord(selected.kind,selected.id);showNote(L('工作区已更新'));});
     if(target.matches('[data-jelly-categories]')){ $('[data-jelly-menu]').hidden=true;return void run(openCategories); }
     if(target.matches('[data-jelly-model]')){ $('[data-jelly-menu]').hidden=true;return void run(openModelSettings); }
-    if(target.matches('[data-jelly-export]'))return void run(async()=>{await flushEditor();const result=await request('GET',API+'/export');download('Jelly-'+civil()+'.json',JSON.stringify(result.workspace,null,2),'application/json');showNote(L('工作区已导出'));});
+    if(target.matches('[data-jelly-export]'))return void run(async()=>{await flushEditor();const result=await request('GET',API+'/export');await download('Jelly-'+civil()+'.json',JSON.stringify(result.workspace,null,2),'application/json');showNote(L('工作区已导出'));});
     if(target.matches('[data-jelly-import]')){$('[data-jelly-menu]').hidden=true;$('[data-jelly-import-file]').click();return;}
     if(target.matches('[data-jelly-back]'))return void run(async()=>{await flushEditor();closeWorkspace();await loadList();});
     if(target.matches('[data-jelly-record]'))return void run(async()=>{await flushEditor();openRecord('note',target.dataset.jellyRecord);});

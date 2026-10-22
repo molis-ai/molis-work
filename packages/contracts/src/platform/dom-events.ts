@@ -331,7 +331,7 @@ export const DOM_EVENTS = [
   {
     name: "molis:assistant-context-action-chosen", kind: "announcement", owner: "context-actions", on: "window", cancelable: true,
     detail: "ContextActionChosen (services/contextual); CONTEXT_ACTION_CHOSEN_EVENT",
-    summary: "The person chose a ranked action. The page that owns the context takes it with preventDefault(); if nobody does, the Assistant gets the words and the material, unsent. An attach choice carries landing and run: the landing's owner takes it, previews there and confirms with run.",
+    summary: "The person chose a ranked action. The page that owns the context takes it with preventDefault(); a trusted opaque-page bridge returns its asynchronous acceptance in handled and keeps callback authority outside that page; if nobody does, the Assistant gets the words and the material, unsent. An attach choice carries landing and run: the landing's owner takes it, previews there and confirms with run.",
   },
   {
     name: "molis:assistant-effect", kind: "announcement", owner: "assistant", on: "window",
@@ -446,7 +446,7 @@ export const DOM_EVENTS = [
   {
     name: "molis:surface-focus", kind: "request", owner: "context-actions", on: "element", bubbles: true,
     detail: "SurfaceFocus | null (services/contextual); SURFACE_FOCUS_EVENT",
-    summary: "A surface tells the context row what the person has in hand on it, or that it is nothing now. Raised from the surface's own root and bubbling to the row's listener on document; the row raises it itself, from the person's text selection, for a surface that only declares its object in data-assistant-context.",
+    summary: "A surface tells the context row what the person has in hand on it, or that it is nothing now. Raised from the surface's own root and bubbling to the row's listener on document; opaque pages report bounded data through their bound port, with identity and screen coordinates supplied by the shell; the row raises it itself, from the person's text selection, for a surface that only declares its object in data-assistant-context.",
   },
   {
     name: "molis:surface-landing", kind: "request", owner: "context-actions", on: "element", bubbles: true,

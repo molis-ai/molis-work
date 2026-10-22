@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdtemp, readdir, rm } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -53,7 +53,12 @@ async function fixture(run: (f: {
   finally {
     await host.close(); await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); });
     catalog.close(); resetSecretStoreCache(); if (old === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = old;
-    await rm(home, { recursive: true, force: true });
+    // Revoked work cannot mutate its frozen input. Only this fixture restores temporary directory access for deletion.
+    const unlock = async (folder: string): Promise<void> => {
+      await chmod(folder, 0o700);
+      for (const entry of await readdir(folder, { withFileTypes: true })) if (entry.isDirectory()) await unlock(join(folder, entry.name));
+    };
+    await unlock(home); await rm(home, { recursive: true, force: true });
   }
 }
 
@@ -137,7 +142,7 @@ test("discovery has separate model cost/permissions, AI cannot borrow local extr
   assert.equal(a.extract.action.execution?.cost, "none");
   assert.equal("runJob" in a, false, "the compatibility entry shelf.jobs.run is gone"); assert.equal(SHELF_ACTIONS.some(definition => definition.capability_id === "shelf.jobs.run"), false);
   assert.equal((await f.host.homeActionClient().discover({ actor_id: "reader", project_id: null, audience: "mcp", permissions: SHELF_ACTION_PERMISSIONS })).some(row => row.capability_id === "shelf.jobs.run"), false);
-  const local = bindActionClient(f.host.homeActionClient(), () => ({ actor_id: "local", project_id: null, audience: "user", permissions: ["shelf:write", "shelf:read"] }));
+  const local = bindActionClient(f.host.homeActionClient(), () => ({ actor_id: "local", project_id: null, audience: "user", permissions: ["shelf:write", "shelf:read", "materials:read", "materials:fetch"] }));
   const item = (await local.invoke(a.admit, { filename: "sample.pdf", mime: "application/pdf", bytes_base64: createExtractablePdf("Local PDF").toString("base64") })).item;
   await assert.rejects(local.invoke(a.generate, { recipe: "summarize", item_id: item.item_id }), { code: "actions.forbidden" });
   assert.equal(f.requests.length, 0); assert.equal((await f.actions.invoke(a.snapshot, {})).running_jobs.length, 0);

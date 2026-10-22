@@ -1,3 +1,4 @@
+import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
 import { randomUUID } from "node:crypto";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -78,6 +79,7 @@ export interface PluginPlatformOptions {
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
   /** Capabilities the Host exposes to Plugins that declared consuming them. */
   capabilities?: PluginCapabilityPort;
+  scheduler?: PluginHostExecutorOptions["scheduler"];
   /** Shared system registry plus the trusted project identity for this activation. */
   actions: PluginHostExecutorOptions["actions"];
   /**
@@ -130,11 +132,13 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const records = pluginInstallRecords(options.db);
   // The same holds for a library in the Home: the Host's list declares it about a definition object, so another definition that
   // carries the same plugin_id is given none.
+  const installations = openPluginInstallationDirectory(options.db, records, pluginId => supervisor.manifest(pluginId));
   const executor = new PluginHostExecutor({
+    installations: installations.client,
     record: installId => records.get(installId),
     providerFor,
     databaseFor: identity.databaseFor,
-    projectLibrary: projectLibraryOf(options.db),
+    projectLibrary: projectLibraryOf(options.db), scheduler: options.scheduler,
     filesFor: identity.filesFor,
     project_id: options.project_id,
     actor_id: options.actor_id,
@@ -204,7 +208,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     },
     viewRevision(pluginId) { return `${viewEpoch}:${viewRevisions.get(pluginId) ?? 0}`; },
     async closeCoordination() {
-      closed = true;
+      closed = true; installations.dispose();
       stopArtifactRefresh?.();
       detachActivation();
       await wiring.close();

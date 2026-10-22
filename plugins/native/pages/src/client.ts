@@ -218,8 +218,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const loadGoals = async () => {
     try {
-      const response = await fetch(route("/api/board"), { headers: headers() });
-      const payload = await response.json().catch(() => ({}));
+      const payload = await host.invokeAction({ capability_id: "goals.collection.read", version: 2 }, {});
       goals = (payload.goals || []).map((item) => ({
         id: item.goal?.goal_id || item.goal_id || "",
         title: item.goal?.title || item.title || "",
@@ -669,7 +668,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     do { await save(); } while (sel && (saveTimer || dirty));
   };
   const saveOpen = (id) => sel?.id === id && (saveTimer || dirty) && persist();
-  const commentOpen = Editor.bindComments({ workbench: bench, persistCurrent: persist, showNote, translate: L, get selected() { return sel; }, get editor() { return editor; }, get unshowable() { return unshowable; }, get dirty() { return dirty || Boolean(saveTimer); } });
+  const commentOpen = Editor.bindComments({ workbench: bench, messages: host.messages, persistCurrent: persist, showNote, translate: L, get selected() { return sel; }, get editor() { return editor; }, get unshowable() { return unshowable; }, get dirty() { return dirty || Boolean(saveTimer); } });
   // Shown again (item tab, reload): the workbench took its name off when it hid it, so name it again.
   const revealEditor = () => {
     bench.setAttribute("data-expanded", "true");
@@ -721,27 +720,13 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const markdown = format === "md";
     const content = markdown ? "# " + (sel.title || L("无标题")) + "\\n\\n" + Editor.toMarkdown(body) : htmlDocument(body);
     const blob = new Blob([content], { type: markdown ? "text/markdown;charset=utf-8" : "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = safeName(sel.title) + (markdown ? ".md" : ".html");
-    link.click();
-    URL.revokeObjectURL(url);
-    placed({ verb: "exported", title: sel.title, file: { name: link.download, format: markdown ? "Markdown" : L("网页") } });
+    void host.download(blob, safeName(sel.title) + (markdown ? ".md" : ".html")).catch(error => showNote(error.message, true));
+    placed({ verb: "exported", title: sel.title, file: { name: safeName(sel.title) + (markdown ? ".md" : ".html"), format: markdown ? "Markdown" : L("网页") } });
   };
   const printDocument = () => {
     assertReadable(); if (!sel || !Editor) return;
-    const frame = document.createElement("iframe");
-    frame.setAttribute("aria-hidden", "true");
-    frame.style.cssText = "position:fixed;width:0;height:0;border:0;right:0;bottom:0";
-    document.body.append(frame);
-    frame.srcdoc = htmlDocument(editor ? Editor.getDoc(editor) : sel.body);
-    frame.addEventListener("load", () => {
-      frame.contentWindow.focus();
-      frame.contentWindow.print();
-      placed({ verb: "printed", title: sel?.title || "" });
-      setTimeout(() => frame.remove(), 1000);
-    }, { once: true });
+    host.printDocument(htmlDocument(editor ? Editor.getDoc(editor) : sel.body));
+    placed({ verb: "printed", title: sel.title });
   };
   const escapeHtml = (value) => String(value ?? "")
     .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");

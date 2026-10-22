@@ -22,7 +22,7 @@ const PANE_PART = String.raw`  const L = host.translate;
   const embedded = window.parent !== window && document.body.matches("[data-pane-embedded],[data-side-view]");
   const ownPane = embedded ? new URL(location.href).searchParams.get("workbenchPane") || "pane" : "main";
   const panes = host.paneMessages;
-  const post=(path,body,signal)=>molisWorkRequest(host.route(path),{body,signal,fallback:L("暂时处理不了，请稍后重试")});
+  const post=(path,body,signal,page)=>molisWorkRequest(host.route(path),{body,signal,...(page?{headers:{"x-molis-context-page":page}}:{}),fallback:L("暂时处理不了，请稍后重试")});
   const newRequestId = () => (crypto.randomUUID ? crypto.randomUUID() : "cx-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
   const quoted = (focus) => focus.targets.map((target) => target.text).join("\n\n").slice(0, 20000);
   // What is in hand, for the Assistant's strip: the passage and the object it is from, never words written for the person.
@@ -41,15 +41,15 @@ const PANE_PART = String.raw`  const L = host.translate;
 
   // In the document that owns the surface: hand the choice to the page. Nobody taking it means no page here can run
   // it yet; the Assistant then gets what is in hand, and the person says what to do with it.
-  const deliver = (focus, candidate) => {
+  const deliver = async (focus, candidate) => {
     const id = newRequestId();
     const event = new CustomEvent("molis:assistant-context-action-chosen", { cancelable: true, detail: {
       plugin_id: focus.plugin_id, context_id: focus.context_id, key: candidate.key, offer_id: candidate.offer_id,
       apply: candidate.apply, intent: candidate.intent, title: candidate.title, object: focus.object, ...(candidate.scope ? { scope: candidate.scope } : {}),
-      prepare: () => post("/api/contextual/prepare", { pane_id: ownPane, focus, key: candidate.key, request_id: id }),
+      prepare: (control) => post("/api/contextual/prepare", { pane_id: ownPane, focus, key: candidate.key, request_id: id }, control?.signal, control?.page_id),
     } });
     window.dispatchEvent(event);
-    return event.defaultPrevented ? null : inHand(focus);
+    return (event.detail.handled ? await event.detail.handled : event.defaultPrevented) ? null : inHand(focus);
   };
 
   // Any surface that declares its object (data-assistant-context) gets a fragment context from a plain DOM selection,
@@ -115,6 +115,8 @@ const PANE_PART = String.raw`  const L = host.translate;
     };
     document.addEventListener("selectionchange", () => { clearTimeout(timer); timer = setTimeout(flush, 120); });
   })();
+
+  if (host.surfaceOnly) return;
 
   // A surface opened an item (the workbench's molis-work:select-item) but did not name it: name it from what the
   // plugins declare as their search sources (surface → kind), so its text can be acted on like any declared object.
@@ -184,8 +186,8 @@ const PANE_PART = String.raw`  const L = host.translate;
       }
       if (data.type !== "workbench-context-action-chosen") return;
       if (!shown || !data.candidate || data.context_id !== shown.context_id) return;
-      const fallback = deliver(shown, data.candidate);
-      if (fallback) parent.postMessage({ type: "workbench-context-action-unhandled", context_id: shown.context_id, key: data.candidate.key, detail: fallback }, location.origin);
+      const focus = shown;
+      void deliver(focus, data.candidate).then(fallback => { if (fallback) parent.postMessage({ type: "workbench-context-action-unhandled", context_id: focus.context_id, key: data.candidate.key, detail: fallback }, location.origin); });
     });
     window.addEventListener("pagehide", () => parent.postMessage({ type: "workbench-surface-focus", focus: null }, location.origin));
 ${CONTEXT_LANDING_PANE_SCRIPT}

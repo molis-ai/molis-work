@@ -1,34 +1,24 @@
 import { pluginSurfaceClients } from "../../plugin-workbench.js";
 
 /**
- * Loading is UI-only. Visible surfaces keep their original client and Host lifetime. A companion that borrows another plugin's
- * client (`clientFrom`) loads that one bundle, once for all of them, and mounts its own root with it (W4-03).
+ * The owner loads only the trusted frame bridge. Each visible surface loads its registered bundle inside its own opaque frame.
  */
 export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const failure = () => L('无法加载界面，请重试');
-  const packs = ${JSON.stringify(pluginSurfaceClients().map(({ id, bundle, assets }) => assets.length ? [id, bundle, assets] : bundle === id ? [id] : [id, bundle]))}.map(([id, bundle = id, assets = []]) => ({ id, bundle, assets }));
-  const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap();
-  const scope = host.scope;
-  const load = url => {
-    if (scope.signal.aborted) return Promise.reject(scope.signal.reason);
-    if (scripts.has(url)) return scripts.get(url);
-    const waiting = new Promise((resolve, reject) => {
-      const script = document.createElement('script'); script.src = url;
-      let settled = false;
-      const finish = error => {
-        if (settled) return; settled = true; scope.clearTimeout(timer);
-        scope.signal.removeEventListener('abort', abort); script.onload = null; script.onerror = null;
-        if (error) { script.remove(); scripts.delete(url); reject(error); } else resolve();
-      };
-      const abort = () => finish(scope.signal.reason);
-      const timer = scope.timeout(() => finish(new Error(failure())), 10_000);
-      scope.signal.addEventListener('abort', abort, { once: true });
-      script.onload = () => finish();
-      script.onerror = () => finish(new Error(failure()));
-      document.head.append(script);
+  const packs = ${JSON.stringify(pluginSurfaceClients().map(({ id, plugin_id, bundle, assets }) => [id, plugin_id === "io.molis.work." + id ? 0 : plugin_id, bundle === id ? 0 : bundle, ...(assets.length ? [assets] : [])]))}.map(([id,plugin_id,bundle,assets=[]])=>({id,plugin_id:plugin_id||"io.molis.work."+id,bundle:bundle||id,assets}));
+  const mounting = new WeakMap(), selections = new WeakMap(), scope = host.scope;
+  let runtime;
+  const load = () => {
+    if (globalThis.molisPluginFrames) return Promise.resolve();
+    return runtime ||= new Promise((resolve,reject) => {
+      const script=document.createElement('script');script.src='/assets/molis-work-plugin-frame.js';
+      let settled=false;
+      const finish=error=>{if(settled)return;settled=true;scope.clearTimeout(timer);scope.signal.removeEventListener('abort',abort);script.onload=null;script.onerror=null;
+        if(error){script.remove();runtime=null;reject(error);}else resolve();};
+      const abort=()=>finish(scope.signal.reason), timer=scope.timeout(()=>finish(new Error(failure())),10000);
+      scope.signal.addEventListener('abort',abort,{once:true});script.onload=()=>finish();script.onerror=()=>finish(new Error(failure()));document.head.append(script);
     });
-    scripts.set(url, waiting); return waiting;
   };
   const settle = (root, state) => { root.inert = false; root.removeAttribute('aria-busy'); root.dataset.uiClientState = state; };
   const prepare = root => {
@@ -36,17 +26,12 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (mounting.has(root)) return mounting.get(root);
     const pack = packs.find(pack => pack.id === root.dataset.workSurface);
     if (!pack) return Promise.resolve();
-    const template = root.querySelector(':scope > template[data-deferred-content]');
-    if (template) { root.append(template.content); template.remove(); }
     root.inert = true; root.setAttribute('aria-busy', 'true'); root.dataset.uiClientState = 'loading';
     const pending = (async () => {
       try {
-        for (const asset of pack.assets) await load(asset);
-        await load('/assets/molis-work-plugins/' + encodeURIComponent(pack.bundle) + '.js');
+        await load();
         if (!root.isConnected || scope.signal.aborted) return;
-        const factory = globalThis.molisWorkbenchPluginFactories?.[pack.bundle];
-        if (!factory) throw new Error(failure());
-        factory({ ...host, root });
+        await globalThis.molisPluginFrames.mount(root, host, pack);
         root.removeAttribute('data-deferred-surface'); settle(root, 'ready');
         const selection = selections.get(root);
         if (selection) { selections.delete(root); root.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: selection })); }

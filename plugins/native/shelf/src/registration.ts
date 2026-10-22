@@ -1,3 +1,6 @@
+import { createHomeShelfPlugin } from "./home-plugin.js";
+import { SHELF_OWNER_FILES } from "./plugin.js";
+import { initializeShelfFiles } from "@molis-ai/molis-work-module-shelf";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { SHELF_INSTRUCTIONS, SHELF_PROJECT_PLUGIN_ID, shelfManifest, SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT, SHELF_STYLES, shelfSettingsUiContribution, shelfUiContribution } from "./index.js";
 
@@ -10,6 +13,9 @@ export const registration: PluginRegistration = {
   manifest: shelfManifest,
   instructions: SHELF_INSTRUCTIONS,
   personal: true,
+  home_store: { path: "shelf" },
+  runtime: { scope: "home", create: createHomeShelfPlugin, dual_instance: true, owner_files: SHELF_OWNER_FILES,
+    initialize_owner_files: initializeShelfFiles, package_name: "@molis-ai/molis-work-plugin-shelf", factory_export: "createHomeShelfPlugin" },
   summary: "把文件放上来处理副本，原件不动。",
   workbench: {
     order: 8,

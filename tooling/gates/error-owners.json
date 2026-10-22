@@ -271,12 +271,6 @@
       ],
       "reason": "The plugin sandbox (SandboxError): its UPPER_CASE codes become sandbox.* (spec W3-02 J6)."
     },
-    "schedule": {
-      "paths": [
-        "apps/local-host/src/schedule-*"
-      ],
-      "reason": "The Schedule plugin and the Host files that serve it (tasks, reminders, runner); its schedule_task_* snake codes become schedule.* (spec W3-02 E)."
-    },
     "scheduler": {
       "paths": [
         "horizontal/scheduler/",

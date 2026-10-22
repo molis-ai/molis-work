@@ -224,7 +224,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const capabilityTitle=id=>(state.capabilities||[]).find(x=>x.id===id)?.title||id;
  function toEnable(c){const ids=new Set(c.preview.contract.operations.flatMap(o=>o.effects?.capabilities||[]));return [...new Set((state.capabilities||[]).filter(x=>ids.has(x.id)&&x.installed===false).map(x=>x.source?.title||''))].filter(Boolean);}
  function mockupHtml(c,large){const m=c.mockup;if(!m||m.status==='failed'||!current)return '';if(m.status==='drawing')return '<div class="as-mockup" data-drawing><span data-mw-state="running">'+L('正在画效果图')+'</span></div>';
-  return '<img class="as-mockup'+(large?' as-mockup-large':'')+'" src="'+esc(host.api('/builds/'+current.id+'/mockups/'+c.id))+'" alt="'+esc(L('「{title}」的效果图',{title:c.title}))+'" loading="lazy">';}
+  return '<img class="as-mockup'+(large?' as-mockup-large':'')+'" data-mockup-src="'+esc(host.api('/builds/'+current.id+'/mockups/'+c.id))+'" alt="'+esc(L('「{title}」的效果图',{title:c.title}))+'" loading="lazy">';}
  function candidateHtml(c,selected){const ops=c.preview.contract.operations,caps=[...new Set(ops.flatMap(o=>o.effects?.capabilities||[]))].map(capabilityTitle),enable=toEnable(c);return '<button type="button" class="as-candidate" data-as-candidate="'+esc(c.id)+'" aria-pressed="'+(selected?'true':'false')+'">'+mockupHtml(c,false)+'<b>'+esc(c.title)+'</b><p>'+esc(c.description)+'</p><p class="as-small as-muted">'+esc(c.rationale)+'</p><div class="as-meta"><span class="as-chip">'+L('{n} 项功能',{n:ops.length})+'</span><span class="as-chip">'+L('{n} 个界面零件',{n:c.preview.parts.length})+'</span><span class="as-chip">'+L('{n} 个页面',{n:c.preview.contract.pages.length})+'</span>'+caps.map(t=>'<span class="as-chip">'+esc(t)+'</span>').join('')+enable.map(t=>'<span class="as-chip" data-as-enable>'+L('要先启用「{name}」',{name:esc(t)})+'</span>').join('')+'</div></button>';}
  function effects(c){const e=c.effects||{};const words=[];if(e.storage)words.push(L('自己的存储（{ops}）',{ops:e.storage.map(x=>L(x==='read'?'读':'写')).join('/')}));if(e.capabilities?.length)words.push(e.capabilities.map(capabilityTitle).join(L('、')));if(e.networkDomains?.length)words.push(L('联网 {sites}',{sites:e.networkDomains.join(L('、'))}));return words.join(L('；'))||L('不使用任何外部能力');}
  function opState(b,op){if(b.connected.includes(op.id))return '<span class="as-chip ok" data-mw-state="connected">'+L('已接通')+'</span>';const s=b.steps.find(x=>x.agent==='code'&&x.operationId===op.id&&x.action==='implement'&&x.status==='active');
@@ -422,7 +422,7 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
   const bound=writing&&b.nodes.find(n=>revealed.has(n.id)&&(n.read?.operationId===writing.operationId||n.submit?.operationId===writing.operationId));
   if(wiringPlay)return;if(bound)aim(code,partEl(bound.id),L('编写 {id}',{id:writing.operationId}),'right');else code.hidden=true;
  }
- function renderAll(){if(!lifetime.alive)return;renderHead();renderFeed();renderBoard();void renderCanvas().catch(backgroundError);
+ function renderAll(){if(!lifetime.alive)return;renderHead();renderFeed();root.querySelectorAll('[data-mockup-src]').forEach(el=>{const path=el.dataset.mockupSrc;delete el.dataset.mockupSrc;if(host.loadMedia)host.loadMedia(el,path);else el.src=path;});renderBoard();void renderCanvas().catch(backgroundError);
   const s=$('[data-as-status]'),b=current;s.innerHTML='<span>'+(!b?'':active(b)?L(b.active.stage==='design'?'主线设计正在工作':'UI Agent 与代码 Agent 正在协作'):b.phase==='ready'?L('全部功能已接通，可以试用和发布'):b.phase==='clarifying'?L('等你回答问题'):b.phase==='choosing'?L('等你选择方案'):b.pendingPart?L('等你选择组件'):b.pendingPlugins?.length?L('等你决定要不要启用插件'):PHASE[b.phase]||'')+'</span><span>'+(b?.connected.length?L('已接通 {done}/{total} 项功能 · 输入会保留',{done:b.connected.length,total:b.design?.contract.operations.length||0}):'')+'</span>';}
  function schedule(){if(frame||!lifetime.visible)return;const paint=()=>{frame=0;renderAll();};frame=lifetime.frame(paint);}
  let viewSignal,opening=0,initialized=false;
@@ -504,15 +504,18 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
  * `translate` is handed on to the studio client.
  */
 export const AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
+ const client=(` + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + `),components=` + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + `;
+ const embedded=host.page?.();
+ if(embedded?.mode==='preview'||embedded?.mode==='installed'){client({...host,...embedded,components,api:p=>host.route('/api/plugin-builder/studio')+p});return;}
  const valid=s=>typeof s==='string'&&/^app-[a-f0-9-]{36}$/.test(s);
  const entry=s=>[...document.querySelectorAll('[data-work-surface-open]')].find(el=>el.dataset.workSurfaceOpen===s);
- const openPlugin=s=>{if(!valid(s))return;const button=entry(s);if(button){button.click();return;}const next=new URL(location.href);next.searchParams.set('openSurface',s);location.assign(next.pathname+next.search);};
- const pluginRemoved=s=>{if(!valid(s))return;entry(s)?.remove();[...document.querySelectorAll('[data-work-surface]')].find(el=>el.dataset.workSurface===s)?.remove();};
+ const openPlugin=s=>{if(!valid(s))return;if(host.openPlugin){host.openPlugin(s);return;}const button=entry(s);if(button){button.click();return;}const next=new URL(location.href);next.searchParams.set('openSurface',s);location.assign(next.pathname+next.search);};
+ const pluginRemoved=s=>{if(!valid(s))return;if(host.view?.refreshShell){host.view.refreshShell();return;}entry(s)?.remove();[...document.querySelectorAll('[data-work-surface]')].find(el=>el.dataset.workSurface===s)?.remove();};
  const KEY='molis-work-studio-build:'+(host.projectId?.()||'');
- const page={address:()=>{const here=new URL(location.origin+'/');try{const id=sessionStorage.getItem(KEY);if(id)here.searchParams.set('build',id);}catch{}return here;},
+ const page={address:()=>{const here={searchParams:new URLSearchParams()};try{const id=sessionStorage.getItem(KEY);if(id)here.searchParams.set('build',id);}catch{}return here;},
   replace:next=>{try{const id=next.searchParams.get('build');if(id)sessionStorage.setItem(KEY,id);else sessionStorage.removeItem(KEY);}catch{}}};
- (` + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + `)({mountPluginClient:host.mountPluginClient,root:host.root||document.querySelector('[data-work-surface="plugin-builder"]'),mode:'studio',translate:host.translate,
+ client({mountPluginClient:host.mountPluginClient,root:host.root||document.querySelector('[data-work-surface="plugin-builder"]'),mode:'studio',translate:host.translate,
   api:p=>host.route('/api/plugin-builder/studio')+p,plugin:id=>host.route('/plugins/')+id,
-  components:` + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + `,page,openPlugin,pluginRemoved,
-  openSettings:href=>document.dispatchEvent(new CustomEvent('molis-work:open-settings-path',{detail:{href}}))});
+  components,page,openPlugin,pluginRemoved,loadMedia:host.loadMedia,
+  openSettings:href=>globalThis.molisWorkOpenExternalUrl?globalThis.molisWorkOpenExternalUrl(href):document.dispatchEvent(new CustomEvent('molis-work:open-settings-path',{detail:{href}}))});
 }`;

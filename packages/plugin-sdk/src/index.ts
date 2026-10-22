@@ -48,6 +48,7 @@ export type {
   PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginPrivateStorage,
   PluginUiClient, PluginHostServices, PluginActionClient, PluginActionDirectory,
   PluginDatabase, PluginDatabaseReader, PluginDatabaseTransaction, PluginDatabaseDeclaration, PluginSqlValue, PluginSqlRow,
+  PluginScheduleClient, PluginScheduleWriter, PluginScheduleJob, PluginScheduleRegisterInput, PluginWakeupDeclaration,
   PluginModelClient, PluginModelRequest, PluginModelResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 /** The Host's text model for a plugin it runs itself: `context.services.model`, with the instructions the plugin registers (`PluginDefinition.instructions`). */
@@ -55,7 +56,7 @@ export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plu
 export { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { InstructionPrompt, InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
-export type { UiContribution, UiContributionDescriptor, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiContribution, UiContributionDescriptor, UiRenderRequest, UiPageActions, UiPageView, UiPageDialogs, UiPageMessage, UiPageMessages, UiPageFiles, UiTerminalCommand, UiTerminalEvent, UiTerminalView, UiTerminalMountOptions, UiPageTerminal } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import type {
   IntegrationProviderPort,
@@ -242,3 +243,9 @@ const manifestFailures = {
 export { decodeMaterialUpload, supportsMaterialExtension, MATERIAL_EXTENSIONS, MATERIAL_UPLOAD_MAX_BYTES } from "./material-upload.js";
 export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { MaterialSource, MaterialUpload, MaterialExtraction } from "@molis-ai/molis-work-contracts/services/materials";
+
+export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+export type { PluginInstallationClient, PluginInstallationView } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+export type { PluginNotificationClient, PluginNotificationInput, PluginNotificationReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";

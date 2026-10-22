@@ -231,7 +231,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   problems.push(...inspectPortPermissions(parsed));
   problems.push(...artifactDeclarationProblems(parsed));
   problems.push(...inspectContextDeclarations(parsed));
-  problems.push(...backgroundDeclarationProblems(parsed.background, declaredPermissions));
+  problems.push(...backgroundDeclarationProblems(parsed.background, declaredPermissions, parsed.actions));
   assertNoDeclarationProblems(problems);
 }
 
@@ -301,7 +301,8 @@ function inspectCommandDeclarations(parsed: PluginManifest): string[] {
 }
 
 /** The most a route may ask the Host to read: a 32 MB batch sent as base64 inside JSON (user decision, 2026-10-17). */
-const MAX_ROUTE_BODY_BYTES = 45_000_000;
+// A declared folder upload may contain 64 MiB of files encoded as JSON/base64.
+const MAX_ROUTE_BODY_BYTES = 96 * 1024 * 1024;
 
 function inspectRouteDeclarations(parsed: PluginManifest): string[] {
   const routes = parsed.routes;

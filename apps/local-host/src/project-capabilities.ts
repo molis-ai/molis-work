@@ -10,7 +10,6 @@ import { readWorkspaceGit } from "./workspace-git.js";
 import { readWorkspaceFile } from "./workspace-files.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
-import { registerHostScheduleCapabilities } from "./schedule-runtime.js";
 
 export interface ProjectCapabilityPorts {
   /** Resolves the workspace a project is bound to. See `MolisWorkLocalHostOptions`. */
@@ -72,5 +71,4 @@ export function registerProjectCapabilities(
       return workspace ? projectWorkspaceRef(workspace) : null;
     });
   }
-  registerHostScheduleCapabilities(host, (runtime) => runtime.store.db);
 }

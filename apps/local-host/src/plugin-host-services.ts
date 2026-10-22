@@ -1,3 +1,9 @@
+import { pluginNotificationsFor } from "./plugin-notification-service.js";
+import { pluginInstallationsFor } from "./plugin-installation-directory.js";
+import { pluginAgentsFor } from "./plugin-agent-service.js";
+import { pluginSchedulerFor } from "./plugin-scheduler-service.js";
+import { pluginPagesFor } from "./plugin-page-authority.js";
+import { pluginPageActions } from "./plugin-page-actions.js";
 import {
   ActionError, requireSynchronous, type ActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -28,7 +34,7 @@ import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
-import { DIRECTORY_READ_PERMISSION, directoryForHome } from "./plugin-directory-service.js";
+import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService } from "./plugin-directory-service.js";
 
 /** What the executor keeps of one started Plugin until it stops. */
 export interface HostSession {
@@ -54,10 +60,11 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let library: ReturnType<typeof openPluginDatabase> | undefined;
   let projectLibrary: ReturnType<typeof openPluginProjectLibrary> | undefined;
   let files: ReturnType<typeof openPluginFiles> | undefined;
-  let background: ReturnType<typeof pluginBackgroundFor>;
+  let background: ReturnType<typeof pluginBackgroundFor>, scheduler: ReturnType<typeof pluginSchedulerFor>, agents: ReturnType<typeof pluginAgentsFor>;
   let withdrawAgentDefinitions: (() => void) | undefined;
-  let withdrawCaller: (() => void) | undefined;
-  const dispose = () => { active = false; background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); files?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
+  let withdrawCaller: (() => void) | undefined, withdrawPages: (() => void) | undefined;
+  let directory: ReturnType<DirectoryGrantService["connect"]> | undefined;
+  const dispose = () => { active = false; withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); files?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     const manifest = definition.manifest;
@@ -79,15 +86,21 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
     background = pluginBackgroundFor(definition, context, assertActive, { actor_id: options.actor_id, project_id: options.project_id,
       ...(options.record ? { record: () => options.record!(context.install_id) } : {}) });
-    const directory = options.home && manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
-      ? directoryForHome(options.home.directory) : undefined;
-    const directoryService: PluginDirectoryService | undefined = directory
-      ? { read: (request, signal) => { assertActive(); context.requireGrant(DIRECTORY_READ_PERMISSION); return directory.read(request, signal); } } : undefined;
+    directory = options.home && manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
+      ? directoryForHome(options.home.directory).connect({ plugin_id: manifest.plugin_id, install_id: context.install_id, name: manifest.name,
+        project_id: options.project_id, actor_id: options.actor_id, assertCurrent: () => { assertActive(); context.requireGrant(DIRECTORY_READ_PERMISSION); } }) : undefined;
+    scheduler = pluginSchedulerFor(manifest, context, projectLibrary?.client, options.scheduler, assertActive, {
+      client: options.actions.client, plugin_caller: pluginCaller, provider_id: providerId, record: () => options.record?.(context.install_id) ?? null });
+    agents = pluginAgentsFor(options.home, manifest, context, pluginCaller, () => options.record?.(context.install_id) ?? null);
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
+      scheduler: scheduler?.client, agents: agents?.client,
       database: library?.client, project_database: projectLibrary?.client, files: files?.client, model: pluginModelFor(options.home, definition, context, assertActive),
-      materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), background: background?.client, directory: directoryService });
+      materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), background: background?.client, directory: directory?.client });
+    withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, project_id: options.project_id, actor_id: options.actor_id,
+      invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId }),
+      assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
     return { context: hosted, starting: run => background ? background.starting(run) : run(),
-      revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose };
+      revoke: () => { active = false; withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); }, dispose };
   } catch (error) {
     dispose();
     throw error;
@@ -124,7 +137,10 @@ function hostPluginCaller(options: PluginHostExecutorOptions, definition: Plugin
     plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: options.actor_id,
     project_id: options.actions.project_id,
     declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }),
-    assertActive,
+    assertActive: () => {
+      assertActive();
+      if (options.record && options.record(context.install_id)?.plugin_id !== manifest.plugin_id) throw new ActionError("actions.forbidden", "插件安装身份已变化");
+    },
   });
 }
 
@@ -140,6 +156,8 @@ interface SessionParts {
   readonly database: PluginDatabase | undefined;
   /** The plugin's own tables in the project's library, if its Manifest declares them (`openProjectTables`). */
   readonly project_database: PluginDatabase | undefined;
+  readonly agents: import("@molis-ai/molis-work-contracts/platform/plugin").PluginAgentClient | undefined;
+  readonly scheduler: import("@molis-ai/molis-work-contracts/platform/plugin").PluginScheduleClient | undefined;
   readonly files: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesClient | undefined;
   /** The Host's text model, when the Manifest declares `model:read` or `model:invoke` and the Host runs the plugin itself (`pluginModelFor`); only `model:invoke` sends requests. */
   readonly model: PluginModelClient | undefined;
@@ -160,6 +178,8 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
     ...(wiring === undefined ? {} : { input_group: wiring.selectedGroup(manifest.plugin_id) }),
     services: Object.freeze({
       ...(actions ? { actions } : {}),
+      notifications: pluginNotificationsFor(manifest, context, parts.project_database, options.projectLibrary?.db, options.project_id, assertActive, () => options.record?.(context.install_id) ?? null, options.installations),
+      installations: pluginInstallationsFor(manifest, context, options.project_id, options.installations, assertActive),
       storage: manifest.permissions.some(item => item.permission === "storage:private")
         ? options.privateStorageFor(context, manifest) : undefined,
       artifacts: artifactService.client,
@@ -167,6 +187,8 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ui: ui.client,
       ...(parts.database === undefined ? {} : { database: parts.database }),
       ...(parts.project_database === undefined ? {} : { project_database: parts.project_database }),
+      ...(parts.scheduler === undefined ? {} : { scheduler: parts.scheduler }),
+      ...(parts.agents === undefined ? {} : { agents: parts.agents }),
       ...(parts.files === undefined ? {} : { files: parts.files }),
       ...(parts.model === undefined ? {} : { model: parts.model }),
       ...(parts.materials === undefined ? {} : { materials: parts.materials }),

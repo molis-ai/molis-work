@@ -73,7 +73,8 @@ export function requestHost(request: IncomingMessage): string | null {
  */
 export function refuseForeignRequest(request: IncomingMessage, response: ServerResponse): boolean {
   response.setHeader("x-frame-options", "SAMEORIGIN");
-  if (requestHost(request)) return false;
+  const opaqueFrame = requestHeader(request, "sec-fetch-dest") === "iframe" && requestHeader(request, "sec-fetch-site") === "cross-site";
+  if (requestHost(request) && !opaqueFrame) return false;
   refuse(response);
   return true;
 }

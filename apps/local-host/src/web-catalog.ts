@@ -1,4 +1,5 @@
 import { handleSearchHttp } from "./search-http.js";
+import { refreshOpenProjectPlugins } from "./project-plugin-enablement.js";
 import { connectorSettingsView } from "./web-connector-settings.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
@@ -266,7 +267,7 @@ export async function handleLocalCatalogWebRequest(
   if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog)) return;
   if (await handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService)) return;
-  if (await projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts)) return;
+  if (await projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts, projectId => refreshOpenProjectPlugins(localHost, projectId))) return;
   if (request.method === "GET" && url.pathname === "/desktop/pty-client.js") {
     servePtyClient(request, response);
     return;

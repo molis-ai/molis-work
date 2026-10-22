@@ -86,9 +86,9 @@ function snapshotCaller(caller: ActionCallContext): ActionCallContext {
   };
 }
 
-/** A wait's signal also ends when its project starts closing; any other call keeps its caller's signal alone. */
-function callSignal(operation: string, entry: () => Pick<RuntimeEntry<unknown>, "observing">, signal: AbortSignal | undefined): { signal?: AbortSignal } {
-  if (operation !== "wait") return signal ? { signal } : {};
+/** Long calls outside the project queue are cancelled before close waits for their cleanup. */
+function callSignal(definition: { operation: string; scheduling?: string; action?: { scheduling?: string } }, entry: () => Pick<RuntimeEntry<unknown>, "observing">, signal: AbortSignal | undefined): { signal?: AbortSignal } {
+  if (definition.operation !== "wait" && definition.scheduling !== "concurrent" && definition.action?.scheduling !== "concurrent") return signal ? { signal } : {};
   const closing = entry().observing.signal;
   return { signal: signal ? AbortSignal.any([signal, closing]) : closing };
 }
@@ -391,12 +391,12 @@ export class LocalHost<Runtime> {
         return this.discoverActions(bound);
       },
       invoke: async (caller, capability, input) => {
-        let bound = caller;
+        let bound = caller, dispatched = false;
         try { bound = callerFor(caller); await this.withRuntime(project, () => undefined); caller.signal?.throwIfAborted(); this.assertRunning(); }
         catch (error) { return refuseCall(this.settled, bound, capability, error); }
         const descriptor = this.capabilities.descriptor(capability, bound.project_id);
         if (!descriptor) return refuseCall(this.settled, bound, capability, new ActionError("actions.missing", "能力未注册或版本已失效"));
-        let dispatched = false;
+        bound = { ...bound, ...callSignal(descriptor, () => this.ensureEntry(project), bound.signal) };
         return this.enqueue(project, descriptor, bound, () => { dispatched = true; return this.actionService.invoke(bound, capability, input); }, step)
           .catch(error => { if (dispatched) throw error; return refuseCall(this.settled, bound, capability, error); });
       },
@@ -435,10 +435,10 @@ export class LocalHost<Runtime> {
     input: Input,
     options?: HostCapabilityCallOptions,
   ): Promise<Output> {
-    const caller = typedCapabilityCaller(reference.project_id, () => callSignal(capability.operation, () => this.ensureEntry(reference), options?.signal), options);
+    const registered = this.capabilities.descriptor(capability, reference.project_id);
+    const caller = typedCapabilityCaller(reference.project_id, () => callSignal(registered ?? { operation: capability.operation }, () => this.ensureEntry(reference), options?.signal), options);
     if (options?.consumer === "plugin") this.pluginCapabilityCallers.add(caller);
     // A typed identity may omit the activation scope; only the bound Host supplies it.
-    const registered = this.capabilities.descriptor(capability, reference.project_id);
     const scoped = { ...capability, action_provider: registered?.action_provider };
     // An action is called as the action service calls it (host policy, authority, contract, one settlement); an entry with no action is settled here.
     return this.enqueue(reference, scoped, caller, registered?.action && registered.operation === capability.operation
@@ -551,7 +551,7 @@ export class LocalHost<Runtime> {
     // Registered concurrent actions own their short transactions, a wait only observes (following a live round), and a
     // capability registered as concurrent touches no project state (a model draft): held in line, each would keep every
     // later operation of the project waiting until it answers. They run beside the queue; withRuntime keeps close
-    // waiting, and a wait's signal ends when the project starts closing (callSignal), so close never waits out a long poll.
+    // waiting; callSignal cancels these executions as closing starts, before waiting for their cleanup.
     // The registry still refuses a caller claiming "wait" for another operation; concurrency is read from the registered descriptor.
     const registered = this.capabilities.descriptor(capability, capability.action_provider?.project_id);
     if (capability.operation === "wait" || registered?.scheduling === "concurrent" || registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, () => run(false));

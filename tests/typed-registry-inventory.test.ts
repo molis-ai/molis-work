@@ -5,7 +5,6 @@ import { join } from "node:path";
 import test from "node:test";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { scheduleCapabilities } from "@molis-ai/molis-work-contracts/services/scheduler";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability,
   writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -15,7 +14,7 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 
 const workspaceEntries = [projectsCapabilities.listWorkspaces, projectsCapabilities.readWorkspace,
   ...Object.values(projectSettingsCapabilities)];
-const internalServices = [...Object.values(agentHostCapabilities), ...Object.values(scheduleCapabilities),
+const internalServices = [...Object.values(agentHostCapabilities),
   prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability,
   ...Object.values(writerDirectoryCapabilities), ...Object.values(writerIntegrationCapabilities)];
 const keys = (entries: readonly HostCapabilityDescriptor[]) => entries.filter(entry => !entry.action)

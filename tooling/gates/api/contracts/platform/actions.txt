@@ -502,6 +502,7 @@ export interface ActionInvokeTransport {
 export interface ActionMetadata {
     readonly title: string;
     readonly description: string;
+    readonly local_id?: string;
     readonly kind: "query" | "judgment" | "operation" | "navigation";
     readonly scope: "home" | "project";
     readonly effect?: "read" | "write" | "irreversible";

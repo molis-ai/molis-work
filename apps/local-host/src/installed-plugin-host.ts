@@ -9,22 +9,16 @@ import { LOCAL_PERSON_ACTOR_ID } from '@molis-ai/molis-work-contracts/platform/a
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 // The Host's coupling to the plugin builder stays in this file: the lifecycle module takes these types from here.
 export type { AgentBuilderPorts, AgentRelease } from '@molis-ai/molis-work-plugin-builder';
-import { createReminderActionHandlers, REMINDER_ACTIONS, SCHEDULE_REMINDER_PROVIDER_ID, createScheduledOperations, createScheduledOperationActionHandlers,
-  SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID, SCHEDULE_PLUGIN_ID } from '@molis-ai/molis-work-plugin-schedule';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import type { LocalProjectDatabase } from './project-database.js';
 import { createPluginPlatform, type PluginPlatformOptions } from './plugin-platform.js';
 import { configuredModelChoices } from './configured-models.js';
-import { hostScheduleReminders } from './schedule-reminders.js';
-import { scheduleServiceFor } from './schedule-runtime.js';
-import { projectPluginDatabaseRefusal } from './project-plugin-databases.js';
 import { STABLE_PREVIEW, studioStorage } from './plugin-builder/storage.js';
 import { generatedPluginManifest, installedSignature, releaseVersion, sandboxedPluginDefinition } from './plugin-builder/installed.js';
 import { effectsFromContract } from './plugin-builder/build-project.js';
 import { exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
-import { bindInstalledOperationCaller } from './schedule-operations.js';
 import type { CapabilityImplementations } from './plugin-builder/capabilities.js';
 import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
 import { hostNetwork } from './plugin-builder/network.js';
@@ -72,21 +66,6 @@ export async function releaseInstalledPlugins(store: LocalProjectDatabase, proje
   // Keep the owner visible until its processes and registrations are gone.
   try { await (await entry.ready).close(); }
   finally { if (boards?.get(projectId) === entry) boards.delete(projectId); }
-}
-
-/**
- * Reminders and scheduled operations are kept in Schedule's tables: a refused Schedule offers neither, and leaves what is there
- * as it is (S-46). Reminders are left out where the caller brings its own actions (the project's directory registers them).
- */
-function registerScheduleProviders(store: LocalProjectDatabase, actions: PluginPlatformOptions['actions'], services: {
-  reminders: ReturnType<typeof hostScheduleReminders> | null; scheduledRuns: ReturnType<typeof createScheduledOperations>;
-}): { open: boolean; dispose: () => void } {
-  if (projectPluginDatabaseRefusal(store.db, SCHEDULE_PLUGIN_ID)) return { open: false, dispose: () => {} };
-  const disposeScheduledOperations = actions.registry.registerProvider({ provider: { provider_id: SCHEDULE_OPERATION_PROVIDER_ID, title: 'Schedule 定时操作', kind: 'system', project_id: actions.project_id },
-    definitions: SCHEDULE_OPERATION_ACTIONS, handlers: createScheduledOperationActionHandlers(actions.project_id, services.scheduledRuns) });
-  const disposeReminders = services.reminders ? actions.registry.registerProvider({ provider: { provider_id: SCHEDULE_REMINDER_PROVIDER_ID, title: 'Schedule 提醒', kind: 'system', project_id: actions.project_id },
-    definitions: REMINDER_ACTIONS, handlers: createReminderActionHandlers(actions.project_id, services.reminders) }) : undefined;
-  return { open: true, dispose: () => { disposeScheduledOperations(); disposeReminders?.(); } };
 }
 
 async function openInstalledPlugins(options: InstalledPluginHostOptions) {
@@ -138,16 +117,6 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     granted: identity => sandboxGrants(identity, releases, { recordFor, releaseFor, approvedFor }) });
   const secrets = pluginSecrets(homeDirectory, projectId, storage);
   const network = hostNetwork({ reach: identity => identity.namespace === 'installed' ? 'all' : 'read', secret: (pluginId, name) => secrets.resolve(pluginId, name) });
-  const schedule = scheduleServiceFor(store.db);
-  const reminders = hostScheduleReminders({ db: store.db, projectId, schedule, routePrefix: options.routePrefix ?? '' });
-  const scheduledInstallation = (pluginId: string) => {
-    const record = recordFor(pluginId), release = releaseFor(pluginId);
-    return record?.state === 'running' && release && approvedFor(pluginId)
-      ? { installationId: record.install_id, generation: record.installation_generation, version: record.version, title: release.design.title, operations: release.design.contract.operations } : null;
-  };
-  const scheduledRuns = createScheduledOperations({ db: store.db, projectId, schedule,
-    describe: identity => { const current = scheduledInstallation(identity.pluginId); return current?.installationId === identity.installationId ? current : null; },
-    link: pluginId => (options.routePrefix ?? '') + '/plugins/' + pluginId });
   const generate = options.generate ?? createPluginModelGeneration({ homeDirectory,
     declaredPrompts: async (pluginId, caller) => {
       if (closed || caller?.project_id !== actions.project_id || !caller.plugin_install_id) throw new SandboxError('plugin.capability_denied', '模型调用缺少当前项目的执行身份');
@@ -162,10 +131,9 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     },
     selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(homeDirectory)[0] ?? null; } });
   const disposePlatform = registerPlatformCapabilities(actions, { generate });
-  const scheduleProviders = registerScheduleProviders(store, actions, { reminders: options.actions ? null : reminders, scheduledRuns });
   const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new Map<string, string>();
   const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; };
-  const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw,
+  const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw, homeDirectory, actorId: options.actorId ?? 'web-user',
     changed: () => { exposureRevision++; }, catalog });
   const definitions = new Map<string, { pluginId: string; value: ReturnType<typeof sandboxedPluginDefinition> }>();
   const definition = (release: AgentRelease, approved: SandboxEffects) => {
@@ -189,15 +157,13 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const registerPrompts = (release: AgentRelease, state: 'enabled' | 'disabled') =>
     registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, releaseVersion(release.version)), promptScope(recordFor(release.pluginId)!.install_id));
   const lifecycle = installedLifecycle({ platform, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
-    cancelScheduled: (pluginId, installId) => { if (scheduleProviders.open) { reminders.cancelInstallation(pluginId, installId); scheduledRuns.cancelInstallation(pluginId, installId); } },
     forget(pluginId, installId) {
       unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId));
       for (const [key, entry] of definitions) if (entry.pluginId === pluginId) definitions.delete(key);
     } });
-  let stopScheduledRuns: (() => void) | undefined;
   const close = async () => {
     if (closed) return;
-    closed = true; stopScheduledRuns?.(); disposePlatform(); scheduleProviders.dispose();
+    closed = true; disposePlatform();
     await platform.closeCoordination();
     for (const id of [...exposed.keys()]) withdraw(id);
     const failures: unknown[] = [];
@@ -221,13 +187,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
         else throw new Error(platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
       } catch (error) { recoveryErrors.set(record.plugin_id, error instanceof Error ? error.message : String(error)); }
     }
-    stopScheduledRuns = bindInstalledOperationCaller(store.db, projectId, { describe: scheduledInstallation, async call(run, control) {
-      const response = await platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + run.pluginId + '/call', actor_id: 'scheduled-plugin:' + run.pluginId,
-        execution: { signal: control.signal, beforeEffect: async () => control.beforeEffect() }, body: { operation: run.operationId, input: run.input } });
-      const body = response?.body as { value?: unknown; error?: unknown; outcome?: string } | undefined;
-      return { state: response?.status === 200 ? 'succeeded' : body?.outcome === 'unknown' ? 'unknown' : 'failed',
-        value: response?.status === 200 ? body?.value : body?.error ?? recoveryErrors.get(run.pluginId) ?? '这个插件当前没有运行（可能已停用）' };
-    } });
+
     return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors,
       refreshPublicActions: async () => { if (exposed.size) await catalog(); },
       installations: () => records().map(item => ({ pluginId: item.plugin_id, buildId: item.publisher_signature.slice(SIGNATURE.length), version: Number(item.version.split('.')[0]),

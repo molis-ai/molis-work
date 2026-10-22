@@ -30,7 +30,7 @@ import { createContextualJudgmentService, type ContextualJudgmentService } from 
  */
 export interface ContextualActions {
   discover(): Promise<readonly ActionView[]>;
-  invoke(reference: ActionReference, input: unknown): Promise<unknown>;
+  invoke(reference: ActionReference, input: unknown, signal?: AbortSignal): Promise<unknown>;
 }
 
 export interface ContextualHttpPorts {
@@ -213,8 +213,12 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
       return true;
     }
     // A confirmed 「放进左边」: the owner showed the preview and the person confirmed it there.
-    if (route === "attach") { sendJson(response, 200, await runAttach(caller.actions, ports.confirmReferences, judgeRequest.focus, judgeRequest.landing, readString(body.key, "key", 80))); return true; }
-    sendJson(response, 200, await prepare(judgeRequest.focus, judgeRequest.landing, readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), caller));
+    sendJson(response, 200, await whileWaited(response, signal => {
+      const actions: ContextualActions = { discover: () => caller.actions.discover(), invoke: (reference, input) => caller.actions.invoke(reference, input, signal) };
+      return route === "attach"
+        ? runAttach(actions, ports.confirmReferences, judgeRequest.focus, judgeRequest.landing, readString(body.key, "key", 80))
+        : prepare(judgeRequest.focus, judgeRequest.landing, readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), { ...caller, actions });
+    }));
   } catch (error) {
     const failure = actionErrorResponse(error);
     sendJson(response, failure.status, failure.body);

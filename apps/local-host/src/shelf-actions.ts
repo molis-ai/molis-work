@@ -4,7 +4,7 @@ import { shelfAiPorts } from "./shelf-ai.js";
 import { ActionError, requireSynchronous, retainActionAuthority, type ActionClient, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginOwnerFilesClient, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { importThroughArtifacts } from "./artifact-document-import.js";
-import { SHELF_ACTIONS, SHELF_OWNER_FILES, SHELF_PROJECT_ACTIONS, createShelfActionHandlers, createShelfProjectActionHandlers, shelfManifest, shelfProjectActions } from "@molis-ai/molis-work-plugin-shelf";
+import { SHELF_ACTIONS, SHELF_OWNER_FILES, SHELF_PROJECT_ACTIONS, createShelfActionHandlers, createShelfProjectActionHandlers, shelfManifest, shelfProjectActions, shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { openShelfStore, type ShelfRuntimeProbe, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
 import type { ShelfAiPorts, ShelfTextMaterial, ShelfMaterialPorts } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
@@ -26,6 +26,7 @@ const provider = (projectId?: string) => ({ provider_id: shelfManifest.plugin_id
 export function openHostShelfFiles(home: string): PluginOwnerFilesClient {
   const port = openPluginOwnerFiles(home, SHELF_OWNER_FILES);
   return Object.freeze<PluginOwnerFilesClient>({
+    rootPath: () => path.join(path.resolve(home), SHELF_OWNER_FILES.store_name),
     stat: relative => port.stat(relative),
     read: relative => port.read(relative),
     list: relative => port.list(relative),
@@ -61,7 +62,7 @@ export function openHostShelfStore(home: string, probe: ShelfRuntimeProbe = {}, 
 export function shelfActionProvider(home: string, materials: ShelfMaterialPorts = { readWebsite: readMaterialWebsite, extract: extractMaterial, imageTextAvailable: materialImageTextAvailable }): ActionProviderRegistration {
   const ai = shelfAiPorts(home, materials);
   const store = () => openHostShelfStore(home, shelfRuntimeProbe(), materials, ai);
-  return { provider: provider(), definitions: SHELF_ACTIONS, handlers: createShelfActionHandlers({
+  return { provider: provider(), definitions: SHELF_ACTIONS.filter(definition => definition !== shelfActions.terminal), handlers: createShelfActionHandlers({
     aiStatus: () => ai.status(store().settings().model_selection),
     snapshot: () => store().snapshot(),
     settings: () => store().settings(),

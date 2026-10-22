@@ -2,11 +2,12 @@ import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/acti
 import type { PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /** HTTP authenticates the local owner. Only a command accepted while this request lives may retain its Host authority. */
-export function pluginRouteControl(signal: AbortSignal, assertCurrent: () => void): PluginExecutionControl {
+export function pluginRouteControl(signal: AbortSignal, assertCurrent: () => void, assertRequestCurrent?: () => void): PluginExecutionControl {
   const check = () => { requireSynchronous(assertCurrent(), "最终路由授权检查必须同步完成"); };
-  return { signal, beforeEffect: async () => { signal.throwIfAborted(); check(); }, assert_authority_current: () => { signal.throwIfAborted(); check(); },
+  const request = () => { signal.throwIfAborted(); check(); requireSynchronous(assertRequestCurrent?.()); };
+  return { signal, beforeEffect: async () => { request(); }, assert_authority_current: request,
     retainBackgroundAuthority: () => {
-      signal.throwIfAborted(); check();
+      request();
       return Object.assign(async () => { check(); }, { assertCurrent: check });
     } };
 }

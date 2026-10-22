@@ -1,3 +1,4 @@
+import { pluginPagesFor } from "./plugin-page-authority.js";
 import { createLocalImServer } from "./im-server.js";
 import { projectOrNull } from "./catalog-lookup.js";
 import { projectActionAvailability } from "./project-action-availability.js";
@@ -21,6 +22,7 @@ import { sendUnhandledWebError, authorizeLocalWebRequest, refuseForeignRequest, 
 import type { MolisWorkWebViewCache } from "./web-view.js";
 import { seedDemoBoard } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
+import { bindPluginTerminalHost } from "./plugin-terminal-service.js";
 import { isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
 import { fixtureWebBoardOptions } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
@@ -111,7 +113,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     void sessionResources.catch(() => undefined); // Its users (the terminal recorder, session routes) answer its failure.
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
     const { periodicTasks: periodic } = composition;
-    const projectSchedulers = startWebProjectSchedulers({ localHost, homeDirectory: storageHome, withCatalog, fixture, agents, periodic,
+    const projectSchedulers = startWebProjectSchedulers({ localHost, homeDirectory: storageHome, withCatalog, fixture, periodic,
       changed: databasePath => webViewCache.delete(databasePath), onError: error => hostLog.warn("schedule", "project_schedulers_not_started", error) });
     const feedSchedulers = projectSchedulers.runtimes;
     const pty = { host: null as MolisWorkPtyHost | null };
@@ -122,11 +124,9 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
         return project ? { id: project.project_id, title: project.display_name } : null;
       });
     });
-    // The side panel's browser (specs/archive/side-panel): started on first use, one page per project. Its pages may never load
-    // this server itself, which hands its control token to whoever loads it.
+    // The browser service refuses this owner server, which carries the control token.
     const browserHost = lazyBrowserHost(storageHome, () => server);
-    // The Assistant may look at and act on a project's page through Prologue (specs/archive/side-panel P5): one driver per page,
-    // found by the project its round works on; sites the person allowed or blocked are kept beside the browser profile.
+    // One Assistant driver per project; site decisions stay beside the browser profile.
     const sites = new BrowserSiteDecisions(storageHome);
     const drivers = new Map<string, HostSurfaceDriver>();
     const computer = installComputerDesk(localHost, storageHome, periodic); // the Assistant's desktop: desk, helper, providers, sweep, HTTP, socket (specs/computer-use)
@@ -174,6 +174,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           : resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
         await runWithLocale(locale, async () => {
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
+          await pluginPagesFor(storageHome).bind(request, url, response);
           if (request.method === "GET" && url.pathname === "/health" && catalogAccess) {
             const ready = server.listening && Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
             sendWebHealth(response, ready ? 200 : 503, {
@@ -231,7 +232,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           .then((resources) => resources.recorder.recordExit(panelId, sessionId, exit))
           .catch(recordingFailure);
       },
-    });
+    }, storageHome);
+    server.once("close", bindPluginTerminalHost(storageHome, pty.host));
     // The Assistant's timed follow-ups run while this server runs: a due one starts a round; one missed while it was not
     // running is reported, never replayed late.
     const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready, projectReference: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
@@ -21,13 +22,14 @@ for (const width of [1440, 390]) {
     const prompts: string[] = [];
     const browser = await openGoalBrowser(t, true, undefined, async prompt => { prompts.push(prompt); return "整理后的文稿：把讨论转成可执行的下一步。"; });
     if (!browser) return;
-    const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, projectId, homeDirectory } = browser;
+    const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
+    const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "pages");
     await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
-    await waitFor("document.querySelector('[data-plugin-id=pages]')");
-    await click('[data-plugin-strip] [data-plugin-id=pages]');
-    await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')");
+    await browser.waitFor("document.querySelector('[data-plugin-id=pages]')");
+    await browser.click('[data-plugin-strip] [data-plugin-id=pages]');
+    await waitFor("document.querySelector('[data-pages-new]')");
     await click('[data-pages-new]');
     await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')");
     await evaluate(`(() => { const title = document.querySelector('[data-pages-title]'); title.value = '项目讨论记录'; title.dispatchEvent(new InputEvent('input', {bubbles:true})); })()`);
@@ -36,10 +38,10 @@ for (const width of [1440, 390]) {
     await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
     await evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus(); const range = document.createRange(); range.selectNodeContents(editor); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
     // The writing actions are the context toolbar's: 更多 lists every action for the selection, 总结 among them.
-    await waitFor("document.querySelectorAll('.mw-ctx:not([hidden]) .mw-btn[data-key]').length > 0");
-    await click('.mw-ctx:not([hidden]) [data-more]');
-    await waitFor("[...document.querySelectorAll('.mw-ctx-menu button')].some(button => button.querySelector('span').textContent.trim() === '总结')");
-    await evaluate(`[...document.querySelectorAll('.mw-ctx-menu button')].find(button => button.querySelector('span').textContent.trim() === '总结').click()`);
+    await browser.waitFor("document.querySelectorAll('.mw-ctx:not([hidden]) .mw-btn[data-key]').length > 0");
+    await browser.click('.mw-ctx:not([hidden]) [data-more]');
+    await browser.waitFor("[...document.querySelectorAll('.mw-ctx-menu button')].some(button => button.querySelector('span').textContent.trim() === '总结')");
+    await browser.evaluate(`[...document.querySelectorAll('.mw-ctx-menu button')].find(button => button.querySelector('span').textContent.trim() === '总结').click()`);
     await waitFor("document.querySelector('.pages-pop textarea')?.value.includes('整理后的文稿')");
     assert.equal(prompts.length, 1); assert.match(prompts[0]!, /今天讨论了动作服务/);
     const store = openPagesStore(homeDirectory);
@@ -54,9 +56,9 @@ for (const width of [1440, 390]) {
     const saved = openPagesStore(homeDirectory);
     try { assert.match(JSON.stringify(saved.list(projectId!)[0]!.body), /整理后的文稿/); } finally { saved.close(); }
     await reloadPage();
-    await waitFor("document.querySelector('[data-plugin-id=pages]')");
-    if (await evaluate("document.body.dataset.desktopSurface") !== 'pages') {
-      await click('[data-plugin-strip] [data-plugin-id=pages]');
+    await browser.waitFor("document.querySelector('[data-plugin-id=pages]')");
+    if (await browser.evaluate("document.body.dataset.desktopSurface") !== 'pages') {
+      await browser.click('[data-plugin-strip] [data-plugin-id=pages]');
     }
     // The document being edited comes back by itself (specs/archive/page-interaction-flow: a plugin's page reopens the record that was open in it after a reload).
     await waitFor("document.querySelector('[data-pages-title]')?.value === '项目讨论记录' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes('整理后的文稿')");
@@ -82,7 +84,8 @@ for (const width of [1440, 390]) {
 test("the open page never saves over what it cannot show or has not seen: changed elsewhere, it redraws; unreadable, it stays read-only", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "pages");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const paragraph = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
   // Seen with MiniMax-M3 before writes were checked: another editor's node names, stored as they were.
@@ -100,9 +103,9 @@ test("the open page never saves over what it cannot show or has not seen: change
   await pastFallback();
   assert.equal(await evaluate(namesItself("别处会改的文档", shown.version)), true, "the workbench's fallback does not replace Pages' naming");
   // The Pages list hides it (the workbench takes its name off); back on its tab, Pages names it again.
-  await click('[data-tab-kind="plugin"][data-plugin="pages"] .tab-item-trigger');
+  await browser.click('[data-tab-kind="plugin"][data-plugin="pages"] .tab-item-trigger');
   await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'");
-  await click(".tab-item[data-tab-kind=item][data-plugin=pages] .tab-item-trigger");
+  await browser.click(".tab-item[data-tab-kind=item][data-plugin=pages] .tab-item-trigger");
   await waitFor(namesItself("别处会改的文档", shown.version));
   await pastFallback();
   assert.equal(await evaluate(namesItself("别处会改的文档", shown.version)), true, "shown again, the document keeps Pages' own naming");

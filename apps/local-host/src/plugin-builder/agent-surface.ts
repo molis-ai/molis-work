@@ -1,3 +1,5 @@
+import { renderPluginDocumentShell } from "@molis-ai/molis-work-app-workbench";
+import { pluginPagesFor, pluginPageRequest } from "../plugin-page-authority.js";
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { agentDefinitionsFor } from '../agent-definitions/agent-definitions.js';
@@ -6,12 +8,12 @@ import { registeredInstructionBody } from '../agent-definitions/instructions.js'
 import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxJson, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertContract, createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { prologueModelConfiguration } from '@molis-ai/molis-work-service-agent-host';
-import { resolvePluginComponentCall, escapeHtml, renderIconSprite, PLUGIN_COMPONENTS, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES, THEME_BOOTSTRAP_SCRIPT } from '@molis-ai/molis-work-design-system';
-import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderPromptVersion, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
+import { resolvePluginComponentCall, escapeHtml, PLUGIN_COMPONENTS } from '@molis-ai/molis-work-design-system';
+import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { openConfiguredModels } from '../configured-models.js';
 import { resolvePrologueBuilder } from '../prologue-inference-host.js';
@@ -23,7 +25,6 @@ import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
 import { buildManifest, canonical, createBuildProject, readBuildFile } from './build-project.js';
 import { runPluginChecks } from './build-checks.js';
 import { runBuilderBrowserAcceptance, inspectBuilderPresentation } from './browser.js';
-import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from '@molis-ai/molis-work-ui-host';
 import type { PluginPlatformOptions } from '../plugin-platform.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
 import { capabilityLimits, latestCapability, slowOperations, type CapabilityImplementations, type Lane } from './capabilities.js';
@@ -54,7 +55,7 @@ export interface AgentStudioOptions {
   parallel?: number;
 }
 interface Studio {
-  callAcceptance(buildId: string, key: string, componentId: string, binding: 'read' | 'submit', payload: unknown): Promise<SandboxJson>;
+  callAcceptance(buildId: string, key: string, componentId: string, binding: 'read' | 'submit', payload: unknown, control?: PluginExecutionControl): Promise<SandboxJson>;
   workflow: AgentBuilderWorkflow;
   storage: PluginPrivateStorage;
   root: string;
@@ -208,14 +209,14 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       return runner;
     };
     const trials = new Map<string, { original: string; build: AgentBuild }>();
-    studio.callAcceptance = async (buildId, key, componentId, binding, payload) => {
+    studio.callAcceptance = async (buildId, key, componentId, binding, payload, control) => {
       const trial = trials.get(key);
       if (!trial || trial.original !== buildId) throw new Error('这轮界面验收已结束');
       const node = trial.build.nodes.find(node => node.id === componentId);
       if (!node) throw new Error('界面组件不存在');
       const call = resolvePluginComponentCall(node, binding, payload);
       const capabilities = await studio.catalog();
-      return (await runnerFor(trial.build, slowOperations(trial.build.design!.contract, capabilities).has(call.operationId) ? 'slow' : 'quick', capabilities)).call(call.operationId, call.input);
+      return (await runnerFor(trial.build, slowOperations(trial.build.design!.contract, capabilities).has(call.operationId) ? 'slow' : 'quick', capabilities)).call(call.operationId, call.input, control);
     };
     const inTrial = async <T,>(build: AgentBuild, signal: AbortSignal, run: (options: Parameters<typeof runBuilderBrowserAcceptance>[1]) => Promise<T>) => {
       if (!studio.origin) throw new Error('界面验收需要从创作台页面发起');
@@ -284,9 +285,9 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       check: (build, operationIds, signal) => runPluginChecks({ root: build.directory!, contract: build.design!.contract, manifest: buildManifest(build.design!.contract),
         operationIds, services: previewFor(), mockServices: { capability: standIns, network }, grants: effects(build), signal, settled: settledFor(build.directory!),
         identity: { projectId: options.projectId, installationId: 'checks:' + build.id, pluginId: build.design!.contract.pluginId, namespace: 'preview' } }),
-      call: async (build, operationId, input) => {
+      call: async (build, operationId, input, control) => {
         const capabilities = await studio.catalog();
-        return (await runnerFor(build, slowOperations(build.design!.contract, capabilities).has(operationId) ? 'slow' : 'quick', capabilities)).call(operationId, input);
+        return (await runnerFor(build, slowOperations(build.design!.contract, capabilities).has(operationId) ? 'slow' : 'quick', capabilities)).call(operationId, input, control);
       },
       async sources(build) {
         if (!build.directory) return [];
@@ -336,12 +337,17 @@ function publicRelease<T extends { directory?: string; bundlePath?: string; pack
   const { directory: _directory, bundlePath: _bundle, packagePath: _package, ...rest } = release;
   return rest;
 }
-const literal = (value: unknown) => JSON.stringify(value).replaceAll('<', '\\u003c');
-function page(title: string, body: string, script: string, controlToken: string) {
-  // Plugins are drawn with the UI catalog's components, so the page carries the product's own stylesheet, theme and select menu.
-  return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="molis-work-control-token" content="' + escapeHtml(controlToken) + '"><title>' + escapeHtml(title)
-    + '</title><script>' + THEME_BOOTSTRAP_SCRIPT + '</script><link rel="stylesheet" href="/assets/molis-work-settings.css"><style>html,body{margin:0}.icon-sprite{position:absolute;width:0;height:0;overflow:hidden}' + SELECT_MENU_STYLES + PLUGIN_COMPONENT_STYLES + AGENT_STUDIO_STYLES + '</style></head><body>' + renderIconSprite() + body
-    + '<script>' + UI_REQUEST_CLIENT_SCRIPT + script + '</script><script>' + SELECT_MENU_CLIENT_SCRIPT + FIELD_FIT_CLIENT_SCRIPT + ROVING_FOCUS_CLIENT_SCRIPT + '</script></body></html>';
+function page(title: string, body: string, configuration: Record<string, unknown>, options: AgentStudioOptions, controlToken: string) {
+  if (!options.homeDirectory) throw new Error('插件页面需要 Home');
+  const installed = configuration.mode === 'installed', pluginId = installed ? String(configuration.plugin_id) : BUILDER_PLUGIN_ID;
+  const active = studios.get(options.store)?.get(options.projectId), buildPath = '/api/plugin-builder/studio/builds/' + configuration.build;
+  const authorization = pluginPagesFor(options.homeDirectory).open(pluginId, options.projectId, options.actorId ?? 'web-user', undefined, installed ? undefined : {
+    manifest: builderManifest, install_id: null, project_id: options.projectId, actor_id: options.actorId ?? 'web-user',
+    assertCurrent() { if (!active || studios.get(options.store)?.get(options.projectId) !== active) throw new Error('试用页面已关闭'); },
+    requestAllowed: (method, path) => method === 'GET' && path === buildPath || method === 'POST' && path === buildPath + '/call',
+  });
+  return renderPluginDocumentShell({ id: installed ? pluginId : 'plugin-builder-preview', plugin_id: pluginId, bundle: 'plugin-builder',
+    title, html: body, project_id: options.projectId, route_prefix: options.routePrefix ?? '', page: configuration, control_token: controlToken, authorization });
 }
 function html(response: ServerResponse, body: string) {
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); response.end(body);
@@ -380,6 +386,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
   const framed = url.searchParams.get('frame') === 'workbench';
   const openWorkbench = (query: string) => { response.writeHead(302, { location: prefix + '/?' + query, 'cache-control': 'no-store' }); response.end(); return true; };
   if (preview && method === 'GET' && !framed) return openWorkbench('openPlugin=plugin-builder');
+  const pageAuthority = pluginPageRequest(request), execution = pageAuthority ? { signal: pageAuthority.signal, beforeEffect: async () => { pageAuthority.assertCurrent(); }, assert_authority_current: pageAuthority.assertCurrent } : undefined;
   try {
     if (installedPage || installedCall) {
       if (!options.homeDirectory) throw new Error('安装插件需要本机数据目录');
@@ -389,7 +396,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       // Plugins the earlier builder generated share this address space; leave those to it.
       if (!record) return false;
       if (installedCall && method === 'POST') {
-        const result = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: options.actorId ?? 'web-user', query: {}, body: await readLocalWebBody(request) });
+        const result = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: options.actorId ?? 'web-user', query: {}, execution, body: await readLocalWebBody(request) });
         if (!result) { sendLocalWebJson(response, 409, { error: '这个插件当前没有运行，请在创作台里启用' }); return true; }
         sendLocalWebJson(response, result.status, result.body); return true;
       }
@@ -399,13 +406,13 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
         if (!framed) return openWorkbench('openSurface=' + encodeURIComponent('app-' + release.buildId));
         const recoveryError = installed.recoveryErrors.get(pluginId);
         if (recoveryError) {
-          html(response, page(release.design.title, '<main class="as-preview-page"><h1>插件暂时无法运行</h1><p role="alert">' + escapeHtml(recoveryError)
-            + '</p><p>请在插件创作工作台里检查安装。</p></main>', '', controlToken)); return true;
+          html(response, '<main class="as-preview-page"><h1>插件暂时无法运行</h1><p role="alert">' + escapeHtml(recoveryError)
+            + '</p><p>请在插件创作工作台里检查安装。</p></main>'); return true;
         }
         const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), presentation: release.design.presentation, connected: release.design.contract.operations.map(item => item.id) };
         // Only the plugin: its name, version and the way back to the studio are the workbench's (tab and stage), not the frame's.
         const body = '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>';
-        html(response, page(release.design.title, body, '(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:('+UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT+')(),mode:"installed",call:' + literal(prefix + '/api/plugin-builder/installed/' + pluginId + '/call') + ',view:' + literal(view) + ',components:' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + '});', controlToken));
+        html(response, page(release.design.title, body, { mode: 'installed', plugin_id: pluginId, call: prefix + '/api/plugin-builder/installed/' + pluginId + '/call', view }, options, controlToken));
         return true;
       }
     }
@@ -414,10 +421,9 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     const served = loopbackHost(request.headers.host);
     if (served && /:\d{1,5}$/.test(served)) studio.origin = 'http://' + served;
     else if (url.port) studio.origin = url.origin;
-    const factories = '(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:('+UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT+')(),api:p=>' + literal(prefix + '/api/plugin-builder/studio') + '+p,plugin:id=>' + literal(prefix + '/plugins/') + '+id,components:' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT;
     if (preview && method === 'GET') {
       const build = workflow.store.require(preview[1]!);
-      html(response, page(build.title, '<main class="as-preview-page" data-studio-preview="' + escapeHtml(build.id) + '"></main>', factories + ',mode:"preview",acceptance:' + literal(url.searchParams.get('acceptance')) + ',build:' + literal(build.id) + '});', controlToken));
+      html(response, page(build.title, '<main class="as-preview-page" data-studio-preview="' + escapeHtml(build.id) + '"></main>', { mode: 'preview', acceptance: url.searchParams.get('acceptance'), build: build.id }, options, controlToken));
       return true;
     }
     const route = api![1] ?? '', build = /^\/builds\/([a-f0-9-]{36})(\/[a-z]+)?$/u.exec(route), mockup = /^\/builds\/([a-f0-9-]{36})\/mockups\/([a-z0-9-]{1,64})$/u.exec(route);
@@ -441,14 +447,14 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       return true;
     }
     if (route === '/settings' && method === 'POST') {
-      const body = await readLocalWebBody(request), models = await options.models();
+      const body = await readLocalWebBody(request), models = await options.models(); pageAuthority?.assertCurrent();
       const chosen = models.find(item => item.provider_id === body.provider_id && item.model_id === body.model_id);
       if (!chosen) throw new Error('所选模型尚未配置，请在模型设置中完成配置');
       studio.storage.set(MODEL_KEY, JSON.stringify({ provider_id: chosen.provider_id, model_id: chosen.model_id }));
       sendLocalWebJson(response, 200, { model: chosen }); return true;
     }
     if (route === '/builds' && method === 'POST') {
-      const body = await readLocalWebBody(request);
+      const body = await readLocalWebBody(request); pageAuthority?.assertCurrent();
       if (!studio.storage.get(MODEL_KEY) && !options.agents) throw new Error('请先选择构建使用的模型');
       sendLocalWebJson(response, 201, { build: publicBuild(workflow.create(String(body.brief ?? ''))) }); return true;
     }
@@ -460,17 +466,18 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       send(workflow.store.require(id));
       const unsubscribe = workflow.subscribe(send);
       const ping = setInterval(() => response.write(': ping\n\n'), 20_000);
-      request.on('close', () => { clearInterval(ping); unsubscribe(); });
+      const stop = () => response.end(); pageAuthority?.signal.addEventListener('abort', stop, { once: true });
+      request.on('close', () => { clearInterval(ping); unsubscribe(); pageAuthority?.signal.removeEventListener('abort', stop); });
       return true;
     }
     if (build && build[2] === '/action' && method === 'POST') {
-      const result = await workflow.action(build[1]!, await readLocalWebBody(request));
+      const body = await readLocalWebBody(request); pageAuthority?.assertCurrent(); const result = await workflow.action(build[1]!, body);
       sendLocalWebJson(response, 200, result === null ? { deleted: true } : 'buildId' in (result as object) ? { release: publicRelease(result as { directory?: string }) } : { build: publicBuild(result as AgentBuild) }); return true;
     }
     if (build && build[2] === '/call' && method === 'POST') {
       const body = await readLocalWebBody(request);
       if (body.binding !== 'read' && body.binding !== 'submit') throw new Error('未知的组件操作');
-      sendLocalWebJson(response, 200, { value: await (typeof body.acceptance === 'string' ? studio.callAcceptance(build[1]!, body.acceptance, String(body.componentId ?? ''), body.binding, body.payload ?? {}) : workflow.call(build[1]!, String(body.componentId ?? ''), body.binding, body.payload ?? {})) }); return true;
+      sendLocalWebJson(response, 200, { value: await (typeof body.acceptance === 'string' ? studio.callAcceptance(build[1]!, body.acceptance, String(body.componentId ?? ''), body.binding, body.payload ?? {}, execution) : workflow.call(build[1]!, String(body.componentId ?? ''), body.binding, body.payload ?? {}, execution)) }); return true;
     }
     sendLocalWebJson(response, 404, { error: '未声明的创作台操作' }); return true;
   } catch (error) {

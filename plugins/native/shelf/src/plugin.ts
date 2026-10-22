@@ -3,9 +3,8 @@ import type { PluginDefinition, PluginOwnerFilesDeclaration } from "@molis-ai/mo
 import { shelfManifest } from "./manifest.js";
 import { shelfUiContribution } from "./ui.js";
 import { shelfSettingsUiContribution } from "./settings-ui.js";
-import { shelfRuntimeActionHandlers, shelfRuntimeActions, type ShelfResultPorts } from "./runtime-actions.js";
+import { shelfRuntimeActionHandlers, shelfRuntimeActions } from "./runtime-actions.js";
 
-export type { ShelfResultPorts } from "./runtime-actions.js";
 
 /** Shelf's own files under the Home: the catalog, the copies on the shelf and the folders of its jobs. Nothing else is Shelf's to write. */
 export const SHELF_OWNER_FILES: PluginOwnerFilesDeclaration = {
@@ -16,7 +15,7 @@ export const SHELF_OWNER_FILES: PluginOwnerFilesDeclaration = {
 };
 
 /** Coding results offered to Shelf use the real Runtime grants and durable input graph. */
-export function createShelfPlugin(results?: ShelfResultPorts): PluginDefinition {
+export function createShelfPlugin(): PluginDefinition {
   return { manifest: shelfManifest, async start(context) {
     for (const permission of shelfManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const body = (value: unknown) => (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
@@ -24,7 +23,7 @@ export function createShelfPlugin(results?: ShelfResultPorts): PluginDefinition 
       // Inputs nominate exact candidates; receiving always requires the explicit route confirmation.
       onUpstreamReady: () => {},
       views: [shelfUiContribution, shelfSettingsUiContribution],
-      actions: shelfRuntimeActionHandlers(context, results, shelfManifest),
+      actions: shelfRuntimeActionHandlers(context, shelfManifest),
       // The old routes only translate parameters; execution is the same registered action MCP and Agents call.
       routes: [
         bindPluginActionRoute(context, shelfRuntimeActions.results, () => ({}), "shelf.project-results"),

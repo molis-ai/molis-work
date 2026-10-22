@@ -45,6 +45,7 @@ export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
 export * from "./actions.js";
 export * from "./plugin-database.js";
+export type { PluginScheduleClient, PluginScheduleWriter, PluginScheduleJob, PluginScheduleRegisterInput, PluginWakeupDeclaration } from "./plugin-scheduler.js";
 export type { PluginFilesClient, PluginFilesDeclaration } from "./plugin-files.js";
 export type { PluginOwnerFileInfo, PluginOwnerFileEntry, PluginOwnerFilesReader, PluginOwnerFilesWriter, PluginOwnerFilesClient, PluginOwnerFilesDeclaration } from "./plugin-owner-files.js";
 export * from "./plugin-model.js";
@@ -95,11 +96,18 @@ export interface PluginActionDirectory {
 /** Query delegation uses the active Runtime action's caller, never a caller supplied by the plugin. */
 export interface PluginActionClient extends BoundActionClient {
   invokeQuery<Input = unknown, Output = unknown>(reference: import("./actions.js").ActionReference, input: Input): Promise<Output>;
+  /** Dynamic dependencies as this installation, with its own grants and plugin audience; requires actions:invoke. */
+  readonly dependencies?: PluginActionDirectory;
   /** Present only when the Manifest declares `actions:delegate`; every call also needs the installation's grant. */
   readonly directory?: PluginActionDirectory;
 }
 
 export interface PluginHostServices {
+  /** Public metadata of installations in this activation's scope. */
+  readonly notifications?: import("./plugin-notifications.js").PluginNotificationClient;
+  readonly installations?: import("./plugin-installations.js").PluginInstallationClient;
+  /** Awaited, owner-bound Agent work through the Home's shared runtime. */
+  readonly agents?: import("./plugin-agents.js").PluginAgentClient;
   /** One finite continuation of an accepted action; business jobs and recovery remain plugin-owned. */
   readonly background?: import("./plugin-background.js").PluginBackgroundClient;
   /** Host-bound entry to this Plugin's declared public actions; no arbitrary capability access. */
@@ -118,9 +126,12 @@ export interface PluginHostServices {
    * any other table, a schema step or a pragma is refused (specs/plugin-project-database).
    */
   readonly project_database?: import("./plugin-database.js").PluginDatabase;
+  /** Project wakeups, scoped to this plugin. Writes join its current project database transaction. */
+  readonly scheduler?: import("./plugin-scheduler.js").PluginScheduleClient;
   /** Owner-scoped binary files, only for a trusted Host entry declaring their directory. 2026-10-18 改: by Manifest declaration (PG-102). */
   readonly files?: import("./plugin-files.js").PluginFilesClient;
   readonly ownerFiles?: import("./plugin-owner-files.js").PluginOwnerFilesClient;
+  readonly terminal?: PluginTerminalClient;
   /**
    * The Host's text model, for a plugin the Host runs itself that declares `model:read` (the list and availability only) or
    * `model:invoke`; requests only from its own concurrent actions that declare `model:invoke`.
@@ -309,8 +320,8 @@ export interface PluginManifest {
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
   /** The plugin's own tables, by scope (PG-020, specs/plugin-project-database). */
   databases?: import("./plugin-database.js").PluginManifestDatabases;
-  /** v2: jobs an activation may keep (`services.background.keep`, PG-038). */
-  background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[] };
+  /** v2: kept jobs and commands the platform may wake for this installation. */
+  background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[]; wakeups?: readonly import("./plugin-scheduler.js").PluginWakeupDeclaration[] };
   /** Complete, callable capabilities registered with the system action service. */
   actions?: readonly import("./actions.js").ActionDefinition[];
   /** Actual judgment consumption points, automatically discovered by configuration UIs. */
@@ -390,6 +401,8 @@ export type PluginExecutionControl = Pick<import("./actions.js").ActionExecution
    * the instance's project (none for a Home instance).
    */
   readonly project_id?: string;
+  /** Display name read from the Host catalog; grants no authority. */
+  readonly project_title?: string;
 };
 
 export interface PluginRouteResponse {
@@ -440,6 +453,12 @@ export interface PluginAppContribution {
 
 export type PluginContribution = PluginIntegrationContribution | PluginAppContribution;
 
+/** A user-started interactive terminal in the plugin's declared owner-files directory. */
+export interface PluginTerminalClient {
+  /** Backend-selected executable; the page receives only its panel handle. Requires terminal:run. */
+  open(input: { key: string; command: string; title: string }): Promise<{ panelId: string }>;
+}
+
 export interface PluginStartContext {
   install_id: string;
   /** Trusted action identity; Home built-ins use plugin_id, project installs use install_id. */
@@ -463,7 +482,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "directory" | "background"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };
@@ -607,3 +626,9 @@ export interface IntegrationProviderPort {
 }
 
 export { pluginErrors } from "./plugin-errors.js";
+
+export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } from "./plugin-agents.js";
+
+export type { PluginInstallationClient, PluginInstallationView } from "./plugin-installations.js";
+
+export type { PluginNotificationClient, PluginNotificationInput, PluginNotificationReceipt } from "./plugin-notifications.js";

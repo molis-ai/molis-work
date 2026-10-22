@@ -616,10 +616,10 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-summary-meta:empty { display: none; }
   ${ASSIST} .assistant-summary-meta dt { color: var(--muted); }
   ${ASSIST} .assistant-summary-meta dd { margin: 0; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
-  ${ASSIST} .assistant-summary-top { display: flex; align-items: center; gap: 8px; min-height: 22px; margin-bottom: 2px; }
+  ${ASSIST} .assistant-summary-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 22px; margin-bottom: 2px; }
   ${ASSIST} .assistant-summary-top:not(:has(.assistant-state:not(:empty), .assistant-control:not([hidden]))) { display: none; }
-  ${ASSIST} .assistant-summary-controls { display: flex; gap: 2px; margin-left: auto; }
-  ${ASSIST} .assistant-control { height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; cursor: pointer;
+  ${ASSIST} .assistant-summary-controls { display: flex; flex-wrap: wrap; gap: 2px; margin-left: auto; }
+  ${ASSIST} .assistant-control { height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer;
     transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   ${ASSIST} .assistant-control[hidden] { display: none; }
   ${ASSIST} .assistant-control:hover { background: var(--nav-hover); color: var(--ink); }
@@ -627,7 +627,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-control[data-assistant-control="resume"] { background: var(--ink); color: var(--paper); }
   ${ASSIST} .assistant-control:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
   /* The work's state retains its label beside the shared ring. */
-  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px 1px 7px; border-radius: 999px; background: var(--wash); color: var(--ink-soft); font-size: 11px; line-height: 18px; }
+  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px 1px 7px; border-radius: 999px; background: var(--wash); color: var(--ink-soft); font-size: 11px; line-height: 18px; white-space: nowrap; }
   ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"]) { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 13%, transparent); color: var(--ink); }
   /* One row of equal parts, however many choices: five Coding modes fit the side pane without wrapping. */
   ${ASSIST} .assistant-segmented { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 2px; border-radius: 8px; background: var(--wash); }

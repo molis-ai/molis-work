@@ -13,17 +13,7 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export type { GitOperationUpdate } from "./events.js";
 
 export {
-  GitStatusError,
   headLabel,
-  parsePorcelainStatus,
-  type GitChange,
-  type GitEntryState,
-  type GitHead,
-  type GitStatus,
-  type GitUpstream,
-  type PorcelainInput,
-} from "./status.js";
-export {
   projectGit,
   type GitListItem,
   type GitListKind,

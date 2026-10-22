@@ -2971,7 +2971,7 @@ FlyLeaf 的 `plugins/` 下除了 `coding-agent` 还有五个：`projects`、`fil
 | `projects`（选目录 + 发布它） | `workspace`（只发布） | 项目在 Molis Work 已经是目录库里的一等记录，选目录不是插件的事；缺的那一半是「把当前项目变成别人能连的值」 |
 | `files` | `files` | 树、阅读器、`before`/`after` 快照、选区，全部照搬；目录读取归宿主，插件只投影 |
 | `diff` | `diff` | 三组可互换输入：两份快照、Coding 的变更集、Git 的工作区改动 |
-| `git` | `git` | 工作区状态、提交草稿、接受一轮变更；`git` 仍由宿主跑，porcelain 的解析放在插件里才测得动 |
+| `git` | `git` | 工作区状态、提交草稿、接受一轮变更；`git` 仍由宿主跑，porcelain 的解析在插件 SDK 里（宿主和插件读同一份）才测得动 |
 | `text-stats` | `text-stats` | 系统里最小的一个完整插件：一个必填输入，不要能力、不发端口、不发事件 |
 
 几条在复现时立住的判断：

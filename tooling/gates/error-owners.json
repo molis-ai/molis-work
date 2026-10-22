@@ -146,9 +146,10 @@
     },
     "git": {
       "paths": [
-        "apps/local-host/src/git-*"
+        "apps/local-host/src/git-*",
+        "packages/plugin-sdk/src/git-porcelain.ts"
       ],
-      "reason": "The Git plugin's Host side (worktrees, status, operations); its codes already start with git."
+      "reason": "The Git plugin's Host side (worktrees, status, operations) and the porcelain parse the SDK gives both the Host and the Git plugin; its codes already start with git."
     },
     "goals": {
       "paths": [

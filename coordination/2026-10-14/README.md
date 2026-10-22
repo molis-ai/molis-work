@@ -2482,3 +2482,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - 改 contracts 算共享核心，进集成批次，contracts 和 SDK 两份 API 快照都要看。
   - `ui.commands` 接通不做，记 BL-363：Git 的 U1 已经定为删除，所以这一条和 U1 无关。BL-363 记的是「声明了命令却没人调用」：要么接通（要真浏览器验证），要么删掉声明和 `UiHost.commands()`，开工时由 ① 定。
   - Files、Git 的两个宿主端口这一片不删。PG-061 合进 main 以后，Git 的 `onWorkingTreeChanged` 在 G2 换成 `services.ui.invalidate()`，Files 的 `onWorkspaceChanged` 在 C6 后半换（都归 ③）。
+- **10-22 PG-061 已开 #989**（② 开）。⑤ 审完没有要改的缺陷，在 fx-989 上补了文档和 PG061-05 的断言，之后进 `integration/batch-1022-1` 跑全量。
+  - ① 维持「停用后同步抛错」：和宿主别的服务一致（`assertActive`）。
+  - 新发现的问题：插件停用以后，残留的定时器或监听器调用任何平台服务都会让宿主进程退出（main 上宿主没有兜底）。这片不修，请 ⑤ 在 fx-989 里记 BL-411，归 ②，排在 PG-035、X-6 之后，动手前先交设计。
+  - ② 接着做 PG-035。
+- **10-22 G0 本地已提交 `b8dccb52e`**：删掉 `coding-surface.ts` 的两个死面板，PG-099 状态合成一句。在等用户在 G0 会话里批准推送；① 不代批。

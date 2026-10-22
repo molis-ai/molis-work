@@ -1,6 +1,5 @@
 import type { GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
-import { renderProgressSource, formatEventTime, renderWorkEventBody as renderGoalWorkEventBody } from "./event-history-body.js";
-export { formatEventTime, renderGoalWorkEventBody };
+import { renderProgressSource, formatEventTime } from "./event-history-body.js";
 import type { GoalsDocumentContext, GoalsDocumentItem, GoalsDocumentUiPrimitives } from "./document-ui-model.js";
 import { type GoalEventDocumentView } from "./event-document-model.js";
 import { createEventDocumentForms } from "./event-document-forms.js";

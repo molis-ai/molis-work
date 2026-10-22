@@ -17,7 +17,7 @@ const view = object({ phase: { enum: ["waiting", "unavailable", "ready"] }, mode
   files: { type: "array", items: object({ path: text, kind: { enum: ["added", "modified", "deleted"] }, added_lines: count, removed_lines: count }) } },
   ["phase", "mode", "group", "message", "coarse", "identical", "empty", "created", "removed", "mismatch", "partial", "rows", "files"]);
 const base = { kind: "query" as const, scope: "project" as const, audiences: ["user", "agent", "workflow", "mcp"] as const, subject_kinds: ["text", "artifact"] };
-export interface DiffStateInput { reference?: { artifact_id: string; version: number }; change_index?: number }
+interface DiffStateInput { reference?: { artifact_id: string; version: number }; change_index?: number }
 export const diffActions = {
   state: { capability_id: "diff.state", version: 1, operation: "query", action: { ...base,
     title: "读取固定差异", description: "读取明确指定的固定成果或当前已选输入组，保留原版本、来源和失效状态，不读取当前磁盘", permissions: ["artifact:read"],

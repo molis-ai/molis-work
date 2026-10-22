@@ -126,7 +126,7 @@ export function createCatalogHttp(fetchImpl: CatalogFetch, now: () => Date): Cat
   };
 }
 
-export function throwIfProviderPayloadFailed(json: unknown, status: number): void {
+function throwIfProviderPayloadFailed(json: unknown, status: number): void {
   const record = asRecord(json);
   if (!record) return;
   const refused = (auth: boolean) => new CatalogLiveError(auth ? "needs_auth" : "provider", status,

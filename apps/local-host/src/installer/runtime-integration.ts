@@ -289,7 +289,7 @@ export class RuntimeIntegrationService {
   }
 }
 
-export function connectionStateFor(snapshot: RuntimeSnapshot): RuntimeConnectionState {
+function connectionStateFor(snapshot: RuntimeSnapshot): RuntimeConnectionState {
   if (!snapshot.runtimeDetected) return "not_detected";
   if (!snapshot.artifacts) return "molis_work_unavailable";
   if (snapshot.configInspection.state === "conflict" || snapshot.skill.state === "conflict") return "conflict";
@@ -298,7 +298,7 @@ export function connectionStateFor(snapshot: RuntimeSnapshot): RuntimeConnection
   return "needs_repair";
 }
 
-export function detectionMessage(state: RuntimeConnectionState, displayName: string): string {
+function detectionMessage(state: RuntimeConnectionState, displayName: string): string {
   if (state === "not_detected") return `未检测到 ${displayName}`;
   if (state === "molis_work_unavailable") return "Molis Work 本体安装不完整";
   if (state === "not_connected") return `${displayName} 未接入`;

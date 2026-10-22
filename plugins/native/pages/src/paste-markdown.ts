@@ -23,7 +23,7 @@ function textNode(value: string, marks: ReturnType<typeof pagesSchema.marks.stro
 }
 
 /** Inline marks Notion paste keeps: bold, italic, strike, code, and a safe link. */
-export function inlineFromMarkdown(value: string): Node[] {
+function inlineFromMarkdown(value: string): Node[] {
   const nodes: Node[] = [];
   let cursor = 0;
   for (const match of value.matchAll(INLINE)) {

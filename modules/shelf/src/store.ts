@@ -56,8 +56,8 @@ const CATALOG_FILE = "catalog.json";
 const SAMPLE_NAME = "试用示例.pdf";
 export const CLIPBOARD_LIMIT = 10;
 const MAX_CLIP_TEXT_BYTES = 256 * 1024;
-export const MAX_EDIT_BYTES = 512 * 1024;
-export const TEXT_EDIT_EXTENSIONS = new Set([
+const MAX_EDIT_BYTES = 512 * 1024;
+const TEXT_EDIT_EXTENSIONS = new Set([
   "txt", "md", "markdown", "json",
   "swift", "py", "js", "ts", "mjs", "css",
   "yaml", "yml", "xml", "toml", "ini",

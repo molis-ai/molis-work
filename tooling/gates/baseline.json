@@ -103,8 +103,8 @@
       "methods": 34
     },
     "class modules/goals/src/event-state-effects.ts#GoalEventStateEffects": {
-      "lines": 534,
-      "methods": 12
+      "lines": 515,
+      "methods": 11
     },
     "function modules/goals/src/event-state-effects.ts#recordTrustedDecision": 152,
     "class modules/goals/src/event-state-repository.ts#GoalEventStateRepository": {
@@ -1030,18 +1030,16 @@
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 176,
+  "unknownCastsTotal": 174,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
     "apps/local-host/src/artifact-native-plugin-http.ts": 2,
     "apps/local-host/src/assistant/assistant-http.ts": 2,
-    "apps/local-host/src/assistant/assistant-relations.ts": 1,
     "apps/local-host/src/feed-application.ts": 1,
     "apps/local-host/src/feed-connector-sync.ts": 1,
     "apps/local-host/src/goal-project-application.ts": 4,
     "apps/local-host/src/memory/memory-host.ts": 2,
-    "apps/local-host/src/placement-actions.ts": 1,
     "apps/local-host/src/placement-http.ts": 2,
     "apps/local-host/src/plugin-builder/agent-surface.ts": 1,
     "apps/local-host/src/plugin-builder/catalog.ts": 2,

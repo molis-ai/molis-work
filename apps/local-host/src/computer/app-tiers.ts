@@ -11,17 +11,17 @@
  *
  * Matching is by bundle id first; names are a fallback that only ever makes an app stricter.
  */
-export type AppTier = "forbidden" | "look-and-click" | "ask";
+type AppTier = "forbidden" | "look-and-click" | "ask";
 
 export interface AppIdentity { readonly bundle_id: string; readonly name: string }
 
 export interface AppTierVerdict { readonly tier: AppTier; readonly reason: string; readonly built_in: boolean }
 
 /** Molis Work's own desktop app and the helper: the Assistant must never reach its own approval cards. */
-export const MOLIS_BUNDLE_PREFIX = "com.molis.work";
+const MOLIS_BUNDLE_PREFIX = "com.molis.work";
 
 /** A browser window whose title carries this shows Molis Work (every workbench page title ends in " · Molis Work"). */
-export const MOLIS_WINDOW_MARKER = "Molis Work";
+const MOLIS_WINDOW_MARKER = "Molis Work";
 
 const FORBIDDEN_IDS: Readonly<Record<string, string>> = {
   "com.apple.systempreferences": "系统设置",

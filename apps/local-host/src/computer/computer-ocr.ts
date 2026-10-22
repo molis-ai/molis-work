@@ -5,7 +5,7 @@
  */
 type Helper = { call<T>(op: string, payload?: Record<string, unknown>): Promise<T> };
 
-export interface OcrLine {
+interface OcrLine {
   readonly text: string;
   readonly x: number;
   readonly y: number;
@@ -14,7 +14,7 @@ export interface OcrLine {
   readonly confidence?: number;
 }
 
-export interface OcrResult {
+interface OcrResult {
   readonly lines: readonly OcrLine[];
 }
 

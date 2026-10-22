@@ -15,7 +15,7 @@ export interface ScheduleTaskDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-export type ScheduleConversationTurnKind = "user" | "assistant" | "system";
+type ScheduleConversationTurnKind = "user" | "assistant" | "system";
 
 export interface ScheduleConversationTurnRecord {
   turn_id: string;

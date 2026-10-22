@@ -5,7 +5,7 @@ import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 
 /** A version of a work's view that changes when anything the page draws from it does. */
-export function workViewVersion(view: unknown): string {
+function workViewVersion(view: unknown): string {
   return createHash("sha256").update(JSON.stringify(view)).digest("hex").slice(0, 24);
 }
 
@@ -14,7 +14,7 @@ export function workViewVersion(view: unknown): string {
  * wakes on what can change the view — the work's stored facts and the live run it waits on — gathers a burst for 40 ms,
  * and reads the view again; nothing is read on a timer (specs/prologue-adoption §4.5, item 12).
  */
-export async function waitForWorkChange<View = AssistantWorkView>(input: {
+async function waitForWorkChange<View = AssistantWorkView>(input: {
   read(): Promise<View>;
   /** Subscribe to this work's stored changes; returns the unsubscribe. */
   onStored(listener: () => void): () => void;
@@ -58,7 +58,7 @@ export async function waitForWorkChange<View = AssistantWorkView>(input: {
  * latest Assistant round, and the latest round of the Coding session it runs in or handed to, when `codingRun` says),
  * and their graphs (a background job they follow ends there).
  */
-export function watchWorks(ports: { store: AssistantStore; actorId: string; host(): Promise<AgentHost>; codingRun?(work: StoredWork): Promise<AgentRunRef | undefined> }, workIds: readonly string[]) {
+function watchWorks(ports: { store: AssistantStore; actorId: string; host(): Promise<AgentHost>; codingRun?(work: StoredWork): Promise<AgentRunRef | undefined> }, workIds: readonly string[]) {
   return {
     onStored: (listener: () => void) => { const ids = new Set(workIds); return ports.store.onChange(id => { if (ids.has(id)) listener(); }); },
     onRuns: async (listener: () => void) => {

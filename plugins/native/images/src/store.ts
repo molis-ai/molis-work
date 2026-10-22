@@ -137,7 +137,7 @@ export function purgeImagesProject(homeDirectory: string, projectId: string): vo
   if (files) removeAssetFiles(join(homeDirectory, IMAGES_HOME_STORE.path, "assets"), files);
 }
 
-export function removeAssetFiles(directory: string, filenames: readonly string[]): void {
+function removeAssetFiles(directory: string, filenames: readonly string[]): void {
   for (const name of filenames) if (ASSET_FILE.test(name)) rmSync(join(directory, name), { force: true });
 }
 

@@ -7,7 +7,7 @@ import { extractMaterialText, materialErrors } from "./material-text.js";
 
 const defaults: MaterialLimits = { maxBytes: 25 * 1024 * 1024, maxCharacters: 2_000_000, maxTextBytes: 8_000_000, maxPages: 200 };
 const ceilings: MaterialLimits = { ...defaults, maxBytes: 32 * 1024 * 1024 };
-export const materialTextExtensions = new Set<string>(MATERIAL_EXTENSIONS.text);
+const materialTextExtensions = new Set<string>(MATERIAL_EXTENSIONS.text);
 function checkedLimits(options: MaterialExtractionOptions): MaterialLimits {
   const limits = { ...defaults, ...options.limits };
   for (const [key, value] of Object.entries(limits)) {

@@ -1,3 +1,4 @@
+import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-sdk";
 import { goalErrors } from "./errors.js";
 import { createHash } from "node:crypto";
 import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -81,16 +82,4 @@ export function requestHash(value: unknown): string {
 
 export function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
-}
-
-export function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, item]) => [key, canonicalize(item)]),
-    );
-  }
-  return value;
 }

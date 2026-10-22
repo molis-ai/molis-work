@@ -29,7 +29,7 @@ export function readString(value: unknown, field: string, max: number): string {
   return value;
 }
 
-export function readRef(value: unknown, field: string): SurfaceFocus["object"] {
+function readRef(value: unknown, field: string): SurfaceFocus["object"] {
   if (!value || typeof value !== "object") throw invalid(field);
   const ref = value as Record<string, unknown>;
   const version = ref.version;

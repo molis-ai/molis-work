@@ -9,7 +9,7 @@ export const workflowsSearchActions = {
   subject: defineSubjectContextAction("workflows.subject.read", "workflow", "工作流程", ["workflows:read"]),
 };
 
-export function workflowSearchContent(workflow: Workflow): string {
+function workflowSearchContent(workflow: Workflow): string {
   const steps = workflow.stations.map((station, index) => {
     const link = workflow.links[index];
     const name = station.action ? `动作步骤` : station.plugin;

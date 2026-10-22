@@ -10,7 +10,7 @@ import { bindGoalsManagementActions } from "./goals-actions.js";
 export const createPresentationError: McpPresentationErrorFactory = (code, message, details) => new ActionError(code, message, { details });
 
 /** Who is calling a v1 project tool, and on what. A Runtime call runs in its bound project; a management call names its own database. */
-export interface McpV1ToolCaller {
+interface McpV1ToolCaller {
   localHost: MolisWorkLocalHost;
   audience: "runtime" | "management";
   /** The Runtime's bound project; null for the management audience. */

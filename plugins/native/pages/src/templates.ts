@@ -1,6 +1,6 @@
 import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
 
-export interface PagesTemplate {
+interface PagesTemplate {
   readonly id: string;
   readonly title: string;
   readonly summary: string;

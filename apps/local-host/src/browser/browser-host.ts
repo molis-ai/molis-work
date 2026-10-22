@@ -17,7 +17,7 @@ import { trackHostChildEndpoint } from "../host-endpoints.js";
  * drives it through CDP input; the assistant's driver (specs/archive/side-panel P5) acts on the same page, so what it does is
  * what the person watches.
  */
-export interface BrowserHostOptions {
+interface BrowserHostOptions {
   readonly homeDirectory: string;
   readonly locate?: () => LocatedBrowser | null;
   /** Origins the pages may never load: the local Host itself serves its control token to whoever loads it. */

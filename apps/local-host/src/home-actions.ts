@@ -12,14 +12,14 @@ import { publishedFunctionAction, publishedFunctionKey } from "@molis-ai/molis-w
 import { withFunctionsService } from "./functions-host.js";
 import type { InboxSceneServices } from "./inbox-scene.js";
 
-export type HomeSubject = ActionSubject;
+type HomeSubject = ActionSubject;
 interface HomeSubjectContext extends HomeSubject { content: string; revision: string; reader: ActionReference }
 interface HomeSubjectState extends HomeSubjectContext { request_id: string; offers: HomeActionOffer[] }
-export interface HomeJudgmentState {
+interface HomeJudgmentState {
   function_key: string | null; functions: { function_key: string; name: string }[];
   capabilities: ActionView[]; binding: ActionSceneBinding | null;
 }
-export interface HomeRecommendations { judgments: JudgmentRecord[] }
+interface HomeRecommendations { judgments: JudgmentRecord[] }
 const empty = { type: "object", properties: {}, additionalProperties: false };
 const text = { type: "string" };
 const subjectSchema = ACTION_SUBJECT_SCHEMA;

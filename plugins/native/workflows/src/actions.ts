@@ -13,9 +13,9 @@ import { createWorkflowRunControls } from "./run-control.js";
 import { createWorkflowContinuation, handoffIndex, withPending } from "./continuation.js";
 
 /** One input field of a candidate action, as the mapping editor shows it. */
-export interface WorkflowActionField { readonly name: string; readonly type: string; readonly required: boolean; readonly title?: string; readonly enum?: readonly (string | number | boolean)[] }
+interface WorkflowActionField { readonly name: string; readonly type: string; readonly required: boolean; readonly title?: string; readonly enum?: readonly (string | number | boolean)[] }
 /** A registered command a workflow step can run: grouped by provider, filled by mapping. */
-export interface WorkflowActionChoice {
+interface WorkflowActionChoice {
   readonly ref: { readonly capability_id: string; readonly version: number; readonly provider_id: string };
   readonly title: string;
   readonly description: string;
@@ -40,7 +40,7 @@ function fieldsOf(view: ActionView): WorkflowActionField[] | null {
 }
 
 /** Commands that accept flat input and are offered to workflows: the directory, not a Host list, decides what can be a step. */
-export function workflowActionChoices(directory: readonly ActionView[]): WorkflowActionChoice[] {
+function workflowActionChoices(directory: readonly ActionView[]): WorkflowActionChoice[] {
   return directory.flatMap(view => {
     if (view.operation !== "command" || view.action.kind === "judgment" || !view.action.audiences.includes("workflow") || view.action.workflow_content
       || view.capability_id.startsWith("workflows.")) return [];
@@ -53,7 +53,7 @@ export function workflowActionChoices(directory: readonly ActionView[]): Workflo
 }
 
 /** Why a saved mapping no longer fits the action's current contract, or null when it does. */
-export function actionMappingProblem(step: WorkflowActionStep, choice: Pick<WorkflowActionChoice, "fields">): string | null {
+function actionMappingProblem(step: WorkflowActionStep, choice: Pick<WorkflowActionChoice, "fields">): string | null {
   for (const field of choice.fields) if (field.required && !step.mapping[field.name]) return `还没填「${field.title ?? field.name}」`;
   for (const [name, source] of Object.entries(step.mapping)) {
     const field = choice.fields.find(item => item.name === name);
@@ -70,7 +70,7 @@ export function actionMappingProblem(step: WorkflowActionStep, choice: Pick<Work
 }
 
 /** A published Choice rule a link can use to decide whether content goes on. */
-export interface WorkflowJudgmentChoice {
+interface WorkflowJudgmentChoice {
   readonly ref: { readonly capability_id: string; readonly version: number; readonly provider_id: string };
   readonly title: string;
   readonly description: string;
@@ -80,7 +80,7 @@ export interface WorkflowJudgmentChoice {
 }
 
 /** Choice rules come from the caller's directory: a published judgment whose result names a finite set of answers. */
-export function workflowJudgmentChoices(directory: readonly ActionView[]): WorkflowJudgmentChoice[] {
+function workflowJudgmentChoices(directory: readonly ActionView[]): WorkflowJudgmentChoice[] {
   return directory.flatMap(view => {
     if (view.action.kind !== "judgment" || view.operation !== "command" || !view.action.audiences.includes("workflow")) return [];
     const data = (view.action.output_schema?.properties as Record<string, { properties?: Record<string, { enum?: unknown[] }> }> | undefined)?.data;
@@ -118,7 +118,7 @@ export interface WorkflowContentPorts {
 }
 
 /** Other registered actions, reached as the call's original caller (a step's action, a judgment rule on a link). */
-export interface WorkflowActionReach {
+interface WorkflowActionReach {
   discover(): Promise<readonly ActionView[]>;
   invoke(reference: ActionReference & { provider_id: string }, input: unknown): Promise<unknown>;
   /** Refuses as `invoke` would (a target this caller cannot reach, an input its schema rejects) without running the target or logging a call. */
@@ -455,7 +455,7 @@ async function sourcesFirst(stations: WorkflowStation[], labelOf: (plugin: strin
 const CONTENT_ROLE: Readonly<Record<string, string>> = { list: "列出内容", read: "读取内容", receive: "接收内容", create: "新建空白内容" };
 const FIELD_NAME: Readonly<Record<string, string>> = { title: "标题", body: "正文", source: "来源", url: "链接", date: "日期" };
 /** Every place in one workflow that names this capability, in the words the editor uses. */
-export function workflowUsages(flow: Pick<Workflow, "workflow_id" | "title" | "stations" | "links">, action: ActionReference): ActionUsage[] {
+function workflowUsages(flow: Pick<Workflow, "workflow_id" | "title" | "stations" | "links">, action: ActionReference): ActionUsage[] {
   const usages: ActionUsage[] = [];
   flow.stations.forEach((station, index) => {
     if (station.action && referencesAction(station.action.ref, action)) {

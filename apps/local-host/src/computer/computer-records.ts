@@ -11,11 +11,11 @@ import path from "node:path";
  * Nothing here is indexed for search or memory. What was typed into a password-like field never reaches a record (the
  * driver refuses to type there at all).
  */
-export const SCREENSHOT_RETENTION_DAYS = 30;
+const SCREENSHOT_RETENTION_DAYS = 30;
 
-export type ComputerStepKind = "look" | "act" | "asked" | "allowed" | "declined" | "refused" | "failed" | "note";
+type ComputerStepKind = "look" | "act" | "asked" | "allowed" | "declined" | "refused" | "failed" | "note";
 
-export interface ComputerStep {
+interface ComputerStep {
   readonly at: string;
   readonly kind: ComputerStepKind;
   /** The app the step was about; null before any app was targeted. */

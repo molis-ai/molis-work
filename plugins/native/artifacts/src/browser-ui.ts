@@ -199,7 +199,7 @@ function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, route
   return `<section class="artifact-links" data-artifact-links><h2>${p.text("被谁引用")}</h2>${goals ? `<ul>${goals}</ul>` : `<p>${p.text("还没有目标引用这一版。")}</p>`}${referrers ? `<h3 class="artifact-links-heading">${p.text("文档")}</h3><ul data-artifact-referrers>${referrers}</ul>` : ""}${works}${other}${asInput}</section>`;
 }
 
-export function renderArtifactFrameBlock({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel): string {
+function renderArtifactFrameBlock({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel): string {
   const artifact = view.selected;
   if (!artifact) {
     return `<article class="frame-reading" data-frame-reading="artifact"><p>${p.text(view.requested ? "找不到这个成果版本" : view.versions.length ? "选择一个结果版本" : "还没有项目成果")}</p></article>`;

@@ -10,7 +10,7 @@ import {
  *   named by the judgment or asked for, and the rules alone never push a proposal (context-program §21.10).
  * Both write, so the surface shows them as prepared cards the person confirms; preparing only reads the Goal's cursor.
  */
-export const GOALS_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
+const GOALS_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
   { offer_id: "progress", title: "记录进展", intent: "advance", apply: "record", hint: "把刚完成的这一步记为所属 Goal 的进展",
     action: { capability_id: "goals.progress.record", version: 1 }, granularities: ["range", "block"], roles: ["task", "list"], requires: ["goal"] },
 ];
@@ -29,7 +29,7 @@ export function planSteps(input: FragmentOffersInput): string[] {
     .slice(0, MAX_STEPS).map(part => clip(part.replace(/[。；;，,]+$/u, ""), 80));
 }
 
-export interface GoalsFragmentPorts {
+interface GoalsFragmentPorts {
   /** The Goal's current event cursor, or null when it is gone or not readable here. */
   cursor(goalId: string): number | null;
 }

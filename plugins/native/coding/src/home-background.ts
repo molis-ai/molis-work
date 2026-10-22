@@ -18,7 +18,7 @@ const WAITING = new Set(["paused", "waiting-answer", "waiting-approval", "reconc
  * `startedAt` is when this activation of Coding started. No round survives it: one recorded as under way before then was cut off,
  * so its session is really waiting to be checked, and opening it shows what happened. A queued round has not started, so it was not cut off.
  */
-export function codingHomeBackgroundTasksOf(sessions: readonly CodingBackgroundSession[], startedAt: string): HomeBackgroundTask[] {
+function codingHomeBackgroundTasksOf(sessions: readonly CodingBackgroundSession[], startedAt: string): HomeBackgroundTask[] {
   return sessions.map(session => {
     const beforeRestart = session.active && !["reconcile-required", "queued"].includes(session.state) && session.updated_at < startedAt;
     const mine = session.steps?.mine ?? 0, subtasks = session.steps?.subtasks ?? 0, unowned = session.steps?.unowned ?? 0;

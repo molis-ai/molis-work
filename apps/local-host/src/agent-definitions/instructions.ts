@@ -30,9 +30,3 @@ export function registeredInstructionBody(homeDirectory: string | undefined, ins
 export function registeredInstructionRevision(homeDirectory: string, instruction: InstructionPrompt): number | null {
   return agentDefinitionsFor(homeDirectory, builtinRegistrations).prompt(`${instruction.owner_id}/${instruction.prompt_id}`).user?.revision ?? null;
 }
-
-/** A Host text model that takes registered instructions, over one that takes plain text. */
-export function withRegisteredPrompts<O>(homeDirectory: string | undefined, caller: string, complete: (prompt: string, options: O) => Promise<string>):
-  (prompt: ModelPromptInput, options: O) => Promise<string> {
-  return (prompt, options) => complete(resolveModelPrompt(homeDirectory, prompt, caller), options);
-}

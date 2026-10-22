@@ -21,7 +21,7 @@ import { headingPath } from "./focus.js";
 const PLUGIN_ID = "io.molis.work.pages";
 const AROUND = 200;
 
-export interface PagesLandingPort {
+interface PagesLandingPort {
   readonly bench: HTMLElement;
   readonly view: () => EditorView | null;
   /** The open document as saved; null when nothing is open, this editor cannot show it, or edits are not saved yet. */

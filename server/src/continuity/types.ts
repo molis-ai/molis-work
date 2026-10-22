@@ -6,4 +6,4 @@ export interface ProgressCommand { command_id: string; project_id: string; goal_
 export interface BoundActions { client: ActionClient; caller: ActionCallContext }
 export type ActionFactory = (input: { projectId: string; memberId: string; validate: () => void; signal: AbortSignal }) => BoundActions;
 export interface GoalProjection { goal_id: string; title: string; outcome: string; status: string; cursor: number; can_record: boolean; summary: string; next_step: string; next_actor: string; updated_at: string | null }
-export type { ArtifactReference, ArtifactVersionRecord, GoalEventStateView, GoalEventProgressResult };
+export type { ArtifactVersionRecord, GoalEventStateView, GoalEventProgressResult };

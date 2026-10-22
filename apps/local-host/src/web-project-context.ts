@@ -37,7 +37,7 @@ export interface ProjectRuntimeContext extends ProjectRequestContext {
 }
 
 /** The services every project plugin surface is given: the unified action client, the Home, the native-Agent workspaces and terminal, and Git operation updates. */
-export type ProjectPluginServices = Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "characterWorkspaces" | "characterSpawn" | "observeGitOperations">;
+type ProjectPluginServices = Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "characterWorkspaces" | "characterSpawn" | "observeGitOperations">;
 
 export function projectRequestContext(context: WebRequestContext, options: ResolvedWebBoardOptions): ProjectRequestContext {
   const { localHost, composition, serverOptions } = context;

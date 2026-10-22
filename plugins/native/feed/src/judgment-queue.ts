@@ -6,7 +6,7 @@ import type { FeedItemRecord, InboxEntryRecord } from "./projection.js";
 interface QueuedEntry { project_id: string; entry_id: string }
 
 /** What the queue reads when it judges: the records as they are now, and which out rules ask for a judgment of an item. */
-export interface JudgmentReads {
+interface JudgmentReads {
   feedItem(projectId: string, itemId: string): FeedItemRecord;
   inboxEntry(projectId: string, entryId: string): InboxEntryRecord;
   judgedRuleIds(item: FeedItemRecord): string[];

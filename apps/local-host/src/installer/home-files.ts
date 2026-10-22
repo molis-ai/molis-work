@@ -81,7 +81,7 @@ export async function readText(filePath: string, code: "installer.source.asset_m
   }
 }
 
-export async function readTextIfPresent(filePath: string): Promise<string | null> {
+async function readTextIfPresent(filePath: string): Promise<string | null> {
   try {
     return await fs.readFile(filePath, "utf8");
   } catch (error) {
@@ -95,7 +95,7 @@ export async function readJsonIfPresent<T>(filePath: string): Promise<T | null> 
   return text == null ? null : (parseJson(text, filePath) as T);
 }
 
-export function parseJson(text: string, filePath: string): Record<string, unknown> {
+function parseJson(text: string, filePath: string): Record<string, unknown> {
   try {
     return JSON.parse(text) as Record<string, unknown>;
   } catch {

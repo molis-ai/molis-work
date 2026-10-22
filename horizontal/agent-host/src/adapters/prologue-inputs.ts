@@ -19,7 +19,7 @@ const INPUT_EVENTS = new Set(["prompt", "steer-applied", "steer-read", "steer-wi
   "pending-settled", "pending-expired", "pending-cancelled", "completed", "failed", "cancelled", "tripped", "circuit-tripped"]);
 
 /** The part of the run projection these facts touch. */
-export interface InputLedger {
+interface InputLedger {
   turns: AgentTurnView[];
   /** The round's ledger events that bear on its inputs, in order. */
   input_events: ModelEvent[];
@@ -77,7 +77,7 @@ export function closeInputs(state: InputLedger): void {
 /** A supplement as the runtime takes it; `app` is the Host speaking, never the person. */
 export interface SteerInput { text: string; source?: "person" | "app"; key?: string; interrupt?: boolean; about?: string }
 /** The session's own queue: what waits there for the next round, under the same keys the round's supplements use. */
-export type QueueInput = (input: Omit<SteerInput, "interrupt">) => Promise<{ inputId: string; replayed: boolean }>;
+type QueueInput = (input: Omit<SteerInput, "interrupt">) => Promise<{ inputId: string; replayed: boolean }>;
 /** A live round's supplements: hand one over, or take back one it has not put in the context; a restored round has no withdraw. */
 export interface RoundInputs { steer(input: SteerInput): Promise<{ steerId: string; replayed: boolean }>; withdrawSteer?(steerId: string): Promise<void> }
 /** The session's queue as the runtime keeps it, session by session. */
@@ -118,7 +118,7 @@ interface LiveRound { ended: boolean; control: RoundInputs; turns: readonly Agen
  * does not hold — it ended, or the supplement went straight to the session — is the session's, while it still waits there.
  * Taking back one already taken back answers the same. `beforeWithdraw` runs right before each request to give it back.
  */
-export async function withdrawInput(inputId: string, live: LiveRound, queue: ((inputId: string) => Promise<void>) | undefined, beforeWithdraw?: () => void): Promise<AgentInputWithdrawal> {
+async function withdrawInput(inputId: string, live: LiveRound, queue: ((inputId: string) => Promise<void>) | undefined, beforeWithdraw?: () => void): Promise<AgentInputWithdrawal> {
   const held = live.turns.find(turn => turn.steer?.id === inputId)?.steer?.state;
   if (held === "withdrawn") return { input_id: inputId, from: "run" };
   if (held === "read" || (!live.ended && held === "applied")) throw agentErrors.input_applied("这条补充已经放进上下文，撤不回了；要改口可以发一条纠正");

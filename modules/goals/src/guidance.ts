@@ -5,7 +5,7 @@ import type {
   ProjectGuidanceView,
 } from "@molis-ai/molis-work-contracts/modules/goals";
 
-export const PROJECT_GUIDANCE_KINDS = [
+const PROJECT_GUIDANCE_KINDS = [
   "context",
   "requirement",
   "constraint",

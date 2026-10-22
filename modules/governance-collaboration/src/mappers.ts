@@ -23,7 +23,7 @@ export function text(value: unknown): string {
   return value == null ? "" : String(value);
 }
 
-export function optionalText(value: unknown): string | null {
+function optionalText(value: unknown): string | null {
   return value == null ? null : String(value);
 }
 

@@ -1,6 +1,6 @@
 import type { WebPeriodicTask as PeriodicTaskView } from "@molis-ai/molis-work-app-workbench";
 
-export interface PeriodicTask {
+interface PeriodicTask {
   readonly id: string;
   readonly title: string;
   readonly owner: string;

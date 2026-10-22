@@ -1,7 +1,7 @@
 import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, RuntimeWorkspaceContext, NormalizedRuntimeWorkspaceContext } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { bindingErrors } from "./binding-errors.js";
 import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
-export interface RuntimeProjectBindingValidationPorts {
+interface RuntimeProjectBindingValidationPorts {
   normalizeProjectWorkspace(input: RuntimeWorkspaceContext | null | undefined): NormalizedRuntimeWorkspaceContext | undefined;
 }
 

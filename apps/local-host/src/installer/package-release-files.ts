@@ -9,7 +9,7 @@ import { vendorReleaseAssetPaths } from "./release-assets.js";
 const OPTIONAL_RELEASE_DOCS = ["LICENSE", "README.md"] as const;
 
 /** Molis Work manifests use explicit relative files/directories, not globs. */
-export function isUnsupportedReleaseFileEntry(entry: string): boolean {
+function isUnsupportedReleaseFileEntry(entry: string): boolean {
   return path.isAbsolute(entry) || entry.split(/[\\/]/).includes("..") || /[*?\[\]{}]/.test(entry);
 }
 

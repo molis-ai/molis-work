@@ -1,7 +1,7 @@
 import { Fragment, Node, Slice } from "prosemirror-model";
 import { pagesSchema } from "./schema.js";
 
-export interface FindHit {
+interface FindHit {
   from: number;
   to: number;
 }
@@ -25,7 +25,7 @@ export function findHits(doc: Node, query: string): FindHit[] {
   return hits;
 }
 
-export interface FindReplacement {
+interface FindReplacement {
   from: number;
   to: number;
   /** Null deletes the match. */

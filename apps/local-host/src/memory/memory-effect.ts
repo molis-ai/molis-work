@@ -9,7 +9,7 @@ export function memoryCaller(context: ActionCallContext, work?: { work_id: strin
     person: context.audience === "user" && context.actor_kind !== "runtime" };
 }
 
-export function memoryExecutionControl(context: ActionExecutionContext, alive: () => boolean): AgentMemoryExecutionControl {
+function memoryExecutionControl(context: ActionExecutionContext, alive: () => boolean): AgentMemoryExecutionControl {
   const assert_current = () => {
     if (!alive()) throw new ActionError("actions.expired", "原记忆服务已关闭");
     context.signal?.throwIfAborted();
@@ -19,7 +19,7 @@ export function memoryExecutionControl(context: ActionExecutionContext, alive: (
 }
 
 /** The ledger's methods are synchronous: their actual SQL starts under this call's final synchronous assertion. */
-export function controlledMemoryLedger(ledger: MemoryLedgerPort, control: AgentMemoryExecutionControl): MemoryLedgerPort {
+function controlledMemoryLedger(ledger: MemoryLedgerPort, control: AgentMemoryExecutionControl): MemoryLedgerPort {
   return new Proxy(ledger, { get(target, key) {
     const value: unknown = Reflect.get(target, key);
     if (typeof value !== "function") return value;

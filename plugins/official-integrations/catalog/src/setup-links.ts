@@ -14,7 +14,7 @@ const GOOGLE_PLAYGROUND = link("在 OAuth Playground 拿令牌", "https://develo
 const GOOGLE_CREDENTIALS = link("创建 OAuth 客户端", "https://console.cloud.google.com/apis/credentials");
 const ATLASSIAN_API_TOKEN = link("创建 Atlassian API Token", "https://id.atlassian.com/manage-profile/security/api-tokens");
 
-export const CONNECTOR_SETUP_LINKS = {
+const CONNECTOR_SETUP_LINKS = {
   github: [
     link("创建 Personal Access Token", "https://github.com/settings/tokens/new?scopes=notifications,read:user&description=Molis%20Work"),
     link("注册 OAuth App", "https://github.com/settings/applications/new"),

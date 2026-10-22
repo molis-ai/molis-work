@@ -8,7 +8,7 @@ import { QUESTIONNAIRE_LIMITS } from "@prologue/sdk";
  * plugin's diagnostics, never for the model.
  */
 export interface ReferenceKindCandidate { readonly plugin_id: string; readonly builtin: boolean; readonly kind: string; readonly title: string }
-export type ReferenceKindProblemReason = "kind" | "title" | "limit";
+type ReferenceKindProblemReason = "kind" | "title" | "limit";
 /** One per plugin and reason, with the kinds it covers and the SDK's bound it broke (characters, or kinds for `limit`). */
 export interface ReferenceKindProblem { readonly plugin_id: string; readonly reason: ReferenceKindProblemReason; readonly limit: number; readonly kinds: readonly string[] }
 /** The candidates the round's project offers, asked as the round's owner: the Host's session record, never the round's request. */

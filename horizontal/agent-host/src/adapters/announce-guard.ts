@@ -14,17 +14,17 @@ export const ANNOUNCE_HELD =
   "Your last message only said what you would do next and called no tool, so nothing has happened yet. If the work is not finished, call the tools now. If it is finished, needs the person's decision, or cannot proceed, say so plainly.";
 
 /** What the model reads when it claimed a memory change in a round the person gave no memory (switched off in settings). */
-export const MEMORY_OFF_HELD =
+const MEMORY_OFF_HELD =
   "The person has switched off forming memories, so this round cannot keep or forget anything and nothing was kept. Say plainly that you did not keep it, that it still applies within this work, and that they can turn on “允许记住” under 设置 · 个人 · 记忆.";
 
 /** What the model reads when it claimed a memory change it did not make. */
-export const MEMORY_CLAIM_HELD = {
+const MEMORY_CLAIM_HELD = {
   keep: "You said you remembered it, but no remember call succeeded in this round, so nothing was kept. Call remember now if the person asked you to keep it; otherwise say plainly that it was not kept.",
   forget: "You said you forgot it, but no forget-memory call succeeded in this round, so it is still in use. Call forget-memory now if the person asked; otherwise say plainly that it was not forgotten. (forget-memory switches it off; it does not delete it.)",
 } as const;
 
 /** What the model reads when it claimed a memory change in a work that was handed to it: it has no tool to keep or forget. */
-export const MEMORY_NOT_GIVEN_HELD =
+const MEMORY_NOT_GIVEN_HELD =
   "This work was handed to you by another work, so you have no tools to keep or forget memories (only the person's own work does): nothing was kept or forgotten. Say plainly that you did not keep or forget it, and leave it to the work that handed this to you to do it if the person asked.";
 
 /** What the model reads when a round's reply claims `claim` that no call made: switched off, no such tool in a handed-down work, or just not done. */
@@ -90,7 +90,7 @@ export function internalIdsHeld(found: readonly string[]): string {
  */
 
 /** One tool call of the round and how it ended, as the round's own events say. */
-export interface RoundCall { readonly id: string; readonly tool: string; ended: "running" | "returned" | "failed" | "unknown" }
+interface RoundCall { readonly id: string; readonly tool: string; ended: "running" | "returned" | "failed" | "unknown" }
 
 /** What a round said and called, kept per run from its events. */
 export interface RoundFacts {
@@ -147,7 +147,7 @@ function collectIds(text: string, into: Set<string>): void {
 }
 
 /** What a reply may claim against the facts. */
-export const ENDING_CLAIMS = ["changed", "kept", "forgot", "button", "will_do"] as const;
+const ENDING_CLAIMS = ["changed", "kept", "forgot", "button", "will_do"] as const;
 export type EndingClaim = typeof ENDING_CLAIMS[number];
 
 /**

@@ -4,10 +4,10 @@ import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import type { ContextSource, ContextSourceKind, ImportFile, ContextFileMetadata } from "./context-onboarding-store.js";
 
-export const CONTEXT_DIRECTORY_KINDS = ["downloads", "documents", "desktop", "custom"] as const;
+const CONTEXT_DIRECTORY_KINDS = ["downloads", "documents", "desktop", "custom"] as const;
 const KINDS: ContextSourceKind[] = ["files", "directory", ...CONTEXT_DIRECTORY_KINDS, "browser", "gmail", "chat"];
-export const isContextDirectory = (kind: ContextSourceKind) => CONTEXT_DIRECTORY_KINDS.some(id => id === kind);
-export const supportedContextFile = (path: string) => /\.(?:md|markdown|txt|csv|json|html?|pdf|docx)$/iu.test(path);
+const isContextDirectory = (kind: ContextSourceKind) => CONTEXT_DIRECTORY_KINDS.some(id => id === kind);
+const supportedContextFile = (path: string) => /\.(?:md|markdown|txt|csv|json|html?|pdf|docx)$/iu.test(path);
 function relativePath(value: unknown): string {
   if (typeof value !== "string" || !value || value.length > 4096 || /[\\\u0000-\u001f]/u.test(value)
     || value.split("/").some(part => !part || part === ".." || part.startsWith(".") || ["node_modules", "vendor", "dist", "build"].includes(part))) throw new Error("文件范围无效");

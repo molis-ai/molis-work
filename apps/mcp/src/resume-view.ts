@@ -1,4 +1,4 @@
-export interface McpResumeGoal {
+interface McpResumeGoal {
   goal_id: string;
   title: string;
   work_status: "open" | "completed" | "cancelled";

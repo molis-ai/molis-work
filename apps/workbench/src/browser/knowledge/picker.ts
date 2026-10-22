@@ -1,7 +1,7 @@
 import type { KnowledgeCard, KnowledgeCardsResponse, KnowledgeGlobResponse, KnowledgeSearchResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { button, el, L, request } from "./common.js";
 
-export interface KnowledgePick { kind: string; id: string; title: string; plugin_title: string }
+interface KnowledgePick { kind: string; id: string; title: string; plugin_title: string }
 interface PickRequest { request_id: string; selected?: Array<{ kind: string; id: string; title: string }>; max?: number }
 interface Row extends KnowledgePick { note: string }
 

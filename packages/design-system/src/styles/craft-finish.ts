@@ -1405,7 +1405,7 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} details[open] > .navigator-project-menu-popover { transform-origin: top left; }
   /* Closing plays the opening backwards on the short clock; a closing menu keeps its box and takes no pointer meanwhile.
      Only closing holds the content: held on opening too, an opening menu was neither drawn nor clickable for that clock. */
-  ${PAGES} details:not([open]):has(> :is(${MENU_EXIT}))::details-content { transition: content-visibility var(--dur-hover) allow-discrete; }
+  ${PAGES} details:is(.mw-menu-host, .mw-motion-menu, .navigator-project-menu, .project-record-filter-menu, .todo-batch-more, .todo-reminder-later, .session-more):not([open])::details-content { transition: content-visibility var(--dur-hover) allow-discrete; }
   ${PAGES} :is(${MENU_EXIT}) { transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint), display var(--dur-hover) allow-discrete, overlay var(--dur-hover) allow-discrete; }
   ${PAGES} :is(details:not([open]) > :is(${MENU_EXIT}), :is(${MENU_EXIT})[hidden], :is(${MENU_EXIT})[popover]:not(:popover-open)) { opacity: 0; transform: translateY(-4px) scale(.97); pointer-events: none; }
   ${PAGES} :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover) { border: 0; border-radius: var(--r-card); box-shadow: var(--lift-3); }

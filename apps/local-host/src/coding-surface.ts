@@ -1,5 +1,5 @@
 import { isTerminalAgentPhase, type AgentRunPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ensureProjectPlugins, projectPluginProblem, type ProjectPluginState as Started } from "./project-plugins.js";
+import { ensureProjectPlugins, projectPluginProblem } from "./project-plugins.js";
 import type { ProjectPluginHttpPorts, ProjectPluginRouteHooks } from "./project-plugin-http.js";
 import { agentQuestionHtml } from "./agent-question-card.js";
 import { CARD_RESULT_OPEN, cardOutcomeSteps, interactionNextSteps } from "./agent-next-steps.js";
@@ -22,14 +22,11 @@ import {
 } from "@molis-ai/molis-work-plugin-coding";
 import {
   DIFF_PLUGIN_ID,
-  DIFF_PROJECT_PLUGIN_ID,
   DIFF_UI_CONTRIBUTION_ID,
   renderDiff,
   unifiedPatch,
   compareRunChangeSet,
   type DiffView,
-  emptyDiff,
-  type DiffUiModel,
 } from "@molis-ai/molis-work-plugin-diff";
 import {
   FILES_PLUGIN_ID,
@@ -255,60 +252,6 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
     }) });
   }
 }
-
-/**
- * Find one view a running Plugin contributed.
- *
- * A Plugin that is not running, or one whose view is missing, contributes
- * nothing and the shell renders as it did before. A degraded page is a better
- * answer than a page that fails because one Plugin did.
- */
-function viewOf<TModel>(
-  record: Started,
-  pluginId: string,
-  contributionId: string,
-): { render(request: { surface: string; model: TModel }): string } | null {
-  if (record.platform === null) return null;
-  const contribution = record.platform.supervisor.contribution(pluginId);
-  const views = (contribution as { views?: ReadonlyArray<{
-    descriptor: { contribution_id: string };
-    render(request: { surface: string; model: TModel }): string;
-  }> } | null)?.views ?? [];
-  return views.find((entry) => entry.descriptor.contribution_id === contributionId) ?? null;
-}
-
-function primitivesFor(ports: CodingSurfacePorts) {
-  return {
-    escape: ports.escapeHtml,
-    text: L,
-    icon: (name: string) => icon(name as Parameters<typeof icon>[0]),
-  };
-}
-
-/** Diff's comparison surface, waiting on whichever group the user wired. */
-export async function diffStagePanel(
-  ports: CodingSurfacePorts,
-): Promise<{ panel: string; plugin_id: string } | null> {
-  const record = await ensureProjectPlugins(ports);
-  const view = viewOf<DiffUiModel>(record, DIFF_PLUGIN_ID, DIFF_UI_CONTRIBUTION_ID);
-  if (view === null) return null;
-  try {
-    const model: DiffUiModel = {
-      route_prefix: "",
-      // No group is selected, and the Host deliberately never picks one on the
-      // user's behalf. `null` is that state, with its own sentence — not an
-      // empty frame, and not the snapshots message for a choice nobody made.
-      view: emptyDiff(record.platform === null
-        ? null
-        : record.platform.wiring.selectedGroup(DIFF_PLUGIN_ID) as never ?? null),
-      primitives: primitivesFor(ports),
-    };
-    return { panel: view.render({ surface: "comparison", model }), plugin_id: DIFF_PROJECT_PLUGIN_ID };
-  } catch {
-    return null;
-  }
-}
-
 
 function failedStage(plugin: string, message: string): string {
   return renderPluginStageShell({ surface: plugin, label: plugin, dataset: plugin + "-error",

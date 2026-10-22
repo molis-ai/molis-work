@@ -239,8 +239,8 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // SYS-15: opaque page metadata and the shell's asynchronous context/record bridge. Existing served-JS compaction already
-  // removes redundant whitespace; compacting the embedded scripts again saved no bytes. 1182783 → 1185108 (+2325).
-  "/assets/molis-work-workbench.js": [1182783, 1185108],
+  // removes redundant whitespace; compacting the embedded scripts again saved no bytes. 1182907 → 1185232 (+2325).
+  "/assets/molis-work-workbench.js": [1182907, 1185232],
   // SYS-15: Builder uses public dialogs, file/settings messages and the isolated page lifecycle. Its removed owner access
   // pays for most of the bridge; the remaining served program is 115519 → 116132 (+613).
   "/assets/molis-work-plugins/plugin-builder.js": [115519, 116132],

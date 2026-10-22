@@ -15,10 +15,10 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 
 const workspaceEntries = [projectsCapabilities.listWorkspaces, projectsCapabilities.readWorkspace,
   ...Object.values(projectSettingsCapabilities)];
-const internalServices = [...Object.values(agentHostCapabilities), ...Object.values(scheduleCapabilities),
+const internalServices = [...Object.values(agentHostCapabilities), ...Object.values(scheduleCapabilities)];
+// Git's and the parallel writers' Host side: eight plugin-only actions (PG-035), no longer typed entries.
+const gitHostActions = [prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability,
   ...Object.values(writerDirectoryCapabilities), ...Object.values(writerIntegrationCapabilities)];
-// Git's Host side: four plugin-only actions (PG-035), no longer typed entries.
-const gitHostActions = [prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability];
 const keys = (entries: readonly HostCapabilityDescriptor[]) => entries.filter(entry => !entry.action)
   .map(({ capability_id, version, operation }) => `${capability_id}@${version}:${operation}`).sort();
 

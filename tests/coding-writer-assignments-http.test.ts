@@ -1,4 +1,4 @@
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeWriterActions, pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -19,11 +19,16 @@ test("parallel assignment routes retain drafts, freeze trusted roots and task bo
   const roots = ["main", "writer-a", "writer-b", "foreign"].map(id => ({ workspace_id: id, canonical_path: join(root, id), realpath_verified: true }));
   let grants = roots.slice(), owned = roots.slice(1, 3).map((grant, i) => ({ ...grant, branch: `writer/${i}`, base_commit: "abc123" }));
   const starts: AgentStartRequest[] = []; let created = 0;
-  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
+  // The writer directories the Host lists under the main workspace; the other writer actions are not asked here.
+  const writerActions = fakeWriterActions(pluginActions(store, DEMO_PROJECT_ID), (definition, input) => {
+    if (definition.capability_id !== writerDirectoryCapabilities.list.capability_id) throw new Error(`Unexpected action ${definition.capability_id}`);
+    assert.equal((input as { workspace_id: string }).workspace_id, "main");
+    return owned.map(({ workspace_id, canonical_path, branch, base_commit }) => ({ worktree_id: workspace_id, workspace_id, canonical_path, branch, base_commit }));
+  });
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: writerActions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return grants as Output;
-      if (definition.capability_id === writerDirectoryCapabilities.list.capability_id) { assert.equal((args as any).workspace_id, "main"); return owned as Output; }
       if (definition.capability_id === agent.availableRoles.capability_id) return ["reader", "writers"].map(role_id => ({ role_id, available: true })) as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.createSession.capability_id) { created++; return { runtime_id: "prologue", session_id: "sdk" } as Output; }

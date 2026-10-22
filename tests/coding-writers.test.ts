@@ -5,8 +5,8 @@ import {
   projectWriterChanges,
   projectWriters,
   type WriterSlot,
-  type WriterWorktree,
 } from "@molis-ai/molis-work-plugin-coding";
+import type { WriterWorktree } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 /** 并行写入：各占一个工作树，回收哪些文件由用户逐个挑。 */
 

@@ -383,9 +383,11 @@ export interface WorkspaceRef {
     handle: string;
 }
 
+export type WriterFileTarget = "added" | "modified" | "deleted";
+
 export interface WriterIntegrationFile {
     path: readonly string[];
-    target: "added" | "modified" | "deleted";
+    target: WriterFileTarget;
     selectable: boolean;
     reason?: string;
     revision?: string;
@@ -415,6 +417,13 @@ export interface WriterIntegrationView {
     branch: string;
     base_commit: string;
     files: WriterIntegrationFile[];
+}
+
+export interface WriterWorktree {
+    worktree_id: string;
+    branch: string;
+    base_commit: string;
+    directory: string;
 }
 
 export declare function fileSnapshotFitsInline(content: FileSnapshot): boolean;
@@ -511,10 +520,10 @@ export declare const workspaceReadActions: {
 export declare function workspaceScopeKey(ref: WorkspaceRef): string;
 
 export declare const writerDirectoryCapabilities: {
-    readonly list: HostCapabilityDefinition<{
+    readonly list: ActionDefinition<{
         workspace_id: string;
     }, PreparedWriterDirectory[]>;
-    readonly prepare: HostCapabilityDefinition<{
+    readonly prepare: ActionDefinition<{
         workspace_id: string;
         operation_id: string;
     }, {
@@ -524,8 +533,8 @@ export declare const writerDirectoryCapabilities: {
 };
 
 export declare const writerIntegrationCapabilities: {
-    readonly read: HostCapabilityDefinition<WriterIntegrationSource, WriterIntegrationView>;
-    readonly prepare: HostCapabilityDefinition<WriterIntegrationSource & {
+    readonly read: ActionDefinition<WriterIntegrationSource, WriterIntegrationView>;
+    readonly prepare: ActionDefinition<WriterIntegrationSource & {
         operation_id: string;
         files: readonly {
             path: readonly string[];

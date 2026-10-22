@@ -12,11 +12,11 @@ use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// Onboarding reads any number of files of any size (user 2026-10-22); the page asks for them one at a time. What stays bounded
+// is the walk: how many directory entries one preview visits and how deep it goes, so pointing at a huge tree (a home
+// directory, a mounted volume) cannot keep the walk going without end. Those bound directories, not the files chosen.
 const MAX_ENTRIES: usize = 10_000;
-const MAX_PREVIEW: usize = 200;
 const MAX_DEPTH: usize = 8;
-const MAX_FILES: usize = 50;
-const MAX_BYTES: u64 = 6_000_000;
 
 fn excluded(name: &str) -> bool {
     name.starts_with('.')
@@ -250,11 +250,6 @@ pub(crate) fn preview(directory: &File, days: u16) -> Result<DirectoryPreview, S
             .cmp(&left.modified_ms)
             .then(left.path.cmp(&right.path))
     });
-    if output.files.len() > MAX_PREVIEW {
-        output.truncated = true;
-        output.skipped += output.files.len() - MAX_PREVIEW;
-        output.files.truncate(MAX_PREVIEW);
-    }
     Ok(DirectoryPreview {
         files: output.files,
         skipped: output.skipped,
@@ -313,12 +308,9 @@ fn read_one(directory: &File, expected: &FilePreview) -> Result<String, String> 
     {
         return Err("文件自预览后已改变，请刷新后重新选择".into());
     }
-    if before.len() > MAX_BYTES {
-        return Err("文件超过 6 MB，请缩小范围".into());
-    }
     let mut bytes = Vec::with_capacity(before.len() as usize);
     (&mut file)
-        .take(MAX_BYTES + 1)
+        .take(before.len() + 1)
         .read_to_end(&mut bytes)
         .map_err(|_| "无法读取文件正文")?;
     let after = file.metadata().map_err(|_| "无法确认读取后的文件状态")?;
@@ -335,16 +327,6 @@ fn read_one(directory: &File, expected: &FilePreview) -> Result<String, String> 
 }
 
 pub(crate) fn read(directory: &File, files: Vec<FilePreview>) -> Result<DirectoryRead, String> {
-    if files.len() > MAX_FILES {
-        return Err("每轮最多读取 50 份文件，请缩小范围".into());
-    }
-    let total = files
-        .iter()
-        .try_fold(0u64, |sum, file| sum.checked_add(file.size))
-        .ok_or("文件总大小无效")?;
-    if total > MAX_BYTES {
-        return Err("每轮文件总大小最多 6 MB，请缩小范围".into());
-    }
     let mut seen = HashSet::new();
     if files.iter().any(|file| !seen.insert(&file.path)) {
         return Err("同一文件不能重复选择".into());
@@ -420,6 +402,32 @@ mod tests {
                 .decode(result.files[0].data.as_ref().unwrap())
                 .unwrap(),
             [0, 1, 2, 255]
+        );
+    }
+    #[test]
+    fn previews_and_reads_any_number_of_files_of_any_size() {
+        let fixture = Fixture::new();
+        for index in 0..260 {
+            std::fs::write(fixture.0.join(format!("note-{index}.txt")), "small").unwrap();
+        }
+        let large = vec![b'a'; 7_000_000];
+        std::fs::write(fixture.0.join("large.txt"), &large).unwrap();
+        let preview = preview(&fixture.root(), 0).unwrap();
+        assert_eq!(preview.files.len(), 261);
+        assert!(!preview.truncated);
+        let result = read(&fixture.root(), preview.files).unwrap();
+        assert!(result.files.iter().all(|file| file.data.is_some()));
+        let read_large = result
+            .files
+            .iter()
+            .find(|file| file.path == "large.txt")
+            .unwrap();
+        assert_eq!(
+            STANDARD
+                .decode(read_large.data.as_ref().unwrap())
+                .unwrap()
+                .len(),
+            large.len()
         );
     }
     #[test]
@@ -517,25 +525,15 @@ mod tests {
         assert!(result.files[0].reason.as_ref().unwrap().contains("改变"));
     }
     #[test]
-    fn enforces_preview_and_read_limits_and_date_ranges() {
+    fn previews_by_date_range_and_refuses_a_file_chosen_twice() {
         let fixture = Fixture::new();
-        for number in 0..201 {
+        for number in 0..3 {
             std::fs::write(fixture.0.join(format!("{number}.txt")), "a").unwrap();
         }
         let result = preview(&fixture.root(), 7).unwrap();
-        assert_eq!(result.files.len(), 200);
-        assert!(result.truncated);
-        assert!(read(&fixture.root(), result.files).is_err());
-        assert!(read(
-            &fixture.root(),
-            vec![FilePreview {
-                path: "0.txt".into(),
-                size: MAX_BYTES + 1,
-                modified_ms: 0,
-                identity: String::new(),
-            }]
-        )
-        .is_err());
+        assert_eq!(result.files.len(), 3);
+        let twice = vec![result.files[0].clone(), result.files[0].clone()];
+        assert!(read(&fixture.root(), twice).is_err());
         let old_path = CString::new(fixture.0.join("0.txt").to_str().unwrap()).unwrap();
         let old = libc::timespec {
             tv_sec: 1,

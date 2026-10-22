@@ -1,4 +1,4 @@
-import { redactFeedContextSecrets } from "./context.js";
+import { redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
 import type { FeedUiPreset } from "./ui.js";
 import type { FeedItemRecord as CanonicalFeedItem, FeedMaterialRecord as CanonicalFeedMaterial } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { SourceRecord, SourceSchedule, SourceSyncKind, SourceStatus } from "@molis-ai/molis-work-contracts/modules/sources";
@@ -100,7 +100,7 @@ export function feedItemContext(item: FeedItemRecord): string {
       return `${index + 1}. ${material.title || material.source_name}${location}${preview}${content}`;
     })
     .join("\n");
-  return redactFeedContextSecrets([
+  return redactSecrets([
     "来源类型：Feed",
     `来源：${item.source_label || item.source_kind}`,
     item.author ? `作者/发送者：${item.author}` : "",

@@ -4,14 +4,17 @@
 
 ## 在做的
 
+- [diff-frame-performance](diff-frame-performance/spec.md)：大型代码变更逐帧高亮性能；负责人 Codex，Work #996 合入后独立修复全量性能失败，执行中。
+
 - [empty-goal-create](empty-goal-create/spec.md)：进入 Goals 且当前列表为空时，自动打开已有的新建弹窗；2026-10-22 实现，待验收。
 - [prologue-memory-strategy](prologue-memory-strategy/spec.md)：以记忆更精准、好用、省 token 为目标；App 自定义分类与读写策略矩阵、Prologue 多策略组合、首期质量闭环及 40 项验收。2026-10-22 C0 合同与 Q0 基线已完成，S1/M1 第一片实施中，尚未完成产品验收。
 - [pr-review-remediation](pr-review-remediation/spec.md)：最近三天 PR 复审确认的 P1 安全边界、P2 功能/合同问题、P3 文档与验收、合并门禁；2026-10-20 新立，实现完成，待评审（PR #901；QA-017 本机 Chrome 未跑通，Product subset 待跑）。
 - [unified-input-voice](unified-input-voice/spec.md)：统一输入体验与本地语音输入；需求已整理，尚未实现。
 - [proactive-assistant](proactive-assistant/spec.md)：主动式助理与场景 Skill；需求已整理，尚未实现。2026-10-18 补充工作记忆初始化、每日例程、前门路由、从一次对话生成 Skill 与跨源搜索规划。
 - [work-brief](work-brief/spec.md)：工作简报内容插件；用户已确认纳入，需求已整理，尚未实现。2026-10-18 补充 living page、一页式脉搏、使用回顾与交互式报告页。
+- [long-turn-performance](long-turn-performance/spec.md)：长对话单节点样式测量修复；本地及与 #1010 的组合验证完成，待合入 #1017。负责人：Codex。
 - [coding-harness-optimization](coding-harness-optimization/spec.md)：Coding 与平台性能；需求已整理，尚未实现。
-- [visual-ui-experience](visual-ui-experience/spec.md)：视觉细节、个人助理信息与 UI 性能；50 项验收与 20 组设计机制。实现中（八十八片，前七十五片已全部合入或正在合入 main），输入框的低频设置与引用（VUX-16 其余、VUX-17）、VUX-33 其余与本人验收未做。负责人：Claude（2026-10-19 起接手实现）。
+- [visual-ui-experience](visual-ui-experience/spec.md)：视觉细节、个人助理信息与 UI 性能；50 项验收与 20 组设计机制。实现中（九十四片，前七十五片已全部合入或正在合入 main），输入框的低频设置与引用（VUX-16 其余、VUX-17）、VUX-33 其余与本人验收未做。负责人：Claude（2026-10-19 起接手实现）。
 - [font-and-skin-system](font-and-skin-system/spec.md)：字体、皮肤与语言系统；需求已整理，尚未实现。
 - [assistant-service-connections](assistant-service-connections/spec.md)：助理统一服务接入；Codex 实施中，交互切片和连接侧首组回归已完成，37 项整体验收仍未完成；2026-10-18 补充内容层连接器占位符与未支持工具的接入路径（ASC-38–44，未验证）。
 - [subagent-interaction](subagent-interaction/spec.md)：个人助理与 Coding 的子代理固定入口、直接对话和父子动线；明确 Prologue/Molis Work 分工，需求已整理，尚未实现。

@@ -2787,7 +2787,7 @@ Coding 原来由宿主递进四样东西（`CodingExecutionPorts` 的 `ready`、
 - **本次激活之前就记着在跑的**：没有一轮能跨过重启，所以更新时间早于这次激活开始、状态是进行中的会话，答案里写成「需要核对」，说「服务重启前没有结束，打开后核对」，不算等人。排队中的会话还没开始，不受影响。
 - **宿主**：`apps/local-host/src/home-background-tasks.ts` 用首页聚合（`home-aggregate.ts`，S-49）对每个已打开的项目问这一类型的查询，把各项目的答案摊平、保留项目；校验答案（`surface` 是普通名字，停止路径只是插件下的普通段，不含 `..`、反斜杠、控制字符），拼出停止地址 `/projects/<项目>/api/plugins/<提供方插件>/<路径>`；没打开的项目不读也不打开，停用或没授权的项目安静跳过，读不了或答案读不懂的按项目记一条（`home` 区域 `background_tasks_unreadable`，开始失败时一条）。停止仍走会话原来的路由 `coding.background-stop`，没改。
 - **页面**：`apps/workbench/src/scripts/client/attention.ts` 只按行里的 `surface`、`id`、`state`、`waiting`、`standing`、`commands` 画，不含 `coding`。
-- 后台跟随者与唤醒循环原来写在这里「不迁」，2026-10-22 已迁到 `services.background.keep`，见 K 节。
+- 后台跟随者与唤醒循环原来写在这里「不迁」，2026-10-22 已迁到 `services.background.keep`，见 L 节。
 
 1. **W5-01-CODING-32** Manifest 声明 `coding.home.background-tasks@1`：项目范围的只读查询，`home_aggregate`、输出类型是首页后台任务的集合，权限只有 `artifact:read`（没有 `model:invoke`），过首页每次调用前重查的规则（`isHomeAggregateQuery`）。Coding 包不再导出 `listCodingBackgroundSessions`、`holdsCodingSessions`、`CodingSqliteDatabase`，`web-catalog.ts` 不再读 Coding 的表。测试：`tests/coding-background-tasks.test.ts`。
 2. **W5-01-CODING-33** 经真实宿主，首页列出每个已打开项目里进行中、等人处理、等核对或留着后台命令的 Coding 会话，按更新时间新的在前，带项目名；一轮已结束又没有东西留给人的不列；人还有一步要做的会话列为「等你回答」；重启前记着在跑的会话列为「需要核对」、不计入等人；没有装 Coding 的项目、没有打开的项目不出现。测试：同上。
@@ -2800,7 +2800,29 @@ Coding 原来由宿主递进四样东西（`CodingExecutionPorts` 的 `ready`、
 9. **W5-01-CODING-49** 一个项目的答案读不了，按项目记一条，下一次轮询不再记，读通之后再坏才再记；插件在某个项目停用时安静跳过（W5-13-06）。测试：`tests/host-log-catches.test.ts`。
 10. **W5-01-CODING-50** Coding 说的每一句话（状态词、「你负责 {n} 步」之类）在页面的英文词典里都有英文。测试：`tests/coding-background-tasks.test.ts`。
 
-### K. 后台跟随者与唤醒循环是激活的后台作业（2026-10-22，PG-038 的 Coding 一半）
+### K. 代码着色、富文本与脱敏进插件 SDK（2026-10-22，PG-062 的平台一半，C7）
+
+原来代码着色住在 Coding 的 `highlight.ts`，富文本（GFM Markdown 加白名单 HTML，一律消毒）和密钥脱敏住在 Feed 的 `rich-content.ts`、`context.ts`。工作台、宿主和桌面壳借内置插件的包用它们，第三方插件用不到。现在三样都只在插件 SDK 里有一份：
+
+- `@molis-ai/molis-work-plugin-sdk/highlight`：`codeTokens`、`growCodeTokens`、`diffRowTokens`、`codeLanguage`，类型 `CodeTokenKind`、`CodeColouring`，原样搬来。它零 import，每个函数自包含，页面可以把源码带进脚本（Coding 的 `client.ts` 就是这样用的）。根入口 import 了 `node:crypto`，所以它单独成子路径。
+- `@molis-ai/molis-work-plugin-sdk/rich-text`：`renderRichText`、`richPlainText`，原名 `renderFeedRichText`、`feedPlainText`。标签白名单、链接只留 http(s)、消毒规则原样。
+- 根入口的 `redactSecrets`，原名 `redactFeedContextSecrets`，规则原样。
+- **依赖（决定，2026-10-22，按防腐后果定）**：`marked`、`sanitize-html` 是 SDK 的可选 peer 依赖，另作开发依赖供 SDK 自己构建，不是运行依赖。
+  - 原因：插件作者的项目只装 contracts 与 SDK 两个包，`tests/plugin-sample.e2e.test.ts` 用空缓存离线安装来证明这一点。写成运行依赖，npm 离线安装就要去取 `marked`，本机实测以 `ENOTCACHED` 失败。
+  - 用 `/rich-text` 的包自己声明这两个依赖，现在是工作台和宿主。只用根入口或 `/highlight` 的什么都不用加。Feed 不再直接依赖它们。
+  - 计划原稿（T3）写的是「SDK 新增运行依赖」，依据是「pnpm store 里已有」；但作者的项目走 npm 空缓存，这个依据不成立，所以改了。
+- 只有一份：Coding、Feed 不再导出这些函数；工作台、宿主、桌面壳与测试都从 SDK 取。桌面壳因此不再依赖 Feed 包。
+
+验收：
+
+1. **W5-01-CODING-60** `/highlight` 的构建产物没有任何 import。每个导出函数的源码（`fn.toString()`）单独求值，对同一输入给出与原函数相同的结果。测试：`tests/plugin-sdk-subpaths.test.ts`。
+2. **W5-01-CODING-61** SDK 的构建产物里只有 `/rich-text` 加载 `marked`、`sanitize-html`，根入口与 `/highlight` 不加载。SDK 把两者声明为可选 peer 依赖，运行依赖只有 contracts。测试：同上。
+3. **W5-01-CODING-62** `redactSecrets` 从根入口导出，遮住私钥、授权与 Cookie 头、token/secret/password 的值、已知前缀的令牌和 JWT，其余文字不变。测试：同上。
+4. **W5-01-CODING-63** 仓库里只有一份：没有 Coding 的 `highlight.ts`、Feed 的 `rich-content.ts` 与 `context.ts`，Coding 与 Feed 的入口不导出这些函数。测试：同上。
+
+原有断言不动，只改成从 SDK 导入：富文本的在 `tests/feed-rich-content.test.ts`，着色的在 `tests/code-incremental-colour.test.ts`、`tests/code-diff-scale.e2e.test.ts`。插件一半（Diff、Text Stats、Coding 的路由结果自己带 html，删 `decorateRuntimeResult`、`decorateCodingResult`）归 ③，验收号取 64～69。
+
+### L. 后台跟随者与唤醒循环是激活的后台作业（2026-10-22，PG-038 的 Coding 一半）
 
 Coding 跟住已经开始的一轮、接起等待结束的下一轮，原来靠模块级的 `activations` 表（按安装与项目记一个 `AbortController`）、`setTimeout` 写的暂停和 `AsyncResource` 绑定的分离执行；插件停止时由 `stop()` 调 `stopCodingSurface` 打断。现在两件事都是这次激活的后台作业（`services.background.keep`，PG038-P，S-52），由平台在激活、项目、Home 关闭或撤权时停，`stop()` 只做插件自己的收尾：
 

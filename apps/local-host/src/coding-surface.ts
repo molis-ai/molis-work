@@ -42,7 +42,7 @@ import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assi
 
 import type { PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IncomingMessage } from "node:http";
-import { renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
+import { renderRichText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
 
 /**
  * Coding's directory panel, rendered by the Plugin the Host is running.
@@ -179,7 +179,7 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
     // "[historical … run:…]", and it sometimes opens its answer with one or several of them. They are the SDK's
     // bookkeeping, not something said to the person; only labels at the very start are dropped.
     for (const turn of run.turns) if (!(turn.kind === "user" && turn.text.startsWith(HISTORY_DIGEST_MARKER))) Object.assign(turn, {
-      html: renderFeedRichText(turn.kind === "assistant" ? turn.text.replace(/^(?:[^\S\n]*\[(?:retained|historical) [^\]\n]*\][^\S\n]*\n?)+/, "") : turn.text) });
+      html: renderRichText(turn.kind === "assistant" ? turn.text.replace(/^(?:[^\S\n]*\[(?:retained|historical) [^\]\n]*\][^\S\n]*\n?)+/, "") : turn.text) });
     // The same question card the Assistant shows, in the person's language; Coding's page restores its own drafts into it.
     for (const question of run.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, L, undefined, undefined, true) });
     // The row beside the composer: the round's questions as the Assistant's are, then what its card offers next (AC-25).
@@ -192,7 +192,7 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
   }
   const childBody = result.body as { subagents?: Array<{ children: Array<{ result: string | null }> }> } | undefined;
   if (childBody?.subagents) for (const group of childBody.subagents) for (const child of group.children) {
-    if (child.result) Object.assign(child, { result_html: renderFeedRichText(child.result) });
+    if (child.result) Object.assign(child, { result_html: renderRichText(child.result) });
   }
   const reportBody = result.body as { report?: { title: string; body_markdown: string; run_id: string } } | undefined;
   const changeBody = result.body as { change?: import("@molis-ai/molis-work-contracts/modules/workspace-artifacts").CodingChangeSet; reference?: { version: number }; html?: string } | undefined;
@@ -232,7 +232,7 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
   if (result.status === 200 && reportBody?.report) {
     const report = reportBody.report;
     Object.assign(reportBody, { html: renderCodingReport({ title: report.title, run_id: report.run_id,
-      body_html: renderFeedRichText(report.body_markdown), primitives: { escape: value => escapeHtml(String(value)),
+      body_html: renderRichText(report.body_markdown), primitives: { escape: value => escapeHtml(String(value)),
         icon: name => icon(name as Parameters<typeof icon>[0]), text: L, formatDate: value => value },
     }) });
   }

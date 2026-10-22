@@ -6,7 +6,7 @@ import { coding, openCoding } from "./fixtures/coding-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { pageText } from "./fixtures/page-text.js";
 
-// specs/visual-ui-experience VUX-33: code and its changes keep one row geometry. In Coding's change reader, five-digit line
+// DFP-03; specs/visual-ui-experience VUX-33: code and its changes keep one row geometry. In Coding's change reader, five-digit line
 // numbers sit in the same columns as the code beside them, stay put while a long line scrolls under them and are left out of
 // a copy; 并排 is a real two-column view whose halves stay level and wrap; switching keeps the line being read where it was.
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { orderAudit } from "./fixtures/order-audit.js";
+import { ORDER_SKIP as SKIP, orderAudit } from "./fixtures/order-audit.js";
 
 // DESIGN「Order」(VUX-46 to VUX-50): on the project page, the common plugin pages, settings and the component board, a
 // state mark stands as tall as its words and on their line, an icon beside words is the words' size or one step up, the
@@ -18,14 +18,6 @@ const OPENS = [
   ["templates", "[data-pages-templates]", "pages"],
 ];
 const MODE_PAGES = ["goals", "pages", "lingguang", "inbox", "sessions", "feed", "jelly", "coding"];
-// Left out, each with why it is not one row of peers or one line of words.
-const SKIP = [
-  ".dock-pins > :first-child",          // 项目首页 stands apart from the pinned plugins: the wider gap is the divider between them
-  ".bar-composer [type=submit]",        // the bar's send is its one large target, a step above the bar's other buttons
-  ".mw-catalog__sizes",                 // the board's size specimen shows sm, md and lg side by side
-  ".mw-icon-inventory",                 // the board's icon list: an icon beside its name and code, centred on both lines
-  ".mw-catalog__specimens .mw-empty",   // the board's empty block on its own: centring and the header's create are the stage's
-].join(", ");
 const MODES = [
   { name: "light", width: 1440, height: 900, dark: false, compact: false, touch: false, pages: PAGES },
   { name: "dark", width: 1440, height: 900, dark: true, compact: false, touch: false, pages: MODE_PAGES },
@@ -43,7 +35,8 @@ test("VUX-46 to VUX-50: marks, words and button rows are in order on the common 
     await command("Emulation.setDeviceMetricsOverride", { width: mode.width, height: mode.height, deviceScaleFactor: 1, mobile: mode.touch }, sessionId);
     await command("Emulation.setTouchEmulationEnabled", mode.touch ? { enabled: true, maxTouchPoints: 5 } : { enabled: false }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: mode.dark ? "dark" : "light" }, { name: "pointer", value: mode.touch ? "coarse" : "fine" }] }, sessionId);
-    const paths = [["project", `/projects/${projectId}/`], ...mode.pages.map((id) => [id, `/projects/${projectId}/?openPlugin=${id}`]), ["settings", "/settings"], ["catalog", "/__ui/catalog"]];
+    const paths = [["project", `/projects/${projectId}/`], ...mode.pages.map((id) => [id, `/projects/${projectId}/?openPlugin=${id}`]), ["settings", "/settings"], ["catalog", "/__ui/catalog"],
+      ["chooser", "/"], ["onboarding", "/onboarding?mode=new-project"]];
     for (const [id, path] of paths) {
       await navigate(() => command("Page.navigate", { url: origin + path }, sessionId));
       await waitFor("document.readyState === 'complete'", 20_000);

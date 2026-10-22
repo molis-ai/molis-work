@@ -45,4 +45,4 @@ Directory candidates and browsing preferences come from the [current-project set
 - 改动后必跑：`node scripts/run-tests.mjs tests/files-plugin.test.ts tests/files-product-http.test.ts tests/files-git-actions.test.ts tests/companion-client-lifecycle.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/elements.md](../../../skills/molis-plugin-dev/elements.md)、[docs/platform/PROJECT-SETTINGS.md](../../../docs/platform/PROJECT-SETTINGS.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
-订阅 Coding `run-updated`、Git `operation-updated` 后，Host 失效当前项目视图 revision。可见客户端只在首次进入、revision 变化或重连时重新读取目录与当前文件；隐藏/卸载停止。旧固定快照保持不变。
+Coding 写了文件、Git 移动了工作区，都会发事件（订阅的几种见 `src/manifest.ts` 的 `events.subscribes`）。Files 在事件回调里先过 `beforeEffect()`，再调 `services.ui.invalidate()`，推自己这个安装的视图 revision（PG-061）。Files 没有会调它的定时器或监听器，所以停用以后不会再推（BL-411）。可见客户端只在首次进入、revision 变化或重连时重新读取目录与当前文件；隐藏/卸载停止。旧固定快照保持不变。

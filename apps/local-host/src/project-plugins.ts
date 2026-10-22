@@ -7,7 +7,7 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
-import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
+import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
@@ -159,8 +159,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           return { item, snapshot: await shelf.snapshot() };
         },
       } : undefined;
-    const filesPorts = { readable: () => currentWorkspaceId(ports) !== null,
-      onWorkspaceChanged: () => { platform.invalidateView(FILES_PLUGIN_ID); } };
+    const filesPorts = { readable: () => currentWorkspaceId(ports) !== null };
     const operationListeners = new Set<(event: GitOperationUpdate) => void>();
     let observer: ProjectPluginPorts["observeGitOperations"], unsubscribe: (() => void) | undefined, closed = false;
     record.updateObservers = () => {

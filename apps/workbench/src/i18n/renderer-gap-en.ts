@@ -627,7 +627,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "网页搜索": "Web search",
   "开启（由模型决定想多少）": "On (the model decides how much to think)",
   "无法读取文件工作区": "Couldn't read the file workspace",
-  "无法关联工作区": "Couldn't link the workspace",
+  "无法关联工作区": "Unable to link workspace",
   "项目连接失败": "Couldn't connect to the project",
   "{name}，{action}": "{name}, {action}",
 };

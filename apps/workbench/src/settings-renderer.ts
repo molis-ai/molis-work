@@ -17,6 +17,7 @@ import { settingRow } from "./settings-row.js";
 import { createCapabilitiesRenderer } from "./capabilities.js";
 import { renderMcpAccess } from "./mcp-access.js";
 import { renderFunctionsWorkbench } from "./functions/ui.js";
+import { groupedGlobalSettingsSections } from "./settings-sections.js";
 import { FUNCTIONS_SYSTEM_CLIENT_SCRIPT } from "./functions/bootstrap.js";
 /** The docs page that lists every outbound network class (docs/platform/NETWORK.md), per interface language. */
 const NETWORK_DOC_HREF = {
@@ -173,7 +174,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
         ? L("项目设置")
         : view.section === "diagnostics"
           ? L("诊断")
-          : L(pluginPage?.label ?? view.section);
+          : L(pluginPage?.label ?? groupedGlobalSettingsSections().flatMap(group => group.sections).find(section => section.id === view.section)?.label ?? view.section);
   const contextProject = view.context_project ?? null;
   const settingsPath = settingsContextHref(`/settings/${view.section}`, contextProject, desktopShell);
   const rawReturnHref = contextProject ? `/projects/${encodeURIComponent(contextProject.project_id)}/` : "/";
@@ -212,7 +213,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
     <div class="settings-content">${content}</div>
   </main>
   ${renderRuntimePlanDialog({ L, icon })}
-  <div class="toast" data-settings-toast role="status" aria-live="polite"></div>
+  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>
   <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
 </body></html>`;
 }

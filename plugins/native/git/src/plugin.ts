@@ -3,8 +3,6 @@ import type {
   PluginCommandInput,
   PluginDefinition,
   PluginStartContext,
-  PluginEventDeliveryContext,
-  PluginInputDeliveryContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import { GIT_OPERATION_UPDATED_EVENT, type GitOperationUpdate, gitEventTypes } from "./events.js";
@@ -26,21 +24,11 @@ export interface GitPluginPorts {
   observeOperationSettled?(listener: (event: GitOperationUpdate) => void): () => void;
   /** Whether a workspace is bound and is a repository. */
   ready?(): boolean;
-  /** Whether a Run's change set is currently offerable. */
-  acceptable?(): boolean;
-  /** The change currently selected, for the `current` command input. */
-  selectedPath?(): readonly string[] | null;
-  /** The Host re-reads status; the Plugin only says when it should. */
-  onWorkingTreeChanged?(reason: "upstream" | "event" | "unavailable", delivery?: PluginEventDeliveryContext | PluginInputDeliveryContext): void | Promise<void>;
   onStop?(context: PluginStartContext): void | Promise<void>;
 }
 
-function objectIdFor(input: PluginCommandInput, ports: GitPluginPorts): string | null {
-  if (input.kind === "object") return input.ref.object_id;
-  if (input.kind === "agent-session") return input.session_id;
-  if (input.kind === "artifacts") return input.references[0]?.artifact_id ?? null;
-  const path = ports.selectedPath?.() ?? null;
-  return path === null ? null : path.join("/");
+function objectIdFor(input: PluginCommandInput): string | null {
+  return input.kind === "object" ? input.ref.object_id : null;
 }
 
 export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
@@ -55,11 +43,16 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
         if (permission.required) context.requireGrant(permission.permission);
       }
       let active = true;
+      // Git's own pages read the working tree again (PG-061). Only from a delivery or the Host's receipt listener, which
+      // `stop` clears before anything else (BL-411).
+      const readAgain = () => context.services?.ui.invalidate();
       const unsubscribe = ports.observeOperationSettled?.(event => {
         if (!active) return;
-        // Publication checks this activation before the Host view is invalidated.
+        // Publication checks this activation before Git's pages read again.
         context.services?.events?.publish({ event_type_id: GIT_OPERATION_UPDATED_EVENT, type_version: 1, payload: event });
-        void Promise.resolve(ports.onWorkingTreeChanged?.("event")).catch(() => { /* Projection failures never retry an Effect. */ });
+        // The Host calls this listener, so a refusal must not reach its loop: revoked before `stop` cleared the listener,
+        // the activation has no pages left to read again.
+        try { readAgain(); } catch { /* Refused once revoked: this activation has no pages left to read again. */ }
       });
       subscriptions.get(key(context))?.();
       subscriptions.set(key(context), () => { active = false; unsubscribe?.(); });
@@ -74,36 +67,26 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
               ? { available: true }
               : { available: false, reason: "还没有可读的 Git 工作区" };
           }
-          if (commandId === "git.accept-run-changes") {
-            return ports.acceptable?.() === true
-              ? { available: true }
-              : { available: false, reason: "现在没有可以接受的变更" };
-          }
           return { available: false, reason: `未知命令：${commandId}` };
         },
-        executeCommand: (commandId, input) => {
-          const objectId = objectIdFor(input, ports);
+        executeCommand: (_commandId, input) => {
+          const objectId = objectIdFor(input);
           if (objectId === null) throw new Error("没有可打开的改动");
-          return {
-            ref: { view_id: "changes", object_id: objectId },
-            title: commandId === "git.accept-run-changes" ? "接受变更" : objectId,
-          };
+          return { ref: { view_id: "changes", object_id: objectId }, title: objectId };
         },
-        onUpstreamReady: async (_inputs, delivery) => {
+        onUpstreamReady: (_inputs, delivery) => {
           delivery.beforeEffect();
-          await ports.onWorkingTreeChanged?.("upstream", delivery);
-          delivery.beforeEffect();
+          readAgain();
         },
-        onUpstreamUnavailable: async () => {
+        onUpstreamUnavailable: () => {
           repositoryReady = false;
-          await ports.onWorkingTreeChanged?.("unavailable");
+          readAgain();
         },
-        onEvent: async (_event, delivery) => {
+        onEvent: (_event, delivery) => {
           // A Run wrote, or invalidated what it had prepared. Either way the
           // working tree on screen may no longer be the one on disk.
           delivery.beforeEffect();
-          await ports.onWorkingTreeChanged?.("event", delivery);
-          delivery.beforeEffect();
+          readAgain();
         },
       };
     },

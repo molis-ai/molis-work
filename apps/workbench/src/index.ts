@@ -143,11 +143,13 @@ export {
   type ModelTemplateChoice,
   type ModelSettingsPrimitives,
 } from "./settings-models.js";
-export { BUILTIN_PLUGIN_AGENTS, artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, type ArtifactTypeDeclaration, type ArtifactContinuer } from "./plugin-catalog.js";
+export { BUILTIN_PLUGIN_AGENTS, HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, type ArtifactTypeDeclaration, type ArtifactContinuer, type HostArtifactProducer } from "./plugin-catalog.js";
 
-export { pluginSurfaceClients, pluginWorkbenchClientAsset, type PluginSurfaceClient } from "./plugin-workbench.js";
+export { deferredSurfaceClients, pluginSurfaceClients, pluginWorkbenchClientAsset, type PluginSurfaceClient } from "./plugin-workbench.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
 export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter, type WriteCheckerFields } from "./scripts/write-checkers.js";
 export { renderMolisWorkKnowledgeClientScript } from "./settings-knowledge.js";
+export { renderCharacters, renderCharactersSettingsEntry, type CharactersUiModel, type CharactersSettingsUiModel } from "./characters/ui.js";
+export { renderMolisWorkCharactersClientScript } from "./characters/client-asset.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";

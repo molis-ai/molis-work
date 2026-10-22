@@ -264,7 +264,6 @@ export const ARRIVAL_STYLES = String.raw`
   .cx-source-body { max-height: 320px; overflow: auto; white-space: pre-wrap; font-size: 13px; line-height: 1.7; }
 
   /* ───────── The hand-off between screens: a quiet stage while the next one is made ───────── */
-  .arrival-toasts { position: absolute; z-index: 30; left: 50%; bottom: calc(var(--dock-h, 76px) + 12px); transform: translateX(-50%); }
   @media (max-width: 980px) {
     .welcome { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; align-content: center; }
     .welcome-scene { display: none; }

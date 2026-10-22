@@ -701,7 +701,7 @@ export function renderPrimitiveCatalog(): string {
       ${specimen("空态 · 几个起点", emptyStarts)}
     </div>`)}
     ${section("feedback", "Toast / Spinner / Skeleton / Progress / Kbd / Avatar", `<div class="mw-catalog__specimens">
-      ${mark("toast", specimen("短反馈", renderToast({ message: "已保存" })))}
+      ${mark("toast", specimen("短反馈 · 一种 Toast", `<div class="mw-catalog__toasts">${renderToast({ message: "已保存", tone: "success" })}${renderToast({ message: "已移到回收站", action: { label: "撤销" } })}${renderToast({ message: "没有存上，请重试", tone: "danger" })}</div>`))}
       ${mark("spinner", specimen("加载", renderSpinner({ label: "加载中" })))}
       ${mark("skeleton", specimen("占位", renderSkeleton()))}
       ${mark("progress", specimen("进度", renderProgress({ value: 40, label: "子项进度" })))}
@@ -777,7 +777,7 @@ export function renderPrimitiveCatalog(): string {
         if (kind === "sheet") document.querySelector("[data-motion-sheet]")?.showModal();
         if (kind === "arrive") { const list = document.querySelector("[data-motion-list]"); list.classList.remove("is-arriving"); void list.offsetWidth; list.classList.add("is-arriving"); }
         if (kind === "switch") document.querySelectorAll("[data-motion-page]").forEach((page) => { page.hidden = !page.hidden; });
-        if (kind === "toast") { const toast = document.querySelector(".toast") || Object.assign(document.body.appendChild(document.createElement("div")), { className: "toast" }); toast.textContent = "已保存"; toast.classList.add("is-visible"); setTimeout(() => toast.classList.remove("is-visible"), 1600); }
+        if (kind === "toast") { const toast = document.querySelector(".toast") || Object.assign(document.body.appendChild(document.createElement("div")), { className: "mw-toast toast" }); toast.textContent = "已保存"; toast.classList.add("is-visible"); setTimeout(() => toast.classList.remove("is-visible"), 1600); }
         return;
       }
       const demo = event.target.closest("[data-craft-demo]");

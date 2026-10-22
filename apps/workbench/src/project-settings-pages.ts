@@ -150,7 +150,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     ${navigation}
     <div class="settings-content" id="settings-content">${page}</div>
   </main>
-  <div class="toast" data-settings-toast role="status" aria-live="polite"></div>
+  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>
   <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PROJECT_RULES_CLIENT_SCRIPT}${PLANNING_SETTINGS_CLIENT_SCRIPT}${PLANNING_ADOPTION_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${knowledgeClientTag()}
 </body></html>`;
   }

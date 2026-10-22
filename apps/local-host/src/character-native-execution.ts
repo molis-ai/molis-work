@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, writeFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
-import type { CharacterContent, CharacterImportRuntimeId } from "@molis-ai/molis-work-contracts/modules/characters";
+import { characterErrors, type CharacterContent, type CharacterImportRuntimeId } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { WorkSessionRecord, WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { CharactersImportPorts, CharacterNativeRun } from "@molis-ai/molis-work-module-characters";
@@ -64,21 +64,21 @@ export function characterNativeExecution(options: { home: string; actorId: strin
       finally { registry.close(); }
     },
     async launch(content, reference, input, control) {
-      if (!content.import_snapshot) throw new Error("此角色没有本地 Agent 来源");
+      if (!content.import_snapshot) throw characterErrors.invalid("此角色没有本地 Agent 来源");
       const incomplete = content.import_snapshot.skills.filter(skill => skill.reason?.startsWith("部分资源未读取"));
-      if (incomplete.length) throw new Error(`这些技能的资源未完整导入：${incomplete.map(skill => skill.name).join("、")}。请检查来源更新，修复读取问题或取消选择后重新导入；不会用残缺的包启动任务。`);
-      if (typeof input.task !== "string" || !input.task.trim() || input.task.length > 20_000) throw new Error("请填写本次任务（最多 20000 字）");
-      if (typeof input.request_id !== "string" || !/^[a-zA-Z0-9-]{20,80}$/.test(input.request_id)) throw new Error("执行请求标识无效");
+      if (incomplete.length) throw characterErrors.invalid(`这些技能的资源未完整导入：${incomplete.map(skill => skill.name).join("、")}。请检查来源更新，修复读取问题或取消选择后重新导入；不会用残缺的包启动任务。`);
+      if (typeof input.task !== "string" || !input.task.trim() || input.task.length > 20_000) throw characterErrors.invalid("请填写本次任务（最多 20000 字）");
+      if (typeof input.request_id !== "string" || !/^[a-zA-Z0-9-]{20,80}$/.test(input.request_id)) throw characterErrors.invalid("执行请求标识无效");
       const workspace = (await options.workspaces()).find(item => item.workspace_id === input.workspace_id);
-      if (!workspace) throw new Error("请选择当前项目已绑定的工作目录");
+      if (!workspace) throw characterErrors.invalid("请选择当前项目已绑定的工作目录");
       const cwd = realpathSync(workspace.canonical_path);
       const source = content.import_snapshot.project_root;
       if (source) {
         const path = relative(realpathSync(source), cwd);
-        if (path === ".." || path.startsWith("../") || isAbsolute(path)) throw new Error("此角色包含项目范围内容，不能在其他项目执行");
+        if (path === ".." || path.startsWith("../") || isAbsolute(path)) throw characterErrors.invalid("此角色包含项目范围内容，不能在其他项目执行");
       }
       const executable = options.executable(content.import_snapshot.runtime_id);
-      if (!executable) throw new Error("未发现对应 Agent CLI，请安装后重新检查；不会替换为其他引擎");
+      if (!executable) throw characterErrors.invalid("未发现对应 Agent CLI，请安装后重新检查；不会替换为其他引擎");
       const registry = await openWorkSessionRegistry({ homeDirectory: options.home });
       try {
         await control?.beforeStart();
@@ -86,7 +86,7 @@ export function characterNativeExecution(options: { home: string; actorId: strin
         const panelId = `character-${input.request_id}`;
         const previous = registry.findBySurface(panelId);
         if (previous) {
-          if (!owned(previous, content.character_id) || JSON.stringify(previous.metadata.character_reference) !== JSON.stringify(reference) || previous.metadata.character_task !== input.task || previous.workspace_id !== input.workspace_id) throw new Error("该执行请求已用于其他任务，请创建新请求");
+          if (!owned(previous, content.character_id) || JSON.stringify(previous.metadata.character_reference) !== JSON.stringify(reference) || previous.metadata.character_task !== input.task || previous.workspace_id !== input.workspace_id) throw characterErrors.invalid("该执行请求已用于其他任务，请创建新请求");
           // A lost HTTP response can only reattach; it never reruns a completed task.
           return { run: run(previous, registry), spawn: { panelId, sessionId: previous.session_id, attachOnly: true } };
         }

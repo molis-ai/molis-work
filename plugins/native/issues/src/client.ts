@@ -44,10 +44,15 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   };
   const read = id => api('read?id=' + encodeURIComponent(id));
   const primary = (key, yes = true) => { $(key).className = 'mw-btn mw-btn--sm mw-btn--' + (yes ? 'primary' : 'secondary'); };
-  const run = work => { void Promise.resolve().then(work).catch(error => { if (error.name !== 'AbortError') toast(error.message); }); };
-  const toast = (text, action = '', then = null) => {
+  const run = work => { void Promise.resolve().then(work).catch(error => { if (error.name !== 'AbortError') toast(error.message, '', null, true); }); };
+  // The one toast (.mw-toast): a failure carries the failed mark and nudges once; anything else has no mark.
+  const toast = (text, action = '', then = null, failed = false) => {
     scope.clearTimeout(toastTimer); toastRun = then;
-    toastBox.firstChild.textContent = text; toastBox.lastChild.textContent = action; toastBox.hidden = false;
+    toastBox.querySelector(':scope > span').textContent = text; toastBox.querySelector('[data-issue-toast-action]').textContent = action;
+    toastBox.classList.toggle('is-error', failed);
+    if (failed) toastBox.dataset.mwState = 'failed';
+    else { delete toastBox.dataset.mwState; delete toastBox.dataset.ringMounted; toastBox.querySelector(':scope > .mw-state-ring')?.remove(); }
+    toastBox.hidden = false;
     toastTimer = scope.timeout(() => { toastBox.hidden = true; toastRun = null; }, action ? 7000 : 3500);
   };
   // A description grows with the page (data-fit with no max); a value set here sends no input event.

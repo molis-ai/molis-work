@@ -41,12 +41,6 @@ export {
   type StoredDrafts,
 } from "./drafts.js";
 export {
-  projectAcceptance,
-  type AcceptanceBlock,
-  type AcceptanceInput,
-  type AcceptanceView,
-} from "./acceptance.js";
-export {
   GIT_RESULT_SCHEMA_VERSION,
   GIT_RESULT_TYPE,
   mayHaveChangedFiles,

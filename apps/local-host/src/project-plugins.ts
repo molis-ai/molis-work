@@ -1,7 +1,5 @@
 import { openHostShelfStore } from "./shelf-actions.js";
 import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
-import { createCharactersPlugin } from "@molis-ai/molis-work-plugin-characters";
-import { charactersPluginPorts } from "./characters-host.js";
 import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -9,7 +7,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
-import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
+import { createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { FORM_DATABASE, createFormPlugin } from "@molis-ai/molis-work-plugin-form";
 import { DATASET_DATABASE, createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
@@ -32,8 +30,6 @@ export interface ProjectPluginPorts {
   observeGitOperations?(listener: (event: GitOperationUpdate) => void): () => void;
   /** Settled person-reviewed plugin operations, sent to the installation that asked as `host.review.settled@1` (X-6). */
   observeReviewSettlements?: ObserveReviewSettlements;
-  characterWorkspaces?: () => Promise<readonly ProjectWorkspaceRef[]>;
-  characterSpawn?: (request: import("@molis-ai/molis-work-contracts/services/runtime-host").PtySpawnRequest) => import("@molis-ai/molis-work-contracts/services/runtime-host").PtySpawnResult;
   store: LocalProjectDatabase;
   projectId: string;
   actorId: string;
@@ -111,7 +107,7 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
     if (existing.ports.actorId !== ports.actorId || existing.ports.homeDirectory !== ports.homeDirectory
       || existing.ports.actions.project_id !== ports.actions.project_id) throw new Error("项目插件实例的 Home、用户或项目身份不一致");
     // Entry-point adapters can arrive after headless discovery; identity and storage stay bound.
-    for (const key of ["characterSpawn", "characterWorkspaces", "workspaces", "routePrefix", "observeGitOperations", "observeReviewSettlements"] as const) {
+    for (const key of ["workspaces", "routePrefix", "observeGitOperations", "observeReviewSettlements"] as const) {
       if (ports[key] !== undefined) Object.assign(existing.ports, { [key]: ports[key] });
     }
     const state = await existing.ready;
@@ -148,11 +144,6 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.platform = platform;
     // Start independent companions together so their Artifact inputs and outputs
     // can connect. Browsing roots come from current-project settings capabilities.
-    const charactersPorts = charactersPluginPorts(ports.homeDirectory, ports.actorId, ports.projectId, artifacts.query,
-      () => ports.characterWorkspaces?.() ?? Promise.resolve(ports.workspaces ?? []), request => {
-        if (!ports.characterSpawn) throw new Error("原生终端尚未接通");
-        return ports.characterSpawn(request);
-      });
     const shelfPorts: ShelfResultPorts | undefined = ports.homeDirectory ? {
         // What Shelf may take a copy of, and the text of it, it asks the platform for; the Host only holds the project's route prefix and the personal store.
         projectPath: () => ports.routePrefix ?? "",
@@ -180,15 +171,8 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       observeOperationSettled(listener: (event: GitOperationUpdate) => void) {
         operationListeners.add(listener); return () => { operationListeners.delete(listener); };
       },
-      onWorkingTreeChanged: () => { platform.invalidateView(GIT_PLUGIN_ID); },
     };
     const entries: PluginPlatformEntry[] = [
-      {
-        definition: createCharactersPlugin(charactersPorts),
-        bundled: true,
-        releaseArtifact: nativePluginReleaseArtifact<typeof createCharactersPlugin>(
-          "@molis-ai/molis-work-plugin-characters", "createCharactersPlugin", factory => factory(charactersPorts)),
-      },
       {
         definition: createShelfPlugin(shelfPorts),
         bundled: true,

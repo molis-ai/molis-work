@@ -75,6 +75,6 @@ export function renderWorkflowsWorkbench(model: WorkflowsUiModel): string {
         <footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" type="button" data-wf-action="dialog-close">${t("取消")}</button><button class="mw-btn mw-btn--primary" type="submit" data-wf-dialog-submit></button></footer>
       </form>
     </dialog>
-    <p class="wf-toast" role="status" data-wf-toast hidden></p>`,
+    <p class="mw-toast wf-toast" role="status" data-wf-toast hidden></p>`,
   });
 }

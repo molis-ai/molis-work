@@ -95,8 +95,8 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const toast = (msg, tone, act) => {
     toastAct = act || null;
-    toastEl.innerHTML = '<span>' + esc(msg) + '</span>' + (act ? '<button type="button" class="wf-toast__action" data-wf-toast-action>' + esc(act.label) + '</button>' : '');
-    toastEl.dataset.tone = tone || '';
+    toastEl.innerHTML = '<span>' + esc(msg) + '</span>' + (act ? '<button type="button" class="mw-toast__action" data-wf-toast-action>' + esc(act.label) + '</button>' : '');
+    toastEl.dataset.tone = tone || ''; if (tone === 'error') toastEl.dataset.mwState = 'failed'; else { delete toastEl.dataset.mwState; delete toastEl.dataset.ringMounted; }
     toastEl.classList.toggle('has-action', Boolean(act));
     toastEl.hidden = false;
     void toastEl.offsetWidth;

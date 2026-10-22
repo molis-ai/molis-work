@@ -85,7 +85,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
    工作面还须在 `ui-composition.ts` 通过 UiHost mount，`renderer.ts` 注入 primitives，再由 `goals-page-renderer.ts` 渲染到主页面；只登记 pack 不会产生页面 DOM。对照图片插件 `renderImagesContribution`。
 6. **监督器条目**：`apps/local-host/src/project-plugins.ts` 的 `startPlatform` 里，在 `entries` 加 `{ definition: createXPlugin(ports), bundled: true, releaseArtifact: nativePluginReleaseArtifact(包名, "createXPlugin", factory => factory(ports)) }`。`bundled: true` 让内置插件随宿主版本升级，不写 `upgrade_compatibility`。`start()` 要兑现 Manifest 的每一条（见下面「app 一等」一节）。
 7. **门禁名单**：`tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED` 加一行 `项目短名 → 包名`；短名要与第 4 步 `registration` 的 `project_plugin_id` 相同，包名要出现在 `project-plugins.ts` 里。
-8. **HTTP**：写 Manifest `routes`，由 Plugin Runtime 挂在 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作；不写 Host 文件，也不要往 `personal-native-plugin-http.ts`、`web-request.ts` 的路由表加条目。`project_id` 由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。工作面的渲染今天有两条现存路径，没有统一规则，照最接近的同类插件走：像 Shelf 那样在 workbench 的 `ui-composition.ts` 写 `render<X>Contribution`、由 `renderer.ts` 注入（同第 5 步）；或像 Characters 和 Coding 族那样由 `apps/local-host/src/coding-surface.ts` 渲染（`charactersWorkbenchPanel`、`codingCompanionStages`，由 `web-goals-read.ts` 调用）。
+8. **HTTP**：写 Manifest `routes`，由 Plugin Runtime 挂在 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作；不写 Host 文件，也不要往 `personal-native-plugin-http.ts`、`web-request.ts` 的路由表加条目。`project_id` 由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。工作面的渲染今天有两条现存路径，没有统一规则，照最接近的同类插件走：像 Shelf 那样在 workbench 的 `ui-composition.ts` 写 `render<X>Contribution`、由 `renderer.ts` 注入（同第 5 步）；或像 Coding 族那样由 `apps/local-host/src/coding-surface.ts` 渲染（`builtinStagePanels` 里的 `codingCompanionStages`，由 `web-goals-read.ts` 调用）。
 9. **英文**：插件 `src/en.ts` 导出 `X_EN`，还要在 `apps/workbench/src/i18n/en.ts` `import` 并 `...X_EN`。只写插件文件，英文界面仍是中文 key。
 10. **构建**：`pnpm --filter @molis-ai/molis-work-plugin-<id> build`。根目录 `pnpm build` 含 workspace。
 11. **会点名插件名单的测试**：`tests/plugin-declarative-mounting.test.ts`（插件切换/常驻/个人插件）、`tests/creative-tools-plugins.test.ts` 的 `PERSONAL_PLUGIN_IDS`、`tests/uninstall.test.ts` 的 `{home}` 库名、有列表时 `tests/list-silent-refresh.test.ts` 的 factory 表。按需改 `tests/plugin-catalog-companions.test.ts`。
@@ -167,11 +167,11 @@ Inbox 的 `GET/POST /api/inbox/pages` 由 Host 注入当前项目。POST 接收 
 
 `POST /api/assistant/plan` 只产生规则或写作方案。Workbench 确认按钮调用既有判断规则 / Feed / Inbox 动作；不是外部 MCP，也没有第二份规则或文稿状态。真实写作模型由 `hostCompleteText` 提供；缺配置或网络失败明确报错，不能返回占位文稿。具体配置、实操与边界见 [闭环规格](../../specs/archive/feed-inbox-pages-loop/spec.md)。
 
-## app 一等（Coding 族与 Characters）
+## app 一等（Coding 族）
 
 已注册到当前项目 Runtime 的路由按 Manifest 和实际 contribution 自动分发，Web 外层和内部适配器均不再维护插件 ID 白名单。业务 HTTP 使用 `bindPluginActionRoute` 转调统一动作；生命周期仍由 supervisor 管理。新实例追加注册不应覆盖已有路由；停用后的请求不得重新启用实例。内置项目启用检查、控制令牌、origin 与一次性请求键继续生效。`/restart`、`/release-quarantine`、`/upgrade` 保留给 Host 生命周期，业务路由避开这些路径；不要在 Host 为新插件增加同名字段的结果加工。
 
-`kind: "app"` 必须真的经 Plugin Runtime `start()`。今天：Coding、Files、Git、Diff、Text stats、Characters（Shelf 是 `native`，同样由监督器启动）。启动在 `apps/local-host/src/project-plugins.ts` 的监督器条目；`coding-surface.ts` 渲染 Coding 族与 Characters 的工作面（Shelf 的由 workbench 渲染）；`/api/plugins/<plugin_id>/` 由 `project-plugin-http.ts` 的 `handleProjectPluginHttp` 转给运行中的插件，它不认识任何插件，Coding 族还要加的两段（Files 输出先刷新、几个插件的结果由宿主画）由调用方经钩子给（`codingRouteHooks`）。插件跑没跑起来，按插件从监督器读（`projectPluginProblem`）。
+`kind: "app"` 必须真的经 Plugin Runtime `start()`。今天：Coding、Files、Git、Diff、Text stats（Shelf 是 `native`，同样由监督器启动）。启动在 `apps/local-host/src/project-plugins.ts` 的监督器条目；`coding-surface.ts` 渲染 Coding 族的工作面（Shelf 的由 workbench 渲染）；`/api/plugins/<plugin_id>/` 由 `project-plugin-http.ts` 的 `handleProjectPluginHttp` 转给运行中的插件，它不认识任何插件，Coding 族还要加的两段（Files 输出先刷新、几个插件的结果由宿主画）由调用方经钩子给（`codingRouteHooks`）。插件跑没跑起来，按插件从监督器读（`projectPluginProblem`）。
 
 `start(context)` 返回 `kind: "app"`，并且：
 

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
-import { pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
+import { deferredSurfaceClients } from "@molis-ai/molis-work-app-workbench";
 
 // specs/repository-anti-corruption §4.8/§4.13 (W1-07, decision #17): the page assets the host sends are frozen at their
 // current size and may only fall. Each rule is mutation-verified here on a small scratch repository: one violation added
@@ -572,8 +572,8 @@ test("this repository's build is within the committed page asset budget, which h
     assert.ok(report.measured[asset] > 0, `${asset} is measured`);
   }
   // Exactly the client bundles the workbench serves: one per plugin with its own client, none for a surface that borrows
-  // another's (W4-03: Files, Git, Diff and Text Stats load Coding's).
-  const bundles = [...new Set(pluginSurfaceClients().map(client => `/assets/molis-work-plugins/${client.bundle}.js`))].sort();
+  // another's (W4-03: Files, Git, Diff and Text Stats load Coding's), and the Host's own surfaces' (RAC-73: 角色 since CHR-1).
+  const bundles = [...new Set(deferredSurfaceClients().map(client => `/assets/molis-work-plugins/${client.bundle}.js`))].sort();
   assert.ok(bundles.length > 0);
   assert.deepEqual(Object.keys(report.measured).filter(asset => asset.startsWith("/assets/molis-work-plugins/")).sort(), bundles, "the plugin client packs are measured");
 });

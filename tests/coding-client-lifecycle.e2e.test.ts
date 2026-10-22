@@ -5,6 +5,48 @@ import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// MERGEFIX-01: exercise the extracted index through the shipped Coding client and the Host's real lifetime.
+test('Coding results index follows section visibility, jumps with focus, and releases observers on unmount', { timeout: 45_000 }, async t => {
+  const browser = await openGoalBrowser(t, 'seeded'); if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, click, navigate, origin, projectId } = browser;
+  await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/?desktop=1&openPlugin=coding` }, sessionId));
+  await waitFor("document.querySelector('[data-coding-model] option')");
+  await evaluate(`(() => {
+    window.indexRoot=document.querySelector('[data-coding-workbench]');
+    window.indexTools=indexRoot.querySelector('[data-coding-tools]');
+    window.indexNav=indexRoot.querySelector('[data-coding-results-index]');
+    indexRoot.dataset.codingDetail='true';indexRoot.dataset.codingResults='true';
+    for(const [id,title] of [['first','Index first'],['second','Index second']]){
+      const section=document.createElement('section');section.dataset.indexFixture=id;section.setAttribute('aria-label',title);
+      section.textContent=title;indexTools.append(section);
+    }
+  })()`);
+  await waitFor("[...indexNav.children].some(chip=>chip.textContent==='Index second')");
+  for (const width of [1440, 1024, 390]) {
+    await command('Emulation.setDeviceMetricsOverride', { width, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+    for (const theme of ['light', 'dark']) {
+      await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)}`);
+      await evaluate("[...indexNav.children].find(chip=>chip.textContent==='Index second').setAttribute('data-index-fixture-jump','')");
+      await click('[data-index-fixture-jump]');
+      assert.equal(await evaluate("document.activeElement?.dataset.indexFixture"), 'second', `jump focuses its section at ${width}/${theme}`);
+      assert.equal(await evaluate("indexRoot.querySelector('[data-coding-results-open]').getAttribute('aria-expanded')"), 'true');
+    }
+  }
+  await evaluate("indexTools.querySelector('[data-index-fixture=second]').hidden=true");
+  await waitFor("![...indexNav.children].some(chip=>chip.textContent==='Index second')");
+  await evaluate("indexTools.dataset.companionOpen='true'");
+  await waitFor('indexNav.hidden && indexNav.children.length===0');
+  await evaluate("indexTools.removeAttribute('data-companion-open')");
+  await waitFor("[...indexNav.children].some(chip=>chip.textContent==='Index first')");
+  await evaluate("indexRoot.dataset.codingResults='false'");
+  await waitFor("indexNav.hidden && indexRoot.querySelector('[data-coding-results-open]').getAttribute('aria-expanded')==='false'");
+  await evaluate('indexRoot.remove()');
+  await pause(150);
+  await evaluate("indexRoot.dataset.codingResults='true'");
+  await pause(150);
+  assert.equal(await evaluate("indexRoot.querySelector('[data-coding-results-open]').getAttribute('aria-expanded')"), 'false', 'detached observers no longer run');
+});
+
 // W2-18-CODING-LIFETIME-01: the original global effect listener must be gone after detach/remount.
 test("Coding stops hidden polling and releases every client listener before the same DOM is mounted again", { timeout: 45_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {CODING_INPUTS_BINDING_CLIENT} from "./inputs-binding-client.js";
 import {CODING_SAVED_HISTORY_CLIENT} from './saved-history-client.js';
 import { CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT } from "./writer-integration-client.js";
@@ -29,6 +30,8 @@ import { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "./input-receipts-cl
 import { CODING_DRAFT_CLIENT_FACTORY_SCRIPT } from "./draft-client.js";
 import { codingQuestionAnswered } from "./question-answered-client.js";
 
+const resultsIndex = readFileSync(new URL('./results-index-bundle.js', import.meta.url), 'utf8').trim();
+
 /** Host supplies navigation; this client only handles Coding's own surface. */
 export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const root = document.querySelector('[data-coding-workbench]'), L = host.translate;
@@ -41,27 +44,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const turns = q('[data-coding-turns]'), input = q('[data-coding-task]'), toInput=node=>(node||input).focus({preventScroll:true});
   const savedHistory=(${CODING_SAVED_HISTORY_CLIENT});
   const showSavedHistory=(value,force)=>savedHistory(turns,value,async before=>{const id=current,response=await api(sessionPath(id)+'/runs?history_before='+before+'&limit=20');if(current===id)showSavedHistory(response.saved_history,true);},force);
-  // The results panel's index: one chip per section on show, to jump to it. It is rebuilt only when the set of
-  // sections changes, so its own writes never loop back through the observer that schedules it.
-  const SECTION_SHORT={[L('coding.results.cooperation')]:L('coding.short.cooperation'),[L('coding.checkpoints.title')]:L('coding.short.checkpoints'),[L('coding.results.recovery')]:L('coding.short.recovery'),[L('coding.results.facts')]:L('coding.short.facts'),[L('coding.outcomes.title')]:L('coding.short.outcomes'),[L('coding.change.title')]:L('coding.short.change'),[L('coding.commands.title')]:L('coding.short.commands'),[L('coding.results.background')]:L('coding.short.background')};
-  let indexed=[],indexSignature='',indexTimer=0;
-  const sectionLabel=(section)=>{const own=section.getAttribute('aria-label');if(own)return own;const by=section.getAttribute('aria-labelledby'),named=by?document.getElementById(by):null;
-    return (named||section.querySelector(':scope > h3, :scope > header h3, :scope > details > summary'))?.textContent?.trim()||'';};
-  const resultsIndex=()=>{
-    const nav=q('[data-coding-results-index]'),tools=q('[data-coding-tools]');if(!nav||!tools)return;
-    const sections=root.dataset.codingResults==='true'&&tools.dataset.companionOpen!=='true'
-      ?[...tools.children].filter(node=>node!==nav&&!node.classList.contains('coding-tool-tabs')&&!node.hidden&&sectionLabel(node)&&getComputedStyle(node).display!=='none'):[];
-    const signature=sections.map(sectionLabel).join('|');if(signature===indexSignature)return;indexSignature=signature;indexed=sections;
-    nav.replaceChildren();
-    sections.forEach((section,at)=>{const chip=make('button');chip.type='button';chip.className='mw-btn mw-btn--ghost';const text=sectionLabel(section);chip.textContent=SECTION_SHORT[text]||text;chip.title=L('coding.results.jump',{section:text});chip.dataset.codingResultsJump=String(at);nav.append(chip);});
-    nav.hidden=sections.length<2;
-  };
-  const scheduleResultsIndex=()=>{lifetime.clearTimeout(indexTimer);indexTimer=lifetime.timeout(resultsIndex,80);};
-  lifetime.listen(q('[data-coding-results-index]'),'click',event=>{const chip=event.target.closest('[data-coding-results-jump]'),tools=q('[data-coding-tools]'),section=chip&&indexed[Number(chip.dataset.codingResultsJump)];if(!section)return;
-    tools.scrollTo({top:section.getBoundingClientRect().top-tools.getBoundingClientRect().top+tools.scrollTop-8,behavior:'smooth'});section.tabIndex=-1;section.focus({preventScroll:true});});
-  lifetime.observe(new MutationObserver(scheduleResultsIndex),q('[data-coding-tools]'),{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','data-companion-open']});
-  const resultVisibility=()=>{q('[data-coding-results-open]').setAttribute('aria-expanded',String(root.dataset.codingResults==='true'));scheduleResultsIndex();};
-  lifetime.observe(new MutationObserver(resultVisibility),root,{attributes:true,attributeFilter:['data-coding-results']});resultVisibility();
+  (${resultsIndex})({root,translate:L,lifetime});
   const prefix = root.dataset.codingPrefix + '/api/plugins/io.molis.work.coding';
   const CONTINUATION_MARKER = ${JSON.stringify(CONTINUATION_MARKER)};
   const SESSION_WINDOW = ${SESSION_WINDOW}, SESSION_PAGE = ${SESSION_PAGE};

@@ -60,7 +60,8 @@ const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
     linked_task: 409, no_history: 409, not_found: 404, schedule_conflict: 409, source_changed: 409, stale_preview: 409,
   } },
   cognia: { holder: cogniaPlugin, status: {
-    cancelled: 499, conflict: 409, invalid: 400, model_invalid: 502, model_unavailable: 503, not_found: 404, too_large: 413,
+    // MERGEFIX-02: a missing/unreadable directory service is unavailable, not invalid input.
+    cancelled: 499, conflict: 409, directory_unavailable: 503, invalid: 400, model_invalid: 502, model_unavailable: 503, not_found: 404, too_large: 413,
   } },
   images: { holder: imagesPlugin, status: {
     already_open: 409, busy: 429, cancelled: 409, closed: 503, connection_changed: 409, connection_invalid: 409, copy_conflict: 409, internal: 500, invalid: 400, invalid_image: 502,

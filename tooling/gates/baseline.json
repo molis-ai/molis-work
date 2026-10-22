@@ -1,5 +1,5 @@
 {
-  "giantUnits": 123,
+  "giantUnits": 120,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
@@ -23,19 +23,17 @@
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 183,
     "class apps/local-host/src/local-host.ts#LocalHost": {
       "lines": 543,
-      "methods": 24
+      "methods": 25
     },
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 194,
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 186,
+    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 185,
+    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 177,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "lines": 278,
       "methods": 41
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 255,
-    "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 167,
-    "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
-    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
-    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 191,
+    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 182,
+    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 179,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/functions/client.ts": 1274,
@@ -47,7 +45,7 @@
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2047,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1966,
-    "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
+    "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 161,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
@@ -121,26 +119,22 @@
       "lines": 310,
       "methods": 12
     },
-    "class modules/private-work-context/src/session-handoffs.ts#SessionHandoffRepository": {
-      "lines": 313,
-      "methods": 14
-    },
     "class modules/private-work-context/src/session-records.ts#SessionRecordRepository": {
       "lines": 317,
       "methods": 15
     },
     "class modules/private-work-context/src/session-registry.ts#MolisWorkSessionRegistry": {
-      "lines": 174,
+      "lines": 158,
       "methods": 29
     },
     "class modules/projects/src/repository.ts#ProjectsRepository": {
-      "lines": 287,
+      "lines": 277,
       "methods": 29
     },
-    "file modules/shelf/src/store.ts": 1136,
+    "file modules/shelf/src/store.ts": 1106,
     "class modules/shelf/src/store.ts#ShelfStore": {
-      "lines": 741,
-      "methods": 35
+      "lines": 736,
+      "methods": 32
     },
     "function modules/shelf/src/store.ts#runJob": 197,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 753,
@@ -183,12 +177,12 @@
       "lines": 343,
       "methods": 19
     },
-    "file plugins/native/coding/src/client.ts": 1581,
+    "file plugins/native/coding/src/client.ts": 1567,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 209,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {
       "lines": 120,
-      "methods": 27
+      "methods": 26
     },
     "class plugins/native/feed/src/application.ts#FeedApplication": {
       "lines": 493,
@@ -212,11 +206,11 @@
     },
     "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": 225,
     "class plugins/native/plugin-builder/src/agent-workflow.ts#AgentBuilderWorkflow": {
-      "lines": 654,
+      "lines": 650,
       "methods": 40
     },
     "file plugins/native/ppt/src/client.ts": 806,
-    "file plugins/native/shelf/src/client.ts": 1662,
+    "file plugins/native/shelf/src/client.ts": 1661,
     "file plugins/native/todo/src/client.ts": 1240,
     "class plugins/native/todo/src/store.ts#TodoStore": {
       "lines": 378,
@@ -467,7 +461,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 120,
+  "emptyCatchesInScriptsTotal": 119,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -501,7 +495,7 @@
     "plugins/native/alchemist/src/client.ts": 1,
     "plugins/native/alchemist/src/work-reuse/client.ts": 2,
     "plugins/native/coding/src/changeset-client.ts": 1,
-    "plugins/native/coding/src/client.ts": 10,
+    "plugins/native/coding/src/client.ts": 9,
     "plugins/native/coding/src/plans-client.ts": 4,
     "plugins/native/coding/src/steps-client.ts": 3,
     "plugins/native/coding/src/subagents-client.ts": 3,
@@ -1030,7 +1024,7 @@
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 174,
+  "unknownCastsTotal": 173,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1060,7 +1054,6 @@
     "packages/plugin-sandbox/src/worker.ts": 2,
     "packages/plugin-sdk/src/index.ts": 1,
     "plugins/native/coding/src/goal-context.ts": 1,
-    "plugins/native/coding/src/plans.ts": 1,
     "plugins/native/coding/src/report.ts": 2,
     "plugins/native/coding/src/route-actions.ts": 2,
     "plugins/native/cognia/src/store.ts": 1,

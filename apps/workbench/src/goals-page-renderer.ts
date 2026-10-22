@@ -17,7 +17,7 @@ import { renderRuntimePlanDialog } from "./settings-appearance.js";
 import { knowledgeClientTag } from "./settings-knowledge.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 function projectSideTabs(enabled: readonly string[], routePrefix: string) {
-  const home = homePluginSideTabs();
+  const home = homePluginSideTabs(routePrefix);
   return [...home, ...sideEntries(enabled).filter(side => !home.some(tab => tab.key === `${side.project_plugin_id}/${side.view_id}`))
     .map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title, ...(side.context_binding ? { contextOwner: side.plugin_id, contextSurface: side.project_plugin_id } : {}), icon: (side.icon ?? "package") as PageIcon, order: side.order,
       src: `${routePrefix}/side/${encodeURIComponent(side.project_plugin_id)}/${encodeURIComponent(side.view_id)}` }))];

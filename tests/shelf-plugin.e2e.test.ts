@@ -25,7 +25,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   // 常开插件 (specs/side-shelf §3.2): Shelf is not in the plugin switcher and never opens in the work area. It is the side
   // panel's first tab, where the panel opens when this browser remembers no tab.
   await browser.waitFor("document.querySelector('[data-side-toggle]')");
-  assert.equal(await browser.evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=shelf], [data-plugin-section=shelf], [data-directory-panel=shelf], [data-work-surface=shelf]')"), null);
+  assert.equal(await browser.evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=shelf], [data-plugin-section=shelf], [data-directory-panel=shelf], [data-work-surface=shelf]')?.outerHTML ?? null"), null);
   await browser.click("[data-side-toggle]");
   await browser.waitFor("document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'");
   assert.equal(await browser.evaluate("document.querySelector('#side-panel [role=tab]')?.dataset.sideTab"), "plugin:shelf/side");
@@ -92,7 +92,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--mark-clay').trim()"), "#B27460");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--da-accent').trim()"), "#93604b"); // copper, a step darker for 4.5:1 (spec → 第三轮 · 对比度)
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('aria-disabled')"), "true");
-  assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('title')"), "请在设置中配置 AI 模型，再为置物架选择可用模型");
+  assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('title')"), "请先在「模型设置」里连接文字模型");
   // 整合 stays on the bar and greys out until a second material joins.
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=combine]')?.getAttribute('aria-disabled')"), "true");
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=combine]')?.getAttribute('title')"), "「整合」至少要两份材料");
@@ -112,7 +112,8 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   await waitFor("!document.querySelector('[data-shelf-hide-act=extract_text]') && document.querySelector('[data-shelf-act=extract]')");
   await click('[data-shelf-act="talk"]');
   await waitFor("document.querySelector('[data-shelf-stage]')?.classList.contains('is-talk')");
-  await waitFor("document.querySelector('[data-shelf-tty-screen] .xterm')", 8_000);
+  await waitFor("document.querySelector('[data-shelf-tty-actor]')?.textContent.includes('未发现终端 Agent')");
+  assert.equal(await evaluate("document.querySelector('[data-shelf-tty-screen] .xterm')"), null, "no terminal view attaches without an available agent");
   assert.match(await evaluate<string>("document.querySelector('[data-shelf-tty-actor]')?.textContent || ''"), /未发现终端 Agent|发给终端不是副本沙箱/);
   await click('[data-shelf-act="extract"]');
   await waitFor("document.querySelector('[data-shelf-stage]')?.classList.contains('is-confirm')");
@@ -174,7 +175,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
     materials: Array<{ origin_hash: string; origin_realpath?: string }>;
     results: Array<{ name: string; preview_text: string }>;
     recipes: Array<{ recipe: string; available: boolean }>;
-  }>("fetch(document.body.dataset.routePrefix+'/api/plugins/io.molis.work.shelf',{cache:'no-store'}).then(response => response.json())");
+  }>("fetch(document.body.dataset.routePrefix+'/api/plugins/io.molis.work.shelf/',{cache:'no-store'}).then(response => response.json())");
   assert.equal(snapshot.materials[0]?.origin_realpath, undefined);
   assert.equal(snapshot.results[0]?.name, "pdf.md");
   assert.match(snapshot.results[0]?.preview_text ?? "", /编辑过的副本/);
@@ -267,24 +268,24 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   for (const theme of ["light", "dark"] as const) {
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/settings/shelf` }, sessionId));
-    await waitFor(`document.documentElement.dataset.resolvedTheme === '${theme}'`);
-    await waitFor("document.querySelector('[data-shelf-settings-pane=machine]')", 8_000);
-    assert.equal(await evaluate("document.querySelectorAll('[data-shelf-settings-pane]').length"), 6);
-    assert.equal(await evaluate("document.querySelectorAll('[data-shelf-settings-tab]').length"), 0);
-    assert.equal(await evaluate("[...document.querySelectorAll('[data-shelf-settings-pane]')].every((pane) => !pane.hidden)"), true);
-    assert.equal(await evaluate("document.querySelectorAll('[data-shelf-panel-slot]').length"), 4);
-    assert.equal(await evaluate("document.querySelectorAll('[data-shelf-model]').length"), 1);
-    assert.equal(await evaluate("document.querySelector('[data-shelf-model]')?.value"), "");
-    assert.equal(await evaluate("document.querySelector('[data-shelf-settings] a[href=\"/settings/models\"]')?.textContent"), "配置 AI 模型");
+    await browser.waitFor(`document.documentElement.dataset.resolvedTheme === '${theme}'`);
+    await browser.waitFor("document.querySelector('[data-shelf-settings-pane=machine]')", 8_000);
+    assert.equal(await browser.evaluate("document.querySelectorAll('[data-shelf-settings-pane]').length"), 6);
+    assert.equal(await browser.evaluate("document.querySelectorAll('[data-shelf-settings-tab]').length"), 0);
+    assert.equal(await browser.evaluate("[...document.querySelectorAll('[data-shelf-settings-pane]')].every((pane) => !pane.hidden)"), true);
+    assert.equal(await browser.evaluate("document.querySelectorAll('[data-shelf-panel-slot]').length"), 4);
+    assert.equal(await browser.evaluate("document.querySelectorAll('[data-shelf-model]').length"), 1);
+    assert.equal(await browser.evaluate("document.querySelector('[data-shelf-model]')?.value"), "");
+    assert.equal(await browser.evaluate("document.querySelector('[data-shelf-settings] a[href=\"/settings/models\"]')?.textContent"), "配置 AI 模型");
     // Soft Workbench (DESIGN.md → Plugin identity): the settings surface keeps DropAgent's `--da-*` names, now
     // aliased to the shared press tone of the current theme.
-    const press = await evaluate<string>("getComputedStyle(document.querySelector('[data-shelf=settings]')).getPropertyValue('--da-press').trim()");
-    const shared = await evaluate<string>("getComputedStyle(document.querySelector('[data-shelf=settings]')).getPropertyValue('--nav-press').trim()");
+    const press = await browser.evaluate<string>("getComputedStyle(document.querySelector('[data-shelf=settings]')).getPropertyValue('--da-press').trim()");
+    const shared = await browser.evaluate<string>("getComputedStyle(document.querySelector('[data-shelf=settings]')).getPropertyValue('--nav-press').trim()");
     assert.equal(press, shared);
     assert.match(press, theme === "light" ? /#292a2c 11%/ : /#f0efed 15%/);
-    await evaluate("document.querySelector('[data-shelf-settings-pane=machine]').scrollIntoView({block: 'start'})");
+    await browser.evaluate("document.querySelector('[data-shelf-settings-pane=machine]').scrollIntoView({block: 'start'})");
     // Let the compositor land on the new palette before the shot is taken.
-    await evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))");
+    await browser.evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))");
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
     await writeFile(`${dir}/settings-${theme}.png`, Buffer.from(shot.data, "base64"));
   }

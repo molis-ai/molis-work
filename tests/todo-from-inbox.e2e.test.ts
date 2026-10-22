@@ -79,7 +79,7 @@ for (const width of [1440, 390]) test(`Todo ${width}px: an Inbox entry and a 灵
     title.value = "给新人写一页入门"; body.value = "先列常见问题，再配截图。";
     title.dispatchEvent(new InputEvent("input", { bubbles: true })); body.dispatchEvent(new InputEvent("input", { bubbles: true }));
   })()`);
-  await lingguang.waitFor(visible("[data-lingguang-todo]"));
+  await lingguang.waitFor("document.querySelector('[data-lingguang-todo]')");
   await lingguang.click("[data-lingguang-todo]");
   await lingguang.waitFor("document.querySelector('[data-lingguang-note]').textContent.includes('已转为待办')");
   const spark = todos().find(todo => todo.title === "给新人写一页入门");

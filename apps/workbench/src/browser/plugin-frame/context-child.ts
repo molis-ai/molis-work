@@ -8,6 +8,7 @@ export function childContext(port: MessagePort, scope: FrameScope, root: HTMLEle
   const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>();
   const send = (message: ContextUp) => port.postMessage(message);
   scope.own(() => { for (const entry of pending.values()) entry.reject(new Error("View closed")); pending.clear(); });
+  scope.listen(document, "molis-work:item-unreadable", event => send({ type: "context-unreadable", itemId: (event as CustomEvent<{ itemId?: unknown }>).detail?.itemId }));
   scope.listen(document, "molis:surface-focus", event => {
     let value: unknown = (event as CustomEvent).detail;
     if (value && typeof value === "object" && !("screen" in value)) {

@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -23,14 +24,15 @@ test("VUX-12: Issues, Workflows and Alchemist say on the page that an item they 
     { plugin: "alchemist", said: "[data-alc-notice]", toast: "", words: "这一项已不存在或已删除" },
   ];
   for (const { plugin, said, toast, words } of cases) {
+    const child=await pluginFrameBrowser(t,browser,plugin);
     const surface = `document.querySelector('[data-work-surface="${plugin}"]')`;
     const shown = `[...${surface}.querySelectorAll('${said}')].filter((node) => node.checkVisibility()).map((node) => node.textContent)`;
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}?openPlugin=${plugin}&openItem=${missing}&openTitle=${encodeURIComponent(title)}` }, sessionId));
-    await waitFor(`!!${surface}?.checkVisibility() && ${shown}.some((text) => text.includes(${JSON.stringify(words)}))`, 20_000);
+    await child.waitFor(`!!${surface}?.checkVisibility() && ${shown}.some((text) => text.includes(${JSON.stringify(words)}))`, 20_000);
     // It stays: a toast would have gone after 3.5 seconds.
     await new Promise((resolve) => setTimeout(resolve, 4500));
-    assert.ok((await evaluate<string[]>(shown)).some((text) => text.includes(words)), `${plugin}: the words stay on the page`);
-    if (toast) assert.equal(await evaluate<boolean>(`[...${surface}.querySelectorAll('${toast}')].some((node) => node.checkVisibility())`), false, `${plugin}: no toast`);
+    assert.ok((await child.evaluate<string[]>(shown)).some((text) => text.includes(words)), `${plugin}: the words stay on the page`);
+    if (toast) assert.equal(await child.evaluate<boolean>(`[...${surface}.querySelectorAll('${toast}')].some((node) => node.checkVisibility())`), false, `${plugin}: no toast`);
     // The workbench did not name the surface after the gone item, and the Assistant does not offer it as what is in view.
     assert.equal(await evaluate<string | null>(`(JSON.parse(${surface}.getAttribute('data-assistant-context') || 'null')?.object?.id) ?? null`), null, `${plugin}: not named after the gone item`);
     assert.equal(await evaluate<boolean>(`[...document.querySelectorAll('body *')].some((node) => node.children.length === 0 && node.checkVisibility() && node.textContent.includes(${JSON.stringify(`正在看：${title}`)}))`), false, `${plugin}: not 正在看`);
@@ -41,7 +43,7 @@ test("VUX-12: Issues, Workflows and Alchemist say on the page that an item they 
     await new Promise((resolve) => setTimeout(resolve, 1500));
     await evaluate(`${surface}.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: ${JSON.stringify(missing)}, quiet: true } }))`);
     await new Promise((resolve) => setTimeout(resolve, 2500));
-    assert.deepEqual(await evaluate<string[]>(`${shown}.filter((text) => text.trim())`), [], `${plugin}: a quiet reopen of a gone item says nothing`);
+    assert.deepEqual(await child.evaluate<string[]>(`${shown}.filter((text) => text.trim())`), [], `${plugin}: a quiet reopen of a gone item says nothing`);
   }
 });
 

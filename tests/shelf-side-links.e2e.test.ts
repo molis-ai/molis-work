@@ -26,7 +26,7 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-side-toggle]')");
-  const item = await evaluate<{ item_id: string; name: string } | null>(`fetch(${JSON.stringify(`/projects/${projectId}/api/plugins/io.molis.work.shelf`)}, { cache: "no-store" })
+  const item = await evaluate<{ item_id: string; name: string } | null>(`fetch(${JSON.stringify(`/projects/${projectId}/api/plugins/io.molis.work.shelf/`)}, { cache: "no-store" })
     .then((response) => response.json()).then((shelf) => (shelf.materials || []).find((row) => row.name === "试用示例.pdf") || null)`);
   assert.ok(item, "the sample material is on the shelf");
   const landed = async (why: string) => {

@@ -16,7 +16,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   const hereTitle = () => here() === "personal" ? L("个人空间") : (host.projectTitle ? L("项目「{name}」", { name: host.projectTitle }) : L("当前项目"));
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined && text !== null) value.textContent = text; if (className) value.className = className; return value; };
   const ghost = (text) => { const value = node("button", text, "mw-btn mw-btn--ghost mw-btn--sm"); value.type = "button"; return value; };
-  const api=(path,body)=>molisWorkRequest(route("/api/placement/"+path),{body,fallback:L("暂时处理不了，请稍后重试")});
+  const api=(path,body,page)=>molisWorkRequest(route("/api/placement/"+path),{body,...(page?{headers:{"x-molis-context-page":page}}:{}),fallback:L("暂时处理不了，请稍后重试")});
   let spaces = null;
   const loadSpaces = async () => { if (!spaces) spaces = (await api("spaces")).spaces || []; return spaces; };
   const cache = new Map();
@@ -68,6 +68,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     if (event.target && event.target.closest && event.target.closest(".placement-toasts")) return;
     region.querySelectorAll(".placement-toast:not(.placement-toast--error)").forEach((item) => item.remove());
   };
+  window.addEventListener("molis:surface-interaction", settle);
   document.addEventListener("input", settle, true);
   document.addEventListener("pointerdown", settle, true);
   // A card's buttons never sit on the stage's own controls (a composer's send button on a phone): when one would cover a
@@ -184,7 +185,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     if (!to) { card(L("没有可以存放的位置"), L("请在个人空间或项目里操作。"), [], "error"); return; }
     try {
       const result = await api("convert", { source, to: detail.goal ? { goal: true } : { station: detail.station }, to_project_id: to, request_id: detail.request_id || crypto.randomUUID(),
-        ...(detail.payload ? { payload: detail.payload } : {}) });
+        ...(detail.payload ? { payload: detail.payload } : {}) }, detail.page_id);
       invalidate(); repaint();
       card(named(detail.goal ? L("已建成 Goal") : L("已转成"), result.title), [L("存到 {place}", { place: result.location.title }), detail.note || L("原来的内容不变，新内容里记着它从哪里来")].filter(Boolean).join(" · "),
         result.open ? [{ label: L("打开"), primary: true, run: () => openObject(result.open, result.title) }] : [], "done");

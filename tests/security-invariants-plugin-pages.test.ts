@@ -102,6 +102,17 @@ test("SYS-15 S-47 toolbar callbacks retain the exact page, project and lifetime;
     assert.equal((await post(`/projects/${q.project_id}/api/contextual/${operation}`)).status, 403);
   }
   assert.equal((await post(prefix + "/api/contextual/create")).status, 403, "the callback does not grant arbitrary owner operations");
+  // SYS-15-U4: the shell may hand this page's object to another owner, never a forged source or an ordinary child request.
+  for (const [path, body] of [
+    ["/api/placement/convert", {source:{kind:"todo_item",id:"foreign"},to:{station:"pages"},to_project_id:p.project_id,request_id:"foreign"}],
+    ["/api/plugins/io.molis.work.todo/items", {title:"forged",sources:[{kind:"todo",title:"forged",subject:{kind:"todo_item",id:"foreign"}}]}],
+  ] as const) {
+    const refused = await f.request(prefix + path, {method:"POST",headers,body});
+    assert.equal(refused.status, 403, await refused.clone().text());
+    assert.equal((await f.request(prefix + path, {method:"POST",headers:{"x-molis-plugin-page":page_id},body})).status, 403);
+    assert.equal((await f.request(`/projects/${q.project_id}` + path, {method:"POST",headers,body})).status, 403);
+  }
+
   await f.request(prefix + "/api/host/plugin-pages/" + page_id, { method: "DELETE" });
   assert.equal((await post(prefix + "/api/contextual/prepare")).status, 403, "closing the page also closes its offered callback");
 });
@@ -176,4 +187,28 @@ for (const transport of ["route", "action"] as const) test(`SYS-15 S-47 ${transp
     release.resolve(); assert.equal(await probe.handles[0]!.result, "accepted work");
     assert.equal(probe.stored("result.job"), "accepted work");
   } finally { release.resolve(); }
+});
+
+
+test("SYS-15-U5 S-47 Files and Git previews use declared public reads; raw foreign routes and undeclared consumers stay refused", async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("Companion page previews");
+  const prefix = `/projects/${project.project_id}`;
+  for (const plugin_id of ["files", "git", "diff", "text-stats"]) {
+    const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {method: "POST", body: {plugin_id}});
+    assert.equal(enabled.status, 200, await enabled.clone().text());
+  }
+  const rendered = await f.request(prefix + "/"); assert.equal(rendered.status, 200);
+  for (const [source, capabilities] of [["files", ["diff.state", "text-stats.state"]], ["git", ["diff.state"]]] as const) {
+    const opened = await f.request(prefix + "/api/host/plugin-pages", {method: "POST", body: {plugin_id: "io.molis.work." + source}});
+    assert.equal(opened.status, 200, await opened.clone().text());
+    const {page_id} = await opened.json(), headers = {"x-molis-plugin-page": page_id};
+    for (const capability_id of capabilities) {
+      const response = await f.request(prefix + "/api/host/plugin-page-actions", {method: "POST", headers, body: {reference: {capability_id, version: 1}, input: {}}});
+      assert.equal(response.status, 200, await response.clone().text());
+      const result = await response.json(); assert.equal(result.view.phase, "waiting"); assert.match(result.html, /data-phase="waiting"/);
+    }
+    assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.diff/state", {headers})).status, 403);
+    assert.equal((await f.request(prefix + "/api/host/plugin-page-actions", {method: "POST", headers,
+      body: {reference: {capability_id: "diff.compare", version: 1}, input: {before: "a", after: "b"}}})).status, 403);
+  }
 });

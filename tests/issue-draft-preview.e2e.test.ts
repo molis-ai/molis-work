@@ -66,12 +66,12 @@ test("ISSUE-45 a failed draft write rejects the new image visibly and preserves 
   await v.go('/plugins/issues'); await v.press('[data-issue-composer] [name=description]'); await v.type('保留这句话与原图');
   await v.paste('已有图片.png'); await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1");
   const before = await v.ask(thumbnails);
-  await v.ask("(d.defaultView.savedPut = d.defaultView.Cache.prototype.put, d.defaultView.Cache.prototype.put = function() { throw new DOMException('full', 'QuotaExceededError'); }, true)");
+  await b.evaluate("(window.savedPut = Cache.prototype.put, Cache.prototype.put = function() { throw new DOMException('full', 'QuotaExceededError'); }, true)");
   await v.paste('不应假装保存.png');
   await v.until("$('[data-issue-composer] [data-issue-tip]').textContent.includes('截图草稿未能保存在本机')");
   assert.deepEqual(await v.ask(thumbnails), before);
   assert.equal(await v.ask("$('[data-issue-composer] [name=description]').value"), '保留这句话与原图');
-  await v.ask('(d.defaultView.Cache.prototype.put = d.defaultView.savedPut, true)');
+  await b.evaluate('(Cache.prototype.put = window.savedPut, true)');
   await v.paste('恢复后添加.png'); await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 2");
 });
 
@@ -82,13 +82,14 @@ test("ISSUE-45 sending clears immediately without erasing words typed during the
   await v.go('/plugins/issues'); await v.press('[data-issue-composer] [name=description]');
   await v.type('记录第一条，后续输入属于下一条'); await v.paste();
   await v.until("!!$('[data-issue-thumbs] img') && !$('[data-issue-submit]').disabled");
-  await v.ask(`(() => { const w = d.defaultView, put = w.Cache.prototype.put;
+  await b.evaluate(`(() => { const w = window, put = w.Cache.prototype.put;
     const gate = new Promise(resolve => w.releaseDraftWrite = resolve);
-    w.Cache.prototype.put = async function(...args) { await gate; return put.apply(this, args); }; return true;
+    w.Cache.prototype.put = async function(...args) { w.draftWriteStarted=true; await gate; return put.apply(this, args); }; return true;
   })()`);
   await v.send(); await v.until("!$('[data-issue-composer] [name=description]').value");
+  await b.waitFor("window.draftWriteStarted === true");
   await v.type('下一条的文字不能被上一次保存擦掉');
-  await v.ask('(d.defaultView.releaseDraftWrite(), true)');
+  await b.evaluate('(window.releaseDraftWrite(), true)');
   await v.until("$('[data-issue-toast] span').textContent.startsWith('已记录：')", 25_000);
   assert.equal(await v.ask("$('[data-issue-composer] [name=description]').value"), '下一条的文字不能被上一次保存擦掉');
   await v.go('/plugins/issues');

@@ -1,8 +1,9 @@
+import { pageTodoInput } from "./plugin-page-todo.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { escapeHtml, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
 import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage, sideOpenedPlugins } from "@molis-ai/molis-work-app-workbench";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
@@ -26,9 +27,10 @@ export type HomeRouteProjectPlugins = (projectId: string) => Promise<{ readonly 
  */
 export async function handleHomePluginHttp(request: IncomingMessage, response: ServerResponse, incomingUrl: URL,
   host: MolisWorkLocalHost, controlToken: string, csp: string, projectPlugins?: HomeRouteProjectPlugins): Promise<boolean> {
-  const prefixed = /^\/projects\/([^/]+)(\/api\/plugins\/[^/]+\/.*)$/u.exec(incomingUrl.pathname);
+  const prefixed = /^\/projects\/([^/]+)(\/(?:api\/plugins\/[^/]+\/.*|side\/[^/]+\/[^/]+))$/u.exec(incomingUrl.pathname);
   const url = prefixed ? new URL(prefixed[2]! + incomingUrl.search, incomingUrl) : incomingUrl;
-  const page = prefixed ? null : /^\/plugins\/([a-z0-9-]+)$/u.exec(url.pathname);
+  const sidePage = /^\/side\/([a-z0-9-]+)\/([a-z0-9-]+)$/u.exec(url.pathname);
+  const page = sidePage ?? /^\/plugins\/([a-z0-9-]+)$/u.exec(url.pathname);
   const route = /^\/api\/plugins\/([^/]+)\//u.exec(url.pathname);
   if (!page && !route || !host.homePlugins) return false;
   const entry = page ? BUILTIN_PLUGIN_CATALOG.find(entry => entry.runtime?.scope === "home" && entry.project_plugin_id === page[1]) : undefined;
@@ -36,7 +38,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const pluginId = entry?.manifest.plugin_id ?? route![1]!;
   // The catalog names existing pages; the actual Home registration owns API routing, including non-bundled entries.
   if (!host.homePlugins.manifest(pluginId)) return false;
-  const side = page ? url.searchParams.get("side") : null;
+  const side = sidePage?.[2] ?? (page ? url.searchParams.get("side") : null);
   const sideView = side ? entry?.manifest.ui?.views?.find(view => view.slot === "side" && view.view_id === side) : undefined;
   if (side !== null && !sideView) { sendLocalWebJson(response, 404, { error: "插件没有这个侧栏入口" }); return true; }
   const operation = route ? url.pathname.slice(`/api/plugins/${pluginId}/`.length) : "";
@@ -80,9 +82,9 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     const view = contribution?.kind === "app" ? contribution.views?.find(view => (!sideView || view.descriptor.contribution_id === sideView.contribution_id)
       && view.descriptor.surfaces?.some(surface => surface.target_slot_id === slot)) : undefined;
     const surface = view?.descriptor.surfaces?.find(surface => surface.target_slot_id === slot);
-    const html = view && surface ? view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: homeViewModel() }) : null;
+    const html = view && surface ? view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: { ...homeViewModel(), project_id: project?.project_id ?? null, route_prefix: project ? `/projects/${encodeURIComponent(project.project_id)}` : "", view_id: side } }) : null;
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
-    response.end(renderHomePluginPage(entry, html, platform.supervisor.state(pluginId)?.message ?? null, controlToken, { L, htmlLang, clientI18nScript }, false, Boolean(sideView)));
+    response.end(renderHomePluginPage(entry, html, platform.supervisor.state(pluginId)?.message ?? null, controlToken, { L, htmlLang, clientI18nScript }, false, Boolean(sideView), project));
     return true;
   }
   if (["enable", "disable"].includes(operation)) {
@@ -117,7 +119,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
       stop,
       readBody: async (request, maxBytes) => {
         // The route's own limit when it declares one; otherwise bounded for image-bearing Home actions. Each plugin also validates its input.
-        try { return await readLocalWebBody(request, maxBytes ?? 12 * 1024 * 1024); }
+        try { return pageTodoInput(request, pluginId, operation, await readLocalWebBody(request, maxBytes ?? 12 * 1024 * 1024)); }
         catch (error) { if (error instanceof ActionError) throw error; throw new ActionError(error instanceof RangeError ? "actions.input_too_large" : "actions.input_invalid",
           error instanceof Error ? error.message : "请求读取失败"); }
       },
@@ -176,7 +178,8 @@ export async function renderHomePluginStages(host?: HomePluginHost): Promise<str
   let platform: HomePluginPlatform | undefined, failure: string | undefined;
   try { platform = await host.ready(); }
   catch (error) { failure = error instanceof Error ? error.message : String(error); }
-  return BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home").map(entry => {
+  const sideOnly = sideOpenedPlugins();
+  return BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home" && !Object.hasOwn(sideOnly, entry.project_plugin_id)).map(entry => {
     const install = host.installation(entry.manifest.plugin_id);
     const contribution = install?.state === "running" ? platform?.runtime.contribution(install.install_id) : null;
     const view = contribution?.kind === "app" ? contribution.views?.find(view => view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench")) : undefined;

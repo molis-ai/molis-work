@@ -72,7 +72,7 @@ export const PAGE_STATE_OWNERS = {
     state: "The toolbar next to what the person has in hand, in the document that owns it: the tools a plugin offered for the open context, and the small form under it.",
   },
   placement: {
-    files: ["apps/workbench/src/scripts/client/placement.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
+    files: ["apps/workbench/src/scripts/client/placement.ts", "apps/workbench/src/scripts/client/pane-messages.ts", "apps/workbench/src/browser/plugin-frame/parent.ts", "apps/workbench/src/browser/plugin-frame/presentation.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
     state: "Where the objects on the page live (project, personal, Home) and the shared dialogs that use, move, copy or convert them.",
   },
   "tab-workspace": {
@@ -453,6 +453,10 @@ export const DOM_EVENTS = [
     name: "molis:surface-focus", kind: "request", owner: "context-actions", on: "element", bubbles: true,
     detail: "SurfaceFocus | null (services/contextual); SURFACE_FOCUS_EVENT",
     summary: "A surface tells the context row what the person has in hand on it, or that it is nothing now. Raised from the surface's own root and bubbling to the row's listener on document; opaque pages report bounded data through their bound port, with identity and screen coordinates supplied by the shell; the row raises it itself, from the person's text selection, for a surface that only declares its object in data-assistant-context.",
+  },
+  {
+    name: "molis:surface-interaction", kind: "announcement", owner: "placement", on: "window",
+    detail: "none", summary: "Input or a pointer press in a visible isolated surface dismisses informational placement cards; it grants no action authority.",
   },
   {
     name: "molis:surface-landing", kind: "request", owner: "context-actions", on: "element", bubbles: true,

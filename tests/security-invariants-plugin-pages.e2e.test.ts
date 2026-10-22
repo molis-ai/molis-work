@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -37,11 +38,28 @@ test("SYS-15 S-47 real opaque page cannot read owner credentials, bypass its bro
     "/projects/another-project/api/plugins/io.molis.work.cognia/library", "/api/plugins/io.molis.work.cognia/library"]) {
     assert.equal(await child.evaluate(`fetch(${JSON.stringify(path)}).then(response=>response.status)`), 403, path);
   }
+  // SYS-15-U2: the read bridges are bound to this manifest's subject reader and this project.
+  const prefix = `/projects/${browser.projectId}`;
+  assert.equal(await child.evaluate(`fetch(${JSON.stringify(prefix + "/api/assistant/related?kind=cognia_material&id=missing")}).then(response=>response.status)`), 200);
+  for (const path of ["/api/assistant/related?kind=todo_item&id=missing", "/api/assistant/works", "/api/assistant/works/another-work"]) {
+    assert.equal(await child.evaluate(`fetch(${JSON.stringify(prefix + path)}).then(response=>response.status)`), 403, "a page cannot read another owner's object or a work's conversation");
+  }
+  for (const object of [{kind: "todo_item", id: "missing"}, {kind: "cognia_material", id: "missing", project_id: "another-project"}]) {
+    assert.equal(await child.evaluate(`fetch(${JSON.stringify(prefix + "/api/placement/describe")},{method:'POST',body:JSON.stringify(${JSON.stringify({object})})}).then(response=>response.status)`), 403);
+  }
+  // SYS-15-U1: a page cannot forge the speaking surface, a result reply, or a user gesture.
+  await browser.evaluate("window.pageMessages=[];window.addEventListener('molis:assistant-message',event=>pageMessages.push(event.detail))");
+  await child.evaluate("window.dispatchEvent(new CustomEvent('molis:assistant-message',{detail:{message_id:'page-test',purpose:'delegate',source:{surface:'other-plugin'},text:'test suggestion'}}))");
+  await browser.waitFor("pageMessages.length===1");
+  assert.deepEqual(await browser.evaluate("[pageMessages[0].purpose,pageMessages[0].source.surface]"), ["suggest", "cognia"]);
+  await child.evaluate("window.dispatchEvent(new CustomEvent('molis:assistant-message',{detail:{message_id:'forged-result',purpose:'reply',source:{surface:'other-plugin'}}}))");
+  await child.evaluate("new Promise(resolve=>setTimeout(resolve,80))");
+  assert.equal(await browser.evaluate("pageMessages.length"), 1);
   for (const path of ["/api/host/plugin-pages", "/api/plugins/io.molis.work.cognia/disable"]) {
     assert.equal(await child.evaluate(`fetch(${JSON.stringify(`/projects/${browser.projectId}` + path)},{method:'POST',body:'{}'}).then(response=>response.status)`), 403, path);
   }
-  for (const operation of ["prepare", "attach"]) {
-    const path = `/projects/${browser.projectId}/api/contextual/${operation}`;
+  for (const operation of ["contextual/prepare", "contextual/attach", "placement/convert", "plugins/io.molis.work.todo/items"]) {
+    const path = `/projects/${browser.projectId}/api/${operation}`;
     assert.equal(await child.evaluate(`fetch(${JSON.stringify(path)},{method:'POST',headers:{'x-molis-context-page':'invented'},body:'{}'}).then(response=>response.status)`), 403,
       "a child cannot turn its ordinary fetch into a trusted toolbar callback");
   }
@@ -101,7 +119,7 @@ test("SYS-15-F1 SYS-15-F2 desktop search releases only the file selected by a tr
   await child.waitFor("!document.querySelector('[data-shelf-bar-hint]').textContent.includes('拒绝')");
   await browser.waitFor("nativeCalls.some(call=>call.name==='shelf_open_path')");
   const opened = await browser.evaluate<string>("nativeCalls.find(call=>call.name==='shelf_open_path').input.path");
-  assert.ok(opened.startsWith(browser.homeDirectory), opened);
+  assert.ok(opened.startsWith(realpathSync(browser.homeDirectory) + "/"), opened);
   assert.ok(opened.endsWith("/Selected.txt"), opened);
   await find(); await browser.click("[data-native-file-cancel]");
   assert.equal(await browser.evaluate("nativeCalls.filter(call=>call.name==='platform_read_selected_file').length"), 1, "cancel imports nothing else");

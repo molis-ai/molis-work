@@ -7,6 +7,8 @@ import { pageDialogs } from "./dialogs.js";
 import { childView, collapsePage, pageSelection } from "./view.js";
 import { childDrafts } from "./drafts.js";
 import { childNavigation } from "./navigation.js";
+import { childTodo } from "./todo.js";
+import { childPresentation } from "./presentation.js";
 import { childCopy } from "./clipboard.js";
 import { childNativeFiles } from "./native-files.js";
 import { pageEventSource } from "./events.js";
@@ -46,10 +48,12 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   globalThis.molisWorkRequest = Object.assign(call, { text: view.text, show: view.show, toast: view.toast });
   globalThis.molisWorkControlHeaders = call.headers;
   const root = document.querySelector<HTMLElement>("[data-work-surface]") ?? document.body;
-  root.hidden = false; document.body.dataset.projectId = config.projectId; document.body.dataset.routePrefix = config.routePrefix;
+  root.style.setProperty("--stage-title", config.stage.title); root.style.setProperty("--stage-desc", config.stage.description);
+  root.hidden = false; document.body.toggleAttribute("data-todo-available", config.todoAvailable); document.body.dataset.projectId = config.projectId; document.body.dataset.routePrefix = config.routePrefix;
   const route = (path: string) => config.routePrefix + path;
   const ui = globalThis.molisFrameUi(L), scope = ui.mountPluginClient(document.body);
   if (!scope) throw new Error("Cannot mount plugin document");
+  childTodo(port, scope, L);
   childContext(port, scope, root); ui.surfaceFocus({ translate: L, surfaceOnly: true });
   globalThis.EventSource = pageEventSource(scope, config.origin);
   const copyText = childCopy(port, scope);
@@ -83,7 +87,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
       document.body.hidden = !message.visible; Object.assign(document.documentElement.dataset, message.theme);
       if (prior !== document.documentElement.dataset.resolvedTerminalTheme) window.dispatchEvent(new CustomEvent("molis-work:terminal-theme-change"));
     }
-    else if (message.type === "focus") window.focus();
+    else if (message.type === "focus") { window.focus(); window.dispatchEvent(new Event("focus")); }
     else if (message.type === "select") select(message.detail);
     else if (message.type === "collapse") collapsePage(root);
     else if (message.type === "model-ready") document.dispatchEvent(new CustomEvent("molis-work:model-ready"));
@@ -105,5 +109,5 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   await load("/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js");
   const factory = globalThis.molisWorkbenchPluginFactories?.[config.bundle];
   if (!factory) throw new Error(L("无法加载界面，请重试"));
-  factory(host); childNavigation(port, scope, config); context(); send({ type: "ready" });
+  childPresentation(port, scope); factory(host); childNavigation(port, scope, config); context(); send({ type: "ready" });
 }

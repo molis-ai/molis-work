@@ -1,3 +1,4 @@
+import { decorateCompanionState } from "./coding-surface.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
@@ -44,6 +45,7 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
       const beforeEffect = async () => { page.assertCurrent(); await beforeBackgroundEffect(); page.assertCurrent(); };
       const result = await page.invoke({ reference: body.reference as ActionReference, input: body.input,
         project_id: page.project_id, signal: page.signal, assertCurrent: page.assertCurrent, beforeEffect, beforeBackgroundEffect });
+      decorateCompanionState((body.reference as ActionReference).capability_id, result, project ? `/projects/${encodeURIComponent(project.project_id)}` : "");
       sendLocalWebJson(response, 200, result); return true;
     }
     if (!body || Object.keys(body).some(key => key !== "plugin_id") || typeof body.plugin_id !== "string")

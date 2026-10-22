@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -12,17 +13,18 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   const browser=await openGoalBrowser(t,true,undefined,async prompt=>{modelCalls++;assert.match(prompt,/常用工具/);return JSON.stringify(/内部同事/.test(prompt)
     ?{status:"done",questions:[{title:"你最常用的工具是什么？",type:"text"}]}
     :{status:"needs_input",why:"先确认问卷给谁填",questions:[{id:"audience",prompt:"给谁填？",options:[{label:"内部同事",recommended:true},{label:"外部客户"}]}]});});if(!browser)return;
-  const {command,sessionId,evaluate,waitFor,navigate,click,reloadPage,origin,projectId,homeDirectory}=browser;
+  const {evaluate,waitFor,click}=await pluginFrameBrowser(t,browser,"form");
+  const {command,sessionId,navigate,reloadPage,origin,projectId,homeDirectory}=browser;
   const read=()=>{const store=openFormStore(homeDirectory);try{const forms=store.list(projectId!);return {forms,submissions:forms[0]?store.listSubmissions(forms[0].id,projectId!):[]};}finally{store.close();}};
   const idle=()=>waitFor("document.querySelector('[data-form=workbench]').getAttribute('aria-busy') === 'false'");
   const saved=()=>waitFor("['已保存','已发布'].includes(document.querySelector('[data-form-editor-status]').textContent)");
   const input=async(selector:string,value:string)=>evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   const open=async()=>{
-    await waitFor("document.querySelector('[data-plugin-id=form]')");
-    if(await evaluate('document.body.dataset.desktopSurface')!=='form'){
-      await click('[data-plugin-strip] [data-plugin-id=form]');
+    await browser.waitFor("document.querySelector('[data-plugin-id=form]')");
+    if(await browser.evaluate('document.body.dataset.desktopSurface')!=='form'){
+      await browser.click('[data-plugin-strip] [data-plugin-id=form]');
     }
-    await waitFor("document.body.dataset.desktopSurface === 'form'");
+    await browser.waitFor("document.body.dataset.desktopSurface === 'form'");
   };
   const output=reviewEvidenceUrl("action-service/");await mkdir(output,{recursive:true});
   const screenshot=async(name:string)=>{
@@ -61,12 +63,12 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   assert.equal(await evaluate("document.querySelector('[data-form-note]').hidden"),true);
   const originalQuestions=read().forms[0]!.questions;
   // Real save responses are delayed; subsequent typing must survive and be committed after the first acknowledgement.
-  await evaluate(`(()=>{const original=window.fetch;window.formSaveRequests=0;window.fetch=async(url,init)=>{
+  await evaluate(`(()=>{const original=window.molisWorkRequest;window.formSaveRequests=0;window.molisWorkRequest=Object.assign(async(url,init)=>{
     const response=await original(url,init);
-    if(init?.method==='POST' && new URL(url,location.href).pathname==='/projects/${projectId}/api/plugins/io.molis.work.form/forms/${id}'){
+    if(init?.method==='POST' && new URL(url,'http://plugin.invalid').pathname==='/projects/${projectId}/api/plugins/io.molis.work.form/forms/${id}'){
       window.formSaveRequests++;if(window.formSaveRequests===1)await new Promise(resolve=>window.releaseFormSave=resolve);
     }return response;
-  };window.restoreFormFetch=()=>window.fetch=original;})()`);
+  },original);window.restoreFormFetch=()=>window.molisWorkRequest=original;})()`);
   await input('[data-form-title]','第一笔');await waitFor("typeof window.releaseFormSave === 'function'");
   await input('[data-form-title]','第二笔');assert.equal(read().forms[0]!.title,'第一笔');
   await evaluate('window.releaseFormSave()');await saved();assert.equal(read().forms[0]!.title,'第二笔');assert.equal(await evaluate('window.formSaveRequests'),2);
@@ -81,8 +83,8 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   assert.equal(await evaluate("document.querySelector('[data-form-note]').hidden"),true);
   await screenshot('preview');
   // Discard the response after the server really saved it. Retrying must reuse one submission.
-  await evaluate(`(()=>{const original=window.fetch;let first=true;window.fetch=async(url,init)=>{const response=await original(url,init);
-    if(first && new URL(url,location.href).pathname.endsWith('/submit')){first=false;throw new Error('fixture response lost');}return response;};window.restoreFormFetch=()=>window.fetch=original;})()`);
+  await evaluate(`(()=>{const original=window.molisWorkRequest;let first=true;window.molisWorkRequest=Object.assign(async(url,init)=>{const response=await original(url,init);
+    if(first && new URL(url,'http://plugin.invalid').pathname.endsWith('/submit')){first=false;throw new Error('fixture response lost');}return response;},original);window.restoreFormFetch=()=>window.molisWorkRequest=original;})()`);
   await click('[data-form-submit]');await idle();assert.equal(read().submissions.length,1);
   await click('[data-form-submit]');await idle();assert.equal(read().submissions.length,1);
   await evaluate('window.restoreFormFetch()');
@@ -166,11 +168,12 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
 
 test('Form unavailable model keeps local question creation usable',{timeout:45_000},async t=>{
   const browser=await openGoalBrowser(t,true,undefined,null);if(!browser)return;
-  const {command,sessionId,navigate,waitFor,evaluate,click,origin,projectId}=browser;
+  const {evaluate,waitFor,click}=await pluginFrameBrowser(t,browser,"form");
+  const {command,sessionId,navigate,origin,projectId}=browser;
   await command('Emulation.setDeviceMetricsOverride',{width:1440,height:950,deviceScaleFactor:1,mobile:false},sessionId);
   await navigate(()=>command('Page.navigate',{url:`${origin}/projects/${projectId}/?openPlugin=form`},sessionId));
-  await waitFor("document.querySelector('[data-plugin-id=form]')");
-  if(await evaluate('document.body.dataset.desktopSurface')!=='form')await click('[data-plugin-strip] [data-plugin-id=form]');
+  await browser.waitFor("document.querySelector('[data-plugin-id=form]')");
+  if(await browser.evaluate('document.body.dataset.desktopSurface')!=='form')await browser.click('[data-plugin-strip] [data-plugin-id=form]');
   await click('[data-form-new]');await waitFor("document.querySelector('[data-form=workbench]').getAttribute('aria-busy') === 'false'");
   assert.equal(await evaluate("document.querySelector('[data-form-generate-ai]').disabled"),true);
   assert.match(await evaluate<string>("document.querySelector('[data-form-ai-reason]').textContent"),/模型/);

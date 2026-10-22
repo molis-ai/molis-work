@@ -128,7 +128,7 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
     } }) };
   };
   const previous = await fixedState(1);
-  const f = await fixture(t, `<section data-companion="diff">${fixedMarkup}</section>`, `
+  const f = await fixture(t, `<section data-work-surface="diff" data-companion="diff">${fixedMarkup}</section>`, `
     const host={${companionHost}};
     window.root=host.root;window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
   `, (_path, url) => { const index = Number(url.searchParams.get("change_index") ?? 0); indices.push(index); return fixedState(index); });
@@ -154,7 +154,7 @@ for (const name of ["files", "git", "diff", "text-stats"]) {
   test(`${name} owns visible queries and listeners across hide, detach and remount`, { timeout: 30_000 }, async t => {
     const body = name === "files" ? renderFilesBrowserDirectory(L) + renderFilesBrowserResult(L)
       : name === "git" ? renderGitBrowserDirectory(L) + renderGitBrowserResult(L) : fixedMarkup;
-    const f = await fixture(t, `<section data-companion="${name}">${body}</section>`, `
+    const f = await fixture(t, `<section data-work-surface="${name}" data-companion="${name}">${body}</section>`, `
       const host={${companionHost}};
       window.root=host.root;window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
     `, path => {
@@ -255,7 +255,7 @@ test("Host reviews retain decisions across hiding without rendering stale result
 for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, resumes after disconnect and stops while hidden`, { timeout: 30_000 }, async t => {
   let revision = 1;
   const markup = name === "files" ? renderFilesBrowserDirectory(L) + renderFilesBrowserResult(L) : renderGitBrowserDirectory(L) + renderGitBrowserResult(L);
-  const f = await fixture(t, `<section data-companion="${name}">${markup}</section>`, `
+  const f = await fixture(t, `<section data-work-surface="${name}" data-companion="${name}">${markup}</section>`, `
     const host={${companionHost}};
     window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
   `, path => {

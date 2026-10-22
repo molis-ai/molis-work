@@ -32,7 +32,7 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const settle = (root, state) => { root.inert = false; root.removeAttribute('aria-busy'); root.dataset.uiClientState = state; };
   const prepare = root => {
-    if (!root || !root.hasAttribute('data-deferred-surface')) return Promise.resolve();
+    if (!root || !root.hasAttribute('data-deferred-surface') || root.closest('[hidden]')) return Promise.resolve();
     if (mounting.has(root)) return mounting.get(root);
     const pack = packs.find(pack => pack.id === root.dataset.workSurface);
     if (!pack) return Promise.resolve();

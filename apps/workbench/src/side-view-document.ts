@@ -79,24 +79,7 @@ ${TIP_CLIENT_SCRIPT}
       for (const surface of document.querySelectorAll('[data-side-view-root] > [data-work-surface][hidden]')) surface.hidden = false;
       const mountPluginClient = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
       ${client}
-      // This document and the side panel around it (S-30, the same checks as a split pane): the page events the view may
-      // hand up (SIDE_FORWARD_SCRIPT) go to the page; an item the panel was asked to open here comes down as
-      // molis:side-target and is handed, as it is, to the view's surface: the view finds it, nobody else reads the id.
-      // What the person selects here is in hand as in a split pane (specs/context-program §21.4 W3-C): this document draws
-      // the toolbar the top document sends it and sends the choices back, through the same checks.
-      {
-        const messages = ${PANE_MESSAGES_SCRIPT}, forwarded = ${SIDE_FORWARD_SCRIPT};
-        (${CONTEXT_PANE_FACTORY_SCRIPT})({ translate: L, paneMessages: messages, route: path => ${route} + path });
-        if (window.parent !== window) for (const name of forwarded.names) addEventListener(name, (event) => {
-          try { window.parent.postMessage({ type: "molis:side-forward", name, detail: event.detail }, location.origin); }
-          catch { /* a detail that cannot be copied stays in this document */ }
-        });
-        addEventListener("message", (event) => {
-          if (!messages.fromParent(event) || event.data.type !== "molis:side-target") return;
-          const item = event.data.target && event.data.target.item;
-          if (typeof item === "string" && item) document.querySelector("[data-side-view-root] > [data-work-surface]")?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: item } }));
-        });
-      }
+      ${sideViewBridgeScript(input.routePrefix)}
     </script>${knowledgeClientTag()}`,
   });
 }
@@ -112,3 +95,34 @@ export function sideViewKeys(enabled: readonly ProjectPluginId[]): string[] {
   return sideEntries(enabled).map(entry => `${entry.project_plugin_id}/${entry.view_id}`);
 }
 
+
+/** The same parent protocol serves Runtime Home views and project side views. */
+export function sideViewBridgeScript(routePrefix: string): string {
+  const route = JSON.stringify(routePrefix);
+  return `      // This document and the side panel around it (S-30, the same checks as a split pane): the page events the view may
+      // hand up (SIDE_FORWARD_SCRIPT) go to the page; an item the panel was asked to open here comes down as
+      // molis:side-target and is handed, as it is, to the view's surface: the view finds it, nobody else reads the id.
+      // What the person selects here is in hand as in a split pane (specs/context-program §21.4 W3-C): this document draws
+      // the toolbar the top document sends it and sends the choices back, through the same checks.
+      {
+        const messages = ${PANE_MESSAGES_SCRIPT}, forwarded = ${SIDE_FORWARD_SCRIPT};
+        (${CONTEXT_PANE_FACTORY_SCRIPT})({ translate: L, paneMessages: messages, route: path => ${route} + path });
+        if (window.parent !== window) for (const name of forwarded.names) addEventListener(name, (event) => {
+          try { window.parent.postMessage({ type: "molis:side-forward", name, detail: event.detail }, location.origin); }
+          catch { /* a detail that cannot be copied stays in this document */ }
+        });
+        const surface = document.querySelector("[data-side-view-root] > [data-work-surface]");
+        let pendingItem;
+        const select = () => {
+          if (!surface || surface.hasAttribute("data-deferred-surface") || !pendingItem) return;
+          const itemId = pendingItem; pendingItem = null;
+          surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId } }));
+        };
+        if (surface) new MutationObserver(select).observe(surface, {attributes:true, attributeFilter:["data-deferred-surface"]});
+        addEventListener("message", (event) => {
+          if (!messages.fromParent(event) || event.data.type !== "molis:side-target") return;
+          const item = event.data.target && event.data.target.item;
+          if (typeof item === "string" && item) { pendingItem = item; select(); }
+        });
+      }`;
+}

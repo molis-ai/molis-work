@@ -50,9 +50,25 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
       try { if (await evaluate(`Boolean(${expression})`)) return; } catch (error) { failure = error; }
       await new Promise(resolve => setTimeout(resolve, 40));
     }
-    throw new Error(expression, { cause: failure });
+    const hostState = await browser.evaluate(`(()=>{${owner}const root=doc.querySelector('[data-work-surface='+${JSON.stringify(JSON.stringify(surface))}+']');return {surface:document.body.dataset.desktopSurface,root:root?{...root.dataset}:null,hidden:root?.hidden,parent:root?.parentElement?.className,text:root?.innerText?.slice(-400),frames:[...doc.querySelectorAll('iframe[data-plugin-frame]')].map(frame=>frame.dataset.pluginFrame)}})()`).catch(() => null);
+    throw new Error(expression + " " + JSON.stringify(hostState), { cause: failure });
   }
   async function point(target: string): Promise<{ x: number; y: number }> {
+    await waitFor(`document.querySelector(${JSON.stringify(target)})`);
+    // Open the containing menu and hover the actual row before checking the final hit target.
+    const hover = await evaluate<{ x: number; y: number } | null>(`(()=>{
+      const element=document.querySelector(${JSON.stringify(target)});if(!element)return null;
+      const menu=element.closest('details:not([open])');
+      if(menu&&!menu.querySelector(':scope > summary')?.contains(element))menu.querySelector(':scope > summary')?.click();
+      element.scrollIntoView({block:'center',behavior:'instant'});const box=element.getBoundingClientRect();
+      return box.width&&box.height?{x:box.x+box.width/2,y:box.y+box.height/2}:null;
+    })()`);
+    if (hover) {
+      const offset = await browser.evaluate<{ x: number; y: number }>(`(()=>{${owner}
+        const box=doc.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(),outer=owner?.getBoundingClientRect()??{x:0,y:0};
+        return{x:outer.x+box.x,y:outer.y+box.y};})()`);
+      await browser.command("Input.dispatchMouseEvent", { type: "mouseMoved", x: offset.x + hover.x, y: offset.y + hover.y }, browser.sessionId);
+    }
     const point = await evaluate<{ x: number; y: number }>(`(async()=>{const deadline=Date.now()+10000;let last='Missing target';
       while(Date.now()<deadline){const element=[...document.querySelectorAll(${JSON.stringify(target)})].find(node=>node.getClientRects().length);
         if(element){element.scrollIntoView({block:'center',behavior:'instant'});
@@ -61,6 +77,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
           const y=[box.y+box.height/2,box.top+8,box.bottom-8].find(y=>element.contains(document.elementFromPoint(x,y)));
           if(element.isConnected&&box.width&&box.height&&!element.disabled&&y!==undefined)return{x,y};
           last=JSON.stringify({target:element.outerHTML,box:box.toJSON()});}
+        else {const item=document.querySelector(${JSON.stringify(target)});last=JSON.stringify({target:${JSON.stringify(target)},hidden:item?.hidden,ancestors:item?[item,...(()=>{const a=[];let n=item.parentElement;while(n&&a.length<5){a.push(n);n=n.parentElement}return a})()].map(n=>({tag:n.tagName,class:n.className,hidden:n.hidden,display:getComputedStyle(n).display})):[]});}
         await new Promise(resolve=>setTimeout(resolve,40));
       }throw Error('Target is hidden, disabled or covered: '+last);})()`);
     const frame = await browser.evaluate<{ x: number; y: number }>(`(()=>{${owner}

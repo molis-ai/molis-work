@@ -19,7 +19,7 @@ test("SYS-15-D1 opaque page drafts persist through reload, reject invalid writes
   };
   await open("cognia");
   await cognia.waitFor("window.testPageDrafts");
-  assert.equal(await cognia.evaluate("caches.open('owner').then(()=>false,error=>error.name)"), "SecurityError");
+  assert.equal(await cognia.evaluate("(async()=>{try{await caches.open('owner');return false}catch(error){return error.name}})()"), "SecurityError");
   await cognia.evaluate("testPageDrafts.write('private-draft','content saved by Cognia')");
   assert.equal(await cognia.evaluate("testPageDrafts.read('private-draft')"), "content saved by Cognia");
   for (const [key, value] of [["", "bad"], ["x".repeat(257), "bad"]]) {

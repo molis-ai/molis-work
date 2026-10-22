@@ -76,8 +76,17 @@ export function codingWorkbench(host: CodingWorkbenchHost, coding: CodingClient,
   // What every client mounted here (Coding's own, Files, Git, a companion page) gets besides its own ports.
   const lent = { mountPluginClient, translate: host.translate };
   const headers = () => host.headers();
-  const request: CompanionRequest = (plugin, path, method = "GET", body, signal) => molisWorkRequest(route(`/api/plugins/io.molis.work.${plugin}${path}`),
-    { method, body: method === "GET" ? undefined : body ?? {}, signal, fallback: host.translate("无法读取文件工作区") });
+  const request: CompanionRequest = (plugin, path, method = "GET", body, signal) => {
+    const url = new URL(path, "https://plugin.invalid");
+    if (method === "GET" && url.pathname === "/state" && ["diff", "text-stats"].includes(plugin) && host.root.getAttribute("data-work-surface") !== plugin) {
+      const query = url.searchParams;
+      const input = { ...(query.has("artifact_id") ? { reference: { artifact_id: query.get("artifact_id"), version: Number(query.get("version")) } } : {}),
+        ...(query.has("change_index") ? { change_index: Number(query.get("change_index")) } : {}) };
+      return molisWorkRequest(route("/api/host/plugin-page-actions"), { body: { reference: { capability_id: plugin + ".state", version: 1 }, input }, signal });
+    }
+    return molisWorkRequest(route(`/api/plugins/io.molis.work.${plugin}${path}`),
+      { method, body: method === "GET" ? undefined : body ?? {}, signal, fallback: host.translate("无法读取文件工作区") });
+  };
   const codingRoot = host.root.matches("[data-coding-workbench]") ? host.root as HTMLElement : null;
   const openCompanionResult = (name: string) => {
     if (codingRoot) { codingRoot.dataset.codingDetail = "true"; codingRoot.dataset.codingResults = "true"; }

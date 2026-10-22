@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import assert from "node:assert/strict";
 import { chmod, mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -236,22 +237,22 @@ fi
     // Editing is followed immediately by a genuine copy gesture; the native callback reads the saved copy.
     await evaluate(`(() => { const editor=document.querySelector('[data-shelf-editor]'); editor.value += ${JSON.stringify(suffix)};
       editor.dispatchEvent(new Event('input',{bubbles:true})); })()`);
-    await click('[data-shelf-copy-file]');
+    await click(`${row(first.item_id)} [data-shelf-row-action="copy"]`);
     await browser.waitFor("window.parityNativeCalls.length === 1");
     const single = await browser.evaluate<{ payload: { paths: string[] }; saved: string }>("window.parityNativeCalls[0]");
-    assert.deepEqual(single.payload.paths, [join(shelf.root, first.relative_path)]);
+    assert.deepEqual(single.payload.paths, [realpathSync(join(shelf.root, first.relative_path))]);
     assert.equal(single.saved, markdown + "\n已修改且保留全文。" + suffix);
     assert.equal(shelf.readFile(first.item_id).bytes.toString("utf8"), single.saved);
     await click("[data-shelf-edit]");
     await waitFor("!document.querySelector('[data-shelf-editor]')");
     await evaluate(`document.querySelector(${JSON.stringify(row(second.item_id))}).dispatchEvent(new MouseEvent('click',{bubbles:true,ctrlKey:true}))`);
     await waitFor("document.querySelectorAll('[data-shelf-list=materials] [data-shelf-item].is-on').length === 2");
-    await click("[data-shelf-search]");
+    await click("[data-shelf-chrome-tag]");
     await command("Input.dispatchKeyEvent", { type: "keyDown", code: "KeyC", key: "c", modifiers: 4 }, sessionId);
     await command("Input.dispatchKeyEvent", { type: "keyUp", code: "KeyC", key: "c", modifiers: 4 }, sessionId);
     await browser.waitFor("window.parityNativeCalls.length === 2");
     const multi = await browser.evaluate<string[]>("window.parityNativeCalls[1].payload.paths");
-    assert.deepEqual([...multi].sort(), [join(shelf.root, first.relative_path), join(shelf.root, second.relative_path)].sort());
+    assert.deepEqual([...multi].sort(), [realpathSync(join(shelf.root, first.relative_path)), realpathSync(join(shelf.root, second.relative_path))].sort());
   });
 
   await t.test("wheel send reopens a dead terminal while its pane remains open (client contract)", async () => {
@@ -265,10 +266,10 @@ fi
       await evaluate(`window.dispatchEvent(new CustomEvent('molis-shelf-send-tui',{detail:{item_ids:[${JSON.stringify(first.item_id)}],text:${JSON.stringify(text)}}}))`);
       await waitFor(`window.parityTerminalCalls.filter(call=>call.kind==='send').some(call=>call.text===${JSON.stringify(text)})`);
     }
-    const calls = await evaluate<Array<{ kind: string; options?: { command: string }; text?: string }>>("window.parityTerminalCalls");
+    const calls = await evaluate<Array<{ kind: string; options?: unknown; text?: string }>>("window.parityTerminalCalls");
     assert.deepEqual(calls.map(call => call.kind), ["open", "send", "open", "send"]);
-    assert.equal(calls[0].options?.command, join(bin, "claude"));
-    assert.equal(calls[2].options?.command, join(bin, "claude"));
+    assert.equal(calls[0].options, undefined, "the page cannot choose a native executable; the Host opens its bound terminal");
+    assert.equal(calls[2].options, undefined);
     assert.equal(calls[3].text, "退出后第二轮 https://example.com/中文");
   });
 

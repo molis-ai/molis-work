@@ -3,6 +3,7 @@ import type { FrameScope } from "./types.js";
 
 type Report = "focus" | "landing" | "tools";
 export type ContextUp = { type: "context-report"; report: Report; value: unknown }
+  | { type: "context-unreadable"; itemId: unknown }
   | { type: "context-taken"; choice: string; taken: boolean }
   | { type: "context-call"; choice: string; id: number; operation: "prepare" | "run" };
 export type ContextDown = { type: "context-choice"; choice: string; value: Omit<ContextActionChosen, "prepare" | "run" | "handled">; runnable: boolean }
@@ -48,6 +49,11 @@ export function frameContext(port: MessagePort, scope: FrameScope, root: HTMLEle
   scope.listen(window, "molis:placement-changed", event => send({ type: "context-placement", value: (event as CustomEvent).detail }));
   return async (message: ContextUp): Promise<void> => {
     if (!scope.alive) return;
+    if (message.type === "context-unreadable") {
+      if (typeof message.itemId === "string" && message.itemId.length > 0 && message.itemId.length <= 1000)
+        root.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: message.itemId } }));
+      return;
+    }
     if (message.type === "context-report") {
       const value = record(message.value);
       if (value) { value.plugin_id = pluginId; delete value.place; delete value.side_tab; delete value.pane_id; }

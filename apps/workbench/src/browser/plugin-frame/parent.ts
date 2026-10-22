@@ -10,6 +10,8 @@ import { copyFromPage } from "./clipboard.js";
 import { frameContext } from "./context.js";
 import { pageDrafts } from "./drafts.js";
 import { pageNavigation } from "./navigation.js";
+import { pageTodo } from "./todo.js";
+import { pagePresentation } from "./presentation.js";
 import { pageFilePicker } from "./file-picker.js";
 import type { FrameConfig, FrameHost, FramePack, FrameUp } from "./types.js";
 
@@ -57,6 +59,9 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const contextMessage = frameContext(port, scope, root, frame, pack.plugin_id, grant.page_id);
   const drafts = pageDrafts(port, scope, storagePrefix), navigation = pageNavigation(scope, port, Boolean(host.side));
   const receiveMessage = pageMessages(port, scope, pack.plugin_id, Boolean(host.side));
+  const makeTodo = pageTodo(port, scope, frame, grant.page_id, route);
+  const presentation = pagePresentation(scope, frame, root, pack, grant.page_id);
+  let childExpanded: string | null = null;
   let readyResolve!: () => void, readyReject!: (error: Error) => void;
   const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
   const deadline = setTimeout(() => readyReject(new Error(host.translate("无法加载界面，请重试"))), 10000);
@@ -75,9 +80,12 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (!scope.alive || !message || typeof message.type !== "string") return;
     if (message.type === "fetch" || message.type === "abort" || message.type === "pull") { void requests(message); return; }
     if (message.type === "draft") { void drafts(message); return; }
+    if (message.type === "make-todo") { void makeTodo(message); return; }
+    if (message.type === "presentation") { presentation(message); return; }
+    if (message.type === "interaction") { if (scope.visible) window.dispatchEvent(new CustomEvent("molis:surface-interaction")); return; }
     if (message.type === "shortcut" || message.type === "close-side") { navigation.receive(message); return; }
     if (message.type === "terminal") { void terminal(message); return; }
-    if (message.type === "context-report" || message.type === "context-taken" || message.type === "context-call") { void contextMessage(message); return; }
+    if (message.type === "context-report" || message.type === "context-taken" || message.type === "context-call" || message.type === "context-unreadable") { void contextMessage(message); return; }
     if (message.type === "native-files") { void handoffPageFiles(port, scope, grant.page_id, route, message); return; }
     if (message.type === "native-file-pick") { void pickFile(message); return; }
     if (message.type === "refresh-shell") { location.reload(); return; }
@@ -101,7 +109,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
         if (typeof message.value === "string" && message.value.length < 32000) {
           const value = JSON.parse(message.value) as Record<string, unknown>; value.plugin_id = pack.plugin_id; root.setAttribute("data-assistant-context", JSON.stringify(value));
         } else root.removeAttribute("data-assistant-context");
-        if (message.expanded === "true" || message.expanded === "false") root.setAttribute("data-expanded", message.expanded);
+        if (message.expanded === "true" || message.expanded === "false") { childExpanded = message.expanded; root.setAttribute("data-expanded", message.expanded); }
       } else if (message.type === "storage" && ["localStorage", "sessionStorage"].includes(message.area) && typeof message.key === "string" && message.key.length < 512) {
         if (message.value === null) window[message.area].removeItem(storagePrefix + message.key);
         else if (typeof message.value === "string" && message.value.length <= 1024 * 1024) window[message.area].setItem(storagePrefix + message.key, message.value);
@@ -110,14 +118,15 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   };
   scope.listen(root, "molis-work:select-item", event => { port.postMessage({ type: "select", detail: (event as CustomEvent).detail }); });
   scope.observe(new MutationObserver(() => {
-    if (root.dataset.expanded === "false") port.postMessage({ type: "collapse" });
+    if (root.dataset.expanded === "false" && childExpanded !== "false") port.postMessage({ type: "collapse" });
   }), root, { attributes: true, attributeFilter: ["data-expanded"] });
   scope.listen(document, "molis-work:model-ready", () => port.postMessage({ type: "model-ready" }));
   let loaded = false;
   frame.onload = () => {
     if (loaded) { fail(new Error("Plugin page navigated")); scope.dispose(); return; }
     loaded = true;
-    const config: FrameConfig = { origin: location.origin, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow,
+    const config: FrameConfig = { todoAvailable: navigation.todoAvailable(), origin: location.origin, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow,
+      stage: { title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)), description: getComputedStyle(root).getPropertyValue("--stage-desc") },
       nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts,
       projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,
       messages: globalThis.MOLIS_WORK_MESSAGES ?? {}, titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage };

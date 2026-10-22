@@ -398,6 +398,13 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "SurfaceFocus | null (services/contextual); SURFACE_FOCUS_EVENT";
     readonly summary: "A surface tells the context row what the person has in hand on it, or that it is nothing now. Raised from the surface's own root and bubbling to the row's listener on document; opaque pages report bounded data through their bound port, with identity and screen coordinates supplied by the shell; the row raises it itself, from the person's text selection, for a surface that only declares its object in data-assistant-context.";
 }, {
+    readonly name: "molis:surface-interaction";
+    readonly kind: "announcement";
+    readonly owner: "placement";
+    readonly on: "window";
+    readonly detail: "none";
+    readonly summary: "Input or a pointer press in a visible isolated surface dismisses informational placement cards; it grants no action authority.";
+}, {
     readonly name: "molis:surface-landing";
     readonly kind: "request";
     readonly owner: "context-actions";
@@ -465,7 +472,7 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "The toolbar next to what the person has in hand, in the document that owns it: the tools a plugin offered for the open context, and the small form under it.";
     };
     readonly placement: {
-        readonly files: readonly ["apps/workbench/src/scripts/client/placement.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"];
+        readonly files: readonly ["apps/workbench/src/scripts/client/placement.ts", "apps/workbench/src/scripts/client/pane-messages.ts", "apps/workbench/src/browser/plugin-frame/parent.ts", "apps/workbench/src/browser/plugin-frame/presentation.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"];
         readonly state: "Where the objects on the page live (project, personal, Home) and the shared dialogs that use, move, copy or convert them.";
     };
     readonly "tab-workspace": {

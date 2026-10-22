@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { defineAction, definePlugin } from '@molis-ai/molis-work-plugin-sdk';
 import { PluginRuntime, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import { bindActionClient } from '@molis-ai/molis-work-contracts/platform/actions';
@@ -13,6 +14,7 @@ import { createLocalFeedApplication, createLocalFeedSourceService, openHostShelf
 test('real browser creates a Feed → Shelf action workflow, maps fields, and writes the original material', { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, 'seeded', undefined, null);
   if (!b) return;
+  const shelfChild = await pluginFrameBrowser(t,b,"shelf",'[data-side-body="plugin:shelf/side"] iframe');
   const source = createLocalFeedSourceService(b.store.db, b.projectId!).register({
     kind: 'research_library', repository: 'molis-ai/research-library', research_source: 'workflow-review',
   }).source;
@@ -20,11 +22,13 @@ test('real browser creates a Feed → Shelf action workflow, maps fields, and wr
   const item = feed.ingestItem({ source, externalId: 'workflow-review', title: '端到端工作流验证', summary: '用真实字段映射保存',
     body: '这是端到端字段映射的原始正文。', occurredAt: new Date().toISOString(), attention: false }).item;
   await feed.flushPendingJudgments();
-  const { command, sessionId, click, waitFor, evaluate } = b;
+  const child = await pluginFrameBrowser(t,b,"workflows");
+  const { command, sessionId } = b;
+  const { click, waitFor, evaluate } = child;
   await command('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
   await b.navigate(() => command('Page.navigate', { url: `${b.origin}/projects/${b.projectId}/` }, sessionId));
-  await click('[data-plugin-strip] [data-plugin-id=workflows]');
+  await b.click('[data-plugin-strip] [data-plugin-id=workflows]');
   await waitFor("document.querySelector('[data-wf-action=new]')");
   await click('[data-wf-action=new]');
   await waitFor("document.querySelector('[data-wf-title]')");
@@ -83,16 +87,17 @@ test('real browser creates a Feed → Shelf action workflow, maps fields, and wr
   await command('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => click('[data-wf-result-link]'));
   // The result's link opens Shelf where its declarations put it: its side tab, on the item (W2'-2, specs/context-program §21.6).
-  const shelfView = `document.querySelector('[data-side-body="plugin:shelf/side"] iframe')?.contentDocument`;
-  await waitFor(`${shelfView}?.querySelector('[data-shelf-item="${saved[0]!.item_id}"]')?.getAttribute('aria-selected') === 'true'`, 15_000);
-  await waitFor(`${shelfView}?.querySelector('[data-shelf-preview]')?.innerText.includes('这是端到端字段映射的原始正文')`, 15_000);
+  await shelfChild.waitFor(`document.querySelector('[data-shelf-item="${saved[0]!.item_id}"]')?.getAttribute('aria-selected') === 'true'`, 15_000);
+  await shelfChild.waitFor(`document.querySelector('[data-shelf-preview]')?.innerText.includes('这是端到端字段映射的原始正文')`, 15_000);
 
 });
 
 test('unknown plugin long results survive a late navigation response and render as safe text on a narrow screen', { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, 'seeded', undefined, null);
   if (!b) return;
-  const { command, sessionId, click, waitFor, evaluate } = b;
+  const child = await pluginFrameBrowser(t,b,"workflows");
+  const { command, sessionId } = b;
+  const { click, waitFor, evaluate } = child;
   const source = createLocalFeedSourceService(b.store.db, b.projectId!).register({
     kind: 'research_library', repository: 'molis-ai/research-library', research_source: 'long-result',
   }).source;
@@ -133,7 +138,7 @@ test('unknown plugin long results survive a late navigation response and render 
     const { instance } = await actions.invoke(w.start, { id: workflow.workflow_id, item_id: item.item_id });
     await actions.invoke(w.continue, { id: instance.instance_id });
     await b.navigate(() => command('Page.navigate', { url: `${b.origin}/projects/${b.projectId}/` }, sessionId));
-    await click('[data-plugin-strip] [data-plugin-id=workflows]');
+    await b.click('[data-plugin-strip] [data-plugin-id=workflows]');
     await waitFor(`document.querySelector('[data-workflows=workbench]')?.dataset.wfMode === 'list' && document.querySelector('[data-wf-open="${workflow.workflow_id}"]')?.getClientRects().length > 0`);
     const prior = (await actions.invoke(w.list, {})).workflows.find(row => row.workflow_id !== workflow.workflow_id)!;
     const readingOld = Promise.withResolvers<void>(), releaseOld = Promise.withResolvers<void>();

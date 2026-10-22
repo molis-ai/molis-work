@@ -166,7 +166,7 @@ dataset.subject.read	1	io.molis.work.dataset	io.molis.work.dataset	query	query	p
 dataset.update	1	io.molis.work.dataset	io.molis.work.dataset	command	operation	project	write	-	agent,mcp,user,workflow	dataset:read,dataset:write	dataset	-	-	4a73d891604b	549d4f550fc5	-
 dataset.versions	1	io.molis.work.dataset	io.molis.work.dataset	query	query	project	read	-	agent,mcp,user,workflow	dataset:read	dataset	-	-	61f64d4ce922	05bc8d9380e8	-
 diff.compare	1	io.molis.work.diff	io.molis.work.diff	query	query	project	read	-	agent,mcp,user,workflow	-	artifact,text	-	-	bcf1467811c5	81d0505be13b	-
-diff.state	1	io.molis.work.diff	io.molis.work.diff	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	artifact,text	-	-	fe843abae262	74160b22d155	-
+diff.state	1	io.molis.work.diff	io.molis.work.diff	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read	artifact,text	-	-	fe843abae262	74160b22d155	-
 feed.artifacts.preview	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	concurrent	user,workflow	feed:read	artifact	molis.artifacts.preview.request.v1	molis.artifacts.preview.v1	b5dd5a809ad7	3197f1792222	5e0374458cf9
 feed.connection.usages	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	-	agent,mcp,user	feed:read	connector	molis.connector-usages.input.v1	molis.connector-usages.output.v1	a343ab264882	6bcb6c85f884	-
 feed.connections.status	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	-	user	feed:read	feed_item	-	-	99334726611c	d8bdd2fb0eb4	-
@@ -566,7 +566,7 @@ shelf.snapshot	1	io.molis.work.shelf	io.molis.work.shelf	query	query	home	read	c
 shelf.subject.read	1	io.molis.work.shelf	io.molis.work.shelf	query	query	home	read	concurrent	agent,mcp,user,workflow	shelf:read	shelf_item	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	1b694155359d	-
 shelf.terminal.open	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	home	write	concurrent	user	shelf:read,terminal:run	shelf_item	-	-	d746974fa9af	88ae25111209	-
 text-stats.count	1	io.molis.work.text-stats	io.molis.work.text-stats	query	query	project	read	-	agent,mcp,user,workflow	-	artifact,text	-	-	6b295244c544	72c58850fea5	-
-text-stats.state	1	io.molis.work.text-stats	io.molis.work.text-stats	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	artifact,text	-	-	d746974fa9af	0c27df0b49a9	-
+text-stats.state	1	io.molis.work.text-stats	io.molis.work.text-stats	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read	artifact,text	-	-	d746974fa9af	0c27df0b49a9	-
 todo.batch.subject.read	1	io.molis.work.todo	io.molis.work.todo	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	todo:read	todo_batch	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	1b694155359d	-
 todo.changes.revert	1	io.molis.work.todo	io.molis.work.todo	command	operation	home	write	-	agent,mcp,user,workflow	todo:read,todo:write	todo_item	-	-	73cdd3c55c5c	1894a4839274	-
 todo.fragment.offers	1	io.molis.work.todo	io.molis.work.todo	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	todo:read	molis.any-object	molis.fragment-offers.input.v1	molis.fragment-offers.output.v1	0dbe645dfc7a	1e3af5170ce2	-

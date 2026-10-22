@@ -2,7 +2,7 @@ import { PLUGIN_MANAGEMENT_OPERATIONS } from "./plugin-route-operations.js";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, isSubjectReader } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
@@ -66,7 +66,7 @@ export class PluginPageAuthority {
     const id = randomUUID();
     this.pages.set(id, { activation, project_id: projectId, requests: new Set(), expiresAt: Date.now() + 30 * 60_000,
       match: activation.install_id ? pluginRouteMatcher(activation.manifest) : () => null, assertScope });
-    return { page_id: id, storage_scope: `${activation.install_id ?? activation.manifest.plugin_id}:${projectId ?? "home"}` };
+    return { page_id: id, storage_scope: `${activation.install_id ?? activation.manifest.plugin_id}:${activation.project_id ?? "home"}` };
   }
 
   close(id: string): void {
@@ -111,12 +111,14 @@ export class PluginPageAuthority {
     const action = Boolean(page.activation.invoke) && request.method === "POST" && pathname === "/api/host/plugin-page-actions";
     const files = request.method === "POST" && pathname === "/api/host/plugin-page-files" && page.activation.resolveFiles;
     const checkOnly = request.method === "POST" && pathname === "/api/host/plugin-page-check";
+    const objectRead = Boolean(page.activation.install_id) && (request.method === "POST" && pathname === "/api/placement/describe"
+      || request.method === "GET" && pathname === "/api/assistant/related");
     const registered = page.activation.requestAllowed?.(request.method ?? "GET", pathname);
     // Only the trusted toolbar adds this header to a bound callback. The child fetch bridge drops it, and a page's
     // ordinary header never opens these owner actions. Both paths retain the page's cancellation and activation.
     const contextChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
-      && request.method === "POST" && ["/api/contextual/prepare", "/api/contextual/attach"].includes(pathname);
-    if (contextual !== undefined ? !contextChoice : !route && !directory && !revision && !action && !files && !checkOnly && !registered) throw refused();
+      && request.method === "POST" && ["/api/contextual/prepare", "/api/contextual/attach", "/api/placement/convert", "/api/plugins/io.molis.work.todo/items"].includes(pathname);
+    if (contextual !== undefined ? !contextChoice : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
     const permission = directory ? "directory:read" : route?.permission ?? undefined;
     const controller = new AbortController();
     const check = () => {
@@ -138,6 +140,15 @@ export function pluginPageRequest(request: IncomingMessage) {
   authority.check();
   return { plugin_id: authority.page.activation.manifest.plugin_id, project_id: authority.page.project_id,
     signal: authority.signal, assertCurrent: authority.check,
+    ownedObject(object: {kind: string; id: string; project_id?: string | null}) {
+      authority.check();
+      if (!object || typeof object.kind !== "string" || typeof object.id !== "string" || !object.id || object.id.length > 256
+        || object.project_id !== undefined && object.project_id !== authority.page.project_id) throw refused();
+      const reader = authority.page.activation.manifest.actions?.find(definition => isSubjectReader(definition.action) && definition.action.subject_kinds.includes(object.kind));
+      if (!reader) throw refused();
+      for (const permission of reader.action.permissions) authority.page.activation.assertCurrent(permission);
+      return {kind: object.kind, id: object.id, project_id: authority.page.project_id};
+    },
     invoke(request: PageActionRequest) { if (!authority.page.activation.invoke) throw refused(); return authority.page.activation.invoke(request); },
     async resolveFiles(paths: readonly string[]) {
       await authority.page.assertScope?.(); authority.check();

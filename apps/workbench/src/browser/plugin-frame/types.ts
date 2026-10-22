@@ -1,5 +1,6 @@
 import type { UiRequest, UiRequestScope, UiPageMessage, UiPageTerminal, UiTerminalCommand, UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ContextUp, ContextDown } from "./context.js";
+import type { PresentationMessage } from "./presentation.js";
 
 export type Translate = (key: string, values?: Record<string, string | number>) => string;
 export interface FrameScope extends UiRequestScope {
@@ -34,7 +35,8 @@ export interface FramePack { id: string; plugin_id: string; bundle: string; asse
   authorization?: { page_id: string; storage_scope: string } }
 export interface FrameConfig {
   searchRow?: FramePack["searchRow"];
-  nativeFiles: boolean;
+  nativeFiles: boolean; todoAvailable: boolean;
+  stage: { title: string; description: string };
   shortcuts: string[];
   origin: string; bundle: string; assets: string[]; projectId: string; projectTitle: string; routePrefix: string; side: boolean; page: unknown;
   messages: Record<string, string>; titles: Record<string, string>; storage: Record<"localStorage" | "sessionStorage", Record<string, string>>;
@@ -45,8 +47,9 @@ export interface FrameFetch {
 export type FrameRequest = FrameFetch | { type: "abort" | "pull"; id: number };
 export type FrameAnswer = { type: "response"; id: number; status: number; statusText: string; headers: [string, string][] }
   | { type: "chunk"; id: number; bytes: ArrayBuffer } | { type: "end"; id: number } | { type: "fetch-error"; id: number; message: string };
-export type FrameUp = FrameRequest | ContextUp | { type: "ready" } | { type: "failed"; message: string }
-  | { type: "read-document"; id: number } | { type: "refresh-shell" }
+export type FrameUp = FrameRequest | ContextUp | PresentationMessage | { type: "ready" } | { type: "failed"; message: string }
+  | { type: "interaction" } | { type: "read-document"; id: number } | { type: "refresh-shell" }
+  | { type: "make-todo"; id: number; input: {title: string; sources: Array<{kind: string; title: string; excerpt: string; reason: string; subject: {kind: string; id: string}; open: {surface: string; id: string}}> } }
   | { type: "copy"; id: number; text: string }
   | { type: "draft"; id: number; key: string; value?: string | null }
   | { type: "shortcut"; keys: string } | { type: "close-side" }
@@ -61,6 +64,7 @@ export type FrameUp = FrameRequest | ContextUp | { type: "ready" } | { type: "fa
 export type FrameDown =
   | { type: "focus" } | FrameAnswer | ContextDown | { type: "state"; visible: boolean; theme: Record<string, string> }
   | { type: "document"; id: number; html?: string; error?: string }
+  | { type: "todo-made"; id: number; item?: {id: string; title: string}; replayed?: boolean; error?: string }
   | { type: "copied"; id: number; error?: string }
   | { type: "draft-result"; id: number; value?: string | null; error?: string }
   | { type: "native-files-done"; id: number; error?: string }

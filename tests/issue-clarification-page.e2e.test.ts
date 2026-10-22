@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
 import { issueView } from "./fixtures/issue-browser.js";
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
-async function capture(b: Browser, description: string) {
+async function capture(t: TestContext, b: Browser, description: string) {
   const v = await issueView(t, b);
   await v.viewport(1280); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
   await v.press("[data-issue-composer] [name=description]"); await v.type(description); await v.until("!$('[data-issue-submit]').disabled"); await v.send();
@@ -17,7 +17,7 @@ test("ISSUE-34 ISSUE-37 ISSUE-50 a question keeps the words and pictures and sav
   const b = await openGoalBrowser(t, "empty"); if (!b) return;
   const behavior: Parameters<typeof issueModel>[2] = { question: "free-text" };
   const { namings } = await issueModel(t, b.homeDirectory, behavior);
-  const v = await capture(b, "111");
+  const v = await capture(t, b, "111");
   await v.until("$('[data-state=attention]')?.textContent.includes('需要补充：')", 20_000);
   assert.equal(namings.length, 1, "one bounded call, then the question is the person's");
   assert.equal((await v.list()).items.length, 0);
@@ -44,7 +44,7 @@ test("ISSUE-37 ISSUE-50 an answer Issue cannot use, or one that is not JSON, wri
   const b = await openGoalBrowser(t, "empty"); if (!b) return;
   const behavior: Parameters<typeof issueModel>[2] = { unusable: true };
   await issueModel(t, b.homeDirectory, behavior);
-  const v = await capture(b, "点保存没反应");
+  const v = await capture(t, b, "点保存没反应");
   await v.until("$('[data-state=attention]')?.textContent.includes('模型没有给出可用的标题和类型')", 20_000);
   behavior.unusable = false; behavior.replyText = "保存按钮没反应";
   await v.press("[data-issue-composer] [name=description]"); await v.type("切换页面后输入丢失"); await v.send();
@@ -59,7 +59,7 @@ test("ISSUE-34 ISSUE-37 an unavailable model and an organizing timeout keep the 
   const b = await openGoalBrowser(t, "empty"); if (!b) return;
   const behavior: Parameters<typeof issueModel>[2] = { unavailable: true };
   await issueModel(t, b.homeDirectory, behavior);
-  const v = await capture(b, "点保存没反应");
+  const v = await capture(t, b, "点保存没反应");
   await v.until("$('[data-state=attention]')?.textContent.includes('模型暂时不可用')", 30_000);
   behavior.unavailable = false;
   let finish!: () => void; behavior.firstReply = new Promise<void>(resolve => { finish = resolve; }); t.after(() => finish());

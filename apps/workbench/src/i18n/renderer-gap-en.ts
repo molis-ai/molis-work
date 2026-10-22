@@ -1,5 +1,6 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  "请重新点击该操作": "Click this action again",
   "未上传文件时，预览导入会打开系统目录选择器。": "Without uploaded files, Preview import opens the system folder chooser.",
   "请求未能完成，请重试。": "The request could not be completed. Please try again.",
   "{name} 的后台工作（将停止）": "Background work for {name} (will stop)",

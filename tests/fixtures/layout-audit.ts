@@ -15,10 +15,13 @@ import assert from "node:assert/strict";
  * - silent-clip: a box that hides what does not fit without an ellipsis.
  * - overlap: two controls, text lines or icons of different elements whose boxes cross by more than 2 px each way.
  *
- * Boxes are taken as seen: cut by every ancestor that clips or scrolls, and by the window.
+ * Boxes are taken as seen: cut by every ancestor that clips or scrolls, by a bar stuck to the edge of the box they scroll
+ * in (what scrolls under a dialog's sticky footer comes out by scrolling), and by the window. A page that marks one element
+ * `data-audit-scope` (an open dialog, menu or popover) is audited inside it only; whether the window itself
+ * scrolls is still the window's.
  */
 export const LAYOUT_AUDIT = String.raw`(() => {
-  const root = document.documentElement;
+  const root = document.documentElement, scope = document.querySelector('[data-audit-scope]') || document.body;
   const vw = root.clientWidth, vh = root.clientHeight;
   const findings = [];
   const seen = new Set();
@@ -63,7 +66,16 @@ export const LAYOUT_AUDIT = String.raw`(() => {
     }
     return Math.max(0, right - left) * Math.max(0, bottom - top);
   };
-  // What can be seen of a box: cut by every ancestor that clips or scrolls, and by the window.
+  // A bar that sticks to an edge of the box it scrolls in (a dialog's footer, a list's header) is that box's edge: what
+  // scrolls under it comes out from under it by scrolling, as it does past the box's own edge.
+  const stickyBars = [...scope.querySelectorAll('*')].filter((bar) => getComputedStyle(bar).position === 'sticky' && shown(bar)).map((bar) => {
+    const style = getComputedStyle(bar);
+    let scroller = bar.parentElement;
+    while (scroller && scroller !== root && getComputedStyle(scroller).overflowY === 'visible') scroller = scroller.parentElement;
+    return { bar, scroller, edge: style.bottom !== 'auto' ? 'bottom' : style.top !== 'auto' ? 'top' : null };
+  }).filter((sticky) => sticky.edge && sticky.scroller);
+  // What can be seen of a box: cut by every ancestor that clips or scrolls, by a bar stuck to the edge of the box it
+  // scrolls in, and by the window.
   const seenRect = (el, base) => {
     const r = base || el.getBoundingClientRect();
     let L = r.left, T = r.top, R = r.right, B = r.bottom;
@@ -78,11 +90,17 @@ export const LAYOUT_AUDIT = String.raw`(() => {
       if (cx) { L = Math.max(L, pr.left); R = Math.min(R, pr.right); }
       if (cy) { T = Math.max(T, pr.top); B = Math.min(B, pr.bottom); }
     }
+    for (const { bar, scroller, edge } of stickyBars) {
+      if (bar === el || bar.contains(el) || el.contains(bar) || !scroller.contains(el)) continue;
+      const b = bar.getBoundingClientRect();
+      if (b.right <= L || b.left >= R || b.bottom <= T || b.top >= B) continue;
+      if (edge === 'bottom') B = Math.min(B, b.top); else T = Math.max(T, b.bottom);
+    }
     L = Math.max(L, 0); T = Math.max(T, 0); R = Math.min(R, vw); B = Math.min(B, vh);
     return { left: L, top: T, right: R, bottom: B, width: Math.max(0, R - L), height: Math.max(0, B - T) };
   };
 
-  const interactive = [...document.querySelectorAll('a[href], button, input:not([type=hidden]), select, textarea, summary, [role=option], [role=button], [role=tab], [tabindex]:not([tabindex="-1"])')]
+  const interactive = [...scope.querySelectorAll('a[href], button, input:not([type=hidden]), select, textarea, summary, [role=option], [role=button], [role=tab], [tabindex]:not([tabindex="-1"])')]
     // A control hidden by the screen-reader-only technique (a 1px box) is not on the screen; its label is the target.
     .filter((el) => shown(el) && !el.closest('[inert], [hidden], template') && !(el.getBoundingClientRect().width <= 2 && el.getBoundingClientRect().height <= 2));
 
@@ -105,7 +123,7 @@ export const LAYOUT_AUDIT = String.raw`(() => {
     if (small < 24 && !el.matches('input[type=checkbox], input[type=radio], a') && !el.closest('p, li, .mw-kbd')) add('tiny-target', el, null, { w: round(r.width), h: round(r.height) });
   }
 
-  for (const el of document.querySelectorAll('body *')) {
+  for (const el of scope.querySelectorAll('*')) {
     if (!shown(el)) continue;
     const s = getComputedStyle(el);
     // A 1px box is the screen-reader-only technique: the words are there for a screen reader, not cut from the screen.
@@ -128,7 +146,7 @@ export const LAYOUT_AUDIT = String.raw`(() => {
   };
   const decorative = (el) => el.closest('[aria-hidden="true"]') && getComputedStyle(el).pointerEvents === 'none';
   for (const el of interactive) if (!decorative(el)) push(el, el.getBoundingClientRect(), 'control');
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (!node.textContent.trim()) continue;
     const el = node.parentElement;
@@ -143,7 +161,7 @@ export const LAYOUT_AUDIT = String.raw`(() => {
       push(el, { left: rect.left + 1, right: rect.right - 1, top: rect.top + trim, bottom: rect.bottom - trim, width: rect.width - 2, height: rect.height - 2 * trim }, 'text');
     }
   }
-  for (const svg of document.querySelectorAll('svg')) {
+  for (const svg of scope.querySelectorAll('svg')) {
     if (!shown(svg) || svg.closest('template, [hidden], .icon-sprite') || decorative(svg)) continue;
     const r = svg.getBoundingClientRect();
     if (r.width >= 10 && r.height >= 10) push(svg, r, 'icon');

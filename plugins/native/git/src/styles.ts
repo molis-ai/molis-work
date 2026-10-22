@@ -14,7 +14,8 @@ export const GIT_STYLES = `
 .git-results [data-git-scope] { color:var(--ink-soft); }
 .git-results [data-git-diff] { margin-top:24px; }
 .git-results [data-git-notice]:empty { display:none; }
-.git-results[aria-busy=true] [data-git-diff] { opacity:.65; }
+.git-results[aria-busy=true] [data-git-diff] { animation:mw-busy-dim var(--dur-move) var(--ease-quint) var(--dur-move) both; }
+@media (prefers-reduced-motion:reduce) { .git-results[aria-busy=true] [data-git-diff] { animation-duration:0s; } }
 .git-sc { display:grid; gap:8px; margin:4px 0 12px; padding:12px; border:1px solid var(--line); border-radius:10px; min-width:0; }
 .git-sc-branch { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; min-width:0; font-size:13px; }
 .git-sc-branch strong { overflow-wrap:anywhere; }

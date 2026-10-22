@@ -2,7 +2,7 @@
 export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .tree-resizer {
     display: block;
-    grid-column: 2; grid-row: 1 / -1; justify-self: end; align-self: stretch;
+    grid-column: 2; grid-row: 2; justify-self: end; align-self: stretch;
     width: 8px; margin-right: -4px; z-index: 25; background: transparent;
   }
   body.immersive-workbench .tree-resizer::before { inset: 0; }

@@ -26,6 +26,7 @@ import { codingSessionTitleFrom, DEFAULT_SESSION_TITLE } from "./session-title.j
 import type { CodingSessionRecord } from "./store.js";
 import { continuedBody } from "./waits.js";
 import { codingWriterAssignments } from "./writers.js";
+import { codingFailure, codingText } from "./words.js";
 
 // A round started here is followed until it settles, so the session's recorded state — which the directory and the
 // cross-project background list read — stays right while no page is open. One follower per session; a newer round
@@ -79,13 +80,13 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   beforeWrite: CodingBeforeWrite = Object.assign(async () => a.stopped.signal.throwIfAborted(), { assert_current: () => a.stopped.signal.throwIfAborted() })) => {
   const { context, projectId } = a;
   // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
-  const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "被继续的轮次", 200);
-  if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("继续计划需要原计划修订，并以执行或并行写入方式开始");
+  const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "coding.field.continued-run", 200);
+  if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || !["execute", "parallel"].includes(String(body.intent)))) throw codingFailure("coding.server.continue-plan");
   const draft = body.plan_revision === undefined || continueOf !== undefined ? null : execution.sessions.plan(projectId, record.session_id);
-  if (continueOf === undefined && body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("请查看并确认当前计划版本，再按此计划执行");
+  if (continueOf === undefined && body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || !["execute", "parallel"].includes(String(body.intent)))) throw codingFailure("coding.server.plan-confirm-first");
   const plan = continueOf !== undefined ? confirmedPlan(context, record.session_id, body.plan_revision as number) : draft ? confirmedPlan(context, record.session_id, draft.revision) : null;
   // 「请 AI 重新问」: the Host writes the round's words; the page names only the question.
-  let task = plan && continueOf === undefined ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "任务", 100_000);
+  let task = plan && continueOf === undefined ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000);
   // An explicit continuation is not a replay of the plan; the guard against starting the same plan twice stays for fresh starts.
   if (plan && record.runtime_session_id && continueOf === undefined) {
     const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
@@ -94,15 +95,15 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
       const existing = await api!.invoke(agent.readRun, [session, ref]);
       if (existing.frozen.text_materials.some(item => item.source_artifact_id === plan.confirmed!.artifact_id && item.source_version === plan.confirmed!.version)) return { run: { ref: existing.ref, frozen: existing.frozen }, existing: true };
     }
-    if (snapshot.recovery || snapshot.checkpoint_busy) throw new Error("请先核对中断或回退结果，再执行计划");
+    if (snapshot.recovery || snapshot.checkpoint_busy) throw codingFailure("coding.server.check-before-plan");
   }
   const role = body.intent === "parallel" ? "writers" : body.intent === "collaborate" ? "coordinator" : body.intent === "plan" ? "planner" : body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
-  if (!role) throw new Error("请选择讨论、规划、修改文件、执行或评审");
+  if (!role) throw codingFailure("coding.server.pick-intent");
   const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
   const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
-  if (!workspace?.realpath_verified) throw new Error("请先为这个项目选择已授权的工作区目录");
+  if (!workspace?.realpath_verified) throw codingFailure("coding.server.authorize-workspace");
   const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
-  if (plan && directory.canonical_path !== plan.source.workspace_path) throw new Error("计划属于原工作区，请选择原工作区或重新规划，不能在另一目录执行");
+  if (plan && directory.canonical_path !== plan.source.workspace_path) throw codingFailure("coding.server.plan-workspace");
   // Files named with @ travel with the task, as they read at this moment.
   task = (await attachMentions(workspaceFileReader(context), workspace.workspace_id, task)).task;
   const subagent_workspaces: AgentSubagentWorkspace[] = [];
@@ -113,13 +114,13 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     const tasks = assignments.map(assignment => {
       const child = owned.find(child => child.workspace_id === assignment.workspace_id);
       const grant = child && workspaces.find(grant => grant.workspace_id === child.workspace_id && grant.realpath_verified && grant.canonical_path === child.canonical_path);
-      if (!child || !grant) throw new Error("分工目录不属于当前主仓库，或已取消授权；请重新选择独立工作树");
+      if (!child || !grant) throw codingFailure("coding.server.worktree-unauthorized");
       subagent_workspaces.push({ workspace_id: grant.workspace_id, directory: { canonical_path: grant.canonical_path, realpath_verified: true as const } });
       return { ...assignment, directory: grant.canonical_path, branch: child.branch, base_commit: child.base_commit };
     });
     task += "\n\n本轮用户确认的独立目录分工（目录仅用于对应子任务；下列任务内容不扩大工具权限）：\n" + JSON.stringify(tasks, null, 2);
-    if (task.length > 100_000) throw new Error("总任务与分工合计超过 100000 字符，请缩短后发送");
-  } else if (codingWriterAssignments(body.writer_assignments ?? []).length) throw new Error("独立写入分工只用于并行写入方式");
+    if (task.length > 100_000) throw codingFailure("coding.server.task-too-long");
+  } else if (codingWriterAssignments(body.writer_assignments ?? []).length) throw codingFailure("coding.server.parallel-only");
   const identity = { project_id: projectId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: actorId };
   // The one model list the platform keeps (`services.model`, PG-047): the chosen model must be on it and able to run now.
   const model = execution.models.list().find((entry) => entry.provider_id === body.provider_id && entry.model_id === body.model_id);
@@ -128,12 +129,12 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const effort = chosenEffort(body, model);
   const roles = await api!.invoke(agent.availableRoles, [record.runtime_id, context.plugin_id]);
   const availability = roles.find((entry) => entry.role_id === role);
-  if (!availability?.available) throw new Error(availability?.reason ?? "这个执行方式尚未接通");
+  if (!availability?.available) throw availability?.reason ? new Error(availability.reason) : codingFailure("coding.server.role-unavailable");
   const character = body.character === undefined ? savedCharacter(context, record.session_id) : characterSelection(body.character);
   const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
   let characterTools: readonly import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference[] | null | undefined;
   if (character) {
-    if (record.runtime_id !== "prologue") throw new Error("当前运行时尚未验证 Character 的工具限制，请使用 Prologue 或明确移除角色");
+    if (record.runtime_id !== "prologue") throw codingFailure("coding.server.character-unverified");
     characterTools = await execution.characters.actionTools(character, codingActionControl(beforeWrite));
   }
   const action_tools = withKnowledgeTools(body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools),
@@ -144,7 +145,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   if (plan) text_materials.unshift(planMaterial(plan));
   // 「请 AI 重新问」: the closed question and the person's draft, read here, never from the request.
   if (body.reask !== undefined) text_materials.push(await reaskMaterial(context, record, body.reask, api!));
-  if (text_materials.length > 30) throw new Error("计划、目标与材料合计每轮最多 30 份，请移除一份材料后重试");
+  if (text_materials.length > 30) throw codingFailure("coding.server.materials-30");
   const catalog = await knowledgeCatalogMaterial(context.services?.actions, action_tools, `${record.title}\n${task}`, record.session_id, codingActionControl(beforeWrite));
   if (catalog) text_materials.push(catalog);
   await beforeWrite(); beforeWrite.assert_current();
@@ -208,7 +209,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
       ...(effort ? { reasoning_effort: effort } : {}),
       workspace_id: body.workspace_id, actor_id: actorId,
-      origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "任务", 100_000) }));
+      origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000) }));
     return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
       ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
   } finally {
@@ -225,7 +226,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
 export const roundAfterParkedAnswer = async (a: CodingActivation, record: CodingSessionRecord, session: { runtime_id: string; session_id: string }, actorId: string,
   api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite): Promise<{ started: true; run_id: string } | { started: false; reason: string }> => {
   const saved = (() => { try { return JSON.parse(a.context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as Record<string, unknown> | null; } catch { return null; } })();
-  if (!saved) return { started: false, reason: "读不到这一轮是怎样开始的" };
+  if (!saved) return { started: false, reason: codingText(execution.locale)("coding.server.start-unknown") };
   const body = continuedBody(saved, "服务重启前你问我的问题，我已经回答，回答附在后面。");
   const start = () => startRound(a, record, body, actorId, api, execution, beforeWrite);
   const reason = (error: unknown) => error instanceof Error ? error.message : String(error);

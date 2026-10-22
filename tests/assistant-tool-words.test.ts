@@ -43,6 +43,7 @@ test("a successful desktop action reads as operating an app, and the same browse
     { type: "tool-result", callId: "act", name: "surface-act", outcome: "returned", text: "committed; 1 action(s) performed" },
   ]);
   assert.equal(browser.find(item => item.call_id === "act")?.verb, "browser-act");
-  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /"computer-act": "操作应用"/);
-  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /"browser-act": "操作网页"/);
+  // Each verb is written whole in its three forms (as said, under way, done; specs/visual-ui-experience slice 67).
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /"computer-act": \["操作应用", "正在操作应用", "已操作应用"\]/);
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /"browser-act": \["操作网页", "正在操作网页", "已操作网页"\]/);
 });

@@ -32,7 +32,7 @@ const formError=text=>{if(!life.alive)return;const el=$('form-error');el.hidden=
 const failed=e=>{if(life.visible&&e.name!=='AbortError')notice(e.message,true);};
 const active=status=>['queued','running'].includes(status);
 let data={directions:[],explorations:[],ideas:[]},pulse={reports:[]},decisions={cases:[],activities:[],log:[]},runtime={models:[],configured:false},rules={taste:[],playbook:[]};
-let view='directions',archived=false,focus=null,model=null,study=null,choice=null,ctx={kind:'surface',label:L('方向'),surface:'ideas'},target=null,quote=null,sideMode='',onSubmit=null,busy=false,returnFocus=null,seq=0,loadSeq=0,wanted=null,ready=false,pollId,detailId='',lastRow=null;
+let view='directions',archived=false,focus=null,model=null,study=null,choice=null,ctx={kind:'surface',label:L('方向'),surface:'ideas'},target=null,quote=null,sideMode='',onSubmit=null,busy=false,returnFocus=null,seq=0,loadSeq=0,wanted=null,ready=false,pollId,detailId='',lastRow=null,wantedQuiet=false;
 let shown='',canReuse=false,jobs=[];
 const setContext=()=>{const c={plugin_id:'io.molis.work.alchemist',surface_title:L('炼金术士')};
 if(ctx.kind==='direction'&&ctx.directionId)c.object={kind:'alchemist-direction',id:ctx.directionId,title:ctx.label||''};
@@ -90,8 +90,8 @@ const chat=event.target.matches('[data-alc-chat-form]'),annotation=event.target.
 function pickQuote(){if(!target)return;const s=window.getSelection();if(!s||!s.rangeCount)return;const range=s.getRangeAt(0),text=s.toString().trim();if(!text||text.length>2000||!mainEl.contains(range.commonAncestorContainer))return;const node=range.commonAncestorContainer.nodeType===1?range.commonAncestorContainer:range.commonAncestorContainer.parentElement;const block=node.closest('[data-alc-block]');if(block)quote={text,target:{...target,blockId:block.dataset.alcBlock}};}
 life.listen(mainEl,'mouseup',pickQuote);life.listen(mainEl,'keyup',pickQuote);
 life.listen($('search'),'input',renderList);
-life.listen(root,'molis-work:select-item',event=>{const id=event.detail?.itemId;if(!id){closeDetail();return;}wanted=id;void selectItem(id).catch(failed);});
-async function selectItem(id){const n=++seq;await load();if(n!==seq||!ready)return;const d=data.directions.find(d=>d.id===id),i=data.ideas.find(i=>i.id===id);if(wanted===id)wanted=null;if(!d&&!i)return;view=d?'directions':'ideas';archived=d?.status==='archived';$('search').value='';await open(d?{kind:'direction',id}:{kind:'idea',id,version:i.currentVersion,panel:'brief'});}
+life.listen(root,'molis-work:select-item',event=>{const id=event.detail?.itemId;if(!id){closeDetail();return;}wanted=id;wantedQuiet=Boolean(event.detail?.quiet);void selectItem(id).catch(failed);});
+async function selectItem(id){const n=++seq;await load();if(n!==seq||!ready)return;const d=data.directions.find(d=>d.id===id),i=data.ideas.find(i=>i.id===id);const quiet=wantedQuiet;if(wanted===id)wanted=null;if(!d&&!i){if(!quiet)notice(L('这一项已不存在或已删除'));return;}view=d?'directions':'ideas';archived=d?.status==='archived';$('search').value='';await open(d?{kind:'direction',id}:{kind:'idea',id,version:i.currentVersion,panel:'brief'});}
 const start=async()=>{if(ready||wanted){await refresh();return;}const n=seq;if(!await load()||n!==seq)return;try{const saved=JSON.parse(localStorage.getItem(stateKey)||'null');if(saved&&['directions','ideas','pulse','decisions'].includes(saved.collection)){view=saved.collection;renderList();if(saved.current)await open(saved.current,false);}}catch{closeDetail();}};
 life.whenVisible(signal=>{viewAbort=signal;void start().catch(failed);return()=>{seq++;loadSeq++;life.clearTimeout(pollId);};});
 return {refresh:()=>life.visible?refresh().catch(failed):Promise.resolve()};

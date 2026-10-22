@@ -92,7 +92,10 @@ test("VUX-40: with a real repository, Git's changes, branches, commit and confli
   await click("[data-companion=git] [data-git-path]");
   await waitFor("document.querySelector('[data-companion=git] [data-git-index-action]:not([hidden])')", 20_000);
   assert.deepEqual(await evaluate<string[]>(HAN_IN("[data-companion=git]")), [], "Git in English");
-  assert.equal(await evaluate("document.querySelector('[data-companion=git] [data-git-commit]').textContent"), "Commit 1 staged files…");
+  assert.equal(await evaluate("document.querySelector('[data-companion=git] [data-git-commit]').textContent"), "Commit 1 staged file…", "one staged file reads as one (VUX-40 counts)");
+  git("add", "todo.md");
+  await click("[data-companion=git] [data-git-refresh]");
+  await waitFor("document.querySelector('[data-companion=git] [data-git-commit]').textContent === 'Commit 2 staged files…'", 20_000);
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=files` }, sessionId));
   await waitFor("document.querySelectorAll('[data-companion=files] [data-file-path]').length >= 2", 30_000);

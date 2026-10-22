@@ -1,5 +1,5 @@
 {
-  "giantUnits": 124,
+  "giantUnits": 123,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
@@ -31,7 +31,7 @@
       "lines": 278,
       "methods": 41
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 272,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 255,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 167,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
@@ -183,8 +183,7 @@
       "lines": 343,
       "methods": 19
     },
-    "file plugins/native/coding/src/client.ts": 1590,
-    "file plugins/native/coding/src/styles.ts": 805,
+    "file plugins/native/coding/src/client.ts": 1581,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 209,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {

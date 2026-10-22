@@ -13,6 +13,9 @@ import { freshStart, type StreamTextOptions, type StreamTextResult } from "../st
  *   reduced motion show at once. At most a few pieces ease at a time; an older one is finished when a newer one comes, so
  *   nothing queues behind a fast reply. A finished piece goes back to plain text: no lasting spans.
  * - Without `reveal` (a restore, a redraw, the last update) every piece still easing is finished.
+ * - With `grow`, a block that changed and would be put in whole, its tag the same, is first offered to its owner, who may
+ *   bring the node on the page up to date itself when it only grew (a code block coloured from its last line); the block
+ *   then stays the same node. The owner judges what grew: a figure's caption may count lines while its code goes on.
  * - A container once written to with `reveal` is marked `data-streamed` for as long as it is shown: its text wraps line by
  *   line (append-stable), so a line already read never moves as the reply grows or when it ends (VUX-04).
  */
@@ -62,18 +65,22 @@ function reveal(container: HTMLElement, block: Node, from: number): number {
   return made;
 }
 
-function patch(container: HTMLElement, parent: Node, incoming: Node[], shown: boolean, result: StreamTextResult) {
+function patch(container: HTMLElement, parent: Node, incoming: Node[], shown: boolean, result: StreamTextResult, grow?: StreamTextOptions["grow"]) {
   const current = [...parent.childNodes];
   let same = 0;
   while (same < incoming.length && same < current.length && sources.get(current[same]!)?.html === sourceOf(incoming[same]!).html) same += 1;
   result.kept += same;
-  const old = current[same], next = incoming[same], was = old && sources.get(old);
+  const first = same, old = current[same], next = incoming[same], was = old && sources.get(old);
   const descend = old instanceof Element && next instanceof Element && !old.matches(WHOLE) && was?.shell != null && was.shell === sourceOf(next).shell;
   if (descend) {
     // Read before its children move over to the kept element.
     sources.set(old, sourceOf(next));
-    patch(container, old, [...next.childNodes], shown, result);
+    patch(container, old, [...next.childNodes], shown, result, grow);
     same += 1;
+  } else if (grow && old instanceof Element && next instanceof Element && old.tagName === next.tagName && was) {
+    // Read before the owner may move the children of `next` over.
+    const source = sourceOf(next);
+    if (grow(old, next)) { sources.set(old, source); result.grown += 1; same += 1; }
   }
   for (const node of current.slice(same)) node.remove();
   incoming.slice(same).forEach((node, offset) => {
@@ -82,20 +89,20 @@ function patch(container: HTMLElement, parent: Node, incoming: Node[], shown: bo
     result.replaced += 1;
     if (!shown) return;
     // The first node that differs grew if its text only went on; any later one is new from its first character.
-    const before = offset === 0 && !descend && was ? was.text : "";
+    const before = offset === 0 && same === first && was ? was.text : "";
     if (before && !node.textContent?.startsWith(before)) return;
     result.fresh += reveal(container, node, freshStart(node.textContent ?? "", before.length, segments));
   });
 }
 
-function molisStreamText(container: HTMLElement, html: string, { reveal: show = false }: StreamTextOptions = {}): StreamTextResult {
+function molisStreamText(container: HTMLElement, html: string, { reveal: show = false, grow }: StreamTextOptions = {}): StreamTextResult {
   if (show) container.dataset.streamed = "";
   const shown = show && !matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (!shown) { for (const piece of easing.get(container) ?? []) finish(piece); easing.delete(container); }
   const template = document.createElement("template");
   template.innerHTML = html;
-  const result = { kept: 0, replaced: 0, fresh: 0 };
-  patch(container, container, [...template.content.childNodes], shown, result);
+  const result = { kept: 0, replaced: 0, fresh: 0, grown: 0 };
+  patch(container, container, [...template.content.childNodes], shown, result, grow);
   return result;
 }
 

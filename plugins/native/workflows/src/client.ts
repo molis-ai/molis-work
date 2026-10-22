@@ -1317,11 +1317,11 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
 
   let started = false;
   let listReady = null;
-  let pickedItem;
+  let pickedItem, pickedQuiet = false;
   const selectFlow = async (id, rev) => {
     if (id) {
       try { await showFlow(id, { revision:rev }); }
-      catch (err) { if (rev === navId) toast(err.message, 'error'); }
+      catch (err) { if (rev === navId && !pickedQuiet) toast(err.status === 404 ? L('这条流程不存在或已删除') : err.message, 'error'); }
       return;
     }
     ui.workflow = null; ui.instance = null; ui.returnTo = null; remember(); setMode('list'); drawList();
@@ -1344,7 +1344,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   };
   new MutationObserver(start).observe(root, { attributes: true, attributeFilter: ['hidden'] });
   root.addEventListener('molis-work:select-item', async (ev) => {
-    const id = ev.detail?.itemId || null; pickedItem = id;
+    const id = ev.detail?.itemId || null; pickedItem = id; pickedQuiet = Boolean(ev.detail?.quiet);
     const rev = ++navId;
     if (!started) { await start(); return; }
     await listReady;

@@ -13,7 +13,7 @@ export const CODING_COMPANION_STYLES = `
 .companion-empty { height:100%; max-width:400px; margin:auto; padding:32px; align-content:center; }
 .companion-empty h2 { font-size:20px; font-weight:500; }
 .companion-empty p { font-size:13px; line-height:1.7; }
-.companion-result:has(>section:not([hidden])) > .companion-empty { display:none; }
+.companion-result > .companion-empty:has(~ section:not([hidden])) { display:none; }
 .workspace-manager { height:100%; box-sizing:border-box; }
 .workspace-manager { margin:0; }
 .workspace-manager .mw-frame__panel > * { max-width:640px; }

@@ -586,7 +586,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     filling = true;
     sel = record;
     bench.setAttribute("data-expanded", "true");
-    workspace.hidden = false;
+    workspace.hidden = false; delete workspace.dataset.missing;
     titleEl.textContent = record.title;
     statusEl.textContent = L("已保存"); statusEl.dataset.mwState = "saved";
     titleInput.value = record.title;
@@ -613,7 +613,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     sel = null; editorEpoch += 1;
     syncEditorChrome();
     bench.setAttribute("data-expanded", "false");
-    workspace.hidden = true;
+    workspace.hidden = true; delete workspace.dataset.missing;
     closeMore();
     closeCreate();
     closeMove();
@@ -705,7 +705,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       dirty = false;
       editRev += 1;
       showNote("", false);
-    })().catch((error) => { if (seq === selectionSeq) showNote(error.message || L("保存失败"), true); })
+    })().catch((error) => { if (seq !== selectionSeq) return; if (!sel && !event.detail?.quiet) { bench.setAttribute("data-expanded", "true"); workspace.hidden = false; workspace.dataset.missing = ""; titleEl.textContent = L("文档"); } showNote(error.message || L("保存失败"), true); })
       .finally(() => { if (seq === selectionSeq) openingId = null; });
   });
   /** Tell the workbench what just happened, so it can say where the result is and what comes next. */

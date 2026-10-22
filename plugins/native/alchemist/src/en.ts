@@ -303,4 +303,5 @@ export const ALCHEMIST_EN: Record<string, string> = {
   "例如：沿用访谈问题；价格和竞品变化重新核对。": "For example: reuse the interview questions; recheck pricing and competitor changes.",
   "检查所选内容的适用性": "Check whether the selected items apply",
   "保存固定版本": "Save fixed version",
+  "这一项已不存在或已删除": "This item no longer exists or was deleted",
 };

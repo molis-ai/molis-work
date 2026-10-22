@@ -66,7 +66,7 @@ test("ISSUE-54 model settings preserve three image states and Issue uses the sav
   await v.go(`/locale?lang=en&next=${encodeURIComponent(settings)}`); await b.waitFor(selected);
   assert.deepEqual(await b.evaluate(`Array.from(${selected}.options, option => option.textContent)`),
     ["Not declared", "Can read images", "Cannot read images"]);
-  assert.match(await b.evaluate<string>(`${selected}.closest('label').textContent`), /Image capability/);
+  assert.match(await b.evaluate<string>(`${selected}.closest('label').textContent`), /Image input/);
   await v.viewport(480); assert.equal(await b.evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
   await b.evaluate(`(async () => { ${selected}.closest('label').scrollIntoView({ block: 'center', behavior: 'instant' }); await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); return true; })()`);
   await v.shot("settings-unset-en");

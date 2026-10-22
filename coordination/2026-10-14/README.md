@@ -2620,3 +2620,12 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - ⑤ 把名单写进 `.claude/coord-shared/known-red-main.md`，以后每批全量跑完都更新。
   - ⑩ 逐个分类后修：断言过期的按预期变化改，产品回归的修产品，测试缺陷的修测试；环境与时序问题不调松阈值，要么改测法，要么开带 owner 的 BL（⑤ 的段）。
   - 完成的标准：名单清零，或者剩下的每一条都有 BL。评审优先，这件事穿插着做。
+- **10-23 ② 开 #1028**（`host.workspace.changed@1`），交 ⑤，进批。
+  - BL-379 等 ③ 的 Git、Files 订阅那片合入时再关。
+  - BL-366：Agent 改动也发、`cause` 加 `agent-change`，之后删掉 `readsFilesOutputs`。
+  - BL-367：stop 钩子超时。
+- **10-23 S0-2b-3 由 ② 主线自己做，按全范围（① 定）**：
+  - 共用的 `assertPluginActionCurrent` 和 `assertCapturedPluginActionCurrent` 一起改成同时比对 `installation_generation`，存储、库、文件、事件都在覆盖范围内。
+  - `PluginStartContext` 加字段，属于合同改动，跑 `api:update`。
+  - S-48 的条文改成覆盖全部服务；拒绝测试除了四个服务，再加至少两项。
+  - 卡 `task_8d9f1662` 立即撤掉，免得重复。

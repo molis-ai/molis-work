@@ -1049,7 +1049,7 @@ const CRAFT_BASE_STYLES = `
   @media (max-width: 1100px) {
     ${SHELL} .bar-composer { gap: 4px; }
     ${SHELL} .bar-composer .assistant-target { min-width: 56px; max-width: 96px; }
-    ${SHELL} .bar-composer .assistant-executor { max-width: 72px; }
+    ${SHELL} .bar-composer .assistant-executor { max-width: 72px; } ${SHELL} .bar-composer .assistant-mode-word { display: none; }
     ${SHELL} .bar-composer .assistant-composer-input { min-width: 96px; }
   }
   @media (max-width: 860px) and (min-width: 601px) {

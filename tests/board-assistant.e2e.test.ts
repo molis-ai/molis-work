@@ -168,6 +168,22 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
     assert.equal(top.heights.every((height) => height <= 24), true, `${tab} (${top.state}): the state and each control stay on one line (before, 等你回答 broke onto two, 38px)`);
     assert.equal(top.overlap, false, `${tab}: nothing on the top line overlaps`);
   }
+
+  // A Coding work's mode in the bar, in English: one sentence ("Mode: Execute", not a Chinese colon), and where the bar is
+  // tight the words end in an ellipsis inside the chip instead of running under the input (before, at 760 and 390).
+  await choose("lang", "en", "board-plan");
+  await inFrame("d.querySelector('[data-tab=\"board-coding\"] .assistant-tab-main').click(); return null;");
+  await waitFor(`${frame}.contentDocument.querySelector('[data-tab="board-coding"]').hasAttribute('data-current') && !${frame}.contentDocument.querySelector('[data-assistant-mode]').hidden`, 10_000);
+  for (const width of ["1280", "760", "390"]) {
+    await choose("width", width, "board-coding");
+    await waitFor(`${frame}.contentWindow.innerWidth === ${width}`, 15_000);
+    const chip = await inFrame<{ text: string; inside: boolean; clear: boolean; cut: boolean; ellipsis: boolean }>(`const button = d.querySelector('.bar-composer [data-assistant-mode]'), label = d.querySelector('[data-assistant-mode-label]');
+      const b = button.getBoundingClientRect(), l = label.getBoundingClientRect(), input = d.querySelector('.bar-composer .assistant-composer-input').getBoundingClientRect();
+      return { text: label.textContent, inside: l.right <= b.right + 0.5, clear: b.right <= input.left + 0.5, cut: label.scrollWidth > label.clientWidth, ellipsis: w.getComputedStyle(label).textOverflow === 'ellipsis' };`);
+    assert.equal(chip.text, "Mode: Execute", width);
+    assert.equal(chip.inside && chip.clear, true, `${width}px: the mode's words stay inside its chip, clear of the input`);
+    assert.equal(!chip.cut || chip.ellipsis, true, `${width}px: words that do not fit end in an ellipsis`);
+  }
 });
 
 // The frame is one specimen on a long page. When it loads beside what the person is reading, the island opening its work

@@ -1164,7 +1164,7 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
   /* With the panel open the choosers are back; the ones nobody changed give up their width before the input does. */
   ${SHELL} .bar-composer[data-fit="narrow"] .assistant-executor:not([data-chosen]) { flex: 0 1 auto; min-width: 0; }
-  ${SHELL} .bar-composer[data-fit="narrow"] .assistant-executor:not([data-chosen]) > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  ${SHELL} .bar-composer .assistant-executor > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   /* The input's floor holds only where the column has room for it; a narrow column's own steps above take over there. */
   @container assistant-bar (min-width: 461px) {
     ${SHELL} .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) .assistant-composer-input { flex: 1 1 64px; min-width: 64px; }

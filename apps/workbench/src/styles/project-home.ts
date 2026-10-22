@@ -199,7 +199,7 @@ export const PROJECT_HOME_STYLES = `
     border-radius: 16px; background: var(--paper);
     box-shadow: var(--shadow); color: var(--ink);
   }
-  .immersive-home[data-dock="open"] .home-talk { display: flex; animation: surface-arrive var(--motion-normal, 250ms) var(--ease-quint); }
+  .immersive-home[data-dock="open"] .home-talk { display: flex; animation: craft-rise var(--dur-move) var(--ease-quint); }
   @media (prefers-reduced-motion: reduce) {
     .immersive-home .home-erow { transition: none; }
     .immersive-home[data-dock="open"] .home-talk { animation: none; }

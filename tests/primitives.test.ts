@@ -362,12 +362,12 @@ test("empty states and calendars keep copy grouped and readable", () => {
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-calendar__outside \{[^}]*opacity:/);
 });
 
-test("plugin rail reuses the segmented thumb and stages share creative-arrive", () => {
+test("plugin rail reuses the segmented thumb and stages share the one arrival", () => {
   assert.match(MICRO_INTERACTION_STYLES, /\.plugin-rail-items/);
   assert.match(MICRO_INTERACTION_STYLES, /--seg-tint/);
   assert.match(MICRO_INTERACTION_STYLES, /assistant-island-card/);
   assert.match(MICRO_INTERACTION_STYLES, /aria-expanded="true"/);
-  assert.match(MICRO_INTERACTION_STYLES, /@keyframes creative-arrive/);
+  assert.match(MICRO_INTERACTION_STYLES, /\.is-arriving \{ animation: craft-rise var\(--dur-arrive, 420ms\)/);
   assert.match(MICRO_INTERACTION_STYLES, /\.assistant-composer\):popover-open/);
   assert.match(MICRO_INTERACTION_STYLES, /prefers-reduced-motion: reduce[\s\S]*\.is-arriving[\s\S]*animation: none/);
 });

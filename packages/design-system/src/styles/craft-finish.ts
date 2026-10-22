@@ -1,6 +1,7 @@
 import { TOUCH_TARGET_STYLES } from "./touch-targets.js";
 import { ASSISTANT_STAGE_STYLES } from "./assistant-stage.js";
 import { ASSISTANT_PROCESS_STYLES } from "./assistant-process.js";
+import { MOTION_STYLES } from "./motion.js";
 
 /** Soft Workbench finish: the last layer of every Molis Work page (module name kept from the craft pass).
  *
@@ -870,8 +871,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-tab { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
   ${ASSIST} .assistant-segment { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   /* Moving between works: the new work's content arrives; a drawer slides from its edge; the list grows from its button. */
-  ${ASSIST} .assistant-panel[data-arrive] :is(.assistant-thread, .assistant-side) { animation: assistant-arrive var(--dur-move) var(--ease-quint); }
-  @keyframes assistant-arrive { from { opacity: .4; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  ${ASSIST} .assistant-panel[data-arrive] :is(.assistant-thread, .assistant-side) { animation: craft-rise var(--dur-move) var(--ease-quint); }
   ${ASSIST} .assistant-panel[data-layout="drawer"][data-side="open"] .assistant-side { animation: assistant-drawer var(--dur-move) var(--ease-quint); }
   @keyframes assistant-drawer { from { opacity: .6; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
   ${ASSIST} .assistant-works:not([hidden]) { transform-origin: top right; animation: craft-drop var(--dur-move) var(--ease-quint); }
@@ -1062,8 +1062,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} dialog.global-search-dialog[open] { position: fixed; inset: auto 0 calc(var(--dock-h) + 4px) 0; margin: 0 auto; width: min(640px, calc(100vw - 32px)); max-height: min(70dvh, 560px); }
   }
   @keyframes craft-dock-rise { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: none; } }
-  /* Everything that opens from the bar rises from it, anchored at the edge nearest its control. */
-  @keyframes craft-rise-from-bar { from { opacity: 0; transform: translateY(4px) scale(.97); } to { opacity: 1; transform: none; } }
+  /* Everything that opens from the bar rises from it (craft-rise-from-bar), anchored at the edge nearest its control. */
   html ${SHELL} .workbench-bar :is(.account-global-popover, .plugin-picker-popover:not([hidden])) { transform-origin: bottom left; animation: craft-rise-from-bar 250ms var(--ease-quint) both; }
   html ${SHELL} .workbench-bar details[open] > .navigator-project-menu-popover { transform-origin: bottom right; animation: craft-rise-from-bar 250ms var(--ease-quint) both; }
 
@@ -1402,7 +1401,6 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} details[data-just-opened] > :not(summary) { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   ${WORKBENCH} .immersive-home .home-erow__slot[data-just-opened] { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   @keyframes craft-sheet-in { from { opacity: 0; transform: translateX(48px); } to { opacity: 1; transform: none; } }
-  @keyframes craft-fade-in { from { opacity: 0; } to { opacity: 1; } }
   ${PAGES} ${DROPDOWN} { transform-origin: top left; }
   ${PAGES} ${DROPDOWN}:is(:popover-open, [open], .is-open, :not([hidden])) { animation: craft-drop var(--dur-move) var(--ease-quint); }
   ${PAGES} details[open] > .navigator-project-menu-popover { transform-origin: top left; }
@@ -1475,14 +1473,6 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .plugin-stage-list :is(.mw-dir-row, .tree-node):active:not(:disabled) { background: var(--nav-press); }
   /* A selected Goal row is one wash on its entry, not a second fill on the button inside it. */
   ${WORKBENCH} :is(.goal-canvas-shell, .plugin-stage-list) .tree-entry.is-selected :is(.tree-node, .tree-row) { background: transparent; }
-  /* Something that just landed says so once: a wash that fades from its left edge. */
-  ${PAGES} [data-craft-new] { position: relative; }
-  ${PAGES} [data-craft-new]::after {
-    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-    background: color-mix(in srgb, var(--focus) 12%, transparent);
-    animation: craft-landed 640ms var(--ease-quint) forwards;
-  }
-  @keyframes craft-landed { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
 
   /* Progress bars fill instead of appearing full. */
   ${WORKBENCH} :is(.tree-progress, .mw-progress) > :is(i, span) { transition: transform 420ms var(--ease-quint); }
@@ -1541,7 +1531,6 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .tab-pane-body > [data-work-surface]:not([hidden]), ${WORKBENCH} .tab-workspace-exclusive > :not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint) both; }
   ${WORKBENCH} .tab-pane-body > [data-work-surface].is-arriving:not([hidden]), ${WORKBENCH} .tab-workspace-exclusive > .is-arriving:not([hidden]) { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
   ${WORKBENCH}[data-pane-embedded] .tab-pane-body > [data-work-surface] { animation: none; }
-  @keyframes craft-rise { from { opacity: .4; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 
   /* Opening a project: the sheet and the bar settle in. Once per page. */
   ${SHELL}.is-craft-opening .immersive-plugin-stage { animation: craft-sheet-open 640ms var(--ease-quint) both 130ms; }
@@ -1801,7 +1790,7 @@ const STILL_RESET = `
   html[data-craft-still] *, html[data-craft-still] *::before, html[data-craft-still] *::after { transition-duration: 0s !important; transition-delay: 0s !important; }
 `;
 
-export const CRAFT_FINISH_STYLES = CRAFT_BASE_STYLES + TOUCH_TARGET_STYLES + ASSISTANT_STAGE_STYLES + ASSISTANT_PROCESS_STYLES + STILL_RESET;
+export const CRAFT_FINISH_STYLES = MOTION_STYLES + CRAFT_BASE_STYLES + TOUCH_TARGET_STYLES + ASSISTANT_STAGE_STYLES + ASSISTANT_PROCESS_STYLES + STILL_RESET;
 
 /** Behaviour for the craft layer. Everything here is presentation: it never writes Goal state,
  * never moves focus and never cancels another handler. Without it the pages look the same, only

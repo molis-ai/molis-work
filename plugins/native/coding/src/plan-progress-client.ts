@@ -112,7 +112,7 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
 
 /** The plan card's layout (in Coding's stylesheet, at its place there). */
 export const CODING_PLAN_PROGRESS_STYLES = `/* Running plan: the round's own step graph under the task, with the person's controls while it runs. */
-.coding-plan-progress { max-width:76ch; margin:0 auto 24px; padding:12px 16px; border:1px solid var(--line); border-radius:12px; background:var(--paper); font-size:13px; animation:coding-rise 130ms var(--ease-quint); }
+.coding-plan-progress { max-width:76ch; margin:0 auto 24px; padding:12px 16px; border:1px solid var(--line); border-radius:12px; background:var(--paper); font-size:13px; animation:craft-rise var(--dur-move) var(--ease-quint); }
 .coding-plan-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; color:var(--ink); }
 .coding-plan-head svg { width:14px; height:14px; color:var(--muted); flex:none; }
 .coding-plan-head strong { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }

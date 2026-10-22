@@ -41,11 +41,11 @@ export const PRIMITIVE_STYLES = `
     appearance: none;
     -webkit-appearance: none;
     transition:
-      background-color var(--motion-instant, 130ms) var(--ease-quint),
-      color var(--motion-instant, 130ms) var(--ease-quint),
-      border-color var(--motion-instant, 130ms) var(--ease-quint),
-      box-shadow var(--motion-fast, 130ms) var(--ease-quint),
-      opacity var(--motion-fast, 130ms) var(--ease-quint);
+      background-color var(--dur-hover, 130ms) var(--ease-quint),
+      color var(--dur-hover, 130ms) var(--ease-quint),
+      border-color var(--dur-hover, 130ms) var(--ease-quint),
+      box-shadow var(--dur-hover, 130ms) var(--ease-quint),
+      opacity var(--dur-hover, 130ms) var(--ease-quint);
   }
   body .mw-btn:active { filter: none; }
   .mw-btn svg { width: 14px; height: 14px; flex: none; }
@@ -162,7 +162,7 @@ export const PRIMITIVE_STYLES = `
     border-radius: var(--radius-control, 8px);
     color: var(--ink);
     background-color: var(--paper);
-    transition: border-color var(--motion-fast, 130ms) var(--ease-quint), box-shadow var(--motion-normal, 250ms) var(--ease-quint), background-color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: border-color var(--dur-hover, 130ms) var(--ease-quint), box-shadow var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
     font: inherit;
     font-size: 13px;
     box-shadow: none;
@@ -215,7 +215,7 @@ export const PRIMITIVE_STYLES = `
     border: 1px solid transparent;
     border-radius: var(--radius-control, 8px);
     background: var(--control-fill);
-    transition: border-color var(--motion-fast, 130ms) var(--ease-quint), box-shadow var(--motion-normal, 250ms) var(--ease-quint), background-color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: border-color var(--dur-hover, 130ms) var(--ease-quint), box-shadow var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .mw-input-group:hover { background: var(--nav-hover); }
   .mw-input-group .mw-input,
@@ -266,7 +266,7 @@ export const PRIMITIVE_STYLES = `
     display: block; width: 32px; height: 18px; border-radius: 99px;
     background: color-mix(in srgb, var(--ink) 16%, var(--paper));
     border: 1px solid transparent;
-    transition: background-color var(--motion-instant, 130ms) var(--ease-quint), border-color var(--motion-instant, 130ms) var(--ease-quint);
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint), border-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .mw-switch__track::after {
     content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
@@ -507,7 +507,7 @@ export const PRIMITIVE_STYLES = `
   .mw-tabs__tab {
     min-height: 30px; padding: 0 12px; border: 0; border-radius: 8px;
     background: transparent; color: var(--muted); font: inherit; font-weight: var(--weight-control, 500);
-    transition: background-color var(--motion-fast, 130ms) var(--ease-quint), color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint), color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .mw-tabs__tab:hover { color: var(--ink); background: var(--nav-hover); }
   .mw-tabs__tab:focus-visible, .mw-toggle:focus-visible, .mw-pagination__page:focus-visible { ${CONTAINED_FOCUS}; }
@@ -521,7 +521,7 @@ export const PRIMITIVE_STYLES = `
   .mw-toggle {
     min-height: 26px; padding: 0 12px; border: 0; border-radius: 6px;
     background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: var(--weight-control, 500);
-    transition: color var(--motion-normal, 250ms) var(--ease-quint), background-color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: color var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .mw-toggle:hover:not(:disabled):not(.is-current) { color: var(--ink); background: var(--nav-hover); }
   .mw-toggle:disabled { opacity: .42; cursor: not-allowed; }
@@ -832,7 +832,7 @@ export const PRIMITIVE_STYLES = `
   .mw-table th, .mw-table td { padding: 12px 16px; border: 0; text-align: left; }
   .mw-table th { color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); letter-spacing: .01em; }
   .mw-table tbody tr + tr td { box-shadow: inset 0 1px 0 var(--line); }
-  .mw-table tbody tr { transition: background-color var(--motion-fast, 130ms) var(--ease-quint); }
+  .mw-table tbody tr { transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
   .mw-table tbody tr:hover { background: var(--nav-hover); }
   .mw-table thead th { padding-bottom: 8px; }
   .mw-catalog .mw-card { width: min(280px, 100%); }
@@ -1041,7 +1041,7 @@ export const PRIMITIVE_STYLES = `
     position: relative; min-width: 0;
     display: grid; grid-template-columns: minmax(0, 1fr);
     align-items: stretch; border-radius: var(--radius-item, 8px);
-    transition: background-color var(--motion-normal, 250ms) var(--ease-quint);
+    transition: background-color var(--dur-move, 250ms) var(--ease-quint);
   }
   body[data-desktop-shell="true"] .mw-dir-row,
   body.immersive-workbench .tree-pane .mw-dir-row,

@@ -36,6 +36,8 @@ interface Delivery {
   generation: number;
   installation_generation: string;
   contribution: PluginAppContribution;
+  /** How many times the recipient's activation had been withdrawn when the event was sent (`revoke`). */
+  revocation: number;
   record: PluginEventRecord;
 }
 
@@ -45,7 +47,7 @@ interface Delivery {
  * Unlike `PluginEventBus` nothing is stored. An event goes only to the installation it is addressed to, and only while that
  * installation is running, enabled and subscribed to the type in its current Manifest; it never starts one and is never
  * replayed. The same conditions, and the very contribution that was running when the event was sent, are checked again just
- * before the handler runs, so a stop, restart, revocation or reinstall in between drops it. The handler runs outside any
+ * before the handler runs, so a stop, crash, restart, revocation or reinstall in between drops it. The handler runs outside any
  * action, as the subscriber itself; a failure is reported once and not retried.
  */
 export class PluginHostEvents {
@@ -56,6 +58,8 @@ export class PluginHostEvents {
   readonly #failureListeners = new Set<(failure: PluginEventDeliveryFailure) => void>();
   readonly #tails = new Map<string, Promise<void>>();
   readonly #controllers = new Map<string, Set<AbortController>>();
+  /** Counted by the Host, not read from the plugin: a crash stops the activation before the runtime forgets its contribution. */
+  readonly #revocations = new Map<string, number>();
   #closed = false;
 
   constructor(input: {
@@ -88,6 +92,7 @@ export class PluginHostEvents {
       generation,
       installation_generation: installation.installation_generation,
       contribution,
+      revocation: this.#revocations.get(recipient.plugin_id) ?? 0,
       record: {
         event_id: this.#createId(),
         project_id: this.#projectId,
@@ -106,9 +111,10 @@ export class PluginHostEvents {
     return true;
   }
 
-  /** Abort the recipient's handler that is running now; anything still queued for it fails its own check and is dropped. */
+  /** Abort the recipient's handler that is running now; anything queued for it before now fails its own check and is dropped. */
   revoke(projectId: string, pluginId: string): void {
     if (projectId !== this.#projectId) return;
+    this.#revocations.set(pluginId, (this.#revocations.get(pluginId) ?? 0) + 1);
     for (const controller of [...this.#controllers.get(pluginId) ?? []]) {
       if (!controller.signal.aborted) controller.abort();
     }
@@ -136,9 +142,9 @@ export class PluginHostEvents {
   }
 
   /** The recipient is still the one the event was sent to: same enablement, installation and running contribution, still subscribed. */
-  #current({ recipient, generation, installation_generation, contribution, record }: Delivery): boolean {
+  #current({ recipient, generation, installation_generation, contribution, revocation, record }: Delivery): boolean {
     const installation = this.#lifecycle.installation(recipient.plugin_id);
-    return !this.#closed && this.#lifecycle.generation(recipient.plugin_id) === generation
+    return !this.#closed && (this.#revocations.get(recipient.plugin_id) ?? 0) === revocation && this.#lifecycle.generation(recipient.plugin_id) === generation
       && installation?.running === true && installation.install_id === recipient.install_id
       && installation.installation_generation === installation_generation
       && this.#lifecycle.contribution(recipient.plugin_id) === contribution

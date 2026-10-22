@@ -51,6 +51,8 @@ function probe(pluginId: string, subscribes: PluginEventSubscribeDeclaration[]) 
     handle: undefined as ((record: PluginEventRecord, context: PluginEventDeliveryContext) => Promise<void> | void) | undefined,
     /** Set by a test: what the plugin's own action does inside the action. */
     inside: undefined as ((reviewId: string) => void) | undefined,
+    /** Set by a test: what the plugin's stop hook waits for before it returns. */
+    stopping: undefined as Promise<unknown> | undefined,
   };
   // It publishes an event of its own, so it holds the event client a plugin publishes through (X6-03).
   const definition: PluginDefinition = { manifest: manifestFor(pluginId, subscribes, [settleNow]),
@@ -62,7 +64,7 @@ function probe(pluginId: string, subscribes: PluginEventSubscribeDeclaration[]) 
         state.heard.push({ record, context: eventContext, action: currentPluginAction() });
         await state.handle?.(record, eventContext);
       } } };
-  }, async stop() { state.activation.live = false; } };
+  }, async stop() { state.activation.live = false; await state.stopping; } };
   return { definition, settleNow, state, heard: () => state.heard.map(item => item.record) };
 }
 
@@ -230,6 +232,28 @@ test("X6-05 S-54 a reinstalled, disabled, stopped or restarted installation gets
   assert.deepEqual(asker.heard().map(record => record.correlation_id), [first, third], "the fourth was queued for an activation that is gone");
   // An address that is not the running installation is refused outright.
   assert.equal(running.hostEvents.notify({ plugin_id: A, install_id: "another-install" }, { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1, payload: {} }), false);
+});
+
+test("X6-05 S-54 a crashing installation gets nothing queued for it, even while its own stop hook is still running", async t => {
+  const { running, queue, asker, ask, settled, failures, installOf } = await platform(t);
+  // The first handler holds the queue, the second waits behind it; then the installation crashes.
+  const entered = deferred(), stopHook = deferred();
+  asker.state.handle = async (_record, context) => { entered.resolve(); await new Promise(resolve => context.signal.addEventListener("abort", resolve)); };
+  const first = ask(asker), second = ask(asker);
+  queue.settle(first, { ok: true });
+  queue.settle(second, { ok: true });
+  await entered.promise;
+  asker.state.handle = undefined;
+  // A crash stops the executor first and only then forgets the contribution, so the plugin's stop hook runs while the
+  // installation still reads as running: the second must not reach it then.
+  asker.state.stopping = stopHook.promise;
+  const crashed = running.runtime.reportCrash(installOf(A).install_id);
+  try {
+    await settled();
+    assert.deepEqual(asker.heard().map(record => record.correlation_id), [first], "queued before the crash, dropped at dispatch");
+    assert.equal(failures.at(-1)?.code, "plugin.subscriber_revoked");
+  } finally { stopHook.resolve(); }
+  assert.equal((await crashed).install.state, "crashed");
 });
 
 test("X6-06 S-54 an Agent's own change and a review restored from history send nothing to anyone", async t => {

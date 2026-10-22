@@ -3,7 +3,7 @@ import * as goalsPluginExports from "@molis-ai/molis-work-plugin-goals";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { servePages } from "./fixtures/pages-runtime.js";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { handleFunctionsHttp } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
@@ -23,7 +23,6 @@ import {
 import {
   DEMO_PROJECT_ID,
 } from "@molis-ai/molis-work-app-local-host";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -229,7 +228,7 @@ test("W5-01-PAGES-05 promote through the HTTP route and through the action write
   const promoted = await f.http<{ artifact: { artifact_id: string; version: number } }>(`/${created.document.id}/promote`, { goal_id: "CORE" });
   assert.equal(promoted.artifact.artifact_id, `pages-${created.document.id}`);
   const versionOf = (artifactId: string) => f.host.withProject(f.project.reference, runtime =>
-    runtime.coordinator.artifacts.query.getArtifactVersion(f.project.project_id, { artifact_id: artifactId, version: 1 }));
+    runtime.artifacts.query.getArtifactVersion(f.project.project_id, { artifact_id: artifactId, version: 1 }));
   assert.equal((await versionOf(promoted.artifact.artifact_id))?.artifact_id, promoted.artifact.artifact_id);
 
   const action = await f.bound.invoke(pagesActions.create, { title: "Action 文档", goal_id: "CORE" });
@@ -393,7 +392,7 @@ test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", a
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
-      const { platform } = await ensureProjectPlugins({ store, projectId: DEMO_PROJECT_ID,
+      const { platform } = await ensureProjectPlugins({ store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID,
         actorId: "web-user", homeDirectory: home, actions: pluginActions(store, DEMO_PROJECT_ID) });
       assert.ok(platform, "Runtime 必须实际启动，不能仅将 app 插件从检查中排除");
       const shipped = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.personal === true || Boolean(entry.summary));
@@ -468,8 +467,8 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async t => {
       assert.equal(body.artifact.artifact_id, `pages-${page.document.id}`);
       const verify = new LocalProjectDatabase(databasePath);
       try {
-        const coordinator = new GoalProjectApplication(verify);
-        assert.ok(coordinator.artifacts.query.getArtifactVersion(project.project_id, {
+        const library = openProjectVersionStores(verify);
+        assert.ok(library.artifacts.query.getArtifactVersion(project.project_id, {
           artifact_id: body.artifact.artifact_id,
           version: 1,
         }));

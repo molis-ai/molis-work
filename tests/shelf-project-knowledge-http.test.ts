@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, GoalProjectApplication, DEMO_PROJECT_ID, openHostShelfStore, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, GoalProjectApplication, DEMO_PROJECT_ID, openHostShelfStore, seedDemoBoard, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { IMPORTED_DOCUMENT_TYPE } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, handleShelfNativePluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -25,7 +25,7 @@ test("Shelf saves the confirmed full text into project knowledge, a new version 
     const reference = molisWorkHostProjectReference({ databasePath, projectId });
     return { title: "测试项目", actions: bindActionClient(localHost.actionClient(reference), () => ({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: SHELF_PROJECT_ACTION_PERMISSIONS })) };
   };
-  const documents = () => new GoalProjectApplication(store).artifacts.query;
+  const documents = () => openProjectVersionStores(store).artifacts.query;
   const server = createServer((request, response) => { void (async () => {
     const url = new URL(request.url!, "http://localhost"), project = url.searchParams.get("project");
     await handleShelfNativePluginHttp(request, response, url, { actions: shelfActions,

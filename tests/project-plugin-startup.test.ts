@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoBoard, DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -19,7 +19,7 @@ test("background startup shares its instance with later UI execution adapters an
   // The Agent service is attached to the Host after the project's plugins start; until it is, the Host's capability client answers
   // what it answers for any capability nobody has registered (the kernel's own error).
   let agentService = false, capabilityCalls = 0;
-  const ports = { store, projectId: DEMO_PROJECT_ID, actorId: "web-user", homeDirectory: home, actions,
+  const ports = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", homeDirectory: home, actions,
     capabilities: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
       capabilityCalls++;
       if (!agentService) throw new ActionError("kernel.capability_missing", `Capability 未注册: ${definition.capability_id}`);

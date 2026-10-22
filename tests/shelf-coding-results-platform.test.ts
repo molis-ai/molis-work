@@ -22,7 +22,7 @@ const refused = (code: string) => (error: unknown) => { assert.equal((error as {
 
 async function seed(home: TestHome, project: TestProject) {
   await home.host.withProject(project.reference, owner => {
-    owner.coordinator.artifacts.commands.registerVersion({ ...pinnedArtifact("已固定的原报告"), project_id: project.project_id, actor_id: OWNER, ...REPORT,
+    owner.artifacts.commands.registerVersion({ ...pinnedArtifact("已固定的原报告"), project_id: project.project_id, actor_id: OWNER, ...REPORT,
       artifact_type_id: "coding.report.v1", schema_version: 1,
       producer: { plugin_id: "io.molis.work.coding", plugin_version: "1.20.0", binding_signature: "official-coding-binding" },
       content: { kind: "inline", payload: { title: "已固定的原报告", run_id: "run-1", source: { session_id: "session-a" }, body_markdown: BODY } } });
@@ -35,7 +35,7 @@ async function consumer(t: Parameters<typeof openTestHome>[0], home: TestHome, p
   let client: PluginActionClient | undefined;
   const actions = { registry: home.host.actionRegistry(project.reference), client: home.host.actionClient(project.reference), project_id: project.project_id };
   const runtime = await home.host.withProject(project.reference, owner => new PluginRuntime(undefined, new PluginHostExecutor({ actions,
-    project_id: project.project_id, actor_id: OWNER, artifacts: owner.coordinator.artifacts, processItems: owner.coordinator.processItems,
+    project_id: project.project_id, actor_id: OWNER, artifacts: owner.artifacts, processItems: owner.processItems,
     ui: new UiHost(), privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { actions }));
   const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: `io.molis.work.fixture.${declared.name}`, version: "1.0.0", name: declared.name, kind: "app",
     publisher: { publisher_id: "fixture", signature: declared.name }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

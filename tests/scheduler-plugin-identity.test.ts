@@ -23,7 +23,7 @@ test("real Plugin executor: schedule.* belongs to the calling plugin whatever th
   const store = new LocalProjectDatabase(project.storage_key);
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
-  const local = new LocalHost({ runtimeFactory: { open: () => ({ project_id: project.project_id, store, coordinator: { artifacts } }), close: () => {} } });
+  const local = new LocalHost({ runtimeFactory: { open: () => ({ project_id: project.project_id, store, artifacts }), close: () => {} } });
   // The Scheduler's own handlers on the Host's registry, as the Host composes them (apps/local-host/src/schedule-runtime.ts).
   const wakeupIndex = new PluginWakeupIndex(), service = createScheduleService(store.db, { wakeupIndex });
   registerScheduleCapabilities({ register: local.register.bind(local) }, () => service);

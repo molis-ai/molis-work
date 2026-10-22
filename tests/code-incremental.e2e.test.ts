@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-coding";
+import { codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";

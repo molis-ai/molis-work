@@ -15,7 +15,7 @@ import { SESSION_PAGE, SESSION_WINDOW } from "./session-window.js";
 import { CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT } from "./usage-meter-client.js";
 import { CODING_COMPOSER_MODEL_CLIENT_FACTORY_SCRIPT } from "./composer-model-client.js";
 import { CODING_COOPERATION_CLIENT_FACTORY_SCRIPT } from "./cooperation-client.js";
-import { codeLanguage, codeTokens, diffRowTokens, growCodeTokens } from "./highlight.js";
+import { codeLanguage, codeTokens, diffRowTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { CODING_COMMANDS_CLIENT_FACTORY_SCRIPT } from "./commands-client.js";
 import { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 import { CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT } from "./subagent-cards-client.js";
@@ -564,7 +564,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     // A line past 40,000 characters stays text and the rest are coloured, a slice a frame (paintRows); splitting is cheap.
     const painted=language ? diffRowTokens(rows,language,tokensOf) : null;
     const fresh=rows.map((row,index)=>({...row,pieces:painted?.[index]})).filter(row=>!row.code.dataset.painted && (row.code.dataset.painted='true') && row.pieces);
-    paintRows(fresh,(step)=>lifetime.frame(()=>{if(list.isConnected)step();}));
+    paintRows(fresh,(step)=>lifetime.frame(()=>{if(list.isConnected)step();}),list,(release)=>host.mountPluginClient(list).own(release));
   }));
   let paintFrame=0;lifetime.observe(new MutationObserver(()=>{if(paintFrame)return;paintFrame=lifetime.frame(()=>{paintFrame=0;paintDiffs(root);});}),root,{childList:true,subtree:true});
   const enrichCode = (node) => node.querySelectorAll('pre:not([data-enriched])').forEach(pre => {

@@ -17,7 +17,7 @@ import type {
   InboxEntryRecord,
 } from "@molis-ai/molis-work-plugin-feed";
 import { readRssHttpState } from "@molis-ai/molis-work-integration-rss";
-import { feedPlainText, renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
+import { renderRichText, richPlainText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
 import { icon } from "@molis-ai/molis-work-design-system";
 import type { MolisWorkWebView } from "./page-view.js";
 
@@ -106,7 +106,7 @@ function feedEntries(view: MolisWorkWebView): FeedUiEntry[] {
       source_label: item.source_label || item.source_kind,
       disposition: item.disposition === "inbox" ? "feed" : item.disposition,
       title: item.title,
-      summary: feedPlainText(item.summary || item.body) || L("没有附加摘要"),
+      summary: richPlainText(item.summary || item.body) || L("没有附加摘要"),
       updated_at: item.source_updated_at || item.updated_at,
       read: Boolean(item.read_at),
       attention_rank: 0,
@@ -258,8 +258,8 @@ const feedUiPrimitives: FeedUiPrimitives = {
       minute: "2-digit",
     }).format(date);
   },
-  richText: renderFeedRichText,
-  plainText: feedPlainText,
+  richText: renderRichText,
+  plainText: richPlainText,
   safeExternalHref(value) {
     if (!value) return null;
     try {

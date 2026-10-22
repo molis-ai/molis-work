@@ -1,7 +1,7 @@
 import { TOUCH_TARGET_STYLES } from "./touch-targets.js";
 import { ASSISTANT_STAGE_STYLES } from "./assistant-stage.js";
 import { ASSISTANT_PROCESS_STYLES } from "./assistant-process.js";
-import { MOTION_STYLES } from "./motion.js";
+import { DROPDOWN, MOTION_STYLES, renderMenuMotion } from "./motion.js";
 
 /** Soft Workbench finish: the last layer of every Molis Work page (module name kept from the craft pass).
  *
@@ -38,12 +38,6 @@ const SESSIONS_LIST = "body.immersive-workbench .session-stage-shell:not([data-e
 
 /** Dialogs that open in the middle of the viewport. Edge sheets travel in from their edge instead. */
 const CENTRED_DIALOG = ":is(dialog.mw-dialog, dialog.global-search-dialog, dialog.runtime-plan-dialog, dialog.inbox-compose-dialog):not(.mw-sheet)";
-
-/** Popovers and menus that drop from the control that opened them. */
-/** The menus whose closing plays back (the Assistant's composer, also in DROPDOWN, keeps its own motion). */
-const MENU_EXIT = ".mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .project-record-filter-menu > div, .tui-menu";
-const DETAILS_MENU = `:is(${MENU_EXIT}):not([popover])`;
-const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu, .assistant-composer)";
 
 const CRAFT_BASE_STYLES = `
   /* ─── Tokens ─── */
@@ -1401,19 +1395,7 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} details[data-just-opened] > :not(summary) { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   ${WORKBENCH} .immersive-home .home-erow__slot[data-just-opened] { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   @keyframes craft-sheet-in { from { opacity: 0; transform: translateX(48px); } to { opacity: 1; transform: none; } }
-  ${PAGES} ${DROPDOWN} { transform-origin: top left; }
-  ${PAGES} ${DROPDOWN}:is(:popover-open, [open], .is-open, :not([hidden])):where(:not(details > ${DETAILS_MENU})) { animation: craft-drop var(--dur-move) var(--ease-quint); }
-  ${PAGES} details[open] > .navigator-project-menu-popover { transform-origin: top left; }
-  /* Closing plays the opening backwards on the short clock and a closing menu keeps its box, takes no pointer. Only closing holds the content (held on opening, an opening menu was undrawn and unclickable). The hold is a custom property on the menu's details, read by the closed-details rule at zero specificity so a disclosure's own transition wins: a :has() on a ::details-content subject cost every node put in the page 30 ms of style (VUX-36). */
-  ${PAGES} details:has(> :is(${MENU_EXIT})) { --exit-hold: var(--dur-hover); }
-  :where(details:not([open]))::details-content { transition: content-visibility var(--exit-hold, 0s) allow-discrete; }
-  ${PAGES} :is(${MENU_EXIT}) { transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint), display var(--dur-hover) allow-discrete, overlay var(--dur-hover) allow-discrete; }
-  ${PAGES} :is(details:not([open]) > :is(${MENU_EXIT}), :is(${MENU_EXIT})[hidden], :is(${MENU_EXIT})[popover]:not(:popover-open)) { opacity: 0; transform: translateY(-4px) scale(.97); pointer-events: none; }
-  /* A details menu reverses its current transition; a still-running entry keyframe would otherwise finish over its exit. */
-  ${PAGES} details > ${DETAILS_MENU} { animation: none; }
-  ${PAGES} details[open] > ${DETAILS_MENU} { transition-duration: var(--dur-move); }
-  ${PAGES} details:not([open]) > ${DETAILS_MENU} { transform: translateY(var(--menu-from-y, -4px)) scale(.97); }
-  @starting-style { ${PAGES} details[open] > ${DETAILS_MENU} { opacity: 0; transform: translateY(var(--menu-from-y, -4px)) scale(.97); } }
+  ${renderMenuMotion(PAGES)}
   ${PAGES} :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover) { border: 0; border-radius: var(--r-card); box-shadow: var(--lift-3); }
   /* Dark reads as three layers: whatever floats (menus, popovers, dialogs, the Assistant panel) sits a step above the
      work surface on --popover, edged by the light ring in its lift rather than by a darker shadow. */

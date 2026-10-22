@@ -24,9 +24,12 @@ import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js
 import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 import { projectScopeEntries } from "./plugin-scope-entries.js";
 import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
+import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./review-settlement-events.js";
 
 export interface ProjectPluginPorts {
   observeGitOperations?(listener: (event: GitOperationUpdate) => void): () => void;
+  /** Settled person-reviewed plugin operations, sent to the installation that asked as `host.review.settled@1` (X-6). */
+  observeReviewSettlements?: ObserveReviewSettlements;
   store: LocalProjectDatabase;
   projectId: string;
   actorId: string;
@@ -104,7 +107,7 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
     if (existing.ports.actorId !== ports.actorId || existing.ports.homeDirectory !== ports.homeDirectory
       || existing.ports.actions.project_id !== ports.actions.project_id) throw new Error("项目插件实例的 Home、用户或项目身份不一致");
     // Entry-point adapters can arrive after headless discovery; identity and storage stay bound.
-    for (const key of ["workspaces", "routePrefix", "observeGitOperations"] as const) {
+    for (const key of ["workspaces", "routePrefix", "observeGitOperations", "observeReviewSettlements"] as const) {
       if (ports[key] !== undefined) Object.assign(existing.ports, { [key]: ports[key] });
     }
     const state = await existing.ready;
@@ -153,13 +156,16 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     const filesPorts = { readable: () => currentWorkspaceId(ports) !== null };
     const operationListeners = new Set<(event: GitOperationUpdate) => void>();
     let observer: ProjectPluginPorts["observeGitOperations"], unsubscribe: (() => void) | undefined, closed = false;
+    const settlements = reviewSettlementForwarder(platform.hostEvents);
     record.updateObservers = () => {
-      if (closed || observer === ports.observeGitOperations) return;
+      if (closed) return;
+      settlements.update(ports.observeReviewSettlements);
+      if (observer === ports.observeGitOperations) return;
       unsubscribe?.(); observer = ports.observeGitOperations;
       // The Host delivers a settled operation on its own behalf, outside whichever action settled it: Git publishes for its own installation (S-18).
       unsubscribe = observer?.(event => { if (!closed) outsidePluginAction(() => { for (const listener of operationListeners) listener(event); }); });
     };
-    record.stopObservers = () => { closed = true; unsubscribe?.(); operationListeners.clear(); };
+    record.stopObservers = () => { closed = true; unsubscribe?.(); settlements.stop(); operationListeners.clear(); };
     record.updateObservers();
     const gitPorts = {
       observeOperationSettled(listener: (event: GitOperationUpdate) => void) {

@@ -12,6 +12,7 @@ import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
 import {
   PluginEventBus,
+  PluginHostEvents,
   PluginInputGraph,
   PluginRouteRouter,
   PluginRuntime,
@@ -97,6 +98,8 @@ export interface PluginPlatform {
   readonly runtime: PluginRuntime;
   readonly supervisor: PluginSupervisor;
   readonly events: PluginEventBus;
+  /** What the Host itself tells one running installation (X-6, S-54): not stored, never replayed. */
+  readonly hostEvents: PluginHostEvents;
   readonly wiring: PluginInputGraph;
   /** Ephemeral projection hints, never business delivery acknowledgements. */
   invalidateView(pluginId: string): void;
@@ -180,8 +183,10 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     lifecycle: supervisor,
     repository: new SqlitePluginEventsRepository(options.db),
   });
+  const hostEvents = new PluginHostEvents({ projectId: options.project_id, lifecycle: supervisor });
   executor.attach({
     events,
+    hostEvents,
     wiring,
     ...(options.capabilities === undefined ? {} : { capabilities: options.capabilities }),
     scopeKey: options.scopeKey ?? options.project_id,
@@ -203,6 +208,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     runtime,
     supervisor,
     events,
+    hostEvents,
     wiring,
     invalidateView,
     viewRevision(pluginId) { return `${viewEpoch}:${viewRevisions.get(pluginId) ?? 0}`; },
@@ -212,6 +218,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       detachActivation();
       await wiring.close();
       await events.close();
+      await hostEvents.close();
     },
     router: () => new PluginRouteRouter(supervisor, supervisor.states().flatMap(state => {
       const manifest = supervisor.manifest(state.plugin_id);

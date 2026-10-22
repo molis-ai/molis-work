@@ -16,10 +16,11 @@ export const PROJECT_OPERATIONS_CLIENT_SCRIPT = `
   });
   const showToast = (message) => {
     if (!toast) return;
-    toast.textContent = message; toast.dataset.mwState = "idle"; toast.classList.remove("is-error");
-    toast.hidden = false;
+    // The page's one toast shows by is-visible; hiding it with the hidden attribute would keep every later toast away.
+    toast.textContent = message; delete toast.dataset.mwState; delete toast.dataset.ringMounted; toast.classList.remove("is-error");
+    toast.classList.add("is-visible");
     clearTimeout(showToast.timer);
-    showToast.timer = setTimeout(() => { toast.hidden = true; }, 3200);
+    showToast.timer = setTimeout(() => toast.classList.remove("is-visible"), 3200);
   };
   const parseActionResponse = async (response) => {
     const payload = await response.json().catch(() => ({}));

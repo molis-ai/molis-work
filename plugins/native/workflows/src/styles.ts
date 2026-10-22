@@ -401,23 +401,15 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-uncertain > span { flex: 1 1 240px; min-width: 0; }
   [data-workflows="workbench"] .wf-uncertain .mw-btn { margin-left: 0; }
   [data-workflows="workbench"] .wf-uncertain .mw-btn:first-of-type { margin-left: auto; }
+  /* The one toast (.mw-toast) placed at the foot of the stage: in on the move clock, out on the short one; a failure nudges once. */
   [data-workflows="workbench"] .wf-toast {
-    position: absolute; left: 50%; bottom: 20px; z-index: 30; margin: 0; padding: 8px 16px;
-    border-radius: var(--radius-control, 10px); background: var(--action); color: var(--action-ink); font-size: 12px; box-shadow: var(--shadow-raised);
-    opacity: 0; transform: translate(-50%, 6px); pointer-events: none;
-    transition: opacity var(--wf-edge), transform var(--motion-normal, 250ms) var(--ease-quint);
+    position: absolute; inset-inline: 0; bottom: 20px; z-index: 30; margin: 0 auto; max-width: calc(100% - 24px);
+    animation: none; opacity: 0; transform: translateY(12px) scale(.97); pointer-events: none;
+    transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint);
   }
-  [data-workflows="workbench"] .wf-toast.is-on { opacity: 1; transform: translate(-50%, 0); }
-  [data-workflows="workbench"] .wf-toast.has-action { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; }
+  [data-workflows="workbench"] .wf-toast.is-on { opacity: 1; transform: none; transition-duration: var(--dur-move); }
   [data-workflows="workbench"] .wf-toast.has-action.is-on { pointer-events: auto; }
-  [data-workflows="workbench"] .wf-toast__action {
-    height: 24px; padding: 0 12px; border: 0; border-radius: 7px; background: color-mix(in srgb, var(--action-ink) 14%, transparent);
-    color: inherit; font: inherit; font-size: 12px; cursor: pointer; transition: background-color var(--wf-hover);
-  }
-  [data-workflows="workbench"] .wf-toast__action:hover { background: color-mix(in srgb, var(--action-ink) 24%, transparent); }
-  [data-workflows="workbench"] .wf-toast__action:focus-visible { outline: 1px solid var(--action-ink); outline-offset: 1px; }
-  [data-workflows="workbench"] .wf-toast[data-tone="error"] { background: var(--red); color: var(--on-accent); }
-  [data-workflows="workbench"] .wf-toast[hidden] { display: none; }
+  [data-workflows="workbench"] .wf-toast.is-on[data-tone="error"] { animation: mw-toast-nudge var(--dur-arrive) var(--ease-quint) var(--dur-hover); }
   @media (max-width: 760px) {
     [data-workflows="workbench"] .wf-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
     [data-workflows="workbench"] .wf-row__meta { display: none; }

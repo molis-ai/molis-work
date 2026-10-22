@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -85,7 +86,12 @@ test("VUX-33: a large block reads at once and is coloured a slice a frame, to ex
 
 test("VUX-33: Coding reopens a turn with a large code block as text at once and coloured whole", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "coding");
+  let active: Pick<typeof browser,"evaluate"|"waitFor"|"click"> = browser;
+  const evaluate: typeof browser.evaluate = (...args) => active.evaluate(...args);
+  const waitFor: typeof browser.waitFor = (...args) => active.waitFor(...args);
+  const click: typeof browser.click = (...args) => active.click(...args);
   const code = textOf(90_000).replace(/\n$/, "");
   const model = await assistantTextModel(t, homeDirectory, "下面是代码：\n\n```ts\n" + code + "\n```\n\n写完了。", { pieces: 4, pause: 100 });
   const workspace = join(homeDirectory, "code-scale");
@@ -103,6 +109,7 @@ test("VUX-33: Coding reopens a turn with a large code block as text at once and 
   const coding = "[data-coding-workbench]";
   await click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
+  active = child;
   await click(`${coding} [data-coding-new]`);
   await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 1`);
   await fill(`${coding} [data-coding-model]`, JSON.stringify(["local-only", "fixture-model"]));

@@ -1,4 +1,7 @@
+import { childPlacement } from "./placement.js";
+import { childReviews } from "./review-slots.js";
 import { createUiFailureView, createUiRequest } from "@molis-ai/molis-work-ui-host";
+import type { SearchReferencesResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { UiPageActions } from "@molis-ai/molis-work-contracts/platform/ui";
 import { childMessages } from "./messages.js";
 import { pageFiles } from "./files.js";
@@ -8,6 +11,7 @@ import { childView, collapsePage, pageSelection } from "./view.js";
 import { childDrafts } from "./drafts.js";
 import { childNavigation } from "./navigation.js";
 import { childTodo } from "./todo.js";
+import { childWorkspaces } from "./workspaces.js";
 import { childPresentation } from "./presentation.js";
 import { childCopy } from "./clipboard.js";
 import { childNativeFiles } from "./native-files.js";
@@ -36,9 +40,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   globalThis.fetch = fetchThroughPort;
   globalThis.MOLIS_WORK_MESSAGES = config.messages; globalThis.MOLIS_WORK_PLUGIN_TITLES = config.titles;
   const L: Translate = globalThis.L = (key, values) => {
-    let text = config.messages[key] ?? key;
-    for (const [name, value] of Object.entries(values || {})) text = text.split("{" + name + "}").join(String(value));
-    return text;
+    return globalThis.molisFrameFillMessage(config.messages[key] ?? key, values);
   };
   bindStorage(port, config);
   const call = createUiRequest({ fetch: fetchThroughPort, origin: config.origin, token: () => "", newKey: () => crypto.randomUUID(), translate: L });
@@ -64,17 +66,22 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
   const host: FrameHost & UiPageActions & Record<string, unknown> = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
     ...pageDialogs(scope, L), drafts: childDrafts(port, scope),
-    view: childView(port, scope),
+    reviews: childReviews(port, scope), view: childView(port, scope), workspaces: childWorkspaces(port, scope),
     ...pageFiles(port, scope, globalThis.molisWorkRequest, copyText),
     ...(config.nativeFiles ? { nativeFiles: childNativeFiles(port, scope) } : {}),
     terminal,
     messages: childMessages(port),
     invokeAction: (reference, input) => call(route("/api/host/plugin-page-actions"), { body: { reference, input }, scope }),
     projectId: () => config.projectId, projectTitle: () => config.projectTitle, route, headers: call.headers,
-    api: (path: string, method: "GET" | "POST", body: unknown, fallback: string) => call(route(path), { method, body, fallback }),
+    api: (path: string, method: "GET" | "POST", body: unknown, fallback = L("来源操作失败")) => call(route(path), { method, body, fallback }),
     openItem: (...args) => intent("openItem", args), openBeside: (...args) => intent("openBeside", args), openPlugin: (...args) => intent("openPlugin", args),
     hideDirectory: () => intent("hideDirectory", []), showToast: (...args) => intent("showToast", args), page: () => config.page,
-    status: status => intent("status", [status]), interaction: ui.interaction, receipts: ui.receipts,
+    status: status => intent("status", [status]), interaction: (element: Element, options: Record<string, unknown>) => ui.interaction(element, {
+      references: (source: string, query: string) => call<SearchReferencesResponse>(route("/api/host/plugin-page-actions"), {
+        body: { reference: { capability_id: "search.references", version: 1 }, input: { kinds: source.split(","), query, limit: 8 } }, scope,
+      }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })),
+      ...options,
+    }), receipts: ui.receipts,
   };
   scope.listen(document, "molis:side-open", event => {
     event.preventDefault();
@@ -109,5 +116,5 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   await load("/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js");
   const factory = globalThis.molisWorkbenchPluginFactories?.[config.bundle];
   if (!factory) throw new Error(L("无法加载界面，请重试"));
-  childPresentation(port, scope); factory(host); childNavigation(port, scope, config); context(); send({ type: "ready" });
+  childPresentation(port, scope); factory(host); childPlacement(port, scope); childNavigation(port, scope, config); context(); send({ type: "ready" });
 }

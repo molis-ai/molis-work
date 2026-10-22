@@ -28,12 +28,12 @@ export const WORKFLOW_SAVE_SCRIPT = String.raw`
   }
   function paintSave(mode) {
     const edit = ui.workflow && edits.get(ui.workflow.workflow_id);
-    mode ||= edit?.error ? 'error' : edit?.pending ? 'saving' : 'saved';
+    mode ||= edit?.error ? 'error' : edit?.pending ? 'unsaved' : 'saved';
     const el = root.dataset.wfMode === 'workflow' && view.querySelector('[data-wf-save-state]');
     if (!el) return;
-    el.dataset.state = mode; el.dataset.mwState = mode === 'saving' ? 'saving' : mode === 'error' ? 'failed' : 'saved'; el.title = edit?.error || '';
+    el.dataset.state = mode; el.dataset.mwState = mode === 'error' ? 'failed' : mode; el.title = edit?.error || '';
     el.innerHTML = mode === 'error' ? tx('保存失败') + ' <button type="button" class="mw-btn mw-btn--link" data-wf-action="retry-save"' + (edit?.pending ? ' disabled' : '') + '>' + tx('重试') + '</button>'
-      : mode === 'saving' ? '<span class="mw-spinner" aria-hidden="true"></span><span>' + tx('正在保存…') + '</span>' : ico('check') + '<span>' + tx('已保存') + '</span>';
+      : mode === 'saving' ? '<span class="mw-spinner" aria-hidden="true"></span><span>' + tx('正在保存…') + '</span>' : mode === 'unsaved' ? tx('尚未保存') : ico('check') + '<span>' + tx('已保存') + '</span>';
   }
   function flushSave() {
     const pending = [...pendingEdits.values()]; pendingEdits.clear();
@@ -64,14 +64,14 @@ export const WORKFLOW_SAVE_SCRIPT = String.raw`
     applyPatch(flow, patch);
     const body = JSON.parse(JSON.stringify({ ...(patch.chain ? { chain: patch.chain } : {}), ...(patch.title === undefined ? {} : { title: patch.title }) }));
     const edit = draftOf(flow); Object.assign(edit.patch, JSON.parse(JSON.stringify(body))); retain();
+    if (!edit.error) edit.pending += 1;
     if (ui.workflow === flow) {
       drawFlow(); drawList();
       if (patch.announce) toast(patch.announce, '', { label: L('撤销'), run: undo });
       else if (lost > 0) toast(L('{count} 段交接变回了手动', { count: lost }), '', { label: L('撤销'), run: undo });
     }
     if (edit.error) { if (ui.workflow === flow) paintSave(); return; }
-    edit.pending += 1;
-    clearTimeout(saveId); saveId = setTimeout(() => { if (ui.workflow === flow && edit.pending) paintSave(); }, 260);
+    clearTimeout(saveId); saveId = setTimeout(() => { if (ui.workflow === flow && edit.pending) paintSave('saving'); }, 260);
     queue = queue.then(async () => {
       try {
         if (edit.error) return;

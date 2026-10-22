@@ -1,6 +1,7 @@
 import { realpathSync } from "node:fs";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
@@ -123,4 +124,38 @@ test("SYS-15-F1 SYS-15-F2 desktop search releases only the file selected by a tr
   assert.ok(opened.endsWith("/Selected.txt"), opened);
   await find(); await browser.click("[data-native-file-cancel]");
   assert.equal(await browser.evaluate("nativeCalls.filter(call=>call.name==='platform_read_selected_file').length"), 1, "cancel imports nothing else");
+});
+
+
+test("SYS-15-U7 S-47 embedded content is host owned, confined to the page and cannot be selected by an arbitrary URL", {timeout:60_000}, async t => {
+  const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
+  const child = await pluginFrameBrowser(t,browser,"cognia");
+  const embedded = await pluginFrameBrowser(t,browser,"pages",'iframe[data-plugin-embedded="pages"]');
+  const store = openPagesStore(browser.homeDirectory);
+  const page = (()=>{try{return store.create({project_id:browser.projectId!,title:"Embedded witness",body:{type:"doc",content:[{type:"paragraph",content:[{type:"text",text:"PRIVATE_EMBEDDED_WITNESS"}]}]}})}finally{store.close()}})();
+  // Observe only the public host ports that the production plugin factory already receives.
+  await browser.command("Page.addScriptToEvaluateOnNewDocument", {source:`
+    let factories;
+    Object.defineProperty(globalThis,'molisWorkbenchPluginFactories',{configurable:true,get:()=>factories,set:value=>{
+      factories=new Proxy(value,{set:(target,key,factory)=>{target[key]=host=>{window.publicViewForTest=host.view;return factory(host)};return true}});
+    }});
+  `},browser.sessionId);
+  await browser.navigate(()=>browser.command("Page.navigate",{url:browser.origin+"/projects/"+browser.projectId+"/?openPlugin=cognia"},browser.sessionId));
+  await child.waitFor("window.publicViewForTest && document.querySelector('[data-cognia-rows]')");
+  await child.evaluate("window.slot=document.body.appendChild(document.createElement('div'));slot.style.cssText='position:absolute;left:-40px;top:-20px;width:2000px;height:1600px';");
+  for(const surface of ["https://example.invalid/", "../settings", "cognia", "unavailable-surface"]){
+    const rejected = await child.evaluate(`publicViewForTest.embed(slot,{surface:${JSON.stringify(surface)},itemId:'x'}).ready.then(()=>false,()=>true)`);
+    assert.equal(rejected,true,surface);
+    assert.equal(await browser.evaluate("document.querySelectorAll('iframe[data-plugin-embedded]').length"),0);
+  }
+  await child.evaluate(`window.openEmbed=publicViewForTest.embed(slot,{surface:'pages',itemId:${JSON.stringify(page.id)},title:'Embedded witness'});openEmbed.ready`);
+  await embedded.waitFor("document.querySelector('.ProseMirror')?.textContent.includes('PRIVATE_EMBEDDED_WITNESS')");
+  await browser.waitFor("document.querySelector('iframe[data-plugin-embedded]')?.parentElement.getBoundingClientRect().width>100");
+  assert.equal(await child.evaluate("document.body.textContent.includes('PRIVATE_EMBEDDED_WITNESS')"),false);
+  assert.equal(await child.evaluate("(()=>{try{return Boolean(parent.document.querySelector('[data-plugin-embedded]').contentDocument)}catch(error){return error.name}})()"),"SecurityError");
+  const clipped=await browser.evaluate<boolean>(`(()=>{const box=document.querySelector('iframe[data-plugin-embedded]').parentElement.getBoundingClientRect(),root=document.querySelector('[data-work-surface=cognia]').getBoundingClientRect();
+    return box.left>=root.left && box.top>=root.top && box.right<=root.right && box.bottom<=root.bottom;})()`);
+  assert.equal(clipped,true,"a page cannot place its embedded region over owner controls");
+  await child.evaluate("slot.remove()");
+  await browser.waitFor("!document.querySelector('iframe[data-plugin-embedded]')");
 });

@@ -1,3 +1,4 @@
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -74,7 +75,7 @@ test("W5-01-HOME-STAGE-01 Home stage remains single through Runtime disable and 
     assert.equal(response.status, 200, await response.clone().text());
     const html = await response.text();
     assert.equal([...html.matchAll(/data-work-surface="issues"/gu)].length, 1);
-    return html;
+    return html + pluginDocuments(html).join("");
   };
   assert.match(await page(), /<form\b[^>]*\bdata-issue-composer\b/u);
   platform.supervisor.revoke(ISSUES_PLUGIN_ID);

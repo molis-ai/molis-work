@@ -22,6 +22,11 @@ export function childPresentation(port: MessagePort, scope: FrameScope): void {
 
 /** A child cannot select its source identity or turn a presentation event into an automatic result write. */
 export function pagePresentation(scope: FrameScope, frame: HTMLIFrameElement, root: HTMLElement, pack: FramePack, pageId: string) {
+  scope.listen(window, "beforeunload", event => {
+    if (scope.alive && JSON.parse(root.getAttribute("data-assistant-context") ?? "{}").unsaved === true) {
+      event.preventDefault(); (event as BeforeUnloadEvent).returnValue = "";
+    }
+  });
   return (message: PresentationMessage): void => {
     if (!scope.alive || !message.value || typeof message.value !== "object" || Array.isArray(message.value)) return;
     const json = JSON.stringify(message.value); if (json.length > 100_000) return;

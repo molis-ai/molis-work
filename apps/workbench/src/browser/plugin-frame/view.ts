@@ -1,3 +1,4 @@
+import { childEmbeds } from "./embed.js";
 import type { UiPageView } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { FrameDown, FramePack, FrameScope, FrameUp } from "./types.js";
 
@@ -45,7 +46,7 @@ export function collapsePage(root: HTMLElement): void {
   root.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: null } }));
 }
 
-export function childView(port: MessagePort, scope: FrameScope): UiPageView {
+export function childView(port: MessagePort, scope: FrameScope): UiPageView<HTMLElement> {
   let sequence = 0;
   const pending = new Map<number, { resolve(html: string): void; reject(error: Error): void }>();
   scope.own(() => { for (const entry of pending.values()) entry.reject(new Error("View closed")); pending.clear(); });
@@ -55,7 +56,7 @@ export function childView(port: MessagePort, scope: FrameScope): UiPageView {
     pending.delete(event.data.id);
     if (event.data.error) entry.reject(new Error(event.data.error)); else entry.resolve(event.data.html ?? "");
   });
-  return { refreshShell() { if (scope.alive) port.postMessage({ type: "refresh-shell" } satisfies FrameUp); }, readDocument: () => new Promise<string>((resolve, reject) => {
+  return { onClosing(action) { if (scope.alive) port.postMessage({ type: "on-closing", action } satisfies FrameUp); }, embed: childEmbeds(port, scope), refreshShell() { if (scope.alive) port.postMessage({ type: "refresh-shell" } satisfies FrameUp); }, readDocument: () => new Promise<string>((resolve, reject) => {
     if (!scope.alive) { reject(new Error("View closed")); return; }
     const id = ++sequence; pending.set(id, { resolve, reject }); port.postMessage({ type: "read-document", id } satisfies FrameUp);
   }) };

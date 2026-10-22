@@ -26,6 +26,20 @@ export function pageNavigation(scope: FrameScope, port: MessagePort, side: boole
 }
 
 export function childNavigation(port: MessagePort, scope: FrameScope, config: FrameConfig): void {
+  const openBehind = (raw: Event) => {
+    const event = raw as MouseEvent;
+    if (event.type === "click" ? !event.metaKey && !event.ctrlKey : event.button !== 1) return;
+    const target = event.target instanceof Element ? event.target : null, rowSpec = config.recordRow ?? config.searchRow;
+    if (!target || !rowSpec || target.closest("a[href]")) return;
+    const row = target.closest<HTMLElement>(rowSpec.selector), id = row?.dataset[rowSpec.idDataset];
+    if (!row || !id || event.type === "click" && row.closest('[aria-multiselectable="true"]')) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    port.postMessage({ type: "open-behind", itemId: id, title: row.getAttribute("data-frame-asset-title") || row.querySelector("strong")?.textContent?.trim() || id } satisfies FrameUp);
+  };
+  for (const name of ["click", "auxclick"]) {
+    window.addEventListener(name, openBehind, true);
+    scope.own(() => window.removeEventListener(name, openBehind, true));
+  }
   scope.listen(window, "keydown", event => {
     const key = event as KeyboardEvent;
     if (key.repeat || key.isComposing || key.defaultPrevented) return;

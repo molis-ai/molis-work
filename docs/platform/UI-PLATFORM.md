@@ -27,6 +27,8 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 客户端的 `host` 提供同一组受限服务（类型在 contracts 的 `platform/ui`，SDK 重导出）：`invokeAction(reference,input)` 调用自身或 Manifest 声明消费的动作，服务端使用实际定义、当前 grants 与 audience；`messages.send/listen` 承接已登记的主区与侧栏上下文消息；`download`、`printDocument`、`loadMedia` 负责导出、无脚本打印与经授权读取的图片/PDF；`terminal.send/listen` 只连接本安装、本项目在服务端创建的终端，返回事件确认结果，不能提交启动命令。直接读父窗口、拼接控制头、任意 URL 代理与从页面传入可信身份都不属于公共服务。
 
+`host.reviews.show` 在页面占位处显示宿主审查区；只回传尺寸和决定完成通知，正文、回执与决策入口留在宿主，批准经过真实宿主确认。
+
 被插入内容的 Plugin 必须显式开放 Slot，声明接受的 Contribution Contract。贡献方声明自己提供的 view/command 与权限；UI Host 决定是否装载、放在哪里、何时销毁，并隔离错误和权限。
 
 不允许：
@@ -136,3 +138,9 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 隔离页面的 `host.terminal.mount(element, { panelId, onEvent })` 按需加载平台已有终端资源。返回的视图提供 `focus()`、`fit()` 和 `dispose()`；卸载视图不停止已接受的进程，停止须显式发送 `kill`。共享滚动、流式文字与复制反馈在子页面中初始化；`navigator.clipboard.writeText` 也接到同一受限复制通道，宿主仍检查真实用户激活，不提供剪贴板读取。
 
 服务端投影的页面使用 `host.view.readDocument(): Promise<string>` 获取自己当前贡献的 HTML。宿主固定读取页面来源，提取该贡献的惰性内容，并在读取前后验证页面授权；页面不能请求其他贡献或宿主整页。普通业务变更仍走自身声明的动作或路由。
+
+页面要在自己的布局里展示另一个已启用插件的对象，使用 `host.view.embed(element, { surface, itemId, title? })`，得到 `ready` 与 `dispose()`。它只提交对象身份和区域坐标；宿主在该区域显示同项目的独立页面，内容 DOM、页面凭据和任意地址均不交给调用插件。区域受父页边界裁切，隐藏随父页隐藏，移除占位元素或关闭父页即释放；创建时复核父页授权，目标交互继续由目标页自己的授权处理。
+
+`host.workspaces.add(path)` 在宿主显示插件、项目与路径，真实确认后关联；`host.workspaces.select(id)` 只切换当前项目已经授权的浏览目录。页面须有 `workspace:read`，不能通过普通请求伪造确认、项目或通用设置权限；隐藏取消尚未完成的关联。
+
+页面收尾用 `host.view.onClosing({ reference, input })` 在页面活跃时登记，`null` 取消登记。宿主离开文档时以 keepalive 发送一次，先取消该页普通在途请求，再在同一激活、项目和权限下运行它自己声明的动作，最后撤销页面；消费别的插件动作不能登记为收尾。空白新建项使用原有带版本约束的撤销动作，任何待保存或非空输入都会取消登记。keepalive 仅保持浏览器传输，不延长撤权或项目删除后的写权限。

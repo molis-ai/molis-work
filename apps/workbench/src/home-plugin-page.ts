@@ -29,7 +29,7 @@ export function renderHomePluginPage(entry: PluginRegistration, html: string | n
   const client = pluginSurfaceClients().find(item => item.id === id);
   const route = project ? `/projects/${encodeURIComponent(project.project_id)}` : "";
   return renderWorkbenchDocument({ lang: htmlLang(), title: `${entry.manifest.name} · Molis Work`,
-    body_attributes: { class: "immersive-workbench home-plugin-page", "data-home-side": side ? "true" : null, "data-project-id": project?.project_id ?? null, "data-route-prefix": route },
+    body_attributes: { class: "immersive-workbench home-plugin-page", "data-home-side": side ? "true" : null, "data-side-view": side ? id : null, "data-project-id": project?.project_id ?? null, "data-route-prefix": route },
     head_html: `<meta name="molis-work-control-token" content="${escapeHtml(controlToken)}">
     <script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-workbench.css"><style>
     .home-plugin-page{height:100dvh;display:flex;flex-direction:column;background:var(--desk);color:var(--ink)}

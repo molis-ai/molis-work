@@ -1,6 +1,5 @@
 import type { PluginRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
-import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "./scripts/client/agent-review.js";
 export type { PluginSearchRow } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
 export interface BuiltinPluginWorkbenchPack extends Omit<PluginWorkbenchRegistration, "order" | "clientServed" | "clientUses"> { readonly project_plugin_id: string }
@@ -23,8 +22,7 @@ const clientOf = (workbench: Registered): string | undefined => workbench.client
   : workbench.clientFactory;
 
 /**
- * A client with the clients its registration names in `clientUses`, as `host.clients[<short id>]`, and the Host's review
- * actions as `host.reviews`. Each used plugin has a client and names this one in `clientFrom`, so it travels in this bundle.
+ * A client with the clients its registration names in `clientUses`, as `host.clients[<short id>]`, Each used plugin has a client and names this one in `clientFrom`, so it travels in this bundle.
  */
 function withUsedClients(user: Registered, factory: string, all: readonly Registered[]): string {
   const used = (user.clientUses ?? []).map(id => {
@@ -32,7 +30,7 @@ function withUsedClients(user: Registered, factory: string, all: readonly Regist
     if (!lent || client === undefined || lent.clientFrom !== user.project_plugin_id) throw new Error(`${user.project_plugin_id} uses the client of ${id}, which does not name it in clientFrom`);
     return `${JSON.stringify(id)}: (${client})`;
   });
-  return `(host) => (${factory})({ ...host, clients: { ${used.join(", ")} }, reviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}) })`;
+  return `(host) => (${factory})({ ...host, clients: { ${used.join(", ")} } })`;
 }
 
 /** Derive the registered UI and assets from the same entries used by the Host catalog. */
@@ -91,14 +89,14 @@ export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWork
 }
 
 /** A surface's client: the bundle that carries its factory (its own, or the one `clientFrom` names) and what it prepares first. */
-export interface PluginSurfaceClient { readonly id: string; readonly plugin_id: string; readonly bundle: string; readonly assets: readonly string[]; readonly factory: string; readonly searchRow?: PluginWorkbenchRegistration["searchRow"] }
+export interface PluginSurfaceClient { readonly id: string; readonly plugin_id: string; readonly bundle: string; readonly assets: readonly string[]; readonly factory: string; readonly searchRow?: PluginWorkbenchRegistration["searchRow"]; readonly recordRow?: PluginWorkbenchRegistration["recordRow"] }
 
 /** Every surface with a client, each pointing at the one bundle that serves it. */
 export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): PluginSurfaceClient[] {
   return packs.flatMap((pack) => {
     const source = pack.clientFrom ? packs.find(candidate => candidate.project_plugin_id === pack.clientFrom) : pack;
     return source?.clientFactory
-      ? [{ id: pack.project_plugin_id, plugin_id: BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === pack.project_plugin_id)?.manifest.plugin_id ?? "", bundle: source.project_plugin_id, assets: source.clientAssets ?? [], factory: source.clientFactory, searchRow: pack.searchRow }]
+      ? [{ id: pack.project_plugin_id, plugin_id: BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === pack.project_plugin_id)?.manifest.plugin_id ?? "", bundle: source.project_plugin_id, assets: source.clientAssets ?? [], factory: source.clientFactory, searchRow: pack.searchRow, recordRow: pack.recordRow }]
       : [];
   });
 }
@@ -107,7 +105,7 @@ export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[
 const HOST_SURFACE_CLIENTS: readonly Pick<PluginSurfaceClient, "id" | "bundle" | "assets">[] = [{ id: "characters", bundle: "characters", assets: [] }];
 
 /** Every surface the deferred loader mounts on first show: the plugins' and the Host's own. */
-export function deferredSurfaceClients(): (Pick<PluginSurfaceClient, "id" | "bundle" | "assets"> & Partial<Pick<PluginSurfaceClient, "plugin_id" | "searchRow">>)[] {
+export function deferredSurfaceClients(): (Pick<PluginSurfaceClient, "id" | "bundle" | "assets"> & Partial<Pick<PluginSurfaceClient, "plugin_id" | "searchRow" | "recordRow">>)[] {
   return [...pluginSurfaceClients(), ...HOST_SURFACE_CLIENTS];
 }
 

@@ -3,6 +3,7 @@ import test from "node:test";
 import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { deferred, grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { backgroundProbe } from "./fixtures/plugin-background.js";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 
 test("SYS-15 S-47 registered HTTP pages allow only their own concrete routes and do not receive Runtime services", { timeout: 30_000 }, async t => {
   const f = await serveHomeRuntime(t), project = await f.project("Registered pages"), other = await f.project("Other registered pages");
@@ -117,6 +118,33 @@ test("SYS-15 S-47 toolbar callbacks retain the exact page, project and lifetime;
   assert.equal((await post(prefix + "/api/contextual/prepare")).status, 403, "closing the page also closes its offered callback");
 });
 
+test("SYS-15-U14 S-47 object placement uses the owner's declared scope and rejects forged projects and kinds", async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("Object scope");
+  const prefix = `/projects/${project.project_id}`;
+  const open = async (id: string) => {
+    const response = await f.request(prefix + "/api/host/plugin-pages", {method:"POST",body:{plugin_id:`io.molis.work.${id}`}});
+    assert.equal(response.status, 200, await response.clone().text());
+    return {"x-molis-plugin-page":(await response.json()).page_id as string};
+  };
+  const shelf = await open("shelf"), pages = await open("pages");
+  const admitted = await f.request("/api/shelf/items", {method:"POST",body:{text:"Personal material",title:"Personal material"}});
+  assert.equal(admitted.status, 200, await admitted.clone().text());
+  const item = (await admitted.json()).item;
+  const store = openPagesStore(f.home);
+  const document = store.create({project_id:project.project_id,title:"Project document"}); store.close();
+  const describe = (headers: Record<string,string>, object: {kind:string;id:string;project_id:string|null}) =>
+    f.request(prefix + "/api/placement/describe", {method:"POST",headers,body:{object}});
+  const personal = {kind:"shelf_item",id:item.item_id,project_id:null};
+  const local = {kind:"pages_document",id:document.id,project_id:project.project_id};
+  for (const [headers, object] of [[shelf,personal],[pages,local]] as const) {
+    const response = await describe(headers,object);
+    assert.equal(response.status,200,await response.clone().text());
+  }
+  for (const [headers, object] of [[shelf,{...personal,project_id:project.project_id}], [pages,{...local,project_id:null}],
+    [pages,{...local,project_id:"different-project"}], [shelf,local], [pages,personal]] as const)
+    assert.equal((await describe(headers,object)).status,403);
+});
+
 test("SYS-15 S-47 an opaque frame cannot navigate into owner HTML to recover a token", async t => {
   const f = await serveHomeRuntime(t);
   const refused = await f.request("/", { authorized: false, headers: { "sec-fetch-dest": "iframe", "sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate" } });
@@ -193,12 +221,12 @@ for (const transport of ["route", "action"] as const) test(`SYS-15 S-47 ${transp
 test("SYS-15-U5 S-47 Files and Git previews use declared public reads; raw foreign routes and undeclared consumers stay refused", async t => {
   const f = await serveHomeRuntime(t), project = await f.project("Companion page previews");
   const prefix = `/projects/${project.project_id}`;
-  for (const plugin_id of ["files", "git", "diff", "text-stats"]) {
+  for (const plugin_id of ["coding", "files", "git", "diff", "text-stats"]) {
     const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {method: "POST", body: {plugin_id}});
     assert.equal(enabled.status, 200, await enabled.clone().text());
   }
   const rendered = await f.request(prefix + "/"); assert.equal(rendered.status, 200);
-  for (const [source, capabilities] of [["files", ["diff.state", "text-stats.state"]], ["git", ["diff.state"]]] as const) {
+  for (const [source, capabilities] of [["files", ["diff.state", "text-stats.state"]], ["git", ["diff.state"]], ["coding", ["diff.state", "text-stats.state"]]] as const) {
     const opened = await f.request(prefix + "/api/host/plugin-pages", {method: "POST", body: {plugin_id: "io.molis.work." + source}});
     assert.equal(opened.status, 200, await opened.clone().text());
     const {page_id} = await opened.json(), headers = {"x-molis-plugin-page": page_id};
@@ -208,7 +236,89 @@ test("SYS-15-U5 S-47 Files and Git previews use declared public reads; raw forei
       const result = await response.json(); assert.equal(result.view.phase, "waiting"); assert.match(result.html, /data-phase="waiting"/);
     }
     assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.diff/state", {headers})).status, 403);
+    // SYS-15-U7: embedding declares only a presentation invalidation hint; ordinary routes retain their own authority.
+    assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.git/view-revision", {headers})).status, source === "coding" || source === "git" ? 200 : 403);
+    if (source === "coding") {
+      assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.files/view-revision", {headers})).status, 200);
+      assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.files/state", {headers})).status, 403);
+      assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.pages/view-revision", {headers})).status, 403);
+    }
     assert.equal((await f.request(prefix + "/api/host/plugin-page-actions", {method: "POST", headers,
       body: {reference: {capability_id: "diff.compare", version: 1}, input: {before: "a", after: "b"}}})).status, 403);
   }
+});
+
+
+test("SYS-15-U8 S-47 required actions need both a consumer declaration and the consumer's grant", async t => {
+  for (const mode of ["allowed", "undeclared", "ungranted"] as const) await t.test(mode, async t => {
+    const source = homeProbe("dependencypage"), target = homeProbe("dependencyreader"), leaf = homeProbe("dependencydata");
+    leaf.state.action.audiences.push("plugin"); target.state.action.audiences.push("plugin");
+    Object.assign(target.state.action, {required_actions:[{capability_id:leaf.state.capability_id,version:1}]});
+    target.definition.manifest.capabilities.consumes.push(leaf.state.capability_id);
+    target.definition.manifest.permissions.push({permission:leaf.permissions[1]!,required:false,reason:"读取明确的依赖"});
+    source.definition.manifest.capabilities.consumes.push(target.state.capability_id);
+    if (mode !== "undeclared") source.definition.manifest.capabilities.consumes.push(leaf.state.capability_id);
+    for (const permission of [target.permissions[1]!, leaf.permissions[1]!]) source.definition.manifest.permissions.push({permission,required:false,reason:"读取明确的依赖"});
+    const start = target.definition.start;
+    target.definition.start = async context => {
+      const contribution = await start(context); assert.equal(contribution.kind, "app");
+      if (contribution.kind !== "app") throw new Error("Expected app");
+      return {...contribution, actions:contribution.actions?.map(action => action.capability_id === target.state.capability_id
+        ? {...action,handle:() => context.services!.actions!.invoke(leaf.state,{})} : action)};
+    };
+    const f = await serveHomeRuntime(t, {pluginFixtures:{home:[source.definition,target.definition,leaf.definition]}});
+    await grantHomeProbe(f.host, leaf); await grantHomeProbe(f.host, target,[...target.permissions,leaf.permissions[1]!]);
+    await grantHomeProbe(f.host, source,[...source.permissions,target.permissions[1]!,...(mode === "ungranted" ? [] : [leaf.permissions[1]!])]);
+    await f.request(`/api/plugins/${leaf.id}/save`, {method:"POST",body:{text:"declared dependency data"}});
+    const opened = await f.request("/api/host/plugin-pages", {method:"POST",body:{plugin_id:source.id}});
+    const {page_id} = await opened.json();
+    const result = await f.request("/api/host/plugin-page-actions", {method:"POST",headers:{"x-molis-plugin-page":page_id},
+      body:{reference:{capability_id:target.state.capability_id,version:1},input:{}}});
+    assert.equal(result.status, mode === "allowed" ? 200 : 403, await result.clone().text());
+    if (mode === "allowed") assert.equal((await result.json()).value,"declared dependency data");
+    else assert.equal((await result.json()).code,"actions.forbidden");
+  });
+});
+
+
+test("SYS-15-L4 S-47 closing cleanup runs once, uses its own current authority and cancels ordinary work", async t => {
+  const probe = homeProbe("pagecleanup"), foreign = homeProbe("foreigncleanup"), entered = deferred(), release = deferred();
+  probe.definition.manifest.capabilities.consumes.push(foreign.save.capability_id);
+  probe.behavior.ask = async context => { entered.resolve(); await release.promise; context.services!.storage!.set("late", "forbidden"); return "late"; };
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition, foreign.definition] } });
+  await grantHomeProbe(f.host, probe); await grantHomeProbe(f.host, foreign);
+  const open = async () => (await (await f.request("/api/host/plugin-pages", {method:"POST",body:{plugin_id:probe.id}})).json()).page_id as string;
+  const finish = (id: string, text: string, reference = {capability_id:probe.save.capability_id,version:1}) =>
+    f.request("/api/host/plugin-pages/"+id, {method:"DELETE",body:{closing:{reference,input:{text}}}});
+  const page = await open(), other = await open();
+  const pending = f.request(`/api/plugins/${probe.id}/ask`, {method:"POST",body:{},headers:{"x-molis-plugin-page":page}});
+  await entered.promise;
+  assert.equal((await finish(page, "cleanup")).status, 200);
+  release.resolve(); assert.equal((await pending).status, 403);
+  assert.equal(probe.contexts.at(-1)!.services!.storage!.get("late"), null);
+  assert.equal(probe.contexts.at(-1)!.services!.storage!.get("note"), "cleanup");
+  assert.equal((await finish(page, "duplicate")).status, 200);
+  assert.equal(probe.contexts.at(-1)!.services!.storage!.get("note"), "cleanup");
+  assert.equal((await f.request(`/api/plugins/${probe.id}/state`, {headers:{"x-molis-plugin-page":other}})).status, 200);
+  assert.equal((await finish(await open(), "foreign", {capability_id:foreign.save.capability_id,version:1})).status, 403, "even a consumed action cannot be closing cleanup");
+  assert.equal(foreign.contexts.at(-1)!.services!.storage!.get("note"), null);
+  const revoked = await open(); await grantHomeProbe(f.host, probe, probe.permissions.filter(permission => permission !== "pagecleanup:write"));
+  assert.equal((await finish(revoked, "revoked")).status, 200);
+  assert.equal((await finish(await open(), "missing grant")).status, 403);
+  assert.equal(probe.contexts.at(-1)!.services!.storage!.get("note"), "cleanup");
+});
+
+
+test("SYS-15-L4 S-47 a second close cancels cleanup already waiting before it can write", async t => {
+  const probe = homeProbe("closingrace"), entered = deferred(), release = deferred();
+  t.after(() => release.resolve());
+  probe.behavior.ask = async context => { entered.resolve(); await release.promise; context.services!.storage!.set("late", "forbidden"); return "late"; };
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  await grantHomeProbe(f.host, probe);
+  const {page_id} = await (await f.request("/api/host/plugin-pages", {method:"POST",body:{plugin_id:probe.id}})).json();
+  const closing = f.request("/api/host/plugin-pages/"+page_id, {method:"DELETE",body:{closing:{reference:{capability_id:probe.ask.capability_id,version:1},input:{}}}});
+  await entered.promise;
+  assert.equal((await f.request("/api/host/plugin-pages/"+page_id, {method:"DELETE"})).status, 200);
+  release.resolve(); assert.equal((await closing).status, 403);
+  assert.equal(probe.contexts.at(-1)!.services!.storage!.get("late"), null);
 });

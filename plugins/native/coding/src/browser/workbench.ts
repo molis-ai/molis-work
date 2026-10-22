@@ -1,4 +1,4 @@
-import type { UiRequest, UiRequestInit } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiRequest, UiRequestInit, UiPageWorkspaces, UiPageReviews } from "@molis-ai/molis-work-contracts/platform/ui";
 
 /** The page's one request helper (packages/ui-host request-client, W3-10); clients receive it as `host.request` from W5-04. */
 declare const molisWorkRequest: UiRequest;
@@ -54,10 +54,9 @@ export interface CodingWorkbenchHost {
   readonly openBeside?: (plugin: string, id: string, title?: string) => void;
   readonly openPlugin?: (plugin: string) => void;
   readonly hideDirectory?: () => void;
-  /** Links a folder the person picked and confirmed to this project (`POST /api/workspaces`); answers `{ workspace }`. */
-  readonly addWorkspace?: (workspacePath: string) => Promise<{ readonly workspace: unknown }>;
+  readonly workspaces: UiPageWorkspaces;
   readonly clients: Readonly<Record<string, CompanionClient | undefined>>;
-  readonly reviews: ReviewsFactory;
+  readonly reviews: UiPageReviews<Element>;
 }
 
 /** The folder and file icons the Files client draws, rendered by the design system on the Host. */
@@ -72,7 +71,11 @@ const BACK_LABEL: Readonly<Record<string, string>> = { files: "返回文件列�
  * read from its plugin's `/state`. Built with esbuild into `dist/workbench-bundle.js` (src/workbench-client.ts reads it).
  */
 export function codingWorkbench(host: CodingWorkbenchHost, coding: CodingClient, icons: CodingIcons): void {
-  const { mountPluginClient, route, clients, reviews } = host;
+  const { mountPluginClient, route, clients } = host;
+  const reviews: ReviewsFactory = ports => (element: Element, refs: { run_id: string }[], sessionId?: string | null, workspaceId?: string | null,
+    query?: { runSession?: string; limit?: number }, control?: { signal?: AbortSignal }) => host.reviews.show(element,
+      { runIds: refs.map(ref => ref.run_id), sessionId, workspaceId, ...query }, { signal: control?.signal,
+        onDecision: state => ports.onDecision?.({ workspaceId, sessionId, state }) });
   // What every client mounted here (Coding's own, Files, Git, a companion page) gets besides its own ports.
   const lent = { mountPluginClient, translate: host.translate };
   const headers = () => host.headers();
@@ -83,6 +86,13 @@ export function codingWorkbench(host: CodingWorkbenchHost, coding: CodingClient,
       const input = { ...(query.has("artifact_id") ? { reference: { artifact_id: query.get("artifact_id"), version: Number(query.get("version")) } } : {}),
         ...(query.has("change_index") ? { change_index: Number(query.get("change_index")) } : {}) };
       return molisWorkRequest(route("/api/host/plugin-page-actions"), { body: { reference: { capability_id: plugin + ".state", version: 1 }, input }, signal });
+    }
+    if (host.root.getAttribute("data-work-surface") === "coding" && ["files", "git"].includes(plugin) && url.pathname !== "/view-revision") {
+      const operation = plugin === "git" ? ({ "/diff": "select-diff", "/results": method === "POST" ? "save-result" : "results", "/operations": method === "POST" ? "prepare-operation" : "operations" } as Record<string, string>)[url.pathname] ?? url.pathname.slice(1) : url.pathname.slice(1);
+      const input = method !== "GET" ? body ?? {} : plugin === "files" && operation === "directory"
+        ? { workspace_id: url.searchParams.get("workspace_id"), path: JSON.parse(url.searchParams.get("path") ?? "[]") }
+        : operation === "conflict" ? { path: url.searchParams.get("path") ?? "" } : {};
+      return molisWorkRequest(route("/api/host/plugin-page-actions"), { body: { reference: { capability_id: plugin + "." + operation, version: 1 }, input }, signal });
     }
     return molisWorkRequest(route(`/api/plugins/io.molis.work.${plugin}${path}`),
       { method, body: method === "GET" ? undefined : body ?? {}, signal, fallback: host.translate("无法读取文件工作区") });
@@ -110,7 +120,8 @@ export function codingWorkbench(host: CodingWorkbenchHost, coding: CodingClient,
     revealTask: () => { if (matchMedia("(max-width: 600px)").matches) host.hideDirectory?.(); closeCompanionResult(); },
     onDirectoryFace: (face: string) => { const handled = filesBrowser?.show?.(face) ?? false; gitBrowser?.show?.(face); return handled; },
     showReviews: reviews({ mountPluginClient, route, headers }),
-    addWorkspace: async (workspacePath: string) => (await host.addWorkspace?.(workspacePath))?.workspace,
+    addWorkspace: (workspacePath: string) => host.workspaces.add(workspacePath),
+    selectWorkspace: (id: string) => host.workspaces.select(id),
     openItem: (plugin: string, id: string, title?: string) => host.openItem?.(plugin, id, title),
     openBeside: (plugin: string, id: string, title?: string) => host.openBeside?.(plugin, id, title),
   });

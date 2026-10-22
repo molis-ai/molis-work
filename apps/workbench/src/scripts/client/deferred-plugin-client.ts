@@ -7,7 +7,7 @@ import { deferredSurfaceClients } from "../../plugin-workbench.js";
 export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const failure = () => L('无法加载界面，请重试');
-  const packs = ${JSON.stringify(deferredSurfaceClients().map(({ id, plugin_id, bundle, assets, searchRow }) => [id, plugin_id, bundle, assets, searchRow]))}.map(([id, plugin_id, bundle, assets, searchRow]) => ({ id, plugin_id, bundle, assets, searchRow }));
+  const packs = ${JSON.stringify(deferredSurfaceClients().map(({ id, plugin_id, bundle, assets, searchRow, recordRow }) => [id, plugin_id, bundle, assets, searchRow, recordRow]))}.map(([id, plugin_id, bundle, assets, searchRow, recordRow]) => ({ id, plugin_id, bundle, assets, searchRow, recordRow }));
   const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap();
   const scope = host.scope;
   const load = url => {
@@ -32,7 +32,7 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const settle = (root, state) => { root.inert = false; root.removeAttribute('aria-busy'); root.dataset.uiClientState = state; };
   const prepare = root => {
-    if (!root || !root.hasAttribute('data-deferred-surface') || root.closest('[hidden]')) return Promise.resolve();
+    if (!root || !root.hasAttribute('data-deferred-surface') || root.closest('[hidden], [data-surface-pool]')) return Promise.resolve();
     if (mounting.has(root)) return mounting.get(root);
     const pack = packs.find(pack => pack.id === root.dataset.workSurface);
     if (!pack) return Promise.resolve();
@@ -44,6 +44,7 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (pack.plugin_id) {
           await load('/assets/molis-work-plugin-frame.js');
           if (!root.isConnected || scope.signal.aborted) return;
+          if(root.closest('[hidden], [data-surface-pool]')){mounting.delete(root);settle(root,'idle');return;}
           await globalThis.molisPluginFrames.mount(root, host, pack);
         } else {
           for (const asset of pack.assets) await load(asset);
@@ -73,7 +74,7 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!root) return; selections.set(root, event.detail); event.stopImmediatePropagation(); void prepare(root);
   }, true);
   const visible = () => document.querySelectorAll('[data-deferred-surface]').forEach(root => {
-    if (!root.closest('[hidden]') && root.dataset.uiClientState !== 'failed') void prepare(root);
+    if (!root.closest('[hidden], [data-surface-pool]') && root.dataset.uiClientState !== 'failed') void prepare(root);
   });
   scope.observe(new MutationObserver(visible), document.body, { subtree: true, attributes: true, attributeFilter: ['hidden'], childList: true });
   visible();

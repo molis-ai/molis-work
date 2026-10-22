@@ -100,7 +100,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await open("text-stats");
   await waitFor("document.querySelector('[data-companion=" + '"text-stats"' + "] [data-phase=ready]')");
   const statsStage = await stage("text-stats");
-  assert.match(statsStage.heading, /Text Stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开 Files"]);
+  assert.match(statsStage.heading, /Text stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开 Files"]);
   assert.ok(statsStage.inset >= 32 && statsStage.column <= 960 && statsStage.contentLeft >= 32, JSON.stringify(statsStage));
   await capture("stats-desktop");
   await writeFile(join(workspace, "note.txt"), "staged\n中文🙂\n");
@@ -123,7 +123,9 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
 
   await open("coding");
   await click(`${coding} [data-coding-face="files"]`);
-  await waitFor(`document.querySelector('${coding} [data-files-tree] [title="note.txt"]')`);
+  await waitFor(`document.querySelector('${coding} [data-files-tree] [title="note.txt"]')`).catch(async error => {
+    throw new Error(JSON.stringify(await evaluate(`({files:document.querySelector('[data-files-notice]')?.textContent,git:document.querySelector('[data-git-status]')?.textContent,tree:document.querySelector('[data-files-tree]')?.outerHTML,root:document.querySelector('[data-coding-workbench]')?.dataset})`)),{cause:error});
+  });
   await waitFor(`!document.querySelector('${coding} [data-files-refresh]').disabled && !document.querySelector('${coding} [data-git-refresh]').disabled`);
   await click(`${coding} [data-files-tree] [title="note.txt"]`);
   await waitFor(`!document.querySelector('${coding} [data-files-text]').hidden && document.querySelector('${coding} [data-files-text]').value.startsWith('second')`);

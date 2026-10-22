@@ -46,7 +46,8 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
         window.errors=[];addEventListener('error',event=>errors.push(event.message));addEventListener('unhandledrejection',event=>errors.push(String(event.reason)));
         ${clientI18nScript()}
         ${UI_REQUEST_CLIENT_SCRIPT}
-        window.mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();window.parentView=document.querySelector('#parent');
+        const actualMount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();window.mountedScopes=new WeakMap();
+        window.mount=root=>{const scope=actualMount(root);if(scope)mountedScopes.set(root,scope);return scope;};window.parentView=document.querySelector('#parent');
         ${script}
       </script>`);return;
     }
@@ -68,7 +69,11 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
 /** Coding's bundle as the page mounts it on each of its surfaces: Coding's factory with Files' and Git's clients and the Host's reviews folded in. */
 const CODING_SURFACE_FACTORY = pluginSurfaceClients().find(client => client.id === "coding")!.factory;
 // A companion's reads go to `/api/plugins/io.molis.work.<plugin>/…`; the fixture serves them at `/<plugin>/…`.
-const companionHost = "root:document.querySelector('[data-companion]'),mountPluginClient:mount,translate:L,route:path=>path.replace('/api/plugins/io.molis.work.','/'),headers:()=>({}),openPlugin:()=>{}";
+const companionHost = `root:document.querySelector('[data-companion]'),mountPluginClient:mount,translate:L,route:path=>path.replace('/api/plugins/io.molis.work.','/'),headers:()=>({}),openPlugin:()=>{} ,reviews:{show:(element,query,options)=>{
+  window.fixtureReviewShow ??= (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mount,route:path=>path,headers:()=>({})});
+  return fixtureReviewShow(element,query.runIds.map(run_id=>({run_id})),query.sessionId,query.workspaceId,query,
+    {lifetime:mountedScopes.get(element.closest('[data-companion]')),signal:options?.signal});
+}}`;
 const fixedMarkup = '<button data-companion-refresh><span class="mw-spinner" hidden></span>刷新</button><p data-companion-status></p><div data-companion-content></div>';
 const state = (name: string) => name === "files" ? { workspace: { workspace_id: "ws" } }
   : name === "git" ? { workspace: { workspace_id: "ws" }, selected: null, view: { phase: "ready", head: "current", conflicts: [], staged: [], changes: [] } }

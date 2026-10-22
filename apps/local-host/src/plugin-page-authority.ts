@@ -2,7 +2,7 @@ import { PLUGIN_MANAGEMENT_OPERATIONS } from "./plugin-route-operations.js";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ActionError, isSubjectReader } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionReference, isSubjectReader } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
@@ -24,6 +24,7 @@ interface Page {
   readonly requests: Set<AbortController>;
   readonly match: ReturnType<typeof pluginRouteMatcher>;
   expiresAt: number;
+  closing?: boolean;
   assertScope?(): Promise<void>;
 }
 const refused = () => new ActionError("actions.forbidden", "插件页面权限已失效或未声明此入口");
@@ -76,6 +77,29 @@ export class PluginPageAuthority {
     for (const request of page?.requests ?? []) request.abort(refused());
   }
 
+  /** Cancel ordinary work, run at most one own action under the original authority, then revoke the page. */
+  async finish(id: string, action: { reference: ActionReference; input: unknown } | undefined): Promise<void> {
+    const page = this.pages.get(id);
+    if (!page || !action || page.closing) { this.close(id); return; }
+    page.closing = true;
+    for (const request of page.requests) request.abort(refused());
+    const controller = new AbortController(); page.requests.add(controller);
+    const check = () => {
+      controller.signal.throwIfAborted();
+      if (this.pages.get(id) !== page || !this.activations.has(page.activation) || page.expiresAt < Date.now()) throw refused();
+      page.activation.assertCurrent();
+    };
+    const beforeEffect = async () => { check(); await page.assertScope?.(); check(); };
+    try {
+      const own = page.activation.manifest.actions?.find(item => item.capability_id === action.reference?.capability_id && item.version === action.reference?.version);
+      if (!own || !page.activation.invoke) throw refused();
+      for (const permission of own.action.permissions) page.activation.assertCurrent(permission);
+      await beforeEffect();
+      await page.activation.invoke({ ...action, project_id: page.project_id, signal: controller.signal,
+        assertCurrent: check, beforeEffect, beforeBackgroundEffect: beforeEffect });
+    } finally { this.close(id); }
+  }
+
   clearProject(projectId: string): void {
     for (const [id, page] of this.pages) if (page.project_id === projectId) this.close(id);
   }
@@ -98,14 +122,15 @@ export class PluginPageAuthority {
     const contextual = request.headers["x-molis-context-page"], id = contextual ?? request.headers["x-molis-plugin-page"];
     if (id === undefined) return;
     const page = typeof id === "string" ? this.pages.get(id) : undefined;
-    if (!page || page.expiresAt < Date.now()) throw refused();
+    if (!page || page.closing || page.expiresAt < Date.now()) throw refused();
     const prefix = page.project_id === null ? "" : `/projects/${encodeURIComponent(page.project_id)}`;
     if (!url.pathname.startsWith(`${prefix}/api/`)) throw refused();
     const pathname = url.pathname.slice(prefix.length);
     const ownPrefix = `/api/plugins/${page.activation.manifest.plugin_id}/`;
     const operation = pathname.startsWith(ownPrefix) ? pathname.slice(ownPrefix.length) : null;
     if (operation !== null && PLUGIN_MANAGEMENT_OPERATIONS.has(operation)) throw refused();
-    const revision = Boolean(page.activation.install_id) && operation === "view-revision" && request.method === "GET";
+    const embeddedRevision = page.activation.manifest.ui.embedded_plugins?.some(id => pathname === `/api/plugins/${id}/view-revision`);
+    const revision = Boolean(page.activation.install_id) && (operation === "view-revision" || embeddedRevision) && request.method === "GET";
     const route = page.match(request.method ?? "GET", pathname);
     const directory = Boolean(page.activation.install_id) && request.method === "POST" && pathname === "/api/host/directory-grants";
     const action = Boolean(page.activation.invoke) && request.method === "POST" && pathname === "/api/host/plugin-page-actions";
@@ -118,8 +143,13 @@ export class PluginPageAuthority {
     // ordinary header never opens these owner actions. Both paths retain the page's cancellation and activation.
     const contextChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && request.method === "POST" && ["/api/contextual/prepare", "/api/contextual/attach", "/api/placement/convert", "/api/plugins/io.molis.work.todo/items"].includes(pathname);
-    if (contextual !== undefined ? !contextChoice : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
-    const permission = directory ? "directory:read" : route?.permission ?? undefined;
+    const workspaceChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
+      && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-workspaces";
+    const reviewChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined && Boolean(page.project_id)
+      && (request.method === "GET" && ["/api/agent/reviews", "/api/agent/reviews/recovery"].includes(pathname)
+        || request.method === "POST" && ["/api/agent/reviews/decide", "/api/agent/reviews/recovery"].includes(pathname));
+    if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
+    const permission = directory ? "directory:read" : workspaceChoice ? "workspace:read" : route?.permission ?? undefined;
     const controller = new AbortController();
     const check = () => {
       controller.signal.throwIfAborted();
@@ -142,12 +172,13 @@ export function pluginPageRequest(request: IncomingMessage) {
     signal: authority.signal, assertCurrent: authority.check,
     ownedObject(object: {kind: string; id: string; project_id?: string | null}) {
       authority.check();
-      if (!object || typeof object.kind !== "string" || typeof object.id !== "string" || !object.id || object.id.length > 256
-        || object.project_id !== undefined && object.project_id !== authority.page.project_id) throw refused();
+      if (!object || typeof object.kind !== "string" || typeof object.id !== "string" || !object.id || object.id.length > 256) throw refused();
       const reader = authority.page.activation.manifest.actions?.find(definition => isSubjectReader(definition.action) && definition.action.subject_kinds.includes(object.kind));
       if (!reader) throw refused();
+      const project_id = reader.action.scope === "home" ? null : authority.page.project_id;
+      if (object.project_id !== undefined && object.project_id !== project_id) throw refused();
       for (const permission of reader.action.permissions) authority.page.activation.assertCurrent(permission);
-      return {kind: object.kind, id: object.id, project_id: authority.page.project_id};
+      return {kind: object.kind, id: object.id, project_id};
     },
     invoke(request: PageActionRequest) { if (!authority.page.activation.invoke) throw refused(); return authority.page.activation.invoke(request); },
     async resolveFiles(paths: readonly string[]) {

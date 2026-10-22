@@ -34,7 +34,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     assert.ok(node.frameId, "frame owner must identify a real child");
     const current = contexts.get(node.frameId);
     assert.ok(current, `Missing child execution context: ${node.frameId}`);
-    return current;
+    return { ...current, frameId: node.frameId };
   }
   async function evaluate<T = unknown>(expression: string, timeoutMs?: number): Promise<T> {
     const current = await context();
@@ -106,5 +106,5 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     try { await browser.command("DOM.setFileInputFiles", { objectId: result.objectId, files }, current.session); }
     finally { await browser.command("Runtime.releaseObject", { objectId: result.objectId }, current.session); }
   }
-  return { evaluate, waitFor, click, point, setFiles, frameCommand: command };
+  return { evaluate, waitFor, click, point, setFiles, frameCommand: command, frameId: async () => (await context()).frameId };
 }

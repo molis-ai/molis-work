@@ -1,3 +1,7 @@
+import { collapsePage } from "./view.js";
+import { pagePlacement } from "./placement.js";
+import { pageReviews } from "./reviews.js";
+import { pageEmbeds } from "./embed.js";
 import { downloadFrameFile, downloadPageBlob } from "./links.js";
 import { printPageDocument } from "./files.js";
 import { pageMessages } from "./messages.js";
@@ -13,6 +17,7 @@ import { pageNavigation } from "./navigation.js";
 import { pageTodo } from "./todo.js";
 import { pagePresentation } from "./presentation.js";
 import { pageFilePicker } from "./file-picker.js";
+import { pageWorkspaces } from "./workspaces.js";
 import type { FrameConfig, FrameHost, FramePack, FrameUp } from "./types.js";
 
 function stored(prefix: string): FrameConfig["storage"] {
@@ -30,7 +35,9 @@ function stored(prefix: string): FrameConfig["storage"] {
 
 function navigate(root: HTMLElement, message: Extract<FrameUp, { type: "link" }>, prefix: string): void {
   const url = new URL(message.url);
-  if (url.origin === location.origin && ["/settings/models", "/settings/connectors", "/capabilities/connections", prefix + "/settings/workspaces"].includes(url.pathname)) {
+  const objectLink = url.pathname === prefix + "/" && /^[a-z][a-z0-9-]{0,100}$/u.test(url.searchParams.get("openPlugin") ?? "")
+    && [...url.searchParams.keys()].every(key => ["openPlugin", "openItem", "openTitle", "openVersion"].includes(key));
+  if (url.origin === location.origin && (objectLink || ["/settings/models", "/settings/connectors", "/capabilities/connections", prefix + "/settings/workspaces"].includes(url.pathname))) {
     const link = document.createElement("a"); link.href = url.pathname + url.search; link.hidden = true; root.append(link); link.click(); link.remove();
   } else if (["https:", "http:", "mailto:"].includes(url.protocol) && url.origin !== location.origin) window.open(url.href, "_blank", "noopener,noreferrer");
 }
@@ -49,6 +56,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   try {
   const grant = pack.authorization ?? await molisWorkRequest<{ page_id: string; storage_scope: string }>(route("/api/host/plugin-pages"), { body: { plugin_id: pack.plugin_id }, scope });
   scope.assertCurrent();
+  root.dataset.pluginPage = grant.page_id;
   const storagePrefix = "molis-plugin-page:" + grant.storage_scope + ":", storage = stored(storagePrefix);
   const frame = document.createElement("iframe"), channel = new MessageChannel();
   frame.setAttribute("sandbox", "allow-scripts allow-forms"); frame.setAttribute("referrerpolicy", "no-referrer");
@@ -60,24 +68,46 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const drafts = pageDrafts(port, scope, storagePrefix), navigation = pageNavigation(scope, port, Boolean(host.side));
   const receiveMessage = pageMessages(port, scope, pack.plugin_id, Boolean(host.side));
   const makeTodo = pageTodo(port, scope, frame, grant.page_id, route);
+  const placement = pagePlacement(port, scope, root, frame);
   const presentation = pagePresentation(scope, frame, root, pack, grant.page_id);
+  const reviews = pageReviews(port, scope, root, frame, grant.page_id, route, host);
+  const embed = pageEmbeds(port, scope, root, frame, grant.page_id, route);
+  const workspaces = pageWorkspaces(port, scope, grant.page_id, route, host.translate, frame.title, host.projectTitle?.() ?? "");
   let childExpanded: string | null = null;
+  let closing: Extract<FrameUp, {type: "on-closing"}>["action"] = null;
   let readyResolve!: () => void, readyReject!: (error: Error) => void;
   const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
   const deadline = setTimeout(() => readyReject(new Error(host.translate("无法加载界面，请重试"))), 10000);
   scope.own(() => {
+    if (closing) collapsePage(root);
     clearTimeout(deadline); readyReject(new Error("View closed")); port.postMessage({ type: "dispose" }); port.close(); frame.remove();
-    void molisWorkRequest(route("/api/host/plugin-pages/" + encodeURIComponent(grant.page_id)), { method: "DELETE" }).catch(() => { /* Host shutdown already revokes the activation. */ });
+    void molisWorkRequest(route("/api/host/plugin-pages/" + encodeURIComponent(grant.page_id)), { method: "DELETE", body: closing ? { closing } : {}, keepalive: true }).catch(() => { /* Host shutdown already revokes the activation. */ });
   });
-  const state = () => port.postMessage({ type: "state", visible: scope.visible,
+  const visible = () => {
+    for (let node: Element | null = root; node; node = node.ownerDocument.defaultView?.frameElement ?? null)
+      if (!node.checkVisibility({ visibilityProperty: true })) return false;
+    return scope.visible;
+  };
+  const state = () => port.postMessage({ type: "state", visible: visible(),
     theme: Object.fromEntries(["theme", "resolvedTheme", "density", "terminalTheme", "resolvedTerminalTheme"].map(key => [key, document.documentElement.dataset[key] ?? ""])) });
   scope.observe(new MutationObserver(state), document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
+  scope.observe(new MutationObserver(state), document.body, { subtree: true, attributes: true, attributeFilter: ["data-exclusive"] });
   scope.whenVisible(() => { state(); navigation.focus(); return state; });
   const fail = (error: Error) => { clearTimeout(deadline); readyReject(error); };
   const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, host.translate);
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
     if (!scope.alive || !message || typeof message.type !== "string") return;
+    if (message.type === "on-closing") {
+      try { if (message.action === null || message.action && typeof message.action === "object" && JSON.stringify(message.action).length <= 16000) closing = message.action; }
+      catch { /* A cyclic registration is not a closing action. */ }
+      return;
+    }
+    if (message.type === "placement-slots" || message.type === "placement-open") { placement(message); return; }
+    if (message.type === "review-show" || message.type === "review-layout" || message.type === "review-close") { void reviews(message); return; }
+    if (message.type === "open-behind") { if (scope.visible && typeof message.itemId === "string" && message.itemId.length <= 1000 && typeof message.title === "string") host.openBehind?.(pack.id, message.itemId, message.title.slice(0, 1000)); return; }
+    if (message.type === "workspace") { void workspaces(message); return; }
+    if (message.type === "embed-open" || message.type === "embed-layout" || message.type === "embed-close") { void embed(message); return; }
     if (message.type === "fetch" || message.type === "abort" || message.type === "pull") { void requests(message); return; }
     if (message.type === "draft") { void drafts(message); return; }
     if (message.type === "make-todo") { void makeTodo(message); return; }
@@ -85,7 +115,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "interaction") { if (scope.visible) window.dispatchEvent(new CustomEvent("molis:surface-interaction")); return; }
     if (message.type === "shortcut" || message.type === "close-side") { navigation.receive(message); return; }
     if (message.type === "terminal") { void terminal(message); return; }
-    if (message.type === "context-report" || message.type === "context-taken" || message.type === "context-call" || message.type === "context-unreadable") { void contextMessage(message); return; }
+    if (message.type === "context-key" || message.type === "context-report" || message.type === "context-taken" || message.type === "context-call" || message.type === "context-unreadable") { void contextMessage(message); return; }
     if (message.type === "native-files") { void handoffPageFiles(port, scope, grant.page_id, route, message); return; }
     if (message.type === "native-file-pick") { void pickFile(message); return; }
     if (message.type === "refresh-shell") { location.reload(); return; }
@@ -120,12 +150,12 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   scope.observe(new MutationObserver(() => {
     if (root.dataset.expanded === "false" && childExpanded !== "false") port.postMessage({ type: "collapse" });
   }), root, { attributes: true, attributeFilter: ["data-expanded"] });
-  scope.listen(document, "molis-work:model-ready", () => port.postMessage({ type: "model-ready" }));
+  scope.listen(document, "molis-work:model-ready", () => { state(); port.postMessage({ type: "model-ready" }); });
   let loaded = false;
   frame.onload = () => {
     if (loaded) { fail(new Error("Plugin page navigated")); scope.dispose(); return; }
     loaded = true;
-    const config: FrameConfig = { todoAvailable: navigation.todoAvailable(), origin: location.origin, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow,
+    const config: FrameConfig = { todoAvailable: navigation.todoAvailable(), origin: location.origin, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, surface: pack.id,
       stage: { title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)), description: getComputedStyle(root).getPropertyValue("--stage-desc") },
       nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts,
       projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,

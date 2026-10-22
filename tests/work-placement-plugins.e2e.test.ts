@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
@@ -37,6 +38,9 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, reloadPage, homeDirectory } = browser;
+  const views = Object.fromEntries(await Promise.all(["form", "dataset", "lingguang", "pages"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
+  const shelf = await pluginFrameBrowser(t, browser, "shelf", '[data-side-body="plugin:shelf/side"] iframe');
+  const viewFor = (selector: string) => views[selector.match(/data-(form|dataset|lingguang|pages)-/)?.[1] ?? ""] ?? browser;
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const other = await catalog.createProject({ display_name: "市场活动", actor_id: "placement-test" });
   catalog.close();
@@ -58,6 +62,7 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   const visible = (selector: string, label?: string) => `[...document.querySelectorAll(${text(selector)})].find(node => node.getClientRects().length${label ? ` && node.textContent.trim() === ${text(label)}` : ""})`;
   // A list may repaint after marking its visible target. Only retry a target lost before any pointer event was sent.
   const press = async (selector: string, label?: string) => {
+    const { evaluate, waitFor, click } = viewFor(selector);
     for (let attempt = 0; ; attempt++) {
       await waitFor(`Boolean(${visible(selector, label)})`, 15_000);
       await evaluate(`(() => { document.querySelectorAll('[data-e2e-target]').forEach(node => node.removeAttribute('data-e2e-target')); ${visible(selector, label)}.setAttribute('data-e2e-target', ''); })()`);
@@ -87,7 +92,7 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
     if (!await evaluate<boolean>("Boolean(document.querySelector('.tab-item[data-tab-kind=home][aria-current]'))")) await click(".tab-item[data-tab-kind=home] .tab-item-trigger");
     await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')", 15_000);
   };
-  const typeInto = (selector: string, value: string) => evaluate(`(() => { const input = ${visible(selector)}; input.focus(); input.value = ${text(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  const typeInto = (selector: string, value: string) => viewFor(selector).evaluate(`(() => { const input = ${visible(selector)}; input.focus(); input.value = ${text(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await go(`/projects/${projectId}/`);
@@ -122,7 +127,7 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   await press("[data-form-to-dataset]");
   await cardButton("已转成《活动报名 · 答卷》", "打开");
   await waitFor("document.body.dataset.desktopSurface === 'dataset'", 15_000);
-  await waitFor(`${visible("[data-dataset-title]")}?.value === '活动报名 · 答卷'`, 15_000);
+  await views.dataset.waitFor(`${visible("[data-dataset-title]")}?.value === '活动报名 · 答卷'`, 15_000);
   const table = await current();
   assert.equal(table?.kind, "dataset");
   assertAnswerDataset(homeDirectory, projectId!, formId, table!.id, answerTimes);
@@ -139,13 +144,13 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   await press("[data-lingguang-capture]");
   await card("已新建");
   await typeInto("[data-lingguang-title]", "展台改成开放式");
-  await waitFor(`${visible("[data-lingguang-save-status]")}?.textContent === '已保存'`, 15_000);
+  await views.lingguang.waitFor(`${visible("[data-lingguang-save-status]")}?.textContent === '已保存'`, 15_000);
   const spark = await current();
   assert.equal(spark?.kind, "lingguang_spark");
   await press("[data-lingguang-to-doc]");
   await cardButton("已转成《展台改成开放式》", "打开");
   await waitFor("document.body.dataset.desktopSurface === 'pages'", 15_000);
-  await waitFor(`${visible("[data-pages-title]")}?.value === '展台改成开放式'`, 15_000);
+  await views.pages.waitFor(`${visible("[data-pages-title]")}?.value === '展台改成开放式'`, 15_000);
   const page = await current();
   const fromSpark = await describe({ kind: "pages_document", id: page!.id, project_id: projectId });
   assert.ok(fromSpark.associations.some(link => link.label.includes("来自《展台改成开放式》")), `document says where it came from: ${text(fromSpark.associations)}`);
@@ -166,17 +171,19 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   assert.ok(item?.item_id, "admitted into the Shelf");
   // Shelf is a 常开插件 living in the side panel (W2'-2): its tab is its own document, so the steps inside it run there, and
   // what it asks of the page (the shared dialog, the cards) reaches the page through the side panel.
-  const shelfDoc = "document.querySelector('[data-side-body=\"plugin:shelf/side\"] iframe')?.contentDocument";
-  const shelfShows = (id: string) => waitFor(`document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'
-    && ${shelfDoc}?.querySelector('[data-shelf-list=materials] [data-shelf-item="${id}"]')?.getAttribute('aria-selected') === 'true'`, 15_000);
+  const shelfShows = async (id: string) => {
+    await waitFor("document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'", 15_000);
+    await shelf.waitFor(`document.querySelector('[data-shelf-list=materials] [data-shelf-item="${id}"]')?.getAttribute('aria-selected') === 'true'`, 15_000);
+  };
   // A row's actions show on hover; the first visible match, or else the first one.
-  const inShelf = (selector: string) => evaluate(`(() => { const all = [...(${shelfDoc}?.querySelectorAll(${text(selector)}) || [])], node = all.find(node => node.getClientRects().length) || all[0]; node?.click(); return Boolean(node); })()`);
+  const inShelf = (selector: string) => shelf.evaluate(`(() => { const all = [...(document.querySelectorAll(${text(selector)}) || [])], node = all.find(node => node.getClientRects().length) || all[0]; node?.click(); return Boolean(node); })()`);
   const useHere = async (project: string, title: string) => {
     // The plugin is named, never placed: `openPlugin=shelf` opens Shelf's side tab on the item.
     await go(`/projects/${project}/?openPlugin=shelf&openItem=${encodeURIComponent(item.item_id)}`);
     await shelfShows(item.item_id);
-    await waitFor(`Boolean([...(${shelfDoc}?.querySelectorAll('[data-shelf-use-in-project]') || [])].find(node => node.getClientRects().length))`, 15_000);
-    assert.equal(await inShelf("[data-shelf-use-in-project]"), true);
+    await shelf.waitFor("document.querySelector('[data-placement-slot] .placement-bar-where')?.textContent === '个人空间'");
+    await shelf.waitFor(`Boolean([...(document.querySelectorAll('[data-shelf-use-in-project]') || [])].find(node => node.getClientRects().length))`, 15_000);
+    await shelf.click("[data-shelf-use-in-project]");
     await waitFor("document.querySelector('dialog.placement-dialog')?.open", 12_000);
     assert.equal(await evaluate(`document.querySelector('dialog.placement-dialog input[name="project"]:checked')?.value`), project, "the project you are in is the default");
     await click("dialog.placement-dialog [data-placement-confirm]");
@@ -192,9 +199,9 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   await projectHome(projectId!);
   await press(`[data-placement-related] [data-placement-open="${item.item_id}"]`);
   await shelfShows(item.item_id);
-  assert.equal(await evaluate(`JSON.parse([...(${shelfDoc}?.querySelectorAll('[data-assistant-context]') || [])].find(node => JSON.parse(node.getAttribute('data-assistant-context') || '{}').object)?.getAttribute('data-assistant-context') || '{}').object?.id`), item.item_id, "the Shelf names the opened item");
+  assert.equal(await shelf.evaluate(`JSON.parse([...(document.querySelectorAll('[data-assistant-context]') || [])].find(node => JSON.parse(node.getAttribute('data-assistant-context') || '{}').object)?.getAttribute('data-assistant-context') || '{}').object?.id`), item.item_id, "the Shelf names the opened item");
   assert.equal(await inShelf(`[data-shelf-list=materials] [data-shelf-item="${item.item_id}"] [data-shelf-row-action="delete"]`), true);
-  await waitFor(`!${shelfDoc}?.querySelector('[data-shelf-list=materials] [data-shelf-item="${item.item_id}"]')`, 15_000);
+  await shelf.waitFor(`!document.querySelector('[data-shelf-list=materials] [data-shelf-item="${item.item_id}"]')`, 15_000);
   for (const [project, name] of [[other.project_id, "other"], [projectId!, "first"]] as const) {
     await projectHome(project);
     await waitFor(`[...document.querySelectorAll('[data-placement-related] .placement-related-row.is-gone')].some(row => row.innerText.includes('竞品价格表') && row.innerText.includes('原对象已删除'))`, 15_000);

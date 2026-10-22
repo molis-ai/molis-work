@@ -4,10 +4,37 @@ import type { ActionReference } from "./actions.js";
 /** The isolated page calls only its installation's own or declared consumed actions. Identity and grants stay with the Host. */
 /** The current contribution only; the Host chooses its address and rechecks its installation. */
 /** Refreshing the shell always uses its current address; plugins cannot select a host URL. */
-export interface UiPageView { readDocument(): Promise<string>; refreshShell(): void }
+export interface UiPageView<Element = unknown> {
+  readDocument(): Promise<string>;
+  /** Replace the current own-action cleanup; null cancels it. The Host runs it before revoking this page. */
+  onClosing(action: { reference: ActionReference; input: unknown } | null): void;
+  refreshShell(): void;
+  /** The shell displays another current-project object inside this slot; its DOM and authority stay outside this page. */
+  embed(element: Element, target: { surface: string; itemId: string; title?: string }): { ready: Promise<void>; dispose(): void };
+}
 
 export interface UiPageActions {
   invokeAction<Output = unknown>(reference: ActionReference, input: unknown): Promise<Output>;
+}
+
+/** Current-project directories only. Linking requires confirmation in the trusted Host; selecting grants no new access. */
+export interface UiPageWorkspaces {
+  add(path: string): Promise<{ workspace_id: string }>;
+  select(workspaceId: string): Promise<void>;
+}
+
+/** A Host-owned review surface. The page supplies filters and a slot, never a decision or review contents. */
+export interface UiPageReviewQuery {
+  readonly runIds: readonly string[];
+  readonly sessionId?: string | null;
+  readonly workspaceId?: string | null;
+  readonly runSession?: string;
+  readonly limit?: number;
+}
+/** Completion only; detailed review contents and receipts remain in the trusted Host. */
+export type UiPageReviewOutcome = "unavailable" | "uncertain" | "rejected" | "reconciled" | "failed" | "settled" | "pending";
+export interface UiPageReviews<Element = unknown> {
+  show(element: Element, query: UiPageReviewQuery, options?: { signal?: AbortSignal; onDecision?: (outcome: UiPageReviewOutcome) => void }): Promise<void>;
 }
 
 /** Browser-local unsent drafts, namespaced by the Host to this installation. Keys are at most 256 characters; values at most 16 MiB of UTF-8. */
@@ -268,6 +295,8 @@ export interface UiRequestInit {
   /** Extra request headers. They cannot add or replace the control token, the one-time key or the content type. */
   readonly headers?: Readonly<Record<string, string>>;
   readonly signal?: AbortSignal;
+  /** Allow the browser to finish a small request while the document closes. Authority is still checked by the Host. */
+  readonly keepalive?: boolean;
   /** The view's lifetime: leaving the page cancels the request, and an answer that arrives after that is dropped. */
   readonly scope?: UiRequestScope;
   /** Shown when the answer carries no explanation of its own. */

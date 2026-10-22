@@ -113,5 +113,7 @@ export const CONTEXT_LANDING_PANE_SCRIPT = String.raw`    const attaching = new 
       const run = () => new Promise((resolve, reject) => { attaching.set(data.token, { resolve, reject }); up({ type: "workbench-context-attach-run", token: data.token }); });
       const chosen = new CustomEvent("molis:assistant-context-action-chosen", { cancelable: true, detail: { ...data.chosen, prepare: async () => data.offer, run } });
       window.dispatchEvent(chosen);
-      up({ type: "workbench-context-attach-taken", token: data.token, taken: chosen.defaultPrevented });
+      const taken = (value) => up({ type: "workbench-context-attach-taken", token: data.token, taken: value });
+      if (chosen.detail.handled) void chosen.detail.handled.then(taken);
+      else taken(chosen.defaultPrevented);
     });`;

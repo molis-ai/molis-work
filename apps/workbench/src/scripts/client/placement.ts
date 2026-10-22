@@ -21,10 +21,10 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   const loadSpaces = async () => { if (!spaces) spaces = (await api("spaces")).spaces || []; return spaces; };
   const cache = new Map();
   const keyOf = (object) => object.kind + ":" + object.id + ":" + (object.project_id || "");
-  const describe = async (object, fresh) => {
-    const key = keyOf(object), held = cache.get(key);
+  const describe = async (object, fresh, page) => {
+    const key = (page || "") + keyOf(object), held = cache.get(key);
     if (!fresh && held && Date.now() - held.at < 15000) return held.value;
-    const value = await api("describe", { object });
+    const value = page ? await molisWorkRequest(route("/api/placement/describe"), {body:{object},headers:{"x-molis-plugin-page":page}}) : await api("describe", { object });
     cache.set(key, { at: Date.now(), value });
     return value;
   };
@@ -229,7 +229,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     bar.append(where, access, links, saved);
     slot.append(bar);
     let view = null;
-    try { view = await describe(object, false); } catch (error) { if(slot.isConnected&&slot.dataset.placementPainted===signature){where.textContent=L("位置读不到");const note=node("p",undefined,"placement-read-error");molisWorkRequest.show(note,error);slot.append(note);}return; }
+    try { view = await describe(object, false, slot.closest("[data-plugin-page]")?.dataset.pluginPage); } catch (error) { if(slot.isConnected&&slot.dataset.placementPainted===signature){where.textContent=L("位置读不到");const note=node("p",undefined,"placement-read-error");molisWorkRequest.show(note,error);slot.append(note);}return; }
     if (slot.dataset.placementPainted !== signature) return;
     const location = view.location;
     where.textContent = location ? location.title : L("位置读不到");

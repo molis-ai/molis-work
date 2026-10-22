@@ -115,7 +115,9 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     return {
       actor_id: options.actor_id, actor_kind: "user", project_id: projectId, audience: "plugin", permissions: context.grants,
       host_plugin: routedPluginCaller(options.pluginCaller, projectId), plugin_install_id: context.install_id, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
-      allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, ...(providerId ? { provider_id: providerId } : {}) }],
+      // Mandatory dependencies remain limited to what this installation explicitly consumes.
+      ...(consumed.has(definition.capability_id) ? { allowed_capability_ids: [...consumed] }
+        : { allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, ...(providerId ? { provider_id: providerId } : {}) }] }),
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
     };
   };

@@ -2,13 +2,13 @@ import type { ContextActionChosen } from "@molis-ai/molis-work-contracts/service
 import type { FrameScope } from "./types.js";
 
 type Report = "focus" | "landing" | "tools";
-export type ContextUp = { type: "context-report"; report: Report; value: unknown }
+export type ContextUp = { type: "context-key" } | { type: "context-report"; report: Report; value: unknown }
   | { type: "context-unreadable"; itemId: unknown }
   | { type: "context-taken"; choice: string; taken: boolean }
   | { type: "context-call"; choice: string; id: number; operation: "prepare" | "run" };
 export type ContextDown = { type: "context-choice"; choice: string; value: Omit<ContextActionChosen, "prepare" | "run" | "handled">; runnable: boolean }
   | { type: "context-result"; id: number; value?: unknown; error?: string }
-  | { type: "context-tool"; value: unknown } | { type: "context-flash" }
+  | { type: "context-tool"; value: unknown } | { type: "context-flash" } | { type: "context-return" }
   | { type: "context-effect" | "context-placement"; value: unknown };
 
 /** Only serializable, bounded presentation data crosses this channel. The server validates its semantic shape. */
@@ -33,6 +33,12 @@ export function frameContext(port: MessagePort, scope: FrameScope, root: HTMLEle
   let chosen: { id: string; value: ContextActionChosen; reply(taken: boolean): void; pending: Partial<Record<"prepare" | "run", Promise<unknown>>> } | undefined;
   const send = (message: ContextDown) => port.postMessage(message);
   scope.own(() => { chosen?.reply(false); chosen = undefined; });
+  const returnFocus = (event: KeyboardEvent) => {
+    if (event.key !== "Escape" || !(event.target instanceof Element) || !event.target.closest(".mw-ctx")) return;
+    setTimeout(() => { if (scope.alive && scope.visible && document.activeElement === frame) send({type: "context-return"}); }, 0);
+  };
+  document.addEventListener("keydown", returnFocus, true);
+  scope.own(() => document.removeEventListener("keydown", returnFocus, true));
   scope.listen(window, "molis:assistant-context-action-chosen", event => {
     const value = (event as CustomEvent<ContextActionChosen>).detail;
     if (value?.plugin_id !== pluginId || !scope.visible || value.handled || typeof value.prepare !== "function") return;
@@ -49,6 +55,10 @@ export function frameContext(port: MessagePort, scope: FrameScope, root: HTMLEle
   scope.listen(window, "molis:placement-changed", event => send({ type: "context-placement", value: (event as CustomEvent).detail }));
   return async (message: ContextUp): Promise<void> => {
     if (!scope.alive) return;
+    if (message.type === "context-key") {
+      if (scope.visible) document.dispatchEvent(new KeyboardEvent("keydown", {key: ".", ctrlKey: true, bubbles: true}));
+      return;
+    }
     if (message.type === "context-unreadable") {
       if (typeof message.itemId === "string" && message.itemId.length > 0 && message.itemId.length <= 1000)
         root.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: message.itemId } }));

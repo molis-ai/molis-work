@@ -151,7 +151,12 @@ test("W2-18-WFSAVE-02: a real CAS failure retains A's latest edits across B, reo
   assert.equal(await editor.frame.evaluate("document.querySelectorAll('[data-wf-chain] [data-wf-station]').length"), 3, "the original A edits survive the page reload");
   assert.equal(await editor.frame.evaluate("document.querySelector('[data-wf-save-state]').title"), refused.result.error, "the original save error survives reload with its draft");
   assert.deepEqual(editor.saved(editor.a.workflow_id), editor.a, "opening a retained draft never replays it");
+  // SYS-15-U6: the real retry is committed, but its receipt has not reached the isolated editor yet.
+  await watchSaves(editor, {hold: true});
   await editor.frame.click("[data-wf-action=retry-save]");
+  await editor.frame.waitFor("window.__wfHeld");
+  assert.notEqual(await editor.frame.evaluate("document.querySelector('[data-wf-save-state]').dataset.mwState"), "saved");
+  await editor.frame.evaluate("window.__wfRelease()");
   await editor.frame.waitFor("document.querySelector('[data-wf-save-state]').dataset.state === 'saved'");
   assert.equal(await editor.frame.evaluate("document.querySelector('[data-wf-save-state]').dataset.mwState"), "saved", "RING-07: explicit retry restores the saved mark only after success");
   assert.deepEqual(editor.saved(editor.a.workflow_id).stations.map(station => station.plugin), ["feed", "inbox", "pages"]);

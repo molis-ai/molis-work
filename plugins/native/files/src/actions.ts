@@ -12,7 +12,7 @@ import { filesErrors } from "./errors.js";
 
 const define = <Input, Output>(capability_id: string, title: string, description: string, input_schema: Record<string, unknown>, output_schema: Record<string, unknown>): ActionDefinition<Input, Output> => ({
   capability_id, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project",
-    audiences: ["user", "agent", "workflow", "mcp"], permissions: ["artifact:read", "artifact:write", "storage:private"], subject_kinds: ["workspace", "file"], input_schema, output_schema },
+    audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions: ["artifact:read", "artifact:write", "storage:private"], subject_kinds: ["workspace", "file"], input_schema, output_schema },
 });
 /**
  * An action that cannot work without reading the linked folder says so: it needs the one workspace read action, and the

@@ -57,7 +57,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       context.object = { kind: "lingguang_spark", id: selected.id, version: selected.updated_at + ":" + (selected.status || "inbox"), title: titleInput.value || selected.title };
       if (unsaved) context.unsaved = true;
     }
-    workbench.setAttribute("data-assistant-context", JSON.stringify(context));
+    workbench.setAttribute("data-assistant-context", JSON.stringify(context)); closingBlank();
   };
   const showSave = (text, failed = false) => {
     saveStatus.textContent = L(text);
@@ -693,7 +693,14 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const lifetime = host.mountPluginClient?.(workbench);
   lifetime?.whenVisible(() => () => { if (lifetime.alive && !document.hidden) void leaveBlank().catch(() => {}); });
-  lifetime?.own(() => { void leaveBlank(true); });
+  const closingBlank = () => {
+    const record = selected && records.find(item => item.id === selected.id);
+    const given = record && fresh.get(record.id);
+    const empty = record && given !== undefined && !bodyInput.value.trim() && (!titleInput.value.trim() || titleInput.value === given)
+      && !(record.body || "").trim() && (!record.title.trim() || record.title === given) && saveStatus.dataset.mwState === "saved";
+    host.view.onClosing(empty ? { reference: { capability_id: "lingguang.revert", version: 1 }, input: { id: record.id, expected_updated_at: record.updated_at } } : null);
+  };
+
   void loadList().catch((error) => { listFailed(error); throw error; }).then(openWanted).catch((error) => showNote(error.message, true));
 }
 `;

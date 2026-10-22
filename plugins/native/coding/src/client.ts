@@ -76,8 +76,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   // The project has one current directory: where new rounds run and what Files and Git show. Choosing it here sets it
   // for the whole project (the same setting as in project settings), then the embedded Files and Git views re-read it.
   const useProjectWorkspace = async (id) => {
-    const response=await lifetime.fetch((document.body.dataset.routePrefix || '')+'/api/project-settings/workspaces',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({workspace_id:id})});
-    if(!response.ok){let reason='';try{reason=(await response.json()).error || '';}catch{}throw new Error(reason?L('coding.workspace.switch-failed-why',{reason}):L('coding.workspace.switch-failed'));}
+    try{await host.selectWorkspace(id);}catch(error){throw new Error(L('coding.workspace.switch-failed-why',{reason:error.message}));}
     lifetime.assertCurrent();
     root.querySelectorAll('[data-git-refresh],[data-files-refresh]').forEach(button=>button.click());
   };

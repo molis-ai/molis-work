@@ -23,7 +23,7 @@ export function pluginPageActions(manifest: PluginManifest, context: PluginStart
 }) {
   return async (request: PageActionRequest): Promise<unknown> => {
     const reference = checkedReference(request.reference);
-    const own = manifest.actions?.some(action => action.capability_id === reference.capability_id && action.version === reference.version);
+    const own = manifest.actions?.find(action => action.capability_id === reference.capability_id && action.version === reference.version);
     if ((!own && !manifest.capabilities.consumes.includes(reference.capability_id)) || own && reference.provider_id && reference.provider_id !== options.provider)
       throw new ActionError("actions.forbidden", "插件没有声明提供或消费这项动作");
     if (!options.actions) throw new ActionError("actions.unavailable", "插件没有动作服务");
@@ -34,7 +34,8 @@ export function pluginPageActions(manifest: PluginManifest, context: PluginStart
     const caller: ActionCallContext = { actor_id: options.caller.actor_id, project_id: request.project_id, permissions: context.grants,
       audience: own ? "user" : "plugin", signal: request.signal,
       ...(!own ? { host_plugin: routedPluginCaller(options.caller, request.project_id), plugin_install_id: context.install_id } : {}),
-      allowed_actions: [{ ...reference, ...(own ? { provider_id: options.provider } : {}) }],
+      ...(own ? { allowed_actions: [{ ...reference, provider_id: options.provider }, ...(own.action.required_actions ?? [])] }
+        : { allowed_capability_ids: manifest.capabilities.consumes }),
       validate_authority: async () => { await request.beforeEffect(); check(); }, assert_authority_current: check };
     await request.beforeEffect();
     const view = await pluginActionView(options.client, caller, { ...reference, ...(own ? { provider_id: options.provider } : {}) });

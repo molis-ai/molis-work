@@ -24,11 +24,12 @@ test("S1 W4-1 contextual Todo: real selection → made at once from what was sel
   const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
-  const select = (index: number) => child.evaluate(`(() => {
+  await evaluate("document.addEventListener('molis:surface-focus',event=>window.todoTestFocus=event.detail)");
+  const select = async (index: number) => { await child.evaluate(`(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[${index}].firstChild, range = document.createRange(); range.selectNodeContents(text);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
-  })()`);
+  })()`); await waitFor(`window.todoTestFocus?.targets?.[0]?.text === ${JSON.stringify(index === 0 ? FIRST : SECOND)}`); };
   const access = { actor: "user" as const, actorId: "web-user", projectId: projectId!, everything: true };
   const todos = () => { const owner = openTodoStore(homeDirectory); try { return owner.list(access); } finally { owner.close(); } };
   const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
@@ -138,11 +139,12 @@ test("S1 W4-1 a card whose run is refused writes nothing and can run again: Goal
   const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
-  const select = (index: number) => child.evaluate(`(() => {
+  await evaluate("document.addEventListener('molis:surface-focus',event=>window.todoTestFocus=event.detail)");
+  const select = async (index: number) => { await child.evaluate(`(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[${index}].firstChild, range = document.createRange(); range.selectNodeContents(text);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
-  })()`);
+  })()`); await waitFor(`window.todoTestFocus?.targets?.[0]?.text === ${JSON.stringify(index === 0 ? FIRST : SECOND)}`); };
   await select(0);
   const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
   const WRITE = `[...document.querySelectorAll('${BAR} button,.mw-ctx-menu button')].find(button => !button.disabled && button.textContent.startsWith('拆成目标步骤'))`;

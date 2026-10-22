@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { sendBarrier } from "./fixtures/assistant-send-journey.js";
@@ -22,6 +23,9 @@ const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 test("VUX-31: quick loads never flash a waiting mark, and a slow refresh shows its spinner after the wait", { timeout: 300_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  const views = Object.fromEntries(await Promise.all(ORDER.map(async id => [id, await pluginFrameBrowser(t, browser, id,
+    id === "shelf" ? '[data-side-body="plugin:shelf/side"] iframe' : undefined)])));
+  await command("Page.addScriptToEvaluateOnNewDocument", {source:SAMPLE}, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await command("Page.bringToFront", {}, sessionId);
@@ -29,33 +33,38 @@ test("VUX-31: quick loads never flash a waiting mark, and a slow refresh shows i
   await pause(1_500);
   await evaluate(SAMPLE);
   const flashes: string[] = [];
-  const watch = async (label: string, run: string) => {
-    await evaluate("window.__marks.length = 0"); await evaluate(run); await pause(1_500);
+  const visibleChild = (id: string) => evaluate<boolean>(`(()=>{const owner=${id === "shelf" ? `document.querySelector('[data-side-body="plugin:shelf/side"] iframe')` : "null"};
+    return !!(owner?.contentDocument??document).querySelector('iframe[data-plugin-frame="${id}"]');})()`);
+  const watch = async (label: string, id: string, run: () => Promise<unknown>) => {
+    await evaluate("window.__marks.length = 0");
+    if (await visibleChild(id)) await views[id]!.evaluate("window.__marks.length=0");
+    await run(); await pause(1_500);
     const marks = await evaluate<string[]>("window.__marks");
+    if (await visibleChild(id)) marks.push(...await views[id]!.evaluate<string[]>("window.__marks"));
     if (marks.length) flashes.push(`${label}: ${[...new Set(marks)].join(" / ")} (${marks.length} frames)`);
   };
-  for (const round of [1, 2]) for (const id of ORDER) await watch(`open ${id} (round ${round})`, `molisWorkOpenPlugin(${JSON.stringify(id)})`);
+  for (const round of [1, 2]) for (const id of ORDER) await watch(`open ${id} (round ${round})`, id, () => evaluate(`molisWorkOpenPlugin(${JSON.stringify(id)})`));
   for (const id of ["files", "git"]) {
-    await evaluate(`molisWorkOpenPlugin(${JSON.stringify(id)})`); await waitFor(`!document.querySelector('[data-${id}-refresh]').disabled`, 15_000);
-    await watch(`${id} refresh`, `document.querySelector('[data-${id}-refresh]').click()`);
+    await evaluate(`molisWorkOpenPlugin(${JSON.stringify(id)})`); await views[id]!.waitFor(`!document.querySelector('[data-${id}-refresh]').disabled`, 15_000);
+    await watch(`${id} refresh`, id, () => views[id]!.evaluate(`document.querySelector('[data-${id}-refresh]').click()`));
   }
   assert.deepEqual(flashes, [], "a quick load showed a waiting mark");
 
   // Slow: the refresh's read is held.
-  await evaluate("molisWorkOpenPlugin('files')"); await waitFor("!document.querySelector('[data-files-refresh]').disabled", 15_000);
+  await evaluate("molisWorkOpenPlugin('files')"); await views.files!.waitFor("!document.querySelector('[data-files-refresh]').disabled", 15_000);
   const barrier = await sendBarrier(browser as never, [{ urlPattern: "*files/state*", requestStage: "Request" }]);
   const parts = `(() => { const button = document.querySelector('[data-files-refresh]'), opacity = (el) => getComputedStyle(el).visibility === 'visible' ? +getComputedStyle(el).opacity : 0;
     return { busy: button.hasAttribute('data-loading'), label: opacity(button.querySelector(':scope > :not(.mw-spinner)')), spinner: button.querySelector('.mw-spinner').hidden ? 0 : opacity(button.querySelector('.mw-spinner')) }; })()`;
-  await evaluate("document.querySelector('[data-files-refresh]').click()"); const held = await barrier.next();
+  await views.files!.evaluate("document.querySelector('[data-files-refresh]').click()"); const held = await barrier.next();
   await pause(60);
-  const early = await evaluate<{ busy: boolean; label: number; spinner: number }>(parts);
+  const early = await views.files!.evaluate<{ busy: boolean; label: number; spinner: number }>(parts);
   assert.deepEqual(early, { busy: true, label: 1, spinner: 0 }, "just after the click the label stays and no spinner shows");
   await pause(700);
-  const late = await evaluate<{ busy: boolean; label: number; spinner: number }>(parts);
+  const late = await views.files!.evaluate<{ busy: boolean; label: number; spinner: number }>(parts);
   assert.deepEqual(late, { busy: true, label: 0, spinner: 1 }, "past the wait the spinner shows in the label's place");
   await barrier.release(held); await barrier.close();
-  await waitFor("!document.querySelector('[data-files-refresh]').hasAttribute('data-loading')", 15_000);
-  assert.deepEqual(await evaluate(parts), { busy: false, label: 1, spinner: 0 }, "when the read answers the label comes back at once");
+  await views.files!.waitFor("!document.querySelector('[data-files-refresh]').hasAttribute('data-loading')", 15_000);
+  assert.deepEqual(await views.files!.evaluate(parts), { busy: false, label: 1, spinner: 0 }, "when the read answers the label comes back at once");
 });
 
 // The plugins' own waits follow the same 250ms: switching the Goal shown in the work view keeps the old document and shows

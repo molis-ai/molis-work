@@ -1,4 +1,5 @@
-import type { UiRequest, UiRequestScope, UiPageMessage, UiPageTerminal, UiTerminalCommand, UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { HostReviewFactory } from "./review-slots.js";
+import type { UiRequest, UiRequestScope, UiPageView, UiPageReviewQuery, UiPageReviewOutcome, UiPageMessage, UiPageTerminal, UiTerminalCommand, UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ContextUp, ContextDown } from "./context.js";
 import type { PresentationMessage } from "./presentation.js";
 
@@ -10,7 +11,7 @@ export interface FrameScope extends UiRequestScope {
   own(cleanup: () => void): () => void;
   dispose(): void;
   listen(target: EventTarget, name: string, callback: EventListener): () => void;
-  whenVisible(start: () => (() => void) | void): () => void;
+  whenVisible(start: (signal: AbortSignal) => (() => void) | void): () => void;
   observe(observer: MutationObserver, target: Node, options: MutationObserverInit): MutationObserver;
 }
 export interface FrameHost {
@@ -23,6 +24,7 @@ export interface FrameHost {
   projectTitle?(): string;
   page?(): unknown;
   side?: boolean;
+  openBehind?(...args: unknown[]): void;
   openItem?(...args: unknown[]): void;
   openBeside?(...args: unknown[]): void;
   openPlugin?(...args: unknown[]): void;
@@ -31,10 +33,13 @@ export interface FrameHost {
   status?(...args: unknown[]): void;
 }
 export interface FramePack { id: string; plugin_id: string; bundle: string; assets: string[];
+  recordRow?: { selector: string; idDataset: string };
   searchRow?: { selector: string; idDataset: string };
   authorization?: { page_id: string; storage_scope: string } }
 export interface FrameConfig {
   searchRow?: FramePack["searchRow"];
+  recordRow?: FramePack["recordRow"];
+  surface: string;
   nativeFiles: boolean; todoAvailable: boolean;
   stage: { title: string; description: string };
   shortcuts: string[];
@@ -47,7 +52,19 @@ export interface FrameFetch {
 export type FrameRequest = FrameFetch | { type: "abort" | "pull"; id: number };
 export type FrameAnswer = { type: "response"; id: number; status: number; statusText: string; headers: [string, string][] }
   | { type: "chunk"; id: number; bytes: ArrayBuffer } | { type: "end"; id: number } | { type: "fetch-error"; id: number; message: string };
-export type FrameUp = FrameRequest | ContextUp | PresentationMessage | { type: "ready" } | { type: "failed"; message: string }
+export type FrameUp =
+  | { type: "on-closing"; action: Parameters<UiPageView["onClosing"]>[0] }
+  | { type: "placement-slots"; slots: Array<{ id: number; target: boolean; home: boolean; saved: boolean; box: {x: number; y: number; width: number; height: number} | null }> }
+  | { type: "placement-open"; id: number }
+  | { type: "open-behind"; itemId: string; title: string }
+  | { type: "review-show"; id: number; query: UiPageReviewQuery }
+  | { type: "review-layout"; id: number; box: {x: number; y: number; width: number; height: number} | null }
+  | { type: "review-close"; id: number }
+  | { type: "workspace"; id: number; operation: "add" | "select"; value: string }
+  | { type: "embed-open"; id: number; target: { surface: string; itemId: string; title?: string } }
+  | { type: "embed-layout"; id: number; box: {x: number; y: number; width: number; height: number} | null }
+  | { type: "embed-close"; id: number }
+  | FrameRequest | ContextUp | PresentationMessage | { type: "ready" } | { type: "failed"; message: string }
   | { type: "interaction" } | { type: "read-document"; id: number } | { type: "refresh-shell" }
   | { type: "make-todo"; id: number; input: {title: string; sources: Array<{kind: string; title: string; excerpt: string; reason: string; subject: {kind: string; id: string}; open: {surface: string; id: string}}> } }
   | { type: "copy"; id: number; text: string }
@@ -62,6 +79,12 @@ export type FrameUp = FrameRequest | ContextUp | PresentationMessage | { type: "
   | { type: "link"; url: string; download: boolean } | { type: "context"; value: string | null; expanded: string | null }
   | { type: "storage"; area: "localStorage" | "sessionStorage"; key: string; value: string | null };
 export type FrameDown =
+  | { type: "placement-label"; id: number; html: string }
+  | { type: "review-size"; id: number; height: number }
+  | { type: "review-shown"; id: number; error?: string }
+  | { type: "review-decided"; id: number; outcome: UiPageReviewOutcome }
+  | { type: "workspace-result"; id: number; workspace?: { workspace_id: string }; error?: string; status?: number }
+  | { type: "embedded"; id: number; error?: string }
   | { type: "focus" } | FrameAnswer | ContextDown | { type: "state"; visible: boolean; theme: Record<string, string> }
   | { type: "document"; id: number; html?: string; error?: string }
   | { type: "todo-made"; id: number; item?: {id: string; title: string}; replayed?: boolean; error?: string }
@@ -75,6 +98,8 @@ export type FrameDown =
   | { type: "select"; detail: unknown } | { type: "collapse" } | { type: "dispose" };
 
 declare global {
+  var molisFrameReviews: HostReviewFactory;
+  var molisFrameFillMessage: Translate;
   var molisWorkRequest: UiRequest;
   var molisPageTerminal: UiPageTerminal;
   var molisWorkControlHeaders: UiRequest["headers"];

@@ -10,7 +10,7 @@ for (const pack of pluginSurfaceClients()) test(`SYS-15 ${pack.id} opens its iso
   const child = await pluginFrameBrowser(t, browser, pack.id);
   const registration = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === pack.id)!;
   const setting = registration.manifest.ui?.views?.some(view => view.slot === "settings") && ["characters", "plugin-builder"].includes(pack.id);
-  const side = registration.manifest.ui?.views?.find(view => view.slot === "side" && !registration.manifest.ui?.views?.some(item => item.slot === "main"));
+  const side = !registration.manifest.ui?.views?.some(view => ["navigator", "stage"].includes(view.slot)) ? registration.manifest.ui.views.find(view => view.slot === "side") : undefined;
   const query = setting ? "settings=" : "openPlugin=";
   await browser.navigate(() => browser.command("Page.navigate", { url: side ? `${browser.origin}/projects/${browser.projectId}/side/${pack.id}/${side.view_id}` : `${browser.origin}/projects/${browser.projectId}/?${query}${pack.id}` }, browser.sessionId));
   try {

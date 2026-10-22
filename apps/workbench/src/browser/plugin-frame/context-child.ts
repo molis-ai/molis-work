@@ -4,10 +4,18 @@ import type { ContextDown, ContextUp } from "./context.js";
 
 /** Surface events stay in the child; only their data and callbacks for a choice the shell actually offered cross the port. */
 export function childContext(port: MessagePort, scope: FrameScope, root: HTMLElement): void {
+  let returnFocus: HTMLElement | null = null;
   let sequence = 0, landing: Element | null = null, tools: Element | null = null;
   const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>();
   const send = (message: ContextUp) => port.postMessage(message);
   scope.own(() => { for (const entry of pending.values()) entry.reject(new Error("View closed")); pending.clear(); });
+  scope.listen(document, "keydown", event => {
+    const key = event as KeyboardEvent;
+    if (!key.defaultPrevented && (key.metaKey || key.ctrlKey) && key.key === ".") {
+      returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      key.preventDefault(); send({ type: "context-key" });
+    }
+  });
   scope.listen(document, "molis-work:item-unreadable", event => send({ type: "context-unreadable", itemId: (event as CustomEvent<{ itemId?: unknown }>).detail?.itemId }));
   scope.listen(document, "molis:surface-focus", event => {
     let value: unknown = (event as CustomEvent).detail;
@@ -31,7 +39,8 @@ export function childContext(port: MessagePort, scope: FrameScope, root: HTMLEle
   });
   scope.listen(port, "message", event => {
     const message = (event as MessageEvent<ContextDown>).data;
-    if (message.type === "context-choice") {
+    if (message.type === "context-return") { if (returnFocus?.isConnected) returnFocus.focus({preventScroll: true}); returnFocus = null; }
+    else if (message.type === "context-choice") {
       const detail = { ...message.value, prepare: () => invoke(message.choice, "prepare") as ReturnType<ContextActionChosen["prepare"]>,
         ...(message.runnable ? { run: () => invoke(message.choice, "run") } : {}) };
       const chosen = new CustomEvent("molis:assistant-context-action-chosen", { cancelable: true, detail });

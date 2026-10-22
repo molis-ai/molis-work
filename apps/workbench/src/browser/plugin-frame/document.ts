@@ -10,6 +10,6 @@ export function frameDocument(root: HTMLElement, pack: FramePack): string {
   const content: unknown = JSON.parse(root.querySelector("[data-plugin-document]")?.textContent ?? "null");
   if (typeof content !== "string") throw new Error("Missing plugin document");
   return '<!doctype html><html lang="' + escape(document.documentElement.lang) + '"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="'
-    + escape(policy) + '"><link rel="stylesheet" href="' + origin + '/assets/molis-work-workbench.css"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--surface);color:var(--ink)}body>[data-work-surface]{position:relative;display:flex;width:100%;height:100%;min-width:0}body>[data-work-surface][hidden]{display:none}</style></head><body class="immersive-workbench">'
+    + escape(policy) + '"><link rel="stylesheet" href="' + origin + '/assets/molis-work-workbench.css"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--surface);color:var(--ink)}body{container:plugin-stage / inline-size}body>[data-work-surface]{position:relative;width:100%;height:100%;min-width:0}body[hidden],body>[data-work-surface][hidden]{display:none}</style></head><body class="immersive-workbench">'
     + (document.querySelector("svg.icon-sprite")?.outerHTML ?? "") + content + '<script src="' + script + '"></script></body></html>';
 }

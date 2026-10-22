@@ -55,13 +55,17 @@ test('real browser creates a Feed → Shelf action workflow, maps fields, and wr
   await click(`input[name=start][value="${item.item_id}"]`);
   await click('[data-wf-dialog-submit]');
   await waitFor("document.querySelector('[data-wf-action=continue]')");
+  // SYS-15-U7: the real source is readable inside the workflow, but its trusted document is outside the opaque page.
+  await b.waitFor("document.querySelector('iframe[data-plugin-embedded=feed]')?.contentDocument?.body.innerText.includes('这是端到端字段映射的原始正文')");
+  assert.equal(await evaluate("(()=>{try{return Boolean(parent.document)}catch(error){return error.name}})()"), "SecurityError");
   // RING-07: current human-led station is static doing; future station waits.
   await waitFor("document.querySelector('.wf-vstep.is-current .mw-state-ring')?.dataset.mwState === 'doing'");
   assert.equal(await evaluate("document.querySelector('.wf-vstep.is-pending .mw-state-ring')?.dataset.mwState"), 'waiting');
   await click('[data-wf-action=continue]');
-  await waitFor("document.querySelector('[data-wf-manual]')");
+  await waitFor("document.querySelector('[data-wf-manual]')").catch(async error=>{throw new Error(JSON.stringify(await evaluate("({view:document.querySelector('[data-wf-view]')?.innerText,toast:document.querySelector('[data-wf-toast]')?.innerText})")),{cause:error});});
   await click('[data-wf-action=handoff-submit]');
   await waitFor("document.querySelector('[data-wf-view]')?.textContent.includes('已走完')");
+  await b.waitFor("!document.querySelector('iframe[data-plugin-embedded]')");
   await waitFor("[...document.querySelectorAll('.wf-vstep .mw-state-ring')].length === 2 && [...document.querySelectorAll('.wf-vstep .mw-state-ring')].every(node => node.dataset.mwState === 'done')");
   assert.equal(await evaluate("document.querySelector('.wf-vlink__label .mw-state-ring')?.dataset.mwState"), 'done');
   const shelf = openHostShelfStore(b.homeDirectory, { disabled: true });

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { HOVER_HIDDEN, HOVER_RULES, hoverFocus, hoverShown, type HoverHidden, type HoverRule } from "./fixtures/hover-audit.js";
@@ -10,7 +11,7 @@ const PLUGINS = ["todo", "pages", "coding", "ppt", "workflows", "feed", "goals",
 const pause = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms));
 type Page = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 /** What a surface draws only with content: a Workflows chain of two stations, each with its tools. */
-async function prepare(name: string, { evaluate, waitFor }: Page) {
+async function prepare(name: string, { evaluate, waitFor }: Pick<Page,"evaluate"|"waitFor">) {
   if (name !== "workflows") return;
   await waitFor("document.querySelector('[data-wf-action=new]')", 15_000);
   await evaluate("document.querySelector('[data-wf-action=new]').click()");
@@ -25,6 +26,10 @@ async function prepare(name: string, { evaluate, waitFor }: Page) {
 test("VUX-06: actions hidden until hover on the board, the project page and every plugin show to keyboard focus and without hover", { timeout: 1_800_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  const children = Object.fromEntries(await Promise.all(PLUGINS.map(async id => [id, await pluginFrameBrowser(t,browser,id,
+    id === "shelf" ? '[data-side-body="plugin:shelf/side"] iframe' : undefined)])));
+  const childShown = (id: string) => evaluate<boolean>(`(()=>{const owner=${id === "shelf" ? `document.querySelector('[data-side-body="plugin:shelf/side"] iframe')` : "null"};
+    return !!(owner?.contentDocument??document).querySelector('iframe[data-plugin-frame="${id}"]');})()`);
   const surfaces: [string, string][] = [["组件板", "/__ui/catalog"], ["项目页", `/projects/${projectId}/`],
     ...PLUGINS.map((id): [string, string] => [id, `/projects/${projectId}/?openPlugin=${id}`])];
   const open = async (path: string) => {
@@ -43,7 +48,10 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
   let checked = 0;
   for (const [name, path] of surfaces) {
     await open(path);
-    await prepare(name, browser);
+    const isolated = await childShown(name);
+    await prepare(name, isolated ? children[name]! : browser);
+    for (const page of isolated ? [browser,children[name]!] : [browser]) {
+    const {evaluate} = page;
     await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 }, sessionId);
     const hidden = await evaluate<HoverHidden[]>(HOVER_HIDDEN);
     const seen = new Set<string>();
@@ -73,19 +81,30 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
       if (kinds.has(kind)) continue;
       kinds.add(kind);
       // Still hidden: a tap on its row (which focuses or chooses the row) must bring it.
+      const shelfSelector = name === "shelf" && page !== browser ? await evaluate<string>(`(()=>{const el=document.querySelector('[data-hover-audit="${item.index}"]');return '[data-shelf-item="'+el.closest('[data-shelf-item]').dataset.shelfItem+'"] [data-shelf-row-action="'+el.dataset.shelfRowAction+'"]';})()`) : null;
       const row = await evaluate<{ x: number; y: number } | null>(`(() => { const el = document.querySelector('[data-hover-audit="${item.index}"]');
-        const row = el?.closest('[tabindex="0"], li, [role=row], [role=option], [role=listitem]'); if (!row) return null; const box = row.getBoundingClientRect();
+        const row = el?.parentElement.closest('[tabindex="0"], li, [role=row], [role=option], [role=listitem]'); if (!row) return null; const box = row.getBoundingClientRect();
         return { x: box.x + Math.min(24, box.width / 4), y: box.y + box.height / 2 }; })()`);
       if (row) {
+        if (page !== browser) {
+          const offset = await browser.evaluate<{x:number;y:number}>(`(()=>{const owner=${name === "shelf" ? `document.querySelector('[data-side-body="plugin:shelf/side"] iframe')` : "null"};
+            const rect=(owner?.contentDocument??document).querySelector('iframe[data-plugin-frame="${name}"]').getBoundingClientRect(),outer=owner?.getBoundingClientRect()??{x:0,y:0};return{x:rect.x+outer.x,y:rect.y+outer.y};})()`);
+          row.x+=offset.x;row.y+=offset.y;
+        }
         await command("Input.synthesizeTapGesture", { ...row, duration: 60, tapCount: 1, gestureSourceType: "touch" }, sessionId, 10_000);
         await pause(400);
       }
+      // Shelf redraws the selected row; follow that same record and operation after the real tap.
+      if (shelfSelector) await evaluate(`document.querySelector(${JSON.stringify(shelfSelector)})?.setAttribute('data-hover-audit',${JSON.stringify(String(item.index))})`);
       const alpha = await evaluate<number>(hoverShown(item.index));
-      if (alpha < 0.9) found.push(`${name}: ${kind} "${item.name}" is hidden on a device without hover${row ? ", even after a tap on its row" : ""}`);
+      if (alpha < 0.9) {
+        found.push(`${name}: ${kind} "${item.name}" is hidden on a device without hover${row ? ", even after a tap on its row" : ""}`);
+      }
       else t.diagnostic(`${name}: ${kind} shows on touch after a tap on its row`);
     }
     await touch(false);
     t.diagnostic(`${name}: ${hidden.length} hidden until hover (${seen.size} kinds), ${still.length} still hidden without hover`);
+    }
   }
   assert.ok(checked >= 5, `the audit reached actions hidden until hover (${checked})`);
   assert.deepEqual(found, []);
@@ -94,23 +113,34 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
 test("VUX-06: every stylesheet rule that draws something on hover also draws it on keyboard focus, and not only with hover", { timeout: 300_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  const children = Object.fromEntries(await Promise.all(PLUGINS.map(async id => [id, await pluginFrameBrowser(t,browser,id,
+    id === "shelf" ? '[data-side-body="plugin:shelf/side"] iframe' : undefined)])));
+  const childShown = (id: string) => evaluate<boolean>(`(()=>{const owner=${id === "shelf" ? `document.querySelector('[data-side-body="plugin:shelf/side"] iframe')` : "null"};
+    return !!(owner?.contentDocument??document).querySelector('iframe[data-plugin-frame="${id}"]');})()`);
   const found = new Map<string, string>(), cleared = new Set<string>();
   // The workbench (with every plugin's styles), the component board and settings carry the three stylesheets.
   for (const path of ["/__ui/catalog", `/projects/${projectId}/settings`, `/projects/${projectId}/`, ...PLUGINS.map((id) => `/projects/${projectId}/?openPlugin=${id}`)]) {
     await navigate(() => command("Page.navigate", { url: origin + path }, sessionId));
     await waitFor("document.readyState === 'complete'", 20_000);
     await pause(800);
-    await prepare(path.endsWith("=workflows") ? "workflows" : "", browser);
-    const { found: rules, checked, count } = await evaluate<{ found: HoverRule[]; checked: string[]; count: number }>(HOVER_RULES);
-    t.diagnostic(`${path}: ${count} style rules, ${checked.length} hover reveals, ${rules.length} findings`);
+    const name = new URL(path,origin).searchParams.get("openPlugin") ?? "";
+    const isolated = await childShown(name);
+    await prepare(name,isolated ? children[name]! : browser);
+    const pages = isolated ? [browser,children[name]!] : [browser];
+    // Read the actual owner stylesheet rules; an opaque page cannot access cross-origin CSSOM itself.
+    const css = isolated ? await evaluate<string>(`[...document.styleSheets].flatMap(sheet=>[...sheet.cssRules].map(rule=>rule.cssText)).join('\\n')`) : "";
+    for (const page of pages) {
+      if (page !== browser) await page.evaluate(`window.__hoverAuditSheets=[new CSSStyleSheet()];window.__hoverAuditSheets[0].replaceSync(${JSON.stringify(css)})`);
+      const audit = page === browser ? HOVER_RULES : HOVER_RULES.replace("document.styleSheets","window.__hoverAuditSheets");
+      const { found: rules, checked, count } = await page.evaluate<{ found: HoverRule[]; checked: string[]; count: number }>(audit);
+      assert.ok(count>0,"the audit inspected actual stylesheet rules");
+      t.diagnostic(`${path}: ${count} style rules, ${checked.length} hover reveals, ${rules.length} findings`);
     const flagged = new Set(rules.map((rule) => rule.selector));
     for (const selector of checked) if (!flagged.has(selector)) cleared.add(selector);
     for (const rule of rules) found.set(rule.selector, `${rule.selector}${rule.keyboard ? "" : " — no keyboard focus"}${rule.touch ? "" : " — hidden without hover"}`);
+    }
   }
-  // Pages' sizing handles are not keyboard stops inside the document: the keyboard sizes the column, table column or image
-  // the caret is in with Mod-Alt-Shift-← and →, which the handles name (tests/pages-size-keys.e2e.test.ts). They show on touch.
-  const pointerOnlySizing = /\.pages-(column|col|image)-resize — no keyboard focus$/;
+  // SYS-08 gives both column handles real focus-visible states. Image sizing still uses its announced keyboard command.
   const left = [...found].filter(([selector]) => !cleared.has(selector)).map(([, line]) => line);
-  assert.deepEqual(left.filter((line) => !pointerOnlySizing.test(line)).sort(), []);
-  assert.equal(left.filter((line) => pointerOnlySizing.test(line)).length, 4, "the four sizing handles are the ones the keyboard reaches by keys, and nothing else hides behind it");
+  assert.deepEqual(left, [".pages-editor-host .ProseMirror .pages-image-frame:hover .pages-image-resize — no keyboard focus"]);
 });

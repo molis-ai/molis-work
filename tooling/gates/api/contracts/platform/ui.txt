@@ -112,15 +112,51 @@ export interface UiPageMessages {
     listen(receive: (message: UiPageMessage) => void): () => void;
 }
 
+export type UiPageReviewOutcome = "unavailable" | "uncertain" | "rejected" | "reconciled" | "failed" | "settled" | "pending";
+
+export interface UiPageReviewQuery {
+    readonly runIds: readonly string[];
+    readonly sessionId?: string | null;
+    readonly workspaceId?: string | null;
+    readonly runSession?: string;
+    readonly limit?: number;
+}
+
+export interface UiPageReviews<Element = unknown> {
+    show(element: Element, query: UiPageReviewQuery, options?: {
+        signal?: AbortSignal;
+        onDecision?: (outcome: UiPageReviewOutcome) => void;
+    }): Promise<void>;
+}
+
 export interface UiPageTerminal<Element = unknown> {
     mount(element: Element, options: UiTerminalMountOptions): Promise<UiTerminalView>;
     send(command: UiTerminalCommand): Promise<void>;
     listen(receive: (event: UiTerminalEvent) => void): () => void;
 }
 
-export interface UiPageView {
+export interface UiPageView<Element = unknown> {
     readDocument(): Promise<string>;
+    onClosing(action: {
+        reference: ActionReference;
+        input: unknown;
+    } | null): void;
     refreshShell(): void;
+    embed(element: Element, target: {
+        surface: string;
+        itemId: string;
+        title?: string;
+    }): {
+        ready: Promise<void>;
+        dispose(): void;
+    };
+}
+
+export interface UiPageWorkspaces {
+    add(path: string): Promise<{
+        workspace_id: string;
+    }>;
+    select(workspaceId: string): Promise<void>;
 }
 
 export interface UiRenderRequest<TModel = unknown> {
@@ -153,6 +189,7 @@ export interface UiRequestInit {
     readonly key?: string;
     readonly headers?: Readonly<Record<string, string>>;
     readonly signal?: AbortSignal;
+    readonly keepalive?: boolean;
     readonly scope?: UiRequestScope;
     readonly fallback?: string;
 }

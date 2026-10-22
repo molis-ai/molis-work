@@ -2582,3 +2582,10 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - T1 的解冻由 ③ 在 S5 的 PR 里写进 `privileges.md:104`，② 不等它合入就照裁定动手。
   - PG-027 的状态在 S9 设计稿里核实。
   - Artifacts 不并进 Goals S9 设计稿：S9 稿只写 Goals 要的服务接口，Artifacts 整体迁到平台单独一份稿，排在补位队列第一。
+- **10-22 `host.workspace.changed@1` 设计已批（① 定，依据 ② 笔记 `host-workspace-changed-design.md`）**：
+  - D1：工作区读权限要「声明并且授予」，发出时和调用处理器时各核一次。
+  - D3：扩 S-54，测试编号 X6-08～13。
+  - D4：读 Manifest 时就查权限声明。
+  - D5：v1 不合并，订阅方自己去抖。
+  - D2 改一处：成功、失败、不明的结算都广播（失败的操作可能留下半截写入）。这样广播里也完全不带结果，保密更严。
+  - Agent 的改动、外部改动不在 v1。② 在 350–369 段开一条 BL：`cause` 加 `agent-change`，之后删 `readsFilesOutputs`。BL-379 靠 v1 就能关。

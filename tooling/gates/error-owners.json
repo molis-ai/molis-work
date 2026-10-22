@@ -332,6 +332,12 @@
         "apps/local-host/src/workflow-*"
       ],
       "reason": "The Workflows plugin and the Host files that serve it; its codes already start with workflows."
+    },
+    "workspace_git": {
+      "paths": [
+        "apps/local-host/src/workspace-git-actions.ts"
+      ],
+      "reason": "The platform's workspace Git service (Git exit plan T5, T6): the projects.workspace.git.* actions the Host registers for plugins. Not the Git plugin, so not git.*; not Work's workspace.* either. The other workspace-git files join when they are renamed (G5)."
     }
   }
 }

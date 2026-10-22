@@ -22,7 +22,7 @@ import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/pl
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
-import { registerGitHostActions } from "./git-host-actions.js";
+import { registerWorkspaceGitActions } from "./workspace-git-actions.js";
 import { draftText } from "./model-draft.js";
 import { agentHostCapabilities, type AgentMcpLibrary, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { resolveConfiguredHome } from "./product-home.js";
@@ -127,7 +127,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       writeCheckers: async (runtime) => ({ workspaces: await workspaceGrants(options, runtime.project_id), store: keptWriteCheckers(prologue) }),
     },
   );
-  const unregisterGit = registerGitHostActions({ localHost: options.localHost, homeDirectory: options.homeDirectory ?? resolveConfiguredHome(),
+  const unregisterGit = registerWorkspaceGitActions({ localHost: options.localHost, homeDirectory: options.homeDirectory ?? resolveConfiguredHome(),
     gitReviews: async () => { await initialize(); return prologue?.gitReviews; }, reviews: async () => { await initialize(); return agentHost.reviews; },
     workspaces: projectId => workspaceGrants(options, projectId) });
   // Drafts borrow the same owner as Agent runs; only the ephemeral model Session is scoped to the request.

@@ -9,13 +9,13 @@ import { prepareGitOperation } from "./git-operations.js";
 import { prepareGitIndex } from "./workspace-git-index.js";
 import { reviewAuthority } from "./plugin-callers.js";
 
-const gitHostErrors = defineErrorCodes("git", {
+const workspaceGitErrors = defineErrorCodes("workspace_git", {
   /** The workspace the call names is no longer authorized for this project (or its folder no longer matches). */
   workspace_unavailable: "unavailable",
 });
 
 type GitReviewPort = NonNullable<Awaited<ReturnType<typeof createPrologueNodeAdapter>>["gitReviews"]>;
-export interface GitHostActionPorts {
+export interface WorkspaceGitActionPorts {
   readonly localHost: MolisWorkLocalHost;
   /** Where the description of what each operation produced is kept (`git-operation-details.json`). */
   readonly homeDirectory: string;
@@ -30,17 +30,17 @@ export interface GitHostActionPorts {
 const notWired = () => new ActionError("actions.connection_required", "Git 宿主审查执行方尚未接通");
 
 /**
- * Git's Host side as four plugin-only actions (PG-035): staging and the other Git operations start a Host review a person
+ * The platform's workspace Git service as four plugin-only actions (PG-035): staging and the other Git operations start a Host review a person
  * approves, under the calling installation's `review:<kind>` (PG-009, S-50); the two reads list what became of them.
  */
-export function registerGitHostActions(ports: GitHostActionPorts): () => void {
+export function registerWorkspaceGitActions(ports: WorkspaceGitActionPorts): () => void {
   const unregisterIndex = ports.localHost.registerAction(prepareGitIndexCapability, async (project, input, invocation) => {
     const reviews = await ports.gitReviews();
     if (!reviews) throw notWired();
     const current = () => ports.workspaces(project.project_id);
     const prepared = await prepareGitIndex(input, current);
     const workspace = (await current()).find(item => item.workspace_id === input.workspace_id);
-    if (!workspace) throw gitHostErrors.workspace_unavailable("工作区已取消授权");
+    if (!workspace) throw workspaceGitErrors.workspace_unavailable("工作区已取消授权");
     await invocation.beforeEffect();
     const request = await reviews.prepare({ project_id: project.project_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
       document: { kind: "git-index", action: input.action, workspace_name: workspace.display_name ?? "当前仓库", files: prepared.files } }, { ...prepared, authority: reviewAuthority(invocation.plugin, "git-index") });
@@ -57,7 +57,7 @@ export function registerGitHostActions(ports: GitHostActionPorts): () => void {
   };
   const verifiedWorkspace = async (projectId: string, workspaceId: string, refusal: string) => {
     const workspace = (await ports.workspaces(projectId)).find(item => item.workspace_id === workspaceId && item.realpath_verified);
-    if (!workspace) throw gitHostErrors.workspace_unavailable(refusal);
+    if (!workspace) throw workspaceGitErrors.workspace_unavailable(refusal);
     return workspace;
   };
   const unregisterOperation = ports.localHost.registerAction(prepareGitOperationCapability, async (project, input, invocation) => {

@@ -18,7 +18,7 @@ const MEDIA_SPECIMEN = "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="h
 export function renderFoundationSection(): string {
   const specimen = (caption: string, body: string) => `<figure class="mw-catalog__specimen"><figcaption>${caption}</figcaption><div class="mw-catalog-fade-box">${body}</div></figure>`;
   return `<section class="mw-catalog__section" id="foundation" data-primitive="foundation"><h2>视觉机制</h2>
-    <p class="mw-catalog__hint">边缘渐隐：放不下的横向条只在真有更多的一侧淡出，28px 羽化、八个透明度采样；滚到头那一侧变清晰，放得下两侧都清晰；用键盘走到的项停在羽化之外；强制颜色下改为显示滚动条。</p>
+    <p class="mw-catalog__hint">哪里都不画滚动条，照样能用滚轮、触控、键盘和焦点滚动，哪边还有更多由边缘渐隐告诉人。边缘渐隐：放不下的横向条只在真有更多的一侧淡出，28px 羽化、八个透明度采样；滚到头那一侧变清晰，放得下两侧都清晰；用键盘走到的项停在羽化之外；强制颜色下去掉渐隐、换回系统滚动条。</p>
     <div class="mw-catalog__specimens">
       ${specimen("放不下 · 右侧有更多", strip("视图（起点）"))}
       ${specimen("滚到中间 · 两侧都有", strip("视图（中间）", ' data-catalog-scroll="middle"'))}
@@ -50,6 +50,6 @@ export const FOUNDATION_SPECIMEN_STYLES = `@media (max-width:600px){.mw-compose-
   + `.mw-catalog-fit{width:min(100%,280px)}.mw-catalog-stream{width:min(100%,280px);min-height:120px;font-size:13px;line-height:20px}.mw-catalog-stream p{margin:0 0 8px}.mw-catalog-stream[data-slow]{--dur-reveal:360ms}`
   // The comparison's upper bound only; the product's one blurred keyframes is the design system's 2 px reveal.
   + `.mw-catalog-stream[data-catalog-stream="6"] .mw-fresh{animation-name:mw-catalog-fresh-6}@keyframes mw-catalog-fresh-6{from{opacity:0;filter:blur(6px)}}`
-  + `.mw-catalog-media{width:min(100%,280px);height:180px;border-radius:8px;background:var(--wash)}.mw-catalog-fade-box{width:min(100%,280px)}.mw-catalog-fade-box [data-catalog-fade]{max-width:100%;overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}.mw-catalog-fade-box .mw-toggle{flex:none;white-space:nowrap}.mw-catalog-row{display:flex;align-items:center;gap:8px}`
+  + `.mw-catalog-media{width:min(100%,280px);height:180px;border-radius:8px;background:var(--wash)}.mw-catalog-fade-box{width:min(100%,280px)}.mw-catalog-fade-box [data-catalog-fade]{max-width:100%;overflow-x:auto;flex-wrap:nowrap}.mw-catalog-fade-box .mw-toggle{flex:none;white-space:nowrap}.mw-catalog-row{display:flex;align-items:center;gap:8px}`
   // The middle specimen opens scrolled to its fifth view, as a person scrolling would leave it; no script.
   + `[data-catalog-scroll=middle]>:nth-child(5){scroll-initial-target:nearest;scroll-snap-align:center}`;

@@ -92,16 +92,14 @@ export const STYLES = `
   .tree-filter > header strong { font-size: 13px; }
   .tree-filter > header .mw-btn { margin-left: auto; }
   .tree-filter > p { margin: 4px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
-  .tree-filter-options { display: grid; max-height: 280px; overflow: auto; scrollbar-width: none; }
-  .tree-filter-options::-webkit-scrollbar { display: none; }
+  .tree-filter-options { display: grid; max-height: 280px; overflow: auto; }
   .tree-filter-option { min-width: 0; min-height: 34px; padding: 4px 4px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 17px minmax(0, 1fr) auto; align-items: center; gap: 8px; cursor: pointer; }
   .tree-filter-option:first-child { border-top: 0; }
   .tree-filter-option input { width: 15px; height: 15px; margin: 0; accent-color: var(--blue); }
   .tree-filter-option .goal-status { min-width: 0; white-space: normal; font-size: 12px; }
   .tree-filter-option small { color: var(--muted); font-size: 11px; }
   .tree-filter-summary { margin-bottom: 0 !important; padding-top: 8px; border-top: 1px solid var(--line); }
-  .tree-scroll { min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 8px 12px 16px; scrollbar-width: none; -ms-overflow-style: none; }
-  .tree-scroll::-webkit-scrollbar { display: none; }
+  .tree-scroll { min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 8px 12px 16px; }
   .tree-filter-empty { margin: 32px 4px; padding: 16px 12px; color: var(--muted); background: var(--page); font-size: 13px; line-height: 1.5; text-align: center; }
   .tree-filter-empty p { margin: 0 0 8px; }
   .tree-filter-empty .mw-btn { margin-top: 4px; }
@@ -146,8 +144,7 @@ export const STYLES = `
   .tree-node.is-selected .goal-status { color: var(--goal-status-tone, inherit); }
   .tree-footer { padding: 0 24px; border-top: 1px solid var(--line); display: flex; align-items: center; color: var(--ink-soft); background: color-mix(in srgb, var(--rail) 55%, var(--paper)); }
   .tree-footer small { margin-left: auto; color: var(--muted); }
-  .document-pane { min-width: 0; overflow: auto; background: var(--paper); scrollbar-width: none; -ms-overflow-style: none; }
-  .document-pane::-webkit-scrollbar { display: none; }
+  .document-pane { min-width: 0; overflow: auto; background: var(--paper); }
   .workspace.is-desktop-tui { grid-template-columns: var(--tree-width, clamp(280px, 22vw, 360px)) 5px minmax(0, 1fr) 5px var(--tui-width, 480px); }
   .tui-resizer { position: relative; z-index: 3; cursor: col-resize; background: var(--rail); touch-action: none; }
   .tui-resizer::after { content: ""; position: absolute; inset: 0 2px 0 auto; width: 1px; background: var(--line-strong); }
@@ -155,8 +152,7 @@ export const STYLES = `
   .tui-resizer.is-dragging::after { width: 2px; background: var(--blue); }
   .tui-pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: 56px 40px minmax(0, 1fr); background: color-mix(in srgb, var(--rail) 70%, var(--paper)); container-type: inline-size; }
   .tui-tabs { min-width: 0; padding: 0 8px 0 12px; display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--rail) 70%, var(--paper)); }
-  .tui-tab-list { min-width: 0; flex: 1; height: 100%; display: flex; align-items: center; gap: 4px; overflow: auto; scrollbar-width: none; }
-  .tui-tab-list::-webkit-scrollbar { display: none; }
+  .tui-tab-list { min-width: 0; flex: 1; height: 100%; display: flex; align-items: center; gap: 4px; overflow: auto; }
   .tui-tab { max-width: 168px; height: 28px; padding: 0 8px 0 12px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 400; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; white-space: nowrap; transition: background 130ms var(--ease-quint), color 130ms var(--ease-quint); }
   .tui-tab:hover { color: var(--ink); background: var(--nav-hover); }
   .tui-tab.is-active { color: var(--ink); background: var(--nav-active); box-shadow: none; }

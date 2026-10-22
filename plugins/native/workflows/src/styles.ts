@@ -81,7 +81,7 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-chain {
     display: flex; align-items: center; gap: 0; min-width: 0; overflow-x: auto; padding: 16px 12px 32px;
     border: 1px solid var(--line); border-radius: var(--radius-surface, 12px); background: var(--page);
-    scrollbar-width: thin; scroll-padding-inline: 24px;
+    scroll-padding-inline: 24px;
   }
   [data-workflows="workbench"] .wf-chain.is-empty { justify-content: center; padding: 24px; }
   [data-workflows="workbench"] .wf-drop {

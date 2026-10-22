@@ -245,12 +245,12 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-plugins/form.js": [30244, 30383],
   "/assets/molis-work-plugins/workflows.js": [83019, 83135],
   // VUX-36 / VUX-22: details menus reverse the same 250/130 ms transition when closed during entry, retaining the bar direction.
-  // Exact menu-only selectors preserve ordinary disclosures, popovers and Assistant motion; +1426 bytes per sheet, reviewed under #17.
+  // Menu-only selectors add 1426 bytes per sheet; Workflows touch visibility saves 41 bytes in the combined workbench sheet.
   "/assets/molis-work-settings.css": [994568, 995994],
   "/assets/molis-work-arrival.css": [704663, 706089],
-  "/assets/molis-work-workbench.css": [1612954, 1614380],
+  "/assets/molis-work-workbench.css": [1612954, 1614339],
   // Roving focus: child-list parents only affect their own group; added subtrees and attribute changes still visit descendant groups.
-  // The explicit mutation-kind branch costs 39 bytes; no unrelated code or comments were removed to disguise the cost.
+  // The mutation-kind branch adds 39 bytes to main, which already includes the independent kanban reduction.
   "/assets/molis-work-workbench.js": [1182906, 1182945],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

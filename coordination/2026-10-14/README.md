@@ -2608,3 +2608,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - `host.workspace.changed@1`：② 已写完，在 heavy.sh 排队验证，验证完开 PR。S0-2b-3 的计划已写成。
   - #1018 仍未合，有冲突。
 - **瓶颈**：heavy.sh 只有两个槽，②、③、⑤、⑩ 轮流用，各线都在等槽位，没有一条线在等裁定。
+- **10-23 Shelf S3 两项裁定（① 定）**：
+  - **PDF 预览**：不改 S-03，也不改 CSP。改走平台现有的侧栏文件内联通道 `/api/side/files/raw`，经 `shelf.files.content` 取字节。application/pdf 本来就在 RAW_TYPES 里，成果库的 PDF 走的也是这条。
+    - 哪个页面上走不通，那里才退回「显示抽取出的文字，加下载、用系统打开」。
+  - **文件夹上限**：统一成和单个文件一样的 32 MB，store、桌面壳、面板三处一起改。超限时给出明确提示，并有测试。
+    - SDK 的 45,000,000 字节（S-03）不为一个插件放宽。
+    - 分块上传不做，也不开 BL。

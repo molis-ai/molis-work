@@ -1,7 +1,7 @@
 import { ActionError, defineErrorCodes, requireSynchronous, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginImageConnectionState, PluginImageGenerationClient, PluginImageGenerationDeclaration, PluginImageGenerationRequest, PluginImageTarget, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { currentPluginAction } from "./action-scope.js";
+import { currentPluginAction, inPluginInstance, type PluginInstance } from "./action-scope.js";
 
 const errors = defineErrorCodes("plugin", {
   image_action_required: "forbidden", image_permission_undeclared: "forbidden", image_concurrent_required: "forbidden", image_input_invalid: "invalid", image_connection_changed: "conflict",
@@ -18,8 +18,7 @@ export interface PluginImageGenerationPort {
   unbind(slotId: string): void;
   generate(request: PluginImageGenerationRequest, dispatch: PluginImageGenerationDispatch): ReturnType<PluginImageGenerationClient["generate"]>;
 }
-export interface PluginImageGenerationGate {
-  readonly install_id: string;
+export interface PluginImageGenerationGate extends PluginInstance {
   assertActive(): void;
   requireGrant(permission: string): void;
 }
@@ -36,7 +35,7 @@ export function createPluginImageGenerationClient(manifest: PluginManifest, port
   };
   const action = (required: readonly string[], command = false, checkAuthority = true) => {
     const scope = currentPluginAction();
-    if (!scope || scope.install_id !== gate.install_id) throw errors.image_action_required("图片服务只接受本安装正在执行的动作");
+    if (!scope || !inPluginInstance(scope, gate)) throw errors.image_action_required("图片服务只接受本实例正在执行的动作");
     for (const permission of required) {
       permit(permission);
       if (!scope.definition.action.permissions.includes(permission)) throw errors.image_permission_undeclared("当前动作未声明图片服务需要的权限");

@@ -3504,6 +3504,7 @@ export type PluginSqlValue = string | number | bigint | Uint8Array | null;
 
 export interface PluginStartContext {
     install_id: string;
+    readonly installation_generation: string;
     readonly provider_id?: string;
     plugin_id: string;
     version: string;

@@ -1,10 +1,9 @@
 import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest, PluginOwnerFilesClient, PluginOwnerFilesDeclaration, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { currentPluginAction, type PluginActionScope } from "./action-scope.js";
+import { currentPluginAction, inPluginInstance, type PluginActionScope, type PluginInstance } from "./action-scope.js";
 
 /** The executor supplies its existing lifetime and live installation grants. */
-export interface PluginOwnerFilesGate {
-  readonly install_id: string;
+export interface PluginOwnerFilesGate extends PluginInstance {
   assertActive(): void;
   requireGrant(permission: string): void;
 }
@@ -23,7 +22,7 @@ export function createPluginOwnerFilesClient(manifest: PluginManifest, declarati
     }
   };
   const check = (scope: PluginActionScope | undefined, permission: string, write: boolean) => {
-    if (!scope || scope !== currentPluginAction() || scope.install_id !== gate.install_id) {
+    if (!scope || scope !== currentPluginAction() || !inPluginInstance(scope, gate)) {
       throw new ActionError("actions.forbidden", "文件服务只能由本插件的原动作调用");
     }
     if (write && scope.definition.operation !== "command") throw new ActionError("actions.forbidden", "查询不能写文件");

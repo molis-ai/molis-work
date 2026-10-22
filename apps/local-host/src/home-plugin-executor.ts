@@ -84,14 +84,14 @@ export class HomePluginExecutor implements PluginExecutor {
       const home = pluginHomeFor(this.options.home);
       const declaration = this.options.database(definition);
       if (declaration?.partition === "project") {
-        partitions = openPartitionedPluginDatabase(this.options.home, declaration, authorize, context.install_id, this.deletionsOf(context.install_id));
+        partitions = openPartitionedPluginDatabase(this.options.home, declaration, authorize, context, this.deletionsOf(context.install_id));
       }
-      else if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize, context.install_id);
+      else if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize, context);
       const fileDeclaration = this.options.files(definition);
-      if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize, context.install_id);
+      if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize, context);
       const owned = this.options.ownerFiles(definition);
       const ownerFiles = owned ? createPluginOwnerFilesClient(manifest, owned.declaration, openPluginOwnerFiles(this.options.home, owned.declaration),
-        { install_id: context.install_id, assertActive, requireGrant: authorize }) : undefined;
+        { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: authorize }) : undefined;
       if (owned?.initialize && context.grants.includes("storage:private") && context.grants.includes(owned.declaration.write_permission)) ownerFiles!.initializeTrusted(owned.initialize);
       withdrawAgentDefinitions = registerPluginAgentDefinitions(home, definition, context.install_id);
       const caller = Object.freeze({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actorId, project_id: null,

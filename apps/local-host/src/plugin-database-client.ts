@@ -2,7 +2,7 @@ import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/
 import type {
   PluginDatabase, PluginDatabaseDeclaration, PluginDatabaseReader, PluginDatabaseTransaction, PluginSqlRow, PluginSqlValue,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { assertPluginActionCurrent } from "@molis-ai/molis-work-plugin-runtime";
+import { assertPluginActionCurrent, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 
 /** One SQLite connection as both drivers show it: node:sqlite's `DatabaseSync` (a library in the Home), better-sqlite3's `Database` (the project's). */
 export interface PluginDatabaseConnection {
@@ -30,20 +30,20 @@ export interface PluginDatabaseConnections<Connection extends PluginDatabaseConn
  * The client a plugin is given over its own tables, in the Home or in the project's library; only the connections and the
  * per-statement check differ. Reads go through the read-only connection, and only `SELECT` or `WITH`; writes only inside
  * `transaction`, and only `INSERT`, `UPDATE` or `DELETE`. Every call asks the grants again (`authorize`), and a write also asks the
- * original caller of `installId`'s action (`assertPluginActionCurrent`) before the plugin's wait, right after it in the same turn as
+ * original caller of `instance`'s action (`assertPluginActionCurrent`) before the plugin's wait, right after it in the same turn as
  * `BEGIN`, before every statement and before `COMMIT`: a call cancelled or revoked at any of these points writes nothing, whatever
  * `beforeEffect` the plugin handed in. A write body that is not synchronous is rolled back and refused, and the transaction's
  * handle is refused once the transaction is over. Once `closed()` says so, every call is refused.
  */
 export function pluginDatabaseClient<Connection extends PluginDatabaseConnection>(connections: PluginDatabaseConnections<Connection>,
-  declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void, installId: string, closed: () => boolean): PluginDatabase {
+  declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void, instance: PluginInstance, closed: () => boolean): PluginDatabase {
   const { reader, writer } = connections;
   const permit = (permission: string) => {
     connections.refuse?.();
     if (closed()) throw new ActionError("actions.plugin_unavailable", "插件数据库已关闭");
     authorize("storage:private"); authorize(permission);
   };
-  const permitWrite = () => { permit(declaration.write_permission); assertPluginActionCurrent(installId); };
+  const permitWrite = () => { permit(declaration.write_permission); assertPluginActionCurrent(instance); };
   const reads = (db: Connection, check: () => void): PluginDatabaseReader => ({
     get(sql, parameters = []) { check(); query(sql); connections.check?.(db, sql, parameters, "read"); return (db.prepare(sql).get(...parameters) as PluginSqlRow | undefined) ?? null; },
     all(sql, parameters = []) { check(); query(sql); connections.check?.(db, sql, parameters, "read"); return db.prepare(sql).all(...parameters) as PluginSqlRow[]; },

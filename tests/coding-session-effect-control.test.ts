@@ -107,7 +107,7 @@ test("W5-01-CODING-17 Coding builds its store from the service the platform lend
 
 /** What a Host hands `start`, with only the services a case names (the platform's `ui` is always there). */
 function startContext(services: Partial<PluginHostServices>): PluginStartContext {
-  return { install_id: "coding-test", plugin_id: "io.molis.work.coding", version: "0.0.0", deployment: "local", grants: [], project_id: "board",
+  return { install_id: "coding-test", installation_generation: "1", plugin_id: "io.molis.work.coding", version: "0.0.0", deployment: "local", grants: [], project_id: "board",
     requireGrant() {}, services: { ui: { register() {}, unregister() {} }, ...services } };
 }
 const privateStorage = (): PluginPrivateStorage => {

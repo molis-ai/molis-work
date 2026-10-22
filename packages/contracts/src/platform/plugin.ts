@@ -449,6 +449,11 @@ export type PluginContribution = PluginIntegrationContribution | PluginAppContri
 
 export interface PluginStartContext {
   install_id: string;
+  /**
+   * The generation of the record this activation runs from. The Home half and the project half of a dual-instance plugin share
+   * `install_id` and differ here, and the Host's services refuse a call from the other half (specs/dual-instance-plugins U3).
+   */
+  readonly installation_generation: string;
   /** Trusted action identity; Home built-ins use plugin_id, project installs use install_id. */
   readonly provider_id?: string;
   plugin_id: string;

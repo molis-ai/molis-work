@@ -159,7 +159,7 @@ test("QA-019 W5-01-PPT-05: a model grant withdrawn after the answer stops ppt.ou
       } };
     const artifacts: PluginArtifactClient = { publish: () => { throw new Error("nothing is pinned here"); }, read: () => null, head: () => null, readOwn: () => null,
       listConsumable: () => [] };
-    const context: PluginStartContext = { install_id: "ppt-test", plugin_id: PPT_PLUGIN_ID, version: "0.0.0", deployment: "local", grants: [...grants],
+    const context: PluginStartContext = { install_id: "ppt-test", installation_generation: "1", plugin_id: PPT_PLUGIN_ID, version: "0.0.0", deployment: "local", grants: [...grants],
       project_id: "p", services: { database, artifacts, model, ui: { register: () => {}, unregister: () => {} } }, requireGrant: () => {} };
     const handlers = (await createPptPlugin().start(context)).actions!;
     const caller: ActionExecutionContext = { actor_id: "owner", project_id: "p", audience: "user", permissions: PPT_ACTION_PERMISSIONS,

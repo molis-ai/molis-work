@@ -12,7 +12,7 @@ Prologue `mcp/` 已有：stdio / http / in-process 三种传输、协议大版�
 
 1. **所有服务器一个信任档。** 没有“这是公司内网、这是个人装的开源服务、这是临时试用”的区别；工具描述、资源正文、服务器指令都只能当同一类外部内容。
 2. **所有 MCP 工具都是 `mutate-external`。** 即使对方声明只读，也要走最重的审批；Molis 因此只在 workspace-write 路径开放外部工具。只读 MCP 工具本可以进只读面。
-3. **发现只有工具。** resources / prompts 能读，但没有成为模型可用的入口；没有 resource templates、completions、订阅或提示命令。
+3. **resources 有模型入口，prompts 还没有。** `list-mcp-resources` / `read-mcp-resource` 已经能列出、读取并分页长资料；但 prompts 主要仍是 App 入口，也没有 resource templates、completions、订阅或提示命令。
 4. **没有健康与配额。** 连接靠人手动连；没有周期探活、退避、限流、每服务器工具上限；一次坏服务可以拖慢一轮。
 5. **搜索按全局。** `mcp:server/tool` 只能整串匹配；没有按服务器过滤、分组、分页；服务器一多，`find-tools` 里全是噪音。
 6. **认证仍偏内部。** OAuth 只在 Node 的 plugin 里，未公开；token 刷新、账号切换、凭据引用没有统一公开合同。
@@ -27,6 +27,17 @@ Prologue `mcp/` 已有：stdio / http / in-process 三种传输、协议大版�
 | 工具注解 | MCP tool annotations | readOnly / destructive / idempotent / openWorld 影响审批 | 用注解绕过审查 |
 | 生命周期 | MCP lifecycle / health | 握手、能力、关闭、重连；失败可解释 | 静默重连/自动重放 |
 | 提示与资源 | MCP prompts / resource templates | 提示作为命令、资源作为上下文、模板补全 | 把资源正文当指令 |
+
+### 2.1 来源与取舍
+
+下表只列直接影响本 spec 决定的来源；不是完整 MCP 客户端调研。协议版本按 [MCP 2025-06-18](https://modelcontextprotocol.io/specification/2025-06-18/server/tools) 的页面引用，实施前按目标版本复核。
+
+| 来源 | 类型 | 它做了什么 | 采纳 / 拒绝 | 影响 |
+| --- | --- | --- | --- | --- |
+| [MCP 规范](https://modelcontextprotocol.io/specification/2025-06-18/server/tools) | 官方规范 | tools/resources/prompts、能力协商、elicitation、生命周期 | 采纳三面与生命周期；继续不支持 sampling/roots | 发现、健康、提示/资源 |
+| [MCP tool annotations](https://modelcontextprotocol.io/specification/2025-06-18/server/tools) | 官方规范 | readOnly/destructive/idempotent/openWorld | 采纳只加严；P0 不降 effectKind | 注解、审批 |
+| [Claude Code MCP](https://code.claude.com/docs/en/mcp) | 官方文档 | 项目配置、认证、工具发现 | 采纳项目级与信任/健康；不自动信任所有服务器 | 信任档、健康、认证 |
+| [OpenHands MCP](https://github.com/OpenHands/OpenHands/pull/7637) | 第三方实现 | MCP 客户端接入与执行 | 采纳连接生命周期；不照搬执行器 | 生命周期、错误 |
 
 ## 3. 优化策略
 
@@ -68,6 +79,8 @@ Prologue `mcp/` 已有：stdio / http / in-process 三种传输、协议大版�
 
 - MCP prompt 可作为：人点名的命令、模型可读的方法、Skill 的引用；执行前仍过同一道门。
 - MCP resource 作为上下文材料：带 `mcp` 来源、URI、服务器、快照版本；正文是不可信数据。
+- 现有 `list-mcp-resources` / `read-mcp-resource` 与长资料分页保留；本 spec 只补 resource templates、completions、订阅和 prompts 的模型入口，不重做已有读取链。
+- MCP prompts 不进入 SkillRegistry；它们是 MCP 自己的调用面（`mcp.prompts.invoke` 或 App 包装），不能冒充 Skill、也不能绕过同一道门。
 - 资源模板、订阅、进度、日志、completions 按能力协商；不支持就明确报 `MCP_CAPABILITY_UNSUPPORTED`。
 - sampling / roots 继续明确不支持；不假装支持，也不偷偷用别的通道。
 
@@ -143,6 +156,13 @@ Molis 的 [Agent Host](../../docs/horizontal/agent-host.md) 现在明确“当�
 - 不自动重连到新地址、不自动重放外部副作用。
 - 风险：服务器描述/资源里的提示注入；一律按外部数据，进上下文前过 screening。
 - 风险：健康探活本身产生流量；默认关，App 打开，且有界。
+
+### 8.1 复查记录（2026-10-21）
+
+- 现有实现已经给模型 `list-mcp-resources` / `read-mcp-resource`，并且长资料有分页；原稿写成“resources 没有模型入口”不准确，已改正。本轮只补 prompts、模板、补全、订阅。
+- `readMcpPrompt` / `readMcpResource` 仍是 App 侧入口；本 spec 不重复实现，只补模型可点名的提示面。
+- MCP 工具当前一律 `mutate-external`；P0 的 annotations 只加严，不把 readOnly 自动降成 `safe-read`。只读面是 P1 安全评审项。
+- 与 Skill/Tool 的边界：MCP prompts 不是 Skill；MCP tools 仍进 Tool 目录、走同一道门。`find-tools` / `find-skills` 不替 MCP 另开搜索。
 
 ## 9. 参考
 

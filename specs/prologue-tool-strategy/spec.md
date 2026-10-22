@@ -29,6 +29,18 @@ Molis 现在把 13 个业务网关工具、宿主工具和 MCP 工具按角色�
 | 工具注解 | MCP tool annotations | readOnly / destructive / idempotent / openWorld 影响审批与重试 | 用注解放宽硬边界 |
 | 大结果卸载 | 现有 observation + resource | 截断明说，全文进引用 | 静默截断或把全文塞回事件 |
 
+### 2.1 来源与取舍
+
+下表只列直接影响本 spec 决定的来源；不是完整工具生态调研。`tool_search`、CodeAct 一类做法在公开资料里版本差异较大，实施前按目标版本复核。
+
+| 来源 | 类型 | 它做了什么 | 采纳 / 拒绝 | 影响 |
+| --- | --- | --- | --- | --- |
+| Codex `tool_search` | 厂商文档/博客 | 名字常驻、schema 按需搜索 | 采纳 deferral/search；拒绝“取过才准调”的跨重启账 | `core+search`、`find-tools` |
+| [MCP tool annotations](https://modelcontextprotocol.io/specification/2025-06-18/server/tools) | 官方规范 | readOnly / destructive / idempotent / openWorld | 采纳只加严；拒绝用注解放宽边界 | 元数据、审批 |
+| `bounded-script` / CodeAct | 概念与现役实现 | 一段有界脚本编排多次工具调用 | 采纳有界解释器；拒绝 fs/net 直连 | 代码模式、预算 |
+| [Claude Code custom tools](https://code.claude.com/docs/en/agent-sdk/custom-tools) | 官方文档 | 按任务给工具、工具描述与回执 | 采纳预设/分层；不照搬名单 | 工具面、描述 |
+| [LangGraph tool calling](https://mintlify.wiki/langchain-ai/langgraph/tutorials/tool-calling) | 第三方文档 | 先检索再调用 | 采纳检索式选择；不把检索当授权 | 搜索、排序 |
+
 ## 3. 优化策略
 
 ### 3.1 工具面：三档 + 预设
@@ -40,6 +52,8 @@ Molis 现在把 13 个业务网关工具、宿主工具和 MCP 工具按角色�
 | `all` | 全部带 schema | 小工具面、调试用 |
 
 - **核心闭集**：`read` / `write` / `edit` / `run-command` / `ask-user` / `find-tools` 永远带 schema；**其余闭集 P0 不延后**（现有“闭集不延后”是硬边界）。扩展闭集是否允许只延后 schema、保留名字，另开安全裁决；本 spec 不偷偷改。
+- **现状对齐**：`find-tools` 已在实现里，但需求分册把它列为 `应有`、默认关；`core+search` 是把它推进为可选策略，不是宣称它已经是默认。`core+search` 依赖 `find-tools`，没装配就报不可用，不回落成全量 schema。
+- **和 Skill 分开**：`find-tools` 只找工具；`find-skills`（Skill 策略）只找方法，两者结果不混。
 - **工具面预设**：`coding`、`assistant`、`review`、`browser`、`data`。预设只决定“默认给哪组”，仍受角色 `host_tools`、Session 包和 Run `toolNames` 收窄。
 - **组合顺序**：硬边界 › 角色/包地板 › 预设 › Run 覆盖。后一层只能收窄。
 
@@ -141,6 +155,13 @@ Molis 的 [Prologue AI 手册](../../docs/platform/PROLOGUE-AI.md) 已要求“�
 - 不为了省 token 删掉核心闭集的名字。
 - 风险：语义搜索引入不确定性；默认仍关键词，语义只排序、不扩权。
 - 风险：预设把角色需要的工具漏掉；角色/包的显式名单仍是地板，装配时求交并报缺。
+
+### 8.1 复查记录（2026-10-21）
+
+- 需求分册把“工具搜索”列为 `应有`、默认关；本 spec 没有把它当成现役默认，`core+search` 是可选策略，且依赖 `find-tools`。
+- 现有系统工具闭集约 29 项，P0 不改变“闭集永远带 schema”。扩展闭集延后 schema 只是待裁决项，不在本 PR 实施范围。
+- 与 Skill 的边界：`find-tools` / `find-skills` 分开；选中 Skill 的工具可见性由 Skill 策略补，本 spec 不替它决定。
+- 与 Context 的边界：perTool 观察上限在 Tool 层裁原始观察；Context 的来源预算再决定打包放不放。两层都可见，不把一次裁剪说成删除。
 
 ## 9. 参考
 

@@ -27,6 +27,17 @@ Prologue `context/` 已经有：来源与信任等级、硬敏感名单、忽略
 | Condenser | OpenHands condenser | 压缩触发、摘要、保留近期 | 只按 token 阈值 |
 | 检索式上下文 | LangGraph / RAG | 按相关性取，不整库塞 | 用相关度替代必需项 |
 
+### 2.1 来源与取舍
+
+Context 是这五份里外部对照最薄的一份；下表只列直接影响本 spec 的来源，不冒充完整调研。后续应补 Codex/AGENTS.md、Cursor rules、OpenHands condenser、Aider repo map 的逐项对照。
+
+| 来源 | 类型 | 它做了什么 | 采纳 / 拒绝 | 影响 |
+| --- | --- | --- | --- | --- |
+| [Claude Code memory](https://code.claude.com/docs/en/memory) | 官方文档 | `CLAUDE.md` 层级、导入、项目/用户范围 | 采纳层级与可审；拒绝把规则当数据 | profile、来源预算 |
+| [Cline Memory Bank](https://docs.cline.bot/best-practices/memory-bank) | 官方文档 | 结构化 Markdown 文件、明确更新点 | 采纳结构化来源；拒绝手动无预算 | 来源分类、trace |
+| [Anthropic context editing](https://platform.claude.com/docs/en/build-with-claude/context-editing) | 官方文档 | 工具结果清理、压缩 | 采纳压缩剖面/保护项；拒绝静默丢 | 压缩、trace |
+| [LangMem](https://www.langchain.com/blog/langmem-sdk-launch) | 厂商博客 | semantic/episodic 记忆与检索 | 采纳“检索式上下文”的思路；拒绝用相关度替代必需项 | 来源预算、profile |
+
 ## 3. 优化策略
 
 ### 3.1 上下文剖面
@@ -43,6 +54,7 @@ Prologue `context/` 已经有：来源与信任等级、硬敏感名单、忽略
 ### 3.2 来源预算
 
 - 每个来源类（persona / project-instructions / nested-rules / user / memory / skills / tool-results / mcp / web / source-hit / artifacts）有 `min` / `max` / `weight`。
+- `context/budget` 仍只负责计数；本 spec 的 profile/来源预算属于 `context/pack` 的取舍策略，不改变 budget Contract。
 - 先满足必需项，再按权重分配剩余；某类超上限先裁该类，不先裁别人的必需项。
 - 回收顺序：低权重数据 → 可再读的工具结果 → 缓存/召回 → 非必需技能元数据；用户原话、写/命令回执、待批准不回收。
 - 放不下仍是明确失败或省略，不静默截断。
@@ -64,6 +76,7 @@ Prologue `context/` 已经有：来源与信任等级、硬敏感名单、忽略
 - 稳定前缀：persona、项目指令、嵌套规则、技能元数据、固定资料；动态后缀：本轮用户话、召回、工具结果、网页。
 - 两个指纹：`prefixFingerprint`（前缀不变就不变）和 `packFingerprint`（整包）。
 - 不拥有 Prompt cache；只保证前缀稳定、顺序确定、来源不变时字节不变。
+- 这里只提供稳定前缀指纹，不实现缓存；缓存仍归 App/Provider。
 
 ### 3.6 压缩剖面
 
@@ -137,6 +150,13 @@ Molis 的 [Agent Host](../../docs/horizontal/agent-host.md) 已有“Prompt 分�
 - 不静默截断；截断/省略必须可见。
 - 风险：来源预算把必需内容裁掉；必需项先算，非必需才分配。
 - 风险：profile 变成产品默认；默认按角色/场景由 App 选，SDK 不替它决定。
+
+### 8.1 复查记录（2026-10-21）
+
+- 需求分册把“预算计数”和“打包取舍策略”分开：本 spec 的 profile/来源预算落在 pack 策略，不把 `context/budget` 改成策略模块。
+- `prefixFingerprint` 只服务缓存稳定性，不拥有 Prompt cache；缓存是否命中仍由 App/Provider 决定。
+- 外部对照偏薄：Claude Code、Cline、Anthropic context editing、LangMem 四条主线；Codex AGENTS、Cursor rules、OpenHands condenser、Aider repo map 还没逐项对照。
+- 与 Tool/Memory 的边界：Tool 的 perTool 观察先裁原始结果，Context 的来源预算再决定打包；Memory 的单次召回预算与 Context 的窗口预算叠加，两处都可见。
 
 ## 9. 参考
 

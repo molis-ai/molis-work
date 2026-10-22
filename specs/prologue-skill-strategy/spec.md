@@ -27,6 +27,19 @@ Prologue 的 `skill/` 已经有：精确版本登记、`bounded` / `full-package
 | Microagents | [OpenHands microagent](https://github.com/OpenHands/OpenHands/pull/7342) | 触发词、仓库/知识型方法、按上下文加载 | 没有精确版本与权限求交 |
 | 工具即检索 | [LangGraph tool calling](https://mintlify.wiki/langchain-ai/langgraph/tutorials/tool-calling) | 先检索再调用，减少一次性目录 | 只解决工具，不解决方法 |
 
+### 2.1 来源与取舍
+
+下表只列直接影响本 spec 决定的来源；不是完整技能生态调研。部分引用是厂商博客或第三方规范，实施前按官方页面复核版本。
+
+| 来源 | 类型 | 它做了什么 | 采纳 / 拒绝 | 影响 |
+| --- | --- | --- | --- | --- |
+| [Anthropic Skills 规范](https://mintlify.wiki/anthropics/skills/spec/overview) | 官方规范 | 元数据、正文、资源分层 | 采纳渐进披露与选择元数据；拒绝无权限岛 | 元数据、资源、目录 |
+| [Claude Code commands](https://code.claude.com/docs/en/commands) | 官方文档 | 斜杠命令、人点名、模型可调用 | 采纳人/模型双入口；不把命令当第二条写入 | 唤起、`find-skills` |
+| [OpenAI skills 实践](https://developers.openai.com/blog/skills-agents-sdk) | 厂商博客 | 方法与工具绑定、评测 | 采纳工具绑定与评测；不照搬 prompt 片段 | 工具可见性、评测 |
+| [Cursor 插件规范](https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/5d523f00b7fc03fab00126589729def2b12b8ad5/docs/specs/cursor.md) | 第三方规范 | rules 与 skills 分层 | 采纳 always-on / on-demand 分层；不照搬目录 | 选择档、目录 |
+| [OpenHands microagent](https://github.com/OpenHands/OpenHands/pull/7342) | 第三方实现 | 触发词、仓库/知识型 microagent | 采纳触发元数据；不照搬运行时 | `when_to_use`、router |
+| [LangGraph tool calling](https://mintlify.wiki/langchain-ai/langgraph/tutorials/tool-calling) | 第三方文档 | 先检索再调用 | 采纳“先找再调”；不把 skill 当 tool | `find-skills` |
+
 ## 3. 优化策略
 
 ### 3.1 选择：三档，不是布尔
@@ -50,6 +63,8 @@ Prologue 的 `skill/` 已经有：精确版本登记、`bounded` / `full-package
 | 派生 | 父方法调用子方法 | 只在同一权限岛内；深度、次数、环都要有界 |
 
 三种来源都走 `prepareSkillIntent` / `assertIntentUnchanged` / 工具权限岛；没有“模型专用”的近路。
+
+现有 `invoke-skill` 已经做精确引用、权限岛与指纹复验；本 spec 不改这些。斜杠命令在需求分册里是 `应有`，不是现役完成门；`find-skills` 是新增系统工具，需单独批准。
 
 ### 3.3 渐进披露：SDK 侧按需读取
 
@@ -75,6 +90,7 @@ Prologue 的 `skill/` 已经有：精确版本登记、`bounded` / `full-package
 ### 3.6 权限与信任
 
 - 工具权限岛不变：`⊆ 父亲 ∩ Host ∩ 策略`，清单要得比给得出的多就整份拒绝。
+- **工具可见性**：选中/调用 skill 时，它声明的工具必须已在本轮工具面带 schema，或能通过 `find-tools` 找到；`core+search` 下不能出现“方法能调、工具调不动”。
 - `scripts/` 不在 SDK 里直接跑；要跑就走沙箱/命令审查，和工具同一条门。
 - `fromRoot` 仍要根被信任；搜索/目录可以列出，执行前才要求信任。
 - 技能不能改工具闭集、不能改硬敏感名单、不能给自己加审批。
@@ -164,6 +180,7 @@ Molis 的 [skill-packs](../skill-packs/spec.md) 继续拥有包形状、安装�
 | SKL-12 | Molis 的模型自动调用与派生方法接通；显式选择不退化 | Molis `agent-host` 测试 + 真实运行 |
 | SKL-13 | 同一方法在助理与 Coding 的 id/version/正文一致；升级后旧 Run 不换绑 | Molis `skill-service` 测试 |
 | SKL-14 | `[人工]` 在真实项目里用一次方法完成工作，能看到选择理由、用量和结果；没有把方法正文写进业务事实 | 人工 |
+| SKL-15 | 选中 Skill 的工具在工具面可见或可找；`core+search` 下不会出现方法可调、工具不可调 | Prologue 单测 + Molis 工具面测试 |
 
 ## 8. 非目标与风险
 
@@ -173,6 +190,13 @@ Molis 的 [skill-packs](../skill-packs/spec.md) 继续拥有包形状、安装�
 - 组合只做有界方法链，不做通用工作流图。
 - 风险：元数据写得太泛会让 router 失准；用真实任务回放校准，不靠模型自报。
 - 风险：组合把权限岛越滚越大；每层都求交，父不能给子加权限。
+
+### 8.1 复查记录（2026-10-21）
+
+- 现有 `invoke-skill` 的精确引用、权限岛、指纹复验和 `inline/fork` 已能满足当前需求分册的完成门；本 spec 只补“找、选、组合、观测”，不重复这些合同。
+- 斜杠命令在 `skill/invoke.md` 里是 `应有`，不是现役完成门；本 spec 把它放在 S1，不宣称已具备。
+- `find-skills` 会进系统工具闭集，需同步 `SYSTEM_TOOL_NAMES`、需求分册与 AGENTS 表；没有批准就只能在 App 侧做目录，模型仍只能精确 `invoke-skill`。
+- 与 Tool 策略的接口：`find-tools` 只找工具，`find-skills` 只找方法；两者结果不混。选中 Skill 的工具必须在工具面里可见或可找，否则 `core+search` 会让方法“能调但调不动自己的工具”。
 
 ## 9. 参考
 

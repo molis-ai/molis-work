@@ -75,7 +75,7 @@ test("typed Action handlers retain the Host Runtime and share the same live effe
   const host = new LocalHost({ runtimeFactory: { open: () => ({ writes: 0 }), close: () => {} }, actionAvailability: () =>
     enabled ? { available: true } : { available: false, code: "fixture.disabled", reason: "Disabled" } });
   const reference = { project_id: "a", storage_key: "memory:effect" };
-  host.register(definition, async (runtime, _, invocation) => { entered.resolve(); await release.promise; await invocation.beforeEffect(); return ++runtime.writes; });
+  host.registerAction(definition, async (runtime, _, invocation) => { entered.resolve(); await release.promise; await invocation.beforeEffect(); return ++runtime.writes; });
   try {
     const pending = host.client(reference).invoke(definition, {}), rejected = assert.rejects(pending, errorCode("fixture.disabled"));
     await entered.promise; enabled = false; release.resolve(); await rejected;
@@ -168,7 +168,7 @@ test("effect guard rechecks the actual Catalog installation after an asynchronou
     actionAvailability: projectActionAvailability(async (_, run) => run(catalog), home) });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const action = { ...definition, action_provider: { provider_id: "io.molis.work.goals", plugin_id: "io.molis.work.goals", kind: "plugin" as const, title: "Goals", project_id: project.project_id } };
-  host.register(action, async (runtime, _input, invocation) => { entered.resolve(); await release.promise; await invocation.beforeEffect(); return ++runtime.writes; });
+  host.registerAction(action, async (runtime, _input, invocation) => { entered.resolve(); await release.promise; await invocation.beforeEffect(); return ++runtime.writes; });
   const context: ActionCallContext = { ...caller, project_id: project.project_id }, client = host.actionClient(reference);
   try {
     const pending = client.invoke(context, action, {}), rejected = assert.rejects(pending, errorCode("actions.plugin_disabled"));

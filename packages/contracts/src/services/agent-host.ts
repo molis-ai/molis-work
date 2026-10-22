@@ -2,7 +2,7 @@ import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRuntimeAdapter, AgentRuntimeDescriptor, AgentRuntimeCapabilityMatrix, AgentSessionRef, AgentRunRef } from "./agent-host-runtime.js";
 import type { AgentReviewQueueApi, AgentReviewRequest, AgentReviewReceipt, AgentReviewStatus } from "./agent-host-reviews.js";
 import type { HostCapabilityDefinition } from "../platform/app-host.js";
-import type { ActionView } from "../platform/actions.js";
+import type { ActionDefinition, ActionView } from "../platform/actions.js";
 import type { AgentCreateSessionInput, AgentSkillRef, AgentWorkingDirectory, AgentStartRequest } from "./agent-host-start.js";
 import type { AgentSubagentView, AgentSkillCatalogEntry, AgentSkillCandidate, AgentMcpServerView, AgentMcpServerInput, AgentRecoveryReport, AgentCheckpoint } from "./agent-host-ports.js";
 export type {AgentSavedHistoryMessage,AgentSavedHistoryRun,AgentSavedHistoryView} from './agent-history.js';
@@ -349,20 +349,28 @@ export const agentHostCapabilities = {
     operation: "query",
   } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>,
   /**
+   * One short text from the model — a commit message, say — with no tools, no conversation and nothing recorded as a
+   * round. It is a model call and costs what one costs; the usage comes back so the page can say so. An action like
+   * every other (PG-035): only a plugin calls it, only while it holds `model:invoke`, with the instruction its own
+   * (read from who called, never from the input). It writes nothing of the project's, so a draft that takes a minute
+   * runs beside the project's other operations instead of ahead of them.
+   */
+  draftText: {
+    capability_id: "agent.draft-text.v1", version: 1, operation: "command",
+    action: { title: "起草一段文字", description: "用调用插件自己登记的指令，让模型就给定材料写一段短文字（如提交说明、对话摘要）：不带工具、不留对话、不记成一轮。会花一次模型调用，返回用量。只给持有 model:invoke 的插件调用。", kind: "operation", scope: "project", scheduling: "concurrent",
+      execution: { cost: "metered" }, audiences: ["plugin"], permissions: ["model:invoke"], subject_kinds: [],
+      input_schema: { type: "object", required: ["purpose", "prompt", "material"], additionalProperties: false, properties: {
+        purpose: { type: "string", minLength: 1, maxLength: 80, pattern: "\\S" },
+        prompt: { type: "string", pattern: "^[a-z0-9][a-z0-9.-]*$" },
+        material: { type: "string", minLength: 1, maxLength: 60_000, pattern: "\\S" },
+        model_selection: { type: "object", required: ["provider_id", "model_id"], additionalProperties: false, properties: { provider_id: { type: "string", minLength: 1 }, model_id: { type: "string", minLength: 1 } } } } },
+      output_schema: { type: "object", required: ["text", "usage"], additionalProperties: false, properties: { text: { type: "string" },
+        usage: { anyOf: [{ type: "null" }, { type: "object", required: ["input", "output"], additionalProperties: false, properties: { input: { type: "integer", minimum: 0 }, output: { type: "integer", minimum: 0 } } }] } } } },
+  } as ActionDefinition<AgentDraftTextRequest, AgentDraftTextResult>,
+  /**
    * Resolves once the run's view differs from the version the caller holds, or at the timeout (at most 25 s).
    * How a surface follows a live round as it happens instead of rereading it on a timer; nothing is replayed.
    */
-  /**
-   * One short text from the model — a commit message, say — with no tools, no conversation and nothing recorded as a
-   * round. It is a model call and costs what one costs; the usage comes back so the page can say so. It writes nothing
-   * of the project's, so a draft that takes a minute runs beside the project's other operations instead of ahead of them.
-   */
-  draftText: {
-    capability_id: "agent.draft-text.v1",
-    version: 1,
-    operation: "command",
-    scheduling: "concurrent",
-  } as HostCapabilityDefinition<AgentDraftTextRequest, AgentDraftTextResult>,
   waitRun: {
     capability_id: "agent.run.wait.v1",
     version: 1,

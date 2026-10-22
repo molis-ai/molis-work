@@ -5,7 +5,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
-import type { PluginOwnerFilesClient, PluginOwnerFilesReader, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginOwnerFilesClient, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MaterialExtraction } from "@molis-ai/molis-work-contracts/services/materials";
 import type {
   ShelfAdmitFolderInput,
@@ -181,7 +181,7 @@ export class ShelfStore {
   }
 
   async snapshot(): Promise<ShelfSnapshot> {
-    const catalog = await this.ensureSample(this.readCatalog());
+    const catalog = await this.ensureSample(this.catalog.read(this.files));
     const visible = (group: StoredItem["group"]) =>
       catalog.items.filter((item) => item.group === group && !item.hidden).map(publicItem);
     const settings = normalizeSettings(catalog.settings);
@@ -221,7 +221,7 @@ export class ShelfStore {
   /** Stores a copy whose derived preview has already been prepared. The check, the file and the catalog row land in one write. */
   async admit(input: ShelfAdmitInput, preparedPreview?: string | null): Promise<ShelfItemRecord> {
     return this.files.write((writer) => {
-      const catalog = this.catalogFrom(writer);
+      const catalog = this.catalog.read(writer);
       // A retry returns the existing copy, preserving any user edits. Hidden copies
       // can be explicitly received again; deleted copies are new admissions.
       if (input.artifact_source) {
@@ -330,7 +330,7 @@ export class ShelfStore {
         children,
         origin_realpath: input.origin_realpath ? path.resolve(input.origin_realpath) : null,
       };
-      const catalog = this.catalogFrom(writer);
+      const catalog = this.catalog.read(writer);
       catalog.items.unshift(item);
       catalog.seeded_sample = true;
       this.catalog.save(writer, catalog);
@@ -393,7 +393,7 @@ export class ShelfStore {
   async seedSample(): Promise<ShelfItemRecord> {
     const bytes = Buffer.from(createExtractablePdf(SAMPLE_PDF_TEXT));
     return this.files.write((writer) => {
-      const catalog = this.catalogFrom(writer);
+      const catalog = this.catalog.read(writer);
       const existing = catalog.items.find((item) => item.name === SAMPLE_NAME && item.group === "material" && !item.hidden);
       if (existing) return publicItem(existing);
       return publicItem(this.shelve(writer, catalog, { filename: SAMPLE_NAME, bytes, mime: "application/pdf" }, SAMPLE_NAME, bytes, SAMPLE_PDF_TEXT));
@@ -410,7 +410,7 @@ export class ShelfStore {
 
   async deleteCopy(itemId: string): Promise<void> {
     await this.files.write((writer) => {
-      const catalog = this.catalogFrom(writer);
+      const catalog = this.catalog.read(writer);
       const item = requireShelfItem(catalog, itemId);
       assertNotBusy(catalog, item.item_id, this.root);
       const copyDir = item.relative_path ? safeInside("files", path.posix.dirname(item.relative_path)) : null;
@@ -516,7 +516,7 @@ export class ShelfStore {
         isolation: spec.requires_agent ? "model-input-only" : "none",
         items: items.map((item) => ({ id: item.item_id, title: item.name, checksum: item.origin_hash })),
       }, null, 2)}\n`));
-      const catalog = this.catalogFrom(writer);
+      const catalog = this.catalog.read(writer);
       catalog.jobs.unshift(running);
       this.catalog.save(writer, catalog);
     });
@@ -659,7 +659,7 @@ export class ShelfStore {
     coverage?: readonly string[];
   }): Promise<ShelfItemRecord> {
     return this.files.write((writer) => {
-      const catalog = this.catalogFrom(writer);
+      const catalog = this.catalog.read(writer);
       const taken = catalog.items.filter((item) => item.group === "result").map((item) => item.name);
       const name = uniqueTitle(options.outputName, taken);
       const resultId = shelfId("item");
@@ -701,13 +701,13 @@ export class ShelfStore {
 
   /** Stop a run from another request; the materials stay, no result is filed. */
   async cancelJob(jobId: string): Promise<ShelfJobRecord> {
-    const job = this.readCatalog().jobs.find((entry) => entry.job_id === jobId);
+    const job = this.catalog.read(this.files).jobs.find((entry) => entry.job_id === jobId);
     if (!job) throw shelfErrors.item_not_found("这个任务不存在");
     if (job.status !== "running") return job;
     activeJobs.get(jobKey(this.root, jobId))?.abort(shelfErrors.cancelled("任务已取消"));
     // Decided on the row the write finds: a run that finished in the meantime keeps its own record.
     return this.files.write((writer) => {
-      const catalog = this.catalogFrom(writer);
+      const catalog = this.catalog.read(writer);
       const live = catalog.jobs.find((entry) => entry.job_id === jobId);
       if (!live) throw shelfErrors.item_not_found("这个任务不存在");
       if (live.status !== "running") return live;
@@ -720,7 +720,7 @@ export class ShelfStore {
 
   async writeCopy(itemId: string, text: string, expectedContentHash: string): Promise<ShelfItemRecord> {
     return this.files.write((writer) => {
-      const catalog = this.catalogFrom(writer);
+      const catalog = this.catalog.read(writer);
       const item = requireShelfItem(catalog, itemId);
       if (item.hidden) throw shelfErrors.item_not_found("这份材料不在架子上");
       if (!isEditableShelfItem(item)) throw shelfErrors.not_text("这份材料不能编辑");
@@ -741,7 +741,7 @@ export class ShelfStore {
   }
 
   async useAsMaterial(itemId: string): Promise<ShelfItemRecord> {
-    const item = requireShelfItem(this.readCatalog(), itemId);
+    const item = requireShelfItem(this.catalog.read(this.files), itemId);
     if (item.group !== "result") throw shelfErrors.not_result("只有生成结果可以再用作材料");
     if (!item.relative_path) throw shelfErrors.missing_output("这次没有生成文件");
     const bytes = readShelfCopy(this.files, item.relative_path);
@@ -831,7 +831,7 @@ export class ShelfStore {
       return catalog;
     }
     await this.seedSample();
-    return this.readCatalog();
+    return this.catalog.read(this.files);
   }
 
   /** A file hashes its bytes; a folder hashes every path and file under it. */
@@ -859,19 +859,10 @@ export class ShelfStore {
   }
 
 
-  /** The catalog as the reader sees it now; a missing file is an empty shelf. */
-  private catalogFrom(reader: PluginOwnerFilesReader): CatalogFile {
-    return this.catalog.read(reader);
-  }
-
-  private readCatalog(): CatalogFile {
-    return this.catalogFrom(this.files);
-  }
-
   /** Reads the catalog inside the write, changes it, and saves it: the change is made on what is there now. */
   private async update(mutate: (catalog: CatalogFile) => void): Promise<void> {
     await this.files.write((writer) => {
-      const catalog = this.catalogFrom(writer);
+      const catalog = this.catalog.read(writer);
       mutate(catalog);
       this.catalog.save(writer, catalog);
     });

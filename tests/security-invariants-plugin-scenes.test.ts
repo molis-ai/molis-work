@@ -65,7 +65,7 @@ async function setup(t: TestContext) {
   const consumedDefinitions = (["query", "command", "paid"] as const).map(operation => nestedDefinition("consumed", operation));
   const typedHost = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   for (const operation of ["query", "command", "paid"] as const) {
-    typedHost.register(nestedDefinition("typed", operation), (_runtime, _input, caller) => nestedHandle(operation, caller.beforeEffect));
+    typedHost.registerAction(nestedDefinition("typed", operation), (_runtime, _input, caller) => nestedHandle(operation, caller.beforeEffect));
   }
   actions.registry.registerProvider({ provider: { provider_id: "nested-consumer", kind: "system", title: "嵌套目标" }, definitions: consumedDefinitions,
     handlers: consumedDefinitions.map(definition => ({ ...definition, handle: caller => nestedHandle(definition.operation === "command" ? "command" : definition.action.execution?.cost === "metered" ? "paid" : "query", caller.beforeEffect) })) });

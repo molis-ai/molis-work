@@ -29,7 +29,7 @@ export const ALCHEMIST_STYLES = WORK_REUSE_STYLES + `
 .alc-workspace { overflow:hidden; }
 .alc-detail-layout { flex:1; display:flex; min-height:0; }
 .alc-document { flex:1; display:flex; flex-direction:column; min-height:0; min-width:0; }
-.alc-content { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; padding:24px 32px 32px; scrollbar-width:thin; }
+.alc-content { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; padding:24px 32px 32px; }
 .alc-content > * { max-width:760px; }
 .alc-content h2 { font-size:17px; font-weight: var(--weight-title, 600); margin:0 0 16px; overflow-wrap:anywhere; }
 .alc-content h3 { font-size:13px; font-weight: var(--weight-title, 600); margin:24px 0 8px; }

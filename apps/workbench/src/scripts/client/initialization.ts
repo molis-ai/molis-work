@@ -120,7 +120,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openItem: (...args) => tabWorkspace?.openItem(...args), openBeside: (...args) => tabWorkspace?.openBeside(...args),
       openPlugin: (...args) => tabWorkspace?.openPlugin(...args), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
       // The plugin calls this only after the person has picked and confirmed the folder.
-      addWorkspace: p => api("/api/workspaces", "POST", { workspace_path: p, user_confirmed: true }, "无法关联工作区"),
+      addWorkspace: p => api("/api/workspaces", "POST", { workspace_path: p, user_confirmed: true }, L("无法关联工作区")),
     });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
     ${CODING_SETTINGS_CLIENT_SCRIPT}

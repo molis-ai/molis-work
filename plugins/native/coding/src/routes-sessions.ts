@@ -4,6 +4,7 @@ import { materialSelection } from "./materials.js";
 import { confirmedPlan } from "./plans.js";
 import { type Capabilities, type CodingActivation, selected, sessionState, priorityOf } from "./route-activation.js";
 import { codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
+import { codingError, codingFailure, codingText } from "./words.js";
 import { bodyOf, methodSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
 import type { CodingExecution } from "./routes.js";
 import { nextConfiguration, runControl, text, codingBudgetSelection } from "./run-inputs.js";
@@ -38,7 +39,7 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
   for (const runtimeId of new Set(records.filter(record => record.runtime_session_id).map(record => record.runtime_id))) {
     const ids = records.filter(record => record.runtime_id === runtimeId && record.runtime_session_id).map(record => record.runtime_session_id!);
     try { for (const status of await api.invoke(agent.readSessionStatuses, [runtimeId, ids])) statuses.set(`${runtimeId}:${status.session_id}`, status); }
-    catch (error) { for (const id of ids) statuses.set(`${runtimeId}:${id}`, { session_id: id, error: error instanceof Error ? error.message : "会话暂不可读" }); }
+    catch (error) { for (const id of ids) statuses.set(`${runtimeId}:${id}`, { session_id: id, error: error instanceof Error ? error.message : codingText(execution.locale)("coding.server.session-unreadable") }); }
   }
   // Parked sessions, from the SDK; the loop that takes fired waits up is (re)started here, after a restart too.
   const parked = new Map<string, CodingWaitView>(), backgroundUnreadable = await codingBackgroundState(api, records, execution.sessions, projectId, beforeWrite);
@@ -95,7 +96,7 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
 /** The workspace a send names, as the directory it will run in. */
 const directoryOf = async (api: Capabilities, workspaceId: unknown) => {
   const workspace = (await api.invoke(projectSettingsCapabilities.workspaces, [])).find(entry => entry.workspace_id === workspaceId);
-  if (!workspace?.realpath_verified) throw new Error("请先为这个项目选择已授权的工作区目录");
+  if (!workspace?.realpath_verified) throw codingFailure("coding.server.choose-workspace");
   return workspace.canonical_path;
 };
 /** Other sessions' work that overlaps what a send names: its text, and its plan's steps when it runs one. */
@@ -136,7 +137,7 @@ const ROUTES: RouteMaker[] = [
       // The first Runtime in the platform's directory that can host a session; with none, the session is refused and nothing is created.
       const runtime = requireProjectRuntime(await api!.invoke(agent.listRuntimes, []));
       const record = await execution.sessions.create(beforeWrite, { project_id: projectId, session_id: crypto.randomUUID(),
-        title: text(body.title ?? DEFAULT_SESSION_TITLE, "会话名称"), runtime_id: runtime.runtime_id, at: new Date().toISOString() });
+        title: text(body.title ?? DEFAULT_SESSION_TITLE, "coding.field.session-title"), runtime_id: runtime.runtime_id, at: new Date().toISOString() });
       return { session: record };
     });
   },
@@ -186,8 +187,8 @@ const ROUTES: RouteMaker[] = [
     return route("coding.compact-next", async (request, _api, execution) => {
       const record = selected(a, request, execution);
       const on = bodyOf(request).on;
-      if (typeof on !== "boolean") throw new Error("请说明是否在下一轮整理上下文");
-      if (on && !record.runtime_session_id) throw new Error("这个会话还没有执行过，没有可整理的上下文");
+      if (typeof on !== "boolean") throw codingFailure("coding.server.compact-unclear");
+      if (on && !record.runtime_session_id) throw codingFailure("coding.server.compact-nothing");
       if (on) context.services!.storage!.set(`compact-next:${record.session_id}`, "1");
       else context.services!.storage!.delete(`compact-next:${record.session_id}`);
       return { compact_requested: on };
@@ -200,24 +201,24 @@ const ROUTES: RouteMaker[] = [
       const body = bodyOf(request);
       if (body.archive === true) {
         const notSubmitting = () => {
-          if (busy.has(record.session_id)) throw Object.assign(new Error("会话正在提交任务，请稍后归档"), { code: "agent.session_busy" });
+          if (busy.has(record.session_id)) throw codingError(message => Object.assign(new Error(message), { code: "agent.session_busy" }), "coding.server.busy-archive");
         };
         notSubmitting();
         if (record.runtime_session_id) {
           const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
           const snapshot = await api!.invoke(agent.readSession, [session]);
           if (snapshot.checkpoint_busy || snapshot.recovery || snapshot.latest_run && !isTerminalAgentPhase(snapshot.latest_run.phase)) {
-            throw Object.assign(new Error("请先完成或停止当前执行，再归档会话"), { code: "agent.session_busy" });
+            throw codingError(message => Object.assign(new Error(message), { code: "agent.session_busy" }), "coding.server.stop-before-archive");
           }
         }
         // Checked again inside the write: a round started while the write waited on `beforeWrite` is still refused.
         notSubmitting();
         return { session: await execution.sessions.archive(beforeWrite, projectId, record.session_id, new Date().toISOString(), notSubmitting) };
       }
-      if (record.archived) throw new Error("会话已归档，不能再修改");
+      if (record.archived) throw codingFailure("coding.server.archived-edit");
       const inputPatch=codingInputPatch(execution.sessions.inputs.read(projectId,record.session_id),body);
       const materials = body.materials === undefined ? undefined : materialSelection(body.materials);
-      if (materials && busy.has(record.session_id)) throw new Error("正在提交任务或收下交付，请稍后修改材料");
+      if (materials && busy.has(record.session_id)) throw codingFailure("coding.server.materials-busy");
       const configuration = body.configuration === undefined ? undefined : nextConfiguration(body.configuration);
       const character = body.character === undefined ? undefined : characterSelection(body.character);
       const characterSkills = body.character_skill_ids === undefined ? undefined : characterSkillSelection(body.character_skill_ids);
@@ -226,7 +227,7 @@ const ROUTES: RouteMaker[] = [
       const tools = body.mcp_tools === undefined ? undefined : mcpSelection(body.mcp_tools);
       const methods = body.methods === undefined ? undefined : methodSelection(body.methods);
       const budget = body.budget === undefined ? undefined : codingBudgetSelection(body.budget);
-      const title = body.title === undefined ? undefined : text(body.title, "会话名称");
+      const title = body.title === undefined ? undefined : text(body.title, "coding.field.session-title");
       const savedInputs=inputPatch?await execution.sessions.inputs.write(beforeWrite,projectId,record.session_id,inputPatch.expected,inputPatch.value):null;
       if (actionTools !== undefined) context.services!.storage!.set(`actions:${record.session_id}`, JSON.stringify(actionTools));
       if (configuration) context.services!.storage!.set(`configuration:${record.session_id}`, JSON.stringify(configuration));
@@ -246,18 +247,18 @@ const ROUTES: RouteMaker[] = [
     const { context, projectId, busy, route } = a;
     return route("coding.start-run", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
-      if (record.archived) throw new Error("会话已归档，不能再运行");
-      if (busy.has(record.session_id)) throw Object.assign(new Error("这个会话正在提交任务"), { code: "agent.session_busy" });
+      if (record.archived) throw codingFailure("coding.server.archived-run");
+      if (busy.has(record.session_id)) throw codingError(message => Object.assign(new Error(message), { code: "agent.session_busy" }), "coding.server.busy");
       busy.add(record.session_id);
       try {
         const body = bodyOf(request);
-        if (await a.waits.openWaitOf(record)) throw new Error("这个会话挂起在等待中；先取消等待，或选择现在开始");
+        if (await a.waits.openWaitOf(record)) throw codingFailure("coding.server.waiting");
         // "等它完成后再开始": the round is held as an item waiting on the other work, and starts on its own when it is done.
         if (typeof body.wait_for === "string") {
-          if (["running", "paused", "waiting-answer", "waiting-approval"].includes(record.state)) throw new Error("这个会话还有一轮没结束，结束后再安排等待");
+          if (["running", "paused", "waiting-answer", "waiting-approval"].includes(record.state)) throw codingFailure("coding.server.wait-round-open");
           const { directory, overlaps } = await overlapsFor(a, api!, execution, record, body);
           const target = overlaps.find(overlap => overlap.work_id === body.wait_for);
-          if (!target) throw new Error("要等待的那项工作已经结束或不再重叠，可以直接开始");
+          if (!target) throw codingFailure("coding.server.wait-target-gone");
           const identity = { project_id: projectId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: request.actor_id };
           const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
             : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory: { canonical_path: directory, realpath_verified: true }, title: record.title }]);
@@ -292,15 +293,15 @@ const ROUTES: RouteMaker[] = [
     const { projectId, busy, route } = a;
     return route("coding.queued-round", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution), wait = await a.waits.openWaitOf(record), action = bodyOf(request).action;
-      if (!wait) throw new Error("这个会话没有在等待");
+      if (!wait) throw codingFailure("coding.server.not-waiting");
       if (action === "cancel") {
         // Giving up a wait for an answer withdraws the request; for the person's own wait, its project work item goes.
         await a.waits.cancel(api, record, wait, beforeWrite);
         await execution.sessions.setState(beforeWrite, projectId, record.session_id, record.runtime_session_id ? "done" : "idle", new Date().toISOString());
         return { cancelled: true };
       }
-      if (action !== "start") throw new Error("请选择现在开始或取消等待");
-      if (busy.has(record.session_id)) throw Object.assign(new Error("这个会话正在提交任务"), { code: "agent.session_busy" });
+      if (action !== "start") throw codingFailure("coding.server.wait-choose");
+      if (busy.has(record.session_id)) throw codingError(message => Object.assign(new Error(message), { code: "agent.session_busy" }), "coding.server.busy");
       busy.add(record.session_id);
       try {
         return await a.waits.goOn(api, execution, record, wait, request.actor_id, beforeWrite);
@@ -325,17 +326,17 @@ const ROUTES: RouteMaker[] = [
     const { context, route, busy } = a;
     return route("coding.control-run", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
-      if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
+      if (!record.runtime_session_id) throw codingFailure("coding.server.never-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const snapshot = await api!.invoke(agent.readSession, [session]);
       const body = bodyOf(request);
       const run = snapshot.runs.find((entry) => entry.run_id === body.run_id);
-      if (!run) throw codingRunErrors.run_not_found("找不到属于这个会话的执行");
+      if (!run) throw codingError(codingRunErrors.run_not_found, "coding.server.run-not-found");
       const control = await runControl(body, async () => execution.models.list());
       if (control.kind === "steer") return { accepted: true, receipt: await context.services!.actions!.invoke(agentInputActions.send, { ...session, run_id: run.run_id, ...control.send }, codingActionControl(beforeWrite)) };
       if (control.kind === "withdraw") return { accepted: true, withdrawn: await context.services!.actions!.invoke(agentInputActions.withdraw, { ...session, run_id: run.run_id, input_id: control.input_id }, codingActionControl(beforeWrite)) };
       const view = await api!.invoke(agent.readRun, [session, run]);
-      if (isTerminalAgentPhase(view.phase)) throw codingRunErrors.round_ended("这一轮已经结束，请开始新一轮");
+      if (isTerminalAgentPhase(view.phase)) throw codingError(codingRunErrors.round_ended, "coding.server.round-ended");
       const question = control.kind === "answer" ? view.awaiting_input.find(item => item.pending_id === control.pending_id) : undefined;
       await api!.invoke(agent.controlRun, [session, run, control]).catch((error: { code?: string }) => {
         // A refused answer goes back with the questions it answered, so each field's line can name the limit it crossed.
@@ -344,13 +345,14 @@ const ROUTES: RouteMaker[] = [
       if (control.kind !== "answer") return { accepted: true };
       // The answer's receipt, in the words the page shows. A round parked at a restart ended with the answer; the next round
       // takes it from the session's queue, or, refused, it waits there for 「从断点继续」.
-      if (!question?.parked) return { accepted: true, message: "回答已交给原执行者，继续这一轮任务。" };
-      const next = busy.has(record.session_id) ? { started: false as const, reason: "会话正在提交任务" } : await (async () => {
+      const say = codingText(execution.locale);
+      if (!question?.parked) return { accepted: true, message: say("coding.server.answered") };
+      const next = busy.has(record.session_id) ? { started: false as const, reason: say("coding.server.submitting") } : await (async () => {
         busy.add(record.session_id);
         try { return await roundAfterParkedAnswer(a, record, session, request.actor_id, api!, execution, beforeWrite); } finally { busy.delete(record.session_id); }
       })();
       return { accepted: true, next_round: next,
-        message: next.started ? "已回答，下一轮已开始，接着原来的任务。" : `已回答、下一轮没能开始：${next.reason}。回答留在排队里，点「从断点继续」再开始。` };
+        message: next.started ? say("coding.server.answered-next") : say("coding.server.answered-not-next", { reason: next.reason }) };
     });
   },
 ];

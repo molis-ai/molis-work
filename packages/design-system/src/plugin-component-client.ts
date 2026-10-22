@@ -482,7 +482,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     part.feedback.className = tone === 'error' ? 'pc-error mw-alert mw-alert--danger' : tone === 'success' ? 'pc-success mw-badge mw-badge--success' : tone === 'working' ? 'pc-working' : '';
     part.feedback.textContent = message;
     // Clear the status itself, including when reduced motion disables the CSS fade.
-    if (tone === 'success') part.feedbackTimer = setTimeout(() => report(part, '', ''), 3400);
+    if (tone === 'success') part.feedbackTimer = setTimeout(() => { part.feedback.classList.add('is-leaving'); part.feedbackTimer = setTimeout(() => report(part, '', ''), 250); }, 3150);
     const mirror = part.dialog?.querySelector<HTMLElement>('.pc-dialog-error'); if (mirror) { mirror.hidden = tone !== 'error'; mirror.textContent = tone === 'error' ? message : ''; }
   }
   function refresh() {

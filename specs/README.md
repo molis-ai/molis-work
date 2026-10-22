@@ -4,12 +4,13 @@
 
 ## 在做的
 
+- [prologue-memory-strategy](prologue-memory-strategy/spec.md)：Prologue 记忆策略与 Molis Work 接入；三层拆分、四个预设、召回与提炼两个槽、有界历史；独立需求，需求已整理，待评审后实施。
 - [pr-review-remediation](pr-review-remediation/spec.md)：最近三天 PR 复审确认的 P1 安全边界、P2 功能/合同问题、P3 文档与验收、合并门禁；2026-10-20 新立，实现完成，待评审（PR #901；QA-017 本机 Chrome 未跑通，Product subset 待跑）。
 - [unified-input-voice](unified-input-voice/spec.md)：统一输入体验与本地语音输入；需求已整理，尚未实现。
 - [proactive-assistant](proactive-assistant/spec.md)：主动式助理与场景 Skill；需求已整理，尚未实现。2026-10-18 补充工作记忆初始化、每日例程、前门路由、从一次对话生成 Skill 与跨源搜索规划。
 - [work-brief](work-brief/spec.md)：工作简报内容插件；用户已确认纳入，需求已整理，尚未实现。2026-10-18 补充 living page、一页式脉搏、使用回顾与交互式报告页。
 - [coding-harness-optimization](coding-harness-optimization/spec.md)：Coding 与平台性能；需求已整理，尚未实现。
-- [visual-ui-experience](visual-ui-experience/spec.md)：视觉细节、个人助理信息与 UI 性能；45 项验收与 20 组设计机制。实现中（二十二片，按顺序合入 main），输入框的附件布局与引用（VUX-16 其余、VUX-17）、VUX-33 其余与本人验收未做。负责人：Claude（2026-10-19 起接手实现）。
+- [visual-ui-experience](visual-ui-experience/spec.md)：视觉细节、个人助理信息与 UI 性能；45 项验收与 20 组设计机制。实现中（七十八片，前七十五片已全部合入或正在合入 main），输入框的低频设置与引用（VUX-16 其余、VUX-17）、VUX-33 其余与本人验收未做。负责人：Claude（2026-10-19 起接手实现）。
 - [font-and-skin-system](font-and-skin-system/spec.md)：字体、皮肤与语言系统；需求已整理，尚未实现。
 - [assistant-service-connections](assistant-service-connections/spec.md)：助理统一服务接入；Codex 实施中，交互切片和连接侧首组回归已完成，37 项整体验收仍未完成；2026-10-18 补充内容层连接器占位符与未支持工具的接入路径（ASC-38–44，未验证）。
 - [subagent-interaction](subagent-interaction/spec.md)：个人助理与 Coding 的子代理固定入口、直接对话和父子动线；明确 Prologue/Molis Work 分工，需求已整理，尚未实现。
@@ -44,6 +45,10 @@
 - [onboarding-coverage](onboarding-coverage/spec.md)：首次使用与新建项目的引导——模型在流程内可配、读取前讲清数据边界、采用后给下一步、更新页说明变化；2026-10-19 新立，需求已整理，尚未实现。
 - [dual-instance-plugins](dual-instance-plugins/spec.md)：同一个插件同时有 Home 实例和项目实例（Shelf 迁 Plugin Runtime 的前提）；用户已定授权与范围（U1、U2），S0-2a（本机页面调用按各库记录授权）进行中，S0-2b-1、S0-2b-2、S0-2c 随后；2026-10-20 新立。
 - [plugin-project-partition](plugin-project-partition/spec.md)：Home 级插件的库按调用所在的项目分开（S0a，Alchemist 的前提）；平台按项目打开、闲置关闭、删项目时关库删目录，插件 API 不变；用户 2026-10-20 定，执行中。
+- [prologue-skill-strategy](prologue-skill-strategy/spec.md)：Prologue Skill 的选择、唤起、组合与观测；独立需求，需求已整理，待评审后实施。
+- [prologue-tool-strategy](prologue-tool-strategy/spec.md)：Prologue Tool 的工具面、搜索、结果预算与观测；独立需求，需求已整理，待评审后实施。
+- [prologue-mcp-strategy](prologue-mcp-strategy/spec.md)：Prologue MCP 的服务器信任、发现、健康与认证；独立需求，需求已整理，待评审后实施。
+- [prologue-context-strategy](prologue-context-strategy/spec.md)：Prologue Context 的来源预算、trace、新鲜度与压缩剖面；独立需求，需求已整理，待评审后实施。
 
 ## 现行规范
 

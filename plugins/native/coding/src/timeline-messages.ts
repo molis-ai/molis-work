@@ -125,7 +125,7 @@ export const CODING_TIMELINE_MESSAGES = {
   "coding.live.paused": { zh: "已暂停，可随时恢复", en: "Paused; resume whenever you like" },
   "coding.live.awaiting-input": { zh: "等你回答上面的问题", en: "Waiting for your answer to the question above" },
   "coding.live.awaiting-review": { zh: "等你决定上面这一步", en: "Waiting for your decision on the step above" },
-  "coding.live.quiet": { zh: "模型已 {seconds} 秒没有新输出，可能在长时间思考，也可能网络不稳。一直没有回应时这一轮会自动结束，已完成的操作都保留，可以从断点继续。", en: "The model has had no new output for {seconds} seconds. It may be thinking for a long time, or the network may be unstable. If it never answers, the turn ends on its own; everything already done is kept and you can continue from where it stopped." },
+  "coding.live.quiet": { zh: "模型已 {seconds} 秒没有新输出，可能在长时间思考，也可能网络不稳。一直没有回应时这一轮会自动结束，已完成的操作都保留，可以从断点继续。", en: "The model has had no new output for {seconds} {seconds|second|seconds}. It may be thinking for a long time, or the network may be unstable. If it never answers, the turn ends on its own; everything already done is kept and you can continue from where it stopped." },
   "coding.round.done": { zh: "这一轮完成", en: "This turn is done" },
   "coding.round.stalled": { zh: "这一轮只说了下一步就结束了", en: "This turn only said what it would do next, then ended" },
   "coding.round.plan-left": { zh: "这一轮结束，计划还剩 {count} 步", en: "This turn ended with {count} plan steps left" },

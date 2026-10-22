@@ -1,4 +1,4 @@
-import { ACTION_ERROR_CODE, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ACTION_ERROR_CODE, type ActionHandlerBinding, type ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginRouteBinding, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingCharacters, type CodingCharacters } from "./character-source.js";
@@ -8,12 +8,14 @@ import { startCodingActivation } from "./route-activation.js";
 import { cardsRoutes } from "./routes-cards.js";
 import { changesetsRoutes } from "./routes-changesets.js";
 import { delegationsRoutes } from "./routes-delegations.js";
+import { codingExecutor } from "./executor.js";
 import { goalsRoutes } from "./routes-goals.js";
 import { sessionsRoutes } from "./routes-sessions.js";
 import { setupRoutes } from "./routes-setup.js";
 import { timelineRoutes } from "./routes-timeline.js";
 import { writersRoutes } from "./routes-writers.js";
 import type { CodingSessionStore } from "./store.js";
+import { codingZh } from "./words.js";
 
 export { stopCodingSurface } from "./route-activation.js";
 export { planContinuesAfterTalk } from "./routes-timeline.js";
@@ -32,6 +34,8 @@ export interface CodingExecution {
   readonly goalTitles: CodingGoalTitles;
   readonly characters: CodingCharacters;
   savedHistoryView?(json:string):import('@molis-ai/molis-work-contracts/services/agent-host').AgentSavedHistoryView;
+  /** The language of the page this call came from (route calls only): what a handler sends back to show is worded in it. */
+  readonly locale?: ActionLocale;
 }
 
 // A refused answer's problems, with the questions they are about, for the Host to word beside each field.
@@ -46,7 +50,7 @@ const failure = (error: unknown) => {
   const code = (error as { code?: string }).code;
   return { status: code === "coding.session_unknown" || code === "actions.missing" ? 404 : code === "agent.session_busy" ? 409
     : code === "actions.forbidden" || code === "actions.owner_mismatch" ? 403 : code === "actions.unredeemed" ? 503 : ACTION_ERROR_CODE.test(code ?? "") ? actionHttpStatus(error) : 400,
-    body: { error: error instanceof Error ? error.message : "Coding 操作失败", ...(code ? { code } : {}), ...problemsOf(error) } };
+    body: { error: error instanceof Error ? error.message : codingZh("coding.server.failed"), ...(code ? { code } : {}), ...problemsOf(error) } };
 };
 
 /**
@@ -60,5 +64,7 @@ export function codingSurface(context: PluginStartContext, sessions: CodingSessi
   const execution: CodingExecution = { sessions, models: codingModels(context), goalTitles, characters: codingCharacters(context), savedHistoryView: context.services?.savedHistory?.view };
   const activation = startCodingActivation(context, execution, actions, failure);
   const routes = [writersRoutes, changesetsRoutes, goalsRoutes, setupRoutes, sessionsRoutes, timelineRoutes, delegationsRoutes, cardsRoutes].flatMap(group => group(activation));
+  // The work-executor roles have no route: they answer through the handlers just made.
+  codingExecutor(activation);
   return { routes, actions };
 }

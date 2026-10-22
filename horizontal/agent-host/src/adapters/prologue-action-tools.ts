@@ -30,10 +30,14 @@ const SUGGEST_RESULT_BYTES = 32 * 1024;
 export function prologueActionTools(actions: AgentFrozenRole["actions"], timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal, suggest = false) {
   const tools = [...(actions?.tools ?? [])].sort((a, b) => JSON.stringify([a.capability_id, a.version, a.provider.provider_id])
     .localeCompare(JSON.stringify([b.capability_id, b.version, b.provider.provider_id])));
-  // A pack owns its tool names in the SDK's shared catalog. Overlapping choices
-  // need distinct names, while reordering or rebinding the same choice reuses it.
-  const scope = createHash("sha256").update(JSON.stringify({ timeoutMs, tools: tools.map(view => ({
-    capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, operation: view.operation, action: view.action,
+  // A pack owns its tool names in the SDK's shared catalog, which keeps the first declaration under an id for the whole
+  // process. So the id covers everything the pack declares: overlapping choices need distinct names, a round that may
+  // suggest declares one more tool than one that may not, and the provider's title is in each description. Reordering
+  // or rebinding the same choice reuses it.
+  const suggests = Boolean(suggest && tools.length);
+  const scope = createHash("sha256").update(JSON.stringify({ timeoutMs, suggests, tools: tools.map(view => ({
+    capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, provider_title: view.provider.title,
+    operation: view.operation, action: view.action,
   })) })).digest("hex").slice(0, 24);
   const executors: Record<string, ToolRunner> = {};
   const contributions = tools.map(view => {
@@ -66,7 +70,7 @@ export function prologueActionTools(actions: AgentFrozenRole["actions"], timeout
       effectKind: view.operation === "query" && effect === "read" ? "safe-read" as const : "mutate-external" as const,
       gate: "broker" as const, timeoutMs: Math.min(timeoutMs, view.action.execution?.timeout_ms ?? timeoutMs), idempotency: "none" as const } };
   });
-  if (suggest && tools.length) contributions.push(suggestTool(actions!, new Map(contributions.map((row, index) => [row.registration.name, tools[index]!])), scope, executors, runSignal));
+  if (suggests) contributions.push(suggestTool(actions!, new Map(contributions.map((row, index) => [row.registration.name, tools[index]!])), scope, executors, runSignal));
   const names = contributions.map(item => item.registration.name);
   // Every round's pack also carries its after-write check, answered only where the round provides the executor; never offered to the model.
   const check = afterWriteTool(scope);

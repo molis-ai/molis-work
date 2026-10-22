@@ -123,6 +123,21 @@ const PANE_PART = String.raw`  const L = host.translate;
     const known=()=>surfaces||(surfaces=molisWorkRequest(host.route("/api/contextual/surfaces")).then(value=>value.surfaces||{}).catch(()=>{surfaces=null;return {};}));
     const read = (node) => { try { return JSON.parse(node.getAttribute("data-assistant-context") || "null"); } catch { return null; } };
     const namedItself = (context) => Boolean(context && context.object && context.named_by !== "workbench");
+    // Items a surface said it could not read (molis-work:item-unreadable): never named after the tab, so the Assistant
+    // does not carry a gone item as what the person is looking at.
+    const unreadable = new WeakMap();
+    const forget = (surf, itemId) => {
+      const own = read(surf);
+      if (own && own.object && own.object.id === itemId) { delete own.object; delete own.named_by; surf.setAttribute("data-assistant-context", JSON.stringify(own)); }
+    };
+    document.addEventListener("molis-work:item-unreadable", (event) => {
+      const surf = event.target instanceof Element ? event.target.closest("[data-work-surface]") : null;
+      const itemId = event.detail && typeof event.detail.itemId === "string" ? event.detail.itemId : "";
+      if (!surf || !itemId) return;
+      if (!unreadable.has(surf)) unreadable.set(surf, new Set());
+      unreadable.get(surf).add(itemId);
+      forget(surf, itemId);
+    });
     document.addEventListener("molis-work:select-item", (event) => {
       const surf = event.target;
       if (!(surf instanceof Element) || !surf.hasAttribute("data-work-surface")) return;
@@ -134,11 +149,11 @@ const PANE_PART = String.raw`  const L = host.translate;
           if (own && own.named_by === "workbench") { delete own.object; delete own.named_by; surf.setAttribute("data-assistant-context", JSON.stringify(own)); }
           return;
         }
-        if (namedItself(read(surf))) return;
+        if (namedItself(read(surf)) || unreadable.get(surf)?.has(itemId)) return;
         const entry = (await known())[surf.getAttribute("data-work-surface")];
         // Read again: a plugin still loading the item (a reload) names it while the surfaces are read, and its naming stands.
         const own = read(surf);
-        if (!entry || !surf.isConnected || namedItself(own)) return;
+        if (!entry || !surf.isConnected || namedItself(own) || unreadable.get(surf)?.has(itemId)) return;
         // The open tab's name, so the Assistant shows 「正在看：需求说明」 rather than the item's address.
         const tab = [...document.querySelectorAll(".tab-item[data-item-id]")].find((node) => node.dataset.itemId === itemId);
         const title = tab ? tab.getAttribute("title") || "" : "";

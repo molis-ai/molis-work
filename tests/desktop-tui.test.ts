@@ -644,7 +644,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(browser.slice(homeStart), /class="home-scroll"[\s\S]*data-home-dates[\s\S]*data-home-focus[\s\S]*class="home-shortcuts"[\s\S]*data-home-shortcut-add[\s\S]*data-home-list/);
     assert.doesNotMatch(browser.slice(homeStart, homeStart + 8000), /home-composer|home-calendar|data-home-agent-input/);
     assert.doesNotMatch(browser.slice(homeStart, homeStart + 8000), /home-note|data-home-note/, "Home keeps no scratch note");
-    assert.match(browser, /scrollbar-width: none/);
+    assert.match(browser, /\*\{scrollbar-width:none\}/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /tree-footer[\s\S]*display: none !important/);
     assert.match(directGoal, /data-desktop-directory="root"/);
     assert.match(directGoal, /data-desktop-surface="goal"/);
@@ -706,7 +706,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /复制命令/);
     assert.match(desktop, /data-tui-copy/);
     assert.doesNotMatch(desktop, /molis-work:tui-collapse/);
-    assert.match(desktop, /\.document-pane::-webkit-scrollbar/);
+    assert.match(desktop, /\*::-webkit-scrollbar\{display:none/);
     assert.match(desktop, /在这个 Goal 上打开终端/);
     assert.match(CLIENT_SCRIPT, /querySelector\("\[data-tree-resizer\]"\)/);
     assert.match(CLIENT_SCRIPT, /treeWidth: parseFloat\(workspace\.style\.getPropertyValue\("--tree-width"\)\)/);

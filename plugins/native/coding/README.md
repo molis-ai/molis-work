@@ -81,7 +81,7 @@ Coding 通过原项目内容目录声明“编码会话与草稿”集合，元�
   - 收下交付先检查 30 项材料容量，已有同版本引用不重复添加；合法插步的当前 SDK 图和用户评价一起固定进报告，后续变化不改固定版本。
   - 模型与 Agent 只经 Host 注入的 Prologue 能力，不直接依赖 SDK。
   - 执行入口的输入都走平台服务与公开动作，宿主不替它递（specs/coding-plugin §H，W5-01-CODING-23–31；PG-047、PG-086、PG-091、V-13）：
-    - 模型：Manifest 声明 `model:read`（必需），**不**声明 `model:invoke`。可选的模型是 `context.services.model.choices()`，选定的模型用 `availability(selection)` 核对；`complete()` 在这里不可用（一轮的模型请求归 Agent 运行时）。全仓库只有这一个模型表来源（V-13），`models.ts` 的 `codingModels` 是唯一读取处。
+    - 模型：Manifest 声明 `model:read`（必需）与 `model:invoke`（可选）。可选的模型是 `context.services.model.choices()`，选定的模型用 `availability(selection)` 核对；`complete()` 在这里不可用（一轮的模型请求归 Agent 运行时）。`model:invoke` 只管两处显式起草：提交说明与历史摘要经平台动作 `agent.draft-text.v1`（`src/drafts.ts` 的 `codingDraft`，经 `services.actions`）；关掉它，提交说明的路由答 `plugin.grant_denied`，历史摘要退回 Coding 按记录整理的那一份（PG-035）。全仓库只有这一个模型表来源（V-13），`models.ts` 的 `codingModels` 是唯一读取处。
     - 就绪：路由入口不再等 `execution.ready()`，Agent 能力在被调用时自己初始化。恢复起来的唤醒循环（`wake-loop.ts`）若第一次等待续接就失败、之前从未成功，按「能力不可用」结束，不进 5–30 秒的重试；已经成功过的循环照旧退避重试。
     - Goal 标题：读 Goals 的公开读动作 `goals.list`（`goalPluginActions.list`，plugin 受众，写在 Manifest `capabilities.consumes`）。目录面板同步渲染，等不了一次动作，所以 `goal-titles.ts` 的 `codingGoalTitles` 在 Coding 一侧缓存标题（内存加插件私有存储 `goal-title:<id>`），由 `coding.state`、会话读取、`search/entries`、`subject` 刷新，选择 Goal 时记下；还没读过的 Goal，目录第一次绘制显示 Goal 的 id，路由一读就换成标题。
     - Character：列表读 `characters.list@1`（是浏览用的预览，读取按容忍的 `publishedOf` 写法），能不能运行以 `characters.runnable@1` 的回答为准（只答能不能跑与原因；本机程序与工作目录的 `characters.execution@1` 只给本人）；两者都对 `plugin` 受众开放，都写在 Manifest `capabilities.consumes`，授权在设置页撤回后调用以 `plugin.grant_denied` 拒绝，没声明的以 `actions.forbidden` 拒绝（S-15）。`characters-host.ts` 的 `codingCharacterPorts` 还给 `assistant-http.ts` 用，留到切片 C2b。

@@ -18,7 +18,7 @@ export const GOALS_CONTEXT_EN: Record<string, string> = {
   "可选，留空自动生成": "optional, generated if empty",
   "方向还比较抽象，需要继续找到可独立交付的结果。": "The direction is still broad. Keep finding independently deliverable results.",
   "范围、输入与输出尚未填写": "Scope, inputs, and outputs are still blank",
-  "还有 {count} 项未写": "{count} fields still blank",
+  "还有 {count} 项未写": "{count} {count|field|fields} still blank",
   "Goal 名称": "Goal name",
   "怎样算通过": "What counts as pass",
   "承诺输出 ": "Promised outputs ",

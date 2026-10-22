@@ -248,7 +248,7 @@ export function createCodingTimeline(words: TimelineWords) {
       <p class="coding-run-facts">${facts.map(escape).join(" · ")}</p>${stalled ? `<p class="coding-run-reason">${escape(L("coding.round.stalled-why"))}</p>` : reason}${files}
       <div class="coding-run-actions">${resume}${edited.size ? `<button class="mw-btn" type="button" data-coding-change-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("columns")}${escape(L("coding.round.changes"))}</button>` : ""}${edited.size && run.phase === "completed" ? `<button class="mw-btn mw-btn--ghost" type="button" data-coding-commit-round="${escape(run.ref.run_id)}">${svg("git-branch")}${escape(L("coding.round.commit"))}</button>` : ""}<button class="mw-btn mw-btn--ghost" type="button" data-coding-report-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("file")}${escape(L("coding.report.label"))}</button></div>
     </div>`;
-    if (footer.dataset.html !== html) { footer.innerHTML = html; footer.dataset.html = html; footer.dataset.state = "ended"; }
+    if (footer.dataset.html !== html) { const again = Boolean(footer.dataset.html); footer.innerHTML = html; if (again) footer.firstElementChild?.setAttribute("data-settled", ""); footer.dataset.html = html; footer.dataset.state = "ended"; }
   };
   /** Keep elapsed times honest without re-rendering the transcript. */
   const QUIET_AFTER_SECONDS = 20;

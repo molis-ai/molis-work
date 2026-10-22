@@ -7,7 +7,8 @@
  *   whole text, so a long name is read in full without opening it.
  * - A pointer shows it after a short rest (at once while another was just shown), keyboard focus (`:focus-visible`) at once,
  *   and a touch by press and hold, since touch has no hover; it stays a moment after the finger lifts.
- * - It goes on leaving, a press, a scroll, Escape or the window losing focus. A native `title` is held back while it shows.
+ * - It goes on leaving, a press, a scroll that moves what it is about (not another box following its output), Escape or the
+ *   window losing focus. A native `title` is held back while it shows.
  */
 const TIP_TARGETS = ".workbench-bar :is(.dock-pin, .bar-chat, .account-global-trigger, .navigator-project-selector, .plugin-picker-trigger), [data-craft-tip]";
 /** What may hold a cut name: something one presses or moves to, or a row of a list. */
@@ -21,7 +22,7 @@ declare global {
 const tip = document.createElement("div");
 tip.className = "craft-tip";
 tip.setAttribute("aria-hidden", "true");
-let owner: HTMLElement | null = null, timer = 0, lastHidden = 0, held = 0;
+let owner: HTMLElement | null = null, waiting: HTMLElement | null = null, timer = 0, lastHidden = 0, held = 0;
 const hoverable = matchMedia("(hover: hover) and (pointer: fine)");
 
 const isCut = (el: Element) => {
@@ -76,7 +77,7 @@ function show(node: HTMLElement, at?: Element | null) {
   requestAnimationFrame(() => { if (owner === node) tip.setAttribute("data-shown", ""); });
 }
 function hide() {
-  clearTimeout(timer); clearTimeout(held);
+  clearTimeout(timer); clearTimeout(held); waiting = null;
   if (!owner) return;
   for (const el of [owner, ...owner.querySelectorAll<HTMLElement>("[data-craft-title]")]) {
     if (el.dataset.craftTitle != null) { el.setAttribute("title", el.dataset.craftTitle); delete el.dataset.craftTitle; }
@@ -88,6 +89,7 @@ function hide() {
 function queue(node: HTMLElement, wait: number, at?: Element | null) {
   if (owner === node && tip.textContent?.startsWith(textFor(node, at)[0])) return;
   hide();
+  waiting = node;
   timer = window.setTimeout(() => show(node, at), Date.now() - lastHidden < 500 ? 0 : wait);
 }
 /** The control a pointer, finger or focus is on that has something to say: a named control, else the nearest of the controls
@@ -132,5 +134,6 @@ document.addEventListener("pointerdown", (event) => {
   addEventListener("pointerup", () => { removeEventListener("pointermove", moved); if (owner === node) held = window.setTimeout(hide, 1500); else clearTimeout(held); }, { once: true });
 }, true);
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && owner) hide(); });
-document.addEventListener("scroll", hide, true);
+// The page itself (document) or a box holding what it is about.
+document.addEventListener("scroll", (event) => { const about = owner ?? waiting; if (about && (event.target as Node).contains(about)) hide(); }, true);
 addEventListener("blur", hide);

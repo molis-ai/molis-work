@@ -50,8 +50,9 @@ type PluginUi = ReturnType<typeof createPluginUiClient>;
  * keeps the session for the Plugin's `stop`.
  */
 export function openHostSession(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext): HostSession {
-  const ui = createPluginUiClient(options.ui, context, definition.manifest);
   let active = true;
+  const ui = createPluginUiClient(options.ui, context, definition.manifest,
+    { invalidate: () => options.invalidateView?.(context.plugin_id), active: () => active });
   let disposeArtifacts = () => {};
   let library: ReturnType<typeof openPluginDatabase> | undefined;
   let projectLibrary: ReturnType<typeof openPluginProjectLibrary> | undefined;

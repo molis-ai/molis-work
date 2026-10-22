@@ -59,8 +59,8 @@ export function renderInteractionExample(): string {
   return `<style>${INTERACTION_STYLES}
     .mw-ix-specimen { width: min(620px, 100%); }
     .mw-ix-specimen--wide { grid-column: 1 / -1; }
-    .mw-ix-composer-specimen { display: flex; align-items: center; gap: 8px; width: min(560px, 100%); }
-    .mw-ix-composer-specimen__pill { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 50px; padding: 0 14px; border-radius: var(--r-composer, 15px); background: var(--paper); box-shadow: var(--lift-2); color: var(--muted); }
+    .mw-ix-composer-specimen { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: min(560px, 100%); }
+    .mw-ix-composer-specimen__pill { flex: 1 1 200px; min-width: 0; display: flex; align-items: center; gap: 6px; height: 50px; padding: 0 14px; border-radius: var(--r-composer, 15px); background: var(--paper); box-shadow: var(--lift-2); color: var(--muted); }
   </style>
   <p class="mw-catalog__hint">AI 发起交互时的共享部件：问卷（混合字段、推荐理由、逐字段错误、时长冲突确认）、选项组、操作卡（作用对象与版本、参数预览、状态、结果）、输入框旁的下一步。只做呈现，调用方把自己的记录转换成展示参数；示例内容固定，不连接任何服务；第一张问卷用共享的浏览器行为（选项、步进、日历、键盘、逐字段错误）真的可以操作。</p>
   <div class="mw-catalog__specimens">

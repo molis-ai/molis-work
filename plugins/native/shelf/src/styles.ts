@@ -151,7 +151,6 @@ export const SHELF_STYLES = `
   }
   [data-shelf="settings"] .shelf-hotkey-row.is-recording .shelf-hotkey-record { color: var(--da-accent); }
 
-  [data-shelf] .shelf-side-scroll::-webkit-scrollbar { width: 0; height: 0; }
   [data-shelf] .shelf-fold {
     display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 4px;
     border: 0; background: transparent; color: var(--da-muted); font-size: 12px; font-weight: 400;

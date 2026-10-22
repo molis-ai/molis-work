@@ -9,7 +9,10 @@ interface AccountActionResult { loginUrl?: string; loginAttempt?: string; signed
 declare global {
   var L: ((text: string) => string) | undefined;
   var molisWorkOpenExternalUrl: ((url: string) => Promise<void>) | undefined;
-  function molisWorkRequest<T = unknown>(url: string, options?: { method?: string; body?: object; fallback?: string }): Promise<T>;
+  var molisWorkRequest: {
+    <T = unknown>(url: string, options?: { method?: string; body?: object; fallback?: string }): Promise<T>;
+    toast(target: Element, error?: unknown, fallback?: string, options?: { ms: number }): void;
+  };
 }
 function requiredElement(root: ParentNode, selector: string): HTMLElement {
   const element = root.querySelector<HTMLElement>(selector);

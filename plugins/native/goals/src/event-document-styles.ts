@@ -109,8 +109,6 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
   .goal-event-document .attachment small { color: var(--muted); font-size: 11px; }
   .goal-event-document .event-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
   .goal-event-document ::selection { background: var(--blue-soft); color: var(--ink); }
-  .goal-event-document [data-event-timeline]::-webkit-scrollbar, .goal-event-document .event-sheet::-webkit-scrollbar { width: 10px; }
-  .goal-event-document [data-event-timeline]::-webkit-scrollbar-thumb, .goal-event-document .event-sheet::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 45%, transparent); border-radius: 99px; }
   @container goal-event-read (max-width: 1100px) {
     .goal-layout { grid-template-columns: 278px minmax(0, 1fr) !important; }
     .goal-title-heading h1 { font-size: 15px; }
@@ -157,7 +155,8 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
   .goal-event-document .event-form-bottom > .event-form-actions { padding: 0; }
   /* On a very short window the fields come first: the lead under the form title gives way (390×500 left 45px of fields). */
   @media (max-height: 560px) { .goal-event-document .event-form-heading .form-lead { display: none; } }
-  .event-form[aria-busy=true] .event-form-body { opacity: .65; }
+  .event-form[aria-busy=true] .event-form-body { animation: mw-busy-dim var(--dur-move) var(--ease-quint) var(--dur-move) both; }
+  @media (prefers-reduced-motion: reduce) { .event-form[aria-busy=true] .event-form-body { animation-duration: 0s; } }
   .goal-event-document .event-conflict:not([hidden]) { flex: none; max-height: 25dvh; overflow: auto; }
   .goal-event-document .event-form-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; margin: 0; }
   @media (max-width: 760px) {

@@ -241,6 +241,11 @@ export const DOM_EVENTS = [
     summary: "A Goal event panel is present in the document; the shell re-reads whether to offer the panel layout.",
   },
   {
+    name: "molis-work:item-unreadable", kind: "request", owner: "context-actions", on: "element", bubbles: true,
+    detail: "{ itemId }",
+    summary: "A plugin surface could not read the item the workbench asked it to show (molis-work:select-item): it is gone. The surface says so on itself; the workbench does not name the surface after the item, so the Assistant does not carry it as what the person is looking at. Raised from the surface root and bubbling.",
+  },
+  {
     name: "molis-work:knowledge-pick", kind: "request", owner: "knowledge-picker", on: "document",
     detail: "{ request_id, selected?: Array<{ kind, id, title }>, max? }",
     summary: "Open the project knowledge picker with these pieces already chosen. Sent by an input that brings pieces into a round: the Assistant's ＋ and Coding's 材料.",

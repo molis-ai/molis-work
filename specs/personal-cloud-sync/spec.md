@@ -2,6 +2,8 @@
 
 状态：进行中。隔离验证不代表已上线或允许维护真实 Home。
 
+2026-10-22 同步声明重构：按用户要求，将 Feed/Schedule 的项目日志安装、Coding 的内容 owner 与上传前历史导出移到各自 `registration.sync`。Host 通过共同目录调用，不新增逐插件名单；Module 事实仍由组合根装配。只改可信接线合同，不改数据库/网络格式、不迁移真实 Home、不重启服务。补充未知插件发现、普通本地库不安装、所选集合准备、项目停用、历史身份绑定和异步撤权、坏 owner 拒绝用例。整体构建、包边界与 API 快照检查通过；同步及库拒绝定向组 5 文件/66 项全过。涉及包 README 必跑组 119 文件中 118 文件通过，1139/1140 项通过：唯一失败为 `shelf-jelly-cognia-images-error-model.test.ts` 的 Cognia 清单漏列 `directory_unavailable`，已在改动前 `22f23334f` 的全新工作树、重新构建后复现同一失败。两组共 123/124 文件、1205/1206 项通过；未重启此前停止的全仓全量回归。对 main `83ecb61b` 的严格门禁只剩既有 Coding 客户端 1581→1584 行，Coding/Feed/Schedule 的三项包外引用增长全部消除，没有改阈值或调高基线。客户端增长、既有键盘用例及其他全量验证缺口不在本次修复范围。
+
 2026-10-22 第四阶段增量合并：本次抓取 main 为 `83ecb61b69fa08249425f34782f07cf4e1f58a03`，仅新增主页无感刷新提交（#1002）。本地合并提交 `58aada4f1` 保留上一轮 personal 账号、同步及 SDK 行为；唯一 Git 冲突为页面资源快照，按实际构建用正式工具重新生成，没有手工估算或放宽阈值。最终 26 项资源共 6,667,224 字节，通过该 main 的预算检查；相对上一轮 personal，工作台脚本增加 200 字节。
 
 第四阶段验证：整体构建、包边界和敏感信息检查通过；工作台 README 必跑组及主页相关浏览器/单元测试共 22/22 文件、152/152 项通过，包含 QHR-01 后台刷新节点保持、QHR-02 跨午夜日期立即更新和真实插件事项操作。严格质量门禁仍为之前记录的 4 项失败，无新增；本轮未重跑账号菜单键盘失败用例，不能据此解除第三阶段的已知缺口。遵照用户先交付本地合并的选择，未跑长时间全量、未推送、未重启服务、未改真实 Home。日志：`/private/tmp/molis-refresh-build.log`、`/private/tmp/molis-refresh-tests.log`、`/private/tmp/molis-refresh-health.log`、`/private/tmp/molis-refresh-assets.log`、`/private/tmp/molis-refresh-boundary.log`、`/private/tmp/molis-refresh-secrets.log`。

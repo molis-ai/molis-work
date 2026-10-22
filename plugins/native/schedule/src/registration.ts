@@ -5,10 +5,10 @@ import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts, SCHEDULE
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
-import { createScheduleTaskReplica } from "./index.js";
+import { createScheduleTaskReplica, installScheduleReplication } from "./index.js";
 import { createSyncJsonContent } from "@molis-ai/molis-work-plugin-sdk";
 export const registration: PluginRegistration = {
-  sync:{conversation_tasks:{scope:'project-database',kind:'schedule_task',create:createScheduleTaskReplica,content:createSyncJsonContent}},
+  sync:{conversation_tasks:{scope:'project-database',kind:'schedule_task',install:installScheduleReplication,create:createScheduleTaskReplica,content:createSyncJsonContent}},
   project_plugin_id: SCHEDULE_PROJECT_PLUGIN_ID, catalog_order: 9,
   manifest: scheduleManifest,
   summary: "定时跑对话任务，也替插件准时提醒。",

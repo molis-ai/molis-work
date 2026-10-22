@@ -6,13 +6,14 @@ import { mkdtempSync,rmSync,readFileSync } from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
-import {ensureStorageSpace,personalStorageSpace,homeSqlitePath,openBaselineHomeSqlite} from '@molis-ai/molis-work-storage';
+import {ensureStorageSpace,personalStorageSpace,homeSqlitePath,openBaselineHomeSqlite,replicaSchemaSql,initializeReplica,namespacedReplicaDatabase,createSqliteReplica} from '@molis-ai/molis-work-storage';
 import {openPagesStore} from '@molis-ai/molis-work-plugin-pages';
 import {PersonalSync,syncNamespace,type SyncRegistration} from '@molis-ai/molis-work-module-sync-replication';
 import type {SyncEvent,SyncMutation} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
-import {availableProjectPluginIds} from '@molis-ai/molis-work-app-workbench';
-import {createPersonalSync} from '@molis-ai/molis-work-app-local-host';
+import {availableProjectPluginIds,BUILTIN_PLUGIN_CATALOG,builtinSyncBindings} from '@molis-ai/molis-work-app-workbench';
+import {createPersonalSync,bindSavedHistory} from '@molis-ai/molis-work-app-local-host';
+import type {PluginRegistration,ProjectSyncContentOwner} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 import {artifactSyncSelection,createPersonalArtifactRegistration} from '@molis-ai/molis-work-app-local-host';
 import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
 import {ArtifactsModule,createArtifactReplication} from '@molis-ai/molis-work-module-artifacts';
@@ -33,6 +34,44 @@ import {createSyncConflictState} from '@molis-ai/molis-work-plugin-sdk';
 
 const selection={plugin_id:'io.molis.work.pages',publisher_id:'molis',publisher_signature:'official-pages-binding',collection_id:'documents',schema_version:1};
 const body=(text:string)=>({type:'doc' as const,content:[{type:'paragraph',content:[{type:'text',text}]}]});
+
+test('plugin-owned sync hooks are discovered without Host names; preparation is selected, project-bound and revocable',async t=>{
+ const f=fixture(t),previous=process.env.MOLIS_WORK_SYNC_LOCAL;process.env.MOLIS_WORK_SYNC_LOCAL='1';
+ t.after(()=>{if(previous===undefined)delete process.env.MOLIS_WORK_SYNC_LOCAL;else process.env.MOLIS_WORK_SYNC_LOCAL=previous;});t.mock.method(globalThis,'fetch',f.transport);
+ let installs=0,preparations=0,completed=0,reads=0,active=true,revokeOnRead=false;
+ const check=()=>{if(!active)throw new Error('REVOKED');};
+ const project=await withMolisWorkProjectCatalog({homeDirectory:f.homes[0]},async c=>{const p=await c.createProject({display_name:'Declared hooks',actor_id:'alice'});c.addProjectPlugin({project_id:p.project_id,plugin_id:'coding',actor_id:'alice'});return p;});
+ // The fixture, like the product's versioned baseline, owns the technical ledger schema before hooks run.
+ const baseline=new LocalProjectDatabase(project.database_path);try{baseline.db.exec(replicaSchemaSql('sync_fixture')+replicaSchemaSql('fixture_journal'));}finally{baseline.close();}
+ const template=BUILTIN_PLUGIN_CATALOG.find(e=>e.project_plugin_id==='coding')!;
+ const owner:Exclude<ProjectSyncContentOwner,string>={
+  create:()=>({id:'fixture_content',assetKind:'fixture_content',tables:[{name:'sync_fixture_items',columns:['project_id','id'],keys:['project_id','id']}],journalTypes:[],receiptOperations:[],sequenceFields:[],validate(){}}),
+  async prepareUpload(_db,context){preparations++;assert.equal(context.projectId,project.project_id);await context.readSavedHistory('fixture-session');completed++;},
+ };
+ const entry:PluginRegistration={...template,catalog_order:999,manifest:{...template.manifest,plugin_id:'io.molis.work.sync-fixture',databases:{project:{store_name:'sync-fixture',version:1,schema:'CREATE TABLE sync_fixture_items(project_id TEXT NOT NULL,id TEXT NOT NULL,PRIMARY KEY(project_id,id));',read_permission:'storage:private',write_permission:'storage:private'}},sync:{protocol_version:1,collections:[{id:'content',title:'Fixture',schema_version:1,requires:[]},{id:'journal',title:'Journal',schema_version:1,requires:[]}]}},sync:{
+  content:{scope:'project-sections',kind:'fixture_content',namespace:'sync_fixture',owners:[owner]},
+  journal:{scope:'project-database',kind:'fixture_journal',install(db){installs++;initializeReplica(namespacedReplicaDatabase(db,'fixture_journal'));},create(db,context){return createSqliteReplica(namespacedReplicaDatabase(db,'fixture_journal'),{authorize:context.authorize,read:()=>null,apply(){throw new Error('Unselected collection must not apply');}});}},
+ }};
+ const catalog=BUILTIN_PLUGIN_CATALOG as PluginRegistration[];catalog.push(entry);t.after(()=>{catalog.splice(catalog.indexOf(entry),1);});
+ const db=new LocalProjectDatabase(project.database_path);db.close();assert.ok(installs>0,'journal installs on open, before the first sync');assert.equal(preparations,0);
+ const before=installs,local=new LocalProjectDatabase(join(f.homes[0],'standalone.sqlite'));local.close();assert.equal(installs,before,'ordinary local databases do not install sync journals');
+ t.after(bindSavedHistory(f.homes[0],{async read(id,identity,authorize){reads++;assert.equal(id,'fixture-session');assert.deepEqual(identity,{project_id:project.project_id,plugin_id:entry.manifest.plugin_id,actor_id:LOCAL_PERSON_ACTOR_ID});authorize();if(revokeOnRead)active=false;return '{}';}}));
+ const lease={userId:'alice',applicationId:'work',authOrigin:'http://127.0.0.1:8787',signal:new AbortController().signal,assertCurrent:check,accessToken:async()=>'synthetic-only'};
+ const sync=(await createPersonalSync(f.homes[0],f.space,lease,withMolisWorkProjectCatalog,check))!;t.after(()=>sync.close());
+ sync.status();await sync.run();assert.equal(preparations,0,'discovery/status/unselected round do not read history');
+ const selected=builtinSyncBindings().find(b=>b.entry===entry&&b.collection.id==='content')!.selection;
+ await sync.save({...sync.policy(),selections:[selected]});await sync.run();assert.equal(sync.status().error,null);assert.ok(preparations>0);assert.equal(reads,preparations);
+ const prepared=preparations;await withMolisWorkProjectCatalog({homeDirectory:f.homes[0]},c=>c.removeProjectPlugin({project_id:project.project_id,plugin_id:'coding',actor_id:'alice'}));await sync.run();assert.equal(preparations,prepared,'disabled project does not prepare an upload');
+ await withMolisWorkProjectCatalog({homeDirectory:f.homes[0]},c=>c.addProjectPlugin({project_id:project.project_id,plugin_id:'coding',actor_id:'alice'}));
+ const finished=completed;revokeOnRead=true;await sync.run();assert.ok(preparations>prepared);assert.equal(completed,finished,'revocation after awaited history read prevents the hook from continuing');assert.throws(()=>sync.status(),/REVOKED/);
+});
+
+test('declared content owners reject empty, unknown and duplicate identities before journal installation',async t=>{
+ const f=fixture(t),project=await withMolisWorkProjectCatalog({homeDirectory:f.homes[0]},c=>c.createProject({display_name:'Owner refusal',actor_id:'alice'}));
+ const entry=BUILTIN_PLUGIN_CATALOG.find(e=>e.project_plugin_id==='coding')!,binding=entry.sync!.sessions!;assert.equal(binding.scope,'project-sections');if(binding.scope!=='project-sections')return;
+ const owners=binding.owners as ProjectSyncContentOwner[],original=[...owners];t.after(()=>owners.splice(0,owners.length,...original));
+ for(const invalid of [[],['unknown-owner'],[original[0]!,original[0]!]]){owners.splice(0,owners.length,...invalid);assert.throws(()=>new LocalProjectDatabase(project.database_path),error=>error instanceof Error&&'code' in error&&error.code==='host.replica_project_invalid');}
+});
 
 test('Host exposes and transfers all registered creative collections through the shared coordinator',{timeout:60000},async t=>{
   const f=fixture(t),previous=process.env.MOLIS_WORK_SYNC_LOCAL;process.env.MOLIS_WORK_SYNC_LOCAL='1';

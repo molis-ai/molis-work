@@ -66,6 +66,7 @@ export type BuiltinSyncBinding = ({
     }) => SyncContentCodec;
     readonly scope: 'project-database';
     readonly kind: string;
+    install?(db: ReplicaDatabase, projectId: string): void;
     create(db: ReplicaDatabase, context: {
         spaceId: string;
         projectId: string;
@@ -80,7 +81,7 @@ export type BuiltinSyncBinding = ({
     readonly scope: 'project-sections';
     readonly kind: string;
     readonly namespace: string;
-    readonly owners: readonly string[];
+    readonly owners: readonly ProjectSyncContentOwner[];
 } | {
     readonly content?: (context: {
         spaceId: string;
@@ -171,6 +172,23 @@ export interface PluginWorkbenchRegistration {
     readonly settingsClient?: string;
     readonly searchRow?: PluginSearchRow;
     readonly recordRow?: PluginSearchRow;
+}
+
+export type ProjectSyncContentOwner = string | {
+    create(services: ProjectSyncServices): import('./sync-transport.js').ProjectReplicaDefinition;
+    prepareUpload?(db: ReplicaDatabase, context: ProjectSyncUploadContext): Promise<void>;
+};
+
+export interface ProjectSyncServices {
+    validateSavedHistory(json: string): {
+        sessionId: string;
+    };
+}
+
+export interface ProjectSyncUploadContext extends ProjectSyncServices {
+    readonly projectId: string;
+    authorize(): void;
+    readSavedHistory(runtimeSessionId: string): Promise<string>;
 }
 
 export interface ReplicaDatabase {

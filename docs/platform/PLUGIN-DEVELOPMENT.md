@@ -491,6 +491,8 @@ Work 属于系统 Module，不冒充插件或添加 Manifest。Host 使用原 Mo
 
 内置目录的同步接线按集合 ID 配置工厂表，例如 `sync: { documents: { scope: 'projects', open, content } }`，由 `builtinSyncBindings` 派生。Manifest 顺序不决定使用哪个适配器，缺实现的集合不注册，未声明及继承属性不授予接入。每个集合隔离自身日志与游标；新集合仍需主动选择。该内置目录能力不替代独立 Runtime 的实例生命周期发现，后者仍在实施。
 
+项目数据库集合可声明 `install(db, projectId)`，Host 在个人项目库 schema 校验后、业务变更前安装 owner 日志，不等第一次同步。项目 sections 的 `owners` 接受 Module owner ID 或插件自有 `{ create(services), prepareUpload?(db, context) }`：前者由组合根解析 Module，后者直接由插件声明，不再在 Host 点名插件。空、未知、重复 owner 拒绝；`create` 仅获得纯历史校验函数。上传准备只在所选集合与已启用项目执行，`readSavedHistory` 由 Host 绑定声明中的插件身份、项目、本人与原授权，等待前后复核；插件实际提交仍要复核。状态发现、下载和回收检查不读取 SDK 历史。详见[同步接入规范](../../skills/molis-plugin-dev/sync.md)。
+
 项目私有库可用同一条目的 `scope: 'project-library'`、固定 `kind`、owner `open(home,projectId)`。Host 复用共同分区与当前项目授权，owner 在首次业务写入前安装事务日志，绑定不可重写的空间和项目并验证当前库基线。炼金术士 `studio` 使用该路径恢复研究图及历史，不传执行输入、租约、检查点、模型/来源设置；前台模型等待或后台任务活动时暂拒覆盖。不是逐插件 Host 名单，也不自动授予集合同步许可。
 
 Module 项目内容的 `ProjectReplicaDefinition` 明确声明 `assetKind`、可携带字段及范围、语义校验，可提供纯 `project`/`restore` 投影：导出删除本机连接状态，恢复只合并同事务捕获的目标本机状态，不把这些状态传给云端。唯一内置目录用 `scope:'project-sections'`、公开 `owners` 身份、`kind` 和 `namespace` 描述；Host 在现有项目库组合根解析 owner 定义，公共 Storage `createProjectContentReplicaFactory` 负责事务技术，日志安装也从同一目录派生。工作台不新增 Module 实现依赖，Host 不另维护逐插件名单。没有自己根表的 owner 经可信组合根传入明确的项目 ID 安装日志，不能借用别人的根表声明。Sources、Attention、Feed/Signal 使用此路径；真实 Home 的项目库基线变更仍须单独批准维护。

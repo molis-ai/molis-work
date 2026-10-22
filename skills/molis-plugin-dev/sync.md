@@ -84,6 +84,8 @@ Runtime 私有文档使用 `scope:'project-private-values'`、固定 `namespace/
 
 ## 后续增量接入要求
 
+项目同步的日志安装和内容准备也由同一 `registration.sync` 声明，不向 Host 添加插件名或实现 import：`project-database` 的可选 `install(db, projectId)` 在个人项目库打开、schema 校验通过后、首次业务变更之前调用；普通本地库不调用。`project-sections.owners` 中的字符串只引用 Module owner；插件自己的 owner 写 `{ create(services), prepareUpload?(db, context) }`。`create` 返回 `ProjectReplicaDefinition`，只得到纯 `validateSavedHistory`，发现目录不能启动 SDK；空集合、未知 Module owner、重复 owner ID 均拒绝。`prepareUpload` 仅在选中的集合上传冻结前、已启用且库可用的项目调用，身份取声明所属插件，`context` 提供绑定当前项目/插件/本人及原授权的 `readSavedHistory`、`authorize` 和纯校验。Host 在异步调用前后复查，插件在自己的提交点仍须 `authorize()`；不能把历史导出放进 `create`、`refresh` 或状态查询。此接口是可信目录装配，不改变独立 Runtime 接入状态、不授予新权限，也不变更数据格式。
+
 `ProjectReplicaDefinition.beforeClear` 是 owner 的目标端事务护栏：读取刚捕获的本机事实，在删除任何行前校验，普通替换和墓碑都必须经过。拒绝时不保留可供另一次写入复用的旧捕获；`restore` 只合并同事务捕获的本机状态。Coding 用它保护活动执行和后台命令，恢复会话/计划不携带 Runtime 绑定、执行状态或原确认授权；计划和输入的编辑高水位只留本机，删除和恢复不倒退。其元数据、计划、未发送文本与待答内容是同一一致性单元；Runtime 对话由原执行 owner 导出完整保存档案，被动展示不建立执行绑定。
 
 同步内容接入后，所有正常编辑入口也必须使用同一 owner 和原版本前提。Coding 的 `coding.sessions.update@2` 在修改文本或待答内容时带原读取的 `expected_input_revision`；旧 v1 不保留别名，此动作仍 LOCAL、不新增 MCP 工具。后台读取不能用新版本为未保存的旧输入补权，窗口重载须保留原基线；拒绝时保留输入，用标准对比对话框让人明确采用或按所见版本保存。已接受执行的回执只能清除原版本且原正文相同的文本，不能删除执行开始后继续输入的内容，也不清除待答草稿。

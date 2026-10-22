@@ -2546,3 +2546,12 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 
   合入后由 ③ 给 Git、Files 加订阅，关掉 BL-379。
 - **10-22 ⑤ 与 ⑩ 分工已定**：③ 及其子会话的 PR 归 ⑩ 审并修；② 的 PR、集成批次和合并队列都在 ⑤ 一处。
+- **10-22 ③ 的三个子会话已开**（用户在 ③ 里亲口确认了授权）：G1 `local_acf4e1b5`、PG-038 Coding `local_7a5cbfb6`、Shelf S2～S4 `local_0155ceaf`。G2b 门禁全过，正在推送。
+- **10-22 Goals 裁定（① 定，依据 `goals-s9-preconditions-1022.md`）**：
+  - S5 现在开，照计划 D3 搬移，① 代 ② 定做法，② 在 PR 上评审。
+  - T1 算已解冻（#840 之后枢纽文件已被多片改过），S4 可做。
+  - W5-06/PG-060 归 S11，S9 不等它。
+  - PG-027 在 S9 时用 pin 流程实测。
+  - PG-012 的 Goals 一半并进 S9 计划。
+  - ③ 的顺序：G2b → `saveDetail` → S5 → S6 → S4，G5 插在中间。
+- **10-22 ② 加一组 Goals 平台能力**（子会话上限 2 → 3，先写设计交 ①）：PG-029 可信 `user_action`、PG-087（attention、context-ledger、Artifacts/ProcessItems 包成 services）、journal 与幂等记录。journal 尽量就是 X-6 领域事件那一种来源，不另起第三条事件流。② 自己的顺序：C7 公开包 → `host.workspace.changed@1` → BL-411 → S0b-2 → W5-06。

@@ -2,7 +2,8 @@
 // in it, Mod-Alt-Shift-← and → narrow and widen a selected image, else the table column or layout column the caret is in,
 // the innermost first. The same commands as the handles; the handles name these keys (`aria-keyshortcuts`). The new width is
 // read out once through the page's status region (`window.molisAnnounce`), at a limit too.
-import { NodeSelection, type Command, type Transaction } from "prosemirror-state";
+import { NodeSelection, TextSelection, type Command, type Selection, type Transaction } from "prosemirror-state";
+import type { EditorView } from "prosemirror-view";
 import { nudgeColumnShare } from "./commands-containers.js";
 import { setImageWidth } from "./commands-insert.js";
 import { setColumnWidth } from "./table-edit.js";
@@ -50,3 +51,25 @@ export const sizeKeys = (translate?: (text: string) => string): Record<string, C
 
 /** The keys as `aria-keyshortcuts` names them on this platform, for the handles. */
 export const SIZE_KEYS = ["Left", "Right"].map((side) => `${typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta" : "Control"}+Alt+Shift+Arrow${side}`).join(" ");
+
+/**
+ * A sizing handle is a vertical splitter, as the workbench's resizers are: `role=separator` with its value read out, and ← → on
+ * the focused handle size what it holds with the same command as the keys, the caret moved there first (`place`; by default
+ * into the node at `pos()`). Returns the painter of its value: now, its bounds and the words the keys say.
+ */
+export function sizeHandle(h: HTMLElement, view: EditorView, pos: () => number | undefined, t?: (text: string) => string, place?: (at: number) => Selection) {
+  h.setAttribute("role", "separator");
+  h.setAttribute("aria-orientation", "vertical");
+  h.addEventListener("keydown", (e) => {
+    const at = pos(), dir = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+    if (!dir || at == null || e.altKey || e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    view.dispatch(view.state.tr.setSelection(place ? place(at) : TextSelection.near(view.state.doc.resolve(at + 1))));
+    sizeHere(dir, t ?? ((text: string) => text))(view.state, view.dispatch, view);
+    h.focus({ preventScroll: true });
+  });
+  return (now: number, min: number, max: number, text: string) => {
+    for (const [k, v] of [["valuenow", Math.round(now)], ["valuemin", min], ["valuemax", max], ["valuetext", text]]) if (h.getAttribute("aria-" + k) !== String(v)) h.setAttribute("aria-" + k, String(v));
+  };
+}

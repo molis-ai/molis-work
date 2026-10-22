@@ -104,3 +104,44 @@ test("VUX-06: Mod-Alt-Shift-← and → size a table column, a layout column and
   assert.deepEqual(await attrs(b), before);
   assert.equal(await said(b), "占满一行", "and say nothing new");
 });
+
+test("VUX-23: each sizing handle is a vertical splitter that reads its value and takes ← → itself", { timeout: 90_000 }, async (t) => {
+  const b = await mount(t);
+  if (!b) return;
+  const read = (selector: string) => b.evaluate<Record<string, string | null>>(`(() => { const h = document.querySelector(${JSON.stringify(selector)});
+    return Object.fromEntries(['role', 'aria-orientation', 'aria-valuenow', 'aria-valuemin', 'aria-valuemax', 'aria-valuetext'].map((name) => [name, h.getAttribute(name)])); })()`);
+  const press = async (selector: string, key: "ArrowLeft" | "ArrowRight") => {
+    await b.evaluate(`document.querySelector(${JSON.stringify(selector)}).focus()`);
+    for (const type of ["rawKeyDown", "keyUp"]) await b.command("Input.dispatchKeyEvent", { type, key, code: key, windowsVirtualKeyCode: key === "ArrowLeft" ? 37 : 39 }, b.sessionId);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    return b.evaluate<boolean>(`document.activeElement === document.querySelector(${JSON.stringify(selector)})`);
+  };
+  const column = "#size-fixture .pages-column:first-child > .pages-column-resize", cell = "#size-fixture tr:first-child th:first-child .pages-col-resize", image = "#size-fixture .pages-image-resize";
+
+  assert.deepEqual(await read(column), { role: "separator", "aria-orientation": "vertical", "aria-valuenow": "50", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuetext": "栏宽 50%" });
+  assert.equal(await press(column, "ArrowRight"), true, "the handle keeps the focus");
+  assert.deepEqual((await attrs(b)).shares, [1.1, 0.9], "→ on a layout column's handle widens it as the keys do");
+  assert.equal((await read(column))["aria-valuenow"], "55");
+  assert.equal((await read(column))["aria-valuetext"], "栏宽 55%");
+
+  await b.evaluate(`document.querySelector(${JSON.stringify(cell)}).focus()`);
+  const drawn = await b.evaluate<number>("Math.round(document.querySelector('#size-fixture th').getBoundingClientRect().width)");
+  const before = await read(cell);
+  assert.equal(before.role, "separator");
+  assert.equal(before["aria-valuenow"], String(drawn), "a column without its own width reads the width it is drawn at");
+  assert.deepEqual([before["aria-valuemin"], before["aria-valuemax"]], ["80", "640"]);
+  assert.equal(await press(cell, "ArrowRight"), true);
+  assert.equal((await attrs(b)).cols[0], drawn + 32);
+  assert.equal((await read(cell))["aria-valuetext"], `列宽 ${drawn + 32} 像素`);
+
+  await b.evaluate(`document.querySelector(${JSON.stringify(image)}).focus()`);
+  const shown = await read(image);
+  assert.equal(shown.role, "separator");
+  assert.equal(shown["aria-valuetext"], "占满一行", "an image without its own width says it fills its line");
+  assert.equal(await press(image, "ArrowLeft"), true);
+  const width = (await attrs(b)).image;
+  assert.ok(width > 0, `← narrows the image (${width})`);
+  assert.equal((await read(image))["aria-valuenow"], String(width));
+  assert.equal((await read(image))["aria-valuetext"], `宽度 ${width} 像素`);
+  assert.equal(await said(b), `宽度 ${width} 像素`, "and is read out once, as the keys are");
+});

@@ -1,626 +1,484 @@
 # Prologue 记忆策略与 Molis Work 接入
 
-状态：需求已整理（2026-10-21），六个方向已确认；spec 待评审后实施。负责人：待分配。本 spec 同时约束 Prologue SDK 与 Molis Work；Prologue 先落 P0 通用能力，Molis 先迁召回、再迁历史。
+状态：方案已按评审结论更新（2026-10-22）；用户已确认以 Molis Work 的记忆更精准、好用、省 token 为核心目标，并新增 App 自定义分类与记忆矩阵要求。尚未实施、未做产品验收。负责人：待分配。本轮只更新本 spec 与索引；不改代码、Prologue 需求分册或模块 Contract。实施前按各仓库规则冻结短合同。
 
-## 1. 背景与结论
+## 1. 用户结果与责任边界
 
-Prologue 现在提供的是**记忆内核**：一条条可版本化的条目、作用域隔离、唯一写入口、墓碑、候选箱、预算和审计。它没有提供**记忆策略**，也没有提供 App 直接可用的**记忆应用面**。
+用户在 Coding 里说“这个项目只用 pnpm”，下次继续该项目时应直接生效；切到个人助理安排日程时，不应带入构建工具偏好。用户说“这周会议尽量放下午”，应成为有期限的助理记忆，不能变成永久习惯。用户纠正了旧偏好，旧值应停止影响回答；打开记忆管理时，应看得懂记住了什么、来自哪里、在哪些场景使用，并能纠正、停用、遗忘和撤销自动修改。
 
-认真做记忆的 App 一定会在这层内核上重写一套策略。Molis Work 已经是这样：
+这份方案要交付的不是“把 Molis 的代码搬进 SDK”，而是上述体验，以及完成同类任务时可测量的 token 节省。Prologue 提供可组合的形成、批准、读取、保留策略；Molis Work 选择适合 Coding、助理和其他使用方的组合。另一家 App 可以定义不同分类、读写规则和生命周期，不必复制一套记忆系统。
 
-- [记忆服务](../../horizontal/memory/src/service.ts) 自己在 `list` 上做过滤、打分、预算和冲突处理，主路径没有使用 SDK 召回。
-- [Agent Host 适配器](../../horizontal/agent-host/src/adapters/prologue-memory.ts) 负责 scope、hydrate、候选、pin 和字段翻译。
-- `meta` 被当成业务事实的容器，`disabled/paused` 被编码进 `paused.reason`，证据引用被压成 JSON 字符串。
-- 历史正文、最近变动、使用记录、冲突配对、整理标记放在 Host 旁表 `memory.db`。
-- 导出使用自己的 `molis.memory` 包，因为 SDK 导出不带 `meta`。
+### 1.1 三个核心目标
 
-问题不是 Molis 做错了，而是 SDK 的边界切错了：**通用机制没提供，App 只好自己补；补完之后，SDK 后续的策略升级就传不到 App。**
+| 目标 | 用户能感受到什么 | 判断依据 |
+| --- | --- | --- |
+| 更精准 | 不把猜测当事实、不串项目和场景、不反复带入过时或无关记忆；真正相关的偏好能被用到 | 形成准确率、有效召回、错误注入、纠错后的行为、隔离用例 |
+| 更好用 | 能按 App、场景、类型和生命周期管理；看得懂依据和使用原因；关闭、编辑、撤销、遗忘立即有明确效果 | 完整管理动线、恢复与重启后的行为、用户本人试用 |
+| 更省 token | 无关任务不查记忆；相关任务只带短而必要的信息，必要时再展开来源 | 最终注入量和记忆全生命周期总成本；任务质量不能用成本下降抵消 |
 
-本 spec 的结论：
+### 1.2 谁负责什么
 
-1. **内核不配，策略可选。** 单写口、模型不自批、默认不自动、召回是数据、删除是真删——这些不进入任何策略开关。
-2. **拆三层：内核 / 策略 / 应用面。** 内核固定；策略用四个预设加可换执行逻辑；应用面让 App 不用重造候选、历史、回执、分页、批量。
-3. **预设先给四个：** `off`、`manual`、`reviewed`、`assisted`。`assisted` 不是默认自动，必须由 App 显式选择，并带版本化策略和逐条可撤销。
-4. **新增两个槽：** `memory-recaller`、`memory-extractor`。槽是活对象，预设是数据；两者分开。
-5. **Molis 先换召回，再换历史。** 召回是主路径，收益最大、风险最小；历史迁移动静大，放第二步。
+| 主人 | 拥有 | 不拥有 |
+| --- | --- | --- |
+| Prologue | 唯一记忆写入口、候选决定、作用域与授权约束、版本/状态、策略执行、预算、回执、可替换窄口 | Molis 的产品分类、设置页、业务对象、第二套任务循环 |
+| 消费 App | 分类定义、记忆矩阵、场景识别、使用方权限、产品写入门、界面、来源的业务解释 | 绕过 SDK/Host 的写入、把分类当权限、让模型自批 |
+| Host | 可信身份、存储、网络、密钥、最终授权和本机删除 | 决定用户偏好、猜测记忆分类 |
 
-Prologue 侧只改 `memory/`、`runtime/`（槽表）、`kernel/`（错误码）、`composition/`、`agent/`、`context/` 和公开入口，不新增模块。Molis 侧只改 `horizontal/memory`、`horizontal/agent-host`、`packages/contracts`、`packages/storage`、Local Host 装配和设置页，不新建第二套记忆运行系统。
+召回结果始终是有来源的数据，不升格为系统指令。记忆不能授予操作权限；工具执行仍走原来的准备、策略/审批、执行、回执链。业务事实的原件仍归原业务模块，记忆只保留必要的提炼与引用。
 
-## 2. 目标与非目标
+## 2. 当前实现与需要改变的地方
 
-### 2.1 目标
+代码基线：Prologue `95e177093a4efb60a286272892a89dc1e7ed31ba`；本次文档工作树基于 Molis Work `1704054385f4820e9ef152c8f660d3615c725df1`。以下是已检查的调用路径，不代表做过新方案的模型效果或性能测试。
 
-- App 选一个预设，就能得到一条完整的记忆链路：形成、批准、召回、注入、回执、删除、导出。
-- App 可以只替换一段执行逻辑（召回排序、提炼），不重写写入口、过滤、预算、回执和删除。
-- Molis Work 的主路径改用 SDK 召回；`MemoryService` 只保留产品策略、写入门表和 UI 协作。
-- 现有硬边界一条不少：默认关/手动、模型不自批、单写口、作用域隔离、召回是数据、删除真删、预算有界。
-- 新增能力可观察、可撤销、可迁移；旧数据有一次性迁移路径。
+| 当前能力 | 本方案如何使用或补齐 |
+| --- | --- |
+| SDK 已有条目、scope/owner、版本、暂停/墓碑、持久候选箱、批准来源、幂等写入 | 继续复用；补统一状态、受控替换及各入口一致的分类/授权检查 |
+| SDK `memoryCandidates` 持久化；`memoryInbox` 是另一条内存候选路径；现役可选自动提炼保存最终回复原文 | 新形成链统一进持久候选箱；不再把最终回复直接视为可复用事实 |
+| SDK 现役 recall 是同步入口，支持关键词和可选向量回调；Context 已有 TokenCounter 与二次裁剪 | 为异步召回明确取消、超时、失败语义；复用 TokenCounter 和最终 Context 回执 |
+| Molis [MemoryService](../../horizontal/memory/src/service.ts) 在 `list` 上过滤、打分和裁字数；部分偏好/约定在无词命中时也会被带入 | 统一到 SDK 读取管线；改为任务相关选择，常驻项是 App 明确选出的极小集合，不是整个类型 |
+| Molis 已有读/形成/自动记住/学习开关，使用方权限，来源证据校验，推断不得覆盖明确偏好的门表 | 保留这些产品语义；新预设不能顺手改变用户现有选择 |
+| Molis 提炼前有 `worthLearning`，输入已有记忆与待处理候选；项目删除前后有 `stillWanted` 检查 | 复用高信号筛选、增量输入和提交前复核，避免退化成每轮调模型 |
+| 当前 `kind` 为 preference/convention/fact/experience；namespace、适用条件和消费权限已有各自用途 | 由 App 声明分类字典，映射现有类型；分类不替代 namespace、scope 或授权 |
+| Molis 旁表保存历史正文、变更、使用、配对、开关和信号 | 首期保留可用的历史/撤销与产品事实；SDK 历史及导出搬迁放后续 |
+| SDK 存储和 Molis SQLite 是不同存储边界 | 单存储原子操作与跨存储删除分开设计；不宣称一个事务包住所有数据 |
 
-### 2.2 非目标
+仅把全量扫描从 Molis 挪到 SDK 不算性能改进；仅换 API 不算记忆质量提升。
 
-- 不把 Molis 的开关、使用方权限、写入门表、UI、工作标题搬进 SDK。
-- 不在 memory 内核里调用模型；提炼、摘要、冲突判断由 App 的 `memory-extractor` 提供。
-- 不内置向量数据库、图数据库或嵌入模型；向量/图是可选召回器实现。
-- 不新增第 30 个模块；所有改动落在现有 `memory/` 及其装配、上下文、Agent 接线。
-- 不做默认自动记忆；`assisted` 必须显式选择。
-- 不为旧实现保留第二套写入路径或第二套召回循环。
-- 不把记忆变成 App 产品数据库；业务事实仍向所有者读取。
+## 3. 已定决策与复杂度取舍
 
-### 2.3 参考与取舍
+### 3.1 已定决策
 
-下表把公开做法和本 spec 的决定对上。**这不是竞品评测**：本环境未能逐页抓取全文，链接与行为以公开页面为准，实施前应再核对版本。
+| 编号 | 决定 |
+| --- | --- |
+| D1 | SDK 提供通用机制和策略组合；产品分类、使用方、开关、门表和界面由 App 拥有。 |
+| D2 | 采用 `memory-recaller`、`memory-extractor` 两个窄槽；实施时同步 Prologue 槽闭集与模块 Contract。本 spec 不是已完成装配的证据。 |
+| D3 | `assisted` 必须由 App 显式启用，并有版本化晋升策略、可核验来源及可撤销变更；模型不能接受自己的候选。 |
+| D4 | 长期目标为 SDK 有界历史；首期沿用 Molis 历史/撤销，不将搬迁作为质量优化的前置。 |
+| D5 | 在现有元数据上增加通用分类载体和来源信息；App 扩展数据有界。暂不增加没有首期用途的 valid-time 双字段、confidence/importance 默认分。 |
+| D6 | 先基线与最小质量闭环，再统一历史/导出，再按实测瓶颈增加索引、混合检索或维护。 |
+| D7 | 新形成链统一进持久 `memoryCandidates`；`memoryInbox` 不再扩展。现有调用方切换按短合同清点，不新增永久双路径。 |
+| D8 | App 可定义场景、类型、生命周期及需要的附加分类；记忆矩阵按可信 App/使用方、当前场景、记忆分类分别配置写入和读取。 |
+| D9 | 写入权限、读取权限、召回算法、预算和保留期限相互独立；四个预设只提供配方，不形成权限高低的一条序列。 |
+| D10 | 首期必须证明精准度与 token 收益，且任务质量、用户控制和安全边界不退步；数值结果只在真实测量后填写。 |
 
-| 来源 | 类型 | 它做了什么 | 采纳 / 拒绝 | 影响 |
+### 3.2 当前必须、可以延后、应当删除
+
+| 判断 | 范围与原因 |
+| --- | --- |
+| 当前必须 | 分类字典与矩阵、可信来源、形成门、任务相关读取、token 预算、最终使用回执、分类管理和纠错/遗忘；缺任何一项都不能完成用户闭环。 |
+| 当前必须 | 复用现有候选、版本/幂等、Host、Context、产品权限和撤销；需要的新增窄口按真实调用链落入现有模块。 |
+| 可以延后 | SDK 历史正文搬迁、导出 v2、大规模查询下推、语义/混合召回、自动巩固。分别由重复正文负担、交换需求、扫描成本、语义漏召回和维护收益触发。 |
+| 应当删除 | 缺 basis 默认 explicit、凭空填 0.5 置信分、全类型常驻、先全量读再称已优化、每轮必调提炼模型、分类等于权限、旧 SDK 忽略新字段即安全回滚的承诺。 |
+| 不引入 | 新记忆服务/第 30 个 SDK 模块、全局动态分类注册中心、图数据库、通用规则 DSL、第二套 Agent 循环、另一份工作台账。 |
+
+App 可以定义多种策略，但不要求首期实现所有检索算法、分类编辑器或维护插件。
+
+## 4. App 分类与记忆矩阵
+
+### 4.1 分类定义与数据归属
+
+App 在可信装配时提供分类定义及策略表，SDK 负责校验与执行。SDK 不内置 `coding`、`assistant`、`habit` 等产品枚举。
+
+| 维度 | 示例 | 语义 |
+| --- | --- | --- |
+| App / 使用方 | Molis Work、另一消费 App；Molis 内的 Coding、助理、插件、MCP | App 身份及使用方来自 Host/可信调用上下文；是策略选择与授权输入，不由模型填报。使用方不必等于场景。 |
+| 场景 scene | coding、assistant、writing、common | 记忆适用的工作场景；common 也必须显式声明哪些使用方可读，不表示所有 App 可读。 |
+| 类型 type | preference、convention、fact、experience、habit、project-decision | App 定义内容含义及管理文案；现有 `kind` 作为类型的既有载体，不另存一份含义相同的 type。 |
+| 生命周期 lifecycle | session、short-term、long-term | App 定义生命周期名称，并映射到会话结束、明确到期时间或持续保留策略；“长期”不代表可信或永不过时。 |
+| 附加分类 | workflow、topic 等 App 真正需要的维度 | 采用有界的维度和值；首期允许装配时声明，禁止未声明字段悄悄进入全局分类。 |
+
+分类定义包含稳定 ID、显示名、可用值、默认值（如有）和必要的保留策略。分类标签可更名而不改变稳定 ID；值被停用后不接收新写，旧记忆仍可管理并显式改类。新增类型不要求修改 SDK 核心或枚举。
+
+每条记忆只有一份正文和稳定引用，可同时适用多个场景；类型与生命周期各有一个有效值，其他维度按 App 声明的单值/多值约束。矩阵只是这些条目在不同读写策略下的视图，不为每个格子复制一条记忆。
+
+`scope + owner` 决定记忆属于谁，namespace 承接已有产品边界，分类描述内容与用途。不能通过改成 common、long-term 或另一 App 的同名类型改变 owner、namespace 或读权限。跨 App 共享如有需求，必须由已有授权机制给出明确 grant；首期没有隐式跨 App 共享。不同 App 可用同名分类，互不解释或覆盖。
+
+### 4.2 矩阵的最小形状
+
+以下为合同示意，不是已经发布的 TypeScript API；最终类型由 Prologue 模块 Contract 冻结。选择条件和数字归 `config.memory`，活对象归已有装配入口。
+
+```text
+App 分类定义
+  scenes / kinds / lifecycles / optional dimensions
+
+矩阵行
+  selector: 可信使用方 + 当前场景 + 记忆分类
+  write:
+    是否允许显式保存 / 提候选 / 策略晋升
+    允许来源、证据要求、形成触发、可替换的 key 域
+  read:
+    是否可读、自动召回或仅点名/按需读取
+    可见分类、相关性策略、常驻集合、条数及 token 配额
+  retention:
+    保留方式、到期规则、可否提出短期转长期建议
+```
+
+矩阵必须支持“可写但不自动读”“可读但不允许形成”“只由人写但自动召回”“Coding 可读、助理不读”等独立组合。读取当前长期记忆不会延长 TTL；写入短期记忆不会自动打开读取。
+
+Molis 首期配方如下；这些值归 Molis 配置，不是 Prologue 默认。自动晋升都还受现有“自动记住”和来源/证据门表约束。
+
+| 使用方 / 当前场景 | 记忆分类 | 写入策略 | 读取策略 | 保留策略 |
 | --- | --- | --- | --- | --- |
-| [Claude Code memory](https://code.claude.com/docs/en/memory) | 官方文档 | `CLAUDE.md` 层级、导入、项目/用户范围 | 采纳层级与显式可审；拒绝默认自动写 | 作用域、项目记忆、显式入口 |
-| [Cline Memory Bank](https://docs.cline.bot/best-practices/memory-bank) | 官方文档 | 结构化 Markdown 文件、手动更新 | 采纳结构化与项目级；拒绝只靠手动、无生命周期 | `kind`/`data`、维护策略 |
-| [Anthropic memory tool](https://platform.claude.com/docs/zh-CN/agents-and-tools/tool-use/memory-tool) | 官方文档 | 客户端 `/memories`、工具面读写 | 采纳显式工具面与用户控制；拒绝模型自批 | 单写口、候选、批准 |
-| [Mem0](https://mem0.mintlify.app/core-concepts/how-it-works) | 官方文档 | 抽取 + ADD/UPDATE/DELETE/NOOP | 采纳写管线、去重、覆盖；拒绝默认全自动 | 写入管线、`key`、`supersede` |
-| [LangMem](https://www.langchain.com/blog/langmem-sdk-launch) | 厂商博客 | semantic / episodic / procedural、前后台 | 采纳 profile/episode 分层；暂不做 procedural prompt 优化 | `kind`、`assisted`、维护 |
-| [Zep / Graphiti](https://help.getzep.com/v2/concepts) | 官方文档 | 时序知识图谱、事实有效期 | 采纳 `supersede`/valid time；暂不引图数据库 | `supersedes`、冲突 |
-| [Letta / MemGPT](https://docs.letta.com/configuration/memory/index.md) · [Sleep-time](https://www.letta.com/blog/sleep-time-compute) | 官方文档/博客 | core / archival / recall、后台巩固 | 采纳工作集与后台巩固；拒绝默认后台模型调用 | 热缓存、维护、`assisted` |
-| [MemoryOS](https://aclanthology.org/2025.emnlp-main.1318/) | 论文 | 短/中/长期记忆 | 采纳生命周期分层；不照搬固定三层 | 维护、TTL/衰减 |
-| [Memobase](https://docs.memobase.io/practices/tips) | 官方文档 | 结构化用户画像 | 采纳 profile-first；不只做画像 | 召回模式、`data` |
-| [A-MEM](https://neurips.cc/virtual/2025/loc/san-diego/poster/119020) · [Cognee](https://pypi.org/project/cognee/0.1.37/) | 论文/文档 | 笔记链接、图记忆 | 只留作 P2 参考；现不引图 | 后续候选 |
+| Coding / coding | 项目 convention、project-decision | 明确的低风险约定可经策略晋升；项目事实/决策先候选、人接受 | 只限当前授权项目与适用分类，按任务相关性选；不自动带助理生活习惯 | 项目约定可长期；失效或被纠正立即退出召回 |
+| 助理 / assistant | preference、habit | 用户明确偏好或独立来源反复出现的低风险习惯可进门；推断只留候选 | 极少量确实通用的个人偏好 + 本次任务相关记忆 | 稳定习惯长期；观察不足或临时要求短期 |
+| 助理 / assistant | 临时 fact、安排偏好 | 明确要求先候选；自动化只在该行显式允许时发生 | 只在有效时间与相关任务中读取 | 必须有截止时间或会话结束条件，不无限续期 |
+| Molis 授权使用方 / common | 本人明确的通用表达偏好 | 人工保存或已授权的低风险策略 | 仅声明的使用方共享；可以不参加某类简单任务的召回 | 用户管理，纠正优先 |
+| 插件或 MCP / 自定义场景 | App/插件声明的分类 | 按使用方已有权限单独决定；插件不能取得另一个插件的写权限 | 默认不因同名分类共享；MCP 沿用现有个人记忆限制 | 由所属 App/插件的已授权规则决定 |
 
-## 3. 已定决策
+这张表是首期产品配置目标，不是对现有用户设置的静默重置。现有开关、人工条目和未完成候选的采用方式见 §8。
 
-| 编号 | 决定 | 理由 |
+### 4.3 合并、冲突与缺省
+
+1. 配置值沿用 Prologue 的一条优先级链：硬边界 › 组织/项目地板 › App 显式配置 › 场景包配置 › 模块默认。场景包不能覆盖 App 已明确给出的值。
+2. 授权与否决单独求交：Host 权限、使用方可见性、App 总开关、角色/场景包禁令和矩阵许可必须同时满足。预算取各有效上限的最小值；不能靠更具体的一行恢复上层禁令。
+3. 同一配置层内以 App 显式声明的默认行加精确选择行组成配方；精确行覆写默认配方中未被上位约束锁定的值。同一操作命中多条精确行时，允许动作和可见集合求交、禁止优先、审批要求取更严格、上限取最小；同一保留方式的 TTL 取更短值。多值场景按本次当前场景匹配，不把不适用场景的规则混入。
+4. 无法合并的同优先级算法选择、保留方式或其他单值冲突，在装配时明确失败并指出冲突行；不依赖表的顺序或最后写入者。首期不做任意表达式与隐式优先级评分。
+5. 没有匹配行时，只能使用该 App 显式声明的默认行；没有默认行则关闭该操作。未知分类的新写入被拒绝或留在待分类候选中，不自动映射到 common。旧条目的处理必须显式映射，不能因新增分类静默丢失或扩大读取。
+6. Run 开始时冻结分类与策略配置，并记录配置版本；配置修改默认影响下一 Run。实时撤权、删除、项目关闭等硬条件在使用/提交前仍要重查，不能借快照继续访问或回写已删除对象。
+
+### 4.4 按分类管理
+
+首期提供按场景、类型、生命周期、状态、来源筛选的分页查询，以及符合相同权限边界的分类计数。用户可在 Molis 中查看一类记忆、修改分类、关闭这一类的读取或自动形成、批量停用/遗忘，并预览影响范围。计数、预览、导出和候选列表同样不得泄露无权限条目。
+
+改类是受控更新：检查当前版本、目标值、读取可见性和保留策略，生成变更回执；扩大使用场景或改为更长期保留须有可信 App/用户决定，模型只能建议。批量操作先固定经授权的条目与版本，逐条返回成功、冲突、未执行，不将整个动态查询当成无限授权。
+
+首期由 App 声明分类，Molis 提供已声明分类的管理入口；不做终端用户可任意编排规则的矩阵设计器，也不做跨 App 的分类同步平台。
+
+## 5. 多策略组合与装配
+
+### 5.1 预设是配方
+
+| 预设 | 默认形成/批准 | 默认读取 | 说明 |
+| --- | --- | --- | --- |
+| off | 禁止新写及候选决定 | 不用于任务召回 | 仍能管理、查看和删除已有记忆；恢复/改类/编辑等写入仍需先启用相应能力 |
+| manual | 可信 App 或用户显式保存，不后台提炼 | App 主动查询或点名 | SDK 默认；不把模型的工具调用视作“可信 App 直写” |
+| reviewed | 有信号才提候选，人接受 | 任务相关读取 | 形成与读取可分别关闭 |
+| assisted | 候选经 App 版本化策略判定，人可撤销 | 任务相关读取，可加极小常驻集合 | 不是权限更高的档位；不自动开放事实覆盖、跨场景或长期保留 |
+
+App 可在配方中独立选择形成触发、批准方式、召回算法、token 配额与保留策略。比对场景包是否收窄时，比较实际动作集合、授权集合和上限，不比较四个名字的大小。
+
+`reviewed`/`assisted` 若启用了自动提炼却没有 extractor，装配失败；`assisted` 启用了策略晋升却没有 `memoryPromotion`，装配失败。不得悄悄改变为另一预设。`off` 下 propose/accept/promote/write 均拒绝，管理读取/删除不受阻。
+
+首期开放 assisted 的 App 还必须接通可验证的变更记录与撤销能力；Molis 复用现有实现，其他 App 未提供时不能开启自动修改。P1 才把这项应用面统一为 SDK 有界历史，不能因为延期搬迁就留下“自动写了却无法撤销”的首期缺口。场景包 `deny` 禁止其 Run 写入及产生/决定候选，`explicit-only` 允许提候选和人工接受，`policy-governed` 才允许策略晋升；可信 App 在 Run 外的管理操作仍按自己的权限求交。
+
+### 5.2 三种读取方式可按需组合
+
+| 方式 | 目的 | 首期选择 |
 | --- | --- | --- |
-| D1 | SDK 只做通用策略；Molis 的开关、使用方、写入门表留在 App | 这些是产品规则，不是所有 App 的共同语义 |
-| D2 | 批准新增 `memory-recaller`、`memory-extractor` 两个槽 | 召回排序和提炼是两段会换的执行逻辑，且都需要 App 提供模型/规则 |
-| D3 | 接受 `assisted` 自动写入：App 显式选择 + 版本化策略 + 逐条可撤销 | 保留“模型不自批”的硬边界，同时不强迫每个 App 重造门闩 |
-| D4 | 历史放 SDK，做有界历史 | 避免 App 旁表复制正文；删除可级联；版本可统一 |
-| D5 | 扩展现有 `meta`，并增加 App 命名空间的 `data` | 向后兼容，避免为产品字段新开一层数据模型 |
-| D6 | Molis 先迁召回，再迁历史 | 召回是主路径，收益最大；历史迁移涉及旁表正文，风险更高 |
-| D7 | 提炼候选统一进持久候选箱；`memoryInbox` 冻结，不再新增能力 | 两套候选箱会分叉；持久候选箱已经是 Molis 在用的那一套 |
+| 轻量常驻 | 少量明确适用于该使用方的稳定偏好 | 可选，逐条或明确策略选入；所有 preference/convention 不能自动常驻 |
+| 任务相关 | 按场景、分类、时间和当前任务检索 | Molis 主方式；首期复用关键词能力，可替换排序/候选检索 |
+| 按需深入 | 初次短记忆不足时，再读具体条目或来源 | 复用公开 get/来源读取与现有 Agent 工具链，单独有预算；不启动记忆专用反思循环 |
 
-## 4. 分层与策略
+一般翻译、格式转换、自包含问题等可跳过自动召回。判断以任务是否需要历史为准，不仅按句子长度。用户明确要求回忆或指定条目时，在权限与预算内进入读取，不能被“简单任务”规则误挡。
 
-### 4.1 三层
+### 5.3 四层分工与插槽
 
-| 层 | 内容 | 谁改 |
-| --- | --- | --- |
-| 内核 | 条目、作用域、版本、墓碑、状态、唯一写入口、预算、审计、删除级联 | Prologue，App 不可配 |
-| 策略 | 形成、批准、召回、维护；预设 + 单面覆写 + 两个槽 | App 选择/实现 |
-| 应用面 | scope handle、候选箱、历史撤销、使用回执、冲突配对、分页、批量、导出导入、健康报告 | App 直接调用 |
-
-### 4.2 四个预设
-
-| 预设 | 形成 | 批准 | 召回 | 维护 | 适用 |
-| --- | --- | --- | --- | --- | --- |
-| `off` | 无 | — | 无 | — | 不需要长期记忆 |
-| `manual` | 只有 App/用户显式写 | 调用方（可信） | 点名 + App 主动查询 | 手动 | 强可控、合规 |
-| `reviewed` | 收工/会话末提候选 | 人 | 关键词/混合 | 去重建议、TTL | 个人助理、工作台 |
-| `assisted` | 候选 + 策略门 | 版本化策略，人可撤销 | 画像优先 + 混合 | 巩固、衰减、冲突 | 高频、低风险偏好 |
-
-预设只是四个策略面的固定组合，不是一个大 switch。App 可以在预设上覆写单个面；覆写不能越过硬边界。
-
-预设与批准入口的对应：`manual` 走 `write`；`reviewed` 走 `candidates.accept`；`assisted` 走 `candidates.promote` + `memoryPromotion`；`off` 没有入口。不新增第三个批准入口。
-
-`assisted` 必须有 `memoryPromotion`；没有就在 `createRuntime` 报 `MEMORY_STRATEGY_UNAVAILABLE`，**不静默降级为 `reviewed`**。`reviewed` 选 `run-summary` / `session-summary` 但没有 `memory-extractor`，同样在装配时失败。
-
-`off` 不召回、不形成；App 仍可 `list/get/page/delete` 已有条目做管理，但 `write` 和候选被拒绝（`MEMORY_STRATEGY_OFF`），不静默接受。
-
-### 4.3 四层分工
-
-| 层 | 记忆里是什么 |
+| 层 | 内容 |
 | --- | --- |
-| 硬边界 | 单写口、模型不自批、默认不自动、召回是数据、删除真删、预算有界、密钥不入库 |
-| 插件/可换 | `memory-recaller`、`memory-extractor`、晋升策略、存储后端 |
-| App 可配 | 预设、作用域、预算、条数、TTL、权重、历史条数、写入门 |
-| 用户可调 | 接受/拒绝/编辑/停用/删除/导出，全在 App 的 UI |
+| 不可配置的边界 | Host 授权、唯一写入口、模型不自批、召回为数据、删除后不可再用、预算有界、密钥不入库 |
+| 可替换执行逻辑 | extractor、recaller、现有 promotion 判定、既有 Host/存储适配器 |
+| App 配置 | 分类字典、矩阵、预设、触发、允许类别/来源、门槛、预算、TTL、保留条数 |
+| 终端用户 | 在 App 中选择使用范围与开关、接受/编辑/改类/停用/遗忘、查看来源与撤销 |
 
-### 4.4 策略面
+`memory-extractor` 只从有界材料产出候选，不写库、不批准。`memory-recaller` 只在授权的候选与查询窄口上检索/排序，返回 canonical ref、version、score/reason，不返回可替换正式条目的任意正文。SDK 负责解析当前条目、重新校验硬过滤、裁预算并生成最终回执。
 
-| 面 | 可选值 | 默认 |
-| --- | --- | --- |
-| 形成 | `none` / `run-end` / `session-end` / `periodic` / `manual` | `none` |
-| 批准 | 可信 App 直写 / 人 / 版本化策略 | 人（有候选时） |
-| 召回 | `pinned` / `search` / `profile-first` / `none` | `search`（档案允许时） |
-| 维护 | `none` / `dedupe` / `supersede` / `decay` / `ttl` / `capacity` | `ttl` |
+两个槽是 Runtime 级活对象，场景包只声明配置和所用策略标识；首期不实现重启后无法恢复的 Session 活对象注册。没有自定义 recaller 时使用已装配的内置读取方式；显式声明却不可用的策略不能假装安装成功。向量后端缺失时是否退回关键词由配方明确，并在 method 中照实说明。
 
-## 5. Prologue 合同
+extractor/recaller 如需模型、网络或文件，必须经已有 Runtime/Model/Host 窄口，纳入超时、取消、预算与用量；不给任意 Host callback，不再造执行核。声明的 Host 能力在装配时校验，未装配自动形成时外部调用为零。
 
-### 5.1 条目与事实模型
+配置归 `config.memory`，默认值归 memory 模块；实现对象归 `slots`/现有注入入口。不新增顶层 `xxxLimits` 或全局可变 registry。
 
-在现有 `MemoryEntry` 上增量增加，不重写旧字段：
+## 6. 记忆条目、证据与写入
 
-```ts
-interface MemoryEntry {
-  // 现有字段保持不变
-  ref; scope; owner; text; origin; tags; version; tombstoned;
-  meta; paused?; createdAtMs; updatedAtMs;
+### 6.1 条目与状态
 
-  // 新增
-  key?: string;                                  // App 定义的稳定键，≤ 200
-  state?: "active" | "paused" | "disabled";      // 一等状态；优先于 paused
-  stateReason?: string;                          // ≤ 200
-  stateAtMs?: number;                            // 状态改变的时刻
-  supersedes?: ExactRef<"memory">;               // 这条替代了哪条
-  supersededBy?: ExactRef<"memory">;             // 被哪条替代（只读）
-  validFromMs?: number;                          // P2 时间有效性预留，P0/P1 不读写
-  validUntilMs?: number;                         // 同上
-}
-```
+沿用 `ref/scope/owner/text/origin/tags/version/tombstoned/meta`，补齐分类、明确状态和必要的替换关系。`meta.kind` 沿用类型含义，其余分类由 App 定义的通用载体表达；来源 App/使用方属于可信上下文或来源记录，不接受模型自报身份。
 
-`meta` 增量：
+| 内容 | 合同 |
+| --- | --- |
+| 状态 | active、paused（依据待复核）、disabled（用户/策略停用）；非 active 不召回。墓碑对业务读取视为不存在。 |
+| 业务 key | 可选，限 App 声明的单值事实域，如“该项目包管理器”；不能让模型为任意事实发明覆盖键。唯一性绑定授权分区、scope/owner、namespace 与 App 声明的 key 域；跨场景同 key 是否同事实由该域显式决定。 |
+| 替换 | 同一合法 key 域中旧值停止生效，新值带 supersedes，旧值可追溯；不以“时间更新”绕过批准和冲突规则。 |
+| 分类 | 场景、类型、生命周期及有界附加维度；重分类不能迁 owner 或跨 namespace。 |
+| 来源 | 稳定来源 ID/版本、主体/说话者、发生或观察时间、必要的支持片段/引用；不把原始整段对话塞入正文。 |
+| 到期 | 短期条目必须落为明确到期时间或会话结束条件；过期即不召回，不能依赖后台任务及时执行。 |
+| 扩展数据 | `meta.data` 是 App 有界数据，不自动参与排序或注入；如需参与策略，应提升为已声明、可校验字段。 |
 
-```ts
-interface MemoryMeta {
-  // 现有：kind / source / basis / appliesWhen / evidence / expiresAtMs / approvedBy / namespace
-  confidence?: number;   // 0..1
-  importance?: number;   // 0..1
-  data?: Record<string, unknown>; // App 命名空间，SDK 不解释；≤ 4096 字符
-}
-```
+复用现有正文/meta 上限；Molis 保持正文 400 字符的产品限制。SDK 的各项上限统一归模块配置，具体值在实施短合同中对齐现役能力；不是因为增加分类就扩大总载荷。所有对外字符串与嵌套数据必须在可遍历的大小/深度限制内，超限拒绝，不能“只扫四层”却允许更深内容写入。
 
-规则：
+首期不公开 `validFromMs/validUntilMs`、通用 importance 或默认 confidence。若 extractor 提供置信信息，只是非权威诊断，不替代证据、人工或批准来源，也不参与尚未验证的默认加权公式。
 
-- `state` 是权威；`paused` 保留用于旧 SDK 回滚兼容。写 `state` 时同时写 `paused`（`paused.reason` 仍用现有格式），旧 SDK 仍能过滤。
-- `state: "paused"` 表示依据失效、可恢复；`state: "disabled"` 表示人停用、可恢复；两者都不召回。
-- 状态转换：
-
-  | 当前 | 操作 | 结果 |
-  | --- | --- | --- |
-  | `active` | `pause(reason)` | `paused` + `stateReason` + `stateAtMs` |
-  | `active` | `disable(reason)` | `disabled` + `stateReason` + `stateAtMs` |
-  | `paused` / `disabled` | `resume()` | `active`，清 `stateReason`/`stateAtMs`/`paused` |
-  | 任意 | `remove()` | `tombstoned`；召回、读取、分页都不返回 |
-  | `tombstoned` | `purge()` | 物理清除，级联 SDK 历史/候选 |
-
-- `key` 在 **active** 条目内唯一，唯一性是 `scope + owner + namespace + key`（没有 namespace 就是 `scope + owner + key`）；paused/disabled 不占 key，不同作用域可以有同名 key。`resume` 遇到同 key 已有 active 条目时拒绝 `MEMORY_KEY_EXISTS`。`key` 写入后不可改；换 key 等于新条目；`setMeta` 不能改 key。
-- `key` 查找必须按 `scope + owner + namespace + key` 建索引，不靠全量扫描；`page` 的 `state/kind/source` 过滤也应有索引或等价下推。
-- `meta.data` 不参与召回、不参与匹配；导出时按 `includeData` 决定是否带。
-- 正文上限由 `config.memory.maxTextChars` 控制，默认 2000，范围 1–20000；超了拒绝，不截断。
-- `meta` 的 4096 字符上限**不含** `meta.data`；`data` 单独 4096，且必须是普通对象；超了拒绝。`key` 200；`stateReason` 200。
-
-### 5.2 写入管线
-
-所有写入走同一个 `write`，包括 App 直写、候选接受/晋升、导入、提炼。管线：
+### 6.2 形成：先判断是否值得记
 
 ```text
-输入（text / key / scope / origin / meta / state?）
-→ 规范化与长度上限
-→ 写前检查（秘密：拒绝；像指令：候选或拒绝）
-→ 去重与冲突（同 key / 相似文本 / supersedes）
-→ 批准（可信 App / 人 / 版本化策略）
-→ 落盘（先盘后表）
-→ 事件 + 可撤销记录
+已授权来源 / 当前场景
+→ 产品信号筛选（可 no-op）
+→ 有界原始材料 + 相关已有记忆/待处理候选
+→ extractor 产出候选（可为空）
+→ 核验来源、分类、权限、秘密、时效与重复
+→ 持久候选箱
+→ 人接受 / App 版本化策略晋升
+→ 同一正式写入口
 ```
 
-写入模式：
+形成触发统一为显式操作、run-end、session-end、App 调度；`none` 表示无自动形成。触发时机与提炼算法分开，不混用 `run-summary`、`final-answer` 当时间枚举。SDK 不自带后台定时器，Molis 复用已有队列和维护入口。
 
-| 模式 | 用法 | 语义 |
-| --- | --- | --- |
-| `append` | 无 `key` | 新增一条；允许同文并存（App 自己去重） |
-| `replace` | 有 `key` | 同 key 旧条目标 `supersededBy`、`state: "disabled"`、`stateReason: "superseded"`、`paused.reason = "superseded:…"`；写新条目；旧条目保留历史 |
-| `reject` | 有 `key` | 同 key 已有 active 条目则拒绝 `MEMORY_KEY_EXISTS`；用于幂等写入 |
+extractor 输入仅限本次有权读取的材料：有界用户原话及说话者标识、任务目标、受控结果摘要、允许的分类和目标 scope，以及有界相关记忆/候选或等价窄查询口。输入需保留否定、条件、时间和“替别人说”的语境。输出只有候选，数量、单条长度和总输入输出都有上限。
 
-补充规则：
+| basis | 必需证据与处理 |
+| --- | --- |
+| explicit | 能定位到本人的明确表达/可信显式保存；片段与来源匹配，识别临时条件、引用他人、假设和否定。模型说“用户喜欢”不算证据。 |
+| repeated | 多个独立事件/来源支持同一结论；重试、重放、同一消息切块及把旧记忆重新注入均不增加次数。 |
+| inferred | 保留支持来源和推断标记；首期不自动晋升，不覆盖人工或 explicit 条目。 |
+| 缺失/无法验证 | 不默认 explicit；拒绝无来源条目，材料尚可核实的留待审候选并说明缺口，不自动晋升。 |
 
-- `idempotencyKey` 与 `key` 是两件事：前者防重试重复创建，后者防同一业务事实多条。
-- `replace` 必须在同一 `scope + owner + namespace` 内；跨作用域或跨插件命名空间不能替换。
-- `supersedes` 只能指向同 `scope + owner` 的活条目；被替代的旧条目不再召回，历史仍可查。
-- 写前秘密检查是硬边界：扫正文、出处和 `meta.data` 的字符串值（最多 4 层），命中即拒绝，零写入；App 只能加模式，不能去掉内置模式。
-- 像指令的文字：`write` 默认拒绝 `MEMORY_WRITE_REFUSED`，可信 App 显式 `allowInstruction: true` 才直写；要保留就显式 `candidates.propose`。候选记 `reviewReason`，`promote` 对带 `reviewReason` 的候选一律拒绝；人 `accept` 可以确认。
-- 写入事件带 `memoryId`、`version`、`key`、`state`、`mode`，不带正文。
-- 新增稳定错误码：`MEMORY_KEY_EXISTS`、`MEMORY_WRITE_REFUSED`、`MEMORY_STATE_INVALID`、`MEMORY_RECALL_FAILED`、`MEMORY_STRATEGY_OFF`、`MEMORY_STRATEGY_UNAVAILABLE`；进 kernel 错误码表与公开类型，不进 Provider 原始错误。
+不记本轮可从代码/文档便宜重读的信息、完整工具输出、assistant 未被采纳的建议、普通任务流水和已在当前材料里的重复内容。高信号优先为用户纠正、稳定偏好、项目约定和可复用经验。现役最终回复原文形成路径不得作为新配方默认；如仍有消费者，短合同明确采用或移除，不借“兼容”留自动真值入口。
 
-### 5.3 提炼策略
+无信号时不调用提炼模型；有信号也允许零候选。提炼失败只记录有界诊断，不把已经成功的用户任务改为失败。正常 run-end 形成可在业务 Run 成功结束后由既有队列继续，但有自己的截止时间与取消信号，不改写已终结 Run。提交前再次检查来源仍有效、来源 Run 未被取消、项目未删除、形成仍被允许；授权或作业失效后的迟到结果不得写回。候选默认沿用 Molis 现有 14 天 TTL，由 App 配置并调用清理，过期后接受/晋升也须拒绝。
 
-`memory-extractor` 是可选槽；不装时：
+### 6.3 写入门、替换与纠错
 
-- `formation.mode: "none"`：零调用。
-- `formation.mode: "final-answer"`：SDK 只用收工回答原文生成候选（现役行为），不调模型。
-- 现有 `config.memory.extraction` 作为兼容别名：`true` = `final-answer`，`false` = `none`；新配置优先，P1 后只留新字段。
+所有创建、编辑、候选接受/晋升、导入、恢复、改类及元数据修改都经过相应的同一验证和授权用例，不允许 `setMeta` 或恢复成为绕过门表的入口。正式写入复用现有幂等与候选决定机制，不新建第三条批准路径。
 
-装了之后：
+写前检查覆盖正文、出处、证据、分类文本与扩展数据：秘密命中即拒绝；疑似越权指令不能自动晋升。可以保留的用户偏好用数据表述，经可信 App/人工接受后仍不是高优先级指令。App 可加严检查，不能关闭硬边界；不能声称模式扫描能识别所有秘密。
 
-```ts
-interface MemoryExtractor {
-  extract(input: {
-    run: {
-      id: string;
-      goal?: string;
-      conclusion: string;          // 有界
-      userMessages: readonly string[]; // 有界、只有本人原话
-      toolSummary?: string;        // 有界摘要，不是原始输出
-    };
-    scopes: readonly { scope: MemoryScope; owner: string }[];
-    kinds: readonly string[];
-    maxCandidates: number;
-  }): Promise<readonly MemoryCandidateDraft[]>;
-}
+无 key 的 append 创建新条目；有 key 的 reject 在冲突时拒绝；replace 必须具有覆盖权限并校验旧版本。`idempotencyKey` 防一次操作的重试重复，业务 key 表示单值事实，二者不能混为一谈。显式纠正优先于旧值；低证据新信息不能仅凭新时间覆盖高证据旧值。
 
-interface MemoryCandidateDraft {
-  text: string;
-  key?: string;
-  kind?: string;
-  scope: MemoryScope;
-  owner: string;                 // 必须来自 input.scopes 里的一个 owner
-  tags?: readonly string[];
-  origin: string;
-  basis?: "explicit" | "repeated" | "inferred";
-  appliesWhen?: MemoryMeta["appliesWhen"];
-  evidence?: MemoryMeta["evidence"];
-  expiresAtMs?: number;
-  confidence?: number;
-  importance?: number;
-  data?: Record<string, unknown>;
-  supersedes?: ExactRef<"memory">;
-}
-```
+SDK 条目与替换关系由 SDK 单一写主人通过现有 Host 存储能力提交；首期 Molis 历史/撤销仍由其现有主人接线。跨存储的自动修改须有足够的可恢复信息，不能在撤销记录缺失时仍报告自动修改成功。用可证明的原子提交或可恢复提交结果，不能在失败后同时留下两个 active 值；现有 `commitBatch` 接口并不自动证明具体 Host 的崩溃原子性。实现切片须验证真实故障窗口，不先造通用事务框架。
 
-规则：
+暂停/停用后可恢复；恢复须重新核验分类、到期、授权及 key 冲突，不能让被替代旧值重新与新值并存。自动修改只能在当前版本仍属于该自动变更时撤销，用户随后编辑过的内容不能被覆盖。首期复用 Molis 已有撤销；后续 SDK 有界历史需明确可撤销窗口，版本已裁掉时如实不可恢复，不承诺无限撤销。
 
-- extractor 只出候选，不写库；SDK 校验、去重、过写前检查、走候选箱。
-- 候选的 `scope + owner` 必须是 `input.scopes` 里的一对；不是就整条拒绝，不猜归属。
-- 候选数量不得超过 `maxCandidates`；超了整批拒绝，不截断。
-- `basis` 省略按 `explicit`；`inferred` 必须带证据，没有证据整条拒绝；`confidence` / `importance` 省略按 0.5。
-- `expiresAtMs` 已经过去就拒绝，不创建一条出生即过期的候选。
-- 候选统一进 `memoryCandidates`（D7）；`memoryInbox` 不再新增能力。
-- 带 `reviewReason` 的候选不进入 `memoryPromotion`，只留给人 `accept`；`promote` 看到就拒绝。
-- 候选默认 14 天过期（`config.memory.candidateTtlDays`，1–90）；App 在维护任务里调 `expireDue`，SDK 不内置定时器。
-- 提炼失败不影响这一跑的收场；失败进审计 `memory-extraction-failed`。
-- SDK 不内置摘要模型；`run-summary` / `session-summary` 必须由 extractor 实现。
-- `assisted` 的自动晋升仍然是 `memoryCandidates.promote` + 版本化策略；模型没有接受工具。
+## 7. 读取、预算与生命周期
 
-### 5.4 读取与召回
-
-**读取**（hydrate/list/get）：
-
-- 新增 `scope handle`：第一次用时按 scope 自动 hydrate 记忆和候选；App 不再自己维护 `hydrated` 集合。
-- `hydrate(scopes)` 保留；按 scope 读，不一次读全部。
-- 新增 `page(query)`：`{ scope, owner, query?, kinds?, states?, sources?, tags?, cursor?, limit? }`，返回 `{ entries, nextCursor, total? }`。
-- 现有 `list(query)` 保留为不分页的兼容入口；设置页等大范围读取必须用 `page`。
-- 读取不改写、不递增版本。
-
-**召回**：
-
-```ts
-interface RecallQuery {
-  scopes: readonly { scope: MemoryScope; owner: string }[];
-  mode?: "pinned" | "search" | "profile-first" | "none";
-  pinned?: readonly ExactRef<"memory">[];
-  text?: string;
-  keywords?: readonly string[];
-  kinds?: readonly string[];
-  situation?: {
-    pluginId?: string;
-    objectKind?: string;
-    goalId?: string;
-    task?: string;
-  };
-  limit?: number;        // 默认 8，最大 50
-  budgetChars?: number;  // 默认 2000，最大 20000
-  receiptId?: string;
-  exclude?: readonly ExactRef<"memory">[]; // App 已判定不用的（例如冲突输家）
-  fallback?: "keyword" | "none";          // 自定义 recaller 失败时；默认 none
-}
-```
-
-管线：
+### 7.1 读取管线
 
 ```text
-作用域与权限（App 传入的 scopes）
-→ 硬过滤：state / 墓碑 / 到期 / appliesWhen / exclude
-→ 候选生成：pinned / 关键词 / 向量 / 自定义 recaller
-→ 排序：相关性 + 类别权重 + 来源权重 + 新旧 + importance
-→ 冲突：同 key 只留最新；superseded 不召回
-→ 预算：条数 + 字数 + 每作用域配额 + 去重
-→ trace：带了谁、没带谁、为什么
+是否需要记忆（可 skip）
+→ 可信 App/使用方与 scope 权限、角色与场景包约束
+→ 按矩阵选择允许分类与读取方式
+→ state / 墓碑 / 到期 / 结构化适用条件硬过滤
+→ 有界候选检索与排序（可无结果）
+→ 解析 canonical ref，复核当前版本、可见性与冲突
+→ 去重，按条数、分类配额和 token 预算选取
+→ Context 最终打包
+→ 最终注入回执
 ```
 
-规则：
+查询包含授权 scope、当前场景/使用方的可信绑定、分类过滤、任务文本、可选 pinned、条数/token 上限、receiptId、超时与取消信号。查询只能收窄权限；recaller 不能接触本次权限之外的候选、计数或来源。自定义查询实现仍须通过受控窄口，不能以插件后置过滤代替权限前置过滤。
 
-- `pinned`：逐条重读；删了、暂停、停用、到期、被替代的进 `unavailable`，不注入旧副本。
-- `search`：关键词是底线；中文按相邻两字切；有向量后端就用，没有就如实报 `method: "keyword"`。
-- `profile-first`：先带 `config.memory.recall.alwaysKinds` 指定的类别（默认 `[]`），再按 `search` 补足预算。
-- `situation` 只收窄：`appliesWhen` 不匹配的不召回；不能用它放宽作用域或权限。
-- `receiptId` 由 App 生成；`memory-recalled` 事件原样带回。
-- 事件带 `method`（`pinned | keyword | vector | hybrid | custom`）、`segmentation`（沿用 `given | cjk-bigram`）、`injected`、`omitted`（带 `limit/budget/conflict/expired/paused/disabled/not-applicable/duplicate` 原因）、`unavailable`（带 `deleted/paused/disabled/expired/superseded` 原因）；只带 id/version/score/reason，不带正文。
-- 召回预算与 Context pack 预算叠加：`toContextItems` 只做单次召回裁剪，Context 仍可能因窗口省略；两处都要在回执/trace 里说清，不静默二次截断。
+结构化项目、插件、对象、目标、有效时间可以硬过滤；`appliesWhen.task` 等自然语言只是相关性线索，由规则或 App 判定器解释，不能按字符串完全相等过滤。首期允许词面漏召回被测量出来，不以加入所有偏好掩盖漏召回。
 
-**`memory-recaller` 槽**：
+候选查询窄口支持有界输入输出和后续索引替换，不强制所有 recaller 先接收全库 entries。首期可在现有存储上实现有界候选访问，但必须报告实际扫描/读取成本；分页 API 不等于底层已有索引。在约定代表性库规模下仍需全表扫描且超过预算，就不能以“换到 SDK”验收为性能提升。索引方案由实测触发，不预装向量库。
 
-```ts
-interface RecallRanking {
-  hits: readonly { entry: MemoryEntry; score: number; reason?: string }[];
-  omitted?: readonly { id: string; reason: string }[];
-}
+pinned 也须重新解析当前条目：删除、停用、到期、被替代或权限变化均不能注入旧副本。不同候选源的分数不可直接假定同一尺度；采用语义/混合检索时由 recaller 负责有证据的融合或重排，SDK 仍执行硬过滤和预算。
 
-interface MemoryRecaller {
-  recall(input: {
-    query: RecallQuery;
-    candidates: readonly MemoryEntry[]; // 已经过硬过滤
-  }): RecallRanking | Promise<RecallRanking>;
-}
+### 7.2 异步、失败与回执
+
+新读取链支持异步，实施时显式更新现役同步 recall 的公开合同及全部直接消费者，不保留一条“看起来同步却后台执行”的旁路。取消、超时、策略不可用、无相关结果是不同结果：
+
+| 结果 | 行为 |
+| --- | --- |
+| skip / none | 本次无需记忆或无相关条目；是有效结果，不填无关记忆凑数量 |
+| unavailable / failed / timeout | 不注入不可信或未完成结果；记录稳定原因。默认用户主任务可继续，明确依赖记忆的任务由 App 配置为失败/等待处理 |
+| 显式 keyword fallback | 只在配方预先声明时允许，执行相同权限/预算并记录实际 method |
+| cancelled / late | 立即停止后续注入与业务写入；晚到结果丢弃，不能改写已终结或替换的 Run |
+
+`receiptId` 贯穿读取、Context 打包和 App 使用记录。trace 区分候选命中、选中、实际注入以及被 Context 再次省略；不能把“查到了”记成“模型用过了”。记录策略/分类定义版本、method、ref/version、实际 token 口径和 omission/unavailable 原因；事件不带正文、秘密和裸内部路径。
+
+原因至少能解释权限内的条目为何因无关、预算、分类不适用、冲突、重复、过期、停用、删除而没进入上下文；不向无权使用方暴露不可见条目的 ID 或存在性。UI 用这些事实说明“本次参考了哪些记忆”，不声称能证明模型在推理中采用了某条记忆。
+
+### 7.3 token 与成本口径
+
+复用 Context 公开 `TokenCounter`，以 `budgetTokens` 为主，字符数保留为内容大小的防护上限。计数应覆盖实际输出的正文、来源标记、标题和包装；估算与 Provider reported 用量分别标注。最终注入不得超过所选 TokenCounter 口径的硬上限，Context 仍可进一步裁剪；一个条目放不下时省略或使用有依据的更短投影，不因为“第一条”而突破预算。
+
+检索计算预算和最终注入预算分开：前者限制查询、候选、向量/重排调用和时延，后者限制送进模型的内容。常驻集合和各分类配额都占总预算，不能每个矩阵格各领一份完整总额。
+
+先短记忆、后按需展开来源。展开沿用公开条目读取与来源权限，受本 Run 剩余预算约束；同一 ref/version 不重复注入。若使用缓存，键与失效覆盖授权、分类/策略版本和条目状态；首期不为尚未测到的瓶颈新增缓存层，也不将现役热缓存结构当成已证明的命中收益。
+
+总成本同时记录：提炼输入/输出、晋升所需模型判断、检索 embedding/重排、维护、注入及按需展开；用户主任务的输入/输出单独列出并汇总。Provider 缓存输入、普通输入与输出用量分别报告；非 token 计费的 embedding 等按调用量/金额另列。不能只看 prompt 变短，就宣布整个记忆系统更省钱。
+
+### 7.4 保留、短期转长期与遗忘
+
+存储侧保留策略归记忆的合法写主人；读取方可以选择更短的可用时间或更少的分类，但不能延长别人的 TTL、把共享条目转为长期或删除别人的原件。长期记忆也须可纠错、停用和遗忘。
+
+短期转长期是一项新决定：保留原来源与独立支持，重新过分类和批准门；使用次数、被模型引用次数不是证明它为真或允许长期保存的依据。首期允许人工确认转换，不做自动层级晋升。临时会话上下文不等于持久短期记忆，不能为了统一名称把所有消息写入长期存储。
+
+到期默认停止召回，是否物理清理由 App 的明确保留规则决定；首期不自动物理删除人工条目。衰减、去重、巩固和容量维护只能按已授权策略处理自动条目，人工内容只提建议；这些复杂维护放 P2，现有 Molis 维护不借机扩大权限。
+
+遗忘先让条目、候选、旧版本及派生读取立即不可用，再完成实际清理。清理覆盖 SDK 存储/缓存/索引和 Molis 的使用、配对、变更/历史正文；来源业务对象的原件是否删除由其主人决定。删除收据区分已不可读、清理中、失败可重试、清理完成，不在仍有副本可读时显示完成。已经由用户导出到外部的文件无法远程收回；删除后新导出不得再含该条或其历史。
+
+跨 SDK 与 Molis SQLite 的清理复用 Host 现有删除收据和幂等步骤，各存储提交自己的结果，失败可重试；不承诺跨存储原子事务。与清理并发的提炼/晋升必须在提交前失败或取消；针对同一被遗忘来源的重试、重放不得立刻把旧记忆学回来。仅保留必要的操作/来源标识以防重复，不为此另存被遗忘正文；用户后来再次明确要求记住是新的授权事件。
+
+批量遗忘固定预览条目、版本和授权上下文，执行前复核；不以全局 checksum 代替并发控制。不把“清空分类”解释为删除该分类今后新产生的全部条目。
+
+## 8. Molis Work 接入与现有能力保护
+
+### 8.1 首期调用链
+
+```text
+Molis 使用入口（Coding / 助理 / 已授权插件等）
+→ horizontal/memory：产品开关、可信使用方、场景与矩阵
+→ horizontal/agent-host：唯一 SDK 适配入口
+→ Prologue memory：过滤、候选决定、预算与回执
+→ 既有 Host / 存储 / 模型能力
 ```
 
-- 槽只负责排序和额外的过滤；SDK 仍会再过一遍预算、去重和 trace，槽不能绕过硬过滤。
-- 槽返回的 `hits` / `omitted` 必须来自 `candidates`；出现外来条目整次失败 `MEMORY_RECALL_FAILED`，不注入。
-- 槽抛错：本次召回按 `unavailable` 失败，不注入任何条目；不静默回落，除非 App 显式选择 `fallback: "keyword"`。
-- 不装槽：用内置关键词/向量召回。
+`horizontal/agent-host` 仍是 Molis 唯一依赖 `@prologue/sdk` 的包；其他模块走公开合同，不 deep import。`horizontal/memory` 保留产品策略、门表、信号、配对和界面协调，召回执行收敛到 SDK 管线。Prologue 只在现有 memory、composition、runtime/槽表、kernel 错误合同、agent/context、Host 窄口和公开入口内落地所需变化，不增加模块。
 
-### 5.5 维护与遗忘
+### 8.2 首期保留与变化
 
-- `dedupe`：相似重复合并；只自动合并自动写入的条目；人的原话只提议，不自动合并。
-- `supersede`：同 key 新值覆盖旧值；旧条目 `state: "disabled"` + `supersededBy`，不召回，历史可查。
-- `decay`：长期不用的自动条目降权/停用（可恢复）；人工条目不动。
-- `ttl`：到期自动停用，不物理删；`expiresAtMs` 到期后召回不中，条目仍在。
-- `capacity`：每作用域条数上限；超了先停用最旧的自动条目，不静默删。
-- `purge`：只有人明确删除才物理清除；SDK 侧级联候选、历史；App 侧的使用、配对、变更由 App 的删除收据一起清。
-- 维护只“停用/合并/降权”，不替人做永久删除。
-
-**历史**：
-
-- `history(ref, { cursor?, limit? })` 返回有界版本列表：`version / text / origin / tags / meta / state / at / by / reason`。
-- `restore(ref, version)` 追加一个新版本（内容取旧版），不删除后面的历史，不回退版本号；恢复后 `state` 置回 `active`，清 `stateReason`/`paused`；墓碑条目不能 restore；已被 `supersededBy` 标记的旧条目不能 restore 成 active（会把同 key 变回两条），要恢复内容就恢复到当前条目。
-- `config.memory.history.maxRevisions`：`reviewed`/`assisted` 默认 3，`manual`/`off` 默认 0；范围 0–20。
-- 历史存储独立于条目行；`purge` 必须删除该条全部历史。
-- 历史只保留正文和必要事实；不保留密钥、绝对路径和原始工具输出。
-- 历史按**内容版本**记录；`setMeta`、`pause/disable/resume` 不造新的内容版本，它们的变更由事件和 App 的变更记录承载。
-
-### 5.6 应用面
-
-| API | 行为 |
+| 部分 | 首期处理 |
 | --- | --- |
-| `scope(scope, owner)` | 返回 handle；首次使用时自动 hydrate 记忆和候选 |
-| `write(input)` | 唯一写入口；支持 `key` + `mode` |
-| `page(query)` | 过滤、分页、计数 |
-| `recall(query)` | 统一召回管线；返回 hits + trace |
-| `history(ref)` / `restore(ref, version)` | 有界历史与恢复 |
-| `pause` / `disable` / `resume` | 一等状态转换 |
-| `delete(ref, { mode })` | `tombstone` 或 `purge`；默认 tombstone |
-| `deleteMany(refs, { mode })` | 批量；返回逐条结果 |
-| `previewScopes(scopes)` | 多作用域预览 + 联合指纹 |
-| `clearScopes(scopes, fingerprint)` | 先核全部指纹，再逐作用域删；部分失败如实报 |
-| `candidates.propose/list/accept/promote/discard/expire/purge` | 持久候选箱；新增 `key`、`expiresAtMs`、`expireDue`、`reviewReason`、分页；`accept/promote` 默认按 `replace` 使用候选的 `key`，冲突时保留历史 |
-| `exportMemories` / `importMemories` | 包版本 2；带 `meta`/`key`/`state`；导入逐条走 `write` |
-| `stats(scope, owner)` | 条数、候选数、过期数、重复建议数；最近使用由 App 提供 |
+| 产品开关 | 保留读取、形成、自动记住、工作学习、界面学习及使用方权限；关闭自动形成时仍能人工保存，关闭自动记住时不得策略晋升。分类开关进一步收窄，不覆盖总开关。 |
+| 类型与存量 | 现有四种 kind 映射到 Molis 分类定义；有确定来源/范围的映射到已声明场景，不能确定的显示“待分类”，保留现有合法使用范围且不新增跨场景常驻。不能靠新字段缺省扩大权限。 |
+| 分类管理 | Coding 与助理均接入；设置页能按分类分页/统计，显示来源、有效期、状态、适用范围与最近注入记录；支持改类、分类读写开关和批量停用/遗忘。 |
+| 学习 | 复用 worthLearning、已有/待处理记忆输入、证据校验、独立重复和 stillWanted；接入 extractor 与矩阵，减少无收益提炼调用。 |
+| 召回 | 接入 SDK 异步管线与 Molis 配方；插件 namespace、consumer 可见性必须前置落实，不靠模型或排序器保密。 |
+| 使用记录 | receiptId 贯通到 Context 最终结果；替换旁路映射前核对重启后的关联，防重复记账。 |
+| 状态/纠错 | 对齐明确状态、改类、受控替换和恢复；所有 upkeep/pairs/UI 的读写同步采用，不只改适配器。 |
+| 历史/导出 | 首期继续现有 history/undo 和 molis.memory 包，补齐新分类/策略的必要表达及脱敏；不迁正文、不改变信封格式、不丢现有导出能力。 |
+| 维护/删除 | 复用现有队列与项目删除服务；添加分类/候选/派生读取的清理责任，沿用同一个删除收据。 |
 
-导出/导入：
+Molis 首期 assisted 自动允许的内容限低风险、来源已核实的偏好/约定/习惯，且必须通过现有写入门。fact、项目决策、推断和范围扩大只进候选；人明确保存不受“自动类别白名单”误挡。新用户默认 reviewed；现有用户按其现有开关计算等价配方，不自动开启之前关闭的功能。Prologue 自身默认仍为 manual。
 
-- `MemoryPackage.version = 2`；`entries` 带 `key`、`meta`、`state`、`stateReason`、`stateAtMs`、`createdAtMs`、`updatedAtMs`。
-- 正文和出处继续脱敏（密钥、绝对路径）；`meta.data` 递归脱敏（最多 4 层），超界拒绝导出。
-- 版本不认识整份拒绝；v1 包可读，但回执明确 `metaMissing: true`。
-- 导入仍逐条走 `write`；冲突按 `key` 优先、否则同 scope 同正文；不覆盖、不半导入、重放不重复。
+### 8.3 合同、数据版本与回退
 
-### 5.7 装配与冻结
+分类、状态、异步 recall、候选语义、事件投影都会影响公开合同；实施切片必须同步 Prologue 需求分册、模块 README/Contract、槽表、公开类型及 Molis contracts、适配器、动作快照和相关调用方。当前文档改动不代表这些接口已经存在。
 
-| 层 | 装什么 |
-| --- | --- |
-| Runtime | `memory.profile`、`memory.formation`、`memory.approval`、`memory.guard`、`config.memory.*`（含 `history.maxRevisions`）、`slots["memory-recaller"]`、`slots["memory-extractor"]`、`memoryPromotion` |
-| Session / 场景包 | `memory: { profile?, scope, write }`；包只能收窄 App 的选择 |
-| Run | `memory: { recall, pinned, scopes, budgetChars, receiptId }`；开跑冻结 |
+Molis 当前合同阶段不留运行期兼容别名：存量采用方案按 [合同变更流程](../../docs/system/CONTRACT-CHANGES.md) 在实现短合同中明确。需要一次性转换或保留迁移机制时，按该流程登记并取得对应的数据操作授权；本 spec 不授权操作真实 Home。分类映射是必要需求，不等于可以静默丢弃旧条目或自动扩展用途。
 
-- 预设与参数进 `createRuntime({ memory })`；阈值仍按模块分组进 `config.memory`。
-- `approval.mode: "policy"` 复用现有 `memoryPromotion`（策略名 + 版本 + 判定）；不新增第三个批准入口。
-- 场景包的 `memory.write` 从“只校验”变成“运行期执行”：
+不再承诺同时写 `state/paused` 就能安全降级：旧 SDK 更新会丢弃不认识的字段，旧 resume 不检查业务 key，回退后继续写会破坏新语义。新数据格式启用后，旧包必须被版本检查挡在写入前；安全回退是关闭新记忆路径/只读排障，或在明确数据维护步骤下回到相容快照。备份恢复必须保留后续删除决定，不能把用户已遗忘的内容复活。
 
-  | 包策略 | 该包会话允许什么 | 不允许什么 |
-  | --- | --- | --- |
-  | `deny` | 无 | 写、提候选、接受、晋升；App 在 Run 外管理记忆不受影响 |
-  | `explicit-only` | 提候选、人接受 | 自动晋升 |
-  | `policy-governed` | 提候选、人接受、策略晋升 | 绕过写入口或自批 |
+P1 SDK 历史搬迁要求先验证目标、再切单一写主人，失败不得先删原件；不默认保留一个版本期的旧读取壳。迁移/回退细节属于届时短合同，未验证时不切换正文主人。
 
+## 9. 分期、质量基线与成本门槛
 
-- 角色档案的 `memoryPolicy` 仍是天花板：`recall: false` 不召回；`write: false` 不允许该角色的 Run 产生候选或晋升；只能收窄，不能放宽。
-- 一次 Run 的召回口径、预算、receiptId 在开跑时冻结；跑到一半改配置不影响这一跑。
-- 槽依赖 Host 能力：内置实现或声明了 `requires` 的槽在装配时检查，缺能力在 `createRuntime` 或建 Session 时失败，不等跑起来才炸。自定义槽由 App 自己保证；SDK 只检查它声明的 `requires`，不猜它内部调了什么。
+### 9.1 实施顺序与首期范围
 
-### 5.8 硬边界
+以下是本 spec 内的依赖顺序；Prologue 的实际开工还须进入现有唯一执行队列，不另立 roadmap。
 
-| 边界 | 本 spec 的处理 |
-| --- | --- |
-| 默认不自动 | 默认 `manual`；`assisted` 必须显式选择 |
-| 模型不自批 | extractor 只出候选；晋升只经 App 策略；模型无接受工具 |
-| 单写口 | 所有路径走 `write`；导入、候选、提炼都不另开写入口 |
-| 作用域隔离 | 每条写入/召回/删除都带 scope + owner；跨作用域不能 supersede |
-| 召回是数据 | `memory-recall` 来源仍是 `data`；不标必需；伪标记中和 |
-| 删除真删 | `purge` 级联 SDK 的候选与历史；App 的使用、配对、变更随删除收据清；墓碑对读取就是不存在 |
-| 预算有界 | 正文、meta、data、条数、字符预算都有上限 |
-| 密钥不入库 | 写前检查拒绝；导出再脱敏；`data` 也脱敏 |
+| 阶段 | 用户/调用方结果 | 必须做 | 明确不作为该期前置 |
+| --- | --- | --- | --- |
+| P0-A 基线与合同 | 知道现有系统哪里记错、漏用和浪费，明确新矩阵语义 | 冻结代表性样本、指标和现役基线；分类/策略、权限、异步、证据与预算短合同 | 新数据库、SDK 历史搬迁、全量统计平台 |
+| P0-B 首期完整闭环 | Coding 与助理按各自分类学习和读取，用户可查看、纠正、改类、关闭与遗忘，并测得收益 | 分类字典/矩阵与四预设；高信号 extractor；持久候选；受控替换/状态；任务相关 recall；token 裁剪/最终回执；分页分类管理；现有历史/撤销/删除接线 | 图/向量依赖、模型重排、周期性反思、历史正文搬迁、SDK 导出 v2、通用矩阵编辑器 |
+| P1 通用应用面 | 多 App 可复用有界历史/恢复与交换能力，减少 Molis 正文重复 | SDK history/restore、必要的存储原子性与恢复；导出 v2；Molis 单主人切换 | 与质量无关的大平台化；没有收益证据的维护算法 |
+| P2 经测量的增强 | 在有明确语义漏召回、规模或维护问题时改善相应指标 | 按问题选择索引、可选语义/混合召回、去重/衰减/巩固；每项同基线比较 | 把所有增强捆绑成一个必装后端 |
 
-## 6. 新增槽
+**首期完成指 P0-A + P0-B 全部闭环。** 不能把只有两个槽或换了 SDK 的状态称为首期完成。多策略与 App 自定义分类是首期内容，不推到 P2；多种策略组合不要求每种高级算法都已实现。
 
-| 槽 | 实现什么 | 不实现什么 |
+P1 的 import 使用有界批次，先完整校验该批，再在 Host 可证明支持时原子提交；更大输入显式分批，回执说明已完成/失败/剩余并可幂等恢复。不能同时宣称“逐条写入”和“整份绝不部分导入”。未知包版本整体拒绝；当前不新增 v1 读取兼容，未来有真实消费者再按合同流程决定。SDK v2 作为 Molis 信封内部载荷的候选方案在 P1 冻结，首期不更换信封。
+
+### 9.2 对照方法
+
+冻结三个对照：B0 关闭记忆；B1 当前 Molis 配方；B2 本方案的轻量常驻/任务相关/按需展开组合。比较使用相同模型/参数、任务序列、授权资料、初始记忆与运行条件；时间敏感数据冻结到来源版本。语料包含 Coding、助理、跨场景、明确纠正、临时要求、无须记忆、第三人引用、错误推断、删除后重试和语义改写等真实代表性情况。
+
+调参样本和留出的验证样本分开；所有有效失败计入，不只挑“命中成功”的问题。任务质量由预先定义的结果要求及人工复核判断，模型评分只作辅助。样本量、分层权重、重复次数和允许的随机波动在 P0-A 冻结；报告样本数、分子/分母及不确定性，不能把一次示例当稳定提升。
+
+| 指标 | 口径 | 首期通过条件 |
 | --- | --- | --- |
-| `memory-recaller` | 候选排序、额外过滤、打分理由 | 硬过滤、预算、trace、权限、写入 |
-| `memory-extractor` | 从一次工作产出候选（含摘要、证据、key） | 写库、批准、召回、删除 |
+| 形成准确性 | 有来源支持且值得跨次复用的候选/正式记忆占比；额外统计无依据自动晋升 | 自动晋升不得出现无来源/推断自批；验证集准确性不低于 B1，明确纠正和临时性用例全部符合预期 |
+| 注入准确性 | 本次有用且仍有效的注入条目 / 全部注入条目；错误注入率单列 | 不低于 B1；无关注入低于 B1，若 B1 已为零则保持零；不能以漏掉应有记忆换取该指标 |
+| 有效召回 | 应使用的关键记忆是否到达最终 Context | 不低于 B1；纠正后只使用新值；按场景报告，不能用一个场景平均值掩盖另一个退步 |
+| 不需要记忆的任务 | 自动检索、注入和提炼调用 | 预先标定的 skip 场景零自动检索、零注入、无形成信号时零提炼模型调用；显式回忆请求另算 |
+| 任务结果 | 完成度、事实正确性、遵守用户约定 | 记忆相关场景不低于 B1，并对照 B0 检查净收益；关键约束不得回归 |
+| 注入 token | 最终 Context 中记忆及其包装的 token | 分层加权均值低于 B1；每次不超过预算；说明计数是估算还是 Provider 口径 |
+| 总成本 | 同一任务序列内主任务 + 记忆形成/维护/检索/展开的全部用量 | B2 总 token 成本低于 B1；预先冻结摊销窗口，分别报告冷启动和稳态，不把写时成本藏到窗口外 |
+| 时延与规模 | 代表性库规模下读取、首个可见响应、后台形成的 P50/P95及扫描量 | 默认首期读取与响应不劣于 B1 的预先冻结波动界；超时/失败符合约定；不能用 mock 时延替代生产路径 |
+| 用户控制 | 查看/改类/纠正/停用/关闭/撤销/遗忘后的实际行为 | 完整动线符合 §4、§6、§7；用户本人试用确认另记，不由工程测试代替 |
 
-- 两个槽都进 `SLOT_NAMES` 与 `SlotImplementations`；类型由槽名决定。
-- 不装 `memory-recaller`：内置关键词/向量召回。
-- 不装 `memory-extractor`：`formation.mode` 只能是 `none` 或 `final-answer`；选 `run-summary` / `session-summary` 时装配报 `unavailable`，调用次数为零。
-- 槽只能收窄，不能绕过写入口、硬过滤、预算或信任等级。
-- 槽的实现是活对象，只能装在 Runtime；场景包只声明预设和配置，不装 `impl`。
+这些是发布门槛，不是已取得的结果。B1 若已无可压缩成本或样本不足以得出结论，应如实标为未证明“更省 token”，补足有代表性的验证或调整方案，不能改成只比较检索文本长度。具体百分比收益与毫秒承诺只能在基线测量后写入本节，不预写未经测量的节省数字。
 
-## 7. Molis Work 接入
+## 10. 验收标准
 
-### 7.1 现状与目标
+原 MEM-01～24 保留编号并按本次决定修订；新增编号从 25 起。P0 指首期，P1/P2 不计入首期完成但仍保留为本 spec 承诺；所有实现状态当前为未验证。实施测试须在测试名或注释引用编号；人工判断另标，不以编号覆盖率代替行为证据。
 
-| 现状 | 目标 |
+### 10.1 既有合同与接入
+
+| 编号 | 阶段 | 可观察标准 | 证明方式 |
+| --- | --- | --- | --- |
+| MEM-01 | P0 | 写前秘密检查覆盖允许的嵌套内容；命中时正文/候选/历史零写入，超深超大拒绝，App 不能去掉硬检查 | 生产入口行为用例 + 真实 Host |
+| MEM-02 | P0 | 疑似越权指令不得自动晋升；人工确认保留的合法偏好仍作为 data，不能授予权限或覆盖系统约束 | 候选/写入/Context 联合用例 |
+| MEM-03 | P0 | 同合法 key 域 replace 后只一个 active 值；reject 冲突拒绝；幂等重试不重复；并发、取消和故障后不存在新旧值同时有效 | 生产接口交错执行 + Host 故障/恢复 |
+| MEM-04 | P0 | pause/disable/resume/restore 符合状态、到期和 key 约束；用户后续编辑不能被自动撤销覆盖 | 状态/并发用例 + Molis 管理动线 |
+| MEM-05 | P0 | 作用域、namespace/使用方、分类、状态、到期、结构化适用条件和 exclude 生效；自然语言 task 不按全等硬过滤 | 跨作用域/分类及语义改写用例 |
+| MEM-06 | P0 | recaller 不得返回外来/伪造正文或越权引用；错误/超时无不可信注入，fallback 仅按显式配置，method 如实 | 槽合同用例 + 真实异步链 |
+| MEM-07 | P0 | receiptId 贯穿；命中、选中、最终注入、Context 再裁剪分开记录；无正文或不可见条目泄露 | SDK 事件 + Molis 投影用例 |
+| MEM-08 | P0 | page 按分类/状态/来源分页，计数受同一权限；total 若提供须准确，否则明确未知；后台扫描成本有记录 | 有代表性非空数据 + 查询用例 |
+| MEM-09 | P0 | 批量删除绑定预览 ref/版本/授权，执行前复核；部分失败返回已完成/剩余，不删预览之后的新条目 | 真实 Host + 删除收据/并发用例 |
+| MEM-10 | P1 | SDK 历史有界、restore 追加版本并重新过门；裁掉的版本明确不可恢复；purge 清理历史和候选 | SDK + 真实 Host 重启/故障 |
+| MEM-11 | P1 | v2 导出包含分类/key/meta/state 且脱敏；未知版本拒绝；有界批次提交及跨批恢复符合 §9.1，重放不重复 | 真实 Host 导入/导出与故障用例 |
+| MEM-12 | P0 | 四配方按动作组合执行；默认无自动晋升；缺 extractor/promotion 或撤销能力的启用配置失败；每次自动变更有策略版本和可用撤销 | SDK 组合用例 + Molis 完整动线 |
+| MEM-13 | P0 | 场景包 deny/explicit-only/policy-governed、角色 write/recall 禁令在运行期生效；不能借矩阵或预设放宽 | 生产 Run 与候选提交用例 |
+| MEM-14 | P0 | Molis 主召回走 SDK，同步消费者全部采用异步合同；无第二条自建注入循环；收益按 §9.2 实测 | 生产调用链 + 成对任务回放 |
+| MEM-15 | P0 | 存量状态/类型有明确采用映射；停用条目不复活、未知场景不扩权；设置页显示一致 | 采用用例 + 非空管理动线 |
+| MEM-16 | P0 | settleUses 关联最终 receiptId，重复事件不重复记账；重启后“最近参考”仍正确 | Host 持久化/重启用例 |
+| MEM-17 | P0 | 设置页按场景、类型、生命周期、状态分页筛选；不一次向前端传全库；分类统计不越权 | 非空设置页实操 + API 用例 |
+| MEM-18 | P0 | 删除单条/分类/项目后不再召回或新导出；候选/历史/使用/配对清理完成可对账；故障后恢复不复活 | 真实 Host + 重启/故障/延迟提炼 |
+| MEM-19 | P1 | 历史正文切 SDK 后只有一个写主人，旧版本查看/恢复和删除正确；失败时原件未被提前移除 | 明确授权的数据采用演练 + live |
+| MEM-20 | P0 | 默认不自动、模型不自批、唯一写口、授权隔离、数据信任级别、删除与预算硬边界不回归 | SDK + Molis 生产入口回归 |
+| MEM-21 | P0 | 新提炼统一进持久候选箱，无新增 inbox 路径；候选过期即不能接受/晋升；重试不重复计算独立证据 | 持久候选/重放/到期用例 |
+| MEM-22 | P0/P1 | 对应阶段的 Prologue 需求/Contract/槽表/公开类型同步；未做能力明确标记，不用空槽冒充可用 | 文档核对、typecheck/build、干净包公开入口 |
+| MEM-23 | P0/P1 | 对应阶段的 Molis memory 文档、调用链、动作合同、必要安全规则及导出说明同步 | 文档/合同检查；形状变化时更新快照 |
+| MEM-24 | P0 | off 禁止任务读写和候选决定，仍可管理读取/删除；关闭自动形成不误挡独立的人工保存 | 配方/开关组合用例 |
+
+### 10.2 分类矩阵与质量目标
+
+| 编号 | 阶段 | 可观察标准 | 证明方式 |
+| --- | --- | --- | --- |
+| MEM-25 | P0 | 两个 App 可声明不同或同名的分类，SDK 不改枚举；多场景使用同一 ref，不复制正文；未授权跨 App 不可见 | 两个消费装配的 SDK 公开入口用例 |
+| MEM-26 | P0 | 同类记忆在不同使用方可配置不同读写策略；覆盖只写不自动读、只读不形成、人工写自动读；无匹配默认关闭 | 策略矩阵行为用例 |
+| MEM-27 | P0 | 重叠规则按交集/否决/最小上限合并，不可合并冲突装配失败；Run 配置冻结、实时撤权仍生效 | 组合、冲突与 Run 中途变更用例 |
+| MEM-28 | P0 | 分类改名不丢条目；改类检查版本/权限/保留期限，不能改 owner 或扩权；批量操作逐条反馈 | 分类管理 API + Molis 动线 |
+| MEM-29 | P0 | 短期到期即时退出召回；读取不续期；短期转长期需新决定；读者不能修改共享原件 TTL | 虚拟时钟 + 持久化/授权用例 |
+| MEM-30 | P0 | 缺 basis 不默认为 explicit；引用他人/假设/assistant 建议不当本人偏好；repeated 只数独立来源 | 来源核验、形成回放与拒绝用例 |
+| MEM-31 | P0 | 无信号零提炼调用，允许空候选；相关已有记忆/候选输入受限；取消/删除后的迟到结果无业务写入 | 真实提炼入口计数 + 交错/取消用例 |
+| MEM-32 | P0 | skip 场景零自动检索/注入；明确回忆可读；Coding 与助理不串类；全部 preference 不自动常驻 | 固定任务集 + 最终 Context 检查 |
+| MEM-33 | P0 | 包含包装的最终注入不超 token 上限，各分类共享总预算；展开不重复且不越权；估算与实际用量可区分 | TokenCounter/Context + Provider 用量核对 |
+| MEM-34 | P0/P1 | 各期已提供的 update/setMeta/restore/import/accept/promote/改类不能绕过与其操作相应的写入、证据、分类和授权门；P0 包括现有 Molis 恢复/导入入口 | 公共入口行为回归 |
+| MEM-35 | P0 | 纠错后旧值不再影响后续任务；遗忘后同来源重试不重新学回；用户后来明确重记可成为新授权事件 | 多 Run 顺序、并发及重启用例 |
+| MEM-36 | P0 | 自动检查支持 §9.2 计数、成本全口径与固定样本回放；数据保留失败项，不把新策略自己的判断当标签 | 可复现回放与用量核对 |
+| MEM-37 | P0 | [人工] 对冻结验证集逐项复核相关性、来源、应召回项及任务质量；全部满足 §9.2 质量门槛，报告差值和不确定性 | 成对结果盲评/人工复核 |
+| MEM-38 | P0 | 总 token 成本和最终注入均按 §9.2 优于 B1，时延不超冻结界；冷启动、稳态、后台成本单列 | 真实模型/Host 的代表性任务序列 |
+| MEM-39 | P0 | [人工] 用户在 Coding 与助理完成查看、纠正、改类、分类开关、撤销和遗忘后，确认记忆更容易控制、不会反复干扰 | 最终 App 非空场景实操及用户明确验收 |
+| MEM-40 | P0/P1 | 旧包不能在新格式上继续写；采用/回退失败不丢有效数据、不恢复已删除记忆；未授权不操作真实 Home | 隔离副本演练 + 版本拒绝用例 |
+
+## 11. 尚需实测和后续冻结的事项
+
+| 事项 | 当前决定与完成条件 |
 | --- | --- |
-| `MemoryService.recall` 全量 `list` + 自建排序 | 用 SDK `recall` + `memory-recaller`；Molis 只提供权重和冲突处理 |
-| `paused.reason` 编码 `disabled:` / `paused:` | 用 SDK `state/stateReason`；旧数据一次性迁移 |
-| `memory.db` 存历史正文 | 用 SDK `history/restore`；旁表只留变更、使用、配对、开关、信号 |
-| `chosenMemory` 映射 run → receipt | `receiptId` 进 `startAgentRun` 和 `memory-recalled` |
-| 设置页全量 `list` 再筛 | SDK `page` + filter + cursor |
-| 删除直接 `purge` | SDK `delete({ mode })`；用户删除走 `purge`，归档走 `tombstone` |
-| `MAX_TEXT = 400`、自己扫秘密/指令 | SDK `config.memory.maxTextChars = 400` + 写前检查；Molis 保留产品规则 |
-| 候选 14 天 TTL 自己算 | SDK `candidates.expiresAtMs` + `expireDue` |
-| 多作用域清空自己循环 | SDK `previewScopes/clearScopes` |
-| 自己的 `molis.memory` 包 | SDK v2 包 + Molis 产品信封；逐步对齐 |
+| 模型效果与节省幅度 | 尚无本方案实测数据；P0-A 冻结基线，P0-B 满足 §9.2 后才能声称提升。 |
+| 分类初始字典 | Coding/助理、现有四类型与 habit/project-decision 的语义按本文接入；具体展示文案、保留天数和常驻集合在 Molis 配置短合同中列出，不由 SDK 猜。 |
+| 存量范围不清 | 先保留当前合法范围并标待分类；自动晋升/扩展适用范围关闭。数据映射、备份和版本拒绝在实施前按合同流程冻结。 |
+| 存储查询和原子性 | 以当前 Host 行为核对，接口名字不算原子/性能证据；只补首期必需窄口，真实规模或故障证据触发后续实现。 |
+| 历史与导出采用 | P1 再冻结 SDK 历史保留窗口、数据搬迁和 SDK v2 与 Molis 信封关系；首期不以删除旧功能缩小承诺。 |
+| 分类增长 | 未声明值拒绝/待分类；按当前 App 实际需要增加维度；不预造跨 App 本体、通用编排器或动态热加载。 |
 
-### 7.2 各模块改什么
+工程验证、产品实操、用户验收分别记录在本 spec 的实施记录中。当前只有方案更新，没有运行新策略的工程或产品证据。
 
-**`horizontal/memory`（产品策略层，保留）**
+## 12. 参考与本次修订依据
 
-- 保留：开关、使用方权限、写入门表、界面信号、冲突配对、整理、工作标题、UI 动作。
-- 改召回：删掉 `located` 全量扫描和自建排序；构造 `RecallQuery` 调 `runtime.memory.recall`；把类别/来源/新旧/常驻权重做成 `memory-recaller`；把冲突输家通过 `exclude` 或 recaller 的 `omitted` 交出。
-- 改状态：用 `pause/disable/resume`；不再拼 `paused.reason` 前缀；旧数据迁移时把 `disabled:` / `paused:` 转成 `state`。
-- 改历史：`history/restore` 走 SDK；旁表只留 `MemoryChange`（谁、何时、为什么、能不能撤）和 `MemoryRevision` 的必要元数据，不再存正文。
-- 改候选：`propose` 带 `expiresAtMs`、`key`、`meta`；用 SDK `expireDue` 代替自己扫 TTL。
-- 改删除：用户删除走 `delete({ mode: "purge" })`；项目删除用 `previewScopes/clearScopes`。
-- 改导出：优先用 SDK v2；`molis.memory` 只作为产品信封，不再自己写正文。
+### 12.1 借鉴的公开做法
 
-**`horizontal/agent-host`（适配层）**
+以下资料在 2026-10-22 评审时核对；借鉴的是机制，不直接采用对方的默认权限、存储形态或性能数字。
 
-- `prologue-memory` 映射新增字段：`key/state/stateReason/stateAtMs/supersedes/supersededBy/confidence/importance/data`。
-- `forRun` 返回 `receiptId`；`startAgentRun` 的 memory 入参带 `receiptId`。
-- `prologue-stream` 投影 `memory-recalled` 的新字段（`receiptId`、`method`、`omitted` 原因）。
-- `memoryForAgentRun` 不再自己组 pinned；直接用 SDK 召回结果或 `forRun` 返回的 pinned。
-- 删除 `chosenMemory` 旁路映射；`settleUses` 用事件里的 `receiptId`。
-
-**`packages/contracts`**
-
-- `AgentMemoryMeta` 增加 `confidence/importance/data`。
-- `AgentMemoryEntry` 增加 `key/state/state_reason/state_at_ms/supersedes/superseded_by`。
-- `AgentMemoryRecallFact` 增加 `receipt_id`、`method`、`omitted` 原因。
-- `MemoryRecallResponse` / `MemoryUseRecord` 对齐 SDK trace。
-- 跑 `pnpm api:update`、`pnpm actions:update`（动作形状变了时）和 `pnpm test:contracts`。
-
-**`packages/storage`**
-
-- 旁表保留：`changes`、`uses`、`pairs`、`prefs`、`signals`、`markers`、`owners`、`candidate notes`。
-- 历史正文迁到 SDK 后，`revisions` 只留迁移期只读数据；验证后退掉写路径。
-- 删除级联仍由 Host 的事务负责：记忆删除 → 候选、历史、使用、配对、变更一起清。
-
-**Local Host 装配**
-
-- 注册 `memory-recaller` / `memory-extractor` 的具体实现（Molis 的排序器和提炼函数）。
-- 启动时按用到的 scope 懒 hydrate；不再全量 hydrate。
-- 项目删除：用 `previewScopes` 一次核对项目 + 角色作用域，再 `clearScopes`；失败如实报，重试由删除收据驱动。
-- 角色 owner 继续用 `pc-` + 摘要；SDK 只把它当普通 owner。
-
-**文档**
-
-- 更新 [`docs/horizontal/memory.md`](../../docs/horizontal/memory.md)：数据主人、召回/历史/回执的新边界，指向本 spec。
-- 更新 [`docs/system/CALL-CHAINS.md`](../../docs/system/CALL-CHAINS.md) §8：召回、候选、历史、收据的调用链。
-- 若写入门或召回信任边界变化，同步 [`docs/system/SECURITY-INVARIANTS.md`](../../docs/system/SECURITY-INVARIANTS.md) 与 `pnpm test:security`。
-
-**设置页**
-
-- 使用 `page` 分页和过滤；不再一次拉全量。
-- 显示 `state/stateReason`、`key`、`confidence/importance`（可选）、历史版本、删除模式。
-- “最近用于”用 `receiptId` 关联；预算/上限裁掉的条目显示原因。
-- 冲突配对来自 SDK 或旁表；两边只留一个真相，不能双写。
-
-### 7.3 留在 Molis 的部分
-
-- 开关与使用方权限（助理/Agent/界面/插件/MCP）。Molis 的“自动记住”是上位条件：关着时，即使 SDK 的 profile 是 `assisted`，也不得晋升；SDK 不替 Molis 判断这个开关。
-- 写入门的产品规则：哪些类别自动、哪些只进候选、秘密/指令的产品文案。
-- 界面信号计数与候选门槛。
-- 工作标题、项目标题、使用方标签。
-- 冲突/重复的产品处置（保留哪条、合并、升级为项目说明）。
-- 设置页、工作面板、撤销 UI。
-- 旁表的变更/使用/配对/开关事实。
-- 调用 SDK 前按 consumer 过滤 scopes；SDK 不解释 consumer。
-- 插件命名空间可见性由 Molis 在 scopes / recaller 里处理；SDK 只存 `meta.namespace`。
-- 所有读 `paused.reason` 的地方（`fromEntryMeta`、`stateOf`、`upkeep`、`pairs`、设置页）改成 `state/stateReason`；`upkeep` 的停用/恢复/合并同步改。
-
-### 7.4 迁移顺序
-
-1. **Prologue P0**：state、key、guard、recall 管线 + `memory-recaller`、trace、receiptId、page、delete、clearScopes、export v2、修小缝。
-2. **Molis P0**：换 vendored SDK（按 `vendor/prologue-sdk/README` 重建，更新 `.sha256` / `.provenance.json`，不并行留两版）→ 适配新字段 → 召回切到 SDK + ranker → 状态迁移 → receipt 切到事件 → 设置页分页。
-3. **Prologue P1**：四个预设、`memory-extractor`、持久候选 TTL、有界历史。
-4. **Molis P1**：`reviewed`/`assisted` 预设接入；历史从旁表迁到 SDK；候选 TTL 交给 SDK。
-5. **Prologue P2**：冲突/合并/衰减/容量、episode/profile、混合召回。
-6. **Molis P2**：维护任务改用 SDK 原语；导出格式对齐；健康报告。
-
-### 7.5 回滚与兼容
-
-- P0/P1 期间 Prologue 同时写 `state` 和 `paused`；旧 SDK 只认 `paused`，回滚不会把停用条目放出来。
-- `supersede` 把旧条目标成 `state: "disabled"` + `paused.reason = "superseded:…"`；旧 SDK 也不会召回旧条目。
-- `key` / `meta.data` / `history` 旧 SDK 会忽略；回滚后不会产生错误召回，只是丢掉新语义。禁止在回滚后继续写新字段。
-- `purge` 不可回滚；用户删除前仍走预览确认。
-- Molis 旧包回退只回退代码，不回退已迁数据；迁移脚本必须可重复执行、先读后写、失败不动原表。
-
-## 8. 分期与验收边界
-
-| 期 | Prologue | Molis |
+| 来源 | 吸收进本方案 | 不照搬 |
 | --- | --- | --- |
-| P0 | 内核可用性 + 召回管线 + `memory-recaller` | 召回/状态/receipt/page/delete 迁移 |
-| P1 | 预设 + `memory-extractor` + 历史 | 预设接入 + 历史迁移 |
-| P2 | 维护/冲突/情景/画像 | 维护与导出对齐 |
+| [Claude Code auto memory](https://code.claude.com/docs/en/memory#auto-memory) | 区分用户/反馈/项目/引用信息；短索引与按需读取；只记值得复用的信息，用户可查看修改 | 不把文件目录形态或它的默认自动行为写死进 SDK；分类由消费 App 定义 |
+| [Codex stage one](https://github.com/openai/codex/blob/b337fe06b7d8d6e5b42295e04c5e92c2b9c46567/codex-rs/memories/write/templates/memories/stage_one_system.md) | 高信号、允许 no-op、来源约束、重视纠正与可复用经验 | 不将全部最终回复或未采纳建议当事实 |
+| [Codex read path](https://github.com/openai/codex/blob/b337fe06b7d8d6e5b42295e04c5e92c2b9c46567/codex-rs/ext/memories/templates/memories/read_path.md) 与 [consolidation](https://github.com/openai/codex/blob/b337fe06b7d8d6e5b42295e04c5e92c2b9c46567/codex-rs/memories/write/templates/memories/consolidation.md) | 简单任务可跳过、渐进读取、可漂移事实便宜时重核、增量维护来源 | 不复制文件级目录系统或另建后台任务平台；删除来源后的派生清理在原删除链执行 |
+| [Hindsight retrieval](https://hindsight.vectorize.io/developer/retrieval) 与 [源码文档](https://github.com/vectorize-io/hindsight/blob/517192d3bfef0bd7b3efcdedc7829445a55c3ae9/hindsight-docs/docs/developer/retrieval.md) | 计算预算与输出 token 分开、必要时多路候选融合、按需展开原始证据 | 不强制向量/图/重排；不采用第一条结果可超软上限的行为，SDK 保持硬预算 |
+| [Hindsight observations](https://hindsight.vectorize.io/developer/observations)、[retain](https://hindsight.vectorize.io/developer/retain)、[reflect](https://hindsight.vectorize.io/developer/reflect) | 主体、时间和支持证据，区分原始来源与归纳；深度问题才增加推理 | 不把归纳当新独立证据，不默认启动多轮 reflect 或复制第二套 Agent 循环 |
 
-P0 不包含：自动晋升默认打开、`run-summary` 默认开启、向量/图默认开启、历史默认 3 条（预设里才开）。
+早稿中的其他系统保留为探索背景，不作为首期新增字段、依赖或功能的依据；引入具体能力时再核对对应一手资料。
 
-## 9. 验收标准
+### 12.2 仓库依据
 
-| 编号 | 可观察标准 | 证明方式 |
-| --- | --- | --- |
-| MEM-01 | `write` 命中秘密形状时拒绝，库、候选、历史零写入；内置模式不能被 App 去掉 | Prologue 单测 + 真实 Node Host |
-| MEM-02 | 像指令的文本 `write` 默认拒绝；显式 propose 进候选并记 `reviewReason`；`promote` 拒绝、人 `accept` 可确认；可信 App 显式 `allowInstruction` 才直写 | Prologue 单测 |
-| MEM-03 | 同 scope/owner 的 `key` 用 `replace` 后，旧条目不召回、`supersededBy` 正确、历史可查；`reject` 冲突拒绝；候选 `accept/promote` 带 key 时同样保留历史 | Prologue 单测 + live |
-| MEM-04 | `pause/disable/resume` 后召回与读取符合状态；`resume` 遇到同 key 已有 active 条目拒绝；旧 `paused.reason` 数据迁移后状态正确 | Prologue 单测 + Molis 迁移测试 |
-| MEM-05 | 召回过滤墓碑、停用、暂停、到期、`appliesWhen`、`exclude`；trace 给出每条原因 | Prologue 单测 |
-| MEM-06 | 自定义 `memory-recaller` 只改排序；硬过滤、预算、trace 仍生效；槽抛错时零注入并如实报失败 | Prologue 单测 |
-| MEM-07 | `memory-recalled` 带 `receiptId/method/injected/omitted/unavailable`，不含正文 | Prologue 单测 + Molis 投影测试 |
-| MEM-08 | `page` 支持过滤、游标、总数；设置页不再全量 `list` | Prologue 单测 + Molis 设置页测试 |
-| MEM-09 | `delete({ mode })` 与 `clearScopes` 先核全部指纹；部分失败如实返回已完成/剩余，不假装整批成功 | Prologue live + Molis 删除收据测试 |
-| MEM-10 | 历史有界；`restore` 追加新版本；`purge` 级联 SDK 的历史与候选；App 的使用记录由删除收据清 | Prologue 单测 + live + Molis 删除测试 |
-| MEM-11 | 导出 v2 带 `key/meta/state`；导入两次不重复；v1 包明确 `metaMissing`；正文/出处/data 脱敏 | Prologue 单测 + live |
-| MEM-12 | 四个预设行为符合 §4.2；`assisted` 未显式选择时不生效，缺 `memoryPromotion` 时 `createRuntime` 失败而不是降级；晋升写策略+版本；模型无接受工具；每条可撤销 | Prologue 单测 + 工作台实操 |
-| MEM-13 | 场景包 `deny/explicit-only/policy-governed` 在运行期生效；包不能放宽 App 的选择；角色 `write:false` 不产生候选/晋升 | Prologue 单测 |
-| MEM-14 | Molis 主路径改用 SDK 召回 + ranker，自建全量扫描删除；相同输入下注入集合与原因可解释 | Molis `memory-service` 测试 + 真实运行 |
-| MEM-15 | Molis 状态改用 SDK `state`；旧 `paused.reason` 迁移；停用/暂停/恢复在设置页正确 | Molis 迁移测试 + 设置页测试 |
-| MEM-16 | Molis `settleUses` 用事件 `receiptId`；重启后“最近用于”仍正确 | Molis live + 重启测试 |
-| MEM-17 | Molis 大作用域设置页用分页；不一次拉全量；搜索/过滤可用 | Molis 设置页测试 |
-| MEM-18 | Molis 删除一条/清空项目后，记忆、候选、历史、使用记录、配对、导出包都不再带出 | Molis live + 重启测试 |
-| MEM-19 | Molis 历史正文迁到 SDK 后，旁表不再写正文；旧版本可查看/恢复；删除级联 | Molis 迁移测试 + live |
-| MEM-20 | 现有硬边界不回归：默认不自动、模型不自批、单写口、作用域隔离、召回是数据、删除真删、预算有界 | Prologue 回归 + Molis 回归 + 人工 |
-| MEM-21 | 提炼候选统一进持久候选箱；`memoryInbox` 不再新增调用；候选 TTL 由 SDK 执行 | Prologue 单测 + Molis 测试 |
-| MEM-22 | Prologue 需求分册、模块 README、AGENTS 槽表、公开导出与类型检查同步；两个新槽在 `SLOT_NAMES` 与 `SlotImplementations` 里可见 | 人工 + `pnpm typecheck` / `pnpm build` |
-| MEM-23 | Molis `docs/horizontal/memory.md`、`CALL-CHAINS` §8、动作合同快照、`SECURITY-INVARIANTS`（如涉及）与 `molis.memory` 导出说明同步 | 人工 + `pnpm api:update` + `pnpm actions:update` + `pnpm test:contracts` |
-| MEM-24 | `off` 预设拒绝 `write` 与候选 propose/accept/promote，但仍可 list/get/page/delete；策略关闭不静默接受 | Prologue 单测 |
+- [Molis 记忆产品文档](../../docs/horizontal/memory.md)、[MemoryService](../../horizontal/memory/src/service.ts)、[Prologue 适配器](../../horizontal/agent-host/src/adapters/prologue-memory.ts)、[工作学习入口](../../apps/local-host/src/memory/memory-learning.ts)。
+- [Molis 调用链](../../docs/system/CALL-CHAINS.md)、[安全不变量](../../docs/system/SECURITY-INVARIANTS.md)、[合同变更流程](../../docs/system/CONTRACT-CHANGES.md)、[Prologue 采用需求](../prologue-adoption/spec.md)。
+- Prologue 仓库的 `packages/sdk/src/memory/`、`context/`、Host storage contract、composition/agent 接线；需求主人仍是该仓库 memory 分册，本 spec 不替代它。
 
-## 10. 风险与待定
+### 12.3 修订记录（2026-10-22）
 
-| 风险 | 处理 |
-| --- | --- |
-| 记忆变成大框架 | 只做通用机制与四个预设；产品规则留在 App；每个新增能力必须有真实消费者 |
-| 自动写入被误用 | `assisted` 显式选择；只允许低风险类别；逐条可撤销；模型无接受工具 |
-| 回滚把停用条目放出来 | 同时写 `state` + `paused`；supersede 也写 `paused`；旧 SDK 仍能过滤 |
-| 历史复制正文、删除不干净 | 历史独立存储；`purge` 级联；导出默认不带历史 |
-| 提炼模型幻觉 | 候选必须带证据；无证据的 `inferred` 拒绝；人/策略批准 |
-| 大作用域性能 | `page` + 索引；召回先硬过滤再排序；不一次读全部 |
-| 元数据膨胀 | `meta` 4 KB、`data` 4 KB、正文 2000；超了拒绝，不截断 |
-| `memoryInbox` 冻结造成兼容问题 | P1 前保留只读兼容；新提炼只走 `memoryCandidates`；删除另开决定 |
+用户确认采用评审提案并增加记忆矩阵要求。本次新增 App 自定义分类、读写分离矩阵、分类管理与短长期语义；将精准度、任务效果和全口径成本列为首期门槛。保留原有单写口、候选、作用域、用户控制与 SDK 历史方向，调整历史/导出/复杂维护的期次；D7 纳入本次确认的统一候选方向，不再同时写“已定”和“待确认”。
 
-**待定（实施前确认）：**
-
-1. `assisted` 的默认允许类别是否只限 `preference` 与 `convention`，`fact` 一律进候选。
-2. Molis 旁表 `revisions` 在迁移验证后保留只读一个版本，还是同一 PR 删除。
-3. SDK `MemoryPackage` v2 是否直接作为 Molis 导出包，还是继续包一层 `molis.memory` 信封。
-
-### 复查记录（2026-10-21）
-
-按当前 `docs/product/requirements/modules/memory/`、Molis `horizontal/memory` 与 `prologue-memory` 适配器逐条对照，补了三处：
-
-- **召回预算与 Context 打包预算的边界**：本 spec 只裁单次召回；Context 仍可能省略。两处都可见，不把一次裁剪说成删除。
-- **D7 不在最初六个问题里**：`memoryInbox` 冻结、提炼候选统一进持久候选箱，需要单独确认；本 spec 先按推荐写，未当成已拍板。
-- **`MemoryPackage` v2 与 `molis.memory` 信封**：仍待定；不因为导出带 `meta` 就假设 Molis 产品包格式已经换掉。
-
-没有改需求分册的完成门；这份仍是“策略/方案”，实现前要按短合同冻结范围。
-
-## 11. 参考
-
-- Molis 记忆产品文档：[`docs/horizontal/memory.md`](../../docs/horizontal/memory.md)
-- Molis 记忆系统历史需求：[`specs/archive/memory-system/spec.md`](../archive/memory-system/spec.md)
-- Molis Prologue 采用需求：[`specs/prologue-adoption/spec.md`](../prologue-adoption/spec.md)
-- 合同变更流程：[`docs/system/CONTRACT-CHANGES.md`](../../docs/system/CONTRACT-CHANGES.md)
-- Prologue 记忆模块：`packages/sdk/src/memory/`（core / api / README）
-- Prologue 记忆需求：`docs/product/requirements/modules/memory/`
-- [Claude Code memory](https://code.claude.com/docs/en/memory)
-- [Cline Memory Bank](https://docs.cline.bot/best-practices/memory-bank)
-- [Anthropic memory tool](https://platform.claude.com/docs/zh-CN/agents-and-tools/tool-use/memory-tool)
-- [LangMem](https://www.langchain.com/blog/langmem-sdk-launch)
-- [Mem0: How it works](https://mem0.mintlify.app/core-concepts/how-it-works)
-- [Zep concepts](https://help.getzep.com/v2/concepts)
-- [Letta memory](https://docs.letta.com/configuration/memory/index.md) · [Sleep-time compute](https://www.letta.com/blog/sleep-time-compute)
-- [MemoryOS](https://aclanthology.org/2025.emnlp-main.1318/)
-- [A-MEM](https://neurips.cc/virtual/2025/loc/san-diego/poster/119020)
-- [Memobase](https://docs.memobase.io/practices/tips)
-- [Cognee](https://pypi.org/project/cognee/0.1.37/)
+修正缺 basis 默认为 explicit、全类别常驻、字符数代替 token、同步接口接异步槽、跨库事务及旧 SDK 可安全写回的矛盾；移除未验证置信默认值、未实现的时间字段预留和没有消费者的兼容承诺。MEM-01～24 没有重编号；历史/导出标准保留到 P1，新增分类与质量标准为 MEM-25～40。此处是需求与方案变更记录，不是实现完成记录。

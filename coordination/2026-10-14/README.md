@@ -2589,3 +2589,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - D5：v1 不合并，订阅方自己去抖。
   - D2 改一处：成功、失败、不明的结算都广播（失败的操作可能留下半截写入）。这样广播里也完全不带结果，保密更严。
   - Agent 的改动、外部改动不在 v1。② 在 350–369 段开一条 BL：`cause` 加 `agent-change`，之后删 `readsFilesOutputs`。BL-379 靠 v1 就能关。
+- **10-22 G1 开 PR #1025**（porcelain 解析器搬进 SDK，属于共享核心）。先由 ⑩ 评审，再交 ⑤ 进集成批次。给新文件在 `error-owners.json` 加 git 主人，① 认可：不算放松门禁。错误码保持 `git.*`。和 #1023 只在 baseline.json 上冲突，由后合的一方重新生成。

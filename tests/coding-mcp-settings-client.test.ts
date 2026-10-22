@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
+import { pageText } from "./fixtures/page-text.js";
 
 // W3-02-C: the Coding MCP settings section decides "this project has not enabled Coding" from the platform's code, `actions.plugin_disabled`
 // (the code the action layer and the Runtime router give that fact), and then offers the person a button to enable it. The shipped script runs
@@ -32,7 +33,7 @@ class FakeElement {
 interface Answer { readonly ok: boolean; readonly status: number; readonly body: unknown }
 const answer = (status: number, body: unknown): Answer => ({ ok: status < 400, status, body });
 
-function fixture(answers: (url: string, method: string) => Answer) {
+function fixture(answers: (url: string, method: string) => Answer, locale: "zh" | "en" = "zh") {
   const root = new FakeElement(); root.dataset.prefix = "/projects/project-1/";
   const document = Object.assign(new FakeElement(), { createElement: () => new FakeElement() });
   document.querySelector = (selector: string) => selector === "[data-coding-mcp-settings]" ? root : null;
@@ -40,7 +41,7 @@ function fixture(answers: (url: string, method: string) => Answer) {
   const timers = { started: [] as number[], cleared: [] as number[] };
   const location = { origin: "http://127.0.0.1:1", reloads: 0, reload() { this.reloads++; } };
   vm.runInNewContext(CODING_SETTINGS_CLIENT_SCRIPT, {
-    document, location, URL, molisWorkControlHeaders: () => ({}),
+    document, location, URL, molisWorkControlHeaders: () => ({}), L: pageText(locale), // the page's translator, as the Host's pages define it
     setInterval: () => { timers.started.push(timers.started.length + 1); return timers.started.length; },
     clearInterval: (id: number) => { timers.cleared.push(id); },
     fetch: async (url: string, init?: { method?: string }) => {
@@ -90,4 +91,31 @@ test("enabling Coding reloads the page, and a refusal offers the button again so
   await page.status.children[1]!.fire("click");
   assert.deepEqual(page.requests.filter(request => request.method === "POST"), [{ url: enable, method: "POST" }, { url: enable, method: "POST" }]);
   assert.equal(page.location.reloads, 1);
+});
+
+// specs/visual-ui-experience VUX-40: the method library knew its first read had finished by its loading line being the Chinese
+// one the Host drew, so on an English page the line said "Reading project methods…" for good. It now knows by a mark the Host
+// puts on the line, whatever language the line is in.
+for (const [locale, loaded] of [["zh", "项目方法已读取。"], ["en", "Project methods loaded."]] as const) test(`VUX-40: the method library says the methods have loaded whatever language the Host drew its loading line in (${locale})`, async () => {
+  const library = new FakeElement(); library.dataset.prefix = "/projects/project-1/";
+  const line = library.part("[data-method-library-status]");
+  line.textContent = "Reading project methods…"; line.dataset.methodLibraryLoading = "";
+  const document = Object.assign(new FakeElement(), { createElement: () => new FakeElement() });
+  document.querySelector = (selector: string) => selector === "[data-coding-method-library]" ? library : null;
+  vm.runInNewContext(CODING_SETTINGS_CLIENT_SCRIPT, {
+    document, location: { origin: "http://127.0.0.1:1" }, URL, molisWorkControlHeaders: () => ({}), setInterval: () => 0, clearInterval: () => {}, L: pageText(locale),
+    fetch: async (url: string) => ({ ok: url.endsWith(STATE), status: url.endsWith(STATE) ? 200 : 500,
+      json: async () => url.endsWith(STATE) ? { workspaces: [{ workspace_id: "w", canonical_path: "/repo" }], methods: [] } : {} }),
+  });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(line.textContent, loaded);
+  assert.equal("methodLibraryLoading" in line.dataset, false);
+});
+
+// specs/visual-ui-experience VUX-40: on an English page the MCP settings say "Coding isn't enabled" and offer the button in English.
+test("VUX-40: the MCP settings speak the page's language when the project has not enabled Coding", async () => {
+  const page = fixture(url => url.endsWith(STATE) ? NOT_ENABLED_ANSWER : answer(500, {}), "en");
+  await page.settled();
+  assert.equal(page.status.textContent, "Coding isn't enabled in this project yet. Once it is, you can choose authorized tools; none run automatically.");
+  assert.equal(page.status.children[0]!.textContent, "Enable Coding in this project");
 });

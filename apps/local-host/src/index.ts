@@ -197,12 +197,6 @@ export {
   readWorkspaceTextFile,
   type WorkspaceReadPorts,
 } from "./workspace-files.js";
-export {
-  GIT_STATUS_MAX_BUFFER,
-  isGitRepository,
-  readGitStatus,
-  type GitStatusResult,
-} from "./git-status.js";
 export { ModelProviderStore, createModelProviderTables, type ModelProviderSqlite, type ModelProviderStoreOptions, type ModelSecretPort } from "./model-provider-store.js";
 export { MINIMAX_ANTHROPIC_BASE_URL, MODEL_PROVIDER_TEMPLATES, modelProviderTemplate } from "./model-provider-templates.js";
 export {

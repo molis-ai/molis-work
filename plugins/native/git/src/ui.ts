@@ -12,7 +12,7 @@ export const GIT_UI_CONTRIBUTION_ID = "io.molis.work.native.git.ui.v1";
 
 /** Composed beside Files; the existing directory/result shell remains the owner. */
 export function renderGitBrowserDirectory(text: (key: string) => string): string {
-  return `<section class="git-browser mw-dir" data-git-browser hidden><div class="mw-toolbar git-directory-toolbar"><span class="mw-dir__label">${text("git.dir.title")}</span><button class="mw-btn mw-btn--ghost" type="button" data-git-refresh><span class="mw-spinner" hidden></span>${text("git.dir.refresh")}</button></div>
+  return `<section class="git-browser mw-dir" data-git-browser hidden><div class="mw-toolbar git-directory-toolbar"><span class="mw-dir__label">${text("git.dir.title")}</span><button class="mw-btn mw-btn--ghost" type="button" data-git-refresh><span class="mw-spinner" hidden></span><span>${text("git.dir.refresh")}</span></button></div>
     <section class="git-sc" data-git-sc aria-label="${text("git.dir.source-control")}" hidden>
       <div class="git-sc-branch"><strong data-git-branch></strong><span class="git-sc-sync" data-git-sync></span><button class="mw-btn mw-btn--ghost" type="button" data-git-branch-toggle aria-expanded="false">${text("git.branch.toggle")}</button></div>
       <form class="git-sc-form" data-git-branch-form hidden>

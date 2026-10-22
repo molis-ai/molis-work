@@ -27,11 +27,11 @@ export type CodingUiSurface = "directory" | "workbench";
  * keeps whatever it shows; the full-width TaskBoard is a view of the main area, switched from its own header.
  */
 export const CODING_DIRECTORY_FACES = [
-  { face: "sessions", label: "会话", icon: "message" },
+  { face: "sessions", label: "coding.face.sessions", icon: "message" },
   { face: "taskboard", label: "TaskBoard", icon: "board" },
-  { face: "goals", label: "目标", icon: "target" },
-  { face: "artifacts", label: "产物", icon: "package" },
-  { face: "files", label: "文件", icon: "folder" },
+  { face: "goals", label: "coding.face.goals", icon: "target" },
+  { face: "artifacts", label: "coding.face.artifacts", icon: "package" },
+  { face: "files", label: "coding.face.files", icon: "folder" },
 ] as const;
 
 export type CodingDirectoryFace = (typeof CODING_DIRECTORY_FACES)[number]["face"];
@@ -72,17 +72,17 @@ export const codingUiDescriptor: UiContributionDescriptor = {
 
 /** How a session's state reads. Status is an icon plus family-coloured text, never a pill. */
 const STATE_MARK: Record<CodingSessionState, { icon: string; tone: string; label: string }> = {
-  "idle": { icon: "message", tone: "idle", label: "尚未执行" },
-  "running": { icon: "activity", tone: "progress", label: "执行中" },
-  "paused": { icon: "pause", tone: "attention", label: "已暂停" },
-  "waiting-answer": { icon: "question", tone: "attention", label: "等你回答" },
-  "waiting-approval": { icon: "circle-alert", tone: "attention", label: "等你审查" },
-  "failed": { icon: "alert", tone: "blocked", label: "失败待处理" },
-  "stopped": { icon: "blocked", tone: "idle", label: "你停下的" },
-  "cancelled": { icon: "x", tone: "idle", label: "已取消" },
-  "reconcile-required": { icon: "circle-alert", tone: "attention", label: "需要你核对结果" },
-  "queued": { icon: "clock", tone: "attention", label: "挂起等待" },
-  "done": { icon: "check", tone: "done", label: "本轮结束" },
+  "idle": { icon: "message", tone: "idle", label: "coding.state.idle" },
+  "running": { icon: "activity", tone: "progress", label: "coding.state.running" },
+  "paused": { icon: "pause", tone: "attention", label: "coding.state.paused" },
+  "waiting-answer": { icon: "question", tone: "attention", label: "coding.state.waiting-answer" },
+  "waiting-approval": { icon: "circle-alert", tone: "attention", label: "coding.state.waiting-approval" },
+  "failed": { icon: "alert", tone: "blocked", label: "coding.state.failed" },
+  "stopped": { icon: "blocked", tone: "idle", label: "coding.state.stopped" },
+  "cancelled": { icon: "x", tone: "idle", label: "coding.state.cancelled" },
+  "reconcile-required": { icon: "circle-alert", tone: "attention", label: "coding.state.reconcile-required" },
+  "queued": { icon: "clock", tone: "attention", label: "coding.state.queued" },
+  "done": { icon: "check", tone: "done", label: "coding.state.done" },
 };
 
 export const codingUiContribution: UiContribution<CodingUiModel> = {
@@ -115,35 +115,35 @@ export function codingUiView(directory: () => readonly CodingSessionEntry[]): Ui
 
 export function renderCodingDirectory(model: CodingUiModel): string {
   const { primitives: p } = model;
-  const faces = CODING_DIRECTORY_FACES.map((face) => `<button type="button" class="mw-toggle coding-face" data-coding-face="${face.face}" aria-pressed="${face.face === model.face}" title="${p.escape(face.label)}" aria-label="${p.escape(face.label)}">${p.icon(face.icon)}</button>`).join("");
-  const filters = (["all", "running", "needs-you"] as const).map((filter) => `<button type="button" class="mw-toggle coding-filter" data-coding-filter="${filter}" aria-pressed="${filter === model.filter}">${p.escape(filterLabel(filter))}</button>`).join("");
+  const faces = CODING_DIRECTORY_FACES.map((face) => `<button type="button" class="mw-toggle coding-face" data-coding-face="${face.face}" aria-pressed="${face.face === model.face}" title="${p.escape(p.text(face.label))}" aria-label="${p.escape(p.text(face.label))}">${p.icon(face.icon)}</button>`).join("");
+  const filters = (["all", "running", "needs-you"] as const).map((filter) => `<button type="button" class="mw-toggle coding-filter" data-coding-filter="${filter}" aria-pressed="${filter === model.filter}">${p.escape(filterLabel(filter, p))}</button>`).join("");
   const groups = groupByGoal(filterSessions(model.sessions, model.filter))
     .map((group) => renderGroup(group.goal_id, group.title, group.entries, p))
     .join("");
   return renderSidebar({className:"coding-directory",attrs:{"data-coding-directory":"","data-coding-current-face":model.face},
-    body: renderDirectoryPanel({pluginId:"coding",embedded:true,label:faceLabel(model.face),listLabel:"编码会话",listRole:"none",
-      tools: renderButton({label:"搜索与筛选",icon:"search",iconOnly:true,variant:"ghost",attrs:{"data-coding-search-toggle":"","aria-expanded":false}}),
-      body: `<nav class="coding-faces" aria-label="Coding 导航面">${faces}</nav>
-      <div class="coding-query" data-coding-query hidden><label class="coding-search"><span class="mw-sr-only">搜索标题</span><input class="mw-input" data-coding-search aria-label="搜索会话标题" placeholder="搜索会话标题"></label><div class="coding-filters mw-toggle-group" role="group" aria-label="会话筛选">${filters}</div></div>
+    body: renderDirectoryPanel({pluginId:"coding",embedded:true,label:faceLabel(model.face, p),listLabel:p.text("coding.directory.list"),listRole:"none",
+      tools: renderButton({label:p.text("coding.directory.search-toggle"),icon:"search",iconOnly:true,variant:"ghost",attrs:{"data-coding-search-toggle":"","aria-expanded":false}}),
+      body: `<nav class="coding-faces" aria-label="${p.escape(p.text("coding.directory.faces"))}">${faces}</nav>
+      <div class="coding-query" data-coding-query hidden><label class="coding-search"><span class="mw-sr-only">${p.escape(p.text("coding.directory.search-title"))}</span><input class="mw-input" data-coding-search aria-label="${p.escape(p.text("coding.directory.search-sessions"))}" placeholder="${p.escape(p.text("coding.directory.search-sessions"))}"></label><div class="coding-filters mw-toggle-group" role="group" aria-label="${p.escape(p.text("coding.directory.filters"))}">${filters}</div></div>
       <div class="coding-session-list" data-coding-sessions>${groups || renderEmpty(p)}</div>
-    <section class="coding-face-panel" data-coding-board-outline hidden aria-label="当前会话的任务">
+    <section class="coding-face-panel" data-coding-board-outline hidden aria-label="${p.escape(p.text("coding.outline.label"))}">
       <p class="coding-face-meta" data-coding-outline-meta hidden></p>
       <div class="coding-outline" data-coding-outline-list></div>
       <p class="coding-face-note" data-coding-outline-status role="status"></p>
-      ${renderButton({label:"展开任务图",icon:"maximize",variant:"ghost",disabled:true,attrs:{"data-coding-board-expand":"",title:"在主区域打开完整的任务图，可以调整步骤"}})}
+      ${renderButton({label:p.text("coding.outline.expand"),icon:"maximize",variant:"ghost",disabled:true,attrs:{"data-coding-board-expand":"",title:p.text("coding.outline.expand-title")}})}
     </section>
-    <section class="coding-face-panel" data-coding-goal-face hidden aria-label="当前会话的目标">
-      <div class="coding-goal-face-current" data-coding-goal-face-current><span>先在「会话」里打开一个会话。</span></div>
-      <div class="coding-goal-face-actions">${renderButton({label:"关联目标",icon:"target",variant:"ghost",disabled:true,attrs:{"data-coding-goal-face-open":""}})}${renderButton({label:"打开目标",icon:"external",variant:"ghost",attrs:{"data-coding-goal-face-visit":"",hidden:true}})}</div>
-      <p class="coding-face-note">关联只影响下一轮；执行报告可以记录进原目标，已开始的任务和历史成果保持原目标。</p>
+    <section class="coding-face-panel" data-coding-goal-face hidden aria-label="${p.escape(p.text("coding.goal-face.label"))}">
+      <div class="coding-goal-face-current" data-coding-goal-face-current><span>${p.escape(p.text("coding.goal-face.open-session-first"))}</span></div>
+      <div class="coding-goal-face-actions">${renderButton({label:p.text("coding.goal.link"),icon:"target",variant:"ghost",disabled:true,attrs:{"data-coding-goal-face-open":""}})}${renderButton({label:p.text("coding.goal-face.visit"),icon:"external",variant:"ghost",attrs:{"data-coding-goal-face-visit":"",hidden:true}})}</div>
+      <p class="coding-face-note">${p.escape(p.text("coding.goal-face.note"))}</p>
     </section>
-    <section class="coding-face-panel" data-coding-artifact-directory hidden aria-label="已保存的 Coding 成果">
-      <label class="coding-search"><span class="mw-sr-only">搜索成果</span><input class="mw-input" data-coding-artifact-search aria-label="搜索固定成果" placeholder="搜索固定成果"></label>
+    <section class="coding-face-panel" data-coding-artifact-directory hidden aria-label="${p.escape(p.text("coding.artifacts.label"))}">
+      <label class="coding-search"><span class="mw-sr-only">${p.escape(p.text("coding.artifacts.search"))}</span><input class="mw-input" data-coding-artifact-search aria-label="${p.escape(p.text("coding.artifacts.search-fixed"))}" placeholder="${p.escape(p.text("coding.artifacts.search-fixed"))}"></label>
       <p class="coding-face-note" data-coding-artifact-status role="status"></p><div class="coding-outline" data-coding-artifact-list></div>
-      ${renderButton({label:"刷新成果",icon:"refresh",variant:"ghost",attrs:{"data-coding-artifact-refresh":""}})}
+      ${renderButton({label:p.text("coding.artifacts.refresh"),icon:"refresh",variant:"ghost",attrs:{"data-coding-artifact-refresh":""}})}
     </section>
     ${model.companion_directory ?? ""}`,
-      add:{label:"新建编码会话",attrs:{"data-coding-new":""}}
+      add:{label:p.text("coding.directory.new"),attrs:{"data-coding-new":""}}
     })});
 }
 
@@ -155,7 +155,7 @@ function renderGroup(
 ): string {
   const rows = entries.map((entry) => {
     const mark = STATE_MARK[entry.state];
-    return renderDirectoryRow({ title: entry.title, caption: mark.label, count: p.formatDate(entry.updated_at),
+    return renderDirectoryRow({ title: entry.title, caption: p.text(mark.label), count: p.formatDate(entry.updated_at),
       density: "meta", icon: "message", className: "coding-session-row", href: `#session-${entry.session_id}`,
       attrs: { "data-coding-session": entry.session_id } });
   }).join("");
@@ -166,8 +166,8 @@ function renderGroup(
 }
 
 // Matches the client's directory empty state; the add row below and the stage own the create action.
-function renderEmpty(_p: CodingUiPrimitives): string {
-  return `<div class="mw-empty" data-coding-empty><p>还没有编码会话</p></div>`;
+function renderEmpty(p: CodingUiPrimitives): string {
+  return `<div class="mw-empty" data-coding-empty><p>${p.escape(p.text("coding.directory.empty"))}</p></div>`;
 }
 
 export function renderCodingWorkbench(model: CodingUiModel): string {
@@ -179,201 +179,201 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
   const tools = model.tools.map((tool) => renderToolTab(tool, p)).join("");
   const panels = model.tools.map((tool) => renderToolPanel(tool, p)).join("");
   return `<section class="desktop-work-surface plugin-stage-shell mw-layout-primitives" data-work-surface="coding" data-work-surface-label="Coding" hidden data-coding-workbench data-coding-prefix="${p.escape(model.route_prefix)}">
-    <dialog class="mw-dialog mw-dialog--form" data-coding-step-dialog aria-label="步骤回报与验收"><div class="mw-form mw-dialog__shell">
-      <header class="mw-form__header"><h2>步骤回报与验收</h2>${renderButton({label:"关闭",variant:"ghost",attrs:{"data-coding-step-close":""}})}</header>
-      <section class="mw-form__body"><div data-coding-step-detail></div><p>模型报告成功不代表用户验收通过。请核对原轮次的实际操作和结果后评价。</p>
-      <label class="mw-field"><span>评价与返工说明</span><textarea class="mw-input" rows="4" maxlength="4000" data-coding-step-notes></textarea></label><p data-coding-step-status role="status"></p></section>
-      <footer class="mw-form__footer">${renderButton({label:"重新读取回报",variant:"secondary",attrs:{"data-coding-step-refresh":""}})}${renderButton({label:"验收通过",attrs:{"data-coding-step-accept":""}})}${renderButton({label:"要求返工",variant:"secondary",attrs:{"data-coding-step-reject":""}})}${renderButton({label:"据此调整计划",variant:"secondary",attrs:{"data-coding-step-rework":""}})}</footer>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-step-dialog aria-label="${p.escape(p.text("coding.step.title"))}"><div class="mw-form mw-dialog__shell">
+      <header class="mw-form__header"><h2>${p.escape(p.text("coding.step.title"))}</h2>${renderButton({label:p.text("coding.common.close"),variant:"ghost",attrs:{"data-coding-step-close":""}})}</header>
+      <section class="mw-form__body"><div data-coding-step-detail></div><p>${p.escape(p.text("coding.step.note"))}</p>
+      <label class="mw-field"><span>${p.escape(p.text("coding.step.notes-label"))}</span><textarea class="mw-input" rows="4" maxlength="4000" data-coding-step-notes></textarea></label><p data-coding-step-status role="status"></p></section>
+      <footer class="mw-form__footer">${renderButton({label:p.text("coding.step.refresh"),variant:"secondary",attrs:{"data-coding-step-refresh":""}})}${renderButton({label:p.text("coding.step.accept"),attrs:{"data-coding-step-accept":""}})}${renderButton({label:p.text("coding.step.reject"),variant:"secondary",attrs:{"data-coding-step-reject":""}})}${renderButton({label:p.text("coding.step.rework"),variant:"secondary",attrs:{"data-coding-step-rework":""}})}</footer>
     </div></dialog>
-    <dialog class="mw-dialog mw-dialog--form" data-coding-integration-dialog aria-label="整合子任务成果"><div class="mw-form mw-dialog__shell">
-      <header class="mw-form__header"><h2>整合子任务成果</h2>${renderButton({label:"关闭",variant:"ghost",attrs:{"data-coding-integration-close":""}})}</header>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-integration-dialog aria-label="${p.escape(p.text("coding.integration.title"))}"><div class="mw-form mw-dialog__shell">
+      <header class="mw-form__header"><h2>${p.escape(p.text("coding.integration.title"))}</h2>${renderButton({label:p.text("coding.common.close"),variant:"ghost",attrs:{"data-coding-integration-close":""}})}</header>
       <section class="mw-form__body"><p data-coding-integration-source></p><p data-coding-integration-target></p>
-      <p>这里显示子工作树的当前内容。选择带回的文件，经宿主审查后只更新主工作区；保留其他修改、暂存区与子工作树。整合不代表测试通过或用户验收。</p>
+      <p>${p.escape(p.text("coding.integration.note"))}</p>
       <div data-coding-integration-files></div><p data-coding-integration-status role="status"></p><div data-coding-integration-reviews></div></section>
-      <footer class="mw-form__footer">${renderButton({label:"重新读取成果",variant:"secondary",attrs:{"data-coding-integration-refresh":""}})}${renderButton({label:"准备整合审查",attrs:{"data-coding-integration-prepare":"",disabled:true}})}</footer>
+      <footer class="mw-form__footer">${renderButton({label:p.text("coding.integration.refresh"),variant:"secondary",attrs:{"data-coding-integration-refresh":""}})}${renderButton({label:p.text("coding.integration.prepare"),attrs:{"data-coding-integration-prepare":"",disabled:true}})}</footer>
     </div></dialog>
-    <dialog class="mw-dialog coding-palette" data-coding-palette aria-label="命令面板"><div class="coding-palette-shell">
-      <input class="mw-input" data-coding-palette-input placeholder="输入命令或会话名…" role="combobox" aria-expanded="true" aria-controls="coding-palette-list" aria-autocomplete="list" aria-label="搜索命令或会话" autocomplete="off">
-      <ul class="coding-palette-list" id="coding-palette-list" data-coding-palette-list role="listbox" aria-label="命令与会话"></ul>
-      <p class="coding-palette-foot">↑↓ 选择 · ↵ 执行 · Esc 关闭 · ⌥⌘↑↓ 切换会话</p>
+    <dialog class="mw-dialog coding-palette" data-coding-palette aria-label="${p.escape(p.text("coding.palette.label"))}"><div class="coding-palette-shell">
+      <input class="mw-input" data-coding-palette-input placeholder="${p.escape(p.text("coding.palette.placeholder"))}" role="combobox" aria-expanded="true" aria-controls="coding-palette-list" aria-autocomplete="list" aria-label="${p.escape(p.text("coding.palette.search"))}" autocomplete="off">
+      <ul class="coding-palette-list" id="coding-palette-list" data-coding-palette-list role="listbox" aria-label="${p.escape(p.text("coding.palette.list"))}"></ul>
+      <p class="coding-palette-foot">${p.escape(p.text("coding.palette.foot"))}</p>
     </div></dialog>
-    <dialog class="mw-dialog mw-dialog--form" data-coding-delegate-dialog aria-label="委派给新会话"><form class="mw-form mw-dialog__shell">
-      <header class="mw-form__header"><h2>委派给新会话</h2></header>
-      <section class="mw-form__body"><p>会新建一个会话，任务放进它的输入框。对方接受并发送后才执行，不会自动运行；完成后可以把报告或固定变更交付回来，由你决定是否收下。</p>
-      <label class="mw-field"><span>标题（可选）</span><input class="mw-input" data-coding-delegate-title maxlength="80" placeholder="默认取任务的第一句"></label>
-      <label class="mw-field"><span>委派的任务</span><textarea class="mw-textarea" rows="5" maxlength="20000" data-coding-delegate-task required></textarea></label>
-      <fieldset class="mw-field coding-delegate-outputs"><legend>一起交给对方的项目资料（只读）</legend><div data-coding-delegate-outputs></div>${renderButton({label:"选择项目资料…",variant:"secondary",attrs:{"data-coding-delegate-pick":""}})}</fieldset>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-delegate-dialog aria-label="${p.escape(p.text("coding.delegate.title"))}"><form class="mw-form mw-dialog__shell">
+      <header class="mw-form__header"><h2>${p.escape(p.text("coding.delegate.title"))}</h2></header>
+      <section class="mw-form__body"><p>${p.escape(p.text("coding.delegate.note"))}</p>
+      <label class="mw-field"><span>${p.escape(p.text("coding.delegate.title-label"))}</span><input class="mw-input" data-coding-delegate-title maxlength="80" placeholder="${p.escape(p.text("coding.delegate.title-placeholder"))}"></label>
+      <label class="mw-field"><span>${p.escape(p.text("coding.delegate.task-label"))}</span><textarea class="mw-textarea" rows="5" maxlength="20000" data-coding-delegate-task required></textarea></label>
+      <fieldset class="mw-field coding-delegate-outputs"><legend>${p.escape(p.text("coding.delegate.outputs-legend"))}</legend><div data-coding-delegate-outputs></div>${renderButton({label:p.text("coding.delegate.pick"),variant:"secondary",attrs:{"data-coding-delegate-pick":""}})}</fieldset>
       <p data-coding-delegate-status role="status"></p></section>
-      <footer class="mw-form__footer">${renderButton({label:"取消",variant:"secondary",attrs:{"data-coding-delegate-cancel":""}})}<button class="mw-btn mw-btn--primary" type="submit" data-coding-delegate-create>创建委派</button></footer>
+      <footer class="mw-form__footer">${renderButton({label:p.text("coding.common.cancel"),variant:"secondary",attrs:{"data-coding-delegate-cancel":""}})}<button class="mw-btn mw-btn--primary" type="submit" data-coding-delegate-create>${p.escape(p.text("coding.delegate.create"))}</button></footer>
     </form></dialog>
-    <dialog class="mw-dialog mw-dialog--form" data-coding-writer-directories-dialog aria-label="独立工作树"><div class="mw-form mw-dialog__shell">
-      <header class="mw-form__header"><h2>独立工作树</h2>${renderButton({label:"关闭",variant:"ghost",attrs:{"data-coding-writer-directories-close":""}})}</header>
-      <section class="mw-form__body"><div><p data-coding-writer-parent></p><p>从主仓库当前提交创建独立目录和本地分支。创建与项目授权需先审查；已有未提交内容时不会分叉，避免遗漏当前修改。</p>
-      <p>可选作下一轮工作区，或勾选目录并填写并行分工。保存分工后选择「并行写入」再发送；每项修改和命令仍需审查。子任务结束后可从结果区查看并选择成果，另经审查带回主工作区。</p></div>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-writer-directories-dialog aria-label="${p.escape(p.text("coding.worktrees.title"))}"><div class="mw-form mw-dialog__shell">
+      <header class="mw-form__header"><h2>${p.escape(p.text("coding.worktrees.title"))}</h2>${renderButton({label:p.text("coding.common.close"),variant:"ghost",attrs:{"data-coding-writer-directories-close":""}})}</header>
+      <section class="mw-form__body"><div><p data-coding-writer-parent></p><p>${p.escape(p.text("coding.worktrees.note"))}</p>
+      <p>${p.escape(p.text("coding.worktrees.note-parallel"))}</p></div>
       <div data-coding-writer-directories-list></div><p data-coding-writer-directories-status role="status"></p><div data-coding-writer-directory-reviews></div></section>
-      <footer class="mw-form__footer">${renderButton({label:"刷新目录",variant:"secondary",attrs:{"data-coding-writer-directories-refresh":""}})}${renderButton({label:"保存分工",variant:"secondary",attrs:{"data-coding-writer-assignments-save":""}})}${renderButton({label:"准备新工作树",attrs:{"data-coding-writer-directories-create":""}})}</footer>
+      <footer class="mw-form__footer">${renderButton({label:p.text("coding.worktrees.refresh"),variant:"secondary",attrs:{"data-coding-writer-directories-refresh":""}})}${renderButton({label:p.text("coding.worktrees.save"),variant:"secondary",attrs:{"data-coding-writer-assignments-save":""}})}${renderButton({label:p.text("coding.worktrees.create"),attrs:{"data-coding-writer-directories-create":""}})}</footer>
     </div></dialog>
-    <dialog class="mw-dialog mw-dialog--form" data-coding-workspace-dialog aria-label="选择工作区"><form class="mw-form mw-dialog__shell" data-coding-workspace-form>
-      <header class="mw-form__header"><h2>选择工作区</h2><button class="mw-btn" type="button" data-coding-workspace-close>关闭</button></header>
-      <section class="mw-form__body"><label class="mw-field">已关联的目录<select class="mw-select" data-coding-workspace-choice></select></label>
-      <label class="mw-field">或者关联新目录<input class="mw-input" data-coding-workspace-path placeholder="这台电脑上的绝对路径" autocomplete="off"></label>
-      <label class="mw-field"><span><input type="checkbox" data-coding-workspace-confirm> 确认把新目录关联到当前项目，作为任务工作区。</span></label>
-      <p>选择用于下一轮；正在执行的任务继续使用原工作区。</p><p data-coding-workspace-error role="alert"></p></section>
-      <footer class="mw-form__footer"><button class="mw-btn mw-btn--primary" type="submit">使用这个工作区</button></footer>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-workspace-dialog aria-label="${p.escape(p.text("coding.workspace.title"))}"><form class="mw-form mw-dialog__shell" data-coding-workspace-form>
+      <header class="mw-form__header"><h2>${p.escape(p.text("coding.workspace.title"))}</h2><button class="mw-btn" type="button" data-coding-workspace-close>${p.escape(p.text("coding.common.close"))}</button></header>
+      <section class="mw-form__body"><label class="mw-field">${p.escape(p.text("coding.workspace.linked"))}<select class="mw-select" data-coding-workspace-choice></select></label>
+      <label class="mw-field">${p.escape(p.text("coding.workspace.link-new"))}<input class="mw-input" data-coding-workspace-path placeholder="${p.escape(p.text("coding.workspace.path-placeholder"))}" autocomplete="off"></label>
+      <label class="mw-field"><span><input type="checkbox" data-coding-workspace-confirm> ${p.escape(p.text("coding.workspace.confirm"))}</span></label>
+      <p>${p.escape(p.text("coding.workspace.note"))}</p><p data-coding-workspace-error role="alert"></p></section>
+      <footer class="mw-form__footer"><button class="mw-btn mw-btn--primary" type="submit">${p.escape(p.text("coding.workspace.use"))}</button></footer>
     </form></dialog>
-    <dialog class="mw-dialog mw-dialog--form" data-coding-actions-dialog aria-label="选择动作能力"><form class="mw-form mw-dialog__shell" data-coding-actions-form>
-      <header class="mw-form__header"><h2>下一轮使用的能力</h2>${renderButton({label:"取消",variant:"ghost",attrs:{"data-coding-actions-close":""}})}</header>
-      <section class="mw-form__body"><p>从当前授权目录选择；Character 可以进一步限制范围。查询用于读取，判断和操作需要选择执行方式，调用时仍会检查权限。</p>
-      <p><a href="${p.escape(accessHref)}">管理内置 Agent 授权</a></p><div data-coding-actions-list></div><p role="alert" data-coding-actions-error></p></section>
-      <footer class="mw-form__footer">${renderButton({label:"保存能力选择",type:"submit",attrs:{"data-coding-actions-save":""}})}</footer>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-actions-dialog aria-label="${p.escape(p.text("coding.actions.label"))}"><form class="mw-form mw-dialog__shell" data-coding-actions-form>
+      <header class="mw-form__header"><h2>${p.escape(p.text("coding.actions.title"))}</h2>${renderButton({label:p.text("coding.common.cancel"),variant:"ghost",attrs:{"data-coding-actions-close":""}})}</header>
+      <section class="mw-form__body"><p>${p.escape(p.text("coding.actions.note"))}</p>
+      <p><a href="${p.escape(accessHref)}">${p.escape(p.text("coding.actions.manage-access"))}</a></p><div data-coding-actions-list></div><p role="alert" data-coding-actions-error></p></section>
+      <footer class="mw-form__footer">${renderButton({label:p.text("coding.actions.save"),type:"submit",attrs:{"data-coding-actions-save":""}})}</footer>
     </form></dialog>
-    <dialog class="mw-dialog mw-dialog--form" data-coding-mcp-dialog aria-label="选择 MCP 工具与资料"><form class="mw-form mw-dialog__shell" data-coding-mcp-form>
-      <header class="mw-dialog__header"><h2>选择 MCP 工具与资料</h2>${renderButton({label:"取消",variant:"ghost",attrs:{"data-coding-mcp-close":""}})}</header>
-      <p>选择仅用于下一轮。选中的服务可供读取资料；外部工具需选择执行方式，并逐笔审查。只选资料可以继续使用讨论或评审。断开或版本变化后需重新选择。</p>
-      <p><a data-coding-mcp-settings-link href="${p.escape(settingsHref)}">配置 MCP 服务</a></p>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-mcp-dialog aria-label="${p.escape(p.text("coding.mcp.title"))}"><form class="mw-form mw-dialog__shell" data-coding-mcp-form>
+      <header class="mw-dialog__header"><h2>${p.escape(p.text("coding.mcp.title"))}</h2>${renderButton({label:p.text("coding.common.cancel"),variant:"ghost",attrs:{"data-coding-mcp-close":""}})}</header>
+      <p>${p.escape(p.text("coding.mcp.note"))}</p>
+      <p><a data-coding-mcp-settings-link href="${p.escape(settingsHref)}">${p.escape(p.text("coding.mcp.configure"))}</a></p>
       <div data-coding-mcp-list></div><p role="alert" data-coding-mcp-error></p>
-      <footer class="mw-dialog__footer">${renderButton({label:"保存 MCP 选择",type:"submit"})}</footer>
+      <footer class="mw-dialog__footer">${renderButton({label:p.text("coding.mcp.save"),type:"submit"})}</footer>
     </form></dialog>
-    <dialog class="mw-dialog mw-dialog--form" data-coding-goal-dialog aria-label="关联目标"><form class="mw-form mw-dialog__shell" data-coding-goal-form>
-      <header class="mw-form__header"><h2>下一轮关联目标</h2>${renderButton({label:"取消",variant:"ghost",attrs:{"data-coding-goal-close":""}})}</header>
-      <section class="mw-form__body"><p>先查看目标，再确认使用的版本。只影响下一轮；正在执行的任务和历史成果保留原目标。也可以不关联目标。</p>
-        ${renderButton({label:"不关联目标",variant:"secondary",attrs:{"data-coding-goal-none":""}})}
-        <label class="mw-form__field">搜索已加载目标<input class="mw-input" data-coding-goal-search type="search"></label>
-        <div data-coding-goal-list></div>${renderButton({label:"加载更多目标",variant:"ghost",attrs:{"data-coding-goal-more":"",hidden:""}})}
+    <dialog class="mw-dialog mw-dialog--form" data-coding-goal-dialog aria-label="${p.escape(p.text("coding.goal.link"))}"><form class="mw-form mw-dialog__shell" data-coding-goal-form>
+      <header class="mw-form__header"><h2>${p.escape(p.text("coding.goal.title"))}</h2>${renderButton({label:p.text("coding.common.cancel"),variant:"ghost",attrs:{"data-coding-goal-close":""}})}</header>
+      <section class="mw-form__body"><p>${p.escape(p.text("coding.goal.note"))}</p>
+        ${renderButton({label:p.text("coding.goal.none"),variant:"secondary",attrs:{"data-coding-goal-none":""}})}
+        <label class="mw-form__field">${p.escape(p.text("coding.goal.search"))}<input class="mw-input" data-coding-goal-search type="search"></label>
+        <div data-coding-goal-list></div>${renderButton({label:p.text("coding.goal.more"),variant:"ghost",attrs:{"data-coding-goal-more":"",hidden:""}})}
         <section class="coding-material" data-coding-goal-preview></section><p data-coding-goal-error role="alert"></p>
-      </section><footer class="mw-form__footer">${renderButton({label:"确认目标版本",type:"submit",attrs:{"data-coding-goal-save":""}})}</footer>
+      </section><footer class="mw-form__footer">${renderButton({label:p.text("coding.goal.save"),type:"submit",attrs:{"data-coding-goal-save":""}})}</footer>
     </form></dialog>
-    <dialog class="mw-dialog mw-dialog--form" data-coding-progress-dialog aria-label="记录原目标进展"><form class="mw-form mw-dialog__shell" data-coding-progress-form>
-      <header class="mw-form__header"><h2>记录原目标进展</h2>${renderButton({label:"关闭",variant:"ghost",attrs:{"data-coding-progress-close":""}})}</header>
-      <section class="mw-form__body"><p>这份报告只写回本轮原目标。记录进展不会验收、完成或恢复目标，也不会执行新的任务。</p>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-progress-dialog aria-label="${p.escape(p.text("coding.progress.title"))}"><form class="mw-form mw-dialog__shell" data-coding-progress-form>
+      <header class="mw-form__header"><h2>${p.escape(p.text("coding.progress.title"))}</h2>${renderButton({label:p.text("coding.common.close"),variant:"ghost",attrs:{"data-coding-progress-close":""}})}</header>
+      <section class="mw-form__body"><p>${p.escape(p.text("coding.progress.note"))}</p>
         <section class="coding-material" data-coding-progress-facts></section>
-        <details class="coding-material"><summary>固定来源与目标版本</summary><pre data-coding-progress-source></pre></details>
-        <label class="mw-form__field">进展内容<textarea class="mw-textarea" data-coding-progress-summary maxlength="10000" rows="4" placeholder="已完成什么、还有什么未验证或需要决定？"></textarea></label>
-        <label class="mw-form__field">下一步（可选）<textarea class="mw-textarea" data-coding-progress-next maxlength="10000" rows="2"></textarea></label>
+        <details class="coding-material"><summary>${p.escape(p.text("coding.progress.source"))}</summary><pre data-coding-progress-source></pre></details>
+        <label class="mw-form__field">${p.escape(p.text("coding.progress.summary"))}<textarea class="mw-textarea" data-coding-progress-summary maxlength="10000" rows="4" placeholder="${p.escape(p.text("coding.progress.summary-placeholder"))}"></textarea></label>
+        <label class="mw-form__field">${p.escape(p.text("coding.progress.next"))}<textarea class="mw-textarea" data-coding-progress-next maxlength="10000" rows="2"></textarea></label>
         <p data-coding-progress-status role="status"></p>
       </section><footer class="mw-form__footer">
-        ${renderButton({label:"重新读取目标",variant:"secondary",attrs:{"data-coding-progress-refresh":""}})}
-        ${renderButton({label:"打开原目标",variant:"secondary",attrs:{"data-coding-progress-goal":"",hidden:""}})}
-        ${renderButton({label:"确认记录进展",type:"submit",attrs:{"data-coding-progress-save":""}})}
+        ${renderButton({label:p.text("coding.progress.refresh"),variant:"secondary",attrs:{"data-coding-progress-refresh":""}})}
+        ${renderButton({label:p.text("coding.progress.goal"),variant:"secondary",attrs:{"data-coding-progress-goal":"",hidden:""}})}
+        ${renderButton({label:p.text("coding.progress.save"),type:"submit",attrs:{"data-coding-progress-save":""}})}
       </footer>
     </form></dialog>
-    <dialog class="mw-dialog mw-dialog--form" data-coding-character-dialog aria-label="选择角色"><form class="mw-form mw-dialog__shell" data-coding-character-form>
-      <header class="mw-form__header"><h2>选择角色</h2>${renderButton({label:"取消",variant:"ghost",attrs:{"data-coding-character-close":""}})}</header>
-      <section class="mw-form__body"><p>选择下一轮使用的已发布版本，也可以不使用角色。保存不会发送；后续编辑或发布不改变已选版本，在跑任务保留原内容。</p><div data-coding-character-list></div><p data-coding-character-error role="alert"></p></section>
-      <footer class="mw-form__footer">${renderButton({label:"保存角色选择",type:"submit",attrs:{"data-coding-character-save":""}})}</footer>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-character-dialog aria-label="${p.escape(p.text("coding.character.title"))}"><form class="mw-form mw-dialog__shell" data-coding-character-form>
+      <header class="mw-form__header"><h2>${p.escape(p.text("coding.character.title"))}</h2>${renderButton({label:p.text("coding.common.cancel"),variant:"ghost",attrs:{"data-coding-character-close":""}})}</header>
+      <section class="mw-form__body"><p>${p.escape(p.text("coding.character.note"))}</p><div data-coding-character-list></div><p data-coding-character-error role="alert"></p></section>
+      <footer class="mw-form__footer">${renderButton({label:p.text("coding.character.save"),type:"submit",attrs:{"data-coding-character-save":""}})}</footer>
     </form></dialog>
-    <dialog class="mw-dialog mw-dialog--form" data-coding-method-dialog aria-label="选择方法"><form class="mw-form mw-dialog__shell" data-coding-method-form>
-      <header class="mw-form__header"><h2>选择方法</h2>${renderButton({label:"取消",variant:"secondary",attrs:{"data-coding-method-close":""}})}</header>
-      <section class="mw-form__body"><label class="mw-field">搜索方法<input class="mw-input" data-coding-method-search placeholder="名称或说明"></label>
-      <p>方法为下一轮提供做事步骤，不增加权限。不选择也能直接执行任务。</p>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-method-dialog aria-label="${p.escape(p.text("coding.method.title"))}"><form class="mw-form mw-dialog__shell" data-coding-method-form>
+      <header class="mw-form__header"><h2>${p.escape(p.text("coding.method.title"))}</h2>${renderButton({label:p.text("coding.common.cancel"),variant:"secondary",attrs:{"data-coding-method-close":""}})}</header>
+      <section class="mw-form__body"><label class="mw-field">${p.escape(p.text("coding.method.search"))}<input class="mw-input" data-coding-method-search placeholder="${p.escape(p.text("coding.method.search-placeholder"))}"></label>
+      <p>${p.escape(p.text("coding.method.note"))}</p>
       <div data-coding-method-list></div><article data-coding-method-document hidden></article><p data-coding-method-error role="alert"></p></section>
-      <footer class="mw-form__footer">${renderButton({label:"保存选择",variant:"primary",type:"submit"})}</footer>
+      <footer class="mw-form__footer">${renderButton({label:p.text("coding.method.save"),variant:"primary",type:"submit"})}</footer>
     </form></dialog>
-    <dialog class="mw-dialog mw-dialog--form" data-coding-plan-dialog aria-label="调整计划"><form class="mw-form mw-dialog__shell" data-coding-plan-form>
-      <header class="mw-form__header"><h2>调整计划</h2>${renderButton({label:"关闭",variant:"secondary",attrs:{"data-coding-plan-close":""}})}</header>
-      <section class="mw-form__body"><p data-coding-plan-help>按依赖顺序安排步骤，每步写清完成条件。保存修改后需要重新确认；正在执行的任务继续使用原固定版本。</p><div data-coding-plan-fields></div><p role="alert" data-coding-plan-error></p></section>
-      <footer class="mw-form__footer">${renderButton({label:"保存计划修改",variant:"primary",type:"submit",attrs:{"data-coding-plan-save":""}})}</footer>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-plan-dialog aria-label="${p.escape(p.text("coding.plan.title"))}"><form class="mw-form mw-dialog__shell" data-coding-plan-form>
+      <header class="mw-form__header"><h2>${p.escape(p.text("coding.plan.title"))}</h2>${renderButton({label:p.text("coding.common.close"),variant:"secondary",attrs:{"data-coding-plan-close":""}})}</header>
+      <section class="mw-form__body"><p data-coding-plan-help>${p.escape(p.text("coding.plan.help"))}</p><div data-coding-plan-fields></div><p role="alert" data-coding-plan-error></p></section>
+      <footer class="mw-form__footer">${renderButton({label:p.text("coding.plan.save"),variant:"primary",type:"submit",attrs:{"data-coding-plan-save":""}})}</footer>
     </form></dialog>
     <div class="coding-layout">${renderCodingDirectory(model)}
     <div class="coding-stage" data-coding-stage>
-      <section class="coding-start" aria-label="Coding"><div class="coding-start-hero"><span class="coding-start-mark">${p.icon("code")}</span><h2>和 Agent 一起写代码</h2><p>它读代码、提方案、改文件、跑检查；每一次写入和命令都先经你审查。</p>${renderButton({label:"开始新会话",variant:"primary",icon:"plus",attrs:{"data-coding-new":""}})}<small>已有的会话在左侧，打开即可继续。</small></div></section>
+      <section class="coding-start" aria-label="Coding"><div class="coding-start-hero"><span class="coding-start-mark">${p.icon("code")}</span><h2>${p.escape(p.text("coding.start.title"))}</h2><p>${p.escape(p.text("coding.start.lede"))}</p>${renderButton({label:p.text("coding.start.new"),variant:"primary",icon:"plus",attrs:{"data-coding-new":""}})}<small>${p.escape(p.text("coding.start.existing"))}</small></div></section>
       <div class="coding-dialogue mw-frame" data-slot="frame" data-coding-dialogue>
         <header class="coding-dialogue-head mw-frame__header" data-coding-dialogue-head>
-          <div class="coding-identity"><button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-directory-back" type="button" data-coding-directory-back aria-label="返回会话列表" title="会话列表">${p.icon("chevron-left")}</button><div class="coding-identity-copy mw-frame__heading"><h2 data-coding-title>选择或新建编码会话</h2><p class="coding-workspace-chip" data-coding-workspace-label>${renderWorkspaceLine(model.workspace_path, p)}</p></div></div>
-          <div class="coding-head-actions"><div class="mw-toggle-group coding-view-switch" role="group" aria-label="主区域视图"><button class="mw-toggle is-current" type="button" data-coding-view="dialogue" aria-pressed="true">对话</button><button class="mw-toggle" type="button" data-coding-view="board" aria-pressed="false" title="这个会话的计划、每一步和子任务，可以调整">任务图<span class="coding-view-count" data-coding-view-board-count hidden></span></button></div><span class="coding-phase" data-coding-phase hidden></span><button class="mw-btn mw-btn--ghost coding-priority-toggle" type="button" data-coding-priority aria-pressed="false" title="标成优先：和它范围重叠的会话会收到「请让出」的通知，不会被自动暂停" hidden>标为优先</button><button class="mw-btn mw-btn--ghost coding-results-toggle" type="button" data-coding-results-open aria-label="结果与审查">${p.icon("panel")}<span data-coding-results-label>结果与审查</span></button></div>
+          <div class="coding-identity"><button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-directory-back" type="button" data-coding-directory-back aria-label="${p.escape(p.text("coding.dialogue.back-to-list"))}" title="${p.escape(p.text("coding.dialogue.session-list"))}">${p.icon("chevron-left")}</button><div class="coding-identity-copy mw-frame__heading"><h2 data-coding-title>${p.escape(p.text("coding.dialogue.empty-title"))}</h2><p class="coding-workspace-chip" data-coding-workspace-label>${renderWorkspaceLine(model.workspace_path, p)}</p></div></div>
+          <div class="coding-head-actions"><div class="mw-toggle-group coding-view-switch" role="group" aria-label="${p.escape(p.text("coding.view.label"))}"><button class="mw-toggle is-current" type="button" data-coding-view="dialogue" aria-pressed="true">${p.escape(p.text("coding.view.dialogue"))}</button><button class="mw-toggle" type="button" data-coding-view="board" aria-pressed="false" title="${p.escape(p.text("coding.view.board-title"))}">${p.escape(p.text("coding.view.board"))}<span class="coding-view-count" data-coding-view-board-count hidden></span></button></div><span class="coding-phase" data-coding-phase hidden></span><button class="mw-btn mw-btn--ghost coding-priority-toggle" type="button" data-coding-priority aria-pressed="false" title="${p.escape(p.text("coding.priority.title"))}" hidden>${p.escape(p.text("coding.priority.mark"))}</button><button class="mw-btn mw-btn--ghost coding-results-toggle" type="button" data-coding-results-open aria-label="${p.escape(p.text("coding.results.title"))}">${p.icon("panel")}<span data-coding-results-label>${p.escape(p.text("coding.results.title"))}</span></button></div>
         </header>
-        <section class="coding-delegation-banner" data-coding-delegation-banner aria-label="来自其他会话的委派" hidden></section>
-        <template data-coding-welcome-template><div class="coding-welcome" data-coding-welcome><p class="coding-welcome-kicker">${p.icon("folder")}<span data-coding-welcome-workspace>${p.escape(model.workspace_path ? model.workspace_path.split("/").filter(Boolean).at(-1) ?? model.workspace_path : "当前工作区")}</span></p><h2>这次想完成什么？</h2><p>描述目标即可，我会先读代码再动手；每一处写入和命令都会先经你审查。</p><div class="coding-starters">${[
-          ["check","修好失败的测试","execute","运行测试，找出失败原因并修复，修完再跑一遍确认。"],
-          ["folder-tree","梳理项目结构","discuss","帮我梳理这个项目的主要模块和调用链，先只读分析。"],
-          ["search","审查当前改动","review","帮我审查当前改动，找出可能的 bug 和遗漏的边界。"],
-          ["plus","补一组单元测试","execute","为核心逻辑补一组单元测试，覆盖边界情况，并确认全部通过。"],
-        ].map(([icon,title,intent,prompt])=>`<button class="coding-starter" type="button" data-coding-prompt="${p.escape(prompt)}" data-coding-prompt-intent="${intent}">${p.icon(icon as Parameters<typeof p.icon>[0])}<strong>${p.escape(title)}</strong><small>${p.escape({execute:"执行",discuss:"讨论",review:"评审"}[intent as "execute"])}</small></button>`).join("")}</div></div></template>
-        <div class="coding-turns mw-scroll mw-frame__panel" data-coding-turns tabindex="0" aria-label="编码对话"></div>
-        <section class="coding-turns" data-coding-report-reader aria-label="执行报告" tabindex="0" hidden>
-          <header><button class="mw-btn mw-btn--ghost" type="button" data-coding-report-close>${p.icon("chevron-left")}<span>返回对话</span></button><button class="mw-btn mw-btn--primary" type="button" data-coding-report-save>保存固定报告</button><button class="mw-btn mw-btn--ghost" type="button" data-coding-report-progress hidden>记录原目标进展</button><button class="mw-btn mw-btn--ghost" type="button" data-coding-report-output hidden>设为报告输出</button></header>
+        <section class="coding-delegation-banner" data-coding-delegation-banner aria-label="${p.escape(p.text("coding.delegation.banner"))}" hidden></section>
+        <template data-coding-welcome-template><div class="coding-welcome" data-coding-welcome><p class="coding-welcome-kicker">${p.icon("folder")}<span data-coding-welcome-workspace>${p.escape(model.workspace_path ? model.workspace_path.split("/").filter(Boolean).at(-1) ?? model.workspace_path : p.text("coding.welcome.workspace"))}</span></p><h2>${p.escape(p.text("coding.welcome.title"))}</h2><p>${p.escape(p.text("coding.welcome.lede"))}</p><div class="coding-starters">${[
+          ["check",p.text("coding.starter.fix-tests"),"execute",p.text("coding.starter.fix-tests-prompt")],
+          ["folder-tree",p.text("coding.starter.map-project"),"discuss",p.text("coding.starter.map-project-prompt")],
+          ["search",p.text("coding.starter.review-changes"),"review",p.text("coding.starter.review-changes-prompt")],
+          ["plus",p.text("coding.starter.add-tests"),"execute",p.text("coding.starter.add-tests-prompt")],
+        ].map(([icon,title,intent,prompt])=>`<button class="coding-starter" type="button" data-coding-prompt="${p.escape(prompt)}" data-coding-prompt-intent="${intent}">${p.icon(icon as Parameters<typeof p.icon>[0])}<strong>${p.escape(title)}</strong><small>${p.escape({execute:p.text("coding.board.col.run"),discuss:p.text("coding.intent.discuss"),review:p.text("coding.intent.review")}[intent as "execute"])}</small></button>`).join("")}</div></div></template>
+        <div class="coding-turns mw-scroll mw-frame__panel" data-coding-turns tabindex="0" aria-label="${p.escape(p.text("coding.dialogue.turns"))}"></div>
+        <section class="coding-turns" data-coding-report-reader aria-label="${p.escape(p.text("coding.report.label"))}" tabindex="0" hidden>
+          <header><button class="mw-btn mw-btn--ghost" type="button" data-coding-report-close>${p.icon("chevron-left")}<span>${p.escape(p.text("coding.report.back"))}</span></button><button class="mw-btn mw-btn--primary" type="button" data-coding-report-save>${p.escape(p.text("coding.report.save"))}</button><button class="mw-btn mw-btn--ghost" type="button" data-coding-report-progress hidden>${p.escape(p.text("coding.progress.title"))}</button><button class="mw-btn mw-btn--ghost" type="button" data-coding-report-output hidden>${p.escape(p.text("coding.report.set-output"))}</button></header>
           <p data-coding-report-status role="status"></p><p data-coding-report-output-status role="status" hidden></p><div data-coding-report-body></div>
         </section>
         <section class="coding-board mw-scroll" data-coding-board aria-label="TaskBoard" tabindex="0" hidden>
-          <header class="coding-board-head"><div class="coding-board-heading"><h2 data-coding-board-title>TaskBoard</h2><p data-coding-board-meta></p></div><button class="mw-btn mw-btn--ghost" type="button" data-coding-board-close>${p.icon("chevron-left")}<span>回到对话</span></button></header>
-          <div class="coding-board-columns" aria-hidden="true"><span>任务</span><span>状态</span><span>进度</span><span>前置</span><span>执行</span></div>
+          <header class="coding-board-head"><div class="coding-board-heading"><h2 data-coding-board-title>TaskBoard</h2><p data-coding-board-meta></p></div><button class="mw-btn mw-btn--ghost" type="button" data-coding-board-close>${p.icon("chevron-left")}<span>${p.escape(p.text("coding.board.back"))}</span></button></header>
+          <div class="coding-board-columns" aria-hidden="true"><span>${p.escape(p.text("coding.board.col.task"))}</span><span>${p.escape(p.text("coding.board.col.status"))}</span><span>${p.escape(p.text("coding.board.col.progress"))}</span><span>${p.escape(p.text("coding.board.col.needs"))}</span><span>${p.escape(p.text("coding.board.col.run"))}</span></div>
           <div class="coding-board-list" data-coding-board-list></div>
           <p class="coding-board-note" data-coding-board-status role="status"></p>
         </section>
-        <button class="mw-btn coding-jump" type="button" data-coding-latest hidden>${p.icon("chevron-down")}<span>回到最新</span></button>
+        <button class="mw-btn coding-jump" type="button" data-coding-latest hidden>${p.icon("chevron-down")}<span>${p.escape(p.text("coding.dialogue.latest"))}</span></button>
         <p class="coding-status" data-coding-status role="status" aria-live="polite"></p>
         <div class="coding-queued" data-coding-queued role="status" hidden></div>
         <form class="coding-composer mw-frame__footer" data-coding-composer><div data-coding-steps hidden></div>
-          <div class="coding-context mw-toolbar" data-coding-context hidden aria-label="会话上下文">
-          ${renderButton({label:"工作区",icon:"folder",variant:"ghost",attrs:{"data-coding-workspace-open":""}})}
-          ${renderButton({label:"关联目标",icon:"target",variant:"ghost",disabled:true,attrs:{"data-coding-goal-open":""}})}
-          ${renderButton({label:"独立工作树",icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:"并排打开会话",icon:"columns",iconOnly:true,variant:"ghost",attrs:{"data-coding-open-beside":"",title:"在右侧并排打开另一个会话（也可以按住 ⌘ 或 Ctrl 点会话）"}})}${renderButton({label:"重命名",icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:"重命名会话"}})}${renderButton({label:"归档会话",variant:"ghost",attrs:{"data-coding-archive":"",hidden:true}})}<small data-coding-goal-label></small></div>
+          <div class="coding-context mw-toolbar" data-coding-context hidden aria-label="${p.escape(p.text("coding.context.label"))}">
+          ${renderButton({label:p.text("coding.context.workspace"),icon:"folder",variant:"ghost",attrs:{"data-coding-workspace-open":""}})}
+          ${renderButton({label:p.text("coding.goal.link"),icon:"target",variant:"ghost",disabled:true,attrs:{"data-coding-goal-open":""}})}
+          ${renderButton({label:p.text("coding.worktrees.title"),icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:p.text("coding.context.open-beside"),icon:"columns",iconOnly:true,variant:"ghost",attrs:{"data-coding-open-beside":"",title:p.text("coding.context.open-beside-title")}})}${renderButton({label:p.text("coding.context.rename"),icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:p.text("coding.context.rename-title")}})}${renderButton({label:p.text("coding.context.archive"),variant:"ghost",attrs:{"data-coding-archive":"",hidden:true}})}<small data-coding-goal-label></small></div>
           <div class="coding-composer-shell">
-            <label class="mw-sr-only" for="coding-task">任务或补充要求</label>
-            <textarea class="mw-textarea" id="coding-task" data-coding-task data-fit rows="3" placeholder="描述任务，或补充这一轮的要求…（输入 / 查看命令）" aria-describedby="coding-slash-help" disabled></textarea>
-            <span class="mw-sr-only" id="coding-slash-help">在空的输入框里输入斜杠打开命令列表，用上下方向键选择，回车执行。</span>
-            <div class="coding-slash" id="coding-slash-menu" data-coding-slash-menu role="listbox" aria-label="命令" hidden></div>
+            <label class="mw-sr-only" for="coding-task">${p.escape(p.text("coding.composer.task-label"))}</label>
+            <textarea class="mw-textarea" id="coding-task" data-coding-task data-fit rows="3" placeholder="${p.escape(p.text("coding.composer.placeholder"))}" aria-describedby="coding-slash-help" disabled></textarea>
+            <span class="mw-sr-only" id="coding-slash-help">${p.escape(p.text("coding.composer.slash-help"))}</span>
+            <div class="coding-slash" id="coding-slash-menu" data-coding-slash-menu role="listbox" aria-label="${p.escape(p.text("coding.slash.label"))}" hidden></div>
             <div class="coding-composer-bar">
               <div class="coding-composer-leading">
-                <div class="coding-attach"><button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-attach-toggle" type="button" data-coding-attach-toggle aria-expanded="false" aria-haspopup="menu" aria-label="添加上下文" title="材料、角色、方法、MCP 与会话设置">${p.icon("plus")}</button>
-                  <div class="coding-attach-menu" data-coding-attach-menu role="menu" hidden><div class="coding-composer-context" aria-label="补充上下文">${renderButton({label:"项目资料",icon:"paperclip",variant:"ghost",attrs:{"data-coding-material-open":"","aria-label":"选择项目资料",role:"menuitem"}})}${renderButton({label:"角色",icon:"user",variant:"ghost",attrs:{"data-coding-character-open":"","aria-label":"选择角色",role:"menuitem"}})}${renderButton({label:"方法",icon:"list",variant:"ghost",attrs:{"data-coding-method-open":"","aria-label":"选择方法",role:"menuitem"}})}${renderButton({label:"能力",icon:"workflow",variant:"ghost",attrs:{"data-coding-actions-open":"","aria-label":"选择动作能力",role:"menuitem"}})}${renderButton({label:"MCP 工具与资料",icon:"network",variant:"ghost",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料",role:"menuitem"}})}${renderButton({label:"委派给新会话",icon:"share",variant:"ghost",attrs:{"data-coding-delegate-open":"","aria-label":"把一部分任务委派给新会话",role:"menuitem"}})}</div>
-                  ${renderButton({label:"工作区与目标",icon:"tune",variant:"ghost",attrs:{"data-coding-context-toggle":"","aria-expanded":false,title:"工作区与目标",role:"menuitem"}})}</div></div>
-                <select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="plan">规划</option><option value="collaborate">协作</option><option value="parallel" disabled>并行写入</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
-                <select class="mw-select" data-coding-model aria-label="使用的模型"></select><span class="coding-effort" data-coding-effort-wrap hidden><select class="mw-select" data-coding-effort aria-label="思考力度" title="这一轮每次模型调用的思考力度；只在模型设置里标注可调的模型上出现"><option value="">默认力度</option><option value="low">快速</option><option value="medium">平衡</option><option value="high">深入</option></select></span><button class="mw-btn mw-btn--ghost" type="button" data-coding-model-switch hidden>本轮改用</button>
-                <button class="mw-btn mw-btn--ghost" type="button" data-coding-pause title="当前这一步做完后暂停，可随时恢复" hidden>暂停</button><button class="mw-btn mw-btn--danger-outline" type="button" data-coding-stop title="停止这一轮" hidden>停止</button>
+                <div class="coding-attach"><button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-attach-toggle" type="button" data-coding-attach-toggle aria-expanded="false" aria-haspopup="menu" aria-label="${p.escape(p.text("coding.attach.label"))}" title="${p.escape(p.text("coding.attach.title"))}">${p.icon("plus")}</button>
+                  <div class="coding-attach-menu" data-coding-attach-menu role="menu" hidden><div class="coding-composer-context" aria-label="${p.escape(p.text("coding.attach.menu"))}">${renderButton({label:p.text("coding.attach.material"),icon:"paperclip",variant:"ghost",attrs:{"data-coding-material-open":"","aria-label":p.text("coding.attach.material-label"),role:"menuitem"}})}${renderButton({label:p.text("coding.attach.character"),icon:"user",variant:"ghost",attrs:{"data-coding-character-open":"","aria-label":p.text("coding.character.title"),role:"menuitem"}})}${renderButton({label:p.text("coding.attach.method"),icon:"list",variant:"ghost",attrs:{"data-coding-method-open":"","aria-label":p.text("coding.method.title"),role:"menuitem"}})}${renderButton({label:p.text("coding.attach.actions"),icon:"workflow",variant:"ghost",attrs:{"data-coding-actions-open":"","aria-label":p.text("coding.actions.label"),role:"menuitem"}})}${renderButton({label:p.text("coding.attach.mcp"),icon:"network",variant:"ghost",attrs:{"data-coding-mcp-open":"","aria-label":p.text("coding.mcp.title"),role:"menuitem"}})}${renderButton({label:p.text("coding.delegate.title"),icon:"share",variant:"ghost",attrs:{"data-coding-delegate-open":"","aria-label":p.text("coding.attach.delegate-label"),role:"menuitem"}})}</div>
+                  ${renderButton({label:p.text("coding.attach.context"),icon:"tune",variant:"ghost",attrs:{"data-coding-context-toggle":"","aria-expanded":false,title:p.text("coding.attach.context"),role:"menuitem"}})}</div></div>
+                <select class="mw-select" data-coding-intent aria-label="${p.escape(p.text("coding.intent.label"))}"><option value="discuss">${p.escape(p.text("coding.intent.discuss"))}</option><option value="plan">${p.escape(p.text("coding.intent.plan"))}</option><option value="collaborate">${p.escape(p.text("coding.intent.collaborate"))}</option><option value="parallel" disabled>${p.escape(p.text("coding.intent.parallel"))}</option><option value="edit" disabled>${p.escape(p.text("coding.intent.edit-pending"))}</option><option value="execute" disabled>${p.escape(p.text("coding.intent.execute-pending"))}</option><option value="review">${p.escape(p.text("coding.intent.review"))}</option></select>
+                <select class="mw-select" data-coding-model aria-label="${p.escape(p.text("coding.model.label"))}"></select><span class="coding-effort" data-coding-effort-wrap hidden><select class="mw-select" data-coding-effort aria-label="${p.escape(p.text("coding.effort.label"))}" title="${p.escape(p.text("coding.effort.title"))}"><option value="">${p.escape(p.text("coding.effort.default"))}</option><option value="low">${p.escape(p.text("coding.effort.low"))}</option><option value="medium">${p.escape(p.text("coding.effort.medium"))}</option><option value="high">${p.escape(p.text("coding.effort.high"))}</option></select></span><button class="mw-btn mw-btn--ghost" type="button" data-coding-model-switch hidden>${p.escape(p.text("coding.model.switch"))}</button>
+                <button class="mw-btn mw-btn--ghost" type="button" data-coding-pause title="${p.escape(p.text("coding.run.pause-title"))}" hidden>${p.escape(p.text("coding.run.pause"))}</button><button class="mw-btn mw-btn--danger-outline" type="button" data-coding-stop title="${p.escape(p.text("coding.run.stop-title"))}" hidden>${p.escape(p.text("coding.run.stop"))}</button>
               </div>
               <div class="coding-meter" data-coding-meter hidden>
-                <button class="mw-btn mw-btn--ghost coding-meter-toggle" type="button" data-coding-meter-toggle aria-expanded="false" aria-controls="coding-meter-panel" title="上下文与用量"><svg class="coding-meter-ring" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"></circle><circle cx="10" cy="10" r="8" data-coding-meter-fill></circle></svg><span data-coding-meter-label>上下文</span></button>
-                <div class="coding-meter-panel" id="coding-meter-panel" data-coding-meter-panel role="region" aria-label="上下文与用量" hidden></div>
+                <button class="mw-btn mw-btn--ghost coding-meter-toggle" type="button" data-coding-meter-toggle aria-expanded="false" aria-controls="coding-meter-panel" title="${p.escape(p.text("coding.meter.title"))}"><svg class="coding-meter-ring" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"></circle><circle cx="10" cy="10" r="8" data-coding-meter-fill></circle></svg><span data-coding-meter-label>${p.escape(p.text("coding.meter.label"))}</span></button>
+                <div class="coding-meter-panel" id="coding-meter-panel" data-coding-meter-panel role="region" aria-label="${p.escape(p.text("coding.meter.title"))}" hidden></div>
               </div>
-              <span data-coding-mode hidden><select class="mw-select" data-coding-send-mode aria-label="补充要求什么时候交给 AI" title="补充：当前回复或这批工具结束后交给 AI。打断：丢掉 AI 正在写的回复，按你的话接着做，已执行的操作不撤销。下一轮：这一轮不读，下一轮开始时带上。"><option value="next-boundary">补充：这步做完后读</option><option value="interrupt">打断：丢弃当前回复</option><option value="after-run">下一轮再做</option></select></span><button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>发送</button>
+              <span data-coding-mode hidden><select class="mw-select" data-coding-send-mode aria-label="${p.escape(p.text("coding.send-mode.label"))}" title="${p.escape(p.text("coding.send-mode.title"))}"><option value="next-boundary">${p.escape(p.text("coding.send-mode.next-boundary"))}</option><option value="interrupt">${p.escape(p.text("coding.send-mode.interrupt"))}</option><option value="after-run">${p.escape(p.text("coding.send-mode.after-run"))}</option></select></span><button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>${p.escape(p.text("coding.composer.send"))}</button>
             </div>
           </div>
-          <a class="mw-btn mw-btn--ghost coding-model-setup" data-coding-model-setup href="/settings/models" hidden>打开模型设置</a><div class="coding-composer-footnote"><small data-coding-draft-status>模型与方式的选择用于下一轮。</small><small class="coding-model-note" data-coding-model-note hidden></small><span class="coding-composer-keys"><kbd class="mw-kbd" title="在空的输入框里输入 / 查看命令">/ 命令</kbd><kbd class="mw-kbd" title="Command 或 Ctrl + Shift + P 打开命令面板">⇧⌘P 面板</kbd><kbd class="mw-kbd" title="Command 或 Ctrl + Enter 发送">⌘ / Ctrl ↵</kbd></span></div>
+          <a class="mw-btn mw-btn--ghost coding-model-setup" data-coding-model-setup href="/settings/models" hidden>${p.escape(p.text("coding.model.open-settings"))}</a><div class="coding-composer-footnote"><small data-coding-draft-status>${p.escape(p.text("coding.composer.draft-note"))}</small><small class="coding-model-note" data-coding-model-note hidden></small><span class="coding-composer-keys"><kbd class="mw-kbd" title="${p.escape(p.text("coding.keys.slash-title"))}">${p.escape(p.text("coding.keys.slash"))}</kbd><kbd class="mw-kbd" title="${p.escape(p.text("coding.keys.palette-title"))}">${p.escape(p.text("coding.keys.palette"))}</kbd><kbd class="mw-kbd" title="${p.escape(p.text("coding.keys.send-title"))}">⌘ / Ctrl ↵</kbd></span></div>
         </form>
       </div>
       <aside class="coding-tools" data-coding-tools>
-        <nav class="coding-tool-tabs mw-toolbar" aria-label="${p.escape("结果与工具")}"><h3 class="coding-tools-title">结果与审查</h3>${tools}<button class="mw-btn mw-btn--ghost coding-results-close" type="button" data-coding-results-close aria-label="返回会话" title="返回会话">${p.icon("x")}</button></nav>
-        <nav class="coding-results-index" data-coding-results-index aria-label="结果分区" hidden></nav>
+        <nav class="coding-tool-tabs mw-toolbar" aria-label="${p.escape(p.text("coding.results.tools"))}"><h3 class="coding-tools-title">${p.escape(p.text("coding.results.title"))}</h3>${tools}<button class="mw-btn mw-btn--ghost coding-results-close" type="button" data-coding-results-close aria-label="${p.escape(p.text("coding.results.back"))}" title="${p.escape(p.text("coding.results.back"))}">${p.icon("x")}</button></nav>
+        <nav class="coding-results-index" data-coding-results-index aria-label="${p.escape(p.text("coding.results.index"))}" hidden></nav>
         ${model.companion_result ?? ""}
-        <section class="coding-result" data-coding-subagents aria-label="子任务" hidden></section>
-        <section class="coding-result coding-cooperation" data-coding-cooperation aria-label="协作与相关会话" hidden></section>
-        <section class="coding-result coding-background" data-coding-background aria-label="后台命令" hidden></section>
-        <section class="coding-result" data-coding-plan aria-label="计划" hidden></section>
-        <section class="coding-result" data-coding-recovery hidden aria-label="中断恢复">
-          <h3>核对中断结果</h3>
-          <p>先核对已发生的操作，再结束中断轮次。不会自动重跑任务或撤销操作；未保存的过程和用量无法补回。</p>
-          <button class="mw-btn" type="button" data-coding-recovery-refresh>重新核对</button>
+        <section class="coding-result" data-coding-subagents aria-label="${p.escape(p.text("coding.results.subagents"))}" hidden></section>
+        <section class="coding-result coding-cooperation" data-coding-cooperation aria-label="${p.escape(p.text("coding.results.cooperation"))}" hidden></section>
+        <section class="coding-result coding-background" data-coding-background aria-label="${p.escape(p.text("coding.results.background"))}" hidden></section>
+        <section class="coding-result" data-coding-plan aria-label="${p.escape(p.text("coding.results.plan"))}" hidden></section>
+        <section class="coding-result" data-coding-recovery hidden aria-label="${p.escape(p.text("coding.results.recovery"))}">
+          <h3>${p.escape(p.text("coding.recovery.title"))}</h3>
+          <p>${p.escape(p.text("coding.recovery.note"))}</p>
+          <button class="mw-btn" type="button" data-coding-recovery-refresh>${p.escape(p.text("coding.recovery.refresh"))}</button>
           <p data-coding-recovery-status role="status"></p><div data-coding-recovery-list></div>
         </section>
-        <div data-coding-host-reviews hidden aria-label="审查"></div><div class="coding-result coding-facts" data-coding-result aria-label="本轮概况"><p>任务成果与执行记录会留在这里，方便审查和继续。</p></div>
-        <section class="coding-result coding-outcomes" data-coding-outcomes hidden aria-labelledby="coding-outcomes-title"><h3 id="coding-outcomes-title">每轮成果</h3><div data-coding-outcome-list></div></section>
+        <div data-coding-host-reviews hidden aria-label="${p.escape(p.text("coding.results.reviews"))}"></div><div class="coding-result coding-facts" data-coding-result aria-label="${p.escape(p.text("coding.results.facts"))}"><p>${p.escape(p.text("coding.result.empty"))}</p></div>
+        <section class="coding-result coding-outcomes" data-coding-outcomes hidden aria-labelledby="coding-outcomes-title"><h3 id="coding-outcomes-title">${p.escape(p.text("coding.outcomes.title"))}</h3><div data-coding-outcome-list></div></section>
         <section class="coding-change" data-coding-change-reader aria-labelledby="coding-change-title" hidden>
           <header class="coding-change-head">
-            <div class="coding-change-heading"><h3 id="coding-change-title">本轮变更</h3><p data-coding-change-summary></p></div>
-            <div class="coding-change-actions"><div class="mw-toggle-group coding-change-layout" data-slot="toggle-group" role="group" aria-label="对比方式"><button type="button" class="mw-toggle is-current" aria-pressed="true" data-coding-change-layout="unified">统一</button><button type="button" class="mw-toggle" aria-pressed="false" data-coding-change-layout="split">并排</button></div><button class="mw-btn mw-btn--ghost" type="button" data-coding-change-patch disabled title="复制这个文件改动的统一补丁，可以用 git apply 应用">复制补丁</button>
+            <div class="coding-change-heading"><h3 id="coding-change-title">${p.escape(p.text("coding.change.title"))}</h3><p data-coding-change-summary></p></div>
+            <div class="coding-change-actions"><div class="mw-toggle-group coding-change-layout" data-slot="toggle-group" role="group" aria-label="${p.escape(p.text("coding.change.layout"))}"><button type="button" class="mw-toggle is-current" aria-pressed="true" data-coding-change-layout="unified">${p.escape(p.text("coding.change.layout.unified"))}</button><button type="button" class="mw-toggle" aria-pressed="false" data-coding-change-layout="split">${p.escape(p.text("coding.change.layout.split"))}</button></div><button class="mw-btn mw-btn--ghost" type="button" data-coding-change-patch disabled title="${p.escape(p.text("coding.change.copy-patch-title"))}">${p.escape(p.text("coding.change.copy-patch"))}</button>
               <span class="coding-change-fixed" data-coding-change-fixed hidden>${p.icon("lock")}<span></span></span>
-              <button class="mw-btn mw-btn--primary" type="button" data-coding-change-save>固定此版本</button>
-              <button class="mw-btn mw-btn--ghost" type="button" data-coding-change-output disabled>设为变更输出</button>
-              <button class="mw-btn mw-btn--ghost coding-change-close" type="button" data-coding-change-close aria-label="收起变更" title="收起变更">${p.icon("x")}</button>
+              <button class="mw-btn mw-btn--primary" type="button" data-coding-change-save>${p.escape(p.text("coding.change.save"))}</button>
+              <button class="mw-btn mw-btn--ghost" type="button" data-coding-change-output disabled>${p.escape(p.text("coding.change.set-output"))}</button>
+              <button class="mw-btn mw-btn--ghost coding-change-close" type="button" data-coding-change-close aria-label="${p.escape(p.text("coding.change.close"))}" title="${p.escape(p.text("coding.change.close"))}">${p.icon("x")}</button>
             </div>
           </header>
           <p class="coding-change-status" data-coding-change-status role="status"></p>
-          <nav class="coding-change-files" data-coding-change-files aria-label="本轮文件写入"></nav>
+          <nav class="coding-change-files" data-coding-change-files aria-label="${p.escape(p.text("coding.change.files"))}"></nav>
           <div class="coding-change-body" data-coding-change-body></div>
-          <p class="coding-change-note">这里只有经过审查的文件写入，包括未执行的提案；命令与检查请看执行记录。</p>
+          <p class="coding-change-note">${p.escape(p.text("coding.change.note"))}</p>
           <section class="coding-change-feedback" aria-labelledby="coding-feedback-title">
-            <header><h4 id="coding-feedback-title">行级意见</h4><span data-coding-feedback-count></span></header>
-            <p data-coding-feedback-hint>固定此版本后，点击行号即可留下意见。</p>
+            <header><h4 id="coding-feedback-title">${p.escape(p.text("coding.feedback.title"))}</h4><span data-coding-feedback-count></span></header>
+            <p data-coding-feedback-hint>${p.escape(p.text("coding.feedback.hint"))}</p>
             <div data-coding-feedback-list></div>
-            <div class="coding-change-feedback-foot"><button class="mw-btn mw-btn--primary" type="button" data-coding-feedback-return disabled>加入原任务草稿</button></div>
+            <div class="coding-change-feedback-foot"><button class="mw-btn mw-btn--primary" type="button" data-coding-feedback-return disabled>${p.escape(p.text("coding.feedback.return"))}</button></div>
           </section>
         </section>
-        <section class="coding-result coding-commands" data-coding-commands aria-labelledby="coding-commands-title" hidden><h3 id="coding-commands-title">命令回执</h3></section>
-        <section class="coding-result" data-coding-checkpoints aria-label="文件检查点">
-          <details class="coding-checkpoints"><summary>文件检查点</summary><p>回到所列文件的一次修改前；不会撤销命令和外部操作，也不会删除对话。</p>
-          <button class="mw-btn" type="button" data-coding-checkpoints-refresh>刷新检查点</button>
-          <p data-coding-checkpoints-status role="status">选择会话后查看。</p><div data-coding-checkpoints-list></div></details>
+        <section class="coding-result coding-commands" data-coding-commands aria-labelledby="coding-commands-title" hidden><h3 id="coding-commands-title">${p.escape(p.text("coding.commands.title"))}</h3></section>
+        <section class="coding-result" data-coding-checkpoints aria-label="${p.escape(p.text("coding.checkpoints.title"))}">
+          <details class="coding-checkpoints"><summary>${p.escape(p.text("coding.checkpoints.title"))}</summary><p>${p.escape(p.text("coding.checkpoints.note"))}</p>
+          <button class="mw-btn" type="button" data-coding-checkpoints-refresh>${p.escape(p.text("coding.checkpoints.refresh"))}</button>
+          <p data-coding-checkpoints-status role="status">${p.escape(p.text("coding.checkpoints.choose-session"))}</p><div data-coding-checkpoints-list></div></details>
         </section>${panels}
       </aside>
     </div></div>
@@ -383,13 +383,13 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
 function renderWorkspaceLine(workspacePath: string | null, p: CodingUiPrimitives): string {
   // A project with no workspace bound says so; it never shows a guessed path.
   if (workspacePath === null) {
-    return `<span class="mw-status" data-tone="attention" data-mw-state="unavailable">${p.escape("这个项目还没有绑定工作区目录")}</span>`;
+    return `<span class="mw-status" data-tone="attention" data-mw-state="unavailable">${p.escape(p.text("coding.workspace.unbound"))}</span>`;
   }
   return `<span class="coding-workspace" data-coding-workspace>${p.icon("folder")}${p.escape(workspacePath)}</span>`;
 }
 
 function renderToolTab(tool: CodingToolAvailability, p: CodingUiPrimitives): string {
-  const label = toolLabel(tool.page);
+  const label = toolLabel(tool.page, p);
   // An unusable page keeps its tab, disabled, carrying the reason: hiding it
   // would leave the user wondering where it went.
   return `<button type="button" class="coding-tool-tab" data-coding-tool="${tool.page}"${tool.available ? "" : " disabled"}${tool.reason === undefined ? "" : ` title="${p.escape(tool.reason)}"`}>${p.escape(label)}</button>`;
@@ -398,26 +398,26 @@ function renderToolTab(tool: CodingToolAvailability, p: CodingUiPrimitives): str
 function renderToolPanel(tool: CodingToolAvailability, p: CodingUiPrimitives): string {
   if (!tool.available) {
     return `<div class="coding-tool-panel is-unavailable" data-coding-tool-panel="${tool.page}" hidden>
-      <div class="mw-empty"><span class="mw-empty__mark">${p.icon("blocked")}</span><p>${p.escape(tool.reason ?? "这一页现在不可用")}</p></div>
+      <div class="mw-empty"><span class="mw-empty__mark">${p.icon("blocked")}</span><p>${p.escape(tool.reason ?? p.text("coding.tool.unavailable"))}</p></div>
     </div>`;
   }
   return `<div class="coding-tool-panel" data-coding-tool-panel="${tool.page}" hidden></div>`;
 }
 
-function faceLabel(face: CodingDirectoryFace): string {
-  return CODING_DIRECTORY_FACES.find((entry) => entry.face === face)?.label ?? face;
+function faceLabel(face: CodingDirectoryFace, p: CodingUiPrimitives): string {
+  return p.text(CODING_DIRECTORY_FACES.find((entry) => entry.face === face)?.label ?? face);
 }
 
-function filterLabel(filter: CodingDirectoryFilter): string {
-  if (filter === "all") return "全部";
-  if (filter === "running") return "进行中";
-  return "需要我";
+function filterLabel(filter: CodingDirectoryFilter, p: CodingUiPrimitives): string {
+  if (filter === "all") return p.text("coding.filter.all");
+  if (filter === "running") return p.text("coding.filter.running");
+  return p.text("coding.filter.needs-you");
 }
 
-function toolLabel(page: CodingToolAvailability["page"]): string {
-  if (page === "result") return "结果";
-  if (page === "browser") return "浏览器";
-  if (page === "terminal") return "终端";
+function toolLabel(page: CodingToolAvailability["page"], p: CodingUiPrimitives): string {
+  if (page === "result") return p.text("coding.tool.result");
+  if (page === "browser") return p.text("coding.tool.browser");
+  if (page === "terminal") return p.text("coding.tool.terminal");
   return "Canvas";
 }
 
@@ -455,72 +455,72 @@ export const codingSettingsDescriptor: UiContributionDescriptor = {
  */
 export function renderCodingSettings(model: CodingSettingsModel): string {
   const { primitives: p } = model;
-  const roles = model.roles.map((role) => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(role.name)}</strong><span>${p.escape(role.role_id === "writers" ? "主任务只读；已分配子目录逐笔审查写入" : role.role_id === "coordinator" ? "只读子任务协作" : executionLabel(role.execution))}</span></div></div>`).join("");
+  const roles = model.roles.map((role) => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(p.text(role.name))}</strong><span>${p.escape(role.role_id === "writers" ? p.text("coding.settings.role.writers") : role.role_id === "coordinator" ? p.text("coding.settings.role.coordinator") : executionLabel(role.execution, p))}</span></div></div>`).join("");
   const runtimes = model.runtimes.length === 0
-    ? `<p class="model-field-hint">${p.escape("宿主还没有注册任何运行时")}</p>`
-    : model.runtimes.map((runtime) => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(runtime.display_name)}</strong><span>${p.escape(runtime.can_write ? runtime.can_command ? "可读取、修改文件和运行命令；写入与命令经过宿主审查。" : "可读取和修改文件；写入经过宿主审查。" : "只读：写入未接宿主审批")}</span><span>${p.escape(runtime.methods === "partial" ? "方法：支持安装和显式选择，执行冻结正文；自动选择尚未接通。" : runtime.methods === "supported" ? "方法：运行时已接通" : "方法：当前运行时不可用")}</span></div></div>`).join("");
-  const methods = (model.methods ?? []).map(method => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(method.name)} · v${method.version}</strong><span>${p.escape(method.summary ?? "")}</span></div></div>`).join("");
+    ? `<p class="model-field-hint">${p.escape(p.text("coding.settings.no-runtimes"))}</p>`
+    : model.runtimes.map((runtime) => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(runtime.display_name)}</strong><span>${p.escape(runtime.can_write ? runtime.can_command ? p.text("coding.settings.runtime.write-command") : p.text("coding.settings.runtime.write") : p.text("coding.settings.runtime.read-only"))}</span><span>${p.escape(runtime.methods === "partial" ? p.text("coding.settings.runtime.methods-partial") : runtime.methods === "supported" ? p.text("coding.settings.runtime.methods-supported") : p.text("coding.settings.runtime.methods-none"))}</span></div></div>`).join("");
+  const methods = (model.methods ?? []).map(method => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(p.text(method.name))} · v${method.version}</strong><span>${p.escape(method.summary ? p.text(method.summary) : "")}</span></div></div>`).join("");
   return `<section class="settings-document coding-settings" data-coding-settings>
     <header class="settings-heading"><div class="settings-heading-title"><h1>${p.escape("Coding")}</h1></div>
-      <p>${p.escape("查看当前可用的执行方式与方法，在编码会话中选择本轮使用的配置。")}</p>
-      <p><a href="/settings/models">${p.escape("配置模型与凭据")}</a>${model.project_href ? ` · <a data-settings-return-workbench href="${p.escape(model.project_href)}?returnToWorkbench=1">${p.escape("返回工作台")}</a>` : ""}</p>
+      <p>${p.escape(p.text("coding.settings.lede"))}</p>
+      <p><a href="/settings/models">${p.escape(p.text("coding.settings.models"))}</a>${model.project_href ? ` · <a data-settings-return-workbench href="${p.escape(model.project_href)}?returnToWorkbench=1">${p.escape(p.text("coding.settings.back"))}</a>` : ""}</p>
     </header>
-    <section class="settings-section" aria-label="${p.escape("角色")}">
-      <h2>${p.escape("内置执行方式")}</h2>
+    <section class="settings-section" aria-label="${p.escape(p.text("coding.attach.character"))}">
+      <h2>${p.escape(p.text("coding.settings.roles"))}</h2>
       ${roles}
     </section>
-    <section class="settings-section" aria-label="${p.escape("运行时")}">
-      <h2>${p.escape("运行时")}</h2>
+    <section class="settings-section" aria-label="${p.escape(p.text("coding.settings.runtimes"))}">
+      <h2>${p.escape(p.text("coding.settings.runtimes"))}</h2>
       ${runtimes}
     </section>
-    <section class="settings-section" aria-label="${p.escape("方法")}">
-      <h2>${p.escape("方法")}</h2>
-      <p>${p.escape("在编码会话输入区点「方法」或输入 /，阅读正文并选择。改选只影响下一轮，执行记录保留当时的版本。")}</p>
+    <section class="settings-section" aria-label="${p.escape(p.text("coding.attach.method"))}">
+      <h2>${p.escape(p.text("coding.attach.method"))}</h2>
+      <p>${p.escape(p.text("coding.settings.methods-help"))}</p>
       ${methods}
-      <h3>项目方法</h3>
+      <h3>${p.escape(p.text("coding.settings.project-methods"))}</h3>
       ${model.project_href ? `<div data-coding-method-library data-prefix="${p.escape(model.project_href)}">
-        <p>当前项目：${p.escape(model.project_name ?? "当前项目")} · <a href="/settings/coding-settings">切换项目</a></p>
-        <p>方法保存在当前项目，安装后需在会话中选择。安装不执行包内脚本，不增加工具权限；同名方法不会覆盖。</p>
+        <p>${p.escape(p.text("coding.settings.project-line", { name: model.project_name ?? p.text("coding.settings.current-project") }))} · <a href="/settings/coding-settings">${p.escape(p.text("coding.settings.switch-project"))}</a></p>
+        <p>${p.escape(p.text("coding.settings.methods-note"))}</p>
         <form data-method-discovery-form class="mw-form-stack">
-          <label class="mw-field">授权工作区<select class="mw-select" data-method-workspace aria-label="方法来源工作区"></select></label>
-          <label class="mw-field">相对目录<input class="mw-input" data-method-path aria-label="方法相对目录" value="skills" required maxlength="1000"></label>
-          <div>${renderButton({ label: "发现方法", type: "submit", disabled: true, attrs: { "data-method-discover": "" } })}</div>
+          <label class="mw-field">${p.escape(p.text("coding.settings.granted-workspace"))}<select class="mw-select" data-method-workspace aria-label="${p.escape(p.text("coding.settings.method-workspace"))}"></select></label>
+          <label class="mw-field">${p.escape(p.text("coding.settings.relative-dir"))}<input class="mw-input" data-method-path aria-label="${p.escape(p.text("coding.settings.method-path"))}" value="skills" required maxlength="1000"></label>
+          <div>${renderButton({ label: p.text("coding.settings.discover"), type: "submit", disabled: true, attrs: { "data-method-discover": "" } })}</div>
         </form>
-        <p data-method-library-status role="status">正在读取项目方法…</p>
+        <p data-method-library-status data-method-library-loading role="status">${p.escape(p.text("coding.settings.methods-loading"))}</p>
         <div data-method-candidates></div>
-        <h3>已安装</h3><div data-installed-methods></div>
+        <h3>${p.escape(p.text("coding.settings.installed"))}</h3><div data-installed-methods></div>
       </div>
       <section data-coding-mcp-settings data-prefix="${p.escape(model.project_href)}">
-        <h2>MCP 服务</h2><p>配置归当前项目。保存后手动连接，再在会话中选择工具；外部工具调用经过宿主审查。</p>
+        <h2>${p.escape(p.text("coding.settings.mcp.title"))}</h2><p>${p.escape(p.text("coding.settings.mcp.note"))}</p>
         <div data-mcp-servers></div>
-        <h3 data-mcp-form-title>添加 MCP 服务</h3>
+        <h3 data-mcp-form-title>${p.escape(p.text("coding.settings.mcp.add"))}</h3>
         <form data-mcp-config class="mw-form-stack">
-          <label class="mw-field">名称<input class="mw-input" name="label" required maxlength="128" aria-label="MCP 名称"></label>
-          <label class="mw-field">连接方式<select class="mw-select" name="transport" aria-label="MCP 连接方式"><option value="http">已授权账号 / HTTP</option><option value="stdio">本机进程（stdio）</option></select></label>
+          <label class="mw-field">${p.escape(p.text("coding.settings.mcp.name"))}<input class="mw-input" name="label" required maxlength="128" aria-label="${p.escape(p.text("coding.settings.mcp.name-label"))}"></label>
+          <label class="mw-field">${p.escape(p.text("coding.settings.mcp.transport"))}<select class="mw-select" name="transport" aria-label="${p.escape(p.text("coding.settings.mcp.transport-label"))}"><option value="http">${p.escape(p.text("coding.settings.mcp.transport.http"))}</option><option value="stdio">${p.escape(p.text("coding.settings.mcp.transport.stdio"))}</option></select></label>
           <div data-mcp-stdio class="mw-form-stack">
-            <label class="mw-field">授权工作区<select class="mw-select" name="workspace" aria-label="MCP 工作区"></select></label>
-            <label class="mw-field">可执行文件<input class="mw-input" name="executable" aria-label="MCP 可执行文件"></label>
-            <label class="mw-field">参数（JSON 数组）<textarea class="mw-textarea" name="argv" aria-label="MCP 参数">[]</textarea></label>
-            <p>连接会启动此命令。不继承任意环境变量；请使用已确认的本机服务，不填写 shell 拼接语句。</p>
+            <label class="mw-field">${p.escape(p.text("coding.settings.granted-workspace"))}<select class="mw-select" name="workspace" aria-label="${p.escape(p.text("coding.settings.mcp.workspace-label"))}"></select></label>
+            <label class="mw-field">${p.escape(p.text("coding.settings.mcp.executable"))}<input class="mw-input" name="executable" aria-label="${p.escape(p.text("coding.settings.mcp.executable-label"))}"></label>
+            <label class="mw-field">${p.escape(p.text("coding.settings.mcp.argv"))}<textarea class="mw-textarea" name="argv" aria-label="${p.escape(p.text("coding.settings.mcp.argv-label"))}">[]</textarea></label>
+            <p>${p.escape(p.text("coding.settings.mcp.stdio-note"))}</p>
           </div>
           <div data-mcp-http class="mw-form-stack" hidden>
-            <label class="mw-field">服务地址<input class="mw-input" name="endpoint" aria-label="MCP 地址" placeholder="https://example.com/mcp"></label>
-            <label class="mw-field">认证<select class="mw-select" name="auth" aria-label="MCP 认证"><option value="none">无认证</option><option value="connection">选择 Connector 连接</option><option value="keep-existing">保留原凭据</option></select></label>
-            <label class="mw-field">账号连接<select class="mw-select" name="auth_connection_id" aria-label="MCP 账号连接"><option value="">选择连接</option></select></label><p>选择已授权的官方工具会自动填写服务地址。保存并连接后，在会话中选择本轮允许使用的工具。</p><a href="/capabilities/connections">连接官方工具或管理远程 MCP 密钥</a>
+            <label class="mw-field">${p.escape(p.text("coding.settings.mcp.endpoint"))}<input class="mw-input" name="endpoint" aria-label="${p.escape(p.text("coding.settings.mcp.endpoint-label"))}" placeholder="https://example.com/mcp"></label>
+            <label class="mw-field">${p.escape(p.text("coding.settings.mcp.auth"))}<select class="mw-select" name="auth" aria-label="${p.escape(p.text("coding.settings.mcp.auth-label"))}"><option value="none">${p.escape(p.text("coding.settings.mcp.auth.none"))}</option><option value="connection">${p.escape(p.text("coding.settings.mcp.auth.connection"))}</option><option value="keep-existing">${p.escape(p.text("coding.settings.mcp.auth.keep"))}</option></select></label>
+            <label class="mw-field">${p.escape(p.text("coding.settings.mcp.account"))}<select class="mw-select" name="auth_connection_id" aria-label="${p.escape(p.text("coding.settings.mcp.account-label"))}"><option value="">${p.escape(p.text("coding.settings.mcp.choose-connection"))}</option></select></label><p>${p.escape(p.text("coding.settings.mcp.http-note"))}</p><a href="/capabilities/connections">${p.escape(p.text("coding.settings.mcp.connections"))}</a>
           </div>
-          <label class="mw-field">请求超时（毫秒）<input class="mw-input" type="number" name="timeout" value="30000" min="1000" max="600000" aria-label="MCP 超时"></label>
-          <label class="mw-check-row"><input class="mw-check" type="checkbox" name="enabled" checked>启用此配置</label>
-          <div>${renderButton({label:"保存 MCP",type:"submit"})} ${renderButton({label:"取消编辑",variant:"ghost",attrs:{"data-mcp-reset":""}})}</div>
-        </form><p role="status" data-mcp-status>正在读取 MCP 配置…</p>
-      </section>` : `<p>选择方法所属项目：</p><ul>${(model.projects ?? []).map(project => `<li><a href="/settings/coding-settings?project=${encodeURIComponent(project.project_id)}">${p.escape(project.name)}</a></li>`).join("")}</ul>`}
+          <label class="mw-field">${p.escape(p.text("coding.settings.mcp.timeout"))}<input class="mw-input" type="number" name="timeout" value="30000" min="1000" max="600000" aria-label="${p.escape(p.text("coding.settings.mcp.timeout-label"))}"></label>
+          <label class="mw-check-row"><input class="mw-check" type="checkbox" name="enabled" checked>${p.escape(p.text("coding.settings.mcp.enabled"))}</label>
+          <div>${renderButton({label:p.text("coding.settings.mcp.save"),type:"submit"})} ${renderButton({label:p.text("coding.settings.mcp.reset"),variant:"ghost",attrs:{"data-mcp-reset":""}})}</div>
+        </form><p role="status" data-mcp-status>${p.escape(p.text("coding.settings.mcp.loading"))}</p>
+      </section>` : `<p>${p.escape(p.text("coding.settings.choose-project"))}</p><ul>${(model.projects ?? []).map(project => `<li><a href="/settings/coding-settings?project=${encodeURIComponent(project.project_id)}">${p.escape(project.name)}</a></li>`).join("")}</ul>`}
     </section>
   </section>`;
 }
 
-function executionLabel(execution: string): string {
-  if (execution === "read-only") return "只读，给建议";
-  if (execution === "text-edit") return "可改文件，每处写入都要你批准";
-  return "可改文件并运行命令";
+function executionLabel(execution: string, p: CodingUiPrimitives): string {
+  if (execution === "read-only") return p.text("coding.settings.execution.read-only");
+  if (execution === "text-edit") return p.text("coding.settings.execution.text-edit");
+  return p.text("coding.settings.execution.command");
 }
 
 export const codingSettingsContribution: UiContribution<CodingSettingsModel> = {
@@ -544,11 +544,11 @@ export interface CodingReviewCardModel {
 }
 
 const REVIEW_KIND_LABEL: Record<CodingPendingReview["kind"], string> = {
-  "text-edit": "改文件",
-  command: "跑命令",
-  "tool-operation": "工具操作",
-  mcp: "外部工具",
-  rewind: "回退检查点",
+  "text-edit": "coding.review.text-edit",
+  command: "coding.review.command",
+  "tool-operation": "coding.review.tool-operation",
+  mcp: "coding.review.mcp",
+  rewind: "coding.review.rewind",
 };
 
 /**
@@ -565,17 +565,17 @@ export function renderPendingReviewCard(model: CodingReviewCardModel): string {
   const { primitives: p } = model;
   if (model.pending.length === 0) return "";
   const items = model.pending.slice(0, 3).map((review) => `<li>
-    <span class="coding-review-kind">${p.escape(REVIEW_KIND_LABEL[review.kind])}</span>
+    <span class="coding-review-kind">${p.escape(p.text(REVIEW_KIND_LABEL[review.kind]))}</span>
     <span class="coding-review-summary">${p.escape(review.summary)}</span>
   </li>`).join("");
   const more = model.pending.length > 3
-    ? `<li class="coding-review-more">${p.escape(`还有 ${model.pending.length - 3} 项`)}</li>`
+    ? `<li class="coding-review-more">${p.escape(p.text("coding.review.more", { count: model.pending.length - 3 }))}</li>`
     : "";
   return `<aside class="coding-review-card" data-coding-review-card>
-    <div class="mw-status" data-tone="attention" data-mw-state="approval">${p.escape(`${model.pending.length} 项操作等你决定`)}</div>
+    <div class="mw-status" data-tone="attention" data-mw-state="approval">${p.escape(p.text("coding.review.waiting", { count: model.pending.length }))}</div>
     <ul class="coding-review-list">${items}${more}</ul>
-    <a class="mw-button mw-button--primary" href="${p.escape(model.review_href)}" data-coding-review-open>${p.escape("查看并处理")}</a>
-    <p class="coding-review-note">${p.escape("在你批准之前，这些操作不会发生。批准在宿主的审查面里做。")}</p>
+    <a class="mw-button mw-button--primary" href="${p.escape(model.review_href)}" data-coding-review-open>${p.escape(p.text("coding.review.open"))}</a>
+    <p class="coding-review-note">${p.escape(p.text("coding.review.note"))}</p>
   </aside>`;
 }
 
@@ -599,7 +599,7 @@ export function renderCodingReport(model: CodingReportModel): string {
   return `<article class="coding-report" data-coding-report="${p.escape(model.run_id)}">
     <header class="coding-report-head">
       <h1>${p.escape(model.title)}</h1>
-      <p class="coding-report-source">${p.escape(`来自本轮执行 ${model.run_id}`)}</p>
+      <p class="coding-report-source">${p.escape(p.text("coding.report.source", { run: model.run_id }))}</p>
     </header>
     <div class="coding-report-body mw-prose">${model.body_html}</div>
   </article>`;
@@ -636,7 +636,7 @@ export function renderCodingIdentity(model: CodingIdentityModel): string {
       + `${body}</section>`;
   }).join("");
   const tools = identity.host_tools.length === 0
-    ? `<span class="coding-identity-tools" data-empty="true">${p.escape("这一轮不能调用任何工具")}</span>`
+    ? `<span class="coding-identity-tools" data-empty="true">${p.escape(p.text("coding.identity.no-tools"))}</span>`
     : `<span class="coding-identity-tools">${identity.host_tools.map((tool) => p.escape(tool)).join(" · ")}</span>`;
   return `<article class="coding-identity" data-role="${p.escape(identity.role_id)}" data-editable="false">
     <header class="coding-identity-head">
@@ -666,7 +666,7 @@ export function renderCodingUsage(model: CodingUsageModel): string {
     : usage.unavailable_reason === undefined;
   const state = !hasKnown ? "unknown" : usage.unavailable_reason ? "partial" : "known";
   return `<div class="coding-usage" data-coding-usage="${state}">
-    ${hasKnown ? "" : `<span class="mw-status" data-tone="idle">${p.icon("help-circle")}${p.escape("用量未知")}</span>`}
-    <span class="coding-usage-why">${p.escape(codingUsageSummary(usage))}</span>
+    ${hasKnown ? "" : `<span class="mw-status" data-tone="idle">${p.icon("help-circle")}${p.escape(p.text("coding.usage.unknown"))}</span>`}
+    <span class="coding-usage-why">${p.escape(codingUsageSummary(usage, p.text))}</span>
   </div>`;
 }

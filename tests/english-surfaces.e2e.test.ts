@@ -10,7 +10,9 @@ import { TEXT_WRAP_AUDIT, type TextWrapIssue } from "./fixtures/text-wrap-audit.
 // Goals' status words (the projection words them in Chinese), Jelly's fixed "uncategorized" category, and the Files, Git,
 // Diff and Text Stats pages with the shell around them used to stay Chinese in English. What a person wrote (Goal titles,
 // project names) is theirs and is not checked. The same places in Chinese still say it in Chinese, and the longer English
-// fits where the Chinese did.
+// fits where the Chinese did. The Coding page's markup (its dialogs, composer, results and settings, which the Host draws
+// before Coding's script fills them) is checked the same way, hidden parts included, and then the page as Coding's own script
+// fills it: with no session open and with a fresh one, its attach menu and results column showing.
 
 /** Visible text and labels with Chinese characters inside the elements `selector` finds. */
 const HAN_IN = (selector: string) => `(() => {
@@ -98,4 +100,46 @@ test("VUX-40: with a real repository, Git's changes, branches, commit and confli
   await waitFor("!document.querySelector('[data-companion=files] [data-files-text]').hidden", 20_000);
   assert.deepEqual(await evaluate<string[]>(HAN_IN("[data-companion=files]")), [], "Files reader in English");
   assert.deepEqual((await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill"), [], "Files reader in English fits");
+});
+
+/** Chinese in the markup the Host sent for `selector` (text, every attribute and template contents, shown or not). */
+const HAN_IN_MARKUP = (url: string, selector: string) => `(async () => {
+  const page = new DOMParser().parseFromString(await (await fetch(${JSON.stringify(url)})).text(), 'text/html');
+  const out = [], han = /[\\u4e00-\\u9fff]/, scopes = [...page.querySelectorAll(${JSON.stringify(selector)})];
+  for (const t of [...scopes.flatMap((scope) => [...scope.querySelectorAll('template')])]) scopes.push(t.content);
+  for (const scope of scopes) {
+    const walk = page.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+    for (let node; (node = walk.nextNode());) if (han.test(node.data)) out.push(node.data.trim());
+    for (const el of [...(scope.attributes ? [scope] : []), ...scope.querySelectorAll('*')]) for (const { name, value } of el.attributes) if (han.test(value)) out.push('@' + name + ' ' + value);
+  }
+  return { found: scopes.length > 0, han: [...new Set(out)] };
+})()`;
+
+test("VUX-40: the Coding page, its own script's words and Coding settings speak English in English", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const { evaluate, waitFor, navigate, command, sessionId, origin, projectId } = browser;
+  const coding = `${origin}/projects/${projectId}/?openPlugin=coding`, settings = `${origin}/settings/coding-settings?project=${projectId}`;
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  const zh = await evaluate<{ found: boolean; han: string[] }>(HAN_IN_MARKUP(coding, "[data-coding-workbench]"));
+  assert.ok(zh.found && zh.han.includes("和 Agent 一起写代码"), "Coding in Chinese says 「和 Agent 一起写代码」");
+  assert.ok((await evaluate<{ han: string[] }>(HAN_IN_MARKUP(settings, "[data-coding-settings]"))).han.includes("内置执行方式"));
+  await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=en&next=%2F` }, sessionId));
+  assert.deepEqual(await evaluate(HAN_IN_MARKUP(coding, "[data-coding-workbench]")), { found: true, han: [] }, "Coding in English");
+  // The project's name is the person's own; the line around it is English.
+  const inSettings = await evaluate<{ found: boolean; han: string[] }>(HAN_IN_MARKUP(settings, "[data-coding-settings]"));
+  assert.deepEqual(inSettings.han.filter((line) => !/^Current project: .+ ·$/.test(line)), [], "Coding settings in English");
+  assert.equal(inSettings.han.length, 1, "the current project line is there, in English");
+  // Coding's own script fills the page in English too: the session list, the composer's controls and the results column.
+  await navigate(() => command("Page.navigate", { url: coding }, sessionId));
+  await waitFor("document.querySelector('[data-coding-workbench] [data-coding-model] option')", 30_000);
+  assert.deepEqual(await evaluate(HAN_IN("[data-coding-workbench]")), [], "Coding with no session open, in English");
+  assert.ok((await evaluate<string>("document.querySelector('[data-coding-workbench] .coding-start').textContent")).includes("Write code with an Agent"));
+  // A fresh session: the welcome, the composer and its menus, the results column.
+  await evaluate("document.querySelector('.coding-start [data-coding-new]').click()");
+  await waitFor("document.querySelector('[data-coding-welcome]') && !document.querySelector('[data-coding-task]').disabled", 30_000);
+  await evaluate("document.querySelector('[data-coding-attach-toggle]').click(); document.querySelector('[data-coding-results-open]').click()");
+  assert.deepEqual(await evaluate(HAN_IN("[data-coding-workbench]")), [], "a fresh Coding session, its menus and results, in English");
+  // Words Coding's script writes itself, not the Host's markup.
+  assert.deepEqual(await evaluate("[document.querySelector('[data-coding-goal-label]').textContent, document.querySelector('[data-coding-send]').textContent]"), ["No goal for the next turn", "Send"]);
+  assert.deepEqual((await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill"), [], "Coding in English fits");
 });

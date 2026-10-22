@@ -66,9 +66,11 @@ export const COGNIA_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   }
   const refs = references => references.length?'<section class="cognia-relations"><h3>'+tx('固定版本来源')+'</h3>'+references.map(r=>button('['+r.label+'] '+r.title+' · v'+r.revision,'reference','data-id="'+esc(r.material_id)+'" data-revision="'+r.revision+'"')).join('')+'</section>':'';
   const publishContext = () => { const ctx={plugin_id:'io.molis.work.cognia',surface_title:'Cognia'}; if(cur)ctx.object={kind:'cognia_material',id:cur.id,version:cur.revision||cur.updated_at||'',title:cur.title}; root.setAttribute('data-assistant-context',JSON.stringify(ctx)); };
-  const fold = () => { const id=cur?.id; cur=null;publishContext();root.dataset.expanded='false';$('[data-cognia-workspace]').hidden=true;$('[data-cognia=directory]').scrollTop=listScroll;if(listFocus?.isConnected&&$('[data-cognia=directory]').contains(listFocus))listFocus.focus();else root.querySelector('[data-cognia-id="'+id+'"]')?.focus(); };
+  // Only the material opened last shows: an earlier one, or folding, answered late does not take the reader.
+  let opened = 0;
+  const fold = () => { const id=cur?.id; opened++; cur=null;publishContext();root.dataset.expanded='false';$('[data-cognia-workspace]').hidden=true;$('[data-cognia=directory]').scrollTop=listScroll;if(listFocus?.isConnected&&$('[data-cognia=directory]').contains(listFocus))listFocus.focus();else root.querySelector('[data-cognia-id="'+id+'"]')?.focus(); };
   async function openMaterial(id,revision) {
-    const data=await api('/materials/'+encodeURIComponent(id)+(revision?'?revision='+revision:'')); cur=data.material; publishContext(); if(root.dataset.expanded!=='true'){listFocus=document.activeElement;listScroll=$('[data-cognia=directory]').scrollTop;}root.dataset.expanded='true';$('[data-cognia-workspace]').hidden=false;$('[data-cognia-heading]').textContent=cur.title;
+    const ticket=++opened, data=await api('/materials/'+encodeURIComponent(id)+(revision?'?revision='+revision:'')); if(ticket!==opened)return; cur=data.material; publishContext(); if(root.dataset.expanded!=='true'){listFocus=document.activeElement;listScroll=$('[data-cognia=directory]').scrollTop;}root.dataset.expanded='true';$('[data-cognia-workspace]').hidden=false;$('[data-cognia-heading]').textContent=cur.title;
     $('[data-cognia-download]').href=route('/materials/'+encodeURIComponent(id)+'/download?revision='+cur.revision);
     $('[data-cognia-action="edit-material"]').hidden=!!revision||!['manual','knowledge'].includes(cur.source_id);
     $('[data-cognia-action="delete-material"]').hidden=!!revision||!state.materials.some(m=>m.id===id);

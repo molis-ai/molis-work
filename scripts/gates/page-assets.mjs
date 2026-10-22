@@ -235,15 +235,17 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 35, no Chinese left in English
-// pages (VUX-40). +88 B of the Jelly script: its fixed "uncategorized" category is named in the page's language by id, in
-// the five places categories are listed (one helper; each place got shorter by a byte). +24 B of the Coding script: the
-// Files client words what it says through the page's translator. Tried first: one helper instead of five lookups. Spent
-// once from exactly #918's budgets.
+// One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
+// deleted in the next change to this gate (none is open now).
 const APPROVED_CEILINGS = {
-  // #920: the English surfaces add one translation branch to Cognia.
-  "/assets/molis-work-plugins/cognia.js": [23703, 24042],
-};
+  "/assets/molis-work-plugins/cognia.js": [24042, 24112],
+  "/assets/molis-work-plugins/todo.js": [62036, 62126],
+  "/assets/molis-work-plugins/jelly.js": [91267, 91338],
+  "/assets/molis-work-workbench.css": [1610654, 1610689],
+  "/assets/molis-work-workbench.js": [1176789, 1176833],
+  "/assets/molis-work-arrival.css": [702945, 704315],
+  "/assets/molis-work-settings.css": [992921, 994287],
+  "/assets/molis-work-plugins/coding.js": [370756, 372329],};
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

@@ -411,7 +411,6 @@ export const SETTINGS_STYLES = `
   .project-manager-row small { overflow: hidden; color: var(--muted); font-size: 11px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
   .project-manager-row:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 4%, var(--rail)); }
   .project-manager-row:has(input:checked) { color: var(--ink); background: var(--nav-active); }
-  .project-manager-row:has(input:checked) strong { font-weight: var(--weight-control, 500); }
   .project-manager-row:has(input:focus-visible) { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .project-manager-create-input { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
   .project-manager-empty { margin: 16px 12px; color: var(--muted); font-size: 12px; }

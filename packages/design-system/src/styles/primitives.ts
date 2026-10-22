@@ -149,11 +149,9 @@ export const PRIMITIVE_STYLES = `
     color: var(--danger-action-ink, var(--page));
   }
   .mw-btn[data-loading] { pointer-events: none; opacity: 1; }
-  .mw-btn[data-loading] > :not(.mw-spinner) { visibility: hidden; }
-  .mw-btn[data-loading] > .mw-spinner {
-    position: absolute;
-    visibility: visible;
-  }
+  .mw-btn[data-loading] > :not(.mw-spinner) { visibility: hidden; animation: mw-loading-out var(--dur-move) var(--ease-quint) var(--dur-move) backwards; }
+  .mw-btn[data-loading] > .mw-spinner { position: absolute; visibility: visible; animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both; }
+  @keyframes mw-loading-out { from { opacity: 1; visibility: visible; } to { opacity: 0; visibility: hidden; } }
 
   .mw-input, .mw-textarea, .mw-select {
     width: 100%;
@@ -371,15 +369,15 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-spinner { width: 20px; height: 20px; display: inline-block; color: currentColor; }
   /* One loading rule everywhere: a quiet line with the spinner, which appears only if the wait passes 250ms
-     (a quick load never flashes). Skeletons are static placeholders, never shimmer. */
+     (a quick load never flashes). Skeletons (static, never shimmer) and busy buttons wait the same; reduced motion drops only the fade. */
   .mw-loading {
     display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px;
     animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both;
   }
   @keyframes mw-loading-in { from { opacity: 0; } to { opacity: 1; } }
-  @media (prefers-reduced-motion: reduce) { .mw-loading { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .mw-loading, .mw-skeleton, .mw-btn[data-loading] > * { animation-duration: 0s; } }
   .mw-skeleton {
-    display: block; height: 12px; border-radius: 4px;
+    display: block; height: 12px; border-radius: 4px; animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both;
     background: color-mix(in srgb, var(--ink) 8%, transparent);
   }
   .mw-progress {
@@ -961,8 +959,8 @@ export const PRIMITIVE_STYLES = `
     display: block; grid-column: 2; grid-row: 1 / span 2; width: 8px; height: 36px;
     border-radius: 4px;
   }
-  .mw-swatch:has(.mw-swatch__fill) span,
-  .mw-swatch:has(.mw-swatch__fill) small { grid-column: 3; }
+  .mw-swatch > .mw-swatch__fill ~ span,
+  .mw-swatch > .mw-swatch__fill ~ small { grid-column: 3; }
   .mw-swatch span {
     grid-column: 2; color: var(--ink); font-size: 12px; font-weight: var(--weight-control, 500); line-height: 16px;
   }

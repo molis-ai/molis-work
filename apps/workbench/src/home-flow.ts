@@ -1,9 +1,17 @@
 import type { HomeEventView, HomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+<<<<<<< HEAD
 interface HomeFlowInput { now: Date; locale?: string; events: readonly HomeEventView[] }
 interface HomeFlowEvent extends HomeEventView { day: string; when: string; at: number; kind: "me" | "org"; plugin: string; icon: string; lead: string; text: string }
 interface HomeFlowDay { id: string; n: number; week: string; w: string; today: boolean }
 interface HomeFlowSummary { sum: string; lead: string; me: number; org: number }
 interface HomeFlowLabels { todayEmpty: string; empty: string; todaySum: string; daySum: string; attentionLead: string; emptyLead: string }
+=======
+export interface HomeFlowInput { now: Date; locale?: string; events: readonly HomeEventView[] }
+export interface HomeFlowEvent extends HomeEventView { day: string; when: string; at: number; kind: "me" | "org"; plugin: string; icon: string; lead: string; text: string }
+export interface HomeFlowDay { id: string; n: number; week: string; w: string; today: boolean }
+export interface HomeFlowSummary { sum: string; lead: string; me: number; org: number }
+export interface HomeFlowLabels { todayEmpty: string; empty: string; todaySum: (count: number) => string; daySum: (count: number) => string; attentionLead: string; emptyLead: string }
+>>>>>>> 47a2c8788 (fix(ui): plural counts, single-line code slices and helper errors follow the page)
 
 /** Pure date/presentation factory, serialized into the client after TypeScript compilation. */
 export function createHomeFlow() {
@@ -42,7 +50,7 @@ export function createHomeFlow() {
   function eventsOnDay(events: readonly HomeFlowEvent[], dayId: string) { return events.filter(event => event.day === dayId); }
   function summarizeDay(day: HomeFlowDay, events: readonly HomeFlowEvent[], labels: HomeFlowLabels): HomeFlowSummary {
     const me = events.filter(event => event.kind === "me").length, org = events.filter(event => event.kind === "org").length;
-    return { sum: events.length ? (day.today ? labels.todaySum : labels.daySum).replace("{n}", String(events.length)) : day.today ? labels.todayEmpty : labels.empty,
+    return { sum: events.length ? (day.today ? labels.todaySum : labels.daySum)(events.length) : day.today ? labels.todayEmpty : labels.empty,
       lead: !events.length ? labels.emptyLead : events.some(event => event.needs_attention) ? labels.attentionLead : events.slice(0, 2).map(event => event.title).join("；"), me, org };
   }
   return { civilKey, clockLabel, buildHomeDays, buildHomeWindow, projectHomeEvents, eventsOnDay, summarizeDay };

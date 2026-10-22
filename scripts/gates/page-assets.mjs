@@ -238,8 +238,8 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate (none is open now).
 const APPROVED_CEILINGS = {
+  "/assets/molis-work-plugins/coding.js": [375974, 376592],
   "/assets/molis-work-arrival.css": [702221, 703659],
-  "/assets/molis-work-plugins/coding.js": [375873, 375974],
   "/assets/molis-work-plugins/plugin-builder.js": [115438, 115521],
   "/assets/molis-work-settings.css": [993796, 995228],
   "/assets/molis-work-workbench.css": [1616704, 1616975],

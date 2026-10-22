@@ -32,11 +32,11 @@
 | VUX-20 | 工程 | — | 未走 | 未做 | 行为归 UIV/RCPT，它们的用例（如 `assistant-input-receipts.e2e`、`agent-input-delivery`）守着送达、失败与草稿；本书没有单列；限流倒计时等上游 Prologue 事件（用户 10-21 定） |
 | VUX-21 | 人工 | `form-question-reflow.e2e` | 未走 | 未做 | 咬合与回弹的观感 |
 | VUX-22 | 工程 | `assistant-side-groups.e2e`、`visual-mechanisms.e2e` | 未走 | 未做 | — |
-| VUX-23 | 工程 | `pages-size-keys.e2e`、`split-divider.e2e`、`tab-reorder-preview.e2e` | 未走 | 未做 | Pages 块手柄的 separator 角色 |
+| VUX-23 | 工程 | `pages-size-keys.e2e`、`split-divider.e2e`、`tab-reorder-preview.e2e` | 未走 | 未做 | — |
 | VUX-24 | 工程 | `split-divider.e2e`、`tab-split-drop` | 未走 | 未做 | — |
 | VUX-25 | 人工 | `panel-entry.e2e` | 未走 | 未做 | 标题紧凑、按任务打开的观感；居中对话框不判方向 |
 | VUX-26 | 工程 | `agent-studio.e2e`、`assistant-scroll-follow.e2e`、`coding-question-card.e2e`、`im-follow-copy.e2e`、`scroll-follow.e2e` | 未走 | 未做 | — |
-| VUX-27 | 工程 | `overflow-fade.e2e`、`soft-workbench-refinement`、`visual-review-consumers.e2e` | 未走 | 未做 | 字体载入后重查 |
+| VUX-27 | 工程 | `overflow-fade.e2e`、`soft-workbench-refinement`、`visual-review-consumers.e2e` | 未走 | 未做 | — |
 | VUX-28 | 工程 | `keyboard-groups.e2e` | 未走 | 未做 | — |
 | VUX-29 | 工程 | `hover-actions.e2e`、`overlay-placement.e2e` | 未走 | 未做 | 模态焦点圈、重复提交、失败留输入 |
 | VUX-30 | 工程 | `chinese-walkthrough.e2e`、`english-walkthrough.e2e`、`narrow-surfaces.e2e`、`text-wrap.e2e` | 未走 | 未做 | — |

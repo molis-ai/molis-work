@@ -238,6 +238,10 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
+  // VUX-23 (slice 95): Pages' three sizing handles (layout column, table column, image) become vertical splitters as the workbench's resizers
+  // are: role, value and words read out, and ← → on the focused handle through the same command as the keys. The bundle keeps its names
+  // (whitespace-only minify); the helper and its three call sites after compacting. 709541 → 711340 (+1,799).
+  "/assets/molis-work-pages-editor.js": [709541, 711340],
   // VUX-33: complete-line layout blocks bound accumulated inline layout while preserving readable text, selected prefixes and the long-line slice budget.
   // Reviewed 2026-10-23: 4 KB flat slices and a stable tail did not improve the bottleneck; preserving pre/code font struts also retains line and tab geometry. 382075 → 384285 (+2210).
   "/assets/molis-work-plugins/coding.js": [382075, 384285],

@@ -5,6 +5,7 @@ import { ONBOARDING_NOTES, ONBOARDING_OWNER, ONBOARDING_PROPOSAL } from "./agent
 import { createHash, randomUUID } from "node:crypto";
 import { pagesActions, blocksFromMarkdown } from "@molis-ai/molis-work-plugin-pages";
 import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
 import { withContextJourneys, type ContextJourney, type ContextReference } from "./context-onboarding-store.js";
 import { contextFilePath, contextSources, readContextSource } from "./context-onboarding-sources.js";
 import { dropStagedNotes, readStagedNote, readStagedText, removeJourneyStaging, stageContextUpload, stageNote, stagedFilePath, isStagedDigest } from "./context-onboarding-staging.js";
@@ -14,7 +15,7 @@ import { ARTIFACTS_PLUGIN_ID, artifactsActions } from "@molis-ai/molis-work-plug
 import { completeMolisWorkOnboarding } from "./onboarding.js";
 import { descriptionFromSummary, setProjectDescription } from "./project-arrival.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
-import { todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
+import { TODO_ORGANIZE_MATERIAL_CHARS, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { L } from "./web-locale.js";
 
@@ -36,7 +37,7 @@ export function readContextJourney(home: string, id: string): ContextJourney {
   // Do not reinterpret old Cognia identities as Artifact identities, nor a material whose text sat in the row before staging
   // (2026-10-22). Keep the historical journey intact and offer a fresh selection without reading its old store.
   if (journey.phase !== "complete" && [...journey.sources.flatMap(s => s.references ?? []), ...(journey.summary?.references ?? [])]
-    .some(ref => !ref.source_id || !isStagedDigest(ref.original?.sha256) || !isStagedDigest(ref.text?.sha256))) {
+    .some(ref => !ref.source_id || !isStagedDigest(ref.original?.sha256) || !isStagedDigest(ref.text?.sha256)) || (journey.todo && !Array.isArray(journey.todo.batches))) {
     journey.requires_reselection = true;
     journey.error = "这轮资料使用旧版存储。原记录已保留，请重新选择资料开始一轮整理。";
     return journey;
@@ -240,24 +241,85 @@ export function parseContextSummary(raw: string, references: ContextReference[])
   if (!labels.length || labels.some(label => !references.some(r => r.label === label))) throw new Error("摘要缺少有效来源，未采用模型结果。请重新整理。");
   return { title: parts[1]!.trim(), body, references };
 }
+/**
+ * A text in parts of at most `size` characters, cut after a line end where there is one in the second half of the part, and never
+ * inside a surrogate pair. Pages and Todo each take a bounded text per call; a material of any length goes as several.
+ */
+function textParts(text: string, size: number): string[] {
+  const parts: string[] = [];
+  for (let offset = 0; offset < text.length;) {
+    let end = Math.min(offset + size, text.length);
+    const line = end < text.length ? text.lastIndexOf("\n", end - 1) : -1;
+    if (line >= offset + size / 2) end = line + 1;
+    else if (end < text.length && /[\uD800-\uDBFF]/u.test(text[end - 1]!)) end--;
+    parts.push(text.slice(offset, end)); offset = end;
+  }
+  return parts;
+}
+/** A part's title: the name, cut to fit, then which part it is, so the cut never takes the part number. */
+function partTitle(title: string, part: number, parts: number, max: number): string {
+  const suffix = parts > 1 ? L(" · 第 {k} / {n} 部分", { k: part, n: parts }) : "";
+  return (title.length + suffix.length <= max ? title : title.slice(0, max - suffix.length - 1).replace(/[\uD800-\uDBFF]$/u, "") + "…") + suffix;
+}
+
+const TODO_MATERIALS = 50;
+/**
+ * Every material for Todo's organizer, which takes 50 materials a call and reads the first TODO_ORGANIZE_MATERIAL_CHARS of each:
+ * long ones in parts of that size, so all of the text is read, 50 a batch.
+ */
+async function* todoBatches(home: string, id: string, references: ContextReference[]): AsyncGenerator<{ title: string; text: string }[]> {
+  let batch: { title: string; text: string }[] = [];
+  for (const ref of references) {
+    const parts = textParts(await readStagedText(home, id, ref.text), TODO_ORGANIZE_MATERIAL_CHARS);
+    for (const [index, text] of parts.entries()) {
+      if (!text.trim()) continue;
+      batch.push({ title: partTitle(ref.title, index + 1, parts.length, 200), text });
+      if (batch.length === TODO_MATERIALS) { yield batch; batch = []; }
+    }
+  }
+  if (batch.length) yield batch;
+}
+/**
+ * Todo drafts from every material, beside the overview (user 2026-10-22: no 50-material cap): one organizer call per batch, each
+ * kept as it lands, so a retry goes on after the last one; the batches' drafts are one list to confirm. A failure never stops the
+ * overview.
+ */
 async function draftTodos(home: string, journey: ContextJourney, references: ContextReference[], ports: ContextOnboardingPorts, save: () => unknown): Promise<void> {
-  if (!ports.homeActions) return;
-  if (journey.todo?.status === "ready" && journey.todo.batch) return;
-  journey.todo = { status: "pending", batch_id: null, batch: null, error: null }; save();
+  if (!ports.homeActions || journey.todo?.status === "ready") return;
+  let total = 0;
+  for await (const _ of todoBatches(home, journey.id, references)) total++;
+  const todo: NonNullable<ContextJourney["todo"]> = journey.todo = { status: "pending", batches: journey.todo?.batches ?? [], total, error: null }; save();
   try {
-    const actions = ports.homeActions(home, AbortSignal.timeout(20 * 60_000));
-    // The journey id makes a retried pass return the same drafts instead of organizing twice.
-    const { batch } = await actions.invoke(todoOrganizeActions.extract, { title: "开始使用时整理的待办", origin: "onboarding", request_id: "onboarding:" + journey.id,
-      materials: await Promise.all(references.slice(0, 50).map(async ref => ({ title: ref.title, text: await readStagedText(home, journey.id, ref.text) }))) });
-    journey.todo = { status: "ready", batch_id: batch.batch_id, batch, error: null };
+    let index = 0;
+    for await (const materials of todoBatches(home, journey.id, references)) {
+      if (++index <= todo.batches.length) continue;
+      // The journey id and the batch number make a retried pass return the same drafts instead of organizing twice.
+      const { batch } = await ports.homeActions(home, AbortSignal.timeout(20 * 60_000)).invoke(todoOrganizeActions.extract, { origin: "onboarding",
+        title: total > 1 ? L("开始使用时整理的待办（第 {k} / {n} 批）", { k: index, n: total }) : L("开始使用时整理的待办"), request_id: `onboarding:${journey.id}:${index}`, materials });
+      todo.batches.push(batch); save();
+    }
+    todo.status = "ready";
   } catch (error) {
-    journey.todo = { status: "failed", batch_id: null, batch: null, error: error instanceof Error ? error.message.slice(0, 300) : "待办草稿没整理成" };
+    todo.status = "failed"; todo.error = error instanceof Error ? error.message.slice(0, 300) : "待办草稿没整理成";
   }
   save();
 }
 function pageBody(text: string): PagesBody {
   const nodes = blocksFromMarkdown(text);
   return { type: "doc", content: nodes ? nodes.map(n => n.toJSON()) : [{ type: "paragraph", content: [{ type: "text", text }] }] } as PagesBody;
+}
+/** A Pages document's body is at most 1,500,000 characters encoded; parts start at 400,000 and halve until each fits. */
+const PAGE_PART_CHARS = 400_000, PAGE_BODY_MAX = 1_400_000;
+function* pageParts(text: string): Generator<PagesBody> {
+  for (const part of textParts(text, PAGE_PART_CHARS)) {
+    const body = pageBody(part);
+    if (JSON.stringify(body).length <= PAGE_BODY_MAX || part.length < 2) yield body;
+    else {
+      let half = Math.ceil(part.length / 2);
+      if (/[\uD800-\uDBFF]/u.test(part[half - 1]!)) half--;
+      yield* pageParts(part.slice(0, half)); yield* pageParts(part.slice(half));
+    }
+  }
 }
 export async function adoptContextJourney(home: string, id: string, input: Record<string, unknown>, ports: ContextOnboardingPorts): Promise<ContextJourney> {
   if (running.has(key(home, id))) { await running.get(key(home, id)); return readContextJourney(home, id); }
@@ -271,7 +333,9 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   if (!title || title.length > 120 || body.length > 100_000) throw new Error("请输入 1–120 字的项目名称，摘要最多 100,000 字符");
   // Persist the accepted text before creating anything. A retry cannot overwrite
   // edits made later in Pages or change the adopted material set.
-  const todoSelected = Array.isArray(input.todo_selected) ? input.todo_selected.filter((value): value is string => typeof value === "string").slice(0, 80) : [];
+  // Only drafts this round made can be kept, however many batches there were.
+  const drafted = new Set(journey.todo?.batches.flatMap(batch => batch.candidates.map(candidate => candidate.candidate_id)) ?? []);
+  const todoSelected = Array.isArray(input.todo_selected) ? [...new Set(input.todo_selected.filter((value): value is string => typeof value === "string" && drafted.has(value)))] : [];
   journey.adoption ??= { title, body, blank: input.blank === true, todo_selected: todoSelected }; journey.phase = "adopting"; journey.error = null;
   withContextJourneys(home, store => store.save(journey));
   const job = Promise.resolve().then(async () => {
@@ -302,9 +366,13 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
             withContextJourneys(home, store => store.save(journey));
           }
           if (!ref.documents) {
-            const body = await readStagedText(home, id, ref.text);
-            ref.documents = (await actions.invoke(pagesActions.importDocuments, { request_id: id + ":sources:" + ref.label, request_hash: id,
-              documents: [{ title: pageTitle(`[${ref.label}] ${ref.title}`), body: pageBody(`原标题：${ref.title}\n\n来源：${ref.path} · 版本 ${ref.version}\n\n${body}`) }] })).documents.map(document => document.id);
+            // The whole text, in as many documents as Pages needs (“第 k / N 部分”); each part's request is its own, so a retry goes on.
+            const parts = [...pageParts(`原标题：${ref.title}\n\n来源：${ref.path} · 版本 ${ref.version}\n\n${await readStagedText(home, id, ref.text)}`)], documents: string[] = [];
+            for (const [index, body] of parts.entries()) {
+              documents.push((await actions.invoke(pagesActions.importDocuments, { request_id: id + ":sources:" + ref.label + (parts.length > 1 ? ":" + (index + 1) : ""), request_hash: id,
+                documents: [{ title: partTitle(`[${ref.label}] ${ref.title}`, index + 1, parts.length, 80), body }] })).documents[0]!.id);
+            }
+            ref.documents = documents;
             withContextJourneys(home, store => store.save(journey));
           }
         }
@@ -332,21 +400,27 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   return readContextJourney(home, id);
 }
 
-/** The drafts the person kept become the new project's todos; the rest stay in Todo's “待你确认”. Safe to repeat. */
+/** The drafts the person kept, from every batch, become the new project's todos; the rest stay in Todo's “待你确认”. Safe to repeat. */
 async function adoptTodoDrafts(journey: ContextJourney, actions: BoundActionClient): Promise<void> {
   const selected = new Set(journey.adoption?.todo_selected ?? []);
-  if (!journey.todo?.batch_id || !selected.size || journey.todo.added) return;
-  const { batch } = await actions.invoke(todoOrganizeActions.get, { id: journey.todo.batch_id });
+  if (!journey.todo?.batches.length || !selected.size || journey.todo.added) return;
   const relation = { same: "merge", update: "update", conflict: "update", maybe_done: "complete", reopen: "reopen" } as const;
-  const decisions = batch.candidates.filter(candidate => selected.has(candidate.candidate_id) && !candidate.decision)
-    .map(candidate => ({ candidate_id: candidate.candidate_id, action: candidate.existing ? relation[candidate.existing.relation] : "add" as const }));
-  const applied = decisions.length ? await actions.invoke(todoOrganizeActions.apply, { id: batch.batch_id, expected_revision: batch.revision, decisions }) : null;
-  journey.todo = { ...journey.todo, batch: applied?.batch ?? batch, added: (applied?.results ?? []).flatMap(result => result.item_id ? [result.item_id] : []) };
+  const batches: TodoBatch[] = [];
+  for (const kept of journey.todo.batches) {
+    let { batch } = await actions.invoke(todoOrganizeActions.get, { id: kept.batch_id });
+    const decisions = batch.candidates.filter(candidate => selected.has(candidate.candidate_id) && !candidate.decision)
+      .map(candidate => ({ candidate_id: candidate.candidate_id, action: candidate.existing ? relation[candidate.existing.relation] : "add" as const }));
+    // Todo takes 80 decisions a call.
+    for (let start = 0; start < decisions.length; start += 80) {
+      batch = (await actions.invoke(todoOrganizeActions.apply, { id: batch.batch_id, expected_revision: batch.revision, decisions: decisions.slice(start, start + 80) })).batch;
+    }
+    batches.push(batch);
+  }
+  journey.todo = { ...journey.todo, batches, added: batches.flatMap(batch => batch.candidates.flatMap(candidate => selected.has(candidate.candidate_id) && candidate.decision?.item_id ? [candidate.decision.item_id] : [])) };
 }
 
 function pageTitle(title: string): string {
-  if (title.length <= 80) return title;
-  return title.slice(0, 79).replace(/[\uD800-\uDBFF]$/u, "") + "…";
+  return partTitle(title, 1, 1, 80);
 }
 
 export function updateContextDraft(home: string, id: string, input: Record<string, unknown>): ContextJourney {

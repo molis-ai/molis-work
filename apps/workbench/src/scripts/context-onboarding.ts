@@ -284,17 +284,19 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function draftDay(date){return new Intl.DateTimeFormat(document.documentElement.lang||'zh-CN',{month:'long',day:'numeric'}).format(new Date(date+'T00:00:00'));}
   function drafts(){
     const t=journey.todo;if(!t)return '';
-    if(t.status==='pending')return '<p class="mw-brief__quiet" role="status">'+L('正在整理材料里要你推进的事…')+'</p>';
-    if(t.status==='failed'||!t.batch)return '<p class="mw-brief__quiet">'+(t.error?L('待办草稿没整理成：{reason}。项目建好后，可以让助理再整理这些资料。',{reason:esc(t.error)}):L('待办草稿没整理成。项目建好后，可以让助理再整理这些资料。'))+'</p>';
-    const open=t.batch.candidates.filter(c=>!c.decision);
+    // One list to confirm, however many batches the drafts were organized in.
+    const batches=t.batches||[], candidates=batches.flatMap(b=>b.candidates), referenceOnly=batches.reduce((n,b)=>n+b.reference_only.length,0);
+    if(t.status==='pending')return '<p class="mw-brief__quiet" role="status">'+(t.total>1?L('待办草稿分 {n} 批整理，第 {k} 批…',{n:t.total,k:Math.min(batches.length+1,t.total)}):L('正在整理材料里要你推进的事…'))+'</p>';
+    if(t.status==='failed'||!batches.length)return '<p class="mw-brief__quiet">'+(t.error?L('待办草稿没整理成：{reason}。项目建好后，可以让助理再整理这些资料。',{reason:esc(t.error)}):L('待办草稿没整理成。项目建好后，可以让助理再整理这些资料。'))+'</p>';
+    const open=candidates.filter(c=>!c.decision);
     if(!todoPicked)todoPicked=new Set(open.filter(c=>c.selected).map(c=>c.candidate_id));
-    const notes=t.batch.notes.map(n=>'<p class="mw-brief__hint">'+esc(n)+'</p>').join('');
+    const notes=batches.flatMap(b=>b.notes).map(n=>'<p class="mw-brief__hint">'+esc(n)+'</p>').join('');
     if(!open.length)return '<p class="mw-brief__quiet">'+L('材料里没有发现需要你推进的事。')+'</p>'+notes;
     return '<p class="mw-brief__hint">'+L('勾选的会加入新项目的待办；没勾的留在“待办 → 待你确认”，之后再决定。')+' <b>'+L('已选 {n} / {total}',{n:todoPicked.size,total:open.length})+'</b></p><ul class="mw-file-list cx-drafts">'+open.map(c=>{
       const k=KIND[c.kind]||KIND.suggestion;
       const meta=[c.due_date?L('截止 {date}',{date:draftDay(c.due_date)})+(c.due_phrase?L('（原文“{phrase}”）',{phrase:esc(c.due_phrase)}):''):'',c.kind==='waiting'&&c.waiting?L('在等 {who}',{who:esc(c.waiting.who)}):(c.owner.stated?'':L('负责人不确定')),c.existing?L('和已有待办有关'):''].filter(Boolean).join(' · ');
       return '<li class="mw-file-row is-todo cx-draft"><label class="mw-file-row__label"><input type="checkbox" class="mw-check" id="cx-t-'+c.candidate_id+'" data-draft="'+c.candidate_id+'" '+(todoPicked.has(c.candidate_id)?'checked':'')+'><span class="cx-draft-copy"><span class="mw-file-row__name">'+esc(c.title)+'</span>'+(meta?'<small class="cx-draft-meta">'+meta+'</small>':'')+(c.evidence[0]?'<small class="cx-draft-evidence">“'+esc(c.evidence[0].excerpt)+'”</small>':'')+'</span></label>'+status(L(k[0]),k[1],k[2])+'</li>';
-    }).join('')+'</ul>'+notes+(t.batch.reference_only.length?'<p class="mw-brief__hint">'+L('另有 {n} 条仅供参考，未列为待办。',{n:t.batch.reference_only.length})+'</p>':'');
+    }).join('')+'</ul>'+notes+(referenceOnly?'<p class="mw-brief__hint">'+L('另有 {n} 条仅供参考，未列为待办。',{n:referenceOnly})+'</p>':'');
   }
   /** The new project as it will look in the chooser: the same brief, drawn from what is being decided. */
   function briefPreview(name, summary, nextHtml, kicker) {

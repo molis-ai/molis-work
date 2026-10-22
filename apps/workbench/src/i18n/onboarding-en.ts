@@ -4,6 +4,11 @@ export const ONBOARDING_EN: Record<string, string> = {
   "{title} · 工作摘要": "{title} · Work summary",
   "资料来源": "Sources",
   "项目：{title}": "Project: {title}",
+  // A long material goes to Pages and Todo in parts, and the drafts in batches (no limits, 2026-10-22).
+  " · 第 {k} / {n} 部分": " · part {k} of {n}",
+  "开始使用时整理的待办": "Todos found while getting started",
+  "开始使用时整理的待办（第 {k} / {n} 批）": "Todos found while getting started (batch {k} of {n})",
+  "待办草稿分 {n} 批整理，第 {k} 批…": "Finding todos in {n} batches: batch {k}…",
   "下载": "Downloads",
   "文稿": "Documents",
   "桌面": "Desktop",

@@ -42,7 +42,7 @@ for (const width of [1440, 390]) test(`Onboarding ${width}px: the overview and t
     journey.sources = [{ kind: "browser", selected: true, references: [reference] }];
     journey.phase = "review";
     journey.summary = { title: "新版方案", body: "张总要求周五前发新版方案，预算等小李确认。[S1]", references: [reference] };
-    journey.todo = { status: "ready", batch_id: batch.batch_id, batch, error: null };
+    journey.todo = { status: "ready", batches: [batch], total: 1, error: null };
     return store.save(journey);
   });
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);

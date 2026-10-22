@@ -278,13 +278,13 @@ async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof open
     item.sources = [{ kind: "browser", selected: true, references: [reference(1)] }];
     item.phase = "review";
     item.summary = { title: "新版方案", body: SUMMARY, references: [reference(1), reference(2, "材料 2：预算表（含各部门明细与历史对比的完整版本）")] };
-    item.todo = { status: "ready", batch_id: drafts.batch_id, batch: drafts, error: null };
+    item.todo = { status: "ready", batches: [drafts], total: 1, error: null };
   });
   const reviewPlain = seed(item => {
     item.sources = [{ kind: "browser", selected: true, references: [reference(1)] }];
     item.phase = "review";
     item.summary = { title: LONG_NAME, body: SUMMARY, references: [reference(1)] };
-    item.todo = { status: "failed", batch_id: null, batch: null, error: "模型暂时没有响应" };
+    item.todo = { status: "failed", batches: [], total: 1, error: "模型暂时没有响应" };
   });
   const interrupted = seed(item => {
     item.sources = [{ kind: "browser", selected: true, references: [reference(1)] }, { kind: "directory", selected: true, error: "读取 会议纪要/第1次产品评审会议纪要与后续跟进事项的完整记录（含各方意见）.md 失败：文件已移动", files: [{ path: "a.md", data: "" }] }];

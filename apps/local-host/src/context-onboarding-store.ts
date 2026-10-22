@@ -34,7 +34,8 @@ export interface ContextJourney {
   project_id: string; document_id: string | null; updated_at: string;
   adoption?: { title: string; body: string; blank: boolean; todo_selected?: string[] };
   /** Todo drafts organized from the same materials; applied into the new project's todos on adoption. */
-  todo?: { status: "pending" | "ready" | "failed"; batch_id: string | null; batch: TodoBatch | null; error: string | null; added?: string[] };
+  /** Todo drafts, one organizer batch per 50 materials (or parts of long ones); `total` is how many the round needs. */
+  todo?: { status: "pending" | "ready" | "failed"; batches: TodoBatch[]; total: number; error: string | null; added?: string[] };
   auto_start?: boolean;
   previewed?: boolean;
   artifact_references?: ArtifactReference[];

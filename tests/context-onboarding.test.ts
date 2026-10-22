@@ -13,6 +13,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { TODO_ORGANIZE_BASIC } from "@molis-ai/molis-work-plugin-todo";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
 import { readProjectArrival } from "../apps/local-host/dist/project-arrival.js";
 import { contextReferenceText, selectContextSources, stageContextFile, startContextJourney, waitContextJourney, adoptContextJourney, parseContextSummary, readContextJourney, reopenContextJourney, updateContextDraft } from "../apps/local-host/dist/context-onboarding-service.js";
@@ -130,8 +131,10 @@ test('the person\'s versions of both onboarding instructions are what the model 
   const notes = model.requests.filter(request => wireText(request).startsWith('PERSON_NOTES_EDIT'));
   const proposals = model.requests.filter(request => wireText(request).startsWith('PERSON_PROPOSAL_EDIT'));
   assert.ok(notes.length >= 2, 'the long material went through batch notes'); assert.equal(proposals.length, 1);
-  assert.equal(notes.length + proposals.length, model.requests.length, 'every call opens with the person\'s version of its instruction');
-  for (const request of model.requests) {
+  // Beside them, Todo's organizer drafts todos from the same material under its own instruction (its own owner).
+  const todo = model.requests.filter(request => wireText(request).includes(TODO_ORGANIZE_BASIC.body.slice(0, 80)));
+  assert.equal(notes.length + proposals.length + todo.length, model.requests.length, 'every onboarding call opens with the person\'s version of its instruction');
+  for (const request of model.requests.filter(request => !todo.includes(request))) {
     assert.equal(request.system, undefined, 'onboarding sends no system role of its own or another owner\'s');
     assert.doesNotMatch(wireText(request), /这是完整材料中的一批|这份项目建议是/, 'the shipped default does not run beside the person\'s version');
   }
@@ -430,4 +433,25 @@ test('ONB-LIM-03 a round of 300 files is read one by one and adopted whole: ever
   const pages=openPagesStore(dir);try{assert.equal(pages.list(adopted.project_id).length,301);}finally{pages.close();}
   assert.equal(adopted.artifact_references!.length,301);
   await assert.rejects(stat(join(dir,'context-onboarding','journeys',id)),{code:'ENOENT'});
+});
+
+test('ONB-LIM-04 a file over 6 MB with over 2 MB of text reaches adoption whole: its original in the 成果库\'s store, its whole text in Pages parts',{timeout:240_000},async t=>{
+  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
+  const big='# Big notes\n\n'+Array.from({length:120_000},(_,i)=>'Line '+i+' of the long record, with ordinary work context.').join('\n')+'\nEND OF BIG FILE\n';
+  assert.ok(Buffer.byteLength(big)>6_000_000);
+  selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[await staged(dir,id,'big.md',big)]}]});
+  const ports={...pagesPorts(dir),model:async()=>({})};
+  startContextJourney(dir,id,ports);const read=await waitContextJourney(dir,id);assert.equal(read.sources[0]!.references!.length,1);
+  assert.equal(read.sources[0]!.references![0]!.text.chars,big.trim().length,'the whole text is read, not its first 2 MB');
+  const adopted=await adoptContextJourney(dir,id,{title:'Big',materials_only:true},ports);assert.equal(adopted.phase,'complete',adopted.error??'');
+  const pages=openPagesStore(dir);try{
+    const parts=pages.list(adopted.project_id).filter(d=>d.id!==adopted.document_id).sort((a,b)=>a.title.localeCompare(b.title,'en',{numeric:true}));
+    assert.ok(parts.length>1);assert.ok(parts.every((d,i)=>d.title.endsWith(` · 第 ${i+1} / ${parts.length} 部分`)),parts.map(d=>d.title).join(', '));
+    const text=parts.map(d=>JSON.stringify(pages.get(d.id).body)).join('');
+    assert.match(text,/原标题：Big notes/);assert.match(text,/Line 119999 of the long record/);assert.match(text,/END OF BIG FILE/);
+  }finally{pages.close();}
+  const actions=await ports.actions(dir,adopted.project_id);
+  const stored=await actions.invoke(artifactsActions.read,{reference:adopted.artifact_references![0]!});const payload=stored.selected!.payload as any;
+  assert.equal(payload.original_file.data_base64,undefined,'over 6 MB, the original is kept by reference');
+  assert.equal(payload.original_file.size_bytes,Buffer.byteLength(big));assert.equal(payload.original_file.sha256,createHash('sha256').update(big).digest('hex'));
 });

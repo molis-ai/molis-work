@@ -243,8 +243,9 @@ const APPROVED_CEILINGS = {
   // (+71, the same primitive in each sheet that carries it). 1612922 → 1612993 (+71).
   "/assets/molis-work-workbench.css": [1612922, 1612993],
   // Guided onboarding (slice 90, user 2026-10-22): every onboarding step sits on the Welcome sheet with its card, the sources stay a list with a
-  // status word per row, and below 980 px the card goes under the question. 703258 → 703933 (+675).
-  "/assets/molis-work-arrival.css": [703258, 703933],
+  // status word per row, and below 980 px the card goes under the question (+675); the rows sit on a card with icon tiles and their action drawn
+  // as the button it is (user 2026-10-22, "太纯文字了") (+684). 703258 → 704617 (+1,359).
+  "/assets/molis-work-arrival.css": [703258, 704617],
   // Forms reflow (slice 85): moved and removed questions and options ease through the page's molisReflow, with the fallback when it is absent. 30244 → 30383 (+139).
   "/assets/molis-work-plugins/form.js": [30244, 30383],
   "/assets/molis-work-plugins/workflows.js": [83019, 83135],

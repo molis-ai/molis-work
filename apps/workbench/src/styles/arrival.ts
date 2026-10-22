@@ -178,13 +178,18 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-error[hidden] { display: none; }
   .ob-error svg { width: 14px; height: 14px; flex: none; }
   .ob-quiet { color: var(--muted); font-size: 13px; }
-  .ob-sources { display: flex; flex-direction: column; gap: 1px; max-width: 480px; margin: 0 -8px; }
-  .ob-source .mw-dir-row--meta { height: auto; min-height: 48px; padding-block: 7px; border-radius: var(--r-row, 10px); }
+  .ob-sources { display: flex; flex-direction: column; max-width: 480px; padding: 4px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: var(--lift-1); }
+  .ob-source + .ob-source { border-top: 1px solid var(--line); }
+  .ob-source .mw-dir-row--meta { grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; height: auto; min-height: 56px; padding: 8px 10px; border-radius: var(--r-row, 10px); }
+  .ob-source .mw-dir-row__icon { width: 32px; height: 32px; margin: 0; border-radius: var(--r-control, 8px); background: var(--rail); color: var(--ink-soft); }
   .ob-source .mw-dir-row--meta .mw-dir-row__copy { grid-template-rows: 18px 16px; row-gap: 1px; }
-  .ob-source .mw-dir-row__count { color: var(--ink-soft); font-size: 12px; font-weight: var(--weight-control, 500); }
-  .ob-source.has-items .mw-dir-row__count { color: var(--green); }
-  .ob-source .is-unavailable { opacity: .55; cursor: default; }
-  .ob-source .is-unavailable .mw-dir-row__count { color: var(--faint); font-weight: var(--weight-body, 400); }
+  .ob-source__act { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; pointer-events: none; }
+  .ob-source__act svg { width: 14px; height: 14px; }
+  .ob-source .mw-dir-row:hover .ob-source__act.mw-btn { background: var(--nav-press); }
+  .ob-source__act.is-added { min-height: 28px; padding: 0 10px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-size: 12px; font-weight: var(--weight-control, 500); }
+  .ob-source__act.is-quiet { color: var(--faint); font-size: 12px; }
+  .ob-source .is-unavailable { cursor: default; }
+  .ob-source .is-unavailable :is(.mw-dir-row__icon, .mw-dir-row__copy) { opacity: .55; }
   .ob-source__cfg { display: grid; gap: 14px; padding: 6px 12px 18px 32px; }
   .ob-notes { display: grid; gap: 4px; max-width: 480px; }
   .ob-cfg-block { display: grid; gap: 8px; }

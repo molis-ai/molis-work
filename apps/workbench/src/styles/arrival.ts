@@ -85,7 +85,7 @@ export const ARRIVAL_STYLES = String.raw`
   body.arrival-page .chooser-search .mw-input:focus-visible { box-shadow: none; border-color: transparent; outline: none; }
   .chooser-search svg { width: 16px; height: 16px; }
   .chooser-search__key { flex: none; display: inline-flex; }
-  .chooser-search__key .mw-kbd { min-height: 18px; padding: 0 6px; font-size: 11px; line-height: 18px; border-radius: 5px; border: 0; background: var(--control-fill); }
+  .chooser-search__key .mw-kbd { min-height: 18px; padding: 0 6px; font-size: 11px; line-height: 18px; border-radius: 4px; border: 0; background: var(--control-fill); }
   .chooser-dir { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 1px; margin: 0 -8px; padding: 0 8px 8px; }
   .chooser-dir > [data-slot="directory-heading"] { padding: 10px 8px 4px; }
   .chooser-dir .mw-dir-row--meta { height: auto; min-height: 46px; padding-block: 6px; border-radius: var(--r-row, 10px); }
@@ -165,8 +165,8 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-q p { margin-top: 6px; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.7; }
   .ob-right { padding: 28px clamp(24px, 3.4vw, 48px) 32px; }
   .ob-right.is-empty { display: grid; align-items: center; }
-  .ob-right > .mw-empty { max-width: 30em; margin: 0; padding: 0; text-align: left; justify-items: start; }
-  .ob-quick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .ob-right > .mw-empty { max-width: 30em; margin: 0 auto; padding: 0; justify-items: center; text-align: center; }
+  .ob-quick { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
   .ob-stage-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
   .ob-stage-head h2 { font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; }
   .ob-stage-head span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }

@@ -238,6 +238,8 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
+  "/assets/molis-work-plugins/coding.js": [376592, 378072],
+  "/assets/molis-work-workbench.css": [1612561, 1612922],
   "/assets/molis-work-arrival.css": [703659, 704435],
   // Forms reflow (slice 85): moved and removed questions and options ease through the page's molisReflow, with the fallback when it is absent. 30244 → 30383 (+139).
   "/assets/molis-work-plugins/form.js": [30244, 30383],

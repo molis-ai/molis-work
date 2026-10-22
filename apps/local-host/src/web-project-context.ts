@@ -1,7 +1,7 @@
 import { bindActionClient, type ActionCallContext, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { shownProjectPlugins, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
-import { observeGitOperations } from "./git-operation-notifications.js";
+import { observeReviewSettlements } from "./review-settlement-events.js";
 import { localWebActionContext, type bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { bindGoalsWebActions } from "./goals-actions.js";
@@ -36,8 +36,8 @@ export interface ProjectRuntimeContext extends ProjectRequestContext {
   readonly readWebView: () => Promise<MolisWorkWebView>;
 }
 
-/** The services every project plugin surface is given: the unified action client, the Home, and Git operation updates. */
-type ProjectPluginServices = Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "observeGitOperations">;
+/** The services every project plugin surface is given: the unified action client, the Home and settled reviews. */
+type ProjectPluginServices = Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "observeReviewSettlements">;
 
 export function projectRequestContext(context: WebRequestContext, options: ResolvedWebBoardOptions): ProjectRequestContext {
   const { localHost, composition, serverOptions } = context;
@@ -64,7 +64,7 @@ export const projectRoutePrefix = (options: ResolvedWebBoardOptions) => options.
 export function projectPluginServices({ localHost, hostReference, options, agentHost, serverOptions }: ProjectRequestContext): ProjectPluginServices {
   return {
     actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, project_id: hostReference.project_id, inspect: caller => localHost.inspectActions(caller, hostReference) },
-    observeGitOperations: listener => observeGitOperations(agentHost.reviews, options.projectId, listener),
+    observeReviewSettlements: listener => observeReviewSettlements(agentHost.reviews, options.projectId, listener),
     homeDirectory: serverOptions.homeDirectory,
     capabilities: localHost.client(hostReference),
   };

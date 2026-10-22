@@ -103,7 +103,7 @@ Prologue Node 接上宿主审查队列时声明子任务能力 `partial`。同�
 
 `agent.subagents.list.v1` / `agent.subagents.cancel.v1` 先核对项目、安装、原 Session 与 Run，再读取或停止该父运行名下的子任务。SDK 登记与原事件拥有状态、正文、活动和用量；Host 只额外保存角色来源，关闭重启不重派。成功结束与用户接受分别记录，后者由消费插件拥有。完整报告通过原 SDK `await-subagents` 的 `reportOffset` 分页读取最后一段结果，默认回传明确为摘要。分派引用、搜索语义和输出质量仍需产品实操核对，能力 `partial` 不代表并行写入或整体协作已完成。
 
-ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner 新记录的成功、失败或未知回执，重复 settle 与 Prologue 恢复历史不重复通知。监听错误不改写已提交 Effect，也不触发执行重试；消费者必须按项目过滤并自行释放。
+ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner 新记录的成功、失败或未知回执，重复 settle 与 Prologue 恢复历史不重复通知。监听错误不改写已提交 Effect，也不触发执行重试；消费者必须按项目过滤并自行释放。插件发起的 Host 操作，监听者另收到发起时记下的 `ReviewAuthority`（只在本进程里，不写进审查记录）；它的 `holds()` 说那次激活是否还在。宿主据此把 `host.review.settled@1` 只发给发起的那个安装（X-6，S-54，`apps/local-host/src/review-settlement-events.ts`）；没有发起安装的（Agent 自己的改动、恢复出来的审查）不发。
 
 目录状态读取在冷会话上使用原加密启动索引、SDK 运行/未结束工作与 checkpoint 恢复检查，只回放最后一轮的过程，并从索引定位最近计划轮的步骤。它不保留历史正文或创建历史控制句柄；打开详情和开始新轮仍走完整恢复路径。不支持内部轻量读取口的 Runtime 保留原恢复行为。回归见 `tests/prologue-status-projection.test.ts` 与 `tests/prologue-recovery.test.ts`。
 

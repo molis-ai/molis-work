@@ -306,8 +306,8 @@ export function createPluginComponentClient(options: PluginComponentClientOption
         const item = make(table ? 'tr' : kind === 'accordion' ? 'details' : kind === 'card' ? 'article' : 'div', undefined, 'pc-record');
         item.dataset.recordId = text(at(row, node.props.idField)) || String(index);
         item.id = 'pc-' + node.id + '-' + encodeURIComponent(item.dataset.recordId); seen.add(item.dataset.recordId);
-        // A record that was not here before arrives visibly, so the person sees what their action added.
-        if (fresh && node.props.idField && part.seen && !part.seen.has(item.dataset.recordId)) item.classList.add('pc-new');
+        // A record that was not here before carries the shared landing wash, so the person sees what their action added.
+        if (fresh && node.props.idField && part.seen && !part.seen.has(item.dataset.recordId)) item.dataset.craftNew = '';
         if (node.props.roleField) item.dataset.role = text(at(row, node.props.roleField));
         const actions: HTMLButtonElement[] = [];
         const citations = node.props.citationsField ? at(row, node.props.citationsField) : undefined;

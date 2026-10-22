@@ -1,5 +1,5 @@
 import {
-  eventTypeKey, isReservedEventType, isValidEventTypeId, isValidEventTypeVersion, ownsEventType,
+  eventTypeKey, isHostEventType, isReservedEventType, isValidEventTypeId, isValidEventTypeVersion, ownsEventType,
   type PluginEventsDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import { isValidPortName, type PluginPortsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-wiring";
@@ -129,13 +129,24 @@ export function inspectEventDeclarations(
       problems.push(`订阅事件 ${item.event_type_id} 的版本无效`);
       continue;
     }
-    if (!Array.isArray(item.from_plugin_ids) || item.from_plugin_ids.length === 0) {
+    // A host event (X-6) has one source, the Host, so its subscription names none; a reserved type the Host does not publish
+    // is no subscription at all.
+    const host = isReservedEventType(item.event_type_id);
+    if (host && item.from_plugin_ids !== undefined) {
+      problems.push(`订阅宿主事件 ${item.event_type_id} 不写来源插件：它只由宿主发出`);
+      continue;
+    }
+    if (host && !isHostEventType(item.event_type_id, item.type_version)) {
+      problems.push(`宿主没有事件 ${eventTypeKey(item.event_type_id, item.type_version)}`);
+      continue;
+    }
+    if (!host && (!Array.isArray(item.from_plugin_ids) || item.from_plugin_ids.length === 0)) {
       problems.push(`订阅 ${item.event_type_id} 必须显式限定来源插件`);
       continue;
     }
     const sources = new Set<string>();
     let ok = true;
-    for (const source of item.from_plugin_ids) {
+    for (const source of item.from_plugin_ids ?? []) {
       if (typeof source !== "string" || source.trim() === "" || source.includes("*")) {
         problems.push(`订阅 ${item.event_type_id} 的来源声明无效`);
         ok = false;

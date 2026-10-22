@@ -13,7 +13,7 @@ export const FUNCTIONS_STYLES = `
   .functions-steps button[aria-current] span { background: var(--ink); color: var(--paper); border-color: var(--ink); }
   .functions-steps button:hover { color: var(--ink); background: var(--nav-hover); }
   .functions-columns { flex: 1; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
-  .functions-col { max-width: 800px; margin: 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 24px; padding: 32px 32px 32px; animation: functions-step-enter 130ms var(--ease-quint); }
+  .functions-col { max-width: 800px; margin: 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 24px; padding: 32px 32px 32px; animation: craft-rise var(--dur-move) var(--ease-quint); }
   .functions-col[hidden] { display: none; }
   .functions-section-heading h2 { font-size: 24px; line-height: 1.35; font-weight: 500; letter-spacing: -.02em; color: var(--ink); margin: 0 0 8px; }
   .functions-section-heading p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
@@ -35,7 +35,6 @@ export const FUNCTIONS_STYLES = `
   .functions-criterion > button { margin-top: 16px; }
   [data-functions-criteria], [data-functions-map], [data-functions-samples] { display: grid; gap: 12px; }
   [data-functions=workbench] :is(button, input, textarea, select, summary):focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
-  @keyframes functions-step-enter { from { opacity: .65; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
   @media (prefers-reduced-motion: reduce) { .functions-col { animation: none; } }
   .functions-name .mw-input { font-size: 16px; font-weight: 500; letter-spacing: -0.02em; }
   .functions-field { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--ink-soft); }

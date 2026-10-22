@@ -200,7 +200,7 @@ export const FOUNDATION_STYLES = `  :root {
   body[data-desktop-shell="true"] .tree-tool span,
   body[data-desktop-shell="true"] .tree-tool small { display: none; }
   body[data-desktop-shell="true"] .tree-scroll { padding: 8px 12px 16px; }
-  body[data-desktop-shell="true"] .goal-status { min-height: 19px; padding: 0 4px; font-size: 11px; }
+  body[data-desktop-shell="true"] .goal-status { min-height: 19px; padding: 0 4px; font-size: 12px; }
   body[data-desktop-shell="true"] .tree-relations { margin-bottom: 4px; }
   body[data-desktop-shell="true"] .tree-relations > summary { min-height: 21px; padding-block: 1px; }
   body[data-desktop-shell="true"] .goal-document { width: 100%; padding: 24px 32px 52px; }
@@ -439,7 +439,6 @@ export const FOUNDATION_STYLES = `  :root {
     font-size: 11px;
     font-weight: 400;
   }
-  .goal-status svg {  font-size: 11px; }
   .tree-footer { padding: 0 16px; color: var(--ink-soft); font-size: 11px; }
 
   .goal-navigator { min-width: 0; padding: 4px 0 16px; }
@@ -500,7 +499,7 @@ export const FOUNDATION_STYLES = `  :root {
   .navigator-relation-count { color: var(--faint); display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
   .navigator-relation-count svg { width: 12px; height: 12px; }
   .navigator-relation-count b { font-weight: var(--weight-control, 500); }
-  .navigator-goal-row .goal-status { min-height: 19px; padding-inline: 8px; font-size: 11px; }
+  .navigator-goal-row .goal-status { min-height: 19px; padding-inline: 8px; font-size: 12px; }
   .navigator-goal > .tree-relations { display: none; }
   .navigator-group--ready > header i { color: var(--green); background: var(--green); border-color: var(--green); }
   .navigator-group--active > header i { color: var(--amber); background: var(--amber); border-color: var(--amber); }

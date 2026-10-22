@@ -116,19 +116,13 @@ export const MICRO_INTERACTION_STYLES = `
   }
 
 
-  /* Stages, menus and the assistant sheet share one 6px rise. Menus stay on the fast clock. */
-  @keyframes creative-arrive {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: none; }
-  }
+  /* A stage arrives once with the shared rise; menus grow from their control (keyframes: styles/motion.ts). */
   .plugin-stage-workspace.is-arriving,
-  .is-arriving { animation: creative-arrive var(--motion-normal, 250ms) var(--ease-quint) both; }
+  .is-arriving { animation: craft-rise var(--dur-arrive, 420ms) var(--ease-quint) both; }
   :is(.mw-menu, .mw-select-picker__menu, .assistant-composer):popover-open,
   .mw-select-picker__menu.is-open {
     animation: craft-drop var(--dur-move, 250ms) var(--ease-quint) both;
   }
-  /* A menu grows from its control: 4px and .97, on the state clock (user 2026-10-21). */
-  @keyframes craft-drop { from { opacity: 0; transform: translateY(-4px) scale(.97); } to { opacity: 1; transform: none; } }
 
   @media (prefers-reduced-motion: reduce) {
     body ${SEGMENTED}[data-seg-thumb][data-seg-ready]::before { transition: none; }

@@ -15,8 +15,9 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 
 const workspaceEntries = [projectsCapabilities.listWorkspaces, projectsCapabilities.readWorkspace,
   ...Object.values(projectSettingsCapabilities)];
-const internalServices = [...Object.values(agentHostCapabilities), ...Object.values(scheduleCapabilities),
-  prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability,
+const internalServices = [...Object.values(agentHostCapabilities), ...Object.values(scheduleCapabilities)];
+// Git's and the parallel writers' Host side: eight plugin-only actions (PG-035), no longer typed entries.
+const gitHostActions = [prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability,
   ...Object.values(writerDirectoryCapabilities), ...Object.values(writerIntegrationCapabilities)];
 const keys = (entries: readonly HostCapabilityDescriptor[]) => entries.filter(entry => !entry.action)
   .map(({ capability_id, version, operation }) => `${capability_id}@${version}:${operation}`).sort();
@@ -32,6 +33,9 @@ test("W3-07-9-01: the assembled Host registers only the remaining internal servi
     await host.withProject(ref, () => undefined);
     assert.deepEqual(keys(workspaceEntries), [], "all five workspace entries already carry action metadata");
     assert.deepEqual(keys(host.status().capabilities), keys(internalServices));
+    for (const definition of gitHostActions) {
+      assert.ok(host.status().capabilities.find(row => row.capability_id === definition.capability_id)?.action, `${definition.capability_id} is registered as an action`);
+    }
     for (const definition of workspaceEntries) {
       const allowed = definition !== projectSettingsCapabilities.selectBrowsingWorkspace;
       assert.equal(host.client(ref).availability(definition).available, allowed, definition.capability_id);

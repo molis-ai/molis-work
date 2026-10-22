@@ -107,8 +107,6 @@ export const ISSUES_STYLES = `
 .issues-row[data-state] b{font-weight:var(--weight-body);color:var(--ink-soft)}
 .issues-row[data-state=attention] small{color:var(--amber)}
 .issues-row>[data-mw-state]{flex:none;margin-top:4px}
-.issues-row.is-new{animation:issues-new 1.6s var(--ease-quint)}
-@keyframes issues-new{from{background:var(--accent-soft)}}
 .issues-empty{padding:28px 10px;color:var(--muted);font-size:13px;line-height:1.7;text-align:center}
 .issues-more{display:flex;margin:8px auto}
 .issues-detail{flex:1;min-height:0;display:flex;flex-direction:column}
@@ -129,5 +127,4 @@ dialog.issues-preview{width:calc(100vw - 32px);max-width:1440px;height:calc(100d
 .issues-preview-view:not(.mw-media-zoom){overflow:auto;display:grid;place-items:safe center}
 .issues-preview-view:not(.mw-media-zoom) img{max-width:100%;max-height:100%;object-fit:contain}.issues-preview[data-zoom] .issues-preview-view img{max-width:none;max-height:none}
 @media(max-width:760px){.issues textarea{font-size:16px}}
-@media(prefers-reduced-motion:reduce){.issues-row.is-new{animation:none}}
 `;

@@ -1,4 +1,4 @@
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeWriterActions, pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -97,7 +97,11 @@ async function harness(initial: Entry[]) {
   const sessions = codingSessions(store);
   const calls: Array<[string, unknown]> = [];
   const world = { runtimes: initial, noLetters: false, created: 0 };
-  const actions = pluginActions(store, DEMO_PROJECT_ID);
+  // Reading a child's result is the Host's action (PG-035): it answers an empty view, and the call is recorded with the others.
+  const actions = fakeWriterActions(pluginActions(store, DEMO_PROJECT_ID), definition => {
+    if (definition.capability_id !== writerIntegrationCapabilities.read.capability_id) throw new Error(`Unexpected action ${definition.capability_id}`);
+    return { workspace_id: "work", writer_workspace_id: "child", source_path: root + "-child", target_path: root, branch: "writer/child", base_commit: "abc123", files: [] };
+  }, calls);
   const letter = (input: Wording, state: string) => ({ message_id: "m1", audience: "people", kind: "request",
     from_session: input.from_session, to_session: input.to_session, body: input.body, state, sent_at_ms: Date.now(), history: [], attachments: [] });
   const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
@@ -122,7 +126,6 @@ async function harness(initial: Entry[]) {
         return letter(input[1] as Wording, "queued") as Output;
       }
       if (id === agent.actOnPeopleMessage.capability_id) return letter({ from_session: "rt-1", to_session: "rt-2", body: JSON.stringify({ title: "t", task: "task" }) }, "delivered") as Output;
-      if (id === writerIntegrationCapabilities.read.capability_id) return { source: input } as Output;
       if (id === agent.readSessionStatuses.capability_id) return (input[1] as string[]).map(session_id => ({ session_id, latest_phase: "completed", recovery: false, checkpoint_busy: false })) as Output;
       if (id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
       if (id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;

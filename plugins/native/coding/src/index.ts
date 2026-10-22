@@ -181,9 +181,7 @@ export {
   type WriterAssignment,
   type WriterChangesView,
   type WriterFileChange,
-  type WriterFileTarget,
   type WriterSlot,
-  type WriterWorktree,
   type WritersProjectionInput,
 } from "./writers.js";
 export { createCodingTimeline, type TimelineActivity, type TimelineRun } from "./timeline.js";

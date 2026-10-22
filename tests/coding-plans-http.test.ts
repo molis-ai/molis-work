@@ -1,4 +1,4 @@
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeWriterActions, pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -28,12 +28,16 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
   const runs = [makeRun("proposal", "planner", "已核对文件，计划如下：\n" + JSON.stringify({ ...content, blockers: "无" })), makeRun("ambiguous", "planner", "```json\n" + JSON.stringify(content) + "\n```\n```json\n" + JSON.stringify(content) + "\n```"), makeRun("malformed", "planner", "我会改代码"), makeRun("ordinary", "reader")];
   runs.push(makeRun("ambiguous-prose", "planner", "说明\n" + JSON.stringify(content) + "\n" + JSON.stringify(content)), makeRun("trailing", "planner", "说明\n" + JSON.stringify(content) + "\n不是唯一正文"));
   const starts: AgentStartRequest[] = [];
-  const host = () => ({ store, homeDirectory: home, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
+  // The one writer directory the Host lists; the other writer actions are not asked here.
+  const writerActions = fakeWriterActions(pluginActions(store, DEMO_PROJECT_ID), definition => {
+    if (definition.capability_id === writerDirectoryCapabilities.list.capability_id) return [{ worktree_id: "writer-a", workspace_id: "foreign", canonical_path: home + "-other", branch: "writer/a", base_commit: "abc123" }];
+    throw new Error(`Unexpected action ${definition.capability_id}`);
+  });
+  const host = () => ({ store, homeDirectory: home, projectId: DEMO_PROJECT_ID, actions: writerActions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const input = args as any[];
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }, { workspace_id: "foreign", canonical_path: home + "-other", realpath_verified: true }] as Output;
-      if (definition.capability_id === writerDirectoryCapabilities.list.capability_id) return [{ workspace_id: "foreign", canonical_path: home + "-other", branch: "writer/a", base_commit: "abc123" }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return ["planner", "builder", "reader", "writers"].map(role_id => ({ role_id, available: true })) as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: input[0].session_id === "sdk-app" ? runs.map(run => run.ref) : [] } as Output;

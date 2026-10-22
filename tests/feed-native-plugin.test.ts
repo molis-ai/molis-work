@@ -560,8 +560,9 @@ test("The Feed stylesheet keeps every rule whole: no selector list runs into the
   const reading = rules.filter(({ prelude }) => /\.feed-stage-item-detail \.feed-detail$/.test(prelude));
   assert.equal(reading.length, 1, "the reader's own .feed-detail block");
   assert.match(reading[0].body, /max-width:\s*700px/);
-  assert.match(reading[0].body, /animation:\s*feed-reading-in\b/);
-  assert.ok(rules.some(({ prelude }) => prelude === "@keyframes feed-reading-in"), "the keyframes the reader animates with");
+  // The reader rises once with the product's shared arrival (DESIGN「Motion」); the Workbench does not animate its frame too.
+  assert.match(reading[0].body, /animation:\s*craft-rise var\(--dur-arrive\)/);
+  assert.ok(!rules.some(({ prelude }) => prelude.startsWith("@keyframes")), "Feed writes no keyframes of its own");
 });
 
 test("Feed with nothing to show says so: no sources, or a source with no messages, never fabricated rows", () => {

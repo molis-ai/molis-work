@@ -1408,7 +1408,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       item.append(el("p", "assistant-notice-text", notice.text));
       if (notice.held) item.append(el("p", "assistant-material-origin", L("按你的规则暂不提醒") + "：" + notice.held.reason));
       const actions = el("div", "assistant-notice-actions");
-      const go = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("打开")); go.type = "button";
+      const go = el("button", "mw-btn mw-btn--secondary", L("打开")); go.type = "button";
       go.dataset.noticeId = notice.notice_id; go.dataset.noticeAction = "open";
       go.setAttribute("aria-label", L("打开") + "：" + notice.text);
       go.addEventListener("click", async () => {
@@ -1426,7 +1426,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         await switchTo(notice.work_id); setPanel(true); void settleNotice({ work_id: notice.work_id }, "seen");
       });
       if (notice.kind === "reminder" && !notice.open) go.hidden = true;
-      const done = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("知道了")); done.type = "button";
+      const done = el("button", "mw-btn mw-btn--ghost", L("知道了")); done.type = "button";
       done.dataset.noticeId = notice.notice_id; done.dataset.noticeAction = "dismiss";
       done.setAttribute("aria-label", L("知道了") + "：" + notice.text);
       done.addEventListener("click", () => settleNotice({ notice_id: notice.notice_id }, "dismissed"));

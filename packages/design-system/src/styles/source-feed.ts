@@ -29,7 +29,7 @@ export const SOURCE_FEED_STYLES = `  /* Feed and Source: directory, list, readin
     body[data-desktop-shell="true"] .feed-filter-option[aria-checked="true"] svg { opacity: 1; }
     body[data-desktop-shell="true"] .feed-list-empty { margin: 8px 4px; padding: 24px 12px; border-radius: 12px; color: var(--faint); background: color-mix(in srgb, var(--paper) 48%, transparent); display: grid; justify-items: center; gap: 8px; text-align: center; }
     body[data-desktop-shell="true"] .feed-list-empty[hidden] { display: none; }
-    body[data-desktop-shell="true"] .feed-list-empty svg { width: 20px; height: 20px; stroke-width: 1.6; }
+    body[data-desktop-shell="true"] .feed-list-empty > svg { width: 20px; height: 20px; stroke-width: 1.6; }
     body[data-desktop-shell="true"] .feed-list-empty strong { color: var(--ink-soft); font-size: 11px; }
     body[data-desktop-shell="true"] .feed-list-empty p { margin: 0; font-size: 11px; line-height: 1.45; }
     body[data-desktop-shell="true"] .feed-list-empty .mw-btn { justify-self: center; }

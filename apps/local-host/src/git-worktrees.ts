@@ -4,7 +4,7 @@ import { lstat, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { runWorkspaceGit } from "./workspace-git.js";
 
-import type { WriterFileTarget, WriterWorktree } from "@molis-ai/molis-work-plugin-coding";
+import type { WriterFileTarget, WriterWorktree } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 const SAFE_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 const BRANCH_PREFIX = "molis-work/writer/";

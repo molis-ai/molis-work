@@ -191,10 +191,10 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
   assert.match(html, /role="tab"/);
   assert.match(html, /data-ppt-editor-status/);
   assert.match(renderMolisWorkWorkbenchStylesheet(), /--tab-tone: var\(--plugin-form/);
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /creative-arrive/);
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /creative-pane/);
-  assert.match(FORM_STYLES, /\[data-form-pane\]:not\(\[hidden\]\) \{ animation: creative-pane/);
-  assert.doesNotMatch(FORM_STYLES, /\[data-form-pane\]:not\(\[hidden\]\) \{ animation: creative-arrive/);
+  // A form pane arrives with the product's one rise on the state clock; the plugin writes no keyframes of its own.
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /@keyframes craft-rise \{/);
+  assert.match(FORM_STYLES, /\[data-form-pane\]:not\(\[hidden\]\) \{ animation: craft-rise var\(--dur-move\)/);
+  assert.doesNotMatch(FORM_STYLES, /@keyframes/);
   assert.ok(!Object.hasOwn(FORM_EN, "1 到 5"));
 });
 

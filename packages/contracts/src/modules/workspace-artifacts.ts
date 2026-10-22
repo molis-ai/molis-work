@@ -1,7 +1,8 @@
 import { defineErrorCodes } from "../platform/action-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
-import type { HostCapabilityDefinition } from "../platform/app-host.js";
 import type { ActionDefinition, ActionMetadata } from "../platform/actions.js";
+import { object, id, path as filePath, operationId, gitOperation, gitOperationRecord, gitReviewedResult } from "./workspace-action-schemas.js";
+import { gitHostAction, reviewIdentity } from "./workspace-writers.js";
 
 /** Host reads are always scoped to a currently linked workspace, never an absolute path. */
 export interface WorkspaceFileQuery {
@@ -79,9 +80,16 @@ export type GitOperation =
   /** Write one conflicted file as resolved (no markers left) and stage it. */
   | { action: "resolve"; path: string; content: string }
   | { action: "merge-abort" };
+/**
+ * Git's Host side, as actions only a plugin calls (PG-035): through its Manifest `capabilities.consumes` and `services.actions`,
+ * holding the permission each names, under the Host-issued caller (S-15). No person, Agent, workflow or MCP client sees them.
+ * Preparing starts a Host review and returns its identity, never permission to execute: a person approves each one.
+ */
 export const prepareGitOperationCapability = {
   capability_id: "projects.workspace.git.operation.prepare.v1", version: 1, operation: "command",
-} as HostCapabilityDefinition<{ workspace_id: string; operation_id: string; revision: string; operation: GitOperation }, { review_id: string }>;
+  action: /* @__PURE__ */ gitHostAction("发起 Git 操作的审查", "按调用方看到的仓库修订，为一次提交、分支、推送、PR、合并、拉取或解决冲突发起宿主审查；只返回审查身份，用户批准后才执行，期间仓库变化会被拒绝", "operation", "review:git-operation",
+    /* @__PURE__ */ object({ workspace_id: id, operation_id: operationId, revision: id, operation: gitOperation }), reviewIdentity),
+} as ActionDefinition<{ workspace_id: string; operation_id: string; revision: string; operation: GitOperation }, { review_id: string }>;
 /** What became of each Git operation in a workspace, from its Host review and what it produced. */
 export interface GitOperationRecord {
   operation_id: string;
@@ -98,64 +106,27 @@ export interface GitOperationRecord {
 }
 export const readGitOperationsCapability = {
   capability_id: "projects.workspace.git.operations.v1", version: 1, operation: "query",
-} as HostCapabilityDefinition<{ workspace_id: string }, readonly GitOperationRecord[]>;
+  action: /* @__PURE__ */ gitHostAction("读取 Git 操作记录", "读取一个已授权工作目录里各次 Git 操作的审查结果和产出；不把等待或未知当作成功", "query", "workspace:read",
+    /* @__PURE__ */ object({ workspace_id: id }), { type: "array", items: gitOperationRecord }),
+} as ActionDefinition<{ workspace_id: string }, readonly GitOperationRecord[]>;
 
 /** Preparing returns a Host review identity, never permission to execute. */
 export const prepareGitIndexCapability = {
   capability_id: "projects.workspace.git.prepare-index.v1", version: 1, operation: "command",
-} as HostCapabilityDefinition<{ workspace_id: string; path: readonly string[]; action: "stage" | "unstage"; revision: string; operation_id: string }, { review_id: string }>;
+  action: /* @__PURE__ */ gitHostAction("发起暂存审查", "按调用方看到的修订，为暂存或取消暂存一个文件发起宿主审查；只返回审查身份，用户批准后才改动暂存区，磁盘文件不改写", "operation", "review:git-index",
+    /* @__PURE__ */ object({ workspace_id: id, path: filePath, action: { enum: ["stage", "unstage"] }, revision: id, operation_id: id }), reviewIdentity),
+} as ActionDefinition<{ workspace_id: string; path: readonly string[]; action: "stage" | "unstage"; revision: string; operation_id: string }, { review_id: string }>;
 
-export interface PreparedWriterDirectory {
-  worktree_id: string;
-  branch: string;
-  base_commit: string;
-  canonical_path: string;
-  /** Present only after the Host recorded the project authorization. */
-  workspace_id: string | null;
-  /**
-   * Why this directory in the writers' folder can no longer serve as a writer (its branch was switched, its origin is
-   * missing). Such an entry is listed so the person sees it, and is never assigned or integrated.
-   */
-  problem?: string;
-}
-export interface WriterIntegrationFile {
-  path: readonly string[];
-  target: "added" | "modified" | "deleted";
-  selectable: boolean;
-  reason?: string;
-  revision?: string;
-  before_text?: string | null;
-  after_text?: string | null;
-  before_mode?: GitFileMode | null;
-  after_mode?: GitFileMode | null;
-  /** Both sides changed this path since the child started: the base and a three-way merge for a person to finish. */
-  conflict?: { base_text: string | null; merged_text: string; clean: boolean; markers: number };
-}
-export interface WriterIntegrationView {
-  workspace_id: string;
-  writer_workspace_id: string;
-  source_path: string;
-  target_path: string;
-  branch: string;
-  base_commit: string;
-  files: WriterIntegrationFile[];
-}
-
-export interface WriterIntegrationSource { session_id: string; run_id: string; subagent_id: string }
-export const writerIntegrationCapabilities = {
-  read: { capability_id: "projects.workspace.writers.integration.read.v1", version: 1, operation: "query" } as HostCapabilityDefinition<WriterIntegrationSource, WriterIntegrationView>,
-  prepare: { capability_id: "projects.workspace.writers.integration.prepare.v1", version: 1, operation: "command" } as HostCapabilityDefinition<WriterIntegrationSource & { operation_id: string; files: readonly { path: readonly string[]; revision: string; resolution?: string }[] }, { review_id: string }>,
-} as const;
-
-export const writerDirectoryCapabilities = {
-  list: { capability_id: "projects.workspace.writers.list.v1", version: 1, operation: "query" } as HostCapabilityDefinition<{ workspace_id: string }, PreparedWriterDirectory[]>,
-  prepare: { capability_id: "projects.workspace.writers.prepare.v1", version: 1, operation: "command" } as HostCapabilityDefinition<{ workspace_id: string; operation_id: string }, { review_id: string; directory: PreparedWriterDirectory }>,
-} as const;
+/** Parallel writers' Host side, on the same terms (`workspace-writers.ts`). */
+export { writerIntegrationCapabilities, writerDirectoryCapabilities } from "./workspace-writers.js";
+export type { WriterWorktree, WriterFileTarget, PreparedWriterDirectory, WriterIntegrationFile, WriterIntegrationView, WriterIntegrationSource } from "./workspace-writers.js";
 
 /** Read-only, project-scoped projections of terminal SDK-backed Git reviews. */
 export const readGitResultsCapability = {
   capability_id: "projects.workspace.git.results.v1", version: 1, operation: "query",
-} as HostCapabilityDefinition<{ workspace_id: string }, readonly GitReviewedResult[]>;
+  action: /* @__PURE__ */ gitHostAction("读取暂存审查结果", "读取一个已授权工作目录里已经结束的暂存与取消暂存审查；等待中或结果未知的不列出", "query", "workspace:read",
+    /* @__PURE__ */ object({ workspace_id: id }), { type: "array", items: gitReviewedResult }),
+} as ActionDefinition<{ workspace_id: string }, readonly GitReviewedResult[]>;
 
 export interface GitReviewedResult extends GitOperationResult {
   review: {

@@ -1,6 +1,7 @@
 import { TOUCH_TARGET_STYLES } from "./touch-targets.js";
 import { ASSISTANT_STAGE_STYLES } from "./assistant-stage.js";
 import { ASSISTANT_PROCESS_STYLES } from "./assistant-process.js";
+import { MOTION_STYLES } from "./motion.js";
 
 /** Soft Workbench finish: the last layer of every Molis Work page (module name kept from the craft pass).
  *
@@ -131,7 +132,7 @@ const CRAFT_BASE_STYLES = `
   /* A cover (market, settings) names itself ahead of the tabs. */
   ${PAGES} .tab-view-chip {
     flex: none; display: inline-flex; align-items: center; gap: 8px; height: 26px; margin: 0 4px 0 0; padding: 0 12px 0 8px;
-    border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
+    border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
     transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-quint);
   }
   ${PAGES} .tab-view-chip svg { width: 14px; height: 14px; color: var(--ink-soft); }
@@ -870,8 +871,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-tab { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
   ${ASSIST} .assistant-segment { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   /* Moving between works: the new work's content arrives; a drawer slides from its edge; the list grows from its button. */
-  ${ASSIST} .assistant-panel[data-arrive] :is(.assistant-thread, .assistant-side) { animation: assistant-arrive var(--dur-move) var(--ease-quint); }
-  @keyframes assistant-arrive { from { opacity: .4; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  ${ASSIST} .assistant-panel[data-arrive] :is(.assistant-thread, .assistant-side) { animation: craft-rise var(--dur-move) var(--ease-quint); }
   ${ASSIST} .assistant-panel[data-layout="drawer"][data-side="open"] .assistant-side { animation: assistant-drawer var(--dur-move) var(--ease-quint); }
   @keyframes assistant-drawer { from { opacity: .6; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
   ${ASSIST} .assistant-works:not([hidden]) { transform-origin: top right; animation: craft-drop var(--dur-move) var(--ease-quint); }
@@ -1062,8 +1062,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} dialog.global-search-dialog[open] { position: fixed; inset: auto 0 calc(var(--dock-h) + 4px) 0; margin: 0 auto; width: min(640px, calc(100vw - 32px)); max-height: min(70dvh, 560px); }
   }
   @keyframes craft-dock-rise { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: none; } }
-  /* Everything that opens from the bar rises from it, anchored at the edge nearest its control. */
-  @keyframes craft-rise-from-bar { from { opacity: 0; transform: translateY(4px) scale(.97); } to { opacity: 1; transform: none; } }
+  /* Everything that opens from the bar rises from it (craft-rise-from-bar), anchored at the edge nearest its control. */
   html ${SHELL} .workbench-bar :is(.account-global-popover, .plugin-picker-popover:not([hidden])) { transform-origin: bottom left; animation: craft-rise-from-bar 250ms var(--ease-quint) both; }
   html ${SHELL} .workbench-bar details[open] > .navigator-project-menu-popover { transform-origin: bottom right; animation: craft-rise-from-bar 250ms var(--ease-quint) both; }
 
@@ -1244,7 +1243,7 @@ const CRAFT_BASE_STYLES = `
   .prompt-group-title { margin: 0 0 8px; font-size: 15px; }
   .prompt-roles-label { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
   .prompt-roles { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
-  .prompt-role { display: inline-flex; flex-direction: column; align-items: flex-start; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: inherit; box-shadow: 0 0 0 1px var(--line); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+  .prompt-role { display: inline-flex; flex-direction: column; align-items: flex-start; padding: 4px 8px; border: 0; border-radius: 8px; background: transparent; color: inherit; box-shadow: 0 0 0 1px var(--line); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
   .prompt-role:hover { background: var(--hover); }
   .prompt-role[aria-pressed="true"] { box-shadow: 0 0 0 1.5px var(--accent); }
   .prompt-role-focus { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; padding: 12px 12px; border-radius: 8px; background: var(--hover); font-size: 13px; }
@@ -1263,7 +1262,7 @@ const CRAFT_BASE_STYLES = `
   .prompt-row-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .prompt-row-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
   .prompt-row-meta { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
-  .prompt-tag, .prompt-state { font-size: 11px; padding: 1px 8px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); white-space: nowrap; }
+  .prompt-tag, .prompt-state { font-size: 11px; padding: 1px 8px; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); white-space: nowrap; }
   .prompt-state--user { color: var(--ink); background: var(--nav-active); }
   .prompt-state--updated { color: var(--warning, #b7791f); }
   .prompt-editor { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
@@ -1346,7 +1345,6 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} .mw-btn:disabled, ${PAGES} .mw-btn[aria-disabled="true"] { box-shadow: none; background-image: none; }
 
   /* Segmented controls: the thumb settles on a spring; slots brighten on hover. */
-  ${PAGES} .mw-toggle-group { border-radius: 9px; }
   ${PAGES} .mw-toggle-group[data-seg-thumb]::before { border-radius: 6px; background: var(--paper); box-shadow: var(--lift-1); transition-timing-function: var(--ease-quint); }
   ${PAGES} .mw-toggle-group > .mw-toggle:not(.is-current, [aria-pressed="true"], [aria-current]):hover { color: var(--ink); }
   ${PAGES} .mw-toggle svg { transition: transform var(--dur-move) var(--ease-spring); }
@@ -1402,13 +1400,12 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} details[data-just-opened] > :not(summary) { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   ${WORKBENCH} .immersive-home .home-erow__slot[data-just-opened] { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   @keyframes craft-sheet-in { from { opacity: 0; transform: translateX(48px); } to { opacity: 1; transform: none; } }
-  @keyframes craft-fade-in { from { opacity: 0; } to { opacity: 1; } }
   ${PAGES} ${DROPDOWN} { transform-origin: top left; }
   ${PAGES} ${DROPDOWN}:is(:popover-open, [open], .is-open, :not([hidden])) { animation: craft-drop var(--dur-move) var(--ease-quint); }
-  ${PAGES} details[open] > :is(${MENU_EXIT}) { animation: craft-drop var(--dur-move) var(--ease-quint); }
   ${PAGES} details[open] > .navigator-project-menu-popover { transform-origin: top left; }
-  /* Closing plays the opening backwards on the short clock; a closing menu keeps its box and takes no pointer meanwhile. */
-  ${PAGES} details:has(> :is(${MENU_EXIT}))::details-content { transition: content-visibility var(--dur-hover) allow-discrete; }
+  /* Closing plays the opening backwards on the short clock; a closing menu keeps its box and takes no pointer meanwhile.
+     Only closing holds the content: held on opening too, an opening menu was neither drawn nor clickable for that clock. */
+  ${PAGES} details:not([open]):has(> :is(${MENU_EXIT}))::details-content { transition: content-visibility var(--dur-hover) allow-discrete; }
   ${PAGES} :is(${MENU_EXIT}) { transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint), display var(--dur-hover) allow-discrete, overlay var(--dur-hover) allow-discrete; }
   ${PAGES} :is(details:not([open]) > :is(${MENU_EXIT}), :is(${MENU_EXIT})[hidden], :is(${MENU_EXIT})[popover]:not(:popover-open)) { opacity: 0; transform: translateY(-4px) scale(.97); pointer-events: none; }
   ${PAGES} :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover) { border: 0; border-radius: var(--r-card); box-shadow: var(--lift-3); }
@@ -1475,14 +1472,6 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .plugin-stage-list :is(.mw-dir-row, .tree-node):active:not(:disabled) { background: var(--nav-press); }
   /* A selected Goal row is one wash on its entry, not a second fill on the button inside it. */
   ${WORKBENCH} :is(.goal-canvas-shell, .plugin-stage-list) .tree-entry.is-selected :is(.tree-node, .tree-row) { background: transparent; }
-  /* Something that just landed says so once: a wash that fades from its left edge. */
-  ${PAGES} [data-craft-new] { position: relative; }
-  ${PAGES} [data-craft-new]::after {
-    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-    background: color-mix(in srgb, var(--focus) 12%, transparent);
-    animation: craft-landed 640ms var(--ease-quint) forwards;
-  }
-  @keyframes craft-landed { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
 
   /* Progress bars fill instead of appearing full. */
   ${WORKBENCH} :is(.tree-progress, .mw-progress) > :is(i, span) { transition: transform 420ms var(--ease-quint); }
@@ -1541,7 +1530,6 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .tab-pane-body > [data-work-surface]:not([hidden]), ${WORKBENCH} .tab-workspace-exclusive > :not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint) both; }
   ${WORKBENCH} .tab-pane-body > [data-work-surface].is-arriving:not([hidden]), ${WORKBENCH} .tab-workspace-exclusive > .is-arriving:not([hidden]) { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
   ${WORKBENCH}[data-pane-embedded] .tab-pane-body > [data-work-surface] { animation: none; }
-  @keyframes craft-rise { from { opacity: .4; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 
   /* Opening a project: the sheet and the bar settle in. Once per page. */
   ${SHELL}.is-craft-opening .immersive-plugin-stage { animation: craft-sheet-open 640ms var(--ease-quint) both 130ms; }
@@ -1573,13 +1561,13 @@ const CRAFT_BASE_STYLES = `
     ${STAGE_LIST} {
       padding: 32px max(32px, calc((100% - 960px) / 2)) 56px;
     }
-    /* One header on every page: the title and one sentence on the left, the page's actions on the right. */
+    /* One header on every page: the title and one sentence on the left, the page's actions on the right, on the title's line. */
     ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome) {
       position: relative; inset: auto; z-index: 5; display: grid; grid-auto-flow: column; grid-template-columns: minmax(0, 1fr);
       grid-auto-columns: auto; grid-template-rows: auto auto; align-items: center; column-gap: 8px; row-gap: 4px;
       width: auto; max-width: none; height: auto; min-height: 40px; flex: none; margin: 0 0 24px; padding: 0;
     }
-    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome) > * { grid-row: 1 / span 2; }
+    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome) > * { grid-row: 1; }
     ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome)::before {
       content: var(--stage-title, "") / ""; grid-row: 1; grid-column: 1; min-width: 0;
       font-size: 24px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; line-height: 1.3; color: var(--ink);
@@ -1590,7 +1578,7 @@ const CRAFT_BASE_STYLES = `
       font-size: 13px; line-height: 1.5; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     ${STAGE_LIST} > .shelf-stage-chrome > .shelf-search { min-width: min(360px, 40vw); }
-    ${STAGE_LIST} > .plugin-stage-chrome .tree-create { min-height: 34px; padding: 0 12px; border-radius: 8px; font-size: 13px; }
+    ${STAGE_LIST} > .plugin-stage-chrome .tree-create { min-height: var(--control-h, 32px); padding: 0 12px; border-radius: 8px; font-size: 13px; }
     ${STAGE_LIST} > .plugin-stage-chrome .tree-create:first-of-type { background: var(--action); color: var(--action-ink); }
     ${STAGE_LIST} > .plugin-stage-chrome .tree-create:first-of-type svg { color: currentColor; }
     ${STAGE_LIST} > .plugin-stage-chrome .tree-create:first-of-type:hover { background: var(--action-hover, color-mix(in srgb, var(--action) 90%, var(--action-ink))); }
@@ -1631,8 +1619,8 @@ const CRAFT_BASE_STYLES = `
       content: var(--stage-desc, "") / ""; position: absolute; top: 66px; left: max(32px, calc((100% - 960px) / 2)); z-index: 21;
       max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; font-size: 13px; line-height: 20px; color: var(--muted);
     }
-    ${SESSIONS_LIST} > [data-session-stage-chrome] { top: 28px; left: auto; right: max(32px, calc((100% - 960px) / 2)); height: 40px; }
-    ${SESSIONS_LIST} > [data-session-stage-chrome] .tree-create { min-height: 34px; padding: 0 12px; border-radius: 8px; font-size: 13px; background: var(--action); color: var(--action-ink); }
+    ${SESSIONS_LIST} > [data-session-stage-chrome] { top: 24px; left: auto; right: max(32px, calc((100% - 960px) / 2)); height: 40px; }
+    ${SESSIONS_LIST} > [data-session-stage-chrome] .tree-create { min-height: var(--control-h, 32px); padding: 0 12px; border-radius: 8px; font-size: 13px; background: var(--action); color: var(--action-ink); }
     ${SESSIONS_LIST} > [data-session-stage-chrome] .tree-create svg { color: currentColor; }
     /* The header's actions sit on the right, so their filter menus open leftward and stay inside the page. */
     :is(${STAGE_LIST} > .plugin-stage-chrome, ${SESSIONS_LIST} > [data-session-stage-chrome]) .project-record-filter-menu > div { left: auto; right: 0; transform-origin: top right; }
@@ -1708,7 +1696,7 @@ const CRAFT_BASE_STYLES = `
   @keyframes craft-done-mark { 0% { transform: rotate(-30deg) scale(.4); } 60% { transform: rotate(8deg) scale(1.2); } 100% { transform: none; } }
 
   /* ─── Catalog specimens for this layer ─── */
-  .mw-catalog .mw-craft-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .mw-catalog .mw-craft-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .mw-catalog .mw-craft-lift, .mw-catalog .mw-craft-radius {
     display: grid; gap: 4px; align-content: end; width: 132px; height: 84px; padding: 12px 12px; background: var(--paper); border-radius: var(--r-card);
   }
@@ -1725,7 +1713,7 @@ const CRAFT_BASE_STYLES = `
   .mw-catalog .mw-craft-space__main { grid-row: 1; display: grid; grid-template-rows: 18px 1fr; }
   .mw-catalog .mw-craft-space__tabs { align-self: center; width: 64px; height: 10px; border-radius: 4px; background: var(--paper); box-shadow: var(--lift-1); }
   .mw-catalog .mw-craft-space__sheet { display: grid; align-content: start; gap: 8px; padding: 16px; border-radius: 0 10px 10px 0; background: var(--paper); box-shadow: var(--sheet-shadow); }
-  .mw-catalog .mw-craft-space__sheet b { display: block; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 10%, transparent); }
+  .mw-catalog .mw-craft-space__sheet b { display: block; height: 6px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 10%, transparent); }
   .mw-catalog .mw-craft-space__sheet b:first-child { width: 40%; height: 9px; background: color-mix(in srgb, var(--ink) 20%, transparent); }
   .mw-catalog .mw-craft-space__sheet b:last-child { width: 70%; }
   .mw-catalog .mw-craft-space__bar { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 4px; }
@@ -1801,7 +1789,7 @@ const STILL_RESET = `
   html[data-craft-still] *, html[data-craft-still] *::before, html[data-craft-still] *::after { transition-duration: 0s !important; transition-delay: 0s !important; }
 `;
 
-export const CRAFT_FINISH_STYLES = CRAFT_BASE_STYLES + TOUCH_TARGET_STYLES + ASSISTANT_STAGE_STYLES + ASSISTANT_PROCESS_STYLES + STILL_RESET;
+export const CRAFT_FINISH_STYLES = MOTION_STYLES + CRAFT_BASE_STYLES + TOUCH_TARGET_STYLES + ASSISTANT_STAGE_STYLES + ASSISTANT_PROCESS_STYLES + STILL_RESET;
 
 /** Behaviour for the craft layer. Everything here is presentation: it never writes Goal state,
  * never moves focus and never cancels another handler. Without it the pages look the same, only

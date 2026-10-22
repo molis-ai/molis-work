@@ -41,11 +41,11 @@ export const PRIMITIVE_STYLES = `
     appearance: none;
     -webkit-appearance: none;
     transition:
-      background-color var(--motion-instant, 130ms) var(--ease-quint),
-      color var(--motion-instant, 130ms) var(--ease-quint),
-      border-color var(--motion-instant, 130ms) var(--ease-quint),
-      box-shadow var(--motion-fast, 130ms) var(--ease-quint),
-      opacity var(--motion-fast, 130ms) var(--ease-quint);
+      background-color var(--dur-hover, 130ms) var(--ease-quint),
+      color var(--dur-hover, 130ms) var(--ease-quint),
+      border-color var(--dur-hover, 130ms) var(--ease-quint),
+      box-shadow var(--dur-hover, 130ms) var(--ease-quint),
+      opacity var(--dur-hover, 130ms) var(--ease-quint);
   }
   body .mw-btn:active { filter: none; }
   .mw-btn svg { width: 14px; height: 14px; flex: none; }
@@ -76,15 +76,9 @@ export const PRIMITIVE_STYLES = `
   .mw-btn--primary:active:not(:disabled) {
     background: color-mix(in srgb, var(--action) 82%, var(--action-ink));
   }
-  /* Secondary is the soft button: a wash on whatever surface it sits on, no outline. */
-  .mw-btn--secondary {
-    min-height: var(--control-h, 32px);
-    padding: 0 var(--control-pad-x, 12px);
-    border: 1px solid transparent;
-    border-radius: var(--radius-control);
-    background: var(--control-fill);
-    color: var(--ink);
-  }
+  /* Secondary is the soft button: a wash on whatever surface it sits on, no outline. Its size is the button's own
+     (.mw-btn and --sm, --md, --lg), so a small secondary stands as tall as the small primary and ghost beside it. */
+  .mw-btn--secondary { background: var(--control-fill); color: var(--ink); }
   .mw-btn--secondary:hover:not(:disabled) {
     border-color: transparent;
     background: var(--nav-hover);
@@ -162,7 +156,7 @@ export const PRIMITIVE_STYLES = `
     border-radius: var(--radius-control, 8px);
     color: var(--ink);
     background-color: var(--paper);
-    transition: border-color var(--motion-fast, 130ms) var(--ease-quint), box-shadow var(--motion-normal, 250ms) var(--ease-quint), background-color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: border-color var(--dur-hover, 130ms) var(--ease-quint), box-shadow var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
     font: inherit;
     font-size: 13px;
     box-shadow: none;
@@ -215,7 +209,7 @@ export const PRIMITIVE_STYLES = `
     border: 1px solid transparent;
     border-radius: var(--radius-control, 8px);
     background: var(--control-fill);
-    transition: border-color var(--motion-fast, 130ms) var(--ease-quint), box-shadow var(--motion-normal, 250ms) var(--ease-quint), background-color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: border-color var(--dur-hover, 130ms) var(--ease-quint), box-shadow var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .mw-input-group:hover { background: var(--nav-hover); }
   .mw-input-group .mw-input,
@@ -246,7 +240,7 @@ export const PRIMITIVE_STYLES = `
     border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); background: var(--paper);
     display: inline-grid; place-items: center; color: var(--action-ink);
   }
-  .mw-check { border-radius: 5px; }
+  .mw-check { border-radius: 4px; }
   .mw-radio { border-radius: 50%; }
   .mw-check:hover:not(:disabled), .mw-radio:hover:not(:disabled) { border-color: color-mix(in srgb, var(--control-input) 60%, var(--ink)); }
   .mw-check:checked, .mw-radio:checked { border-color: var(--action); background: var(--action); }
@@ -266,7 +260,7 @@ export const PRIMITIVE_STYLES = `
     display: block; width: 32px; height: 18px; border-radius: 99px;
     background: color-mix(in srgb, var(--ink) 16%, var(--paper));
     border: 1px solid transparent;
-    transition: background-color var(--motion-instant, 130ms) var(--ease-quint), border-color var(--motion-instant, 130ms) var(--ease-quint);
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint), border-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .mw-switch__track::after {
     content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
@@ -322,7 +316,7 @@ export const PRIMITIVE_STYLES = `
     color: var(--status-tone, var(--ink-soft));
     white-space: nowrap;
   }
-  .mw-status svg { width: 12px; height: 12px; flex: none; }
+  .mw-status svg { width: calc(1em + 2px); height: calc(1em + 2px); flex: none; }
   .mw-status > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .mw-status--plain {
     min-height: 0; padding: 0; background: transparent; border-radius: 0;
@@ -354,9 +348,9 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-empty__mark, .mw-empty > svg { color: var(--plugin-tint, var(--muted)); }
   .mw-empty__mark svg, .mw-empty > svg { width: 16px; height: 16px; stroke-width: 2; }
-  .mw-empty h1, .mw-empty h2, .mw-empty strong { margin: 0; font-size: 15px; font-weight: var(--weight-control, 500); color: var(--ink); }
+  .mw-empty h1, .mw-empty h2, .mw-empty strong { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); color: var(--ink); }
   .mw-empty p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-soft); }
-  .mw-empty__actions { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 0 -8px; }
+  .mw-empty__actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 0; }
   .frame-empty.mw-empty {
     display: flex; flex-direction: column; justify-content: center; align-items: center;
     gap: 12px; padding: 32px; text-align: center;
@@ -507,7 +501,7 @@ export const PRIMITIVE_STYLES = `
   .mw-tabs__tab {
     min-height: 30px; padding: 0 12px; border: 0; border-radius: 8px;
     background: transparent; color: var(--muted); font: inherit; font-weight: var(--weight-control, 500);
-    transition: background-color var(--motion-fast, 130ms) var(--ease-quint), color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint), color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .mw-tabs__tab:hover { color: var(--ink); background: var(--nav-hover); }
   .mw-tabs__tab:focus-visible, .mw-toggle:focus-visible, .mw-pagination__page:focus-visible { ${CONTAINED_FOCUS}; }
@@ -516,12 +510,12 @@ export const PRIMITIVE_STYLES = `
   .mw-toggle-group {
     display: inline-flex; gap: 4px; padding: 4px;
     border: 0;
-    border-radius: 9px; background: var(--control-fill);
+    border-radius: 10px; background: var(--control-fill);
   }
   .mw-toggle {
     min-height: 26px; padding: 0 12px; border: 0; border-radius: 6px;
     background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: var(--weight-control, 500);
-    transition: color var(--motion-normal, 250ms) var(--ease-quint), background-color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: color var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .mw-toggle:hover:not(:disabled):not(.is-current) { color: var(--ink); background: var(--nav-hover); }
   .mw-toggle:disabled { opacity: .42; cursor: not-allowed; }
@@ -798,7 +792,7 @@ export const PRIMITIVE_STYLES = `
   :is(.mw-catalog, .mw-layout-primitives) .mw-frame__action { flex: none; padding-top: 4px; }
   :is(.mw-catalog, .mw-layout-primitives) .mw-frame__action .mw-btn {
     min-height: 0; padding: 0; border: 0; border-radius: 0;
-    background: transparent; color: var(--muted); font-weight: 400; box-shadow: none;
+    background: transparent; color: var(--muted); font-weight: var(--weight-control, 500); box-shadow: none;
   }
   :is(.mw-catalog, .mw-layout-primitives) .mw-frame__action .mw-btn:hover:not(:disabled) {
     background: transparent; color: var(--ink); text-decoration: underline; text-underline-offset: 3px;
@@ -832,7 +826,7 @@ export const PRIMITIVE_STYLES = `
   .mw-table th, .mw-table td { padding: 12px 16px; border: 0; text-align: left; }
   .mw-table th { color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); letter-spacing: .01em; }
   .mw-table tbody tr + tr td { box-shadow: inset 0 1px 0 var(--line); }
-  .mw-table tbody tr { transition: background-color var(--motion-fast, 130ms) var(--ease-quint); }
+  .mw-table tbody tr { transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
   .mw-table tbody tr:hover { background: var(--nav-hover); }
   .mw-table thead th { padding-bottom: 8px; }
   .mw-catalog .mw-card { width: min(280px, 100%); }
@@ -1041,7 +1035,7 @@ export const PRIMITIVE_STYLES = `
     position: relative; min-width: 0;
     display: grid; grid-template-columns: minmax(0, 1fr);
     align-items: stretch; border-radius: var(--radius-item, 8px);
-    transition: background-color var(--motion-normal, 250ms) var(--ease-quint);
+    transition: background-color var(--dur-move, 250ms) var(--ease-quint);
   }
   body[data-desktop-shell="true"] .mw-dir-row,
   body.immersive-workbench .tree-pane .mw-dir-row,
@@ -1144,7 +1138,7 @@ export const PRIMITIVE_STYLES = `
     background: transparent; color: var(--status-tone, var(--faint));
     font-size: 12px; font-weight: 400; line-height: 16px;
   }
-  .mw-dir-row .mw-dir-row__status svg { width: 12px; height: 12px; color: inherit; }
+  .mw-dir-row .mw-dir-row__status svg:not(.mw-state-ring) { width: 12px; height: 12px; color: inherit; }
   .mw-dir-row.is-selected .mw-dir-row__status,
   .mw-dir-row[aria-current="page"] .mw-dir-row__status { color: var(--status-tone, var(--muted)); }
   .mw-dir-row-wrap:hover { background: var(--nav-hover); }
@@ -1235,6 +1229,7 @@ export const PRIMITIVE_STYLES = `
 
   @media (max-width: 760px), (pointer: coarse) {
     .mw-form__footer .mw-btn:not(.mw-btn--icon-only), .mw-btn--lg, .mw-menu__item { min-height: 44px; }
+    .mw-btn--sm { min-height: var(--control-h, 44px); }
     .mw-input, .mw-textarea, .mw-select { font-size: 16px; }
     dialog.mw-sheet { inset: 0; width: 100vw; height: 100dvh; max-height: 100dvh; }
     dialog.mw-dialog--form { width: calc(100vw - 24px); max-height: calc(100dvh - 32px); }

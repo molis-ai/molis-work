@@ -1,7 +1,7 @@
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { PluginCapabilityPort, PluginEventBus, PluginInputGraph } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginCapabilityPort, PluginEventBus, PluginHostEvents, PluginInputGraph } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginPlatformHome } from "./home-side.js";
 import { openHostSession, type HostSession } from "./plugin-host-services.js";
 
@@ -58,6 +58,8 @@ export interface PluginHostExecutorOptions {
    * instead of hiding it behind a lazily-read global.
    */
   events?: PluginEventBus;
+  /** What the Host itself tells one installation (X-6). Never handed to a Plugin: only `stop` reaches it. */
+  hostEvents?: PluginHostEvents;
   wiring?: PluginInputGraph;
   capabilities?: PluginCapabilityPort;
   /**
@@ -91,6 +93,7 @@ export class PluginHostExecutor implements PluginExecutor {
    */
   attach(services: {
     events?: PluginEventBus;
+    hostEvents?: PluginHostEvents;
     wiring?: PluginInputGraph;
     capabilities?: PluginCapabilityPort;
     scopeKey?: string | null;
@@ -116,6 +119,7 @@ export class PluginHostExecutor implements PluginExecutor {
     // invocation authority before waiting for it, while retaining cleanup data.
     session?.revoke();
     this.options.events?.revoke(this.options.project_id, definition.manifest.plugin_id);
+    this.options.hostEvents?.revoke(this.options.project_id, definition.manifest.plugin_id);
     try {
       await definition.stop?.(session?.context ?? context);
     } finally {

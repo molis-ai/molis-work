@@ -132,7 +132,6 @@ export const STYLES = `
   .tree-dep.is-ready em { color: var(--green); }
   .tree-dep.is-blocked em { color: var(--red); }
   .goal-status { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 12px; font-weight: 400; }
-  .goal-status svg { font-size: 13px; }
   .goal-status--clarifying, .goal-status--executing, .goal-status--reviewing, .goal-status--revalidating, .goal-status--in_progress { color: var(--tone-progress, var(--blue)); }
   .goal-status--clarification_pending, .goal-status--clarification_decision_pending, .goal-status--compound_closure_pending, .goal-status--completion_pending, .goal-status--review_pending, .goal-status--waiting_for_human, .goal-status--revalidation_pending, .goal-status--waiting_user { color: var(--tone-attention, var(--amber)); }
   .goal-status--execution_pending, .goal-status--continue { color: var(--tone-idle, var(--ink-soft)); }
@@ -229,7 +228,7 @@ export const STYLES = `
     .tui-add span, .tui-chrome [data-tui-copy] span { display: none; }
     .tui-add, .tui-chrome [data-tui-copy] { width: 28px; padding: 0; justify-content: center; }
   }
-  .goal-document { width: min(100%, 1080px); min-height: 100%; margin: 0 auto; padding: 24px 32px 64px; container-type: inline-size; animation: document-in 250ms var(--ease-quint); }
+  .goal-document { width: min(100%, 1080px); min-height: 100%; margin: 0 auto; padding: 24px 32px 64px; container-type: inline-size; animation: craft-rise var(--dur-move) var(--ease-quint); }
   .goal-header { padding: 0 0 16px; }
   .goal-title-row { display: flex; align-items: flex-start; gap: 16px; }
   .goal-title-actions { display: flex; align-items: center; gap: 8px; }

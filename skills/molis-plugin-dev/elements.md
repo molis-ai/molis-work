@@ -126,9 +126,9 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 总线规则：
 
-- `events.publishes` / `subscribes`。订阅必须列出 `from_plugin_ids`。来源没装只是不匹配，不算激活失败。
+- `events.publishes` / `subscribes`。订阅必须列出 `from_plugin_ids`。来源没装只是不匹配，不算激活失败。宿主事件（`host.review.settled@1`）例外：不写来源，只投给发起审查的那个安装，不落库，写法见 `host.md`。
 - 正文上限 16 KiB。更大的走 Artifact 引用。
-- 禁止 `molis.` / `host.` 命名空间。
+- 禁止发布 `molis.` / `host.` 命名空间的事件；订阅只能订宿主登记过的那几种。
 - **事件 id 放合同**，不放发布者插件包。Coding 的 `file-changed` 在 `workspace-artifacts` 合同里，Files 只点名 id，不 import Coding 实现。
 - `PluginDefinition.event_types` 的 `validate` 必须覆盖自己 publishes 的每一种；Host 只存校验通过的。
 - 发布：`context.services.events.publish({ event_type_id, type_version, payload })`。没声明 publishes 就没有 `services.events`。

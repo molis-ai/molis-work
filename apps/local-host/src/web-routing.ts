@@ -41,6 +41,8 @@ export async function resolveWebRequest(
       || pathname.startsWith("/api/")
       || pathname === "/__ui/catalog"
       || pathname === "/__ui/catalog/bar"
+      || pathname === "/__ui/catalog/conditions"
+      || pathname === "/__ui/catalog/assistant"
       || pathname === "/settings"
       || pathname.startsWith("/settings/")
       || pathname === "/capabilities"

@@ -212,7 +212,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     if(event.data?.type==='molis:im-connect'&&projectId){
       const answer=(error)=>frame.contentWindow.postMessage({type:'molis:im-connected',requestId:event.data.requestId,error},location.origin);
       try{await molisWorkRequest('/projects/'+encodeURIComponent(projectId)+'/api/im/connect',{body:{}});answer(null);}
-      catch(error){answer(molisWorkRequest.text(error,'项目连接失败'));}
+      catch(error){answer(molisWorkRequest.text(error,L('项目连接失败')));}
     }
   });
   let drag=null;

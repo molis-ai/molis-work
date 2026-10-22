@@ -159,8 +159,8 @@ export const SETTINGS_STYLES = `
   button.settings-connector-card:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   button.settings-connector-card--placeholder { color: var(--ink-soft); }
   button.settings-connector-card--placeholder .settings-connector-card__copy { color: var(--faint, var(--muted)); }
-  .settings-connector-card__body { min-width: 0; display: grid; gap: 8px; }
-  .settings-connector-card__title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .settings-connector-card__body { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .settings-connector-card__title { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; }
   .settings-connector-card__title strong { font-size: 15px; font-weight: var(--weight-control, 500); }
   .settings-connector-card__copy { color: var(--muted); font-size: 12px; line-height: 1.5; }
   .settings-connector-mark {

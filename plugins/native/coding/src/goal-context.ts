@@ -10,7 +10,7 @@ import { agentTextMaterialContent, type AgentTextMaterial, type AgentRunView } f
 /** Coding's immutable copy of the Goal facts used for a task, not a second Goal. */
 import { CODING_GOAL_CONTEXT_TYPE } from "./artifacts.js";
 import { codingGoalVersionLabel } from "./goal-versions.js";
-import { codingZh } from "./zh.js";
+import { codingZh } from "./words.js";
 const PREFIX = "coding-goal-context:";
 function serialize(value: unknown, indent?: number): string {
   return JSON.stringify(value, (_key, entry) => entry && typeof entry === "object" && !Array.isArray(entry)

@@ -3,7 +3,7 @@ export const HOME_EN: Record<string, string> = {
   "今天的工作": "Today's work",
   "{date}的工作": "Work on {date}",
   "{week}，{date}": "{week}, {date}",
-  "{n} 件事": "{n} items",
+  "{n} 件事": "{n} {n|item|items}",
   "回到今天": "Back to today",
   "继续这个目标": "Continue this Goal",
   "去做决定": "Make the decision",

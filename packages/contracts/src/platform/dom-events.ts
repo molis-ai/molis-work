@@ -292,8 +292,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis-work:select-item", kind: "announcement", owner: "tab-workspace", on: "element",
-    detail: "{ itemId }",
-    summary: "The workbench opened an item in a plugin surface; the surface shows it. Dispatched on the surface root, not bubbling.",
+    detail: "{ itemId, quiet? }",
+    summary: "The workbench opened an item in a plugin surface; the surface shows it. quiet: a reopen the person did not ask for (a reload, Back), so an item that is gone is forgotten without a word. Dispatched on the surface root, not bubbling.",
   },
   {
     name: "molis-work:settings-embed", kind: "announcement", owner: "settings-directory", on: "document",

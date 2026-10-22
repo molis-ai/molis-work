@@ -91,7 +91,7 @@ export const PLACEMENT_EN: Record<string, string> = {
   "新的一份会写上“复制自 {place}”。": "The new copy will say “Copied from {place}”.",
   "移到个人空间后，原项目里的助理、Runtime 和工作流将读不到它。": "After it moves to your personal space, assistants, runtimes and workflows in the original project can no longer read it.",
   "移到项目后，这个项目里的助理、Runtime 和工作流能读取它。": "After it moves to the project, that project's assistants, runtimes and workflows can read it.",
-  "它现在有 {count} 项关联，移动后都保留。": "It has {count} links; they all stay after the move.",
+  "它现在有 {count} 项关联，移动后都保留。": "It has {count} {count|link|links}; they all stay after the move.",
   "移动《{title}》": "Move “{title}”",
   "复制《{title}》": "Copy “{title}”",
   "移动只改存放位置：还是同一份内容，关联和引用继续有效。": "Moving only changes where it's stored: it's the same item, and its links and references keep working.",

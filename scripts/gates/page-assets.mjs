@@ -248,7 +248,7 @@ const APPROVED_CEILINGS = {
   // Register conditional blank cleanup before closing; obsolete unload-only request branches were removed (+308).
   "/assets/molis-work-plugins/lingguang.js": [25558, 25866],
   // Form/PPT detail controls wrap and export menus stay inside narrow frames; old delete-button margin removed (+92).
-  "/assets/molis-work-workbench.css": [1614380, 1614472],
+  "/assets/molis-work-workbench.css": [1614339, 1614431],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

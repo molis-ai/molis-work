@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { renderFilesBrowserDirectory, renderFilesBrowserResult } from "@molis-ai/molis-work-plugin-files";
 import { renderGitBrowserDirectory, renderGitBrowserResult } from "@molis-ai/molis-work-plugin-git";
-import { pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
+import { createWorkbenchLocale, pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
 import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/agent-review.js";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
@@ -21,6 +21,7 @@ import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/s
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const { L, clientI18nScript } = createWorkbenchLocale(() => "zh");
 async function until(predicate: () => boolean) {
   for (let n = 0; n < 150; n++) { if (predicate()) return; await pause(20); }
   assert.ok(predicate(), "expected server-side request or cancellation");
@@ -43,6 +44,7 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
       response.setHeader("content-type", "text/html; charset=utf-8");
       response.end(`<!doctype html><section id="parent" hidden>${markup}</section><script>
         window.errors=[];addEventListener('error',event=>errors.push(event.message));addEventListener('unhandledrejection',event=>errors.push(String(event.reason)));
+        ${clientI18nScript()}
         ${UI_REQUEST_CLIENT_SCRIPT}
         window.mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();window.parentView=document.querySelector('#parent');
         ${script}
@@ -66,7 +68,7 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
 /** Coding's bundle as the page mounts it on each of its surfaces: Coding's factory with Files' and Git's clients and the Host's reviews folded in. */
 const CODING_SURFACE_FACTORY = pluginSurfaceClients().find(client => client.id === "coding")!.factory;
 // A companion's reads go to `/api/plugins/io.molis.work.<plugin>/…`; the fixture serves them at `/<plugin>/…`.
-const companionHost = "root:document.querySelector('[data-companion]'),mountPluginClient:mount,route:path=>path.replace('/api/plugins/io.molis.work.','/'),headers:()=>({}),openPlugin:()=>{}";
+const companionHost = "root:document.querySelector('[data-companion]'),mountPluginClient:mount,translate:L,route:path=>path.replace('/api/plugins/io.molis.work.','/'),headers:()=>({}),openPlugin:()=>{}";
 const fixedMarkup = '<button data-companion-refresh><span class="mw-spinner" hidden></span>刷新</button><p data-companion-status></p><div data-companion-content></div>';
 const state = (name: string) => name === "files" ? { workspace: { workspace_id: "ws" } }
   : name === "git" ? { workspace: { workspace_id: "ws" }, selected: null, view: { phase: "ready", head: "current", conflicts: [], staged: [], changes: [] } }
@@ -122,6 +124,7 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
     return { ...state, html: renderDiff({ view: state.view, route_prefix: "", primitives: {
       escape: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;"),
       icon: name => icon(name as Parameters<typeof icon>[0]),
+      text: L,
     } }) };
   };
   const previous = await fixedState(1);
@@ -149,8 +152,8 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
 
 for (const name of ["files", "git", "diff", "text-stats"]) {
   test(`${name} owns visible queries and listeners across hide, detach and remount`, { timeout: 30_000 }, async t => {
-    const body = name === "files" ? renderFilesBrowserDirectory() + renderFilesBrowserResult()
-      : name === "git" ? renderGitBrowserDirectory() + renderGitBrowserResult() : fixedMarkup;
+    const body = name === "files" ? renderFilesBrowserDirectory(L) + renderFilesBrowserResult(L)
+      : name === "git" ? renderGitBrowserDirectory(L) + renderGitBrowserResult(L) : fixedMarkup;
     const f = await fixture(t, `<section data-companion="${name}">${body}</section>`, `
       const host={${companionHost}};
       window.root=host.root;window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
@@ -251,7 +254,7 @@ test("Host reviews retain decisions across hiding without rendering stale result
 
 for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, resumes after disconnect and stops while hidden`, { timeout: 30_000 }, async t => {
   let revision = 1;
-  const markup = name === "files" ? renderFilesBrowserDirectory() + renderFilesBrowserResult() : renderGitBrowserDirectory() + renderGitBrowserResult();
+  const markup = name === "files" ? renderFilesBrowserDirectory(L) + renderFilesBrowserResult(L) : renderGitBrowserDirectory(L) + renderGitBrowserResult(L);
   const f = await fixture(t, `<section data-companion="${name}">${markup}</section>`, `
     const host={${companionHost}};
     window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();

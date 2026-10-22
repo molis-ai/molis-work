@@ -67,6 +67,7 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 - **尺寸：** 控件 32px（紧凑 28，手机/粗指针 44），`--control-h` 只在早层声明，好让密度和触控规则赢。圆角：tag 6、control 8、row 10、card 12、sheet 14、composer 15、dialog 16。
 - **焦点：** 只用 `--focus-stroke`（2px 铜色、偏移 1px）；字段是铜色边框加 3px 铜色光晕。不准用 ink 或蓝色描焦点，不准去掉焦点。危险态用 `--red`。
 - **动效：** 只用 `--dur-*`（按压/悬停 130、状态 250、到达 420、时刻 640）和 `--ease-quint` / `--ease-spring`。按下回弹到 .97；菜单从触发处长出，底栏菜单从栏升起；面板从边缘滑入；悬停只变色调。打开弹层的控件不缩放。入场只有四个关键帧（`src/styles/motion.ts`：到达 `craft-rise`、再显示 `craft-fade-in`、菜单 `craft-drop` / `craft-rise-from-bar`），页面与插件不另写；完成与新到达用 `molisCraft.celebrate` / `molisCraft.land`（新到达的那一层底色是 `[data-craft-new]`）。`prefers-reduced-motion` 与自动化下控件入场动画静止。状态环刻的语义周期为 2.8–5.8 秒，由共享组件维护；减少动效时静止，浏览器回归可以显式验证正常运动。
+- **菜单关闭与流式成本（VUX-36、VUX-22）：** `details` 菜单仅在关闭的 130ms 保留内容盒，打开立即可用；普通折叠仍走自然高度动画。关闭规则直接锚定现役菜单父 class，不以全页 `details:has(...)::details-content` 判断子元素；新增 `details` 菜单在父元素声明已有的 `mw-menu-host`，不会自动覆盖任意新 class。本次只替换该样式锚点，不新增 DOM 状态或修改菜单内容；`tests/menu-exit-motion.e2e.test.ts` 验证实际退场与普通折叠，`tests/has-anchors.e2e.test.ts` 保持长回复插入节点小于 3ms 的原门槛。
 - **不画滚动条。** `HIDDEN_SCROLLBAR_STYLES`（`src/styles/scrollbars.ts`）在每一页把滚动条藏起来，滚动照常；强制颜色下系统滚动条回来。别处不写 `scrollbar-width`、`scrollbar-color`、`::-webkit-scrollbar`；不在共有样式表里的页面（胶囊、IM、接续页）自己带上这条。
 - **不准露出操作系统默认控件。** 选择打开后是 `mw-menu`；禁止系统色盘、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。原生 `<select>` 只可隐藏当值，原生 `<dialog>` 只留行为。
 - 选项组用 `renderChoice` / `mw-choice`：选中是石墨底加对勾，不能只靠光影或颜色表达选中。

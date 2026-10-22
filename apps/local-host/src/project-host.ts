@@ -10,7 +10,7 @@ import { precompileActionSchemas, refuseCall, type CallSettled } from "@molis-ai
 import { workActionProvider } from "./work-actions.js";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 import { projectWorkspaceActionProvider } from "./project-workspace-actions.js";
-import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
+import type { PtySpawnRequest, PtySpawnResult, RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { artifactActionProvider } from "./artifact-actions.js";
 import { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
 import { PersonalPlanningActions } from "./personal-planning-actions.js";
@@ -20,6 +20,7 @@ import { goalsActionProvider } from "./goals-actions.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
 import { providerTablesOwner, scheduleActionProvider, scheduleReminderActionProvider } from "./schedule-actions.js";
 import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
+import { charactersActionProvider } from "./characters-host.js";
 import { actionUsagesProvider } from "./action-usage-actions.js";
 import { ActionCallLog } from "./action-call-log.js";
 import { connectorAccountActionProvider } from "./connector-account-actions.js";
@@ -99,6 +100,8 @@ export interface MolisWorkLocalHostOptions {
    */
   workspacesFor?: (projectId: string) => readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
   workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
+  /** The native terminal a Character launch starts in; the web entry owns it and supplies it once it is up. */
+  characterSpawn?: (request: PtySpawnRequest) => PtySpawnResult;
 }
 
 export function molisWorkHostProjectReference(input: {
@@ -179,6 +182,7 @@ export class MolisWorkLocalHost {
             add(scheduleReminderActionProvider(runtime, options.projectRoutePrefix?.(reference.project_id)));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(shelfProjectActionProvider(reference.project_id, options.homeDirectory, this.actionClient(reference)));
+            if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.client(reference)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes, functions: options.functions }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,

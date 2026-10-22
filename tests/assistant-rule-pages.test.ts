@@ -71,7 +71,7 @@ test("PG-036: the pages the settings page offers come with the server, each with
 test("PG-036: a personal plugin with no entry in the workbench rail is not a page a rule can name, since the client never reports it", async t => {
   const { home, installed, addRule } = await setup(t);
   const { pages } = await home.web.get<RulePages>("/api/assistant/rules");
-  for (const page of ["shelf", "characters"]) {
+  for (const page of ["shelf"]) {
     assert.ok(!pages.some(choice => choice.page_id === page), `${page} is not offered`);
     await assert.rejects(addRule(quiet([page])), new RegExp(page), `a rule naming ${page} is refused over HTTP`);
     await assert.rejects(addByAction(home, quiet([page])), new RegExp(page), `a rule naming ${page} is refused as an action`);

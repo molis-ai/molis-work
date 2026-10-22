@@ -129,7 +129,7 @@ ${CHOOSER_CLIENT_SCRIPT}`;
     return shell.document({
       title: L("选择项目 · Molis Work"), screen: "chooser", desktopShell, controlToken,
       titlebar: shell.titlebar(desktopShell, { caption: true }), stage, bar,
-      after: `${templates}<script type="application/json" id="arrival-data">${data}</script><div class="arrival-toasts" id="toasts" aria-live="polite"></div>`,
+      after: `${templates}<script type="application/json" id="arrival-data">${data}</script>`,
       scripts,
     });
   }

@@ -1,50 +1,28 @@
-import type { UiContribution, UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon } from "@molis-ai/molis-work-design-system";
 import { CHARACTER_IMPORT_HTML, CHARACTER_SOURCE_HTML } from "./import-ui.js";
 
-export const CHARACTERS_UI_CONTRIBUTION_ID = "io.molis.work.native.characters.ui.v1";
-export const CHARACTERS_SETTINGS_UI_CONTRIBUTION_ID = "io.molis.work.native.characters.settings.v1";
+// 角色 is the Host's own page since CHR-1 (decision #26): Settings › 角色 is a host section, and inside a project the page below
+// is a stage surface the settings cover shows (it marks itself `data-settings-page`). Its browser program is src/browser/characters.
 export interface CharactersUiModel { route_prefix: string; primitives: { escape(value: unknown): string } }
-
-/** The page a project renders with its running plugin. It is the 角色 page of settings (it marks itself so). */
-export const charactersUiContribution: UiContribution<CharactersUiModel> = {
-  descriptor: { contribution_id: CHARACTERS_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.characters", kind: "primary-page", navigation_id: "characters", label: "Characters",
-    surfaces: [{ surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" }, { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] },
-  render: request => request.surface === "directory" ? "" : renderCharacters(request.model),
-};
 
 export interface CharactersSettingsUiModel {
   readonly projects: readonly { readonly project_id: string; readonly name: string; readonly href: string }[];
   readonly primitives: { escape(value: unknown): string };
 }
 
-export const charactersSettingsUiDescriptor: UiContributionDescriptor = {
-  contribution_id: CHARACTERS_SETTINGS_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.characters",
-  kind: "settings-page",
-  navigation_id: "characters",
-  label: "角色",
-  surfaces: [{ surface_id: "settings", target_slot_id: "workbench.settings", format: "declarative-html" }],
-  slots: [],
-};
-
 /**
  * Settings › 角色 outside any project. Publishing lands in a project, so the page is managed from inside one;
  * here it says so and offers the projects.
  */
-export const charactersSettingsUiContribution: UiContribution<CharactersSettingsUiModel> = {
-  descriptor: charactersSettingsUiDescriptor,
-  render(request) {
-    if (request.surface !== "settings") throw new Error(`Characters settings surface ${request.surface} 不存在`);
-    const { projects, primitives: p } = request.model;
-    const rows = projects.map(project => `<a class="characters-project-link" href="${p.escape(project.href)}">${icon("folder")}<span>${p.escape(project.name)}</span>${icon("chevron-right")}</a>`).join("");
-    return `<section class="settings-document characters-settings-entry" aria-labelledby="settings-title" data-settings-panel="characters">
+export function renderCharactersSettingsEntry(model: CharactersSettingsUiModel): string {
+  const { projects, primitives: p } = model;
+  const rows = projects.map(project => `<a class="characters-project-link" href="${p.escape(project.href)}">${icon("folder")}<span>${p.escape(project.name)}</span>${icon("chevron-right")}</a>`).join("");
+  return `<section class="settings-document characters-settings-entry" aria-labelledby="settings-title" data-settings-panel="characters">
       <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">角色</h1></div>
         <p>角色是交给 AI 的做事方式：你自己写的，以及系统和插件带来的。角色属于你，发布时固定到一个项目，所以在项目里管理。</p></header>
       <section class="settings-section"><h2>在哪个项目里打开</h2>${rows || `<p class="characters-hint">还没有项目。先创建一个项目，再回来写角色。</p>`}</section>
     </section>`;
-  },
-};
+}
 
 const STEPS: readonly [string, string][] = [
   ["写下做事方式", "像交代给同事一样：先做什么、怎么验证、哪些不能碰。"],

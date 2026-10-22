@@ -67,7 +67,7 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
     </div>
   </main>
   ${bar}
-  <div class="toast" data-toast role="status" aria-live="polite"></div>
+  <div class="mw-toast toast" data-toast role="status" aria-live="polite"></div>
   <script type="application/json" id="mw-asst-data">${data}</script>
   <script>${ports.clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
   <script>${ASSISTANT_FRAME_SCRIPT}</script>

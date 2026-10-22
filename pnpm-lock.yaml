@@ -109,9 +109,6 @@ importers:
       '@molis-ai/molis-work-plugin-builder':
         specifier: workspace:*
         version: link:plugins/native/plugin-builder
-      '@molis-ai/molis-work-plugin-characters':
-        specifier: workspace:*
-        version: link:plugins/native/characters
       '@molis-ai/molis-work-plugin-cli':
         specifier: workspace:*
         version: link:tooling/plugin-cli
@@ -410,9 +407,6 @@ importers:
       '@molis-ai/molis-work-plugin-builder':
         specifier: workspace:*
         version: link:../../plugins/native/plugin-builder
-      '@molis-ai/molis-work-plugin-characters':
-        specifier: workspace:*
-        version: link:../../plugins/native/characters
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:../../plugins/native/coding
@@ -612,9 +606,6 @@ importers:
       '@molis-ai/molis-work-plugin-builder':
         specifier: workspace:*
         version: link:../../plugins/native/plugin-builder
-      '@molis-ai/molis-work-plugin-characters':
-        specifier: workspace:*
-        version: link:../../plugins/native/characters
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:../../plugins/native/coding
@@ -976,18 +967,6 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../../packages/design-system
-
-  plugins/native/characters:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
 
   plugins/native/coding:
     dependencies:

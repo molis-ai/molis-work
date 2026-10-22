@@ -11,6 +11,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
+import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { workspaceRefFor } from "./agent-host-composition.js";
 import { ensureSystemAgentService } from "./system-agent-service.js";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "./project-host.js";
@@ -55,6 +56,15 @@ function loopbackWebOrigin(server: http.Server): string {
 const recording = repeatingFailure("terminal", "recording_failed");
 const recordingFailure = (error: unknown) => recording.failed("recorder", error);
 
+/** The native terminal, attached once the server exists; a Character launch made before that is refused. */
+function nativeTerminal() {
+  const terminal = { host: null as MolisWorkPtyHost | null, spawn: (request: PtySpawnRequest): PtySpawnResult => {
+    if (!terminal.host) throw new Error("原生终端尚未接通");
+    return terminal.host.spawn(request);
+  } };
+  return terminal;
+}
+
 export function createLocalWebServerFactory(platform: LocalWebPlatform) {
   return function createMolisWorkWebServer(options: WebServerOptions = {}): http.Server {
     const storageHome = path.resolve(options.homeDirectory ?? resolveMolisWorkHome());
@@ -84,8 +94,9 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const webService = serverOptions.webServiceManager ?? new MolisWorkWebServiceManager({
       homeDirectory: serverOptions.homeDirectory,
     });
+    const pty = nativeTerminal();
     const localHost = serverOptions.localHost ?? createMolisWorkLocalHost({
-      homeDirectory: storageHome,
+      homeDirectory: storageHome, characterSpawn: pty.spawn,
       actionAvailability,
       sceneAvailability: actionAvailability,
       projectRoutePrefix: projectId => fixture && projectId === fixture.projectId ? "" : `/projects/${encodeURIComponent(projectId)}`,
@@ -114,7 +125,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const projectSchedulers = startWebProjectSchedulers({ localHost, homeDirectory: storageHome, withCatalog, fixture, agents, periodic,
       changed: databasePath => webViewCache.delete(databasePath), onError: error => hostLog.warn("schedule", "project_schedulers_not_started", error) });
     const feedSchedulers = projectSchedulers.runtimes;
-    const pty = { host: null as MolisWorkPtyHost | null };
     const im = createLocalImServer(storageHome, async id => {
       if (fixture && id === fixture.projectId) return { id, title: fixture.project?.display_name ?? 'Molis Work' };
       return withCatalog({homeDirectory:storageHome}, catalog => {

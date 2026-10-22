@@ -1,6 +1,5 @@
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { observeGitOperations } from "./git-operation-notifications.js";
 import { ensureInstalledPlugins } from "./installed-plugin-host.js";
@@ -39,8 +38,6 @@ export function ensureProjectPluginActions(source: ProjectPluginHost, reference:
     store: runtime.store, projectId: runtime.project_id, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: options.homeDirectory,
     capabilities: host.client(reference),
     actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: reference.project_id },
-    characterWorkspaces: async () => options.workspacesFor ? await options.workspacesFor(reference.project_id)
-      : options.workspaceFor ? [await options.workspaceFor(reference.project_id)].filter((value): value is ProjectWorkspaceRef => !!value) : [],
     ...(agents() ? { observeGitOperations: listener => observeGitOperations(agents()!.agentHost.reviews, runtime.project_id, listener) } : {}),
   }));
 }

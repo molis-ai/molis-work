@@ -6,8 +6,6 @@ import { CARD_RESULT_OPEN, cardOutcomeSteps, interactionNextSteps } from "./agen
 import { assistantCardHtml, cardView } from "./assistant/assistant-card-view.js";
 import type { StoredCard } from "./assistant/assistant-store.js";
 import { L } from "./web-locale.js";
-import { CHARACTERS_UI_CONTRIBUTION_ID, type CharactersUiModel } from "@molis-ai/molis-work-plugin-characters";
-import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { icon, escapeHtml, renderPluginStageShell, renderEmpty, renderSidebar, renderInteractionNextSteps, type InteractionNextStep } from "@molis-ai/molis-work-design-system";
 import {
   CODING_PLUGIN_ID,
@@ -113,19 +111,6 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
   } catch (error) {
     return { plugin_id: CODING_PROJECT_PLUGIN_ID, panel: failedStage("coding", error instanceof Error ? error.message : "Coding 页面读取失败") };
   }
-}
-
-/** Independent personal Character manager rendered by its running Plugin. */
-export async function charactersWorkbenchPanel(ports: CodingSurfacePorts): Promise<{ panel: string; plugin_id: string }> {
-  const record = await ensureProjectPlugins(ports);
-  const active = record.platform?.supervisor.state(CHARACTER_PLUGIN_ID);
-  const contribution = record.platform?.supervisor.contribution(CHARACTER_PLUGIN_ID);
-  const views = (contribution as { views?: ReadonlyArray<{ descriptor: { contribution_id: string }; render(request: { surface: string; model: CharactersUiModel }): string }> } | null)?.views ?? [];
-  const view = views.find(item => item.descriptor.contribution_id === CHARACTERS_UI_CONTRIBUTION_ID);
-  if (active?.status !== "running" || !view) return { plugin_id: "characters", panel: `<section class="desktop-work-surface characters-page" data-work-surface="characters" data-work-surface-label="角色" data-settings-page="characters" hidden><div class="mw-empty" role="alert"><p>${escapeHtml(active?.message ?? "角色插件未能启动，请重新打开项目。")}</p></div></section>` };
-  return { plugin_id: "characters", panel: view.render({ surface: "workbench", model: {
-    route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) },
-  } }) };
 }
 
 /** Files hands its snapshots on as process items (artifact-positioning A2); either declaration list can name them. */
@@ -260,11 +245,10 @@ function failedStage(plugin: string, message: string): string {
 
 /** The stage panels the Host renders itself, and the contribution ids the Manifest fallback must not render again. */
 export async function builtinStagePanels(ports: CodingSurfacePorts, enabled: readonly string[]): Promise<{ html: string[]; ids: string[] }> {
-  const character = await charactersWorkbenchPanel(ports);
-  const ids = [CHARACTERS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID];
+  const ids = [CODING_UI_CONTRIBUTION_ID];
   if (enabled.includes("diff")) ids.push(DIFF_UI_CONTRIBUTION_ID);
   if (enabled.includes("text-stats")) ids.push(TEXT_STATS_UI_CONTRIBUTION_ID);
-  return { html: [character.panel, ...await codingCompanionStages(ports, enabled)], ids };
+  return { html: await codingCompanionStages(ports, enabled), ids };
 }
 
 /** Compose the running companions into the same main-stage contract as other apps. */

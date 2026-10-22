@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import { openWorkflowsBrowser } from "./fixtures/workflows-browser.js";
 
 type Browser = Awaited<ReturnType<typeof openWorkflowsBrowser>>;
@@ -30,6 +31,23 @@ async function chain(t: Parameters<typeof openWorkflowsBrowser>[0], chromeArgs?:
 async function showStation(browser: Browser, index: number) {
   await browser.evaluate(`document.querySelectorAll('[data-wf-station]')[${index}].scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })`);
   await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+}
+
+// Chrome 155/Aura synthetic gestures bypass its recognizer; native CDP touch events feed it.
+async function touchGesture(browser: Browser, start: { x: number; y: number }, durationMs: number, deltaX = 0) {
+  const point = (x: number) => ({ x, y: start.y, id: 1, radiusX: 1, radiusY: 1, force: 1 });
+  await browser.command("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point(start.x)] }, browser.sessionId);
+  if (deltaX === 0) await delay(durationMs);
+  else {
+    const started = performance.now();
+    for (let step = 1; step <= 48; step++) {
+      await delay(Math.max(0, started + durationMs * step / 48 - performance.now()));
+      await browser.command("Input.dispatchTouchEvent", {
+        type: "touchMove", touchPoints: [point(start.x + deltaX * step / 48)],
+      }, browser.sessionId);
+    }
+  }
+  await browser.command("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }, browser.sessionId);
 }
 
 test("VUX-06/29: station tools need no tap or focus without hover, remain hittable, and touch moves persist", { timeout: 120_000 }, async t => {
@@ -70,22 +88,23 @@ test("VUX-06/29: station tools need no tap or focus without hover, remain hittab
     window.wfScrollProbe = probe;
     for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'touchstart', 'touchmove', 'touchend', 'touchcancel', 'dragstart', 'scroll', 'scrollend']) {
       document.addEventListener(type, event => {
-        const point = event.touches?.[0], entry = { type, at: performance.now(), target: label(event.target), prevented: event.defaultPrevented,
+        const point = event.touches?.[0], entry = { type, at: performance.now(), target: label(event.target), source: event,
           x: point?.clientX ?? event.clientX, y: point?.clientY ?? event.clientY, left: chain.scrollLeft };
         probe.count++; if (probe.events.length === 96) probe.events.shift(); probe.events.push(entry);
-        queueMicrotask(() => { entry.prevented = event.defaultPrevented; });
       }, { capture: true, passive: true, signal: probe.controller.signal });
     }
     return { x, y, page: [scrollX, scrollY], left: chain.scrollLeft, diagnostics: { at: performance.now(), chain: shape(chain), hit: label(hit), ancestors,
       viewport: [innerWidth, innerHeight], mouseHit: label(document.elementFromPoint(1, 1)),
       hovered: [...chain.querySelectorAll(':hover')].slice(0, 12).map(label) } };
   })()`);
-  await command("Input.synthesizeScrollGesture", { x: scroll.x, y: scroll.y, xDistance: -80, speed: 120, gestureSourceType: "touch" }, sessionId, 10_000);
+  // Preserve the observed finger path: the old 80px request added 15px of touch slop.
+  await touchGesture(b, scroll, 95 / 120 * 1000, -95);
   const scrolled = await evaluate<{ left: number; diagnostics: unknown }>(`(() => {
     const chain = document.querySelector('[data-wf-chain]'), left = chain.scrollLeft, probe = window.wfScrollProbe;
     probe.controller.abort(); delete window.wfScrollProbe;
     return { left, diagnostics: { at: performance.now(), chain: probe.shape(chain), hit: probe.label(document.elementFromPoint(probe.x, probe.y)),
-      count: probe.count, events: probe.events, page: [scrollX, scrollY], focused: probe.label(document.activeElement) } };
+      count: probe.count, events: probe.events.map(({ source, ...entry }) => ({ ...entry, prevented: source.defaultPrevented })),
+      page: [scrollX, scrollY], focused: probe.label(document.activeElement) } };
   })()`);
   assert.ok(scrolled.left > scroll.left, "the chain still scrolls horizontally by touch: " + JSON.stringify({ before: scroll.diagnostics, immediate: scrolled.diagnostics }));
   assert.deepEqual(await evaluate("[scrollX,scrollY]"), scroll.page, "touch scroll does not jump the page");
@@ -93,7 +112,7 @@ test("VUX-06/29: station tools need no tap or focus without hover, remain hittab
   await showStation(b, 0);
   const original = b.saved(b.b.workflow_id).stations.map(station => station.station_id);
   const move = (await evaluate<Tool[]>(tools(0)))[0]!;
-  await command("Input.synthesizeTapGesture", { x: move.x, y: move.y, duration: 60, tapCount: 1, gestureSourceType: "touch" }, sessionId, 10_000);
+  await touchGesture(b, move, 60);
   await waitFor(`${stations}[0] !== ${JSON.stringify(original[0])} && document.querySelector('[data-wf-save-state]').dataset.state === 'saved'`);
   const expected = [original[1], original[0], original[2]];
   assert.deepEqual(await evaluate(stations), expected);

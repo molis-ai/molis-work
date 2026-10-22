@@ -12,7 +12,7 @@ function isOwnedSessionRegistry(owner: unknown): boolean {
   return owner === SESSION_REGISTRY_OWNER;
 }
 
-export const DEFAULT_CORRELATION_TTL_SECONDS = 15 * 60;
+const DEFAULT_CORRELATION_TTL_SECONDS = 15 * 60;
 
 export function initializeOrValidateSessionSchema(db: Database.Database,replicationSchema:string): boolean {
   const meta = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'session_meta'").get();

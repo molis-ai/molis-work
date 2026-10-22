@@ -2,7 +2,7 @@ import type { Envelope, ExactRef, Runtime } from "@prologue/sdk";
 import type { AgentMessageAttachment, AgentPeopleMessageAction, AgentPeopleMessageInput, AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** What the messages need to know about a session: its project, whether it is a subtask, how it is named. */
-export interface MessageSessions {
+interface MessageSessions {
   owner(sessionId: string): Promise<{ project: string; ref: ExactRef<"session">; subtask: boolean } | undefined>;
   title(project: string, sessionId: string): Promise<string>;
   /** Tell a round that is running right now; false when the session has no live round. */

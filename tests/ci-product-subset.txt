@@ -496,3 +496,4 @@ tests/workspace-production-events.test.ts
 tests/security-invariants-activation-jobs.test.ts
 tests/connector-status.test.ts
 tests/connector-consumer-usages.test.ts
+tests/canonical-json-value.test.ts

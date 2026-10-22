@@ -25,9 +25,9 @@ export interface ArrivalPrimitives extends ArrivalShellPrimitives {
   dateTimeLocale(): string;
 }
 
-export type ArrivalScreen = "chooser" | "opening" | "welcome" | "onboard" | "update";
+type ArrivalScreen = "chooser" | "opening" | "welcome" | "onboard" | "update";
 
-export interface ArrivalTitlebarOptions {
+interface ArrivalTitlebarOptions {
   /** The chooser keeps the account/space switcher available before opening a project. */
   account?: boolean;
   /** The AI caption sits beside the wordmark on the chooser only. */
@@ -38,7 +38,7 @@ export interface ArrivalTitlebarOptions {
   theme?: boolean;
 }
 
-export interface ArrivalDocumentOptions {
+interface ArrivalDocumentOptions {
   title: string;
   screen: ArrivalScreen;
   /** What the body carries for tests and styles (`data-arrival`, `data-onboarding-mode`, …). */
@@ -112,5 +112,3 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
 
   return { href, titlebar, bar, document, caption, wordmark: () => renderWordmark() };
 }
-
-export type ArrivalShell = ReturnType<typeof createArrivalShell>;

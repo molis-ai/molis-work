@@ -13,13 +13,13 @@ import { materialErrors } from "./material-text.js";
  * The local-page reader's own refusals: an address that is not one of this machine's loopback names, and the Host's own endpoint.
  * Reading failures (a timeout, a status, a body too large) are `materialErrors`, the same words a public page gets.
  */
-export const materialLocalPageErrors = defineErrorCodes("material.local_page", {
+const materialLocalPageErrors = defineErrorCodes("material.local_page", {
   not_local: "invalid",
   own_endpoint: "forbidden",
 });
 
 interface LoopbackAddress { readonly address: string; readonly family: number }
-export interface MaterialLocalPageOptions {
+interface MaterialLocalPageOptions {
   signal?: AbortSignal;
   /** Rechecks the caller's authority immediately before each connection. */
   beforeDispatch?(): void | Promise<void>;

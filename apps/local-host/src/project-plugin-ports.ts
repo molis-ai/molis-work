@@ -12,7 +12,7 @@ import { ensureProjectPlugins } from "./project-plugins.js";
  * What the project's plugin ports are read from. `agents` is read when a call needs it, not when the Host is built: the
  * Agent service is attached to the Host afterwards.
  */
-export interface ProjectPluginHost {
+interface ProjectPluginHost {
   readonly host: LocalHost<MolisWorkProjectRuntime>;
   readonly options: MolisWorkLocalHostOptions;
   agents(): AgentHostComposition | undefined;

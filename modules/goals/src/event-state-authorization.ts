@@ -1,3 +1,4 @@
+import { canonicalJsonValue as canonicalizeValue } from "@molis-ai/molis-work-plugin-sdk";
 import { goalErrors, type GoalErrorCode } from "./errors.js";
 import {
   goalEventClosureKinds,
@@ -21,7 +22,7 @@ import {
 } from "./event-agreement-change.js";
 import { emptyScope, scopeIsSubset } from "./event-state-repository.js";
 
-export function requiredEnum<T extends string>(
+function requiredEnum<T extends string>(
   value: unknown,
   allowed: readonly T[],
   code: GoalErrorCode,
@@ -51,14 +52,7 @@ export function requiredClosureKind(value: unknown): GoalEventClosureKind {
   );
 }
 
-export function resolveDecisionEffects(
-  input: { accepts_requirements?: boolean; effects?: GoalEventDecisionEffect[] },
-  scope: GoalEventScope,
-): GoalEventDecisionEffect[] {
-  return normalizeTrustedDecision(input, scope).effects;
-}
-
-export function normalizeTrustedDecision(
+function normalizeTrustedDecision(
   input: { accepts_requirements?: boolean; effects?: GoalEventDecisionEffect[] },
   scope: GoalEventScope,
 ): { effects: GoalEventDecisionEffect[]; accepts_requirements: boolean } {
@@ -87,7 +81,7 @@ export function normalizeTrustedDecision(
   return { effects, accepts_requirements: input.accepts_requirements === true };
 }
 
-export function comparableDecisionKey(scope: GoalEventScope): string {
+function comparableDecisionKey(scope: GoalEventScope): string {
   return JSON.stringify({
     action: scope.action,
     requirement_ids: [...scope.requirement_ids].sort(),
@@ -146,11 +140,6 @@ export function decisionHasEffect(
     if (action == null) return true;
     return (effect.action ?? null) === action;
   });
-}
-
-export function decisionCoversScope(decision: GoalEventAppliedDecisionView, target: GoalEventScope): boolean {
-  if (emptyScope(decision.scope)) return false;
-  return scopeIsSubset(target, decision.scope);
 }
 
 export function decisionCoversConcern(
@@ -227,7 +216,7 @@ export function agreementChangeCommitmentCurrent(
   );
 }
 
-export function requirementCommitment(requirement: GoalEventRequirementStatus): GoalEventRequirementCommitment {
+function requirementCommitment(requirement: GoalEventRequirementStatus): GoalEventRequirementCommitment {
   return {
     requirement_id: requirement.requirement_id,
     statement: requirement.statement,
@@ -236,7 +225,7 @@ export function requirementCommitment(requirement: GoalEventRequirementStatus): 
   };
 }
 
-export function currentCommitment(
+function currentCommitment(
   requirements: GoalEventRequirementStatus[],
   outcome: string,
   requirementIds: string[],
@@ -248,7 +237,7 @@ export function currentCommitment(
   };
 }
 
-export function commitmentsMatch(left: GoalEventDecisionCommitment, right: GoalEventDecisionCommitment): boolean {
+function commitmentsMatch(left: GoalEventDecisionCommitment, right: GoalEventDecisionCommitment): boolean {
   if (left.outcome !== right.outcome) return false;
   if (left.requirements.length !== right.requirements.length) return false;
   const byId = new Map(right.requirements.map((item) => [item.requirement_id, item]));
@@ -310,7 +299,7 @@ export function requirementCurrentlySatisfied(requirement: GoalEventRequirementS
   return requirement.current_report?.verdict === "supports";
 }
 
-export function scopeAppliesToComplete(scope: GoalEventScope): boolean {
+function scopeAppliesToComplete(scope: GoalEventScope): boolean {
   return scope.action === "complete";
 }
 
@@ -414,18 +403,6 @@ export function resolveRecordedDecision(
     return { ...normalized, authorized_change: input.authorized_change, scope };
   }
   return { ...normalized, authorized_change: null, scope };
-}
-
-function canonicalizeValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalizeValue);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, item]) => [key, canonicalizeValue(item)]),
-    );
-  }
-  return value;
 }
 
 function normalizeEffects(effects: GoalEventDecisionEffect[]): GoalEventDecisionEffect[] {

@@ -3,7 +3,7 @@ import { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 import { handleAlchemistNativePluginHttp, type AlchemistHostPorts } from "./alchemist-native-plugin-http.js";
 import { withRewrittenPluginApi } from "./native-plugin-api.js";
 
-export interface PersonalNativePluginHttpPorts {
+interface PersonalNativePluginHttpPorts {
   readonly alchemist?: AlchemistHostPorts;
   readonly projectId?: string;
   readonly shelf?: Parameters<typeof handleShelfNativePluginHttp>[3];

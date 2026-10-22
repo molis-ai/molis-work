@@ -9,7 +9,7 @@ type Terminal = InstanceType<typeof Terminal>;
 const { FitAddon } = ((xtermFit as { default?: typeof import("@xterm/addon-fit") }).default ?? xtermFit) as typeof import("@xterm/addon-fit");
 type FitAddon = InstanceType<typeof FitAddon>;
 
-export interface TerminalScreensOptions {
+interface TerminalScreensOptions {
   host: HTMLElement;
   onInput(panelId: string, data: string): void;
 }

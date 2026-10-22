@@ -13,7 +13,7 @@ export interface PluginPrivateStorageDatabase {
   };
 }
 
-export interface PluginPrivateStorageSnapshotRecord { item_key: string; item_value: string }
+interface PluginPrivateStorageSnapshotRecord { item_key: string; item_value: string }
 
 
 

@@ -2,7 +2,7 @@ import type { HomePluginDatabaseDeclaration, PluginDefinition } from "@molis-ai/
 import type { PluginPlatformHome } from "./home-side.js";
 
 /** A plugin the Host starts in a project's platform, with the library in the Home the Host gives it, if any. */
-export interface PluginDatabaseEntry {
+interface PluginDatabaseEntry {
   readonly definition: PluginDefinition;
   readonly database?: HomePluginDatabaseDeclaration;
 }

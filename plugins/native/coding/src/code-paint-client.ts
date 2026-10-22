@@ -51,11 +51,12 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
     slicing.set(target, job); colouring.delete(target); target.replaceChildren(job.rest);
     const step = (first = false) => {
       if (slicing.get(target) !== job || (!first && !target.isConnected)) return;
-      const { text, state, rest } = job, end = text.indexOf("\n", Math.min(text.length, job.at + SLICE));
-      job.at = end < 0 ? text.length : end + 1;
+      const { text, state, rest } = job, nextAt = Math.min(text.length, job.at + SLICE), end = text.indexOf("\n", nextAt);
+      job.at = end < 0 ? nextAt : end + 1;
       const next = grow(state, text.slice(0, job.at), language, tokens), fresh = next.pieces.slice(next.from).map(pieceNode);
       for (const node of state ? state.nodes.slice(next.from) : []) node.remove();
-      rest.before(...fresh); rest.data = text.slice(job.at);
+      for (let at = 0; at < fresh.length; at += 4096) rest.before(...fresh.slice(at, at + 4096));
+      rest.data = text.slice(job.at);
       job.state = { ...next, nodes: [...(state ? state.nodes.slice(0, next.from) : []), ...fresh] };
       if (job.at < text.length) { requestAnimationFrame(() => step()); return; }
       rest.remove(); slicing.delete(target); colouring.set(target, job.state);

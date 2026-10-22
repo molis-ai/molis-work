@@ -11,7 +11,7 @@ import type { CodingSessionRecord } from "./store.js";
  * private storage under `cards:<session_id>`, and a card runs only through the Agent Host's `agent.offers.run`, which runs
  * exactly the action its suggestion names under that round's own grant.
  */
-export interface CodingActionCard extends ActionCard {
+interface CodingActionCard extends ActionCard {
   /** The suggestion it came from, and the round that made it: one card per suggestion, whatever reads it. */
   offer_id: string;
   run_id: string;
@@ -85,7 +85,7 @@ export function codingCardPorts(context: PluginStartContext, api: PluginCapabili
  * now, written only after the call's own check (`beforeWrite`). A suggestion whose action is no longer offered (access
  * revoked, the action switched off) lands nothing; a later read tries it again.
  */
-export async function landRoundOffers(context: PluginStartContext, api: PluginCapabilityClient, record: CodingSessionRecord, runs: readonly AgentRunView[],
+async function landRoundOffers(context: PluginStartContext, api: PluginCapabilityClient, record: CodingSessionRecord, runs: readonly AgentRunView[],
   beforeWrite: CodingBeforeWrite): Promise<CodingActionCard[]> {
   const held = sessionCards(context, record.session_id), known = new Set(held.map(card => card.offer_id));
   const offers = runs.flatMap(run => (run.offers ?? []).filter(offer => !known.has(offer.offer_id)).map(offer => ({ offer, run_id: run.ref.run_id })));

@@ -12,12 +12,12 @@ export interface ProjectSettingsFoldProject {
   plugin_requirements?: readonly { plugin_id: string; installed: boolean }[];
 }
 
-export interface ProjectSettingsFoldContent {
+interface ProjectSettingsFoldContent {
   html?: string;
   embedSrc?: string;
 }
 
-export interface ProjectSettingsFoldsPrimitives {
+interface ProjectSettingsFoldsPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: Extract<MolisWorkIcon, "settings" | "book" | "shield" | "workflow" | "chevron-right" | "chevron-down" | "tree" | "plus">, className?: string): string;

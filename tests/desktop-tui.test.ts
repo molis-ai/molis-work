@@ -753,7 +753,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktop, /class="desktop-workbench-actions"/);
     assert.doesNotMatch(desktop, /class="desktop-workbench-bar" data-tauri-drag-region/);
     assert.match(desktop, /data-plugin-id="settings"[^>]*data-directory-open="settings"[^>]*aria-label="打开全局设置"/);
-    // Who you are is shown, not offered as a control that does nothing.
+    // Personal keeps its working account entry instead of main's disabled placeholder.
     assert.match(desktop, /<button class="personal-account" type="button" data-account-link aria-label="账号管理">/);
     // 能力 is part of settings (specs/artifact-positioning S6b): its entry opens the settings at the library, not a framed page.
     assert.doesNotMatch(desktop, /data-capabilities-frame|data-work-surface="capabilities"/);

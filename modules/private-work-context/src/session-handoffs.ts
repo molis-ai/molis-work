@@ -19,7 +19,7 @@ function assertLocalHandoff(db:Database.Database,id:string):void {
   if(row?.sync_passive===1)throw sessionErrors.handoff_invalid_state('同步交接仅供查看，不能继承发送或恢复授权');
 }
 
-export interface HandoffSessionLookup {
+interface HandoffSessionLookup {
   get(sessionId: string): MolisWorkSessionRecord;
 }
 

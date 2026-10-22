@@ -51,12 +51,12 @@ export interface LingguangConversationState {
 }
 
 /** The same SQL on the Runtime's read/transaction port, or a connection owned by a test or maintenance operation. */
-export interface LingguangSql {
+interface LingguangSql {
   get(sql: string, parameters?: readonly LingguangSqlValue[]): Readonly<Record<string, unknown>> | null | undefined;
   all(sql: string, parameters?: readonly LingguangSqlValue[]): readonly Readonly<Record<string, unknown>>[];
   run(sql: string, parameters?: readonly LingguangSqlValue[]): { changes: number | bigint };
 }
-export type LingguangSqlValue = string | number | null;
+type LingguangSqlValue = string | number | null;
 
 export interface LingguangStores {
   read<T>(run: (store: LingguangStore) => T): T;

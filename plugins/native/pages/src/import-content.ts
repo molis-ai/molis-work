@@ -8,8 +8,8 @@ import { pagesErrors } from "./error.js";
 import { safePagesHref } from "./link.js";
 import { pagesSchema } from "./schema.js";
 
-export type PagesImportFormat = "markdown" | "html" | "text" | "csv";
-export interface ConvertedPagesImport {
+type PagesImportFormat = "markdown" | "html" | "text" | "csv";
+interface ConvertedPagesImport {
   title: string;
   body: PagesBody;
   warnings: string[];

@@ -11,7 +11,7 @@ import type { BrowserHost, BrowserListener, BrowserPage } from "./browser-host.j
  * The side panel's browser channel: screencast frames down, the person's input up. Authenticated like the terminal
  * channel — same-host origin, then the control token as the first message — and bound to one project's page.
  */
-export interface BrowserSocketOptions {
+interface BrowserSocketOptions {
   readonly projectExists: (projectId: string) => boolean | Promise<boolean>;
   /** The person started using the page while the assistant drove it (spec D09): the assistant pauses first. */
   readonly onTakeover?: (page: BrowserPage) => void | Promise<void>;

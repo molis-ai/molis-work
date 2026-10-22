@@ -5,7 +5,7 @@ import type { ScheduleSqliteDatabase, ScheduleService, ScheduleWakeupInput, Sche
 import type { FeedApplication } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedApplication } from "./feed-application.js";
 
-export interface InstalledOperationCaller {
+interface InstalledOperationCaller {
   describe(pluginId: string): ScheduledOperationInstallation | null;
   call(run: ScheduledOperation, control: ScheduleWakeupControl): Promise<ScheduledOperationOutcome>;
 }

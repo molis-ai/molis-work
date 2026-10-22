@@ -26,7 +26,7 @@ export interface RuntimePluginRouteHooks {
  * Transport authority comes from the caller, never from body/query values. A route's own declared permission is not among them: it is
  * checked against the installation behind the route (`dispatchRuntimePluginRoute`).
  */
-export interface RuntimePluginRouteControls {
+interface RuntimePluginRouteControls {
   execution?: PluginExecutionControl;
   /** `maxBytes` is the route's declared `max_body_bytes`, when it declares one. */
   readBody?(request: IncomingMessage, maxBytes: number | undefined): Promise<unknown>;

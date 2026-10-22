@@ -7,7 +7,7 @@ export type TodoFlag = "overdue" | "due_today" | "planned_past" | "planned_today
 const ACTIVE = new Set(["open", "doing", "waiting"]);
 const STALE_DAYS = 14;
 
-export const isActive = (item: TodoItem) => ACTIVE.has(item.status) && item.archived_at === null;
+const isActive = (item: TodoItem) => ACTIVE.has(item.status) && item.archived_at === null;
 
 export function todoFlags(item: TodoItem, today: string): TodoFlag[] {
   if (!isActive(item)) return [];
@@ -43,7 +43,7 @@ export function inView(item: TodoItem, view: TodoView, today: string): boolean {
 const order = (value: string | null) => value ?? "9999-99-99";
 
 /** Important first, then whatever is most pressing: overdue, due soonest, planned soonest, oldest. */
-export function compareTodos(view: TodoView, a: TodoItem, b: TodoItem): number {
+function compareTodos(view: TodoView, a: TodoItem, b: TodoItem): number {
   if (view === "closed") return (b.completed_at ?? b.updated_at).localeCompare(a.completed_at ?? a.updated_at);
   if (view === "waiting") {
     const follow = order(a.waiting?.follow_up_on ?? null).localeCompare(order(b.waiting?.follow_up_on ?? null));

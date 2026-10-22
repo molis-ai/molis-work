@@ -237,7 +237,7 @@ function placedEntries(enabled: readonly ProjectPluginId[], slot: "navigator" | 
  * there, as it always has, even when it also has a side view; one whose only place is a side view opens that tab of the
  * side panel. The answer is the side tab (`plugin:<plugin>/<view>`) of each plugin that opens in the panel.
  */
-export interface PlacedPluginDeclarations {
+interface PlacedPluginDeclarations {
   readonly project_plugin_id: string;
   readonly manifest: { readonly ui: { readonly views?: readonly { readonly view_id: string; readonly slot: string }[] } };
   readonly workbench?: { readonly contributions: readonly { readonly descriptor: { readonly surfaces?: readonly { readonly target_slot_id: string }[] } }[] };
@@ -321,7 +321,7 @@ export function pluginStageSummaries(): Record<string, string> {
  * The English interface's names for the built-in plugins whose Manifest name is Chinese (user decision 2026-10-15). The
  * Chinese interface keeps the Manifest name; the plugins already named in English keep theirs in both.
  */
-export const PLUGIN_ENGLISH_NAMES: Readonly<Record<string, string>> = {
+const PLUGIN_ENGLISH_NAMES: Readonly<Record<string, string>> = {
   artifacts: "Artifacts", "plugin-builder": "Plugin Studio", images: "Images", lingguang: "Lingguang", todo: "To-do",
   alchemist: "Alchemist", workflows: "Workflows",
 };

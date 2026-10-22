@@ -88,7 +88,7 @@ export async function readPullRequestSupport(workspace: ProjectWorkspaceRef): Pr
   catch { return { outcome: "pr-support", tool: "unauthenticated", host, message: `GitHub CLI 还没有登录 ${host}；在终端运行 gh auth login 后即可建 PR` }; }
 }
 
-export interface PreparedGitOperation {
+interface PreparedGitOperation {
   tool: string;
   summary: string;
   fields: Array<{ label: string; value: string }>;
@@ -124,7 +124,6 @@ async function mergeOutcome(workspace: ProjectWorkspaceRef, run: () => Promise<u
     throw error;
   }
 }
-export const GIT_OPERATION_TOOLS = new Set(Object.values(ACTION_TOOL));
 
 /** Checks the operation against the repository as reviewed and returns what the Host review shows and runs. */
 export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revision: string, operation: GitOperation): Promise<PreparedGitOperation> {
@@ -225,10 +224,10 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
   }
 }
 
-export type GitCommandConfiguration = Array<[string, string]>;
+type GitCommandConfiguration = Array<[string, string]>;
 const text = async (root: string, args: string[]) => (await runWorkspaceGit(root, args)).toString().trimEnd();
 
-export async function effectivePushTargets(root: string): Promise<Array<{ name: string; url: string }>> {
+async function effectivePushTargets(root: string): Promise<Array<{ name: string; url: string }>> {
   const rows: Array<{ name: string; url: string }> = [];
   for (const name of (await text(root, ["remote"])).split("\n").filter(Boolean)) {
     for (const url of (await text(root, ["remote", "get-url", "--push", "--all", "--", name])).split("\n").filter(Boolean)) rows.push({ name, url });
@@ -242,7 +241,7 @@ const configured = async (root: string, key: string) => {
 };
 
 /** An ephemeral configured remote keeps all reviewed destinations, without re-reading the live remote's URLs at push. */
-export async function preparePush(root: string, summary: WorkspaceGitSummary, operation: Extract<GitOperation, { action: "push" }>,
+async function preparePush(root: string, summary: WorkspaceGitSummary, operation: Extract<GitOperation, { action: "push" }>,
   where: Array<{ label: string; value: string }>, check: () => Promise<void>,
   run: (args: string[], config?: GitCommandConfiguration) => Promise<{ stdout: string; stderr: string }>): Promise<PreparedGitOperation> {
   const targets = summary.remotes.filter(item => item.name === operation.remote);
@@ -293,9 +292,9 @@ export async function preparePush(root: string, summary: WorkspaceGitSummary, op
     } };
 }
 
-export const CONFLICT_FILE_LIMIT = 1024 * 1024;
+const CONFLICT_FILE_LIMIT = 1024 * 1024;
 type FileHandle = Awaited<ReturnType<typeof fs.open>>;
-export interface ConflictSnapshot { name: string; absolute: string; text: string; bytes: Buffer; identity: Stats; fingerprint: string }
+interface ConflictSnapshot { name: string; absolute: string; text: string; bytes: Buffer; identity: Stats; fingerprint: string }
 const identity = (state: Stats) => [state.dev, state.ino, state.mode, state.size, state.mtimeMs, state.ctimeMs];
 const same = (left: Stats, right: Stats) => identity(left).every((value, index) => value === identity(right)[index]);
 
@@ -330,7 +329,7 @@ async function readHeld(root: string, name: string, file: FileHandle): Promise<C
   return { name, absolute, text, bytes: body, identity: after, fingerprint };
 }
 
-export async function readConflictSnapshot(root: string, name: string): Promise<ConflictSnapshot> {
+async function readConflictSnapshot(root: string, name: string): Promise<ConflictSnapshot> {
   const absolute = await assertPath(root, name);
   const file = await fs.open(absolute, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try { return await readHeld(root, name, file); }
@@ -338,7 +337,7 @@ export async function readConflictSnapshot(root: string, name: string): Promise<
 }
 
 /** Unreadable conflicts still appear in the summary, so abandoning a merge remains available. They cannot be resolved here. */
-export async function conflictFingerprint(root: string, name: string): Promise<string> {
+async function conflictFingerprint(root: string, name: string): Promise<string> {
   try { return (await readConflictSnapshot(root, name)).fingerprint; }
   catch (error) { return `unreadable:${name}:${error instanceof Error ? error.message : String(error)}`; }
 }
@@ -366,7 +365,7 @@ async function lineage(root: string): Promise<string> {
 }
 
 /** Freeze the resolved bytes in a temporary index and publish under Git's own lock, never `git add` a later path. */
-export async function resolveConflict(root: string, reviewed: ConflictSnapshot, content: string, check: () => Promise<void>): Promise<void> {
+async function resolveConflict(root: string, reviewed: ConflictSnapshot, content: string, check: () => Promise<void>): Promise<void> {
   await check();
   const file = await fs.open(await assertPath(root, reviewed.name), constants.O_RDWR | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   let written = false;

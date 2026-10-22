@@ -42,7 +42,7 @@ export function createFeedHistoryRelease(db: SqliteDatabase): FeedSourceHistory 
  * search record of a pull holds them too), in this project and in every other project database of the Home. Null when
  * any of them cannot be read, because then nothing can be proven unreferenced.
  */
-export function homeContentReferences(db: SqliteDatabase): Set<string> | null {
+function homeContentReferences(db: SqliteDatabase): Set<string> | null {
   const refs = new Set<string>();
   try {
     addContentReferences(db, refs);

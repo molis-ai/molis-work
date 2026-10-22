@@ -43,7 +43,7 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     if (live) return activityLine(live);
     const said = [...new Set(run.map(phrase))], unfinished = run.filter((item) => item.state === "failed" || item.state === "unknown").length;
     let what = said.slice(0, 2).join(L("、")); if (said.length > 2) what = L("{what}等").replace("{what}", what);
-    return L("{what} · {n} 步").replace("{what}", capital(what)).replace("{n}", String(run.length))
+    return L("{what} · {n} 步", { what: capital(what), n: run.length })
       + (unfinished ? " · " + unfinished + " " + L("步没有完成") : "");
   };
   const facts = (item) => [item.capability_id && [L("调用的能力"), item.capability_id], item.detail && [L("返回的说明"), item.detail]].filter(Boolean);

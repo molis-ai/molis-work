@@ -12,7 +12,7 @@ import type {
   RemoveProjectPluginInput,
 } from "@molis-ai/molis-work-contracts/modules/projects";
 
-import { ProjectsRepository, type StoredProjectDeletion } from "./repository.js";
+import { deletionRecord, ProjectsRepository, type StoredProjectDeletion } from "./repository.js";
 
 export interface ProjectRecordDraftInput {
   project_id?: string;
@@ -225,19 +225,7 @@ export class ProjectService {
     return this.getDeletion(deletionId);
   }
 
-  deletionRecord(record: StoredProjectDeletion): ProjectDeletionReceipt {
-    return {
-      deletion_id: record.deletion_id,
-      project_id: record.project_id,
-      display_name: record.display_name,
-      actor_id: record.actor_id,
-      deleted_binding_count: record.deleted_binding_count,
-      cleanup_state: record.cleanup_state,
-      cleanup_error: record.cleanup_error,
-      deleted_at: record.deleted_at,
-      cleaned_at: record.cleaned_at,
-    };
-  }
+  deletionRecord(record: StoredProjectDeletion): ProjectDeletionReceipt { return deletionRecord(record); }
 
   requiredName(value: string): string {
     const name = value.trim();

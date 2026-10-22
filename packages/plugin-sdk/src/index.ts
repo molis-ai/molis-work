@@ -252,3 +252,5 @@ export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSource
 export type { MaterialSource, MaterialUpload, MaterialExtraction } from "@molis-ai/molis-work-contracts/services/materials";
 export { type SyncMutation, type SyncEvent, type SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 export { type ProjectCopyAsset, type ProjectCopyReference, type ProjectCopyIdentity, type ProjectCopyOwner } from "@molis-ai/molis-work-contracts/services/placement";
+
+export { canonicalJsonValue } from "./json-value.js";

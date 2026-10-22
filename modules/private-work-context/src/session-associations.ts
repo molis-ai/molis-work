@@ -8,7 +8,7 @@ const source = (sessionId: string): ObjectRef => sessionReference(sessionId);
 const target = (module: "goals" | "projects", id: string, projectId: string | null, objectType?: string): ObjectRef =>
   ({ module, id, version: null, scope, project_id: projectId, ...(objectType ? { object_type: objectType } : {}) });
 
-export interface SessionAssociations {
+interface SessionAssociations {
   project_id: string | null;
   current_goal_id: string | null;
   workspace_id: string | null;

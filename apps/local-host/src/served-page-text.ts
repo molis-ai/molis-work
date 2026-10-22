@@ -5,7 +5,7 @@ import { transformSync } from "esbuild";
  * and the page asset budget only falls (decision #17), so they are not sent. A comment becomes one space: dropping it
  * entirely would glue the tokens on either side into one. Text inside quotes is left as written.
  */
-export function stripServedCssComments(source: string): string {
+function stripServedCssComments(source: string): string {
   let out = "";
   let index = 0;
   while (index < source.length) {
@@ -44,7 +44,7 @@ export function stripServedCssComments(source: string): string {
  * Indentation at the start of a line is layout for people reading the sheet. Quotes keep their text, including a break
  * inside a string. The page asset budget only falls (decision #17), so this layout is not sent.
  */
-export function dedentServedCss(source: string): string {
+function dedentServedCss(source: string): string {
   let out = "";
   let index = 0;
   let lineStart = true;

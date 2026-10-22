@@ -46,7 +46,7 @@ export interface PagesImportDocumentsInput {
   readonly replay?: PagesReplay;
 }
 
-export interface PagesReplay {
+interface PagesReplay {
   /** Said when the same request comes with other content. */
   readonly changed: string;
   /** Said when a document the request made has since been deleted. */

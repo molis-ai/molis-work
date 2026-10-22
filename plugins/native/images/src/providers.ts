@@ -3,7 +3,7 @@ import type { ActionError } from "@molis-ai/molis-work-contracts/platform/action
 import { imagesErrors, isImagesFailure } from "./error.js";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 
-export interface ProviderImage { bytes: Buffer; mime: GeneratedImage["mime_type"] }
+interface ProviderImage { bytes: Buffer; mime: GeneratedImage["mime_type"] }
 export type { PluginImageGenerationRequest as ImageProviderRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginImageGenerationRequest as ImageProviderRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -56,7 +56,7 @@ function tooLarge(): ActionError {
   return imagesErrors.response_too_large("厂商响应超出本机限制（JSON 40 MB、单图 20 MB），请调低图片尺寸。");
 }
 
-export function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) {
     void promise.catch(() => undefined);
     return Promise.reject(abortReason(signal));

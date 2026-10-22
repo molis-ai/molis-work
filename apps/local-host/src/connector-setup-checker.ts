@@ -6,7 +6,7 @@ import { listConnectorConnectionViews } from "./connector-connection-views.js";
 
 type Checker = NonNullable<NonNullable<PrologueNodeAdapterOptions["checks"]>["owned"]>[number];
 export type ConnectorSetupCheckScope = Parameters<Checker["authorize"]>[0];
-export const CONNECTOR_SETUP_CHECKER = "molis.connector-setup";
+const CONNECTOR_SETUP_CHECKER = "molis.connector-setup";
 
 /** The owner proves the request's caller; current Assistant grants are checked independently on every look. */
 export function connectorSetupChecker(home: string, authorize: (scope: ConnectorSetupCheckScope) => Promise<void>): Checker {

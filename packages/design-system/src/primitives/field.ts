@@ -2,9 +2,9 @@ import { type AttrValue, cx, escapeHtml, renderAttrs } from "./html.js";
 import { renderButton } from "./button.js";
 import { icon, type MolisWorkIcon } from "../icons.js";
 
-export type MwControlSize = "sm" | "md" | "lg";
+type MwControlSize = "sm" | "md" | "lg";
 
-export interface MwInputOptions {
+interface MwInputOptions {
   name?: string;
   type?: string;
   value?: string;

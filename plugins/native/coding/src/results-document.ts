@@ -7,7 +7,7 @@ import { codingChangeSetPreview } from "./changeset.js";
 import { codingReportPreview } from "./report.js";
 
 /** The refusal of a result that is not a fixed Coding report or change set of this project, or is no longer current. */
-export const codingResultErrors = defineErrorCodes("coding", { shelf_material_invalid: "invalid" });
+const codingResultErrors = defineErrorCodes("coding", { shelf_material_invalid: "invalid" });
 
 /** A Markdown fence long enough that the text inside cannot close it. */
 const literal = (value: string) => {
@@ -18,7 +18,7 @@ const DECISIONS = { pending: "待审", approved: "已批准", rejected: "已拒�
 const EXECUTIONS = { applied: "已执行", failed: "执行失败", unknown: "执行结果未知", "not-applied": "未执行" };
 
 /** The change set's files, each with the reviewed text before and after it and what became of the write. */
-export function codingChangeSetMarkdown(change: CodingChangeSet): string {
+function codingChangeSetMarkdown(change: CodingChangeSet): string {
   return change.files.map((file, index) => {
     const review = file.review;
     return `## 修改 ${index + 1} · ${file.path}\n\n` + (review
@@ -31,7 +31,7 @@ export function codingChangeSetMarkdown(change: CodingChangeSet): string {
  * The version is read as this plugin's own (the platform refuses another producer's), so an archived one is still found and refused
  * here in Coding's words, as is one of another project or another kind.
  */
-export function readCodingResultDocument(context: PluginStartContext, ref: ArtifactReference): CodingResultDocument {
+function readCodingResultDocument(context: PluginStartContext, ref: ArtifactReference): CodingResultDocument {
   const artifacts = codingArtifacts(context);
   if (!context.services?.processItems) throw new Error("Coding 需要项目过程项服务");
   const record = artifacts.readOwn(ref) ?? context.services.processItems.readOwn(ref);

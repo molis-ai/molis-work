@@ -57,7 +57,7 @@ export const focusedPaneBoxAfterDrop = (state: any, ops: any, target: any, copy:
 // Where a split's divider may go, and how it settles near the default (specs/visual-ui-experience §drag-split, VUX-24).
 
 /** A layout tree node as the tab workspace stores it: a pane, or a split of two children along a direction. */
-export interface SplitNode { paneId?: string; direction?: string; ratio?: number; children?: SplitNode[] }
+interface SplitNode { paneId?: string; direction?: string; ratio?: number; children?: SplitNode[] }
 
 /**
  * The ratio range a split's divider may take when the split is `size` CSS px long along its direction: each side keeps the

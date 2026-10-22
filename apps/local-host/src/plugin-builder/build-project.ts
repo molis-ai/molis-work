@@ -8,7 +8,7 @@ import type { SandboxEffects, SandboxPluginContract } from '@molis-ai/molis-work
 import type { BuildManifest, BuildProject, DeveloperCapabilities } from './build-types.js';
 
 export const SDK_MODULE = '@molis/plugin-sdk';
-export const TEST_TYPES = `
+const TEST_TYPES = `
 export interface SandboxTestAssert {
   same(actual: SandboxJson, expected: SandboxJson): void;
   includes(actual: SandboxJson, expected: SandboxJson): void;

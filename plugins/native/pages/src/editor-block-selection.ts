@@ -5,7 +5,7 @@ import { spanIsGroup, deleteSelectedBlock, deleteSpan, duplicateSpan } from "./c
 import { dragRows, nudgeSpan } from "./reorder.js";
 import { tableHit, moveTableRow } from "./table-edit.js";
 
-export type PagesHover = { pos: number; dragging: boolean; anchor: number; head: number; menuTick: number };
+type PagesHover = { pos: number; dragging: boolean; anchor: number; head: number; menuTick: number };
 
 export const hoverKey = new PluginKey<PagesHover>("pages-hover");
 

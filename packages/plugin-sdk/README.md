@@ -255,3 +255,4 @@ result_view: {
 共同同步文档现行技术格式为 v2，实际 v1 夹具原样拒绝，不做读取转换。正常 `update` 移除稳定键时，在同一次 CAS 保留 owner 返回的完整原件（`local_delete`），未曾冻结上传也可离线撤销；已有新内容、冻结上传、冲突或修订变化时拒绝。owner 的 `read` 必须自包含完整字节，不能只给可删除路径；读取失败或 CAS 失败保留原目录和原件。不依据设备时钟自动丢弃这些唯一原件。
 
 文件 owner 可选使用 `SyncDocumentStorage.withReadLock` 与 `compareAndSetChecked`，两者必须共用同一跨进程互斥锁。暂存清理在读锁内按当前 owner 事实确定引用；复用旧暂存文件的提交须在 checked CAS 的最终锁内再次验证字节，缺失则拒绝旧提交。只实现普通 CAS 的作者不会因此获得文件清理能力。
+`canonicalJsonValue(value)` 为请求比较及指纹生成返回一份按 `localeCompare` 递归排序对象键的值，保留字段值和数组顺序，不修改输入。值为 `undefined` 的对象字段仍保留在返回值中，后续调用 `JSON.stringify` 时才按 JSON 标准省略。它不负责验证输入或序列化非 JSON 类型。

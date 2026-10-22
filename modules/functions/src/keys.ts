@@ -2,9 +2,9 @@ import { functionsErrors } from "./errors.js";
 
 export { functionsErrors };
 
-export const FUNCTION_KEY_PATTERN = /^[a-z][a-z0-9_]{1,63}$/;
-export const OPTION_KEY_PATTERN = /^[a-z][a-z0-9_.]{0,63}$/;
-export const PINNED_JEV_MODEL = /^jev-\d+\.\d+\.\d+$/;
+const FUNCTION_KEY_PATTERN = /^[a-z][a-z0-9_]{1,63}$/;
+const OPTION_KEY_PATTERN = /^[a-z][a-z0-9_.]{0,63}$/;
+const PINNED_JEV_MODEL = /^jev-\d+\.\d+\.\d+$/;
 
 export function suggestFunctionKey(name: string, primitive: string = "choice"): string {
   const slug = name

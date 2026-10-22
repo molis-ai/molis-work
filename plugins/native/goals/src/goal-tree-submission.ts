@@ -1,3 +1,4 @@
+import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-sdk";
 import { treeErrors, type TreeErrorCode } from "./goal-tree-errors.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { GoalsQueryApi, GoalsApplicationApi, GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -178,18 +179,6 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
     if (!goal) throw treeErrors["goals.not_found"](`Goal 不存在: ${goalId}`);
     return goal;
   }
-}
-
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, item]) => [key, canonicalize(item)]),
-    );
-  }
-  return value;
 }
 
 function requestHash(value: unknown): string {

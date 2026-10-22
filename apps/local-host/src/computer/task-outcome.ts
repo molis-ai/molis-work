@@ -30,7 +30,7 @@ export function desktopTaskComplete(wanted: DesktopTaskWanted, facts: DesktopTas
 const WANTED_LINE = /^\s*(窗口|文件|记录)\s*[:：]\s*(\S.*?)\s*$/u;
 
 /** The facts a round's goal asked to see. Each labeled line is one requirement. A goal with none names nothing that could show it done. */
-export function desktopTaskWanted(goal: string): DesktopTaskWanted {
+function desktopTaskWanted(goal: string): DesktopTaskWanted {
   const wanted: { windowTitle?: string; file?: string; record?: string } = {};
   for (const line of goal.split("\n")) {
     const match = WANTED_LINE.exec(line);

@@ -5,7 +5,7 @@ import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform
 import { agentTextMaterialContent, type AgentRunView, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_PLAN_TYPE } from "./artifacts.js";
 
-export interface CodingPlanContent {
+interface CodingPlanContent {
   title: string;
   /**
    * `after` names the earlier steps (1-based) a step waits for. Left out, a step waits for the one before it;
@@ -31,25 +31,25 @@ export function portableCodingPlan(draft: CodingPlanDraft): CodingFixedPlan {
     source: { session_id: draft.source.session_id, run_id: draft.source.run_id, task: draft.source.task }, confirmed: draft.confirmed };
 }
 export function parseCodingPlan(value: unknown): CodingPlanContent {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("计划格式无效");
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw Object.assign(new Error("计划格式无效"), { codingKey: "coding.server.plan-shape" });
   const entry = value as Record<string, unknown>;
   const text = (value: unknown, label: string, max: number, optional = false): string => {
-    if (typeof value !== "string" || value.length > max || !optional && !value.trim()) throw new Error(`${label}无效或过长`);
+    if (typeof value !== "string" || value.length > max || !optional && !value.trim()) throw Object.assign(new Error(`${label}无效或过长`), { codingKey: "coding.server.field-invalid", codingValues: { label: { key: label }, maximum: max } });
     return value.trim();
   };
-  if (!Array.isArray(entry.steps) || !entry.steps.length || entry.steps.length > 20) throw new Error("计划需包含 1–20 个有序步骤");
-  const content = { title: text(entry.title, "计划标题", 200), steps: entry.steps.map((step: unknown, index: number) => {
-    if (!step || typeof step !== "object" || Array.isArray(step)) throw new Error("计划步骤无效");
+  if (!Array.isArray(entry.steps) || !entry.steps.length || entry.steps.length > 20) throw Object.assign(new Error("计划需包含 1–20 个有序步骤"), { codingKey: "coding.server.plan-steps-count" });
+  const content = { title: text(entry.title, "coding.field.plan-title", 200), steps: entry.steps.map((step: unknown, index: number) => {
+    if (!step || typeof step !== "object" || Array.isArray(step)) throw Object.assign(new Error("计划步骤无效"), { codingKey: "coding.server.plan-step-shape" });
     const one = step as Record<string, unknown>;
-    const parsed: { title: string; acceptance: string; after?: number[] } = { title: text(one.title, "步骤", 1000), acceptance: text(one.acceptance, "完成条件", 1000) };
+    const parsed: { title: string; acceptance: string; after?: number[] } = { title: text(one.title, "coding.field.plan-step", 1000), acceptance: text(one.acceptance, "coding.field.plan-acceptance", 1000) };
     if (one.after !== undefined && one.after !== null) {
       if (!Array.isArray(one.after) || one.after.some(n => !Number.isSafeInteger(n) || n < 1 || n > index) || new Set(one.after).size !== one.after.length)
-        throw new Error(`第 ${index + 1} 步的前置步骤只能是它之前的步骤编号，且不能重复`);
+        throw Object.assign(new Error(`第 ${index + 1} 步的前置步骤只能是它之前的步骤编号，且不能重复`), { codingKey: "coding.server.plan-after", codingValues: { step: index + 1 } });
       parsed.after = [...one.after as number[]].sort((a, b) => a - b);
     }
     return parsed;
-  }), blockers: text(entry.blockers ?? "", "阻塞", 2000, true).replace(/^(无|没有|暂无|none|n\/a)[。.]?$/i, ""), change_reason: text(entry.change_reason ?? "", "变更说明", 2000, true) };
-  if (JSON.stringify(content).length > 12_000) throw new Error("计划正文超过 12,000 字符，请保留具体步骤与完成条件");
+  }), blockers: text(entry.blockers ?? "", "coding.field.plan-blockers", 2000, true).replace(/^(无|没有|暂无|none|n\/a)[。.]?$/i, ""), change_reason: text(entry.change_reason ?? "", "coding.field.plan-change-reason", 2000, true) };
+  if (JSON.stringify(content).length > 12_000) throw Object.assign(new Error("计划正文超过 12,000 字符，请保留具体步骤与完成条件"), { codingKey: "coding.server.plan-long" });
   return content;
 }
 /**

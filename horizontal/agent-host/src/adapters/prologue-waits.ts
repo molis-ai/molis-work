@@ -5,7 +5,7 @@ import { agentErrors } from "../errors.js";
 import { readyStep } from "./prologue-collaboration.js";
 
 /** What the waits need to know about a session: its project, and how the person knows it. */
-export interface WaitSessions {
+interface WaitSessions {
   project(sessionId: string): Promise<string | undefined>;
   /** How the person knows a session. */
   title(sessionId: string): Promise<string>;

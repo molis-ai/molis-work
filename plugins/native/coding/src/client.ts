@@ -358,7 +358,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const icon=make('span');icon.className='mw-dir-row__icon';icon.innerHTML='<svg aria-hidden="true"><use href="#icon-'+(item.kind==='changeset'?'git-compare':'file')+'"></use></svg>';
       const copy=make('span'),headline=make('span'),title=make('strong'),when=make('span'),meta=make('small');
       copy.className='mw-dir-row__copy';headline.className='mw-dir-row__headline';when.className='mw-dir-row__count';
-      title.textContent=item.title;when.textContent=stamp(item.saved_at);when.title=new Date(item.saved_at).toLocaleString('zh-CN');
+      title.textContent=item.title;when.textContent=stamp(item.saved_at);when.title=new Date(item.saved_at).toLocaleString(document.documentElement.lang||'zh-CN');
       meta.textContent=(item.kind==='changeset'?L('coding.artifacts.changeset',{count:item.file_count}):L('coding.report.label'))+' · v'+item.reference.version+(item.archived?' · '+L('coding.artifacts.archived'):'');
       headline.append(title,when);copy.append(headline,meta);row.append(icon,copy);list.append(row);
     }
@@ -419,7 +419,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         // Local time: today reads as a clock time, earlier days as a date.
         const at=new Date(session.updated_at),now=new Date(),pad=(n)=>String(n).padStart(2,'0');
         time.textContent=Number.isNaN(at.getTime()) ? session.updated_at.slice(5,10) : at.toDateString()===now.toDateString() ? pad(at.getHours())+':'+pad(at.getMinutes()) : pad(at.getMonth()+1)+'-'+pad(at.getDate());
-        time.dateTime=session.updated_at;time.title=Number.isNaN(at.getTime()) ? session.updated_at : at.toLocaleString('zh-CN');
+        time.dateTime=session.updated_at;time.title=Number.isNaN(at.getTime()) ? session.updated_at : at.toLocaleString(document.documentElement.lang||'zh-CN');
       }
       // Who is on the open plan steps, after the state: what waits on the person first.
       const holders=session.steps?[session.steps.mine?L('coding.steps.mine',{count:session.steps.mine}):'',session.steps.subtasks?L('coding.steps.subtasks',{count:session.steps.subtasks}):'',session.steps.unowned?L('coding.steps.unowned',{count:session.steps.unowned}):''].filter(Boolean).join(' · '):'';

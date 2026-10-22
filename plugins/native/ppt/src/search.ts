@@ -11,7 +11,7 @@ export const pptSearchActions = {
   files: defineFileEntriesAction("ppt.files.entries", [{ kind: PPT_SUBJECT_KIND, title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID }], "演示稿", ["ppt:read"]),
 };
 
-export function pptSearchContent(presentation: PptRecord): string {
+function pptSearchContent(presentation: PptRecord): string {
   return [presentation.description, ...[...presentation.slides].sort((a, b) => a.order - b.order)
     .map(slide => [slide.title, ...slide.bullets, slide.notes].filter(Boolean).join("\n"))].filter(Boolean).join("\n\n");
 }

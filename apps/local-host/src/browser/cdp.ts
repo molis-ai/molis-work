@@ -7,10 +7,10 @@ import { hostLog } from "../host-log.js";
  * side panel's screencast, input and the assistant's driver all share.
  */
 export type CdpParams = Record<string, unknown>;
-export type CdpResult = Record<string, unknown>;
-export type CdpEventHandler = (params: CdpParams, sessionId: string | undefined) => void;
+type CdpResult = Record<string, unknown>;
+type CdpEventHandler = (params: CdpParams, sessionId: string | undefined) => void;
 
-export class CdpError extends Error {
+class CdpError extends Error {
   constructor(readonly method: string, message: string) { super(message); this.name = "CdpError"; }
 }
 

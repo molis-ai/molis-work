@@ -48,7 +48,7 @@ export function withReceiptContentRefs(receipt: Record<string, unknown> | null, 
   return { ...receipt, ...(merged.length > 0 ? { [FEED_RECEIPT_CONTENT_REFS]: merged } : {}) };
 }
 
-export function holdingsOfSource(ports: FeedApplicationPorts, projectId: string, sourceId: string): FeedSourceHistoryHolding {
+function holdingsOfSource(ports: FeedApplicationPorts, projectId: string, sourceId: string): FeedSourceHistoryHolding {
   const refs = new Set<string>();
   for (const item of ports.feed.query.list(projectId)) {
     if (item.source_id !== sourceId) continue;
@@ -63,7 +63,7 @@ export function holdingsOfSource(ports: FeedApplicationPorts, projectId: string,
   return { content_refs: [...refs].sort(), operation_ids: operations.sort() };
 }
 
-export function releaseSourceHistory(
+function releaseSourceHistory(
   ports: FeedApplicationPorts,
   projectId: string,
   sourceId: string,

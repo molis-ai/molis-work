@@ -15,7 +15,7 @@ export function homePluginSideTabs(): SidePanelPluginTab[] {
 }
 
 /** The chords Home tools answer to, for frames that hand them to the shell. */
-export function homePluginKeys(): string[] {
+function homePluginKeys(): string[] {
   return homePluginSideTabs().flatMap(tab => tab.keys ? [tab.keys] : []);
 }
 
@@ -30,7 +30,7 @@ if(event.repeat||event.isComposing||!keys.includes(chord))return;event.preventDe
 }
 
 /** `Mod+Shift+I` as the platform writes it: ⌘⇧I on a Mac, Ctrl+Shift+I elsewhere (rewritten in the page). */
-export function keysLabel(keys: string): string {
+function keysLabel(keys: string): string {
   return keys.replace("Mod+", "⌘").replace("Shift+", "⇧").replace("Alt+", "⌥");
 }
 

@@ -1,6 +1,6 @@
 import type {} from "@molis-ai/molis-work-design-system";
 /** The page's own lifetime (packages/ui-host client-lifecycle): its timers and listeners end with the page. */
-export interface DraftLifetime {
+interface DraftLifetime {
   timeout(job: () => void, delay: number): number;
   clearTimeout(timer: number | undefined): void;
   listen(target: EventTarget, name: string, callback: (event: Event) => void): void;

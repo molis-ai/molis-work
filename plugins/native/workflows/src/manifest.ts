@@ -1,10 +1,8 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { WORKFLOWS_PLUGIN_ID, WORKFLOWS_PROJECT_PLUGIN_ID } from "./model.js";
+import { WORKFLOWS_PLUGIN_ID } from "./model.js";
 import { WORKFLOWS_UI_CONTRIBUTION_ID } from "./ui.js";
 import { WORKFLOWS_ACTIONS } from "./actions.js";
 import { workflowsSync } from "./replication.js";
-
-export { WORKFLOWS_PLUGIN_ID, WORKFLOWS_PROJECT_PLUGIN_ID };
 
 /** The largest body any Workflows route reads: the same 400 000 bytes the Host's own route gave them. */
 const WORKFLOWS_BODY_BYTES = 400_000;

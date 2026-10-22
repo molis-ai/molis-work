@@ -1,6 +1,6 @@
 import { renderHint } from "@molis-ai/molis-work-design-system";
 
-export interface AppearanceSettingsPrimitives {
+interface AppearanceSettingsPrimitives {
   L(text: string): string;
   currentLocale(): string;
   localeSwitchHref(locale: "zh" | "en", nextPath: string): string;

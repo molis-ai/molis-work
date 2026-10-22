@@ -5,7 +5,7 @@ import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/
  * work may call now: its own action client, as its rounds get it. Registered by the service that owns the works (the
  * Assistant) when it is built, which the web server does before the runtime starts; until then a look is not known yet.
  */
-export type WorkAuthorityResolver = (at: { graph_id: string; node_id: string }) => Promise<{ actions: { client: AgentActionClient } } | undefined>;
+type WorkAuthorityResolver = (at: { graph_id: string; node_id: string }) => Promise<{ actions: { client: AgentActionClient } } | undefined>;
 
 const resolvers = new WeakMap<object, WorkAuthorityResolver>();
 

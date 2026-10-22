@@ -9,7 +9,7 @@ import type { PrologueStartInput } from "./prologue.js";
 import type { HeldKind, RoundState } from "./prologue-node-kit.js";
 
 /** How a held ending reads in the round: what was wrong with it, and that the round was let go on to correct it. */
-export const HELD_LABELS: Record<HeldKind, { target: string; summary: string }> = {
+const HELD_LABELS: Record<HeldKind, { target: string; summary: string }> = {
   announce: { target: "上一段只说了要做什么，没有实际执行", summary: "这一轮只说明了接下来要做什么、没有调用工具，已让它接着实际去做（每轮最多一次）" },
   memory: { target: "上一段说记住或删掉了，但这一轮没有做到", summary: "回答说已经记住或删掉，可这一轮没有成功的记忆调用，已让它真正去做或如实更正" },
   written: { target: "上一段把调用写成了文字，并没有执行", summary: "回答里写的是调用的文字而不是调用本身，已让它真正去调用或改用平常的话回答" },

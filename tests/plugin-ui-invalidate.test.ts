@@ -106,4 +106,11 @@ test("PG061-05 PG061-03 a Home instance moves the Home route's revision until it
   assert.throws(() => running.invalidate(), { code: "ui_host.plugin_denied" }, "PG061-03 a stopped activation is refused");
   assert.equal((await request(route("enable"), { method: "POST", body: {} })).status, 200);
   assert.equal(await revision(), after, "the refused call moved nothing");
+  // Running again, it is the new activation that counts: the old one stays refused, so the revision can only move if it is not.
+  const again = probe.contexts.at(-1)!.services!.ui;
+  assert.notEqual(again, running, "enabling starts another activation");
+  assert.throws(() => running.invalidate(), { code: "ui_host.plugin_denied" }, "PG061-03 an activation that stopped stays refused once another runs");
+  assert.equal(await revision(), after, "and moves nothing");
+  again.invalidate();
+  assert.notEqual(await revision(), after, "the running activation's call counts");
 });

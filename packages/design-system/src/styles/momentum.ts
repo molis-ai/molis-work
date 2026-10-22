@@ -34,12 +34,12 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   .tree-resizer, .tui-resizer { background: var(--page); }
   .tree-resizer::after, .tui-resizer::after { background: var(--line); }
   .document-pane { background: var(--paper); }
-  .document-pane[aria-busy="true"] > [data-goal-view] {
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 130ms var(--ease-quint);
+  /* Like .mw-loading (primitives.ts): a switch that answers within 250ms keeps the old view and shows no mark. */
+  .document-pane[aria-busy="true"] > [data-goal-view], .document-pane[aria-busy="true"] > [data-work-surface="goal"] > [data-goal-view] {
+    --busy-dim: 0; pointer-events: none; animation: mw-busy-dim var(--dur-move) var(--ease-quint) var(--dur-move) both;
   }
   .goal-document-loading {
+    animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both;
     position: sticky;
     z-index: 9;
     top: 12px;
@@ -364,7 +364,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .document-pane[aria-busy="true"] > [data-goal-view] { transition: none; }
+    .document-pane[aria-busy="true"] :is([data-goal-view], .goal-document-loading) { animation-duration: 0s; }
   }
 
   @media (min-width: 761px) and (max-width: 1180px) {

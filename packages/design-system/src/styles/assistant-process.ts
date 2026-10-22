@@ -1,12 +1,15 @@
+import { disclosureHeight } from "./disclosure.js";
+
 /** The resident Assistant lives in the workbench bar (as in craft-finish.ts). */
 const A = "body.immersive-workbench:not([data-pane-embedded])";
 
 /**
  * What a round did between two messages (VUX-13, the page's `assistant-process.ts`): one quiet line per run of steps that
  * opens to each step; a step with something technical behind it (the capability it called, what came back) opens from its
- * own line, its chevron after the words and its detail under the words.
+ * own line, its chevron after the words and its detail under the words. Both open to their natural height (disclosure.ts).
  */
 export const ASSISTANT_PROCESS_STYLES = `
+${disclosureHeight(`${A} :is(.assistant-steps,.assistant-activity-fold)`, `${A} :is(.assistant-steps-body,.assistant-activity-detail)`)}
 ${A} .assistant-steps{margin:0;font-size:12px;color:var(--muted)}
 ${A} :is(.assistant-steps,.assistant-activity-fold)>summary{width:fit-content;max-width:100%;margin-left:-4px;border-radius:6px;list-style:none;cursor:pointer}
 ${A} :is(.assistant-steps,.assistant-activity-fold)>summary::-webkit-details-marker{display:none}
@@ -19,7 +22,7 @@ ${A} :is(.assistant-steps,.assistant-activity-fold)>summary:hover{background:var
 ${A} .assistant-steps>summary:hover{color:var(--ink-soft)}
 ${A} :is(.assistant-steps,.assistant-activity-fold)>summary:focus-visible{outline:var(--focus-stroke);outline-offset:var(--focus-stroke-inset,-1px)}
 ${A} .assistant-steps[data-state="failed"]>summary{color:var(--danger)}
-${A} .assistant-steps>:is(.assistant-activity,.assistant-activity-fold){padding:2px 0 0 12px}
+${A} .assistant-steps-body>:is(.assistant-activity,.assistant-activity-fold){padding:2px 0 0 12px}
 ${A} .assistant-activity-detail{display:grid;gap:2px;margin:2px 0 4px 19px;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 ${A} .assistant-activity-detail>p{margin:0}
 ${A} .assistant-activity-label{margin-right:6px;color:var(--ink-soft)}

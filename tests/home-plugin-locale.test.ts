@@ -16,7 +16,7 @@ test("W2-18-HOME-LOCALE-01: the Home document uses its request locale before mou
   assert.ok(english.includes(content), "owner content is passed through; this renderer only translates its own chrome");
   assert.match(english, /translate:globalThis\.L/);
   assert.equal(english.split(UI_REQUEST_CLIENT_SCRIPT).length - 1, 1);
-  assert.ok(english.indexOf("globalThis.L = function L") < english.indexOf(UI_REQUEST_CLIENT_SCRIPT));
+  assert.ok(english.indexOf("globalThis.L = ") < english.indexOf(UI_REQUEST_CLIENT_SCRIPT));
   assert.ok(english.indexOf(UI_REQUEST_CLIENT_SCRIPT) < english.indexOf('<script src="/assets/molis-work-plugins/'));
 
   const chinese = renderHomePluginPage(entry, content, null, randomUUID(), createWorkbenchLocale(() => "zh"), false, true);

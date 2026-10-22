@@ -21,7 +21,6 @@ export const COSS_CONTROL_STYLES = `
   :where(button:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
   :where(dialog[open]) { animation: surface-arrive var(--motion-normal) var(--ease-quint); }
   @keyframes surface-arrive { from { transform: translateY(6px) scale(.985); } to { transform: none; } }
-  :where(.tree-scroll, .settings-body, .project-settings-stage, .tab-pane-body, .feed-detail-scroll, .goal-info-body) { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 
   /* Create and filter in a plugin toolbar are soft buttons: a wash, no outline, the control height. */
   body.immersive-workbench .tree-create,

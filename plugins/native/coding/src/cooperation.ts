@@ -14,7 +14,9 @@
 export type DelegationState = "received" | "delivered" | "accepted" | "committing" | "completed" | "rejected" | "cancelled" | "failed";
 export const DELEGATION_ENDED: readonly DelegationState[] = ["completed", "rejected", "cancelled", "failed"];
 export const MAX_DELEGATION_HOPS = 3;
-export const DELEGATION_STATE_LABEL: Record<DelegationState, string> = {
-  received: "已收到，尚未送达", delivered: "已送达，等对方接受", accepted: "对方已接受，尚未开始", committing: "对方执行中",
-  completed: "已完成", rejected: "对方拒绝", cancelled: "已取消", failed: "失败",
+/** Each state's stable key; the words are in Coding's dictionary, in the language of the page that asked. */
+export const DELEGATION_STATE_KEY: Record<DelegationState, string> = {
+  received: "coding.delegation-state.received", delivered: "coding.delegation-state.delivered", accepted: "coding.delegation-state.accepted",
+  committing: "coding.delegation-state.committing", completed: "coding.delegation-state.completed", rejected: "coding.delegation-state.rejected",
+  cancelled: "coding.delegation-state.cancelled", failed: "coding.delegation-state.failed",
 };

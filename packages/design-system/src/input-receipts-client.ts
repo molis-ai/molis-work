@@ -519,7 +519,7 @@ export const INPUT_RECEIPTS_EN: Readonly<Record<string, string>> = {
   "后来有一条更正指向它": "A later correction points to it",
   "AI 自己说的，Molis 没有核对；要改，打开那条发更正。{seen}": "What the AI says itself; Molis has not checked it. To change one, open it and send a correction. {seen}",
   "只看了最近 1 轮": "Only the latest round was read.",
-  "只看了最近 {n} 轮": "Only the latest {n} rounds were read.",
+  "只看了最近 {n} 轮": "Only the latest {n} {n|round was|rounds were} read.",
   "你标记完成": "You marked it done",
   "你标记失败": "You marked it failed",
 };

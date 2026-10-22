@@ -51,7 +51,7 @@ const CRAFT_BASE_STYLES = `
     --ease-quint: cubic-bezier(.22, 1, .36, 1);
     --ease-spring: cubic-bezier(.2, 1.35, .4, 1);
     --ease-swift: var(--ease-quint);
-    --dur-press: 130ms; --dur-hover: 130ms; --dur-move: 250ms; --dur-arrive: 420ms; --dur-moment: 640ms;
+    --dur-press: 130ms; --dur-hover: 130ms; --dur-move: 250ms; --dur-arrive: 420ms; --dur-moment: 640ms; --code-tab: 4;
     /* Depth steps: a small raised piece (current tab, segment thumb, Dock item), a raised surface
        (the composer, an inner sheet), and the one floating layer (menus, dialogs, toasts). */
     --lift-1: var(--shadow-soft);
@@ -550,8 +550,7 @@ const CRAFT_BASE_STYLES = `
   }
   /* The tab strip: the open works, a new one, then all works, the side pane and minimise. */
   ${ASSIST} .assistant-tabbar { flex: none; display: flex; align-items: flex-end; gap: 4px; height: 42px; padding: 6px 6px 0 8px; background: var(--desk); box-shadow: inset 0 -1px 0 var(--line); }
-  ${ASSIST} .assistant-tabs { position: relative; flex: 0 1 auto; min-width: 0; display: flex; align-items: flex-end; gap: 2px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
-  ${ASSIST} .assistant-tabs::-webkit-scrollbar { display: none; }
+  ${ASSIST} .assistant-tabs { position: relative; flex: 0 1 auto; min-width: 0; display: flex; align-items: flex-end; gap: 2px; overflow-x: auto; overflow-y: hidden; }
   ${ASSIST} .assistant-tab { position: relative; flex: 0 1 184px; width: 184px; min-width: 96px; display: flex; align-items: center; height: 34px; border-radius: 9px 9px 0 0; color: var(--muted); }
   ${ASSIST} .assistant-tab:hover { background: var(--nav-hover); color: var(--ink-soft); }
   ${ASSIST} .assistant-tab[data-current] { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line); clip-path: inset(-1px -1px 0 -1px); }
@@ -616,10 +615,10 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-summary-meta:empty { display: none; }
   ${ASSIST} .assistant-summary-meta dt { color: var(--muted); }
   ${ASSIST} .assistant-summary-meta dd { margin: 0; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
-  ${ASSIST} .assistant-summary-top { display: flex; align-items: center; gap: 8px; min-height: 22px; margin-bottom: 2px; }
+  ${ASSIST} .assistant-summary-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 22px; margin-bottom: 2px; }
   ${ASSIST} .assistant-summary-top:not(:has(.assistant-state:not(:empty), .assistant-control:not([hidden]))) { display: none; }
-  ${ASSIST} .assistant-summary-controls { display: flex; gap: 2px; margin-left: auto; }
-  ${ASSIST} .assistant-control { height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; cursor: pointer;
+  ${ASSIST} .assistant-summary-controls { display: flex; flex-wrap: wrap; gap: 2px; margin-left: auto; }
+  ${ASSIST} .assistant-control { height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer;
     transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   ${ASSIST} .assistant-control[hidden] { display: none; }
   ${ASSIST} .assistant-control:hover { background: var(--nav-hover); color: var(--ink); }
@@ -627,7 +626,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-control[data-assistant-control="resume"] { background: var(--ink); color: var(--paper); }
   ${ASSIST} .assistant-control:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
   /* The work's state retains its label beside the shared ring. */
-  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px 1px 7px; border-radius: 999px; background: var(--wash); color: var(--ink-soft); font-size: 11px; line-height: 18px; }
+  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px 1px 7px; border-radius: 999px; background: var(--wash); color: var(--ink-soft); font-size: 11px; line-height: 18px; white-space: nowrap; }
   ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"]) { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 13%, transparent); color: var(--ink); }
   /* One row of equal parts, however many choices: five Coding modes fit the side pane without wrapping. */
   ${ASSIST} .assistant-segmented { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 2px; border-radius: 8px; background: var(--wash); }
@@ -829,7 +828,7 @@ const CRAFT_BASE_STYLES = `
     transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   ${ASSIST} :is(.assistant-code-copy, .assistant-code-more):hover { background: var(--nav-hover); color: var(--ink); }
   ${ASSIST} .assistant-code-copy[data-copy=done] { color: var(--tone-done, #3a8f5c); }
-  ${ASSIST} .assistant-rich .assistant-code pre, ${ASSIST} .assistant-code pre { margin: 0; padding: 10px 12px; border-radius: 0; background: transparent; overflow: auto; font-size: 12px; line-height: 1.55; }
+  ${ASSIST} .assistant-rich .assistant-code pre, ${ASSIST} .assistant-code pre { margin: 0; padding: 10px 12px; border-radius: 0; background: transparent; overflow: auto; font-size: 12px; line-height: 1.55; tab-size: var(--code-tab, 4); }
   ${ASSIST} .assistant-code[data-folded] pre { max-height: 300px; overflow: hidden; }
   ${ASSIST} .assistant-code-more { display: block; width: 100%; height: 28px; border-radius: 0; box-shadow: inset 0 1px 0 var(--line); }
   /* Cards: one shape for every moment that asks something of you — a kicker saying what kind, a badge saying what act,
@@ -998,12 +997,12 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .immersive-plugin-stage { isolation: isolate; }
   /* The next steps sit just above the input, as part of it: the open panel moves up to make room (48px leaves 8px above a touch row). */
   ${ASSIST} .assistant-next-row{position:absolute;z-index:55;inset:auto auto calc(100% + 6px) 0;max-width:100%}
-  ${ASSIST} .assistant-next-row .mw-ix-steps{--mw-ix-step-h:32px;overflow-x:auto;scrollbar-width:none}
+  ${ASSIST} .assistant-next-row .mw-ix-steps{--mw-ix-step-h:32px;overflow-x:auto}
   ${ASSIST} .assistant-next-row .mw-ix-step:not(:hover){background:var(--paper)}
   ${ASSIST} .bar-center:has(>.assistant-next-row:not([hidden])){--next-row:48px}
   /* What the next Send carries, above the next steps: a chip each; the object on show, not added, is dashed with + to add it. */
   ${ASSIST} .assistant-context-strip{position:absolute;z-index:55;inset:auto auto calc(100% + 6px + var(--next-row,0px)) 0;max-width:100%}
-  ${ASSIST} .assistant-strip-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+  ${ASSIST} .assistant-strip-row{display:flex;gap:6px;overflow-x:auto}
   ${ASSIST} .bar-center:has(>.assistant-context-strip:not([hidden])){--context-row:38px}
   ${ASSIST} .assistant-strip-chip{display:inline-flex;flex:none;align-items:center;gap:4px;max-width:240px;height:32px;padding:0 0 0 8px;border:0;border-radius:8px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink);font:inherit;font-size:12px}
   ${ASSIST} .assistant-strip-chip.is-optional{box-shadow:none;outline:1px dashed var(--line-strong);outline-offset:-1px;color:var(--muted)}
@@ -1049,7 +1048,7 @@ const CRAFT_BASE_STYLES = `
   @media (max-width: 1100px) {
     ${SHELL} .bar-composer { gap: 4px; }
     ${SHELL} .bar-composer .assistant-target { min-width: 56px; max-width: 96px; }
-    ${SHELL} .bar-composer .assistant-executor { max-width: 72px; }
+    ${SHELL} .bar-composer .assistant-executor { max-width: 72px; } ${SHELL} .bar-composer .assistant-mode-word { display: none; }
     ${SHELL} .bar-composer .assistant-composer-input { min-width: 96px; }
   }
   @media (max-width: 860px) and (min-width: 601px) {
@@ -1164,7 +1163,7 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
   /* With the panel open the choosers are back; the ones nobody changed give up their width before the input does. */
   ${SHELL} .bar-composer[data-fit="narrow"] .assistant-executor:not([data-chosen]) { flex: 0 1 auto; min-width: 0; }
-  ${SHELL} .bar-composer[data-fit="narrow"] .assistant-executor:not([data-chosen]) > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  ${SHELL} .bar-composer .assistant-executor > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   /* The input's floor holds only where the column has room for it; a narrow column's own steps above take over there. */
   @container assistant-bar (min-width: 461px) {
     ${SHELL} .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) .assistant-composer-input { flex: 1 1 64px; min-width: 64px; }
@@ -1473,7 +1472,7 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .plugin-stage-list > .mw-empty > :is(strong, h1, h2),
   ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(strong, h1, h2), ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > strong { margin: 0 0 8px; font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; color: var(--ink); }
   ${WORKBENCH} .plugin-stage-list > .mw-empty > p,
-  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > p, ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > p { margin: 0; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.75; }
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > p, ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > p { margin: 0; max-width: min(34em, 100%); color: var(--muted); font-size: 13px; line-height: 1.75; }
   ${WORKBENCH} .plugin-stage-list > .mw-empty > :is(.mw-btn, .mw-empty__actions),
   ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(.mw-btn, .mw-empty__actions), ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > .mw-btn { margin: 24px 0 0; justify-content: center; }
   ${WORKBENCH} .plugin-stage-list .mw-empty__actions { gap: 8px; }
@@ -1754,10 +1753,10 @@ const CRAFT_BASE_STYLES = `
   .mw-catalog .mw-craft-tab svg { width: 14px; height: 14px; }
   .mw-catalog .mw-craft-tip { position: static; opacity: 1; transform: none; margin-left: 12px; }
   /* Icon inventory and motion specimens. */
-  .mw-catalog .mw-icon-inventory { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 4px 16px; margin: 0; padding: 0; list-style: none; }
+  .mw-catalog .mw-icon-inventory { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(168px, 100%), 1fr)); gap: 4px 16px; margin: 0; padding: 0; list-style: none; }
   .mw-catalog .mw-icon-inventory { width: min(880px, 100%); }
   .mw-catalog #icon-inventory .mw-catalog__specimens { grid-template-columns: minmax(0, 1fr); }
-  .mw-catalog #icon-inventory .mw-catalog__specimens > * { width: 100%; }
+  .mw-catalog #icon-inventory .mw-catalog__specimens > * { margin-inline: 0; }
   .mw-catalog .mw-icon-inventory > li { display: flex; align-items: center; gap: 8px; min-height: 36px; color: var(--ink-soft); font-size: 13px; }
   .mw-catalog .mw-icon-inventory > li > svg { flex: none; width: 16px; height: 16px; }
   .mw-catalog .mw-icon-inventory > li > span:last-child, .mw-catalog .mw-icon-inventory > li strong + code { display: grid; }

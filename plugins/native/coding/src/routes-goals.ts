@@ -7,20 +7,21 @@ import { bodyOf } from "./route-selections.js";
 import { text } from "./run-inputs.js";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { codingFailure, codingText } from "./words.js";
 
 /** Coding routes for a session's Goal: the directory, a Goal's context, the one chosen for the next round, and a report's progress recorded on it. */
 
 const reportProgress = (a: CodingActivation, write: boolean) => a.route(write ? "coding.record-report-progress" : "coding.report-progress", async (request, _api, execution, beforeWrite) => {
   const session = selected(a, request, execution);
-  const runId = text(request.params.runId, "执行引用");
+  const runId = text(request.params.runId, "coding.field.run");
   const saved = readCodingExecutionReport(codingArtifacts(a.context), session.session_id, runId);
-  if (!saved) throw new Error("请先保存这轮固定报告，再记录 Goal 进展");
+  if (!saved) throw codingFailure("coding.server.goal-report-first");
   const { report, reference } = saved;
-  if (!report.goal || report.goal_source_error) throw new Error("这份报告没有可确认的原目标，不能改用会话后来选择的目标记录进展");
+  if (!report.goal || report.goal_source_error) throw codingFailure("coding.server.goal-original-missing");
   const goalId = report.goal.goal_id;
   const idempotencyKey = `coding-report-progress:${reference.artifact_id}@${reference.version}`;
   const actorId = request.actor_id;
-  if (!actorId) throw new Error("当前操作缺少用户身份");
+  if (!actorId) throw codingFailure("coding.server.no-actor");
   if (!write) {
     const receipt = await a.context.services!.actions!.invoke(goalPluginActions.receipt, { goal_id: goalId, idempotency_key: idempotencyKey }, codingActionControl(beforeWrite));
     if (receipt) return { report_goal: report.goal, reference, title: report.title, recorded: receipt, current: null };
@@ -29,14 +30,14 @@ const reportProgress = (a: CodingActivation, write: boolean) => a.route(write ? 
   }
   const body = bodyOf(request);
   const cursor = body.expected_goal_cursor;
-  if (typeof cursor !== "number" || !Number.isSafeInteger(cursor) || cursor < 0) throw new Error("请先查看原目标当前版本，再确认记录进展");
+  if (typeof cursor !== "number" || !Number.isSafeInteger(cursor) || cursor < 0) throw codingFailure("coding.server.goal-view-first");
   // The original Goal transaction checks replay first, then versions and write.
   // Nothing is derived from a browser-supplied report, Goal id, or source body.
   return a.context.services!.actions!.invoke(goalPluginActions.progress, {
     goal_id: goalId, idempotency_key: idempotencyKey,
     based_on_cursor: cursor, expected_goal_cursor: cursor,
-    summary: text(body.summary, "进展内容", 10000),
-    ...(body.next_step ? { next_step: text(body.next_step, "下一步", 10000) } : {}),
+    summary: text(body.summary, "coding.field.progress", 10000),
+    ...(body.next_step ? { next_step: text(body.next_step, "coding.field.next", 10000) } : {}),
     source: { ...reference, title: report.title, origin: { plugin_id: "coding", item_id: reference.artifact_id } },
   }, codingActionControl(beforeWrite));
 });
@@ -51,7 +52,7 @@ const ROUTES: RouteMaker[] = [
   (a) => {
     const { context, route } = a;
     return route("coding.goal-context", async (request, _api, _execution, beforeWrite) => {
-      const value = await currentGoalContext(context, text(request.params.goalId, "目标"), codingActionControl(beforeWrite));
+      const value = await currentGoalContext(context, text(request.params.goalId, "coding.field.goal"), codingActionControl(beforeWrite));
       return { ...value, text: value.material.text };
     });
   },
@@ -61,19 +62,19 @@ const ROUTES: RouteMaker[] = [
       const record = selected(a, request, execution);
       if (!record.goal_id) return { goal_id: null, selected: null };
       try { return { goal_id: record.goal_id, selected: savedGoalContext(context, record.session_id) }; }
-      catch (error) { return { goal_id: record.goal_id, selected: null, error: error instanceof Error ? error.message : "固定目标不可读" }; }
+      catch (error) { return { goal_id: record.goal_id, selected: null, error: error instanceof Error ? error.message : codingText(execution.locale)("coding.server.goal-unreadable") }; }
     });
   },
   (a) => {
     const { context, projectId, busy, route } = a;
     return route("coding.select-goal", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution), body = bodyOf(request);
-      const notSubmitting = () => { if (busy.has(record.session_id)) throw new Error("正在提交任务，请稍后修改下一轮目标"); };
+      const notSubmitting = () => { if (busy.has(record.session_id)) throw codingFailure("coding.server.busy-goal"); };
       notSubmitting();
-      const goalId = body.goal_id === null ? null : text(body.goal_id, "目标");
+      const goalId = body.goal_id === null ? null : text(body.goal_id, "coding.field.goal");
       if (goalId) {
         const value = await currentGoalContext(context, goalId, codingActionControl(beforeWrite));
-        if (value.reference.artifact_id !== body.expected_artifact_id) throw new Error("目标内容已变化，请重新查看后确认");
+        if (value.reference.artifact_id !== body.expected_artifact_id) throw codingFailure("coding.server.goal-changed");
         await beforeWrite(); beforeWrite.assert_current();
         notSubmitting();
         saveGoalContext(context, record.session_id, value);

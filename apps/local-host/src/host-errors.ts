@@ -27,6 +27,8 @@ export const hostErrors = defineErrorCodes("host", {
   plugin_caller_invalid: "forbidden",
   /** The caller the Host issued belongs to another person, project or installation than the call. */
   plugin_caller_mismatch: "forbidden",
+  /** A capability handed to the wrong seam: an action to the typed `register`. Each kind has one seam (PG-035). */
+  registration_seam: "invalid",
   catalog_unavailable: "invalid",
   workspace_unavailable: "invalid",
   workspace_not_found: "invalid",

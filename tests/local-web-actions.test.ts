@@ -66,6 +66,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
     assert.ok(directory.includes("原始插件标题") === false, "capability metadata does not execute the object reader");
     assert.ok(directory.includes("新插件事项")); assert.ok(directory.includes(definition.capability_id)); assert.ok(!directory.includes(imposter.capability_id));
     const local = await localWebActionContext(host, reference, HOME_TALK_PERMISSIONS);
+    assert.equal(local.locale, undefined, "a context no page asked for names no language: the handler keeps its own default (VUX-40)");
     await assert.rejects(host.actionClient(reference).invoke(local, imposter, { subject_id: "note" }), { code: "actions.forbidden" });
     await assert.rejects(host.actionClient(reference).invoke({ actor_id: "external-client", project_id: project.project_id, audience: "mcp", permissions: [] }, definition, { subject_id: "note" }), { code: "actions.forbidden" });
     const foreign = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "其他项目", actor_id: "owner" }));

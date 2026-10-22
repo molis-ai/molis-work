@@ -12,11 +12,11 @@ const LIMITS = { purpose: 80, material: 60_000 } as const;
 export async function draftText(options: HostTextOptions, input: AgentDraftTextRequest,
   execution: Pick<HostTextRequestOptions, "signal" | "beforeDispatch" | "onProgress"> & { /** Trusted Host invocation identity, never request input. */ pluginId?: string } = {}): Promise<AgentDraftTextResult> {
   for (const key of ["purpose", "material"] as const) {
-    if (typeof input[key] !== "string" || !input[key].trim() || input[key].length > LIMITS[key]) throw new Error("起草的说明或材料为空或过长");
+    if (typeof input[key] !== "string" || !input[key].trim() || input[key].length > LIMITS[key]) throw new ActionError("actions.input_invalid", "起草的说明或材料为空或过长");
   }
-  if (typeof input.prompt !== "string" || !/^[a-z0-9][a-z0-9.-]*$/u.test(input.prompt)) throw new Error("起草需要一份已登记的指令");
+  if (typeof input.prompt !== "string" || !/^[a-z0-9][a-z0-9.-]*$/u.test(input.prompt)) throw new ActionError("actions.input_invalid", "起草需要一份已登记的指令");
   if (!execution.pluginId) throw new ActionError("actions.host_context_missing", "登记指令需要原插件调用身份");
-  const lifetime = createExecutionLifetime({ signal: execution.signal, timeout: { milliseconds: 120_000, reason: new Error("起草超过两分钟，已停止，可重试") } });
+  const lifetime = createExecutionLifetime({ signal: execution.signal, timeout: { milliseconds: 120_000, reason: new ActionError("actions.timeout", "起草超过两分钟，已停止，可重试") } });
   try {
     lifetime.assertActive();
     await lifetime.wait(Promise.resolve(execution.beforeDispatch?.()));

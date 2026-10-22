@@ -17,8 +17,7 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .settings-stage > .settings-content { flex: 1; min-height: 0; }
   body.immersive-workbench .settings-stage :is(.settings-document, .guidance-document, .work-planning, .planning-catalog, .planning-detail, .planning-edit, .project-settings-page) { width: 100%; max-width: 760px; margin-inline: auto; padding: 0; }
   body.immersive-workbench .tab-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; background: var(--paper); }
-  body.immersive-workbench .tab-strip { flex: 1; min-width: 0; display: flex; align-items: center; height: 32px; min-height: 32px; padding: 4px; gap: 8px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; background: transparent; border: 0; scroll-padding-inline: 12px; }
-  body.immersive-workbench .tab-strip::-webkit-scrollbar { display: none; }
+  body.immersive-workbench .tab-strip { flex: 1; min-width: 0; display: flex; align-items: center; height: 32px; min-height: 32px; padding: 4px; gap: 8px; overflow-x: auto; overflow-y: hidden; background: transparent; border: 0; scroll-padding-inline: 12px; }
   body.immersive-workbench .tab-pane > .tab-strip { flex: none; padding: 4px 32px 4px 8px; background: var(--surface-soft); border-bottom: 1px solid var(--line); }
   body.immersive-workbench .tab-group { flex: none; display: flex; align-items: center; gap: 4px; min-width: 0; }
   body.immersive-workbench .tab-group:not([data-tab-group="home"]) { padding-left: 8px; border-left: 1px solid var(--line); }
@@ -81,9 +80,8 @@ export const TAB_WORKSPACE_STYLES = `
   }
 
   body.immersive-workbench .tab-strip { align-items: center; gap: 8px; padding-block: 4px; overflow: hidden; }
-  body.immersive-workbench .tab-scroll { display: flex; align-items: center; flex: 1 1 0%; min-width: 0; gap: 4px; overflow-x: auto; overflow-y: hidden; overflow-clip-margin: 0; scrollbar-width: none; position: relative; }
+  body.immersive-workbench .tab-scroll { display: flex; align-items: center; flex: 1 1 0%; min-width: 0; gap: 4px; overflow-x: auto; overflow-y: hidden; overflow-clip-margin: 0; position: relative; }
   body.immersive-workbench [data-tab-scroll-pad] { flex: none; width: 0; height: 1px; overflow: hidden; pointer-events: none; }
-  body.immersive-workbench .tab-scroll::-webkit-scrollbar { display: none; }
   body.immersive-workbench .tab-group { --group-color: var(--muted); position: relative; gap: 4px; height: 36px; border: 0; }
   body.immersive-workbench .tab-group[data-tab-group]::after { content: ""; position: absolute; left: 4px; right: 4px; bottom: 1px; height: 2px; border-radius: 1px; background: var(--group-color); pointer-events: none; }
   body.immersive-workbench .tab-group[data-pinned-group]::after { display: none; }

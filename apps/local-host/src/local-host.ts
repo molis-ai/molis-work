@@ -26,6 +26,8 @@ export interface LocalHostRuntimeFactory<Runtime> {
 }
 
 type ActionAvailabilityCheck = (context: ActionCallContext, action: ActionView) => ActionAvailability | Promise<ActionAvailability>;
+/** What a capability the Host registers runs: its project's runtime, the input, and the call's own fences. */
+export type HostCapabilityHandler<Runtime, Input, Output> = (runtime: Runtime, input: Input, invocation: HostCapabilityInvocation) => Output | Promise<Output>;
 /** What one discovery reads once and shares across its actions' dependency checks. */
 interface DiscoveryPass { actions(): readonly ActionView[]; scenes(): readonly ActionSceneView[]; usages(): ReturnType<ActionService["usages"]> }
 export type ActionAvailabilityPolicy = ActionAvailabilityCheck & {
@@ -149,11 +151,10 @@ export class LocalHost<Runtime> {
     this.instanceId = options.instanceId?.trim() || `local-host-${randomUUID()}`;
   }
 
-  register<Input, Output>(
-    definition: HostCapabilityDefinition<Input, Output>,
-    handler: (runtime: Runtime, input: Input, invocation: HostCapabilityInvocation) => Output | Promise<Output>,
-  ): () => void {
+  /** A typed entry, called only through the Host's own clients. An action is refused here: actions have one seam, `registerAction` (PG-035). */
+  register<Input, Output>(definition: HostCapabilityDefinition<Input, Output>, handler: HostCapabilityHandler<Runtime, Input, Output>): () => void {
     this.assertRunning();
+    if (definition.action) throw hostErrors.registration_seam(`${definition.capability_id} 是动作，只经 registerAction 登记`);
     const invoke = (caller: ActionCallContext, input: Input) => {
       if (!this.invocationRuntimes.has(caller)) throw new ActionError("actions.host_context_missing", "此能力需要 Host 的项目运行环境");
       const invocation = typedCapabilityInvocation(caller, definition, { registry: this.capabilities,
@@ -162,19 +163,20 @@ export class LocalHost<Runtime> {
       invocation.assertAuthorityCurrent();
       return startHandler(caller, () => handler(this.invocationRuntimes.get(caller)!, input, invocation));
     };
-    if (definition.action) return this.actionService.registerProvider({
-      provider: definition.action_provider ?? { provider_id: HOST_PROVIDER_ID, title: "Molis Work", kind: "system" },
-      definitions: [definition as ActionDefinition<Input, Output>],
+    return this.capabilities.register(definition, invoke);
+  }
+
+  /** An action of the Host's own (the workspace reads, a model draft), called as every action is; its runtime is the Host's active project scope, never the caller's. */
+  registerAction<Input, Output>(definition: ActionDefinition<Input, Output>, handler: HostCapabilityHandler<Runtime, Input, Output>): () => void {
+    this.assertRunning(); return this.actionService.registerProvider({
+      provider: definition.action_provider ?? { provider_id: HOST_PROVIDER_ID, title: "Molis Work", kind: "system" }, definitions: [definition],
       handlers: [{ ...definition, handle: (caller, input) => {
-        // ActionService supplies a per-invocation execution context. Runtime identity remains
-        // bound to this Host's active project scope, rather than the caller object's identity.
         const scope = this.executionScope.getStore();
         if (!scope?.active || scope.entry.reference.project_id !== caller.project_id) throw new ActionError("actions.host_context_missing", "此能力需要 Host 的项目运行环境");
         return handler(scope.runtime, input as Input, { ...(caller.signal ? { signal: caller.signal } : {}), ...(caller.host_plugin ? { plugin: caller.host_plugin, consumer: "plugin" as const } : {}), call_id: caller.call_id, beforeEffect: caller.beforeEffect,
           assertAuthorityCurrent: () => { requireSynchronous(caller.assert_authority_current?.(), "最终授权检查必须同步完成"); } });
       } }],
     });
-    return this.capabilities.register(definition, invoke);
   }
 
   /** Composition-only registration. Project authority comes from the owner, never the Plugin. */

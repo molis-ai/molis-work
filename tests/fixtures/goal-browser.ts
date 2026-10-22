@@ -18,7 +18,7 @@ const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void = seedDemoBoard, completion?: HostCompleteText | null,
   runtimeSessionTransport?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["runtimeSessionTransport"],
-  functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"]) {
+  functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"], chromeArgs?: readonly string[]) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Goals UI E2E"); return null; }
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goals-browser-"));
@@ -94,7 +94,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   });
   // The limits stop a hang; they are not speed checks. They are sized for the Linux CI runner, which runs these pages about
   // 2.5 times slower than a development Mac (one command or wait that takes 4 s there takes 10 s here).
-  const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 15_000 });
+  const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 15_000, ...(chromeArgs ? { extraArgs: chromeArgs } : {}) });
   harness = browser;
   /** A page load may take far longer than any other command. */
   function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 30_000 : undefined): Promise<T> {

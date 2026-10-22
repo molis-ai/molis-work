@@ -21,6 +21,11 @@
  *   16 a dialog, 18 the onboarding window, or a capsule or circle (the corner at least half the box's layout size); a box
  *   that holds a rounded part at an inset may be that part's corner plus the inset, so the two curves stay concentric.
  *
+ * - empty: a stage or pane empty state (a `.mw-empty` wider than a directory column, outside one) that is not centred, whose
+ *   title is not 15px / 600 (the section-title role), or whose buttons are not drawn as the secondary button drawn in the
+ *   same place: the page's one graphite button is its header's create, so an empty state adds a second only when the
+ *   page shows no other (a phone, where the header's create folds away).
+ *
  * `sizes` is the histogram of font sizes on the page, for the type-scale decision. `skip` names the places the caller
  * has reasons to leave out (a specimen that shows sizes side by side, a reference list); nothing inside them is read.
  */
@@ -135,6 +140,32 @@ export const orderAudit = (skip: string) => String.raw`(() => {
     if (cornered.has(key)) continue;
     cornered.add(key);
     findings.push({ kind: 'radius', a: label(el), radius: round(r), box: [el.offsetWidth, el.offsetHeight] });
+  }
+  // Empty states on a stage or pane: centred, a section title, secondary actions.
+  for (const empty of scope.querySelectorAll('.mw-empty')) {
+    if (!shown(empty) || empty.offsetWidth < 320 || empty.closest('.mw-dir, .tree-pane, [data-tree-pane], .desktop-directory-panel')) continue;
+    const style = getComputedStyle(empty), title = empty.querySelector(':scope > :is(h1, h2, strong), :scope > * > :is(h1, h2, strong)');
+    if (style.textAlign !== 'center') findings.push({ kind: 'empty', a: label(empty), align: style.textAlign });
+    if (title && shown(title)) {
+      const t = getComputedStyle(title);
+      if (parseFloat(t.fontSize) !== 15 || t.fontWeight !== '600') findings.push({ kind: 'empty', a: label(title), title: t.fontSize + ' / ' + t.fontWeight });
+    }
+    const buttons = [...empty.querySelectorAll('button, a.mw-btn')].filter((b) => shown(b) && b.matches('.mw-btn'));
+    if (!buttons.length) continue;
+    const probe = document.createElement('button');
+    probe.className = 'mw-btn mw-btn--secondary';
+    probe.textContent = 'x';
+    buttons[0].parentElement.append(probe);
+    const want = getComputedStyle(probe), look = [want.backgroundColor, want.color, probe.offsetHeight].join(' ');
+    probe.className = 'mw-btn mw-btn--primary';
+    const graphite = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    const others = [...document.querySelectorAll('.mw-btn')].some((b) => !empty.contains(b) && shown(b) && getComputedStyle(b).backgroundColor === graphite);
+    buttons.forEach((button, index) => {
+      const b = getComputedStyle(button), got = [b.backgroundColor, b.color, button.offsetHeight].join(' ');
+      if (got === look || (!index && !others && b.backgroundColor === graphite)) return;
+      findings.push({ kind: 'empty', a: label(button), button: got, secondary: look });
+    });
   }
   return { findings, sizes };
 })()`;

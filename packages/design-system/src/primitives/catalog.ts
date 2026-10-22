@@ -366,7 +366,7 @@ export function renderPrimitiveCatalog(): string {
     icon: "note",
     title: "还没有文档",
     body: "先建一篇，在纸面上写；也可以从模板或已有文件开始。",
-    action: `<div class="mw-empty__actions">${renderButton({ label: "从模板新建", icon: "library", variant: "ghost" })}${renderButton({ label: "导入已有文档", icon: "upload", variant: "ghost" })}</div>`,
+    action: `<div class="mw-empty__actions">${renderButton({ label: "从模板新建", icon: "library", variant: "secondary" })}${renderButton({ label: "导入已有文档", icon: "upload", variant: "secondary" })}</div>`,
   });
 
   const sheet = renderSheet({

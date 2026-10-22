@@ -348,9 +348,9 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-empty__mark, .mw-empty > svg { color: var(--plugin-tint, var(--muted)); }
   .mw-empty__mark svg, .mw-empty > svg { width: 16px; height: 16px; stroke-width: 2; }
-  .mw-empty h1, .mw-empty h2, .mw-empty strong { margin: 0; font-size: 15px; font-weight: var(--weight-control, 500); color: var(--ink); }
+  .mw-empty h1, .mw-empty h2, .mw-empty strong { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); color: var(--ink); }
   .mw-empty p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-soft); }
-  .mw-empty__actions { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 0 -8px; }
+  .mw-empty__actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 0; }
   .frame-empty.mw-empty {
     display: flex; flex-direction: column; justify-content: center; align-items: center;
     gap: 12px; padding: 32px; text-align: center;

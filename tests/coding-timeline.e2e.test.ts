@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { codingTimelineWords, createCodingTimeline, createCodingTurnChanges } from "@molis-ai/molis-work-plugin-coding";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 import { pageTextScript } from "./fixtures/page-text.js";
+import { NUMBER_STYLES } from "@molis-ai/molis-work-design-system";
 
 interface Reading { summary: string; rows: string[]; footer: string }
 
@@ -211,5 +212,37 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.match(english.failed, /This turn did not finish.*Can't reach the model service: Check the network or proxy, then continue from where it stopped\.\s*MODEL_NETWORK_FAILED/);
     assert.match(english.quiet, /^Working\s*\d+m \d+s\s*The model has had no new output for 3\d seconds/);
     assert.deepEqual(english.han, [], "no Chinese in the timeline's text or attributes");
+  } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("VUX-43 a live round's time keeps one format per range and one box across 9 → 10 s, 59 s → 1 min, 59 min → 1 h and up to 99 h", { timeout: 30000 }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), "coding-timeline-"));
+  const browser = await openStudioChrome(directory);
+  if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
+  try {
+    const page = await browser.page();
+    const read = async (locale: "zh" | "en") => {
+      await page.evaluate(`(()=>{${pageTextScript(locale)}})()`);
+      return page.evaluate<Array<{ text: string; box: string; text_width: number }>>(`(()=>{
+        document.body.innerHTML = ""; const style = document.createElement("style"); style.textContent = ${JSON.stringify(NUMBER_STYLES)}; document.head.append(style);
+        const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
+        const out = [];
+        for (const seconds of [9, 10, 59, 60, 599, 600, 3599, 3600, 35999, 359940]) {
+          const block=document.createElement('section');document.body.append(block);
+          timeline.renderFooter(block,{ref:{run_id:'t'+seconds},phase:'running',started_at:new Date(Date.now()-seconds*1000).toISOString(),ended_at:null,activity:[],turns:[]},0,true);
+          const time = block.querySelector('[data-coding-elapsed]'); time.style.fontFamily = 'system-ui';
+          const range = document.createRange(); range.selectNodeContents(time);
+          out.push({ text: time.textContent, box: time.getBoundingClientRect().width.toFixed(2), text_width: range.getBoundingClientRect().width });
+          block.remove();
+        }
+        return out; })()`);
+    };
+    const zh = await read("zh"), en = await read("en");
+    assert.deepEqual(zh.map((row) => row.text), ["9 秒", "10 秒", "59 秒", "1 分 0 秒", "9 分 59 秒", "10 分 0 秒", "59 分 59 秒", "1 小时 0 分", "9 小时 59 分", "99 小时 59 分"]);
+    assert.deepEqual(en.map((row) => row.text), ["9s", "10s", "59s", "1m 0s", "9m 59s", "10m 0s", "59m 59s", "1h 0m", "9h 59m", "99h 59m"]);
+    for (const [name, rows] of [["zh", zh], ["en", en]] as const) {
+      assert.equal(new Set(rows.map((row) => row.box)).size, 1, `${name}: one box from 9 s to 99 h 59 m (${rows.map((row) => row.box).join(", ")})`);
+      assert.ok(rows.every((row) => row.text_width <= Number(row.box) + 0.5), `${name}: every value shows whole`);
+    }
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });

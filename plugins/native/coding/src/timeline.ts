@@ -168,7 +168,7 @@ export function createCodingTimeline(words: TimelineWords) {
   const duration = (from?: string | null, to?: string | null) => {
     if (!from) return "";
     const seconds = Math.max(0, Math.round(((to ? Date.parse(to) : Date.now()) - Date.parse(from)) / 1000));
-    return seconds < 60 ? L("coding.timeline.seconds", { seconds }) : L("coding.timeline.minutes", { minutes: Math.floor(seconds / 60), seconds: seconds % 60 });
+    return seconds < 60 ? L("coding.timeline.seconds", { seconds }) : seconds < 3600 ? L("coding.timeline.minutes", { minutes: Math.floor(seconds / 60), seconds: seconds % 60 }) : L("coding.timeline.hours", { hours: Math.floor(seconds / 3600), minutes: Math.floor(seconds / 60) % 60 });
   };
   /**
    * A failure explained in the user's words, with what to do next. The original code stays visible so the
@@ -199,7 +199,7 @@ export function createCodingTimeline(words: TimelineWords) {
       if (footer.dataset.progress !== progress) { footer.dataset.progress = progress; footer.dataset.heard = String(Date.now()); }
       // Only a round waiting on the model can go quiet; a running command or test is allowed to take its time.
       footer.dataset.quietable = String(run.phase === "running" && !run.activity.some(item => item.state === "started" && item.name !== "reasoning"));
-      const html = `<div class="coding-live"><span data-mw-state="${run.phase === "paused" ? "paused" : run.phase === "awaiting-input" ? "answer" : run.phase === "awaiting-review" ? "approval" : "running"}" aria-hidden="true"></span><span class="coding-live-text">${escape(text)}</span><span class="coding-live-time mw-num" data-num-ghost="${escape(L("coding.timeline.minutes", { minutes: 59, seconds: 59 }))}" data-coding-elapsed>${escape(duration(run.started_at))}</span></div><p class="coding-live-quiet" data-coding-quiet role="status" hidden></p>`;
+      const html = `<div class="coding-live"><span data-mw-state="${run.phase === "paused" ? "paused" : run.phase === "awaiting-input" ? "answer" : run.phase === "awaiting-review" ? "approval" : "running"}" aria-hidden="true"></span><span class="coding-live-text">${escape(text)}</span><span class="coding-live-time mw-num" data-num-ghost="${escape(L("coding.timeline.hours", { hours: 99, minutes: 59 }))}" data-coding-elapsed>${escape(duration(run.started_at))}</span></div><p class="coding-live-quiet" data-coding-quiet role="status" hidden></p>`;
       if (footer.dataset.html !== text + footer.dataset.state) { footer.innerHTML = html; footer.dataset.html = text + footer.dataset.state; }
       tick(block);
       return;

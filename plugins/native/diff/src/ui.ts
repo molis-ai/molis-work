@@ -7,6 +7,7 @@ import type {
 import type { DiffView } from "./comparison.js";
 import type { TextDiffRow } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { alignSplitRows } from "@molis-ai/molis-work-plugin-sdk";
+import { pageSentence } from "./sentences.js";
 
 export const DIFF_UI_CONTRIBUTION_ID = "io.molis.work.native.diff.ui.v1";
 
@@ -63,7 +64,7 @@ export function renderDiff(model: DiffUiModel): string {
       + `<span class="diff-source">${escape(p.text("diff.sides.after", { path: view.after.path, version: view.after.content_version }))}</span>`
       + `<span class="diff-source">${escape(p.text("diff.sides.pinned", { workspace: view.after.workspace_name }))}</span></header>`;
   const notices = [
-    ...(view.metadata_changes ?? []).map((change) => p.text(change)),
+    ...(view.metadata_changes ?? []).map((change) => pageSentence(p.text, change)),
     view.mismatch ? p.text("diff.notice.mismatch") : "",
     view.partial ? p.text("diff.notice.partial") : "",
     view.coarse ? p.text("diff.notice.coarse") : "",
@@ -78,7 +79,7 @@ export function renderDiff(model: DiffUiModel): string {
     // The shared empty block: the plugin's glyph, what is missing, and what to do about it. With nothing before it the block
     // is the page's whole content, so the stage centres it like any plugin's empty list.
     const state = `data-phase="${escape(view.phase)}" data-group="${escape(view.group ?? "none")}"`;
-    const empty = (attributes: string) => `<div class="mw-empty"${attributes}><span class="mw-empty__mark">${model.primitives.icon("git-compare")}</span><strong>${escape(p.text(view.message))}</strong>`
+    const empty = (attributes: string) => `<div class="mw-empty"${attributes}><span class="mw-empty__mark">${model.primitives.icon("git-compare")}</span><strong>${escape(pageSentence(p.text, view.message))}</strong>`
       + `${view.recovery === undefined ? "" : `<p>${escape(p.text(view.recovery))}</p>`}</div>`;
     const files = renderFileList(model);
     return header === "" && noticeHtml === "" && files === ""

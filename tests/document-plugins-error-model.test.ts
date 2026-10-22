@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import ts from "typescript";
 import { parseImports } from "../scripts/test-imports/parse.mjs";
+import { browserPrograms } from "../scripts/gates/browser-programs.mjs";
 
 import { actionMcpToolName, createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -501,6 +502,68 @@ test("the owner-error check keeps shared browser modules covered when a server e
   assert.equal(browserOnlyFiles(sources, ["/p/src/browser.ts"], ["/p/src/server.ts"]).has("/p/src/only-browser.ts"), false, "a Host import brings a browser module under the server check");
 });
 
+// Browser HTTP failures may retain the response status. Domain codes still come from declarations.
+// Unknown/spread augmentation remains rejected; this does not attempt interprocedural alias analysis.
+function augmentedErrors(source: string, browser: boolean): string[] {
+  const file = ts.createSourceFile("plugin.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const errors: string[] = [];
+  const unwrap = (value: ts.Expression): ts.Expression => {
+    while (ts.isParenthesizedExpression(value) || ts.isAsExpression(value) || ts.isNonNullExpression(value)) value = value.expression;
+    return value;
+  };
+  const assign = (node: ts.Node): node is ts.CallExpression => ts.isCallExpression(node)
+    && ((ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)
+      && node.expression.expression.text === "Object" && node.expression.name.text === "assign")
+      || (ts.isElementAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)
+        && node.expression.expression.text === "Object" && ts.isStringLiteralLike(node.expression.argumentExpression)
+        && node.expression.argumentExpression.text === "assign"));
+  const errorTarget = (value: ts.Expression): boolean => {
+    const node = unwrap(value);
+    return (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "Error")
+      || (assign(node) && !!node.arguments[0] && errorTarget(node.arguments[0]));
+  };
+  const onlyStatus = (value: ts.Expression): boolean => {
+    const node = unwrap(value);
+    return ts.isObjectLiteralExpression(node) && node.properties.length > 0 && node.properties.every(property => {
+      if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property)) return false;
+      const name = property.name;
+      return (ts.isIdentifier(name) || ts.isStringLiteralLike(name)) && name.text === "status";
+    });
+  };
+  const visit = (node: ts.Node): void => {
+    if (assign(node) && node.arguments[0] && errorTarget(node.arguments[0])
+      && !(browser && node.arguments.length > 1 && node.arguments.slice(1).every(onlyStatus))) errors.push(node.getText(file));
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return errors;
+}
+
+
+test("the owner-error check allows only browser HTTP status while rejecting Error code augmentation", () => {
+  for (const source of [
+    'Object.assign(new Error("bad"), { code: "pages.bad" });',
+    'Object.assign(\n new Error("bad"),\n { code: "pages.bad" }\n);',
+    'Object.assign(new Error("bad"), {status:500}, {code:"pages.bad"});',
+    'Object.assign(new Error("bad"), {code:"pages.bad"}, {status:500});',
+    'Object.assign(Object.assign(new Error("bad"), {status:500}), {code:"pages.bad"});',
+    'Object["assign"]((new Error("bad")), {["code"]:"pages.bad"});',
+    'Object.assign(new Error("bad"), {code});',
+    'Object.assign(new Error("bad"), details);',
+    'Object.assign(new Error("bad"), {...details, status:500});',
+  ]) assert.ok(augmentedErrors(source, true).length, source);
+  const http = 'Object.assign(new Error("HTTP"), {status: response.status});';
+  for (const source of [http, 'Object.assign(\nnew Error("HTTP"),\n{"status":response.status}\n);',
+    'Object.assign(new Error("HTTP"), {status:400}, {status:500});', 'Object.assign(new Error("HTTP"), {status});',
+    '// Object.assign(new Error("not code"), {code:"pages.bad"})']) assert.deepEqual(augmentedErrors(source, true), []);
+  assert.ok(augmentedErrors(http, false).length, "server code does not get the browser allowance");
+  assert.deepEqual(bareServerErrors(http), ['"HTTP"']);
+  const source = 'export const TEST_CLIENT_SCRIPT = `(host) => { Object.assign(new Error("bad"), {code:"pages.bad"}); }`;';
+  const inline = browserPrograms({ files: ["client.ts"], read: () => source }, () => true);
+  assert.deepEqual(inline.problems, []);
+  assert.ok(inline.programs.some(program => augmentedErrors(program.text, true).length), "browser script data is checked as executed program text");
+});
+
 test("no document plugin keeps an error class, a route-error mapper, or a raise of its own code outside its declarations", async () => {
   for (const owner of OWNERS) {
     const spec = SPECS[owner];
@@ -508,12 +571,17 @@ test("no document plugin keeps an error class, a route-error mapper, or a raise 
     for (const name of spec.removed) assert.equal(name in module, false, `${spec.pkg} no longer exports ${name}`);
     const sources = new Map(filesOf(owner).map(file => [file, readFileSync(file, "utf8")]));
     const browserOnly = browserOnlyFiles(sources, browserEntriesFor(owner), [join(REPOSITORY, "plugins", "native", owner, "src", "index.ts")]);
+    const manifest = join(REPOSITORY, "plugins", "native", owner, "package.json");
+    const programSources = new Map([...sources, [manifest, readFileSync(manifest, "utf8")]]);
+    const programs = browserPrograms({ files: [...programSources.keys()], read: file => programSources.get(file) ?? null }, file => /\.(ts|mts)$/u.test(file));
+    assert.deepEqual(programs.problems, [], `${owner}: browser programs must be statically inspectable`);
+    for (const program of programs.programs) assert.deepEqual(augmentedErrors(program.text, true), [], `${program.where}: Error augmentation outside browser HTTP status`);
     for (const [file, source] of sources) {
       const where = relative(REPOSITORY, file);
       assert.doesNotMatch(source, /\bclass\s+\w+\s+extends\s+Error\b/u, `${where}: an error class`);
       assert.doesNotMatch(source, /\bmapError\b|RouteErrorResponse/u, `${where}: a route-error mapper`);
       assert.doesNotMatch(source, new RegExp(String.raw`new\s+\w*Error\(\s*"${owner}\.[a-z_]+"`, "u"), `${where}: ${owner}.* raised without the declaration (it would answer 400 whatever its kind)`);
-      assert.doesNotMatch(source, /Object\.assign\(new Error\(/u, `${where}: an Error given a code afterwards`);
+      assert.deepEqual(augmentedErrors(source, browserOnly.has(file)), [], `${where}: Error augmentation outside browser HTTP status`);
       // Browser-only modules run in the editor bundle; template interpolations and shared modules still execute on the server.
       const bare = browserOnly.has(file) ? [] : bareServerErrors(source);
       assert.deepEqual(bare, [], `${where}: a bare new Error( is a caller-visible 500; raise ${spec.declarations}.<reason>(...) (or a platform code) instead`);

@@ -33,4 +33,16 @@ export const DIFF_MESSAGES = {
   "文件权限：新增执行权限（100644 → 100755）": { zh: "文件权限：新增执行权限（100644 → 100755）", en: "File mode: made executable (100644 → 100755)" },
   "文件权限：移除执行权限（100755 → 100644）": { zh: "文件权限：移除执行权限（100755 → 100644）", en: "File mode: no longer executable (100755 → 100644)" },
   "正文未改变": { zh: "正文未改变", en: "The text is unchanged" },
+  // Sentences with a path or a count in them are written in Chinese by the producer (an Agent reads them too), so each is a
+  // template here: `sentences.ts` finds which template a sentence is, and the page says it with the values in its own words.
+  "diff.msg.no-change-in": { zh: "这一轮没有改动 {path}", en: "This round didn't change {path}" },
+  "diff.msg.renamed": { zh: "重命名：{from} → {to}", en: "Renamed: {from} → {to}" },
+  "diff.msg.hunk-count": { zh: "hunk 行数与 @@ 头不一致：声明 {declaredBefore}/{declaredAfter}，实际 {sawBefore}/{sawAfter}", en: "A hunk's line counts don't match its @@ header: declared {declaredBefore}/{declaredAfter}, found {sawBefore}/{sawAfter}" },
+  "diff.msg.hunk-header": { zh: "读不懂的 hunk 头：{header}", en: "Can't read this hunk header: {header}" },
+  "这段 diff 里没有可读的 hunk": { zh: "这段 diff 里没有可读的 hunk", en: "There is no readable hunk in this diff" },
+  "固定差异不可用": { zh: "固定差异不可用", en: "The pinned difference isn't available" },
+  "固定差异不可用，请重新选择原变更": { zh: "固定差异不可用，请重新选择原变更", en: "The pinned difference isn't available. Choose the original change again." },
+  "Coding 固定变更当前不可读，请保留原会话后重试": { zh: "Coding 固定变更当前不可读，请保留原会话后重试", en: "The pinned Coding change can't be read right now. Keep the original session and try again." },
+  "Git 固定变更当前不可读，请重新选择原变更": { zh: "Git 固定变更当前不可读，请重新选择原变更", en: "The pinned Git change can't be read right now. Choose the original change again." },
+  "请选择两份文件快照进行对比": { zh: "请选择两份文件快照进行对比", en: "Choose two file snapshots to compare" },
 } as const;

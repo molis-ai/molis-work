@@ -18,9 +18,9 @@ test("The project button holds settings and the account, and opens settings in t
   await navigate(()=>command("Page.navigate",{url:origin+"/projects/"+projectId+"/"},sessionId));
   await waitFor("document.body.dataset.desktopSurface==='home'");
   assert.equal(await evaluate("document.querySelector('.personal-account-copy strong').textContent"), "Not signed in");
-  assert.equal(await evaluate("document.querySelector('.personal-account-copy small').textContent"), "Sign in");
-  assert.equal(await evaluate("document.querySelector('.personal-account').disabled"), true);
-  assert.equal(await evaluate("document.querySelector('.personal-account').title"), "Sign-in is not available yet");
+  assert.equal(await evaluate("document.querySelector('.personal-account-copy small').textContent"), "Local space");
+  assert.equal(await evaluate("document.querySelector('.personal-account').disabled"), false);
+  await waitFor("document.querySelector('.personal-account').getAttribute('aria-controls') === 'mw-account-menu'");
   for(const width of [761,760,600,390]){
     await command("Emulation.setDeviceMetricsOverride",{width,height:844,deviceScaleFactor:1,mobile:width<=600},sessionId);
     for(const theme of ["light","dark"]){

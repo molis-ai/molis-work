@@ -78,9 +78,9 @@ const init = () => {
   };
   const close = (focus = false) => { menu.hidden = true; links.forEach(a => a.setAttribute('aria-expanded', 'false')); if (focus) trigger?.focus(); };
   const paint = () => {
-    const name = identity?.displayName || identity?.emails?.[0] || '未登录';
+    const name = identity?.displayName || identity?.emails?.[0] || L('未登录');
     document.querySelectorAll('[data-personal-name]').forEach(el => { el.textContent = name; });
-    document.querySelectorAll('[data-personal-status]').forEach(el => { el.textContent = space === 'account' ? '个人空间' : '本地空间'; });
+    document.querySelectorAll('[data-personal-status]').forEach(el => { el.textContent = L(space === 'account' ? '个人空间' : '本地空间'); });
     document.querySelectorAll('[data-account-compact-label]').forEach(el => { el.textContent = identity ? '账号' : '登录'; });
     links.forEach(a => { a.title = identity ? name + ' · 切换账号 / 退出登录' : '登录 / 注册 molis AI'; a.setAttribute('aria-label', a.title); });
     requiredElement(menu,'[data-menu-name]').textContent = identity ? name : '本地模式';

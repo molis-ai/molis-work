@@ -32,7 +32,7 @@ const WHOLE = `(list) => { const codes = [...list.querySelectorAll(':scope > li 
 
 test("VUX-33: a large change reads whole at once and is coloured a slice a frame to the whole colouring; a minified line stays text, not the file", { timeout: 180_000 }, async t => {
   const opened = await openCoding(t); if (!opened) return;
-  const { evaluate, waitFor, start, openItem } = opened;
+  const { evaluate, waitFor, start, openItem, command, sessionId } = opened;
   const session = await start("看一份很大的改动");
   const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-large", applied: true, files: [{ path: "large.ts", kind: "modified", added_lines: 202, removed_lines: 200, diff: "",
     review: { review_id: "review-large", before_text: BEFORE, after_text: AFTER, decision: "approved", execution: "applied" } }] },
@@ -75,8 +75,29 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
     const start = performance.now(), span = document.createElement('span'); span.className = 'tok-keyword'; span.textContent = 'x'; code.append(span); getComputedStyle(span).color;
     const ms = performance.now() - start; span.remove(); return ms; })()`);
   assert.ok(insert < 50, `one node put in the coloured change: ${insert.toFixed(1)} ms`);
-  // The independent long-conversation style guard and its negative control live in code-turn-style.e2e.test.ts (LTP-01/02).
+  // LTP-01/04: keep the long conversation beside the open large diff. Style cost excludes the 60,000-character line's
+  // layout, which getComputedStyle also forces. The independent case and negative control are in code-turn-style.e2e.test.ts.
+  await evaluate(`(() => { const pre = document.createElement('pre'); pre.id = 'long-turn-style';
+    for (let i = 0; i < 30000; i++) { const span = document.createElement('span'); span.className = 'tok-keyword'; span.textContent = 'x '; pre.append(span); }
+    document.querySelector('${coding} [data-coding-turns]').append(pre); pre.offsetHeight; })()`);
+  await command("Performance.enable", {}, sessionId);
+  const styleDuration = async () => {
+    const { metrics } = await command<{ metrics: Array<{ name: string; value: number }> }>("Performance.getMetrics", {}, sessionId);
+    const metric = metrics.find(metric => metric.name === "RecalcStyleDuration");
+    assert.ok(metric, "Chrome reports RecalcStyleDuration"); return metric.value * 1000;
+  };
+  let turn: number;
+  try {
+    const before = await styleDuration();
+    await evaluate(`(() => { const span = document.createElement('span'); span.className = 'tok-keyword'; span.textContent = 'x';
+      document.querySelector('#long-turn-style').append(span); getComputedStyle(span).color; })()`);
+    turn = await styleDuration() - before;
+    assert.ok(turn < 50, `one node put in a long turn beside the diff, style only: ${turn.toFixed(1)} ms`);
+  } finally {
+    await evaluate("document.querySelector('#long-turn-style')?.remove()");
+    await command("Performance.disable", {}, sessionId);
+  }
   assert.deepEqual(await expensiveHasSelectors(evaluate), [], "no :has() rule on the Coding page ends in a bare tag or a broad part (VUX-36)");
   const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
-  await writeFile(new URL("diff-line-scale.json", evidence), JSON.stringify({ rows: expected, plain_line: minified.length, coloured_line: wide.length, frames: painting.length, longest: Math.round(longest), median: Math.round(median), gaps: gaps.map(Math.round), insert: Math.round(insert * 10) / 10 }, null, 2));
+  await writeFile(new URL("diff-line-scale.json", evidence), JSON.stringify({ rows: expected, plain_line: minified.length, coloured_line: wide.length, frames: painting.length, longest: Math.round(longest), median: Math.round(median), gaps: gaps.map(Math.round), insert: Math.round(insert * 10) / 10, turn_style: Math.round(turn * 10) / 10 }, null, 2));
 });

@@ -20,4 +20,8 @@ CI Full suite 39745490860 的 `code-diff-scale.e2e` 两次失败，逐帧最长 
 
 先整体 `pnpm build`；定向 `node scripts/run-tests.mjs --jobs 2 --browser-jobs 1 tests/code-diff-scale.e2e.test.ts tests/code-rows-geometry.e2e.test.ts tests/code-diff-reader.e2e.test.ts`。按实际改动补 Coding/Diff README 所需测试；推送前检查 health（对照 origin/main）、boundary、page-assets、secrets。独立 PR 跟进 CI 和评审；工程验证不代表一骏本人验收。
 
-阶段验证：首次改动后三个原浏览器用例均通过，正常速度最长 85 ms、中位数 17 ms。2.5 倍 CPU 降速中位数 40 ms，但长行仍有 241 ms 峰值；分段保留长行尾部的实验未证明稳定收益，已撤回。新增大文件缩放/字体回归发现字体与行高改变后缓存尺寸未更新，已用持续渲染的一行及其行号单元观察度量变化；最终实测与几何验证仍待补齐。尺寸缓存依据 [CSS Sizing 4 的 last remembered size](https://www.w3.org/TR/2026/WD-css-sizing-4-20260904/#last-remembered)。
+主线 `83ecb61b6` 合并后的验证：整体 build、health（对照 origin/main）、boundary 与 secrets 通过。Coding/Diff 所需 44 个回归文件中 43 个通过，`companion-client-lifecycle.e2e` 因翻译函数缺失及两个 DOM 等待超时失败，正在干净主线比对。大文件实测 3,993 行、55 帧，最长 69 ms、中位数 17 ms，变更/长对话插入 38.7/25.1 ms；逐行全文、三个窗口宽度和替换字体后的滚动范围均通过。统一/并排、五位行号、横向滚动、复制与读到的位置由 reader/geometry 用例通过。
+
+新增字体回归曾发现字体与行高改变后缓存尺寸未更新，已用持续渲染的一行及其行号单元观察度量变化修复。2.5 倍 CPU 降速仅作诊断：中位数 40 ms，但长行仍有 241 ms 峰值，不宣称该额外负载通过原门槛；分段保留长行尾部的实验未证明稳定收益，已撤回。尺寸缓存依据 [CSS Sizing 4 的 last remembered size](https://www.w3.org/TR/2026/WD-css-sizing-4-20260904/#last-remembered)。
+
+资源体积待评审：Coding 脚本 376,592 → 377,823（+1,231 字节），工作台样式 1,616,975 → 1,617,154（+179 字节）。新增部分负责自然尺寸记忆、宽度/字体/折叠变化后的重测及卸载释放；复用已有帧调度和生命周期，小文件/并排布局不注册观察器，两条 CSS 使用原行结构。只缩小着色批次无法解决重复布局，移除尺寸失效处理会重现字体几何错误；不以删测试、删功能或挪出受测资源省体积。按既有资源规则，经评审接受后登记精确的一次性上限。

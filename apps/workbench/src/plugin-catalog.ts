@@ -418,3 +418,9 @@ export function artifactTypeDeclarations(): ReadonlyMap<string, ArtifactTypeDecl
   }
   return declarations;
 }
+
+/** Every 成果 type the built-in Manifests and the Host's own producers declare, as consumers name types (id and schema version). */
+export function declaredArtifactTypes(): Array<{ artifact_type_id: string; schema_version: number }> {
+  return [...BUILTIN_PLUGIN_CATALOG.map(entry => entry.manifest.artifacts.produces), ...HOST_ARTIFACT_PRODUCERS.map(producer => producer.produces)].flat()
+    .map(type => ({ artifact_type_id: type.artifact_type_id, schema_version: type.schema_version }));
+}

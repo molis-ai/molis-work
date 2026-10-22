@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { isArtifactCompareAction, isArtifactContinueAction, isArtifactPinAction, isArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
-import { BUILTIN_PLUGIN_CATALOG, HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes } from "@molis-ai/molis-work-app-workbench";
 
 /** Who declares 成果 types: the built-in Manifests, and the Host's own producers (Characters since CHR-1). */
 const PRODUCERS = [...BUILTIN_PLUGIN_CATALOG.map(entry => ({ plugin_id: entry.manifest.plugin_id, produces: entry.manifest.artifacts.produces, actions: entry.manifest.actions ?? [] })),
@@ -49,6 +49,8 @@ test("a 成果 type has exactly one owner", () => {
   }
   assert.deepEqual([...owners].filter(([, plugins]) => plugins.length > 1), []);
   assert.equal(artifactTypeDeclarations().size, owners.size, "every produced type is declared");
+  // A Goal's embeds name the types it can show; a Host producer's type (a published Character) is one of them.
+  assert.deepEqual(new Set(declaredArtifactTypes().map(type => type.artifact_type_id)), new Set(owners.keys()), "Goal embeds know every produced type");
 });
 
 /**

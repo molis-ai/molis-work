@@ -8,7 +8,7 @@ import {
   artifactsErrors, documentErrors, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf,
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-plugin-artifacts";
-import { artifactWorkbench, artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, BUILTIN_PLUGIN_CATALOG, type ArtifactTypeDeclaration } from "@molis-ai/molis-work-app-workbench";
+import { artifactWorkbench, artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, type ArtifactTypeDeclaration } from "@molis-ai/molis-work-app-workbench";
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import { importedDocumentFile, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ActionProgressEvent, ArtifactCompareResult, ArtifactContinueResult, ArtifactReferrersResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -62,11 +62,6 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
     source_href: pinned && compared !== "missing" && compared !== "moved" ? `${context.routePrefix}/?openPlugin=${encodeURIComponent(declaration.surface)}&openItem=${encodeURIComponent(pinned.id)}&openTitle=${encodeURIComponent(artifact.title)}` : "",
     source_label: pinned ? `在${/^[\x20-\x7e]+$/u.test(declaration.plugin_title) ? ` ${declaration.plugin_title} ` : declaration.plugin_title}打开原对象` : "",
     plugin_id: declaration.surface, item_id: pinned?.id ?? "" };
-}
-
-/** Every 成果 type a built-in plugin declares, as consumers name types (id and schema version). */
-export function declaredArtifactTypes(): Array<{ artifact_type_id: string; schema_version: number }> {
-  return BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.manifest.artifacts.produces.map(type => ({ artifact_type_id: type.artifact_type_id, schema_version: type.schema_version })));
 }
 
 export function renderGoalArtifactContext(embeds: GoalArtifactEmbed[]): string {

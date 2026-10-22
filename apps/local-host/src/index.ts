@@ -214,8 +214,6 @@ export {
   codingNextSteps,
   codingRouteHooks,
   diffStagePanel,
-  filesDirectoryPanel,
-  gitDirectoryPanel,
   type CodingSurfacePorts,
 } from "./coding-surface.js";
 export { handleProjectPluginHttp, type ProjectPluginHttpPorts, type ProjectPluginRouteHooks } from "./project-plugin-http.js";

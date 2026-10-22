@@ -33,27 +33,13 @@ import {
 } from "@molis-ai/molis-work-plugin-diff";
 import {
   FILES_PLUGIN_ID,
-  FILES_PROJECT_PLUGIN_ID,
-  FILES_UI_CONTRIBUTION_ID,
   renderFilesBrowserDirectory,
   renderFilesBrowserResult,
-  pathKey,
-  projectFileTree,
-  type DirectoryListing,
-  type FilesUiModel,
 } from "@molis-ai/molis-work-plugin-files";
 import {
-  GIT_PLUGIN_ID,
-  GIT_PROJECT_PLUGIN_ID,
-  GIT_UI_CONTRIBUTION_ID,
-  projectGit,
-  parsePorcelainStatus,
   renderGitBrowserDirectory,
   renderGitBrowserResult,
-  type GitUiModel,
 } from "@molis-ai/molis-work-plugin-git";
-import { listWorkspaceDirectory } from "./workspace-files.js";
-import { readWorkspaceGit } from "./workspace-git.js";
 import { TEXT_STATS_PLUGIN_ID, TEXT_STATS_UI_CONTRIBUTION_ID, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
 
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
@@ -297,85 +283,6 @@ function primitivesFor(ports: CodingSurfacePorts) {
     text: L,
     icon: (name: string) => icon(name as Parameters<typeof icon>[0]),
   };
-}
-
-/**
- * The workspace root this project reads through, or null.
- *
- * Null covers three different situations — nothing bound, several bound with
- * nothing to choose between them, and a directory the Host could not verify —
- * and each Plugin says which one it is in its own words. What they share is
- * that none of them is a directory anybody may read.
- */
-function workspaceRoot(ports: CodingSurfacePorts): string | null {
-  const workspaces = ports.workspaces ?? [];
-  if (workspaces.length !== 1) return null;
-  const only = workspaces[0]!;
-  return only.realpath_verified ? only.canonical_path : null;
-}
-
-/** Files' tree, from what the Host actually read off disk. */
-export async function filesDirectoryPanel(
-  ports: CodingSurfacePorts,
-): Promise<{ panel: string; plugin_id: string } | null> {
-  const record = await ensureProjectPlugins(ports);
-  const view = viewOf<FilesUiModel>(record, FILES_PLUGIN_ID, FILES_UI_CONTRIBUTION_ID);
-  if (view === null) return null;
-  const root = workspaceRoot(ports);
-  try {
-    const listing: DirectoryListing = root === null
-      ? { entries: [], truncated: false }
-      : await listWorkspaceDirectory({ root });
-    const model: FilesUiModel = {
-      route_prefix: "",
-      workspace_name: root === null ? null : (ports.workspaces ?? [])[0]!.display_name,
-      // Only the root is listed until the user opens a folder: expanding is an
-      // action, and walking the whole tree to draw it would read far more than
-      // was asked for.
-      nodes: projectFileTree({ root: listing, children: new Map(), expanded: new Set<string>() }),
-      preview: { status: "none", hint: root === null ? "这个项目还没有绑定工作目录" : "选一个文件来读" },
-      truncated: listing.truncated,
-      primitives: primitivesFor(ports),
-    };
-    void pathKey;
-    return { panel: view.render({ surface: "tree", model }), plugin_id: FILES_PROJECT_PLUGIN_ID };
-  } catch {
-    return null;
-  }
-}
-
-/** Git's changes, from a real `git status` the Host ran. */
-export async function gitDirectoryPanel(
-  ports: CodingSurfacePorts,
-): Promise<{ panel: string; plugin_id: string } | null> {
-  const record = await ensureProjectPlugins(ports);
-  const view = viewOf<GitUiModel>(record, GIT_PLUGIN_ID, GIT_UI_CONTRIBUTION_ID);
-  if (view === null) return null;
-  const root = workspaceRoot(ports);
-  try {
-    const read = root === null ? null : await readWorkspaceGit({ kind: "status", workspace_id: ports.workspaces![0]!.workspace_id }, ports.workspaces!);
-    const result = read === null ? { phase: "waiting" as const, status: null }
-      : read.outcome === "status" ? { phase: "ready" as const, status: parsePorcelainStatus({ stdout: read.porcelain }) }
-      : { phase: read.outcome === "not-a-repository" ? "not-a-repository" as const : "error" as const, status: null,
-          message: "message" in read ? read.message : "Git 状态不可读" };
-    if (result.status && result.status.head.kind !== "unborn" && read?.outcome === "status" && read.head_commit) result.status.head = { ...result.status.head, commit: read.head_commit };
-    const model: GitUiModel = {
-      route_prefix: "",
-      view: projectGit({
-        phase: result.phase,
-        status: result.status,
-        ...(result.message === undefined ? {} : { message: result.message }),
-      }),
-      // A Run's proposal is only offerable once a change set is bound, and
-      // nothing binds one yet. Null says "there is none", not "it was refused".
-      acceptance: null,
-      commit_message: "",
-      primitives: primitivesFor(ports),
-    };
-    return { panel: view.render({ surface: "changes", model }), plugin_id: GIT_PROJECT_PLUGIN_ID };
-  } catch {
-    return null;
-  }
 }
 
 /** Diff's comparison surface, waiting on whichever group the user wired. */

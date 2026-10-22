@@ -151,7 +151,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 
 Files/Git 的目录子树独立挂载，避免和 Coding 根节点争用同一个挂载。Host 审查组件接收调用方生命周期和当前可见性 signal，并以自己的容器管理监听与卸载；不要用审查容器因空数据而 hidden 来判断是否该读取，也不要让旧显示世代的决定回调操作重新进入的界面。普通刷新不使同一显示世代的在途决定失效，过期回执只可触发读取当前状态，不能重放命令。
 
-需要事件刷新时复用 `scope.watchRevision(read, refresh)`；可见时只查轻量 revision，变化后读原状态，隐藏/卸载停止，重连重新读当前事实。忙碌时 refresh 返回 false，避免丢失发生在当前读取期间的通知。revision 不是业务执行身份或成功回执，不能重放写命令。参考 Files/Git。
+需要事件刷新时复用 `scope.watchRevision(read, refresh)`；可见时只查轻量 revision，变化后读原状态，隐藏/卸载停止，重连重新读当前事实。忙碌时 refresh 返回 false，避免丢失发生在当前读取期间的通知。revision 不是业务执行身份或成功回执，不能重放写命令。参考 Files/Git。服务端让自己的页面重新读取，调 `context.services.ui.invalidate()`：不带参数，只推自己的 revision；Manifest 声明了 `ui.views` 就能调，不要权限；动作里、事件回调或定时器里都行。`start()` 里还没运行时调用什么也不做，激活停了（停用、重启）再调被拒（`ui_host.plugin_denied`）。
 
 ## 生成插件的页面组合
 

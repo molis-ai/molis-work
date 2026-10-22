@@ -31,7 +31,7 @@
       "lines": 278,
       "methods": 41
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 255,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 228,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 167,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
@@ -525,7 +525,7 @@
     "plugins/native/goals/src/document-collection.ts": 1,
     "plugins/native/goals/src/goal-tree-materialization-order.ts": 1
   },
-  "scriptConstantsTotal": 127,
+  "scriptConstantsTotal": 126,
   "scriptConstants": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "apps/desktop/src/shell.ts": 1,
@@ -581,7 +581,6 @@
     "packages/design-system/src/styles/micro-interactions.ts": 1,
     "packages/design-system/src/visual-foundation.ts": 1,
     "packages/ui-host/src/request-client.ts": 1,
-    "plugins/native/characters/src/client.ts": 1,
     "plugins/native/coding/src/changeset-client.ts": 1,
     "plugins/native/coding/src/characters-client.ts": 1,
     "plugins/native/coding/src/client.ts": 1,
@@ -756,19 +755,17 @@
     "apps/local-host/src/project-host.ts#register-provider": 5,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 13,
+  "hybridPluginsTotal": 9,
   "hybridPlugins": {
-    "characters#host-files": 4,
     "coding#host-files": 1,
     "git#host-files": 4,
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 364,
+  "pluginOutsideMentionsTotal": 354,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
-    "characters#outside-files": 10,
     "coding#outside-files": 14,
     "cognia#outside-files": 6,
     "dataset#outside-files": 8,
@@ -1408,7 +1405,7 @@
   },
   "errorCodeShapeTotal": 0,
   "errorCodeShape": {},
-  "errorStatusDecisionTotal": 87,
+  "errorStatusDecisionTotal": 83,
   "errorStatusDecisions": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/alchemist-native-plugin-http.ts": 3,
@@ -1422,7 +1419,6 @@
     "apps/local-host/src/web-project-deletion.ts": 2,
     "plugins/native/alchemist/src/studio/server/api/action-routes.ts": 4,
     "plugins/native/alchemist/src/studio/server/services/action-operations.ts": 14,
-    "plugins/native/characters/src/plugin.ts": 4,
     "plugins/native/coding/src/routes.ts": 5,
     "plugins/native/work/src/http/associations.ts": 4,
     "plugins/native/work/src/http/content.ts": 4,

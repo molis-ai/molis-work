@@ -40,7 +40,8 @@
     "ssot": "docs/SSOT-MATRIX.md",
     "capabilities": [
       "characters.query.v1",
-      "characters.command.v1"
+      "characters.command.v1",
+      "characters.actions.v1"
     ]
   }
 }

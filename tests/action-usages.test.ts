@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { charactersActions as c } from "@molis-ai/molis-work-plugin-characters";
+import { charactersActions as c } from "@molis-ai/molis-work-module-characters";
 import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";

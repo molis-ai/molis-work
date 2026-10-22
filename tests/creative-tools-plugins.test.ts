@@ -126,7 +126,7 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
   assert.equal(PERSONAL_PLUGIN_IDS.includes("functions" as never), false, "判断已迁入系统服务");
   for (const id of ["form", "dataset", "ppt"]) assert.ok(PERSONAL_PLUGIN_IDS.includes(id));
-  assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("characters"), false, "角色库由本人管理，不依赖项目安装");
+  assert.equal([...PERSONAL_PLUGIN_IDS, ...PROJECT_SCOPED_PLUGIN_IDS].includes("characters"), false, "角色是宿主设置的一节，不是插件（CHR-1）");
   assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("alchemist"), false, "炼金术士不该要项目添加");
   for (const id of ["form", "dataset", "ppt"]) {
     assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(id), false, `${id} 不该要项目添加`);
@@ -137,11 +137,10 @@ test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
     ["form", "dataset", "ppt"],
   );
   const market = pluginMarketCards();
-  // Every personal plugin is in the market except 角色, whose page is Settings › 角色, and the 常开插件 (Shelf), which nobody
-  // adds or removes.
+  // Every personal plugin is in the market except the 常开插件 (Shelf), which nobody adds or removes.
   assert.deepEqual(ALWAYS_ON_PLUGIN_IDS, ["shelf"]);
   assert.deepEqual(market.filter((card) => card.personal).map((card) => card.id),
-    PERSONAL_PLUGIN_IDS.filter((id) => id !== "characters" && !ALWAYS_ON_PLUGIN_IDS.includes(id)));
+    PERSONAL_PLUGIN_IDS.filter((id) => !ALWAYS_ON_PLUGIN_IDS.includes(id)));
   assert.equal(market.find((card) => card.id === "form")?.copy, "建问卷，收答卷，看逐题汇总。");
 });
 

@@ -4,7 +4,6 @@ import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform
 import { registration as alchemistRegistration } from "@molis-ai/molis-work-plugin-alchemist/registration";
 import { registration as artifactsRegistration } from "@molis-ai/molis-work-plugin-artifacts/registration";
 import { registration as pluginBuilderRegistration } from "@molis-ai/molis-work-plugin-builder/registration";
-import { registration as charactersRegistration } from "@molis-ai/molis-work-plugin-characters/registration";
 import { registration as codingRegistration } from "@molis-ai/molis-work-plugin-coding/registration";
 import { registration as cogniaRegistration } from "@molis-ai/molis-work-plugin-cognia/registration";
 import { registration as datasetRegistration } from "@molis-ai/molis-work-plugin-dataset/registration";
@@ -43,7 +42,6 @@ export const BUILTIN_PLUGIN_CATALOG: readonly PluginRegistration[] = [
   shelfRegistration,
   lingguangRegistration,
   todoRegistration,
-  charactersRegistration,
   pagesRegistration,
   formRegistration,
   datasetRegistration,

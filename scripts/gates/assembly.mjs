@@ -7,7 +7,7 @@
 //   hostPluginFiles        plugin-named `<plugin>-actions.ts` and `<plugin>-native-plugin-http.ts` files in the Host
 //   registerProviderSites  `registerProvider(…)` calls in apps/local-host/src, per file
 //   hybridPlugins          a Runtime-assembled plugin that the Host ALSO assembles by hand: Host files named after it, and
-//                          registerProvider(<plugin>…Provider(…)) lines. Shelf and Characters are the two today, and so
+//                          registerProvider(<plugin>…Provider(…)) lines. Shelf is one today, and so
 //                          are the workspace plugins whose Host files carry their name; the report flags them
 //   pluginOutsideMentions  per built-in plugin, the files outside its own package that name its package (imports, package.json
 //                          dependencies, the workspace map): what adding or removing that plugin touches besides itself
@@ -27,7 +27,7 @@ const PROJECT_PLUGINS = "apps/local-host/src/project-plugins.ts";
 export const assemblyWantsText = (file) => hasPath(file, PLUGIN_PACKAGE, "package.json", /^apps\/[^/]+\/package\.json$/, /^scripts\/[^/]+\.(?:mjs|mts)$/);
 
 /** The singular a Host file may use for a plural plugin directory (artifact-actions.ts for plugins/native/artifacts). */
-export const NAME_ALIASES = { artifacts: ["artifact"], characters: ["character"] };
+export const NAME_ALIASES = { artifacts: ["artifact"] };
 /**
  * What a new built-in plugin may be named in outside its own package, today: the smallest complete plugin (text-stats) is
  * named in this many files. The target is 0 (declaration-only registration, W4-01); no new plugin may take more than the
@@ -137,9 +137,7 @@ export const assemblyMetrics = (helpers) => {
     message: (key, was, now) => `hybrid plugin ${key.split("#")[0]} ${key.split("#")[1]} ${was} → ${now}; a plugin the Runtime starts does not also get Host code written for it; move the code into the plugin package or behind its declaration`,
     extraLines: (head) => {
       const names = [...new Set(Object.keys(head).map((key) => key.split("#")[0]))].sort();
-      const lines = [names.length ? `  flagged as hybrid: ${names.join(", ")}` : "  no hybrid plugin"];
-      if (names.includes("characters")) lines.push("  characters: decision 26 (2026-10-08) - no longer a Runtime plugin long-term; its code merges into the Host or a Module (wave 4), the interface stays a section of Settings");
-      return lines;
+      return [names.length ? `  flagged as hybrid: ${names.join(", ")}` : "  no hybrid plugin"];
     },
   });
 

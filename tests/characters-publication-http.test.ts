@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { freezeProjectCharacter } from "../apps/local-host/dist/characters-host.js";
-import { CHARACTERS_CLIENT_FACTORY_SCRIPT, renderCharacters } from "@molis-ai/molis-work-plugin-characters";
+import { renderCharacters, renderMolisWorkCharactersClientScript } from "@molis-ai/molis-work-app-workbench";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -39,6 +39,11 @@ test("Character manager publishes confirmed personal drafts through real project
   assert.equal((await a("POST", "/drafts", {}, false)).status, 403);
   const created = await a("POST", "/drafts", {}); assert.equal(created.status, 200, JSON.stringify(created.body));
   const id = created.body.draft.character_id, path = `/drafts/${id}`;
+  // RAC-71: the Host's door answers what the person's action answers: a draft that is not there and a body that is no object are 400.
+  const missing = await a("POST", "/drafts/missing/state", { expected_revision: 1, state: "disabled" });
+  assert.deepEqual([missing.status, missing.body.code], [400, "characters.not_found"]);
+  const shapeless = await a("POST", path + "/state", [1]);
+  assert.deepEqual([shapeless.status, shapeless.body.code], [400, "actions.input_invalid"]);
   assert.equal((await a("POST", path + "/publish", { expected_revision: 1 })).status, 400);
   const patch = { title: "证据核对 <script>", instructions: "先验证实际结果。\n未验证项目保留 UNVERIFIED。", host_tools: ["read-file", "search"] };
   const edited = await a("PUT", path, { ...patch, expected_revision: 1 }); assert.equal(edited.status, 200, JSON.stringify(edited.body));
@@ -49,6 +54,8 @@ test("Character manager publishes confirmed personal drafts through real project
   assert.equal(published.body.publication.payload.instructions, patch.instructions);
   assert.equal(published.body.publication.owner_actor_id, "web-user");
   assert.equal(published.body.publication.producer_plugin_id, "io.molis.work.characters");
+  // RAC-72: the Host writes the publication as the person, with the product version as producer version (CHR-1 D4).
+  assert.equal(published.body.publication.producer_plugin_version, JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version);
   assert.equal(published.body.publication.project_id, first.project_id);
   assert.equal(published.body.reference.version, 1);
   const frozen = freezeProjectCharacter(home, "web-user", first.project_id, artifacts, published.body.reference);
@@ -86,8 +93,9 @@ test("Character manager publishes confirmed personal drafts through real project
 });
 
 test("Character manager client parses and its server-rendered route is escaped", () => {
-  // RAC-69: the client program still parses and builds a function after its requests moved to the workbench's request helper.
-  assert.equal(typeof new Function(`return (${CHARACTERS_CLIENT_FACTORY_SCRIPT})`)(), "function");
+  // RAC-69: the bundled client parses, and registers the surface's factory with the workbench's deferred loader (CHR-1).
+  const client = renderMolisWorkCharactersClientScript();
+  assert.doesNotThrow(() => new Function(client)); assert.match(client, /molisWorkbenchPluginFactories/);
   const html = renderCharacters({ route_prefix: '/projects/"<script>', primitives: { escape: value => escapeHtml(String(value)) } });
   assert.ok(!html.includes('/projects/"<script>'));
   assert.ok(html.includes('data-character-dialog'));

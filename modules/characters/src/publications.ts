@@ -1,6 +1,6 @@
 import type { ArtifactReference, ArtifactVersionRecord, ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, parseCharacterContent, type CharacterContent, type CharactersQuery } from "@molis-ai/molis-work-contracts/modules/characters";
+import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, characterErrors, parseCharacterContent, type CharacterContent, type CharactersQuery } from "@molis-ai/molis-work-contracts/modules/characters";
 
 /** Where a person's Characters are published in one project: their own lines of 成果 and the draft each was made from. */
 export interface CharacterPublicationScope {
@@ -26,7 +26,7 @@ export function ownedPublications(scope: CharacterPublicationScope): ArtifactVer
       || record.producer_plugin_id !== CHARACTER_PLUGIN_ID || record.producer_binding_signature !== CHARACTER_PUBLISHER_SIGNATURE
       || record.artifact_type_id !== CHARACTER_ARTIFACT_TYPE || record.schema_version !== 1) return [];
     const content = parseCharacterContent(record.payload);
-    if (content.source.owner_actor_id !== scope.actorId || record.artifact_id !== characterArtifactId(scope.projectId, content.character_id)) throw new Error("角色发布的来源或身份不一致");
+    if (content.source.owner_actor_id !== scope.actorId || record.artifact_id !== characterArtifactId(scope.projectId, content.character_id)) throw characterErrors.invalid("角色发布的来源或身份不一致");
     return [record];
   });
 }
@@ -36,8 +36,8 @@ export function ownedPublications(scope: CharacterPublicationScope): ArtifactVer
  * revision that does not exist is not one to run (the check `characters.runnable` answers a plugin running a Character with, PG-086).
  */
 function assertRunnableDraft(draft: ReturnType<CharactersQuery["get"]>, content: CharacterContent): void {
-  if (!draft || draft.state !== "active") throw new Error("该角色已停用或删除");
-  if (content.source.draft_revision > draft.revision) throw new Error("Character 发布来源不是已有草稿修订");
+  if (!draft || draft.state !== "active") throw characterErrors.invalid("该角色已停用或删除");
+  if (content.source.draft_revision > draft.revision) throw characterErrors.invalid("Character 发布来源不是已有草稿修订");
 }
 
 /**
@@ -47,7 +47,7 @@ function assertRunnableDraft(draft: ReturnType<CharactersQuery["get"]>, content:
 export function selectPublication(scope: CharacterPublicationScope, input: Record<string, unknown>, requireActive = true): { content: CharacterContent; reference: ArtifactReference } {
   const ref = input.reference as ArtifactReference | undefined;
   const record = ownedPublications(scope).find(item => item.artifact_id === ref?.artifact_id && item.version === ref.version);
-  if (!record || requireActive && (record.lifecycle_state !== "active" || record.availability !== "available")) throw new Error("请选择当前项目已发布的角色版本");
+  if (!record || requireActive && (record.lifecycle_state !== "active" || record.availability !== "available")) throw characterErrors.invalid("请选择当前项目已发布的角色版本");
   const content = parseCharacterContent(record.payload), draft = scope.drafts.get(content.character_id);
   if (requireActive) assertRunnableDraft(draft, content);
   return { content, reference: { artifact_id: record.artifact_id, version: record.version } };

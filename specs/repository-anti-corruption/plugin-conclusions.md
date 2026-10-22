@@ -93,7 +93,7 @@
 | # | 严重度 | 发现 | 证据 | 去向 |
 | --- | --- | --- | --- | --- |
 | E-1 | 中 | **删除项目不清 Sessions 记录。** 项目的 Session 登记在 Home 的 `sessions/sessions.db`，项目删除的登记表（`apps/local-host/src/project-deleted-owners.ts` 的 `homeProjectOwners`，探针取到的 owner 为 pages、form、dataset、ppt、workflows、todo、functions、lingguang、images、alchemist、plugin-builder、assistant、memory、search）里没有它 | P：建项目、`registry.createSession({ project_id })`、`catalog.deleteProject(...)`，`cleanup_state: "complete"`，之后 `registry.list({ project_id })` 仍返回 1 条 | 给 Sessions 加 `project_data` 声明（`plugins/native/work`，和 Todo 的 `project-data.ts` 同形）并补 `tests/project-deletion-owners.test.ts` 一例；属 W2-07（项目删除统一）的收尾。**不需要新决定**：2026-10-07 已定「各主人一起删、可重试」（[spec.md](spec.md) §1），这条是它漏掉的一个主人；修好后，真实 Home 里以前删项目留下的 Sessions 记录（若有）按 10-08 已定的做法在下一次维护里先列后删，本片没有读真实 Home，不知道有没有 |
-| E-2 | 中 | **Characters 的草稿写入没有权限声明，且对助理、MCP、工作流开放。** `characters.create`、`characters.update`、`characters.state` 的 `permissions` 是空数组、受众是 `SHARED`（用户、工作流、助理、MCP）；角色决定将来 Agent 的工具范围与提示词 | R：`plugins/native/characters/src/actions.ts` 第 34–38 行；P：这三个动作在 agent 与 mcp 受众的目录里都出现 | 加 `characters:write`，或把受众收到仅用户；Characters 本来要并进宿主设置（决定 #26），可以随那一片做，但不要等太久。**W2-18 待决 8**（[spec.md](spec.md) §1）：受众收到仅用户（推荐），还是加 `characters:write` |
+| E-2 | 中 | **Characters 的草稿写入没有权限声明，且对助理、MCP、工作流开放。** `characters.create`、`characters.update`、`characters.state` 的 `permissions` 是空数组、受众是 `SHARED`（用户、工作流、助理、MCP）；角色决定将来 Agent 的工具范围与提示词 | R：`plugins/native/characters/src/actions.ts` 第 34–38 行（CHR-1，2026-10-22 搬到 `modules/characters/src/actions.ts` 第 30–35 行，权限与受众没改，这一条仍待决）；P：这三个动作在 agent 与 mcp 受众的目录里都出现 | 加 `characters:write`，或把受众收到仅用户；Characters 本来要并进宿主设置（决定 #26），可以随那一片做，但不要等太久。**W2-18 待决 8**（[spec.md](spec.md) §1）：受众收到仅用户（推荐），还是加 `characters:write` |
 | E-3 | 低 | **Feed 在示例项目里带一整套「演示」前端。** 示例项目的 Feed 没有消息时，客户端凭空补出三条消息（「GitHub · adeptify」「Gmail · product@adeptify.ai」「RSS · Latent Space」）和对应来源，按钮只改页面状态、「拉取」是 `setTimeout` 模拟；还有一整条 prototype 详情渲染 | R：`apps/workbench/src/feed-projection-ui.ts:37-40`、`:118`、`:122-197`、`:319-371`；`apps/workbench/src/scripts/client/events-primary.ts:497-632`；`plugins/native/feed/src/ui.ts` 的 `renderPrototypeFeedDetail`（`:370`）与 `renderPrototypeSourceDetail`（`:578`）；U：把示例项目 Feed 的消息清掉后出现（截图 23） | 删掉，示例项目的内容由种子写成真实的 Feed 行（现在 `demo-seed` 已经写了真实消息与来源）；属 W2-02 死代码批；页面资源预算会因此下降 |
 | E-4 | 低 | **成果的搜索摘要露出内部 id。** 搜索条目的摘要把成果载荷里所有字符串拼起来，没有字段白名单，第一个字符串是文档 id | R：`plugins/native/artifacts/src/actions.ts:43-49`（`payloadText`）、`:155`；U：搜「周报」，成果那条摘要是「…8a4cf60-5069-4cf5-aab8-a313f6f607ae 周报草稿」（截图 13）。同类已登记：BL-096（Feed 摘要露出内部值） | 只取标题、正文、文件名这类声明过的字段；顺带让「搜内部 id 能搜到成果」这件事消失 |
 | E-5 | 低 | **成果空列表缺使用说明。** 说明文字写在详情区的空状态里（`browser-ui.ts` 的 `detail()`），而主区的空列表只渲染一行「还没有成果」（`browser-ui.ts:46`），所以用户看到的是一行字和「导入」按钮 | R；U：截图 06 | 把 `detail()` 里那句话挪进列表的空状态，用和别的插件一样的 `mw-empty` 块 |
@@ -299,7 +299,7 @@
 
 ### 4.18 Characters（`plugins/native/characters`，Runtime 装配）
 
-- **定位**：Plugin Runtime 监督器启动、个人级、18 个动作；界面在「设置 › 角色」（15 个系统与插件登记的角色加用户自己的）。按决定 #26 将并进宿主设置（`docs/system/GLOSSARY.md`）。
+- **定位**：Plugin Runtime 监督器启动、个人级、18 个动作；界面在「设置 › 角色」（15 个系统与插件登记的角色加用户自己的）。按决定 #26 将并进宿主设置（`docs/system/GLOSSARY.md`）。（CHR-1 已做，2026-10-22：Characters 不再是插件，包 `plugins/native/characters` 已删；动作声明、处理器与绑定在 `modules/characters`，宿主注册提供方（`apps/local-host/src/characters-host.ts`），「设置 › 角色」是宿主的一节。下面是 2026-10-09 前后的结论，按当时的代码写，不回改。）
 - **闭环（通）**：新建、编辑、从本机导入（Codex、Claude Code、Cursor、OpenCode、Grok Build 的规则与 Skill）、发布固定版本到项目、选给 Coding 用；「用本机 Agent 运行」依赖本机 CLI（BL-052）。
 - **占位（通）**。
 - **生命周期（部分）**：库 `characters/characters.sqlite` 自管版本、卸载并清除时不删（HOME-DATA §3.4，已定决定 #20 要覆盖所有登记的库）。

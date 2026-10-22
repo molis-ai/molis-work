@@ -180,17 +180,14 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   assert.equal(findPluginSettingsNavItem("unregistered-settings"), null);
   assert.ok(listPluginSettingsNavItems(["coding"]).some(item => item.section_id === "coding-settings"));
   // The judgment service connection lives under Capabilities → Connections, not a plugin settings page.
-  // Characters' page lives in settings as 角色 (specs/archive/page-interaction-flow), placed by its Manifest order.
-  assert.deepEqual(live.map((item) => item.section_id), ["characters", "shelf"]);
+  // RAC-73: Characters' page, Settings › 角色 (specs/archive/page-interaction-flow), is the Host's own section since CHR-1, not a plugin's.
+  assert.deepEqual(live.map((item) => item.section_id), ["shelf"]);
+  assert.equal(isHostGlobalSettingsSection("characters"), true);
   const shelf = live.find((item) => item.section_id === "shelf");
   assert.equal(shelf?.plugin_id, "io.molis.work.shelf");
   assert.equal(shelf?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
   assert.equal(shelf?.label, "Shelf");
-  const characters = live.find((item) => item.section_id === "characters");
-  assert.equal(characters?.label, "角色");
-  assert.equal(characters?.icon, "user");
-  assert.equal(characters?.order, 35);
-  assert.deepEqual(listPluginSettingsNavItems(["goals"]).map((item) => item.section_id), ["characters", "shelf", "planning"]);
+  assert.deepEqual(listPluginSettingsNavItems(["goals"]).map((item) => item.section_id), ["shelf", "planning"]);
   assert.equal(listPluginSettingsNavItems(["goals"]).find((item) => item.section_id === "planning")?.label, "Goals");
   assert.equal(live.some((item) => item.section_id === "mcp"), false);
   assert.equal(live.some((item) => item.section_id === "functions"), false);
@@ -296,8 +293,8 @@ test("workbench settings directory and standalone settings list the same grouped
   assert.doesNotMatch(directory, /data-settings-section="functions"/);
   const withGoals = renderSettingsDirectorySection(directoryPrimitives, ["goals"]);
   const sectionOrder = [...withGoals.matchAll(/data-settings-section="([^"]+)"/g)].map((match) => match[1]);
-  // One list for the cover and the independent page (specs/archive/page-interaction-flow): host pages by group, 角色 after 助理
-  // by its Manifest order, other plugin pages last; 能力 is four of the categories (specs/artifact-positioning S6b). 记忆 is the
+  // One list for the cover and the independent page (specs/archive/page-interaction-flow): host pages by group, 角色 (a Host page since CHR-1) after 助理,
+  // other plugin pages last; 能力 is four of the categories (specs/artifact-positioning S6b). 记忆 is the
   // person's own (specs/archive/memory-system §10.1).
   assert.deepEqual(sectionOrder, ["appearance", "memory", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics", "shelf", "planning"]);
   assert.doesNotMatch(withGoals, /data-settings-cover/);

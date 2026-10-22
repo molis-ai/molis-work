@@ -31,11 +31,11 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     assert.ok(current, `Missing child execution context: ${node.frameId}`);
     return current;
   }
-  async function evaluate<T = unknown>(expression: string): Promise<T> {
+  async function evaluate<T = unknown>(expression: string, timeoutMs?: number): Promise<T> {
     const current = await context();
     const result = await browser.command<{ result: { value: T }; exceptionDetails?: unknown }>("Runtime.evaluate", {
       expression, contextId: current.id, returnByValue: true, awaitPromise: true,
-    }, current.session);
+    }, current.session, timeoutMs);
     assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
     return result.result.value;
   }
@@ -61,5 +61,9 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
       if(document.elementFromPoint(box.x+${point.x},box.y+${point.y})!==frame)throw Error('Frame is covered');return{x:box.x,y:box.y};})()`);
     for (const type of ["mousePressed", "mouseReleased"]) await browser.command("Input.dispatchMouseEvent", { type, x: frame.x + point.x, y: frame.y + point.y, button: "left", clickCount: 1 }, browser.sessionId);
   }
-  return { evaluate, waitFor, click };
+  async function command<T = Record<string, unknown>>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+    const current = await context();
+    return browser.command<T>(method, params, current.session);
+  }
+  return { evaluate, waitFor, click, frameCommand: command };
 }

@@ -87,9 +87,9 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
   await evaluate(`(() => { const pre = document.createElement('pre'); pre.id = 'long-turn-style';
     for (let i = 0; i < 30000; i++) { const span = document.createElement('span'); span.className = 'tok-keyword'; span.textContent = 'x '; pre.append(span); }
     document.querySelector('${coding} [data-coding-turns]').append(pre); pre.offsetHeight; })()`);
-  await opened.command("Performance.enable", {}, opened.sessionId);
+  await opened.frameCommand("Performance.enable", {});
   const styleDuration = async () => {
-    const { metrics } = await opened.command<{ metrics: Array<{ name: string; value: number }> }>("Performance.getMetrics", {}, opened.sessionId);
+    const { metrics } = await opened.frameCommand<{ metrics: Array<{ name: string; value: number }> }>("Performance.getMetrics", {});
     const metric = metrics.find(metric => metric.name === "RecalcStyleDuration");
     assert.ok(metric, "Chrome reports RecalcStyleDuration"); return metric.value * 1000;
   };
@@ -102,7 +102,7 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
     assert.ok(turn < 50, `one node put in a long turn beside the diff, style only: ${turn.toFixed(1)} ms`);
   } finally {
     await evaluate("document.querySelector('#long-turn-style')?.remove()");
-    await opened.command("Performance.disable", {}, opened.sessionId);
+    await opened.frameCommand("Performance.disable", {});
   }
   assert.deepEqual(await expensiveHasSelectors(evaluate), [], "no :has() rule on the Coding page ends in a bare tag or a broad part (VUX-36)");
   // DFP-03: the skipped rows retain their natural geometry after viewport and font changes; compare against full layout.

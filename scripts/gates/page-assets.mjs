@@ -238,24 +238,20 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/coding.js": [376592, 378072],
-  "/assets/molis-work-workbench.css": [1612561, 1612922],
-  "/assets/molis-work-arrival.css": [703659, 704435],
-  // Forms reflow (slice 85): moved and removed questions and options ease through the page's molisReflow, with the fallback when it is absent. 30244 → 30383 (+139).
-  "/assets/molis-work-plugins/form.js": [30244, 30383],
-  "/assets/molis-work-plugins/workflows.js": [83019, 83135],
-  // Order sweep (slices 82–88): settings' shared buttons keep their role (13 / 500) instead of 12 / 400 for every button, and the models pane's
-  // empty state is centred like every pane's (+141); the corner and empty-state slices win back 118 of it in the same sheet. 994428 → 994451 (+23).
-  "/assets/molis-work-settings.css": [994428, 994451],
-  // Select-item fix (#1003): a page that shows a blank item takes "no item" back instead of dropping it as a repeat. 1182810 → 1182868 (+58).
-  "/assets/molis-work-workbench.js": [1182810, 1182868],
+  // SYS-15: opaque page metadata and the shell's asynchronous context/record bridge. Existing served-JS compaction already
+  // removes redundant whitespace; compacting the embedded scripts again saved no bytes. 1182783 → 1185108 (+2325).
+  "/assets/molis-work-workbench.js": [1182783, 1185108],
+  // SYS-15: Builder uses public dialogs, file/settings messages and the isolated page lifecycle. Its removed owner access
+  // pays for most of the bridge; the remaining served program is 115519 → 116132 (+613).
+  "/assets/molis-work-plugins/plugin-builder.js": [115519, 116132],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.
-// User approved 2026-10-19 (specs/project-knowledge §2): the 项目资料 browser code is its own asset, loaded only where it is used (+1.5 KB from the 10-19 review fixes, +232 B for the import status of files it recognizes or transcribes).
+// User approved 2026-10-21 (specs/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
+// shared bridge (including the common UI helpers) once; the original 90325-byte estimate was not a ceiling.
 const APPROVED_NEW_ASSETS = {
-  "/assets/molis-work-knowledge.js": 26361,
+  "/assets/molis-work-plugin-frame.js": 147604,
 };
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {

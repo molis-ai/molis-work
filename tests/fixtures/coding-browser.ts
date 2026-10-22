@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { openGoalBrowser } from "./goal-browser.js";
+import { pluginFrameBrowser } from "./plugin-frame-browser.js";
 
 export const coding = "[data-coding-workbench]";
 /** The words `start()` writes into a new session's box unless given others. */
@@ -19,8 +20,11 @@ export const CONTEXT = ["workspace", "goal", "writer-directories", "material", "
  */
 export async function openCoding(t: TestContext, before = "") {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return null;
-  const { command, sessionId, evaluate, waitFor, click, navigate, origin, projectId, homeDirectory } = browser;
-  await command("Page.addScriptToEvaluateOnNewDocument", { source: `${before}
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const frame = await pluginFrameBrowser(t, browser, "coding");
+  const { evaluate, waitFor, click } = frame;
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: before }, sessionId);
+  const interceptRequests = `
     window.hold={what:null,fail:false,next:null,except:'',seen:0,id:'',release:null,slow:0};window.stateReads=0;window.posts=[];window.patches=[];window.puts=[];window.fakes=[];const originalFetch=window.fetch;
     window.fetch=(input,init)=>{const path=String(input?.url||input),method=init?.method||'GET';
       if(method!=='GET')(method==='POST'?posts:method==='PATCH'?patches:puts).push({path,body:typeof init?.body==='string'?init.body:''});
@@ -37,21 +41,23 @@ export async function openCoding(t: TestContext, before = "") {
         return new Promise(resolve=>{hold.release=()=>resolve(originalFetch(input,init));});
       }
       return originalFetch(input,init);};
-  ` }, sessionId);
+  `;
   const workspace = join(homeDirectory, "coding-first-read");
   await mkdir(workspace, { recursive: true });
   await writeFile(join(workspace, "note.txt"), "release notes go in CHANGELOG.md\n");
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await click(".navigator-project-settings");
-  await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
-  await click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
-  await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
-  await evaluate(`(()=>{const node=document.querySelector('[data-project-workspaces-add] [name=path]');node.value=${JSON.stringify(workspace)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-  await click("[data-project-workspaces-add] [type=submit]");
-  await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('coding-first-read')");
-  await click('[data-plugin-strip] [data-plugin-id="coding"]');
-  await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
+  await browser.click(".navigator-project-settings");
+  await browser.waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
+  await browser.click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
+  await browser.waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
+  await browser.evaluate(`(()=>{const node=document.querySelector('[data-project-workspaces-add] [name=path]');node.value=${JSON.stringify(workspace)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await browser.click("[data-project-workspaces-add] [type=submit]");
+  await browser.waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('coding-first-read')");
+  await browser.click('[data-plugin-strip] [data-plugin-id="coding"]');
+  await browser.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
+  await browser.waitFor(`document.querySelector('[data-work-surface="coding"]')?.dataset.uiClientState === 'ready'`);
+  await evaluate(interceptRequests);
   const box = `document.querySelector('${coding} [data-coding-task]')`;
   /** Writes into the box the way typing does: the value, then the input event the page listens to. */
   const type = (text: string) => evaluate(`(()=>{const node=${box};node.value=${JSON.stringify(text)};node.dispatchEvent(new Event('input',{bubbles:true}));})()`);
@@ -99,5 +105,5 @@ export async function openCoding(t: TestContext, before = "") {
     return (await fetch(made+'/'+${JSON.stringify(encodeURIComponent(id))}+'?window=1')).json();})()`);
   /** Opens an item the way the workbench does: a session by its id, a fixed change as `coding-changeset:<session>:<run>`. */
   const openItem = (itemId: string) => evaluate(`document.querySelector('${coding}').dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{itemId:${JSON.stringify(itemId)}}}))`);
-  return { ...browser, box, type, current, closed, trySend, sentWith, start, afterAStateRead, shut, press, offered, nextRound, saved, stored, openItem };
+  return { ...browser, ...frame, frame, owner: browser, box, type, current, closed, trySend, sentWith, start, afterAStateRead, shut, press, offered, nextRound, saved, stored, openItem };
 }

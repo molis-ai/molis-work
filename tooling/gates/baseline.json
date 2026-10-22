@@ -1,5 +1,5 @@
 {
-  "giantUnits": 122,
+  "giantUnits": 120,
   "giant": {
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
@@ -32,14 +32,13 @@
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 228,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 167,
-    "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 191,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/functions/client.ts": 1274,
-    "function apps/workbench/src/goals-page-renderer.ts#createWorkbenchGoalsPageRenderer": 217,
-    "function apps/workbench/src/goals-page-renderer.ts#renderMolisWorkWeb": 181,
+    "function apps/workbench/src/goals-page-renderer.ts#createWorkbenchGoalsPageRenderer": 211,
+    "function apps/workbench/src/goals-page-renderer.ts#renderMolisWorkWeb": 175,
     "file apps/workbench/src/i18n/en.ts": 3323,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 313,
@@ -79,7 +78,7 @@
       "lines": 399,
       "methods": 28
     },
-    "function horizontal/scheduler/src/index.ts#createScheduleService": 233,
+    "function horizontal/scheduler/src/index.ts#createScheduleService": 223,
     "class horizontal/search/src/index.ts#SearchService": {
       "lines": 403,
       "methods": 26
@@ -136,10 +135,10 @@
       "lines": 287,
       "methods": 29
     },
-    "file modules/shelf/src/store.ts": 1136,
+    "file modules/shelf/src/store.ts": 1119,
     "class modules/shelf/src/store.ts#ShelfStore": {
-      "lines": 741,
-      "methods": 35
+      "lines": 708,
+      "methods": 34
     },
     "function modules/shelf/src/store.ts#runJob": 197,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 753,
@@ -203,7 +202,7 @@
     },
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
-    "file plugins/native/pages/src/client.ts": 1115,
+    "file plugins/native/pages/src/client.ts": 1100,
     "function plugins/native/pages/src/editor-browser.ts#mount": 451,
     "class plugins/native/pages/src/store.ts#PagesStore": {
       "lines": 346,
@@ -214,8 +213,7 @@
       "lines": 654,
       "methods": 40
     },
-    "file plugins/native/ppt/src/client.ts": 806,
-    "file plugins/native/shelf/src/client.ts": 1662,
+    "file plugins/native/shelf/src/client.ts": 1659,
     "file plugins/native/todo/src/client.ts": 1240,
     "class plugins/native/todo/src/store.ts#TodoStore": {
       "lines": 378,
@@ -235,7 +233,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 454,
+  "testInternalImports": 449,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -250,7 +248,7 @@
     "tests/agent-built-plugins-components.test.ts": 1,
     "tests/agent-built-plugins-dependencies.test.ts": 1,
     "tests/agent-built-plugins-network.test.ts": 2,
-    "tests/agent-built-plugins-reminders.test.ts": 2,
+    "tests/agent-built-plugins-reminders.test.ts": 1,
     "tests/agent-built-plugins-workbench.test.ts": 1,
     "tests/agent-built-plugins-workflow.test.ts": 6,
     "tests/agent-definitions.test.ts": 5,
@@ -414,9 +412,7 @@
     "tests/release-assets.test.ts": 3,
     "tests/runtime-dependency-flatten.test.ts": 2,
     "tests/runtime-plugin-http-discovery.test.ts": 1,
-    "tests/schedule-operation-recovery.test.ts": 2,
-    "tests/schedule-operations.test.ts": 2,
-    "tests/schedule-reminder-recovery.test.ts": 1,
+    "tests/schedule-operations.test.ts": 1,
     "tests/search-evidence-runtime.test.ts": 1,
     "tests/secret-store-keychain-retry.test.ts": 1,
     "tests/shelf-ai-host.test.ts": 4,
@@ -624,7 +620,7 @@
     "plugins/native/todo/src/client.ts": 1,
     "plugins/native/work/src/ui/browser.ts": 1
   },
-  "rawFetchInScriptsTotal": 61,
+  "rawFetchInScriptsTotal": 59,
   "rawFetchInScripts": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "plugins/native/artifacts/src/goal-input-client.ts": 2,
@@ -641,11 +637,11 @@
     "plugins/native/jelly/src/client.ts": 1,
     "plugins/native/jelly/src/client-material.ts": 1,
     "plugins/native/lingguang/src/client.ts": 1,
-    "plugins/native/pages/src/client.ts": 2,
+    "plugins/native/pages/src/client.ts": 1,
     "plugins/native/pages/src/import-client.ts": 1,
     "plugins/native/plugin-builder/src/agent-studio.ts": 2,
     "plugins/native/ppt/src/client.ts": 1,
-    "plugins/native/schedule/src/client.ts": 4,
+    "plugins/native/schedule/src/client.ts": 3,
     "plugins/native/shelf/src/client.ts": 6,
     "plugins/native/shelf/src/result-client.ts": 1,
     "plugins/native/todo/src/client.ts": 1,
@@ -697,7 +693,7 @@
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },
-  "typedCapabilitiesTotal": 153,
+  "typedCapabilitiesTotal": 140,
   "typedCapabilities": {
     "apps/local-host/src/agent-host-composition.ts#register-calls": 1,
     "apps/local-host/src/local-host.ts#type-refs": 5,
@@ -707,21 +703,17 @@
     "apps/local-host/src/project-host.ts#register-calls": 1,
     "horizontal/agent-host/src/capability-registration.ts#type-refs": 2,
     "horizontal/agent-host/src/capability-registration.ts#register-calls": 38,
-    "horizontal/scheduler/src/index.ts#type-refs": 1,
-    "horizontal/scheduler/src/index.ts#register-calls": 4,
     "packages/contracts/src/platform/actions.ts#type-refs": 1,
     "packages/contracts/src/platform/app-host.ts#type-refs": 4,
     "packages/contracts/src/platform/plugin.ts#type-refs": 1,
     "packages/contracts/src/services/agent-host.ts#type-refs": 37,
     "packages/contracts/src/services/agent-host.ts#without-action": 37,
-    "packages/contracts/src/services/scheduler.ts#type-refs": 4,
-    "packages/contracts/src/services/scheduler.ts#without-action": 4,
     "packages/kernel/src/action-service.ts#register-calls": 1,
     "packages/kernel/src/index.ts#type-refs": 5,
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 12,
+  "hostPluginFilesTotal": 10,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
@@ -730,44 +722,40 @@
     "apps/local-host/src/goals-actions.ts#actions": 1,
     "apps/local-host/src/inbox-actions.ts#actions": 1,
     "apps/local-host/src/inbox-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/schedule-actions.ts#actions": 1,
-    "apps/local-host/src/schedule-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/shelf-actions.ts#actions": 1,
     "apps/local-host/src/shelf-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/work-actions.ts#actions": 1
   },
-  "registerProviderSitesTotal": 20,
+  "registerProviderSitesTotal": 17,
   "registerProviderSites": {
     "apps/local-host/src/assistant/assistant-rule-actions.ts#register-provider": 1,
     "apps/local-host/src/connector-mcp-actions.ts#register-provider": 1,
     "apps/local-host/src/external-mcp-actions.ts#register-provider": 1,
     "apps/local-host/src/functions-actions.ts#register-provider": 2,
-    "apps/local-host/src/installed-plugin-host.ts#register-provider": 2,
     "apps/local-host/src/local-host.ts#register-provider": 2,
     "apps/local-host/src/memory/memory-host.ts#register-provider": 1,
     "apps/local-host/src/personal-planning-actions.ts#register-provider": 1,
     "apps/local-host/src/placement-actions.ts#register-provider": 1,
     "apps/local-host/src/plugin-builder/catalog.ts#register-provider": 1,
     "apps/local-host/src/plugin-builder/exposed-actions.ts#register-provider": 1,
-    "apps/local-host/src/project-host.ts#register-provider": 5,
+    "apps/local-host/src/project-host.ts#register-provider": 4,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 8,
+  "hybridPluginsTotal": 7,
   "hybridPlugins": {
     "coding#host-files": 1,
     "git#host-files": 3,
-    "shelf#host-files": 3,
-    "shelf#host-providers": 1
+    "shelf#host-files": 3
   },
-  "pluginOutsideMentionsTotal": 352,
+  "pluginOutsideMentionsTotal": 338,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
-    "coding#outside-files": 13,
+    "coding#outside-files": 12,
     "cognia#outside-files": 6,
     "dataset#outside-files": 8,
     "diff#outside-files": 8,
-    "feed#outside-files": 40,
+    "feed#outside-files": 35,
     "files#outside-files": 8,
     "form#outside-files": 8,
     "git#outside-files": 10,
@@ -778,9 +766,9 @@
     "jelly#outside-files": 6,
     "lingguang#outside-files": 8,
     "pages#outside-files": 14,
-    "plugin-builder#outside-files": 19,
+    "plugin-builder#outside-files": 18,
     "ppt#outside-files": 8,
-    "schedule#outside-files": 18,
+    "schedule#outside-files": 11,
     "shelf#outside-files": 16,
     "text-stats#outside-files": 7,
     "todo#outside-files": 7,
@@ -1024,7 +1012,7 @@
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 174,
+  "unknownCastsTotal": 173,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1085,7 +1073,6 @@
     "tests/agent-built-plugins-capabilities.test.ts": 1,
     "tests/agent-built-plugins-components.test.ts": 1,
     "tests/agent-built-plugins-network.test.ts": 1,
-    "tests/agent-built-plugins-reminders.test.ts": 1,
     "tests/agent-built-plugins-workflow.test.ts": 1,
     "tests/agent-host.test.ts": 1,
     "tests/agent-prompt-layers.test.ts": 1,
@@ -1141,7 +1128,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 483,
+  "explicitAnyTotal": 480,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1278,7 +1265,6 @@
     "tests/prologue-writer-authority.test.ts": 13,
     "tests/runtime-integration.test.ts": 3,
     "tests/scene-only-mcp.test.ts": 1,
-    "tests/schedule-task-runner.test.ts": 3,
     "tests/shelf-ai-host.test.ts": 2,
     "tests/side-files-artifacts.test.ts": 2,
     "tests/side-panel-assistant-surface.test.ts": 9,

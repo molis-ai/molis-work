@@ -31,10 +31,9 @@
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-design-system": "workspace:*",
-    "marked": "^18.0.11",
-    "sanitize-html": "^2.17.7",
     "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",
-    "@adeptify/intelligence-client": "file:../../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz"
+    "@adeptify/intelligence-client": "file:../../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
   "molis-work": {
     "path": "plugins/native/feed",
@@ -52,8 +51,5 @@
       "feed.http-routes.v1"
     ],
     "registration": "./registration"
-  },
-  "devDependencies": {
-    "@types/sanitize-html": "^2.16.1"
   }
 }

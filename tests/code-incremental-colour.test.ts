@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { codeTokens, growCodeTokens, type CodeColouring } from "@molis-ai/molis-work-plugin-coding";
+import { codeTokens, growCodeTokens, type CodeColouring } from "@molis-ai/molis-work-plugin-sdk/highlight";
 
 // specs/visual-ui-experience VUX-33 (§code-diff, incremental feed): a code block being streamed is coloured from its last
 // line on, not again from the top, and what that gives is exactly what colouring the whole text gives — at every step, for

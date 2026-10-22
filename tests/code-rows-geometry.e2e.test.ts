@@ -4,7 +4,7 @@ import { compareRunChangeSet, renderDiff, unifiedPatch } from "@molis-ai/molis-w
 import { coding, openCoding } from "./fixtures/coding-browser.js";
 import { pageText } from "./fixtures/page-text.js";
 
-// specs/visual-ui-experience VUX-33 (§code-diff, shared row geometry): a change's line numbers and code keep their rows
+// DFP-03; specs/visual-ui-experience VUX-33 (§code-diff, shared row geometry): a change's line numbers and code keep their rows
 // under the page's zoom in and out, fractional device pixels and a missing code font. Every row's cells share its top and bottom;
 // rows of one line are all one height whether they hold Latin, Chinese, emoji or tabs (glyphs from a fallback font do not
 // grow a line); a number sits on its code's baseline; a tab is the shared `--code-tab` (4) wide, the same in both layouts.

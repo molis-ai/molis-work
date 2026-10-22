@@ -1,4 +1,4 @@
-import type { CodeColouring, CodeTokenKind } from "./highlight.js";
+import type { CodeColouring, CodeTokenKind } from "@molis-ai/molis-work-plugin-sdk/highlight";
 
 /** Runs in the browser only; the plugin build has no DOM library, so nodes are typed by the fields this script touches. */
 type Piece = [CodeTokenKind | null, string];
@@ -12,7 +12,12 @@ interface PaintElement extends PaintNode {
   childNodes: ArrayLike<PaintNode>;
   lastChild: (PaintNode & { data?: string; appendData?: (text: string) => void }) | null;
   attributes: Iterable<{ name: string; value: string }>;
+  style: { setProperty(name: string, value: string): void };
   isConnected: boolean;
+  clientWidth: number;
+  scrollWidth: number;
+  getBoundingClientRect(): { width: number; height: number };
+  parentElement: PaintElement | null;
   matches(selector: string): boolean;
   querySelector(selector: string): PaintElement | null;
   getAttribute(name: string): string | null;
@@ -20,7 +25,11 @@ interface PaintElement extends PaintNode {
   append(...nodes: PaintNode[]): void;
   replaceChildren(...nodes: PaintNode[]): void;
 }
-declare const document: { createTextNode(text: string): PaintText; createElement(tag: string): PaintElement };
+interface PaintObserver { observe(node: PaintElement, options?: { childList: boolean }): void; disconnect(): void }
+declare const ResizeObserver: new (changed: () => void) => PaintObserver;
+declare const MutationObserver: new (changed: () => void) => PaintObserver;
+declare const document: { createTextNode(text: string): PaintText; createElement(tag: string): PaintElement;
+  fonts: { addEventListener(event: string, changed: () => void): void; removeEventListener(event: string, changed: () => void): void } };
 declare function requestAnimationFrame(step: () => void): number;
 type Tokens = (text: string, language: string, from?: number) => Piece[];
 
@@ -101,17 +110,17 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
     }
     return true;
   };
-  // Diff rows put in their coloured pieces about half a slice a frame, in order, a longer row across frames (its rest stays
+  // Diff rows put in their coloured pieces about a quarter slice a frame, in order, a longer row across frames (its rest stays
   // text): a file reads at once and no frame builds all its nodes. A row past 40,000 characters (a minified line) stays text:
   // each change to a line lays all of it out again, so colouring one of 120,000 characters took 0.65 s in one frame or about
   // 2.5 s of 120–250 ms frames in parts, for colour nobody reads piece by piece (user 2026-10-21). `later` runs a step in a
   // coming frame while the rows are still shown.
   type DiffRow = { code: PaintElement; sign: PaintNode | null; text: string; pieces: Piece[] };
-  const paintRows = (rows: DiffRow[], later: (step: () => void) => void) => {
+  const paintRows = (rows: DiffRow[], later: (step: () => void) => void, list: PaintElement, own: (release: () => void) => () => void) => {
     const shown = rows.filter((row) => row.text.length <= 40000);
     let row = 0, at = 0, rest: PaintText | null = null;
     const step = () => {
-      for (let budget = SLICE / 2; row < shown.length && budget > 0;) {
+      for (let budget = SLICE / 4; row < shown.length && budget > 0;) {
         const { code, sign, text, pieces } = shown[row]!, signs = sign ? [sign] : [];
         if (!rest && text.length <= budget) { code.replaceChildren(...signs, ...pieces.map(pieceNode)); budget -= text.length; row += 1; continue; }
         if (!rest) { rest = document.createTextNode(text); code.replaceChildren(...signs, rest); }
@@ -123,7 +132,25 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
       }
       if (row < shown.length) later(step);
     };
-    step();
+    if (list.matches(".diff-split") || shown.reduce((size, row) => size + row.text.length, 0) <= SLICE / 4) { step(); return; }
+    // Let the plain rows lay out once. Their remembered natural size keeps the scroll range while the browser skips
+    // offscreen rows; full text and tokens stay in the DOM. Minified plain rows keep their full measured width.
+    for (const row of rows) if (row.text.length > 40000 && row.code.parentElement) row.code.parentElement.dataset.diffMeasure = "";
+    const probe = rows.find((row) => row.text.length && !row.code.parentElement?.hasAttribute("hidden"))?.code.parentElement;
+    if (probe) probe.dataset.diffMeasure = "";
+    const number = probe?.querySelector(".diff-before"), content = probe?.querySelector("code"), size = () => [list.clientWidth, probe?.getBoundingClientRect().height, number?.getBoundingClientRect().width, content?.getBoundingClientRect().width].join(":");
+    const remember = () => { list.style.setProperty("--diff-width", list.scrollWidth + "px"); list.dataset.diffSized = ""; };
+    let measured = size();
+    const refresh = (force = false) => {
+      if (!list.isConnected) { stop(); return; }
+      if (!force && measured === size()) return;
+      measured = size(); delete list.dataset.diffSized;
+      later(() => later(() => { if (list.isConnected) remember(); }));
+    };
+    const changed = () => refresh(true), resize = new ResizeObserver(() => refresh()), folds = new MutationObserver(changed);
+    const stop = own(() => { resize.disconnect(); folds.disconnect(); document.fonts.removeEventListener("loadingdone", changed); });
+    resize.observe(list); if (probe) resize.observe(probe); if (number) resize.observe(number); if (content) resize.observe(content); folds.observe(list, { childList: true }); document.fonts.addEventListener("loadingdone", changed);
+    later(() => { if (list.isConnected) { remember(); step(); measured = size(); } });
   };
   return { pieceNode, paintInto, paintBlock, growCode, paintRows, source };
 }

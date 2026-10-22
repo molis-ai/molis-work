@@ -67,6 +67,13 @@ export interface PluginPrivateStorage {
 export interface PluginUiClient {
   register<TModel>(contribution: UiContribution<TModel>): void;
   unregister(contributionId: string): void;
+  /**
+   * This installation's open views may show something stale: the pages watching it (`scope.watchRevision`) read again, under
+   * their reader's own authority. Only its own views, for a Manifest that declares `ui.views`; no permission. From any code of
+   * this activation, inside an action or not. A hint, never a receipt: nothing is recorded, and before the activation runs it
+   * does nothing. Refused (`ui_host.plugin_denied`) without declared views, and from the moment this activation stops (PG-061).
+   */
+  invalidate(): void;
 }
 
 /** Narrow, grant-checked access to Capabilities the Manifest declared as consumed. */

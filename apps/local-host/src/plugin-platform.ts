@@ -128,10 +128,17 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const providerFor = identity.providerFor;
   // The Runtime and the executor read the same records: an activation's jobs check the installation the Runtime keeps.
   const records = pluginInstallRecords(options.db);
+  const viewEpoch = randomUUID(), viewRevisions = new Map<string, number>();
+  let closed = false;
+  // The Host and the plugin itself (`services.ui.invalidate`, PG-061) bump the same count; only a running plugin's moves.
+  const invalidateView = (pluginId: string) => {
+    if (!closed && supervisor.state(pluginId)?.status === "running") viewRevisions.set(pluginId, (viewRevisions.get(pluginId) ?? 0) + 1);
+  };
   // The same holds for a library in the Home: the Host's list declares it about a definition object, so another definition that
   // carries the same plugin_id is given none.
   const executor = new PluginHostExecutor({
     record: installId => records.get(installId),
+    invalidateView,
     providerFor,
     databaseFor: identity.databaseFor,
     projectLibrary: projectLibraryOf(options.db),
@@ -180,8 +187,6 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     scopeKey: options.scopeKey ?? options.project_id,
   });
 
-  const viewEpoch = randomUUID(), viewRevisions = new Map<string, number>();
-  let closed = false;
   // Work queued for a Plugin survives a restart of that Plugin, so replay what
   // it never acknowledged once it is running again.
   let stopArtifactRefresh: (() => void) | undefined;
@@ -199,9 +204,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     supervisor,
     events,
     wiring,
-    invalidateView(pluginId) {
-      if (!closed && supervisor.state(pluginId)?.status === "running") viewRevisions.set(pluginId, (viewRevisions.get(pluginId) ?? 0) + 1);
-    },
+    invalidateView,
     viewRevision(pluginId) { return `${viewEpoch}:${viewRevisions.get(pluginId) ?? 0}`; },
     async closeCoordination() {
       closed = true;

@@ -1,9 +1,9 @@
 export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] {
     --plugin-tint: var(--plugin-workflows);
-    --wf-hover: var(--motion-instant, 130ms) var(--ease-quint);
-    --wf-row: var(--motion-normal, 250ms) var(--ease-quint);
-    --wf-edge: var(--motion-fast, 130ms) var(--ease-quint);
+    --wf-hover: var(--dur-hover, 130ms) var(--ease-quint);
+    --wf-row: var(--dur-move, 250ms) var(--ease-quint);
+    --wf-edge: var(--dur-hover, 130ms) var(--ease-quint);
   }
   [data-workflows="workbench"] .wf-muted { color: var(--muted); font-size: 12px; }
   [data-workflows="workbench"] .wf-hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
@@ -193,9 +193,9 @@ export const WORKFLOWS_STYLES = `
     padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-surface, 12px); background: var(--paper); color: var(--ink);
     box-shadow: var(--shadow-raised);
   }
-  [data-workflows="workbench"] .wf-pop:popover-open { display: grid; gap: 12px; animation: creative-arrive var(--motion-fast, 130ms) var(--ease-quint) both; }
-  [data-workflows="workbench"] .wf-pop[data-side="above"]:popover-open { animation-name: wf-arrive-down; }
-  @keyframes wf-arrive-down { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  [data-workflows="workbench"] .wf-pop:popover-open { display: grid; gap: 12px; animation: craft-drop var(--dur-move) var(--ease-quint) both; }
+  /* Grows from its control: down from one above it, up toward one below it. */
+  [data-workflows="workbench"] .wf-pop[data-side="above"]:popover-open { animation-name: craft-rise-from-bar; }
   [data-workflows="workbench"] .wf-pop[data-mode="gap"] { width: min(260px, calc(100vw - 24px)); }
   [data-workflows="workbench"] .wf-pop__head { display: grid; gap: 4px; }
   [data-workflows="workbench"] .wf-pop__head strong { font-size: 13px; font-weight: var(--weight-control, 500); }
@@ -364,7 +364,7 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-record > summary { gap: 8px; min-height: 36px; padding: 0 12px; font-size: 13px; color: var(--ink-soft); }
   [data-workflows="workbench"] .wf-record > summary .wf-muted { margin-left: auto; }
   [data-workflows="workbench"] .wf-record__body { display: grid; gap: 8px; padding: 0 12px 12px; max-height: 40vh; overflow: auto; }
-  [data-workflows="workbench"] .wf-record[open] .wf-record__body { animation: creative-arrive var(--motion-fast, 130ms) var(--ease-quint) both; }
+  [data-workflows="workbench"] .wf-record[open] .wf-record__body { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   [data-workflows="workbench"] .wf-record__body > .mw-btn { justify-self: start; }
   [data-workflows="workbench"] .wf-record__label { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
   [data-workflows="workbench"] .wf-payload { display: grid; gap: 8px; padding: 12px 12px; border-radius: var(--radius-control, 8px); background: var(--paper); border: 1px solid var(--line); }
@@ -376,7 +376,7 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-stage__frame.is-empty { display: grid; align-content: start; }
   [data-workflows="workbench"] .wf-stage__frame iframe {
     position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; background: var(--paper);
-    transition: opacity var(--motion-normal, 250ms) var(--ease-quint);
+    transition: opacity var(--dur-move, 250ms) var(--ease-quint);
   }
   [data-workflows="workbench"] .wf-stage__frame iframe.is-entering { opacity: 0; }
   [data-workflows="workbench"] .wf-frame-skeleton {

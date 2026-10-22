@@ -208,6 +208,6 @@ test("a surface rises once; menus and dialogs each have one entrance and one exi
 test("a generated plugin's success note stays readable for its whole life before it fades", () => {
   // The note lives 3.4 s (plugin-component-client): it rises in, holds, and the timer fades it out over the state clock.
   // It used to run a 640ms keyframe that ended invisible after about half a second, leaving a blank note for 3 seconds.
-  assert.match(PLUGIN_COMPONENT_STYLES, /\.pc-success\{margin-top:12px;animation:pc-rise var\(--dur-move\) var\(--ease-quint\);transition:opacity var\(--dur-move\) var\(--ease-quint\)\}\.pc-success\.is-leaving\{opacity:0\}/);
+  assert.match(PLUGIN_COMPONENT_STYLES, /\.pc-success\{margin-top:12px;animation:craft-rise var\(--dur-move\) var\(--ease-quint\);transition:opacity var\(--dur-move\) var\(--ease-quint\)\}\.pc-success\.is-leaving\{opacity:0\}/);
   assert.doesNotMatch(PLUGIN_COMPONENT_STYLES, /pc-toast/);
 });

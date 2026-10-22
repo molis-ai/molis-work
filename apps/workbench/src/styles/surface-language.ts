@@ -81,7 +81,7 @@ export const SURFACE_LANGUAGE_STYLES = `
     color: var(--faint);
     font-size: 11px;
     line-height: 1.6;
-    transition: opacity var(--motion-fast) var(--ease-quint);
+    transition: opacity var(--dur-hover) var(--ease-quint);
   }
   ${CENTERED_EDITOR} .create-compose-example[hidden] { display: block; opacity: 0; height: 0; margin: 0; overflow: hidden; }
 

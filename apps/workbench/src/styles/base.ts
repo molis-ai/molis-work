@@ -229,7 +229,7 @@ export const STYLES = `
     .tui-add span, .tui-chrome [data-tui-copy] span { display: none; }
     .tui-add, .tui-chrome [data-tui-copy] { width: 28px; padding: 0; justify-content: center; }
   }
-  .goal-document { width: min(100%, 1080px); min-height: 100%; margin: 0 auto; padding: 24px 32px 64px; container-type: inline-size; animation: document-in 250ms var(--ease-quint); }
+  .goal-document { width: min(100%, 1080px); min-height: 100%; margin: 0 auto; padding: 24px 32px 64px; container-type: inline-size; animation: craft-rise var(--dur-move) var(--ease-quint); }
   .goal-header { padding: 0 0 16px; }
   .goal-title-row { display: flex; align-items: flex-start; gap: 16px; }
   .goal-title-actions { display: flex; align-items: center; gap: 8px; }

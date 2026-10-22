@@ -563,7 +563,7 @@ export const PROJECT_GUIDANCE_SETTINGS_STYLES = `
   .guidance-page-header h1 { margin: 0; color: var(--ink); font-size: 30px; letter-spacing: -.026em; }
   .guidance-page-header p { max-width: 68ch; margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
   .guidance-layout { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 56px; align-items: start; }
-  .guidance-editor { margin: 32px 0 4px; padding: 24px 24px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); box-shadow: var(--shadow-soft); animation: guidance-editor-reveal 250ms var(--ease-quint); }
+  .guidance-editor { margin: 32px 0 4px; padding: 24px 24px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); box-shadow: var(--shadow-soft); animation: craft-rise var(--dur-move) var(--ease-quint); }
   .guidance-editor[hidden] { display: none; }
   .guidance-editor > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
   .guidance-editor h2 { margin: 0; font-size: 17px; letter-spacing: -.015em; }
@@ -630,10 +630,6 @@ export const PROJECT_GUIDANCE_SETTINGS_STYLES = `
   .guidance-history-full > div { display: grid; gap: 4px; }
   .guidance-history-full dt { color: var(--faint); font-size: 11px; font-weight: var(--weight-control, 500); }
   .guidance-history-full dd { margin: 0; color: var(--ink-soft); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-wrap; }
-  @keyframes guidance-editor-reveal {
-    from { opacity: .4; transform: translateY(-6px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
   @media (max-width: 1180px) {
     .guidance-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
     .guidance-aside { position: static; padding-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }

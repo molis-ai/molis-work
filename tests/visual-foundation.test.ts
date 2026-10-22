@@ -57,7 +57,7 @@ test("visual foundation enhances visible selects onto mw-menu", () => {
   assert.match(workbench, /\.mw-select-picker \{/);
   assert.match(workbench, /\.dataset-toolbar \.mw-select, \.dataset-toolbar \.mw-select-picker/);
   assert.match(workbench, /\[data-work-surface="feed"\]/);
-  assert.match(workbench, /@keyframes creative-arrive/);
+  assert.match(workbench, /@keyframes craft-rise \{/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /--seg-tint/);
 });
 

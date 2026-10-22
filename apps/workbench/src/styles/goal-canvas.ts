@@ -320,7 +320,7 @@ export const GOAL_CANVAS_STYLES = `
   .goal-kanban-count { color: var(--muted); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; flex: none; }
   .goal-kanban-empty { margin: 0; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 6px; color: var(--muted); font-size: 12px; }
   .goal-kanban-column [data-kanban-cards] { position: absolute; inset: 36px 0 0; flex: none; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; padding: 0 0 8px; }
-  .goal-kanban-card { transition: border-color var(--motion-fast), background-color var(--motion-fast); flex: none; display: grid; gap: 4px; min-width: 0; padding: 8px 8px; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; text-align: left; cursor: pointer; }
+  .goal-kanban-card { transition: border-color var(--dur-hover), background-color var(--dur-hover); flex: none; display: grid; gap: 4px; min-width: 0; padding: 8px 8px; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; text-align: left; cursor: pointer; }
   .goal-kanban-card:hover { border-color: color-mix(in srgb, var(--ink) 22%, var(--line)); }
   .goal-kanban-card.is-selected { border-color: var(--ink); }
   .goal-kanban-card.is-complete strong { color: color-mix(in srgb, var(--ink) 82%, var(--muted)); }
@@ -632,8 +632,7 @@ export const GOAL_CANVAS_STYLES = `
   .frame-session-events span { overflow-wrap: anywhere; }
   .goal-frame-tools { z-index: 6; }
   @media (prefers-reduced-motion: no-preference) {
-    .goal-node-workspace:not([hidden]) { animation: immersive-goal-open 250ms var(--ease-quint); }
-    @keyframes immersive-goal-open { from { opacity: .8; } to { opacity: 1; } }
+    .goal-node-workspace:not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
   }
 
   .goal-frame-surface { display:flex; flex-direction:column; }

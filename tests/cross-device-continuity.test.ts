@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -27,6 +27,7 @@ class Client {
 
 test("real Goal/Artifact actions survive phone retry, two members, revocation, restart and asset relocation", {timeout:120000}, async()=>{
   const directory=await mkdtemp(join(tmpdir(),'molis-continuity-'));
+  let host=new MolisWorkLocalHost({homeDirectory:directory,completeText:null});
   const projectId='shared-project',goalId='PHONE-GOAL';
   const dbPath=join(directory,'project.sqlite');
   const db=new LocalProjectDatabase(dbPath),app=new GoalProjectApplication(db);
@@ -37,7 +38,6 @@ test("real Goal/Artifact actions survive phone retry, two members, revocation, r
     producer:{plugin_id:'io.test.writer',plugin_version:'1.0.0',binding_signature:'original'},content:{kind:'inline',payload:{content:'实际固定成果正文'}},metadata:{title:'操作说明',source_path:'/private/home/never-export'},scope:'team_project',team_share_authorized:true});
   db.close();
   const ref=molisWorkHostProjectReference({projectId,databasePath:dbPath});
-  let host=new MolisWorkLocalHost({homeDirectory:directory,completeText:null});
   let drop=false,hold:Promise<void>|null=null,entered:()=>void=()=>{};
   const factory:ActionFactory=({projectId,memberId,validate,signal})=>{
     const client=host.actionClient(ref);
@@ -112,6 +112,11 @@ test("real Goal/Artifact actions survive phone retry, two members, revocation, r
     assert.equal((await phone.get('/session')).member,null);
     assert.equal((await phone.request('/continuity/api'+path)).status,401);
     const bundle=await desktop.get(path+'/assets');assert.doesNotMatch(JSON.stringify(bundle),/never-export|database_path/);
+    const unadopted=await mkdtemp(join(directory,'unadopted-'));
+    await writeFile(join(unadopted,'retained.txt'),'retained');
+    await assert.rejects(()=>restoreWorkAssets(bundle,unadopted),{code:'memory.unavailable'});
+    assert.deepEqual(await readdir(unadopted),['retained.txt'],'refused Home has no recovery identity or catalog writes');
+    assert.equal(await readFile(join(unadopted,'retained.txt'),'utf8'),'retained');
     const restored=await restoreWorkAssets(bundle,join(directory,'new-device'));
     assert.equal(restored.restored,1);assert.ok(restored.warnings.some(w=>w.includes('io.test.writer')));
     const moved=await readRestoredAssets(join(directory,'new-device'),projectId);

@@ -926,7 +926,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-msg--host { align-self: center; max-width: 85%; padding: 4px 12px; border: 1px dashed var(--line); border-radius: 999px; color: var(--muted); font-size: 12px; text-align: center; white-space: pre-wrap; }
   ${ASSIST} .assistant-rich > :last-child { margin-bottom: 0; }
   ${ASSIST} .assistant-rich p { margin: 0 0 8px; }
-  ${ASSIST} .assistant-rich :is(ul, ol) { margin: 0 0 8px; padding-left: 24px; }
+  ${ASSIST} .assistant-rich :is(ul, ol) { margin: 0 0 8px; padding-left: 24px; list-style: revert; }
   ${ASSIST} .assistant-rich .assistant-rich-heading { font-weight: 600; }
   ${ASSIST} .assistant-rich pre { margin: 0 0 8px; padding: 8px 12px; border-radius: 8px; background: var(--wash); overflow: auto; font-size: 12px; }
   ${ASSIST} .assistant-rich code { padding: 0 4px; border-radius: 4px; background: var(--wash); font-size: 12px; }

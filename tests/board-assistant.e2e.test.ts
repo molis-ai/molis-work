@@ -169,18 +169,22 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
     assert.equal(top.overlap, false, `${tab}: nothing on the top line overlaps`);
   }
 
-  // A Coding work's mode in the bar, in English: one sentence ("Mode: Execute", not a Chinese colon), and where the bar is
-  // tight the words end in an ellipsis inside the chip instead of running under the input (before, at 760 and 390).
+  // A Coding work's mode in the bar, in English: one sentence ("Mode: Execute", not a Chinese colon); where the bar is
+  // tight it shows the mode alone, the whole sentence still read out, and words that still do not fit end in an ellipsis
+  // inside the chip instead of running under the input (before, at 760 and 390).
   await choose("lang", "en", "board-plan");
   await inFrame("d.querySelector('[data-tab=\"board-coding\"] .assistant-tab-main').click(); return null;");
   await waitFor(`${frame}.contentDocument.querySelector('[data-tab="board-coding"]').hasAttribute('data-current') && !${frame}.contentDocument.querySelector('[data-assistant-mode]').hidden`, 10_000);
   for (const width of ["1280", "760", "390"]) {
     await choose("width", width, "board-coding");
     await waitFor(`${frame}.contentWindow.innerWidth === ${width}`, 15_000);
-    const chip = await inFrame<{ text: string; inside: boolean; clear: boolean; cut: boolean; ellipsis: boolean }>(`const button = d.querySelector('.bar-composer [data-assistant-mode]'), label = d.querySelector('[data-assistant-mode-label]');
+    // The frame applies its media rules for a new width at its next rendering step, not when innerWidth changes.
+    await inFrame("await new Promise((resolve) => w.requestAnimationFrame(() => w.requestAnimationFrame(resolve))); return null;");
+    const chip = await inFrame<{ text: string; said: string; inside: boolean; clear: boolean; cut: boolean; ellipsis: boolean }>(`const button = d.querySelector('.bar-composer [data-assistant-mode]'), label = d.querySelector('[data-assistant-mode-label]');
       const b = button.getBoundingClientRect(), l = label.getBoundingClientRect(), input = d.querySelector('.bar-composer .assistant-composer-input').getBoundingClientRect();
-      return { text: label.textContent, inside: l.right <= b.right + 0.5, clear: b.right <= input.left + 0.5, cut: label.scrollWidth > label.clientWidth, ellipsis: w.getComputedStyle(label).textOverflow === 'ellipsis' };`);
-    assert.equal(chip.text, "Mode: Execute", width);
+      return { text: label.innerText, said: button.getAttribute('aria-label'), inside: l.right <= b.right + 0.5, clear: b.right <= input.left + 0.5, cut: label.scrollWidth > label.clientWidth, ellipsis: w.getComputedStyle(label).textOverflow === 'ellipsis' };`);
+    assert.equal(chip.text, width === "1280" ? "Mode: Execute" : "Execute", width);
+    assert.match(chip.said, /Mode: Execute$/, `${width}px: the whole sentence is read out`);
     assert.equal(chip.inside && chip.clear, true, `${width}px: the mode's words stay inside its chip, clear of the input`);
     assert.equal(!chip.cut || chip.ellipsis, true, `${width}px: words that do not fit end in an ellipsis`);
   }

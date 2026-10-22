@@ -2,7 +2,7 @@
   "note": "Only decreases. The size in bytes of each asset the host sends under /assets/ (the body as served, uncompressed), measured from the built workspace by scripts/gates/page-assets.mjs. Lower it with `node scripts/gates/page-assets.mjs --update --base origin/main` in the PR that shrinks an asset. CI compares this file with the merge-base's copy, so raising a number or adding an asset here is refused. Frozen by decision #17; the real targets are set after the superseded skins are deleted (specs/repository-anti-corruption).",
   "assets": {
     "/assets/inter-latin-variable.woff2": 48256,
-    "/assets/molis-work-arrival.css": 705654,
+    "/assets/molis-work-arrival.css": 705787,
     "/assets/molis-work-capabilities.js": 54350,
     "/assets/molis-work-knowledge.js": 26305,
     "/assets/molis-work-pages-editor.js": 709541,
@@ -23,9 +23,9 @@
     "/assets/molis-work-plugins/shelf.js": 75782,
     "/assets/molis-work-plugins/todo.js": 62126,
     "/assets/molis-work-plugins/workflows.js": 82677,
-    "/assets/molis-work-settings.css": 996488,
-    "/assets/molis-work-workbench.css": 1621813,
-    "/assets/molis-work-workbench.js": 1177274,
+    "/assets/molis-work-settings.css": 996621,
+    "/assets/molis-work-workbench.css": 1621946,
+    "/assets/molis-work-workbench.js": 1177415,
     "/assets/noto-sans-sc-400.woff2": 1141536
   }
 }

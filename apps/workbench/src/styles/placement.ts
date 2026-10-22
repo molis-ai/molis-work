@@ -44,7 +44,7 @@ export const PLACEMENT_STYLES = `
   .placement-dialog-note { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
   .placement-dialog-error { margin: 6px 0 0; color: var(--red); font-size: 12px; }
   .placement-dialog-error:empty { display: none; }
-  .placement-toasts { position: fixed; inset-inline: 0; margin-inline: auto; bottom: 76px; z-index: 70; display: grid; justify-items: center; gap: 8px; width: min(560px, calc(100vw - 24px)); pointer-events: none; }
+  .placement-toasts { position: fixed; inset-inline: 0; margin-inline: auto; bottom: 76px; z-index: 70; display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 8px; width: min(560px, calc(100vw - 24px)); pointer-events: none; }
   .placement-toasts.is-top { top: 56px; bottom: auto; }
   /* A completion card is the one toast (.mw-toast) with a title, a line and its follow-ups. Only its buttons take clicks; a
      click on its text reaches the stage underneath (composers live at the bottom). */

@@ -19,7 +19,7 @@ import { AgentReviewQueue } from "../reviews.js";
  * whether the effect was really authorized.
  */
 
-export interface ProloguePendingRef { kind: "pending"; id: string; revision: number }
+interface ProloguePendingRef { kind: "pending"; id: string; revision: number }
 
 export type ProloguePendingState = "open" | "settled" | "expired" | "cancelled";
 

@@ -22,7 +22,7 @@ export function eventActorKind(kind: "user" | "runtime" | undefined): "user" | "
 }
 
 /** Resuming is the one explicit way out of "cancelled", so a cancelled goal takes it too. */
-export function cancelledGoalTakes(operation: string): boolean {
+function cancelledGoalTakes(operation: string): boolean {
   return ORDINARY_RECORD_OPERATIONS.has(operation) || operation === "resume_goal_event_work";
 }
 

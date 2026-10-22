@@ -9,7 +9,7 @@ import { CAPABILITY_SETTINGS_SECTIONS, listPluginSettingsNavItems } from "./plug
  * gives the view: it joins the group of the host page it follows, or 插件 after all of them. Nothing here names
  * a plugin.
  */
-export interface GlobalSettingsSection {
+interface GlobalSettingsSection {
   readonly id: string;
   readonly label: string;
   readonly icon: MolisWorkIcon;
@@ -42,7 +42,7 @@ const HOST_SECTIONS: readonly HostSection[] = [
 const PLUGIN_GROUP = "插件";
 const HOST_ORDER_END = 100;
 
-export function globalSettingsSections(enabled?: readonly string[], hidden?: readonly string[]): GlobalSettingsSection[] {
+function globalSettingsSections(enabled?: readonly string[], hidden?: readonly string[]): GlobalSettingsSection[] {
   const placed = [
     ...HOST_SECTIONS.map((section) => ({ ...section, kind: "host" as const })),
     ...listPluginSettingsNavItems(enabled, hidden).map((item) => ({

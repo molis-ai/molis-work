@@ -14,7 +14,7 @@ import type { HandoffAssociationRepository } from "./handoff-associations.js";
 
 const HANDOFF_SEND_LEASE_MS = 5 * 60 * 1000;
 
-export interface HandoffSessionLookup {
+interface HandoffSessionLookup {
   get(sessionId: string): MolisWorkSessionRecord;
 }
 

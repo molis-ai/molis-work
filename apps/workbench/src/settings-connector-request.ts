@@ -4,7 +4,7 @@ import { renderMethodGuide } from "./settings-connector-guide.js";
 import type { ConnectorMethodKind } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { ConnectorSettingsCardView } from "./settings-view.js";
 
-export type ConnectorToolSource = { kind: "executable"; executable: string } | { kind: "powershell"; package: string; version: string; bin: string; runtime: { version: string; url: string } } | { kind: "native"; package: string; version: string; bin: string; url: string; sha256: string; entry?: string } | { kind: "npm" | "python"; package: string; version: string; bin: string; registry?: string; node_version?: string; python_version?: string };
+type ConnectorToolSource = { kind: "executable"; executable: string } | { kind: "powershell"; package: string; version: string; bin: string; runtime: { version: string; url: string } } | { kind: "native"; package: string; version: string; bin: string; url: string; sha256: string; entry?: string } | { kind: "npm" | "python"; package: string; version: string; bin: string; registry?: string; node_version?: string; python_version?: string };
 
 export interface ConnectorSetupView {
   id: string;

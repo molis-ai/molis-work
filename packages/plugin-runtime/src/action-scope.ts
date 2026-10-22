@@ -19,7 +19,7 @@ export interface PluginActionScope {
   readonly checked?: { passed: boolean };
 }
 
-export interface PluginSceneScope {
+interface PluginSceneScope {
   readonly install_id: string;
   readonly scene: ActionSceneDefinition;
   readonly read_only: boolean;
@@ -31,14 +31,14 @@ export interface PluginSceneScope {
  * A job an activation keeps (`services.background.keep`, PG-038). Its caller is the installation itself in the job's project, with the
  * job's own lifetime and checks: it names neither the call that kept the job nor that call's audience.
  */
-export interface PluginJobScope {
+interface PluginJobScope {
   readonly install_id: string;
   readonly job: string;
   readonly caller: ActionCallContext;
   readonly begun: number;
 }
 
-export type PluginInvocationScope = PluginActionScope | PluginSceneScope | PluginJobScope;
+type PluginInvocationScope = PluginActionScope | PluginSceneScope | PluginJobScope;
 const running = new AsyncLocalStorage<PluginInvocationScope>();
 let lastBegun = 0;
 

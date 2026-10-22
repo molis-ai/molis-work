@@ -5,7 +5,7 @@ import { nameIssue } from "./naming.js";
 import type { Issue, IssueStore, IssueType } from "./store.js";
 
 /** Where the person was when they wrote it, as their page reported it (never proof of what was on screen). */
-export interface IssuePage { url: string | null; title: string | null }
+interface IssuePage { url: string | null; title: string | null }
 export interface IssueDraft { draft_id: string; description: string; images?: IssueImage[]; page?: IssuePage }
 export interface IssueCapture { draft_id: string; title: string; type: IssueType }
 export type IssueNamed = { status: "saved"; issue: Issue } | { status: "needs_input"; question: string };

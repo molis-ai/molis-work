@@ -15,7 +15,7 @@ import { holdReason, openWait, waitViewOf, wakeBodyOf, type CodingWaitView } fro
 
 type Capabilities = NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>;
 
-export interface CodingWakeDeps<Execution> {
+interface CodingWakeDeps<Execution> {
   readonly context: PluginStartContext;
   readonly projectId: string;
   /** Sessions a send is being taken in for: a wait is not taken up beside one. */

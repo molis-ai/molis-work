@@ -9,7 +9,7 @@ import path from "node:path";
  * - `forbidden`: apps the person added to the forbidden tier. Built-in forbidden apps are not stored here and cannot be
  *   taken away; this list only ever makes more apps forbidden.
  */
-export interface ComputerForbiddenApp { readonly bundle_id: string; readonly name: string; readonly at: string }
+interface ComputerForbiddenApp { readonly bundle_id: string; readonly name: string; readonly at: string }
 
 interface Saved { readonly enabled: boolean; readonly forbidden: readonly ComputerForbiddenApp[] }
 

@@ -40,7 +40,7 @@ export const INFORMATION_PLANNER = defineInstructionPrompt({
 });
 
 /** The platform memory draws out, when a work ends, what may be worth keeping (specs/archive/memory-system §6.1). It only proposes. */
-export const MEMORY_OWNER = "system:memory";
+const MEMORY_OWNER = "system:memory";
 export const MEMORY_EXTRACT = defineInstructionPrompt({
   owner_id: MEMORY_OWNER, prompt_id: "memory.extract", version: 2, title: "从工作里提炼记忆",
   purpose: "一项工作结束时，从用户本人的话里找出值得长期记住的偏好、项目约定和经验，只提议，由写入门决定记不记", used_by: ["平台记忆"],
@@ -76,7 +76,7 @@ export const MEMORY_TIDY = defineInstructionPrompt({
  * evaluation of 2026-09-30 settled); the person edits it here. The program keeps the opening, the hint for what the person is doing, the
  * option keys, the five forms of the Assistant and the declaration that the material is not instruction.
  */
-export const CONTEXTUAL_OWNER = "system:contextual";
+const CONTEXTUAL_OWNER = "system:contextual";
 export const CONTEXTUAL_NEXT = defineInstructionPrompt({
   owner_id: CONTEXTUAL_OWNER, prompt_id: "contextual.next", version: 1, title: "选区推荐：下一步",
   purpose: "选中内容后，请判断服务选出用户此刻最可能要做的一件事。程序会在最前面加上“用户在文档里选中了……想对它做一件事。”，并在第一段与第二段之间的空行处，按选中的范围或正在做的事加一句提示；没有空行时，提示放在最后",
@@ -103,7 +103,7 @@ export const CONTEXTUAL_DRAFT = defineInstructionPrompt({
 });
 
 /** Project knowledge writes a card and section notes for each piece, for finding it later (specs/project-knowledge §5). */
-export const KNOWLEDGE_OWNER = "system:knowledge";
+const KNOWLEDGE_OWNER = "system:knowledge";
 export const KNOWLEDGE_ORGANIZE = defineInstructionPrompt({
   owner_id: KNOWLEDGE_OWNER, prompt_id: "knowledge.organize", version: 1, title: "整理项目资料卡片",
   purpose: "一份资料进入项目或内容变了时，写一张用来查找它的卡片：简洁的标题、一两句简介、关键词，长文档再给每节一句摘要", used_by: ["项目资料"],

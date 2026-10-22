@@ -84,7 +84,7 @@ function heard(questions: readonly AgentQuestion[], answers: ReadonlyArray<{ que
   });
 }
 
-export interface FormDraftPorts {
+interface FormDraftPorts {
   completeText(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<string>;
   now?(): number;
 }

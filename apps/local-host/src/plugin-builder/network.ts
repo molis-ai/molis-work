@@ -37,7 +37,7 @@ export function publicAddress(address: string): boolean {
 }
 
 type Lookup = (hostname: string, callback: (error: Error | null, addresses: LookupAddress[]) => void) => void;
-export interface HostNetworkOptions {
+interface HostNetworkOptions {
   /** How names resolve; the default is the system resolver. Tests pass their own. */
   lookup?: Lookup;
   /** A secret the person saved for this plugin, by its reference: the header to set and its value. */

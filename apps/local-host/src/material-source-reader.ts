@@ -57,7 +57,7 @@ export function validateMaterialPublicURL(value: string): URL {
   return url;
 }
 interface Address { address: string; family: number }
-export interface MaterialSourceResolverPorts {
+interface MaterialSourceResolverPorts {
   lookup?: (hostname: string) => Promise<Address[]>;
   trustedDNS?: (hostname: string, signal?: AbortSignal) => Promise<Address[]>;
 }
@@ -158,10 +158,4 @@ export function materialHTMLArticle(html: string): { text: string; title?: strin
   const text = decodeMaterialHTMLEntities(article.replace(/<(script|style|nav|header|footer|noscript)\b[^>]*>[\s\S]*?<\/\1>/giu, "").replace(/<\/(?:p|div|h[1-6]|li|section)>|<br\s*\/?>/giu, "\n").replace(/<[^>]*>/gu, "")).replace(/[ \t]+/gu, " ").replace(/\n\s*\n\s*\n/gu, "\n\n").trim();
   if (text.length < 40) throw materialSourceErrors.insufficient("来源没有足够的可读正文，可能需要登录；原链接保留，可以粘贴原文继续");
   return { text, ...(title ? { title: decodeMaterialHTMLEntities(title) } : {}) };
-}
-export async function readMaterialPublicSource(url: string): Promise<{ text: string; title?: string }> {
-  const result = await fetchMaterialPublicBytes(url);
-  if (/html/iu.test(result.type)) return materialHTMLArticle(result.data.toString("utf8"));
-  if (/text\/(plain|markdown)/iu.test(result.type)) return { text: result.data.toString("utf8") };
-  throw materialSourceErrors.unsupported("这个来源不是网页或文字，请导入文件");
 }

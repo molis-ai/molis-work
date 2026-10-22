@@ -7,7 +7,7 @@ import { deliveryNote, deliverySteps, isOpenable, type DeliveryNote } from "./as
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
 /** The most steps the outcome slot gives the row; the row shows three in all and folds the rest. */
-export const OUTCOME_STEPS = 2;
+const OUTCOME_STEPS = 2;
 
 /**
  * The outcome slot of the row above the input (specs/context-program §21.9, SLOT-01): what the latest finished thing came

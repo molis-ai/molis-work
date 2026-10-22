@@ -1,6 +1,6 @@
 import type { StateRingFamily } from "./state-ring-states.js";
 
-export interface RingSegment {
+interface RingSegment {
   points: number[][];
   alpha: number;
   z: number;

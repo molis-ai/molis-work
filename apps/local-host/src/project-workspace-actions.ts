@@ -7,7 +7,7 @@ import type { SessionRuntimeService } from "./session-runtime-resources.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
 /** The Home catalog owner the platform injected at startup; project folders are kept there. */
-export type ProjectCatalogOwner = () => { home: string; run: LocalWebCatalogRunner } | undefined;
+type ProjectCatalogOwner = () => { home: string; run: LocalWebCatalogRunner } | undefined;
 
 const normalize = (canonicalPath: string) => normalizeRuntimeWorkContext({ runtime_id: "molis-work-web", stable_work_context_id: null,
   host_declares_stable: false, workspace: { canonical_path: canonicalPath, realpath_verified: false } }).workspace;

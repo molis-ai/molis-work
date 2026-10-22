@@ -20,7 +20,7 @@ export interface SandboxServices {
   /** The plugin's own tables in the project's library (`sandboxDatabase` over `services.project_database`). */
   projectDatabase?: SandboxDatabaseService;
 }
-export interface BrokerLimits { sdkQueue: number; sdkPerMinute: number; eventsPerMinute: number; serviceTimeoutMs: number; storageBytes: number; messageBytes: number }
+interface BrokerLimits { sdkQueue: number; sdkPerMinute: number; eventsPerMinute: number; serviceTimeoutMs: number; storageBytes: number; messageBytes: number }
 
 export class SandboxBroker {
   private readonly queue: BoundedQueue;

@@ -14,7 +14,7 @@ import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type
  * Reading is read-only and re-resolves the path first: a path that now leads somewhere else (a symlink put in its place, a directory
  * swapped) is refused, a directory is never listed, and nothing here writes to the file or its folder.
  */
-export const ORIGINAL_FILES_BASELINE: SqliteBaseline = { version: 1, schema: `
+const ORIGINAL_FILES_BASELINE: SqliteBaseline = { version: 1, schema: `
   CREATE TABLE plugin_original_files (
     plugin_id TEXT NOT NULL, install_id TEXT NOT NULL, project_id TEXT NOT NULL, record_key TEXT NOT NULL,
     real_path TEXT NOT NULL, registered_at TEXT NOT NULL,
@@ -26,7 +26,7 @@ export const ORIGINAL_FILES_HOME_STORE: HomeStoreDeclaration = { path: "plugin-o
 export const ORIGINAL_FILE_MAX_BYTES = 32 * 1024 * 1024;
 const CHUNK = 1024 * 1024;
 
-export const materialOriginalErrors = defineErrorCodes("material.original", {
+const materialOriginalErrors = defineErrorCodes("material.original", {
   invalid_limit: "invalid",
   invalid_path: "invalid",
   missing: "not_found",

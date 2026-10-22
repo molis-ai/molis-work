@@ -8,14 +8,14 @@ import { mcpConnectionId } from "./prologue-mcp.js";
 import { allowDesktopAppForRound, desktopActionCard, type PrologueSurfaces } from "./prologue-surfaces.js";
 import type { createProjectWork } from "./prologue-project-work.js";
 import { readResource, readResourceText, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
-import type { SessionIndex, SessionIndexStore } from "./prologue-session-index.js";
+import type { SessionIndexStore } from "./prologue-session-index.js";
 
 /**
  * What the person reviews before a held operation goes through (W4-06 split this out of the Node composition): the
  * pending-question port, the card for each kind of operation, the approval bridge, and the review history a project reads
  * back after a restart.
  */
-export interface ReviewDeps {
+interface ReviewDeps {
   readonly runtime: Runtime;
   readonly host: NodeHost;
   readonly state: RoundState;
@@ -323,5 +323,3 @@ function commandGrants(value: unknown): import("@molis-ai/molis-work-contracts/s
   if (named.some(item => item === null) || !named.length && !network) return null;
   return { paths: named as Array<{ path: string; access: "read" | "write" }>, network };
 }
-
-export type { SessionIndex };

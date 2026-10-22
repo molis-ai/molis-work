@@ -1,7 +1,7 @@
 import type { AgentReasoningEffort, AgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** Output limit per model call while thinking is on (the user's choice); only a ceiling, usage is what the model spends. */
-export const THINKING_OUTPUT_TOKENS = 32_768;
+const THINKING_OUTPUT_TOKENS = 32_768;
 
 /**
  * One set of call parameters for a round. Thinking is absent when off, so the request carries no thinking field at

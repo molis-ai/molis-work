@@ -2,7 +2,7 @@ import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform
 import type { AgentRunView, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { confirmedPlan, executionSteps, type CodingPlanDraft } from "./plans.js";
 
-export interface CodingTaskBoardPlan {
+interface CodingTaskBoardPlan {
   run_id: string;
   revision: number | null;
   plan: CodingPlanDraft | null;

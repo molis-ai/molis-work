@@ -11,7 +11,7 @@ import { ImError } from "@molis-ai/molis-work-server";
 type Asset = Omit<RegisterArtifactVersionInput,"project_id"|"actor_id"|"team_share_authorized"> & {
   owner_actor_id:string;availability:"available"|"unavailable";lifecycle_state:"active"|"archived";source_supersedes_version:number|null;
 };
-export interface AssetBundle {
+interface AssetBundle {
   format:"molis-work-assets";version:1;source_project_id:string;title:string;
   goals:unknown[];artifacts:Asset[];
   dependencies:{plugin_id:string;plugin_version:string;credential_required:boolean}[];

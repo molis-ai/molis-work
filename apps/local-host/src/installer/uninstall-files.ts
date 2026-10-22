@@ -75,14 +75,14 @@ export async function pathFingerprint(target: string): Promise<string | null> {
   }
 }
 
-export async function readText(target: string): Promise<string | null> {
+async function readText(target: string): Promise<string | null> {
   try { return await fs.readFile(target, "utf8"); } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
 }
 
-export async function pathExists(target: string): Promise<boolean> {
+async function pathExists(target: string): Promise<boolean> {
   try { await fs.stat(target); return true; } catch { return false; }
 }
 
@@ -102,7 +102,7 @@ export async function removeEmptyDirectory(target: string): Promise<boolean> {
   }
 }
 
-export function parseOwnedJson(text: string): { installer?: unknown } | null {
+function parseOwnedJson(text: string): { installer?: unknown } | null {
   try { return JSON.parse(text) as { installer?: unknown }; } catch { return null; }
 }
 

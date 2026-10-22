@@ -3,7 +3,7 @@ import type { AgentSessionView } from "@molis-ai/molis-work-contracts/services/a
 import { agentErrors } from "../errors.js";
 
 /** Trusted session identity, read by the adapter; never supplied in checker parameters. */
-export type OwnedCheckScope = AgentSessionView["owner"] & { session_id: string };
+type OwnedCheckScope = AgentSessionView["owner"] & { session_id: string };
 
 /**
  * A Host domain can prove a narrow read grant from its durable owner record after a restart. This is an App port,

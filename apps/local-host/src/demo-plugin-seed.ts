@@ -15,9 +15,9 @@ import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger"
 export const DEMO_GITHUB_SOURCE_ID = "demo-github";
 export const DEMO_GMAIL_SOURCE_ID = "demo-gmail";
 export const DEMO_CORE_ARTIFACT_ID = "demo/core-lifecycle-record";
-export const DEMO_OUT_RULE_NAME = "捕捉首次协作文章";
-export const DEMO_YOUTUBE_CHANNEL_ID = "UCmwDemoPublicChannel001";
-export const DEMO_WEB_QUERY = "AI 工作台如何保存共同进度";
+const DEMO_OUT_RULE_NAME = "捕捉首次协作文章";
+const DEMO_YOUTUBE_CHANNEL_ID = "UCmwDemoPublicChannel001";
+const DEMO_WEB_QUERY = "AI 工作台如何保存共同进度";
 
 const DEMO_ACTOR = "demo-user";
 const AT = {

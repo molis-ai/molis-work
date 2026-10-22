@@ -12,7 +12,7 @@ import {
  * aborts the older one, and a result is only ever returned for the context it was asked about.
  */
 
-export interface ContextualEvaluation {
+interface ContextualEvaluation {
   /** SystemOne answer body: `{ answers: { next, intent, surface, speak_up }, model?, usage? }`. */
   readonly body: unknown;
   readonly basis: "jev" | "replay";

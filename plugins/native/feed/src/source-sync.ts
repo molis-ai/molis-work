@@ -7,7 +7,7 @@ import { createFeedSourceSyncGuard } from "./source-sync-guard.js";
 import { buildExactRequest } from "./source-request.js";
 import { normalizeIdempotencyKey, stableId } from "./source-input.js";
 import { receiptContentRefs, withReceiptContentRefs } from "./source-history.js";
-import { safeErrorCode, interruptedMessage, rssFailureAction, sourceDedupeScope, cursorForMaterials, safeRssReceipt, terminalErrorCode } from "./source-sync-result.js";
+import { resolveSourceFaults, safeErrorCode, interruptedMessage, rssFailureAction, sourceDedupeScope, cursorForMaterials, safeRssReceipt, terminalErrorCode } from "./source-sync-result.js";
 export class PublicSourceSync {
   private readonly feed: FeedApplication;
   constructor(private readonly ports: FeedSourcePorts, private readonly projectId: string) { this.feed = ports.feed; }
@@ -242,7 +242,7 @@ export class PublicSourceSync {
       });
     });
     if (rssSource) {
-      if (consumable) this.resolveRssSourceFaults(entrySource.source_id);
+      if (consumable) resolveSourceFaults(this.feed, this.projectId, entrySource.source_id);
       else if (actionableRssFailure && terminal.error_code) {
         this.recordRssSourceFault(durableSource, terminal.error_code, actionableRssFailure, completedAt);
       }
@@ -273,18 +273,6 @@ export class PublicSourceSync {
     });
     if (stored.entry.status === "done" || stored.entry.status === "dismissed") {
       this.feed.setInboxEntryStatus(this.projectId, stored.entry.entry_id, "open", stored.entry.revision);
-    }
-  }
-
-  private resolveRssSourceFaults(sourceId: string): void {
-    for (const entry of this.feed.listInboxEntries(this.projectId)) {
-      if (
-        entry.subject_type === "source_fault"
-        && entry.subject_id === sourceId
-        && (entry.status === "open" || entry.status === "in_progress")
-      ) {
-        this.feed.setInboxEntryStatus(this.projectId, entry.entry_id, "done", entry.revision);
-      }
     }
   }
 }

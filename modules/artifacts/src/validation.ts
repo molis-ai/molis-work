@@ -29,7 +29,7 @@ export function libraryFields(value: unknown): Pick<ArtifactVersionRecord, "orig
     media_type: mediaType(input.media_type), trace: traceOf(input.trace) };
 }
 
-export function originOf(value: unknown): ArtifactOrigin {
+function originOf(value: unknown): ArtifactOrigin {
   const origin = value as Partial<ArtifactOrigin> | null | undefined;
   if (origin?.kind === "pinned") {
     const subject = (origin as { subject?: { kind?: unknown; id?: unknown } }).subject;
@@ -43,7 +43,7 @@ export function originOf(value: unknown): ArtifactOrigin {
   throw artifactErrors["artifacts.artifact.origin_invalid"]("成果必须写明来源：固定下来的工作对象，或导入的文件");
 }
 
-export function traceOf(value: unknown): ArtifactReference[] {
+function traceOf(value: unknown): ArtifactReference[] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) throw artifactErrors["artifacts.artifact.input_invalid"]("trace 必须是过程项引用的列表", { path: "trace" });
   return value.map((item: { artifact_id?: unknown; version?: unknown } | null, index) => ({
@@ -52,14 +52,14 @@ export function traceOf(value: unknown): ArtifactReference[] {
   }));
 }
 
-export function boundedText(value: unknown, path: string, limit: number): string {
+function boundedText(value: unknown, path: string, limit: number): string {
   const text = requiredText(value, path);
   if (text.length > limit) throw artifactErrors["artifacts.artifact.input_invalid"](`${path} 不能超过 ${limit} 个字符`, { path });
   return text;
 }
 
 /** A real media type such as `text/markdown`; parameters are not part of what a 成果 records. */
-export function mediaType(value: unknown): string {
+function mediaType(value: unknown): string {
   const text = requiredText(value, "media_type").toLowerCase();
   if (!/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/u.test(text)) {
     throw artifactErrors["artifacts.artifact.input_invalid"]("media_type 必须是 类型/子类型，例如 text/markdown", { path: "media_type" });

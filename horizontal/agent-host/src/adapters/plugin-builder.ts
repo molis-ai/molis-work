@@ -32,7 +32,7 @@ const TOOLS = ['read', 'write', 'edit', 'plugin-checks'] as const;
 const WRITABLE = /^(?:src\/(?!index\.ts$)[a-zA-Z0-9_./-]+\.ts|tests\/[a-zA-Z0-9_./-]+\.ts|package\.json)$/;
 
 /** Only the owning Node adapter supplies these bindings. Plugins never receive a raw Runtime. */
-export interface PluginBuilderRuntimeBindings {
+interface PluginBuilderRuntimeBindings {
   runtime: Runtime;
   /** Whether the Runtime posture lets build mode change files. A read-only Runtime denies every write. */
   writable: boolean;

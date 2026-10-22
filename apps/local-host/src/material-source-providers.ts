@@ -3,7 +3,7 @@ import { extractUploadedMaterial, type UploadedMaterial, type MaterialUploadOpti
 import { isMaterialFailure } from "./material-text.js";
 import type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-export type MaterialSourceMaterial = MaterialSourceContent;
+type MaterialSourceMaterial = MaterialSourceContent;
 export interface MaterialSourceOptions extends MaterialUploadOptions {
   allow_model_download?: boolean;
   /** Dependency seams for offline parser/adapter regressions; HTTP routes never bind these fields. */
@@ -69,7 +69,7 @@ function walk(root: unknown, accept: (value: Record<string, unknown>) => unknown
   }
   return visit(root, 0);
 }
-export interface MaterialXiaohongshuPayload { id: string; title?: string; body?: string; tags: string[]; images: string[]; videos: string[]; kind: "image" | "video" }
+interface MaterialXiaohongshuPayload { id: string; title?: string; body?: string; tags: string[]; images: string[]; videos: string[]; kind: "image" | "video" }
 export function parseMaterialXiaohongshu(html: string, expectedID: string): MaterialXiaohongshuPayload {
   const root = materialSourceEmbeddedJSON(html, "__INITIAL_STATE__");
   if (!root) throw (/登录|login|captcha|验证/iu.test(html) ? materialSourceErrors.restricted : materialSourceErrors.unavailable)("小红书公开页没有可读内容；原链接保留，可以粘贴文字、上传文件或重试");

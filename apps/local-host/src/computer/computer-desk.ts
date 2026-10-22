@@ -10,14 +10,12 @@ import { type HelperConnection, type HelperEvent, type HelperStatus } from "./he
 import { desktopRoundOutcome } from "./task-outcome.js";
 
 /** The helper methods the desk calls. A real connection satisfies this, and a test can stand in without starting one. */
-export type ComputerHelper = Pick<HelperConnection, "on" | "ensure" | "call" | "status" | "unsupported" | "problem" | "ready">;
-
-export { NO_APP_SCOPE } from "./computer-driver.js";
+type ComputerHelper = Pick<HelperConnection, "on" | "ensure" | "call" | "status" | "unsupported" | "problem" | "ready">;
 
 /** No input for this long while nothing is locked: the person is away, and the Assistant does not act. */
 const AWAY_SECONDS = 10 * 60;
 
-export interface ComputerDeskOptions {
+interface ComputerDeskOptions {
   readonly helper: ComputerHelper;
   readonly settings: ComputerSettings;
   readonly records: ComputerRecords;

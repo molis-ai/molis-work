@@ -7,7 +7,7 @@ import { listWorkbenchUiContributions, WORKBENCH_UI_SLOTS } from "./ui-compositi
 /** 能力 is four settings categories served from /capabilities/<id> (specs/artifact-positioning S6b). */
 export const CAPABILITY_SETTINGS_SECTIONS = ["library", "connections", "access", "history"] as const;
 
-export interface PluginSettingsNavItem {
+interface PluginSettingsNavItem {
   readonly section_id: string;
   readonly contribution_id: string;
   readonly plugin_id: string;

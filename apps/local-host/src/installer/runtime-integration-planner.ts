@@ -199,7 +199,7 @@ export class RuntimeIntegrationPlanner {
   }
 }
 
-export function preparedWithStatus(
+function preparedWithStatus(
   common: { planId: string; planHash: string; adapter: RuntimeAdapter; action: RuntimeIntegrationAction },
   snapshot: RuntimeSnapshot,
   receipt: IntegrationReceipt | null,
@@ -233,7 +233,7 @@ export function preparedWithStatus(
   };
 }
 
-export function skillSummary(skill: SkillSnapshot): string {
+function skillSummary(skill: SkillSnapshot): string {
   if (skill.state === "absent") return "未安装 Molis Work Skill";
   if (skill.state === "current") return "当前 Molis Work Skill 链接";
   if (skill.state === "managed") return "旧版 Molis Work Skill 链接";

@@ -93,14 +93,7 @@ const GOALS_CREATE_COMPOSE_SCRIPT = `    const composeExample = dialog?.querySel
 
 `
 
-const GOALS_DIALOG_CLICK_SCRIPT = `      if (target.closest("[data-open-create]")) {
-        formError.hidden = true;
-        dialog.showModal();
-        updateRelationPreviews();
-        prepareCompose();
-        requestAnimationFrame(() => form.elements.title.focus());
-        return true;
-      }
+const GOALS_DIALOG_CLICK_SCRIPT = `      if (target.closest("[data-open-create]")) { openCreate(); return true; }
       if (target.closest("[data-close-create]")) {
         dialog.close();
         refreshBoard();
@@ -245,6 +238,14 @@ ${GOALS_CREATE_COMPOSE_SCRIPT}
       form.querySelector(".goal-choice-list").innerHTML = nextDialog.querySelector(".goal-choice-list").innerHTML;
       applyCreateDraft(draft);
     };
+    const openCreate = () => {
+      if (!dialog || !form || dialog.open) return;
+      formError.hidden = true;
+      dialog.showModal();
+      updateRelationPreviews();
+      prepareCompose();
+      requestAnimationFrame(() => form.elements.title.focus());
+    };
     const handleGoalDialogClick = (target) => {
 ${GOALS_DIALOG_CLICK_SCRIPT}    };
     const handleGoalTrashSubmit = (submittedForm, event) => {
@@ -256,7 +257,7 @@ ${GOALS_DIALOG_CLICK_SCRIPT}    };
 ${GOALS_CREATE_SUBMIT_SCRIPT}    };
     const handleGoalDialogEscape = (event) => {
 ${GOALS_DIALOG_ESCAPE_SCRIPT}    };
-    return { readCreateDraft, refreshCreateChoices, handleGoalDialogClick, handleGoalTrashSubmit,
+    return { readCreateDraft, refreshCreateChoices, openCreate, handleGoalDialogClick, handleGoalTrashSubmit,
       bindGoalCreateEvents, handleGoalDialogEscape };
   }`;
 

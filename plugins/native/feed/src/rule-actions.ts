@@ -25,7 +25,7 @@ function define<I, O>(suffix: string, title: string, description: string, input_
 }
 export interface FeedJudgmentChoice { reference: ActionReference; title: string; available: boolean; reason?: string }
 export interface FeedJudgmentCatalog { choices: FeedJudgmentChoice[]; usages: readonly ActionSceneUsage[] }
-export interface FeedCaptureRecommendations { recommendations: { item_id: string; suggested_behavior_ids: string[] }[] }
+interface FeedCaptureRecommendations { recommendations: { item_id: string; suggested_behavior_ids: string[] }[] }
 export interface FeedRulePreview { samples: { item_id: string; title: string; matched: boolean; input: string }[] }
 export const feedRuleActions = {
   recommendations: define<Record<string, never>, FeedCaptureRecommendations>("recommendations", "查看捕捉建议", "只返回当前消息、绑定与授权仍然有效的最新捕捉建议；旧结果保留历史。", object({}), object({ recommendations: { type: "array", items: object({ item_id: id, suggested_behavior_ids: { type: "array", items: text } }, ["item_id", "suggested_behavior_ids"]) } }, ["recommendations"])),

@@ -10,7 +10,7 @@ type Call = { invocation: HostCapabilityInvocation };
 type Register<C extends Call> = <Input, Output>(definition: ActionDefinition<Input, Output>, handler: (call: C, input: Input) => Output | Promise<Output>) => () => void;
 
 /** The project's workspaces as the Host reads them at this call, and where their checkers are kept. */
-export interface WriteCheckerPorts<C extends Call> {
+interface WriteCheckerPorts<C extends Call> {
   pluginFor(call: C): HostPluginCaller | undefined;
   projectId(call: C): string;
   writeCheckers(call: C): Promise<{ workspaces: readonly ProjectWorkspaceRef[]; store: AgentWriteCheckerStore }>;

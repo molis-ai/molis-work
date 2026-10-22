@@ -52,7 +52,7 @@ export interface PreparedUninstallPlan {
   demoProjectIds: string[];
 }
 
-export interface CatalogInspection {
+interface CatalogInspection {
   projects: ProjectRecord[];
   conflict: string | null;
 }

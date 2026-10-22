@@ -120,7 +120,7 @@ export async function collectRuntimeDependencies(
   return [...packages.values()].sort((left, right) => left.name.localeCompare(right.name));
 }
 
-export async function resolveDependencyPackageJson(name: string, fromPackageJson: string): Promise<string> {
+async function resolveDependencyPackageJson(name: string, fromPackageJson: string): Promise<string> {
   const resolver = createRequire(fromPackageJson);
   let metadataPath: string;
   try {
@@ -165,7 +165,7 @@ async function nearestNamedPackageJson(start: string, name: string): Promise<str
   }
 }
 
-export async function findDependencyPackageJson(name: string, fromPackageJson: string): Promise<string | null> {
+async function findDependencyPackageJson(name: string, fromPackageJson: string): Promise<string | null> {
   const packageSegments = name.split("/");
   let directory = path.dirname(fromPackageJson);
   while (true) {

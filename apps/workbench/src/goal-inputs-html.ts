@@ -4,7 +4,7 @@
  * created straight into the project; plugin objects are filled in by the placement client from their owners. A source an assistant,
  * an Agent, a workflow or an MCP client only proposed reads 「待确认」 and carries 「认可」 and 「移除」: the person decides it here.
  */
-export interface GoalInputsItem {
+interface GoalInputsItem {
   readonly goal: { readonly goal_id: string };
   readonly input_bindings: ReadonlyArray<{ readonly binding_id: string; readonly source_type: string; readonly source_ref: string; readonly input_name: string;
     readonly state: string; readonly reason: string; readonly snapshot_digest?: string | null }>;
@@ -13,7 +13,7 @@ export interface GoalInputsItem {
     readonly state: "available" | "unavailable" | "archived" | "missing"; readonly reason: string | null }>;
 }
 
-export interface GoalInputsPrimitives {
+interface GoalInputsPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   renderReference(value: string, label?: string): string;

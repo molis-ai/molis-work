@@ -11,7 +11,7 @@ import { SandboxError } from './schema.js';
 /** What one request carries at most. */
 const SQL_LENGTH = 16_384, PARAMETERS = 256, STATEMENTS = 64, MESSAGE = 2048;
 
-export type SandboxStatement = Required<SandboxSqlStatement>;
+type SandboxStatement = Required<SandboxSqlStatement>;
 
 /** The Host's side of `sdk.projectDatabase`. The broker has checked the effect, the grant and the statements' shape. */
 export interface SandboxDatabaseService {

@@ -33,7 +33,7 @@ export const filesActions = {
 };
 /** Workspace files in the side panel (specs/archive/side-panel): listed through the same browsing grant, previewed as text. */
 const workspaceFileKinds: FileSourceKind[] = [{ kind: WORKSPACE_FILE_SUBJECT_KIND, title: "工作区文件", surface: "files" }];
-export const filesSideActions = {
+const filesSideActions = {
   entries: readingFolder(defineFileEntriesAction("files.side.entries", workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"])),
   content: readingFolder(defineFileContentAction("files.side.content", workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"])),
 };

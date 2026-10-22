@@ -14,7 +14,7 @@ import { computerErrors, helperFailure, markHelper } from "./computer-errors.js"
  */
 export type HelperPermission = "accessibility" | "screen_recording" | "input_monitoring";
 
-export interface HelperPresence {
+interface HelperPresence {
   readonly locked: boolean;
   readonly screensaver: boolean;
   readonly displays_asleep: boolean;
@@ -42,9 +42,9 @@ export type HelperEvent =
   | { readonly event: "closed"; readonly unexpected: boolean };
 
 /** Why the helper cannot be used right now, in a code the driver turns into Prologue's `driver-unavailable`. */
-export type HelperProblem = "computer.unsupported" | "computer.missing" | "computer.start_failed" | "computer.crashed" | "computer.restarting_too_often";
+type HelperProblem = "computer.unsupported" | "computer.missing" | "computer.start_failed" | "computer.crashed" | "computer.restarting_too_often";
 
-export interface HelperConnectionOptions {
+interface HelperConnectionOptions {
   /** The built `Molis Work Computer Helper.app`; null when this install has none. */
   readonly appPath: string | null;
   /** Starts the helper. Defaults to LaunchServices (`open -n -g`); tests start a stand-in that speaks the same lines. */

@@ -14,7 +14,7 @@ export function pauseReason(state: Exclude<MemoryState, "active">, reason: strin
   return `${state === "disabled" ? DISABLED : PAUSED}:${(reason ?? "").slice(0, 180)}`;
 }
 
-export function stateOf(paused: { reason: string } | undefined): { state: MemoryState; state_reason: string | null } {
+function stateOf(paused: { reason: string } | undefined): { state: MemoryState; state_reason: string | null } {
   if (!paused) return { state: "active", state_reason: null };
   const [kind, ...rest] = paused.reason.split(":");
   const reason = rest.join(":") || null;

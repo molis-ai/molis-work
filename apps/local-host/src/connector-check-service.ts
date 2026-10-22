@@ -9,7 +9,7 @@ import { rememberConnectorCheck } from "./connector-observations.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
 import type { StoredMcpConfiguration } from "./connector-mcp-configuration.js";
 
-export interface ConnectorCheckControl { signal?: AbortSignal; beforeEffect?(): void | Promise<void> }
+interface ConnectorCheckControl { signal?: AbortSignal; beforeEffect?(): void | Promise<void> }
 
 /** All entrypoints verify through the protocol owner. Discovery never executes a business tool. */
 export async function checkConnectorConnection(home: string, id: string, remember: ConnectorMcpDirectory["remember"], control: ConnectorCheckControl = {}) {

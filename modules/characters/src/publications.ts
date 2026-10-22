@@ -13,7 +13,7 @@ export interface CharacterPublicationScope {
 }
 
 /** The Artifact line a Character's publications share. */
-export const characterArtifactId = (projectId: string, characterId: string): string => `character:${projectId}:${characterId}`;
+const characterArtifactId = (projectId: string, characterId: string): string => `character:${projectId}:${characterId}`;
 
 /**
  * This person's publications of Characters in this project: a record of another project, owner, producer, type or schema is not

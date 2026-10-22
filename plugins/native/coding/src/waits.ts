@@ -15,7 +15,7 @@ export const openWait = (view: AgentCollaborationSessionView | undefined): Codin
   return view.wait.state === "waiting" || going ? view as CodingWaitView : undefined;
 };
 /** What it waits on, for a person: "会话「A」的答复", "后台命令 npm test", "「A」那一步". */
-export const waitingOn = (wait: AgentCollaborationWait) => wait.conditions.map(one => one.label).join(wait.mode === "any" ? "，或" : "，以及");
+const waitingOn = (wait: AgentCollaborationWait) => wait.conditions.map(one => one.label).join(wait.mode === "any" ? "，或" : "，以及");
 export const waitingFor = (wait: AgentCollaborationWait) => wait.by === "app" ? "work" : wait.conditions.some(one => one.kind === "envelope") ? "reply" : "command";
 /** What the page shows about a waiting session; `note` is what was kept when the wait was held for the person. */
 export const waitViewOf = (view: CodingWaitView, note: string | undefined) => ({ wait_id: view.wait.wait_id, after_title: waitingOn(view.wait), waiting_for: waitingFor(view.wait),

@@ -10,7 +10,7 @@ import type { SessionIndex, SessionIndexStore } from "./prologue-session-index.j
  * What a session needs checked after an interruption, and its runs read back for the page (W4-06 split this out of the
  * Node composition). Nothing here re-runs anything: an operation without a known outcome stays to be checked.
  */
-export interface RecoveryDeps {
+interface RecoveryDeps {
   readonly runtime: Runtime;
   readonly index: SessionIndexStore;
   readonly state: Pick<RoundState, "sessions">;

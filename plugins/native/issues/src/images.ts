@@ -4,7 +4,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 export interface IssueImage { name: string; data_url: string }
 export const ISSUE_IMAGE_LIMIT = 6;
 export const ISSUE_IMAGE_BYTES = 2 * 1024 * 1024;
-export const ISSUE_IMAGES_BYTES = 8 * 1024 * 1024;
+const ISSUE_IMAGES_BYTES = 8 * 1024 * 1024;
 
 /** Images are owned by the issue, never external URLs or executable SVG/HTML. */
 export function validateIssueImages(images: IssueImage[]): void {

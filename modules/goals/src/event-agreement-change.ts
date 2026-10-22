@@ -1,3 +1,4 @@
+import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-sdk";
 import { goalErrors, type GoalErrorCode } from "./errors.js";
 import {
   goalEventDecisionPurposes,
@@ -125,7 +126,7 @@ export function isEmptyChange(change: CanonicalAgreementChange, currentOutcome: 
     && change.retire_requirement_ids.length === 0;
 }
 
-export function actualRevisions(
+function actualRevisions(
   change: CanonicalAgreementChange,
   requirements: GoalEventRequirementStatus[],
 ): CanonicalAgreementChange["revise_requirements"] {
@@ -260,16 +261,4 @@ function uniqueIds(values: string[] | undefined, duplicateCode: GoalErrorCode): 
     ids.push(id);
   }
   return ids.sort();
-}
-
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, item]) => [key, canonicalize(item)]),
-    );
-  }
-  return value;
 }

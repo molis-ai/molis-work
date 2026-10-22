@@ -10,7 +10,7 @@ import type { LocalMcpLaunch } from "./connector-local-mcp.js";
 
 const setupErrors = defineErrorCodes("connector.setup", { foreign_request: "forbidden" });
 
-export type ConnectorAuthorizationState = "prepared" | "pending" | "connected" | "cancelled" | "failed" | "expired";
+type ConnectorAuthorizationState = "prepared" | "pending" | "connected" | "cancelled" | "failed" | "expired";
 export interface ConnectorSetupPlan {
   service_id: string;
   method: "token" | "oauth" | "mcp" | "cli";
@@ -25,7 +25,7 @@ export interface ConnectorSetupPlan {
   cli_setup?: ManagedToolSource;
   installation?: { platform: string; architecture: string; directory: string; requires_credentials: boolean };
 }
-export interface ConnectorSetupInitiator { actor_id: string; project_id: string | null; runtime_session_id?: string }
+interface ConnectorSetupInitiator { actor_id: string; project_id: string | null; runtime_session_id?: string }
 const TTL = 10 * 60_000;
 const hash = (state: string) => createHash("sha256").update(state).digest("hex");
 function withAttempts<T>(home: string, run: (db: ReturnType<typeof openConnectorsStore>) => T): T {

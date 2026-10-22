@@ -40,9 +40,10 @@ export function projectScopeEntries<Entry extends { definition: PluginDefinition
   for (const entry of entries) if (entry.dual_instance) {
     throw new Error(`项目插件 ${entry.definition.manifest.plugin_id} 不能自称双实例：标记只写在 Home 那一半`);
   }
-  if (!home) return entries;
+  // A shipped plugin's Home half is in the catalog whether or not this host has a Home, so its project half is marked either way.
   const homeSides = new Map<string, { dual: boolean; bundled: boolean }>(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home")
     .map(entry => [entry.manifest.plugin_id, { dual: entry.runtime!.dual_instance === true, bundled: true }]));
+  if (!home) return entries.map(entry => homeSides.get(entry.definition.manifest.plugin_id)?.dual ? { ...entry, dual_instance: true as const } : entry);
   for (const entry of homeFixtureEntries(home)) homeSides.set(entry.definition.manifest.plugin_id, { dual: entry.dual_instance === true, bundled: false });
   const marked = entries.map(entry => {
     const id = entry.definition.manifest.plugin_id, side = homeSides.get(id);

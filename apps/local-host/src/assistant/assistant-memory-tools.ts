@@ -6,7 +6,7 @@ import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-m
 import { assistantErrors } from "./assistant-errors.js";
 import type { StoredWork } from "./assistant-store.js";
 
-export interface AssistantMemoryToolsInput {
+interface AssistantMemoryToolsInput {
   memory: MemoryService;
   actorId: string;
   work: StoredWork;

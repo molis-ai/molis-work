@@ -12,7 +12,6 @@ import type {
   ShelfItemKind,
   ShelfPanelKeySlot,
   ShelfRuntimeStatus,
-  ShelfShortcutAction,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 import {
   HOTKEY_GUIDE,
@@ -339,5 +338,3 @@ function panelKeyRow(
         </div>
       </section>`;
 }
-
-export type { ShelfShortcutAction };

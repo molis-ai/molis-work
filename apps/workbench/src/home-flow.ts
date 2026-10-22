@@ -1,9 +1,9 @@
 import type { HomeEventView, HomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
-export interface HomeFlowInput { now: Date; locale?: string; events: readonly HomeEventView[] }
-export interface HomeFlowEvent extends HomeEventView { day: string; when: string; at: number; kind: "me" | "org"; plugin: string; icon: string; lead: string; text: string }
-export interface HomeFlowDay { id: string; n: number; week: string; w: string; today: boolean }
-export interface HomeFlowSummary { sum: string; lead: string; me: number; org: number }
-export interface HomeFlowLabels { todayEmpty: string; empty: string; todaySum: string; daySum: string; attentionLead: string; emptyLead: string }
+interface HomeFlowInput { now: Date; locale?: string; events: readonly HomeEventView[] }
+interface HomeFlowEvent extends HomeEventView { day: string; when: string; at: number; kind: "me" | "org"; plugin: string; icon: string; lead: string; text: string }
+interface HomeFlowDay { id: string; n: number; week: string; w: string; today: boolean }
+interface HomeFlowSummary { sum: string; lead: string; me: number; org: number }
+interface HomeFlowLabels { todayEmpty: string; empty: string; todaySum: string; daySum: string; attentionLead: string; emptyLead: string }
 
 /** Pure date/presentation factory, serialized into the client after TypeScript compilation. */
 export function createHomeFlow() {

@@ -81,7 +81,7 @@ export function parseCodingFileChanged(payload: unknown): CodingFileChanged {
   return { project_id, path };
 }
 
-export const codingFileChangedType: PluginEventType<CodingFileChanged> = {
+const codingFileChangedType: PluginEventType<CodingFileChanged> = {
   event_type_id: CODING_FILE_CHANGED_EVENT,
   type_version: 1,
   validate: parseCodingFileChanged,
@@ -112,7 +112,7 @@ export function parseCodingWorkspaceInvalidated(payload: unknown): CodingWorkspa
   return { project_id, run_id, review: { review_id, content_version } };
 }
 
-export const codingWorkspaceInvalidatedType: PluginEventType<CodingWorkspaceInvalidated> = {
+const codingWorkspaceInvalidatedType: PluginEventType<CodingWorkspaceInvalidated> = {
   event_type_id: CODING_WORKSPACE_INVALIDATED_EVENT,
   type_version: 1,
   validate: parseCodingWorkspaceInvalidated,
@@ -143,14 +143,14 @@ export function parseCodingPreference(payload: unknown): CodingPreference {
   return { role_id, project_trusted: payload.project_trusted };
 }
 
-export const codingPreferenceType: PluginEventType<CodingPreference> = {
+const codingPreferenceType: PluginEventType<CodingPreference> = {
   event_type_id: CODING_PREFERENCE_EVENT,
   type_version: 1,
   validate: parseCodingPreference,
 };
 
 /** A stopped or uncertain Run may have changed its workspace; this hint never claims success. */
-export const codingRunUpdatedType: PluginEventType = {
+const codingRunUpdatedType: PluginEventType = {
   event_type_id: CODING_RUN_UPDATED_EVENT,
   type_version: 1,
   validate(payload: unknown) {

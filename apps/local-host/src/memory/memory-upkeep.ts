@@ -60,7 +60,7 @@ export async function subjectTitles(localHost: MolisWorkLocalHost, reference: Lo
 }
 
 /** Whether an object a memory rests on can still be read, asked of its own plugin's reader; unknown when that cannot be told. */
-export async function objectState(localHost: MolisWorkLocalHost, ref: { kind: string; id: string; project_id: string | null }): Promise<"ok" | "missing" | "unknown"> {
+async function objectState(localHost: MolisWorkLocalHost, ref: { kind: string; id: string; project_id: string | null }): Promise<"ok" | "missing" | "unknown"> {
   const reference = ref.project_id ? localHost.status().projects.find(row => row.project_id === ref.project_id && row.state !== "closing") : undefined;
   if (ref.project_id && !reference) return "unknown";
   const client = reference ? localHost.actionClient(reference) : localHost.homeActionClient();

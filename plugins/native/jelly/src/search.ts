@@ -21,7 +21,7 @@ const itemText = (item: JellyItem) => [item.notes, item.completion_description, 
 const noteText = (note: JellyNote) => note.blocks.map(block => block.text).filter(Boolean).join("\n");
 const open = (id: string) => ({ surface: JELLY_PROJECT_PLUGIN_ID, id });
 
-export function jellySearchEntries(state: JellyWorkspace): SearchEntry[] {
+function jellySearchEntries(state: JellyWorkspace): SearchEntry[] {
   const items = [...state.items, ...state.series].map((item): SearchEntry => ({ subject: { kind: JELLY_ITEM_SUBJECT_KIND, id: item.id }, revision: item.updated_at, title: item.title,
     summary: searchText(itemText(item), 1000), updated_at: item.updated_at, content: "summary", open: open(item.id) }));
   const notes = state.notes.filter(note => !note.archived_at).map((note): SearchEntry => ({ subject: { kind: JELLY_NOTE_SUBJECT_KIND, id: note.id }, revision: String(note.revision),

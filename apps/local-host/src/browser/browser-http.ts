@@ -11,7 +11,7 @@ import type { BrowserSiteDecisions } from "./browser-surfaces.js";
  * The browser's HTTP side (spec §3.2): files the person picks for a page's file chooser, finished downloads, and the
  * page text 交给助理 takes. Mutations pass the Host's usual local control check before they reach here.
  */
-export interface BrowserHttpPorts {
+interface BrowserHttpPorts {
   readonly browsers: () => BrowserHost;
   readonly projectExists: (projectId: string) => boolean | Promise<boolean>;
   /** The person's standing decisions about sites, and how a running runtime hears a change. */

@@ -25,7 +25,7 @@ const inspector: PluginProjectSchemaInspector = {
 const outcomes = new WeakMap<object, ReadonlyMap<string, ProjectPluginDatabaseOutcome>>();
 
 /** The built-in project plugins that declare tables in the project's library, from the one catalog, in its order. */
-export function projectDatabasePlugins(): PluginManifest[] {
+function projectDatabasePlugins(): PluginManifest[] {
   return BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope !== "home" && entry.manifest.databases?.project).map(entry => entry.manifest);
 }
 

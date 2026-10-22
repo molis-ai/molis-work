@@ -98,7 +98,7 @@ export function shelfProjectActionProvider(projectId: string, home: string, clie
  * as the side panel's import is. The Shelf item is its source, so saving it again after it changed is a new version of the same
  * document, and the same text keeps its version.
  */
-export async function saveShelfToProject(client: ActionClient, payload: ShelfTextMaterial, caller: ActionExecutionContext): Promise<{ artifact_id: string; version: number }> {
+async function saveShelfToProject(client: ActionClient, payload: ShelfTextMaterial, caller: ActionExecutionContext): Promise<{ artifact_id: string; version: number }> {
   const name = payload.title.replace(/[\\/\u0000-\u001f]/gu, " ").trim().slice(0, 240) || "Shelf";
   const nested = retainActionAuthority(caller, { ...shelfProjectActions.saveMaterial, provider_id: shelfManifest.plugin_id });
   const saved = await importThroughArtifacts(client, nested,

@@ -7,7 +7,7 @@ import type { CollaborationHost, ExactRef, Runtime } from "@prologue/sdk";
  */
 
 /** Tools a run may use only bound to a step (the SDK's bound-only tools, and `await-commands` for its `park` form). */
-export const COLLABORATION_TOOLS: readonly string[] = ["dispatch-subagent", "board-plan", "board-revise", "board-report", "board-wait", "session-send", "session-inject", "await-commands"];
+const COLLABORATION_TOOLS: readonly string[] = ["dispatch-subagent", "board-plan", "board-revise", "board-report", "board-wait", "session-send", "session-inject", "await-commands"];
 
 /** The project's root on its work board: every session's block hangs under it, so the blocks are siblings (P2g). */
 export const PROJECT_STEP = "project";

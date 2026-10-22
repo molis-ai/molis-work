@@ -14,7 +14,7 @@ import type { ComputerRecords } from "./computer-records.js";
 import type { HelperConnection } from "./helper-connection.js";
 
 /** The scope before any app is targeted: Prologue's `DESKTOP_NO_APP_SCOPE`, which no app rule matches. */
-export const NO_APP_SCOPE = "desktop:no-app";
+const NO_APP_SCOPE = "desktop:no-app";
 
 /** Moves of the person's mouse this recent make the next action wait for the mouse to settle. */
 const SETTLE_MS = 600;

@@ -5,7 +5,7 @@ import type { RuntimeProjectConnection } from "./runtime-project-connection.js";
 import type { AssembledMcpCatalog } from "./mcp-catalog.js";
 
 type MolisWorkMcpToolCallContext = McpToolCallContext;
-export interface McpAuthorityState {
+interface McpAuthorityState {
   audience: "runtime" | "management";
   connectionState: RuntimeProjectConnection;
   runtimeConnection: MolisWorkRuntimeConnection | null;

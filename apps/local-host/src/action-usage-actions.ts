@@ -2,7 +2,7 @@ import { ActionError, ACTION_REFERENCE_SCHEMA, ACTION_USAGE_SCHEMA, ACTION_USAGE
   type ActionCallContext, type ActionClient, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference, type ActionUsage, type ActionUsagesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readMcpToolPreference } from "./mcp-settings-store.js";
 
-export interface ReportedActionUsage extends ActionUsage { source: ActionReference; reporter: string }
+interface ReportedActionUsage extends ActionUsage { source: ActionReference; reporter: string }
 export interface ActionUsagesResult { usages: ReportedActionUsage[]; issues: string[] }
 
 const readDefinition: ActionDefinition<ActionUsagesInput, ActionUsagesResult> = { capability_id: "actions.usages.read", version: 1, operation: "query", action: {

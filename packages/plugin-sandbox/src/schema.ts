@@ -102,7 +102,7 @@ export function assertMatches(schema: SandboxSchema, value: unknown, path = '$',
   }
 }
 
-export const effectKeys = ['storage', 'artifacts', 'capabilities', 'events', 'networkDomains', 'secretRefs', 'resources', 'projectDatabase'] as const;
+const effectKeys = ['storage', 'artifacts', 'capabilities', 'events', 'networkDomains', 'secretRefs', 'resources', 'projectDatabase'] as const;
 export function assertEffects(effects: unknown): asserts effects is SandboxEffects {
   if (!effects || typeof effects !== 'object' || Array.isArray(effects)) throw new SandboxError('sandbox.invalid_contract', 'Effects must be an object');
   for (const [key, values] of Object.entries(effects)) {

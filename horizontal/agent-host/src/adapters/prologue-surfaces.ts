@@ -22,14 +22,14 @@ export interface PrologueSurfacePorts {
   desktop?(): HostSurfaceDriver | null;
 }
 
-export interface SurfaceSiteDecision { readonly scope: string; readonly decision: "allow" | "block" }
+interface SurfaceSiteDecision { readonly scope: string; readonly decision: "allow" | "block" }
 
 /** Actions a site the person allowed runs without asking. Sending or saving a file always asks. */
-export const SITE_ALLOWED_ACTIONS = ["pointer", "key", "text", "navigate"] as const;
+const SITE_ALLOWED_ACTIONS = ["pointer", "key", "text", "navigate"] as const;
 // Desktop-only actions are asked too. An unnamed surface action is denied, so switching apps never reached a confirm card.
 const ASKED_ACTIONS = [...SITE_ALLOWED_ACTIONS, "upload", "download", "scroll", "drag", "hover", "app", "menu"] as const;
 
-export const SURFACE_TOOL_NAMES: readonly string[] = APP_MODE_SURFACE_TOOLS;
+const SURFACE_TOOL_NAMES: readonly string[] = APP_MODE_SURFACE_TOOLS;
 
 /**
  * Rules the runtime starts with. "ask" is named per action: on the whole surface it would also cover looking.
@@ -47,7 +47,7 @@ export function surfaceRules(): PolicyRule[] {
   ];
 }
 
-export function siteApprovals(scope: string): PolicyRule[] {
+function siteApprovals(scope: string): PolicyRule[] {
   return SITE_ALLOWED_ACTIONS.map(action => ({ source: "user" as const, effect: "approved" as const,
     match: { what: "surface" as const, scope, action }, why: "The person lets the Assistant act on this site without asking." }));
 }

@@ -1,3 +1,4 @@
+import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-sdk";
 import { treeErrors, type TreeErrorCode } from "./goal-tree-errors.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash } from "node:crypto";
@@ -311,18 +312,6 @@ function nullableDialogueText(value: string | null | undefined): string | null {
   if (value == null) return null;
   const text = value.trim();
   return text || null;
-}
-
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, item]) => [key, canonicalize(item)]),
-    );
-  }
-  return value;
 }
 
 function requestHash(value: unknown): string {

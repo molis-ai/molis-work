@@ -1,3 +1,4 @@
+import type { FeedApplication } from "./application.js";
 import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { RssFetchReceipt } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedSourceRecord } from "./projection.js";
@@ -59,7 +60,7 @@ export function safeErrorCode(error: unknown): string {
   return isSafeCode(code) ? code : "feed.provider_interrupted";
 }
 
-export function isSafeCode(value: unknown): value is string {
+function isSafeCode(value: unknown): value is string {
   return typeof value === "string" && (ACTION_ERROR_CODE.test(value) || /^[a-z][a-z0-9_]{1,63}$/u.test(value));
 }
 
@@ -68,4 +69,16 @@ export function interruptedMessage(code: string): string {
   if (code === "feed_unavailable") return "同步失败：源站不可用或返回空正文，本机已有内容未被覆盖。";
   if (code === "budget_exhausted") return "同步失败：公开搜索额度已耗尽，没有回退到模拟数据。";
   return "同步未取得可信终态，本次没有写成成功；可稍后安全重试。";
+}
+
+export function resolveSourceFaults(feed: FeedApplication, projectId: string, sourceId: string): void {
+  for (const entry of feed.listInboxEntries(projectId)) {
+    if (
+      entry.subject_type === "source_fault"
+      && entry.subject_id === sourceId
+      && (entry.status === "open" || entry.status === "in_progress")
+    ) {
+      feed.setInboxEntryStatus(projectId, entry.entry_id, "done", entry.revision);
+    }
+  }
 }

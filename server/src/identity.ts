@@ -8,7 +8,7 @@ export interface Member { id: string; display_name: string }
 export interface Session { id: string; member_id: string | null; expires_at: number }
 export type Role = "owner" | "editor" | "viewer";
 const AGE = 30 * 24 * 3600;
-export const hash = (value: string): string => createHash("sha256").update(value).digest("hex");
+const hash = (value: string): string => createHash("sha256").update(value).digest("hex");
 export const memberClientId = (id: string): string => `runtime:cross-device:${id}`;
 
 export class Identity {

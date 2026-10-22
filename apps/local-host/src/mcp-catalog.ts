@@ -11,7 +11,7 @@ import type { ActionReference, ActionView } from "@molis-ai/molis-work-contracts
  * One MCP catalog: the platform tools this audience may call (connecting to a project, and the trusted management
  * entry's own), and every action the authenticated client is granted. Listing hides unavailable actions; named calls reach the Host.
  */
-export interface AssembledMcpTool {
+interface AssembledMcpTool {
   readonly definition: McpToolDefinition;
   readonly source: "platform" | "action";
   readonly scope: "home" | "project" | "platform";
@@ -19,7 +19,7 @@ export interface AssembledMcpTool {
   readonly action?: ActionView;
 }
 
-export interface AssembleMcpCatalogInput {
+interface AssembleMcpCatalogInput {
   readonly audience: "runtime" | "management";
   /** Already filtered by the common service for this authenticated caller. */
   readonly actions?: readonly ActionView[];

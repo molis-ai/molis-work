@@ -19,7 +19,7 @@ const NAME_ONLY = "只保存了原件；Agent 只能看到它的名字。";
 const UNREADABLE = `读不出这个文件的正文，${NAME_ONLY}`;
 /** `model_required`: the transcription needs the local speech model, not downloaded; the import's caller can ask and import again (PMAT-48). */
 type OriginalText = { text: string; warnings: string[]; model_required?: { approximate_bytes: number | null } };
-export interface OriginalTextOptions {
+interface OriginalTextOptions {
   signal?: AbortSignal;
   /** Only the person's explicit yes, decided by the Host from a trusted user caller (S-39); never a default. */
   allowModelDownload?: boolean;

@@ -1,7 +1,7 @@
 export type Translate = (text: string, values?: Record<string, string | number>) => string;
 
 /** The shared question card's client, as the workbench binds it (packages/design-system interaction-client). */
-export interface FormInteraction {
+interface FormInteraction {
   /** Every field's current value, sent back as the answer. */
   read(): Record<string, unknown>;
   showErrors(errors: Record<string, string>, options?: { focus?: boolean }): void;

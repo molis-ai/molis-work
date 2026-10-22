@@ -1,7 +1,7 @@
 import { createTypeSafeProvider, TYPESAFE_SYSTEMONE_URL } from "@molis-ai/molis-work-module-functions";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
 
-export interface TypeSafeInferenceAuthority {
+interface TypeSafeInferenceAuthority {
   resolveCredential(): string | null | Promise<string | null>;
   /** Current selected connection identity/revision, without a plaintext secret. */
   configuration?(): unknown;

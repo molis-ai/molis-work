@@ -4,22 +4,3 @@ export const V1_COMMON = {
 };
 
 export const V1_STRING = { type: "string" };
-export function v1PayloadTool(
-  name: string,
-  description: string,
-  properties: Record<string, unknown>,
-  required: string[],
-) {
-  return {
-    name,
-    description,
-    inputSchema: {
-      type: "object",
-      properties: {
-        ...V1_COMMON,
-        payload: { type: "object", properties, required },
-      },
-      required: ["project_id", "payload"],
-    },
-  };
-}

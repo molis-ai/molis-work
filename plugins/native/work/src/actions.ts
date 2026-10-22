@@ -31,7 +31,7 @@ const define = <I, O>(id: string, title: string, description: string, operation:
   capability_id: id, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation", scope: "project",
     audiences, permissions, subject_kinds: ["session"], input_schema: input, output_schema: output },
 });
-export interface HandoffTargetInput { package_id: string; target_runtime_id: string; target_workspace_id?: string | null; target_workspace_path?: string | null; content: string }
+interface HandoffTargetInput { package_id: string; target_runtime_id: string; target_workspace_id?: string | null; target_workspace_path?: string | null; content: string }
 const handoffTargetSchema = { type: "object", properties: { package_id: { type: "string", minLength: 1 }, target_runtime_id: { type: "string" }, target_workspace_id: { type: ["string", "null"] },
   target_workspace_path: { type: ["string", "null"] }, content: { type: "string", maxLength: 200_000 } }, required: ["package_id", "target_runtime_id", "content"], additionalProperties: false };
 const goalLinkProperties = { link_id: text, session_id: text, goal_id: text, relation: { enum: ["current", "history"] }, linked_by: text, created_at: text, ended_at: nullable };
@@ -92,7 +92,7 @@ export const workActions = {
   handoffCancel: define<{ package_id: string }, Record<string, unknown>>("sessions.handoffs.cancel", "取消交接", "取消尚未发送的交接包", "command",
     { type: "object", properties: { package_id: { type: "string", minLength: 1 } }, required: ["package_id"], additionalProperties: false }, { type: "object" }, ["sessions:manage"], ["user"]),
 };
-export type SessionDirectoryDiscoveryView = { runtime_id: string; status: "ok" | "unsupported" | "failed"; records: PublicWorkSession[]; code?: string; message?: string };
+type SessionDirectoryDiscoveryView = { runtime_id: string; status: "ok" | "unsupported" | "failed"; records: PublicWorkSession[]; code?: string; message?: string };
 export const WORK_ACTION_PERMISSIONS = ["sessions:read", "sessions:resume", "sessions:message", "sessions:manage"] as const;
 export interface WorkSessionActionResources { messages: SessionMessageService; registry: WorkSessionApi; content: Pick<SessionContentService, "read" | "resume">; router: Pick<RuntimeHostApi, "capabilities">; supportedRuntimeIds: readonly string[];
   directory?: Pick<SessionDirectoryService, "discover" | "create">;

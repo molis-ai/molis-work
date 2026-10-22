@@ -11,7 +11,7 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
 import type { LocalMcpConfiguration } from "./connector-local-mcp.js";
 
-export interface ManagedToolInstallation { id: string; source: ManagedToolSource; executable: string; runtime_path: string[]; directory: string }
+interface ManagedToolInstallation { id: string; source: ManagedToolSource; executable: string; runtime_path: string[]; directory: string }
 
 function packageEnvironment(home: string, directory: string): Record<string, string> {
   const ownHome = join(directory, ".home"), temporary = join(directory, ".tmp");

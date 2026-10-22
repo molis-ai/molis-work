@@ -14,7 +14,7 @@ import { sendLocalWebJson as sendJson } from "./web-http.js";
  * (`postToResidentHost`: the Home's own control token, a numeric loopback address, no redirect) and is guarded at the Host by
  * the same gate; docs/system/SECURITY-INVARIANTS.md S-07 lists what the route refuses.
  */
-export const PROJECT_DELETION_GATEWAY_PATH = "/api/internal/project-deletion";
+const PROJECT_DELETION_GATEWAY_PATH = "/api/internal/project-deletion";
 
 export interface ProjectDeletionGatewayRequest {
   project_id: string;

@@ -11,7 +11,7 @@ import { nodesToMarkdown } from "./to-markdown.js";
 import { pasteHtml, type PasteLeaf } from "./paste-html.js";
 import { toneFromCssColor } from "./tone.js";
 
-export const CLIP_IMAGE = /^image\/(png|jpeg|gif|webp)$/iu;
+const CLIP_IMAGE = /^image\/(png|jpeg|gif|webp)$/iu;
 
 export function clipboardImage(data: DataTransfer | null): File | null {
   if (!data) return null;
@@ -21,7 +21,7 @@ export function clipboardImage(data: DataTransfer | null): File | null {
   return null;
 }
 
-export function leafFromDom(node: globalThis.Node): PasteLeaf | string | null {
+function leafFromDom(node: globalThis.Node): PasteLeaf | string | null {
   if (node.nodeType === 3) return node.textContent || null;
   if (node.nodeType !== 1) return null;
   const el = node as HTMLElement;

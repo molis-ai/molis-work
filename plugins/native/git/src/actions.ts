@@ -11,7 +11,7 @@ import { gitErrors } from "./errors.js";
 
 const STATUS_WORD: Record<string, string> = { A: "新增", M: "修改", D: "删除", R: "重命名", C: "复制", T: "类型变化" };
 /** A starting point the person edits: a title from what is staged and one line per file. Never sent on its own. */
-export function commitDraft(summary: WorkspaceGitSummary): string {
+function commitDraft(summary: WorkspaceGitSummary): string {
   const files = summary.staged;
   if (!files.length) return "";
   const base = (file: string) => file.slice(file.lastIndexOf("/") + 1), folders = new Set(files.map(file => file.path.includes("/") ? file.path.slice(0, file.path.lastIndexOf("/")) : ""));

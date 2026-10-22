@@ -4,7 +4,7 @@ import type { UiRequest, UiRequestInit } from "@molis-ai/molis-work-contracts/pl
 declare const molisWorkRequest: UiRequest;
 
 /** A mounted root's lifetime (packages/ui-host client-lifecycle): its listeners, timers and reads end with the root. */
-export interface ClientLifetime {
+interface ClientLifetime {
   readonly alive: boolean;
   readonly visible: boolean;
   listen(target: EventTarget, name: string, callback: (event: Event) => void): void;
@@ -12,13 +12,13 @@ export interface ClientLifetime {
   assertCurrent(signal?: AbortSignal): void;
 }
 
-export type MountPluginClient = (root: Element) => ClientLifetime | null;
+type MountPluginClient = (root: Element) => ClientLifetime | null;
 
 /** One request to a companion plugin's routes (`/api/plugins/io.molis.work.<plugin><path>`); a failure is an Error. */
-export type CompanionRequest = (plugin: string, path: string, method?: UiRequestInit["method"], body?: unknown, signal?: AbortSignal) => Promise<unknown>;
+type CompanionRequest = (plugin: string, path: string, method?: UiRequestInit["method"], body?: unknown, signal?: AbortSignal) => Promise<unknown>;
 
 /** The Host's review actions as a client receives them: a rendering hook that calls back with the outcome, never a decision. */
-export type ReviewsFactory = (ports: {
+type ReviewsFactory = (ports: {
   readonly mountPluginClient: MountPluginClient;
   readonly route: (path: string) => string;
   readonly headers: () => Record<string, string>;
@@ -26,13 +26,13 @@ export type ReviewsFactory = (ports: {
 }) => unknown;
 
 /** What Files' and Git's clients hand back; each reads through its own plugin's routes. */
-export interface CompanionBrowser {
+interface CompanionBrowser {
   refresh?(): Promise<void> | void;
   afterDecision?(outcome: unknown): void;
   show?(face: string): boolean | void;
 }
 
-export type CompanionClient = (ports: Record<string, unknown>) => CompanionBrowser | null;
+type CompanionClient = (ports: Record<string, unknown>) => CompanionBrowser | null;
 
 /** Coding's page client (src/client.ts) and the ports it takes from here. */
 export type CodingClient = (ports: Record<string, unknown>) => void;

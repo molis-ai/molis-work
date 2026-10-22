@@ -16,7 +16,7 @@ const RUNTIME = "prologue";
 const REFUSALS: Record<ActionCardRefusal, string> = { revoked: "assistant.action_revoked", invalid: "assistant.invalid", conflict: "assistant.conflict" };
 
 /** Who placed a page's card: the project it was placed from, when there is one. */
-export interface OfferCaller {
+interface OfferCaller {
   project_ref?: LocalHostProjectReference;
 }
 
@@ -24,7 +24,7 @@ export interface OfferCaller {
  * What the action cards need from the Assistant: its store, its clock, reading the object a card acts on, the authority a
  * work runs with, watching a job a card started, and starting a work for a page's card. Nothing else of the service.
  */
-export interface OfferPorts {
+interface OfferPorts {
   readonly store: AssistantStore;
   readonly actorId: string;
   now(): Date;

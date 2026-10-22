@@ -10,13 +10,13 @@ import { resolveConfiguredHome } from "./product-home.js";
  */
 export const PROJECT_ARRIVAL_RELATIVE_PATH = path.join("config", "project-arrival.json");
 
-export interface ProjectArrivalRecord {
+interface ProjectArrivalRecord {
   last_opened_at: string | null;
   /** The sentence the person accepted when the project was made from their materials (the first paragraph of the summary they kept). */
   description: string | null;
 }
 
-export interface ProjectArrivalState {
+interface ProjectArrivalState {
   schema_version: 1;
   last_project_id: string | null;
   projects: Record<string, ProjectArrivalRecord>;

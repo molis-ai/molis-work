@@ -10,8 +10,8 @@ import { createTodoOrganizeHandlers, todoOrganizeActions } from "./organize-acti
 import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
-export const TODO_READ = ["todo:read"] as const;
-export const TODO_WRITE = ["todo:read", "todo:write"] as const;
+const TODO_READ = ["todo:read"] as const;
+const TODO_WRITE = ["todo:read", "todo:write"] as const;
 
 const text = { type: "string" };
 const id = { ...text, minLength: 1, maxLength: 200 };
@@ -148,7 +148,7 @@ export const TODO_ACTIONS: readonly ActionDefinition[] = [...Object.values(todoA
  * The complete `todo.items.create` input for a fragment of anything (specs/archive/contextual-interaction §10 P2); pure. The
  * todo remembers where it came from (the object and the words), and the same request creates it once.
  */
-export function prepareTodoFragmentOffers(input: FragmentOffersInput): FragmentActionOffer[] {
+function prepareTodoFragmentOffers(input: FragmentOffersInput): FragmentActionOffer[] {
   const text = input.fragment.targets.map(target => target.text.trim()).filter(Boolean).join("\n");
   if (!text) return [];
   const first = (text.split(/[。！？\n]/u)[0] ?? text).trim() || text;

@@ -1,3 +1,4 @@
+import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-sdk";
 import { goalErrors, type GoalErrorCode } from "./errors.js";
 import {
   goalDecisionMethods,
@@ -88,7 +89,7 @@ export function requiredText(value: string | undefined, code: GoalErrorCode, mes
   return value;
 }
 
-export function normalizeTypeSource(source: GoalEventTypeSource | undefined, actorId: string): GoalEventTypeSource {
+function normalizeTypeSource(source: GoalEventTypeSource | undefined, actorId: string): GoalEventTypeSource {
   const kind = source?.kind ?? "local";
   if (!goalEventTypeSourceKinds.includes(kind)) {
     throw goalErrors["goals.event_config.invalid_source"]("事件类型来源无效");
@@ -158,7 +159,7 @@ export function normalizeTypeDefinition(
   };
 }
 
-export function normalizeField(field: GoalEventFieldDefinition, index: number): GoalEventFieldDefinition {
+function normalizeField(field: GoalEventFieldDefinition, index: number): GoalEventFieldDefinition {
   assertAllowedKeys(field, FIELD_KEYS, `字段 ${index + 1}`);
   const fieldId = requiredText(field.field_id, "goals.event_config.field_id_required", `字段 ${index + 1} 缺少稳定 ID`).trim();
   if (RESERVED_FIELD_IDS.has(fieldId)) {
@@ -196,11 +197,7 @@ export function assertNextTypeVersion(previous: GoalEventTypeDefinition, next: G
   }
 }
 
-export function sameTypeDefinition(left: GoalEventTypeDefinition, right: GoalEventTypeDefinition): boolean {
-  return JSON.stringify(canonicalize(left)) === JSON.stringify(canonicalize(right));
-}
-
-export function typeShape(type: Pick<GoalEventTypeDefinition, "type_id" | "version" | "name" | "purpose" | "semantic_family" | "fields">): unknown {
+function typeShape(type: Pick<GoalEventTypeDefinition, "type_id" | "version" | "name" | "purpose" | "semantic_family" | "fields">): unknown {
   return canonicalize({
     type_id: type.type_id,
     version: type.version,
@@ -379,16 +376,4 @@ export function assertAllowedKeys(
       throw goalErrors["goals.event_config.unsupported_property"](`${label}不支持配置 ${key}；本项只接受已声明的文本字段定义`);
     }
   }
-}
-
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, item]) => [key, canonicalize(item)]),
-    );
-  }
-  return value;
 }

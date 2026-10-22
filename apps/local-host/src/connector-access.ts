@@ -11,7 +11,7 @@ import { createGmailConnector } from "./gmail-connector.js";
 import { createGithubConnector } from "./github-connector.js";
 
 /** Fetch through the official CLI, checking before and after that its current account is still this connection's. */
-export function cliConnectionFetch(home: string, id: string): typeof fetch {
+function cliConnectionFetch(home: string, id: string): typeof fetch {
   return async (input, init) => {
     await inspectCliConnection(home, id);
     const result = await feishuCliFetch(input, init);

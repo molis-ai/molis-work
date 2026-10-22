@@ -12,7 +12,7 @@ const USER_SCOPES = "im:chat:readonly docx:document:readonly wiki:wiki:readonly 
 let setupProcess: ChildProcess | null = null;
 let loginProcess: ChildProcess | null = null;
 
-export type FeishuCliStatus = { installed: boolean; configured: boolean; authorized: boolean; account?: string; problem?: string };
+type FeishuCliStatus = { installed: boolean; configured: boolean; authorized: boolean; account?: string; problem?: string };
 
 function executable(): string {
   const configured = readProductEnv("FEISHU_CLI_PATH")?.trim();

@@ -10,7 +10,7 @@ export function hasPluginBackground(definition: PluginDefinition): boolean {
 }
 
 /** What the executor says about the activation its jobs run in (PG-038): who it acts as, its project, how to read its record again. */
-export interface PluginJobGate {
+interface PluginJobGate {
   readonly actor_id: string;
   /** A project instance's project; none for a Home instance. */
   readonly project_id?: string;

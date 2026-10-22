@@ -5,7 +5,7 @@ import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform
 import { agentTextMaterialContent, type AgentRunView, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_PLAN_TYPE } from "./artifacts.js";
 
-export interface CodingPlanContent {
+interface CodingPlanContent {
   title: string;
   /**
    * `after` names the earlier steps (1-based) a step waits for. Left out, a step waits for the one before it;

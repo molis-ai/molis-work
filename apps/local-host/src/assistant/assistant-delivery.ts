@@ -10,10 +10,10 @@ export function isOpenable(object: AssistantWorkObject): boolean {
 }
 
 /** How the latest round ended, as the delivery note says it. */
-export type DeliveryEnd = "completed" | "failed" | "stopped";
+type DeliveryEnd = "completed" | "failed" | "stopped";
 
 /** One supplement of the person, as the runtime's ledger and the AI's own statement have it. Facts only; the words are `deliveryNoteHtml`'s. */
-export interface DeliverySupplement {
+interface DeliverySupplement {
   id: string;
   text: string;
   state: AgentTurnSteer["state"];
@@ -23,7 +23,7 @@ export interface DeliverySupplement {
   claim: AgentInputModelClaim | null;
 }
 
-export interface DeliveryResult {
+interface DeliveryResult {
   /** The place in `view.objects`, which is where the page's `data-assistant-object` finds the object. */
   index: number;
   kind: string;

@@ -8,7 +8,7 @@ import { openPluginDatabase } from "./plugin-database.js";
  * How often open project libraries are looked at. One that was not used since the last look, and has no write under way, is closed:
  * a library stays open between one and two of these after its last use (specs/plugin-project-partition §2.4).
  */
-export const PARTITION_IDLE_MS = 10 * 60_000;
+const PARTITION_IDLE_MS = 10 * 60_000;
 
 /** One project's library while it is open. */
 interface Part {

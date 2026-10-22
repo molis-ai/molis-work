@@ -19,7 +19,7 @@ import type { ConnectorActionInspector } from "./connector-status-view.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { rememberConnectorCheck } from "./connector-observations.js";
 
-export interface ConnectorAccount { connection_id: string; service_id: string; login: string; scopes?: string[]; account_id?: string }
+interface ConnectorAccount { connection_id: string; service_id: string; login: string; scopes?: string[]; account_id?: string }
 const text = { type: "string" };
 export const connectorAccountActions = {
   read: { capability_id: "connectors.account.read", version: 1, operation: "query", action: {

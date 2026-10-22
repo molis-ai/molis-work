@@ -59,7 +59,7 @@ export const ASSISTANT_FOLLOW_UP_ACTIONS = {
 /** Reading a method a Plugin offers: how a round adopts one it found in its list of methods. */
 const methodRead = define("assistant.methods.read", "query", "读取方法", "读取插件提供的一个做事方法的完整步骤（method_id 见本轮“可用的方法”）。读了就按它做，并告诉用户用了哪个方法。",
   { type: "object", additionalProperties: false, required: ["method_id"], properties: { method_id: { type: "string", title: "方法", maxLength: 200 } } });
-export const ASSISTANT_METHOD_ACTIONS = {
+const ASSISTANT_METHOD_ACTIONS = {
   read: { ...methodRead, action: { ...methodRead.action, output_schema: { type: "object", required: ["method_id", "name", "version", "body"], properties: {
     method_id: { type: "string" }, name: { type: "string" }, plugin_title: { type: "string" }, version: { type: "integer" }, body: { type: "string", title: "方法步骤" } } } } },
 } as const;

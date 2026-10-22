@@ -35,7 +35,7 @@ export interface ContextJourney {
   oauth_expires_at?: number;
   synthesis?: { key: string; stage: number; completed: number; total: number; notes: Record<string, string> };
 }
-export const CONTEXT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+const CONTEXT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 export function contextJourneyId(value: unknown): string {
   if (typeof value !== "string" || !CONTEXT_ID.test(value)) throw new Error("整理标识无效，请重新开始");
   return value;

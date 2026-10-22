@@ -2,7 +2,7 @@ import { Node, ResolvedPos } from "prosemirror-model";
 import { Command, EditorState, TextSelection, Transaction } from "prosemirror-state";
 import { pagesSchema, safePagesColumnWidth } from "./schema.js";
 
-export interface TableHit {
+interface TableHit {
   readonly tablePos: number;
   readonly table: Node;
   readonly rowIndex: number;

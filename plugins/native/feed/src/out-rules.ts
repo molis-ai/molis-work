@@ -180,7 +180,7 @@ export function feedOutRuleMatches(rule: FeedOutRuleRecord, item: FeedItemRecord
   return haystack.includes(contains.toLocaleLowerCase());
 }
 
-export function feedCapturePayload(item: FeedItemRecord): ArtifactJsonValue {
+function feedCapturePayload(item: FeedItemRecord): ArtifactJsonValue {
   return {
     title: item.title,
     summary: item.summary,

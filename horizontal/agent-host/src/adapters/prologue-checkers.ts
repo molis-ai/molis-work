@@ -13,13 +13,13 @@ import { ownedConditionChecks, type OwnedConditionChecker } from "./prologue-own
  * its directory. What the round could not do now is refused, and the SDK stops looking and holds the step for a person.
  */
 export const ACTION_QUERY_CHECKER = { id: "molis.action-query", version: "1" } as const;
-export const FILE_PRESENT_CHECKER = { id: "molis.file-present", version: "1" } as const;
+const FILE_PRESENT_CHECKER = { id: "molis.file-present", version: "1" } as const;
 
 const REFUSED = agentErrors.collaboration_check_refused("").code;
 const NOT_READ = agentErrors.collaboration_check_not_read("").code;
 
 /** What a round leaves for the looks at the waits it registers. Kept in memory: after a restart there is none, and a look is refused. */
-export interface RoundCheckAuthority {
+interface RoundCheckAuthority {
   readonly session_id: string;
   /** The round's own check before anything leaves for it (its plugin instance, its Character); none for a trusted Host start. */
   readonly beforeDispatch?: () => void | Promise<void>;
@@ -32,7 +32,7 @@ export interface RoundCheckAuthority {
 }
 
 /** What a work's authority gives the looks at the jobs it follows: its own check and its action client, as it is now. */
-export type WorkCheckAuthority = Pick<RoundCheckAuthority, "beforeDispatch"> & Required<Pick<RoundCheckAuthority, "actions">>;
+type WorkCheckAuthority = Pick<RoundCheckAuthority, "beforeDispatch"> & Required<Pick<RoundCheckAuthority, "actions">>;
 
 /** What the Host answers for the checks. */
 export interface PrologueCheckPorts {

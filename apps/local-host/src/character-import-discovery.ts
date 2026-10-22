@@ -7,8 +7,8 @@ import { CHARACTER_IMPORT_LIMITS as LIMITS, CHARACTER_IMPORT_RUNTIMES, parseChar
   type CharacterImportCandidate, type CharacterImportFile, type CharacterImportRule, type CharacterImportRuntimeId,
   type CharacterImportSkill, type CharacterImportSnapshot } from "@molis-ai/molis-work-contracts/modules/characters";
 
-export interface CharacterDiscoveryOptions { userHome: string; env?: NodeJS.ProcessEnv; now?: () => string }
-export interface CharacterDiscoveryInput { runtime_id?: CharacterImportRuntimeId; config_root?: string; project_root?: string }
+interface CharacterDiscoveryOptions { userHome: string; env?: NodeJS.ProcessEnv; now?: () => string }
+interface CharacterDiscoveryInput { runtime_id?: CharacterImportRuntimeId; config_root?: string; project_root?: string }
 // The four Runtimes Molis also runs take their names from the shared table; Cursor is import-only, so its name stays here.
 const LABELS: Record<CharacterImportRuntimeId, string> = { codex: RUNTIME_DISPLAY_NAMES.codex, "claude-code": RUNTIME_DISPLAY_NAMES["claude-code"],
   cursor: "Cursor", opencode: RUNTIME_DISPLAY_NAMES.opencode, "grok-build": RUNTIME_DISPLAY_NAMES["grok-build"] };

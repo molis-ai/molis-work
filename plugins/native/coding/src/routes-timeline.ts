@@ -65,7 +65,7 @@ export function planContinuesAfterTalk(run: Pick<AgentRunView, "step_board">, la
   return Boolean(run.step_board && !run.step_board.terminal) && later.every(view => !view.frozen.execution_plan && isTerminalAgentPhase(view.phase));
 }
 /** Children of the rounds that coordinate them, with the person's saved verdicts. */
-export const subagentGroups = async (a: CodingActivation, api: Capabilities, sessionId: string, session: { runtime_id: string; session_id: string }, runs: readonly AgentRunView[]) => {
+const subagentGroups = async (a: CodingActivation, api: Capabilities, sessionId: string, session: { runtime_id: string; session_id: string }, runs: readonly AgentRunView[]) => {
   const { context } = a;
   const groups = [];
   for (const run of runs.filter(run => ["coordinator", "writers"].includes(run.frozen.role_id))) {

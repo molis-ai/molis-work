@@ -19,7 +19,7 @@ import { FILES_UI_CONTRIBUTION_ID } from "./ui.js";
 
 export const FILES_PLUGIN_ID = "io.molis.work.files";
 /** Named, not imported: subscribing to a Plugin is not depending on its code. */
-export const CODING_PLUGIN_ID = "io.molis.work.coding";
+const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */
 export const FILES_PROJECT_PLUGIN_ID = "files";
 

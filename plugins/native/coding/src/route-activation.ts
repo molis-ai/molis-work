@@ -99,8 +99,6 @@ export function sessionState(run: Pick<AgentRunView, "phase">): CodingSessionSta
 export const selected = (a: CodingActivation, request: PluginRouteRequest, execution: CodingExecution) =>
   execution.sessions.get(a.projectId, request.params.sessionId ?? "");
 
-export const sessionTitle = (a: CodingActivation, execution: CodingExecution) => (id: string) => { try { return execution.sessions.get(a.projectId, id).title; } catch { return undefined; } };
-
 const sideOf = (a: CodingActivation, execution: CodingExecution, id: string | null) => {
   if (!id) return null;
   try { const record = execution.sessions.get(a.projectId, id); return { session_id: id, title: record.title, state: record.state, updated_at: record.updated_at }; }

@@ -47,7 +47,7 @@ import {
   snapshotAgreementChangeCommitment,
   snapshotCommitment,
 } from "./event-state-authorization.js";
-import { completionUnmetReasons, syncClosedState } from "./event-state-completion.js";
+import { completionUnmetReasons, reopenCompletion, syncClosedState } from "./event-state-completion.js";
 
 export class GoalEventStateEffects {
   private readonly concerns: GoalEventConcerns;
@@ -322,7 +322,7 @@ export class GoalEventStateEffects {
         const rejected = resolved.effects.some((effect) => effect.kind === "reject_requirements") && resolved.scope.requirement_ids.length > 0;
         const deniedComplete = resolved.effects.some((effect) => effect.kind === "deny_action" && effect.action === "complete");
         if (rejected || deniedComplete) {
-          this.reopenCompletion(goal, recorded.actor_id, "user", resolved.scope.requirement_ids, "后续用户拒绝使当前完成不再成立");
+          reopenCompletion(this.records, this.context, this.core, goal, recorded.actor_id, "user", resolved.scope.requirement_ids, "后续用户拒绝使当前完成不再成立");
         }
       }
       const outcomeResult = {
@@ -509,7 +509,7 @@ export class GoalEventStateEffects {
       .filter((item) => judgedIds.includes(item.requirement_id) && !item.currently_satisfied)
       .map((item) => item.requirement_id);
     if (unsatisfied.length === 0) return;
-    this.reopenCompletion(goal, actorId, actorKind, unsatisfied, `相关判断更新了要求 ${unsatisfied.join("、")} 的当前差距`);
+    reopenCompletion(this.records, this.context, this.core, goal, actorId, actorKind, unsatisfied, `相关判断更新了要求 ${unsatisfied.join("、")} 的当前差距`);
   }
 
   assertReusable(goal: GoalRecord, decision: GoalEventAppliedDecisionView, requested: GoalEventScope): void {
@@ -562,25 +562,6 @@ export class GoalEventStateEffects {
       unmet_reasons: closure.unmet_reasons,
       closure,
     };
-  }
-
-  private reopenCompletion(
-    goal: GoalRecord,
-    actorId: string,
-    actorKind: "user" | "runtime" | null,
-    requirementIds: string[],
-    reason: string,
-  ): void {
-    const previous = this.records.workStatus(goal.project_id, goal.goal_id);
-    const at = this.context.now().toISOString();
-    this.records.supersedeAppliedClosures(goal.project_id, goal.goal_id, reason);
-    syncClosedState(this.records, goal, "open", at);
-    this.core.insertSystem(goal, actorId, actorKind, "相关事实使完成效果不再成立", {
-      operation: "completion_reopened",
-      requirement_ids: requirementIds,
-      reason,
-      previous_work_status: previous,
-    });
   }
 }
 

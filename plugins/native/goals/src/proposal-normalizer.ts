@@ -1,3 +1,4 @@
+import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-sdk";
 import { treeErrors, type TreeErrorCode } from "./goal-tree-errors.js";
 import { randomUUID } from "node:crypto";
 import type {
@@ -473,18 +474,6 @@ export class GoalTreeProposalNormalizer {
     }
     return normalized;
   }
-}
-
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, item]) => [key, canonicalize(item)]),
-    );
-  }
-  return value;
 }
 
 function unique<T>(values: T[]): T[] { return [...new Set(values)]; }

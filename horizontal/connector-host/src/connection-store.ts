@@ -12,7 +12,7 @@ import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopb
 const SERVICE_ID = /^[a-z][a-z0-9-]*(?::[a-z0-9-]+)*$/u;
 const CONNECTION_ID = /^(?:[0-9a-f]{8}-[0-9a-f-]{27,}|external-[0-9a-f]{24})$/u;
 
-export type ConnectorProtocolConnectionInput = { connectionId: string; serviceId: string; displayName: string;
+type ConnectorProtocolConnectionInput = { connectionId: string; serviceId: string; displayName: string;
     credentialRef: string | null; refreshRef?: string | null; expiresRef?: string | null } &
     ({ endpoint: string; transport?: never } | { transport: "stdio"; endpoint?: never });
 

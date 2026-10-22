@@ -46,7 +46,7 @@ import { ensureStopGuard, guardRound, watchRoundFacts } from "./prologue-stop-gu
 /** Turns a round started without a budget may take: the SDK's own default, unchanged. */
 const ROUND_DEFAULT_TURNS = 8;
 /** One model call's wait for its answer to start, and between its parts, when the round has no time budget. */
-export const MODEL_CALL_TIMEOUT_MS = 180_000;
+const MODEL_CALL_TIMEOUT_MS = 180_000;
 // Codes the runtime raises before it creates a run: nothing ran, so the attempt is a settled refusal. The session's
 // checks before any write (a run parked on a question, one being recovered or handed over, a parked set it could not
 // read back) are among them.

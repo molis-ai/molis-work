@@ -94,11 +94,7 @@ export const HOST_CONNECTOR_DIRECTORY: readonly ConnectorDirectoryEntry[] = CONN
   };
 });
 
-export function liveConnectorIds(): readonly string[] {
-  return HOST_CONNECTOR_DIRECTORY.filter((row) => row.availability === "live").map((row) => row.connector_id);
-}
-
-export function githubClientIdConfigured(): boolean {
+function githubClientIdConfigured(): boolean {
   try {
     if (peekSealedEntry(GITHUB_CLIENT_ID_REF)) return true;
   } catch { /* store unavailable → fall through to env */ }

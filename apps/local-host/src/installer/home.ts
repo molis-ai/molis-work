@@ -161,7 +161,7 @@ export async function installMolisWorkHome(
   }
 }
 
-export async function runStep(options: MolisWorkHomeInstallOptions, step: MolisWorkHomeInstallStep): Promise<void> {
+async function runStep(options: MolisWorkHomeInstallOptions, step: MolisWorkHomeInstallStep): Promise<void> {
   await options.beforeStep?.(step);
 }
 

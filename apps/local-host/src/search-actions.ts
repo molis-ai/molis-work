@@ -13,7 +13,7 @@ import { createKnowledgeHost, type KnowledgeHost } from "./knowledge-actions.js"
  * person's own access, and every caller reaches search through the shared directory with its own authority.
  * Search itself is in horizontal/search; nothing about any plugin is known here. Project knowledge rides on it (knowledge-actions.ts).
  */
-export interface SearchHostPorts {
+interface SearchHostPorts {
   homeDirectory: string;
   registry: ActionRegistryPort;
   /** The open project behind a caller, or undefined when it is not open (or the caller has none). */

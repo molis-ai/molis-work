@@ -238,14 +238,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/coding.js": [376592, 378072],
-  // Real-scene fixes (slice 89): a field and a select are 16 px on a phone so the page does not zoom on focus, and a field group's icon is 16 px
-  // (+71, the same primitive in each sheet that carries it). 1612922 → 1612993 (+71).
-  "/assets/molis-work-workbench.css": [1612922, 1612993],
-  // Guided onboarding (slice 90, user 2026-10-22): every onboarding step sits on the Welcome sheet with its card, the sources stay a list with a
-  // status word per row, and below 980 px the card goes under the question (+675); the rows sit on a card with icon tiles and their action drawn
-  // as the button it is (user 2026-10-22, "太纯文字了") (+684). 703258 → 704617 (+1,359).
-  "/assets/molis-work-arrival.css": [703258, 704617],
+  // VUX-40 English coverage (Git): the page says the Host's and the actions' Chinese sentences that carry a name, a path or a count (a remote's host, the
+  // files a merge stopped on, a branch that already exists) in its own language, by finding which of 33 templates a sentence is. The templates' Chinese
+  // text is about 2.8 KB of the growth and the lookup function the rest; the page has only the language it is shown in, so the Chinese side must travel
+  // with the script. Pinned-result times follow the page's language (no growth). 378072 → 382021 (+3949).
+  "/assets/molis-work-plugins/coding.js": [378072, 382021],
   // Forms reflow (slice 85): moved and removed questions and options ease through the page's molisReflow, with the fallback when it is absent. 30244 → 30383 (+139).
   "/assets/molis-work-plugins/form.js": [30244, 30383],
   "/assets/molis-work-plugins/workflows.js": [83019, 83135],

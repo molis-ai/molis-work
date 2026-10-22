@@ -4,6 +4,7 @@ import { ASSISTANT_STORE_NAME, AssistantStore } from "@molis-ai/molis-work-app-l
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // W2'-2 (specs/context-program §21.6): `openPlugin`, a search hit's `open.surface` and an Assistant notice's `open` name a
@@ -20,16 +21,17 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   t.after(() => { if (agentSetting === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT; else process.env.MOLIS_WORK_SHELF_AGENT = agentSetting; });
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
+  const child = await pluginFrameBrowser(t, browser, "shelf", `[data-side-body="${SHELF_TAB}"] iframe`);
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-side-toggle]')");
-  const item = await evaluate<{ item_id: string; name: string } | null>(`fetch(${JSON.stringify(`/projects/${projectId}/api/shelf`)}, { cache: "no-store" })
+  const item = await evaluate<{ item_id: string; name: string } | null>(`fetch(${JSON.stringify(`/projects/${projectId}/api/plugins/io.molis.work.shelf`)}, { cache: "no-store" })
     .then((response) => response.json()).then((shelf) => (shelf.materials || []).find((row) => row.name === "试用示例.pdf") || null)`);
   assert.ok(item, "the sample material is on the shelf");
   const landed = async (why: string) => {
     await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(SHELF_TAB)}`, 8_000);
-    await waitFor(`${shelfFrame}?.contentDocument?.querySelector('[data-shelf-item].is-on')?.dataset.shelfItem === ${JSON.stringify(item.item_id)}`, 10_000);
+    await child.waitFor(`document.querySelector('[data-shelf-item].is-on')?.dataset.shelfItem === ${JSON.stringify(item.item_id)}`, 10_000);
     assert.equal(await evaluate("document.querySelector('[data-work-surface=shelf], [data-tab-workspace] [data-tab-plugin=shelf]')"), null, `${why}: nothing of Shelf opens in the work area`);
   };
   const closePanel = async () => {
@@ -103,16 +105,18 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
 test("SIDE-FWD-01 a side view's placement events reach the page; an unlisted event stays in the view", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
+  const child = await pluginFrameBrowser(t, browser, "shelf", `[data-side-body="${SHELF_TAB}"] iframe`);
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click("[data-side-toggle]");
-  await waitFor(`${shelfFrame}?.contentDocument?.querySelector('[data-shelf-stage-shell]')`, 10_000);
+  await child.waitFor("document.querySelector('[data-shelf-stage-shell]')", 10_000);
   await evaluate(`(() => {
     window.__heard = [];
     for (const name of ['molis:placement-result', 'molis:placement-request', 'molis:not-forwarded']) addEventListener(name, (event) => window.__heard.push([name, event.detail && event.detail.title]));
-    const view = ${shelfFrame}.contentWindow;
-    view.dispatchEvent(new view.CustomEvent('molis:placement-result', { detail: { verb: 'failed', title: '从侧栏来的', note: 'side view' } }));
-    view.dispatchEvent(new view.CustomEvent('molis:not-forwarded', { detail: { title: 'never' } }));
+  })()`);
+  await child.evaluate(`(() => {
+    window.dispatchEvent(new CustomEvent('molis:placement-result', { detail: { verb: 'failed', title: '从侧栏来的', note: 'side view' } }));
+    window.dispatchEvent(new CustomEvent('molis:not-forwarded', { detail: { title: 'never' } }));
   })()`);
   await waitFor("window.__heard.length >= 1 && document.querySelector('.placement-toast')");
   assert.match(String(await evaluate("document.querySelector('.placement-toast').textContent")), /从侧栏来的/, "the page's card shows what the side view reported");

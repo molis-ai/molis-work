@@ -962,6 +962,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       return;
     }
     if (row?.dataset.shelfItem) {
+      if (event.detail > 1) return;
       const item = itemById(row.dataset.shelfItem);
       if (item?.kind === "folder" && event.target.closest(".shelf-glyph")) {
         if (openFolders.has(item.item_id)) openFolders.delete(item.item_id);
@@ -982,8 +983,8 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       event.preventDefault();
       const item = itemById(itemRow.dataset.shelfItem);
       if (!hasFile(item)) return;
-      const opened = invokeNative("shelf_open_path", { path: filePathOf(item) });
-      if (opened) { opened.catch(() => {}); return; }
+      const opened = host.nativeFiles?.open(item.relative_path);
+      if (opened) { opened.catch(showAdmissionError); return; }
       // The browser previews it in the side panel's file tab (a frame asks its page), never a new tab; with no side panel it downloads.
       const detail = { tab: "files", target: { subject: { kind: "shelf_item", id: item.item_id }, title: item.name }, focus: true };
       if (document.dispatchEvent(new CustomEvent("molis:side-open", { detail, cancelable: true }))) window.parent !== window ? window.parent.postMessage({ type: "molis:side-open", ...detail }, location.origin) : download(item);
@@ -996,35 +997,17 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       preview.innerHTML = docHtml("Shelf", L("无法读取置物架"), error.message);
     }
   });
-  const findList = bench.querySelector("[data-shelf-find]");
   let findTimer = 0;
-  const paintFound = (rows) => {
-    if (!findList) return;
-    findList.hidden = !rows.length;
-    findList.innerHTML = rows.map((row) => (
-      '<li role="button" tabindex="0" data-shelf-add-path="' + escapeAttr(row.path) + '">' + glyphSvg("file") +
-      escText(row.name) + "<small>" + escText(L("添加本机文件")) + "</small></li>"
-    )).join("");
-  };
-  const findLocalFiles = () => {
-    const query = (search?.value || "").trim();
-    if (query.length < 2) { paintFound([]); return; }
-    const found = invokeNative("shelf_find_files", { query });
-    if (!found) { paintFound([]); return; }
-    found.then((rows) => paintFound(Array.isArray(rows) ? rows : [])).catch(() => paintFound([]));
-  };
-  lifetime.listen(findList,"click", async (event) => {
-    const row = event.target.closest("[data-shelf-add-path]");
-    if (!row) return;
-    const added = invokeNative("shelf_admit_paths", { paths: [row.dataset.shelfAddPath] });
-    if (!added) return;
+  const findLocalFiles = async () => {
+    if (!host.nativeFiles?.pick) return;
     try {
-      await added;
-      paintFound([]);
+      const files = await host.nativeFiles.pick((search?.value || "").trim());
+      if (!lifetime.alive || !files.length) return;
+      await admitFiles(files);
       if (search) search.value = "";
-      await load();
-    } catch {}
-  });
+      paintLists();
+    } catch (error) { if (lifetime.alive) showAdmissionError(error); }
+  };
   lifetime.listen(search,"input", () => {
     paintLists();
     if (findTimer) lifetime.clearTimeout(findTimer);

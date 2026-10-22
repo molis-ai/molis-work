@@ -122,6 +122,7 @@ export const codingManifest: PluginManifest = {
   },
   agent: codingAgentManifest,
   databases: { project: CODING_PROJECT_DATABASE },
+  background: { jobs: [{ job_id: "observe", reason: "独立读取并保存会话状态与关联目标标题，页面查询保持只读", permissions: ["artifact:read", "storage:private", "goals:read"] }] },
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
   actions: [...CODING_ACTIONS, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
   routes: [

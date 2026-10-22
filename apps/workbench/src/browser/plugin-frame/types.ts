@@ -35,6 +35,7 @@ export interface FramePack { id: string; plugin_id: string; bundle: string; asse
 export interface FrameConfig {
   searchRow?: FramePack["searchRow"];
   nativeFiles: boolean;
+  shortcuts: string[];
   origin: string; bundle: string; assets: string[]; projectId: string; projectTitle: string; routePrefix: string; side: boolean; page: unknown;
   messages: Record<string, string>; titles: Record<string, string>; storage: Record<"localStorage" | "sessionStorage", Record<string, string>>;
 }
@@ -47,17 +48,23 @@ export type FrameAnswer = { type: "response"; id: number; status: number; status
 export type FrameUp = FrameRequest | ContextUp | { type: "ready" } | { type: "failed"; message: string }
   | { type: "read-document"; id: number } | { type: "refresh-shell" }
   | { type: "copy"; id: number; text: string }
-  | { type: "native-files"; id: number; operation: "copy" | "drag"; paths: readonly string[]; itemIds?: readonly string[] }
+  | { type: "draft"; id: number; key: string; value?: string | null }
+  | { type: "shortcut"; keys: string } | { type: "close-side" }
+  | { type: "native-files"; id: number; operation: "copy" | "drag" | "open"; paths: readonly string[]; itemIds?: readonly string[] }
+  | { type: "native-file-pick"; id: number; query: string }
   | { type: "terminal"; id: number; command: UiTerminalCommand }
   | { type: "download"; filename: string; mime: string; bytes: ArrayBuffer } | { type: "print"; html: string }
   | { type: "page-message"; message: UiPageMessage }
   | { type: "ui"; name: "openItem" | "openBeside" | "openPlugin" | "hideDirectory" | "showToast" | "status"; args: unknown[] }
   | { type: "link"; url: string; download: boolean } | { type: "context"; value: string | null; expanded: string | null }
   | { type: "storage"; area: "localStorage" | "sessionStorage"; key: string; value: string | null };
-export type FrameDown = FrameAnswer | ContextDown | { type: "state"; visible: boolean; theme: Record<string, string> }
+export type FrameDown =
+  | { type: "focus" } | FrameAnswer | ContextDown | { type: "state"; visible: boolean; theme: Record<string, string> }
   | { type: "document"; id: number; html?: string; error?: string }
   | { type: "copied"; id: number; error?: string }
+  | { type: "draft-result"; id: number; value?: string | null; error?: string }
   | { type: "native-files-done"; id: number; error?: string }
+  | { type: "native-file-picked"; id: number; file?: { name: string; bytes_base64: string }; error?: string }
   | { type: "model-ready" }
   | { type: "terminal-event"; event: UiTerminalEvent } | { type: "terminal-sent"; id: number; error?: string }
   | { type: "page-message"; message: UiPageMessage }

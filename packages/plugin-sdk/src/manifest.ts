@@ -300,8 +300,7 @@ function inspectCommandDeclarations(parsed: PluginManifest): string[] {
   return problems;
 }
 
-/** The most a route may ask the Host to read: a 32 MB batch sent as base64 inside JSON (user decision, 2026-10-17). */
-// A declared folder upload may contain 64 MiB of files encoded as JSON/base64.
+/** A declared folder upload may contain 64 MiB of files encoded as JSON/base64. */
 const MAX_ROUTE_BODY_BYTES = 96 * 1024 * 1024;
 
 function inspectRouteDeclarations(parsed: PluginManifest): string[] {

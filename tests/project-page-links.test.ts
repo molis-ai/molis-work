@@ -1,3 +1,4 @@
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -25,7 +26,8 @@ test("every same-origin link on a project page opens, including Plugins' links t
   const origin = `http://127.0.0.1:${address.port}`;
   const prefix = `/projects/${project.project_id}`;
 
-  const page = await (await fetch(origin + prefix + "/")).text();
+  const owner = await (await fetch(origin + prefix + "/")).text();
+  const page = owner + pluginDocuments(owner).join("\n");
   const links = [...new Set([...page.matchAll(/href="(\/(?!\/)[^"#]*)/g)].map(match => match[1]!.replaceAll("&amp;", "&")))];
   assert.ok(links.length > 10, "the page carries its links");
   for (const global of ["/settings/models", "/settings/connectors"]) {

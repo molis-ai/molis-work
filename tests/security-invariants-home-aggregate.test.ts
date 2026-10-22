@@ -105,10 +105,10 @@ test("S-49 PG-043 the Home calls only declared read-only queries, one call per o
   assert.deepEqual(after.answers.map(item => item.project_id), [a.project_id]);
   assert.deepEqual(open(), [a, off].map(reference => reference.project_id).sort());
 
-  // The same query called by the person directly, not read-only, reaches its command: the refusal above came from the Home's mark.
+  // SYS-15-D2: the query declaration is itself read-only, including a direct call by the person.
   const ports = homeAggregatePorts(host), caller = await ports.context(a), source = after.answers[0]!.source;
   await ports.client(a).invoke(caller, source, { nest: true });
-  assert.deepEqual(plugin.touched, [a.project_id]); assert.equal(plugin.nested.at(-1), "ran");
+  assert.deepEqual(plugin.touched, []); assert.equal(plugin.nested.at(-1), "actions.forbidden");
 });
 
 test("S-49 PG-043 a home_aggregate declaration that writes, calls a model, costs money, reaches the Home scope or names no type is refused", () => {

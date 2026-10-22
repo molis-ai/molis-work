@@ -8,6 +8,9 @@ import { handoffPageFiles, nativeFileInvoke } from "./native-files.js";
 import { readPageDocument } from "./view.js";
 import { copyFromPage } from "./clipboard.js";
 import { frameContext } from "./context.js";
+import { pageDrafts } from "./drafts.js";
+import { pageNavigation } from "./navigation.js";
+import { pageFilePicker } from "./file-picker.js";
 import type { FrameConfig, FrameHost, FramePack, FrameUp } from "./types.js";
 
 function stored(prefix: string): FrameConfig["storage"] {
@@ -52,6 +55,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const port = channel.port1, requests = frameRequests(port, grant.page_id, scope);
   const terminal = frameTerminal(port, scope, grant.page_id);
   const contextMessage = frameContext(port, scope, root, frame, pack.plugin_id, grant.page_id);
+  const drafts = pageDrafts(port, scope, storagePrefix), navigation = pageNavigation(scope, port, Boolean(host.side));
   const receiveMessage = pageMessages(port, scope, pack.plugin_id, Boolean(host.side));
   let readyResolve!: () => void, readyReject!: (error: Error) => void;
   const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
@@ -63,15 +67,19 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const state = () => port.postMessage({ type: "state", visible: scope.visible,
     theme: Object.fromEntries(["theme", "resolvedTheme", "density", "terminalTheme", "resolvedTerminalTheme"].map(key => [key, document.documentElement.dataset[key] ?? ""])) });
   scope.observe(new MutationObserver(state), document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
-  scope.whenVisible(() => { state(); return state; });
+  scope.whenVisible(() => { state(); navigation.focus(); return state; });
   const fail = (error: Error) => { clearTimeout(deadline); readyReject(error); };
+  const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, host.translate);
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
     if (!scope.alive || !message || typeof message.type !== "string") return;
     if (message.type === "fetch" || message.type === "abort" || message.type === "pull") { void requests(message); return; }
+    if (message.type === "draft") { void drafts(message); return; }
+    if (message.type === "shortcut" || message.type === "close-side") { navigation.receive(message); return; }
     if (message.type === "terminal") { void terminal(message); return; }
     if (message.type === "context-report" || message.type === "context-taken" || message.type === "context-call") { void contextMessage(message); return; }
     if (message.type === "native-files") { void handoffPageFiles(port, scope, grant.page_id, route, message); return; }
+    if (message.type === "native-file-pick") { void pickFile(message); return; }
     if (message.type === "refresh-shell") { location.reload(); return; }
     if (message.type === "read-document") { void readPageDocument(port, message.id, root, route, pack, grant.page_id, scope); return; }
     if (message.type === "copy") { void copyFromPage(port, message); return; }
@@ -79,7 +87,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       if (message.type === "page-message") receiveMessage(message.message);
       else if (message.type === "download" && message.bytes instanceof ArrayBuffer && typeof message.filename === "string" && typeof message.mime === "string") downloadPageBlob(new Blob([message.bytes], { type: message.mime }), message.filename, scope);
       else if (message.type === "print" && typeof message.html === "string") printPageDocument(message.html, scope);
-      else if (message.type === "ready") { clearTimeout(deadline); root.dataset.uiClientState = "ready"; state(); readyResolve(); }
+      else if (message.type === "ready") { clearTimeout(deadline); root.dataset.uiClientState = "ready"; root.removeAttribute("data-deferred-surface"); state(); navigation.focus(); readyResolve(); }
       else if (message.type === "failed") fail(new Error(message.message));
       else if (message.type === "ui" && Array.isArray(message.args)) {
         if (message.name === "showToast" && typeof message.args[0] === "string") host.showToast?.(message.args[0], message.args[1] === true);
@@ -110,7 +118,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (loaded) { fail(new Error("Plugin page navigated")); scope.dispose(); return; }
     loaded = true;
     const config: FrameConfig = { origin: location.origin, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow,
-      nativeFiles: Boolean(nativeFileInvoke()),
+      nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts,
       projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,
       messages: globalThis.MOLIS_WORK_MESSAGES ?? {}, titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage };
     frame.contentWindow?.postMessage({ type: "molis:plugin-connect", config }, "*", [channel.port2]);

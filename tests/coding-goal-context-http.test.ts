@@ -1,3 +1,4 @@
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -112,7 +113,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     store, projectId: DEMO_PROJECT_ID, actorId: "web-user",
     capabilities: host.client(ref), homeDirectory: root,
     escapeHtml: value => String(value), translate: value => value,
-  }, codingRouteHooks)).catch(error => { response.writeHead(500); response.end(JSON.stringify({ error: String(error) })); }); });
+  }, codingRouteHooks)).catch(error => { const refused = actionErrorResponse(error); response.writeHead(refused.status); response.end(JSON.stringify(refused.body)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const request = async (path: string, method = "GET", body?: unknown) => {

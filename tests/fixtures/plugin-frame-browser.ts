@@ -6,7 +6,7 @@ type Browser = Pick<NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>, "c
 type Context = { id: number; auxData?: { frameId?: string; isDefault?: boolean } };
 
 /** Operate the real child execution context through DevTools; never pierce it through the owner's DOM. */
-export async function pluginFrameBrowser(t: TestContext, browser: Browser, surface?: string) {
+export async function pluginFrameBrowser(t: TestContext, browser: Browser, surface?: string, ownerFrame?: string) {
   const contexts = new Map<string, { id: number; session: string }>();
   t.after(browser.on("Runtime.executionContextCreated", (params, session) => {
     const context = params.context as Context;
@@ -19,9 +19,14 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
   await browser.command("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }, browser.sessionId);
   await browser.command("Runtime.enable", {}, browser.sessionId);
   const selector = surface ? `iframe[data-plugin-frame=${JSON.stringify(surface)}]` : "iframe[data-plugin-frame]";
+  // A side view or split pane has a trusted owner document around its opaque plugin frame. Only that owner is
+  // reached through the parent's DOM; all plugin inspection still runs in its own DevTools execution context.
+  const owner = `const owner = ${ownerFrame ? `document.querySelector(${JSON.stringify(ownerFrame)})` : "null"};
+    const doc = owner ? owner.contentDocument : document;
+    if (!doc) throw Error('Missing trusted owner document');`;
   async function context() {
     const object = await browser.command<{ result: { objectId?: string } }>("Runtime.evaluate", {
-      expression: `document.querySelector(${JSON.stringify(selector)})`, returnByValue: false,
+      expression: `(()=>{${owner}return doc.querySelector(${JSON.stringify(selector)});})()`, returnByValue: false,
     }, browser.sessionId);
     assert.ok(object.result.objectId, `Missing frame: ${surface}`);
     const { node } = await browser.command<{ node: { frameId?: string } }>("DOM.describeNode", { objectId: object.result.objectId }, browser.sessionId);
@@ -47,23 +52,42 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     }
     throw new Error(expression, { cause: failure });
   }
-  async function click(target: string): Promise<void> {
+  async function point(target: string): Promise<{ x: number; y: number }> {
     const point = await evaluate<{ x: number; y: number }>(`(async()=>{const deadline=Date.now()+10000;let last='Missing target';
       while(Date.now()<deadline){const element=[...document.querySelectorAll(${JSON.stringify(target)})].find(node=>node.getClientRects().length);
         if(element){element.scrollIntoView({block:'center',behavior:'instant'});
           await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-          const box=element.getBoundingClientRect(),x=box.x+box.width/2,y=box.y+box.height/2;
-          if(element.isConnected&&box.width&&box.height&&!element.disabled&&element.contains(document.elementFromPoint(x,y)))return{x,y};
-          last=JSON.stringify({target:element.outerHTML,box:box.toJSON(),cover:document.elementFromPoint(x,y)?.outerHTML});}
+          const box=element.getBoundingClientRect(),x=box.x+box.width/2;
+          const y=[box.y+box.height/2,box.top+8,box.bottom-8].find(y=>element.contains(document.elementFromPoint(x,y)));
+          if(element.isConnected&&box.width&&box.height&&!element.disabled&&y!==undefined)return{x,y};
+          last=JSON.stringify({target:element.outerHTML,box:box.toJSON()});}
         await new Promise(resolve=>setTimeout(resolve,40));
       }throw Error('Target is hidden, disabled or covered: '+last);})()`);
-    const frame = await browser.evaluate<{ x: number; y: number }>(`(()=>{const frame=document.querySelector(${JSON.stringify(selector)}), box=frame.getBoundingClientRect();
-      if(document.elementFromPoint(box.x+${point.x},box.y+${point.y})!==frame)throw Error('Frame is covered');return{x:box.x,y:box.y};})()`);
-    for (const type of ["mousePressed", "mouseReleased"]) await browser.command("Input.dispatchMouseEvent", { type, x: frame.x + point.x, y: frame.y + point.y, button: "left", clickCount: 1 }, browser.sessionId);
+    const frame = await browser.evaluate<{ x: number; y: number }>(`(()=>{${owner}
+      const frame=doc.querySelector(${JSON.stringify(selector)}), box=frame.getBoundingClientRect(), outer=owner?.getBoundingClientRect()??{x:0,y:0};
+      if(doc.elementFromPoint(box.x+${point.x},box.y+${point.y})!==frame)throw Error('Frame is covered');
+      if(owner&&document.elementFromPoint(outer.x+box.x+${point.x},outer.y+box.y+${point.y})!==owner)throw Error('Owner frame is covered');
+      return{x:outer.x+box.x,y:outer.y+box.y};})()`);
+    return { x: frame.x + point.x, y: frame.y + point.y };
+  }
+  async function click(target: string, clickCount = 1): Promise<void> {
+    for (let count = 1; count <= clickCount; count++) {
+      const position = await point(target);
+      for (const type of ["mousePressed", "mouseReleased"]) await browser.command("Input.dispatchMouseEvent", { type, ...position, button: "left", clickCount: count }, browser.sessionId);
+    }
   }
   async function command<T = Record<string, unknown>>(method: string, params: Record<string, unknown> = {}): Promise<T> {
     const current = await context();
     return browser.command<T>(method, params, current.session);
   }
-  return { evaluate, waitFor, click, frameCommand: command };
+  async function setFiles(selector: string, files: readonly string[]): Promise<void> {
+    const current = await context();
+    const { result } = await browser.command<{ result: { objectId?: string } }>("Runtime.evaluate", {
+      expression: `document.querySelector(${JSON.stringify(selector)})`, contextId: current.id, returnByValue: false,
+    }, current.session);
+    assert.ok(result.objectId, `Missing file input: ${selector}`);
+    try { await browser.command("DOM.setFileInputFiles", { objectId: result.objectId, files }, current.session); }
+    finally { await browser.command("Runtime.releaseObject", { objectId: result.objectId }, current.session); }
+  }
+  return { evaluate, waitFor, click, point, setFiles, frameCommand: command };
 }

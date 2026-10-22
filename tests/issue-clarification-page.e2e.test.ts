@@ -7,7 +7,7 @@ import { issueView } from "./fixtures/issue-browser.js";
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
 async function capture(b: Browser, description: string) {
-  const v = issueView(b);
+  const v = await issueView(t, b);
   await v.viewport(1280); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
   await v.press("[data-issue-composer] [name=description]"); await v.type(description); await v.until("!$('[data-issue-submit]').disabled"); await v.send();
   return v;

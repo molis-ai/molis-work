@@ -110,12 +110,13 @@ export class PluginPageAuthority {
     const directory = Boolean(page.activation.install_id) && request.method === "POST" && pathname === "/api/host/directory-grants";
     const action = Boolean(page.activation.invoke) && request.method === "POST" && pathname === "/api/host/plugin-page-actions";
     const files = request.method === "POST" && pathname === "/api/host/plugin-page-files" && page.activation.resolveFiles;
+    const checkOnly = request.method === "POST" && pathname === "/api/host/plugin-page-check";
     const registered = page.activation.requestAllowed?.(request.method ?? "GET", pathname);
     // Only the trusted toolbar adds this header to a bound callback. The child fetch bridge drops it, and a page's
     // ordinary header never opens these owner actions. Both paths retain the page's cancellation and activation.
     const contextChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && request.method === "POST" && ["/api/contextual/prepare", "/api/contextual/attach"].includes(pathname);
-    if (contextual !== undefined ? !contextChoice : !route && !directory && !revision && !action && !files && !registered) throw refused();
+    if (contextual !== undefined ? !contextChoice : !route && !directory && !revision && !action && !files && !checkOnly && !registered) throw refused();
     const permission = directory ? "directory:read" : route?.permission ?? undefined;
     const controller = new AbortController();
     const check = () => {

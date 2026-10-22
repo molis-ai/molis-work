@@ -10,6 +10,12 @@ export interface UiPageActions {
   invokeAction<Output = unknown>(reference: ActionReference, input: unknown): Promise<Output>;
 }
 
+/** Browser-local unsent drafts, namespaced by the Host to this installation. Keys are at most 256 characters; values at most 16 MiB of UTF-8. */
+export interface UiPageDrafts {
+  read(key: string): Promise<string | null>;
+  write(key: string, value: string | null): Promise<void>;
+}
+
 /** Modal page interactions work without native browser dialogs in an isolated view. Closing the view cancels them. */
 export interface UiPageDialogs {
   confirm(message: string): Promise<boolean>;
@@ -54,7 +60,13 @@ export interface UiPageMessages {
 /** Export content created by this page, or load media through its installation-bound request channel. */
 export interface UiPageFiles<Element = unknown> {
   /** Desktop handoff of files inside this installation's declared owner directory. Paths must be relative. */
-  readonly nativeFiles?: { copy(paths: readonly string[]): Promise<void>; drag(paths: readonly string[], itemIds?: readonly string[]): Promise<void> };
+  readonly nativeFiles?: {
+    copy(paths: readonly string[]): Promise<void>;
+    drag(paths: readonly string[], itemIds?: readonly string[]): Promise<void>;
+    open(path: string): Promise<void>;
+    /** Search in the trusted desktop picker. Only files the person selects there are returned; paths never enter this page. */
+    pick(query: string): Promise<readonly File[]>;
+  };
   /** Write text after a user interaction; no clipboard read permission is granted. */
   copyText(text: string): Promise<void>;
   download(blob: Blob, filename: string): Promise<void>;

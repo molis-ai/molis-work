@@ -64,3 +64,45 @@ test("SYS-15 S-47 real opaque page cannot read owner credentials, bypass its bro
   assert.deepEqual(responses, [403], "actual opaque-frame navigation is refused before the owner token can be delivered");
   assert.equal(await browser.evaluate("Boolean(document.querySelector('meta[name=molis-work-control-token]'))"), true, "the owner's independent page remains available");
 });
+
+test("SYS-15-F1 SYS-15-F2 desktop search releases only the file selected by a trusted click, then opens its owned copy", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
+  const child = await pluginFrameBrowser(t, browser, "shelf");
+  // The IPC adapter is simulated; the opaque page, trusted picker, authorization and Shelf import are production paths.
+  await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: `if(window===top){
+    window.nativeCalls=[];window.__TAURI__={core:{invoke:async(name,input)=>{
+      nativeCalls.push({name,input});
+      if(name==='shelf_find_files')return[{name:'Selected.txt',path:'/private/source/Selected.txt'}];
+      if(name==='platform_read_selected_file')return{name:'Selected.txt',bytes_base64:btoa('ONLY_SELECTED_CONTENT')};
+      return null;
+    }}};
+  }` }, browser.sessionId);
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/side/shelf/side` }, browser.sessionId));
+  await browser.waitFor("document.querySelector('[data-work-surface=shelf]')?.dataset.uiClientState==='ready'");
+  await child.waitFor("document.querySelector('[data-shelf-search]')");
+  const search = "[data-shelf-search]";
+  await child.evaluate(`document.querySelector('${search}').value='Selected';document.querySelector('${search}').dispatchEvent(new Event('input',{bubbles:true}))`);
+  await child.waitFor("document.querySelector('[data-shelf-bar-hint]').textContent.includes('请重新点击')");
+  assert.equal(await browser.evaluate("nativeCalls.filter(call=>call.name==='shelf_find_files').length"), 0, "scripted input cannot start a native search without activation");
+  const find = async () => {
+    await child.click(search);
+    await child.evaluate(`document.querySelector('${search}').value='Selected';document.querySelector('${search}').dispatchEvent(new Event('input',{bubbles:true}))`);
+    await browser.waitFor("document.querySelector('[data-native-file-choice]')");
+  };
+  await find();
+  assert.equal(await child.evaluate("document.body.textContent.includes('/private/source')"), false, "search paths never enter the child");
+  await browser.evaluate("document.querySelector('[data-native-file-choice]').click()");
+  assert.equal(await browser.evaluate("nativeCalls.filter(call=>call.name==='platform_read_selected_file').length"), 0, "a synthetic selection does not read bytes");
+  await browser.click("[data-native-file-choice]");
+  await child.waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('ONLY_SELECTED_CONTENT')");
+  assert.equal(await browser.evaluate("nativeCalls.filter(call=>call.name==='platform_read_selected_file').length"), 1);
+  const selectedId = await child.evaluate<string>("[...document.querySelectorAll('[data-shelf-item]')].find(row=>row.textContent.includes('Selected.txt')).dataset.shelfItem");
+  await child.click(`[data-shelf-item="${selectedId}"] .shelf-name`, 2);
+  await child.waitFor("!document.querySelector('[data-shelf-bar-hint]').textContent.includes('拒绝')");
+  await browser.waitFor("nativeCalls.some(call=>call.name==='shelf_open_path')");
+  const opened = await browser.evaluate<string>("nativeCalls.find(call=>call.name==='shelf_open_path').input.path");
+  assert.ok(opened.startsWith(browser.homeDirectory), opened);
+  assert.ok(opened.endsWith("/Selected.txt"), opened);
+  await find(); await browser.click("[data-native-file-cancel]");
+  assert.equal(await browser.evaluate("nativeCalls.filter(call=>call.name==='platform_read_selected_file').length"), 1, "cancel imports nothing else");
+});

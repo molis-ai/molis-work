@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import test, { type TestContext } from "node:test";
-import { createPluginPlatform } from "@molis-ai/molis-work-app-local-host";
+import { createPluginPlatform, homeStores } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult, PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -48,7 +47,7 @@ async function fixture(t: TestContext, hold = false, interaction = false) {
   const ports = { db: store.db, appendEvent: (event: Parameters<typeof store.appendEvent>[0]) => store.appendEvent(event), eventCursor: (projectId: string) => store.eventCursor(projectId) };
   const actions = { registry: f.host.actionRegistry(project.reference), client: { ...f.host.actionClient(project.reference), ...f.host.syncActionClient(project.reference) }, project_id: project.project_id };
   const platform = createPluginPlatform({ db: store.db, project_id: project.project_id, actor_id: "fixture-person", actions,
-    home: { directory: f.home, stores: homeStoreRegistry([]), completeText: () => null },
+    home: { directory: f.home, stores: homeStores(), completeText: () => null },
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   let context: PluginStartContext, borrowed: PluginAgentClient | undefined;

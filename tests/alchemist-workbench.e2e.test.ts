@@ -4,6 +4,7 @@ import test from "node:test";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { createLocalRuntime } from "./fixtures/alchemist-runtime.js";
 import { alchemistActions } from "@molis-ai/molis-work-plugin-alchemist";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -42,7 +43,8 @@ async function seed(home: string, project: string) {
 test("native Alchemist: candidates, reports, decision, memory, annotations, Pulse and recoverable model failure in host",{timeout:90_000},async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
   const ids=await seed(b.homeDirectory,b.projectId!);
-  const {origin,projectId,command,sessionId,navigate,click,waitFor,evaluate}=b;
+  const { origin, projectId, command, sessionId, navigate } = b;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, b, "alchemist");
   const root='[data-alchemist="workbench"]', content='[data-alc-content]';
   const read=async(path:string)=>(await (await fetch(`${origin}/projects/${projectId}/api/alchemist/studio/api/v1${path}`)).json()) as any;
   const text=JSON.stringify;
@@ -51,7 +53,7 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   const fill=async(name:string,value:string)=>evaluate(`(()=>{const e=document.querySelector('[data-alc-dialog] [name="${name}"]'); e.value=${text(value)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await command("Emulation.setDeviceMetricsOverride",{width:1440,height:1000,deviceScaleFactor:1,mobile:false},sessionId);
   await navigate(()=>command("Page.navigate",{url:`${origin}/projects/${projectId}/`},sessionId));
-  await click('[data-plugin-strip] [data-plugin-id="alchemist"]');
+  await b.click('[data-plugin-strip] [data-plugin-id="alchemist"]');
   await visible(`[data-alchemist-id="${ids.direction}"]`);
   assert.equal(await evaluate(`document.querySelector('${root} iframe')`),null);
   assert.equal(await evaluate(`document.querySelector('${root}').dataset.expanded`),'false');
@@ -160,7 +162,7 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
     await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<500},sessionId);
     const bounds=await evaluate<{width:number;right:number}>(`(()=>{const r=document.querySelector('${content}').getBoundingClientRect();return {width:document.documentElement.scrollWidth,right:r.right}})()`);
     assert.ok(bounds.width<=width+1&&bounds.right<=width+1,JSON.stringify(bounds));
-    for(const theme of ['light','dark']){await evaluate(`document.documentElement.dataset.resolvedTheme='${theme}'`);const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(join(screenshotDirectory,`native-${label}-${theme}.png`),Buffer.from(shot.data,'base64'));}
+    for(const theme of ['light','dark']){await b.evaluate(`document.documentElement.dataset.resolvedTheme='${theme}'`);const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(join(screenshotDirectory,`native-${label}-${theme}.png`),Buffer.from(shot.data,'base64'));}
   }
   await click('[data-alc-action="back"]');await visible(`[data-alchemist-id="${ids.idea}"]`);
   assert.equal(await evaluate(`document.querySelector('${root}').dataset.expanded`),'false');

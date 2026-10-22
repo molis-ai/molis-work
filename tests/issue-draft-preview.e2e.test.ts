@@ -14,7 +14,7 @@ const thumbnails = digestImages + "([...d.querySelectorAll('[data-issue-thumbs] 
 test("ISSUE-45 image drafts survive full navigation, removal, sending and undo beyond localStorage quota", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "user"); if (!b) return;
   await issueModel(t, b.homeDirectory);
-  const v = issueView(b, "issue-draft-preview");
+  const v = await issueView(t, b, "issue-draft-preview");
   await v.go("/"); await v.chord(); await v.composerFocused();
   await v.type("跨页面填写图文草稿，所有截图应保持原始顺序和内容。");
   // Four independently decodable noisy PNGs exceed the 5 MiB localStorage quota while fitting Issue's 8 MiB limit.
@@ -62,7 +62,7 @@ test("ISSUE-45 image drafts survive full navigation, removal, sending and undo b
 
 test("ISSUE-45 a failed draft write rejects the new image visibly and preserves the previous draft", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
-  const v = issueView(b);
+  const v = await issueView(t, b);
   await v.go('/plugins/issues'); await v.press('[data-issue-composer] [name=description]'); await v.type('保留这句话与原图');
   await v.paste('已有图片.png'); await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1");
   const before = await v.ask(thumbnails);
@@ -78,7 +78,7 @@ test("ISSUE-45 a failed draft write rejects the new image visibly and preserves 
 test("ISSUE-45 sending clears immediately without erasing words typed during the disk write", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, 'empty'); if (!b) return;
   await issueModel(t, b.homeDirectory);
-  const v = issueView(b);
+  const v = await issueView(t, b);
   await v.go('/plugins/issues'); await v.press('[data-issue-composer] [name=description]');
   await v.type('记录第一条，后续输入属于下一条'); await v.paste();
   await v.until("!!$('[data-issue-thumbs] img') && !$('[data-issue-submit]').disabled");
@@ -105,7 +105,7 @@ test("ISSUE-45 sending clears immediately without erasing words typed during the
 
 test("ISSUE-46 preview close and zoom stay visible and clickable after two-axis scrolling in every layout", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, 'user', undefined, null); if (!b) return;
-  const v = issueView(b, 'issue-draft-preview');
+  const v = await issueView(t, b, 'issue-draft-preview');
   for (const path of ['/plugins/issues', '/']) {
     await v.go(path); if (path === '/') { await v.chord(); await v.composerFocused(); }
     else { await v.press('[data-issue-composer] [name=description]'); await v.ask(`(async () => {

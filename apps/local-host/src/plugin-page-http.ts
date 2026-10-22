@@ -14,12 +14,18 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
   const close = /^\/api\/host\/plugin-pages\/([^/]+)$/u.exec(url.pathname);
   const action = url.pathname === "/api/host/plugin-page-actions" && request.method === "POST";
   const files = url.pathname === "/api/host/plugin-page-files" && request.method === "POST";
-  if (!files && !action && !(url.pathname === "/api/host/plugin-pages" && request.method === "POST") && !(close && request.method === "DELETE")) return false;
+  const check = url.pathname === "/api/host/plugin-page-check" && request.method === "POST";
+  if (!files && !action && !check && !(url.pathname === "/api/host/plugin-pages" && request.method === "POST") && !(close && request.method === "DELETE")) return false;
   try {
     if (!serverOptions.homeDirectory) throw new ActionError("actions.unavailable", "插件页面需要 Home");
     const pages = pluginPagesFor(serverOptions.homeDirectory);
     if (close) { pages.close(close[1]!); sendLocalWebJson(response, 200, { closed: true }); return true; }
     const body = await readLocalWebBody(request);
+    if (check) {
+      const page = pluginPageRequest(request);
+      if (!page || !body || Object.keys(body).length) throw new ActionError("actions.forbidden", "需要当前插件页面");
+      page.assertCurrent(); sendLocalWebJson(response, 200, { current: true }); return true;
+    }
     if (files) {
       const page = pluginPageRequest(request);
       if (!page) throw new ActionError("actions.forbidden", "文件操作需要当前插件页面");

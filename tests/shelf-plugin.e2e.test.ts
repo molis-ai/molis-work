@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { SAMPLE_PDF_TEXT } from "@molis-ai/molis-work-module-shelf";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 test("Shelf opens as the side panel's first tab, extracts the sample PDF, and keeps DropAgent tokens", { timeout: 120_000 }, async (t) => {
@@ -14,19 +15,21 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   });
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
+  const { command, sessionId, navigate, origin, projectId } = browser;
+  const child = await pluginFrameBrowser(t, browser, "shelf");
+  const { evaluate, waitFor, click } = child;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.documentElement.dataset.resolvedTheme === 'light'");
+  await browser.waitFor("document.documentElement.dataset.resolvedTheme === 'light'");
   // 常开插件 (specs/side-shelf §3.2): Shelf is not in the plugin switcher and never opens in the work area. It is the side
   // panel's first tab, where the panel opens when this browser remembers no tab.
-  await waitFor("document.querySelector('[data-side-toggle]')");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=shelf], [data-plugin-section=shelf], [data-directory-panel=shelf], [data-work-surface=shelf]')"), null);
-  await click("[data-side-toggle]");
-  await waitFor("document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'");
-  assert.equal(await evaluate("document.querySelector('#side-panel [role=tab]')?.dataset.sideTab"), "plugin:shelf/side");
-  await waitFor(`document.querySelector('[data-side-body="plugin:shelf/side"] iframe')?.getAttribute('src') === ${JSON.stringify(`/projects/${projectId}/side/shelf/side`)}`);
+  await browser.waitFor("document.querySelector('[data-side-toggle]')");
+  assert.equal(await browser.evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=shelf], [data-plugin-section=shelf], [data-directory-panel=shelf], [data-work-surface=shelf]')"), null);
+  await browser.click("[data-side-toggle]");
+  await browser.waitFor("document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'");
+  assert.equal(await browser.evaluate("document.querySelector('#side-panel [role=tab]')?.dataset.sideTab"), "plugin:shelf/side");
+  await browser.waitFor(`document.querySelector('[data-side-body="plugin:shelf/side"] iframe')?.getAttribute('src') === ${JSON.stringify(`/projects/${projectId}/side/shelf/side`)}`);
   // The tab's own document, as the panel's frame loads it (the work below is all inside it).
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/side/shelf/side` }, sessionId));
   await waitFor("document.documentElement.dataset.resolvedTheme === 'light' && document.querySelector('[data-shelf-stage-shell]')", 8_000);
@@ -126,12 +129,12 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   const confirmLight = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
   await writeFile(`${dir}/confirm-light.png`, Buffer.from(confirmLight.data, "base64"));
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] }, sessionId);
-  await evaluate("document.documentElement.dataset.resolvedTheme = 'dark'");
+  await browser.evaluate("document.documentElement.dataset.resolvedTheme = 'dark'");
   await waitFor("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === '#292a2d'");
   const confirmDark = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
   await writeFile(`${dir}/confirm-dark.png`, Buffer.from(confirmDark.data, "base64"));
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId);
-  await evaluate("document.documentElement.dataset.resolvedTheme = 'light'");
+  await browser.evaluate("document.documentElement.dataset.resolvedTheme = 'light'");
   await waitFor("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === '#fafaf9'");
   await click("[data-shelf-run]");
   await waitFor("[...document.querySelectorAll('[data-shelf-list=results] [data-shelf-item]')].some(row => row.dataset.shelfName === 'pdf.md')", 8_000);
@@ -171,7 +174,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
     materials: Array<{ origin_hash: string; origin_realpath?: string }>;
     results: Array<{ name: string; preview_text: string }>;
     recipes: Array<{ recipe: string; available: boolean }>;
-  }>("fetch('/api/shelf',{cache:'no-store'}).then(response => response.json())");
+  }>("fetch(document.body.dataset.routePrefix+'/api/plugins/io.molis.work.shelf',{cache:'no-store'}).then(response => response.json())");
   assert.equal(snapshot.materials[0]?.origin_realpath, undefined);
   assert.equal(snapshot.results[0]?.name, "pdf.md");
   assert.match(snapshot.results[0]?.preview_text ?? "", /编辑过的副本/);
@@ -179,7 +182,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   const clipBody = "本周待办：完善文件预览与结果对照。";
   const beforeMaterials = await evaluate<number>("document.querySelectorAll('[data-shelf-list=materials] [data-shelf-item]').length");
   await evaluate(`(async () => {
-    await fetch("/api/shelf/clipboard", { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify({ text: ${JSON.stringify(clipBody)} }) });
+    await fetch(document.body.dataset.routePrefix+"/api/plugins/io.molis.work.shelf/clipboard", { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify({ text: ${JSON.stringify(clipBody)} }) });
   })()`);
   // Re-enter through the client lifecycle, not a private data-attribute observer: the side panel hides the tab when
   // another is chosen and shows it again, which the lifecycle reads from \`hidden\`.
@@ -213,7 +216,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   const dropLight = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
   await writeFile(`${dir}/drop-light.png`, Buffer.from(dropLight.data, "base64"));
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] }, sessionId);
-  await evaluate("document.documentElement.dataset.resolvedTheme = 'dark'");
+  await browser.evaluate("document.documentElement.dataset.resolvedTheme = 'dark'");
   await waitFor("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === '#292a2d'");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--hue-slate').trim()"), "#a6afd5");
   const dropDark = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
@@ -255,7 +258,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   const goneId = await evaluate<string>("document.querySelector('[data-shelf-item][data-shelf-name=\"gone.md\"]').dataset.shelfItem");
   await click('[data-shelf-item][data-shelf-name="gone.md"] [data-shelf-row-action="delete"]');
   await waitFor("!document.querySelector('[data-shelf-item][data-shelf-name=\"gone.md\"]')", 8_000);
-  const deleted = await evaluate<number>(`fetch("/api/shelf/items/" + encodeURIComponent(${JSON.stringify(goneId)}) + "/file").then(response => response.status)`);
+  const deleted = await evaluate<number>(`fetch(document.body.dataset.routePrefix+"/api/plugins/io.molis.work.shelf/items/" + encodeURIComponent(${JSON.stringify(goneId)}) + "/file").then(response => response.status)`);
   assert.equal(deleted, 404);
 
   // The settings page is part of the Shelf surface, so it gets the same review

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { clearShelfRuntimeCache } from "@molis-ai/molis-work-module-shelf";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
@@ -35,7 +36,10 @@ fi
   });
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "shelf");
+  const { evaluate, waitFor, click } = child;
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: "if(window===top)window.__TAURI__={core:{invoke:async()=>null}}" }, sessionId);
   // The shelf's own actions are enabled only while the Home has a usable model. Nothing here runs one from the page
   // (arranging and saving an action never start a recipe; the combine below uses the injected port), so a configured
   // model with no server behind it is enough.
@@ -72,7 +76,7 @@ fi
   };
   const admit = async (filename: string, text: string, mime = "text/markdown") => {
     const item = await evaluate<{ item_id: string; relative_path: string }>(`(async () => {
-      const response = await fetch('/api/shelf/items', { method: 'POST', headers: molisWorkControlHeaders(),
+      const response = await fetch(document.body.dataset.routePrefix+'/api/plugins/io.molis.work.shelf/items', { method: 'POST', headers: molisWorkControlHeaders(),
         body: JSON.stringify({ filename: ${JSON.stringify(filename)}, bytes_base64: ${JSON.stringify(Buffer.from(text).toString("base64"))}, mime: ${JSON.stringify(mime)} }) });
       const body = await response.json(); if (!response.ok) throw new Error(JSON.stringify(body)); return body.item;
     })()`);
@@ -97,12 +101,8 @@ fi
     const file = join(homeDirectory, filename);
     const text = "# 真实文件选择器\n" + "通过 File.arrayBuffer 读入完整本地副本。\n".repeat(1200) + "PICKER_END_SENTINEL\n";
     await writeFile(file, text);
-    const document = await command<{ root: { nodeId: number } }>("DOM.getDocument", {}, sessionId);
-    const input = await command<{ nodeId: number }>("DOM.querySelector", { nodeId: document.root.nodeId, selector: "[data-shelf-file]" }, sessionId);
-    assert.ok(input.nodeId);
-    // CDP supplies a real disk file to Chrome's native FileList; this does not
-    // construct a synthetic File or call the Shelf admission API directly.
-    await command("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [file] }, sessionId);
+    // Supply a genuine disk file to the isolated plugin input.
+    await child.setFiles("[data-shelf-file]", [file]);
     await waitFor(`document.querySelector('[data-shelf-item][data-shelf-name="${filename}"]') && document.querySelector('[data-shelf-file]').value === ''`, 8_000);
     const item = (await shelf.snapshot()).materials.find(item => item.name === filename);
     assert.ok(item);
@@ -139,7 +139,7 @@ fi
     await waitFor("document.querySelector('[data-shelf-bar-hint]')?.textContent.includes('无法读取这份副本') && !document.querySelector('[data-shelf-edit]').disabled");
     assert.equal(await evaluate("document.querySelector('[data-shelf-editor]')"), null);
     assert.equal(await evaluate("document.querySelector('[data-shelf-edit]').textContent"), "编辑副本");
-    const failedRead = await fetch(`${origin}/api/shelf/items/${broken.item_id}/file`);
+    const failedRead = await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.shelf/items/${broken.item_id}/file`);
     assert.equal(failedRead.status, 400);
     await failedRead.text();
   });
@@ -182,7 +182,7 @@ fi
     for (const [name, theme, width] of [["browser-compare-light", "light", 1440], ["browser-compare-dark", "dark", 1440], ["browser-compare-narrow", "light", 820]] as const) {
       await command("Emulation.setDeviceMetricsOverride", { width, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
       await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
-      await evaluate(`document.documentElement.dataset.resolvedTheme = ${JSON.stringify(theme)}`);
+      await browser.evaluate(`document.documentElement.dataset.resolvedTheme = ${JSON.stringify(theme)}`);
       // Soft Workbench: the Shelf reading side is the shared soft surface in each theme.
       await waitFor(`getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === ${JSON.stringify(theme === "dark" ? "#292a2d" : "#fafaf9")}`);
       if (width === 820) await waitFor("document.querySelector('[data-shelf-stage]').classList.contains('is-narrow')");
@@ -224,20 +224,21 @@ fi
 
   await t.test("native copy client contract sends full selected paths only after pending edits are persisted", async () => {
     // This records the client/native invocation contract, not the macOS pasteboard.
-    await evaluate(`window.parityNativeCalls=[]; window.__TAURI__={core:{invoke:async (name,payload)=>{
+    await browser.evaluate(`window.parityNativeCalls=[]; window.__TAURI__={core:{invoke:async (name,payload)=>{
       if(name!=='shelf_copy_files') return;
-      const response=await fetch(${JSON.stringify(`/api/shelf/items/${first.item_id}/file`)},{cache:'no-store'});
+      const response=await fetch(${JSON.stringify(`/projects/${projectId}/api/plugins/io.molis.work.shelf/items/${first.item_id}/file`)},{cache:'no-store'});
       window.parityNativeCalls.push({name,payload,saved:await response.text()});
     }}}`);
     await select(first.item_id);
     await click("[data-shelf-edit]");
     await waitFor("document.querySelector('[data-shelf-editor]')");
     const suffix = "\n复制前立即保存的尾行。";
-    // Both events share a turn, so the 400 ms autosave cannot complete first.
+    // Editing is followed immediately by a genuine copy gesture; the native callback reads the saved copy.
     await evaluate(`(() => { const editor=document.querySelector('[data-shelf-editor]'); editor.value += ${JSON.stringify(suffix)};
-      editor.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('[data-shelf-copy-file]').click(); })()`);
-    await waitFor("window.parityNativeCalls.length === 1");
-    const single = await evaluate<{ payload: { paths: string[] }; saved: string }>("window.parityNativeCalls[0]");
+      editor.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+    await click('[data-shelf-copy-file]');
+    await browser.waitFor("window.parityNativeCalls.length === 1");
+    const single = await browser.evaluate<{ payload: { paths: string[] }; saved: string }>("window.parityNativeCalls[0]");
     assert.deepEqual(single.payload.paths, [join(shelf.root, first.relative_path)]);
     assert.equal(single.saved, markdown + "\n已修改且保留全文。" + suffix);
     assert.equal(shelf.readFile(first.item_id).bytes.toString("utf8"), single.saved);
@@ -245,9 +246,11 @@ fi
     await waitFor("!document.querySelector('[data-shelf-editor]')");
     await evaluate(`document.querySelector(${JSON.stringify(row(second.item_id))}).dispatchEvent(new MouseEvent('click',{bubbles:true,ctrlKey:true}))`);
     await waitFor("document.querySelectorAll('[data-shelf-list=materials] [data-shelf-item].is-on').length === 2");
-    await evaluate("document.body.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,code:'KeyC',key:'c',metaKey:true}))");
-    await waitFor("window.parityNativeCalls.length === 2");
-    const multi = await evaluate<string[]>("window.parityNativeCalls[1].payload.paths");
+    await click("[data-shelf-search]");
+    await command("Input.dispatchKeyEvent", { type: "keyDown", code: "KeyC", key: "c", modifiers: 4 }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyUp", code: "KeyC", key: "c", modifiers: 4 }, sessionId);
+    await browser.waitFor("window.parityNativeCalls.length === 2");
+    const multi = await browser.evaluate<string[]>("window.parityNativeCalls[1].payload.paths");
     assert.deepEqual([...multi].sort(), [join(shelf.root, first.relative_path), join(shelf.root, second.relative_path)].sort());
   });
 

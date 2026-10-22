@@ -1,8 +1,6 @@
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginDefinition, PluginOwnerFilesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { shelfManifest } from "./manifest.js";
-import { shelfUiContribution } from "./ui.js";
-import { shelfSettingsUiContribution } from "./settings-ui.js";
 import { shelfRuntimeActionHandlers, shelfRuntimeActions } from "./runtime-actions.js";
 
 
@@ -22,7 +20,6 @@ export function createShelfPlugin(): PluginDefinition {
     return { kind: "app",
       // Inputs nominate exact candidates; receiving always requires the explicit route confirmation.
       onUpstreamReady: () => {},
-      views: [shelfUiContribution, shelfSettingsUiContribution],
       actions: shelfRuntimeActionHandlers(context, shelfManifest),
       // The old routes only translate parameters; execution is the same registered action MCP and Agents call.
       routes: [

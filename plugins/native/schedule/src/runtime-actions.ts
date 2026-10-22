@@ -37,7 +37,11 @@ export async function scheduleRuntimeActions(projectId: string, services: Plugin
     reminders: createScheduleReminderManagement({ db, projectId, schedule, currentInstallation: owners.reminder }),
     operations: createScheduledOperationManagement({ db, projectId, schedule, currentInstallation: owners.operation }),
     readiness: async () => {
-      const workspace = await services.actions!.invokeQuery<[], ProjectWorkspaceRef | null>(projectsCapabilities.readWorkspace, []);
+      const workspace = await services.actions!.invokeQuery<[], ProjectWorkspaceRef | null>(projectsCapabilities.readWorkspace, []).catch(error => {
+        // A project without workspace services is not ready. Refused or failed reads remain errors.
+        if (error instanceof ActionError && error.code === "actions.dependency_missing") return null;
+        throw error;
+      });
       return { model: services.model?.availability().available === true, workspace: workspace?.realpath_verified === true };
     },
   });

@@ -11,6 +11,7 @@ mod drop_wheel;
 mod drop_wheel_macos;
 mod external_links;
 mod runtime_env;
+mod selected_file;
 #[cfg(target_os = "macos")]
 mod shelf_clipboard_macos;
 #[cfg(target_os = "macos")]
@@ -851,6 +852,7 @@ fn main() {
       shelf_drag_out,
       shelf_copy_files,
       shelf_find_files,
+      selected_file::platform_read_selected_file,
       shelf_admit_paths,
       shelf_open_path,
       shelf_setup_status,

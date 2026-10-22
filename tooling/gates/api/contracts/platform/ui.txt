@@ -84,10 +84,17 @@ export interface UiPageDialogs {
     prompt(message: string, initial?: string): Promise<string | null>;
 }
 
+export interface UiPageDrafts {
+    read(key: string): Promise<string | null>;
+    write(key: string, value: string | null): Promise<void>;
+}
+
 export interface UiPageFiles<Element = unknown> {
     readonly nativeFiles?: {
         copy(paths: readonly string[]): Promise<void>;
         drag(paths: readonly string[], itemIds?: readonly string[]): Promise<void>;
+        open(path: string): Promise<void>;
+        pick(query: string): Promise<readonly File[]>;
     };
     copyText(text: string): Promise<void>;
     download(blob: Blob, filename: string): Promise<void>;

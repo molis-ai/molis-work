@@ -14,6 +14,11 @@ test("SYS-15-F2 S-47 native handoff resolves only existing declared owner files 
     return { "x-molis-plugin-page": (await result.json()).page_id as string };
   };
   const headers = await open("io.molis.work.shelf", prefix);
+  const check = (route = prefix, page = headers) => f.request(route + "/api/host/plugin-page-check", { method: "POST", headers: page, body: {} });
+  assert.equal((await check()).status, 200);
+  assert.equal((await check(`/projects/${q.project_id}`)).status, 403);
+  assert.equal((await check(prefix, { "x-molis-plugin-page": "invented" })).status, 403);
+  assert.equal((await check("", await open(probe.id))).status, 200, "the picker is a public page service, independent of owner files");
   const admitted = await f.request(prefix + "/api/plugins/io.molis.work.shelf/items", {
     method: "POST", headers, body: { filename: "owned.txt", bytes_base64: Buffer.from("only this owner's file").toString("base64") },
   });
@@ -33,5 +38,6 @@ test("SYS-15-F2 S-47 native handoff resolves only existing declared owner files 
   assert.equal((await resolve([item.relative_path], "", await open(probe.id))).status, 403);
   const platform = await f.host.homePlugins!.ready(), installation = f.host.homePlugins!.installation("io.molis.work.shelf")!;
   await platform.runtime.stop(installation.install_id);
+  assert.equal((await check()).status, 403, "a revoked activation cannot search or select a local file");
   assert.equal((await resolve([item.relative_path])).status, 403);
 });

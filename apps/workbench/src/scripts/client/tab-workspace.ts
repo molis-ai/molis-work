@@ -998,7 +998,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       document.title = ops.pluginTitle(focusedView) + " · Molis Work";
     }
     // Surfaces stay where they are while they keep showing: moving a node out and back drops its scroll and focus.
-    // Only what no pane shows any more goes back to the pool, after the loop below.
+    // Hidden isolated pages stay attached: reparenting an iframe reloads its browsing context.
     const mountedNow = new Set();
 
     panesEl.querySelectorAll("[data-tab-pane]").forEach((node) => {
@@ -1094,7 +1094,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     collectMounted().forEach((node) => {
       if (mountedNow.has(node) || node.parentElement === pool) return;
       rememberScroll(node);
-      pool.append(node);
+      if (node.querySelector("iframe[data-plugin-frame]")) node.hidden = true; else pool.append(node);
     });
     const treeSignature = JSON.stringify(state.layout.tree, (key, value) => key === "ratio" ? undefined : value);
     if (panesEl.dataset.treeSignature !== treeSignature) {

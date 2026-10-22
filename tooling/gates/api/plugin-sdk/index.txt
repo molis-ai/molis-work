@@ -265,6 +265,7 @@ export type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui"
 export type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageActions } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageDialogs } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiPageDrafts } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageFiles } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageMessage } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageMessages } from "@molis-ai/molis-work-contracts/platform/ui";

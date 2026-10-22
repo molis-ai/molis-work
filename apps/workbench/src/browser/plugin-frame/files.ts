@@ -28,7 +28,7 @@ export function pageFiles(port: MessagePort, scope: FrameScope, request: UiReque
         } else if (!["image/png", "image/jpeg", "image/webp", "image/gif"].includes(blob.type)) throw new Error("Media type refused");
         if (media.get(element) !== entry || !element.isConnected) return;
         entry.address = URL.createObjectURL(blob); element.src = entry.address;
-      })().catch(error => { if (!entry.controller.signal.aborted && element.isConnected) element.setAttribute("title", request.text(error)); });
+      })().catch(error => { if (!entry.controller.signal.aborted && element.isConnected) { element.setAttribute("title", request.text(error)); element.dispatchEvent(new Event("error")); } });
     },
   };
 }

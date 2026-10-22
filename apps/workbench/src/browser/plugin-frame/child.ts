@@ -5,6 +5,8 @@ import { pageFiles } from "./files.js";
 import { childTerminal } from "./terminal.js";
 import { pageDialogs } from "./dialogs.js";
 import { childView, collapsePage, pageSelection } from "./view.js";
+import { childDrafts } from "./drafts.js";
+import { childNavigation } from "./navigation.js";
 import { childCopy } from "./clipboard.js";
 import { childNativeFiles } from "./native-files.js";
 import { pageEventSource } from "./events.js";
@@ -57,7 +59,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const select = pageSelection(root, scope, config.searchRow);
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
   const host: FrameHost & UiPageActions & Record<string, unknown> = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
-    ...pageDialogs(scope, L),
+    ...pageDialogs(scope, L), drafts: childDrafts(port, scope),
     view: childView(port, scope),
     ...pageFiles(port, scope, globalThis.molisWorkRequest, copyText),
     ...(config.nativeFiles ? { nativeFiles: childNativeFiles(port, scope) } : {}),
@@ -81,6 +83,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
       document.body.hidden = !message.visible; Object.assign(document.documentElement.dataset, message.theme);
       if (prior !== document.documentElement.dataset.resolvedTerminalTheme) window.dispatchEvent(new CustomEvent("molis-work:terminal-theme-change"));
     }
+    else if (message.type === "focus") window.focus();
     else if (message.type === "select") select(message.detail);
     else if (message.type === "collapse") collapsePage(root);
     else if (message.type === "model-ready") document.dispatchEvent(new CustomEvent("molis-work:model-ready"));
@@ -102,5 +105,5 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   await load("/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js");
   const factory = globalThis.molisWorkbenchPluginFactories?.[config.bundle];
   if (!factory) throw new Error(L("无法加载界面，请重试"));
-  factory(host); context(); send({ type: "ready" });
+  factory(host); childNavigation(port, scope, config); context(); send({ type: "ready" });
 }

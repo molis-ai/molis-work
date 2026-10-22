@@ -601,7 +601,7 @@ export class LocalHost<Runtime> {
       : normalizeReference(referenceOrStorageKey).storage_key;
     const entry = this.entries.get(storageKey);
     if (!entry) return false;
-    entry.state = "closing"; entry.observing.abort(hostErrors.project_closing("这个 Project 的 Local Host runtime 正在关闭"));
+    entry.state = "closing"; entry.observing.abort(this.state === "running" ? hostErrors.project_closing("这个 Project 的 Local Host runtime 正在关闭") : new ActionError("actions.host_closed", "能力所在运行环境已关闭"));
     this.closingKeys.add(storageKey);
     try {
       await entry.operationTail;

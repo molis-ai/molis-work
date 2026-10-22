@@ -10,7 +10,7 @@ test("ISSUE-35 ISSUE-36 ISSUE-39 ISSUE-40 ISSUE-50 a chord, a sentence and ⌘�
   const b = await openGoalBrowser(t, "user"); if (!b) return;
   let release!: () => void; const firstReply = new Promise<void>(resolve => { release = resolve; }); t.after(() => release());
   const { requests, namings } = await issueModel(t, b.homeDirectory, { firstReply });
-  const v = issueView(b);
+  const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
   // A tool with a chord is loaded while the page is idle, so the first press shows a ready view.
   await b.waitFor(`'loaded' in (document.querySelector('[data-side-body="plugin:issues/capture"] iframe')?.dataset ?? {})`, 10_000);
@@ -47,7 +47,7 @@ test("ISSUE-35 ISSUE-36 ISSUE-39 ISSUE-40 ISSUE-50 a chord, a sentence and ⌘�
 test("ISSUE-38 undo takes a new record back and returns the words to an empty composer", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "user"); if (!b) return;
   await issueModel(t, b.homeDirectory);
-  const v = issueView(b);
+  const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
   await v.chord(); await v.composerFocused();
   await v.type("保存按钮点了没反应"); await v.send();
@@ -70,7 +70,7 @@ test("ISSUE-37 ISSUE-50 a capture Issue cannot name stays at the top and opens w
   const b = await openGoalBrowser(t, "user"); if (!b) return;
   const behavior: Parameters<typeof issueModel>[2] = { question: "free-text" };
   await issueModel(t, b.homeDirectory, behavior);
-  const v = issueView(b);
+  const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
   await v.chord(); await v.composerFocused();
   await v.type("111"); await v.paste(); await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1");
@@ -109,7 +109,7 @@ test("ISSUE-37 ISSUE-50 a capture Issue cannot name stays at the top and opens w
 test("ISSUE-37 abandoning an unfinished capture keeps nothing", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "user"); if (!b) return;
   await issueModel(t, b.homeDirectory, { question: "free-text" });
-  const v = issueView(b);
+  const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
   await v.chord(); await v.composerFocused();
   await v.type("这条不要了"); await v.send();
@@ -118,13 +118,13 @@ test("ISSUE-37 abandoning an unfinished capture keeps nothing", { timeout: 90_00
   await v.press("[data-issue-dialog] [value=confirm]");
   await v.until("$('[data-issue-detail]').hidden && !$('[data-state]')");
   assert.equal((await v.list()).items.length, 0);
-  assert.equal(await b.evaluate("localStorage.getItem('molis:issue-unsent')"), "[]", "nothing unfinished is left on the device");
+  assert.equal(await v.ask("localStorage.getItem('molis:issue-unsent')"), "[]", "nothing unfinished is left on the device");
 });
 
 test("ISSUE-37 an unfinished capture survives leaving the page and saves once from where it was left", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "user"); if (!b) return;
   await issueModel(t, b.homeDirectory, { unavailable: true });
-  const v = issueView(b);
+  const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
   await v.chord(); await v.composerFocused();
   await v.type("离开页面前没整理完的一条"); await v.paste(); await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1");
@@ -142,14 +142,14 @@ test("ISSUE-37 an unfinished capture survives leaving the page and saves once fr
   await v.until("$('[data-issue-detail]').hidden && !$('[data-state]')");
   const { items } = await v.list();
   assert.equal(items.length, 1); assert.equal(items[0]!.title, "离开页面后补记");
-  assert.equal(await b.evaluate("localStorage.getItem('molis:issue-unsent')"), "[]", "nothing unfinished is left on the device");
+  assert.equal(await v.ask("localStorage.getItem('molis:issue-unsent')"), "[]", "nothing unfinished is left on the device");
 });
 
 
 test("ISSUE-36 while an input method is composing, ⌘↵ and the IME's own Enter send nothing; what is sent is exactly what the composer holds", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "user"); if (!b) return;
   await issueModel(t, b.homeDirectory);
-  const v = issueView(b);
+  const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
   await v.chord(); await v.composerFocused();
   await v.type("登录页");

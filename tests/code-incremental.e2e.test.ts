@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
+import { codeColouringProjection } from "./fixtures/code-colouring.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 // specs/visual-ui-experience VUX-33 (§code-diff, incremental feed): a code block being streamed grows where it is. Its owner
@@ -127,10 +128,10 @@ test("VUX-33: Coding's streamed code block grows in place, coloured from its las
   model.finish();
   const block = `document.querySelector('${coding} [data-coding-turns] [data-kind="assistant"] pre[data-enriched]')`;
   await waitFor(`${block}?.querySelector('code .tok-keyword')`, 60_000);
-  await evaluate(`window.block = ${block}; window.piece = window.block.querySelector('code').firstChild; window.copyButton = window.block.querySelector('.coding-code-copy')`);
+  await evaluate(`window.block = ${block}; window.piece = window.block.querySelector('code .tok-comment'); window.copyButton = window.block.querySelector('.coding-code-copy')`);
   await waitFor(`[...document.querySelectorAll('${coding} [data-coding-turns] [data-kind="assistant"]')].some(node => node.textContent.includes('写完了'))`, 60_000);
   const written = await evaluate<{ same: boolean; piece: boolean; button: boolean; copies: number; text: string }>(`(() => { const pre = ${block};
-    return { same: pre === window.block, piece: pre.querySelector('code').firstChild === window.piece, button: pre.querySelector('.coding-code-copy') === window.copyButton,
+    return { same: pre === window.block, piece: pre.querySelector('code .tok-comment') === window.piece, button: pre.querySelector('.coding-code-copy') === window.copyButton,
       copies: pre.querySelectorAll('.coding-code-copy').length, text: pre.querySelector('code').textContent }; })()`);
   assert.equal(written.same, true, "the block is the same node from its first coloured line to its last");
   assert.equal(written.piece, true, "and so is its first coloured piece");
@@ -140,8 +141,7 @@ test("VUX-33: Coding's streamed code block grows in place, coloured from its las
   await evaluate("window.copied = null; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text) => { window.copied = text; } } }); window.copyButton.click()");
   await waitFor("window.copied !== null", 5_000);
   assert.equal((await evaluate<string>("window.copied")).replace(/\n$/, ""), code);
-  const coloured = await evaluate<string>(`${block}.querySelector('code').innerHTML`);
-  const whole = await evaluate<string>(`(() => { const code = document.createElement('code'); const pieces = (${codeTokens.toString()})(${block}.querySelector('code').textContent, 'ts');
-    code.append(...pieces.map(([kind, value]) => { if (!kind) return document.createTextNode(value); const span = document.createElement('span'); span.className = 'tok-' + kind; span.textContent = value; return span; })); return code.innerHTML; })()`);
-  assert.equal(coloured, whole, "grown from its last line, the block is coloured exactly as colouring it whole would");
+  const coloured = await evaluate<Array<[string | null, string]>>(`(${codeColouringProjection})(${block}.querySelector('code'))`);
+  const whole = codeTokens(written.text, "ts");
+  assert.deepEqual(coloured, whole, "grown from its last line, every character has the same token kind as colouring it whole");
 });

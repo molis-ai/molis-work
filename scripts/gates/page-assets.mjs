@@ -238,9 +238,9 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // VUX-43 (slice 93): a round's live time goes from minutes to hours at an hour instead of counting minutes past its reserved width, one new
-  // phrase in both languages. 382021 → 382125 (+104).
-  "/assets/molis-work-plugins/coding.js": [382021, 382125],
+  // VUX-33: complete-line layout blocks bound accumulated inline layout while preserving readable text, selected prefixes and the long-line slice budget.
+  // Reviewed 2026-10-23: 4 KB flat slices and a stable tail did not improve the bottleneck; preserving pre/code font struts also retains line and tab geometry. 382075 → 384285 (+2210).
+  "/assets/molis-work-plugins/coding.js": [382075, 384285],
   // Forms reflow (slice 85): moved and removed questions and options ease through the page's molisReflow, with the fallback when it is absent. 30244 → 30383 (+139).
   "/assets/molis-work-plugins/form.js": [30244, 30383],
   "/assets/molis-work-plugins/workflows.js": [83019, 83135],

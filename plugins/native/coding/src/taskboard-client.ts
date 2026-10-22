@@ -105,7 +105,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         // A claim held quiet too long by a session with no round running reads as expired, for you to reassign.
         const short=(label)=>String(label||'').replace(/（认领已过期.*$/,''),expired=holder?.expired?{expired:true}:{};
         const doer=!holder?executor:holder.kind==='session'?{name:executor.name,detail:L('coding.board.holder',{holder:holder.expired?holder.label:L('coding.board.this-session')})+' · '+executor.detail,...expired}
-          :holder.kind==='subtask'?{name:roleName(held?.role_id)||holder.label,detail:L('coding.board.holder',{holder:roleName(held?.role_id)||holder.label})+(held?' · '+L('coding.board.held-subagent',{role:roleName(held.role_id)||held.role_name}):'')}
+          :holder.kind==='subtask'?{name:holder.label,detail:L('coding.board.holder',{holder:holder.label})+(held?' · '+L('coding.board.held-subagent',{role:roleName(held.role_id)||held.role_name}):'')}
           :holder.kind==='person'?{name:L('coding.board.you'),detail:L('coding.board.holder-you'),person:true}
           :holder.kind==='none'?{name:L('coding.board.unclaimed'),detail:L('coding.board.no-holder'),none:true}:{name:short(holder.label),detail:L('coding.board.holder',{holder:holder.label}),...expired};
         const done=mine.length?mine.filter(row=>['done','accepted'].includes(row.state[2])).length:settled(node)||decided==='accepted'?1:0;

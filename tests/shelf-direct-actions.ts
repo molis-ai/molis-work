@@ -23,5 +23,8 @@ export function directShelfActions(ports: ShelfActionPorts): BoundActionClient {
  */
 export function shelfStoreProvider(store: () => ShelfStore, ai: ShelfAiPorts = shelfTestAi()): ActionProviderRegistration {
   return { provider: { provider_id: SHELF_PLUGIN_ID, plugin_id: SHELF_PLUGIN_ID, title: "Shelf", kind: "plugin" },
-    definitions: SHELF_ACTIONS, handlers: createShelfActionHandlers(shelfStorePorts(store, ai)) };
+    definitions: SHELF_ACTIONS, handlers: createShelfActionHandlers(shelfStorePorts(store, selection => {
+      const state = ai.status(selection);
+      return state.available ? { available: true } : { available: false, code: "actions.connection_required", reason: state.reason ?? "请先配置 AI 模型" };
+    })) };
 }

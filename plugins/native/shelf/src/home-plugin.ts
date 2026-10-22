@@ -1,8 +1,8 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 import type { PluginDefinition, PluginMaterialsClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/services/materials";
-import type { ShelfAiPorts, ShelfDeviceSettings, ShelfMaterialPorts, ShelfModelSelection } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfDeviceSettings, ShelfMaterialPorts, ShelfModelSelection } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { openShelfStore, shelfRuntimeProbe, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfActionHandlers, type ShelfActionPorts } from "./actions.js";
 import { shelfAiPorts } from "./ai.js";
@@ -25,14 +25,15 @@ function shelfMaterialPorts(materials: PluginMaterialsClient): ShelfMaterialPort
 
 /**
  * The store's methods as the actions call them; each call opens the store fresh, so it reads the current agent PATH.
- * Availability is asked outside any action, where Shelf's files cannot be read: it answers from the model choice the last
- * action read or saved (this instance is the files' only writer), and before any has, from whether any model is configured.
+ * Availability is asked outside any action (a workflow listing its steps asks it inside its own), where Shelf's files cannot be
+ * read: it answers from the model choice the last action read or saved (this instance is the files' only writer), and before any
+ * has, from whether any model is configured.
  */
-export function shelfStorePorts(store: () => ShelfStore, ai: ShelfAiPorts): ShelfActionPorts {
+export function shelfStorePorts(store: () => ShelfStore, availability: (selection: ShelfModelSelection | null) => ActionAvailability): ShelfActionPorts {
   let selection: ShelfModelSelection | null = null;
   const remember = (settings: ShelfDeviceSettings) => { selection = settings.model_selection ?? null; return settings; };
   return {
-    aiStatus: () => ai.status(selection),
+    aiAvailability: () => availability(selection),
     snapshot: async () => { const snapshot = await store().snapshot(); remember(snapshot.settings); return snapshot; },
     settings: () => remember(store().settings()),
     saveSettings: async patch => remember(await store().saveSettings(patch)),
@@ -65,6 +66,6 @@ export function createShelfHomePlugin(): PluginDefinition {
     if (!ownerFiles || !model || !materials) throw new ActionError("actions.unredeemed", "宿主未提供置物架运行服务");
     const ports = shelfMaterialPorts(materials), ai = shelfAiPorts(model, ports);
     const store = () => openShelfStore("", ownerFiles, shelfRuntimeProbe(), ports, ai);
-    return { kind: "app", actions: createShelfActionHandlers(shelfStorePorts(store, ai)) };
+    return { kind: "app", actions: createShelfActionHandlers(shelfStorePorts(store, selection => model.availability(selection ?? undefined))) };
   } };
 }

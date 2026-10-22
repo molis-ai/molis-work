@@ -6,11 +6,15 @@ import { assertOwnerFilesEntries } from "./plugin-owner-files-entries.js";
 const definitionOf = (fixture: PluginFixture) => "manifest" in fixture ? fixture : fixture.definition;
 const dualOf = (fixture: PluginFixture) => !("manifest" in fixture) && fixture.dual_instance === true;
 
-/** Host configuration is checked before any Home or project instance can start. */
+/**
+ * Host configuration is checked before any Home or project instance can start. A host without a Home starts no Home instance, so the
+ * shipped Home plugins (whose owner files need a Home) are checked only when there is one; fixtures are checked either way.
+ */
 export function assertFixtureScopes(fixtures: { home?: readonly PluginFixture[]; project?: readonly PluginFixture[] } | undefined, hasHome: boolean): void {
   const home = fixtures?.home ?? [];
-  assertOwnerFilesEntries([...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.runtime ? [{ ...entry.runtime, definition: entry.runtime.create() }] : []),
-    ...pluginFixtureDeclarations(home)], pluginFixtureDeclarations(fixtures?.project ?? []), hasHome ? { stores: storesWithFixtures(fixtures) } : null);
+  const shipped = hasHome ? BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.runtime ? [{ ...entry.runtime, definition: entry.runtime.create() }] : []) : [];
+  assertOwnerFilesEntries([...shipped, ...pluginFixtureDeclarations(home)], pluginFixtureDeclarations(fixtures?.project ?? []),
+    hasHome ? { stores: storesWithFixtures(fixtures) } : null);
   if (home.length && !hasHome) throw new Error("Home 夹具需要明确的 Home 目录");
   for (const fixture of fixtures?.project ?? []) if (dualOf(fixture)) throw new Error(`项目夹具 ${definitionOf(fixture).manifest.plugin_id} 不能自称双实例：标记只写在 Home 那一半`);
   const projectIds = new Set((fixtures?.project ?? []).map(item => definitionOf(item).manifest.plugin_id));

@@ -100,7 +100,9 @@ for (const entry of ['admit', 'clipboard'] as const) for (const stop of ['cancel
   if (entry === 'admit' && stop === 'delete-clipboard') continue;
   test(`Shelf ${entry} ${stop} during real capture leaves no material or file and can recover`, { timeout: 20_000 }, async t => {
   const f = await fixture(t), controller = new AbortController();
-  const original = (await f.store().snapshot()).materials, files = await readdir(join(f.home, 'shelf', 'files'));
+  // Reading the shelf writes nothing (D6), so a new shelf may have no files folder yet: none is the same as an empty one.
+  const copies = () => readdir(join(f.home, 'shelf', 'files')).catch((error: NodeJS.ErrnoException) => { if (error.code === 'ENOENT') return []; throw error; });
+  const original = (await f.store().snapshot()).materials, files = await copies();
   const clip = (await f.store().addClipboard(f.origin + '/hold'))!;
   const pending = f.service.invoke({ ...f.caller, signal: controller.signal }, entry === 'admit' ? shelfActions.admit : shelfActions.clipToMaterial,
     entry === 'admit' ? { text: f.origin + '/hold' } : { clip_id: clip.clip_id });
@@ -113,7 +115,7 @@ for (const entry of ['admit', 'clipboard'] as const) for (const stop of ['cancel
   response.writeHead(200, { 'content-type': 'text/html' }); response.end('<p>late body</p>');
   await rejected; await f.closed;
   assert.deepEqual((await f.store().snapshot()).materials, original);
-  assert.deepEqual(await readdir(join(f.home, 'shelf', 'files')), files);
+  assert.deepEqual(await copies(), files);
   // A new authorized provider/call can still save a real page after any of these interruptions.
   const recovered = new ActionService(), dispose = recovered.registerProvider(hostShelf(f.home));
   try {

@@ -1,7 +1,7 @@
-import { ActionError, type ActionResultView, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionAvailability, type ActionResultView, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobOutcome, ShelfJobRecord, ShelfRecipeId, ShelfSettingsPatch, ShelfSnapshot,
-  ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput, ShelfExecutionControl, ShelfAiStatus, ShelfAdmitActionInput,
+  ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput, ShelfExecutionControl, ShelfAdmitActionInput,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { parseSettingsWriteBody, shelfErrors, SHELF_RECIPES, SHELF_SHORTCUT_RECIPE, SHELF_JOB_TIMEOUT_MS } from "@molis-ai/molis-work-module-shelf";
@@ -90,7 +90,8 @@ export const SHELF_ACTION_PERMISSIONS = [...new Set(SHELF_ACTIONS.flatMap(defini
 
 /** The personal Shelf store, bound by the Host to this Home. */
 export interface ShelfActionPorts {
-  aiStatus?(): ShelfAiStatus;
+  /** Whether a recipe can reach a model now; asked outside any action, so it reads no Shelf file and no other plugin's model list. */
+  aiAvailability?(): ActionAvailability;
   snapshot(): ShelfSnapshot | Promise<ShelfSnapshot>;
   settings(): ShelfDeviceSettings;
   saveSettings(patch: ShelfSettingsPatch): ShelfDeviceSettings | Promise<ShelfDeviceSettings>;
@@ -114,10 +115,7 @@ export interface ShelfActionPorts {
 export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandlerBinding[] {
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller),
-    ...(definition.capability_id === shelfActions.generate.capability_id && ports.aiStatus ? { availability: () => {
-      const state = ports.aiStatus!();
-      return state.available ? { available: true } : { available: false, code: "actions.connection_required", reason: state.reason ?? "请先配置 AI 模型" };
-    } } : {}),
+    ...(definition.capability_id === shelfActions.generate.capability_id && ports.aiAvailability ? { availability: () => ports.aiAvailability!() } : {}),
   });
   const bytes = (encoded: string) => {
     const decoded = Buffer.from(encoded, "base64");

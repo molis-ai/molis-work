@@ -150,14 +150,23 @@ test("discovery has separate model cost/permissions, AI cannot borrow local extr
 
 test("Shelf rechecks the exact model binding after the final business authority wait", async () => fixture(async f => {
   const { item } = await f.actions.invoke(a.admit, { text: "Original facts", title: "fact", capture_pages: false });
-  f.answer(() => {
+  const unchanged = () => JSON.parse(readFileSync(join(f.home, "shelf", "catalog.json"), "utf8")).jobs.every((job: { status: string }) => job.status === "running");
+  const switchOff = (off: (modelId: string, request: Request) => boolean) => f.answer(request => {
     const provider = f.catalog.models.list()[0]!;
-    f.catalog.models.upsert({ ...provider, models: provider.models.map(model => ({ ...model, enabled: false })) });
+    f.catalog.models.upsert({ ...provider, models: provider.models.map(model => off(model.model_id, request) ? { ...model, enabled: false } : model) });
     return "# 摘要\n\nOriginal facts.";
   });
+  // Only the model this call used goes away while it answers: another stays connected, so the action is still available and Shelf's
+  // own recheck of the exact binding refuses the result.
+  switchOff((modelId, request) => modelId === request.model);
   await assert.rejects(f.actions.invoke(a.generate, { recipe: "summarize", item_id: item.item_id }), { code: "shelf.configuration_changed" });
-  assert.equal(f.requests.length, 1); assert.equal((await f.actions.invoke(a.snapshot, {})).results.length, 0);
-  assert.equal(JSON.parse(readFileSync(join(f.home, "shelf", "catalog.json"), "utf8")).jobs[0].status, "running");
+  assert.equal(f.requests.length, 1); assert.equal((await f.actions.invoke(a.snapshot, {})).results.length, 0); assert.ok(unchanged());
+  // With no model left at all, the platform's recheck of the action's availability before the effect refuses first; nothing is kept either.
+  const provider = f.catalog.models.list()[0]!;
+  f.catalog.models.upsert({ ...provider, models: provider.models.map(model => ({ ...model, enabled: true })) });
+  switchOff(() => true);
+  await assert.rejects(f.actions.invoke(a.generate, { recipe: "summarize", item_id: item.item_id }), { code: "actions.connection_required" });
+  assert.equal(f.requests.length, 2); assert.equal((await f.actions.invoke(a.snapshot, {})).results.length, 0); assert.ok(unchanged());
 }));
 
 /** The Home instance's model service as the plugin sees it, answered by the fixture's model; only the extraction limit differs. */

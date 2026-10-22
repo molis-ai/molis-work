@@ -562,7 +562,6 @@ export class ShelfStore {
         lifetime.assertActive(); assertCurrent(); validateResult?.();
         writer.replaceFileAtomic(outputFile, Buffer.from(output));
         appendEvent(writer, jobRoot, "写入 output/");
-        unlockDirectories(writer, inputRoot);
         const catalog = this.catalogFrom(writer);
         const result = this.fileResult(writer, catalog, { outputFile, outputName, jobId, sourceItemIds: items.map((item) => item.item_id), status: "done", coverage: materialCoverage });
         const finished: ShelfJobRecord = {
@@ -578,7 +577,6 @@ export class ShelfStore {
         return { job: finished, result, origin_hash: items[0].origin_hash };
       });
     } catch (error) {
-      await this.unlock(inputRoot);
       await beforeCommit();
       if (isShelfFailure(error) && error.code === "shelf.configuration_changed") throw error;
       const cancelled = isShelfFailure(error) && error.code === "shelf.cancelled";
@@ -601,13 +599,7 @@ export class ShelfStore {
     } finally {
       activeJobs.delete(key);
       lifetime.dispose();
-      await this.unlock(inputRoot);
     }
-  }
-
-  /** Puts the job's copied inputs back to writable folders, so cleanup later can remove them. */
-  private unlock(inputRoot: string): Promise<void> {
-    return this.files.write((writer) => { unlockDirectories(writer, inputRoot); });
   }
 
   private requireRecipe(recipe: ShelfRecipeId) {
@@ -1039,23 +1031,15 @@ function uniqueTitle(preferred: string, taken: readonly string[]): string {
 }
 
 /**
- * `input/` is the frozen source copy consumed by the Host. The
- * folder itself is locked only while the job runs, so ordinary cleanup later
- * still works; the files stay read-only.
+ * `input/` is the frozen source copy the job reads: its files are read-only. Its folders stay writable, so cleanup works even after a
+ * cancelled or revoked call, which may write nothing more; what the job reads is checked against its hash before every commit.
  */
 function freezeReadOnly(writer: PluginOwnerFilesWriter, target: string): void {
   const stat = writer.stat(target);
   if (!stat) return;
   if (stat.kind === "directory") {
     for (const entry of writer.list(target)) freezeReadOnly(writer, `${target}/${entry.name}`);
-  }
-  writer.setAccess(target, "readonly");
-}
-
-function unlockDirectories(writer: PluginOwnerFilesWriter, target: string): void {
-  if (writer.stat(target)?.kind !== "directory") return;
-  writer.setAccess(target, "readwrite");
-  for (const entry of writer.list(target)) unlockDirectories(writer, `${target}/${entry.name}`);
+  } else writer.setAccess(target, "readonly");
 }
 
 function thawTree(writer: PluginOwnerFilesWriter, target: string): void {

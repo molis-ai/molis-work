@@ -37,6 +37,7 @@ export interface ShelfAiPorts {
         option_id: string | null;
         shortcut_prompt?: string;
         selection: ShelfModelSelection;
+        files: PluginOwnerFilesReader;
         root: string;
         sources: readonly {
             relative_path: string;
@@ -46,7 +47,7 @@ export interface ShelfAiPorts {
         }[];
     }, control: ShelfExecutionControl): Promise<{
         text: string;
-        execution: BoundedInferenceReceipt;
+        execution?: BoundedInferenceReceipt;
         coverage?: readonly string[];
         validateResult?(): void;
     }>;

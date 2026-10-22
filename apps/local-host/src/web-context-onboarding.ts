@@ -24,7 +24,7 @@ export function createContextOnboardingHttp(ports: ContextOnboardingPorts) {
       const id = match[1]!;
       if (req.method === "GET" && !match[2]) json(res, 200, readContextJourney(home, id));
       else if (req.method === "POST" && match[2] === "reopen") json(res, 200, reopenContextJourney(home, id));
-      else if (req.method === "POST" && match[2] === "selection") json(res, 200, selectContextSources(home, id, await readNativePluginJsonBody(req, 12_000_000)));
+      else if (req.method === "POST" && match[2] === "selection") json(res, 200, selectContextSources(home, id, await readNativePluginJsonBody(req, 72_000_000)));
       else if (req.method === "POST" && match[2] === "start") json(res, 202, startContextJourney(home, id, ports));
       else if (req.method === "POST" && match[2] === "draft") json(res, 200, updateContextDraft(home, id, await readNativePluginJsonBody(req)));
       else if (req.method === "POST" && match[2] === "adopt") json(res, 200, await adoptContextJourney(home, id, await readNativePluginJsonBody(req), ports));

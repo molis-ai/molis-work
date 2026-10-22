@@ -43,7 +43,8 @@ test("VUX-46 to VUX-50: marks, words and button rows are in order on the common 
     await command("Emulation.setDeviceMetricsOverride", { width: mode.width, height: mode.height, deviceScaleFactor: 1, mobile: mode.touch }, sessionId);
     await command("Emulation.setTouchEmulationEnabled", mode.touch ? { enabled: true, maxTouchPoints: 5 } : { enabled: false }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: mode.dark ? "dark" : "light" }, { name: "pointer", value: mode.touch ? "coarse" : "fine" }] }, sessionId);
-    const paths = [["project", `/projects/${projectId}/`], ...mode.pages.map((id) => [id, `/projects/${projectId}/?openPlugin=${id}`]), ["settings", "/settings"], ["catalog", "/__ui/catalog"]];
+    const paths = [["project", `/projects/${projectId}/`], ...mode.pages.map((id) => [id, `/projects/${projectId}/?openPlugin=${id}`]), ["settings", "/settings"], ["catalog", "/__ui/catalog"],
+      ["chooser", "/"], ["onboarding", "/onboarding?mode=new-project"]];
     for (const [id, path] of paths) {
       await navigate(() => command("Page.navigate", { url: origin + path }, sessionId));
       await waitFor("document.readyState === 'complete'", 20_000);

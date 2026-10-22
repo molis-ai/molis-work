@@ -1,11 +1,10 @@
 import type { ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
+import { bindOwnerPluginAction, parsePorcelainStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { gitActions, type GitSelected } from "./action-definitions.js";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parseFilePath, workspaceReadActions, prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, GIT_RESULT_TYPE,
   type GitOperation, type GitReviewedResult, type WorkspaceGitQuery, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { parsePorcelainStatus } from "./status.js";
 import { projectGit } from "./projection.js";
 import { gitErrors } from "./errors.js";
 

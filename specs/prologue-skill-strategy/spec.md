@@ -51,7 +51,7 @@ Prologue 的 `skill/` 已经有：精确版本登记、`bounded` / `full-package
 
 三种来源都走 `prepareSkillIntent` / `assertIntentUnchanged` / 工具权限岛；没有“模型专用”的近路。
 
-### 3.3 渐进披露：元数据 → 正文 → 资源
+### 3.3 渐进披露：SDK 侧按需读取
 
 - **元数据**常驻：`id@version`、`label`、`description`、`when_to_use`、`when_not_to_use`、`applies_to`、`argument_hint`、`tools` 摘要。
 - **正文**只在被选中/点名/搜索后读取；`body` 仍是 ≤ 20k 字。
@@ -79,7 +79,9 @@ Prologue 的 `skill/` 已经有：精确版本登记、`bounded` / `full-package
 - `fromRoot` 仍要根被信任；搜索/目录可以列出，执行前才要求信任。
 - 技能不能改工具闭集、不能改硬敏感名单、不能给自己加审批。
 
-### 3.7 观测与评测
+### 3.7 运行期观测与评测
+
+这一节只做运行期效果，不重复 skill-packs 的包形状、安装与作者回放。
 
 - 每次调用记 `SkillInvocationReceipt`：`skill`、`version`、`source`（人/模型/派生）、`selectionReason`、`parametersFingerprint`、`toolIsland`、`status`、`durationMs`、`tokens`、`resultRef`。
 - 只记引用和摘要，不记正文；失败不记成成功。
@@ -134,7 +136,7 @@ interface SkillCatalogEntry {
 | `packages/contracts` | `AgentSkillDeclaration` 对齐新字段；`skill-invoked` 事件；API 快照 | 不复制 Prologue 的类型 |
 | `packages/storage` | 复用调用记录/审计；不新增第二套方法账 | 不存正文副本 |
 
-Molis 的 [skill-packs](../skill-packs/spec.md) 继续拥有包形状、安装、渐进披露与作者流程；本 spec 只把“选择/唤起/组合/观测”接到那套包上。两处冲突时以 skill-packs 的安装与信任规则为准。
+Molis 的 [skill-packs](../skill-packs/spec.md) 继续拥有包形状、安装、文件披露与作者流程；本 spec 只把“选择/唤起/组合/观测”接到那套包上。两处冲突时以 skill-packs 的安装与信任规则为准。
 
 ## 6. 分期
 

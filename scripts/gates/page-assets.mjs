@@ -238,11 +238,10 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // specs/visual-ui-experience VUX-12 (slice 72): a Pages document asked for that cannot be read says so in the document's
-  // place, with no editing tools and the way back to the list; a quiet reopen (reload, Back) still forgets it without a word.
-  "/assets/molis-work-plugins/pages.js": [48325, 48547],
-  "/assets/molis-work-workbench.css": [1621554, 1621813],
-  "/assets/molis-work-workbench.js": [1177268, 1177274],
+  // specs/visual-ui-experience VUX-12 (slice 73): Workflows and Alchemist say an item they were asked to open is gone, in
+  // their own words (English included), and stay quiet on a quiet reopen.
+  "/assets/molis-work-plugins/alchemist.js": [52269, 52395],
+  "/assets/molis-work-plugins/workflows.js": [82561, 82677],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

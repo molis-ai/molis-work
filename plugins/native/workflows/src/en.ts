@@ -13,6 +13,7 @@ export const WORKFLOWS_EN: Record<string, string> = {
   "模板转换": "Template transform",
   "工作流程": "Workflows",
   "工作流程请求失败": "Workflow request failed",
+  "这条流程不存在或已删除": "This workflow does not exist or was deleted",
   "还没有站": "No stations yet",
   "还没有工作流程": "No workflows yet",
   "把已有插件按顺序串起来，定好上一步的结果怎样交给下一步。每走一次都会留下这一次自己的内容。": "Chain existing plugins in order and decide how each step's result is handed to the next. Every run keeps its own content.",

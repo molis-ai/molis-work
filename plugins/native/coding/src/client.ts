@@ -15,13 +15,14 @@ import { SESSION_PAGE, SESSION_WINDOW } from "./session-window.js";
 import { CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT } from "./usage-meter-client.js";
 import { CODING_COMPOSER_MODEL_CLIENT_FACTORY_SCRIPT } from "./composer-model-client.js";
 import { CODING_COOPERATION_CLIENT_FACTORY_SCRIPT } from "./cooperation-client.js";
-import { codeLanguage, codeTokens, diffRowTokens } from "./highlight.js";
+import { codeLanguage, codeTokens, diffRowTokens, growCodeTokens } from "./highlight.js";
 import { CODING_COMMANDS_CLIENT_FACTORY_SCRIPT } from "./commands-client.js";
 import { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 import { CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT } from "./subagent-cards-client.js";
 import { createCodingTimeline } from "./timeline.js";
 import { codingTimelineWords } from "./timeline-words.js";
 import { createCodingTurnChanges } from "./turn-changes-client.js";
+import { createCodingCodePaint } from "./code-paint-client.js";
 import { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "./input-receipts-client.js";
 import { CODING_DRAFT_CLIENT_FACTORY_SCRIPT } from "./draft-client.js";
 import { codingQuestionAnswered } from "./question-answered-client.js";
@@ -552,15 +553,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   // Code reads as code: fenced blocks and diff lines are coloured from text pieces, never from model-written markup.
   const codeLanguageOf = ${codeLanguage.toString()};
   const tokensOf = ${codeTokens.toString()};
-  const paintInto = (target, text, language) => {
-    if(!language || text.length > 40000)return false;
-    const pieces=tokensOf(text,language);target.replaceChildren(...pieces.map(([kind,value])=>{if(!kind)return document.createTextNode(value);const span=make('span');span.className='tok-'+kind;span.textContent=value;return span;}));return true;
-  };
-  const paintBlock = (code) => {
-    if(code.dataset.painted)return;code.dataset.painted='true';
-    const named=[...code.classList].find(name=>name.startsWith('language-'))||'',text=code.textContent;
-    paintInto(code,text,codeLanguageOf(named) || (/^\s*[\[{]/.test(text) && /[\]}]\s*$/.test(text) ? 'json' : /^\s*\$ /.test(text) ? 'sh' : ''));
-  };
+  const {pieceNode,paintInto,paintBlock,growCode,paintRows,source:codeSource}=(${createCodingCodePaint.toString()})(tokensOf,${growCodeTokens.toString()},codeLanguageOf);
   // Diff lines keep their sign; the rest of each line is coloured by the file's language, in order, so a block comment
   // spanning lines stays a comment (see diffRowTokens). Side by side colours each side on its own, as the file it shows.
   const diffRowTokens = ${diffRowTokens.toString()};
@@ -568,18 +561,16 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const codes=[...list.querySelectorAll(':scope > li > code'+side)].filter(code=>code.dataset.kind!=='blank');if(!codes.some(code=>!code.dataset.painted))return;
     const language=codeLanguageOf(list.closest('[data-code-path]').dataset.codePath || '');
     const rows=codes.map(code=>{const sign=code.querySelector('.diff-sign');return {code,sign,kind:code.dataset.kind||code.parentElement.dataset.kind||'',text:[...code.childNodes].filter(node=>node!==sign).map(node=>node.textContent).join('')};});
-    const painted=language && rows.every(row=>row.text.length<=40000) ? diffRowTokens(rows,language,tokensOf) : null;
-    rows.forEach((row,index)=>{
-      if(row.code.dataset.painted)return;row.code.dataset.painted='true';
-      if(!painted)return;
-      row.code.replaceChildren(...(row.sign?[row.sign]:[]),...painted[index].map(([kind,value])=>{if(!kind)return document.createTextNode(value);const span=make('span');span.className='tok-'+kind;span.textContent=value;return span;}));
-    });
+    // A line past 40,000 characters stays text and the rest are coloured, a slice a frame (paintRows); splitting is cheap.
+    const painted=language ? diffRowTokens(rows,language,tokensOf) : null;
+    const fresh=rows.map((row,index)=>({...row,pieces:painted?.[index]})).filter(row=>!row.code.dataset.painted && (row.code.dataset.painted='true') && row.pieces);
+    paintRows(fresh,(step)=>lifetime.frame(()=>{if(list.isConnected)step();}));
   }));
   let paintFrame=0;lifetime.observe(new MutationObserver(()=>{if(paintFrame)return;paintFrame=lifetime.frame(()=>{paintFrame=0;paintDiffs(root);});}),root,{childList:true,subtree:true});
   const enrichCode = (node) => node.querySelectorAll('pre:not([data-enriched])').forEach(pre => {
-    pre.dataset.enriched='';const code=pre.querySelector('code'),raw=(code || pre).textContent;if(code)paintBlock(code); // copied as written, not from the colours
+    pre.dataset.enriched='';const code=pre.querySelector('code');codeSource.set(pre,(code || pre).textContent);if(code)paintBlock(code); // copied as written, not from the colours
     const button=make('button'); button.type='button'; button.className='mw-btn coding-code-copy'; button.textContent=L('coding.copy.label');
-    lifetime.listen(button,'click',()=>window.molisCopy?.(button,()=>raw,{done:L('coding.copy.done'),failed:L('coding.copy.failed')})); pre.append(button);
+    lifetime.listen(button,'click',()=>window.molisCopy?.(button,()=>codeSource.get(pre),{done:L('coding.copy.done'),failed:L('coding.copy.failed')})); pre.append(button);
   });
   const renderCommands = (runs) => {
     const region=q('[data-coding-commands]');
@@ -773,7 +764,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     // Following is the reader's choice, made by scrolling; content that grows after a render must not revoke it. Read back, the
     // part at the top of the view keeps its place: this is the one owner of the shift (overflow-anchor is none here; a WebView may have no scroll anchoring).
     const pinNow = !reportRun && following(), held = pinNow || reportRun ? null : [...turns.querySelectorAll(':scope > [data-run] > *')].find(node=>node.getBoundingClientRect().bottom>turns.getBoundingClientRect().top), heldTop = held?.getBoundingClientRect().top;
-    if(all.length)q('[data-coding-welcome]')?.remove();
+    turns.toggleAttribute('data-coding-welcoming',!all.length);if(all.length)q('[data-coding-welcome]')?.remove();
     else if(!q('[data-coding-welcome]')) {turns.append(q('[data-coding-welcome-template]').content.cloneNode(true));const name=root.dataset.codingWorkspaceName;if(name)turns.querySelectorAll('[data-coding-welcome-workspace]').forEach(node=>{node.textContent=name;});}
     turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());});
     for (const run of runs) {
@@ -801,7 +792,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           if(!node) { node=make('article'); node.className='coding-turn'; node.dataset.turn=turn.turn_id; node.dataset.kind=turn.kind; }
           const renderKey=turn.text+(run.frozen.role_id==='planner'?'|'+run.phase:'');
           if(renderedText.get(node)!==renderKey) {
-            if(!plans.renderTurn(node,run,turn) && !writerDirectories.renderTurn(node,run,turn)){if(turn.html && window.molisStreamText) window.molisStreamText(node,turn.html,{reveal:renderedText.has(node) && turn.kind==='assistant' && run===all.at(-1) && ['starting','running'].includes(run.phase) && !document.hidden}); else node.innerHTML=turn.html || ''; if(!turn.html) linkedText(node,turn.text);}
+            if(!plans.renderTurn(node,run,turn) && !writerDirectories.renderTurn(node,run,turn)){if(turn.html && window.molisStreamText) window.molisStreamText(node,turn.html,{reveal:renderedText.has(node) && turn.kind==='assistant' && run===all.at(-1) && ['starting','running'].includes(run.phase) && !document.hidden,grow:growCode}); else node.innerHTML=turn.html || ''; if(!turn.html) linkedText(node,turn.text);}
             // A round that started from the digest of earlier rounds shows the person's own request; the digest it carried
             // stays one click away, with the plain statement that tool output was not carried.
             const digestAt=turn.kind==='user' && turn.text.startsWith(HISTORY_DIGEST_MARKER) ? turn.text.indexOf(HISTORY_DIGEST_TASK_HEAD) : -1;
@@ -1114,7 +1105,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(data.error) status(data.error,true);
       if(fresh && offsets.has(id)) follow.restore(offsets.get(id));
       renderDirectory(); controls();
-    } catch(error) {if(!lifetime.alive)return; if(error.name!=='AbortError'&&current===id && ticket===generation){status(error.message,true);taskboard.fail(id,error.message);} }
+    } catch(error) {if(!lifetime.alive)return; if(error.name!=='AbortError'&&current===id && ticket===generation){if(error.code==='coding.session_unknown')root.dispatchEvent(new CustomEvent('molis-work:item-unreadable',{bubbles:true,detail:{itemId:id}}));status(error.message,true);taskboard.fail(id,error.message);} }
     finally { if(ticket===generation) loading=false; }
   };
   const select = async(id) => {

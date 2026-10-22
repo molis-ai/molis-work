@@ -37,6 +37,8 @@ export class HomePluginExecutor implements PluginExecutor {
     storage: SqlitePluginPrivateStorage;
     active(): boolean;
     record(installId: string): PluginInstanceRecord | null;
+    /** The Home platform's `invalidateView`: what a Home instance's `services.ui.invalidate` reaches (PG-061). */
+    invalidateView(pluginId: string): void;
   }) {}
 
   async start(definition: PluginDefinition, context: PluginStartContext) {
@@ -62,7 +64,8 @@ export class HomePluginExecutor implements PluginExecutor {
       if (!activeRecord().grants.includes(permission)) throw new ActionError("actions.forbidden", "插件安装已变化或授权已撤销");
       context.requireGrant(permission);
     };
-    const ui = createPluginUiClient(new UiHost(), context, manifest);
+    const ui = createPluginUiClient(new UiHost(), context, manifest,
+      { invalidate: () => this.options.invalidateView(manifest.plugin_id), active: () => active && this.options.active() });
     let database: ReturnType<typeof openPluginDatabase> | undefined;
     let partitions: PartitionedPluginDatabase | undefined;
     let files: ReturnType<typeof openPluginFiles> | undefined;

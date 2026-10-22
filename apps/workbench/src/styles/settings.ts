@@ -159,8 +159,8 @@ export const SETTINGS_STYLES = `
   button.settings-connector-card:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   button.settings-connector-card--placeholder { color: var(--ink-soft); }
   button.settings-connector-card--placeholder .settings-connector-card__copy { color: var(--faint, var(--muted)); }
-  .settings-connector-card__body { min-width: 0; display: grid; gap: 8px; }
-  .settings-connector-card__title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .settings-connector-card__body { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .settings-connector-card__title { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; }
   .settings-connector-card__title strong { font-size: 15px; font-weight: var(--weight-control, 500); }
   .settings-connector-card__copy { color: var(--muted); font-size: 12px; line-height: 1.5; }
   .settings-connector-mark {
@@ -392,7 +392,7 @@ export const SETTINGS_STYLES = `
   .project-manager-index-chrome { flex: none; padding: 24px 16px 12px; }
   .project-manager-index-chrome h1 { margin: 0; font-size: 13px; font-weight: var(--weight-title, 600); letter-spacing: -.015em; }
   .project-manager-index-chrome p { margin: 4px 0 0; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-  .project-manager-list { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 4px 8px 12px; scrollbar-color: var(--line-strong) transparent; }
+  .project-manager-list { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 4px 8px 12px; }
   .project-manager-rows { min-width: 0; display: grid; gap: 4px; }
   .project-manager-row {
     position: relative;
@@ -434,7 +434,7 @@ export const SETTINGS_STYLES = `
   .project-manager-index-actions > *:hover { color: var(--ink); background: var(--nav-active); }
   .project-manager:has(#project-focus-create:checked) .project-manager-ghost { color: var(--ink); background: var(--nav-active); }
   .project-manager-index-actions svg { width: 14px; height: 14px; }
-  .project-manager-stage { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--paper); scrollbar-color: var(--line-strong) transparent; }
+  .project-manager-stage { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--paper); }
   .project-manager-detail { width: 100%; max-width: none; min-width: 0; padding: 48px 48px 96px; box-sizing: border-box; }
   .project-manager-detail[hidden] { display: none; }
   .project-settings-document { width: 100%; max-width: 760px; min-width: 0; }

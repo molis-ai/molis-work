@@ -2,12 +2,15 @@ import { ActionError, bindActionClient, type ActionCallContext, type ActionProvi
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { pageLocale } from "./web-locale.js";
 
 /** Only the authenticated local-user transport uses this adapter; it is not an Agent/MCP grant resolver. */
 export async function localWebActionContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
   builtinPermissions: readonly string[], signal?: AbortSignal): Promise<ActionCallContext> {
   signal?.throwIfAborted();
-  const base: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions: builtinPermissions, signal };
+  // What a handler sends back to be shown follows the page the call came from; a call no page made keeps the handler's default.
+  const locale = pageLocale();
+  const base: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions: builtinPermissions, signal, ...(locale ? { locale } : {}) };
   // Inspection activates the actual project providers. Metadata alone never supplies a grant.
   const catalog = await host.inspectActions(base, reference);
   signal?.throwIfAborted();

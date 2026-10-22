@@ -45,17 +45,17 @@ export function registerProjectCapabilities(
   };
   if (ports.workspacesFor || workspaceFor) {
     // One id per read, for every caller: the Files, Git and Coding plugins call these two actions as the plugin audience.
-    host.register(workspaceReadActions.git, readGit);
-    host.register(workspaceReadActions.file, readFile);
+    host.registerAction(workspaceReadActions.git, readGit);
+    host.registerAction(workspaceReadActions.file, readFile);
   }
   if (ports.workspacesFor) {
     const list = async (runtime: MolisWorkProjectRuntime) => (await ports.workspacesFor!(runtime.project_id)).map(projectWorkspaceRef);
-    host.register(projectsCapabilities.listWorkspaces, list);
-    host.register(projectSettingsCapabilities.workspaces, list);
-    host.register(projectSettingsCapabilities.browsingWorkspace, async (runtime) => {
+    host.registerAction(projectsCapabilities.listWorkspaces, list);
+    host.registerAction(projectSettingsCapabilities.workspaces, list);
+    host.registerAction(projectSettingsCapabilities.browsingWorkspace, async (runtime) => {
       return new ProjectBrowsingSettings(runtime.store.db).read(runtime.project_id, await list(runtime));
     });
-    host.register(projectSettingsCapabilities.selectBrowsingWorkspace, async (runtime, [workspaceId], invocation) => {
+    host.registerAction(projectSettingsCapabilities.selectBrowsingWorkspace, async (runtime, [workspaceId], invocation) => {
       const workspaces = await list(runtime);
       if (!workspaces.some(item => item.workspace_id === workspaceId && item.realpath_verified)) throw hostErrors.workspace_unavailable("请选择当前项目已关联且可用的工作目录");
       await invocation.beforeEffect?.();
@@ -67,7 +67,7 @@ export function registerProjectCapabilities(
     // Scoped to the runtime's own project: the Capability takes no project id,
     // so a Plugin cannot ask about another project. The answer carries the
     // verified path and nothing a Plugin could widen into a write.
-    host.register(projectsCapabilities.readWorkspace, async (runtime) => {
+    host.registerAction(projectsCapabilities.readWorkspace, async (runtime) => {
       const workspace = await workspaceFor(runtime.project_id);
       return workspace ? projectWorkspaceRef(workspace) : null;
     });

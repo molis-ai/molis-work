@@ -67,6 +67,13 @@ export interface PluginPrivateStorage {
 export interface PluginUiClient {
   register<TModel>(contribution: UiContribution<TModel>): void;
   unregister(contributionId: string): void;
+  /**
+   * This installation's open views may show something stale: the pages watching it (`scope.watchRevision`) read again, under
+   * their reader's own authority. Only its own views, for a Manifest that declares `ui.views`; no permission. From any code of
+   * this activation, inside an action or not. A hint, never a receipt: nothing is recorded, and before the activation runs it
+   * does nothing. Refused (`ui_host.plugin_denied`) without declared views, and from the moment this activation stops (PG-061).
+   */
+  invalidate(): void;
 }
 
 /** Narrow, grant-checked access to Capabilities the Manifest declared as consumed. */
@@ -381,7 +388,7 @@ export type PluginRouteStreamLine =
   | { type: "result"; result: unknown }
   | { type: "error"; status: number; code: string; error: string; call_id?: string; details?: Readonly<Record<string, unknown>> };
 
-export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only"> & {
+export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only"> & {
   /**
    * The project a Home instance's route was called in: the Host reads it from the page's path (`/projects/<id>/api/plugins/…`) after
    * checking that the project exists and shows this plugin, never from the route's parameters, query or body. The plugin's own action

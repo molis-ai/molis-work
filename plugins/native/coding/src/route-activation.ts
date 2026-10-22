@@ -9,6 +9,7 @@ import type { CodingExecution } from "./routes.js";
 import { summaryCache } from "./session-window.js";
 import { startRound } from "./start-round.js";
 import { codingWakeLoop } from "./wake-loop.js";
+import { codingText } from "./words.js";
 
 export type Capabilities = NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>;
 
@@ -107,7 +108,7 @@ const sideOf = (a: CodingActivation, execution: CodingExecution, id: string | nu
 
 /** The page's view of one delegation letter; the two ends are named as this project's Coding sessions. */
 export const delegationView = (a: CodingActivation, execution: CodingExecution, letter: AgentSessionMessage, letters: AgentSessionMessage[]) =>
-  delegationViewOf(letter, letters, { codingOf: runtime => execution.sessions.byRuntimeSession(a.projectId, runtime)?.session_id ?? null, sideOf: id => sideOf(a, execution, id) });
+  delegationViewOf(letter, letters, { codingOf: runtime => execution.sessions.byRuntimeSession(a.projectId, runtime)?.session_id ?? null, sideOf: id => sideOf(a, execution, id) }, codingText(execution.locale));
 
 export const savedBudget = (a: CodingActivation, sessionId: string): { tokens: number } | null => {
   const saved = a.context.services?.storage?.get(`budget:${sessionId}`);

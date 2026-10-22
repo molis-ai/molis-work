@@ -157,6 +157,7 @@ tests/coding-session-title.test.ts
 tests/coding-step-claims.test.ts
 tests/coding-store.test.ts
 tests/coding-ui.test.ts
+tests/coding-work-executor.test.ts
 tests/coding-writers.test.ts
 
 # connector

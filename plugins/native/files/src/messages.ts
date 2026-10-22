@@ -38,7 +38,7 @@ export const FILES_MESSAGES = {
   "files.error.changed": { zh: "文件在读取时改变，请刷新后重试", en: "The file changed while it was read. Refresh and try again." },
   "files.snapshot.title": { zh: "固定快照", en: "Pinned snapshots" },
   "files.snapshot.select-hint": { zh: "在正文中选择片段后可保存选区", en: "Select a passage in the text to save it" },
-  "files.snapshot.selected": { zh: "已选择 {count} 个字符", en: "{count} characters selected" },
+  "files.snapshot.selected": { zh: "已选择 {count} 个字符", en: "{count} {count|character|characters} selected" },
   "files.snapshot.sides": { zh: "设置对比两侧", en: "Set both sides of the comparison" },
   "files.snapshot.before": { zh: "固定为对比前", en: "Pin as before" },
   "files.snapshot.after": { zh: "固定为对比后", en: "Pin as after" },

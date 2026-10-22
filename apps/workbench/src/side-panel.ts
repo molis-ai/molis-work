@@ -70,7 +70,7 @@ html body.immersive-workbench .side-panel{position:fixed;display:flex;flex-direc
 html body.immersive-workbench .side-panel[hidden]{display:none}
 html body.immersive-workbench[data-side-open=true] .side-panel{opacity:1;transform:none;pointer-events:auto}
 .side-panel-head{display:flex;align-items:center;gap:8px;flex:none;height:44px;padding:0 6px 0 8px;border-bottom:1px solid var(--line)}
-.side-panel-tabs{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+.side-panel-tabs{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto}
 .side-panel-tab{display:inline-flex;align-items:center;gap:6px;flex:none;height:30px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:13px;cursor:pointer}
 :is(.side-panel-tab,.side-panel-close){transition:background-color var(--dur-hover) var(--ease-quint),color var(--dur-hover) var(--ease-quint)}
 .side-panel-tab[hidden]{display:none}
@@ -212,7 +212,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     if(event.data?.type==='molis:im-connect'&&projectId){
       const answer=(error)=>frame.contentWindow.postMessage({type:'molis:im-connected',requestId:event.data.requestId,error},location.origin);
       try{await molisWorkRequest('/projects/'+encodeURIComponent(projectId)+'/api/im/connect',{body:{}});answer(null);}
-      catch(error){answer(molisWorkRequest.text(error,'项目连接失败'));}
+      catch(error){answer(molisWorkRequest.text(error,L('项目连接失败')));}
     }
   });
   let drag=null;

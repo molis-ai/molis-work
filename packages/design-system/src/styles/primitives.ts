@@ -368,13 +368,13 @@ export const PRIMITIVE_STYLES = `
     box-shadow: var(--shadow); color: var(--action-ink); font-size: 13px;
   }
   .mw-spinner { width: 20px; height: 20px; display: inline-block; color: currentColor; }
-  /* One loading rule everywhere: a quiet line with the spinner, which appears only if the wait passes 250ms
-     (a quick load never flashes). Skeletons (static, never shimmer) and busy buttons wait the same; reduced motion drops only the fade. */
+  /* One loading rule everywhere: a quiet line with the spinner, shown only past a 250ms wait (a quick load never flashes). Skeletons (static),
+     busy buttons and a plugin's dimmed region (mw-busy-dim to --busy-dim) wait the same, as animations; reduced motion drops only the fade. */
   .mw-loading {
     display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px;
     animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both;
   }
-  @keyframes mw-loading-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes mw-loading-in { from { opacity: 0; } to { opacity: 1; } } @keyframes mw-busy-dim { to { opacity: var(--busy-dim, .65); } }
   @media (prefers-reduced-motion: reduce) { .mw-loading, .mw-skeleton, .mw-btn[data-loading] > * { animation-duration: 0s; } }
   .mw-skeleton {
     display: block; height: 12px; border-radius: 4px; animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both;
@@ -826,7 +826,7 @@ export const PRIMITIVE_STYLES = `
   .mw-card--tile {
     border: 0; background: transparent; overflow: visible; width: auto; display: block;
   }
-  .mw-scroll { overflow: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .mw-scroll { overflow: auto; min-height: 0; }
   .mw-table-wrap {
     overflow: auto; border: 1px solid var(--line);
     border-radius: 12px; background: var(--paper);
@@ -880,7 +880,7 @@ export const PRIMITIVE_STYLES = `
   .mw-catalog__specimens {
     display: grid; gap: 24px;
   }
-  .mw-catalog__specimen { display: grid; gap: 12px; min-width: 0; }
+  .mw-catalog__specimen { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
   .mw-catalog__specimen figcaption,
   .mw-catalog__specimen > span {
     margin: 0; color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); letter-spacing: .01em;
@@ -926,7 +926,7 @@ export const PRIMITIVE_STYLES = `
   .mw-compose__code { overflow-x: auto; margin: 0 0 12px; padding: 12px 12px; border-radius: 8px; background: var(--rail); color: var(--ink); font-size: 12px; white-space: pre; }
   .mw-compose__nested { max-height: 110px; overflow: auto; overscroll-behavior: contain; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); }
   .mw-compose__nested p { margin: 4px 0; }
-  .mw-compose--narrow { display: grid; gap: 12px; }
+  .mw-compose--narrow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .mw-compose__density { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); }
   .mw-compose__resizable { container-type: inline-size; resize: horizontal; overflow: auto; width: 560px; min-width: 260px; max-width: 100%; padding: 12px; border-radius: 14px; background: var(--paper); box-shadow: var(--surface-shadow); }
   .mw-compose__resizable .mw-toolbar { margin-bottom: 8px; flex-wrap: nowrap; }

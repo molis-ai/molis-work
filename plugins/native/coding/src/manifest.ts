@@ -17,6 +17,7 @@ import { CODING_RUN_UPDATED_EVENT, CODING_FILE_CHANGED_EVENT, CODING_PREFERENCE_
 import { codingAgentManifest } from "./roles.js";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID } from "./ui.js";
 import { CODING_ACTIONS } from "./route-actions.js";
+import { codingExecutorActions } from "./executor-actions.js";
 import { codingArtifactPreview } from "./artifact-preview.js";
 import { codingHomeBackgroundTasks } from "./home-background.js";
 import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
@@ -62,8 +63,10 @@ export const codingManifest: PluginManifest = {
       reason: "把变更集、报告与图作为成果发布，带来源与版本",
     },
     { permission: "workspace:read", required: true, reason: "读取已关联工作目录里的目录与文本，用于任务里 @ 提到的文件与目录" },
-    // Only the list and whether a model can run: the round's model call is the Agent runtime's, so Coding does not declare `model:invoke`.
     { permission: "model:read", required: true, reason: "读取全局模型设置里可用的模型，供每一轮选用；不发起模型请求" },
+    // The round's model call is the Agent runtime's; `model:invoke` covers only Coding's two explicit drafts (`agent.draft-text.v1`):
+    // the commit message and the digest of earlier rounds. Turned off, only those two stop (PG-035).
+    { permission: "model:invoke", required: false, reason: "起草提交说明与历史摘要（显式调用）" },
     // Starting a review only: the directory is made and the child's files are brought back only once a person approves (PG-009).
     { permission: "review:git-worktree", required: true, reason: "发起创建独立工作树的审查，由用户批准后才建目录并授权" },
     { permission: "review:git-integration", required: true, reason: "发起把子任务的文件改动整合回主工作区的审查，由用户批准后才写入" },
@@ -120,7 +123,7 @@ export const codingManifest: PluginManifest = {
   agent: codingAgentManifest,
   databases: { project: CODING_PROJECT_DATABASE },
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
-  actions: [...CODING_ACTIONS, codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
+  actions: [...CODING_ACTIONS, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
   routes: [
     { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },

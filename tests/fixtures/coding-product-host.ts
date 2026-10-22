@@ -72,5 +72,5 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
     off = adapter.observe(ref, view => { if (!["completed", "failed", "cancelled"].includes(view.phase)) return;
       clearTimeout(timer); queueMicrotask(() => off()); resolve(view); });
   });
-  return { home, directory, project, other, workspaceId, call, ended, requests };
+  return { home, host, directory, project, other, workspaceId, call, ended, requests };
 }

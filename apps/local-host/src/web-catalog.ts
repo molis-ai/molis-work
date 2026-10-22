@@ -24,8 +24,9 @@ import type { LocalWebComposition } from "./web-composition.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { redirectSettingsAddress } from "./web-settings-arrival.js";
 import { L } from "./web-locale.js";
+import { handleComponentBoardHttp } from "./web-catalog-board.js";
 import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
-import { findPluginSettingsNavItem, renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
+import { findPluginSettingsNavItem, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
 import { SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
@@ -90,24 +91,7 @@ export async function handleLocalCatalogWebRequest(
     response.end(renderCapsuleShell(projects));
     return;
   }
-  if (request.method === "GET" && url.pathname === "/__ui/catalog") {
-    response.writeHead(200, {
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "no-store",
-      "content-security-policy": PAGE_CSP,
-    });
-    response.end(renderMolisWorkPrimitiveCatalog());
-    return;
-  }
-  if (request.method === "GET" && url.pathname === "/__ui/catalog/bar") {
-    response.writeHead(200, {
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "no-store",
-      "content-security-policy": PAGE_CSP,
-    });
-    response.end(renderMolisWorkBarSpecimen());
-    return;
-  }
+  if (handleComponentBoardHttp(request, response, url, PAGE_CSP)) return;
   if (request.method === "GET" && url.pathname === "/settings") {
     response.writeHead(302, {
       location: isDesktopShellRequest(request, url) ? "/settings/appearance?desktop=1" : "/settings/appearance",

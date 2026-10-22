@@ -4,7 +4,7 @@ import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type 
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { PluginRuntime, SqlitePluginRuntimeRepository, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 
 /*
@@ -79,16 +79,17 @@ export async function startProjectPlugins(host: { inspectActions(caller: ActionC
 /**
  * Starts `plugin` in a project through the Host's public plugin executor, acting for `actorId`, its installation recorded in the
  * project's own library: for a Host that starts no plugins of its own (a bare LocalHost), or a plugin that acts as itself
- * (`plugin:<id>`, as a generated plugin does). It is granted what its Manifest requires, plus `grants`.
+ * (`plugin:<id>`, as a generated plugin does). It is granted what its Manifest requires, plus `grants`. With `capabilities` (the
+ * Host's typed client) it also gets the typed client a plugin that consumes something has.
  */
 export async function startPlugin(host: { actionRegistry(reference: LocalHostProjectReference): ActionRegistryPort; actionClient(reference: LocalHostProjectReference): ActionClient;
   syncActionClient(reference: LocalHostProjectReference): SyncActionClient }, reference: LocalHostProjectReference, store: Pick<LocalProjectDatabase, "db" | "appendEvent" | "eventCursor">,
-  plugin: CallerPlugin, options: { actorId?: string; grants?: readonly string[] } = {}) {
+  plugin: CallerPlugin, options: { actorId?: string; grants?: readonly string[]; capabilities?: PluginCapabilityPort } = {}) {
   const executor = new PluginHostExecutor({ project_id: reference.project_id, actor_id: options.actorId ?? LOCAL_PERSON_ACTOR_ID, ui: new UiHost(),
     actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: reference.project_id },
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
-    privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
+    privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }), ...(options.capabilities ? { capabilities: options.capabilities } : {}) });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), executor);
   const required = plugin.definition.manifest.permissions.filter(item => item.required).map(item => item.permission);
   const { install } = runtime.install({ definition: plugin.definition, deployment: "local", grants: [...required, ...(options.grants ?? [])] });

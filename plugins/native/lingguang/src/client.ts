@@ -388,9 +388,12 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     // Whichever load fills the list settles a spark asked for by link (an overtaken load leaves it to the newer one).
     if (wantedId && records.some((item) => item.id === wantedId)) void openWanted().catch((error) => showNote(error.message, true));
     else if (wantedId && wantedByLink) {
-      // A link from elsewhere (a todo's source, an old tab) can name one that was discarded: say so instead of opening nothing.
+      // A link from elsewhere (a todo's source, an old tab) can name one that was discarded: say so instead of opening nothing,
+      // and tell the workbench so it does not carry it as what the person is looking at. A quiet reopen says nothing.
+      const gone = wantedId, quiet = wantedByLink === "quiet";
       wantedId = null; wantedByLink = false;
-      showNote(L("这条灵光已丢掉或不存在"), true);
+      workbench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: gone } }));
+      if (!quiet) showNote(L("这条灵光已丢掉或不存在"), true);
     }
   };
   const discardIds = async (ids) => {
@@ -669,7 +672,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     const itemId = event.detail?.itemId || null;
     if (!itemId) { leaveOnFold(); return; }
     wantedId = itemId;
-    wantedByLink = true;
+    wantedByLink = event.detail?.quiet ? "quiet" : true;
     if (records.some((item) => item.id === wantedId)) void openWanted().catch((error) => showNote(error.message, true));
     // The workbench may name the same spark several times while the page settles: one load for it is enough.
     else if (loadingFor !== itemId) void loadList().catch((error) => { listFailed(error); throw error; }).then(openWanted).catch((error) => showNote(error.message, true));

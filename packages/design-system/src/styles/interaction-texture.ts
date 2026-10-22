@@ -1,4 +1,5 @@
 import { renderPaletteTokens, renderPluginTintBindings, renderShapeTokens, renderShellTokens } from "../palette.js";
+import { HIDDEN_SCROLLBAR_STYLES } from "./scrollbars.js";
 
 /** Linear × Coss interaction texture. Loaded after every page stylesheet so it owns the
  * final colour ramp, elevation, motion and icon calibration without moving any layout.
@@ -10,8 +11,6 @@ const RAISED_SURFACE = ":is(.navigator-project-menu-popover, .tree-filter, .glob
 /** Modals that dim the app behind them. */
 const SCRIMMED = ":is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog)";
 
-/** Scroll regions that already show a scrollbar. `.document-pane` keeps its scrollbar-free rule. */
-const SCROLL_REGION = "body :is(.settings-body, .project-settings-stage, .tab-pane-body, .feed-detail-scroll, .goal-info-body)";
 
 export const INTERACTION_TEXTURE_STYLES = `
   :root,
@@ -152,28 +151,8 @@ export const INTERACTION_TEXTURE_STYLES = `
   }
   body.immersive-workbench .tab-item:active:not(.is-active) { background: var(--nav-press); }
 
-  /* Scrollbars stay out of the way until the region is used. */
-  ${SCROLL_REGION} {
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
-    transition: scrollbar-color var(--motion-normal) var(--ease-quint);
-  }
-  ${SCROLL_REGION}:hover {
-    scrollbar-color: color-mix(in srgb, var(--ink) 22%, transparent) transparent;
-  }
-  ${SCROLL_REGION}::-webkit-scrollbar { width: 10px; height: 10px; }
-  ${SCROLL_REGION}::-webkit-scrollbar-track { background: transparent; }
-  ${SCROLL_REGION}::-webkit-scrollbar-thumb {
-    border: 3px solid transparent;
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--ink) 18%, transparent);
-    background-clip: content-box;
-  }
-  ${SCROLL_REGION}::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in srgb, var(--ink) 32%, transparent);
-    background-clip: content-box;
-  }
-  ${SCROLL_REGION}::-webkit-scrollbar-corner { background: transparent; }
+  /* No scrollbar is drawn; the edge fade says where more is. */
+  ${HIDDEN_SCROLLBAR_STYLES}
 
   /* Fields answer focus with a 1px --ink stroke inside the control, never an outer halo. */
   body :is(input, select, textarea):not([type="checkbox"], [type="radio"], [type="range"], .mw-slider, .mw-input, .mw-textarea, .mw-select, .assistant-composer-input, [data-plain-field]):focus-visible {

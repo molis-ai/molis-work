@@ -16,6 +16,8 @@ export const CONNECTOR_EXPERIENCE_STYLES = `
   [data-connectors-settings] .settings-connector-card__title { align-items: start; flex-wrap: wrap; gap: 4px 8px; }
   [data-connectors-settings] .settings-connector-card__title strong { font-weight: 600; }
   [data-connectors-settings] .settings-state { line-height: 1.5; }
+  /* A card's state is a short phrase that may be longer in another language: it wraps inside the card rather than running out of it. */
+  .settings-connector-card__title .settings-state { min-width: 0; white-space: normal; text-wrap: balance; }
   [data-connectors-settings] .settings-connector-subgroup h3 { font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-bottom: 4px; }
   [data-connectors-settings] .settings-connector-detail { width: 100%; max-width: var(--connector-width); gap: 24px; padding-top: 0; }
   .settings-connector-purpose { margin: -8px 0 0; max-width: 65ch; color: var(--muted); font-size: 13px; line-height: 1.65; }

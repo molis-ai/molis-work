@@ -142,7 +142,8 @@ export class HomePluginHost {
     const { db, storage } = openHomePluginStore(this.options.home);
     this.db = db;
     const repository = pluginInstallRecords(db);
-    const executor = this.executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id), database: identity.databaseFor, files: identity.filesFor,
+    const executor = this.executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id),
+      invalidateView: pluginId => this.platform?.invalidateView(pluginId), database: identity.databaseFor, files: identity.filesFor,
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
       providerFor: identity.providerFor, dualInstance: identity.dualInstance });
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.

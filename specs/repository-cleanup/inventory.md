@@ -1,6 +1,6 @@
 # 两仓存量清理：覆盖、处置与验证
 
-状态：本地清理与验证已完成，未合入；负责人 Codex。唯一需求书为 [spec](spec.md)。下列工程结论不代替产品体验或用户验收。
+状态：本地清理已完成；Prologue 已由用户合入，Work 的 CI、评审与合并处理中（2026-10-22）；负责人 Codex。唯一需求书为 [spec](spec.md)。下列工程结论不代替产品体验或用户验收。
 
 ## 范围与方法
 
@@ -345,6 +345,14 @@ Prologue 其余候选保留依据：`docs/slices/architecture-hygiene.md` §0.4 
 | `packages/sdk/src/workspace/core/mutate.ts` | `MutationLimits` |
 
 ## 验证状态
+
+### PR 跟进（2026-10-22）
+
+- Work #996 已同步主线 `0cdec88e82e6d8524d50c5ccc7665ef1a7ed0be7`。Coding 时间线的冲突保留主线新增的 locale 参数和文案行为，以及本次去掉无用 export 的清理；门禁 baseline 与 API 快照重新生成。整体 build、boundary、对照当前 merge-base 的 health 和页面资源检查通过；26 个资源共 7,609,790 字节，与同步后的主线相同。
+- 旧 PR CI 的 Verify 通过，产品子集失败的三个文件已随主线修复测试的翻译接线；本树复核 `agent-prompt-layers`、`coding-report-usage`、`coding-review-card` 共 21/21 通过，原文案、权限和行为断言保留。最终 head 仍待 CI full-suite 与评审完成，以下旧基线的全量结果作为历史对照，不冒充当前结果。
+- Prologue #59 的 Codex 评审完成，head `588b03c34c296ef42d6215ac9d0941d4fa7c99ce` 没有发现问题。Quality 作业因 GitHub 账户付款或支出额度被拦截，未启动；用户随后手动合并。已回读主线 `f481d53726b3a896a525386d8e93225f6091e947`，文件树与已审 head 一致。CI 未运行的限制保留，不记录为通过。
+
+### 本地清理初次验收
 
 - Work：最终整体 `pnpm build`、`pnpm boundary:check`、实施基线 merge-base health 与资源体积检查通过；公开 API 仅新增已声明的 `canonicalJsonValue`。全量 1,271 文件（259 个浏览器文件）已跑完，用时 69.5 分钟：1,242 文件通过、29 文件失败；8,620 项通过、11 项按原环境条件跳过。其中 `list-silent-refresh.test.ts` 的源码定位仍要求 `export const`，已改为只按函数名定位，原滚动/刷新断言不变，定向 4 项通过。其余为 27 个基线已有失败及 1 个首次失败、基线与清理树单独重跑均通过的分栏用例；没有未处置的本次新增失败。两个定向文件 16 项通过，其中错误模型测试的 Git 索引误报已消除。门禁未放宽。
 - Prologue：完整 `pnpm quality` 通过（679 条稳定测试、类型/构建/API/ratchet/质量门禁、clean consumer 的真实边界拒绝/回环 HTTP/重放/磁盘重开、Rust fmt/clippy）；workspace 定向真实文件测试 81 条通过。稳定测试另以 maxWorkers=2 复核通过（67 文件、679 条），最终构建通过。本地提交 `588b03c3`。

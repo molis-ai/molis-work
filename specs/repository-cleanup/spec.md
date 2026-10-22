@@ -1,6 +1,6 @@
 # 两仓存量代码一次性清理
 
-状态：本地清理与验证已完成、未合入（2026-10-21），负责人 Codex。覆盖 Molis Work 与 Prologue 的现役存量代码，本轮交付后结束，不是增量巡检或定期维护。原审计与首批候选是线索，不是范围上限；本 spec 为唯一执行需求书。
+状态：本地清理已完成，PR 的 CI、评审与合并处理中（2026-10-22），负责人 Codex。覆盖 Molis Work 与 Prologue 的现役存量代码，不是增量巡检或定期维护。原审计与首批候选是线索，不是范围上限；本 spec 为唯一执行需求书。
 
 ## 目标、基线与范围
 
@@ -10,7 +10,7 @@
 
 保留：当前有效消费者、已接受在途/后续计划的具体依赖、公开 API、拒绝与恢复语义。旧工作树仅继承过时调用，不自动构成有效依赖；检查未合提交及实际改动。没有足够证据的候选逐项写出缺口，不宣称排除所有未知未来用途。
 
-不做：长期架构重写、新功能、真实 Home 数据维护、清理其他会话的工作树/文件、推送/PR/合并/发布、自动化或定期清理。Alchemist/创作台等已有删除迁移继续遵守明确的先后、备份及通用验证替代条件；未满足则具体保留。本轮获授权本地提交。
+不做：长期架构重写、新功能、真实 Home 数据维护、清理其他会话的工作树/文件、发布或定期清理。Alchemist/创作台等已有删除迁移继续遵守明确的先后、备份及通用验证替代条件；未满足则具体保留。后续授权已覆盖两仓 PR 的推送、CI/评审跟进、问题修复，以及全部通过后的合并；不绕过失败检查或待处理评审。
 
 ## 方法与边界
 
@@ -43,7 +43,8 @@
 | CLN-08 | Work 整体 build 后跑受影响包 typecheck/README 必跑、boundary、health 对照实施基线，按风险补全量、API/动作/资源门禁；门禁不放宽、断言不删减。 |
 | CLN-09 | Prologue typecheck、build、公开 API、结构 ratchet、稳定测试、clean consumer 与所涉真实 Host/原生检查通过；公开快照无意外变化。 |
 | CLN-10 | 独立测试 Home/浏览器；同机一个构建、一个浏览器批次，使用机器槽位；测试份数限制为 2；全量期间不改被测源码。 |
-| CLN-11 | 交付本轮实际改动、本地提交、验证结果及完整保留清单；未跑/失败与工程通过分开。达到条件后结束本次任务，不创建接续自动化。 |
+| CLN-11 | 交付本轮实际改动、本地提交、验证结果及完整保留清单；未跑/失败与工程通过分开。达到条件后结束本次任务，不延伸为定期清理。 |
+| CLN-12 | Work PR 的最终 head 上 CI 和适用的全量通过，最后一轮评审必须修改项全部落实；合入后回读 main 确认。Prologue 已由用户在 CI 受账户限制时手动合并，回读 main 并单列 CI 未运行，不以本地结果替代 CI 通过。 |
 
 Work：`pnpm install --frozen-lockfile --offline`；`pnpm build`；`node scripts/affected-tests.mjs --base 6d2361652bd167d07815d930cd04f802967292a3` 加 README 必跑；`node scripts/run-tests.mjs --jobs 2 --browser-jobs 1 <文件>`；`pnpm boundary:check`；`node scripts/check-health-gates.mjs --base 6d2361652bd167d07815d930cd04f802967292a3`。跨 Module/共享核心及最终阶段按现有规则跑全量。API/动作/资源改动才运行对应快照与资源检查；原生改动按 native-checks 与包要求。新加或改写的验收测试引用 CLN 编号，行为不变的机械删除沿用既有有效测试。
 
@@ -57,4 +58,4 @@ Prologue：`pnpm quality`（typecheck、build、公开 API、ratchet、文档/�
 
 - 旧 `server/src/auth.ts`、Feed `isActiveAttention`、Host `normalizeTrailingNewline`/`withoutPersonalSpace` 已在开始基线删除，不计本轮产出。
 - 全部存量覆盖与本地实施已完成，实际处置、27 个基线失败、1 次未复现时序失败、11 项环境跳过及逐项验收见 [完整清单](inventory.md)。Work 全量后的唯一测试修正是列表函数源码定位不再要求 export 修饰符，滚动/刷新行为断言保留，定向 4 项通过；产品源码未再改变。
-- 本次一次性任务结束，交付两仓本地提交；未合入主线，暂不归档 spec，不创建巡检或接续自动化。
+- 后续授权要求跟进 Work #996 和 Prologue #59，全部通过后合并。Work 同步主线时保留 Coding 新增 locale 语义与本次内部导出收窄，门禁 baseline/API 从合并后的代码重新生成。旧 CI 的三个产品子集失败在同步后的代码上复核为 21/21 通过；最终 head 补跑 CI full-suite。Prologue 的 Quality 被 GitHub 付款/支出额度拦截、未启动；用户随后手动合并，已确认主线 `f481d537` 的文件树与已审 head 一致。Work 未合入，暂不归档。

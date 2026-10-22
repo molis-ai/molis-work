@@ -293,6 +293,9 @@ export const PAGES_STYLES = `
     box-shadow: var(--shadow-soft);
   }
   .pages-note.is-error { background: var(--red); color: var(--paper); }
+  /* A document asked for that cannot be read (gone, not allowed): its place says so, with only the way back to the list. */
+  [data-pages-stage-workspace][data-missing] :is([data-pages-pane="editor"], .pages-editor-tools, [data-pages-editor-status]) { display: none; }
+  [data-pages-stage-workspace][data-missing] .pages-note { position: static; margin: 48px auto 0; transform: none; }
   .plugin-stage-detail-bar [data-pages-delete] { margin-left: 0; }
   [data-pages-stage-workspace] .plugin-stage-detail-bar { flex-wrap: nowrap; background: transparent; }
   [data-pages-stage-workspace] .plugin-stage-detail-bar > h1 { color: var(--muted); font-weight: var(--weight-title, 600); }

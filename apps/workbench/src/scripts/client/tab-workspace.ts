@@ -1259,7 +1259,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     };
     cancelRecordJump = finish;
     // Not among the rows shown now (another view or filter): a plugin that opens records by id is asked directly.
-    asked = setTimeout(() => { if (!done && current()) surfaceIn(frame ? frame.contentDocument : document)?.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId } })); }, 1500);
+    asked = setTimeout(() => { if (!done && current()) surfaceIn(frame ? frame.contentDocument : document)?.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId, quiet } })); }, 1500);
     timer = setTimeout(() => {
       const stillCurrent = current(); const opened = showsIt(frame ? frame.contentDocument : document); finish();
       if (opened) return;

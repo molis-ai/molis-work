@@ -236,7 +236,7 @@ const headErrors = (measured, budget, base) => {
   return errors;
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
-// deleted in the next change to this gate (none is open now).
+// deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // Quiet home refresh (#1002), measured on main after the plural-count follow-up (#1005).
   // An unchanged day is not redrawn, a failed background refresh stays on screen, and the clock is text.

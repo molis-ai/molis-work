@@ -106,19 +106,18 @@ ${F} .plugin-stage-list .feed-stage-entry .feed-entry-preview { display: block; 
 ${F} .feed-entry-foot { display: flex; align-items: center; min-height: 0; margin-top: 8px; }
 ${F} .feed-entry-foot:not(:has(.feed-entry-status:not(:has([data-feed-read-state])))) { display: none; }
 ${F} .plugin-stage-list .feed-stage-entry .feed-entry-status { justify-self: start; font-size: 12px; }
-${F} .plugin-stage-list .feed-stage-entry .feed-entry-status svg { width: 12px; height: 12px; }
 ${F} .plugin-stage-list .feed-stage-entry .feed-entry-status:has([data-feed-read-state]) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 ${F} .plugin-stage-list .feed-stage-entry[data-feed-entry-status="saved"] .feed-entry-status { color: var(--tone-done, var(--green)); }
 ${F} .feed-list-empty.mw-empty { display: grid; justify-items: center; gap: 8px; margin: 32px auto 0; padding: 24px 16px; max-width: 30em; text-align: center; color: var(--muted); background: transparent; }
 ${F} .feed-list-empty.mw-empty > svg { width: 20px; height: 20px; color: var(--faint, var(--muted)); stroke-width: 1.6; }
-${F} .feed-list-empty.mw-empty > strong { font-size: 15px; font-weight: var(--weight-control, 500); line-height: 1.5; letter-spacing: 0; color: var(--ink); }
+${F} .feed-list-empty.mw-empty > strong { font-size: 15px; font-weight: var(--weight-title, 600); line-height: 1.5; letter-spacing: 0; color: var(--ink); }
 ${F} .feed-list-empty.mw-empty > .mw-btn { margin: 4px 0 0; }
 ${F} .feed-column-foot { flex: none; display: flex; align-items: center; gap: 8px; margin: 0 16px; padding: 12px 4px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 ${F} .feed-column-foot svg { width: 12px; height: 12px; }
 
 /* ─── The reading side ───────────────────────────────────────────────── */
 ${F} > .feed-reader-idle { grid-column: 2; grid-row: 1; display: grid; place-content: center; justify-items: center; gap: 12px; padding: 32px; text-align: center; color: var(--muted); }
-${F} > .feed-reader-idle h2 { margin: 8px 0 0; font-size: 15px; font-weight: var(--weight-control, 500); color: var(--ink); }
+${F} > .feed-reader-idle h2 { margin: 8px 0 0; font-size: 15px; font-weight: var(--weight-title, 600); color: var(--ink); }
 ${F} > .feed-reader-idle p { margin: 0; max-width: 32em; font-size: 13px; line-height: 1.75; }
 ${F}[data-expanded="true"] > .feed-reader-idle,
 ${F}:is([data-feed-view="settings"], [data-feed-view="rules"], [data-feed-view="add"]) > .feed-reader-idle { display: none; }

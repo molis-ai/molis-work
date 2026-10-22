@@ -358,7 +358,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
       border-radius: 0;
       color: var(--muted);
       background: transparent;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 400;
     }
   }
@@ -675,7 +675,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
       border-color: transparent;
       border-radius: 0;
       background: transparent;
-      font-size: 11px;
+      font-size: 12px;
     }
     html[data-density="compact"] body[data-board-view] .tree-relations {
       margin: 0 0 1px 12px;

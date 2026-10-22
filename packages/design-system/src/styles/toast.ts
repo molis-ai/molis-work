@@ -11,8 +11,8 @@ export const TOAST_STYLES = `
     font-size: 13px; line-height: 18px; animation: mw-toast-in var(--dur-move, 250ms) var(--ease-quint) both;
   }
   .mw-toast[hidden] { display: none; }
-  .mw-toast[data-ring-mounted] { padding-left: 40px; }
-  .mw-toast > .mw-state-ring { --ring-neutral: currentColor; --ring-success: color-mix(in srgb, var(--green) 60%, currentColor); --ring-danger: color-mix(in srgb, var(--red) 60%, currentColor); position: absolute; left: 12px; top: 11px; }
+  .mw-toast[data-ring-mounted] { padding-left: 36px; }
+  .mw-toast > .mw-state-ring { --ring-neutral: currentColor; --ring-success: color-mix(in srgb, var(--green) 60%, currentColor); --ring-danger: color-mix(in srgb, var(--red) 60%, currentColor); position: absolute; left: 12px; top: 13.5px; }
   .mw-toast.is-error { animation: mw-toast-in var(--dur-move, 250ms) var(--ease-quint) both, mw-toast-nudge var(--dur-arrive, 420ms) var(--ease-quint) var(--dur-hover, 130ms); }
   .mw-toast__action {
     min-height: 30px; margin-block: -6px; margin-inline-end: -8px; padding: 0 10px; border: 0; border-radius: 8px;

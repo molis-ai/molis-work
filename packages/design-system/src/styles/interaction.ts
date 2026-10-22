@@ -12,7 +12,7 @@ export const INTERACTION_QUESTION_STYLES = `
 .mw-ix-head { display: flex; align-items: flex-start; gap: 10px; }
 .mw-ix-heading { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .mw-ix-kicker { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
-.mw-ix-kicker > svg { width: 12px; height: 12px; }
+.mw-ix-kicker > svg:not(.mw-state-ring) { width: 12px; height: 12px; }
 .mw-ix-card h3 { margin: 0; color: var(--ink); font-size: 15px; font-weight: var(--weight-title, 600); }
 .mw-ix-card h4 { margin: 0; color: var(--ink); font-size: 13px; font-weight: var(--weight-title, 600); }
 .mw-ix-card p, .mw-ix-card dl { margin: 0; }
@@ -171,7 +171,7 @@ export const INTERACTION_OPERATION_STYLES = `
 /** Next steps and the mark inside a composer. */
 export const INTERACTION_STEP_STYLES = `
 /* Next steps beside a composer: views of the records above; the input gives them room and takes it back. */
-.mw-ix-steps { --mw-ix-step-h: 50px; flex: none; display: flex; gap: 6px; }
+.mw-ix-steps { --mw-ix-step-h: 50px; flex: none; display: flex; gap: 8px; }
 .mw-ix-steps:not(:has(.mw-ix-step:not([hidden]))) { display: none; }
 .mw-ix-step { display: inline-flex; align-items: center; gap: 8px; height: var(--mw-ix-step-h); padding: 0 14px 0 12px; border: 0; border-radius: var(--r-composer, 15px); background: var(--paper); color: var(--ink); font: inherit;
   font-weight: var(--weight-control, 500); white-space: nowrap; cursor: pointer; box-shadow: var(--lift-2);

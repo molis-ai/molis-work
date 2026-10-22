@@ -259,7 +259,7 @@ export const PROJECT_HOME_STYLES = `
   }
   /* Hover answers with a wash, not a shift: nothing moves under the pointer. */
   .immersive-home :is(.home-quick__item, .home-shortcut-main):hover { background: var(--nav-hover); }
-  .immersive-home .home-shortcut-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--rail); color: var(--ink-soft); }
+  .immersive-home .home-shortcut-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--rail); color: var(--ink-soft); }
   .immersive-home .home-shortcut-icon svg { width: 16px; height: 16px; }
   .immersive-home .home-quick__text { flex: 1; min-width: 0; }
   .immersive-home .home-quick__text small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }

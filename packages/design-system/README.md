@@ -17,7 +17,7 @@ icon("copy"); // 页面已注入 sprite 时也可以 <svg><use href="#icon-copy"
 
 媒体预览缩放用 `window.molisMediaZoom(viewport, image, { onChange })`（`src/browser/media-zoom.ts`，VUX-32）：围绕实际看的位置缩放，平移有边界，`0` 回到适应；页面自己不再写第二套 pan/zoom。
 
-状态统一用 `renderStateRing({ state, label?, size?, progress? })` 或 `renderStatusMark({ state, label })`。`state-ring-states.ts` 的 43 个状态复用 21 套环刻样式，业务词义和本地化文案仍归调用方。`doing` 静止，`running` 等实际执行状态持续运动，`round-ended` 只表示一轮结束。部分完成和中断的 `progress` 只接真实完成比例；未知时省略。
+状态统一用 `renderStateRing({ state, label?, size?, progress? })` 或 `renderStatusMark({ state, label })`。`state-ring-states.ts` 的 43 个状态复用 21 套环刻样式，业务词义和本地化文案仍归调用方。`doing` 静止，`running` 等实际执行状态持续运动，`round-ended` 只表示一轮结束。部分完成和中断的 `progress` 只接真实完成比例；未知时省略。不传 `size` 时环跟随所在文字（`1em + 2px`，笔画随尺寸换算），与旁边的字等高；只有单独站着的环（规格板标本、空状态的大标记）才传 `size`，页面不再给某一行的环另定尺寸（DESIGN「Order」）。
 
 客户端与插件公开脚本保留原文；宿主沿统一 HTTP 资源入口用 esbuild 压缩交付程序，状态文字与模板字符串内容不改变。
 

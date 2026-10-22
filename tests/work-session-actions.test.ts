@@ -87,6 +87,7 @@ for (const operation of ["discover", "create", "prepare", "send"] as const) {
 
 test("Work actions use original session facts, enforce project scope and revalidate authority after native work", async () => {
   const home = await mkdtemp(join(tmpdir(), "work-session-actions-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   let denied = false, externalRevoked = false;

@@ -15,7 +15,7 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 test("Plan formal routes preserve confirmed revisions, reject stale/blocked/foreign proposals, and do not replay execution", async () => {
   const home = mkdtempSync(join(tmpdir(), "coding-plans-")), dbPath = join(home, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(home); let store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(home); seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
   const sessions = codingSessions(store);
   for (const id of ["app", "other"]) { await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() }); await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, id, `sdk-${id}`, new Date().toISOString()); }
   const content = { title: "修复运费边界", steps: [{ title: "核对 shipping.mjs", acceptance: "10000 分免运费，9999 分收 500 分" }], blockers: "", change_reason: "" };

@@ -9,8 +9,9 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.t
 
 test("HTTP import previews lazily, rejects forged input and preserves old published resources across a confirmed source update", async t => {
   const home=mkdtempSync(join(tmpdir(),"character-import-http-")),config=join(home,"codex"),skill=join(config,"skills","guide");
+  const catalog=await openMolisWorkProjectCatalog({homeDirectory:home});
   mkdirSync(skill,{recursive:true});writeFileSync(join(config,"AGENTS.md"),"RULE");writeFileSync(join(skill,"SKILL.md"),"---\nname: Guide\ndescription: Fixture\n---\nRead guide.txt");writeFileSync(join(skill,"guide.txt"),"OLD_ATTACHMENT");
-  const catalog=await openMolisWorkProjectCatalog({homeDirectory:home}),project=await catalog.createProject({display_name:"Import",actor_id:"web-user"});catalog.close();
+  const project=await catalog.createProject({display_name:"Import",actor_id:"web-user"});catalog.close();
   const token="character-http-fixture-control-123456789",server=createMolisWorkWebServer({homeDirectory:home,controlToken:token});
   await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));const address=server.address() as {port:number},origin=`http://127.0.0.1:${address.port}`,prefix=`/projects/${project.project_id}/api/plugins/io.molis.work.characters`;
   t.after(async()=>{await new Promise<void>(resolve=>server.close(()=>resolve()));rmSync(home,{recursive:true,force:true});});

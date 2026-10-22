@@ -31,6 +31,7 @@ const unavailableInFixture: Record<string, string> = {
 async function probe(t: test.TestContext, databasePath: string, projectId: string) {
   const home = mkdtempSync(join(tmpdir(), "action-read-compatibility-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const copy = join(home, "project.sqlite"); copyFileSync(databasePath, copy);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const ref = molisWorkHostProjectReference({ databasePath: copy, projectId });
@@ -73,6 +74,7 @@ test("every parameterless read accepts the demo seed project", { timeout: 60_000
 test("Coding state propagates workspace permission and availability failures", async t => {
   const home = mkdtempSync(join(tmpdir(), "action-read-workspace-refusal-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const copy = join(home, "project.sqlite"); seedDemoBoard(copy);
   let failure = new ActionError("actions.forbidden", "workspace-refusal-fixture");
   let reads = 0;

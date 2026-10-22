@@ -22,7 +22,7 @@ const REPORT = artifactSubjectId({ artifact_id: "report:1", version: 2 });
 
 test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.read; a piece that cannot be read stops the round before it starts", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-materials-http-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(root); let store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(root); seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
   await codingSessions(store).create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "app", title: "项目资料", runtime_id: "prologue", at: new Date().toISOString() });
   // The project's knowledge, as the knowledge service answers for it (its own reads, refusals and receipts are tested in tests/knowledge-*.test.ts).
   const pieces = new Map<string, Piece>([

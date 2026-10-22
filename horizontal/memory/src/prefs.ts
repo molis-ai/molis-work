@@ -1,12 +1,12 @@
 import { MEMORY_CONSUMERS, MEMORY_KINDS, type MemoryConsumer, type MemoryKind, type MemoryPrefs, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 
 /**
- * Switches, as spec §10 lists them. Forming, automatic writing (D2: on, undoable) and learning from work and the
- * interface are on; every consumer may use memories except external AI clients reading personal ones.
+ * The assisted base switches; Home creation explicitly persists reviewed instead. Completing a stored override
+ * never chooses whether a Home is new. External AI clients cannot read personal memories by default.
  */
-export function defaultPrefs(scope: MemoryScope): MemoryPrefs {
+export function defaultPrefs(scope: MemoryScope, preset: "reviewed" | "assisted" = "assisted"): MemoryPrefs {
   return {
-    form: true, auto: true, learn_from_work: true, learn_from_ui: true,
+    form: true, auto: preset === "assisted", learn_from_work: true, learn_from_ui: true,
     consumers: { assistant: true, agent: true, ui: true, plugin: true, mcp: scope === "project" },
     plugins: {},
   };
@@ -19,6 +19,21 @@ export const PLUGIN_DEFAULT_KINDS: readonly MemoryKind[] = ["preference", "conve
 export const PERSONAL_PREFS_KEY = "personal";
 export const PROJECT_DEFAULT_PREFS_KEY = "project-default";
 export const projectPrefsKey = (projectId: string) => `project:${projectId}`;
+
+/** Adoption requires a complete current profile: missing switches must not silently become enabled defaults. */
+export function isCompletePrefs(value: unknown): value is MemoryPrefs {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const prefs = value as Record<string, unknown>;
+  if (Object.keys(prefs).length !== 6 || !["form", "auto", "learn_from_work", "learn_from_ui"].every(key => typeof prefs[key] === "boolean")) return false;
+  const consumers = prefs.consumers, plugins = prefs.plugins;
+  if (!consumers || typeof consumers !== "object" || Array.isArray(consumers)
+    || Object.keys(consumers).length !== MEMORY_CONSUMERS.length
+    || !MEMORY_CONSUMERS.every(key => typeof (consumers as Record<string, unknown>)[key] === "boolean")) return false;
+  if (!plugins || typeof plugins !== "object" || Array.isArray(plugins)) return false;
+  return Object.values(plugins).every(rule => rule && typeof rule === "object" && !Array.isArray(rule)
+    && Object.keys(rule).length === 2 && typeof rule.allowed === "boolean" && Array.isArray(rule.kinds)
+    && rule.kinds.every((kind: unknown) => typeof kind === "string" && MEMORY_KINDS.includes(kind as MemoryKind)));
+}
 
 /** A stored (possibly partial or older) record, completed with the defaults; unknown keys are dropped. */
 export function completePrefs(scope: MemoryScope, ...layers: Array<Partial<MemoryPrefs> | null | undefined>): MemoryPrefs {

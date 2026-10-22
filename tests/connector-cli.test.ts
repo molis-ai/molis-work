@@ -9,6 +9,7 @@ import { inspectSourceAuthorization } from "../apps/local-host/dist/connector-ac
 
 test("ASC-03 ASC-04: official CLI fixed commands bind separate account identities and reject a later account switch", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-cli-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const prior = process.env.PATH;
   const identityFile = join(home, "identity.json"), recordsFile = join(home, "records.json"), calls = join(home, "calls.jsonl");
   writeFileSync(recordsFile, JSON.stringify(Array.from({ length: 50 }, (_, id) => ({ id, body: "record-body ".repeat(200) }))));

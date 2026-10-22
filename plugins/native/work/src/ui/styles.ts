@@ -47,12 +47,12 @@ export const PROJECT_OPERATIONS_STYLES = `
     width: var(--control-h, 28px); min-width: var(--control-h, 28px);
     height: var(--control-h, 28px); min-height: var(--control-h, 28px);
     padding: 0; display: inline-grid; place-items: center;
-    border: 1px solid var(--line); border-radius: var(--radius-control, 8px);
-    background: var(--paper); color: var(--ink); cursor: pointer; list-style: none;
+    border: 0; border-radius: var(--radius-control, 8px);
+    background: transparent; color: var(--ink-soft); cursor: pointer; list-style: none;
   }
   [data-session-stage-chrome] .project-record-filter-menu > summary::-webkit-details-marker { display: none; }
   [data-session-stage-chrome] .project-record-filter-menu > summary svg { width: 14px; height: 14px; }
-  [data-session-stage-chrome] .project-record-filter-menu[open] > summary { background: var(--nav-hover); }
+  [data-session-stage-chrome] .project-record-filter-menu:is([open], :hover) > summary { background: var(--nav-hover); color: var(--ink); }
   [data-session-stage-chrome] .project-record-filter-menu > div {
     position: absolute; z-index: 30; top: 36px; left: 0; width: 218px;
     padding: 12px; border: 1px solid var(--line); border-radius: 10px;

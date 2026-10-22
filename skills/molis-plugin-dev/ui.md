@@ -121,6 +121,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 - 状态色走 tone/status（文字 + 圆点或图标，不只靠颜色）。禁止系统下拉、系统色盘、`alert` / `confirm` / `prompt`、裸 `<select>`。
 - 色用 token，组件规则里不要写死 hex。
 - 尺寸：控件 32px（紧凑密度 28，窄屏/粗指针 44）；圆角 控件 8、行 10、卡片 12、工作面 14、对话框 16。
+- 秩序（DESIGN「Order」）：状态环、圆点与字等高——`renderStateRing` 不传 `size` 就跟随所在文字（`1em + 2px`），不要在自己的行里给环定尺寸；图标与文字同号或大一级（12–15px 字旁 12–16px）。并排的按钮同一尺寸（变体不改变高度）、同一行、间距 8（紧凑组 4，只有图标按钮或工具条 2）；页头的动作在标题那一行。字号只用 11/12/13/15/17/20/24/30。`tests/visual-order.e2e.test.ts` 会拦。
 - 动效：`--dur-press` 130ms（按下与悬停）、`--dur-move` 250ms（状态移动）、`--dur-arrive` 420ms（到达），曲线 `--ease-quint`、`--ease-spring`。`mw-btn` 回弹、菜单从控件长出、对话框与侧边面板入场、列表到达都由 Host 提供，不要重写。自己的元素要入场时只用共有的关键帧名：到达 `craft-rise`、再显示 `craft-fade-in`、控件下方的菜单 `craft-drop`、上方的 `craft-rise-from-bar`；不写自己的 `@keyframes`（`tests/one-motion.test.ts` 会拦）。时长用 `--dur-*`，不用旧的 `--motion-*`。`prefers-reduced-motion` 与自动化下全部静止。
 - 不引入 React/shadcn。HTML Slot：`mw-*` + `data-slot`。
 - 插件样式放包内 `styles.ts`，经 Workbench pack 的 `stylesheet` 注入；只写本插件的布局，不重画共享控件。

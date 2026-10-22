@@ -22,9 +22,12 @@ export interface StateRingOptions {
 export function renderStateRing(options: StateRingOptions): string {
   const family = stateRingFamily(options.state);
   const progress = Number.isFinite(options.progress) ? Math.min(1, Math.max(0, options.progress!)) : undefined;
-  const size = Number.isFinite(options.size) ? Math.min(96, Math.max(12, options.size!)) : 20;
+  const size = Number.isFinite(options.size) ? Math.min(96, Math.max(12, options.size!)) : undefined;
   const segments = stateRingGeometry(family, options.state === "doing" ? .75 : 3, progress);
-  const stroke = (1.75 * Math.pow(24 / size, .2)).toFixed(3);
+  // Without a size the ring is as tall as the words beside it (styles/state-ring.ts) and drawn for the smallest of them, 13px
+  // beside 11px words. The stroke stays at least 1.4 CSS px on screen (RING-08): 1.4 × 24 / size in the 24-unit box, never
+  // thinner than 1.75 units.
+  const stroke = Math.max(1.75, 33.6 / (size ?? 13)).toFixed(3);
   const paths = segments.map(segment => `<path d="${ringSegmentPath(segment.points)}" opacity="${segment.alpha.toFixed(3)}" data-ring-tone="${segment.tone}"></path>`).join("");
-  return `<svg class="${cx("mw-state-ring", options.className)}" data-mw-state="${options.state}" data-ring-family="${family}"${progress === undefined ? "" : ` data-ring-progress="${progress}"`} viewBox="0 0 24 24" width="${size}" height="${size}" style="--ring-size:${size}px;--ring-stroke:${stroke}"${options.label ? ` role="img" aria-label="${escapeHtml(options.label)}"` : ' aria-hidden="true"'}><g data-ring-segments>${paths}</g><path data-ring-core d="${STATE_RING_CORES[family] || ""}"></path></svg>`;
+  return `<svg class="${cx("mw-state-ring", options.className)}" data-mw-state="${options.state}" data-ring-family="${family}"${progress === undefined ? "" : ` data-ring-progress="${progress}"`} viewBox="0 0 24 24"${size === undefined ? "" : ` width="${size}" height="${size}"`} style="${size === undefined ? "" : `--ring-size:${size}px;`}--ring-stroke:${stroke}"${options.label ? ` role="img" aria-label="${escapeHtml(options.label)}"` : ' aria-hidden="true"'}><g data-ring-segments>${paths}</g><path data-ring-core d="${STATE_RING_CORES[family] || ""}"></path></svg>`;
 }

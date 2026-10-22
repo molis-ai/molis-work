@@ -321,7 +321,7 @@ export function resolvePluginComponentCall(node: PluginComponentNode, bindingId:
  * stylesheet the plugin page loads), so a plugin looks and themes like the rest of Molis Work; this only places them.
  */
 export const PLUGIN_COMPONENT_STYLES = `
-.pc-view{color:var(--ink);min-width:0;container-type:inline-size;font:13.5px/1.6 var(--font);-webkit-font-smoothing:antialiased}
+.pc-view{color:var(--ink);min-width:0;container-type:inline-size;font:13px/1.6 var(--font);-webkit-font-smoothing:antialiased}
 .pc-view *{box-sizing:border-box}.pc-view [hidden]{display:none!important}.pc-view :is(h1,h2,h3,p,dl,dd){margin:0}
 .pc-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .pc-icon{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}

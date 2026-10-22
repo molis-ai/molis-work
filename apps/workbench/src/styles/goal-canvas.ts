@@ -308,7 +308,7 @@ export const GOAL_CANVAS_STYLES = `
   .goal-kanban-chevron { display: none; width: 16px; height: 16px; color: var(--muted); flex: none; place-items: center; }
   .goal-kanban-chevron svg { display: block; width: 12px; height: 12px; }
   .goal-kanban-status { width: 16px; height: 16px; display: grid; place-items: center; flex: none; color: var(--ink-soft); }
-  .goal-kanban-status svg { display: block; width: 16px; height: 16px; overflow: visible; }
+  .goal-kanban-status svg { display: block; overflow: visible; }
   .goal-kanban-column[data-kanban-column="continue"] .goal-kanban-status { color: var(--tone-idle, var(--ink-soft)); }
   .goal-kanban-column[data-kanban-column="in_progress"] .goal-kanban-status { color: var(--tone-progress, var(--blue)); }
   .goal-kanban-column[data-kanban-column="waiting_user"] .goal-kanban-status { color: var(--tone-attention, var(--amber)); }
@@ -489,7 +489,7 @@ export const GOAL_CANVAS_STYLES = `
   .goal-info-popover > summary::-webkit-details-marker, .timeline-compose > summary::-webkit-details-marker { display: none; }
   .goal-info-popover .goal-info-collapsed-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .goal-info-popover:not([open]) .goal-info-label, .goal-info-popover[open] .goal-info-collapsed-title { display: none; }
-  .goal-info-popover > summary > .goal-status { margin-left: auto; font-size: 11px; }
+  .goal-info-popover > summary > .goal-status { margin-left: auto; font-size: 12px; }
   .goal-info-popover > summary > svg { width: 14px; height: 14px; flex: none; color: var(--muted); transform: rotate(-90deg); }
   .goal-info-popover[open] > summary > svg { transform: none; }
   .goal-info-body { padding: 0 16px 8px; max-height: min(43vh, 365px); overflow: auto; overscroll-behavior: contain; }
@@ -643,9 +643,7 @@ export const GOAL_CANVAS_STYLES = `
   .frame-goal-summary > p { max-width:76ch; margin:8px 0 12px; color:var(--ink-soft); font-size:13px; line-height:1.7; }
   .frame-goal-actions { display:flex; flex-wrap:wrap; gap:8px; }
   [data-frame-goal-status],
-  [data-workspace-goal-status] { display:inline-flex; gap:4px; align-items:center; min-height: 18px; padding: 1px 8px; border: 0; border-radius: 5px; background: color-mix(in srgb, var(--goal-status-tone, var(--muted)) 11%, transparent); color: var(--goal-status-tone, var(--ink-soft)); font-size: 11px; font-weight: 400; }
-  [data-frame-goal-status] svg,
-  [data-workspace-goal-status] svg { width: 12px; height: 12px; }
+  [data-workspace-goal-status] { display:inline-flex; gap:4px; align-items:center; min-height: 18px; padding: 1px 8px; border: 0; border-radius: 5px; background: color-mix(in srgb, var(--goal-status-tone, var(--muted)) 11%, transparent); color: var(--goal-status-tone, var(--ink-soft)); font-size: 12px; font-weight: 400; }
   .frame-goal-actions svg { width:14px; height:14px; }
   .goal-frame-surface > .goal-frame-canvas { position:relative; inset:auto; flex:1; min-height:0; }
   .frame-empty { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:12px; padding:32px; text-align:center; pointer-events:none; }

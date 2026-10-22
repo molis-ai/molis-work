@@ -1562,13 +1562,13 @@ const CRAFT_BASE_STYLES = `
     ${STAGE_LIST} {
       padding: 32px max(32px, calc((100% - 960px) / 2)) 56px;
     }
-    /* One header on every page: the title and one sentence on the left, the page's actions on the right. */
+    /* One header on every page: the title and one sentence on the left, the page's actions on the right, on the title's line. */
     ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome) {
       position: relative; inset: auto; z-index: 5; display: grid; grid-auto-flow: column; grid-template-columns: minmax(0, 1fr);
       grid-auto-columns: auto; grid-template-rows: auto auto; align-items: center; column-gap: 8px; row-gap: 4px;
       width: auto; max-width: none; height: auto; min-height: 40px; flex: none; margin: 0 0 24px; padding: 0;
     }
-    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome) > * { grid-row: 1 / span 2; }
+    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome) > * { grid-row: 1; }
     ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome)::before {
       content: var(--stage-title, "") / ""; grid-row: 1; grid-column: 1; min-width: 0;
       font-size: 24px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; line-height: 1.3; color: var(--ink);
@@ -1579,7 +1579,7 @@ const CRAFT_BASE_STYLES = `
       font-size: 13px; line-height: 1.5; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     ${STAGE_LIST} > .shelf-stage-chrome > .shelf-search { min-width: min(360px, 40vw); }
-    ${STAGE_LIST} > .plugin-stage-chrome .tree-create { min-height: 34px; padding: 0 12px; border-radius: 8px; font-size: 13px; }
+    ${STAGE_LIST} > .plugin-stage-chrome .tree-create { min-height: var(--control-h, 32px); padding: 0 12px; border-radius: 8px; font-size: 13px; }
     ${STAGE_LIST} > .plugin-stage-chrome .tree-create:first-of-type { background: var(--action); color: var(--action-ink); }
     ${STAGE_LIST} > .plugin-stage-chrome .tree-create:first-of-type svg { color: currentColor; }
     ${STAGE_LIST} > .plugin-stage-chrome .tree-create:first-of-type:hover { background: var(--action-hover, color-mix(in srgb, var(--action) 90%, var(--action-ink))); }
@@ -1620,8 +1620,8 @@ const CRAFT_BASE_STYLES = `
       content: var(--stage-desc, "") / ""; position: absolute; top: 66px; left: max(32px, calc((100% - 960px) / 2)); z-index: 21;
       max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; font-size: 13px; line-height: 20px; color: var(--muted);
     }
-    ${SESSIONS_LIST} > [data-session-stage-chrome] { top: 28px; left: auto; right: max(32px, calc((100% - 960px) / 2)); height: 40px; }
-    ${SESSIONS_LIST} > [data-session-stage-chrome] .tree-create { min-height: 34px; padding: 0 12px; border-radius: 8px; font-size: 13px; background: var(--action); color: var(--action-ink); }
+    ${SESSIONS_LIST} > [data-session-stage-chrome] { top: 24px; left: auto; right: max(32px, calc((100% - 960px) / 2)); height: 40px; }
+    ${SESSIONS_LIST} > [data-session-stage-chrome] .tree-create { min-height: var(--control-h, 32px); padding: 0 12px; border-radius: 8px; font-size: 13px; background: var(--action); color: var(--action-ink); }
     ${SESSIONS_LIST} > [data-session-stage-chrome] .tree-create svg { color: currentColor; }
     /* The header's actions sit on the right, so their filter menus open leftward and stay inside the page. */
     :is(${STAGE_LIST} > .plugin-stage-chrome, ${SESSIONS_LIST} > [data-session-stage-chrome]) .project-record-filter-menu > div { left: auto; right: 0; transform-origin: top right; }
@@ -1697,7 +1697,7 @@ const CRAFT_BASE_STYLES = `
   @keyframes craft-done-mark { 0% { transform: rotate(-30deg) scale(.4); } 60% { transform: rotate(8deg) scale(1.2); } 100% { transform: none; } }
 
   /* ─── Catalog specimens for this layer ─── */
-  .mw-catalog .mw-craft-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .mw-catalog .mw-craft-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .mw-catalog .mw-craft-lift, .mw-catalog .mw-craft-radius {
     display: grid; gap: 4px; align-content: end; width: 132px; height: 84px; padding: 12px 12px; background: var(--paper); border-radius: var(--r-card);
   }

@@ -66,7 +66,7 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-return { flex: none; color: var(--plugin-tint); }
   [data-workflows="workbench"] .wf-return:hover { color: var(--plugin-tint); background: color-mix(in srgb, var(--plugin-tint) 10%, transparent); }
   [data-workflows="workbench"] .wf-save-state { flex: none; display: inline-flex; align-items: center; gap: 4px; min-width: 4.5em; justify-content: flex-end; color: var(--faint); font-size: 12px; }
-  [data-workflows="workbench"] .wf-save-state svg { width: 12px; height: 12px; }
+  [data-workflows="workbench"] .wf-save-state svg:not(.mw-state-ring) { width: 12px; height: 12px; }
   [data-workflows="workbench"] .wf-save-state .mw-spinner { width: 11px; height: 11px; border-width: 1.5px; }
   [data-workflows="workbench"] .wf-save-state[data-state="saving"] { color: var(--muted); }
   [data-workflows="workbench"] .wf-save-state[data-state="saved"] { animation: wf-saved 640ms var(--ease-quint) both; }

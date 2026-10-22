@@ -113,7 +113,7 @@ test("a failure the Host recorded shows its diagnostic ID, which copies whole an
   const desktopToast = await toastBox(evaluate, "[data-toast].is-error");
   assert.ok(desktopToast.h < 60 && desktopToast.right <= 1440, `a desktop window keeps the message and the button on one line (${JSON.stringify(desktopToast)})`);
   assert.ok(Math.abs((desktopToast.h - desktopToast.glyphHeight) / 2 - desktopToast.glyphTop) <= 1, `with the glyph centred on that line (${JSON.stringify(desktopToast)})`);
-  assert.ok(desktopToast.glyphHeight >= 20); // RING-08
+  assert.ok(Math.abs(desktopToast.glyphHeight - 15) <= 1, `RING-08: as tall as its 13px words (${desktopToast.glyphHeight})`);
   const desktopReach = await reachOf(evaluate, "[data-toast].is-error [data-molis-call-id]");
   assert.ok(desktopReach.h >= 32 && desktopReach.top && desktopReach.bottom, `and a pointer reaches the button over at least 32px (${JSON.stringify(desktopReach)})`);
 
@@ -230,7 +230,7 @@ test("the settings page opened on its own: its toast hangs on the right edge on 
   assert.ok(Math.abs(desktop.right - (1440 - 22)) <= 1, `the toast hangs on the window's right edge, 22px in, as the page's own rule says, and is not a bar over its right half (${JSON.stringify(desktop)})`);
   assert.ok(desktop.right - desktop.x < 720, "as wide as its words");
   assert.ok(Math.abs((desktop.h - desktop.glyphHeight) / 2 - desktop.glyphTop) <= 1, `with the glyph centred on that line (${JSON.stringify(desktop)})`);
-  assert.ok(desktop.glyphHeight >= 20); // RING-08
+  assert.ok(Math.abs(desktop.glyphHeight - 15) <= 1, `RING-08: as tall as its 13px words (${desktop.glyphHeight})`);
   const desktopReach = await reachOf(evaluate, button);
   assert.ok(desktopReach.h >= 32 && desktopReach.top && desktopReach.bottom, `and a pointer reaches the button over at least 32px (${JSON.stringify(desktopReach)})`);
 

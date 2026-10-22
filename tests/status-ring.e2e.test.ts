@@ -84,7 +84,7 @@ test("RING-01 RING-02 RING-03 RING-04 RING-05 catalog, lifecycle, Goals and Home
     await waitFor(`document.querySelector('${selector} .goal-status .mw-state-ring')?.checkVisibility({ visibilityProperty: true })`);
     if (view === "kanban") assert.equal(await evaluate("document.querySelectorAll('.goal-kanban-column summary .mw-state-ring').length"), 6);
     assert.equal(await evaluate(`getComputedStyle(document.querySelector('${selector} .goal-status'), '::before').content`), "none", "the ring replaces the old CSS dot");
-    // RING-08: measure the actual business ring, including old view-specific CSS overrides.
+    // RING-08: measure the actual business ring, including old view-specific CSS overrides of its size.
     for (const width of [1440, 390]) {
       await command("Emulation.setDeviceMetricsOverride", { width, height: 1000, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
       const ringSelector = view === "kanban" && width === 390 ? `${selector} > .goal-kanban-status .mw-state-ring` : `${selector} .goal-status .mw-state-ring`;
@@ -96,12 +96,13 @@ test("RING-01 RING-02 RING-03 RING-04 RING-05 catalog, lifecycle, Goals and Home
         viewport.dispatchEvent(new WheelEvent('wheel', { deltaX: node.x + node.width / 2 - box.x - box.width / 2,
           deltaY: node.y + node.height / 2 - box.y - box.height / 2, bubbles: true, cancelable: true }));
       })()`);
-      const size = await evaluate<{ width: number; height: number; diameter: number; stroke: number }>(`(() => {
+      // RING-08 (user 2026-10-22): as tall as the words it sits with (1em + 2px), its stroke at least 1.4px on screen.
+      const size = await evaluate<{ width: number; height: number; words: number; diameter: number; stroke: number }>(`(() => {
         const ring = document.querySelector('${ringSelector}'), box = ring.getBoundingClientRect();
-        return { width: box.width, height: box.height, diameter: ring.querySelector('[data-ring-segments]').getBBox().width * box.width / 24,
+        return { width: box.width, height: box.height, words: parseFloat(getComputedStyle(ring).fontSize), diameter: ring.querySelector('[data-ring-segments]').getBBox().width * box.width / 24,
           stroke: parseFloat(getComputedStyle(ring.querySelector('[data-ring-segments] path')).strokeWidth) * box.width / 24 };
       })()`);
-      assert.ok(size.width >= 20 && size.height >= 20 && size.diameter >= 15 && size.stroke >= 1.4, `${view} at ${width}: ${JSON.stringify(size)}`);
+      assert.ok(Math.abs(size.height - size.words - 2) <= 1 && size.width === size.height && size.height >= 13 && size.diameter >= size.width * .7 && size.stroke >= 1.399, `${view} at ${width}: ${JSON.stringify(size)}`);
       assert.equal(await evaluate(`(() => { const box = document.querySelector('${ringSelector}').getBoundingClientRect();
         return box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight; })()`), true, "the measured ring is in the visible window");
       assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);

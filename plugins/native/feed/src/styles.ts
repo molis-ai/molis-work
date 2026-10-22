@@ -40,9 +40,8 @@ ${F} .feed-source-rail {
   position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30; display: flex; flex-direction: column; gap: 4px;
   max-height: min(460px, 64cqb, 70dvh); overflow: auto; overscroll-behavior: contain; padding: 8px;
   border-radius: 12px; background: var(--popover, var(--paper)); box-shadow: var(--lift-3);
-  animation: feed-menu-in var(--dur-move) var(--ease-quint) both;
+  animation: craft-drop var(--dur-move) var(--ease-quint) both;
 }
-@keyframes feed-menu-in { from { opacity: 0; transform: translateY(-4px); } }
 ${F} .feed-source-rail > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 4px 8px 8px; }
 ${F} .feed-source-rail > header > span { font-size: 12px; color: var(--muted); }
 ${F} .feed-source-rail > header .mw-btn { min-height: 28px; font-size: 12px; }

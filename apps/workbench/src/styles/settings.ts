@@ -156,7 +156,7 @@ export const SETTINGS_STYLES = `
     font: inherit;
   }
   button.settings-connector-card:hover { background: var(--nav-hover); }
-  button.settings-connector-card:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  button.settings-connector-card:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
   button.settings-connector-card--placeholder { color: var(--ink-soft); }
   button.settings-connector-card--placeholder .settings-connector-card__copy { color: var(--faint, var(--muted)); }
   .settings-connector-card__body { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }

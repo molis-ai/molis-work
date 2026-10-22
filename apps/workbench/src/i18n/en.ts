@@ -2768,7 +2768,7 @@ Object.assign(EN, {
   "返回项目": "Return to project",
   "返回工作台": "Back to workbench",
   "暂无 Goal": "No goals",
-  "一骏": "Yijun",
+  "未登录": "Not signed in", "登录": "Sign in", "登录功能暂未开放": "Sign-in is not available yet",
   "本地空间": "Local space",
   "当前项目设置": "Current project settings",
   "打开全局设置": "Open global settings",

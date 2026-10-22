@@ -265,7 +265,7 @@ export const STYLES = `
   .factor-write-receipt { margin: 0 0 16px; padding: 12px 12px; border: 1px solid color-mix(in srgb, var(--green), var(--line) 65%); border-radius: 5px; background: var(--green-soft); display: grid; gap: 4px; }
   .factor-write-receipt strong { color: var(--green); font-size: 12px; }
   .factor-write-receipt span { color: var(--muted); font-size: 12px; line-height: 1.5; }
-  .factor-write-receipt:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
+  .factor-write-receipt:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
   .policy-scope-note { margin: 0; padding: 12px 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--page); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; }
   .policy-scope-note > svg { color: var(--muted); }
   .policy-scope-note > span { min-width: 0; display: grid; }

@@ -14,6 +14,7 @@ import { SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@mol
 // as the confirming person; the project's agents find and read it like any other piece (Coding's side: tests/coding-materials-http.test.ts).
 test("Shelf saves the confirmed full text into project knowledge, a new version when it changed, per project, and refuses what is not text", async () => {
   const home = mkdtempSync(join(tmpdir(), "shelf-knowledge-")), dbPath = join(home, "board.db");
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const otherPath = join(home, "other.db"), otherStore = new LocalProjectDatabase(otherPath);
   new GoalProjectApplication(otherStore).initializeBoard({ project_id: "other-project", actor_id: "web-user", idempotency_key: "init-other" });

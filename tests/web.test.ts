@@ -12,7 +12,7 @@ import test from "node:test";
 import { Script } from "node:vm";
 import { locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, MolisWorkLocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { type MolisWorkProjectCatalog, normalizeRuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
 import { RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
@@ -626,6 +626,7 @@ test("Web first-run onboarding can be skipped without creating a project or Runt
 
 test("Web onboarding creates one real Project, root Draft Goal, and optional Workspace", async () => {
   const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-onboarding-create-"));
+  await new MolisWorkLocalHost({ homeDirectory, completeText: null }).close();
   const workspaceDirectory = join(homeDirectory, "workspace");
   mkdirSync(workspaceDirectory);
   const server = createMolisWorkWebServer({ homeDirectory });
@@ -730,6 +731,7 @@ test("Web onboarding creates one real Project, root Draft Goal, and optional Wor
 
 test("Web update onboarding is shown once per installed version", async () => {
   const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-onboarding-update-"));
+  await new MolisWorkLocalHost({ homeDirectory, completeText: null }).close();
   mkdirSync(join(homeDirectory, "config"), { recursive: true });
   writeFileSync(join(homeDirectory, "config", "installation.json"), JSON.stringify({
     installer: "molis-work-home-install-v1",

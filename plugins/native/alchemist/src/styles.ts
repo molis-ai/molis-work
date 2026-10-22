@@ -1,8 +1,8 @@
 import { WORK_REUSE_STYLES } from "./work-reuse/ui.js";
-/** The `[data-expanded="false"]` rule centres an empty collection on the list page, like the other plugins' empty states (the comment stays out of the served string). */
+/** The `[data-expanded="false"]` rule centres an empty collection on the list page, like the other plugins' empty states; bare controls take the page's words while a shared `.mw-btn` keeps its own role, 13 / 500 (the comment stays out of the served string). */
 export const ALCHEMIST_STYLES = WORK_REUSE_STYLES + `
 [data-alchemist=workbench] { color:var(--ink); font-size:13px; }
-[data-alchemist=workbench] button,[data-alchemist=workbench] input,[data-alchemist=workbench] textarea { font:inherit; }
+[data-alchemist=workbench] :is(button:not(.mw-btn),input,textarea) { font:inherit; }
 .alc-list { padding-top:56px; }
 .alc-collections { display:flex; flex-wrap:wrap; gap:4px; margin:0 0 16px; }
 .alc-collections [aria-pressed=true],.alc-tabs [aria-pressed=true] { background:var(--nav-active); color:var(--ink); }

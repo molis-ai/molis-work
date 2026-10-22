@@ -414,7 +414,7 @@ export const PAGES_STYLES = `
   }
   .pages-template-item svg, .pages-template-mark svg { width: 16px; height: 16px; }
   .pages-template-item span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .pages-template-item strong { font-size: 13px; font-weight: 600; }
+  .pages-template-item strong { font-weight: inherit; }
   .pages-template-item em { font-size: 12px; color: var(--muted); font-style: normal; font-weight: 400; }
   dialog.mw-dialog.creative-confirm { width: min(360px, calc(100vw - 32px)); }
   .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 16px 24px 16px; }

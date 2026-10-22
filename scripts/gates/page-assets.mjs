@@ -239,8 +239,12 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [703659, 704435],
+  // Forms reflow (slice 85): moved and removed questions and options ease through the page's molisReflow, with the fallback when it is absent. 30244 → 30383 (+139).
+  "/assets/molis-work-plugins/form.js": [30244, 30383],
   "/assets/molis-work-plugins/workflows.js": [83019, 83135],
-  "/assets/molis-work-settings.css": [995228, 995833],
+  // Order sweep (slices 82–88): settings' shared buttons keep their role (13 / 500) instead of 12 / 400 for every button, and the models pane's
+  // empty state is centred like every pane's (+141); the corner and empty-state slices win back 118 of it in the same sheet. 994428 → 994451 (+23).
+  "/assets/molis-work-settings.css": [994428, 994451],
   // Select-item fix (#1003): a page that shows a blank item takes "no item" back instead of dropping it as a repeat. 1182810 → 1182868 (+58).
   "/assets/molis-work-workbench.js": [1182810, 1182868],
 };

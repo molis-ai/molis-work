@@ -174,10 +174,10 @@ export const INTERACTION_TEXTURE_STYLES = `
   .goal-status,
   body[data-desktop-shell="true"] .goal-status {
     border-color: transparent;
-    border-radius: 5px;
+    border-radius: 6px;
     background: color-mix(in srgb, var(--goal-status-tone, var(--muted)) 11%, transparent);
     color: var(--goal-status-tone);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 400;
     letter-spacing: 0;
   }
@@ -281,7 +281,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     gap: 4px;
     padding: 4px;
     border: 0;
-    border-radius: 9px;
+    border-radius: 10px;
     background: var(--control-fill);
     box-shadow: none;
   }

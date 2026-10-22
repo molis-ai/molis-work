@@ -240,7 +240,7 @@ export const PRIMITIVE_STYLES = `
     border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); background: var(--paper);
     display: inline-grid; place-items: center; color: var(--action-ink);
   }
-  .mw-check { border-radius: 5px; }
+  .mw-check { border-radius: 4px; }
   .mw-radio { border-radius: 50%; }
   .mw-check:hover:not(:disabled), .mw-radio:hover:not(:disabled) { border-color: color-mix(in srgb, var(--control-input) 60%, var(--ink)); }
   .mw-check:checked, .mw-radio:checked { border-color: var(--action); background: var(--action); }
@@ -348,9 +348,9 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-empty__mark, .mw-empty > svg { color: var(--plugin-tint, var(--muted)); }
   .mw-empty__mark svg, .mw-empty > svg { width: 16px; height: 16px; stroke-width: 2; }
-  .mw-empty h1, .mw-empty h2, .mw-empty strong { margin: 0; font-size: 15px; font-weight: var(--weight-control, 500); color: var(--ink); }
+  .mw-empty h1, .mw-empty h2, .mw-empty strong { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); color: var(--ink); }
   .mw-empty p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-soft); }
-  .mw-empty__actions { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 0 -8px; }
+  .mw-empty__actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 0; }
   .frame-empty.mw-empty {
     display: flex; flex-direction: column; justify-content: center; align-items: center;
     gap: 12px; padding: 32px; text-align: center;
@@ -510,7 +510,7 @@ export const PRIMITIVE_STYLES = `
   .mw-toggle-group {
     display: inline-flex; gap: 4px; padding: 4px;
     border: 0;
-    border-radius: 9px; background: var(--control-fill);
+    border-radius: 10px; background: var(--control-fill);
   }
   .mw-toggle {
     min-height: 26px; padding: 0 12px; border: 0; border-radius: 6px;

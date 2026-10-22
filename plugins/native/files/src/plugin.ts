@@ -3,7 +3,6 @@ import type {
   PluginCommandInput,
   PluginDefinition,
   PluginStartContext,
-  PluginEventDeliveryContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import { filesManifest } from "./manifest.js";
@@ -24,8 +23,6 @@ export interface FilesPluginPorts {
   currentPath?(): readonly string[] | null;
   /** Whether the Host can list and read under the bound workspace right now. */
   readable?(): boolean;
-  /** Notifies the Host after subscribed filesystem events so it can reload. */
-  onWorkspaceChanged?(available: boolean, delivery: PluginEventDeliveryContext): void | Promise<void>;
   onStop?(context: PluginStartContext): void | Promise<void>;
 }
 
@@ -64,12 +61,13 @@ export function createFilesPlugin(ports: FilesPluginPorts = {}): PluginDefinitio
           if (objectId === null) throw new Error("没有可打开的文件");
           return { ref: { view_id: "tree", object_id: objectId }, title: objectId };
         },
-        onEvent: async (_event, delivery) => {
+        onEvent: (_event, delivery) => {
           // Coding wrote, or Git moved the working tree. Either way what is on
-          // screen may no longer match the disk, so the Host re-reads.
+          // screen may no longer match the disk, so Files' own pages read again
+          // (PG-061). Only from a delivery: Files keeps no timer or watcher that
+          // could call it once this activation has stopped (BL-411).
           delivery.beforeEffect();
-          await ports.onWorkspaceChanged?.(ports.readable?.() === true, delivery);
-          delivery.beforeEffect();
+          context.services?.ui.invalidate();
         },
       };
     },

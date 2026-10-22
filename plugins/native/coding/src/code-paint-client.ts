@@ -38,9 +38,9 @@ type Tokens = (text: string, language: string, from?: number) => Piece[];
  * VUX-33). Each coloured block remembers what it was coloured from, so a block that changes (one being streamed) is coloured
  * again only from the line where it changed, through `grow` (Coding's `growCodeTokens`); the nodes before stay. A large block
  * coloured afresh (reopened from history) shows its text at once and is coloured a slice of lines a frame, the same way,
- * so no frame waits on the whole block: colouring costs about a millisecond per thousand characters, nearly all of it the
- * nodes, and a slice is a frame's worth. The first slice runs where the block is made (often before it is in the page), a
- * later one only while it is there; a newer text that keeps what is coloured goes on from there, a changed one starts over.
+ * so later layout reads do not traverse one accumulated inline formatting context. The first slice runs where the block
+ * is made (often before it is in the page), a later one only while it is there. Newline-aligned blocks keep layout local, even when a small
+ * streamed block grows large; a newer text that keeps what is coloured goes on from there, a changed one starts at its line.
  * Pieces go in 4,096 at a time: one call with every piece of a large block would pass more arguments than the engine takes. `growCode` is
  * `molisStreamText`'s `grow` for a fenced block: the block, its copy button and its leading pieces stay, and `source` keeps the
  * code as it now reads for the copy. Another language class puts the block in anew. Injected into the browser with
@@ -48,45 +48,76 @@ type Tokens = (text: string, language: string, from?: number) => Piece[];
  */
 export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring | null, text: string, language: string, tokens: Tokens) => CodeColouring,
   languageOf: (hint: string) => string) {
-  const colouring = new WeakMap<PaintElement, CodeColouring & { nodes: PaintNode[] }>(), source = new WeakMap<PaintElement, string>();
+  type Region = { start: number; end: number; node: PaintElement; pieces: Piece[]; nodes: PaintNode[] };
+  type Job = { text: string; language: string; at: number; regions: Region[]; state: CodeColouring | null };
+  const colouring = new WeakMap<PaintElement, Job>(), source = new WeakMap<PaintElement, string>();
   const pieceNode = ([kind, value]: Piece): PaintNode => {
     if (!kind) return document.createTextNode(value);
     const span = document.createElement("span"); span.className = "tok-" + kind; span.textContent = value; return span;
   };
-  type Job = { text: string; language: string; at: number; rest: PaintText; state: (CodeColouring & { nodes: PaintNode[] }) | null };
-  const SLICE = 16000, CAP = 400000, slicing = new WeakMap<PaintElement, Job>();
-  const paintSliced = (target: PaintElement, text: string, language: string) => {
-    const job: Job = { text, language, at: 0, rest: document.createTextNode(text), state: null };
-    slicing.set(target, job); colouring.delete(target); target.replaceChildren(job.rest);
-    const step = (first = false) => {
-      if (slicing.get(target) !== job || (!first && !target.isConnected)) return;
-      const { text, state, rest } = job, nextAt = Math.min(text.length, job.at + SLICE), end = text.indexOf("\n", nextAt);
-      job.at = end < 0 ? nextAt : end + 1;
-      const next = grow(state, text.slice(0, job.at), language, tokens), fresh = next.pieces.slice(next.from).map(pieceNode);
-      for (const node of state ? state.nodes.slice(next.from) : []) node.remove();
-      for (let at = 0; at < fresh.length; at += 4096) rest.before(...fresh.slice(at, at + 4096));
-      rest.data = text.slice(job.at);
-      job.state = { ...next, nodes: [...(state ? state.nodes.slice(0, next.from) : []), ...fresh] };
-      if (job.at < text.length) { requestAnimationFrame(() => step()); return; }
-      rest.remove(); slicing.delete(target); colouring.set(target, job.state);
-    };
-    step(true);
+  const SLICE = 16000, BLOCK_SLICE = 8000, CAP = 400000, slicing = new WeakMap<PaintElement, Job>();
+  const throughLine = (text: string, at: number) => { const next = Math.min(text.length, at + BLOCK_SLICE), end = text.indexOf("\n", next); return end < 0 ? text.length : end + 1; };
+  const piecesIn = (state: CodeColouring, start: number, end: number): Piece[] => {
+    const pieces: Piece[] = []; let low = 0, high = state.starts.length - 1;
+    while (low < high) { const middle = Math.ceil((low + high) / 2); if (state.starts[middle]! <= start) low = middle; else high = middle - 1; }
+    for (let index = low; index < state.pieces.length && state.starts[index]! < end; index += 1) {
+      const [kind, value] = state.pieces[index]!, at = state.starts[index]!, from = Math.max(0, start - at), to = Math.min(value.length, end - at);
+      if (to > from) pieces.push([kind, value.slice(from, to)]);
+    }
+    return pieces;
+  };
+  const draw = (region: Region, pieces: Piece[]) => {
+    let same = 0;
+    while (same < region.pieces.length && same < pieces.length && region.pieces[same]![0] === pieces[same]![0] && region.pieces[same]![1] === pieces[same]![1]) same += 1;
+    if (same === region.pieces.length && same === pieces.length) return;
+    for (const node of region.nodes.slice(same)) node.remove();
+    const fresh = pieces.slice(same).map(pieceNode);
+    for (let at = 0; at < fresh.length; at += 4096) region.node.append(...fresh.slice(at, at + 4096));
+    region.pieces = pieces; region.nodes = [...region.nodes.slice(0, same), ...fresh];
+  };
+  const readAtOnce = (target: PaintElement, job: Job) => {
+    let index = 0;
+    for (let start = 0; start < job.text.length; index += 1) {
+      const end = throughLine(job.text, start); let region = job.regions[index];
+      if (!region) { const node = document.createElement("span"); node.style.setProperty("display", "block"); region = { start, end, node, pieces: [], nodes: [] }; job.regions.push(region); target.append(node); }
+      region.start = start; region.end = end;
+      if (end > job.at) {
+        const to = Math.max(start, Math.min(job.at, end)), pieces = job.state && to > start ? piecesIn(job.state, start, to) : [];
+        if (end > to) pieces.push([null, job.text.slice(to, end)]);
+        draw(region, pieces);
+      }
+      start = end;
+    }
+    for (const region of job.regions.splice(index)) region.node.remove();
   };
   const paintInto = (target: PaintElement, text: string, language: string): boolean => {
     if (!language || text.length > CAP) { colouring.delete(target); slicing.delete(target); return false; }
-    const job = slicing.get(target);
-    if (job && job.language === language && text.startsWith(job.text.slice(0, job.at))) { job.text = text; job.rest.data = text.slice(job.at); return true; }
+    const running = slicing.get(target);
+    if (running && running.language === language && text.startsWith(running.text.slice(0, running.at))) { running.text = text; readAtOnce(target, running); return true; }
     const before = colouring.get(target);
-    const last = before && before.nodes.every(node => node.parentNode === target) && target.childNodes.length === before.nodes.length ? before : null;
-    if (!last && text.length > SLICE) { paintSliced(target, text, language); return true; }
-    slicing.delete(target);
-    const next = grow(last, text, language, tokens);
-    const fresh = next.pieces.slice(next.from).map(pieceNode);
-    if (last && next.from) for (const node of last.nodes.slice(next.from)) node.remove();
-    else target.replaceChildren();
-    for (let at = 0; at < fresh.length; at += 4096) target.append(...fresh.slice(at, at + 4096));
-    colouring.set(target, { ...next, nodes: [...(last && next.from ? last.nodes.slice(0, next.from) : []), ...fresh] });
-    return true;
+    const last = before?.language === language && target.childNodes.length === before.regions.length && before.regions.every(region => region.node.parentNode === target
+      && region.node.childNodes.length === region.nodes.length && region.nodes.every(node => node.parentNode === region.node)) ? before : null;
+    if (last && last.text === text && last.at === text.length) return true;
+    let same = 0; const coloured = last?.state?.text ?? "";
+    while (same < Math.min(coloured.length, text.length) && coloured.charCodeAt(same) === text.charCodeAt(same)) same += 1;
+    const at = same === coloured.length ? same : same === 0 ? 0 : Math.max(0, text.lastIndexOf("\n", same - 1));
+    const job: Job = { text, language, at, state: last?.state ?? null, regions: last?.regions ?? [] };
+    if (!last) target.replaceChildren();
+    colouring.set(target, job); slicing.set(target, job); readAtOnce(target, job);
+    const step = (first = false) => {
+      if (slicing.get(target) !== job) return;
+      if (!first && !target.isConnected) { slicing.delete(target); return; }
+      job.at = Math.min(job.at + SLICE, job.regions.find(region => region.end > job.at)?.end ?? job.text.length);
+      const next = grow(job.state, job.text.slice(0, job.at), language, tokens), changed = next.starts[next.from] ?? job.at;
+      for (const region of job.regions) if (region.end > changed && region.start < job.at) {
+        const pieces = piecesIn(next, region.start, Math.min(region.end, job.at));
+        if (region.end > job.at) pieces.push([null, job.text.slice(job.at, region.end)]);
+        draw(region, pieces);
+      }
+      job.state = next;
+      if (job.at < job.text.length) requestAnimationFrame(() => step()); else slicing.delete(target);
+    };
+    step(true); return true;
   };
   const blockLanguage = (code: PaintElement, text: string) => languageOf([...code.classList].find(name => name.startsWith("language-")) || "")
     || (/^\s*[[{]/.test(text) && /[\]}]\s*$/.test(text) ? "json" : /^\s*\$ /.test(text) ? "sh" : "");

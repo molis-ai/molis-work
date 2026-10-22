@@ -699,7 +699,9 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktop, /molis-work:tui-collapse/);
     assert.match(desktop, /\*::-webkit-scrollbar\{display:none/);
     assert.match(desktop, /在这个 Goal 上打开终端/);
-    assert.match(desktop, /querySelector\("\[data-tree-resizer\]"\)/);
+    // #994 gathered the page's lookups behind one `q`; the tree resizer is still found in the page's own document.
+    assert.match(desktop, /const q = \(selector\) => document\.querySelector\(selector\);/);
+    assert.match(desktop, /const treeResizer = q\("\[data-tree-resizer\]"\);/);
     assert.match(desktop, /treeWidth: parseFloat\(workspace\.style\.getPropertyValue\("--tree-width"\)\)/);
     assert.match(desktop, /\.workspace\.is-desktop-tui \{ grid-template-columns: var\(--tree-width, 240px\)/);
     assert.match(desktop, /class="immersive-workspace is-desktop-tui is-plugin-directory-empty"/);

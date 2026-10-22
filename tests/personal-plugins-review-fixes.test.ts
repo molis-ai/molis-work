@@ -160,7 +160,8 @@ test("Schedule、Sources 和 Coding 都有自己的目录面", () => {
 test("灵光在岛上，不在侧栏轨；Manifest 声明 island 槽", () => {
   assert.equal(UI_VIEW_SLOTS.includes("island"), true);
   parsePluginManifest(lingguangManifest);
-  assert.equal(lingguangManifest.ui.views?.[0]?.slot, "island");
+  // #901 (PRR-12) put the stage view first; a view is placed by its slot, not its position in the list.
+  assert.equal(lingguangManifest.ui.views?.find((view) => view.view_id === "island")?.slot, "island");
   const enabled = ["goals", "lingguang", "pages"] as const;
   assert.equal(railEntries([...enabled]).some((entry) => entry.id === "lingguang"), false);
   assert.deepEqual(islandEntries([...enabled]).map((entry) => entry.id), ["lingguang"]);

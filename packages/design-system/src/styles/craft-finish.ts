@@ -42,6 +42,7 @@ const CENTRED_DIALOG = ":is(dialog.mw-dialog, dialog.global-search-dialog, dialo
 /** Popovers and menus that drop from the control that opened them. */
 /** The menus whose closing plays back (the Assistant's composer, also in DROPDOWN, keeps its own motion). */
 const MENU_EXIT = ".mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .project-record-filter-menu > div, .tui-menu";
+const DETAILS_MENU = `:is(${MENU_EXIT}):not([popover])`;
 const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu, .assistant-composer)";
 
 const CRAFT_BASE_STYLES = `
@@ -1064,7 +1065,7 @@ const CRAFT_BASE_STYLES = `
   @keyframes craft-dock-rise { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: none; } }
   /* Everything that opens from the bar rises from it (craft-rise-from-bar), anchored at the edge nearest its control. */
   html ${SHELL} .workbench-bar :is(.account-global-popover, .plugin-picker-popover:not([hidden])) { transform-origin: bottom left; animation: craft-rise-from-bar 250ms var(--ease-quint) both; }
-  html ${SHELL} .workbench-bar details[open] > .navigator-project-menu-popover { transform-origin: bottom right; animation: craft-rise-from-bar 250ms var(--ease-quint) both; }
+  html ${SHELL} .workbench-bar details > .navigator-project-menu-popover { transform-origin: bottom right; --menu-from-y: 4px; }
 
   /* The project: a round mark at the far right; its menu switches project, opens settings and the person. */
   html ${SHELL} .workbench-bar .bar-end .workspace-chrome { position: static; display: flex; width: auto; height: auto; min-height: 0; margin: 0 0 0 4px; padding: 0; border: 0; background: transparent; box-shadow: none; grid-area: auto; }
@@ -1401,13 +1402,18 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .immersive-home .home-erow__slot[data-just-opened] { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
   @keyframes craft-sheet-in { from { opacity: 0; transform: translateX(48px); } to { opacity: 1; transform: none; } }
   ${PAGES} ${DROPDOWN} { transform-origin: top left; }
-  ${PAGES} ${DROPDOWN}:is(:popover-open, [open], .is-open, :not([hidden])) { animation: craft-drop var(--dur-move) var(--ease-quint); }
+  ${PAGES} ${DROPDOWN}:is(:popover-open, [open], .is-open, :not([hidden])):where(:not(details > ${DETAILS_MENU})) { animation: craft-drop var(--dur-move) var(--ease-quint); }
   ${PAGES} details[open] > .navigator-project-menu-popover { transform-origin: top left; }
   /* Closing plays the opening backwards on the short clock and a closing menu keeps its box, takes no pointer. Only closing holds the content (held on opening, an opening menu was undrawn and unclickable). The hold is a custom property on the menu's details, read by the closed-details rule at zero specificity so a disclosure's own transition wins: a :has() on a ::details-content subject cost every node put in the page 30 ms of style (VUX-36). */
   ${PAGES} details:has(> :is(${MENU_EXIT})) { --exit-hold: var(--dur-hover); }
   :where(details:not([open]))::details-content { transition: content-visibility var(--exit-hold, 0s) allow-discrete; }
   ${PAGES} :is(${MENU_EXIT}) { transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint), display var(--dur-hover) allow-discrete, overlay var(--dur-hover) allow-discrete; }
   ${PAGES} :is(details:not([open]) > :is(${MENU_EXIT}), :is(${MENU_EXIT})[hidden], :is(${MENU_EXIT})[popover]:not(:popover-open)) { opacity: 0; transform: translateY(-4px) scale(.97); pointer-events: none; }
+  /* A details menu reverses its current transition; a still-running entry keyframe would otherwise finish over its exit. */
+  ${PAGES} details > ${DETAILS_MENU} { animation: none; }
+  ${PAGES} details[open] > ${DETAILS_MENU} { transition-duration: var(--dur-move); }
+  ${PAGES} details:not([open]) > ${DETAILS_MENU} { transform: translateY(var(--menu-from-y, -4px)) scale(.97); }
+  @starting-style { ${PAGES} details[open] > ${DETAILS_MENU} { opacity: 0; transform: translateY(var(--menu-from-y, -4px)) scale(.97); } }
   ${PAGES} :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover) { border: 0; border-radius: var(--r-card); box-shadow: var(--lift-3); }
   /* Dark reads as three layers: whatever floats (menus, popovers, dialogs, the Assistant panel) sits a step above the
      work surface on --popover, edged by the light ring in its lift rather than by a darker shadow. */

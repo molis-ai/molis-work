@@ -57,7 +57,7 @@ export const PPT_STYLES = `
   }
   .ppt-slide-index {
     display: inline-grid; place-items: center; flex: none;
-    width: 18px; height: 18px; border-radius: 5px;
+    width: 18px; height: 18px; border-radius: 4px;
     font-size: 11px; font-variant-numeric: tabular-nums;
     background: color-mix(in srgb, var(--plugin-ppt, var(--ink)) 12%, transparent);
     color: var(--plugin-ppt, var(--muted));

@@ -11,6 +11,12 @@ import { orderAudit } from "./fixtures/order-audit.js";
 
 const PAGES = ["goals", "todo", "pages", "ppt", "workflows", "lingguang", "form", "dataset", "inbox", "images", "sessions", "feed", "issues",
   "jelly", "coding", "alchemist", "artifacts", "cognia", "diff", "files", "git", "schedule", "text-stats", "plugin-builder"];
+// What light at 1440 also opens and reads: the header's create on the pages where it opens a new item's editor or the dialog
+// that asks for it in place (the others create in a sheet, or have none), and the Pages template list.
+const OPENS = [
+  ...["pages", "ppt", "workflows", "lingguang", "form", "dataset", "images", "alchemist", "cognia", "schedule"].map((page) => ["create", ".plugin-stage-chrome .tree-create", page]),
+  ["templates", "[data-pages-templates]", "pages"],
+];
 const MODE_PAGES = ["goals", "pages", "lingguang", "inbox", "sessions", "feed", "jelly", "coding"];
 // Left out, each with why it is not one row of peers or one line of words.
 const SKIP = [
@@ -45,6 +51,15 @@ test("VUX-46 to VUX-50: marks, words and button rows are in order on the common 
       await pause(800);
       const { findings } = await evaluate(orderAudit(SKIP)) as { findings: Array<Record<string, unknown>> };
       for (const finding of findings) found.push(`${mode.name} ${id}: ${JSON.stringify(finding)}`);
+      if (mode.name !== "light") continue;
+      for (const [what, opener, page] of OPENS) {
+        if (page !== id) continue;
+        await waitFor(`document.body.dataset.desktopSurface === ${JSON.stringify(id)}`, 20_000);
+        await evaluate(`document.querySelector(${JSON.stringify(opener)}).click()`);
+        await pause(1500);
+        const opened = await evaluate(orderAudit(SKIP)) as { findings: Array<Record<string, unknown>> };
+        for (const finding of opened.findings) found.push(`${mode.name} ${id} ${what}: ${JSON.stringify(finding)}`);
+      }
     }
   }
   assert.deepEqual(found, [], "a mark, an icon, a font size, a control's role or a row of buttons is out of order");

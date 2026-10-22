@@ -61,6 +61,10 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
     const saved = feed.listOutRules(projectId).find(rule => rule.name === "需要跟进的消息")!;
     assert.equal(saved.judgment?.capability_id, definition.capability_id); assert.ok(saved.judgment?.provider_id);
     await evaluate(`document.querySelector('${section} [data-feed-out-rules-evaluate]').closest('details').open = true`);
+    // A natural-height disclosure clips its children while opening; wait until it contains the control before scrolling.
+    await waitFor(`(() => { const button = document.querySelector('${section} [data-feed-out-rules-evaluate]');
+      const disclosure = button.closest('details');
+      return disclosure.open && disclosure.getBoundingClientRect().bottom >= button.getBoundingClientRect().bottom; })()`);
     await click(section + ' [data-feed-out-rules-evaluate]');
     await waitFor(`!document.querySelector('${section} [data-feed-out-rules-evaluate]')?.disabled`);
     for (let i = 0; i < 30 && !feed.listInboxEntries(projectId).some(entry => entry.subject_id === item.item_id); i++) await new Promise(resolve => setTimeout(resolve, 100));

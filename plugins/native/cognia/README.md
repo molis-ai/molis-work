@@ -2,7 +2,7 @@
 
 Status: `partial`. Workspace migration: `goal-reorg-f2`. Contract: `@molis-ai/molis-work-contracts/platform/plugin`.
 
-Personal knowledge workspace for the current Molis Work Home. Import a local Obsidian, LLM Wiki or Markdown folder, preview the fixed snapshot, then explicitly commit. Browser folder uploads create an independent source; select an existing upload source to update it. Local paths use the canonical directory as source identity. Source files are never changed. See [format compatibility](../../../specs/archive/cognia-plugin/compatibility.md).
+Personal knowledge workspace for the current Molis Work Home. Import a local Obsidian, LLM Wiki or Markdown folder, preview the fixed snapshot, then explicitly commit. Browser folder uploads create an independent source; select an existing upload source to update it. Local path previews use a Host directory grant and record its grant ID as the source locator. Re-entering the same path obtains a new grant and currently creates a separate source; automatic source matching for that UI path remains unresolved. Source files are never changed. See [format compatibility](../../../specs/archive/cognia-plugin/compatibility.md).
 
 The Home store is `cognia/cognia.db`. Materials preserve paths, original bytes, Markdown, frontmatter, common title/tags/aliases and every changed version. Source/path pairs are unique. Import previews expire after 30 minutes; cancelled previews do not add materials. Repeated commits and draft saves are idempotent. Conflicting previews require a fresh preview. Deleting source files does not delete imported materials.
 
@@ -31,6 +31,12 @@ pnpm boundary:check
 ```
 
 No cloud sync, background watching, bidirectional sync, proprietary database migration, graph view, Dataview execution, block-reference reconstruction, or PDF/OCR extraction is included.
+
+## Directory preview route repair (2026-10-23)
+
+This repair restores the existing import journey in [the Cognia spec](../../../specs/archive/cognia-plugin/spec.md): enter a local directory, authorize it through the Host, review the fixed preview, and explicitly import. The client must use the Manifest's `/library/import/preview` route, whose handler already selects the directory action when `path` is present. It retains the Host-issued `grant_id`, the relative `path`, and the bound action service; no route, permission, chooser, storage identity or import policy is added.
+
+Acceptance uses the actual desktop and narrow-screen UI for preview, explicit commit, review and fixed-version citations, plus the existing directory-authority, cancellation and source-isolation tests. The concurrent-import fixture must identify the existing source explicitly when updating it. This slice does not claim that selecting the same path with a new directory grant automatically matches the previous source; directory source identity and a native chooser are outside this route repair. Source files remain untouched, cancelled previews add no materials, and denied calls retain the existing refusal behavior.
 
 ## 开发要求
 

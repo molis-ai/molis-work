@@ -48,7 +48,7 @@ export const PLACEMENT_STYLES = `
   .placement-toasts.is-top { top: 56px; bottom: auto; }
   /* A completion card is the one toast (.mw-toast) with a title, a line and its follow-ups. Only its buttons take clicks; a
      click on its text reaches the stage underneath (composers live at the bottom). */
-  .placement-toast { flex-wrap: nowrap; max-width: 100%; pointer-events: none; }
+  .placement-toast { flex-wrap: nowrap; min-width: 0; max-width: 100%; pointer-events: none; }
   .placement-toast button { pointer-events: auto; }
   .placement-toast-text { flex: 1; min-width: 0; }
   .placement-toast-text strong { display: block; font-weight: 500; overflow-wrap: anywhere; }

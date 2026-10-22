@@ -10,6 +10,41 @@ import { HOVER_HIDDEN, HOVER_RULES, hoverFocus, hoverShown, type HoverHidden, ty
 const PLUGINS = ["todo", "pages", "coding", "ppt", "workflows", "feed", "goals", "issues", "im", "shelf", "lingguang", "form"];
 const pause = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms));
 type Page = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
+// Installed only at the Workflows row's original tap point, with bounded passive records; read only on failure.
+const WORKFLOW_TAP_TRACE = `
+  if (row.matches('[data-wf-station]')) {
+  const describe = node => node instanceof Element ? { tag: node.tagName, class: node.getAttribute('class'),
+    stationId: node.closest('[data-wf-station]')?.dataset.stationId, tabindex: node.getAttribute('tabindex'),
+    draggable: node.getAttribute('draggable'), sameStation: node.closest('[data-wf-station]') === row } : null;
+  const ancestry = node => { const chain = []; for (let up = node; up && chain.length < 24; up = up.parentElement) {
+    const style = getComputedStyle(up); chain.push({ ...describe(up), opacity: style.opacity, visibility: style.visibility,
+      pointerEvents: style.pointerEvents, rect: up.getBoundingClientRect().toJSON(), scroll: [up.scrollLeft, up.scrollTop] });
+  } return chain; };
+  const point = { x: box.x + Math.min(24, box.width / 4), y: box.y + box.height / 2 }, events = [];
+  const snapshot = () => { const current = document.querySelector('[data-hover-audit="' + el.dataset.hoverAudit + '"]');
+    const station = document.querySelector('[data-station-id="' + CSS.escape(row.dataset.stationId) + '"]');
+    return { point, sameControl: current === el, controlConnected: el.isConnected, sameStation: station === row,
+      stationConnected: row.isConnected, stationId: row.dataset.stationId, rowRect: row.getBoundingClientRect().toJSON(),
+      focusWithin: row.matches(':focus-within'), hover: row.matches(':hover'), active: describe(document.activeElement),
+      controlAncestry: current ? ancestry(current) : [], hitAncestry: ancestry(document.elementFromPoint(point.x, point.y)) };
+  };
+  const before = snapshot(), types = ['pointerdown', 'pointerup', 'pointermove', 'pointercancel', 'touchstart', 'touchend', 'touchmove', 'touchcancel',
+    'mousedown', 'mouseup', 'click', 'focusin', 'focusout', 'dragstart', 'dragend', 'scroll'];
+  const record = (event, phase) => { if (events.length >= 64 || !(event.target instanceof Element)
+    || !event.target.closest('[data-workflows]')) return;
+    events.push({ type: event.type, phase, time: performance.now(), target: describe(event.target),
+      path: event.composedPath().filter(node => node instanceof Element).slice(0, 12).map(describe),
+      prevented: event.defaultPrevented, cancelable: event.cancelable, active: describe(document.activeElement),
+      pointerType: event.pointerType, x: event.clientX, y: event.clientY,
+      touches: event.changedTouches ? [...event.changedTouches].map(touch => ({ x: touch.clientX, y: touch.clientY })) : undefined });
+  };
+  const capture = event => record(event, 'capture'), bubble = event => record(event, 'bubble');
+  for (const type of types) { document.addEventListener(type, capture, { capture: true, passive: true });
+    window.addEventListener(type, bubble, { passive: true }); }
+  window.workflowTapFailure = () => { for (const type of types) { document.removeEventListener(type, capture, true);
+    window.removeEventListener(type, bubble); } return { before, events, after: snapshot() }; };
+  }
+`;
 /** What a surface draws only with content: a Workflows chain of two stations, each with its tools. */
 async function prepare(name: string, { evaluate, waitFor }: Pick<Page,"evaluate"|"waitFor">) {
   if (name !== "workflows") return;
@@ -84,7 +119,9 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
       const shelfSelector = name === "shelf" && page !== browser ? await evaluate<string>(`(()=>{const el=document.querySelector('[data-hover-audit="${item.index}"]');return '[data-shelf-item="'+el.closest('[data-shelf-item]').dataset.shelfItem+'"] [data-shelf-row-action="'+el.dataset.shelfRowAction+'"]';})()`) : null;
       const row = await evaluate<{ x: number; y: number } | null>(`(() => { const el = document.querySelector('[data-hover-audit="${item.index}"]');
         const row = el?.parentElement.closest('[tabindex="0"], li, [role=row], [role=option], [role=listitem]'); if (!row) return null; const box = row.getBoundingClientRect();
+        ${name === "workflows" ? WORKFLOW_TAP_TRACE : ""}
         return { x: box.x + Math.min(24, box.width / 4), y: box.y + box.height / 2 }; })()`);
+      const localRow = row && { ...row };
       if (row) {
         if (page !== browser) {
           const offset = await browser.evaluate<{x:number;y:number}>(`(()=>{const owner=${name === "shelf" ? `document.querySelector('[data-side-body="plugin:shelf/side"] iframe')` : "null"};
@@ -98,6 +135,13 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
       if (shelfSelector) await evaluate(`document.querySelector(${JSON.stringify(shelfSelector)})?.setAttribute('data-hover-audit',${JSON.stringify(String(item.index))})`);
       const alpha = await evaluate<number>(hoverShown(item.index));
       if (alpha < 0.9) {
+        const state = await evaluate(`(() => {
+          const el = document.querySelector('[data-hover-audit="${item.index}"]'), point = ${JSON.stringify(localRow)};
+          const box = el?.getBoundingClientRect(), hit = point && document.elementFromPoint(point.x, point.y), active = document.activeElement;
+          return { point, viewport: [innerWidth, innerHeight], box: box?.toJSON(), hit: [hit?.tagName, hit?.getAttribute("class")], active: [active?.tagName, active?.getAttribute("class")], opacity: el && getComputedStyle(el).opacity,
+            workflow: window.workflowTapFailure?.() };
+        })()`);
+        t.diagnostic(`${name}: touch reveal failure ${JSON.stringify(state)}`);
         found.push(`${name}: ${kind} "${item.name}" is hidden on a device without hover${row ? ", even after a tap on its row" : ""}`);
       }
       else t.diagnostic(`${name}: ${kind} shows on touch after a tap on its row`);

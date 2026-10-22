@@ -34,20 +34,39 @@ test("PANE-LAND-01, PANE-LAND-02 (W3-B3, S-30): a passage selected in the right 
   await pane.waitFor(`${paneText}.includes('先完成核心体验')`, 20_000);
 
   // PANE-LAND-02: anything that is not one of the panes cannot report a landing, neither this document nor a frame that is not a pane.
-  // The pane's page reports its own landing (the end) once it opens; wait for it, so it is not taken for a forged one.
-  await waitFor("(window.landings || []).some(item => item.framed && item.detail?.position === 'end')", 10_000);
-  const forged = { pane_id: "", plugin_id: "io.molis.work.pages", object: { kind: "pages_document", id: left.id, title: "发布计划" }, position: "end", version: 1, targets: [] };
-  await evaluate(`(async () => {
-    window.landings = [];
-    window.postMessage({ type: 'workbench-surface-landing', landing: ${JSON.stringify(forged)} }, location.origin);
+  // Both split panes may still report their initial landing. Identify this probe instead of treating a late legitimate
+  // report as a forgery; the same complete payload must be forwarded when sent by the real pane.
+  await waitFor(`(window.landings || []).some(item => item.framed && item.detail?.position === 'end' && item.detail?.pane_id === (${PANE})?.dataset.paneOwner)`, 10_000);
+  const probeTitle = `landing-source-${left.id}`;
+  const probeLandings = `window.landings.filter(item => item.detail?.object?.title === ${JSON.stringify(probeTitle)})`;
+  await evaluate(`(() => {
+    const pane = ${PANE};
+    const original = window.landings.findLast(item => item.framed && item.detail?.position === 'end' && item.detail?.pane_id === pane.dataset.paneOwner).detail;
+    const probe = window.__paneLandingProbe = { payload: { ...original, pane_id: '', object: { ...original.object, title: ${JSON.stringify(probeTitle)} } }, received: [] };
     const stray = document.createElement('iframe'); document.body.append(stray);
-    // Posted by the stray frame's own script, so its window is the message's source.
-    const script = stray.contentDocument.createElement('script');
-    script.textContent = "parent.postMessage({ type: 'workbench-surface-landing', landing: " + ${JSON.stringify(JSON.stringify(forged))} + " }, parent.location.origin)";
-    stray.contentDocument.body.append(script);
-    await new Promise(resolve => setTimeout(resolve, 300)); stray.remove();
+    const observe = (event) => {
+      if (event.origin !== location.origin || event.data?.type !== 'workbench-surface-landing' || event.data.landing?.object?.title !== probe.payload.object.title) return;
+      probe.received.push(event.source === window ? 'top' : event.source === stray.contentWindow ? 'stray' : event.source === pane.contentWindow ? 'pane' : 'other');
+    };
+    window.addEventListener('message', observe);
+    const message = { type: 'workbench-surface-landing', landing: probe.payload };
+    const sendFrom = (frame) => {
+      const script = frame.contentDocument.createElement('script');
+      script.textContent = 'parent.postMessage(' + JSON.stringify(message) + ', parent.location.origin)';
+      frame.contentDocument.body.append(script); script.remove();
+    };
+    probe.sendFromPane = () => sendFrom(pane);
+    probe.cleanup = () => { window.removeEventListener('message', observe); stray.remove(); delete window.__paneLandingProbe; };
+    window.postMessage(message, location.origin);
+    sendFrom(stray);
   })()`);
-  assert.deepEqual(await evaluate("window.landings"), [], "a landing from a window that is not a pane is dropped");
+  await waitFor("window.__paneLandingProbe.received.length >= 2");
+  assert.deepEqual(await evaluate("window.__paneLandingProbe.received.slice().sort()"), ["stray", "top"], "both non-pane messages reached the production listener");
+  assert.deepEqual(await evaluate(probeLandings), [], "a landing from a window that is not a pane is dropped");
+  await evaluate("window.__paneLandingProbe.sendFromPane()");
+  await waitFor("window.__paneLandingProbe.received.includes('pane')");
+  assert.deepEqual(await evaluate(probeLandings), await evaluate(`[{ detail: { ...window.__paneLandingProbe.payload, pane_id: (${PANE}).dataset.paneOwner }, framed: true }]`), "the exact same payload from the real pane is forwarded once, with the trusted pane identity");
+  await evaluate("window.__paneLandingProbe.cleanup()");
 
   // PANE-LAND-01: in the pane, the person leaves the cursor after 「先完成」: the pane's frame raises the landing in the top document.
   await pane.evaluate(`(() => {
@@ -56,8 +75,8 @@ test("PANE-LAND-01, PANE-LAND-02 (W3-B3, S-30): a passage selected in the right 
     const range = doc.createRange(); range.setStart(text, 3); range.collapse(true);
     const selection = doc.getSelection(); selection.removeAllRanges(); selection.addRange(range);
   })()`);
-  await waitFor("window.landings.some(item => item.framed && item.detail?.position === 'cursor')", 10_000);
-  const landing = await evaluate<{ detail: { object: { id: string }; pane_id: string; screen?: unknown; targets: { anchor: number }[] } }>("window.landings.findLast(item => item.framed)");
+  await waitFor(`window.landings.some(item => item.framed && item.detail?.position === 'cursor' && item.detail?.pane_id === (${PANE}).dataset.paneOwner)`, 10_000);
+  const landing = await evaluate<{ detail: { object: { id: string }; pane_id: string; screen?: unknown; targets: { anchor: number }[] } }>(`window.landings.findLast(item => item.framed && item.detail?.position === 'cursor' && item.detail?.pane_id === (${PANE}).dataset.paneOwner)`);
   assert.equal(landing.detail.object.id, left.id);
   assert.equal(landing.detail.targets[0]!.anchor, 4, "after 「先完成」 in the first paragraph");
   assert.notEqual(landing.detail.pane_id, "main", "named by the pane it came from");

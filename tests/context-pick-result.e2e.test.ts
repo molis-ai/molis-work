@@ -217,11 +217,18 @@ test("PRR-21 QA-017 opens the side panel; W3-A3b PICK-02 on the real result card
   await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
   await waitFor("document.body.dataset.sideOpen === 'false'", 10_000);
 
-  // A real drag over the card's own line of text selects it; the click that ends the drag is reading, not picking. The card
-  // sits in the Assistant's side column, which scrolls on its own: like a person, the drag starts once the line is in view.
-  const line = await evaluate<{ x0: number; x1: number; y: number } | null>(`(() => { const sub = document.querySelector(${JSON.stringify(CARD + " .assistant-item-sub")}); if (!sub) return null;
-    sub.scrollIntoView({ block: "center" }); const range = document.createRange(); range.selectNodeContents(sub); const r = range.getBoundingClientRect(); return { x0: r.left + 1, x1: r.right - 1, y: r.top + r.height / 2 }; })()`);
+  // A real drag over the card's own line of text selects it; the click that ends the drag is reading, not picking.
+  // Closing the platform pane restores the Assistant's split layout. The title was scrolled into view above, but its
+  // subtitle can still be below the side pane's clipped bottom. Centre it so the drag reaches text, away from the edge
+  // where native text-selection autoscroll would move the card out from under the pointer before release.
+  const line = await evaluate<{ x0: number; x1: number; y: number; hittable: boolean } | null>(`(async () => { const sub = document.querySelector(${JSON.stringify(CARD + " .assistant-item-sub")}); if (!sub) return null;
+    sub.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const range = document.createRange(); range.selectNodeContents(sub); const r = range.getBoundingClientRect();
+    const x0 = r.left + 1, x1 = r.right - 1, y = r.top + r.height / 2;
+    return { x0, x1, y, hittable: sub.contains(document.elementFromPoint(x0, y)) && sub.contains(document.elementFromPoint(x1, y)) }; })()`);
   assert.ok(line && line.x1 - line.x0 > 8, "the card has a line of text to select");
+  assert.equal(line.hittable, true, "both drag endpoints hit the card's visible text");
   await mouse("mouseMoved", line.x0, line.y, 0);
   await mouse("mousePressed", line.x0, line.y, 1);
   await mouse("mouseMoved", (line.x0 + line.x1) / 2, line.y, 1);

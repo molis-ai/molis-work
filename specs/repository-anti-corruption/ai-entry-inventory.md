@@ -120,7 +120,7 @@ Issue 的页面录入（#396、#420）原先不是新的入口：页面开一件
 | HJ-1 | 记忆提炼（从一轮工作里提候选） | `apps/local-host/src/memory/memory-learning.ts` 的 `learnFromWork`：`hostTextGeneration`，本地结构校验 | 模型前后各问 `stillWanted()`（项目被删就什么都不记）；写入由记忆服务的写入门决定；没有按次授权复查 | 保留 |
 | HJ-2 | 记忆整理（找重复与矛盾，只提给人） | `memory-upkeep.ts` 的 `runUpkeep` | 同上，且只产出待人确认的对子 | 保留 |
 | HJ-3 | 项目上手的笔记与提案 | `context-onboarding-service.ts`：`ONBOARDING_NOTES`、`ONBOARDING_PROPOSAL` 两次调用，各 180 秒 | 没有 `beforeDispatch`；无模型时材料已保存、`needs_model`，写「请在设置中连接文字模型，再回来继续整理」 | 保留 |
-| HJ-4 | Coding 的提交说明与对话整理 | `model-draft.ts`（`agent.draft-text.v1` 能力，宿主能力而非动作）：无工具、无工作区；指令必须登记且取自原调用的插件身份；调用方是 `plugins/native/coding/src/routes.ts` 的两处（对话整理 `:480`、提交说明 `:1533`） | `createExecutionLifetime` 两分钟；派出前后复查；用量只在 input/output 都上报时给出 | 共享（能力通用，现在只有 Coding 一个调用方） |
+| HJ-4 | Coding 的提交说明与对话整理 | 2026-10-22 起已不是宿主作业（PG-035）：`agent.draft-text.v1` 是宿主的动作，只给持有 `model:invoke` 的插件，经动作目录，带调用者的 `beforeEffect`；处理器仍是 `model-draft.ts`：无工具、无工作区；指令必须登记，按宿主发出的插件身份查。调用方是 Coding 的 `src/drafts.ts`（`codingDraft`），由 `routes-changesets.ts`（提交说明）与 `start-round.ts`（对话整理）调；编号保留不重排 | `createExecutionLifetime` 两分钟；派出前过调用者的 `beforeEffect`，被取消、撤权、停用的调用不问模型；用量只在 input/output 都上报时给出 | 共享（能力通用，现在只有 Coding 一个调用方） |
 | HJ-5 | 放进去处的起草（情境 W1-7：把选中的内容或一句话放进某个创建入口时，宿主先填好这个入口的输入） | `apps/local-host/src/contextual/contextual-http.ts` → `drafting/draft-service.ts` 的 `draftIntake`：`hostTextGeneration`（`draft-wiring.ts`），指令登记为 `CONTEXTUAL_DRAFT`、经 `registeredInstructionBody` 取，材料先过 `screenModelMaterial` | 只返回草稿、不写入，创建仍由人提交对应的创建动作；请求断开即取消（`whileWaited` 的 signal）；没配模型或答得不合 schema 时只按规则填，并在 `fallback` 里说明 | 保留（#411 新增，2026-10-14 审查补记） |
 
 ### 3.4 判断（Jev，TypeSafe）

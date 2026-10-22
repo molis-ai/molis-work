@@ -73,11 +73,10 @@ test("PG035-01 S-15 a plugin drafts only while it holds model:invoke, and the dr
 
 test("PG035-02 S-15 the draft is not reachable through the typed client: an action is called as an action", async t => {
   const { seen, drafter, muted, silent } = await draftSetup(t);
-  for (const plugin of [drafter, muted]) {
+  // The exact refusals, so that another failure (a broken fixture, a wrong caller) cannot pass for them.
+  for (const [plugin, code] of [[drafter, "actions.forbidden"], [muted, "actions.plugin_permission"]] as const) {
     const capabilities = plugin.context(DEMO_PROJECT_ID).services!.capabilities!;
-    await assert.rejects(capabilities.invoke(draft, INPUT), (error: unknown) => {
-      assert.ok(error instanceof Error); assert.match(String((error as { code?: unknown }).code), /^(actions|plugin)\./u, plugin.id); return true;
-    }, plugin.id);
+    await assert.rejects(capabilities.invoke(draft, INPUT), { code }, plugin.id);
   }
   // A plugin holding the permission but not consuming the draft cannot reach it either way.
   await assert.rejects(silent.actions(DEMO_PROJECT_ID).invoke(draft, INPUT), { code: "actions.forbidden" });
@@ -119,14 +118,14 @@ test("PG035-05 S-15 S-35 a draft whose call is cancelled or whose plugin is stop
   // The plugin's own fence refuses (its route's call was withdrawn): the model is not asked.
   await assert.rejects(actions.invoke(draft, INPUT, { beforeEffect: async () => { throw new ActionError("actions.cancelled", "调用已撤回"); } }), { code: "actions.cancelled" });
   const aborted = new AbortController(); aborted.abort();
-  await assert.rejects(actions.invoke(draft, INPUT, { signal: aborted.signal }));
+  await assert.rejects(actions.invoke(draft, INPUT, { signal: aborted.signal }), { name: "AbortError" });
   assert.equal(seen.model, 0);
 
   // The plugin is stopped while the draft waits: its last check refuses and nothing is asked.
   const reached = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   seen.hold = { reached: reached.resolve, release: release.promise };
   const pending = actions.invoke(draft, INPUT);
-  const refused = assert.rejects(pending);
+  const refused = assert.rejects(pending, { code: "actions.forbidden", message: /已停止/u });
   try {
     await Promise.race([reached.promise, pending]);
     await started.drafter.runtime.stop(started.drafter.install_id);

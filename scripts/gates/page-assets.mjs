@@ -241,7 +241,8 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [703659, 704435],
   "/assets/molis-work-plugins/workflows.js": [83019, 83135],
   "/assets/molis-work-settings.css": [995228, 995833],
-  "/assets/molis-work-workbench.js": [1182744, 1182880],
+  // Select-item fix (#1003): a page that shows a blank item takes "no item" back instead of dropping it as a repeat. 1182810 → 1182868 (+58).
+  "/assets/molis-work-workbench.js": [1182810, 1182868],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

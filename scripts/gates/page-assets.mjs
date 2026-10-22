@@ -251,9 +251,9 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-plugins/workflows.js": [83019, 83135],
   // Real-scene fixes (slice 89): the same phone field primitive as workbench.css. 994451 → 994522 (+71).
   "/assets/molis-work-settings.css": [994451, 994522],
-  // Real-scene fixes (slice 89): a result the assistant made on the project chooser opens on its project's page, and attachments do the same.
-  // 1182783 → 1182907 (+124).
-  "/assets/molis-work-workbench.js": [1182783, 1182907],
+  // Roving focus: child-list parents only affect their own group; added subtrees and attribute changes still visit descendant groups.
+  // The explicit mutation-kind branch costs 39 bytes; no unrelated code or comments were removed to disguise the cost.
+  "/assets/molis-work-workbench.js": [1182907, 1182946],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

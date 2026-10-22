@@ -28,10 +28,14 @@ test("safe next path only allows same-origin relative locations", () => {
 
 test("L translates chrome in an English request and keeps Chinese as source", () => {
   assert.equal(L("设置"), "设置");
+  assert.equal(L("未登录"), "未登录");
   assert.equal(L("目标导航"), "目标导航");
   assert.equal(L("绑定到 Goal"), "绑定到 Goal");
   runWithLocale("en", () => {
     assert.equal(L("设置"), "Settings");
+    assert.equal(L("未登录"), "Not signed in");
+    assert.equal(L("登录"), "Sign in");
+    assert.equal(L("登录功能暂未开放"), "Sign-in is not available yet");
     assert.equal(L("目标导航"), "Goal Navigator");
     assert.equal(L("目标关系图"), "Goal Graph");
     assert.equal(L("目标聚焦"), "Goal Focus");

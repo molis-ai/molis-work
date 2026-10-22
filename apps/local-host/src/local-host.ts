@@ -18,7 +18,7 @@ import { typedCapabilityCaller, typedCapabilityInvocation } from "./typed-capabi
 import { sceneConfigurationActions, ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
   type ActionRegistryPort, type ActionProviderRegistration, type ActionAvailability, type ActionView, type ActionSceneClient, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostLog } from "./host-log.js";
-import { admitPluginCall, verifiedCaller } from "./plugin-callers.js";
+import { admitPluginCall, dependencyCaller, verifiedCaller } from "./plugin-callers.js";
 
 export interface LocalHostRuntimeFactory<Runtime> {
   open(reference: LocalHostProjectReference): Runtime | Promise<Runtime>;
@@ -416,7 +416,7 @@ export class LocalHost<Runtime> {
         const definition = this.capabilities.descriptor(capability, project.project_id);
         if (!definition) return { available: false, code: "actions.dependency_missing", reason: `所需宿主能力未注册：${capability.capability_id}@${capability.version}` };
         if (capability.provider_id && capability.provider_id !== (definition.action_provider?.provider_id ?? HOST_PROVIDER_ID)) return { available: false, code: "actions.provider_changed", reason: "所需能力的提供方已变化" };
-        const caller: ActionCallContext = { actor_id: "local-host", project_id: project.project_id, audience: "user", permissions: [] };
+        const caller = dependencyCaller(project.project_id, definition, options?.consumer);
         if (options?.consumer === "plugin") this.pluginCapabilityCallers.add(caller);
         return this.capabilities.availability(caller, definition);
       },

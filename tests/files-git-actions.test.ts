@@ -40,12 +40,12 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
     await assert.rejects(bound.invoke(gitActions.prepareIndex, { workspace_id: "fixture", path: ["note.txt"], action: "stage", revision: "unused", operation_id: "no-handler" }), { code: "actions.dependency_missing" });
     assert.equal(reads, 0, "missing review dependency is checked before even reading the workspace");
     let reviewed = 0;
-    const stopWrongVersion = host.registerCapability({ ...prepareGitIndexCapability, version: 2 }, () => { reviewed++; return { review_id: "wrong" }; });
+    const stopWrongVersion = host.registerAction({ ...prepareGitIndexCapability, version: 2 }, () => { reviewed++; return { review_id: "wrong" }; });
     assert.equal((await stateOf(gitActions.prepareIndex.capability_id)).available, false); stopWrongVersion();
-    const stopPrepare = host.registerCapability(prepareGitIndexCapability, () => { reviewed++; return { review_id: "fixture" }; });
-    const stopResults = host.registerCapability(readGitResultsCapability, () => { reviewed++; return []; });
-    const stopOperation = host.registerCapability(prepareGitOperationCapability, () => { reviewed++; return { review_id: "fixture" }; });
-    const stopOperations = host.registerCapability(readGitOperationsCapability, () => { reviewed++; return []; });
+    const stopPrepare = host.registerAction(prepareGitIndexCapability, () => { reviewed++; return { review_id: "fixture" }; });
+    const stopResults = host.registerAction(readGitResultsCapability, () => { reviewed++; return []; });
+    const stopOperation = host.registerAction(prepareGitOperationCapability, () => { reviewed++; return { review_id: "fixture" }; });
+    const stopOperations = host.registerAction(readGitOperationsCapability, () => { reviewed++; return []; });
     for (const id of reviewActions) assert.equal((await stateOf(id)).available, true);
     assert.equal(reviewed, 0); assert.equal(reads, 0);
     stopPrepare(); assert.equal((await stateOf(gitActions.prepareIndex.capability_id)).available, false);

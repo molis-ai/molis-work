@@ -1,7 +1,7 @@
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workspaceReadActions, type GitOperation, type GitOperationRecord, type GitReviewedResult, type WorkspaceGitResult, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { object, id, text, path, workspace, reference, nullable, boolean, fileMode } from "@molis-ai/molis-work-contracts/modules/workspace-action-schemas";
+import { object, id, text, path, workspace, reference, nullable, boolean, fileMode, gitOperation as operation, gitOperationRecord as operationRecord, gitReviewedResult as result } from "@molis-ai/molis-work-contracts/modules/workspace-action-schemas";
 import type { GitView } from "./projection.js";
 const define = <Input, Output>(capability_id: string, title: string, description: string, kind: "query" | "operation", permissions: string[], input_schema: Record<string, unknown>, output_schema: Record<string, unknown>): ActionDefinition<Input, Output> => ({
   capability_id, version: 1, operation: kind === "query" ? "query" : "command", action: { title, description, kind, scope: "project",
@@ -23,10 +23,6 @@ const selected = object({ workspace_id: id, path, side: { enum: ["index", "workt
 const diffResult = object({ outcome: { const: "diff" }, path, previous_path: path, side: { enum: ["index", "worktree"] }, before_exists: boolean, after_exists: boolean,
   before: text, after: text, before_mode: nullable(fileMode), after_mode: nullable(fileMode), revision: id }, ["outcome", "path", "side", "before_exists", "after_exists", "before", "after", "before_mode", "after_mode", "revision"]);
 const failureResult = object({ outcome: { enum: ["denied", "not-a-repository", "unavailable", "changed", "unsupported", "binary", "too-large", "conflict", "missing", "error"] }, message: text });
-const review = object({ review_id: id, action: { enum: ["stage", "unstage"] }, paths: { type: "array", items: text }, requested_at: text,
-  decided_by: nullable(text), decided_at: nullable(text), failure_reason: text, reconciliation_reason: text,
-  reconciliation: object({ actor_id: id, at: text, reason: text }) }, ["review_id", "action", "paths", "requested_at", "decided_by", "decided_at"]);
-const result = object({ workspace_id: id, operation_id: id, outcome: { enum: ["succeeded", "failed", "denied", "cancelled", "expired", "reconcile", "conflict"] }, summary: text, review });
 const saved = object({ reference, result, saved_at: text });
 // Source control: where the repository stands, the operations asked for, and one operation to put under Host review.
 const count = { type: "integer", minimum: 0 }, limited = (max: number) => ({ type: "string", maxLength: max });
@@ -35,20 +31,6 @@ const summary = object({ outcome: { const: "summary" }, branch: nullable(text), 
   staged: { type: "array", items: object({ path: text, status: text }) }, unstaged: count, conflicted: { type: "array", items: text }, merging: boolean, revision: id });
 const conflictFile = object({ outcome: { const: "conflict-file" }, path: text, text: { type: "string" }, conflicts: count, ours: text, theirs: text, revision: id });
 const prSupport = object({ outcome: { const: "pr-support" }, tool: { enum: ["ready", "missing", "unauthenticated", "unsupported"] }, host: nullable(text), message: text });
-const operationRecord = object({ operation_id: id, review_id: id, tool: text, summary: text,
-  outcome: { enum: ["pending", "running", "succeeded", "failed", "denied", "cancelled", "expired", "unknown"] }, detail: text, failure_reason: text,
-  requested_at: text, decided_by: nullable(text), decided_at: nullable(text) }, ["operation_id", "review_id", "tool", "summary", "outcome", "requested_at", "decided_by", "decided_at"]);
-const operation = { oneOf: [
-  object({ action: { const: "commit" }, message: limited(5_000) }),
-  object({ action: { const: "branch-create" }, name: limited(200), checkout: boolean }),
-  object({ action: { const: "branch-switch" }, name: limited(200) }),
-  object({ action: { const: "push" }, remote: limited(200), set_upstream: boolean }),
-  object({ action: { const: "pr-create" }, base: limited(200), title: limited(256), body: limited(20_000), draft: boolean }),
-  object({ action: { const: "merge" }, branch: limited(200) }),
-  object({ action: { const: "pull" } }),
-  object({ action: { const: "resolve" }, path: limited(1000), content: limited(1024 * 1024) }),
-  object({ action: { const: "merge-abort" } }),
-] };
 interface Workspace { workspace_id: string; name: string; handle: string }
 export interface GitSelected { workspace_id: string; path: readonly string[]; side: "index" | "worktree"; previous_path?: readonly string[]; revision: string; reference: ArtifactReference }
 interface GitSaved { reference: ArtifactReference; result: GitReviewedResult; saved_at: string }

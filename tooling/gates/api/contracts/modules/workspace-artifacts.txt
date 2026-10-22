@@ -455,7 +455,7 @@ export declare function pathKey(path: readonly string[]): string;
 
 export declare function pathLabel(path: readonly string[]): string;
 
-export declare const prepareGitIndexCapability: HostCapabilityDefinition<{
+export declare const prepareGitIndexCapability: ActionDefinition<{
     workspace_id: string;
     path: readonly string[];
     action: "stage" | "unstage";
@@ -465,7 +465,7 @@ export declare const prepareGitIndexCapability: HostCapabilityDefinition<{
     review_id: string;
 }>;
 
-export declare const prepareGitOperationCapability: HostCapabilityDefinition<{
+export declare const prepareGitOperationCapability: ActionDefinition<{
     workspace_id: string;
     operation_id: string;
     revision: string;
@@ -474,11 +474,11 @@ export declare const prepareGitOperationCapability: HostCapabilityDefinition<{
     review_id: string;
 }>;
 
-export declare const readGitOperationsCapability: HostCapabilityDefinition<{
+export declare const readGitOperationsCapability: ActionDefinition<{
     workspace_id: string;
 }, readonly GitOperationRecord[]>;
 
-export declare const readGitResultsCapability: HostCapabilityDefinition<{
+export declare const readGitResultsCapability: ActionDefinition<{
     workspace_id: string;
 }, readonly GitReviewedResult[]>;
 

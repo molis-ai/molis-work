@@ -64,6 +64,16 @@ export function reviewAuthority(caller: HostPluginCaller | undefined, kind: Plug
 }
 
 /**
+ * Who a dependency check asks as (PG-035). A plugin asks whether a Host action it consumes is registered and ready, not whether it
+ * may call it: who calls and what it holds are checked on the call (S-15). So an action offered to plugins is asked as the plugin
+ * audience holding what the action needs; a typed entry, or an action a plugin reaches only through the typed client, as before.
+ */
+export function dependencyCaller(projectId: string, definition: { readonly capability_id: string; readonly action?: ActionMetadata }, consumer: "plugin" | undefined): ActionCallContext {
+  const action = consumer === "plugin" && definition.action && actionReachesAudience(definition.action, definition.capability_id, "plugin") ? definition.action : undefined;
+  return { actor_id: "local-host", project_id: projectId, audience: action ? "plugin" : "user", permissions: action ? [...action.permissions] : [] };
+}
+
+/**
  * The action gateway's check of who is calling (S-15). A plugin-audience call, or any call that names a plugin, must carry a
  * caller the Host issued and has not withdrawn, still active, issued to this call's person, project and installation, and only
  * a plugin-audience call carries one. A plugin's permissions are narrowed to what it holds, whatever the call claims.

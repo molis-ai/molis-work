@@ -381,6 +381,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "下一轮的方式": "Mode for the next round",
   "下一轮的方式（与 Coding 页面同一设置）": "Mode for the next round (the same setting as the Coding page)",
   "方式": "Mode",
+  "方式：{mode}": "Mode: {mode}",
   "第一轮的方式": "Mode for the first round",
   "讨论": "Discuss",
   "只读，回答与建议，不改文件": "Read only: answers and suggestions, no file changes",

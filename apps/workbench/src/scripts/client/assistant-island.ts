@@ -240,7 +240,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const coding = work ? work.executor && work.executor.kind === "coding" : nextExec === "coding" && codingHere() && !codingSession();
       modeButton.hidden = !coding;
       if (coding && modeLabel) {
-        const label = L("方式") + "：" + L((MODES.find((one) => one.id === (work ? work.executor.mode : nextMode)) || { label: "执行" }).label);
+        const label = L("方式：{mode}", { mode: L((MODES.find((one) => one.id === (work ? work.executor.mode : nextMode)) || { label: "执行" }).label) });
         modeLabel.textContent = label;
         modeButton.setAttribute("aria-label", L(work ? "下一轮的方式" : "第一轮的方式") + " · " + label);
       }

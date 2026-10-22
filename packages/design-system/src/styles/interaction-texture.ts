@@ -371,8 +371,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     box-shadow: inset 0 0 0 1px var(--line-strong);
   }
 
-  /* Transient surfaces arrive with opacity and a short rise, and leave without a jump. */
-  :where(dialog[open]) { animation: surface-arrive var(--motion-normal) var(--ease-quint); }
+  /* The Home talk panel arrives with opacity and a short rise (dialogs: coss-controls). */
   @keyframes surface-arrive {
     from { opacity: 0; transform: translateY(6px) scale(.985); }
     to { opacity: 1; transform: none; }
@@ -383,6 +382,5 @@ export const INTERACTION_TEXTURE_STYLES = `
     body :is(button, [role="button"], summary):active:not(:disabled, [aria-disabled="true"], [aria-expanded], [aria-haspopup]) { filter: none; }
     body :is(input, select, textarea) { transition: none; }
     .goal-canvas-node { transition: none; }
-    :where(dialog[open]) { animation: none; }
   }
 `;

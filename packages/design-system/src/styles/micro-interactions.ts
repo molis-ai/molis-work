@@ -122,11 +122,13 @@ export const MICRO_INTERACTION_STYLES = `
     to { opacity: 1; transform: none; }
   }
   .plugin-stage-workspace.is-arriving,
-  .is-arriving { animation: creative-arrive var(--motion-normal, 130ms) var(--ease-quint) both; }
+  .is-arriving { animation: creative-arrive var(--motion-normal, 250ms) var(--ease-quint) both; }
   :is(.mw-menu, .mw-select-picker__menu, .assistant-composer):popover-open,
   .mw-select-picker__menu.is-open {
-    animation: creative-arrive var(--motion-fast, 130ms) var(--ease-quint) both;
+    animation: craft-drop var(--dur-move, 250ms) var(--ease-quint) both;
   }
+  /* A menu grows from its control: 4px and .97, on the state clock (user 2026-10-21). */
+  @keyframes craft-drop { from { opacity: 0; transform: translateY(-4px) scale(.97); } to { opacity: 1; transform: none; } }
 
   @media (prefers-reduced-motion: reduce) {
     body ${SEGMENTED}[data-seg-thumb][data-seg-ready]::before { transition: none; }

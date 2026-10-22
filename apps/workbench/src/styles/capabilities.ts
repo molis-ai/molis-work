@@ -61,7 +61,7 @@ export const CAPABILITIES_STYLES = `
   .capability-history article { padding: 24px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
   .capability-history article header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
   .capability-history :is(p, time) { color: var(--muted); font-size: 12px; }
-  :is(.capabilities-page, .settings-stage) :is(a, input, select, summary, button):focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  :is(.capabilities-page, .settings-stage) :is(a, input, select, summary, button):focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
   .mcp-access { margin-bottom: 32px; }
   [data-mcp-settings] .settings-heading a { color: var(--ink-soft); text-underline-offset: 3px; }
   [data-mcp-settings] .settings-heading a:hover { color: var(--ink); }

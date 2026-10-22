@@ -34,7 +34,7 @@ export const FUNCTIONS_STYLES = `
   .functions-option-key input { margin-top: 8px; width: 100%; min-width: 0; }
   .functions-criterion > button { margin-top: 16px; }
   [data-functions-criteria], [data-functions-map], [data-functions-samples] { display: grid; gap: 12px; }
-  [data-functions=workbench] :is(button, input, textarea, select, summary):focus-visible { outline: 2px solid var(--ink-soft); outline-offset: 3px; }
+  [data-functions=workbench] :is(button, input, textarea, select, summary):focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
   @keyframes functions-step-enter { from { opacity: .65; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
   @media (prefers-reduced-motion: reduce) { .functions-col { animation: none; } }
   .functions-name .mw-input { font-size: 16px; font-weight: 500; letter-spacing: -0.02em; }

@@ -2,7 +2,7 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] {
     --plugin-tint: var(--plugin-workflows);
     --wf-hover: var(--motion-instant, 130ms) var(--ease-quint);
-    --wf-row: var(--motion-normal, 130ms) var(--ease-quint);
+    --wf-row: var(--motion-normal, 250ms) var(--ease-quint);
     --wf-edge: var(--motion-fast, 130ms) var(--ease-quint);
   }
   [data-workflows="workbench"] .wf-muted { color: var(--muted); font-size: 12px; }
@@ -376,7 +376,7 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-stage__frame.is-empty { display: grid; align-content: start; }
   [data-workflows="workbench"] .wf-stage__frame iframe {
     position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; background: var(--paper);
-    transition: opacity var(--motion-normal, 130ms) var(--ease-quint);
+    transition: opacity var(--motion-normal, 250ms) var(--ease-quint);
   }
   [data-workflows="workbench"] .wf-stage__frame iframe.is-entering { opacity: 0; }
   [data-workflows="workbench"] .wf-frame-skeleton {
@@ -395,7 +395,7 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-result-summary .mw-btn { margin-top: 4px; }
   [data-workflows="workbench"] .wf-result-details { min-width: 0; border-top: 1px solid var(--line); padding-top: 8px; }
   [data-workflows="workbench"] .wf-result-details summary { cursor: pointer; padding: 12px 0; font-size: 13px; color: var(--ink-soft); }
-  [data-workflows="workbench"] .wf-result-details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  [data-workflows="workbench"] .wf-result-details summary:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
   [data-workflows="workbench"] .wf-stage__result .wf-rule { padding: 12px 12px; border: 1px solid var(--line); border-radius: var(--radius-control, 8px); background: var(--page); font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
   [data-workflows="workbench"] .wf-uncertain { flex-wrap: wrap; }
   [data-workflows="workbench"] .wf-uncertain > span { flex: 1 1 240px; min-width: 0; }
@@ -405,7 +405,7 @@ export const WORKFLOWS_STYLES = `
     position: absolute; left: 50%; bottom: 20px; z-index: 30; margin: 0; padding: 8px 16px;
     border-radius: var(--radius-control, 10px); background: var(--action); color: var(--action-ink); font-size: 12px; box-shadow: var(--shadow-raised);
     opacity: 0; transform: translate(-50%, 6px); pointer-events: none;
-    transition: opacity var(--wf-edge), transform var(--motion-normal, 130ms) var(--ease-quint);
+    transition: opacity var(--wf-edge), transform var(--motion-normal, 250ms) var(--ease-quint);
   }
   [data-workflows="workbench"] .wf-toast.is-on { opacity: 1; transform: translate(-50%, 0); }
   [data-workflows="workbench"] .wf-toast.has-action { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; }

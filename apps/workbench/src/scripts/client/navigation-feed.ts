@@ -66,6 +66,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       requestAnimationFrame(() => {
         const scrollPane = surface === "goal" ? documentPane : surface === "feed" ? nextSurface.querySelector(".feed-stage-tree") || nextSurface : nextSurface;
         scrollPane.scrollTop = restoreScroll ? Number(desktopSurfaceScroll[surface] || 0) : 0;
+        if (surfaceChanged && surface === "goal" && activeDesktopSurface === "goal" && !archiveView && !trashView && !visibleGoals().length && !document.querySelector("dialog[open]")) openCreate();
       });
       pluginWorkbench?.open(surface);
       if (surface === "feed") {

@@ -27,7 +27,8 @@
   },
   "dependencies": {
     "better-sqlite3": "12.8.0",
-    "@molis-ai/molis-work-contracts": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
   "molis-work": {
     "path": "modules/goals",

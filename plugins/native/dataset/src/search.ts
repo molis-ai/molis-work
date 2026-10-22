@@ -19,7 +19,7 @@ export function datasetCsv(dataset: DatasetRecord): string {
   return [columns.map(column => cell(column.name)).join(","), ...dataset.rows.map(row => columns.map(column => cell(row.cells[column.id])).join(","))].join("\r\n");
 }
 
-export function datasetSearchContent(dataset: DatasetRecord): string {
+function datasetSearchContent(dataset: DatasetRecord): string {
   const columns = [...dataset.columns].sort((a, b) => a.order - b.order);
   const rows = dataset.rows.map(row => columns.map(column => row.cells[column.id] ?? "").filter(Boolean).join(" | ")).filter(Boolean);
   return [dataset.description, columns.length ? "列：" + columns.map(column => column.name).join("、") : "", ...rows].filter(Boolean).join("\n");

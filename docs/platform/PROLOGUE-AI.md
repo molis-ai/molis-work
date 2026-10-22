@@ -55,7 +55,7 @@
 
 ### Coding 草稿与 Cognia 的单次调用
 
-Coding 的 `agent.draft-text.v1` 经 `agent-host-composition.ts` → `model-draft.ts` → `hostTextGeneration` → 当前 composition 的 inference。正文和写法由 Coding 提供，无工具、不建每次起草的 workspace 或 Runtime；用量仅在 input/output 都为 reported 时提供，否则为 null。调用的 signal 与 beforeEffect 经 Host Capability 合同传入，调用方可以取消自身操作而不能改变身份。
+Coding 的 `agent.draft-text.v1` 经 `agent-host-composition.ts` → `model-draft.ts` → `hostTextGeneration` → 当前 composition 的 inference。正文和写法由 Coding 提供，无工具、不建每次起草的 workspace 或 Runtime；用量仅在 input/output 都为 reported 时提供，否则为 null。它是宿主的动作（PG-035）：只给持有 `model:invoke` 的插件，经 `services.actions.invoke` 调；调用的 signal 与 beforeEffect 随动作调用传入，调用方可以取消自身操作而不能改变身份，指令按宿主给的插件身份查。
 
 Coding 的提交说明与接续摘要定义在 `plugins/native/coding/src/prompts.ts`，共同目录登记 `CODING_INSTRUCTIONS`。请求传 `{ purpose, prompt: CODING_COMMIT_DRAFT.prompt_id, material, model_selection }`；Host 从原 invocation 的插件身份确定 owner，再读取用户修改后的有效正文，材料仍单独传递。输入不能冒充 owner；未知引用或缺失身份拒绝派出。请求必须带已登记的 `prompt`，不再接受 `instructions` 字符串。Prompt 使用记录在初次授权复查之后写入，原授权等待与模型执行共用两分钟生命周期；取消或撤权后的迟到检查不登记使用、不启动模型。
 

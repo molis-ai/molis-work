@@ -10,7 +10,7 @@ import { CARD_RESULT_OPEN } from "../agent-next-steps.js";
  * drawn on the Host with the design system's operation card, so the page only binds its buttons. What the card's
  * controls send back is turned into the strings its input takes here, beside the card that drew them.
  */
-export type SchemaProperties = Record<string, { title?: string; description?: string; properties?: SchemaProperties; type?: unknown }>;
+type SchemaProperties = Record<string, { title?: string; description?: string; properties?: SchemaProperties; type?: unknown }>;
 const labelOf = (properties: SchemaProperties | undefined, key: string) => actionFieldLabel(key, properties?.[key]);
 /**
  * A field with declared choices is shown by its label and edited by picking one; a day or a moment is picked too. The raw
@@ -23,7 +23,7 @@ const choices = (declared: unknown, value: unknown) => {
   const input = actionFieldInput(declared);
   return input ? { input, ...raw } : {};
 };
-export const plainObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value) && (value as { type?: unknown }).type !== "doc";
+const plainObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value) && (value as { type?: unknown }).type !== "doc";
 
 export function cardView(card: StoredCard): AssistantCard {
   const properties = (card.input_schema.properties ?? {}) as SchemaProperties;

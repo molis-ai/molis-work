@@ -20,9 +20,9 @@ const CONCURRENT = new Set(["conversation.message", "material.read", "source.rea
 type MaterialUpload = { file_name: string; data_base64: string; allow_model_download?: boolean };
 type MaterialSource = { url: string; allow_model_download?: boolean };
 /** Text read from a file or a public page. Reading keeps no spark: the person keeps what they want from it. */
-export interface LingguangMaterial { text: string; title?: string; file_name?: string; source_url?: string; partial?: boolean; issues?: string[] }
+interface LingguangMaterial { text: string; title?: string; file_name?: string; source_url?: string; partial?: boolean; issues?: string[] }
 /** What the Host's reader returns; only the text and what it says about its coverage are kept. */
-export interface LingguangHostMaterial { text: string; title?: string; file_name?: string; source_url?: string; coverage?: string | { status?: string; issues?: string[] } }
+interface LingguangHostMaterial { text: string; title?: string; file_name?: string; source_url?: string; coverage?: string | { status?: string; issues?: string[] } }
 const material = object({ text, title: text, file_name: text, source_url: text, partial: { type: "boolean" }, issues: { type: "array", items: text } }, ["text"]);
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   output: ActionSchema, permissions: readonly string[], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {

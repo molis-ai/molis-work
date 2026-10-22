@@ -125,7 +125,8 @@ for (const publishedAction of [false, true]) {
         invocation.assertAuthorityCurrent();
         return ++effects;
       };
-      let remove = host.register(descriptor, handler);
+      const add = () => descriptor.action ? host.registerAction(descriptor as typeof descriptor & ActionDefinition, handler) : host.register(descriptor, handler);
+      let remove = add();
       const store = new LocalProjectDatabase(":memory:");
       const persistence = { db: store.db, appendEvent: (event: Parameters<typeof store.appendEvent>[0]) => store.appendEvent(event), eventCursor: (id: string) => store.eventCursor(id) };
       const artifacts = new ArtifactsModule(persistence), processItems = new ProcessItemsModule(persistence);
@@ -161,7 +162,7 @@ for (const publishedAction of [false, true]) {
       await Promise.race([entered.promise, pending.then(() => { throw new Error("The owner did not reach its tail barrier"); })]);
       if (change === "origin") allowed = false;
       else if (change === "cancel") controller.abort();
-      else if (change === "provider") { remove(); remove = host.register(descriptor, handler); }
+      else if (change === "provider") { remove(); remove = add(); }
       else if (change === "closing") closing = host.close();
       else returnsPromise = true;
       held = false; release.resolve(); await rejected;

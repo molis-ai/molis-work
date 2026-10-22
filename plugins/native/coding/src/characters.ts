@@ -1,3 +1,4 @@
+import { codingFailure } from "./words.js";
 import { codingArtifacts } from "./artifacts.js";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -21,10 +22,10 @@ export interface CodingCharacterPorts {
 }
 export function characterSelection(value: unknown): ArtifactReference | null {
   if (value === null) return null;
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("请选择 Character 的固定版本，或明确选择不使用角色");
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw codingFailure("coding.server.character-choose");
   const ref = value as Record<string, unknown>;
   if (typeof ref.artifact_id !== "string" || !ref.artifact_id.trim() || ref.artifact_id.length > 200
-    || !Number.isSafeInteger(ref.version) || Number(ref.version) < 1) throw new Error("Character 版本引用无效，请重新选择");
+    || !Number.isSafeInteger(ref.version) || Number(ref.version) < 1) throw codingFailure("coding.server.character-reference");
   return { artifact_id: ref.artifact_id, version: ref.version as number };
 }
 export function savedCharacter(context: PluginStartContext, sessionId: string): ArtifactReference | null {
@@ -32,7 +33,7 @@ export function savedCharacter(context: PluginStartContext, sessionId: string): 
   return typeof stored === "string" ? characterSelection(JSON.parse(stored)) : null;
 }
 export function characterSkillSelection(value: unknown): string[] {
-  if (!Array.isArray(value) || value.length > 200 || value.some(id => typeof id !== "string" || !id || id.length > 8192) || new Set(value).size !== value.length) throw new Error("角色 Skill 选择无效");
+  if (!Array.isArray(value) || value.length > 200 || value.some(id => typeof id !== "string" || !id || id.length > 8192) || new Set(value).size !== value.length) throw codingFailure("coding.server.character-skills");
   return [...value];
 }
 export function savedCharacterSkills(context: PluginStartContext, sessionId: string): string[] | undefined {

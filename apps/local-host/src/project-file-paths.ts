@@ -13,16 +13,11 @@ export function managedProjectDirectory(projectsDirectory: string, project: Moli
     return directory;
   }
 
-export function isWithin(candidate: string, directory: string): boolean {
-  const relative = path.relative(directory, candidate);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-}
-
 export async function exists(filePath: string): Promise<boolean> {
   return (await statOrNull(filePath)) != null;
 }
 
-export async function statOrNull(filePath: string) {
+async function statOrNull(filePath: string) {
   try {
     return await fs.stat(filePath);
   } catch (error) {

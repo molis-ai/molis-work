@@ -111,7 +111,7 @@ export function planConnectionCheck(catalog: MolisWorkProjectCatalog, home: stri
 }
 
 /** What the person reads when a check fails: a reason they can act on, from the error's code only, never its text. */
-export function modelCheckFailure(raw: string): string {
+function modelCheckFailure(raw: string): string {
   const code = /^(MODEL_[A-Z_]+)/.exec(raw)?.[1];
   const status = Number(/\((\d{3})\)/.exec(raw)?.[1] ?? 0);
   const reason = code === "MODEL_HTTP_ERROR" ? httpReason(status)

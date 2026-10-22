@@ -4,7 +4,7 @@ import { AssistantRelations } from "./assistant-relations.js";
 import { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, type StoredWork } from "./assistant-store.js";
 
 /** What only a running Assistant can do for a work that is going away. */
-export interface AssistantProjectLive {
+interface AssistantProjectLive {
   /** Stops the round the work is running. A work with nothing running is fine. */
   stop(workId: string): Promise<void>;
   /** Removes a timed follow-up and cancels what the runtime queued for it. */

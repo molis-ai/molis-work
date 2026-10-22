@@ -7,14 +7,14 @@ import type { CharactersImportPorts, CharacterNativeRun } from "@molis-ai/molis-
 import { openWorkSessionRegistry } from "./session-registry.js";
 import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 
-export const CHARACTER_NATIVE_NOTICE = "原生 Agent 使用自己的登录、模型和权限，仍会读取本机实时规则、插件与 MCP。Molis 会提供本次固定角色包及补充指令；请在终端中处理授权和提问。内置工具限制只适用于 Molis 内置引擎。";
+const CHARACTER_NATIVE_NOTICE = "原生 Agent 使用自己的登录、模型和权限，仍会读取本机实时规则、插件与 MCP。Molis 会提供本次固定角色包及补充指令；请在终端中处理授权和提问。内置工具限制只适用于 Molis 内置引擎。";
 
 /** Interactive invocations deliberately preserve the original trust and permission prompts. */
 export function characterNativeArgs(runtime: CharacterImportRuntimeId, cwd: string, prompt: string): string[] {
   return runtime === "opencode" ? [cwd, "--prompt", prompt] : [prompt];
 }
 
-export function writeCharacterBundle(home: string, character: CharacterContent): { path: string; prompt: string } {
+function writeCharacterBundle(home: string, character: CharacterContent): { path: string; prompt: string } {
   const root = join(home, "characters", "runs");
   mkdirSync(root, { recursive: true, mode: 0o700 });
   const path = mkdtempSync(join(root, "character-"));

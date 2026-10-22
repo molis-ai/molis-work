@@ -18,11 +18,11 @@ import {
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { functionsErrors } from "./errors.js";
-import { FunctionsStore, assertReadyToEvaluate, assertReadyToPublish } from "./store.js";
+import { FunctionsStore, assertReadyToEvaluate } from "./store.js";
 
 export type { TypeSafeProvider, TypeSafeEvaluateResult };
 
-export interface FunctionsServiceOptions {
+interface FunctionsServiceOptions {
   readonly store: FunctionsStore;
   /** The TypeSafe key of the connection the Home chose for Functions; null when there is none. */
   readonly credential: () => string | null;
@@ -246,5 +246,3 @@ function invokeData(result: TypeSafeEvaluateResult): FunctionInvokeResult["data"
   if (result.primitive === "score") return { score: result.score ?? 0, legend: result.legend ?? [] };
   return { choice: result.choice };
 }
-
-export { assertReadyToPublish };

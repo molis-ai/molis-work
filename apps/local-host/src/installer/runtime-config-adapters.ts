@@ -4,7 +4,7 @@ import path from "node:path";
 import type { RuntimeAdapter, SupportedRuntimeId, DesiredConnection, ConfigInspection } from "./runtime-integration-contract.js";
 import { tomlString, extractTomlFamily, normalizeBlock, digest, replaceTomlFamily, parseJsonObject, objectOrEmpty, canonicalJson, replaceTopLevelJsonProperty, parseJsoncObject } from "./runtime-config-text.js";
 
-export const CODEX_ADAPTER: RuntimeAdapter = {
+const CODEX_ADAPTER: RuntimeAdapter = {
   id: "codex",
   displayName: "Codex",
   executableNames: ["codex"],
@@ -22,7 +22,7 @@ export const CODEX_ADAPTER: RuntimeAdapter = {
   restartInstructions: restartInstructionsFor("Codex"),
 };
 
-export const CLAUDE_CODE_ADAPTER: RuntimeAdapter = {
+const CLAUDE_CODE_ADAPTER: RuntimeAdapter = {
   id: "claude-code",
   displayName: "Claude Code",
   executableNames: ["claude"],
@@ -40,7 +40,7 @@ export const CLAUDE_CODE_ADAPTER: RuntimeAdapter = {
   restartInstructions: restartInstructionsFor("Claude Code"),
 };
 
-export const OPENCODE_ADAPTER: RuntimeAdapter = {
+const OPENCODE_ADAPTER: RuntimeAdapter = {
   id: "opencode",
   displayName: "OpenCode",
   executableNames: ["opencode"],
@@ -61,7 +61,7 @@ export const OPENCODE_ADAPTER: RuntimeAdapter = {
   restartInstructions: restartInstructionsFor("OpenCode"),
 };
 
-export const PI_AGENT_ADAPTER: RuntimeAdapter = {
+const PI_AGENT_ADAPTER: RuntimeAdapter = {
   id: "pi-agent",
   displayName: "Pi Agent",
   executableNames: ["pi"],
@@ -82,7 +82,7 @@ export const PI_AGENT_ADAPTER: RuntimeAdapter = {
   ],
 };
 
-export const GROK_BUILD_ADAPTER: RuntimeAdapter = {
+const GROK_BUILD_ADAPTER: RuntimeAdapter = {
   id: "grok-build",
   displayName: "Grok Build",
   executableNames: ["grok"],
@@ -108,7 +108,7 @@ export const ADAPTERS: readonly RuntimeAdapter[] = [
   GROK_BUILD_ADAPTER,
 ];
 
-export function restartInstructionsFor(displayName: string): readonly string[] {
+function restartInstructionsFor(displayName: string): readonly string[] {
   return [
     `请新开一个 ${displayName} Session：${displayName} 只在 Session 启动时读取 MCP 与 Skill 清单，所以当前对话不会动态出现 Molis Work 工具。`,
     "新 Session 可直接复制这句继续：「继续用 Molis Work」。Molis Work 会列出当前目录以前用过的项目；每个 Session 都要由你确认关联哪个项目，不会保存目录默认项目。",
@@ -121,7 +121,7 @@ export function adapterFor(runtimeId: SupportedRuntimeId): RuntimeAdapter {
   return adapter;
 }
 
-export function desiredCodexFamily(desired: DesiredConnection): string {
+function desiredCodexFamily(desired: DesiredConnection): string {
   return [
     "[mcp_servers.molis-work]",
     `command = ${tomlString(desired.launcherPath)}`,
@@ -133,7 +133,7 @@ export function desiredCodexFamily(desired: DesiredConnection): string {
   ].join("\n");
 }
 
-export function inspectCodexConfig(contents: string | null, desired: DesiredConnection): ConfigInspection {
+function inspectCodexConfig(contents: string | null, desired: DesiredConnection): ConfigInspection {
   if (contents == null) return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
   const family = extractTomlFamily(contents, "mcp_servers.molis-work");
   if (!family) {
@@ -150,16 +150,16 @@ export function inspectCodexConfig(contents: string | null, desired: DesiredConn
   return { state: "conflict", summary: "同名 MCP entry 不属于 Molis Work", entryFingerprint: digest(normalizeBlock(family.text)) };
 }
 
-export function connectCodexConfig(contents: string | null, desired: DesiredConnection): string {
+function connectCodexConfig(contents: string | null, desired: DesiredConnection): string {
   return replaceTomlFamily(contents ?? "", "mcp_servers.molis-work", desiredCodexFamily(desired));
 }
 
-export function removeCodexConfig(contents: string | null): string | null {
+function removeCodexConfig(contents: string | null): string | null {
   if (contents == null) return null;
   return replaceTomlFamily(contents, "mcp_servers.molis-work", null);
 }
 
-export function desiredClaudeEntry(desired: DesiredConnection): Record<string, unknown> {
+function desiredClaudeEntry(desired: DesiredConnection): Record<string, unknown> {
   return {
     type: "stdio",
     command: desired.launcherPath,
@@ -172,7 +172,7 @@ export function desiredClaudeEntry(desired: DesiredConnection): Record<string, u
   };
 }
 
-export function inspectClaudeConfig(contents: string | null, desired: DesiredConnection): ConfigInspection {
+function inspectClaudeConfig(contents: string | null, desired: DesiredConnection): ConfigInspection {
   if (contents == null) return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
   const root = parseJsonObject(contents, "Claude Code 用户配置");
   const servers = objectOrEmpty(root.mcpServers);
@@ -190,13 +190,13 @@ export function inspectClaudeConfig(contents: string | null, desired: DesiredCon
   return { state: "conflict", summary: "同名 MCP entry 不属于 Molis Work", entryFingerprint: digest(canonicalJson(entry)) };
 }
 
-export function connectClaudeConfig(contents: string | null, desired: DesiredConnection): string {
+function connectClaudeConfig(contents: string | null, desired: DesiredConnection): string {
   const root = contents == null ? {} : parseJsonObject(contents, "Claude Code 用户配置");
   const servers: Record<string, unknown> = { ...objectOrEmpty(root.mcpServers), "molis-work": desiredClaudeEntry(desired) };
   return replaceTopLevelJsonProperty(contents, root, "mcpServers", servers);
 }
 
-export function removeClaudeConfig(contents: string | null): string | null {
+function removeClaudeConfig(contents: string | null): string | null {
   if (contents == null) return null;
   const root = parseJsonObject(contents, "Claude Code 用户配置");
   const servers = { ...objectOrEmpty(root.mcpServers) };
@@ -204,7 +204,7 @@ export function removeClaudeConfig(contents: string | null): string | null {
   return replaceTopLevelJsonProperty(contents, root, "mcpServers", servers);
 }
 
-export function desiredOpenCodeEntry(desired: DesiredConnection): Record<string, unknown> {
+function desiredOpenCodeEntry(desired: DesiredConnection): Record<string, unknown> {
   return {
     type: "local",
     command: [desired.launcherPath],
@@ -217,7 +217,7 @@ export function desiredOpenCodeEntry(desired: DesiredConnection): Record<string,
   };
 }
 
-export function inspectOpenCodeConfig(contents: string | null, desired: DesiredConnection): ConfigInspection {
+function inspectOpenCodeConfig(contents: string | null, desired: DesiredConnection): ConfigInspection {
   if (contents == null) return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
   const root = parseJsoncObject(contents, "OpenCode 用户配置");
   const mcpServers = objectOrEmpty(root.mcp);
@@ -235,7 +235,7 @@ export function inspectOpenCodeConfig(contents: string | null, desired: DesiredC
   return { state: "conflict", summary: "同名 MCP entry 不属于 Molis Work", entryFingerprint: digest(canonicalJson(entry)) };
 }
 
-export function connectOpenCodeConfig(contents: string | null, desired: DesiredConnection): string {
+function connectOpenCodeConfig(contents: string | null, desired: DesiredConnection): string {
   const root = contents == null
     ? { $schema: "https://opencode.ai/config.json" }
     : parseJsoncObject(contents, "OpenCode 用户配置");
@@ -243,7 +243,7 @@ export function connectOpenCodeConfig(contents: string | null, desired: DesiredC
   return replaceTopLevelJsonProperty(contents, root, "mcp", mcp);
 }
 
-export function removeOpenCodeConfig(contents: string | null): string | null {
+function removeOpenCodeConfig(contents: string | null): string | null {
   if (contents == null) return null;
   const root = parseJsoncObject(contents, "OpenCode 用户配置");
   const mcp = { ...objectOrEmpty(root.mcp) };
@@ -251,7 +251,7 @@ export function removeOpenCodeConfig(contents: string | null): string | null {
   return replaceTopLevelJsonProperty(contents, root, "mcp", mcp);
 }
 
-export function desiredPiEntry(desired: DesiredConnection): Record<string, unknown> {
+function desiredPiEntry(desired: DesiredConnection): Record<string, unknown> {
   return {
     command: desired.launcherPath,
     args: [],
@@ -264,7 +264,7 @@ export function desiredPiEntry(desired: DesiredConnection): Record<string, unkno
   };
 }
 
-export function inspectPiConfig(contents: string | null, desired: DesiredConnection): ConfigInspection {
+function inspectPiConfig(contents: string | null, desired: DesiredConnection): ConfigInspection {
   if (contents == null) return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
   const root = parseJsonObject(contents, "Pi Agent MCP 配置");
   const servers = objectOrEmpty(root.mcpServers);
@@ -282,13 +282,13 @@ export function inspectPiConfig(contents: string | null, desired: DesiredConnect
   return { state: "conflict", summary: "同名 MCP entry 不属于 Molis Work", entryFingerprint: digest(canonicalJson(entry)) };
 }
 
-export function connectPiConfig(contents: string | null, desired: DesiredConnection): string {
+function connectPiConfig(contents: string | null, desired: DesiredConnection): string {
   const root = contents == null ? {} : parseJsonObject(contents, "Pi Agent MCP 配置");
   const servers: Record<string, unknown> = { ...objectOrEmpty(root.mcpServers), "molis-work": desiredPiEntry(desired) };
   return replaceTopLevelJsonProperty(contents, root, "mcpServers", servers);
 }
 
-export function removePiConfig(contents: string | null): string | null {
+function removePiConfig(contents: string | null): string | null {
   if (contents == null) return null;
   const root = parseJsonObject(contents, "Pi Agent MCP 配置");
   const servers = { ...objectOrEmpty(root.mcpServers) };

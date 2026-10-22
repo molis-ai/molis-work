@@ -60,9 +60,9 @@ export interface ProjectBriefInput {
   now: string;
 }
 
-export interface BriefTrackGoal { title: string; state: MwGoalTrackState }
-export interface BriefNextItem { title: string; caption: string; attention: boolean; open: BriefEvent["open"] }
-export interface BriefRecentItem { at: string; title: string }
+interface BriefTrackGoal { title: string; state: MwGoalTrackState }
+interface BriefNextItem { title: string; caption: string; attention: boolean; open: BriefEvent["open"] }
+interface BriefRecentItem { at: string; title: string }
 
 /** What the brief says, decided. The chooser's rows read the summary; the sheet renders the rest. */
 export interface ProjectBriefModel extends Omit<ProjectBriefInput, "goals" | "events"> {
@@ -131,7 +131,7 @@ export function summarizeProjectBrief(model: ProjectBriefModel, events: readonly
   return { project_id: model.project_id, goals_done: model.goals?.done ?? null, goals_total: model.goals?.total ?? null, current: model.goals?.current?.title ?? null, waiting, opened_at: model.opened_at };
 }
 
-export interface ProjectBriefPrimitives {
+interface ProjectBriefPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   dateTimeLocale(): string;

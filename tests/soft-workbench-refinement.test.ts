@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PLUGIN_ICON, STATUS_ICON } from "@molis-ai/molis-work-design-system";
+import { PLUGIN_COMPONENT_STYLES, PLUGIN_ICON, STATUS_ICON } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs } from "../apps/workbench/src/plugin-catalog.js";
 import {
   renderMolisWorkArrivalStylesheet,
@@ -67,10 +67,11 @@ test("motion uses four durations and two curves", () => {
 });
 
 // specs/visual-ui-experience §5 (the guard's expected change): grid-template-rows moves only on the outer row of a
-// natural-height fold (0fr → 1fr), each named here: the shared disclosure, and the Assistant's side groups, whose head is a
-// button because folding is remembered per viewer (VUX-08). Every other selector, grid-template-columns and every other
-// layout property is still refused.
-const NATURAL_HEIGHT_ROWS = [/\.mw-collapsible::details-content$/, /\.assistant-block:not\(\[hidden\], ?\.assistant-block--usage\)$/];
+// natural-height fold (0fr → 1fr), each named here: the shared disclosure, the Assistant's side groups, whose head is a
+// button because folding is remembered per viewer (VUX-08), and a round's steps and a step's detail in the conversation
+// (VUX-13, `disclosureHeight`). Every other selector, grid-template-columns and every other layout property is still refused.
+const NATURAL_HEIGHT_ROWS = [/\.mw-collapsible::details-content$/, /\.assistant-block:not\(\[hidden\], ?\.assistant-block--usage\)$/,
+  /:is\(\.assistant-steps,\.assistant-activity-fold\)::details-content$/];
 test("motion never animates layout properties", () => {
   const layout = /^(?:width|height|min-width|max-width|min-height|max-height|margin(?:-[a-z]+)?|padding(?:-[a-z]+)?|top|left|right|bottom|inset|gap|grid-template-(?:columns|rows)|flex-basis|font-size|letter-spacing|border-width)$/;
   const folds = new Set<RegExp>();
@@ -178,4 +179,32 @@ test("hover, pressed and selected use the shared washes, and floating layers kee
   const interfaceCss = workbench.replace(/--hue-[\w-]+:\s*[^;]+;/g, "");
   assert.doesNotMatch(interfaceCss, /#3b82f6|#5e6ad2|rgba\(57,\s*123,\s*250/i, "no system blue or indigo");
   assert.doesNotMatch(workbench, /::backdrop\s*\{[^}]*background:\s*(?:#|rgba?\()/, "backdrops use --scrim");
+});
+
+// specs/visual-ui-experience slice 78 (motion review of 2026-10-21, with the user's choices for menus and dialogs).
+test("a surface rises once; menus and dialogs each have one entrance and one exit", () => {
+  const workbench = renderMolisWorkWorkbenchStylesheet();
+  // Showing a surface again is a short cross-fade; only its first reveal (is-arriving) rises.
+  assert.match(workbench, /\.tab-pane-body > \[data-work-surface\]:not\(\[hidden\]\),[^{]*\{\s*animation: craft-fade-in var\(--dur-hover\)/);
+  assert.match(workbench, /\.tab-pane-body > \[data-work-surface\]\.is-arriving:not\(\[hidden\]\),[^{]*\{\s*animation: craft-rise var\(--dur-arrive\)/);
+  // Menus grow 4px at .97 from their control and go back the same way on the short clock.
+  for (const [name, css] of sheets()) {
+    const drop = "@keyframes craft-drop { from { opacity: 0; transform: translateY(-4px) scale(.97); } to { opacity: 1; transform: none; } }";
+    assert.equal(css.split("@keyframes craft-drop").length - 1, css.split(drop).length - 1, `${name}: every craft-drop is the one menu keyframe`);
+    assert.ok(css.includes(drop), `${name}: has the menu keyframe`);
+    assert.doesNotMatch(css, /@keyframes (tab-menu-in|feed-menu-in|craft-dialog-in)\b/, `${name}: no second menu or dialog entrance`);
+    assert.doesNotMatch(css, /var\(--motion-normal, ?130ms\)/, `${name}: the state clock's fallback is its own 250ms`);
+  }
+  assert.match(workbench, /details:not\(\[open\]\) > :is\([^)]*\.mw-menu[^)]*\)[^{]*\{ opacity: 0; transform: translateY\(-4px\) scale\(\.97\); pointer-events: none; \}/);
+  // Dialogs: in over 250ms from 8px below at .98, out the same way over 130ms; one recipe, nothing restates it.
+  assert.match(workbench, /:where\(dialog\) \{ transition: opacity var\(--dur-hover\)[^}]*transform: translateY\(8px\) scale\(\.98\); \}/);
+  assert.match(workbench, /:where\(dialog\[open\]\) \{ opacity: 1; transform: none; transition-duration: var\(--dur-move\); \}/);
+  assert.doesNotMatch(workbench, /dialog\[open\]\) \{ animation: surface-arrive/);
+});
+
+test("a generated plugin's success note stays readable for its whole life before it fades", () => {
+  // The note lives 3.4 s (plugin-component-client): it rises in, holds, and the timer fades it out over the state clock.
+  // It used to run a 640ms keyframe that ended invisible after about half a second, leaving a blank note for 3 seconds.
+  assert.match(PLUGIN_COMPONENT_STYLES, /\.pc-success\{margin-top:12px;animation:pc-rise var\(--dur-move\) var\(--ease-quint\);transition:opacity var\(--dur-move\) var\(--ease-quint\)\}\.pc-success\.is-leaving\{opacity:0\}/);
+  assert.doesNotMatch(PLUGIN_COMPONENT_STYLES, /pc-toast/);
 });

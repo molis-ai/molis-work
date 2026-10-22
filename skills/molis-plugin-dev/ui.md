@@ -16,7 +16,8 @@
 - **位置不重复**：工作台标签条已经写了插件名，舞台里不再放一行插件名大标题；独立打开（预览、试用页）时才显示。
 - **浅色和深色都成立**：颜色一律用 token，不写死；在两种主题下各看一眼。
 - **反馈可见**：按下有回弹，保存后新记录可见（上浮进入），成功提示短暂出现后淡出，失败提示留下直到下次成功。
-- **共有机制直接用，不自己写**（组件板「视觉机制」有样例，工作台与侧栏页面都带着）：放不下的横向条（标签、chip、视图切换）标 `data-overflow-fade`，只在真有更多的一侧淡出；复制按钮调 `window.molisCopy(button, 文本, { done: "已复制", failed: "复制失败" })`，剪贴板真的收下才显示「已复制」、宽度不跳，返回是否成功，失败时再告诉人怎么手动复制；可折叠的明细写成 `<details class="mw-collapsible"><summary>…</summary><div class="mw-collapsible__body">…</div></details>`，按自然高度展开、途中反向接着走；会变的数字（计时、计数、序号）写成 `<span class="mw-num" data-num-ghost="取值范围里最宽的值">值</span>`，数字等宽，位数变化和字体切换都不推旁边的控件。
+- **共有机制直接用，不自己写**（组件板「视觉机制」有样例，工作台与侧栏页面都带着）：哪里都不画滚动条，设计系统一条规则管全部页面，插件不写 `scrollbar-width`、`scrollbar-color`、`::-webkit-scrollbar`（`tests/scrollbars-hidden.test.ts` 拦）；放不下的横向条（标签、chip、视图切换）标 `data-overflow-fade`，只在真有更多的一侧淡出；复制按钮调 `window.molisCopy(button, 文本, { done: "已复制", failed: "复制失败" })`，剪贴板真的收下才显示「已复制」、宽度不跳（只有图标的按钮换成对勾或叉，文字由读屏读出），返回是否成功，失败时再告诉人怎么手动复制；可折叠的明细写成 `<details class="mw-collapsible"><summary>…</summary><div class="mw-collapsible__body">…</div></details>`，按自然高度展开、途中反向接着走；会变的数字（计时、计数、序号）写成 `<span class="mw-num" data-num-ghost="取值范围里最宽的值">值</span>`，数字等宽，位数变化和字体切换都不推旁边的控件；会一直长的对话或日志用 `window.molisFollow(滚动容器)` 管滚动：到底就跟着，人往上滚、按键或选字就停，新内容来了调 `pin()`、「回到最新」调 `toLatest()`、跳到某张卡之前调 `release()`，切到另一段对话时放回记下的位置用 `restore(top)`、新对话用 `resume()`，客户端卸载时 `lifetime.own(() => follow.dispose())`；同一个容器只有一个主人，后来的调用者拿到的是同一个，它传的 `onChange` 不生效；页面自己的滚动不会被当成人的操作，不自己判断离底多少像素；很长的列表画完后调 `window.molisShowMore(列表, { key, label: "再显示 {n} 项", keep })`，先给前五项、其余收在一个按钮后面（只多一项就直接显示），`keep` 标出必须一直看得见的项（失败），人点开后同一个 `key` 重画也保持展开。
+- **流式的代码块原地长**：边写边显示的回复用 `window.molisStreamText(容器, html, { reveal, grow })`；代码块交给 `grow`，用 Coding 的 `growCodeTokens` 从变了的那一行起着色（写的时候就是最后一行），块、复制按钮、已着色的片段和人打开的折叠都留着，复制取现在的原文；不要每次整块换掉、从头着色（1,000 行一次 19.5 ms，原地长 3.7 ms）。Diff 按块读：块里一行按首字符算，像文件头的行也是内容。
 - **窄屏可用**：可点目标约 44px，列表行在窄屏把操作换到下一行；工具条放不下时名称收成图标（名称仍是可访问名称）。
 - **悬停才出现的操作，键盘和触控也拿得到**：行里平时藏起、指针停上去才出现的按钮，同一条规则也要写 `:focus-within`（焦点进到行里就出现），并在 `@media (hover: none)` 里一直显示；只有选中后才出现的（选中即点一下）可以不写。键盘停点之外的按钮（如标签上的关闭）在行上用 `aria-keyshortcuts` 写明等价的键。
 - **被截的名字找得回来**：名称、路径、摘要可以用省略号或限定行数截短，但要放在能按下或能移到的控件或行里，平台的提示会在指针停留、键盘聚焦和触控按住时给出全文；不给被截的文字另写 `title` 或自己的提示，错误、状态与操作的标签不截在没有控件包着的地方。
@@ -136,6 +137,8 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 ## 文案与 i18n
 
 - UI 字符串用中文当 key：`p.text("加入 Inbox")`。英文写插件 `src/en.ts`，**还要**在 `apps/workbench/src/i18n/en.ts` 里 `import { X_EN }` 并展开进总表。只写插件文件，英文界面仍是中文 key。两种漏写都由 `pnpm health:check` 拦下（CI 也跑）：调用的中文原文没有英文，和 `X_EN` 写了却没并进总表；`node scripts/gates/translations.mjs --missing` 列出缺哪句、该加到哪个词典，哪本词典没接上。检查靠变量名以 `_EN` 结尾认词典。
+- 带数的句子整句当一个 key，数用 `{name}` 填（`L("已选 {count} 项", { count })`），不要把数和半句拼起来。英文里跟着数变的词写成 `{count|one|other}`：`"{count} {count|file|files} selected"`，数是 1 时取前一个；同一个名字还要照常写一次 `{count}` 让数本身出现。填值只有一份写法，插件 SDK 的 `fillMessage`（Host 的 `L`、页面的 `L` 和 Coding 的 `codingText` 都用它），自己填值的地方也调它，不另写替换。`tests/fill-message.test.ts` 查英文里没有「{count} 名词s」这种不论单复数都用复数的写法。
+- 路由与动作送回页面显示的字（错误、说明、状态名）跟页面语言走（用户 2026-10-20 定）：宿主按请求（页面的语言 cookie，没有就看 Accept-Language）把语言放在调用上下文的 `locale`（`"zh" | "en"`），处理器用自己的词典按它写出要显示的字。`locale` 只选字、不授予任何东西，也从不从输入里读；没有页面的调用（模型的工具调用、定时器、后台工作）没有它，用插件自己的默认语言。存进库里的记录照原样，不按读取者的语言改写。写给模型的话不跟页面语言走。Coding 的写法见 `plugins/native/coding/src/words.ts`：深处抛出的错误用 `codingError`/`codingFailure` 从稳定键写成中文，离开路由时 `codingErrorIn` 按调用方的语言重写，类、码、kind 与 details 不变。
 - 按钮说人做的事，不说机制（不要「提交 Attention Command」）。
 - 空态说明下一步能做什么，不要空讲架构。
 

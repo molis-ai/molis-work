@@ -581,8 +581,10 @@ test("on this repository the typed capability rule finds the alias and the regis
   assert.ok(!index.typeNames.has("ActionDefinition"), "an interface that extends the definition is the action path, not an alias");
   for (const registrar of ["LocalHost", "MolisWorkLocalHost", "CapabilityRegistry", "AgentCapabilityRegistrar", "ScheduleCapabilityRegistrar"]) assert.ok(index.registrarTypes.has(registrar), `${registrar} registers typed capabilities`);
   assert.ok(index.registrarFunctions.has("createMolisWorkLocalHost"), "an exported function that returns the Host is followed (`createMolisWorkLocalHost().register(…)`)");
-  const counts = index.countsOf("apps/local-host/src/project-capabilities.ts");
-  assert.ok(counts["register-calls"] > 0, "the Host's own registrations through `host.register(…)` are counted");
+  // The composition root still hands the typed Git and writer entries to `registerCapability` (PG-035 left them to G3, G4);
+  // the Host's own workspace reads went to `registerAction`, the action seam, which is not a typed registration.
+  assert.ok(index.countsOf("apps/local-host/src/agent-host-composition.ts")["register-calls"] > 0, "the Host's own registrations through `localHost.registerCapability(…)` are counted");
+  assert.equal(index.countsOf("apps/local-host/src/project-capabilities.ts")["register-calls"] ?? 0, 0, "`registerAction` is not counted as a typed registration");
   // The Agent Host registers about 40 typed capabilities through a local helper whose first parameter is the definition.
   const agent = index.countsOf("horizontal/agent-host/src/capability-registration.ts");
   assert.ok(agent["register-calls"] >= 30, `the local \`register\` helper of the Agent Host is followed (${agent["register-calls"]} register-calls)`);

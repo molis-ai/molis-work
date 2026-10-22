@@ -5,7 +5,7 @@ import type { McpPresentationErrorFactory } from "./goal-presentation.js";
 import type { McpToolCallContext } from "./protocol.js";
 
 /** What a request to delete a project says; who asks is the Host's to say. */
-export interface McpProjectDeletionRequest {
+interface McpProjectDeletionRequest {
   project_id: string;
   delete_confirmed: boolean;
   idempotency_key: string;

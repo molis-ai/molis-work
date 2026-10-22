@@ -1,5 +1,6 @@
 import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT, ASSISTANT_PLACER_SCRIPT } from "./assistant-stage.js";
-import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
+import { codeLanguage, codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-coding";
+import { assistantCodeColours, createAssistantCodeGrow } from "./assistant-code-grow.js";
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
@@ -14,8 +15,9 @@ import { ASSISTANT_REPLY_KIND } from "@molis-ai/molis-work-contracts/services/co
 import { ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { renderAssistantTextHtml, renderAssistantReviewHtml } from "../../assistant-text-html.js";
 // The existing Coding tokenizer is consumed here on the Host, never serialized into the Assistant's browser script.
+const assistantGrownTokens = assistantCodeColours(growCodeTokens, codeTokens);
 export const assistantTextHtml = (text: string, objects: AssistantWorkView["objects"], say: (text: string) => string): string =>
-  renderAssistantTextHtml(text, { objects, say, language: codeLanguage, tokens: codeTokens });
+  renderAssistantTextHtml(text, { objects, say, language: codeLanguage, tokens: assistantGrownTokens });
 export const assistantReviewHtml = (review: AssistantPendingReview, say: (text: string) => string): string =>
   renderAssistantReviewHtml(review, { objects: [], say, language: codeLanguage, tokens: codeTokens });
 
@@ -238,8 +240,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const coding = work ? work.executor && work.executor.kind === "coding" : nextExec === "coding" && codingHere() && !codingSession();
       modeButton.hidden = !coding;
       if (coding && modeLabel) {
-        const label = L("方式") + "：" + L((MODES.find((one) => one.id === (work ? work.executor.mode : nextMode)) || { label: "执行" }).label);
-        modeLabel.textContent = label;
+        const name = L((MODES.find((one) => one.id === (work ? work.executor.mode : nextMode)) || { label: "执行" }).label), [before, after = ""] = L("方式：{mode}", { mode: "\u0000" }).split("\u0000"), label = before + name + after;
+        modeLabel.replaceChildren(el("span", "assistant-mode-word", before), name, el("span", "assistant-mode-word", after)); // a narrow bar shows the mode alone
         modeButton.setAttribute("aria-label", L(work ? "下一轮的方式" : "第一轮的方式") + " · " + label);
       }
     }
@@ -386,14 +388,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   /* The Host draws text and code from raw words; only reading interactions live here. A copy answers on its button through
      the design system's one copy feedback; a refusal also says how to copy by hand. */
   const copyFrom = (button, text) => window.molisCopy?.(button, text, { done: L("已复制"), failed: L("复制失败") }).then((copied) => { if (!copied) host.showToast?.(L("没能复制，请手动选中文字")); });
+  const { bindMore, growCode, paint: paintCode } = (${createAssistantCodeGrow.toString()})(L);
   const bindText = (root) => {
     root.querySelectorAll(".assistant-code:not([data-bound])").forEach((figure) => {
-      figure.dataset.bound = ""; const copy = figure.querySelector(".assistant-code-copy"), more = figure.querySelector(".assistant-code-more");
+      figure.dataset.bound = ""; const copy = figure.querySelector(".assistant-code-copy");
       copy.addEventListener("click", () => copyFrom(copy, () => figure.dataset.code));
-      more?.addEventListener("click", () => {
-        figure.toggleAttribute("data-folded");
-        more.textContent = figure.hasAttribute("data-folded") ? L("展开全部 {n} 行").replace("{n}", figure.dataset.lines) : L("收起");
-      });
+      bindMore(figure); if (figure.dataset.paint) paintCode(figure);
     });
     root.querySelectorAll("[data-assistant-object]:not([data-bound])").forEach((button) => {
       button.dataset.bound = ""; const object = view.objects[Number(button.dataset.assistantObject)];
@@ -575,7 +575,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         if (reply && bubble.getAttribute("data-assistant-context") !== reply) bubble.setAttribute("data-assistant-context", reply);
         if (bubble.dataset.text !== turn.text) {
           const had = bubble.dataset.text !== undefined; bubble.dataset.text = turn.text; // Only a reply still being written, seen arriving, shows its new words come in: never a reopen, a hidden page or the last update.
-          if (kind === "assistant") { if (window.molisStreamText) window.molisStreamText(bubble, turn.html, { reveal: had && work.state === "running" && !document.hidden }); else bubble.innerHTML = turn.html; bindText(bubble); } else bubble.textContent = turn.text;
+          if (kind === "assistant") { if (window.molisStreamText) window.molisStreamText(bubble, turn.html, { reveal: had && work.state === "running" && !document.hidden, grow: growCode }); else bubble.innerHTML = turn.html; bindText(bubble); } else bubble.textContent = turn.text;
         }
         put(bubble); receipts.line(thread, node, put, turn, round);
         if (kind === "assistant") {
@@ -613,7 +613,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const signature = JSON.stringify([used.map((m) => m.memory_id), omitted.map((m) => m.memory_id)]);
       if (box.dataset.signature !== signature) {
         box.dataset.signature = signature;
-        box.firstElementChild.textContent = L("用到 {n} 条记忆").replace("{n}", String(used.length)) + (omitted.length ? " · " + L("没带上 {n} 条").replace("{n}", String(omitted.length)) : "");
+        box.firstElementChild.textContent = L("用到 {n} 条记忆", { n: used.length }) + (omitted.length ? " · " + L("没带上 {n} 条", { n: omitted.length }) : "");
         [...box.children].slice(1).forEach((child) => child.remove());
         const line = (memory) => { const row = el("p", "assistant-activity assistant-memory"); row.append(el("span", "assistant-memory-scope", L(memory.scope === "personal" ? "个人" : memory.scope === "character" ? "角色" : "本项目")), document.createTextNode(memory.text)); if (memory.origin) row.title = memory.origin; return row; };
         used.forEach((memory) => box.append(line(memory)));

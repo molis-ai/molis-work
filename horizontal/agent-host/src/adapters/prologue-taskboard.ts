@@ -6,7 +6,7 @@ import { SUGGEST_TOOL_PREFIX } from "./prologue-action-tools.js";
 
 type SdkBoard = ReturnType<Runtime["boards"]["get"]>;
 
-export interface PrologueStepBinding {
+interface PrologueStepBinding {
   /** The board a confirmed plan's steps are on (the project's work board), and the prefix of their ids. */
   step_board?: ExactRef<"task-board">;
   step_prefix?: string;

@@ -9,7 +9,7 @@ import {
 } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction as action, goalActor } from "./action-contract.js";
 
-export type GoalAcknowledgeActionInput = Omit<AcknowledgeGoalEventInput, "project_id" | "actor_id" | "actor_kind" | "by">;
+type GoalAcknowledgeActionInput = Omit<AcknowledgeGoalEventInput, "project_id" | "actor_id" | "actor_kind" | "by">;
 
 const acknowledge = action<GoalAcknowledgeActionInput, GoalEventMutationResult>("goals.events.acknowledge", "说明如何处理目标上的笔记、要求或决定",
   "外部 AI 会话读到本人写在目标上的笔记、要求或决定后，说明读到了什么、打算怎么处理；记在目标时间线上。这是 AI 自己的说法，不代表已经照做，也不改变目标的状态、要求或决定。重试须保留相同 idempotency_key", "command",
@@ -25,7 +25,7 @@ export const goalsAcknowledgeActions = {
 const RUNTIME_PREFIX = "runtime:";
 
 /** Who said it, from the call alone: the transport, the Runtime that owns the session and the session itself. Nothing here is read from the input. */
-export function acknowledgementOrigin(caller: ActionCallContext): GoalEventAcknowledgementBy {
+function acknowledgementOrigin(caller: ActionCallContext): GoalEventAcknowledgementBy {
   if (caller.audience === "mcp") {
     return { channel: "mcp", runtime_id: caller.actor_id.startsWith(RUNTIME_PREFIX) ? caller.actor_id.slice(RUNTIME_PREFIX.length) : null, session_id: caller.runtime_session_id ?? null };
   }

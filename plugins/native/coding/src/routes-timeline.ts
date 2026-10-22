@@ -1,3 +1,4 @@
+import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runsWithCards } from "./action-cards.js";
 import { characterTitle, savedCharacter, savedCharacterSkills } from "./characters.js";
 import { codingContinuation } from "./continuation.js";
@@ -13,29 +14,30 @@ import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform
 import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentRunView, type AgentStepAmendment, type AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import { codingFailure, codingText } from "./words.js";
 
 /** Coding routes for a session's timeline: its rounds as they run and as recorded, the TaskBoard, recovery and rewind, messages and background commands. */
 
 /** The supplement a new step is for, as the page names it; the Host checks it is the round's own (stage 3d-3). */
 function origin(value: unknown): { origin?: string } {
   if (value === undefined) return {};
-  if (typeof value !== "string" || !value || value.length > 200) throw new Error("补充引用无效");
+  if (typeof value !== "string" || !value || value.length > 200) throw codingFailure("coding.server.supplement-ref");
   return { origin: value };
 }
 
 /** A person's plan change, checked before it reaches the Host. */
 function stepAmendment(value: unknown): AgentStepAmendment {
   const entry = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  const id = (key: string) => { const found = entry[key]; if (typeof found !== "string" || !/^(step|user)-\d{1,3}$/.test(found)) throw new Error("步骤引用无效"); return found; };
-  const words = (key: string, label: string, max: number) => { const found = entry[key]; if (typeof found !== "string" || !found.trim() || found.length > max) throw new Error(`请填写${label}（不超过 ${max} 字）`); return found.trim(); };
+  const id = (key: string) => { const found = entry[key]; if (typeof found !== "string" || !/^(step|user)-\d{1,3}$/.test(found)) throw codingFailure("coding.server.step-ref"); return found; };
+  const words = (key: string, label: string, max: number) => { const found = entry[key]; if (typeof found !== "string" || !found.trim() || found.length > max) throw codingFailure("coding.server.fill-in", { label: { key: label }, max }); return found.trim(); };
   switch (entry.kind) {
-    case "skip": return { kind: "skip", node: id("node"), reason: words("reason", "跳过原因", 300) };
-    case "insert": return { kind: "insert", after: id("after"), title: words("title", "新步骤", 120), acceptance: words("acceptance", "完成条件", 300), ...(entry.mine === true ? { mine: true as const } : {}), ...origin(entry.origin) };
-    case "unblock": return { kind: "unblock", node: id("node"), note: words("note", "你的决定", 500) };
-    case "move": if (entry.direction !== "up" && entry.direction !== "down") throw new Error("移动方向无效"); return { kind: "move", node: id("node"), direction: entry.direction };
-    case "assign": if (entry.to !== "me" && entry.to !== "session") throw new Error("改派对象无效"); return { kind: "assign", node: id("node"), to: entry.to };
-    case "resolve": if (entry.state !== "succeeded" && entry.state !== "failed") throw new Error("结果无效"); return { kind: "resolve", node: id("node"), state: entry.state, note: words("note", "结果说明", 500) };
-    default: throw new Error("不支持的计划调整");
+    case "skip": return { kind: "skip", node: id("node"), reason: words("reason", "coding.field.skip-reason", 300) };
+    case "insert": return { kind: "insert", after: id("after"), title: words("title", "coding.field.new-step", 120), acceptance: words("acceptance", "coding.field.acceptance", 300), ...(entry.mine === true ? { mine: true as const } : {}), ...origin(entry.origin) };
+    case "unblock": return { kind: "unblock", node: id("node"), note: words("note", "coding.field.decision", 500) };
+    case "move": if (entry.direction !== "up" && entry.direction !== "down") throw codingFailure("coding.server.move-direction"); return { kind: "move", node: id("node"), direction: entry.direction };
+    case "assign": if (entry.to !== "me" && entry.to !== "session") throw codingFailure("coding.server.reassign-target"); return { kind: "assign", node: id("node"), to: entry.to };
+    case "resolve": if (entry.state !== "succeeded" && entry.state !== "failed") throw codingFailure("coding.server.result"); return { kind: "resolve", node: id("node"), state: entry.state, note: words("note", "coding.field.result-note", 500) };
+    default: throw codingFailure("coding.server.plan-change");
   }
 }
 
@@ -65,7 +67,7 @@ export function planContinuesAfterTalk(run: Pick<AgentRunView, "step_board">, la
   return Boolean(run.step_board && !run.step_board.terminal) && later.every(view => !view.frozen.execution_plan && isTerminalAgentPhase(view.phase));
 }
 /** Children of the rounds that coordinate them, with the person's saved verdicts. */
-export const subagentGroups = async (a: CodingActivation, api: Capabilities, sessionId: string, session: { runtime_id: string; session_id: string }, runs: readonly AgentRunView[]) => {
+const subagentGroups = async (a: CodingActivation, api: Capabilities, sessionId: string, session: { runtime_id: string; session_id: string }, runs: readonly AgentRunView[], locale?: ActionLocale) => {
   const { context } = a;
   const groups = [];
   for (const run of runs.filter(run => ["coordinator", "writers"].includes(run.frozen.role_id))) {
@@ -75,7 +77,7 @@ export const subagentGroups = async (a: CodingActivation, api: Capabilities, ses
         const saved = context.services!.storage!.get(`subagent-verdict:${sessionId}:${run.ref.run_id}:${child.subagent_id}`);
         return { ...child, integration_available: run.frozen.role_id === "writers" && Boolean(run.frozen.subagent_workspaces?.some(workspace => workspace.directory.canonical_path === child.workspace_path)), verdict: typeof saved === "string" ? JSON.parse(saved) : null };
       }) });
-    } catch (error) { groups.push({ run_id: run.ref.run_id, children: [], error: error instanceof Error ? error.message : "子任务状态不可读取" }); }
+    } catch (error) { groups.push({ run_id: run.ref.run_id, children: [], error: error instanceof Error ? error.message : codingText(locale)("coding.server.subtasks-unreadable") }); }
   }
   return groups;
 };
@@ -87,24 +89,24 @@ const ROUTES: RouteMaker[] = [
     const { context, route } = a;
     return route("coding.evaluate-step", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution), body = bodyOf(request);
-      if (!record.runtime_session_id) throw new Error("此会话没有执行记录");
+      if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-record");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const snapshot = await api!.invoke(agent.readSession, [session]);
       const ref = snapshot.runs.find(run => run.run_id === request.params.runId);
-      if (!ref || snapshot.recovery || snapshot.checkpoint_busy) throw new Error("请先核对原执行及中断结果");
+      if (!ref || snapshot.recovery || snapshot.checkpoint_busy) throw codingFailure("coding.server.check-original-first");
       const run = await api!.invoke(agent.readRun, [session, ref]);
-      if (!isTerminalAgentPhase(run.phase)) throw new Error("请等待本轮结束并核对原步骤回报后评价");
+      if (!isTerminalAgentPhase(run.phase)) throw codingFailure("coding.server.rate-after-turn");
       const entry = codingTaskBoardPlans(context, record.session_id, [run]).find(entry => entry.board);
       const board = entry?.board, node = board?.nodes.find(node => node.id === request.params.stepId);
-      if (!board || !node || entry?.board_error || !node.reports.length) throw new Error("原步骤尚无可评价的回报");
-      if (body.project_id !== board.project_id || body.board_version !== board.version) throw new Error("步骤回报已变化，请重新读取后评价");
-      if (!["accepted", "needs-work"].includes(String(body.action)) || body.action === "accepted" && node.state !== "succeeded") throw new Error("只有模型报告成功的步骤可以验收通过；其他结果可要求返工");
+      if (!board || !node || entry?.board_error || !node.reports.length) throw codingFailure("coding.server.step-no-report");
+      if (body.project_id !== board.project_id || body.board_version !== board.version) throw codingFailure("coding.server.step-report-changed");
+      if (!["accepted", "needs-work"].includes(String(body.action)) || body.action === "accepted" && node.state !== "succeeded") throw codingFailure("coding.server.accept-succeeded-only");
       const notes = typeof body.notes === "string" ? body.notes.trim() : "";
-      if (notes.length > 4000 || body.action === "needs-work" && !notes) throw new Error("返工需写明原因，说明最多 4000 字符");
+      if (notes.length > 4000 || body.action === "needs-work" && !notes) throw codingFailure("coding.server.rework-reason");
       await beforeWrite(); beforeWrite.assert_current();
       const key = stepVerdictKey(record.session_id, ref.run_id, node.id), saved = context.services!.storage!.get(key);
       const revision = typeof saved === "string" ? JSON.parse(saved).revision : 0;
-      if (body.expected_revision !== revision) throw new Error("评价已变化，请重新查看后提交");
+      if (body.expected_revision !== revision) throw codingFailure("coding.server.rating-changed");
       const verdict = { revision: revision + 1, status: body.action, notes, project_id: board.project_id, board_version: board.version, actor: request.actor_id, at: new Date().toISOString() };
       context.services!.storage!.set(key, JSON.stringify(verdict));
       return { verdict };
@@ -139,7 +141,7 @@ const ROUTES: RouteMaker[] = [
         // With a window, a refresh costs the same however long the session is: the latest rounds in full, the earlier
         // ones as summaries that are only resent when they changed. Without one, every round is read, as before.
         const size = request.query?.window === undefined ? undefined : Number(request.query.window);
-        if (size !== undefined && (!Number.isSafeInteger(size) || size < 1 || size > 50)) throw new Error("一次读取的轮次必须为 1–50");
+        if (size !== undefined && (!Number.isSafeInteger(size) || size < 1 || size > 50)) throw codingFailure("coding.server.page-size");
         const offset = size === undefined ? 0 : Math.max(0, snapshot.runs.length - size);
         const runs = await runsWithCards(context, api!, record, await Promise.all(snapshot.runs.slice(offset).map((run) => api!.invoke(agent.readRun, [session, run]))), beforeWrite);
         // A round the page already holds unchanged travels as its fingerprint alone.
@@ -151,7 +153,7 @@ const ROUTES: RouteMaker[] = [
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = state === record.state ? record : await execution.sessions.setState(beforeWrite, projectId, record.session_id, state, record.updated_at);
         const compactRequested = context.services?.storage?.get(`compact-next:${record.session_id}`) === "1";
-        return { session: { ...updated, queued: queuedView, queued_inputs: snapshot.queued_inputs, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitles.known(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(a, api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { session: { ...updated, queued: queuedView, queued_inputs: snapshot.queued_inputs, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitles.known(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(a, api!, record.session_id, session, runs, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
           run_count: snapshot.runs.length, runs_offset: offset,
           ...(size === undefined ? {} : { earlier_fingerprint: earlierFingerprint, ...(request.query?.earlier === earlierFingerprint ? {} : { earlier }) }),
           usage_total: codingSessionUsage([...earlier.map(summary => summary.usage), ...runs.map(run => run.usage)], savedDigestUsage(a, record.session_id)),
@@ -163,8 +165,8 @@ const ROUTES: RouteMaker[] = [
         const session = await execution.sessions.setState(beforeWrite, projectId, record.session_id, "reconcile-required", record.updated_at);
         return { session, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, recovery_required: true,
           error: (error as { code?: string }).code === "agent.session_unknown"
-            ? "此会话的执行记录尚未恢复，不能把它当新任务重跑。原会话与草稿已保留。"
-            : "此会话的执行记录暂时无法读取，不能将未知结果当作已完成。原会话与草稿已保留，请稍后重试。" };
+            ? codingText(execution.locale)("coding.server.record-not-restored")
+            : codingText(execution.locale)("coding.server.record-unreadable") };
       }
     });
   },
@@ -173,11 +175,11 @@ const ROUTES: RouteMaker[] = [
     const { route } = a;
     return route("coding.live", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
-      if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
+      if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const since = typeof request.query?.since === "string" && request.query.since ? request.query.since : null;
       const wait = Math.min(Math.max(Number(request.query?.timeout ?? 20_000) || 0, 0), 25_000);
-      const result = await api!.invoke(agent.waitRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "执行引用", 200) }, since, wait]);
+      const result = await api!.invoke(agent.waitRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "coding.field.run", 200) }, since, wait]);
       return { version: result.version, runs: (await runsWithCards(a.context, api!, record, [result.view], beforeWrite)).map(codingRunForDisplay) };
     });
   },
@@ -190,10 +192,10 @@ const ROUTES: RouteMaker[] = [
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const snapshot = await api!.invoke(agent.readSession, [session]);
       const before = Number(request.query?.before ?? snapshot.runs.length), limit = Number(request.query?.limit ?? SESSION_PAGE);
-      if (!Number.isSafeInteger(before) || before < 0 || before > snapshot.runs.length || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw new Error("读取范围无效");
+      if (!Number.isSafeInteger(before) || before < 0 || before > snapshot.runs.length || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw codingFailure("coding.server.read-range");
       const offset = Math.max(0, before - limit);
       const runs = await runsWithCards(context, api!, record, await Promise.all(snapshot.runs.slice(offset, before).map(ref => api!.invoke(agent.readRun, [session, ref]))), beforeWrite);
-      return { runs: runs.map(codingRunForDisplay), runs_offset: offset, run_count: snapshot.runs.length, subagents: await subagentGroups(a, api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs) };
+      return { runs: runs.map(codingRunForDisplay), runs_offset: offset, run_count: snapshot.runs.length, subagents: await subagentGroups(a, api!, record.session_id, session, runs, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs) };
     });
   },
   // The whole session's TaskBoard: rounds that ran a confirmed plan or dispatched subagents are read in full, the rest
@@ -210,14 +212,14 @@ const ROUTES: RouteMaker[] = [
       const tasked = snapshot.runs.filter((_, index) => light[index]!.frozen.text_materials.some(material => material.source_artifact_id.startsWith(prefix))
         || ["coordinator", "writers"].includes(light[index]!.frozen.role_id));
       const full = await Promise.all(tasked.map(ref => api!.invoke(agent.readRun, [session, ref])));
-      return { runs: light, subagents: await subagentGroups(a, api!, record.session_id, session, full), taskboard_plans: codingTaskBoardPlans(context, record.session_id, full) };
+      return { runs: light, subagents: await subagentGroups(a, api!, record.session_id, session, full, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, full) };
     });
   },
   (a) => {
     const { route } = a;
     return route("coding.recovery", async (request, api, execution) => {
       const record = selected(a, request, execution);
-      if (!record.runtime_session_id) throw new Error("这个会话尚无可核对的运行记录");
+      if (!record.runtime_session_id) throw codingFailure("coding.server.no-run-record");
       return api!.invoke(agent.inspectRecovery, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]);
     });
   },
@@ -225,13 +227,13 @@ const ROUTES: RouteMaker[] = [
     const { context, route } = a;
     return route("coding.plan-amendments", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
-      if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
+      if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const snapshot = await api!.invoke(agent.readSession, [session]);
       const ref = snapshot.runs.find(entry => entry.run_id === request.params.runId);
-      if (!ref) throw new Error("这轮执行不属于当前会话");
+      if (!ref) throw codingFailure("coding.server.run-elsewhere");
       const body = bodyOf(request), amendment = stepAmendment(body.amendment), version = body.expected_version;
-      if (typeof version !== "number" || !Number.isSafeInteger(version) || version < 1) throw new Error("计划图版本已失效，请刷新后再调整");
+      if (typeof version !== "number" || !Number.isSafeInteger(version) || version < 1) throw codingFailure("coding.server.plan-graph-stale");
       const before = (await api!.invoke(agent.readRun, [session, ref])).step_board;
       const { board } = await context.services!.actions!.invoke(agentCollaborationActions.revise, { ...session, run_id: ref.run_id, amendment, expected_version: version }, codingActionControl(beforeWrite));
       // The live round learns of the change through the same supplemental channel a person already uses.
@@ -244,18 +246,18 @@ const ROUTES: RouteMaker[] = [
     const { context, route } = a;
     return route("coding.continuation", async (request, api, execution) => {
       const record = selected(a, request, execution);
-      if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
+      if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const snapshot = await api!.invoke(agent.readSession, [session]);
-      if (snapshot.recovery || snapshot.checkpoint_busy) throw new Error("请先核对中断或回退结果，再从断点继续");
+      if (snapshot.recovery || snapshot.checkpoint_busy) throw codingFailure("coding.server.check-before-continue");
       const index = snapshot.runs.findIndex(ref => ref.run_id === request.params.runId);
-      if (index < 0) throw new Error("这轮执行不属于当前会话");
+      if (index < 0) throw codingFailure("coding.server.run-elsewhere");
       const ref = snapshot.runs[index]!, run = await api!.invoke(agent.readRun, [session, ref]);
       // Only the newest round picks up again, with one exception: the latest plan round's unfinished graph, when the
       // rounds after it were only conversation (a question, say) and have ended. Nothing else is continued out of order.
       if (index !== snapshot.runs.length - 1) {
         const later = await Promise.all(snapshot.runs.slice(index + 1).map(entry => api!.invoke(agent.readRun, [session, entry])));
-        if (!planContinuesAfterTalk(run, later)) throw new Error("只能从最新一轮继续");
+        if (!planContinuesAfterTalk(run, later)) throw codingFailure("coding.server.continue-latest");
       }
       const reviews = await api!.invoke(agent.readRunReviews, [session, ref]);
       // A receipt that cannot be read is reported as such, never skipped: the continuation must not overstate what ran.
@@ -282,11 +284,11 @@ const ROUTES: RouteMaker[] = [
     const { route } = a;
     return route("coding.recover-run", async (request, api, execution) => {
       const record = selected(a, request, execution);
-      if (!record.runtime_session_id) throw new Error("这个会话尚无可核对的运行记录");
+      if (!record.runtime_session_id) throw codingFailure("coding.server.no-run-record");
       const expectedVersion = bodyOf(request).expected_version;
-      if (typeof expectedVersion !== "number" || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1) throw new Error("核对版本已失效，请重新核对");
+      if (typeof expectedVersion !== "number" || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1) throw codingFailure("coding.server.check-version-stale");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-      return api!.invoke(agent.recoverRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "执行引用") }, expectedVersion]);
+      return api!.invoke(agent.recoverRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "coding.field.run") }, expectedVersion]);
     });
   },
   (a) => {
@@ -301,23 +303,23 @@ const ROUTES: RouteMaker[] = [
     const { route } = a;
     return route("coding.prepare-rewind", async (request, api, execution) => {
       const record = selected(a, request, execution);
-      if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
+      if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const intent = bodyOf(request).intent;
       const role = intent === "edit" ? "writer" : intent === "execute" ? "builder" : null;
-      if (!role) throw new Error("回退会修改文件，请先选择修改文件或执行方式");
-      return { review: await api!.invoke(agent.prepareRewind, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }, text(request.params.checkpointId, "检查点引用"), role]) };
+      if (!role) throw codingFailure("coding.server.rollback-needs-edit");
+      return { review: await api!.invoke(agent.prepareRewind, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }, text(request.params.checkpointId, "coding.field.checkpoint"), role]) };
     });
   },
   (a) => {
     const { route } = a;
     return route("coding.command-output", async (request, api, execution) => {
       const record = selected(a, request, execution);
-      if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
+      if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const snapshot = await api!.invoke(agent.readSession, [session]);
       const run = snapshot.runs.find(entry => entry.run_id === request.params.runId);
-      if (!run) throw new Error("这轮执行不属于当前会话");
-      return api!.invoke(agent.readCommandOutput, [session, { run_id: run.run_id, call_id: text(request.params.callId, "命令引用") }]);
+      if (!run) throw codingFailure("coding.server.run-elsewhere");
+      return api!.invoke(agent.readCommandOutput, [session, { run_id: run.run_id, call_id: text(request.params.callId, "coding.field.command") }]);
     });
   },
   // Messages this session sent and received, and withdrawing an open one.
@@ -339,7 +341,7 @@ const ROUTES: RouteMaker[] = [
     const { route } = a;
     return route("coding.message-cancel", async (request, api, execution) => {
       const record = selected(a, request, execution);
-      await api!.invoke(agent.cancelMessage, [record.runtime_id, text(request.params.messageId, "信")]);
+      await api!.invoke(agent.cancelMessage, [record.runtime_id, text(request.params.messageId, "coding.field.letter")]);
       return { cancelled: true };
     });
   },
@@ -356,7 +358,7 @@ const ROUTES: RouteMaker[] = [
     const { route } = a;
     return route("coding.background-stop", async (request, api, execution) => {
       const record = selected(a, request, execution);
-      return { stopped: await api!.invoke(agent.stopBackground, [record.runtime_id, text(request.params.taskId, "后台命令")]) };
+      return { stopped: await api!.invoke(agent.stopBackground, [record.runtime_id, text(request.params.taskId, "coding.field.background-command")]) };
     });
   },
 ];

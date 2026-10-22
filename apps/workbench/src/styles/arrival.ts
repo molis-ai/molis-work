@@ -27,7 +27,7 @@ export const ARRIVAL_STYLES = String.raw`
   .stage-single { height: 100%; padding: 0 var(--sheet-inset, 14px); }
   .stage-single > .stage-sheet { height: 100%; }
   .stage-side { min-width: 0; min-height: 0; overflow: hidden; }
-  .stage-sheet { position: relative; min-width: 0; min-height: 0; overflow: auto; border-radius: var(--r-sheet, 14px); background: var(--paper); box-shadow: var(--sheet-shadow); scrollbar-width: thin; }
+  .stage-sheet { position: relative; min-width: 0; min-height: 0; overflow: auto; border-radius: var(--r-sheet, 14px); background: var(--paper); box-shadow: var(--sheet-shadow); }
   /* A sheet or pane that scrolls takes the keyboard's focus when it has nothing to focus inside; its ring sits inside, where the stage's edge cannot cut it. */
   body.arrival-page :is(.stage-sheet, .stage-side)[tabindex="0"]:focus-visible { outline-offset: -2px; }
 
@@ -86,7 +86,7 @@ export const ARRIVAL_STYLES = String.raw`
   .chooser-search svg { width: 16px; height: 16px; }
   .chooser-search__key { flex: none; display: inline-flex; }
   .chooser-search__key .mw-kbd { min-height: 18px; padding: 0 6px; font-size: 11px; line-height: 18px; border-radius: 5px; border: 0; background: var(--control-fill); }
-  .chooser-dir { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 1px; margin: 0 -8px; padding: 0 8px 8px; scrollbar-width: thin; }
+  .chooser-dir { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 1px; margin: 0 -8px; padding: 0 8px 8px; }
   .chooser-dir > [data-slot="directory-heading"] { padding: 10px 8px 4px; }
   .chooser-dir .mw-dir-row--meta { height: auto; min-height: 46px; padding-block: 6px; border-radius: var(--r-row, 10px); }
   .chooser-dir .mw-dir-row--meta .mw-dir-row__copy { grid-template-rows: 18px 16px; row-gap: 1px; }
@@ -160,10 +160,10 @@ export const ARRIVAL_STYLES = String.raw`
 
   /* ───────── New project: the question and its sources on the desk, the materials on the sheet ───────── */
   .onboard { --side-w: clamp(380px, 31vw, 460px); }
-  .ob-left { display: flex; flex-direction: column; gap: 16px; overflow: auto; padding: 8px 14px 12px 20px; scrollbar-width: thin; }
+  .ob-left { display: flex; flex-direction: column; gap: 16px; overflow: auto; padding: 8px 14px 12px 20px; }
   .ob-q h1 { font-size: 24px; font-weight: var(--weight-title, 600); line-height: 1.3; letter-spacing: -.02em; outline: none; }
   .ob-q p { margin-top: 6px; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.7; }
-  .ob-right { padding: 28px clamp(24px, 3.4vw, 48px) 32px; scrollbar-width: thin; }
+  .ob-right { padding: 28px clamp(24px, 3.4vw, 48px) 32px; }
   .ob-right.is-empty { display: grid; align-items: center; }
   .ob-right > .mw-empty { max-width: 30em; margin: 0; padding: 0; text-align: left; justify-items: start; }
   .ob-quick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }

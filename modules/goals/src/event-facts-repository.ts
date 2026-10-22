@@ -10,7 +10,7 @@ import { rowJson, rowText, sqliteJson, type GoalsSqliteDatabase } from "./reposi
 
 type Row = Record<string, unknown>;
 
-export interface GoalEventConfigRow {
+interface GoalEventConfigRow {
   project_id: string;
   goal_id: string;
   current_version: number;

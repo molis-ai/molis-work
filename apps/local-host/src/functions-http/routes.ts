@@ -1,13 +1,13 @@
-export type FunctionsHttpMethod = "GET" | "POST";
+type FunctionsHttpMethod = "GET" | "POST";
 
-export interface FunctionsHttpRouteRequest {
+interface FunctionsHttpRouteRequest {
   readonly method: FunctionsHttpMethod;
   readonly pathname: string;
   readonly query: URLSearchParams;
   readonly body: Readonly<Record<string, unknown>>;
 }
 
-export interface FunctionsHttpRouteResponse {
+interface FunctionsHttpRouteResponse {
   readonly status: number;
   readonly body?: unknown;
   readonly headers?: Readonly<Record<string, string>>;
@@ -22,18 +22,18 @@ export type FunctionsHttpRouteHandler = (
   context: FunctionsHttpRouteContext,
 ) => FunctionsHttpRouteResponse | Promise<FunctionsHttpRouteResponse>;
 
-export interface FunctionsHttpRouteDefinition {
+interface FunctionsHttpRouteDefinition {
   readonly route_id: string;
   readonly method: FunctionsHttpRouteRequest["method"];
   readonly pattern: RegExp;
   readonly param_names?: readonly string[];
 }
 
-export interface FunctionsHttpRouteBinding extends FunctionsHttpRouteDefinition {
+interface FunctionsHttpRouteBinding extends FunctionsHttpRouteDefinition {
   readonly handle: FunctionsHttpRouteHandler;
 }
 
-export const FUNCTIONS_HTTP_ROUTES = [
+const FUNCTIONS_HTTP_ROUTES = [
   route("functions.list", "GET", /^\/api\/functions$/u),
   route("functions.create", "POST", /^\/api\/functions$/u),
   route("functions.catalog", "GET", /^\/api\/functions\/catalog$/u),

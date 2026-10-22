@@ -36,7 +36,7 @@ import { APPROVED_KEY, covered, installedLifecycle } from './installed-plugin-li
 export const INSTALLED_MODEL_KEY = 'plugin-builder:agent-studio:model';
 const SIGNATURE = installedSignature('');
 
-export interface InstalledPluginHostOptions {
+interface InstalledPluginHostOptions {
   store: LocalProjectDatabase;
   projectId: string;
   homeDirectory: string;
@@ -49,7 +49,7 @@ export interface InstalledPluginHostOptions {
 }
 
 /** One execution owner per project database. Authoring and its Workflow are separate consumers. */
-export type InstalledPluginHost = Awaited<ReturnType<typeof openInstalledPlugins>>;
+type InstalledPluginHost = Awaited<ReturnType<typeof openInstalledPlugins>>;
 const hosts = new WeakMap<LocalProjectDatabase, Map<string, { home: string; actor: string; project: string; ready: Promise<InstalledPluginHost> }>>();
 
 export function ensureInstalledPlugins(options: InstalledPluginHostOptions): Promise<InstalledPluginHost> {

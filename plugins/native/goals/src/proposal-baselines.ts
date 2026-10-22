@@ -1,3 +1,4 @@
+import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-sdk";
 import { createHash } from "node:crypto";
 import type { GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalTreeProposalItemRecord, ProposalAffectedObject, ProposalObjectVersion } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
@@ -47,11 +48,4 @@ function semanticObject(current: unknown, object: ProposalAffectedObject): unkno
 
 function requestHash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
-}
-
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value as Record<string, unknown>)
-    .sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => [key, canonicalize(item)]));
-  return value;
 }

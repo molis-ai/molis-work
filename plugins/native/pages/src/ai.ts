@@ -17,8 +17,8 @@ export const PAGES_AI_COMMANDS = [
   { id: "proofread", label: "全文校对" },
 ] as const;
 
-export type PagesAiCommandId = (typeof PAGES_AI_COMMANDS)[number]["id"];
-export type PagesAiStyle = "concise" | "expand" | "formal" | "casual";
+type PagesAiCommandId = (typeof PAGES_AI_COMMANDS)[number]["id"];
+type PagesAiStyle = "concise" | "expand" | "formal" | "casual";
 
 export interface PagesAiRequest {
   readonly command: string;
@@ -50,7 +50,7 @@ export function pagesAiCommandLabel(command: string, style?: string): string {
   return base;
 }
 
-export function isPagesAiStyle(value: string | undefined): value is PagesAiStyle {
+function isPagesAiStyle(value: string | undefined): value is PagesAiStyle {
   return value === "concise" || value === "expand" || value === "formal" || value === "casual";
 }
 

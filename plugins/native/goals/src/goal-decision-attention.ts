@@ -2,7 +2,7 @@ import type { AttentionApi } from "@molis-ai/molis-work-contracts/modules/attent
 import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { goalTreeProposalAttentionGoalId, goalTreeProposalNeedsDecision } from "./decision-groups.js";
 
-export interface GoalDecisionAttentionPorts {
+interface GoalDecisionAttentionPorts {
   attention: Pick<AttentionApi, "commands" | "query">;
   listProposals(projectId: string): GoalTreeProposalRecord[];
   goalExists(projectId: string, goalId: string): boolean;

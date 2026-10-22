@@ -14,8 +14,8 @@ export interface McpActionGrant {
   readonly enabled: boolean;
 }
 
-export const MCP_TOOL_PREFERENCE_VERSION = 2;
-export const MCP_TOOL_PREFERENCE_RELATIVE_PATH = "config/mcp-tools.json";
+const MCP_TOOL_PREFERENCE_VERSION = 2;
+const MCP_TOOL_PREFERENCE_RELATIVE_PATH = "config/mcp-tools.json";
 
 /** Which actions each MCP client may use; nothing else switches an MCP tool on or off. */
 export interface McpToolPreference {
@@ -89,7 +89,7 @@ function assertUniqueGrants(preference: McpToolPreference): void {
 const writes = new Map<string, Promise<unknown>>();
 
 /** Management is the writer; all MCP processes re-read the same atomic file. */
-export async function updateMcpToolPreference(homeDirectory: string, change: (current: McpToolPreference) => McpToolPreference): Promise<McpToolPreference> {
+async function updateMcpToolPreference(homeDirectory: string, change: (current: McpToolPreference) => McpToolPreference): Promise<McpToolPreference> {
   const filePath = mcpToolPreferencePath(homeDirectory);
   // Only the order is chained: the previous write's failure was already answered to its own caller.
   const pending = (writes.get(filePath) ?? Promise.resolve()).catch(() => undefined).then(async () => {

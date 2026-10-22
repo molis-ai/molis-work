@@ -11,7 +11,7 @@ import type {
 
 type Row = Record<string, unknown>;
 
-export interface GoalsSqliteStatement {
+interface GoalsSqliteStatement {
   all(...params: unknown[]): unknown[];
   get(...params: unknown[]): unknown;
   run(...params: unknown[]): {
@@ -25,7 +25,7 @@ export interface GoalsSqliteDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-export interface GoalsEventInput {
+interface GoalsEventInput {
   eventId: string;
   projectId: string;
   actorId: string;
@@ -37,7 +37,7 @@ export interface GoalsEventInput {
   at: string;
 }
 
-export interface GoalsIdempotencyInput {
+interface GoalsIdempotencyInput {
   projectId: string;
   actorId: string;
   operation: string;

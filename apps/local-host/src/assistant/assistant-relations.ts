@@ -1,5 +1,6 @@
+import { ledgerDatabase } from "../context-ledger-database.js";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextAccess, ContextEdge, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { ASSISTANT_RELATIONS, type AssistantContextSnapshot, type AssistantMaterial, type AssistantRelation, type AssistantScope } from "@molis-ai/molis-work-contracts/services/assistant";
 
@@ -12,23 +13,8 @@ const RELATION_OF = new Map<string, AssistantRelation>(Object.entries(ASSISTANT_
 /** How a work's objects read: where it started, what it was given, who carries it, what it produced. */
 const RANK: Record<AssistantRelation, number> = { origin: 0, material: 1, session: 2, result: 3 };
 
-/** `node:sqlite` in the shape the Ledger's repository expects: one immediate transaction, joined when already inside one. */
-function ledgerDatabase(db: DatabaseSync): ContextLedgerDatabase {
-  const run = <T>(operation: () => T): T => {
-    if (db.isTransaction) return operation();
-    db.exec("BEGIN IMMEDIATE");
-    try { const value = operation(); db.exec("COMMIT"); return value; }
-    catch (error) { db.exec("ROLLBACK"); throw error; }
-  };
-  return {
-    exec: sql => db.exec(sql),
-    prepare: sql => db.prepare(sql) as unknown as ReturnType<ContextLedgerDatabase["prepare"]>,
-    transaction: <T>(operation: () => T) => Object.assign(() => run(operation), { immediate: () => run(operation) }),
-  };
-}
-
 /** A work, as the source of its relations. */
-export interface WorkIdentity { work_id: string; project_id: string | null }
+interface WorkIdentity { work_id: string; project_id: string | null }
 
 /** A work as the source of its relations: its project namespace, or none for personal work. */
 export function identity(work: { work_id: string; scope: AssistantScope }): WorkIdentity {
@@ -54,9 +40,9 @@ export function linkSent(relations: AssistantRelations, work: { work_id: string;
 }
 
 /** An object a relation points to: a Plugin's object by its subject kind, in the work's project. */
-export interface RelatedObject { kind: string; id: string; revision: string | null }
+interface RelatedObject { kind: string; id: string; revision: string | null }
 
-export interface WorkRelation {
+interface WorkRelation {
   relation: AssistantRelation;
   object: RelatedObject;
   recorded_at: string;

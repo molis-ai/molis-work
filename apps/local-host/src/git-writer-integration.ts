@@ -9,7 +9,7 @@ import { readWorkspaceFile } from "./workspace-files.js";
 import { runWorkspaceGit as git } from "./workspace-git.js";
 
 interface Side { text: string | null; mode: GitFileMode | null }
-export interface WriterIntegrationSelection { workspace_id: string; writer_workspace_id: string }
+interface WriterIntegrationSelection { workspace_id: string; writer_workspace_id: string }
 type Grants = () => Promise<readonly ProjectWorkspaceRef[]>;
 const LIMIT = 256 * 1024;
 const fingerprint = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");

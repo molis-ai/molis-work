@@ -1,7 +1,7 @@
 import type { IntegrationProviderSyncResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 type ConnectorSyncFailure = Extract<IntegrationProviderSyncResult, { ok: false }>;
-export type GmailFailureStage = "profile" | "list" | "history" | "detail" | "unknown";
+type GmailFailureStage = "profile" | "list" | "history" | "detail" | "unknown";
 
 export type GmailForbiddenDisposition =
   | "service_disabled"

@@ -80,11 +80,11 @@ function renderCardButton(card: ConnectorSettingsCardView, p: ConnectorsSettings
   const placeholder = card.availability === "placeholder";
   const method = recommendedMethod(card);
   const direct = !placeholder && !count && (method?.login_ready || readyAccountLogin(card));
-  return `<button class="mw-card settings-connector-card${placeholder ? " settings-connector-card--placeholder" : ""}" type="button" data-connector-open="${escapeHtml(card.connector_id)}"${direct ? ` data-connector-direct="${method!.kind}"` : ""} data-connector-search="${escapeHtml((card.title + " " + card.connector_id + " " + connectorPurpose(card)).toLowerCase())}" aria-label="${escapeHtml(`${card.title}，${count ? L("{count} 条连接", { count }) : direct ? L("登录并连接") : L("查看连接方式")}`)}">
+  return `<button class="mw-card settings-connector-card${placeholder ? " settings-connector-card--placeholder" : ""}" type="button" data-connector-open="${escapeHtml(card.connector_id)}"${direct ? ` data-connector-direct="${method!.kind}"` : ""} data-connector-search="${escapeHtml((card.title + " " + card.connector_id + " " + connectorPurpose(card, L)).toLowerCase())}" aria-label="${escapeHtml(L("{name}，{action}", { name: card.title, action: count ? L("{count} 条连接", { count }) : direct ? L("登录并连接") : L("查看连接方式") }))}">
     ${renderConnectorMark(card.connector_id, escapeHtml)}
     <span class="settings-connector-card__body">
-      <span class="settings-connector-card__title"><strong>${escapeHtml(card.title)}</strong><span class="settings-state settings-state--neutral">${escapeHtml(count ? L("{count} 个账号", { count }) : direct ? L("登录并连接") : L(pathLabel(card)))}</span></span>
-      <span class="settings-connector-card__copy">${escapeHtml(L(connectorPurpose(card)))}</span>
+      <span class="settings-connector-card__title"><strong>${escapeHtml(card.title)}</strong><span class="settings-state settings-state--neutral">${escapeHtml(count ? L("{count} 个账号", { count }) : direct ? L("登录并连接") : pathLabel(card, L))}</span></span>
+      <span class="settings-connector-card__copy">${escapeHtml(connectorPurpose(card, L))}</span>
     </span>
   </button>`;
 }
@@ -95,23 +95,23 @@ function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly 
   const instructions: Array<{ text: string; label?: string; href?: string; plugin?: string }> = [];
   if (!active.length) {
     const method = recommendedMethod(card)?.kind;
-    const text = method === "mcp" ? "连接完成后，在 Coding 的 MCP 设置中选择此账号，再选择本轮可用的工具。"
-      : method === "cli" ? "完成本机客户端登录后，回到这里检查账号与可用操作。"
-      : "先完成账号连接。连接成功后，这里会显示可用的下一步。";
+    const text = method === "mcp" ? L("连接完成后，在 Coding 的 MCP 设置中选择此账号，再选择本轮可用的工具。")
+      : method === "cli" ? L("完成本机客户端登录后，回到这里检查账号与可用操作。")
+      : L("先完成账号连接。连接成功后，这里会显示可用的下一步。");
     instructions.push({ text });
   } else {
-    if (active.some(row => row.auth_method === "mcp" && row.agent_available !== false) || card.connector_id === "mcp-bearer") instructions.push({ text: "在 Coding 的 MCP 设置中选择已授权账号，保存并连接后，在会话中选择本轮工具。", label: "设置 Agent 工具", href: "/settings/coding-settings" });
-    if (active.some(row => row.auth_method === "mcp" && row.agent_available === false)) instructions.push({ text: "此连接使用服务商的原生传输。可以在上方查看工具并执行明确的工具操作；当前传输暂不支持 Coding。" });
-    if (active.some(row => row.auth_method === "cli")) instructions.push({ text: "账号由本机客户端管理。可以在上方检查连接、查看读取结果；本机客户端连接不用于 Feed 自动同步。" });
+    if (active.some(row => row.auth_method === "mcp" && row.agent_available !== false) || card.connector_id === "mcp-bearer") instructions.push({ text: L("在 Coding 的 MCP 设置中选择已授权账号，保存并连接后，在会话中选择本轮工具。"), label: L("设置 Agent 工具"), href: "/settings/coding-settings" });
+    if (active.some(row => row.auth_method === "mcp" && row.agent_available === false)) instructions.push({ text: L("此连接使用服务商的原生传输。可以在上方查看工具并执行明确的工具操作；当前传输暂不支持 Coding。") });
+    if (active.some(row => row.auth_method === "cli")) instructions.push({ text: L("账号由本机客户端管理。可以在上方检查连接、查看读取结果；本机客户端连接不用于 Feed 自动同步。") });
     if (active.some(row => row.auth_method === "oauth" || row.auth_method === "token")) {
-      if (card.connector_id === "model-api") instructions.push({ text: "在模型设置中选择此连接，再选择模型并检查可用性。", label: "打开模型设置", href: "/settings/models" });
-      else if (card.connector_id === "image-api") instructions.push({ text: "在项目 Images 中选择此连接，配置图像服务并尝试生成。", label: "选择项目，打开 Images", href: "/", plugin: "images" });
-      else if (card.connector_id === "typesafe") instructions.push({ text: "在 Functions 中选择此账号。", label: "查看 Functions", href: "/capabilities/library" });
-      else if (card.feed_available) instructions.push({ text: "在项目 Feed 中添加来源并选择已连接的 API 账号与内容范围。", label: "选择项目，添加来源", href: "/", plugin: "feed" });
-      else if (card.connector_id !== "mcp-bearer") instructions.push({ text: "可以在上方检查账号授权。此 API 连接暂不提供 Feed 同步。" });
+      if (card.connector_id === "model-api") instructions.push({ text: L("在模型设置中选择此连接，再选择模型并检查可用性。"), label: L("打开模型设置"), href: "/settings/models" });
+      else if (card.connector_id === "image-api") instructions.push({ text: L("在项目 Images 中选择此连接，配置图像服务并尝试生成。"), label: L("选择项目，打开 Images"), href: "/", plugin: "images" });
+      else if (card.connector_id === "typesafe") instructions.push({ text: L("在 Functions 中选择此账号。"), label: L("查看 Functions"), href: "/capabilities/library" });
+      else if (card.feed_available) instructions.push({ text: L("在项目 Feed 中添加来源并选择已连接的 API 账号与内容范围。"), label: L("选择项目，添加来源"), href: "/", plugin: "feed" });
+      else if (card.connector_id !== "mcp-bearer") instructions.push({ text: L("可以在上方检查账号授权。此 API 连接暂不提供 Feed 同步。") });
     }
   }
-  return `<section class="settings-connector-next" data-connector-next><h3>${L(active.length ? "连接后，下一步" : "连接后可以做什么")}</h3>${instructions.map(step => `<p>${e(L(step.text))}</p>${step.href ? `<a class="mw-btn mw-btn--secondary" data-connector-next-link="${e(step.plugin || "")}" href="${e(step.href)}">${e(L(step.label!))}</a>` : ""}`).join("")}<small>${L("连接只保存账号授权。你可以在使用时选择账号与内容范围。")}</small></section>`;
+  return `<section class="settings-connector-next" data-connector-next><h3>${L(active.length ? L("连接后，下一步") : "连接后可以做什么")}</h3>${instructions.map(step => `<p>${e(step.text)}</p>${step.href ? `<a class="mw-btn mw-btn--secondary" data-connector-next-link="${e(step.plugin || "")}" href="${e(step.href)}">${e(step.label!)}</a>` : ""}`).join("")}<small>${L("连接只保存账号授权。你可以在使用时选择账号与内容范围。")}</small></section>`;
 }
 
 export function renderConnectorsSettings(
@@ -132,9 +132,9 @@ export function renderConnectorsSettings(
       <header class="settings-connector-detail__head">
         ${renderConnectorMark(card.connector_id, escapeHtml)}
         <h2 tabindex="-1">${escapeHtml(card.title)}</h2>
-        <span class="settings-state settings-state--neutral">${escapeHtml(L(pathLabel(card)))}</span>
+        <span class="settings-state settings-state--neutral">${escapeHtml(pathLabel(card, L))}</span>
       </header>
-      <p class="settings-connector-purpose">${escapeHtml(L(connectorPurpose(card)))}</p>
+      <p class="settings-connector-purpose">${escapeHtml(connectorPurpose(card, L))}</p>
       <div class="settings-connector-feedback" data-connector-feedback role="status" aria-live="polite" hidden></div>
       ${serviceConnections.length ? `<section class="settings-connection-detail-list"><h3>${L("已有连接")}</h3>${serviceConnections.map((connection) => renderConnectionRow(connection, card, primitives, true)).join("")}</section>` : ""}
       ${card.connector_id === "typesafe" && view.functions_settings ? renderFunctionsSettings({ ...view.functions_settings, embedded: true, primitives: { escape: escapeHtml, text: L } }) : ""}

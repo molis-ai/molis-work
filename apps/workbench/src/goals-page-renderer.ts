@@ -191,7 +191,7 @@ function renderMolisWorkWeb(
     ? { project_id: view.project.project_id, display_name: view.project.display_name }
     : null, projectOperationsData);
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins, view.hidden_plugins)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
-  const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/` || "/")}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
+  const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
   const deferredIds = new Set(deferredSurfaceClients().map(client => client.id));
   const defer = (html: string): string => {
     const match = html.match(/^(\s*<([a-z][a-z0-9-]*)\b[^>]*data-work-surface="([^"]+)"[^>]*>)([\s\S]*)(<\/\2>\s*)$/);

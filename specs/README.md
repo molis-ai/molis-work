@@ -4,13 +4,14 @@
 
 ## 在做的
 
+- [empty-goal-create](empty-goal-create/spec.md)：进入 Goals 且当前列表为空时，自动打开已有的新建弹窗；2026-10-22 实现，待验收。
 - [prologue-memory-strategy](prologue-memory-strategy/spec.md)：Prologue 记忆策略与 Molis Work 接入；三层拆分、四个预设、召回与提炼两个槽、有界历史；独立需求，需求已整理，待评审后实施。
 - [pr-review-remediation](pr-review-remediation/spec.md)：最近三天 PR 复审确认的 P1 安全边界、P2 功能/合同问题、P3 文档与验收、合并门禁；2026-10-20 新立，实现完成，待评审（PR #901；QA-017 本机 Chrome 未跑通，Product subset 待跑）。
 - [unified-input-voice](unified-input-voice/spec.md)：统一输入体验与本地语音输入；需求已整理，尚未实现。
 - [proactive-assistant](proactive-assistant/spec.md)：主动式助理与场景 Skill；需求已整理，尚未实现。2026-10-18 补充工作记忆初始化、每日例程、前门路由、从一次对话生成 Skill 与跨源搜索规划。
 - [work-brief](work-brief/spec.md)：工作简报内容插件；用户已确认纳入，需求已整理，尚未实现。2026-10-18 补充 living page、一页式脉搏、使用回顾与交互式报告页。
 - [coding-harness-optimization](coding-harness-optimization/spec.md)：Coding 与平台性能；需求已整理，尚未实现。
-- [visual-ui-experience](visual-ui-experience/spec.md)：视觉细节、个人助理信息与 UI 性能；45 项验收与 20 组设计机制。实现中（二十二片，按顺序合入 main），输入框的附件布局与引用（VUX-16 其余、VUX-17）、VUX-33 其余与本人验收未做。负责人：Claude（2026-10-19 起接手实现）。
+- [visual-ui-experience](visual-ui-experience/spec.md)：视觉细节、个人助理信息与 UI 性能；45 项验收与 20 组设计机制。实现中（七十八片，前七十五片已全部合入或正在合入 main），输入框的低频设置与引用（VUX-16 其余、VUX-17）、VUX-33 其余与本人验收未做。负责人：Claude（2026-10-19 起接手实现）。
 - [font-and-skin-system](font-and-skin-system/spec.md)：字体、皮肤与语言系统；需求已整理，尚未实现。
 - [assistant-service-connections](assistant-service-connections/spec.md)：助理统一服务接入；Codex 实施中，交互切片和连接侧首组回归已完成，37 项整体验收仍未完成；2026-10-18 补充内容层连接器占位符与未支持工具的接入路径（ASC-38–44，未验证）。
 - [subagent-interaction](subagent-interaction/spec.md)：个人助理与 Coding 的子代理固定入口、直接对话和父子动线；明确 Prologue/Molis Work 分工，需求已整理，尚未实现。
@@ -24,7 +25,7 @@
 - [side-shelf](side-shelf/spec.md)：右栏、Shelf、落点、拖放与助理接入；完整需求保留。
 - [issue-home-v0](issue-home-v0/spec.md)：个人 Home 的 Issue 插件；补齐 Home Runtime 与插件 SQLite 服务，接通页面、助理和 MCP。
 - [repository-anti-corruption](repository-anti-corruption/spec.md)：系统性代码与架构防腐整理（防腐收尾第二步）。
-- [repository-cleanup](repository-cleanup/spec.md)：2026-10-20 审计后的系统清理——死代码、边界、重复实现；先等当前 PR 波次合入，按 hold 清单分批做，只删确认无主的代码。需求已整理，尚未实现。
+- [repository-cleanup](repository-cleanup/spec.md)：Work 与 Prologue 存量代码一次性清理，负责人 Codex；本地清理完成，Prologue 已由用户合入，Work #996 跟进 CI、评审与合并。覆盖全部包/模块；基线失败、环境跳过和具体保留依据见同目录 inventory。
 - [coding-quality-assurance](coding-quality-assurance/spec.md)：Coding 质量保证（已定方向，防腐收尾后做）。2026-10-18 补充多代理 PR 评审、置信分、安全评审、真人批准门、有界迭代与对抗验证。
 - [risk-plugin](risk-plugin/spec.md)：专门记录风险的插件（风险已移出 Goals）。
 - [plugin-tab-groups](plugin-tab-groups/spec.md)：插件标签与按插件着色的标签组，取代「插件默认页不占标签」；实现中。
@@ -42,6 +43,7 @@
 - [prologue-tool-strategy](prologue-tool-strategy/spec.md)：Prologue Tool 的工具面、搜索、结果预算与观测；独立需求，需求已整理，待评审后实施。
 - [prologue-mcp-strategy](prologue-mcp-strategy/spec.md)：Prologue MCP 的服务器信任、发现、健康与认证；独立需求，需求已整理，待评审后实施。
 - [prologue-context-strategy](prologue-context-strategy/spec.md)：Prologue Context 的来源预算、trace、新鲜度与压缩剖面；独立需求，需求已整理，待评审后实施。
+- [quiet-home-refresh](quiet-home-refresh/spec.md)：项目首页后台刷新停在当前画面上，日期条和标题没变就不重画，也不先换成「正在读取事项…」；第一次进入和点「重新读取」仍显示加载。2026-10-22，待验收。
 
 ## 现行规范
 

@@ -1,5 +1,4 @@
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
-import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import {
   type ScheduleUiModel,
   type ScheduleUiPrimitives,
@@ -48,6 +47,3 @@ export function createWorkbenchScheduleProjectionRenderer(primitives: {
 
   return { buildScheduleNativePluginModel, renderScheduleNativePluginSurface };
 }
-
-
-export type { ScheduleJobRecord };

@@ -1,13 +1,13 @@
 import { CONNECTOR_ICON_SVG, connectorIconSvg } from "./connector-icons.js";
 
-export interface ConnectorIconSurface {
+interface ConnectorIconSurface {
   readonly on: "light" | "dark";
   readonly pad: boolean;
 }
 
 const PAD = new Set(["huggingface", "clickup"]);
 
-export function connectorIconSurface(connectorId: string): ConnectorIconSurface {
+function connectorIconSurface(connectorId: string): ConnectorIconSurface {
   return {
     on: "light",
     pad: PAD.has(connectorId),

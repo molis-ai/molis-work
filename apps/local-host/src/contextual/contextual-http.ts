@@ -28,7 +28,7 @@ import { createContextualJudgmentService, type ContextualJudgmentService } from 
  * confirmed it at its landing (`attach`), or it is a creation entry its owner can undo (`create`, and `undo` takes it back);
  * otherwise the page that owns the object runs it after the person confirms (P1), or the Assistant does through its cards (P2).
  */
-export interface ContextualActions {
+interface ContextualActions {
   discover(): Promise<readonly ActionView[]>;
   invoke(reference: ActionReference, input: unknown): Promise<unknown>;
 }

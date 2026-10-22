@@ -20,7 +20,7 @@ export interface CatalogHttp {
   json(request: CatalogHttpRequest): Promise<{ status: number; json: unknown; headers: Headers }>;
 }
 
-export interface CatalogEndpoint<T> {
+interface CatalogEndpoint<T> {
   request(ctx: CatalogAuthContext): CatalogHttpRequest | Promise<CatalogHttpRequest>;
   read(json: unknown, ctx: CatalogAuthContext): T;
 }

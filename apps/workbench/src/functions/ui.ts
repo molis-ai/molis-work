@@ -5,7 +5,7 @@ export interface FunctionsUiPrimitives {
   text(value: string, values?: Record<string, string | number>): string;
 }
 
-export interface FunctionsUiModel {
+interface FunctionsUiModel {
   readonly functions?: readonly unknown[];
   readonly primitives: FunctionsUiPrimitives;
 }

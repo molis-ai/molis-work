@@ -27,7 +27,7 @@ export function insertInitialGoalContract(context: GoalsCommandContext, input: {
   return created;
 }
 
-export function insertGoalCriteria(context: GoalsCommandContext, goalId: string, goal: CreateGoalInput): void {
+function insertGoalCriteria(context: GoalsCommandContext, goalId: string, goal: CreateGoalInput): void {
   const insert = context.repository.db.prepare(`INSERT INTO acceptance_criteria (
     criterion_id, goal_id, statement, decision_method, pass_condition, target_json, required_evidence_json
   ) VALUES (?, ?, ?, ?, ?, ?, ?)`);
@@ -36,18 +36,4 @@ export function insertGoalCriteria(context: GoalsCommandContext, goalId: string,
       criterion.decision_method, criterion.pass_condition.trim(), criterion.target == null ? null : sqliteJson(criterion.target),
       sqliteJson(criterion.required_evidence ?? []));
   }
-}
-
-export function contractInputFromGoal(goal: GoalRecord): CreateGoalInput {
-  return {
-    goal_id: goal.goal_id, title: goal.title, outcome: goal.outcome, why: goal.why, business_logic: goal.business_logic,
-    in_scope: goal.in_scope, out_of_scope: goal.out_of_scope, constraints: goal.constraints,
-    required_inputs: goal.required_inputs, promised_outputs: goal.promised_outputs,
-    decomposition_review: goal.decomposition_review ?? undefined, definition_state: goal.definition_state,
-    decomposition_state: goal.decomposition_state, priority: goal.priority,
-    acceptance_criteria: goal.acceptance_criteria.map(criterion => ({
-      criterion_id: criterion.criterion_id, statement: criterion.statement, decision_method: criterion.decision_method,
-      pass_condition: criterion.pass_condition, target: criterion.target, required_evidence: criterion.required_evidence,
-    })),
-  };
 }

@@ -12,7 +12,6 @@ export const PLUGIN_STAGE_STYLES = `
   .plugin-stage-list {
     position: absolute; inset: 0; z-index: 0; overflow: auto; overscroll-behavior: contain;
     padding: 60px 24px 32px; background: var(--paper);
-    scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
   }
   .plugin-stage-chrome {
     position: absolute; top: 18px; left: 24px; z-index: 20;

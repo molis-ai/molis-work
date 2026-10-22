@@ -7,7 +7,7 @@ import type { GoalContractView } from "./goal-entry-contract.js";
 import type { GoalPolicy, GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
-export interface GoalReadApplicationPorts {
+interface GoalReadApplicationPorts {
   now(): Date;
 
   goalTreeProposals(projectId: string, rootGoalId: string): GoalTreeProposalRecord[];

@@ -8,7 +8,7 @@ import { functionsErrors } from "@molis-ai/molis-work-module-functions";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { bindTypeSafeConnection, unbindTypeSafeConnection } from "./typesafe-connection.js";
 
-export interface FunctionsHttpOptions {
+interface FunctionsHttpOptions {
   readonly actions: BoundActionClient;
 }
 

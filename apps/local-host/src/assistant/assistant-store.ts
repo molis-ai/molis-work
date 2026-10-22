@@ -93,7 +93,7 @@ export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by"
 }
 
 /** A change that can be taken back: the public view plus the exact undo to run. */
-export interface StoredUndo extends AssistantUndoable {
+interface StoredUndo extends AssistantUndoable {
   work_id: string;
   reference: { capability_id: string; version: number; provider_id: string };
   input: Record<string, unknown>;
@@ -102,7 +102,7 @@ export interface StoredUndo extends AssistantUndoable {
 }
 
 /** A notice as stored: the public facts plus whether the person still has to see it. */
-export interface StoredNotice extends Omit<AssistantNotice, "held"> { state: "new" | "seen" | "dismissed" | "resolved" }
+interface StoredNotice extends Omit<AssistantNotice, "held"> { state: "new" | "seen" | "dismissed" | "resolved" }
 
 export interface StoredRound {
   run_id: string;

@@ -17,7 +17,7 @@ import { ARTIFACT_SUBJECT_KIND, parseArtifactSubjectId } from "@molis-ai/molis-w
  * and one file's preview — all read through the shared action directory as the local person, so a source the person
  * cannot read, or a plugin turned off here, is simply not there. Nothing is copied or cached on the Host.
  */
-export interface SideFilesPorts {
+interface SideFilesPorts {
   readonly localHost: MolisWorkLocalHost;
   readonly reference: LocalHostProjectReference;
   /** The built-in plugins this project shows (project ids): a hidden one's files are not listed, like its page. */

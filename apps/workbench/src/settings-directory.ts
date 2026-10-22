@@ -36,15 +36,15 @@ export function renderPluginRailAccountFooter(primitives: SettingsDirectoryPrimi
   </footer>`;
 }
 
-/** What belongs to the person rather than the project, under the project button: who you are and where (shown, not
- * offered as a control until there is an account page), then capabilities and settings, both opening in the workbench. */
+/** Personal entries under the project button: the future sign-in entry, then capabilities and settings. */
 export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives): string {
   const { L, icon } = primitives;
+  // TODO: Enable this entry when sign-in is implemented; a local Home has no account identity yet.
   return `<div class="navigator-personal" data-personal-menu>
-    <div class="personal-account" data-account-link>
+    <button class="personal-account" type="button" data-account-link disabled title="${L("登录功能暂未开放")}">
       <span class="personal-account-avatar" aria-hidden="true">${icon("user")}</span>
-      <span class="personal-account-copy"><strong>${L("一骏")}</strong><small>${L("本地空间")}</small></span>
-    </div>
+      <span class="personal-account-copy"><strong>${L("未登录")}</strong><small>${L("登录")}</small></span>
+    </button>
     <a class="immersive-plugin-link account-global-item" href="__SYSTEM_CAPABILITIES__" data-capabilities-open aria-label="${L("打开能力服务")}" title="${L("能力")}">${icon("sparkles")}<span>${L("能力")}</span></a>
     <button class="immersive-plugin-link account-global-item personal-settings" type="button" data-plugin-id="settings" data-directory-open="settings" aria-label="${L("打开全局设置")}" title="${L("设置")}">${icon("settings")}<span>${L("设置")}</span></button>
   </div>`;
@@ -96,6 +96,7 @@ export function renderProjectSettingsDirectorySection(primitives: SettingsDirect
   </section>`;
 }
 
+/** Settings inside a project. `nextPath` is where switching the language lands: this project with Settings open on the same page (VUX-40). */
 export function renderSettingsWorkSurface(primitives: SettingsDirectoryPrimitives, nextPath: string): string {
   const { L, htmlLang } = primitives;
   const locale = htmlLang().toLowerCase().startsWith("en") ? "en" : "zh";

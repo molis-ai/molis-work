@@ -6,7 +6,7 @@ type Board = ReturnType<Runtime["boards"]["get"]>;
 type Node = Board["nodes"][number];
 
 /** What a piece of work covers: the directory it runs in, the files it named or wrote. */
-export interface ProjectWorkScope {
+interface ProjectWorkScope {
   session_id: string;
   run_id?: string;
   title: string;
@@ -17,7 +17,7 @@ export interface ProjectWorkScope {
 }
 
 /** Where the scopes live: one record per project, beside the Host's other records. */
-export interface ProjectWorkStore {
+interface ProjectWorkStore {
   load(project: string): Promise<Record<string, ProjectWorkScope>>;
   save(project: string, scopes: Record<string, ProjectWorkScope>): Promise<void>;
 }

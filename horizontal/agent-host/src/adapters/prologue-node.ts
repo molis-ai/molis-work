@@ -26,12 +26,9 @@ import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
 import { createPrologueSurfaces, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { resolveModelHostname } from "./node-model-dns.js";
 import { PrologueAgentAdapter } from "./prologue.js";
-
-export { THINKING_OUTPUT_TOKENS } from "./prologue-run-params.js";
 export { PrologueCredentialBridge, type PrologueCredentialHost } from "./prologue-credentials.js";
 export type { PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 export { SUBAGENT_DEFAULT_TURNS } from "./prologue-node-port.js";
-export { MODEL_CALL_TIMEOUT_MS } from "./prologue-run.js";
 
 /**
  * The SDK-specific Node composition, with colocated SDK helpers.

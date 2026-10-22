@@ -377,7 +377,7 @@ export const PLUGIN_COMPONENT_STYLES = `
 .pc-empty{min-height:0;padding:32px 16px}
 .pc-skeleton{display:grid;gap:12px}.pc-skeleton .mw-skeleton{display:block;height:44px;border-radius:10px}.pc-skeleton[data-idle] .mw-skeleton{animation:none;opacity:.6}
 .pc-working{margin-top:12px;font-size:13px;color:var(--muted)}
-.pc-success{margin-top:12px;animation:pc-toast 640ms var(--ease-quint) forwards}.pc-success::before{content:"✓ "}
+.pc-success{margin-top:12px;animation:pc-rise var(--dur-move) var(--ease-quint);transition:opacity var(--dur-move) var(--ease-quint)}.pc-success.is-leaving{opacity:0}.pc-success::before{content:"✓ "}
 .pc-error{margin-top:12px;white-space:pre-wrap;overflow-wrap:anywhere}
 .pc-dialog-error{flex:1 1 100%;margin:0}
 .pc-kind-form>.pc-output:not(:empty),.pc-kind-button>.pc-output:not(:empty){margin-top:12px;animation:pc-rise var(--dur-arrive) var(--ease-quint)}
@@ -385,7 +385,6 @@ export const PLUGIN_COMPONENT_STYLES = `
 .pc-inspect{color:var(--blue);background:transparent;border:0;font:12px/1.4 inherit;cursor:pointer;padding:4px}.pc-node[data-inspected=true]{outline:1px solid var(--blue);outline-offset:7px}
 @keyframes pc-rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @keyframes pc-new{0%{opacity:0;transform:translateY(-6px)}40%{opacity:1;transform:none;background:var(--accent-soft)}100%{background:transparent}}
-@keyframes pc-toast{0%{opacity:0;transform:translateY(4px)}8%{opacity:1;transform:none}82%{opacity:1}100%{opacity:0}}
 @container (max-width:560px){.pc-app-head h1{font-size:20px}.pc-mark{width:40px;height:40px}.pc-stat>dd{font-size:20px}.pc-page{gap:16px}.pc-directory>.pc-record{flex-wrap:wrap}.pc-directory>.pc-record>.pc-row-actions{padding:0 12px 12px}.pc-search,.pc-filter-item:has(.pc-search){max-width:none}.pc-card-grid{grid-template-columns:1fr}.pc-agenda-day{grid-template-columns:48px minmax(0,1fr)}}
 @media (prefers-reduced-motion:reduce){.pc-view *{animation:none!important;transition:none!important}}
 ` + PLUGIN_PRESENTATION_STYLES;

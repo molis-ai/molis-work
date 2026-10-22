@@ -59,7 +59,7 @@ export function createPluginBackgroundClient(gate: {
       const pending = Promise.resolve().then(() => {
         control.assert_authority_current!();
         return runInPluginAction({ ...scope, caller: control }, () => work({ signal: control.signal, beforeEffect: control.beforeEffect,
-          assert_authority_current: control.assert_authority_current, page_context: control.page_context, ...(control.project_id ? { project_id: control.project_id } : {}) }));
+          assert_authority_current: control.assert_authority_current, page_context: control.page_context, locale: control.locale, ...(control.project_id ? { project_id: control.project_id } : {}) }));
       }).then(value => { control.assert_authority_current!(); return value; });
       const result = lifetime.wait(pending).finally(() => { running = false; active.delete(controller); lifetime.dispose(); });
       // The handle may be stored before its owner attaches a handler; a late refusal must still be observed.

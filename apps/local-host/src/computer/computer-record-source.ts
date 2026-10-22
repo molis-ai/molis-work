@@ -12,8 +12,7 @@ import { ComputerRecords, type ComputerRecord } from "./computer-records.js";
  * or memory (§6); keeping it as a 成果 is the person's separate choice through the 成果库. The redacted screenshots are
  * served by the computer HTTP endpoint, not inlined here.
  */
-export const COMPUTER_RECORD_KIND = "computer_record";
-export const COMPUTER_PROVIDER_ID = "io.molis.work.computer";
+const COMPUTER_RECORD_KIND = "computer_record";
 /**
  * The id the 文件 tab sees once this source is folded into the Assistant's provider.
  * Kept as a literal so this file does not import the Assistant (that file already imports this one).
@@ -27,7 +26,7 @@ export function recordsOwnedBy(records: readonly ComputerRecord[], projectId: st
 
 const kinds = [{ kind: COMPUTER_RECORD_KIND, title: "电脑操作记录", surface: "computer" }];
 
-export const computerRecordActions = {
+const computerRecordActions = {
   entries: defineFileEntriesAction("computer.records.entries", kinds, "电脑操作记录", [], "home"),
   content: defineFileContentAction("computer.records.content", kinds, "电脑操作记录", [], "home"),
 } as const;

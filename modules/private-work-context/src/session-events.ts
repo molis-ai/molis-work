@@ -11,7 +11,7 @@ import {
 } from "./contract-aliases.js";
 import { parseMetadata, requiredText, safeEventMetadata, validIsoTimestamp } from "./session-schema.js";
 
-export interface WorkSessionLookup {
+interface WorkSessionLookup {
   get(sessionId: string): unknown;
 }
 

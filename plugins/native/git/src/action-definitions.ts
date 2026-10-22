@@ -51,7 +51,7 @@ const operation = { oneOf: [
 ] };
 interface Workspace { workspace_id: string; name: string; handle: string }
 export interface GitSelected { workspace_id: string; path: readonly string[]; side: "index" | "worktree"; previous_path?: readonly string[]; revision: string; reference: ArtifactReference }
-export interface GitSaved { reference: ArtifactReference; result: GitReviewedResult; saved_at: string }
+interface GitSaved { reference: ArtifactReference; result: GitReviewedResult; saved_at: string }
 export const gitActions = {
   state: readingRepository(define<Record<string, never>, { workspace: Workspace; view: GitView; selected: GitSelected | null }>("git.state", "读取 Git 状态", "读取当前授权仓库与原固定差异选择，不修改暂存区", "query", read, object({}), object({ workspace, view, selected: nullable(selected) }))),
   selectDiff: readingRepository(define<{ workspace_id: string; path: readonly string[]; side: "index" | "worktree" }, { result: WorkspaceGitResult; selected?: GitSelected }>("git.select-diff", "固定 Git 差异", "保存当前暂存区或工作树的固定差异并选中它；不修改仓库", "operation", write, object({ workspace_id: id, path, side: { enum: ["index", "worktree"] } }), { oneOf: [object({ result: diffResult, selected }), object({ result: failureResult })] })),

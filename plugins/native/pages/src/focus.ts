@@ -12,11 +12,11 @@ import { pagesSchema } from "./schema.js";
  * the frozen text itself was changed in the meantime, applying is refused rather than written somewhere else.
  */
 
-export type PagesFocusRole = "heading" | "paragraph" | "list" | "task" | "table" | "quote" | "code";
-export type PagesFocusActivity = "browsing" | "selecting" | "editing" | "comparing" | "completed";
-export type PagesFocusGranularity = "word" | "range" | "block" | "blocks";
+type PagesFocusRole = "heading" | "paragraph" | "list" | "task" | "table" | "quote" | "code";
+type PagesFocusActivity = "browsing" | "selecting" | "editing" | "comparing" | "completed";
+type PagesFocusGranularity = "word" | "range" | "block" | "blocks";
 
-export interface PagesFocusTarget {
+interface PagesFocusTarget {
   readonly kind: "text_range" | "block";
   readonly role: PagesFocusRole;
   readonly text: string;
@@ -200,7 +200,7 @@ export function readPagesFocus(state: EditorState, now = Date.now()): PagesFocus
   return { local_id, ...focus };
 }
 
-export interface PagesFocusPluginOptions {
+interface PagesFocusPluginOptions {
   /** Called when the focus changes (by identity), and with `null` when nothing is in hand. */
   readonly onFocus?: (focus: PagesFocus | null) => void;
 }

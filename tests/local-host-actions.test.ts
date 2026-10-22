@@ -21,7 +21,7 @@ test("a Plugin action can await a nested Host capability without waiting behind 
   const host = new LocalHost({ runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
   const read = { capability_id: "nested.read", version: 1, operation: "query" as const };
   host.register(read, runtime => runtime.value);
-  host.register(counter, async (runtime, input) => {
+  host.registerAction(counter, async (runtime, input) => {
     runtime.value += input.amount;
     return host.client(ref("a")).invoke(read, undefined) as Promise<number>;
   });
@@ -38,7 +38,7 @@ test("typed Host and action callers use one registration, one queue and the same
   const enteredCall = new Promise<void>(resolve => { entered = resolve; });
   const released = new Promise<void>(resolve => { release = resolve; });
   const host = new LocalHost({ runtimeFactory: { open: () => { opens++; return { total: 0 }; }, close: () => { closes++; } } });
-  host.register(counter, async (runtime, input) => {
+  host.registerAction(counter, async (runtime, input) => {
     if (input.amount === 1) { entered(); await released; }
     runtime.total += input.amount; return runtime.total;
   });
@@ -151,7 +151,7 @@ test("queued action checks current asynchronous availability before producing a 
   const blocked = new Promise<void>(resolve => { release = resolve; });
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} },
     actionAvailability: async () => enabled ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "disabled" } });
-  host.register(counter, async (_runtime, input) => {
+  host.registerAction(counter, async (_runtime, input) => {
     if (input.amount === 1) { entered(); await blocked; }
     effects += input.amount;
     return effects;
@@ -272,7 +272,7 @@ test("every route into an action or a typed capability is settled exactly once, 
   const project = ref("routes"), caller = context("routes"), noted: Array<string | undefined> = [];
   const directory = await mkdtemp(join(tmpdir(), "host-actions-")), store = new LocalProjectDatabase(join(directory, "project.db"));
   const homeRead = { ...counter, capability_id: "host.home.read", action: { ...counter.action, title: "首页读取", scope: "home" as const } };
-  host.register(counter, (runtime, input) => (runtime.total += input.amount));
+  host.registerAction(counter, (runtime, input) => (runtime.total += input.amount));
   host.register(note, (_runtime, input, invocation) => { noted.push(invocation.call_id); return input.text; });
   host.register(broken, () => { throw new Error("the handler failed"); });
   const lookalike = { ...broken, capability_id: "host.notes.lookalike" };
@@ -339,7 +339,7 @@ test("a typed call made while an action is handled belongs to the same operation
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionSettled });
   const project = ref("nested"), seen: Array<string | undefined> = [];
   host.register(note, (_runtime, input, invocation) => { seen.push(invocation.call_id); return input.text; });
-  host.register(counter, async (_runtime, input, invocation) => {
+  host.registerAction(counter, async (_runtime, input, invocation) => {
     seen.push(invocation.call_id);
     await host.client(project).invoke(note, { text: "inner" });
     return input.amount;
@@ -357,7 +357,7 @@ test("the host's availability policy refuses before dispatch on every route into
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionAvailability: () => policy, actionSettled });
   const project = ref("policy"), homeRead = { ...counter, capability_id: "host.home.policy", action: { ...counter.action, scope: "home" as const } };
   const directory = await mkdtemp(join(tmpdir(), "host-actions-")), store = new LocalProjectDatabase(join(directory, "project.db"));
-  host.register(counter, () => ++ran);
+  host.registerAction(counter, () => ++ran);
   host.actionRegistry().registerProvider({ provider: { provider_id: "home", kind: "system", title: "Home" }, definitions: [homeRead], handlers: [{ ...homeRead, handle: () => ++ran }] });
   host.actionRegistry(project).registerProvider({ provider: { provider_id: "sync", kind: "plugin", title: "Sync", project_id: project.project_id },
     definitions: [syncCounter], handlers: [{ ...syncCounter, execution: "sync", handle: () => ++ran }] });

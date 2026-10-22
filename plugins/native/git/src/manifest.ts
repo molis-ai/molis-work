@@ -20,7 +20,7 @@ import { GIT_UI_CONTRIBUTION_ID } from "./ui.js";
 
 export const GIT_PLUGIN_ID = "io.molis.work.git";
 /** Named, not imported: subscribing to a Plugin is not depending on its code. */
-export const CODING_PLUGIN_ID = "io.molis.work.coding";
+const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */
 export const GIT_PROJECT_PLUGIN_ID = "git";
 

@@ -16,7 +16,7 @@ export function withinTime<T>(step: Promise<T>, ms = 20_000): Promise<T> {
 }
 
 /** What one look needs: the person's store, their own actions in a work's scope, and where to record how far it got in each project. */
-export interface ScanEnvironment {
+interface ScanEnvironment {
   store: AssistantStore;
   actorId: string;
   now: Date;

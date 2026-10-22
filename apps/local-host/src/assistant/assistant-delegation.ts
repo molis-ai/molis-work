@@ -26,7 +26,7 @@ const WAITS_FOR_PARTS = "等交出去的子任务都结束，再接着做这项�
 const lastEnded = (steps: readonly AgentWorkNode[]) => steps.filter(step => step.ended_at).sort((a, b) => a.ended_at!.localeCompare(b.ended_at!)).at(-1);
 
 /** What delegation needs from the Assistant service: its store and the round starts, state reads and checks it already has. */
-export interface DelegationPorts {
+interface DelegationPorts {
   store: AssistantStore;
   actorId: string;
   host(): Promise<AgentHost>;

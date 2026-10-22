@@ -38,7 +38,7 @@ export function openEditorComment(view: EditorView, options: CommentPopupPorts):
   }
 
 /** Keep an existing annotation intact; ambiguous or empty blocks need an explicit text selection. */
-export function markCommentBlock(view: EditorView, index: number): string | null {
+function markCommentBlock(view: EditorView, index: number): string | null {
   if (!Number.isInteger(index) || index < 0 || index >= view.state.doc.childCount) return null;
   const block = view.state.doc.child(index), ids = new Set<string>();
   let from = -1, to = -1, offset = 0;

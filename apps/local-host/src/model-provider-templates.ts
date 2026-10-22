@@ -15,7 +15,7 @@ import type { ModelTemplateChoice } from "@molis-ai/molis-work-app-workbench";
  * stays put, that model. It holds no key and nothing about the user; saving still goes through the same check as a
  * form filled in by hand, so a wrong address or a model name that has moved is told at save, not at the first Run.
  */
-export interface ModelProviderTemplate {
+interface ModelProviderTemplate {
   /** Lower-case key used in the settings address (`?template=`). Not a provider id: saving mints a fresh one. */
   template_id: string;
   /**

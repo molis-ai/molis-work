@@ -7,7 +7,7 @@ import { ContinuityService, progressInput } from "./continuity/service.js";
 import { ServerEvents } from "./events.js";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 
-export interface ImDomain {
+interface ImDomain {
   handleImRequest(input: {request:IncomingMessage;response:ServerResponse;url:URL;session:Session}): Promise<boolean>;
   assertRoomMember(roomId: string, memberId: string): void;
 }
@@ -16,10 +16,10 @@ export interface ServerOptions {
   hostname?: string; port?: number; publicOrigin?: string; tls?: {key:string;cert:string};
   im?: ImDomain; imAssets?: {html:string;css:string;script:string};
 }
-export function json(response: ServerResponse, body: unknown, status = 200): void {
+function json(response: ServerResponse, body: unknown, status = 200): void {
   response.writeHead(status,{"content-type":"application/json; charset=utf-8"}); response.end(JSON.stringify(body));
 }
-export async function body(request: IncomingMessage): Promise<Record<string,unknown>> {
+async function body(request: IncomingMessage): Promise<Record<string,unknown>> {
   if (!request.headers["content-type"]?.startsWith("application/json")) throw new ImError("im.server.content_type","请使用 JSON 请求",415);
   const buffers: Buffer[] = []; let size = 0;
   for await (const chunk of request) {size += chunk.length;if (size > 65536) throw new ImError("im.server.too_large","请求内容过长",413);buffers.push(chunk);}

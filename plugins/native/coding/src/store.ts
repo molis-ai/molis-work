@@ -28,7 +28,7 @@ export interface CodingSessionRecord {
 }
 
 /** Unfinished plan steps by who holds them: the person, subtasks, no one. */
-export interface CodingStepHolders { mine: number; subtasks: number; unowned: number }
+interface CodingStepHolders { mine: number; subtasks: number; unowned: number }
 
 export interface CreateCodingSessionInput {
   project_id: string;
@@ -73,7 +73,7 @@ export const CODING_SCHEMA_SQL = `
 type Row = Record<string, unknown>;
 
 /** A background command a session left running. */
-export interface CodingRunningCommand { task_id: string; summary: string; started_at_ms: number }
+interface CodingRunningCommand { task_id: string; summary: string; started_at_ms: number }
 
 function mapSession(row: Row): CodingSessionRecord {
   return {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { INPUT_RECEIPTS_CLIENT_SCRIPT, INPUT_RECEIPTS_EN } from "@molis-ai/molis-work-design-system";
+import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 
 // specs/ai-input-receipts §3.3, §3.6, §4.2, §4.3 (stage 3c): the one receipt Coding and the Assistant show under a
 // supplement. The shipped program runs here on a small DOM port.
@@ -52,10 +53,9 @@ class Node {
 const here = {} as Element, beside = {} as Element;
 type Turn = { turn_id: string; kind: string; text: string; steer?: Record<string, unknown> };
 type Actions = { withdraw(inputId: string): Promise<string | void>; correct(about: string, text: string, key: string): Promise<string | void> };
-// The page's translate (`globalThis.L`, apps/workbench/src/i18n.ts): the catalog's words, then `{name}` filled from vars.
+// The page's translate (`globalThis.L`, apps/workbench/src/i18n.ts): the catalog's words, then filled by the SDK's `fillMessage`.
 type Translate = (text: string, vars?: Record<string, string | number>) => string;
-const translate = (catalog: Readonly<Record<string, string>> = {}): Translate => (text, vars) =>
-  Object.entries(vars ?? {}).reduce((words, [name, value]) => words.split(`{${name}}`).join(String(value)), catalog[text] ?? text);
+const translate = (catalog: Readonly<Record<string, string>> = {}): Translate => (text, vars) => fillMessage(catalog[text] ?? text, vars);
 function receipts(catalog?: Readonly<Record<string, string>>) {
   const body = new Node("body");
   let keys = 0;

@@ -7,7 +7,7 @@ import { recordedCallId } from "@molis-ai/molis-work-kernel";
  * operation (a command, a refusal, a failure), so a person who is given it can look it up under 「设置 › 诊断」. A client's own `_meta` is
  * read for its Session and for nothing else, never for this number.
  */
-export const MCP_CALL_ID_META_KEY = "molis-work/callId";
+const MCP_CALL_ID_META_KEY = "molis-work/callId";
 
 /** A successful result as the client sees it: with the number of its operation in `_meta` when the operation left a row, else unchanged. */
 export function withCallIdMeta(result: string | McpToolResult): string | McpToolResult {

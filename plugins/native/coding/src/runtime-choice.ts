@@ -7,14 +7,14 @@ import type { AgentRuntimeCapability, AgentRuntimeDescriptor } from "@molis-ai/m
  * use the first Runtime in the directory's order that can host a session. There is no per-project choice: which Runtime a project
  * picks is decided when a second Runtime exists.
  */
-export const codingRuntimeErrors = defineErrorCodes("coding", { runtime_unavailable: "unavailable" });
+const codingRuntimeErrors = defineErrorCodes("coding", { runtime_unavailable: "unavailable" });
 
 /** The directory's own word for a capability: anything but "unsupported" is offered, and "partial" is shown as partial by the page. */
 export const supports = (runtime: AgentRuntimeDescriptor, capability: AgentRuntimeCapability) => runtime.capabilities[capability] !== "unsupported";
 /** A session can be made on this Runtime and a round can run in it. */
 const hostsSessions = (runtime: AgentRuntimeDescriptor) => supports(runtime, "session.create") && supports(runtime, "run.start");
 
-export type ProjectRuntime =
+type ProjectRuntime =
   | { readonly runtime: AgentRuntimeDescriptor }
   | { readonly runtime: null; readonly reason: string };
 

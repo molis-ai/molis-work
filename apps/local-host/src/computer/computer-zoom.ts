@@ -13,7 +13,7 @@ const CROP_HEIGHT = 300;
 const ZOOM_SCALE = 2;
 
 /** Where the step landed in the window's points; null for steps that do not point at one spot. */
-export function actionPoint(action: HostSurfaceAction): { x: number; y: number } | null {
+function actionPoint(action: HostSurfaceAction): { x: number; y: number } | null {
   switch (action.what) {
     case "pointer": case "scroll": case "hover": return { x: action.x, y: action.y };
     case "drag": return { x: action.to_x, y: action.to_y };
@@ -22,7 +22,7 @@ export function actionPoint(action: HostSurfaceAction): { x: number; y: number }
 }
 
 /** A 400×300 crop around the point, kept inside the window; a smaller window gives its own frame. */
-export function zoomRect(frame: readonly [number, number, number, number], point: { x: number; y: number }): [number, number, number, number] {
+function zoomRect(frame: readonly [number, number, number, number], point: { x: number; y: number }): [number, number, number, number] {
   const width = Math.min(CROP_WIDTH, frame[2]);
   const height = Math.min(CROP_HEIGHT, frame[3]);
   const left = Math.round(frame[0] + Math.max(0, Math.min(point.x - width / 2, frame[2] - width)));

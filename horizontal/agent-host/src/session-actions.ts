@@ -12,7 +12,7 @@ type Call = { invocation: HostCapabilityInvocation };
 type Register<C extends Call> = <Input, Output>(definition: ActionDefinition<Input, Output>, handler: (call: C, input: Input) => Output | Promise<Output>) => () => void;
 
 /** What the Agent Host's registration already resolves for every call: who calls, in which project, through which runtime. */
-export interface SessionActionPorts<C extends Call> {
+interface SessionActionPorts<C extends Call> {
   pluginFor(call: C): HostPluginCaller | undefined;
   adapter(call: C, runtimeId: string): AgentRuntimeAdapter;
   projectId(call: C): string;

@@ -114,7 +114,7 @@ ${args}
   }
 }
 
-export async function runCommand(file: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+async function runCommand(file: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
   try {
     const result = await execFileAsync(file, args, { encoding: "utf8" });
     return { code: 0, stdout: result.stdout, stderr: result.stderr };
@@ -124,7 +124,7 @@ export async function runCommand(file: string, args: string[]): Promise<{ code: 
   }
 }
 
-export async function molisWorkWebHealthCheck(expectedProcessId?: number): Promise<boolean> {
+async function molisWorkWebHealthCheck(expectedProcessId?: number): Promise<boolean> {
   try {
     const response = await fetch("http://127.0.0.1:4173/health", {
       headers: { accept: "application/json" },
@@ -144,7 +144,7 @@ export async function molisWorkWebHealthCheck(expectedProcessId?: number): Promi
   }
 }
 
-export async function molisWorkWebPortCheck(): Promise<boolean> {
+async function molisWorkWebPortCheck(): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = createConnection({ host: "127.0.0.1", port: 4173 });
     let settled = false;
@@ -206,6 +206,6 @@ export async function writeAtomic(filePath: string, content: string): Promise<vo
 }
 
 export function digest(value: string): string { return createHash("sha256").update(value).digest("hex"); }
-export function escapeXml(value: string): string {
+function escapeXml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[character]!);
 }

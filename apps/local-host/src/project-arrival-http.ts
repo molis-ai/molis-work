@@ -19,7 +19,7 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
  * public readers Home uses (the Goals directory, Home's events), for one project at a time; nothing here writes, and a
  * reader that cannot answer is left out of the brief rather than guessed.
  */
-export interface ProjectBriefResponse { html: string; summary: ProjectBriefSummary }
+interface ProjectBriefResponse { html: string; summary: ProjectBriefSummary }
 
 interface ProjectArrivalHttpPorts {
   localHost: MolisWorkLocalHost;

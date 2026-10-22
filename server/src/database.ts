@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { applySqliteBaseline, LocalSqliteStorage, type SqliteBaseline, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { IM_SCHEMA_SQL } from "./im/schema.js";
 export type ServerDatabase = SqliteDatabase;
-export type ImDatabase = ServerDatabase;
 const SERVER_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS mw_server_identity(singleton INTEGER PRIMARY KEY CHECK(singleton=1), cookie_suffix TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS mw_members(id TEXT PRIMARY KEY, display_name TEXT NOT NULL);

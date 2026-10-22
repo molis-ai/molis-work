@@ -11,7 +11,7 @@ import type { HelperConnection, HelperPermission } from "./helper-connection.js"
  * control check before it reaches here; the records hold screen content and never leave this Home over the network to
  * anywhere but the person's own panel.
  */
-export interface ComputerHttpPorts {
+interface ComputerHttpPorts {
   readonly settings: ComputerSettings;
   readonly helper: HelperConnection;
   readonly desk: ComputerDesk;

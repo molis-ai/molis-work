@@ -7,7 +7,7 @@ import { assistantErrors } from "./assistant-errors.js";
 import type { StoredWork } from "./assistant-store.js";
 
 /** What became of a Send that reached a round already under way, or one that had just ended (its words wait for the next). */
-export type RoundInputOutcome = "answered" | "steered" | "queued";
+type RoundInputOutcome = "answered" | "steered" | "queued";
 
 /**
  * One press of Send as the round under way sees it. `id`: the page's id for it, which the supplement carries as its key,
@@ -33,7 +33,7 @@ export function typedWords(rounds: ReadonlyArray<{ run_id: string; text: string;
 }
 
 /** The round a Send reaches, whichever executor carries it (the Assistant's own runtime or a Coding session). */
-export interface RunningRoundPort {
+interface RunningRoundPort {
   answer(control: AgentAnswerControl & { pending_revision: number }): Promise<void>;
   send(input: AgentInputSend): Promise<AgentSteerReceipt | undefined>;
   /** Called before a supplement goes out; it throws when this executor cannot take one now. */

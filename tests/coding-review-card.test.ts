@@ -5,14 +5,19 @@ import {
   renderPendingReviewCard,
   type CodingPendingReview,
   type CodingUiPrimitives,
+  CODING_MESSAGES,
 } from "@molis-ai/molis-work-plugin-coding";
+import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
+
+// Coding's renderers word stable keys; the page words them through the shipped table (the default language, Chinese, here).
+const zh = (key: string, values: Record<string, string | number> = {}) => fillMessage((CODING_MESSAGES as Record<string, { zh: string }>)[key]?.zh ?? key, values);
 
 const p: CodingUiPrimitives = {
   L: (text) => text,
   escape: (value) => String(value)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
   icon: (name) => `<i data-icon="${name}"></i>`,
-  text: (value) => value,
+  text: zh,
   formatDate: (value) => value.slice(0, 10),
 };
 

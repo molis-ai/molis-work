@@ -32,7 +32,7 @@ export interface DragRow {
   columnSplit: boolean;
 }
 
-export interface DropSlot {
+interface DropSlot {
   parentPos: number | null;
   index: number;
   wrapList?: ListKind;
@@ -164,7 +164,7 @@ function nestInto(doc: Node, prev: DragRow, dragged: Node): DropSlot | null {
 }
 
 /** Where a row lands when dropped at `gap` (0..rows.length) and visual `level`. */
-export function dropSlot(doc: Node, rows: readonly DragRow[], gap: number, level: number, dragged: Node): DropSlot | null {
+function dropSlot(doc: Node, rows: readonly DragRow[], gap: number, level: number, dragged: Node): DropSlot | null {
   if (gap < 0 || gap > rows.length) return null;
   const range = dropLevelRange(rows, gap);
   const want = Math.max(range.min, Math.min(level, range.max));
@@ -386,7 +386,7 @@ function splitColumn(doc: Node, fromPos: number, slot: DropSlot, dragged: Node):
 }
 
 /** Move the node at `fromPos` into `slot`. `null` means the drop is illegal or a no-op. */
-export function moveToSlot(doc: Node, fromPos: number, slot: DropSlot): Node | null {
+function moveToSlot(doc: Node, fromPos: number, slot: DropSlot): Node | null {
   try {
     const dragged = doc.nodeAt(fromPos);
     if (!dragged) return null;

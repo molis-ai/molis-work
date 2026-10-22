@@ -46,7 +46,7 @@ const listRow = (page: FormPage, record: FormRecord) => {
 };
 
 /** Repaints the rows, keeping the list where it was scrolled to. */
-export const renderList = (page: FormPage) => {
+const renderList = (page: FormPage) => {
   const top = page.list?.scrollTop || 0;
   if (page.empty) page.empty.hidden = page.records.length > 0;
   page.rowsEl.replaceChildren();
@@ -56,7 +56,7 @@ export const renderList = (page: FormPage) => {
   if (page.list) page.list.scrollTop = top;
 };
 
-export const markSelected = (page: FormPage, id: string) => {
+const markSelected = (page: FormPage, id: string) => {
   page.list?.querySelectorAll<HTMLElement>("[data-form-id]").forEach((row) => {
     const on = row.dataset.formId === id;
     row.classList.toggle("is-selected", on);

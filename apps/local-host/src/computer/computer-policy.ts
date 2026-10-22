@@ -50,7 +50,7 @@ export function refuseLanding(probe: LandingProbe, targetPid: number): string | 
   return null;
 }
 
-export interface CaptureFacts {
+interface CaptureFacts {
   readonly targetPid: number;
   /** Apps whose windows are in the image. Omitted means the helper captured only the target, as it does today. */
   readonly includedPids?: readonly number[];

@@ -175,7 +175,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       state=(await request('GET',API+'/')).state;
       const item=state.items.find((entry)=>entry.id===id),series=state.series.find((entry)=>entry.id===id);
       const kind=item||series?null:recordFor('note',id)?'note':null;
-      if(!item&&!series&&!kind){await renderView();showNote(L('这条内容已不存在'),true);return;}
+      if(!item&&!series&&!kind){root.dispatchEvent(new CustomEvent('molis-work:item-unreadable',{bubbles:true,detail:{itemId:id}}));await renderView();if(!event.detail.quiet)showNote(L('这条内容已不存在'),true);return;}
       closeWorkspace();
       if(kind){view='notes';archived=Boolean(recordFor(kind,id).archived_at);await renderView();openRecord(kind,id);return;}
       const today=civil();view='calendar';anchor=item?item.start_date:series.start_date>today?series.start_date:today;

@@ -41,7 +41,7 @@ function callerLabel(row: Pick<CallRowView, "actor_id" | "audience">, L: CallTex
  * handler. Every page has the helper: a page opened on its own embeds it, and the Workbench's program starts with it, which is what works when
  * the page is mounted in the Workbench's settings (the scripts of a mounted page do not run there). No second hook, so one click copies once.
  */
-export function renderCallIdButton(id: string, { L, escapeHtml: e }: CallText): string {
+function renderCallIdButton(id: string, { L, escapeHtml: e }: CallText): string {
   const short = e(shortCallId(id));
   return `<button type="button" class="mw-btn mw-btn--link mw-btn--sm" data-molis-call-id="${e(id)}" aria-label="${L("复制诊断编号 {id}", { id: short })}">${L("诊断编号 {id}", { id: short })}</button>`;
 }

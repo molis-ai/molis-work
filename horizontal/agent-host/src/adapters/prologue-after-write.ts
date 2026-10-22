@@ -16,7 +16,7 @@ import type { AgentWriteCheckNote, AgentWriteCheckerStore } from "@molis-ai/moli
 /** The executor's name in the round's pack; each session provides its own. */
 export const AFTER_WRITE_EXECUTOR = "molis.after-write-check";
 /** At most this many checks in one round (§6.0p.3); the next round counts from zero. */
-export const CHECKS_PER_ROUND = 10;
+const CHECKS_PER_ROUND = 10;
 const FILE = "{file}";
 
 /**
@@ -31,7 +31,7 @@ export function afterWriteTool(scope: string): PackTool {
 }
 
 /** One Coding round's after-write checks. */
-export interface AfterWriteRound {
+interface AfterWriteRound {
   readonly projectId: string;
   /** The round's authorized directory. */
   readonly rootPath: string;

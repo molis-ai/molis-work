@@ -36,7 +36,7 @@ export interface DraftInput {
   readonly prepared?: { readonly input: Readonly<Record<string, unknown>>; readonly summary?: string; readonly editable?: readonly string[] };
 }
 
-export type DraftOutcome = Pick<ContextualDraft, "input" | "basis" | "missing" | "editable" | "kept" | "notes"> & Partial<Pick<ContextualDraft, "summary" | "said" | "fallback" | "model">>;
+type DraftOutcome = Pick<ContextualDraft, "input" | "basis" | "missing" | "editable" | "kept" | "notes"> & Partial<Pick<ContextualDraft, "summary" | "said" | "fallback" | "model">>;
 
 const DRAFT_TIMEOUT_MS = 25_000;
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);

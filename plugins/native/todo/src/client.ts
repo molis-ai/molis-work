@@ -98,7 +98,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       const error = new Error(payload.error || L("待办请求失败"));
-      error.code = payload.code;
+      error.code = payload.code; error.status = response.status;
       throw error;
     }
     // Works that relate to a todo read it again when it changes here (the Assistant's page message; not a request).
@@ -458,7 +458,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     remindersBox.hidden = reminders.length === 0;
     const late = reminders.filter((entry) => entry.late).length;
     $("[data-todo-reminders-title]").textContent = late === reminders.length && late > 1
-      ? L("错过了 {count} 条提醒（当时应用没打开）").replace("{count}", late)
+      ? L("错过了 {count} 条提醒（当时应用没打开）", { count: late })
       : L("到了时间的提醒");
     const box = $("[data-todo-reminder-rows]");
     box.replaceChildren();
@@ -511,7 +511,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     const counts = { add: 0, merge: 0, update: 0, complete: 0, reopen: 0 };
     batch.candidates.filter((candidate) => !candidate.decision && choiceOf(candidate).picked).forEach((candidate) => { counts[actionOf(candidate)] += 1; });
     const parts = [];
-    if (counts.add) parts.push(L("加入 {count} 项待办").replace("{count}", counts.add));
+    if (counts.add) parts.push(L("加入 {count} 项待办", { count: counts.add }));
     if (counts.merge) parts.push(L("合并 {count} 项").replace("{count}", counts.merge));
     if (counts.update) parts.push(L("更新 {count} 项").replace("{count}", counts.update));
     if (counts.complete) parts.push(L("标完成 {count} 项").replace("{count}", counts.complete));
@@ -636,7 +636,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       section.append(head);
       batch.notes.forEach((line) => section.append(make("p", "todo-muted", line)));
       const read = make("details", "todo-batch-materials");
-      read.append(make("summary", "", L("读了 {count} 份材料").replace("{count}", batch.materials.length)));
+      read.append(make("summary", "", L("读了 {count} 份材料", { count: batch.materials.length })));
       batch.materials.forEach((material) => read.append(make("p", "todo-muted", material.title + (material.read === "read" ? "" : material.read === "failed" ? L("（没读成）") : L("（没读完）")))));
       section.append(read);
       batch.candidates.forEach((candidate) => section.append(renderCandidate(batch, candidate)));
@@ -1204,7 +1204,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       void closeDetail().then(() => { focusBatch = String(id).slice(6); view = "review"; return load(); }).catch((error) => showNote(error.message, { error: true }));
       return;
     }
-    void flush().then(() => openDetail(id)).catch((error) => showNote(error.message, { error: true }));
+    void flush().then(() => openDetail(id)).catch((error) => { if (error.status === 404) workbench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: id } })); showNote(error.message, { error: true }); });
   });
   window.addEventListener("molis:assistant-effect", (event) => {
     const capability = event.detail && event.detail.capability_id;

@@ -23,7 +23,7 @@ const INTENT_BY_ROLE: Record<string, string> = {
   coordinator: "collaborate", writers: "parallel",
 };
 
-export interface ContinuationInput {
+interface ContinuationInput {
   /** 1-based position of the round in its session. */
   number: number;
   run: AgentRunView;

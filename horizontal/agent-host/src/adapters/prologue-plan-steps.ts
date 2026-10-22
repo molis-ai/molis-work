@@ -43,7 +43,7 @@ function planStep(node: TaskNode, place: PlanPlace): boolean {
   const local = localId(place, node.id);
   return local !== undefined && (place.plan.steps.some(step => step.id === local) || local.startsWith("user-"));
 }
-export const planNodes = (board: SdkBoard, place: PlanPlace) => board.nodes.filter(node => planStep(node, place));
+const planNodes = (board: SdkBoard, place: PlanPlace) => board.nodes.filter(node => planStep(node, place));
 
 /** Every plan step has ended. */
 export function finished(board: SdkBoard, place: PlanPlace): boolean {
@@ -51,17 +51,17 @@ export function finished(board: SdkBoard, place: PlanPlace): boolean {
 }
 
 /** The plan's version: when one of its own steps last changed. What other sessions do on the board does not move it. */
-export function planVersion(board: SdkBoard, place: PlanPlace): number {
+function planVersion(board: SdkBoard, place: PlanPlace): number {
   return Math.max(0, ...planNodes(board, place).map(node => node.changedAt ?? board.version));
 }
 
 /** The plan's own step title for a confirmed step, the person's title for an inserted one. */
-export function title(node: TaskNode, place: PlanPlace): string {
+function title(node: TaskNode, place: PlanPlace): string {
   return place.plan.steps.find(step => step.id === localId(place, node.id))?.title ?? node.title;
 }
 
 /** Dependencies first, the confirmed plan order (then insertion order) breaking ties. */
-export function executionOrder(board: SdkBoard, place: PlanPlace): TaskNode[] {
+function executionOrder(board: SdkBoard, place: PlanPlace): TaskNode[] {
   const rank = (id: string) => { const index = place.plan.steps.findIndex(step => step.id === localId(place, id)); return index < 0 ? place.plan.steps.length + board.nodes.findIndex(node => node.id === id) : index; };
   const pending = new Map(planNodes(board, place).map(node => [node.id, node])), ordered: TaskNode[] = [];
   while (pending.size) {
@@ -74,7 +74,7 @@ export function executionOrder(board: SdkBoard, place: PlanPlace): TaskNode[] {
   return ordered;
 }
 
-export function same(a: Assignee, b: Assignee): boolean {
+function same(a: Assignee, b: Assignee): boolean {
   return a === undefined || b === undefined ? a === b : a.kind === b.kind && a.id === b.id;
 }
 
@@ -93,7 +93,7 @@ function ownerOf(runtime: Runtime, assignee: Assignee, session: string): AgentSt
 }
 
 /** A claim held this long without a word, by a session with no round running, has expired (the person's decision). */
-export const CLAIM_EXPIRES_MS = 2 * 60 * 60 * 1000;
+const CLAIM_EXPIRES_MS = 2 * 60 * 60 * 1000;
 
 /**
  * The holder, marked expired when it is a session with no round running that has not moved the step for a while.

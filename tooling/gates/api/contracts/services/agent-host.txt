@@ -1565,7 +1565,7 @@ export declare const agentHostCapabilities: {
     readonly controlMcp: HostCapabilityDefinition<[runtimeId: string, pluginId: string, id: string, action: "connect" | "disconnect" | "cancel" | "remove"], void>;
     readonly startRun: HostCapabilityDefinition<[runtimeId: string, request: AgentStartRequest], AgentRunHandle>;
     readonly readRun: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>;
-    readonly draftText: HostCapabilityDefinition<AgentDraftTextRequest, AgentDraftTextResult>;
+    readonly draftText: ActionDefinition<AgentDraftTextRequest, AgentDraftTextResult>;
     readonly waitRun: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, since: string | null, timeoutMs: number], {
         version: string;
         view: AgentRunView;

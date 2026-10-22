@@ -8,7 +8,7 @@ import { cleanupConnectorInstallation } from "./connector-tool-cleanup.js";
 import type { ConnectorActivation } from "./connector-activation.js";
 
 /** Protocol UI state is never part of the model-facing status. Codes stay inside the protected form. */
-export interface ConnectorAuthorizationPresentation { authorization_url?: string; user_code?: string; device_state?: string; origin?: string; cli_job?: string }
+interface ConnectorAuthorizationPresentation { authorization_url?: string; user_code?: string; device_state?: string; origin?: string; cli_job?: string }
 interface StoredPresentation extends ConnectorAuthorizationPresentation { protocol?: { state: string; service: string }; completion?: ConnectorActivation; installation_id?: string; installation_ready?: boolean }
 const reference = (id: string) => {
   if (!/^[0-9a-f-]{36}$/u.test(id)) throw new Error("接入请求标识无效");

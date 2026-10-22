@@ -696,9 +696,6 @@ importers:
       '@prologue/sdk':
         specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-attachment-order.tgz
         version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-attachment-order.tgz
-      '@tauri-apps/api':
-        specifier: 2.11.1
-        version: 2.11.1
 
   horizontal/connector-host:
     dependencies:
@@ -804,6 +801,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
       better-sqlite3:
         specifier: 12.8.0
         version: 12.8.0

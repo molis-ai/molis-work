@@ -7,9 +7,9 @@ import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/
  * found by the board a round works on, and the person's standing decisions about sites. Registered by the web server
  * that owns the browser; a process without one (MCP, CLI) offers no browser to any round.
  */
-export interface SurfaceSiteDecision { readonly scope: string; readonly decision: "allow" | "block"; readonly at: string }
+interface SurfaceSiteDecision { readonly scope: string; readonly decision: "allow" | "block"; readonly at: string }
 
-export interface BrowserSurfaceProvider {
+interface BrowserSurfaceProvider {
   driverFor(projectId: string): Promise<HostSurfaceDriver | null>;
   siteDecisions(): readonly SurfaceSiteDecision[];
 }

@@ -112,19 +112,12 @@ export const PPT_STYLES = `
   .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 16px 24px 16px; }
   .creative-confirm-form p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
   .creative-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
-  .plugin-stage-workspace.is-arriving,
-  .is-arriving { animation: creative-arrive var(--motion-normal, 130ms) var(--ease-quint) both; }
-  @keyframes creative-arrive {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: none; }
-  }
   @media (max-width: 900px) { .ppt-split { grid-template-columns: 1fr; } }
   @media (max-width: 720px) {
     .ppt-meta { grid-template-columns: 1fr; }
     .ppt-swatch { width: 44px; height: 44px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .is-arriving, .plugin-stage-workspace.is-arriving { animation: none; }
     .ppt-slide-row > button:first-child, .ppt-card, .ppt-swatch { transition: none; }
   }
   body.immersive-workbench .plugin-stage-workspace > .ppt-workspace { flex: 1; min-height: 0; }

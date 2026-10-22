@@ -152,7 +152,7 @@ async function copyLoaderLibraries(binary: string, destinationBinary: string): P
   }
 }
 
-export async function assertContainedDependencyLinks(
+async function assertContainedDependencyLinks(
   rootDirectory: string,
   options: { ignoredTopLevelDirectories?: readonly string[]; onlyEntries?: readonly string[] } = {},
 ): Promise<void> {

@@ -86,14 +86,14 @@ export interface MemoryBackendPort {
   clearScope?(input: { scope: MemoryScope; owner: string; fingerprint: string }): Promise<string[]>;
 }
 
-export interface MemoryBackendCandidate {
+interface MemoryBackendCandidate {
   candidate_id: string;
   text: string;
   state: "pending" | "accepted" | "promoted" | "discarded" | "expired";
   memory_id?: string;
 }
 
-export interface MemoryCandidatePort {
+interface MemoryCandidatePort {
   propose(input: { scope: MemoryScope; owner: string; text: string; origin: string; tags: string[]; meta: AgentMemoryMeta }): Promise<MemoryBackendCandidate>;
   list(scope: MemoryScope, owner: string): Promise<MemoryBackendCandidate[]>;
   /** The person accepts: a new entry, the person as approver. */

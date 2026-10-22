@@ -16,7 +16,7 @@ export const PROMPT_ID = /^[a-z][a-z0-9-]{0,39}$/;
 const MAX_BODY = 8000;
 
 /** One `model.generate` call as written: the prompt id it names, or that it still sends inline instructions. */
-export interface PromptCall { file: string; line: number; prompt: string | null; instructions: boolean }
+interface PromptCall { file: string; line: number; prompt: string | null; instructions: boolean }
 
 const text = (node: ts.Expression | undefined): string | null => {
   let value = node;

@@ -2,7 +2,7 @@ import { pluginTabTitles, shownProjectPlugins } from "@molis-ai/molis-work-app-w
 import type { LocalWebCatalogRunner } from "../web-project-settings.js";
 
 /** The project's first page. It is a fixed entry of the workbench rail, not a plugin, so no project lists it. */
-export const PROJECT_HOME_PAGE = "home";
+const PROJECT_HOME_PAGE = "home";
 const PROJECT_HOME_LABEL = "项目首页";
 
 /**

@@ -513,7 +513,5 @@ function normalizeAnswers(
   return Object.fromEntries(next);
 }
 
-export type { FormOption };
-
 /** This plugin's store in the Home's store registry (W4-11): `form/form.db` at its one baseline. */
 export const FORM_HOME_STORE: HomeStoreDeclaration = { path: FORM_DATABASE.store_name, library: { baseline: FORM_DATABASE } };

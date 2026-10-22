@@ -2,17 +2,17 @@ import { createHash } from "node:crypto";
 import type { HostSurfaceAction } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 
 /** Steps whose repetition with no visible change means the interface is stuck. */
-export function repeatsUntilStuck(action: HostSurfaceAction): boolean {
+function repeatsUntilStuck(action: HostSurfaceAction): boolean {
   return action.what === "pointer" || action.what === "scroll" || action.what === "drag";
 }
 
 /** Steps that normally change what the accessibility tree can read. Saving or copying may not, so they only get a note. */
-export function visibleChangeExpected(action: HostSurfaceAction): boolean {
+function visibleChangeExpected(action: HostSurfaceAction): boolean {
   return action.what === "pointer" || action.what === "scroll" || action.what === "drag" || action.what === "text" || action.what === "key";
 }
 
 /** The same step, in a stable order, so a retry is recognized even when the action object's keys differ. */
-export function actionSignature(action: HostSurfaceAction): string {
+function actionSignature(action: HostSurfaceAction): string {
   switch (action.what) {
     case "pointer": return ["pointer", action.x, action.y, action.button, action.clicks, action.node ?? ""].join("\u0000");
     case "scroll": return ["scroll", action.x, action.y, action.dx, action.dy].join("\u0000");
@@ -25,7 +25,7 @@ export function treeHash(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
-export interface StepBefore {
+interface StepBefore {
   readonly signature: string;
   /** The tree as the model last saw it, or null before any look or after an app switch. */
   readonly beforeHash: string | null;
@@ -33,7 +33,7 @@ export interface StepBefore {
   readonly stuck: string | null;
 }
 
-export interface StepAfter {
+interface StepAfter {
   readonly action: HostSurfaceAction;
   readonly signature: string;
   readonly beforeHash: string | null;

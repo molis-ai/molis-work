@@ -99,6 +99,7 @@ test("Home shows a seven-day strip and keeps a chosen day across midnight", { ti
   await evaluate("window.__homeTimers[30000]()");
   assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-02-29");
   await evaluate("window.__clock=new Date(2028,2,1,0,1).getTime();window.__homeTimers[30000]()");
+  // QHR-02: a real day change still updates the heading before the events request returns.
   assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-03-01", "unpinned home follows midnight");
   await click('[data-home-day="2028-02-28"]');
   assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-02-28");
@@ -366,4 +367,40 @@ test("Home shortcuts persist per project, open their destination, and preserve e
   assert.equal(await evaluate("document.querySelectorAll('[data-shortcut-id]').length"),0);
   assert.deepEqual(store.snapshot(projectId!).goals,before.goals);
   assert.deepEqual(store.snapshot(projectId!).runs,before.runs);
+});
+
+test("QHR-01 a background home refresh keeps the day and heading in place", { timeout: 45_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded");
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  await waitFor("document.querySelectorAll('[data-home-day]').length === 7 && !document.querySelector('[data-home-hero]')?.textContent.includes('正在读取事项')");
+  await evaluate(`(() => {
+    const empty = [...document.querySelectorAll('[data-home-day]')].find((button) => button.querySelector('.home-day__dots') && !button.querySelector('.home-day__dots i'));
+    if (!empty) throw new Error('seeded home has no empty day to prove the loading sentence stays away');
+    empty.click();
+  })()`);
+  await waitFor("document.querySelector('.home-start') && !document.querySelector('.immersive-home .mw-loading')");
+  await evaluate(`(() => {
+    window.__qhr = {
+      day: document.querySelector('[data-home-day].is-on'),
+      title: document.querySelector('[data-home-hero] h1'),
+      start: document.querySelector('.home-start'),
+    };
+    const previous = window.fetch;
+    window.__releaseHomeReads = [];
+    window.fetch = (url, options) => {
+      if (String(url).includes('/api/home/events')) {
+        return new Promise((resolve, reject) => window.__releaseHomeReads.push(() => previous(url, options).then(resolve, reject)));
+      }
+      return previous(url, options);
+    };
+    document.dispatchEvent(new Event('visibilitychange'));
+  })()`);
+  await waitFor("window.__releaseHomeReads.length === 1");
+  assert.equal(await evaluate(`window.__qhr.day === document.querySelector('[data-home-day].is-on') && window.__qhr.title === document.querySelector('[data-home-hero] h1') && window.__qhr.start === document.querySelector('.home-start') && !document.querySelector('[data-home-hero]').textContent.includes('正在读取事项') && !document.querySelector('.immersive-home .mw-loading')`), true);
+  await evaluate(`window.__releaseHomeReads.shift()().then(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => { window.__qhr.settled = true; resolve(); }))))`);
+  assert.equal(await evaluate(`window.__qhr.settled === true && window.__qhr.day === document.querySelector('[data-home-day].is-on') && window.__qhr.title === document.querySelector('[data-home-hero] h1') && window.__qhr.start === document.querySelector('.home-start') && !document.querySelector('[data-home-hero]').textContent.includes('正在读取事项')`), true);
 });

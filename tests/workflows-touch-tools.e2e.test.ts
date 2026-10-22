@@ -57,9 +57,37 @@ test("VUX-06/29: station tools need no tap or focus without hover, remain hittab
   }
   await media(b, "none", "coarse");
   await showStation(b, 0);
-  const scroll = await evaluate<{ x: number; y: number; page: number[]; left: number }>("(() => { const chain=document.querySelector('[data-wf-chain]'),r=chain.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2,page:[scrollX,scrollY],left:chain.scrollLeft};})()");
+  // Observe the original gesture without waiting for another frame or changing its hit point.
+  const scroll = await evaluate<{ x: number; y: number; page: number[]; left: number; diagnostics: unknown }>(`(() => {
+    const chain = document.querySelector('[data-wf-chain]'), r = chain.getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2;
+    const label = el => el ? { tag: el.tagName, class: String(el.className).slice(0, 120), station: el.closest?.('[data-wf-station]')?.dataset.wfStation } : null;
+    const shape = el => { const css = getComputedStyle(el), box = el.getBoundingClientRect(); return { ...label(el),
+      rect: [box.x, box.y, box.width, box.height], left: el.scrollLeft, clientWidth: el.clientWidth, scrollWidth: el.scrollWidth,
+      overflow: [css.overflowX, css.overflowY], touchAction: css.touchAction, pointerEvents: css.pointerEvents }; };
+    const hit = document.elementFromPoint(x, y), ancestors = [];
+    for (let el = hit; el && ancestors.length < 24; el = el.parentElement) ancestors.push(shape(el));
+    const probe = { controller: new AbortController(), events: [], count: 0, label, shape, x, y };
+    window.wfScrollProbe = probe;
+    for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'touchstart', 'touchmove', 'touchend', 'touchcancel', 'dragstart', 'scroll', 'scrollend']) {
+      document.addEventListener(type, event => {
+        const point = event.touches?.[0], entry = { type, at: performance.now(), target: label(event.target), prevented: event.defaultPrevented,
+          x: point?.clientX ?? event.clientX, y: point?.clientY ?? event.clientY, left: chain.scrollLeft };
+        probe.count++; if (probe.events.length === 96) probe.events.shift(); probe.events.push(entry);
+        queueMicrotask(() => { entry.prevented = event.defaultPrevented; });
+      }, { capture: true, passive: true, signal: probe.controller.signal });
+    }
+    return { x, y, page: [scrollX, scrollY], left: chain.scrollLeft, diagnostics: { at: performance.now(), chain: shape(chain), hit: label(hit), ancestors,
+      viewport: [innerWidth, innerHeight], mouseHit: label(document.elementFromPoint(1, 1)),
+      hovered: [...chain.querySelectorAll(':hover')].slice(0, 12).map(label) } };
+  })()`);
   await command("Input.synthesizeScrollGesture", { x: scroll.x, y: scroll.y, xDistance: -80, speed: 120, gestureSourceType: "touch" }, sessionId, 10_000);
-  assert.ok(await evaluate<number>("document.querySelector('[data-wf-chain]').scrollLeft") > scroll.left, "the chain still scrolls horizontally by touch");
+  const scrolled = await evaluate<{ left: number; diagnostics: unknown }>(`(() => {
+    const chain = document.querySelector('[data-wf-chain]'), left = chain.scrollLeft, probe = window.wfScrollProbe;
+    probe.controller.abort(); delete window.wfScrollProbe;
+    return { left, diagnostics: { at: performance.now(), chain: probe.shape(chain), hit: probe.label(document.elementFromPoint(probe.x, probe.y)),
+      count: probe.count, events: probe.events, page: [scrollX, scrollY], focused: probe.label(document.activeElement) } };
+  })()`);
+  assert.ok(scrolled.left > scroll.left, "the chain still scrolls horizontally by touch: " + JSON.stringify({ before: scroll.diagnostics, immediate: scrolled.diagnostics }));
   assert.deepEqual(await evaluate("[scrollX,scrollY]"), scroll.page, "touch scroll does not jump the page");
   assert.equal(await evaluate("document.activeElement === document.body"), true, "scrolling does not focus a station");
   await showStation(b, 0);

@@ -10,17 +10,11 @@ export * from "./proposal-en.js";
 export * from "./proposal-client.js";
 export * from "./proposal-ui.js";
 export * from "./proposal-ui-model.js";
-export * from "./goal-event-application.js";
+export { hostEventDecisionAuthority } from "./goal-event-application.js";
+export { createGoalsApplication, type GoalsApplication, type GoalsApplicationPorts } from "./goals-application.js";
 export { managementTreeAuthority, managementEventDecisionAuthority } from "./management-evidence.js";
 export * from "./goal-entry-contract.js";
-export * from "./goal-tree-query.js";
-export * from "./goal-tree-submission.js";
-export * from "./goal-tree-fact-materializer.js";
-export * from "./goal-tree-materialization-conflicts.js";
-export * from "./goal-tree-materialization.js";
-export * from "./goal-tree-check.js";
 export * from "./proposal-normalizer.js";
-export * from "./goal-tree-inputs.js";
 export * from "./goal-tree-materialization-order.js";
 export * from "./goal-tree-contract.js";
 export * from "./policy-ui.js";
@@ -96,13 +90,8 @@ export const packageDescriptor = {
 } as const;
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-export { GoalTreeDecisionNormalizer, type NormalizedGoalTreeProposalDecision } from "./goal-tree-decision-inputs.js";
-export { GoalTreeDecisionFollowup } from "./goal-tree-decision-followup.js";
-export { GoalTreeDecisionApplication } from "./goal-tree-decision.js";
 export { createGoalsDecisionPresentation, type GoalsDecisionPresentationPrimitives, type DecisionEventKind } from "./decision-common-ui.js";
 
-export { GoalReadApplication } from "./goal-query-application.js";
-export { GoalDecisionAttentionSync } from "./goal-decision-attention.js";
 
 export { readMolisWorkSnapshot, type MolisWorkSnapshotPorts } from "./board-snapshot-query.js";
 

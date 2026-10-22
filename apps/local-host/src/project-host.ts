@@ -38,6 +38,7 @@ import { randomUUID } from "node:crypto";
 import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { LocalHost, type HostCapabilityHandler, type LocalHostOptions } from "./local-host.js";
 import { GoalProjectApplication } from "./goal-project-application.js";
+import { openProjectVersionStores, type ProjectVersionStores } from "./project-version-stores.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { registerProjectCapabilities } from "./project-capabilities.js";
 import { releaseProjectPlugins } from "./project-plugins.js";
@@ -60,7 +61,8 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { hostLog, logSearchIndexFailure } from "./host-log.js";
 import { withoutRefusedPlugins } from "./project-plugin-databases.js";
 
-export interface MolisWorkProjectRuntime {
+/** One open project: its library, Goals' coordinator, and the library's one 成果库 and process items (D3). */
+export interface MolisWorkProjectRuntime extends ProjectVersionStores {
   store: LocalProjectDatabase;
   coordinator: GoalProjectApplication;
   /** Which project this runtime serves. Capabilities scope their answers to it. */
@@ -159,12 +161,9 @@ export class MolisWorkLocalHost {
           options.onRuntimeOpen?.(reference);
           const store = new LocalProjectDatabase(reference.storage_key);
           const personalMethods = options.planningMethods ?? (() => this.personalPlanningHome ? readPersonalPlanningMethodPacks(this.personalPlanningHome) : []);
-          const coordinator = new GoalProjectApplication(
-            store,
-            options.clock ?? (() => new Date()),
-            personalMethods,
-          );
-          const runtime: MolisWorkProjectRuntime = { store, coordinator, project_id: reference.project_id };
+          const clock = options.clock ?? (() => new Date());
+          const coordinator = new GoalProjectApplication(store, clock, personalMethods);
+          const runtime: MolisWorkProjectRuntime = { store, coordinator, ...openProjectVersionStores(store, clock), project_id: reference.project_id };
           try {
             const scenes = this.sceneClient(reference);
             const eventFeed = workflowEventsFeedOptions(scenes, reference.project_id);

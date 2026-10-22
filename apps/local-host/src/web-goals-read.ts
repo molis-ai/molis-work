@@ -120,7 +120,7 @@ export function createLocalGoalsReadHttp(ports: {
   async function page(request: IncomingMessage, response: ServerResponse, url: URL, options: WebViewOptions,
     homeDirectory: string | undefined, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, workActions: BoundActionClient, controlToken: string, goalActions: BoundActionClient, artifactActions: BoundActionClient,
     coordinator?: GoalProjectApplication, store?: LocalProjectDatabase,
-    pluginServices?: Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory">,
+    pluginServices?: Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "artifacts" | "processItems">,
   ): Promise<boolean> {
     const renderedGoalsPage = await renderWorkbenchGoalsPageRequest(
       request.method, url.pathname, readWebView,

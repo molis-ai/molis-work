@@ -129,10 +129,10 @@ function fallbackPlainParagraph(value: string): string {
 }
 
 /**
- * Render external Feed text as mixed GFM Markdown and allowlisted HTML.
- * The parser is deliberately not a trust boundary; every result is sanitized.
+ * Render untrusted text (a feed item, a model's answer, a pasted note) as mixed GFM Markdown and allowlisted HTML.
+ * The parser is deliberately not a trust boundary; every result is sanitized. Links keep only http(s) and open in a new tab.
  */
-export function renderFeedRichText(value: string | null | undefined): string {
+export function renderRichText(value: string | null | undefined): string {
   const source = String(value ?? "").replace(LEADING_INVISIBLE_PATTERN, "").trim();
   if (!source) return "";
   try {
@@ -149,12 +149,12 @@ export function renderFeedRichText(value: string | null | undefined): string {
   }
 }
 
-/** Convert Markdown / HTML into compact visible text for Feed rows and summaries. */
-export function feedPlainText(
+/** Convert Markdown / HTML into compact visible text for list rows and summaries, cut to `maximumLength` characters. */
+export function richPlainText(
   value: string | null | undefined,
   maximumLength = 320,
 ): string {
-  const rendered = renderFeedRichText(value);
+  const rendered = renderRichText(value);
   if (!rendered) return "";
   const withoutTags = sanitizeHtml(rendered.replace(BLOCK_TAG_PATTERN, " "), {
     allowedTags: [],

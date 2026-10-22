@@ -1,5 +1,5 @@
 import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT, ASSISTANT_PLACER_SCRIPT } from "./assistant-stage.js";
-import { codeLanguage, codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-coding";
+import { codeLanguage, codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { assistantCodeColours, createAssistantCodeGrow } from "./assistant-code-grow.js";
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
@@ -14,7 +14,7 @@ import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-
 import { ASSISTANT_REPLY_KIND } from "@molis-ai/molis-work-contracts/services/contextual";
 import { ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { renderAssistantTextHtml, renderAssistantReviewHtml } from "../../assistant-text-html.js";
-// The existing Coding tokenizer is consumed here on the Host, never serialized into the Assistant's browser script.
+// The SDK's tokenizer is consumed here on the Host, never serialized into the Assistant's browser script.
 const assistantGrownTokens = assistantCodeColours(growCodeTokens, codeTokens);
 export const assistantTextHtml = (text: string, objects: AssistantWorkView["objects"], say: (text: string) => string): string =>
   renderAssistantTextHtml(text, { objects, say, language: codeLanguage, tokens: assistantGrownTokens });

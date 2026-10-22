@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { codeTokens, diffRowTokens } from "@molis-ai/molis-work-plugin-coding";
+import { codeTokens, diffRowTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { compareRunChangeSet, renderDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-diff";
 import { coding, openCoding } from "./fixtures/coding-browser.js";
 import { pageText } from "./fixtures/page-text.js";

@@ -1,4 +1,4 @@
-import { ActionError, requireSynchronous, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginCapabilityClient, PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { codingRouteActions } from "./route-actions.js";
@@ -11,6 +11,13 @@ export function codingActionControl(beforeWrite: CodingBeforeWrite): Control {
   return { signal: beforeWrite.signal, beforeEffect: beforeWrite, assert_authority_current: beforeWrite.assert_current };
 }
 type Handler = (request: PluginRouteRequest, api: PluginCapabilityClient, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => Promise<unknown>;
+/** What an action with no route of its own runs with. `routed` answers through one of the routes' handlers, under this action's fence. */
+export interface CodingActionCall {
+  readonly api: PluginCapabilityClient;
+  readonly execution: CodingExecution;
+  readonly beforeWrite: CodingBeforeWrite;
+  routed(route_id: string, request: Pick<PluginRouteRequest, "method" | "params" | "query" | "body">): Promise<unknown>;
+}
 
 /**
  * Transport and per-call control. The execution is the activation's own, the same object for a request and for the background
@@ -45,7 +52,9 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
     };
     return { api: controlled, execution };
   };
-  return (route_id: string, handle: Handler): PluginRouteBinding => {
+  const handlers = new Map<string, Handler>();
+  const route = (route_id: string, handle: Handler): PluginRouteBinding => {
+    handlers.set(route_id, handle);
     const action = codingRouteActions[route_id];
     if (action) {
       const binding = bindOwnerPluginAction(context, action.definition, async () => {});
@@ -67,4 +76,22 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
       } catch (error) { return failure(error); }
     } };
   };
+  /**
+   * An action with no route (a protocol Coding takes on, `executor.ts`), fenced as a route's action is: by the caller's checks, its own
+   * permissions and this activation. It may answer through a route's handler in-process, under its own fence, so both entries run one code.
+   */
+  const action = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, call: CodingActionCall) => Promise<Output>): void => {
+    const bound = (caller?: ActionExecutionContext) => bindOwnerPluginAction(context, definition, async (value, ownerCheck) => {
+      const beforeWrite = check(caller, ownerCheck, definition.action.permissions);
+      const { api, execution } = await execute({ method: definition.operation === "query" ? "GET" : "POST", pathname: "", params: {}, query: {}, body: {}, actor_id: context.actor_id! }, beforeWrite);
+      const routed: CodingActionCall["routed"] = (route_id, request) => {
+        const handler = handlers.get(route_id);
+        if (!handler) throw new ActionError("actions.unredeemed", `Coding 没有 ${route_id} 的处理`);
+        return handler({ ...request, pathname: "", actor_id: context.actor_id! }, api, execution, beforeWrite);
+      };
+      return handle(value, { api, execution, beforeWrite, routed });
+    });
+    actions.push({ ...bound(), handle: (caller, input) => bound(caller).handle(caller, input) });
+  };
+  return Object.assign(route, { action });
 }

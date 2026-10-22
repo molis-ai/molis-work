@@ -3499,6 +3499,7 @@ export interface PluginStartContext {
 export interface PluginUiClient {
     register<TModel>(contribution: UiContribution<TModel>): void;
     unregister(contributionId: string): void;
+    invalidate(): void;
 }
 
 export interface PluginUpgradeCompatibilityDeclaration {

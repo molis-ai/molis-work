@@ -95,18 +95,25 @@ export function renderModelSettingsDocument(model: ModelSettingsModel): string {
       </div>
     </header>
     <p role="status" aria-live="polite" data-model-status></p>
-    <div class="model-settings-panes">
-      ${renderProviderList(model, selected?.provider_id ?? null)}
-      ${selected === undefined ? renderEmptyDetail(model) : renderProviderDetail(selected, model, selected === model.draft_provider)}
-    </div>
+    ${renderModelBody(model, selected)}
   </section>`;
+}
+
+/**
+ * With providers, the list and the open provider share the column. With none, there is no list to reserve:
+ * the choices (and the first draft) sit in the same centered column as the title, the way other settings pages do.
+ */
+function renderModelBody(model: ModelSettingsModel, selected: ModelProviderRecord | undefined): string {
+  const detail = selected === undefined ? renderEmptyDetail(model) : renderProviderDetail(selected, model, selected === model.draft_provider);
+  if (model.providers.length === 0) return detail;
+  return `<div class="model-settings-panes">
+      ${renderProviderList(model, selected?.provider_id ?? null)}
+      ${detail}
+    </div>`;
 }
 
 function renderProviderList(model: ModelSettingsModel, selectedId: string | null): string {
   const { primitives: p } = model;
-  if (model.providers.length === 0) {
-    return `<nav class="model-provider-list" aria-label="${p.L("供应商")}"></nav>`;
-  }
   const rows = model.providers.map((provider) => {
     const health = model.health.find((entry) => entry.provider_id === provider.provider_id);
     const status = health?.status ?? "needs-credential";

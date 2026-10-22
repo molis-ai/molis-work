@@ -109,6 +109,8 @@ UI Host 的 `UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT` 由 Workbench 或独立页面�
 
 轻量刷新提示可用 `scope.watchRevision(read, refresh)`：可见时每两秒查询 revision，首次进入、变化及断线恢复后重新读取事实，隐藏/卸载清理。`refresh` 在业务交互忙碌时返回 false，保留未消费 revision 待下次读取。Host 按项目提供当前运行插件的 `/api/plugins/<id>/view-revision`，进程更换 epoch；只含不透明 revision，不包含事件正文或授权。Files/Git 已实际接入，固定 Artifact 差异仍保留原版本。
 
+revision 由插件自己推动：服务端在改了页面显示的内容以后调 `services.ui.invalidate()`（PG-061）。它不带参数，只推自己这一个安装，插件 id 取自启动上下文。不要权限，只要 Manifest 声明了 `ui.views`，没声明就以 `ui_host.plugin_denied` 拒绝。动作、随激活的作业、事件回调、定时器里都能调；它不进调用记录，页面重读用的是读的人自己的授权。`start()` 里调用不做任何事：插件还没运行，启动完页面本来就会读一次。停用或重启开始以后，这次激活拿到的 client 再调一律被拒，版本号不动。被拒是同步抛错。激活在 `stop` 钩子之前就已撤下，所以会调它的定时器、监听器要在 `stop` 一开始就清掉；停用或重启以后再触发的回调里抛出的错没人接，宿主进程没有兜底，会整个退出（BL-411）。Home 实例推的是 Home 路由的 revision；双实例两半各推各的。宿主自己也还在推：Home 插件的命令成功以后推一次，另有 Files、Git 的两个宿主端口，迁移时由它们改成自己调 `invalidate()`。沙箱插件的 SDK 还没有 `ui`。
+
 ### 浏览器请求
 
 页面向宿主发请求只有一个助手：ui-host 的 `UI_REQUEST_CLIENT_SCRIPT`（`packages/ui-host/src/request-client.ts`），每页装一次，挂成 `globalThis.molisWorkRequest`；类型在合同 `@molis-ai/molis-work-contracts/platform/ui`（`UiRequest`）。插件客户端从 W5-04 起经宿主给的 `host.request` 用同一个，不再各写 `fetch` 包装。规则：

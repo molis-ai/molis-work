@@ -155,13 +155,18 @@ test("供应商名字里的标记被转义", () => {
   assert.match(html, /&lt;img src=x/);
 });
 
-test("一个供应商都没有时，右边是干净的空状态", () => {
+test("一个供应商都没有时，空状态跟标题同一条栏，不留空的左列表", () => {
   const html = renderModelSettingsDocument({
     templates: [],
     providers: [], health: [], selected_provider_id: null, primitives: p,
   });
   assert.match(html, /还没有配置供应商/);
   assert.match(html, /data-model-add-provider/, "空状态下仍要能添加");
+  assert.doesNotMatch(html, /model-settings-panes|model-provider-list/, "没有供应商时不占左栏，选项跟标题同一条居中栏");
+  const filled = renderModelSettingsDocument({
+    templates: [], providers: [provider()], health: [], selected_provider_id: "minimax", primitives: p,
+  });
+  assert.match(filled, /model-settings-panes[\s\S]*model-provider-list/, "有供应商时左列表还在");
 });
 
 test("供应商模板的选项来自页面数据：页面没有自己的目录，给什么画什么，缺什么的提示按页面数据里写的填充情况说", () => {
@@ -182,6 +187,7 @@ test("供应商模板的选项来自页面数据：页面没有自己的目录�
     providers: [], health: [], selected_provider_id: null, templates, primitives: filling,
     draft_provider: provider({ provider_id: "draft-1", display_name: "草稿" }), draft_template_id: draftTemplateId,
   });
+  assert.doesNotMatch(draftOf("alpha"), /model-settings-panes/, "还没有供应商时，第一张草稿也在标题那一栏");
   assert.match(draftOf("alpha"), /Alpha 的地址、格式和模型已经填好，还差 API Key。/);
   assert.match(draftOf("middle"), /Middle 的地址和格式已经填好，还差 API Key 和模型 ID。/);
   assert.match(draftOf("beta"), /Beta 兼容 的格式已经选好，还差 Base URL、API Key 和模型 ID。/);

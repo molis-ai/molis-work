@@ -41,6 +41,11 @@ export interface PluginHostExecutorOptions {
    * (`services.background.keep`, PG-038); without it a job is refused, never trusted.
    */
   record?(installId: string): PluginInstanceRecord | null;
+  /**
+   * The pages of a running plugin read again (`PluginPlatform.invalidateView`): what a plugin's `services.ui.invalidate` reaches
+   * (PG-061). Absent: nothing watches this executor's pages (a developed plugin, a bare executor in a test), and the call does nothing.
+   */
+  invalidateView?(pluginId: string): void;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;

@@ -238,19 +238,17 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/coding.js": [376592, 378072],
-  // Real-scene fixes (slice 89): a field and a select are 16 px on a phone so the page does not zoom on focus, and a field group's icon is 16 px
-  // (+71, the same primitive in each sheet that carries it). 1612922 → 1612993 (+71).
-  "/assets/molis-work-workbench.css": [1612922, 1612993],
-  // Guided onboarding (slice 90, user 2026-10-22): every onboarding step sits on the Welcome sheet with its card, the sources stay a list with a
-  // status word per row, and below 980 px the card goes under the question (+675); the rows sit on a card with icon tiles and their action drawn
-  // as the button it is (user 2026-10-22, "太纯文字了") (+684). 703258 → 704617 (+1,359).
-  "/assets/molis-work-arrival.css": [703258, 704617],
+  // VUX-43 (slice 93): a round's live time goes from minutes to hours at an hour instead of counting minutes past its reserved width, one new
+  // phrase in both languages. 382021 → 382125 (+104).
+  "/assets/molis-work-plugins/coding.js": [382021, 382125],
   // Forms reflow (slice 85): moved and removed questions and options ease through the page's molisReflow, with the fallback when it is absent. 30244 → 30383 (+139).
   "/assets/molis-work-plugins/form.js": [30244, 30383],
   "/assets/molis-work-plugins/workflows.js": [83019, 83135],
-  // Real-scene fixes (slice 89): the same phone field primitive as workbench.css. 994451 → 994522 (+71).
-  "/assets/molis-work-settings.css": [994451, 994522],
+  // VUX-36 (slice 94): the menu exit's 130 ms hold moves off the `:has()` + `::details-content` rule that cost about 30 ms per inserted node
+  // to a custom property on the menu's details plus one zero-specificity pseudo-element rule (+55 per sheet; this branch shrinks them first).
+  "/assets/molis-work-settings.css": [994513, 994568],
+  "/assets/molis-work-arrival.css": [704608, 704663],
+  "/assets/molis-work-workbench.css": [1612945, 1613000],
   // Real-scene fixes (slice 89): a result the assistant made on the project chooser opens on its project's page, and attachments do the same.
   // 1182783 → 1182907 (+124).
   "/assets/molis-work-workbench.js": [1182783, 1182907],

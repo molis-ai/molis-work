@@ -196,8 +196,12 @@ test("a surface rises once; menus and dialogs each have one entrance and one exi
     assert.doesNotMatch(css, /var\(--motion-normal, ?130ms\)/, `${name}: the state clock's fallback is its own 250ms`);
   }
   assert.match(workbench, /details:not\(\[open\]\) > :is\([^)]*\.mw-menu[^)]*\)[^{]*\{ opacity: 0; transform: translateY\(-4px\) scale\(\.97\); pointer-events: none; \}/);
-  // The closing content hold, immediately usable opening and ordinary disclosure height are exercised in real Chrome
-  // by menu-exit-motion.e2e; has-anchors.e2e guards their cost while a long Assistant reply is being written.
+  // Only closing holds the content on screen: a hold on opening kept the opening menu undrawn and unclickable for 130ms. The hold is a
+  // custom property on the menu's own details, read by the pseudo-element rule that acts on a closed details only: a :has() on a
+  // ::details-content subject cost every node put anywhere in the page 30 ms of style (VUX-36).
+  assert.match(workbench, /details:has\(> :is\([^)]*\.mw-menu[^)]*\)\) \{ --exit-hold: var\(--dur-hover\); \}/);
+  assert.match(workbench, /:where\(details:not\(\[open\]\)\)::details-content \{ transition: content-visibility var\(--exit-hold, 0s\) allow-discrete; \}/);
+  assert.doesNotMatch(workbench, /:has\([^{}]*\)::details-content/);
   // Dialogs: in over 250ms from 8px below at .98, out the same way over 130ms; one recipe, nothing restates it.
   assert.match(workbench, /:where\(dialog\) \{ transition: opacity var\(--dur-hover\)[^}]*transform: translateY\(8px\) scale\(\.98\); \}/);
   assert.match(workbench, /:where\(dialog\[open\]\) \{ opacity: 1; transform: none; transition-duration: var\(--dur-move\); \}/);

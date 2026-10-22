@@ -659,7 +659,6 @@ export const GOAL_CANVAS_STYLES = `
   .frame-picker > header button { width:32px; height:32px; }
   .frame-picker-tools { display:flex; gap:8px; padding:0 24px 16px; flex:none; border-bottom:1px solid var(--line); }
   .frame-picker-tools :is(input,select) { font:inherit; font-size:13px; }
-  .frame-picker footer button { font:inherit; font-size:13px; cursor:pointer; }
   .frame-picker-tools input { min-width:0; flex:1; }
   .frame-picker-tools select { max-width:130px; }
   .frame-picker-list { min-height:0; overflow:auto; overscroll-behavior:contain; padding:8px; }

@@ -413,7 +413,17 @@ test('old unfinished Cognia identities remain intact and cannot become undefined
 
 
 test('materials-only adoption cannot bypass the total file budget',async t=>{
-  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>{const j=s.create(id);j.phase='failed';j.sources=[{kind:'files',selected:true,references:Array.from({length:51},(_,i)=>({...refs[0]!,source_id:'file-'+i}))}];s.save(j);});
-  await assert.rejects(adoptContextJourney(dir,id,{title:'Too many',materials_only:true},pagesPorts(dir)),/50 份/);
+  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>{const j=s.create(id);j.phase='failed';j.sources=[{kind:'files',selected:true,references:Array.from({length:201},(_,i)=>({...refs[0]!,source_id:'file-'+i}))}];s.save(j);});
+  await assert.rejects(adoptContextJourney(dir,id,{title:'Too many',materials_only:true},pagesPorts(dir)),/200 份/);
   assert.equal(readContextJourney(dir,id).adoption,undefined);
+});
+
+// specs/visual-ui-experience slice 90 (user, 2026-10-22: the old 50 files / 6 MB was too small): a round takes up to 200
+// files and 50 MB, a single file up to 20 MB; one more file, or one more byte in total, is refused.
+test('a round takes up to 200 files and 50 MB, 20 MB per file',()=>{
+  const file=(i:number,bytes=1)=>({path:'f-'+i+'.md',data:Buffer.alloc(bytes,97).toString('base64')});
+  assert.equal(contextSources([{kind:'files',selected:true,files:Array.from({length:200},(_,i)=>file(i))}])[0]!.files!.length,200);
+  assert.throws(()=>contextSources([{kind:'files',selected:true,files:Array.from({length:201},(_,i)=>file(i))}]),/200 份/);
+  assert.equal(contextSources([{kind:'files',selected:true,files:[file(0,20_000_000),file(1,20_000_000),file(2,10_000_000)]}])[0]!.files!.length,3);
+  assert.throws(()=>contextSources([{kind:'files',selected:true,files:[file(0,20_000_000),file(1,20_000_000),file(2,10_000_001)]}]),/50 MB/);
 });

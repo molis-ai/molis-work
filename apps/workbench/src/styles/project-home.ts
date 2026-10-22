@@ -47,7 +47,7 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-dates__list { display: flex; gap: 8px; min-width: 0; overflow-x: auto; padding: 4px 4px 8px; margin: -4px -4px -8px; }
   .immersive-home .home-day {
     position: relative; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    width: 55px; height: 70px; padding: 0; border: 0; border-radius: 10px; background: transparent;
+    width: 55px; height: 70px; padding: 0 0 20px; border: 0; border-radius: 10px; background: transparent;
     color: var(--ink); font: inherit; cursor: pointer;
     transition: background-color var(--dur-move) var(--ease-quint), color var(--dur-move) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-move) var(--ease-spring);
   }
@@ -300,7 +300,7 @@ export const PROJECT_HOME_STYLES = `
     .immersive-home .home-heading { margin-bottom: 24px; }
     .immersive-home .home-heading h1 { font-size: 24px; }
     .immersive-home .home-month { display: none; }
-    .immersive-home .home-day { width: 49px; height: 64px; }
+    .immersive-home .home-day { width: 49px; }
     .immersive-home .home-focus { min-height: 0; padding: 24px; }
     .immersive-home .home-focus h2 { max-width: none; font-size: 24px; }
     .immersive-home .home-focus > p { max-width: none; }
@@ -317,7 +317,6 @@ export const PROJECT_HOME_STYLES = `
     .immersive-home .home-talk { width: auto; }
   }
   @media (pointer: coarse) {
-    .immersive-home :is(.home-day) { min-height: 64px; }
     .immersive-home :is(.home-quick__item, .home-shortcut-main) { min-height: 56px; }
     .immersive-home .home-shortcut-edit { width: 44px; height: 44px; }
   }

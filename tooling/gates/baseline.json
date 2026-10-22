@@ -1,7 +1,6 @@
 {
-  "giantUnits": 123,
+  "giantUnits": 122,
   "giant": {
-    "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 161,
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
       "lines": 1515,
@@ -698,9 +697,9 @@
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },
-  "typedCapabilitiesTotal": 165,
+  "typedCapabilitiesTotal": 153,
   "typedCapabilities": {
-    "apps/local-host/src/agent-host-composition.ts#register-calls": 5,
+    "apps/local-host/src/agent-host-composition.ts#register-calls": 1,
     "apps/local-host/src/local-host.ts#type-refs": 5,
     "apps/local-host/src/local-host.ts#without-action": 1,
     "apps/local-host/src/local-host.ts#register-calls": 1,
@@ -710,8 +709,6 @@
     "horizontal/agent-host/src/capability-registration.ts#register-calls": 38,
     "horizontal/scheduler/src/index.ts#type-refs": 1,
     "horizontal/scheduler/src/index.ts#register-calls": 4,
-    "packages/contracts/src/modules/workspace-artifacts.ts#type-refs": 4,
-    "packages/contracts/src/modules/workspace-artifacts.ts#without-action": 4,
     "packages/contracts/src/platform/actions.ts#type-refs": 1,
     "packages/contracts/src/platform/app-host.ts#type-refs": 4,
     "packages/contracts/src/platform/plugin.ts#type-refs": 1,
@@ -762,11 +759,11 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 354,
+  "pluginOutsideMentionsTotal": 353,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
-    "coding#outside-files": 14,
+    "coding#outside-files": 13,
     "cognia#outside-files": 6,
     "dataset#outside-files": 8,
     "diff#outside-files": 8,
@@ -1144,7 +1141,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 484,
+  "explicitAnyTotal": 483,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1209,7 +1206,7 @@
     "tests/coding-subagents-http.test.ts": 2,
     "tests/coding-taskboard.e2e.test.ts": 7,
     "tests/coding-workbench.e2e.test.ts": 4,
-    "tests/coding-writer-assignments-http.test.ts": 2,
+    "tests/coding-writer-assignments-http.test.ts": 1,
     "tests/coding-writer-directories-http.test.ts": 4,
     "tests/cognia-http.test.ts": 2,
     "tests/cognia-mcp.test.ts": 1,

@@ -1,4 +1,3 @@
-import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -13,11 +12,11 @@ import { LocalProjectDatabase, PluginHostExecutor, type MolisWorkLocalHost } fro
  * here and calls through the plugin's own services. Nothing here makes a caller: only the Host issues one.
  */
 
-/** Plugins calling `host`'s capabilities in `reference`, started the way the Host starts them; their store is `databasePath`. */
+/** Plugins calling `host`'s actions in `reference`, started the way the Host starts them; their store is `databasePath`. */
 export function reviewPlugins(host: MolisWorkLocalHost, reference: LocalHostProjectReference, databasePath: string) {
   const store = new LocalProjectDatabase(databasePath);
-  const service = new ActionService();
-  const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: { registry: service, client: service, project_id: reference.project_id },
+  const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: { registry: host.actionRegistry(reference),
+    client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: reference.project_id },
     project_id: reference.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, ui: new UiHost(), capabilities: host.client(reference),
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
@@ -37,9 +36,9 @@ export function reviewPlugins(host: MolisWorkLocalHost, reference: LocalHostProj
       await runtime.start(install.install_id);
       return install.install_id;
     },
-    /** The Host capabilities as `plugin_id`'s current session calls them. */
-    capabilities(plugin_id: string) {
-      return started.get(plugin_id)!.services!.capabilities!;
+    /** The Host's actions as `plugin_id`'s current session calls them: through its SDK, with the caller the Host issued it. */
+    actions(plugin_id: string) {
+      return started.get(plugin_id)!.services!.actions!;
     },
     async close() {
       for (const install of installs) await runtime.stop(install).catch(() => {});

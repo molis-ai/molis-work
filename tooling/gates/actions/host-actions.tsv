@@ -140,6 +140,10 @@ projects.workspace.git.operations.v1	1	platform	query	query	project	read	-	plugi
 projects.workspace.git.prepare-index.v1	1	platform	command	operation	project	write	-	plugin	review:git-index	workspace	-	-	f2b96d30b920	18a6c013818d	-
 projects.workspace.git.results.v1	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	5f1692d9fc51	-
 projects.workspace.read.v1	1	platform	query	query	project	read	-	agent,mcp,user,workflow	-	project	-	project.workspace.optional	9cecb8ebe607	bff4d7a70ea2	-
+projects.workspace.writers.integration.prepare.v1	1	platform	command	operation	project	write	-	plugin	review:git-integration	workspace	-	-	7b81d085e37e	18a6c013818d	-
+projects.workspace.writers.integration.read.v1	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	a06b911bc763	435073ad19b3	-
+projects.workspace.writers.list.v1	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	9a87b521b034	-
+projects.workspace.writers.prepare.v1	1	platform	command	operation	project	write	-	plugin	review:git-worktree	workspace	-	-	0a2e064efc3f	3c61170ddb6e	-
 projects.workspaces.add	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	-	950c0f3c0eb8	3b9e6ac25f38	-
 projects.workspaces.repair	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	-	2bdd0f77dff7	71f9d6e31713	-
 projects.workspaces.unlink	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	-	f0b30453a779	03e95e30172e	-

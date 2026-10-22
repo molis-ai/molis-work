@@ -9,6 +9,8 @@
  * which step and why.
  */
 
+import type { WriterFileTarget, WriterWorktree } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+
 /** How far a slot got toward having somewhere to work. */
 export type WriterAssignment =
   | "none"
@@ -20,14 +22,6 @@ export type WriterAssignment =
   /** The build cannot create worktrees at all. */
   | "unavailable";
 
-export interface WriterWorktree {
-  worktree_id: string;
-  branch: string;
-  base_commit: string;
-  /** Workspace-relative directory the worktree lives in. */
-  directory: string;
-}
-
 export interface WriterSlot {
   slot_id: string;
   task: string;
@@ -36,8 +30,6 @@ export interface WriterSlot {
   /** Why this slot is where it is. Present for denied, failed and unavailable. */
   message?: string;
 }
-
-export type WriterFileTarget = "added" | "modified" | "deleted";
 
 export interface WriterFileChange {
   path: readonly string[];

@@ -23,19 +23,13 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type Action
 
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import { registerWorkspaceGitActions } from "./workspace-git-actions.js";
+import { registerWorkspaceGitWriters } from "./workspace-git-writers.js";
 import { draftText } from "./model-draft.js";
 import { agentHostCapabilities, type AgentMcpLibrary, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { resolveConfiguredHome } from "./product-home.js";
-import { readWriterIntegration, prepareWriterIntegration } from "./git-writer-integration.js";
-import { createGitWorktreePort } from "./git-worktrees.js";
-import { writerDirectoryCapabilities, writerIntegrationCapabilities, type WriterIntegrationSource } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { createHash } from "node:crypto";
-import path from "node:path";
 import { memoryForAgentRun } from "./memory/memory-host.js";
 import { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";
 import { workAuthorityCheck } from "./agent-work-authority.js";
-import { reviewAuthority } from "./plugin-callers.js";
-import { hostErrors } from "./host-errors.js";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -130,6 +124,8 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   const unregisterGit = registerWorkspaceGitActions({ localHost: options.localHost, homeDirectory: options.homeDirectory ?? resolveConfiguredHome(),
     gitReviews: async () => { await initialize(); return prologue?.gitReviews; }, reviews: async () => { await initialize(); return agentHost.reviews; },
     workspaces: projectId => workspaceGrants(options, projectId) });
+  const unregisterWriters = registerWorkspaceGitWriters({ localHost: options.localHost, authorizeWriterDirectory: options.authorizeWriterDirectory,
+    runtime: async () => { await initialize(); return prologue; }, workspaces: projectId => workspaceGrants(options, projectId) });
   // Drafts borrow the same owner as Agent runs; only the ephemeral model Session is scoped to the request.
   const unregisterDraft = options.localHost.registerAction(agentHostCapabilities.draftText, async (_project, input, invocation) => {
     if (!options.prologue) throw new ActionError("actions.connection_required", "模型执行方尚未接通，不能起草");
@@ -137,89 +133,6 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       await initialize(); if (!prologue) throw new ActionError("actions.connection_required", "模型执行方尚未接通，不能起草"); return prologue.inference;
     } }, input, { signal: invocation.signal, beforeDispatch: () => invocation.beforeEffect(), pluginId: invocation.plugin?.plugin_id });
   });
-  const writerParent = async (projectId: string, workspaceId: string) => {
-    const grants = await workspaceGrants(options, projectId);
-    const parent = grants.find(item => item.workspace_id === workspaceId && item.realpath_verified);
-    if (!parent) throw new Error("主工作区已取消授权，不能准备或读取子目录");
-    return { grants, parent, port: createGitWorktreePort(parent.canonical_path) };
-  };
-  const unregisterWriters = options.localHost.registerCapability(writerDirectoryCapabilities.list, async (project, input) => {
-    const { grants, parent, port } = await writerParent(project.project_id, input.workspace_id);
-    const { owned, unavailable } = await port.inspect();
-    const grantFor = (canonical_path: string) => grants.find(grant => grant.realpath_verified && grant.canonical_path === canonical_path)?.workspace_id ?? null;
-    return [...owned.map(tree => {
-      const canonical_path = path.resolve(parent.canonical_path, tree.directory);
-      return { worktree_id: tree.worktree_id, branch: tree.branch, base_commit: tree.base_commit, canonical_path, workspace_id: grantFor(canonical_path) };
-    }), ...unavailable.map(entry => {
-      const canonical_path = path.resolve(parent.canonical_path, entry.directory);
-      return { worktree_id: path.basename(canonical_path), branch: entry.branch ?? "", base_commit: "", canonical_path, workspace_id: grantFor(canonical_path), problem: entry.reason };
-    })];
-  });
-  const unregisterPrepareWriter = options.localHost.registerCapability(writerDirectoryCapabilities.prepare, async (project, input, invocation) => {
-    await initialize();
-    if (!prologue?.gitReviews || !options.authorizeWriterDirectory) throw new Error("独立工作树的宿主审查与目录授权尚未装配");
-    if (!/^[a-zA-Z0-9-]{8,80}$/.test(input.operation_id)) throw new Error("工作树操作标识无效");
-    const { parent, port } = await writerParent(project.project_id, input.workspace_id);
-    const id = "writer-" + createHash("sha256").update(input.operation_id).digest("hex").slice(0, 24);
-    const preview = await port.preview(id), target = path.resolve(parent.canonical_path, preview.directory);
-    const check = async () => {
-      const current = await writerParent(project.project_id, input.workspace_id);
-      if (current.parent.canonical_path !== parent.canonical_path || JSON.stringify(await current.port.preview(id)) !== JSON.stringify(preview)) throw new Error("主仓库或授权已改变，请重新预览独立目录");
-    };
-    const request = await prologue.gitReviews.prepare({ project_id: project.project_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
-      operation_kind: "git-worktree", document: { kind: "tool-operation", tool: "git-worktree-create", summary: "创建独立工作树，并授权本项目在该目录执行任务",
-        fields: [{ label: "主工作区", value: parent.canonical_path }, { label: "新目录", value: target }, { label: "新分支", value: preview.branch },
-          { label: "起点提交", value: preview.base_commit }, { label: "执行范围", value: "仅创建独立目录和本地分支，关联到当前项目；不发送模型任务、不修改主工作区、不推送远端。禁用 Git hooks。" }] } },
-      { authority: reviewAuthority(invocation.plugin, "git-worktree"), check, async execute() {
-        await check();
-        await port.create(id, preview.base_commit);
-        // A failure keeps the real directory and branch for inspection; never deletes user work.
-        try { await options.authorizeWriterDirectory!(project.project_id, target); }
-        catch { throw new Error("工作树已创建，但项目目录授权未完成；已保留目录与分支，请通过工作区入口关联该目录，不要重复创建"); }
-      } });
-    return { review_id: request.review_id, directory: { worktree_id: id, branch: preview.branch, base_commit: preview.base_commit, canonical_path: target, workspace_id: null } };
-  });
-
-  const integrationSource = async (project: MolisWorkProjectRuntime, source: WriterIntegrationSource, caller: HostPluginCaller | undefined) => {
-    await initialize();
-    if (!prologue?.gitReviews || !prologue.subagents) throw new Error("子任务成果整合执行方尚未接通");
-    const session = await prologue.readSession({ runtime_id: "prologue", session_id: source.session_id });
-    assertIntegrableSession(session, project.project_id, caller);
-    const ref = session.runs.find(run => run.run_id === source.run_id);
-    if (!ref) throw new Error("此轮执行不属于原会话");
-    const run = await prologue.read(ref);
-    if (!["completed", "failed", "cancelled", "stopped"].includes(run.phase) || run.frozen.role_id !== "writers" || session.latest_run && !["completed", "failed", "cancelled", "stopped"].includes(session.latest_run.phase)) throw new Error("父任务仍在执行或需核对，暂不能整合");
-    const children = await prologue.subagents.list(ref), child = children.find(c => c.subagent_id === source.subagent_id);
-    // Any ended child may be brought back: one that ran out of turns after writing and testing its files still did the
-    // work. What lands is exactly what the person reviews file by file, re-checked at approval; unknown outcomes still block.
-    if (!child || !["completed", "failed", "cancelled"].includes(child.state) || children.some(c => ["running", "reconcile-required"].includes(c.state))) throw new Error("原子任务尚未结束或有结果待核对，暂不能整合");
-    const granted = await workspaceGrants(options, project.project_id);
-    const originalDirectory = run.frozen.directory;
-    if (!originalDirectory) throw new Error("无目录会话不能整合工作区");
-    const originalParent = granted.find(g => g.realpath_verified && g.canonical_path === originalDirectory.canonical_path);
-    if (!originalParent) throw new Error("原主工作区已取消授权");
-    const { grants, parent } = await writerParent(project.project_id, originalParent.workspace_id);
-    if (parent.canonical_path !== originalDirectory.canonical_path) throw new Error("原主工作区授权已改变");
-    const frozen = run.frozen.subagent_workspaces?.find(w => w.directory.canonical_path === child.workspace_path);
-    const writer = frozen && grants.find(g => g.workspace_id === frozen.workspace_id && g.realpath_verified && g.canonical_path === child.workspace_path);
-    if (!writer) throw new Error("原子任务目录没有本轮独立写入授权");
-    await prologue.assertDirectoriesIdle([parent.canonical_path, writer.canonical_path]);
-    return { workspace_id: parent.workspace_id, writer_workspace_id: writer.workspace_id, grants };
-  };
-  const unregisterReadIntegration = options.localHost.registerCapability(writerIntegrationCapabilities.read, async (project, input, invocation) => {
-    const source = await integrationSource(project, input, invocation.plugin);
-    return readWriterIntegration(source, async () => (await integrationSource(project, input, invocation.plugin)).grants);
-  });
-  const unregisterPrepareIntegration = options.localHost.registerCapability(writerIntegrationCapabilities.prepare, async (project, input, invocation) => {
-    const source = await integrationSource(project, input, invocation.plugin);
-    const prepared = await prepareWriterIntegration({ ...source, files: input.files }, async () => (await integrationSource(project, input, invocation.plugin)).grants);
-    const request = await prologue!.gitReviews!.prepare({ project_id: project.project_id, workspace_id: source.workspace_id, operation_id: input.operation_id,
-      operation_kind: "git-integration", document: { kind: "git-integration", target_directory: prepared.view.target_path,
-        source: { session_id: input.session_id, run_id: input.run_id, subagent_id: input.subagent_id, branch: prepared.view.branch, base_commit: prepared.view.base_commit, directory: prepared.view.source_path },
-        files: prepared.files.map(file => ({ path: file.path.join("/"), before_text: file.before_text!, after_text: file.after_text!, before_mode: file.before_mode!, after_mode: file.after_mode! })) } }, { ...prepared, authority: reviewAuthority(invocation.plugin, "git-integration") });
-    return { review_id: request.review_id };
-  });
-
   const inference = inferenceClient(initialize, () => prologue);
   const createBuilderAgent: AgentHostComposition["createBuilderAgent"] = async input => { await initialize(); if (!prologue) throw new Error("Prologue 构建服务未装配"); return prologue.createBuilderAgent(input); };
   const restoreExternalMcp = (reference: LocalHostProjectReference) => disposed ? Promise.resolve()
@@ -240,27 +153,12 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     unregisterGit();
     unregisterDraft();
     unregisterWriters();
-    unregisterPrepareWriter();
-    unregisterReadIntegration();
-    unregisterPrepareIntegration();
     externalMcp.close();
     return disposal = (async () => {
       await ready?.catch(() => undefined);
       await prologue?.close();
     })();
   } };
-}
-
-/**
- * The session being integrated must belong to this project and to the installation making the call: the owner it recorded when
- * the Host issued that plugin its caller (plugin and installation together, never read from input), whichever plugin it is (PG-009).
- * The project is checked first, then that there is a caller at all, then whose session it is, then that its result is settled.
- */
-function assertIntegrableSession(session: { owner: { project_id: string; plugin_id: string; install_id: string }; recovery?: unknown }, projectId: string, caller: HostPluginCaller | undefined): void {
-  if (session.owner.project_id !== projectId) throw new Error("执行不属于本项目的会话");
-  if (!caller) throw hostErrors.plugin_caller_invalid("整合子任务成果只能由插件发起");
-  if (session.owner.plugin_id !== caller.plugin_id || session.owner.install_id !== caller.install_id) throw new Error("执行不属于发起整合的这份插件安装的会话");
-  if (session.recovery) throw new Error("原结果仍需核对，暂不能整合");
 }
 
 /** Where the runtime keeps the person's after-write checkers; the call that asks has started it. */

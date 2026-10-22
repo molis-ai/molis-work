@@ -49,6 +49,11 @@ export declare const object: (properties: Record<string, unknown>, required?: st
     additionalProperties: boolean;
 };
 
+export declare const operationId: {
+    type: string;
+    pattern: string;
+};
+
 export declare const path: {
     type: string;
     minItems: number;
@@ -112,4 +117,47 @@ export declare const workspace: {
     properties: Record<string, unknown>;
     required: string[];
     additionalProperties: boolean;
+};
+
+export declare const writerDirectory: {
+    type: string;
+    properties: Record<string, unknown>;
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const writerIntegrationChoice: {
+    type: string;
+    properties: Record<string, unknown>;
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const writerIntegrationFile: {
+    type: string;
+    properties: Record<string, unknown>;
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const writerIntegrationView: {
+    type: string;
+    properties: Record<string, unknown>;
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const writerSource: {
+    session_id: {
+        type: string;
+        minLength: number;
+    };
+    run_id: {
+        type: string;
+        minLength: number;
+    };
+    subagent_id: {
+        type: string;
+        minLength: number;
+    };
 };

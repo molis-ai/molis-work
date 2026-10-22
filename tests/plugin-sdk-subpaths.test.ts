@@ -58,6 +58,16 @@ test("W5-01-CODING-61: only /rich-text loads the Markdown parser and sanitizer, 
     assert.ok(manifest.peerDependencies?.[name], `${name} is a peer of the SDK`);
     assert.equal(manifest.peerDependenciesMeta?.[name]?.optional, true, `${name} is an optional peer`);
   }
+  // The README tells such a plugin what to add, with the peer ranges; the workbench and the Host add the same ranges.
+  const readme = readFileSync(join(sdkDirectory, "README.md"), "utf8");
+  for (const name of ["marked", "sanitize-html"]) {
+    const range = manifest.peerDependencies![name]!;
+    assert.ok(readme.includes(`\`${name}@${range}\``), `the README names ${name}@${range}`);
+    for (const consumer of ["apps/workbench", "apps/local-host"]) {
+      const declared = (JSON.parse(readFileSync(join(root, consumer, "package.json"), "utf8")) as Manifest).dependencies?.[name];
+      assert.equal(declared, range, `${consumer} declares ${name} in the SDK's peer range`);
+    }
+  }
 });
 
 test("W5-01-CODING-62: redactSecrets masks copied credentials and leaves the rest of the text as it was", () => {

@@ -2555,3 +2555,19 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - PG-012 的 Goals 一半并进 S9 计划。
   - ③ 的顺序：G2b → `saveDetail` → S5 → S6 → S4，G5 插在中间。
 - **10-22 ② 加一组 Goals 平台能力**（子会话上限 2 → 3，先写设计交 ①）：PG-029 可信 `user_action`、PG-087（attention、context-ledger、Artifacts/ProcessItems 包成 services）、journal 与幂等记录。journal 尽量就是 X-6 领域事件那一种来源，不另起第三条事件流。② 自己的顺序：C7 公开包 → `host.workspace.changed@1` → BL-411 → S0b-2 → W5-06。
+- **10-22 G2b 已开 PR**：#1023（head b7a665fbf），交 ⑩。BL-379 已改写为由 `host.workspace.changed@1` 补，PR 正文写明补上之前的回退。③ 接着做 `saveDetail`。
+- **10-22 Shelf S2–S4 裁定（① 定，依据 ③ 笔记 `shelf-s2-s4-plan.md`）**：
+  - D1：S2 照常开发、开 PR，合并等 S0-2b-3（DUAL-16）。② 把 S0-2b-3 排到子会话第一位。
+  - D2：`PluginOwnerFilesClient.location()` 只读，单独一个提交，② 评审。
+    - 只给冻结声明里有 `owner_files`、并且有授权的实例；project 一半与沙箱在受管 IO 前拒绝。
+    - 拒绝测试并进 S-15 的 ownerFiles 那句，不新开 S 行；旧句柄按 S-18 拒绝。
+    - Shelf 包不得拿这个路径直接调 fs。
+  - D3：S3 里 admit 和 admit-folder 升 `@2`，改走 `claimOriginal`。存量由维护去掉，不写读取兜底；维护只在一次性 Home 演练。
+  - D4：只改权限、不升版本，按 U1 全部必需。
+  - D5：接受只留公网与本机回环，局域网就是 SSRF 面；PR 与 README 写明，不开 BL。
+  - D6：示例改由 `initialize_owner_files` 写，必须幂等，删掉的示例不复活，要有测试。
+  - D7：终端 Agent 探测记为剩余特权，BL-380 归平台（②）；③ 的段下一号从 381 起。
+  - D8 分两步：
+    - S2 先按 (a)：admit 加三项 materials 权限，Images 声明为可选。
+    - S3 在 admit@2 里拆出 `shelf.items.capture`，带 fetch 和 fetch_local；Images 收回这两项。
+    - 理由：最小权限，只放图片的插件不该向人要网页抓取权限；拆分搭 D3 那次升级，不多升一次版本。

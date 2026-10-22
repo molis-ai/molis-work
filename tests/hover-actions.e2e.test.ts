@@ -81,7 +81,15 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
         await pause(400);
       }
       const alpha = await evaluate<number>(hoverShown(item.index));
-      if (alpha < 0.9) found.push(`${name}: ${kind} "${item.name}" is hidden on a device without hover${row ? ", even after a tap on its row" : ""}`);
+      if (alpha < 0.9) {
+        const state = await evaluate(`(() => {
+          const el = document.querySelector('[data-hover-audit="${item.index}"]'), point = ${JSON.stringify(row)};
+          const box = el?.getBoundingClientRect(), hit = point && document.elementFromPoint(point.x, point.y), active = document.activeElement;
+          return { point, viewport: [innerWidth, innerHeight], box: box?.toJSON(), hit: [hit?.tagName, hit?.getAttribute("class")], active: [active?.tagName, active?.getAttribute("class")], opacity: el && getComputedStyle(el).opacity };
+        })()`);
+        t.diagnostic(`${name}: touch reveal failure ${JSON.stringify(state)}`);
+        found.push(`${name}: ${kind} "${item.name}" is hidden on a device without hover${row ? ", even after a tap on its row" : ""}`);
+      }
       else t.diagnostic(`${name}: ${kind} shows on touch after a tap on its row`);
     }
     await touch(false);

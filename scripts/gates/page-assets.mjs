@@ -238,8 +238,9 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // specs/visual-ui-experience VUX-40 (slice 70): a Coding work's mode reads as one translated sentence ("Mode: Execute").
-  "/assets/molis-work-workbench.js": [1177156, 1177166],
+  // specs/visual-ui-experience VUX-12 (slice 71): a result previewed in the side panel keeps the Assistant's name for it,
+  // and one whose read failed is no longer declared as what the person has in hand.
+  "/assets/molis-work-workbench.js": [1177166, 1177268],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

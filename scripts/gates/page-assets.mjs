@@ -242,7 +242,7 @@ const APPROVED_CEILINGS = {
   // container/font/fold changes. Final measurement includes code-width observation, per-list cleanup and
   // reusing the natural column width in block layout to avoid a full grid pass on each inserted token.
   "/assets/molis-work-plugins/coding.js": [376592, 378072],
-  "/assets/molis-work-workbench.css": [1616975, 1617336],
+  "/assets/molis-work-workbench.css": [1616392, 1616753],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

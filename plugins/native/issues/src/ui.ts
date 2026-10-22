@@ -65,7 +65,7 @@ export function renderIssuesWorkbench(): string {
         </form>
       </div>
     </article>
-    <div class="issues-toast" data-issue-toast role="status" hidden><span></span><button type="button" class="mw-btn mw-btn--sm" data-issue-toast-action></button></div>
+    <div class="mw-toast issues-toast" data-issue-toast role="status" hidden><span></span><button type="button" class="mw-toast__action" data-issue-toast-action></button></div>
     <input type="file" accept="image/png,image/jpeg,image/webp" multiple hidden data-issue-files>
     <dialog class="mw-dialog issues-preview" data-issue-preview data-issue-i18n aria-label="截图">
       <form method="dialog"><header><button class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-zoom data-issue-i18n type="button">原始尺寸</button><button class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-i18n>关闭</button></header><div class="issues-preview-body"><div class="issues-preview-view" data-issue-picture><img alt=""></div></div></form>
@@ -121,9 +121,7 @@ export const ISSUES_STYLES = `
 .issues-editor textarea{min-height:120px}
 .issues-editor .issues-bar{position:sticky;bottom:-60px;padding:8px 0 60px;margin-bottom:-60px;background:var(--paper)}
 .issues-flag{margin:0;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--amber) 12%,transparent);color:var(--ink);font-size:13px;line-height:1.6}
-.issues-toast{position:absolute;left:50%;bottom:14px;z-index:5;transform:translateX(-50%);display:flex;align-items:center;gap:6px;max-width:calc(100% - 24px);padding:4px 4px 4px 14px;border-radius:999px;background:var(--action);color:var(--action-ink);box-shadow:var(--shadow);font-size:13px;animation:issues-toast var(--dur-move) var(--ease-quint)}
-.issues-toast .mw-btn{background:transparent;color:inherit;text-decoration:underline;text-underline-offset:3px}.issues-toast .mw-btn:empty{display:none}
-@keyframes issues-toast{from{opacity:0;transform:translate(-50%,8px)}}
+.issues-toast{position:absolute;inset-inline:0;margin-inline:auto;bottom:14px;z-index:5;max-width:calc(100% - 24px)}.issues-toast .mw-toast__action:empty{display:none}
 dialog.issues-preview{width:calc(100vw - 32px);max-width:1440px;height:calc(100dvh - 32px);padding:0;overflow:hidden}
 .issues-preview form{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr)}
 .issues-preview header{display:flex;justify-content:flex-end;gap:8px;padding:10px}
@@ -131,5 +129,5 @@ dialog.issues-preview{width:calc(100vw - 32px);max-width:1440px;height:calc(100d
 .issues-preview-view:not(.mw-media-zoom){overflow:auto;display:grid;place-items:safe center}
 .issues-preview-view:not(.mw-media-zoom) img{max-width:100%;max-height:100%;object-fit:contain}.issues-preview[data-zoom] .issues-preview-view img{max-width:none;max-height:none}
 @media(max-width:760px){.issues textarea{font-size:16px}}
-@media(prefers-reduced-motion:reduce){.issues-row.is-new,.issues-toast{animation:none}}
+@media(prefers-reduced-motion:reduce){.issues-row.is-new{animation:none}}
 `;

@@ -342,7 +342,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   ${renderGlobalSearchOverlay(primitives)}
   ${renderGoalTrashDialog()}
   ${projectOperations.overlays}
-  <div class="toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(L)}
+  <div class="mw-toast toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(L)}
   <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
   <script>${clientI18nScript()}</script>
   <script src="/assets/molis-work-workbench.js"></script>${knowledgeClientTag()}

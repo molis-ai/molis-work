@@ -2470,3 +2470,15 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 先后：③ 先开 GS；G0 等 #955 合入；G1 进批。C8-2、CHR-1 解开后优先做。② 的平台一半排在 PG038-P 之后，顺序是 `ui.invalidate`（Coding C6 也要用）、PG-035 类型化能力改动作的写法、X-6 宿主发起的事件。
 - **10-22 BL 号段**：⑤ 的 390–399 用完了（391 在 #819 用过、不复用，396–399 是项目资料的四行），给 ⑤ 换新段 BL-410～419。这十个号 main 历史里和开着的 PR 里都没出现过。`coding-input-receipts:78` 的竞态记为 BL-410，挂到 PG-038 的 Coding 一片（③）一起查。① 的段 400–409 里，400～402 已用，下一个空号是 403。
 - **10-22 S 编号**：S-51 归 #960（C8-1），S-52 归 #963（PG-038），S-53 归 ③ 的 GS。S 号要连着排，GS 等 #960、#963 都合入后再开 PR。
+- **10-22 C8-2 已开 #987**（③ 开，交 ⑤）：Coding 用 `defineWorkExecutorActions` 发布了六个 `coding.executor.*@1` 角色，原有动作不升版本。没碰共享核心，不进集成批次。C8-3（②）还要等 #987 和视觉线的 #940、#950～952。
+- **10-22 ① 批 PG-061 `ui.invalidate` 设计**（共享笔记 `pg061-ui-invalidate-design.md`，② 写，分支 `feat/pg061-ui-invalidate`）：
+  - 这一片只做 `PluginUiClient.invalidate()`。不带参数，插件 id 取自启动上下文；只让本安装已打开的页面重读一次（`watchRevision`），不是回执。
+  - 门槛：Manifest 声明了 `ui.views` 就能调，不要权限，不借用 `ui:register`；没声明的以 `ui_host.plugin_denied` 拒绝。
+  - 停用、卸载、重启之后，旧激活再调就抛 `ui_host.plugin_denied`，版本号不变；进入 running 之前调用是空操作。
+  - 不取 S 号：它不是授权边界，结构上碰不到别的插件，页面重读用的是读的人自己的授权；拒绝照样有测试（PG061-01～05）。
+  - ① 加的三条：
+    - PG061-03 加重启的情况（旧激活被拒，新激活能用）；
+    - 在调用之外（事件回调或定时器）调用的情况也要测；
+    - 改 contracts 算共享核心，进集成批次，contracts 和 SDK 两份 API 快照都要看。
+  - `ui.commands` 接通不做，记 BL-363：Git 的 U1 已经定为删除，所以这一条和 U1 无关。BL-363 记的是「声明了命令却没人调用」：要么接通（要真浏览器验证），要么删掉声明和 `UiHost.commands()`，开工时由 ① 定。
+  - Files、Git 的两个宿主端口这一片不删。PG-061 合进 main 以后，Git 的 `onWorkingTreeChanged` 在 G2 换成 `services.ui.invalidate()`，Files 的 `onWorkspaceChanged` 在 C6 后半换（都归 ③）。

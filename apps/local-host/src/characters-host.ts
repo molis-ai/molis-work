@@ -5,7 +5,6 @@ import type { ArtifactsQueryApi, ArtifactReference } from "@molis-ai/molis-work-
 import { agentHostCapabilities, type AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { artifactsErrors } from "@molis-ai/molis-work-plugin-artifacts";
 import type { CodingCharacterChoice, CodingCharacterPorts } from "@molis-ai/molis-work-plugin-coding";
 import { resolveConfiguredHome } from "./product-home.js";
 import { PRODUCT_VERSION } from "./product-version.js";
@@ -57,7 +56,7 @@ function characterArtifacts(project: CharactersProject, caller: ActionExecutionC
   return {
     read: reference => artifacts.query.getArtifactVersion(projectId, reference),
     publish: value => {
-      if (processItems.query.latestArtifactVersion(projectId, value.artifact_id)) throw artifactsErrors.plugin_incompatible("这个 ID 已用于过程项");
+      if (processItems.query.latestArtifactVersion(projectId, value.artifact_id)) throw characterErrors.invalid("这个 ID 已用于过程项");
       guard.current();
       return artifacts.commands.registerVersion({ ...value, project_id: projectId, actor_id: caller.actor_id, scope: "personal",
         producer: { plugin_id: CHARACTER_PLUGIN_ID, plugin_version: PRODUCT_VERSION, binding_signature: CHARACTER_PUBLISHER_SIGNATURE } });

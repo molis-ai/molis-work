@@ -705,7 +705,7 @@ W5-01-WORKFLOWS（Runtime 迁移，2026-10-20，分支 `migrate/workflows-runtim
 - **对外不变**：19 个 `characters.*@1` 的 id、版本、schema、受众、权限、提供方 id 与 MCP 工具名都不变。`pnpm actions:update` 只把这 19 行从 `actions.tsv` 挪到 `host-actions.tsv`，各列哈希一致。页面地址与路径也不变。
 - **行为变化**（PR 里逐条写明）：
   - 门的状态码改用共同的动作错误映射：`characters.not_found` 由 404 改为 400；没带错误码的异常是 500 `actions.execution_failed`；不是对象的请求体是 400 `actions.input_invalid`；非本人是 403 `actions.owner_mismatch`。页面够得着的拒绝原来靠插件把无码错误一律映射成 400，现在都带码，仍是 400：宿主里导入、文件预览与原生启动的拒绝（越界路径、过期的扫描、不支持的来源、缺任务、原生终端未接通等），Module 里发布核对、文件预览与 Agent 动作校验的拒绝，都是 `characters.invalid`；`runs` 找不到角色是 `characters.not_found`。经 MCP、工作流调用时它们原来是 `actions.execution_failed`，现在带 Characters 自己的码。Module 里「导入服务、能力目录尚未接通」两处装配缺口仍无码（宿主总会给，走不到）。
-  - 发布读取改走宿主成果库的 `getArtifactVersion`，不再兜底过程项库。
+  - 发布读取改走宿主成果库的 `getArtifactVersion`，不再兜底过程项库。发布前仍检查这个 id 没被过程项用过；用过时是 400 `characters.invalid`（原来经插件的成果客户端是 `artifacts.plugin_incompatible`，也是 400），宿主不为此引入 Artifacts 插件的错误码。
   - `character` 不再出现在 `hostReferenceKinds()` 里。
   - Characters 安装带来的 8 个 `sdk.artifacts.plugin-install-…` 动作消失。
   - 项目里不能再隐藏角色：`DELETE /api/settings/projects/<项目>/plugins` 带 `plugin_id: "characters"` 返回 400。
@@ -721,7 +721,11 @@ W5-01-WORKFLOWS（Runtime 迁移，2026-10-20，分支 `migrate/workflows-runtim
 - **RAC-74**：项目库里留着旧 Characters 安装记录时，宿主不启动它也不改写它，设置 › 角色照常列出本人的草稿。`tests/cross-plugin-recovery.e2e.test.ts`（浏览器用例，本机不跑，交给 CI）。
 
 #### 证据（2026-10-22）
-- 待补：构建、定向用例、快照、页面资源、`boundary:check`、health 门禁与 `secrets:check` 的结果。
+- 构建：这台机器上 local-host 的 Swift 步骤失败（CLT 16.2），所以逐包构建 contracts、ui-host、coding、`module-characters`、workbench（含 esbuild 打的 `characters-client.js`）与 local-host 的 `tsc`，再写构建清单。
+- 定向用例（`--jobs 2`，不含浏览器用例，没跑全量）：
+  - 合并 main 之前：从 `affected-tests` 列出的相关文件里选 112 个，102 个通过。失败的 10 个里，6 个由本片引起，改完重跑通过；另 4 个与本片无关：两个缺本机 Swift 产物 `native/computer/bin`，两个的失败落在本片没动的文件上。
+  - 合并 origin/main `4591a1484` 之后：14 个文件全部通过，含动作快照 25/25、S-18 17/17，以及 main 新加的 `coding-work-executor`、`plugin-ui-invalidate`。
+- 门禁：动作快照、`boundary:check`、§5.1 包清单（71 个包）、页面资源与 health 门禁都对 merge-base `4591a148` 通过；`secrets:check` 扫了 1830 行，没有发现。RAC-74 的浏览器用例交给集成批次。
 
 ## 0. 现场与范围
 

@@ -31,7 +31,8 @@ export const orderAudit = (skip: string) => String.raw`(() => {
     return el.tagName.toLowerCase() + (cls ? '.' + cls : '') + (text ? '「' + text + '」' : '');
   };
   const round = (n) => Math.round(n * 10) / 10;
-  const EXEMPT = 'code, pre, kbd, samp, textarea, input, select, [contenteditable], .cm-editor, .mw-code, .tui-root, svg, canvas, .mw-catalog__type';
+  // Fields keep their own size (16px on phones, so iOS does not zoom); a select's trigger shows a field's value.
+  const EXEMPT = 'code, pre, kbd, samp, textarea, input, select, .mw-select, [contenteditable], .cm-editor, .mw-code, .tui-root, svg, canvas, .mw-catalog__type';
   const firstText = (el) => {
     const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, { acceptNode: (n) => n.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT });
     return walk.nextNode();
@@ -57,7 +58,7 @@ export const orderAudit = (skip: string) => String.raw`(() => {
     let text = null, after = false;
     for (const node of row.childNodes) {
       if (node === mark || (node.nodeType === 1 && node.contains(mark))) { after = true; continue; }
-      if (!after || (node.nodeType === 1 && node.matches('.mw-sr-only'))) continue;
+      if (!after || (node.nodeType === 1 && (node.matches('.mw-sr-only') || !shown(node)))) continue;
       text = node.nodeType === 3 ? (node.textContent.trim() ? node : null) : firstText(node);
       if (text) break;
     }
@@ -65,7 +66,9 @@ export const orderAudit = (skip: string) => String.raw`(() => {
     const range = document.createRange(); range.selectNodeContents(text);
     const line = [...range.getClientRects()].find((r) => r.width > 0);
     // Only a mark on the words' line counts: one stacked above them (a card's icon) is a layout of its own.
-    if (!line || box.bottom <= line.top || box.top >= line.bottom) continue;
+    // Words drawn hidden (clipped to a pixel for assistive tech) are not words beside the mark.
+    const holder = text.parentElement.getBoundingClientRect();
+    if (!line || holder.width <= 1 || holder.height <= 1 || box.bottom <= line.top || box.top >= line.bottom) continue;
     const size = parseFloat(getComputedStyle(text.parentElement).fontSize);
     const lh = parseFloat(getComputedStyle(text.parentElement).lineHeight) || size * 1.4;
     const centre = line.top + line.height / 2;
@@ -95,7 +98,7 @@ export const orderAudit = (skip: string) => String.raw`(() => {
     // A tab and its close, a split button and a segmented control are one control made of parts.
     if (row.matches('.tab-item, [role=tablist], .mw-segmented, .mw-split, [data-segmented]')) continue;
     // Peers: buttons with words beside buttons with words, icon buttons beside icon buttons.
-    const worded = (b) => Boolean((b.textContent || '').trim()) && !b.matches('.mw-btn--icon-only');
+    const worded = (b) => Boolean((b.innerText || '').trim()) && !b.matches('.mw-btn--icon-only');
     const all = [...row.children].filter((c) => c.matches('button, a.mw-btn, [role=button]') && shown(c));
     const buttons = all.filter((b) => worded(b) === worded(all[0]));
     if (buttons.length < 2) continue;

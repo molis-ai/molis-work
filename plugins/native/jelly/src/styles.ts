@@ -67,6 +67,6 @@ export const JELLY_STYLES = `
   .jelly-draft-recovery { padding:12px 12px; margin-bottom:16px; border:1px solid var(--line-strong); border-radius:8px; font-size:12px; }.jelly-draft-recovery p { margin:0 0 8px; }.jelly-extract-progress { width:100%; accent-color:var(--accent); }
   .jelly-bulk-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0 16px; }.jelly-bulk-bar > span { margin-right:auto; }.jelly-review-tabs { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0; }.jelly-review-tabs [aria-pressed="true"] { background:var(--nav-active); }
   .jelly-plan-row-tools { display:flex; gap:4px; align-items:center; margin-bottom:8px; }.jelly-plan-row-tools > span { margin-right:auto; }.jelly-plan-row-tools .mw-btn { font-size:11px; min-height:24px; }.jelly-plan-refine { display:flex; gap:8px; align-items:flex-end; margin-bottom:16px; }.jelly-plan-refine .mw-textarea { flex:1; min-width:0; }.jelly-plan-locks { font-size:11px; color:var(--muted); margin-top:12px; }.jelly-plan-locks summary { cursor:pointer; }.jelly-plan-locks .jelly-choice-row { margin-top:8px; }.jelly-plan-questions { font-size:13px; padding:12px; border:1px solid var(--line); border-radius:8px; }
-  @media(pointer:coarse) { .jelly-day-add { display:inline-flex; opacity:1; min-width:30px; min-height:30px; } }
+  @media(pointer:coarse) { .jelly-day-add { display:inline-flex; opacity:1; min-width:32px; min-height:32px; } }
   @media(prefers-reduced-motion:reduce) { [data-jelly="workbench"] * { scroll-behavior:auto; transition:none; animation:none; } }
 `;

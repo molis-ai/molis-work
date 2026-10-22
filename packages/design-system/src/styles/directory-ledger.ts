@@ -242,7 +242,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     border: 0;
     border-radius: 0;
     background: transparent;
-    font-size: 11px;
+    font-size: 12px;
   }
   html[data-density="compact"] body[data-desktop-shell="true"][data-board-view]:where(:not(.immersive-workbench)) .desktop-goal-directory .directory-row-state > .goal-status {
     min-height: 0;

@@ -80,7 +80,7 @@ export const GOAL_CANVAS_STYLES = `
     body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list :is(.tree-toggle, .tree-guide) { margin-top: 1px; }
     body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .tree-node { height: auto; min-height: 20px; align-items: flex-start; }
     body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .tree-title-line strong { display: -webkit-box; white-space: normal; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 20px; }
-    body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .directory-row-state { grid-column: 1; grid-row: 2; padding-left: calc((var(--tree-depth, 0) + 1) * 16px + 18px); font-size: 11px; }
+    body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .directory-row-state { grid-column: 1; grid-row: 2; padding-left: calc((var(--tree-depth, 0) + 1) * 16px + 18px); font-size: 12px; }
   }
   .goal-canvas-shell[data-board-view="list"] > [data-goal-momentum] { display: none !important; }
   .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: flex; position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -229,6 +229,8 @@ export const GOAL_CANVAS_STYLES = `
   body.immersive-workbench .goal-stage-list .directory-row-state {
     display: flex;
     align-items: center;
+    /* Start of the column, so the rings stand one above another down the list. */
+    justify-content: flex-start;
     grid-column: 2;
     grid-row: 1;
     min-width: 0;
@@ -253,14 +255,14 @@ export const GOAL_CANVAS_STYLES = `
     border-radius: 0;
     background: transparent;
     box-shadow: none;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 400;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .goal-stage-list .goal-status svg { display: block;  flex: none; }
-  .goal-stage-list .tree-progress { display: inline-flex; align-items: center; gap: 8px; grid-column: 3; grid-row: 1; min-width: 0; width: auto; margin: 0; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+  .goal-stage-list .tree-progress { display: inline-flex; align-items: center; gap: 8px; grid-column: 3; grid-row: 1; min-width: 0; width: auto; margin: 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
   .goal-stage-list .tree-progress.is-empty { visibility: hidden; }
   .goal-stage-list .tree-progress > i { width: 34px; height: 2px; overflow: hidden; background: var(--line-strong); flex: none; }
   .goal-stage-list .tree-progress > i > b { display: block; width: var(--tree-progress); height: 100%; background: var(--green); }
@@ -328,7 +330,7 @@ export const GOAL_CANVAS_STYLES = `
   .goal-kanban-card-outcome { color: color-mix(in srgb, var(--ink) 78%, var(--muted)); font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .goal-kanban-card-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .goal-kanban-card-meta small { min-width: 0; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  body.immersive-workbench .goal-kanban-card .goal-status { display: inline-flex; align-items: center; gap: 4px; width: max-content; max-width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 11px; font-weight: 400; color: var(--goal-status-tone); }
+  body.immersive-workbench .goal-kanban-card .goal-status { display: inline-flex; align-items: center; gap: 4px; width: max-content; max-width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 12px; font-weight: 400; color: var(--goal-status-tone); }
   .goal-kanban-card:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   @container goal-board (max-width: 839px) {
     .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: block; top: calc(var(--control-h, 32px) + 20px); height: auto; overflow-x: hidden; overflow-y: auto; background: var(--paper); min-width: 0; max-width: 100%; }
@@ -381,7 +383,7 @@ export const GOAL_CANVAS_STYLES = `
     .goal-canvas-open, .goal-canvas-frame { opacity: 0; }
     .goal-canvas-node:hover .goal-canvas-open, .goal-canvas-node:hover .goal-canvas-frame, .goal-canvas-node:focus-within .goal-canvas-open, .goal-canvas-node:focus-within .goal-canvas-frame, .goal-canvas-node.is-selected .goal-canvas-open, .goal-canvas-node.is-selected .goal-canvas-frame { opacity: 1; }
   }
-  .goal-canvas-node > .goal-status { display: inline-flex; align-items: center; gap: 8px; grid-row: 3; grid-column: 1; align-self: end; width: max-content; padding: 0; border: 0; background: transparent; max-width: none; font-size: 11px; font-weight: 400; color: var(--goal-status-tone); }
+  .goal-canvas-node > .goal-status { display: inline-flex; align-items: center; gap: 4px; grid-row: 3; grid-column: 1; align-self: end; width: max-content; padding: 0; border: 0; background: transparent; max-width: none; font-size: 12px; font-weight: 400; color: var(--goal-status-tone); }
   .goal-canvas-node:focus-visible, .goal-canvas-open:focus-visible, .goal-canvas-frame:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .goal-canvas-viewport.is-reject { background-color: color-mix(in srgb, var(--amber) 8%, var(--canvas)); }
   .goal-canvas-node:hover { border-color: color-mix(in srgb, var(--ink) 22%, var(--line)); }
@@ -643,7 +645,7 @@ export const GOAL_CANVAS_STYLES = `
   .frame-goal-summary > p { max-width:76ch; margin:8px 0 12px; color:var(--ink-soft); font-size:13px; line-height:1.7; }
   .frame-goal-actions { display:flex; flex-wrap:wrap; gap:8px; }
   [data-frame-goal-status],
-  [data-workspace-goal-status] { display:inline-flex; gap:4px; align-items:center; min-height: 18px; padding: 1px 8px; border: 0; border-radius: 5px; background: color-mix(in srgb, var(--goal-status-tone, var(--muted)) 11%, transparent); color: var(--goal-status-tone, var(--ink-soft)); font-size: 12px; font-weight: 400; }
+  [data-workspace-goal-status] { display:inline-flex; gap:4px; align-items:center; min-height: 18px; padding: 1px 8px; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--goal-status-tone, var(--muted)) 11%, transparent); color: var(--goal-status-tone, var(--ink-soft)); font-size: 12px; font-weight: 400; }
   .frame-goal-actions svg { width:14px; height:14px; }
   .goal-frame-surface > .goal-frame-canvas { position:relative; inset:auto; flex:1; min-height:0; }
   .frame-empty { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:12px; padding:32px; text-align:center; pointer-events:none; }

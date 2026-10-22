@@ -1,5 +1,5 @@
 import { GIT_ACTIONS } from "./action-definitions.js";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_REVIEW_SETTLED_EVENT, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   CODING_CHANGESET_TYPE,
@@ -106,6 +106,8 @@ export const gitManifest: PluginManifest = {
         type_version: 1,
         from_plugin_ids: [CODING_PLUGIN_ID],
       },
+      // Operations Git asked for, once a person approved and the Host ran them. Only the Host sends it, so no source is named.
+      { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1 },
     ],
   },
   routes: [

@@ -1,8 +1,10 @@
-import type {
-  PluginAppContribution,
-  PluginCommandInput,
-  PluginDefinition,
-  PluginStartContext,
+import {
+  HOST_REVIEW_SETTLED_EVENT,
+  type HostReviewSettledPayload,
+  type PluginAppContribution,
+  type PluginCommandInput,
+  type PluginDefinition,
+  type PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import { GIT_OPERATION_UPDATED_EVENT, type GitOperationUpdate, gitEventTypes } from "./events.js";
@@ -20,8 +22,6 @@ import { gitRoutes } from "./routes.js";
  * change set from being a place where work can be committed.
  */
 export interface GitPluginPorts {
-  /** Host receipt observer; the returned disposer belongs to this activation. */
-  observeOperationSettled?(listener: (event: GitOperationUpdate) => void): () => void;
   /** Whether a workspace is bound and is a repository. */
   ready?(): boolean;
   onStop?(context: PluginStartContext): void | Promise<void>;
@@ -32,8 +32,6 @@ function objectIdFor(input: PluginCommandInput): string | null {
 }
 
 export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
-  const subscriptions = new Map<string, () => void>();
-  const key = (context: PluginStartContext) => `${context.install_id}:${context.project_id}`;
   return {
     manifest: gitManifest,
     event_types: gitEventTypes,
@@ -42,20 +40,9 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
       for (const permission of gitManifest.permissions) {
         if (permission.required) context.requireGrant(permission.permission);
       }
-      let active = true;
-      // Git's own pages read the working tree again (PG-061). Only from a delivery or the Host's receipt listener, which
-      // `stop` clears before anything else (BL-411).
+      // Git's own pages read the working tree again (PG-061). Only from a delivery: Git keeps no timer or listener that could
+      // call it once this activation has stopped (BL-411).
       const readAgain = () => context.services?.ui.invalidate();
-      const unsubscribe = ports.observeOperationSettled?.(event => {
-        if (!active) return;
-        // Publication checks this activation before Git's pages read again.
-        context.services?.events?.publish({ event_type_id: GIT_OPERATION_UPDATED_EVENT, type_version: 1, payload: event });
-        // The Host calls this listener, so a refusal must not reach its loop: revoked before `stop` cleared the listener,
-        // the activation has no pages left to read again.
-        try { readAgain(); } catch { /* Refused once revoked: this activation has no pages left to read again. */ }
-      });
-      subscriptions.get(key(context))?.();
-      subscriptions.set(key(context), () => { active = false; unsubscribe?.(); });
       return {
         kind: "app",
         views: [gitUiContribution],
@@ -82,17 +69,21 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
           repositoryReady = false;
           readAgain();
         },
-        onEvent: (_event, delivery) => {
-          // A Run wrote, or invalidated what it had prepared. Either way the
-          // working tree on screen may no longer be the one on disk.
+        onEvent: (event, delivery) => {
+          // A Run wrote, or invalidated what it had prepared; or an operation Git asked for has run (`host.review.settled@1`,
+          // sent only to this installation, S-54). Either way the working tree on screen may no longer be the one on disk.
           delivery.beforeEffect();
+          if (event.event_type_id === HOST_REVIEW_SETTLED_EVENT) {
+            const { workspace_id, operation_id, outcome } = event.payload as HostReviewSettledPayload;
+            // Files reads again on Git's own event, as before; publication checks this activation first.
+            const update: GitOperationUpdate = { workspace_id, operation_id, outcome };
+            context.services?.events?.publish({ event_type_id: GIT_OPERATION_UPDATED_EVENT, type_version: 1, payload: update });
+          }
           readAgain();
         },
       };
     },
     async stop(context: PluginStartContext): Promise<void> {
-      subscriptions.get(key(context))?.();
-      subscriptions.delete(key(context));
       await ports.onStop?.(context);
     },
     async health(): Promise<{ ok: boolean; message: string }> {

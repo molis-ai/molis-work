@@ -1,4 +1,5 @@
 import type { FormQuestionType } from "@molis-ai/molis-work-contracts/modules/form";
+import type { Reflow } from "@molis-ai/molis-work-design-system";
 import { arrive, download } from "./dom.js";
 import { renderPreview } from "./fields.js";
 import { openFillPage } from "./fill-page.js";
@@ -11,6 +12,9 @@ import { ask, placed, setBusy, setTab, showNote } from "./status.js";
 import type { FormFailure } from "./types.js";
 
 type FormFile = { filename: string; content: string; count: number };
+
+/** Neighbours ease to their new places when a question or an option moves or goes (the page's `molisReflow`, VUX-16/21). */
+const reflow: Reflow = (list, change) => (window.molisReflow ? window.molisReflow(list, change) : change());
 type Versioned = FormAnswer & { artifact: { artifact_id: string; version: number } };
 
 /**
@@ -149,7 +153,7 @@ const addOption: Command = {
 
 const removeOption: Command = {
   find: on("[data-option-remove]", false),
-  run(page, _found, target) { target.closest(".form-option-row")!.remove(); queueSave(page); },
+  run(page, _found, target) { const row = target.closest(".form-option-row")!; reflow(row.parentElement!, () => row.remove()); queueSave(page); },
 };
 
 const moveQuestion: Command = {
@@ -161,15 +165,18 @@ const moveQuestion: Command = {
     const siblings = [...questionsEl.children];
     const next = siblings.indexOf(rowEl) + delta;
     if (next < 0 || next >= siblings.length) return;
-    if (delta < 0) questionsEl.insertBefore(rowEl, siblings[next]!);
-    else questionsEl.insertBefore(siblings[next]!, rowEl);
+    reflow(questionsEl, () => {
+      if (delta < 0) questionsEl.insertBefore(rowEl, siblings[next]!);
+      else questionsEl.insertBefore(siblings[next]!, rowEl);
+    });
+    found.focus();
     queueSave(page);
   },
 };
 
 const removeQuestion: Command = {
   find: on("[data-question-remove]", false),
-  run(page, _found, target) { target.closest("[data-form-question]")!.remove(); queueSave(page); },
+  run(page, _found, target) { const row = target.closest("[data-form-question]")!; reflow(page.questionsEl, () => row.remove()); queueSave(page); },
 };
 
 const draftWithModel: Command = {

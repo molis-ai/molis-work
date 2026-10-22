@@ -7,7 +7,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
-import { createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
+import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { FORM_DATABASE, createFormPlugin } from "@molis-ai/molis-work-plugin-form";
 import { DATASET_DATABASE, createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
@@ -18,7 +18,7 @@ import { WORKFLOWS_DATABASE, createWorkflowsPlugin } from "@molis-ai/molis-work-
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { SqlitePluginPrivateStorage, outsidePluginAction, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
+import { SqlitePluginPrivateStorage, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
@@ -27,7 +27,6 @@ import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-p
 import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./review-settlement-events.js";
 
 export interface ProjectPluginPorts {
-  observeGitOperations?(listener: (event: GitOperationUpdate) => void): () => void;
   /** Settled person-reviewed plugin operations, sent to the installation that asked as `host.review.settled@1` (X-6). */
   observeReviewSettlements?: ObserveReviewSettlements;
   store: LocalProjectDatabase;
@@ -107,7 +106,7 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
     if (existing.ports.actorId !== ports.actorId || existing.ports.homeDirectory !== ports.homeDirectory
       || existing.ports.actions.project_id !== ports.actions.project_id) throw new Error("项目插件实例的 Home、用户或项目身份不一致");
     // Entry-point adapters can arrive after headless discovery; identity and storage stay bound.
-    for (const key of ["workspaces", "routePrefix", "observeGitOperations", "observeReviewSettlements"] as const) {
+    for (const key of ["workspaces", "routePrefix", "observeReviewSettlements"] as const) {
       if (ports[key] !== undefined) Object.assign(existing.ports, { [key]: ports[key] });
     }
     const state = await existing.ready;
@@ -154,24 +153,11 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         },
       } : undefined;
     const filesPorts = { readable: () => currentWorkspaceId(ports) !== null };
-    const operationListeners = new Set<(event: GitOperationUpdate) => void>();
-    let observer: ProjectPluginPorts["observeGitOperations"], unsubscribe: (() => void) | undefined, closed = false;
+    let closed = false;
     const settlements = reviewSettlementForwarder(platform.hostEvents);
-    record.updateObservers = () => {
-      if (closed) return;
-      settlements.update(ports.observeReviewSettlements);
-      if (observer === ports.observeGitOperations) return;
-      unsubscribe?.(); observer = ports.observeGitOperations;
-      // The Host delivers a settled operation on its own behalf, outside whichever action settled it: Git publishes for its own installation (S-18).
-      unsubscribe = observer?.(event => { if (!closed) outsidePluginAction(() => { for (const listener of operationListeners) listener(event); }); });
-    };
-    record.stopObservers = () => { closed = true; unsubscribe?.(); settlements.stop(); operationListeners.clear(); };
+    record.updateObservers = () => { if (!closed) settlements.update(ports.observeReviewSettlements); };
+    record.stopObservers = () => { closed = true; settlements.stop(); };
     record.updateObservers();
-    const gitPorts = {
-      observeOperationSettled(listener: (event: GitOperationUpdate) => void) {
-        operationListeners.add(listener); return () => { operationListeners.delete(listener); };
-      },
-    };
     const entries: PluginPlatformEntry[] = [
       {
         definition: createShelfPlugin(shelfPorts),
@@ -199,10 +185,10 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           "@molis-ai/molis-work-plugin-diff", "createDiffPlugin", factory => factory()),
       },
       {
-        definition: createGitPlugin(gitPorts),
+        definition: createGitPlugin(),
         bundled: true,
         releaseArtifact: nativePluginReleaseArtifact<typeof createGitPlugin>(
-          "@molis-ai/molis-work-plugin-git", "createGitPlugin", factory => factory(gitPorts)),
+          "@molis-ai/molis-work-plugin-git", "createGitPlugin", factory => factory()),
       },
       {
         definition: createTextStatsPlugin(),

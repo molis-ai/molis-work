@@ -13,7 +13,7 @@ export interface NativePluginJsonResult {
   readonly mime?: string;
 }
 
-function matchesNativePluginPrefix(pathname: string, prefix: string): boolean {
+export function matchesNativePluginPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 

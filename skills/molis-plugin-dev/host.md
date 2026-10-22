@@ -151,6 +151,12 @@ Inbox 的显式判断与 Feed 入箱事件已这样接通，参考 `plugins/nati
 1. Manifest `events.subscribes`，`from_plugin_ids` 写死来源，不许通配。
 2. `start()` 返回 `onEvent`。
 
+宿主事件（X-6，S-54）：宿主自己发的事件，现在只有 `host.review.settled@1`，只发给发起这个审查的那个安装（类型与载荷在合同 `platform/plugin` 的 `HOST_REVIEW_SETTLED_EVENT`、`HostReviewSettledPayload`）。
+
+1. Manifest `events.subscribes` 写 `{ event_type_id: "host.review.settled", type_version: 1 }`，不写 `from_plugin_ids`（写了读 Manifest 时就拒绝）。
+2. 同一个 `onEvent` 接收：`event.source_plugin_id` 是 `"host"`，`sequence` 是 0，`correlation_id` 是 `review_id`。
+3. 只在插件运行时投、至多一次，不落库、不重投，停着就错过：拿 `operation_id` 读操作的现状，不要把这条事件当唯一的事实来源。
+
 构建期 Native（Feed/Inbox/Pages/…）没有这条总线。不要为了「完整」给它们加 `events:`。Integration 的进来走 Signal，不是这条总线。Functions「事件去向」也不是。
 
 Workbench 标签选中是另一种纯 UI 通知：Host 在当前插件根节点派发 `molis-work:select-item`，`detail.itemId` 为对象 ID，回到插件列表时为 `null`。Pages 等插件通过自己的公开 HTTP 读取对象并恢复编辑器；切换时要保存未落盘输入，忽略过期读取。要的对象读不到（已删除）时：在条目本来的位置用自己的话说明（`mw-alert`，留在页面上，不用会消失的轻提示），并在插件根上发 `molis-work:item-unreadable`（`{ itemId }`，冒泡），工作台就不会按标签名给这个面命名、助理也不会把它当「正在看」带上；`detail.quiet` 为真时是人没要的重开（重新载入、后退），只发事件、不出声。这个 DOM 通知不承担跨插件业务写入，也不是 Plugin Runtime 事件合同。

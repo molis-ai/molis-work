@@ -2,6 +2,7 @@ import { bindActionClient, type ActionCallContext, LOCAL_PERSON_ACTOR_ID } from 
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { shownProjectPlugins, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { observeGitOperations } from "./git-operation-notifications.js";
+import { observeReviewSettlements } from "./review-settlement-events.js";
 import { localWebActionContext, type bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { bindGoalsWebActions } from "./goals-actions.js";
@@ -37,7 +38,7 @@ export interface ProjectRuntimeContext extends ProjectRequestContext {
 }
 
 /** The services every project plugin surface is given: the unified action client, the Home, the native-Agent workspaces and terminal, and Git operation updates. */
-type ProjectPluginServices = Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "characterWorkspaces" | "characterSpawn" | "observeGitOperations">;
+type ProjectPluginServices = Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "characterWorkspaces" | "characterSpawn" | "observeGitOperations" | "observeReviewSettlements">;
 
 export function projectRequestContext(context: WebRequestContext, options: ResolvedWebBoardOptions): ProjectRequestContext {
   const { localHost, composition, serverOptions } = context;
@@ -65,6 +66,7 @@ export function projectPluginServices({ localHost, hostReference, options, agent
   return {
     actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, project_id: hostReference.project_id, inspect: caller => localHost.inspectActions(caller, hostReference) },
     observeGitOperations: listener => observeGitOperations(agentHost.reviews, options.projectId, listener),
+    observeReviewSettlements: listener => observeReviewSettlements(agentHost.reviews, options.projectId, listener),
     characterSpawn: request => ptyHost.spawn(request),
     characterWorkspaces: () => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => options.project ? catalog.listWorkspaceDirectory(options.project.project_id) : []),
     homeDirectory: serverOptions.homeDirectory,

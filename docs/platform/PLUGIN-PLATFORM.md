@@ -29,9 +29,9 @@
 | --- | --- | --- | --- |
 | 能力 | `requires[].capability_id@version` | Kernel 注册表里任意 provider | 必需项不满足则不激活，给具名诊断 |
 | 端口输入 | `ports.inputs[]` 的 Artifact 类型 | 任意产出该类型的输出端口，由用户连线绑定 | 输入未齐：可激活但不投递，状态 `missing` |
-| 事件订阅 | `events.subscribes[].from_plugin_ids` | 明确点名的来源插件 | 来源未安装：静默不匹配，不算故障 |
+| 事件订阅 | `events.subscribes[].from_plugin_ids` | 明确点名的来源插件；宿主事件（`host.` 前缀）不写来源，只由宿主发 | 来源未安装：静默不匹配，不算故障 |
 
-事件订阅必须点名来源、不许通配符：这是**路由限制**而不是实现依赖，目的是不让第三方插件默默接收别人的事件。
+事件订阅必须点名来源、不许通配符：这是**路由限制**而不是实现依赖，目的是不让第三方插件默默接收别人的事件。宿主事件（X-6）例外：来源只能是宿主，订阅只写类型与版本；写了 `from_plugin_ids`、或订阅宿主没有的 `host.` / `molis.` 类型与版本，读 Manifest 时就拒绝。
 
 Manifest 内部的一致性由解析器保证，而不是留到运行时才炸：声明输出端口必须同时声明 `artifact:write`
 且把端口类型列进 `process_items.produces`（交给别的插件的过程项）或 `artifacts.produces`（先固定、再选择进端口的成果）；
@@ -47,6 +47,9 @@ Manifest 内部的一致性由解析器保证，而不是留到运行时才炸�
   事件落项目库，游标绑定订阅安装和世代；同一安装重启可续接未派出的事件，重装从当前日志尾建立新订阅。先持久记录 delivering，再执行处理器；崩溃、撤权等留下的未知结果隔离，不自动重放，不能承诺任意外部副作用 exactly-once。旧无身份游标原样保留为不参与当前投递的历史。正文上限 16 KiB，事件只携带协调事实。
   处理器使用自己的安装身份和 `delivery.signal/beforeEffect()`，不得保存原发布者的临时调用授权；每次异步等待后、产生副作用前重新检查。Files/Git 的刷新端口接收该控制，Host 适配也须检查。停止后的发布 client 不能复用，关闭数据库前 `await events.close()`。
   未知处理在当前项目「插件 → 待核对的插件通知」查看，先核对实际副作用，再填写依据并明确重试或跳过当前一条。重试可能重复副作用，不作为默认选择；关闭弹窗不改变进度。Host 的 `/api/plugins/runtime/events` 与 `/events/recover` 是受控本地用户管理协议，沿用 Runtime 升级/重启的项目及 control-token 边界，不交给插件 clients 或自动 Agent。确认绑定所见 revision、事件、安装世代和版本；过期确认拒绝，决定与历史同事务落库。仅重新启用插件不能解除事件隔离。
+- **宿主事件**（X-6，S-54）：宿主自己发、插件按声明订阅的事件。现在只有 `host.review.settled@1`：人批准的插件操作执行完、结果定下（成功、失败、不明）时，发给发起这个审查的那个安装，载荷 `{ review_id, kind, operation_id, workspace_id, outcome }`，别的插件订阅了也收不到。
+  投递在 `packages/plugin-runtime/src/host-events.ts` 的 `PluginHostEvents`，不写事件日志：即时、至多一次，不落库、不建游标、不为它启动插件、不重投。收件安装要正在运行、仍启用、安装世代没变、当前 Manifest 订阅了这个类型与版本，还是发出时那一份运行中的贡献；发出时核一次，调用处理器的那一刻再核一次。处理器用同一个 `onEvent`，在动作之外跑，用订阅者自己的身份与 `delivery.signal/beforeEffect()`，抛错只报 `observeFailures`；`source_plugin_id`、`source_install_id` 是 `"host"`，`sequence` 是 0，`correlation_id` 是 `review_id`。插件拿到的事件客户端只有 `publish`，发不了宿主事件。
+  不落库是有意的（10-22 ① 定）：错过一次不丢事实，插件拿 `operation_id` 能读到操作的现状。以后哪条宿主事件真要保证送达，单独设计并先问用户（要升项目库版本、动真实 Home 的维护流程）。X-6 的另一种来源，构建期插件与 Module 写进项目库事件流的领域事件，还没有订阅口。
 - **输入图**：端口连线、输入组、固定 Artifact 版本投递、失效先撤权再通知、跨作用域一致性检查。
   连线和端口当前版本都落库，重启后恢复。
 - **声明式装配**：导航位置、命令、HTTP 路由全部由 Manifest 推导；路由统一挂在

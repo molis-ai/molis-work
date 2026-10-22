@@ -1,6 +1,6 @@
 # 2026-10 独立 QA 与验收
 
-状态：首轮独立验收报告已完成；七条线现列987个编号（E21新增8项，收尾补入19项），均有判定、证据边界与SHA，新增QA-001～032，其中QA-001/002/003/004/005/006/007/008/013/014/015/016/019/020/022/023/024已复验，QA-021仍有启动次数证据说明余项。已知P1 #709原草稿路径已复验，已知P1 PG-110经#812合入后在972d571dc按原六输入及定向拒绝复验，原问题已复验；QA-017/018已补生产界面二级证据，自动化断言余项仍在。产品实走及三级用户验收仍有缺口，尚不满足最终完成标准，七条线均不能据此归档。
+状态：首轮独立验收报告已完成；七条线现列987个编号（E21新增8项，收尾补入19项），均有判定、证据边界与SHA，新增QA-001～034，其中QA-001/002/003/004/005/006/007/008/013/014/015/016/019/020/022/023/024已复验，QA-021仍有启动次数证据说明余项。已知P1 #709原草稿路径已复验，已知P1 PG-110经#812合入后在972d571dc按原六输入及定向拒绝复验，原问题已复验；QA-017/018已补生产界面二级证据，自动化断言余项仍在。产品实走及三级用户验收仍有缺口，尚不满足最终完成标准，七条线均不能据此归档。
 
 验收编号：不适用（独立验收记录，判定的是各线 spec 的编号）。
 
@@ -240,9 +240,9 @@ E19/E20执行基线为`ad5a60abb578df71880308d7a1d5bf945816fc6e`，离线安装�
 | Computer Use（15） | 1 | 10 | 0 | 4 | 0 | 不能：Helper三项权限及二十步真机、成本与实际裁剪/OCR；QA-008文档已复验 |
 | 回执（112） | 36 | 56 | 0 | 20 | 0 | 不能：QA-009～012、Coding完整状态/强杀/异常矩阵、R1与3e后续及阶段4～6 |
 | 情境（104） | 17 | 78 | 0 | 9 | 0 | 不能：QA-017/018/026/028/030、W1/W4后续、W5～W7及原生/完整状态矩阵；QA-013/014/015/016/024已复验 |
-| 防腐（636） | 401 | 222 | 0 | 13 | 0 | 不能：QA-021/025/028/031/032、剩余迁移、后续SHA全量及完整产品矩阵；QA-020、PG-110原问题已复验 |
+| 防腐（636） | 401 | 222 | 0 | 13 | 0 | 不能：QA-021/025/028/031/032/033/034、剩余迁移、后续SHA全量及完整产品矩阵；QA-020、PG-110原问题已复验 |
 
-新增问题共32项，均为P2/P3；没有新增P0/P1编号。本轮确认的网关安全缺口沿用已知PG-110。已知安全P1 PG-110沿用原编号，#812合入后E18在972d571dc原六输入均拒绝、处理器与副作用计数均0，另19项定向通过；原问题已复验，旧失败证据仍保留。RAC-17恢复为部分通过，不把局部修复扩大为完整授权矩阵或归档。QA-001/002/003/004/005/006/007/008/013/014/015/016/019/020/022/023/024已复验，QA-020文档余项经E12复验，QA-021余项及其余修复状态见问题表；没有用户接受不修的记录。
+新增问题共34项，均为P2/P3；没有新增P0/P1编号。本轮确认的网关安全缺口沿用已知PG-110。已知安全P1 PG-110沿用原编号，#812合入后E18在972d571dc原六输入均拒绝、处理器与副作用计数均0，另19项定向通过；原问题已复验，旧失败证据仍保留。RAC-17恢复为部分通过，不把局部修复扩大为完整授权矩阵或归档。QA-001/002/003/004/005/006/007/008/013/014/015/016/019/020/022/023/024已复验，QA-020文档余项经E12复验，QA-021余项及其余修复状态见问题表；没有用户接受不修的记录。
 
 ## 4. 各线逐条验收
 
@@ -985,8 +985,8 @@ FU另在同一临时Home实际创建Pages A/B与灵光A/B，正常点击能开�
 | W2-18-FIXED-INPUT-01 | 通过 | 一级 | 用例“W2-18-FIXED-INPUT-01, W2-18-FIXED-INPUT-02: real library bindings reach SDK and Diff, stay exact, recover and reopen”；`tests/plugin-fixed-input-sdk.test.ts:112`（F4 3/3）。成果库固定绑定经SDK reference/read进入Diff真实差异，固定版本不换最新 | — | `7d1cc4bfa` |
 | W2-18-FIXED-INPUT-02 | 通过 | 一级 | 用例“W2-18-FIXED-INPUT-01, W2-18-FIXED-INPUT-02: real library bindings reach SDK and Diff, stay exact, recover and reopen”；`tests/plugin-fixed-input-sdk.test.ts:112`（F4 3/3）。重绑归档撤权和重开读取状态一致；旧activation拒绝，缺旧版不选新版 | — | `7d1cc4bfa` |
 | W2-18-FOLLOWUP-DELETE-01 | 通过 | 一级 | 用例“W2-18-FOLLOWUP-DELETE-01 deletion during ${stage} stops future dispatch and cannot resurrect the row”；`tests/assistant-followup-deletion.test.ts:31`（F4 8/8）。读取/排程等待中删跟进，后续不派出不复活；已派出轮次按事实保留 | — | `7d1cc4bfa` |
-| W2-18-FORM-ANSWER-01 | 部分通过 | 一级、二级（原生路径） | E26五类题/4000字/本机收集及停止/真实HTML证据保留；E27补390中文深色空提交拒绝→文字/下拉仅键盘提交→1份答卷；owner边界1/1通过 | QA-031在三宽中深/英浅仍裁切；离线HTML受工具安全策略限制，离线填写及导回仍仅原FB一级 | 4591a1484（E26 aa327；原FB7d1） |
-| W2-18-FORM-LABEL-01 | 部分通过 | 一级、二级（原生路径） | E26五类字段题名/必填/键盘；E27补390中文深色文字/下拉题名与必填拒绝、键盘提交；select-menu原1/1通过；Form编辑页三宽中深/英浅目视 | 新QA-032编辑页Required选中态不可辨；离线页和真实读屏未验，不把编辑页矩阵扩成所有填写状态 | 4591a1484（旧证据见历史段） |
+| W2-18-FORM-ANSWER-01 | 部分通过 | 一级、二级（原生路径） | E28正常新表单，390中文深色空提交拒绝→文字/下拉仅键盘提交→1份试填，设计组1/工程组0；owner边界1/1；E26五类题/4000字/正式收集证据保留 | QA-031在三宽中深/英浅仍裁切；离线HTML受工具安全策略限制，填写及导回仍仅原FB一级 | b91d5b534（旧证据各见历史段） |
+| W2-18-FORM-LABEL-01 | 部分通过 | 一级、二级（原生路径） | E28文字/下拉题名、空答拒绝、390键盘提交及三宽中深/英浅目视；390英浅第一项false/第二项true均为空框，恢复并等保存后必填约束仍生效 | QA-032仍复现；离线页、真实读屏和全部填写状态未验；原select-menu一级证据保留 | b91d5b534（旧证据见历史段） |
 | W2-18-FUNCTION-CHOICE-01 | 通过 | 一级 | 用例“W2-18-FUNCTION-CHOICE-01 raw out-of-enum answers cannot save a preview, publish, or persist a successful judgment”；`tests/functions-choice-validation.test.ts:11`（F4 1/1）。原始越枚举回答在预览发布和判断落库前拒绝；正常及待复核分类正确 | — | `7d1cc4bfa` |
 | W2-18-FUNCTION-LATE-01 | 部分通过 | 一级 | 用例“W2-18-FUNCTION-LATE-01: sample save captures A and its input before waiting for the draft; a previously opened B can finish while A is saving”；`tests/workbench-functions-late.e2e.test.ts:50`（FB 4/4）。规则A样本保存删除迟到不改B，原输入目标版本固定；同规则新编辑保留；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
 | W2-18-GIT-CONFLICT-01 | 通过 | 一级 | 用例“W2-18-GIT-CONFLICT-01 refuses changed ${changed} and preserves disk, index and external sentinel”；`tests/git-operations.test.ts:237`（F1 16/16）。真实冲突准备后改正文，批准拒绝且新正文/index保留 | — | `7d1cc4bfa` |
@@ -1018,7 +1018,7 @@ FU另在同一临时Home实际创建Pages A/B与灵光A/B，正常点击能开�
 | W2-18-PAGE-CARDS-01 | 部分通过 | 一级 | 用例“W2-18-PAGE-CARDS-01: both page cards remain visible and executing or ignoring each survives rereading”；`tests/assistant-page-cards.e2e.test.ts:8`（FB 1/1）。同一工作两张页面卡均保留；执行忽略重读各自状态与Host一致；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
 | W2-18-PAGES-ACTIONS-01 | 部分通过 | 一级 | 用例“W2-18-PAGES-ACTIONS-01: real candidate inserts exact unchecked tasks once and refuses a changed frozen passage”；`tests/content-editing-regressions.e2e.test.ts:176`（FB 9/9）。普通选区AI任务候选插后保原文；unchecked任务精确落SQL；范围变化拒绝无重复；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
 | W2-18-PAGES-CALLOUT-01 | 部分通过 | 一级 | 用例“W2-18-PAGES-CALLOUT-01: a callout popup belongs to its original document; the new document has working controls”；`tests/content-editing-regressions.e2e.test.ts:71`（FB 9/9）。真实编辑器旧callout弹层回调不能修改新文档；新控件正常；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
-| W2-18-PAGES-COMMENT-01 | 部分通过 | 一级 | 用例“W2-18-PAGES-COMMENT-01: a plain comment popup follows its original range and refuses a replaced document”；`tests/content-editing-regressions.e2e.test.ts:12`（FB 9/9）。真实编辑器评论锚点随文本映射；替换文档后旧弹层不能写新文档；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-PAGES-COMMENT-01 | 部分通过 | 一级；相邻侧栏路径有二级 | E28原content-editing-regressions用例1/1；正常Pages选第二段→评论→建第二篇→切回，评论只在原篇；实际UI经onComment侧栏，与标准指定无onComment弹层不同 | 已知（W2-18-FR）；无回调弹层映射、替换Doc后旧按钮拒绝仍仅一级，不用相邻路径关闭此缺口 | b91d5b534（原FB 7d1） |
 | W2-18-PAGES-CREATE-01 | 部分通过 | 一级 | 用例“W2-18-PAGES-CREATE-01: ${operation} reply after new typing preserves the real draft and honest SQL outcome”；`tests/content-editing-regressions.e2e.test.ts:122`（FB 9/9）。真实创建/提取迟到回执保等待时新输入；SQL已提交事实与冲突提示如实；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
 | W2-18-PAGES-EXPORT-01 | 部分通过 | 一级 | 用例“W2-18-PAGES-EXPORT-01: real Markdown/HTML download and print-frame document preserve independent rich facts”；`tests/content-portable-regressions.e2e.test.ts:83`（FB 本用例通过；全文件2/3）；`tests/content-owner-regressions.test.ts:89`（F4 11/11）。实际Markdown/HTML Blob及打印iframe保表格多段卡片提及；原文不变，系统打印未验；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
 | W2-18-PAGES-READONLY-01 | 部分通过 | 一级 | 用例“W2-18-PAGES-READONLY-01: real Back/import/publish/extract never save the empty placeholder; valid replacement reopens”；`tests/content-editing-regressions.e2e.test.ts:98`（FB 9/9）。未知文档只读占位，Back/导入/提取/发布不写空正文；有效替换恢复编辑；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
@@ -1050,7 +1050,7 @@ FU另在同一临时Home实际创建Pages A/B与灵光A/B，正常点击能开�
 | W2-18-STOP-FEEDBACK-01 | 部分通过 | 一级 | 用例“W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its diagnostic; a lost reply is unknown with no retry; success stops the process and follows the owner projection”；`tests/workbench-stop-feedback.e2e.test.ts:55`（FB 1/1）。真实后台子进程停止被拒/丢响应/成功分别显示；未知不自动重试；缺独立实走 | 已知（W2-18-FR、BL-141） | `7d1cc4bfa` |
 | W2-18-THINKING-BUDGET-01 | 通过 | 一级 | 用例“real Prologue SDK enforces the declared ${mode} budget”；`tests/agent-budget-prologue.test.ts:23`（F4 6/6）。锁定SDK显式7与thinking请求/frozen/usage一致；各预算耗尽不再派出 | — | `7d1cc4bfa` |
 | W2-18-TODO-DATE-01 | 通过 | 一级 | 用例“W2-18-TODO-DATE-01: new and existing todos use the same literal date and time despite contradictory model dates”；`tests/todo-organize.test.ts:48`（F4 17/17）。原文日期优先于矛盾模型；已有手改字段保护，采用后SQL及历史准确 | — | `7d1cc4bfa` |
-| W2-18-TODO-DRAFT-01 | 部分通过 | 一级 | 用例“W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and block navigation or follow-up writes; retry and explicit discard recover”；`tests/todo-draft-recovery.e2e.test.ts:6`（FB 1/1）。待办草稿失败/重载恢复原输入，显式成功后清理；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-TODO-DRAFT-01 | 部分通过 | 一级、二级（空标题/真实冲突/显式重新读取） | E28正常建两待办，空标题阻止返回和换项；真实第二页签保存后A冲突保稿；取消重新读取保稿，确认后读B新版本，修正保存后重开正确；原todo-draft-recovery1/1 | 新QA-034恢复后列表旧冲突提示不清；500/断网/日期/关联/换归属全矩阵仍一级。显式重新读取不是浏览器刷新恢复草稿 | b91d5b534（原FB 7d1） |
 | W2-18-UPGRADE-SECRETS-01 | 部分通过 | 一级 | 用例“an upgrade with new consent secrets preserves ${choice === 'catalog-failure' ? 'the old release on catalog failure' : 'the newer ' + choice + ' choice'}”；`tests/installed-plugin-host.test.ts:602`（FN24 21/21）；`tests/agent-built-plugins-network.test.ts:55`（F1 7/7）；`tests/agent-studio.e2e.test.ts:407`（FB首轮1/3；同SHA干净Node24复跑3/3，`anti-studio-node24.log`）。批准值经升级供受控HTTPS；公开无密钥，失败回收不损旧版或较新选择；缺独立实走；Node24解除沙箱环境阻塞，浏览器工程通过仍不替代独立实走 | 已知（W2-18-FR、BL-125） | `7d1cc4bfa` |
 | W2-18-WF-OPEN-01 | 部分通过 | 一级 | 用例“W2-18-WF-OPEN-01: real search replaces B with A, object tabs reopen A, and the no-ID request returns to the directory”；`tests/workflows-open-object.e2e.test.ts:32`（FB 2/2）。正式搜索/懒挂载/恢复标签真打开目标A，标题正文助理上下文一致；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
 | W2-18-WF-STOP-01 | 通过 | 一级 | 用例“W2-18-WF-STOP-01: stop reaches Form's final effect after its model wait and no later station runs”；`tests/workflows-stop-effects.test.ts:48`（F4 2/2）。停止传到真实Form模型等待后的最后效果点；无晚题目版本或下一站 | — | `7d1cc4bfa` |
@@ -1614,7 +1614,7 @@ FU另在同一临时Home实际创建Pages A/B与灵光A/B，正常点击能开�
 | W5-10-PGV-01 | 部分通过 | 一级 | `tests/pages-plugin.test.ts`（F4 127/127）；F0 现行 build/health/API/boundary 与资源门禁通过；未独立重做原重构前后 AST/声明等价比较，仅证明当前结构和合同；历史94声明逐项等价未由本轮重复核查 | — | 7d1cc4bfa |
 | W5-10-PGV-02 | 部分通过 | 一级、二级 | E20原Pages双选准备、灵光取消/丢弃刷新通过；对应三文件4/4，原阻断消除；历史工程范围保留，复合标准完整往返及矩阵仍缺 | QA-024已复验 | ad5a60abb |
 | W5-10-PGF-01 | 部分通过 | 一级 | `tests/pages-find.e2e.test.ts`（F5 1/1）；F0 现行 build/health/API/boundary 与资源门禁通过；未独立重做原重构前后 AST/声明等价比较，仅证明当前结构和合同；查找视图现有语义有Chrome结果，原63声明等价不是本轮证据 | — | 7d1cc4bfa |
-| W5-10-PGF-02 | 部分通过 | 一级 | `tests/pages-find.e2e.test.ts`（F5 1/1）；正式资源/真实ProseMirror：大小写查找、高亮计数、双向循环、单个/全部/空替换、undo/Escape/重开/销毁；公开mount夹具仅一级 | — | 7d1cc4bfa |
+| W5-10-PGF-02 | 部分通过 | 一级、二级（正常项目文稿） | E28真实Pages正文，ALPHA大小写查找、双向循环、单个/全部/空替换、撤销、Esc回焦、重开和刷新保持正文；pages-find原1/1；1440/1024浅深可见 | 新QA-033：390浅深查找栏输入/计数被双行页签挡住，刷新/重开仍在；公开mount夹具不覆盖真实项目壳层 | b91d5b534（原F5 7d1） |
 | W5-10-PGH-01 | 部分通过 | 一级 | `tests/pages-block-drag.e2e.test.ts`（F5 2/2）；F0 现行 build/health/API/boundary 与资源门禁通过；未独立重做原重构前后 AST/声明等价比较，仅证明当前结构和合同；原状态/事件/命令顺序和27出口历史比对未重做 | — | 7d1cc4bfa |
 | W5-10-PGH-02 | 部分通过 | 一级 | `tests/pages-block-drag.e2e.test.ts`（F5 2/2）；实际Chrome pointer：预览不写、释放移动、Alt复制、undo、Escape/正文改变取消/重挂；非系统拖放、仅一级 | — | 7d1cc4bfa |
 | W5-10-PGI-01 | 部分通过 | 一级 | `tests/pages-insert-plugins.e2e.test.ts`（F5 2/2）；F0 现行 build/health/API/boundary 与资源门禁通过；未独立重做原重构前后 AST/声明等价比较，仅证明当前结构和合同；原实现除段间外层的逐声明等价未本轮重做 | — | 7d1cc4bfa |
@@ -1698,7 +1698,7 @@ L1：7d1的late-criteria.log，六个定向文件9项通过；按编号筛选实
 | RCPT-395 | 通过 | 一级 | 人点建议只带核验轮所属会话；伪身份/错轮拒绝零运行；跨会话接入拒绝零连接，同会话可过发起者检查 | — | ad5a60abb |
 | W4-2-01 | 部分通过 | 一级、二级 | E22 destinations规则跳过提案/批量、判断可点名；实际规则更多保留Goals | 未手测全部目录排列与判断组合 | 2571a328a（旧证据见历史段） |
 | W4-2-02 | 部分通过 | 一级 | E22 destinations仅剩提案/批量不占主位且列在更多；断言读后运行通过 | 纯此目录的二级未实走 | 2571a328a（旧证据见历史段） |
-| W4-2-03 | 部分通过 | 一级、二级 | E27正常Shelf选段存Pages，中/英标题仍来自隐藏对话框文案，正文/来源正确；中文1024深色用键盘完成；contextual-create2/2及Shelf2/2 | QA-030保持新；QA-026页签UUID仍在；全粒度未补 | 4591a1484（旧证据见历史段） |
+| W4-2-03 | 部分通过 | 一级、二级 | E28正常Shelf无标题两段→分别中文深色/英文浅色存Pages，标题仍为界面文案，正文/来源正确；contextual-create2/2及Shelf2/2 | QA-030保持新；QA-026页签UUID仍在；全粒度未补 | b91d5b534（旧证据见历史段） |
 | W4-2-04 | 部分通过 | 一级、二级（部分） | E24未编辑新文稿撤销后消失；人工编辑第2版后同选区重放无撤销按钮，公开owner回读仍保人工补充。E22原令牌拒绝工程证据保留 | 原完成提示已消失，未手动点到旧令牌拒绝；不冒称此分支二级通过 | 73ce89eb0（旧证据见历史段） |
 | W4-2-05 | 通过 | 一级、二级 | E22真实Pages选段出三步草稿，提交前Goals/提案未增加；执行后仅提案、说明还需确认、准确链接；create合同对照 | 仅本条草稿/提案标准，不代替13完整审批组合 | 2571a328a（旧证据见历史段） |
 | W4-2-06 | 通过 | 一级 | E22 pages-actions声明、标题/emoji截断、空白/词/对象、幂等换内容拒绝、read权限拒绝逐项通过 | 工程合同 | 2571a328a（旧证据见历史段） |
@@ -1734,7 +1734,7 @@ L1：7d1的late-criteria.log，六个定向文件9项通过；按编号筛选实
 | 编号 | 判定 | 证据等级 | 证据与边界 | 问题编号／去处 | SHA |
 | --- | --- | --- | --- | --- | --- |
 | PA-40 | 通过 | 一级、二级 | E23正常新Home空态→关联自建目录→空组→已保存列表；HTTP真实项目隔离/撤权拒绝，PA-26补realpath_verified=false拒绝 | adoption§6.0p.13；撤权接口断言为一级，不冒称手动撤权 | 73ce89eb0 |
-| PA-41 | 部分通过 | 一级、二级 | E27真实合法v1→非法程序拒绝；双页签B保存v2→A冲突保稿、列表仍v2，错误仍被页脚遮挡；write-checkers HTTP5/5、浏览器3/3通过 | QA-029保持新：1440/390浅色英文重现；E23其余非法配置证据保留 | 4591a1484（旧证据73ce） |
+| PA-41 | 部分通过 | 一级、二级 | E28真实合法v1→非法程序拒绝仍v1；双页签B保存v2→A冲突保稿，取消重读仍为B/v2；错误仍被页脚遮挡；HTTP5/5、浏览器3/3 | QA-029保持新：非法配置1440/390、真实冲突1440复现；E23其余矩阵保留 | b91d5b534（旧证据见历史段） |
 | PA-42 | 通过 | 一级、二级 | E23参数7项含引号/反斜杠/空串/空格，改名后回读逐项相同、2500ms；node/node-2独立，排序/删除取消/Esc/确认及焦点实走；动作非法组合定向通过 | 工程边界组合与实际用户路径分列§4.12 | 73ce89eb0 |
 | PA-43 | 通过 | 一级、二级 | E23正常警示删除对话框、键盘回焦点、中文浅色和英文深色三宽；HTTP源码/资产断言确认文案模板、无confirm/innerHTML、全局页不带定义与条件绑定 | 符合本项具体标准；错误提示可见性另归QA-029/PA-41 | 73ce89eb0 |
 | RCPT-368 | 未验证 | 文审，无该版本独立动态证据 | v7 person/host来源、旧1～6拒绝与助理转发未按本编号独立核完；旧RC-01 v6不能替代 | 已实现#793，库存遗漏纠正 | 73ce89eb0 |
@@ -1847,6 +1847,36 @@ node scripts/run-tests.mjs tests/write-checkers-settings-http.test.ts tests/writ
 
 服务只按本批PID68197停止；日志outbound=0、blocked=0、closed=true。实走Home与测试父目录均经临时前缀、父目录和非软链核验后删除，产品树保持干净。报告PR索引与新main冲突仅通过移动自身QA索引行到“在做的”末尾消除，未改其他索引内容或合入产品分支。收尾fetch仍为4591a1484，未发现QA-029～031对应修复合入；三项按原步骤仍复现，未达到关闭条件。
 
+### 4.17 E28零模型实走：编辑、冲突恢复与原问题复验（2026-10-23 JST）
+
+**范围与基线。** 执行 main 为 `b91d5b534ea7841019fe1ee56ffdd132487f3d10`，新detached树、离线安装、Node 24与完整构建成功。七线本批模型上限各0、实际0，累计仍68/102，不读密钥。正常UI创建虚构项目“QA E28 编辑与恢复”，使用新一次性Home和58944端口。交互/采用、Pages/情境开跑前fetch仍b91；Form开跑前和收尾已到 `5945a14da72618e9aa1328d94e1784d8f9d803c2`（#1023，Git审查结算改订阅宿主事件）。目标Form/Pages/Todo实现不在该片差异内，本次继续同一b91服务，**没有把5945记成动态执行SHA**；该新main的Git路径未实走。[本批步骤、结论与附件限制](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6344940816)。
+
+**QA-029/030原步骤。** 合法检查器node／--check {file}／.js／当前目录／2.5秒保存v1；程序改为/usr/bin/node被拒，取消后仍v1。A保留未保存草稿，B实际另开页签保存新名称为v2，A保存冲突、草稿保持；取消重读为B名称/v2。非法程序错误在1440/390、冲突在1440仍被固定保存栏遮挡，不是拒绝逻辑失效。正常Shelf粘贴无Markdown标题两段访谈，切项目首页清掉Pages落点，分别中深/英浅选段存为Pages，标题仍为“存到项目资料”/“Save to project knowledge”，正文和来源正确；QA-026的UUID题头仍在。QA-029/030保持新，未收到相应修复通知；判断来自实际复现，不只看PR状态。
+
+**Pages新增二级与QA-033。** 正常文稿“E28 查找替换回归”，正文alpha beta alpha gamma alpha及中文第二段。⌘F搜ALPHA为1/3，Enter/Shift+Enter正反循环含首尾；首个换delta、全部换delta、空替换各观察真实正文，再⌘Z还原。Esc回编辑器；刷新后原正文和中文保持，搜索栏关闭、新开查询为空。1440/1024英文浅色与中文深色可见；390×844浅深下输入/计数上部被双行工作区页签遮挡，Esc重开和刷新都重现。只读几何输入y80、高44；Pages固定top72、z45的栏没有避开窄屏壳层。原测试在Home公开mount，没有真实项目双行页签，1/1不能消除该缺口。新增QA-033/P2；键盘查找仍可工作，不称整个功能不可用。
+
+正常选中中文第二段，在浮动工具栏加评论并⌘Enter提交；新建第二篇“E28 第二篇隔离文稿”，侧栏随文稿切换、第二篇无第一篇评论，切回原篇仍见原评论。本次没有@助理或模型发送。此路径实际调用onComment侧栏，W2-18-PAGES-COMMENT-01指定的无onComment弹层/映射和换Doc后旧回调拒绝仍仅工程证据；不得把相邻路径冒充它的完整实走。
+
+**Todo新增二级与QA-034。** 正常建A/B两项；清空A标题、输入未保存说明，返回及点B均被“标题不能是空的”阻止，输入保持。另开真实第二页签保存A的新说明，第一页修改后触发实际版本冲突；返回/点B仍拒绝，A草稿不被B覆盖。更多→重新读取→取消保稿，再确认读取后准确显示B版本；改为“E28 重新读取后已修正并保存”，返回重开可见新说明和修改记录。但左侧列表旧的“已在别处修改，请重新读取后再改”红色提示一直保留，详情已正常。新增QA-034/P2，属于恢复后错误反馈残留，不是新保存失败。
+
+另观察到实际浏览器刷新会丢弃未提交的空标题/说明；重新核对spec与原用例，承诺的是拒绝导航及显式重新读取确认，没有承诺浏览器刷新后的本地草稿持久化。纠正原逐条表“重载恢复原输入”的过宽概括，不把它误报P0或擅自新增要求。500/断网仍是原测试模拟，其他字段、关联、换归属全矩阵未补二级；Todo只覆盖本段中文深色1440/1024/390局部，不称中英文全矩阵完成。
+
+**Form原问题与键盘路径。** 正常手工表单含文字、下拉（设计组/工程组）和一项可选文字；两题必填。1440/1024/390英文浅色、中文深色，导出菜单仍裁切；390 Tab可滚动露出“Fill-in page file”，不称键盘完全不可达，也未再下载或绕过E26离线文件限制。390英浅Space取消第一项后，第一项false/第二项true仍视觉均为空，QA-032保持；恢复勾选并等待保存后，两题Required约束正确。390中深空提交显示“还有必填题没填”，仅键盘填正文/选择设计组/提交，结果1份试填、设计组1/工程组0。QA-031/032仍新。一次快速切设置先于自动保存完成的切换不计为保存成功，不据此立产品问题；暗色390首张窗口缩放过渡图弃用，采用稳定重拍。
+
+**工程与CI。** 定向命令如下，实际9文件17/17（按命令文件顺序5+3+1+2+2+1+1+1+1），零失败/跳过：
+
+```sh
+node scripts/run-tests.mjs tests/write-checkers-settings-http.test.ts tests/write-checkers-settings.e2e.test.ts tests/context-landing.e2e.test.ts tests/side-shelf-in-hand.e2e.test.ts tests/contextual-create.test.ts tests/content-owner-regressions.test.ts tests/pages-find.e2e.test.ts tests/todo-draft-recovery.e2e.test.ts tests/content-editing-regressions.e2e.test.ts --test-name-pattern='PA-4|W3-B1|W3-C|W4-2|W2-18-FORM-ANSWER-01|W5-10-PGF-02|W2-18-TODO-DRAFT-01|W2-18-PAGES-COMMENT-01' --jobs 1 --verbose
+```
+
+boundary、health --base origin/main通过；任务指定security 148/148文件通过。lint退出1、693条静态告警，产品树未改，健康门禁相同merge-base b91未见增加；沿既有静态债务报告，不改断言/压制。日志为忽略目录e28-{directed,boundary,health,security,lint}.log；浏览器批次先等其他会话释放机器槽位，再串行执行，等待不是产品性能。本机未跑全量、未另派CI。最近夜间main全量仍为[39670309365失败](https://github.com/molis-ai/molis-work/actions/runs/39670309365)，归8dfc226cb，而非b91/5945；普通CI成功不替代它。
+
+报告PR计划提交32f98的[CI Gates](https://github.com/molis-ai/molis-work/actions/runs/39803244783/job/119909524385)因BL-400重复而红：此前开发方加在本报告分支的Shelf通知去处，与新main的成果库用户验收同号，合并结果第43/104行。归属是开发方文档收束，沿QA-018说明其去处歧义；本QA未改/删除BACKLOG，不以本次产品树health通过掩盖报告PR红。最终报告提交的CI另看实际状态，不能宣称可合入。
+
+**轻做、代码质量与归档。** PA-41只断言错误存在不代表可见；W4-2-03的正文断言不证明标题来源；Form下载与checked语义不证明菜单/选中态可辨；Pages公开mount避开项目壳层，Todo恢复断言不查列表旧错误清除。人工代码核对仅限这些生产链、共享CSS与测试；未发现可据此新增安全项，安全集全绿也不等于完成全仓人工防腐。已查BACKLOG、防腐已知章节/特权、视觉UI spec及在途PR；QA-033与已知窄屏标题截断不同，QA-034与原拒绝丢稿不同，#1018在途的侧栏键盘桥接不覆盖两项。只报两个可复现P2，不声称新增main回归。现列987项判定仍479通过、438部分、70未验证；七线均不能归档，未重新清点此后所有新增验收编号。
+
+**附件与清理。** 六张关键图原计划贴上述评论，但Chrome扩展本地文件上传权限拦截，未上传成功，也未改扩展设置或绕过。本地忽略目录保留e28-qa029-conflict-1440.jpg、e28-qa030-en.jpg、e28-form-export-390-dark-stable.jpg、e28-required-true-false390.jpg、e28-pages-find-390-dark.jpg、e28-todo-recovered-1024.jpg；其他宽度/评论/键盘图同前缀。评论只含文字证据，不标成截图链接。服务只按自建PID10003退出，日志outbound=0、blocked=0、closed=true；Home及测试临时父目录经前缀、父目录、非软链核验后删除。只关本次QA页签，保留用户原PR页签；产品树无跟踪改动。
+
 ## 5. 问题表
 
 | 编号 | 线／严重程度／类型 | 验收与章节 | 发现 main SHA | 复现步骤（隔离 Home 起） | 预期／实际 | 证据 | 疑似位置（仅线索） | 建议归属 | 回归断言 | 状态 |
@@ -1886,10 +1916,12 @@ QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/14
 | QA-026 | 情境；P3；产品缺陷 | W4-2-03/08；context-program§21.10 | ad5a60abb578df71880308d7a1d5bf945816fc6e | 新Home→打开固定报告→选段→浮条存为文档→完成卡打开→刷新 | 页签/窗口应为文稿标题；实际正文“模型答复”正确保存，页签/窗口为UUID且刷新保持 | E20三宽及[评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6295251615)；非BL-099手写market地址，无数据丢失证据；E22/2571真实Pages选段记为灵光，完成链接同样显示UUID，正文/来源正确，沿此编号扩充 | apps/workbench/src/scripts/client/context-bus.ts:151未传view.title；placement.ts:47～51、tab-workspace.ts:193～196 | HANDOFF§3④情境/Workbench，③Pages/灵光配合 | 正常完成卡打开新文档后，页签/窗口用owner标题，刷新仍对应正确文档 | 新 |
 | QA-027 | 交互、回执；P2；产品缺陷 | AC-10；交互§15.10、craft-finish窄屏可读性、用户§4 | 2571a328ab62c37eb3ebdb61345d1980389b5a15 | 新空Home配置MiniMax-M3；Coding关联虚构README并请求数字/文本问卷；等问卷时发补充；CSS宽390观察输入框底栏 | 预期模型名与上下文用量各在自身控件内可读；实际模型名MiniMax·MiniMax-M3与百分比/图标交叠，外框无横向溢出仍不合格 | E21实际390截图及[评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6296148332)；已查BL-141只管Coding漏译，在途用量PR属Assistant，不覆盖本布局 | plugins/native/coding/src/styles.ts:348、379～385；ui.ts:308，仅线索 | HANDOFF§3⑨交互、③Coding，⑥回执配合 | 390下长模型名、上下文用量和发送模式并存时内部文字不越界、不与邻控件重叠，键盘仍可到达各控件 | 新 |
 | QA-028 | 情境、防腐；P3；产品缺陷 | W4-2-13可见链路、PRODUCT英文承诺、用户§4；W5-03治理范围 | 2571a328ab62c37eb3ebdb61345d1980389b5a15 | 新Home正常Pages创建计划→浮条Goals草稿→执行提案→完成链接→填理由采用→设置English→Goals当前列表，390深色 | 预期系统状态随语言显示Not started；实际三个Goal固定状态仍“待开始”，周边英文；用户中文标题应保留，不属本问题 | E22真实提案采用及刷新三Goal[截图评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6296271703)；BL-118词典冲突、BL-125②动作元数据、BL-141 Coding均不是此Goals状态漏译，在途PR未发现对应修复 | plugins/native/goals/src/status-ui.ts:33～35；event-document-model.ts:256，仅线索 | HANDOFF§3③Goals，④界面/翻译配合 | English下新采用Goal的固定状态与后续状态经同一翻译路径显示英文，用户标题正文不改 | 新 |
-| QA-029 | 采用、交互；P2；产品缺陷、轻做或证据不足 | PA-41；prologue-adoption§6.0p.13；用户§4错误态 | 73ce89eb0c8812f3dfd5a637e578826f72fa3a33 | 新空Home正常新项目→设置工作目录→关联自建临时目录→添加合法检查器；A页打开修改，B页修改保存，再A保存；或390英文深色把程序改为含路径并保存 | 应立即看见保存失败原因且保留草稿；实际拒绝/保稿正确，错误文字落到表单滚动视口外，被固定保存栏遮住，需另滚动或倒退到诊断按钮才能看见 | E23真实双页签、1440/390前后[截图](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6296748680)；最终列表仍v6未被拒绝请求改写；原浏览器3/3只检查文字存在和保稿；未命中已知BL或在途修复 | apps/workbench/src/browser/write-checkers.ts:92～97；apps/workbench/src/write-checkers-section.ts:48；packages/design-system/src/styles/primitives.ts:425～429，仅线索 | HANDOFF§3④采用/Workbench；⑨交互与设计系统配合 | 1440/1024/390点击保存被拒后无需额外滚动就可看见完整原因，不被页脚遮挡，草稿保留且持久化版本不变 | 新；E27/4591a1484按原UI步骤仍复现，[证据](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6333785718) |
-| QA-030 | 情境；P2；产品缺陷 | W4-2-03；context-program§21.10标题/正文/来源；AC-S04相关选区上下文 | 73ce89eb0c8812f3dfd5a637e578826f72fa3a33 | 新空Home→空项目→Shelf粘贴无Markdown标题的虚构访谈→正常预览选完整段落「离线也要能记下想法。」→浮条存为文档→完成卡打开；English重走 | 应按正文最近标题或所选第一行命名；实际中文名「存到项目资料」，英文名「Save to project knowledge」，均来自未打开对话框h2；正文与来源行正确 | E24中英两次真实创建及owner回读；focus.heading_path含界面标题；[截图](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6297281715)；三文件5/5未断言该标题来源 | apps/workbench/src/scripts/client/context-actions.ts:73～81；plugins/native/shelf/src/ui.ts:86～88、client.ts:335；plugins/native/pages/src/intake-offers.ts:27～30，仅线索 | HANDOFF§3④情境/Workbench；③Shelf与Pages配合 | Shelf段落在中英界面新建Pages时只从材料正文取标题，未打开对话框及工具栏文字不进入heading_path，正文和来源保持 | 新；E27/4591a1484按原UI步骤仍复现，[证据](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6333785718) |
-| QA-031 | 防腐、交互；P2；产品缺陷、轻做或证据不足 | W2-18-FORM-ANSWER-01导出入口；用户§4菜单可见/键盘，DESIGN.md | aa327f34d1d44b46d881b27badbbf104c3046fcc | 新空Home→正常空项目→Forms新建问卷→手工加题并试填→1440×1000点工具栏“导出” | 预期菜单选项能看见并正常点击；实际展开后下方没有可见菜单，AX只给两个无名称按钮；读DOM选项在y79～113，父工具栏截止y72且overflow:auto，命中测试落在工作区。Tab/Enter仍真实下载填写页，不能把存在按钮/可程序点击算可见通过 | E26中浅/英深[截图](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6298451111)；BACKLOG和在途PR未见同项；下载通知工具超时但实际9619字节HTML已存在，独立区分工具与产品 | plugins/native/form/src/ui.ts:70、83～88；apps/workbench/src/styles/plugin-stage.ts:225，仅线索 | HANDOFF§3③Form、④Workbench/界面配合 | 正常打开导出菜单后，每个可选项在三宽浅深色中可见且鼠标命中自身，Tab焦点可见，导出真实文件不因裁切失去入口 | 新；E27/4591a1484按原UI步骤仍复现，[证据](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6333785718) |
-| QA-032 | 防腐、交互；P2；产品缺陷 | W2-18-FORM-LABEL-01相关可见状态；用户§4、DESIGN.md共享Controls | 4591a1484fde97ed5e7ab3fafe72aea614e2d6e4 | 新空Home→空项目→Forms新问卷→手工加文字与下拉题→开启两题Required→English/浅色/390→Space取消第一题，与第二题对照；恢复后试填空提交 | 预期选中与未选中可区分且必填校验保持；实际第一题false、第二题true却都像空框，checked勾号与背景同为白色。恢复后空答拒绝，未发现约束丢失 | E27真实三宽观察，390真假状态及computed颜色对照；[截图](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6333785718)。已知清单未命中；旧样式存在于9f602516aa，不宣称新回归 | plugins/native/form/src/styles.ts:90～95；packages/design-system/src/styles/primitives.ts:251～258，仅线索 | HANDOFF§3③Form，④界面/设计系统配合 | 三宽浅深色中Required的checked/unchecked视觉清晰不同，点击和Space切换后持久化一致，必填空答仍拒绝且不新增答卷 | 新 |
+| QA-029 | 采用、交互；P2；产品缺陷、轻做或证据不足 | PA-41；prologue-adoption§6.0p.13；用户§4错误态 | 73ce89eb0c8812f3dfd5a637e578826f72fa3a33 | 新空Home正常新项目→设置工作目录→关联自建临时目录→添加合法检查器；A页打开修改，B页修改保存，再A保存；或390英文深色把程序改为含路径并保存 | 应立即看见保存失败原因且保留草稿；实际拒绝/保稿正确，错误文字落到表单滚动视口外，被固定保存栏遮住，需另滚动或倒退到诊断按钮才能看见 | E23真实双页签、1440/390前后[截图](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6296748680)；最终列表仍v6未被拒绝请求改写；原浏览器3/3只检查文字存在和保稿；未命中已知BL或在途修复 | apps/workbench/src/browser/write-checkers.ts:92～97；apps/workbench/src/write-checkers-section.ts:48；packages/design-system/src/styles/primitives.ts:425～429，仅线索 | HANDOFF§3④采用/Workbench；⑨交互与设计系统配合 | 1440/1024/390点击保存被拒后无需额外滚动就可看见完整原因，不被页脚遮挡，草稿保留且持久化版本不变 | 新；E28/b91d5b534按原UI步骤仍复现；[文字记录](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6344940816)，本轮截图上传受限，历史已发布图保留 |
+| QA-030 | 情境；P2；产品缺陷 | W4-2-03；context-program§21.10标题/正文/来源；AC-S04相关选区上下文 | 73ce89eb0c8812f3dfd5a637e578826f72fa3a33 | 新空Home→空项目→Shelf粘贴无Markdown标题的虚构访谈→正常预览选完整段落「离线也要能记下想法。」→浮条存为文档→完成卡打开；English重走 | 应按正文最近标题或所选第一行命名；实际中文名「存到项目资料」，英文名「Save to project knowledge」，均来自未打开对话框h2；正文与来源行正确 | E24中英两次真实创建及owner回读；focus.heading_path含界面标题；[截图](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6297281715)；三文件5/5未断言该标题来源 | apps/workbench/src/scripts/client/context-actions.ts:73～81；plugins/native/shelf/src/ui.ts:86～88、client.ts:335；plugins/native/pages/src/intake-offers.ts:27～30，仅线索 | HANDOFF§3④情境/Workbench；③Shelf与Pages配合 | Shelf段落在中英界面新建Pages时只从材料正文取标题，未打开对话框及工具栏文字不进入heading_path，正文和来源保持 | 新；E28/b91d5b534按原UI步骤仍复现；[文字记录](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6344940816)，本轮截图上传受限，历史已发布图保留 |
+| QA-031 | 防腐、交互；P2；产品缺陷、轻做或证据不足 | W2-18-FORM-ANSWER-01导出入口；用户§4菜单可见/键盘，DESIGN.md | aa327f34d1d44b46d881b27badbbf104c3046fcc | 新空Home→正常空项目→Forms新建问卷→手工加题并试填→1440×1000点工具栏“导出” | 预期菜单选项能看见并正常点击；实际展开后下方没有可见菜单，AX只给两个无名称按钮；读DOM选项在y79～113，父工具栏截止y72且overflow:auto，命中测试落在工作区。Tab/Enter仍真实下载填写页，不能把存在按钮/可程序点击算可见通过 | E26中浅/英深[截图](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6298451111)；BACKLOG和在途PR未见同项；下载通知工具超时但实际9619字节HTML已存在，独立区分工具与产品 | plugins/native/form/src/ui.ts:70、83～88；apps/workbench/src/styles/plugin-stage.ts:225，仅线索 | HANDOFF§3③Form、④Workbench/界面配合 | 正常打开导出菜单后，每个可选项在三宽浅深色中可见且鼠标命中自身，Tab焦点可见，导出真实文件不因裁切失去入口 | 新；E28/b91d5b534按原UI步骤仍复现；[文字记录](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6344940816)，本轮截图上传受限，历史已发布图保留 |
+| QA-032 | 防腐、交互；P2；产品缺陷 | W2-18-FORM-LABEL-01相关可见状态；用户§4、DESIGN.md共享Controls | 4591a1484fde97ed5e7ab3fafe72aea614e2d6e4 | 新空Home→空项目→Forms新问卷→手工加文字与下拉题→开启两题Required→English/浅色/390→Space取消第一题，与第二题对照；恢复后试填空提交 | 预期选中与未选中可区分且必填校验保持；实际第一题false、第二题true却都像空框，checked勾号与背景同为白色。恢复后空答拒绝，未发现约束丢失 | E27真实三宽观察，390真假状态及computed颜色对照；[截图](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6333785718)。已知清单未命中；旧样式存在于9f602516aa，不宣称新回归 | plugins/native/form/src/styles.ts:90～95；packages/design-system/src/styles/primitives.ts:251～258，仅线索 | HANDOFF§3③Form，④界面/设计系统配合 | 三宽浅深色中Required的checked/unchecked视觉清晰不同，点击和Space切换后持久化一致，必填空答仍拒绝且不新增答卷 | 新；E28/b91d5b534真假状态与必填拒绝复验仍现，见§4.17 |
+| QA-033 | 防腐、情境、交互；P2；产品缺陷、轻做或证据不足 | W5-10-PGF-02；repository-anti-corruption查找拆分标准，用户§4三宽，craft-finish窄屏 | b91d5b534ea7841019fe1ee56ffdd132487f3d10 | 新一次性Home→正常新项目→Pages文稿输入alpha beta alpha gamma alpha→390×844→⌘F并搜ALPHA；浅深色各查，Esc重开与刷新后重走 | 查找输入/计数应完整可见可点且避开壳层；实际栏固定top72，输入y80～124被双行页签遮住上部，刷新/重开仍现；1440/1024及查找/替换/撤销功能正常 | E28正常UI；本地e28-pages-find-390-dark.jpg、e28-pages-find-fresh390.jpg；[文字记录](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6344940816)，附件上传受限；原pages-find1/1仅Home公开mount | plugins/native/pages/src/styles.ts:523～530；plugins/native/pages/src/editor-find.ts:70～94，仅线索 | HANDOFF§3③Pages，④Workbench/界面配合 | 正常项目壳层390浅深色打开查找时输入/计数/替换完整可见、中心命中自身，循环/替换/撤销/Esc仍正确；不能只验无壳层mount | 新 |
+| QA-034 | 防腐、交互；P2；产品缺陷、轻做或证据不足 | W2-18-TODO-DRAFT-01恢复保存；repository-anti-corruption§12.8内容编辑，用户§4错误/恢复态 | b91d5b534ea7841019fe1ee56ffdd132487f3d10 | 新一次性Home→正常建Todo A/B→A打开编辑；第二真实页签改A说明并保存；第一页再改A、点返回及B触发冲突→更多/重新读取先取消再确认→改说明保存→返回重开 | 冲突应保稿，明确重新读取并成功保存后旧错误应清除；实际草稿/版本保护和保存都正确，但列表左侧仍红字提示A已在别处修改、要求重新读取，与正常详情矛盾 | E28真实双页签；e28-todo-conflict-preserved.jpg、e28-todo-recovered-1024.jpg；[文字记录](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6344940816)，附件上传受限；原todo-draft-recovery1/1未断言列表错误清除 | plugins/native/todo/src/client.ts:173～181、1173～1179、1204～1207，仅线索 | HANDOFF§3③Todo，④Workbench选择/错误反馈配合 | 真实版本冲突后取消重新读取仍保稿；确认读新版本并成功保存后，列表与详情均清除此项旧错误，当前失败仍可见且B版本不被覆盖 | 新 |
 
 ### 5.1 已知未关闭 P1（沿用编号，不重复立项）
 
@@ -1916,6 +1948,8 @@ E24补Shelf段落→Pages落点预览/冲突拒绝/键盘插入；E25补Pages固
 E26另补正常Form制作→键盘试填/正式本机填写→Dataset两行快照→修改→刷新与原答案隔离，第三份答卷不自动进入旧表；详见§4.15。
 
 ## 7. 没验的范围和原因
+
+- E28补Pages真实查找/评论侧栏、Todo空标题/双页签冲突/明确重新读取，以及QA-029～032原步骤；无onComment弹层、Todo500/断网及关联全矩阵仍只一级。新QA-033/034未修。六张本轮关键截图因扩展本地上传权限尚未进入PR，报告评论已注明；不伪称已上传。
 
 - **交互、回执、情境的完整UI矩阵**：实际三宽/深色/键盘/语言路径见U/KU/RU/FU，未把一个入口通过扩成所有插件与空/加载/失败/无权限/撤销组合。各表的部分通过明确保留缺项；新增AC10-B八项按已定后续未验证。
 - **采用与手册的全部模型场景**：截至E22保守请求依次为交互12/12、采用20/20、手册12/12、CU 0/30、回执16/16、情境8/12、防腐0/0，共68/102；预算未用完不等于验收已完成。多Agent、Coding多轮及异常、A2-2/A2-3、A3 structured、A5、ADH开发者实作与整条跨线场景没有本轮二级证据；已定后续/BL去处见逐条表，现有结果不证明模型质量普遍成立。
@@ -2016,3 +2050,5 @@ E26另补正常Form制作→键盘试填/正式本机填写→Dataset两行快�
 - E25观察待核：Pages正文改名后，已打开页签与项目资料待整理卡片仍显示旧名。卡片可独立编辑，是否必须随owner标题同步需按其契约核对；未将旧题头当作“已同步”证据，也不据此关闭QA-026。
 
 - E26：执行aa327，收尾832666a16的#867/#848单列未实走；QA-029/030无修复、保持新。补Form原生制作/填写/停止与Dataset独立快照，新增P2 QA-031菜单裁切；浏览器策略阻止离线文件，不绕过、不记通过，模型0。
+
+- E28：实走基线b91、收尾5945（#1023未实走）分开记录；QA-029～032仍现，新增P2 QA-033/034，定向17/17与安全148/148文件通过。模型0、累计68/102。Todo明确重新读取与浏览器刷新契约分开，评论侧栏不冒充无回调弹层。现列987项计数不变；报告PR的BL-400同号由开发方收束，截图上传权限缺口保留，不修改BACKLOG或扩展设置。

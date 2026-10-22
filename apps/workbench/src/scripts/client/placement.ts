@@ -106,15 +106,17 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   new MutationObserver(() => clearControls()).observe(region, { childList: true });
   window.addEventListener("resize", () => clearControls());
   const card = (title, detail, actions, tone) => {
-    const item = node("div", undefined, "placement-toast" + (tone ? " placement-toast--" + tone : ""));
+    // The one toast (.mw-toast), here with a title, a line and its follow-ups; done and failed carry their mark.
+    const item = node("div", undefined, "mw-toast placement-toast" + (tone ? " placement-toast--" + tone : "") + (tone === "error" ? " is-error" : ""));
+    if (tone) item.dataset.mwState = tone === "error" ? "failed" : "done";
     const text = node("div", undefined, "placement-toast-text");
     text.append(node("strong",title));if(detail){const line=node("small");if(typeof detail==="string")line.textContent=detail;else molisWorkRequest.show(line,detail);text.append(line);}
     item.append(text);
     for (const action of actions || []) {
-      const button = node("button", action.label, "mw-btn mw-btn--sm " + (action.primary ? "mw-btn--primary" : "mw-btn--secondary"));
+      const button = node("button", action.label, "mw-toast__action" + (action.primary ? " mw-toast__action--primary" : ""));
       button.type = "button"; button.addEventListener("click", () => { item.remove(); action.run(); }); item.append(button);
     }
-    const close = node("button", "×", "mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only placement-toast-close"); close.type = "button"; close.setAttribute("aria-label", L("关闭提示"));
+    const close = node("button", "×", "mw-toast__action placement-toast-close"); close.type = "button"; close.setAttribute("aria-label", L("关闭提示"));
     close.addEventListener("click", () => item.remove()); item.append(close);
     region.append(item);
     while (region.children.length > 3) region.firstElementChild.remove();

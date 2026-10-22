@@ -1,4 +1,5 @@
 import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { characterErrors } from "@molis-ai/molis-work-contracts/modules/characters";
 
 /** What Characters asks the built-in Agent about: which engines exist and which actions each may call, as the platform answers it. */
 export interface CharactersAgentCatalog {
@@ -20,7 +21,7 @@ export async function validateDraftActions(agent: CharactersAgentCatalog | undef
   const catalog = await agentActionCatalog(agent);
   for (const ref of refs) {
     const view = catalog.find(row => row.capability_id === ref.capability_id && row.version === ref.version && row.provider.provider_id === ref.provider_id);
-    if (!view || !view.action.audiences.includes("agent")) throw new Error(`原能力 ${ref.capability_id} · v${ref.version} 不可用或尚未授权给内置 Agent；草稿引用已保留`);
-    if (!view.availability.available) throw new Error(view.availability.reason);
+    if (!view || !view.action.audiences.includes("agent")) throw characterErrors.invalid(`原能力 ${ref.capability_id} · v${ref.version} 不可用或尚未授权给内置 Agent；草稿引用已保留`);
+    if (!view.availability.available) throw characterErrors.invalid(view.availability.reason);
   }
 }

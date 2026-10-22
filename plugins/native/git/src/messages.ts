@@ -145,7 +145,6 @@ export const GIT_MESSAGES = {
   "git.op.review": { zh: "请核对「{op}」的宿主审查；批准并执行成功后才会生效。", en: "Check the host review of “{op}”. It takes effect only if approved and it runs." },
   "git.op.review-kind": { zh: "宿主审查", en: "Host review" },
   "git.op.review-note": { zh: "只有批准并执行成功，仓库才会改变。", en: "The repository changes only if it's approved and runs." },
-  "git.accept.apply": { zh: "放进工作区", en: "Put into the workspace" },
   // The view's and the actions' own sentences are action output an Agent reads too, so they stay as written and are their
   // own keys here: the page shows them through the translator.
   "工作区是干净的": { zh: "工作区是干净的", en: "The working tree is clean" },
@@ -173,8 +172,5 @@ export const GIT_MESSAGES = {
   "Git 操作请求无效或工作区已切换": { zh: "Git 操作请求无效或工作区已切换", en: "The Git operation request isn't valid, or the workspace changed" },
   "差异参数无效": { zh: "差异参数无效", en: "The difference request isn't valid" },
   "已切换到另一处差异": { zh: "已切换到另一处差异", en: "Another difference was opened since" },
-  "这轮变更不属于当前工作目录": { zh: "这轮变更不属于当前工作目录", en: "This round's changes aren't in the current working folder" },
-  "这一轮没有改动任何文件": { zh: "这一轮没有改动任何文件", en: "This round didn't change any files" },
-  "这一轮的改动已经写进工作区了": { zh: "这一轮的改动已经写进工作区了", en: "This round's changes are already in the working tree" },
   "这个仓库还没有远端": { zh: "这个仓库还没有远端", en: "This repository has no remote yet" },
 } as const;

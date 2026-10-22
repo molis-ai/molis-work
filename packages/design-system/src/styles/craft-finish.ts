@@ -1420,25 +1420,14 @@ const CRAFT_BASE_STYLES = `
     dialog.mw-sheet, .assistant-panel, .home-talk) { background-color: var(--popover); }
   ${PAGES} .mw-menu :is([role="menuitem"], [role="option"], button) { transition: background-color 130ms var(--ease-quint), color 130ms var(--ease-quint); }
 
-  /* Toasts: a graphite note that rises above the bar and says, with a mark, how it went. */
-  ${PAGES} .toast {
-    display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; width: max-content; max-width: calc(100vw - 32px);
-    padding: 12px 16px 12px 40px; border-radius: 12px; font-size: 13px; line-height: 18px;
-    background: var(--tip-bg); color: var(--tip-ink);
-    box-shadow: var(--shadow);
-    transform: translate(-50%, 12px) scale(.97);
-    transition: opacity 250ms var(--ease-quint), transform 420ms var(--ease-quint);
-  }
+  /* The Workbench's toast element is the one toast (.mw-toast, primitives) kept on the page: shown by is-visible, it rises in
+     on the move clock and leaves on the short one; a failure nudges once after it lands. */
+  ${PAGES} .toast { animation: none; opacity: 0; transform: translateY(12px) scale(.97); pointer-events: none;
+    transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-hover) var(--ease-quint); }
   ${SHELL} .toast { bottom: calc(var(--dock-h) + 14px); }
-  ${PAGES} .toast > .mw-state-ring { --ring-neutral: currentColor; --ring-success: color-mix(in srgb, var(--green) 60%, currentColor); --ring-danger: color-mix(in srgb, var(--red) 60%, currentColor); position: absolute; left: 12px; top: 11px; }
   ${PAGES} .toast:not(.is-visible) > .mw-state-ring { visibility: hidden; }
-  ${PAGES} .toast [data-molis-call-id] {min-height:0;padding-block:var(--reach,10px);margin-block:calc(-1*var(--reach,10px));color:inherit;text-decoration:underline;}
-
-  ${PAGES} .toast.is-visible { transform: translate(-50%, 0) scale(1); }
-  ${PAGES} .toast.is-visible.is-error { animation: craft-nudge 420ms var(--ease-quint) 130ms; }
-  @keyframes craft-nudge { 0%, 100% { translate: 0; } 25% { translate: -4px; } 50% { translate: 3px; } 75% { translate: -2px; } }
-  body.settings-page .toast { transform: translateY(16px) scale(.96); }
-  body.settings-page .toast.is-visible { transform: none; }
+  ${PAGES} .toast.is-visible { opacity: 1; transform: none; transition-duration: var(--dur-move); }
+  ${PAGES} .toast.is-visible.is-error { animation: mw-toast-nudge var(--dur-arrive) var(--ease-quint) var(--dur-hover); }
 
   /* ─── Plugin stage: an empty plugin is a calm centred invitation, not a note in the corner ── */
   ${WORKBENCH} .plugin-stage-list > .mw-empty,

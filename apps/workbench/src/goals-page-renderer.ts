@@ -1,4 +1,4 @@
-import { pluginSurfaceClients } from "./plugin-workbench.js";
+import { deferredSurfaceClients } from "./plugin-workbench.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import type { UiContribution, UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -192,7 +192,7 @@ function renderMolisWorkWeb(
     : null, projectOperationsData);
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins, view.hidden_plugins)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
-  const deferredIds = new Set(pluginSurfaceClients().map(client => client.id));
+  const deferredIds = new Set(deferredSurfaceClients().map(client => client.id));
   const defer = (html: string): string => {
     const match = html.match(/^(\s*<([a-z][a-z0-9-]*)\b[^>]*data-work-surface="([^"]+)"[^>]*>)([\s\S]*)(<\/\2>\s*)$/);
     if (!match || !deferredIds.has(match[3]!)) return html;
@@ -342,7 +342,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   ${renderGlobalSearchOverlay(primitives)}
   ${renderGoalTrashDialog()}
   ${projectOperations.overlays}
-  <div class="toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(L)}
+  <div class="mw-toast toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(L)}
   <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
   <script>${clientI18nScript()}</script>
   <script src="/assets/molis-work-workbench.js"></script>${knowledgeClientTag()}

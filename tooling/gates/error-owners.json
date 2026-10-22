@@ -87,9 +87,10 @@
         "modules/characters/",
         "apps/local-host/src/character-*",
         "apps/local-host/src/characters-host.ts",
+        "apps/local-host/src/characters-http.ts",
         "packages/contracts/src/modules/characters-errors.ts"
       ],
-      "reason": "The Characters module, plugin and the Host files that import and run them; character.* becomes characters.* (spec W3-02 R4c)."
+      "reason": "The Characters module and the Host files that assemble, serve and run it (the plugin was removed in CHR-1); character.* becomes characters.* (spec W3-02 R4c)."
     },
     "coding": {
       "paths": [
@@ -334,9 +335,10 @@
     },
     "workspace_git": {
       "paths": [
+        "apps/local-host/src/workspace-git-actions.ts",
         "apps/local-host/src/workspace-git-writers.ts"
       ],
-      "reason": "The platform's workspace Git service (Git exit plan T5, T6): the projects.workspace.writers.* actions the Host registers for plugins (G4), workspace_git.writer.*. Not the Git plugin, so not git.*; not Work's workspace.* either. The other workspace-git files join when they are renamed (G5)."
+      "reason": "The platform's workspace Git service (Git exit plan T5, T6): the projects.workspace.git.* (G3) and projects.workspace.writers.* (G4, workspace_git.writer.*) actions the Host registers for plugins. Not the Git plugin, so not git.*; not Work's workspace.* either. The other workspace-git files join when they are renamed (G5)."
     }
   }
 }

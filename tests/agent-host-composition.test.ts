@@ -292,6 +292,6 @@ test('Git result projection excludes active, uncertain, undelivered and foreign 
     assert.ok(result.every(one => one.review.decided_by === 'reviewer'));
     assert.deepEqual(result.find(one => one.operation_id === 'failed')?.review.reconciliation, reconciliation);
     assert.equal(result.find(one => one.operation_id === 'failed')?.review.failure_reason, 'refused changed version');
-    await assert.rejects(actions.invoke(readGitResultsCapability, { workspace_id: 'unlinked' }), { code: 'git.workspace_unavailable' });
+    await assert.rejects(actions.invoke(readGitResultsCapability, { workspace_id: 'unlinked' }), { code: 'workspace_git.workspace_unavailable' });
   } finally { await close(item); store.close(); }
 });

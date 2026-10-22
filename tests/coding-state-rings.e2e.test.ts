@@ -105,7 +105,9 @@ test("VUX-40: cooperation, subagents and the usage meter speak English in Englis
       ${STATE_RING_CLIENT_SCRIPT}
       const root=document.querySelector('[data-coding-workbench]');root.hidden=false;
       const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),errors=[],q=selector=>root.querySelector(selector);
-      const ports={lifetime,q,current:()=>'session',status:message=>errors.push(message),refresh:async()=>{},openStep:()=>{}};
+      // The page names a role from its id and falls back to the id (client.ts ROLE_NAMES); the cards and results take that port.
+      const roleName=id=>({builder:'Builder',reader:'Reader',reviewer:'Reviewer',coordinator:'Coordination'})[id]||id||'Agent';
+      const ports={lifetime,q,current:()=>'session',status:message=>errors.push(message),refresh:async()=>{},openStep:()=>{},roleName};
       const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
       const children=[{subagent_id:'c1',role_id:'builder',role_name:'Builder',state:'running',task:'Write the parser',usage:{tokens:{input:1200,output:300}}},
         {subagent_id:'c2',role_id:'reader',role_name:'Reader',state:'failed',task:'Read the docs',error:'MODEL_NETWORK_FAILED: fetch failed',integration_available:true,workspace_path:'/tmp/w/c2',
@@ -142,7 +144,8 @@ test("VUX-40: cooperation, subagents and the usage meter speak English in Englis
     assert.match(result.meter, /Used 102K \/ 100K tokens \(102%\)/, "compact numbers follow the page's language");
     assert.match(result.coop, /A delegation from another session/);
     assert.match(result.coop, /Accept and put it in the input box/);
-    assert.match(result.coop, /This session is a delegation from “Origin” · Waiting for you/);
+    // The page words a known state itself, in the page's language; the Host's state_label is only for a state it does not know.
+    assert.match(result.coop, /This session is a delegation from “Origin” · Delivered/);
     assert.match(result.coop, /Sent request \(awaiting a reply\)/);
     assert.deepEqual(result.errors, ["This session has reached the budget you set (102K / 100K tokens). As you set it, this is only a note and nothing stops; adjust it under Context and usage."],
       "the only status line is the budget note, in English");

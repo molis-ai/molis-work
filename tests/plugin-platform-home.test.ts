@@ -20,7 +20,7 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 
 const PROBE = "io.molis.work.example.fixture-probe";
 const SECOND = "io.molis.work.example.fixture-second";
-const CHARACTERS = "io.molis.work.characters";
+const SHIPPED = "io.molis.work.text-stats";
 
 const shape = { scope: "project" as const, audiences: ["user" as const], subject_kinds: [], input_schema: { type: "object", additionalProperties: false } };
 function hello(id: string): ActionDefinition<Record<string, never>, string> {
@@ -114,10 +114,10 @@ test("a fixture given to a Host starts in the project's platform beside the ship
     const { home, projects: [reference] } = await homeWithProjects(directory, "夹具");
     const host = fixtured(home, probe());
     try {
-      const rows = await pluginsSeen(host, reference!, PROBE, CHARACTERS);
+      const rows = await pluginsSeen(host, reference!, PROBE, SHIPPED);
       const own = rows.filter(row => row.provider.plugin_id === PROBE);
       assert.deepEqual(own.map(row => [row.capability_id, row.availability.available]), [[`${PROBE}.hello`, true]]);
-      assert.ok(rows.some(row => row.provider.plugin_id === CHARACTERS), "the shipped plugins still start");
+      assert.ok(rows.some(row => row.provider.plugin_id === SHIPPED), "the shipped plugins still start");
       // Not on the Host's own start list, so it is the installation that answers, not the plugin id a shipped plugin would carry.
       assert.notEqual(own[0]!.provider.provider_id, PROBE);
       assert.equal(own[0]!.provider.provider_id, own[0]!.provider.plugin_install_id);
@@ -152,12 +152,12 @@ test("fixtures belong to the Home of the Host that was given them: another Home'
 test("a fixture that cannot run the way the Host runs a plugin stops the project's platform, instead of the test going on without the plugin it asked for",
   withDirectory(async directory => {
     const { home, projects: [named, sandboxed] } = await homeWithProjects(directory, "同名", "沙箱");
-    const shipping = fixtured(home, probe({ pluginId: CHARACTERS, signature: "an-unsigned-copy" }));
+    const shipping = fixtured(home, probe({ pluginId: SHIPPED, signature: "an-unsigned-copy" }));
     try {
-      assert.deepEqual(await pluginsSeen(shipping, named!, PROBE, CHARACTERS), [], "named like a shipped plugin: it neither replaces the shipped one nor runs beside it");
+      assert.deepEqual(await pluginsSeen(shipping, named!, PROBE, SHIPPED), [], "named like a shipped plugin: it neither replaces the shipped one nor runs beside it");
     } finally { await shipping.close(); }
     const sandbox = fixtured(home, probe({ execution: "sandbox" }));
     try {
-      assert.deepEqual(await pluginsSeen(sandbox, sandboxed!, PROBE, CHARACTERS), [], "a sandboxed definition is not a plugin the Host runs itself");
+      assert.deepEqual(await pluginsSeen(sandbox, sandboxed!, PROBE, SHIPPED), [], "a sandboxed definition is not a plugin the Host runs itself");
     } finally { await sandbox.close(); }
   }));

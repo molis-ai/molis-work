@@ -1,4 +1,4 @@
-import { pluginSurfaceClients } from "../../plugin-workbench.js";
+import { deferredSurfaceClients } from "../../plugin-workbench.js";
 
 /**
  * Loading is UI-only. Visible surfaces keep their original client and Host lifetime. A companion that borrows another plugin's
@@ -7,7 +7,7 @@ import { pluginSurfaceClients } from "../../plugin-workbench.js";
 export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const failure = () => L('无法加载界面，请重试');
-  const packs = ${JSON.stringify(pluginSurfaceClients().map(({ id, bundle, assets }) => assets.length ? [id, bundle, assets] : bundle === id ? [id] : [id, bundle]))}.map(([id, bundle = id, assets = []]) => ({ id, bundle, assets }));
+  const packs = ${JSON.stringify(deferredSurfaceClients().map(({ id, bundle, assets }) => assets.length ? [id, bundle, assets] : bundle === id ? [id] : [id, bundle]))}.map(([id, bundle = id, assets = []]) => ({ id, bundle, assets }));
   const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap();
   const scope = host.scope;
   const load = url => {

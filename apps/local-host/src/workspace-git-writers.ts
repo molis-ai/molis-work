@@ -46,7 +46,7 @@ const ENDED = ["completed", "failed", "cancelled", "stopped"];
  * start a Host review a person approves, under the calling installation's `review:<kind>` (PG-009, S-50); the two reads list the
  * writers' directories and what a child's would bring back. Integrating answers only for a session the calling installation owns.
  */
-export function registerWriterHostActions(ports: WriterHostActionPorts): () => void {
+export function registerWorkspaceGitWriters(ports: WriterHostActionPorts): () => void {
   const writerParent = async (projectId: string, workspaceId: string) => {
     const grants = await ports.workspaces(projectId);
     const parent = grants.find(item => item.workspace_id === workspaceId && item.realpath_verified);

@@ -6,11 +6,10 @@ import test from "node:test";
 import type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, parseCharacterContent, type CharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { PluginArtifactPublishInput } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { createCharactersActionHandlers, openCharacters, type CharactersActionPorts, type CharactersImportPorts } from "@molis-ai/molis-work-module-characters";
-import * as plugin from "@molis-ai/molis-work-plugin-characters";
+import { bindCharactersActions, CHARACTERS_ACTIONS, charactersActions, createCharactersActionHandlers, openCharacters, type CharactersActionPorts, type CharactersImportPorts } from "@molis-ai/molis-work-module-characters";
 
 const PROJECT = "project-a", OWNER = "actor-a";
-const pluginSource = new URL("../plugins/native/characters/", import.meta.url);
+const clientSource = new URL("../apps/workbench/src/browser/characters/", import.meta.url);
 const patch = { title: "核对者", instructions: "先核对证据，再给结论。", host_tools: ["read-file"] };
 const key = (reference: ArtifactReference) => `${reference.artifact_id}@${reference.version}`;
 const beforeWrite = async () => {};
@@ -58,13 +57,12 @@ function editedDraft(person: ReturnType<ReturnType<typeof fixture>["handlersFor"
   return person.drafts.update(created.character_id, created.revision, patch);
 }
 
-test("RAC-63 every Characters action has exactly one handler in the Module, and the plugin binds them without holding any", t => {
+test("RAC-63 every Characters action has exactly one handler in the Module, and the Module binds each one once for the Host's provider", t => {
   const person = fixture(t).handlersFor("actor-a");
-  assert.deepEqual(Object.keys(person.handlers).sort(), Object.keys(plugin.charactersActions).sort());
-  // The plugin keeps the Manifest, the action definitions and the routes; the logic and the data ports are the owner's.
-  const sources = readdirSync(new URL("src/", pluginSource)).filter(name => name.endsWith(".ts")).map(name => ({ name, text: readFileSync(new URL(`src/${name}`, pluginSource), "utf8") }));
-  for (const { name, text } of sources) assert.ok(!/@molis-ai\/molis-work-module-characters/.test(text), `${name} must not import the Module (a plugin may not import a Module)`);
-  assert.ok(!JSON.parse(readFileSync(new URL("package.json", pluginSource), "utf8")).dependencies?.["@molis-ai/molis-work-module-characters"], "the plugin package does not depend on the Module");
+  assert.deepEqual(Object.keys(person.handlers).sort(), Object.keys(charactersActions).sort());
+  // CHR-1: no plugin package holds the definitions any more; the binding the Host registers covers every action, none twice.
+  const bound = bindCharactersActions("actor-a", () => person.handlers).map(binding => binding.capability_id).sort();
+  assert.deepEqual(bound, CHARACTERS_ACTIONS.map(definition => definition.capability_id).sort());
 });
 
 test("RAC-64 the handlers serve one person: another person's draft is neither read, changed nor published", t => {
@@ -137,16 +135,19 @@ test("RAC-67 pinning the same content again returns the pinned version; changed 
 });
 
 test("RAC-68 the registered action ids, versions and provider are the ones the contract snapshot already holds", () => {
-  const rows = readFileSync(new URL("../tooling/gates/actions/actions.tsv", import.meta.url), "utf8").split("\n")
+  // CHR-1: no Manifest declares them; they are the Host's own registrations (host-actions.tsv), under the same provider id.
+  const snapshot = (file: string) => readFileSync(new URL(`../tooling/gates/actions/${file}`, import.meta.url), "utf8").split("\n")
     .filter(line => line.startsWith("characters.")).map(line => line.split("\t"));
-  const defined = plugin.CHARACTERS_ACTIONS.map(definition => `${definition.capability_id}@${definition.version}`).sort();
+  assert.deepEqual(snapshot("actions.tsv"), [], "no built-in Manifest declares a Characters action");
+  const rows = snapshot("host-actions.tsv");
+  const defined = CHARACTERS_ACTIONS.map(definition => `${definition.capability_id}@${definition.version}`).sort();
   assert.deepEqual(rows.map(row => `${row[0]}@${row[1]}`).sort(), defined);
-  assert.ok(rows.every(row => row[2] === plugin.charactersManifest.plugin_id && row[3] === plugin.charactersManifest.plugin_id), "the provider stays the plugin id");
+  assert.ok(rows.every(row => row[2] === CHARACTER_PLUGIN_ID), "the provider stays the plugin id saved references name");
 });
 
 test("RAC-69 the Characters browser client holds no empty catch and no raw fetch, and asks through the workbench's request helper", () => {
-  const client = plugin.CHARACTERS_CLIENT_FACTORY_SCRIPT;
+  const client = readdirSync(clientSource).filter(name => name.endsWith(".ts")).map(name => readFileSync(new URL(name, clientSource), "utf8")).join("\n");
   assert.ok(!/\bcatch\s*(\([^)]*\))?\s*\{\s*\}/.test(client), "no empty catch in the browser program");
   assert.ok(!/\bfetch\(/.test(client), "no raw fetch in the browser program");
-  assert.ok(client.includes("molisWorkRequest("), "the program asks through the request helper");
+  assert.ok(/\bmolisWorkRequest\b/.test(client), "the program asks through the request helper");
 });

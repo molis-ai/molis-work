@@ -44,16 +44,15 @@ export const PLACEMENT_STYLES = `
   .placement-dialog-note { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
   .placement-dialog-error { margin: 6px 0 0; color: var(--red); font-size: 12px; }
   .placement-dialog-error:empty { display: none; }
-  .placement-toasts { position: fixed; left: 50%; bottom: 76px; z-index: 70; display: grid; gap: 8px; transform: translateX(-50%); width: min(560px, calc(100vw - 24px)); pointer-events: none; }
+  .placement-toasts { position: fixed; inset-inline: 0; margin-inline: auto; bottom: 76px; z-index: 70; display: grid; justify-items: center; gap: 8px; width: min(560px, calc(100vw - 24px)); pointer-events: none; }
   .placement-toasts.is-top { top: 56px; bottom: auto; }
-  .placement-toast { display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 14px; background: var(--paper); color: var(--ink);
-    border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow); pointer-events: none; }
-  /* Only the card's buttons take clicks; a click on its text reaches the stage underneath (composers live at the bottom). */
+  /* A completion card is the one toast (.mw-toast) with a title, a line and its follow-ups. Only its buttons take clicks; a
+     click on its text reaches the stage underneath (composers live at the bottom). */
+  .placement-toast { flex-wrap: nowrap; max-width: 100%; pointer-events: none; }
   .placement-toast button { pointer-events: auto; }
-  .placement-toast--error { border-color: color-mix(in srgb, var(--red) 45%, var(--line-strong)); }
   .placement-toast-text { flex: 1; min-width: 0; }
   .placement-toast-text strong { display: block; font-weight: 500; overflow-wrap: anywhere; }
-  .placement-toast-text small { display: block; color: var(--muted); overflow-wrap: anywhere; }
+  .placement-toast-text small { display: block; color: color-mix(in srgb, currentColor 70%, transparent); overflow-wrap: anywhere; }
   .placement-related { margin: 18px 0 0; }
   .placement-related h3 { margin: 0 0 6px; font-size: 12px; font-weight: 500; color: var(--muted); }
   .placement-related-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; padding: 8px 6px; border-top: 1px solid var(--line); }
@@ -79,9 +78,5 @@ export const PLACEMENT_STYLES = `
     /* A phone header has room for where it is; who can see it and the links are one tap away in the panel. */
     .placement-bar > .placement-bar-access, .placement-bar > .placement-bar-links { display: none; }
     .placement-bar > .placement-bar-where { display: block; max-width: 8em; }
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    .placement-toast { animation: placement-rise var(--dur-move) var(--ease-quint); }
-    @keyframes placement-rise { from { opacity: 0; transform: translateY(6px); } }
   }
 `;

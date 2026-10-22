@@ -31,7 +31,7 @@
  *
  * The 诊断编号 button the shared request helper puts after an error message (in an error area, or in a toast) is such a link: padding above
  * and below (`--reach`, 16px here) make it 44px tall and an equal negative margin takes the room back, so the line and the toast keep their
- * height. In a toast the same padding gives a fine pointer a 33px target (craft-finish.ts, 10px). tests/request-failure-call-id.e2e.test.ts
+ * height. In a toast the same padding gives a fine pointer a 33px target (primitives.ts, .mw-toast, 10px). tests/request-failure-call-id.e2e.test.ts
  * measures it, with a finger's reach, in a toast and in an error area. */
 const SHELL = ":is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage)";
 const ASSIST = "body.immersive-workbench:not([data-pane-embedded])";

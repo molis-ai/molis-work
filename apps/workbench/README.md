@@ -109,11 +109,13 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 
 ## 开发要求
 
+- 浏览器交互回归先等待生产界面的可操作状态，再取点：按 [VUX-22 自然高度折叠合同](../../specs/visual-ui-experience/spec.md#disclosure-segmented)，展开到容纳目标按钮后，才由现有点击助手滚动并验证命中（`tests/goals-planning.e2e.test.ts`、`tests/feed-capture.e2e.test.ts`）。保留原等待上限、严格点击与业务结果断言；超时或遮挡仍失败，不增加固定睡眠、不关闭动效、不改产品布局。Feed 的预览零入箱、规则保存与真实消费、停用提供方后保留绑定仍由原用例验收。
 - 负责：工作台界面的组合根：导航、插件选择、设置页、Functions 编辑器，以及进入工作台之前的页面——项目选择页与简介、开场与 Welcome、新建项目引导、更新页（`src/arrival/`、`src/context-onboarding-renderer.ts`、`src/scripts/context-onboarding.ts`）。
 - 不负责：业务 Store、Node 专用实现、Tauri 命令。
 - 公开入口：`@molis-ai/molis-work-app-workbench`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
+  - 窄屏仍显示完整内容（`DESIGN.md` Layout、VUX-40）：放置完成卡的长项目名在卡内换行，移动与关闭按钮留在视口内；Home 日期条为「今天」与事件点统一预留底部空间，日期数字不与状态字相叠，各日期仍对齐。手机沿用现有 70px 高度，比原来的 64px 多出 6px 容纳三层字形及后备字体，列宽仍为 49px。不改文字与日期行为，不加截断与审计例外。回归 `tests/chinese-completion-layout.e2e.test.ts`、原 `tests/chinese-layers.e2e.test.ts` 与 `tests/placement-card-clearance.e2e.test.ts`。
   - Home 工具（目录项 `runtime.keys`，现在是 Issue 的 `Mod+Shift+I`）是开关：按钮或组合键打开它的侧栏视图并把键盘送进视图文档，从视图里再按一次收起。组合键在同源框架里（侧栏视图、嵌入窗格，以及本机 Host 发的讨论页）由 `homeToolKeysScript()` 转交给外壳；从视图里收起时键盘回到打开它的地方，打开前没有焦点就离开侧栏；带组合键的视图在页面空闲时预载，第一次按下就可用。视图可回报 `molis:side-status`（`busy` / `attention`），外壳在它的页签和按钮上标点，侧栏收起时也看得到。Home 插件侧栏始终只展示当前页。验证见 `tests/issue-global-navigation.e2e.test.ts`。
   - 侧栏脚本（`side-panel*.ts`）发出时去掉整行注释：说明留在源码里，不进页面资源。
   - 跨请求的页面操作固定点击时的对象：浏览器文件选择绑定 chooser 与网页，网站决定绑定原审查和显示的网站；文件预览绑定 source/kind/id 与本次打开。迟到结果不改后来打开的对象，设置与引用预览的失败也遵守同一约束。判断规则样例与草稿删除更新原记录，保留另一规则或同一规则的新编辑。标签恢复只收当前保存格式，保留当前组、分屏与设置页撤下规则。回归见 `tests/workbench-browser-targets.e2e.test.ts`、`tests/workbench-async-targets.e2e.test.ts`、`tests/workbench-functions-late.e2e.test.ts`、`tests/workbench-current-tabs.e2e.test.ts`。

@@ -13,6 +13,11 @@ export { DIFF_STEP_BUDGET, splitLines, joinLines, reconstructSides, compareTexts
 export { parsePorcelainStatus, type GitStatus, type GitChange, type GitHead, type GitUpstream, type PorcelainInput } from "./git-porcelain.js";
 /** A message's `{name}` values filled in, with `{count|one|other}` for a word that agrees with a number. */
 export { fillMessage } from "./message-text.js";
+/**
+ * Copied credentials masked in external text before it goes to a model or back on screen. Code colouring and rich text are
+ * subpaths (`/highlight`, `/rich-text`), so an entry that does not use them loads neither the tokenizer nor the Markdown parser.
+ */
+export { redactSecrets } from "./redact-secrets.js";
 export { questionAnswer } from "./question-answers.js";
 export { QUESTION_REASK, questionDraftMaterial } from "./question-drafts.js";
 export { cardSubject, draftActionCard, runActionCard, dismissActionCard, sweepActionCard, type ActionCard, type ActionCardStatus, type ActionCardPorts, type ActionCardRefusal, type CardStore, type CardAuthority } from "./action-cards.js";

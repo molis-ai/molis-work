@@ -47,7 +47,7 @@ export const ONBOARDING_EN: Record<string, string> = {
   "连接其他 Google 账号": "Connect another Google account",
   "只使用粘贴的内容，不访问其他标签页或浏览记录。": "Only the pasted text is used. Other tabs and your history are never read.",
   "当前支持导出的文本；飞书 / Slack 会话正文的直接连接还未接入。": "Exported text works today. Direct connections to Feishu / Slack conversations are not available yet.",
-  "最多 50 份、总大小 6 MB。先预览文件名，开始后读取正文；PDF 读取文本层，Word 读取正文。": "Up to 50 files, 6 MB in total. File names are previewed first and text is read once you start; PDFs use their text layer and Word files their body.",
+  "最多 200 份、总大小 50 MB，单个文件 20 MB 以内。先预览文件名，开始后读取正文；PDF 读取文本层，Word 读取正文。": "Up to 200 files, 50 MB in total and 20 MB per file. File names are previewed first and text is read once you start; PDFs use their text layer and Word files their body.",
   "未读取": "Not read",
   "已读取": "Read",
   "用你最熟悉的语言开始。之后可以在设置里随时更改。": "Start in the language you know best. You can change it in Settings at any time.",

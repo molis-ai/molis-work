@@ -10,8 +10,7 @@ export const CODING_COMPANION_STYLES = `
 .companion-manage > svg:last-child { color:var(--faint); }
 .companion-directory .git-browser { border:0; overflow:visible; }
 .companion-result { min-width:0; min-height:0; overflow:auto; }
-.companion-empty { height:100%; max-width:400px; margin:auto; padding:32px; align-content:center; }
-.companion-empty h2 { font-size:20px; font-weight:500; }
+.companion-empty { height:100%; max-width:400px; margin:auto; padding:32px; align-content:center; justify-items:center; text-align:center; }
 .companion-empty p { font-size:13px; line-height:1.7; }
 .companion-result > .companion-empty:has(~ section:not([hidden])) { display:none; }
 .workspace-manager { height:100%; box-sizing:border-box; }

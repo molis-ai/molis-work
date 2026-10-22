@@ -10,6 +10,7 @@ export const MODEL_SETTINGS_STYLES = `
 .model-provider-row:hover { background:var(--nav-hover); }
 .model-provider-row.is-current { background:var(--nav-active); }
 .model-provider-detail { min-width:0; }
+.model-provider-detail.mw-empty,.mw-empty .mw-choice-group { justify-items:center; justify-content:center; text-align:center; }
 .model-provider-detail-head { flex-wrap:wrap; margin-bottom:24px; }
 .model-provider-detail-head .mw-check-row { white-space:nowrap; }
 .model-provider-detail-head h2 { margin:0; flex:1; font-size:15px; font-weight: var(--weight-title, 600); }

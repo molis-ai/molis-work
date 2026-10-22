@@ -238,11 +238,20 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [703659, 704435],
+  // VUX-33: complete-line layout blocks bound accumulated inline layout while preserving readable text, selected prefixes and the long-line slice budget.
+  // Reviewed 2026-10-23: 4 KB flat slices and a stable tail did not improve the bottleneck; preserving pre/code font struts also retains line and tab geometry. 382075 → 384285 (+2210).
+  "/assets/molis-work-plugins/coding.js": [382075, 384285],
+  // Forms reflow (slice 85): moved and removed questions and options ease through the page's molisReflow, with the fallback when it is absent. 30244 → 30383 (+139).
+  "/assets/molis-work-plugins/form.js": [30244, 30383],
   "/assets/molis-work-plugins/workflows.js": [83019, 83135],
-  "/assets/molis-work-settings.css": [995228, 995833],
-  // Select-item fix (#1003): a page that shows a blank item takes "no item" back instead of dropping it as a repeat. 1182810 → 1182868 (+58).
-  "/assets/molis-work-workbench.js": [1182810, 1182868],
+  // VUX-36 / VUX-22: details menus reverse the same 250/130 ms transition when closed during entry, retaining the bar direction.
+  // Exact menu-only selectors preserve ordinary disclosures, popovers and Assistant motion; +1426 bytes per sheet, reviewed under #17.
+  "/assets/molis-work-settings.css": [994568, 995994],
+  "/assets/molis-work-arrival.css": [704663, 706089],
+  "/assets/molis-work-workbench.css": [1612954, 1614380],
+  // Roving focus: child-list parents only affect their own group; added subtrees and attribute changes still visit descendant groups.
+  // The explicit mutation-kind branch costs 39 bytes; no unrelated code or comments were removed to disguise the cost.
+  "/assets/molis-work-workbench.js": [1182906, 1182945],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

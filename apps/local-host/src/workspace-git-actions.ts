@@ -51,9 +51,16 @@ export function registerWorkspaceGitActions(ports: WorkspaceGitActionPorts): () 
   // What each produced is kept beside the review, since a receipt only says whether it happened.
   const detailsFile = path.join(ports.homeDirectory, "git-operation-details.json");
   const readDetails = async (): Promise<Record<string, string>> => { try { return JSON.parse(await readFile(detailsFile, "utf8")); } catch { return {}; } };
-  const saveDetail = async (key: string, detail: string) => {
-    const next = { ...await readDetails(), [key]: detail }, temporary = detailsFile + "." + process.pid + ".tmp";
-    await writeFile(temporary, JSON.stringify(next)); await rename(temporary, detailsFile);
+  // Operations approved together finish together: saves run one after another, so each reads what the one before it wrote and
+  // none renames the temporary file from under another.
+  let saving: Promise<void> = Promise.resolve();
+  const saveDetail = (key: string, detail: string) => {
+    const save = saving.then(async () => {
+      const next = { ...await readDetails(), [key]: detail }, temporary = detailsFile + "." + process.pid + ".tmp";
+      await writeFile(temporary, JSON.stringify(next)); await rename(temporary, detailsFile);
+    });
+    saving = save.catch(() => undefined);
+    return save;
   };
   const verifiedWorkspace = async (projectId: string, workspaceId: string, refusal: string) => {
     const workspace = (await ports.workspaces(projectId)).find(item => item.workspace_id === workspaceId && item.realpath_verified);

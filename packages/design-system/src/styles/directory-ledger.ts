@@ -32,7 +32,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     body[data-desktop-shell="true"] .desktop-directory-heading > button svg { width: 12px; height: 12px; }
     body[data-desktop-shell="true"] .desktop-directory-heading > span { display: grid; gap: 0; }
     body[data-desktop-shell="true"] .desktop-directory-heading small { color: var(--faint); font-size: 11px; }
-    body[data-desktop-shell="true"] .tree-row { border-radius: 7px; }
+    body[data-desktop-shell="true"] .tree-row { border-radius: 8px; }
     body[data-desktop-shell="true"] .tree-row:hover,
     body[data-desktop-shell="true"] .tree-row:has(.tree-node.is-selected) { background: var(--nav-active); }
   }
@@ -242,7 +242,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     border: 0;
     border-radius: 0;
     background: transparent;
-    font-size: 11px;
+    font-size: 12px;
   }
   html[data-density="compact"] body[data-desktop-shell="true"][data-board-view]:where(:not(.immersive-workbench)) .desktop-goal-directory .directory-row-state > .goal-status {
     min-height: 0;
@@ -250,7 +250,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     border: 0;
     border-radius: 0;
     background: transparent;
-    font-size: 11px;
+    font-size: 12px;
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-relations {
     width: auto;

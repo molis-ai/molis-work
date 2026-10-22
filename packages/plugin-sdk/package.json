@@ -13,6 +13,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./highlight": {
+      "types": "./dist/highlight.d.ts",
+      "import": "./dist/highlight.js"
+    },
+    "./rich-text": {
+      "types": "./dist/rich-text.d.ts",
+      "import": "./dist/rich-text.js"
     }
   },
   "files": [
@@ -26,6 +34,23 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*"
+  },
+  "peerDependencies": {
+    "marked": "^18.0.11",
+    "sanitize-html": "^2.17.7"
+  },
+  "peerDependenciesMeta": {
+    "marked": {
+      "optional": true
+    },
+    "sanitize-html": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/sanitize-html": "^2.16.1",
+    "marked": "^18.0.11",
+    "sanitize-html": "^2.17.7"
   },
   "molis-work": {
     "path": "packages/plugin-sdk",

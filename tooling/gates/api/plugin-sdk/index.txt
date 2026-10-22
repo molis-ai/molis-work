@@ -463,6 +463,8 @@ export declare function reconstructSides(ops: readonly DiffOp[]): {
     after: string;
 };
 
+export declare function redactSecrets(value: string): string;
+
 export { referencesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { resolveActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 

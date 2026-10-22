@@ -10,7 +10,6 @@ export const packageDescriptor = {
 } as const;
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-export type { GitOperationUpdate } from "./events.js";
 
 export {
   headLabel,
@@ -65,6 +64,7 @@ export { createGitPlugin, type GitPluginPorts } from "./plugin.js";
 export { renderGitBrowserDirectory, renderGitBrowserResult } from "./ui.js";
 export { GIT_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { GIT_MESSAGES } from "./messages.js";
+export { GIT_SENTENCE_TABLE, sayHostSentence } from "./sentences.js";
 export { GIT_STYLES } from "./styles.js";
 
 export { gitActions, GIT_ACTIONS } from "./action-definitions.js";

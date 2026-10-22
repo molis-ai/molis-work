@@ -69,6 +69,9 @@ test("VUX-40: with a real repository, Git's changes, branches, commit and confli
   const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", ...args], { cwd: repo });
   git("init", "-q", "-b", "main");
   await writeFile(join(repo, "notes.md"), "first\n"); await writeFile(join(repo, "todo.md"), "one\n");
+  await writeFile(join(repo, "keep.md"), Array.from({ length: 12 }, (_, line) => `line ${line}\n`).join(""));
+  // A remote that is a folder on this computer, so the pull-request note names it (VUX-40: the sentence has a remote's name and path in it).
+  git("remote", "add", "origin", join(homeDirectory, "english-remote.git"));
   git("add", "."); git("commit", "-q", "-m", "start");
   await writeFile(join(repo, "notes.md"), "first\nsecond\n"); git("add", "notes.md");
   await writeFile(join(repo, "todo.md"), "one\ntwo\n");
@@ -92,10 +95,19 @@ test("VUX-40: with a real repository, Git's changes, branches, commit and confli
   await click("[data-companion=git] [data-git-path]");
   await waitFor("document.querySelector('[data-companion=git] [data-git-index-action]:not([hidden])')", 20_000);
   assert.deepEqual(await evaluate<string[]>(HAN_IN("[data-companion=git]")), [], "Git in English");
+  assert.match(await evaluate<string>("document.querySelector('[data-companion=git] [data-git-pr-support]').textContent"), /^The remote “origin” is a local path \(.*english-remote\.git\), not on GitHub\./, "VUX-40: the note names the remote and its path in English");
   assert.equal(await evaluate("document.querySelector('[data-companion=git] [data-git-commit]').textContent"), "Commit 1 staged file…", "one staged file reads as one (VUX-40 counts)");
   git("add", "todo.md");
   await click("[data-companion=git] [data-git-refresh]");
   await waitFor("document.querySelector('[data-companion=git] [data-git-commit]').textContent === 'Commit 2 staged files…'", 20_000);
+  // A staged rename: the pinned comparison names both paths in English (VUX-40), and nothing on the page stays Chinese.
+  git("mv", "keep.md", "kept.md");
+  await click("[data-companion=git] [data-git-refresh]");
+  await waitFor("document.querySelector('[data-companion=git] [data-git-commit]').textContent === 'Commit 3 staged files…'", 20_000);
+  await click(`[data-companion=git] [data-git-path='${JSON.stringify([["kept.md"], "index"])}']`);
+  await waitFor("document.querySelector('[data-companion=git] [data-git-diff] .diff-notices')", 20_000);
+  assert.ok((await evaluate<string>("document.querySelector('[data-companion=git] [data-git-diff] .diff-notices').textContent")).includes("Renamed: keep.md → kept.md"), "VUX-40: the rename is said in English");
+  assert.deepEqual(await evaluate<string[]>(HAN_IN("[data-companion=git]")), [], "Git in English, with a rename open");
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=files` }, sessionId));
   await waitFor("document.querySelectorAll('[data-companion=files] [data-file-path]').length >= 2", 30_000);

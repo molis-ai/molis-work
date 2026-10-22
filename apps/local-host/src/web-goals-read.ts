@@ -148,7 +148,7 @@ export function createLocalGoalsReadHttp(ports: {
             routePrefix: view.route_prefix,
           };
           const builtinStages = await projectPluginStages(surfacePorts, projectConfiguration.plugins);
-          view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtinStages.html], plugin_stage_ids: builtinStages.ids };
+          view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtinStages.html], plugin_stage_ids: [...(view.plugin_stage_ids ?? []), ...builtinStages.ids] };
           // Installed execution supplies rail entries and stages independently of opening the authoring studio.
           const installed = await installedPluginStages({ store, projectId: options.projectId, homeDirectory, routePrefix: view.route_prefix,
             models: async () => homeDirectory ? configuredModelChoices(homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID, actions: pluginServices.actions,

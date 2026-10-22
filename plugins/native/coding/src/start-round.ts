@@ -4,6 +4,7 @@ import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modu
 import { agentHostCapabilities as agent, type AgentRunView, type AgentSubagentWorkspace } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { characterSelection, characterSkillSelection, savedCharacter, savedCharacterSkills } from "./characters.js";
 import { CONTINUATION_MARKER } from "./continuation.js";
+import { codingDraft } from "./drafts.js";
 import { CODING_RUN_UPDATED_EVENT } from "./events.js";
 import { resolveGoalContext } from "./goal-context.js";
 import { nextHistoryMode, writeHistoryDigest, type HistoryDigest } from "./history-digest.js";
@@ -163,7 +164,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   // record-based digest carries the round and the page says why. Either way it is written once per round.
   let digest: HistoryDigest | undefined;
   const digestFor = async () => digest ??= await writeHistoryDigest(await earlierRuns(), task,
-    material => api!.invoke(agent.draftText, { purpose: "整理前面的对话", prompt: CODING_HISTORY_SUMMARY.prompt_id, material, model_selection: { provider_id: model.provider_id, model_id: model.model_id } }), beforeWrite,
+    material => codingDraft(context, { purpose: "整理前面的对话", prompt: CODING_HISTORY_SUMMARY.prompt_id, material, model_selection: { provider_id: model.provider_id, model_id: model.model_id } }, beforeWrite), beforeWrite,
     usage => {
       const spent = savedDigestUsage(a, record.session_id) ?? { calls: 0, tokens: { input: 0, output: 0 } };
       context.services!.storage!.set(`digest-usage:${record.session_id}`, JSON.stringify({ calls: spent.calls + 1,

@@ -1,4 +1,5 @@
 
+import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { EN } from "./i18n/en.js";
 import { BUILTIN_PLUGIN_CATALOG, pluginTabTitles } from "./plugin-catalog.js";
 
@@ -101,13 +102,7 @@ function localeSwitchHref(locale: WebLocale, nextPath: string): string {
 
 function L(key: string, vars?: Record<string, string | number>): string {
   const locale = currentLocale();
-  let text = PLUGIN_MESSAGES[key]?.[locale] ?? (locale === "en" ? (EN[key] ?? key) : key);
-  if (vars) {
-    for (const [key, value] of Object.entries(vars)) {
-      text = text.replaceAll(`{${key}}`, String(value));
-    }
-  }
-  return text;
+  return fillMessage(PLUGIN_MESSAGES[key]?.[locale] ?? (locale === "en" ? (EN[key] ?? key) : key), vars);
 }
 
 function renderLocaleSwitch(nextPath: string): string {
@@ -133,13 +128,7 @@ function clientI18nScript(): string {
   const titles = JSON.stringify(pluginTabTitles(currentLocale() === "en")).replaceAll("<", "\\u003c");
   return `globalThis.MOLIS_WORK_MESSAGES = ${catalog};
   globalThis.MOLIS_WORK_PLUGIN_TITLES = ${titles};
-  globalThis.L = function L(key, vars) {
-    let text = globalThis.MOLIS_WORK_MESSAGES[key] ?? key;
-    if (vars) {
-      for (const key of Object.keys(vars)) text = text.split("{" + key + "}").join(String(vars[key]));
-    }
-    return text;
-  };`;
+  globalThis.L = (fill => function L(key, vars) { return fill(globalThis.MOLIS_WORK_MESSAGES[key] ?? key, vars); })(${fillMessage.toString()});`;
 }
 
 

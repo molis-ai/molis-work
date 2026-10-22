@@ -1,5 +1,5 @@
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
-import { FONT_STACK, renderShellTokens, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES } from "@molis-ai/molis-work-design-system";
+import { FONT_STACK, HIDDEN_SCROLLBAR_STYLES, renderShellTokens, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES } from "@molis-ai/molis-work-design-system";
 
 export interface CapsuleProjectNavigation {
   project_id: string;
@@ -71,8 +71,7 @@ export const CAPSULE_STYLES = `
   .capsule-shell[data-state="ready"] .capsule__dot { background: var(--green); }
   .capsule-shell[data-state="empty"] .capsule__dot,
   .capsule-shell[data-state="disconnected"] .capsule__dot { background: var(--faint); }
-  .capsule__tabs { min-width: 0; display: flex; align-items: stretch; gap: 4px; overflow-x: auto; overflow-y: hidden; padding: 0 12px; border-bottom: 1px solid var(--line); background: var(--paper); scrollbar-width: none; }
-  .capsule__tabs::-webkit-scrollbar { display: none; }
+  .capsule__tabs { min-width: 0; display: flex; align-items: stretch; gap: 4px; overflow-x: auto; overflow-y: hidden; padding: 0 12px; border-bottom: 1px solid var(--line); background: var(--paper); }
   .capsule__tab { position: relative; flex: 0 0 auto; min-width: 0; border: 0; padding: 0 8px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 400; white-space: nowrap; cursor: pointer; }
   .capsule__tab::after { content: ""; position: absolute; right: 8px; bottom: 0; left: 8px; height: 2px; border-radius: 4px 4px 0 0; background: transparent; }
   .capsule__tab:hover { color: var(--ink-soft); }
@@ -143,6 +142,7 @@ export const CAPSULE_STYLES = `
     .capsule__button, .capsule__chevron { transition: none; }
   }
   ${SELECT_MENU_STYLES}
+  ${HIDDEN_SCROLLBAR_STYLES}
   .capsule__project-wrap .mw-select-picker { min-width: 0; max-width: 202px; }
   .capsule__project-wrap .mw-select-picker__trigger { height: 30px; }
 `;

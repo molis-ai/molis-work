@@ -20,6 +20,7 @@ const shots = (key: string) => `<div class="issues-shots" data-issue-${key}></di
 export function renderIssuesWorkbench(): string {
   return renderPluginStageShell({ surface: "issues", label: "Issue", dataset: "issues", body: `<div class="issues" data-issue-root>
     <section class="issues-home" data-issue-home>
+      <p class="mw-alert mw-alert--info issues-gone" data-issue-gone role="status" hidden></p>
       <form class="issues-composer" data-issue-composer>
         <textarea data-issue-i18n data-fit name="description" rows="3" maxlength="100000" aria-label="问题描述" placeholder="遇到什么问题？写下来，截图可以直接粘贴"></textarea>
         ${shots("thumbs")}

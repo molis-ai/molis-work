@@ -98,8 +98,10 @@ addEventListener("focusin", (event) => {
 let queued = false;
 const dirty = new Set<Element>();
 const settleAll = () => { queued = false; const groups = dirty.size ? [...dirty] : [...document.querySelectorAll(GROUP)]; dirty.clear(); groups.forEach(settle); };
+// Only an element can hold groups of its own: a text node looks no further than its own group, or a block of many text
+// pieces put in at once (a coloured code block) would search its parent once per piece.
 const touched = (node: Node) => { const el = node instanceof Element ? node : node.parentElement; const group = el?.closest(GROUP); if (group) dirty.add(group);
-  if (el && !group) el.querySelectorAll(GROUP).forEach((inner) => dirty.add(inner)); };
+  else if (node instanceof Element) node.querySelectorAll(GROUP).forEach((inner) => dirty.add(inner)); };
 // Items come, go, are disabled or reordered by the pages: the groups they belong to get their tab stop put right before
 // the next frame. Text streaming elsewhere is not looked at.
 new MutationObserver((records) => {

@@ -4,8 +4,7 @@ export const TODO_STYLES = `
   /* The header is in the flow (several rows), so the space the shell keeps for its single-row chrome is not needed. */
   body.immersive-workbench .plugin-stage-shell[data-todo=workbench] > .todo-list.plugin-stage-list { padding-top: 16px; }
   .todo-chrome { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-width: 0; }
-  .todo-views { display: flex; flex-wrap: nowrap; gap: 2px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-  .todo-views::-webkit-scrollbar { display: none; }
+  .todo-views { display: flex; flex-wrap: nowrap; gap: 2px; max-width: 100%; overflow-x: auto; }
   .todo-views .mw-toggle { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .todo-chrome-tools { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .todo-search { width: 200px; max-width: 100%; }
@@ -16,7 +15,10 @@ export const TODO_STYLES = `
   .todo-quick-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .todo-quick-parts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 1 1 12rem; min-width: 0; }
   .todo-quick-meta .mw-btn--primary { flex: none; }
-  .todo-quick-placement { flex: none; }
+  /* A long project name ellipsizes; the short choices keep their words. */
+  .todo-quick-placement { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+  .todo-quick-placement > .mw-toggle { flex: none; white-space: nowrap; }
+  .todo-quick-placement > [data-todo-quick-placement-choice="project"] { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .todo-chip { display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 2px 0 8px; border-radius: 999px; font-size: 12px; color: var(--ink-soft); background: var(--nav-hover); }
   .todo-chip--due_date { color: var(--ink); }
   .todo-chip-remove { display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
@@ -147,7 +149,8 @@ export const TODO_STYLES = `
     body.immersive-workbench .plugin-stage-list .todo-row > .todo-entry.feed-stage-entry { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "meta" "trail"; }
     .todo-trail { justify-content: flex-start; }
     .todo-quick-meta .mw-btn--primary { width: 100%; justify-content: center; }
-    .todo-delegate > span { display: none; }
+    /* The name keeps the room: More shows its icon. */
+    .todo-delegate > span, .todo-detail .plugin-stage-more > summary > span { display: none; }
   }
   @media (prefers-reduced-motion: reduce) { .todo-pick { transition: none; } }
 `;

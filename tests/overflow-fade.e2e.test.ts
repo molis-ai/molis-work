@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { OVERFLOW_FADE_CLIENT_SCRIPT, OVERFLOW_FADE_SAMPLES, OVERFLOW_FADE_STYLES, OVERFLOW_FADE_WIDTH, overflowSides } from "@molis-ai/molis-work-design-system";
+import { HIDDEN_SCROLLBAR_STYLES, OVERFLOW_FADE_CLIENT_SCRIPT, OVERFLOW_FADE_SAMPLES, OVERFLOW_FADE_STYLES, OVERFLOW_FADE_WIDTH, overflowSides } from "@molis-ai/molis-work-design-system";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 
 // The overflow fade (specs/visual-ui-experience §overflow-fade): the shipped stylesheet and sensor, on real scrollers.
@@ -28,7 +28,7 @@ test("VUX-27 a strip fades only where it has more, clears at each edge, follows 
   const chips = (count: number) => Array.from({ length: count }, (_, i) => `<button style="flex:none;width:90px;height:28px">项 ${i + 1}</button>`).join("");
   await page.evaluate(`(() => {
     const style = document.createElement("style");
-    style.textContent = ${JSON.stringify(OVERFLOW_FADE_STYLES)} + ".row{display:flex;gap:4px;width:300px;overflow-x:auto;scrollbar-width:none}";
+    style.textContent = ${JSON.stringify(HIDDEN_SCROLLBAR_STYLES + OVERFLOW_FADE_STYLES)} + ".row{display:flex;gap:4px;width:300px;overflow-x:auto}";
     document.head.append(style);
     document.body.innerHTML = '<div class="row" id="ltr" data-overflow-fade>${chips(8)}</div><div class="row" id="rtl" dir="rtl" data-overflow-fade>${chips(8)}</div><div class="row" id="fits" data-overflow-fade>${chips(2)}</div>';
     ${OVERFLOW_FADE_CLIENT_SCRIPT}
@@ -93,7 +93,11 @@ test("VUX-27 a strip fades only where it has more, clears at each edge, follows 
   await page.wait(`(() => { const row = document.getElementById("rtl").getBoundingClientRect(), box = document.activeElement.getBoundingClientRect();
     return box.left >= row.left + 27 && box.right <= row.right - 27; })()`);
 
-  // Forced colours: no mask; the strip shows its own scrollbar instead.
+  // The strip scrolls without drawing a bar (the design system hides every scrollbar).
+  assert.deepEqual(await page.evaluate(`(() => { const row = document.getElementById("ltr"), s = getComputedStyle(row);
+    return { width: s.scrollbarWidth, bar: row.offsetHeight - row.clientHeight - parseFloat(s.borderTopWidth) - parseFloat(s.borderBottomWidth) }; })()`), { width: "none", bar: 0 });
+
+  // Forced colours: no mask; the system scrollbar comes back instead.
   await page.command("Emulation.setEmulatedMedia", { features: [{ name: "forced-colors", value: "active" }] });
-  await page.wait(`getComputedStyle(document.getElementById("fits")).maskImage === "none" && getComputedStyle(document.getElementById("fits")).scrollbarWidth === "thin"`);
+  await page.wait(`getComputedStyle(document.getElementById("fits")).maskImage === "none" && getComputedStyle(document.getElementById("fits")).scrollbarWidth === "auto"`);
 });

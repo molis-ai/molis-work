@@ -273,7 +273,7 @@ test("Shelf keeps the latest snapshot and releases global handlers across hide, 
 test("VUX-19: a clip's copy is said on the bar, a refused clipboard included, and a refusal makes nothing current", { timeout: 35_000 }, async t => {
   const browser = await openShelfBrowser(t); if (!browser) return;
   const { shelf, requests, evaluate, waitFor, command, sessionId } = browser;
-  const clip = shelf.addClipboard("复制到剪贴板的一段话 4471"); assert.ok(clip);
+  const clip = await shelf.addClipboard("复制到剪贴板的一段话 4471"); assert.ok(clip);
   await command("Page.reload", {}, sessionId);
   const row = `document.querySelector('[data-shelf-clip=${JSON.stringify(clip.clip_id)}]')`;
   await waitFor(`${row} && document.querySelector('[data-shelf-bar]')?.textContent.length > 0`);

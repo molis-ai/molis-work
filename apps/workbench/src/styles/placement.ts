@@ -12,8 +12,10 @@ export const PLACEMENT_STYLES = `
   .placement-bar > .placement-bar-where { color: var(--ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
   .placement-bar-saved { gap: 4px; }
   .placement-bar-saved:empty { display: none; }
-  .placement-target { display: inline-flex; align-items: baseline; gap: 4px; font-size: 12px; color: var(--muted); white-space: nowrap; }
-  .placement-target b { font-weight: 500; color: var(--ink-soft, var(--ink)); }
+  /* A long name ellipsizes; the tooltip shows it whole. */
+  .placement-target { display: inline-flex; align-items: baseline; gap: 4px; min-width: 0; max-width: 100%; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .placement-target > span { flex: none; }
+  .placement-target b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500; color: var(--ink-soft, var(--ink)); }
   .placement-panel { position: fixed; z-index: 60; width: min(380px, calc(100vw - 16px)); max-height: calc(100vh - 80px); overflow: auto; padding: 14px;
     background: var(--paper); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow); }
   .placement-panel-title { margin: 0 0 10px; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }

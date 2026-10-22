@@ -88,6 +88,14 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "none";
     readonly summary: "A Goal event panel is present in the document; the shell re-reads whether to offer the panel layout.";
 }, {
+    readonly name: "molis-work:item-unreadable";
+    readonly kind: "request";
+    readonly owner: "context-actions";
+    readonly on: "element";
+    readonly bubbles: true;
+    readonly detail: "{ itemId }";
+    readonly summary: "A plugin surface could not read the item the workbench asked it to show (molis-work:select-item): it is gone. The surface says so on itself; the workbench does not name the surface after the item, so the Assistant does not carry it as what the person is looking at. Raised from the surface root and bubbling.";
+}, {
     readonly name: "molis-work:knowledge-pick";
     readonly kind: "request";
     readonly owner: "knowledge-picker";
@@ -162,8 +170,8 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "announcement";
     readonly owner: "tab-workspace";
     readonly on: "element";
-    readonly detail: "{ itemId }";
-    readonly summary: "The workbench opened an item in a plugin surface; the surface shows it. Dispatched on the surface root, not bubbling.";
+    readonly detail: "{ itemId, quiet? }";
+    readonly summary: "The workbench opened an item in a plugin surface; the surface shows it. quiet: a reopen the person did not ask for (a reload, Back), so an item that is gone is forgotten without a word. Dispatched on the surface root, not bubbling.";
 }, {
     readonly name: "molis-work:settings-embed";
     readonly kind: "announcement";

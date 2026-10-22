@@ -97,6 +97,7 @@ export function renderProjectSettingsDirectorySection(primitives: SettingsDirect
   </section>`;
 }
 
+/** Settings inside a project. `nextPath` is where switching the language lands: this project with Settings open on the same page (VUX-40). */
 export function renderSettingsWorkSurface(primitives: SettingsDirectoryPrimitives, nextPath: string): string {
   const { L, htmlLang } = primitives;
   const locale = htmlLang().toLowerCase().startsWith("en") ? "en" : "zh";

@@ -4,6 +4,7 @@
 
 ## 在做的
 
+- [empty-goal-create](empty-goal-create/spec.md)：进入 Goals 且当前列表为空时，自动打开已有的新建弹窗；2026-10-22 实现，待验收。
 - [prologue-memory-strategy](prologue-memory-strategy/spec.md)：Prologue 记忆策略与 Molis Work 接入；三层拆分、四个预设、召回与提炼两个槽、有界历史；独立需求，需求已整理，待评审后实施。
 - [pr-review-remediation](pr-review-remediation/spec.md)：最近三天 PR 复审确认的 P1 安全边界、P2 功能/合同问题、P3 文档与验收、合并门禁；2026-10-20 新立，实现完成，待评审（PR #901；QA-017 本机 Chrome 未跑通，Product subset 待跑）。
 - [unified-input-voice](unified-input-voice/spec.md)：统一输入体验与本地语音输入；需求已整理，尚未实现。

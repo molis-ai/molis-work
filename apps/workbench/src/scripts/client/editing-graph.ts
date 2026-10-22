@@ -47,7 +47,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     const goalPageBase = () => route(trashView ? "/trash/goals/" : archiveView ? "/archive/goals/" : "/goals/");
     const goalPageUrl = (goalId) => goalPageBase() + encodeURIComponent(goalId) + (document.body.dataset.nativeDesktop === "true" ? "?desktop=1" : "");
 
-    const { readCreateDraft, refreshCreateChoices, handleGoalDialogClick, handleGoalTrashSubmit,
+    const { readCreateDraft, refreshCreateChoices, openCreate, handleGoalDialogClick, handleGoalTrashSubmit,
       bindGoalCreateEvents, handleGoalDialogEscape } = (${GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT})({
         dialog, form, route, controlHeaders: molisWorkControlHeaders,
         refreshBoard: (...args) => refreshBoard(...args), updateRelationPreviews,

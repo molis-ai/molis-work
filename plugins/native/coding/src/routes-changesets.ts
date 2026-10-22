@@ -2,6 +2,7 @@ import { codingArtifacts, CODING_REPORT_TYPE, CODING_CHANGESET_TYPE } from "./ar
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
 import { codingOutputs } from "./outputs.js";
 import { COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
+import { codingDraft } from "./drafts.js";
 import { runGoalContext } from "./goal-context.js";
 import { artifactReferenceOf } from "./materials.js";
 import { CODING_COMMIT_DRAFT } from "./prompts.js";
@@ -142,7 +143,7 @@ const ROUTES: RouteMaker[] = [
   // The model drafts a commit message from the rounds that changed files; the person edits it and commits under review.
   (a) => {
     const { projectId, route } = a;
-    return route("coding.commit-draft", async (request, api, execution) => {
+    return route("coding.commit-draft", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution), runId = text(request.params.runId, "执行引用"), body = bodyOf(request);
       if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
@@ -160,8 +161,8 @@ const ROUTES: RouteMaker[] = [
       if (!rounds.length) throw new Error("这一轮之前没有已落盘的改动可以起草");
       const plan = execution.sessions.plan(projectId, record.session_id);
       const selection = typeof body.provider_id === "string" && typeof body.model_id === "string" ? { provider_id: body.provider_id, model_id: body.model_id } : undefined;
-      const draft = await api!.invoke(agent.draftText, { purpose: "起草 git 提交说明", prompt: CODING_COMMIT_DRAFT.prompt_id,
-        material: commitDraftMaterial({ ...(plan?.confirmed ? { planTitle: plan.content.title } : {}), rounds }), ...(selection ? { model_selection: selection } : {}) });
+      const draft = await codingDraft(a.context, { purpose: "起草 git 提交说明", prompt: CODING_COMMIT_DRAFT.prompt_id,
+        material: commitDraftMaterial({ ...(plan?.confirmed ? { planTitle: plan.content.title } : {}), rounds }), ...(selection ? { model_selection: selection } : {}) }, beforeWrite);
       return { message: commitMessageFrom(draft.text), usage: draft.usage, rounds: rounds.map(round => round.number) };
     });
   },

@@ -19,7 +19,7 @@ import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules
 import { readProjectGuidance } from "./goals-actions.js";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { ActionError, type ActionCallContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, type GitOperationRecord, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -117,10 +117,10 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   const externalMcp = createExternalMcpDirectory({ localHost: options.localHost, homeDirectory: options.homeDirectory });
   const unregister = registerAgentHostCapabilities<MolisWorkProjectRuntime>(
     {
-      register: (definition, handler) => options.localHost.registerCapability(definition, async (project, input, invocation) => {
-        await initialize();
-        return handler(project, input, invocation);
-      }),
+      register: (definition, handler) => { // Each kind on its own seam (PG-035): an action to the action one, the typed rest to the other.
+        const started: typeof handler = async (project, input, invocation) => { await initialize(); return handler(project, input, invocation); };
+        return definition.action ? options.localHost.registerAction(definition as typeof definition & ActionDefinition, started) : options.localHost.registerCapability(definition, started);
+      },
     },
     {
       agentHost: () => agentHost,
@@ -171,11 +171,11 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     return { review_id: request.review_id };
   });
   // Drafts borrow the same owner as Agent runs; only the ephemeral model Session is scoped to the request.
-  const unregisterDraft = options.localHost.registerCapability(agentHostCapabilities.draftText, async (_project, input, invocation) => {
-    if (!options.prologue) throw new Error("模型执行方尚未接通，不能起草");
-    return draftText({ homeDirectory: options.homeDirectory ?? resolveConfiguredHome(),
-      resolveInference: async () => { await initialize(); if (!prologue) throw new Error("模型执行方尚未接通"); return prologue.inference; },
-    }, input, { signal: invocation.signal, beforeDispatch: () => invocation.beforeEffect(), pluginId: invocation.plugin?.plugin_id });
+  const unregisterDraft = options.localHost.registerAction(agentHostCapabilities.draftText, async (_project, input, invocation) => {
+    if (!options.prologue) throw new ActionError("actions.connection_required", "模型执行方尚未接通，不能起草");
+    return draftText({ homeDirectory: options.homeDirectory ?? resolveConfiguredHome(), resolveInference: async () => {
+      await initialize(); if (!prologue) throw new ActionError("actions.connection_required", "模型执行方尚未接通，不能起草"); return prologue.inference;
+    } }, input, { signal: invocation.signal, beforeDispatch: () => invocation.beforeEffect(), pluginId: invocation.plugin?.plugin_id });
   });
   const unregisterGitOperations = options.localHost.registerCapability(readGitOperationsCapability, async (project, input) => {
     await initialize();

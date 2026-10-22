@@ -2737,14 +2737,14 @@ Goal 材料成果闭环、独立 Character（C12）、Plan→SubAgent→TaskBoar
 
 Coding 原来由宿主递进四样东西（`CodingExecutionPorts` 的 `ready`、`models`、`goalTitle`、`characters`）。现在一样不递，`CodingExecutionPorts` 与宿主的 `execution` 端口整个删掉，Coding 自己从平台取：
 
-- **模型**：`services.model`。Manifest 把 `model:read` 列为必需，不声明 `model:invoke`；列表用 `choices()`，每次选模型用 `availability(selection)`；`complete()` 对 Coding 不可用（没有声明 `model:invoke` 的动作，装上也没有这项授权）。列表只有平台这一份（宿主里为 Coding 另算的那份与创作台里的第二份已删），所以过滤口径一致：停用的提供方与模型都不在其中。
+- **模型**：`services.model`。Manifest 把 `model:read` 列为必需；列表用 `choices()`，每次选模型用 `availability(selection)`；`complete()` 对 Coding 不可用（它没有声明 `model:invoke` 的动作）。`model:invoke` 写成可选，只给两处显式起草（提交说明、历史摘要）用：它们经平台的动作 `agent.draft-text.v1` 起草，这一轮的模型调用仍归 Agent 运行时；人关掉它以后只有这两处不可用（PG-035，① 2026-10-22）。列表只有平台这一份（宿主里为 Coding 另算的那份与创作台里的第二份已删），所以过滤口径一致：停用的提供方与模型都不在其中。
 - **`ready`**：删掉。Agent 的能力处理器在被调用时自己初始化，Coding 不必再等。重启后找到挂着 Agent 运行的会话，Coding 直接起等待循环；它的第一次 `awaitContinuations` 失败（运行时没接上、起不来）就和 `agent.capability_unavailable` 一样结束循环，不再每 5 到 30 秒重试；下一次 `coding.state` 读或开一轮会再起一个。
 - **Goal 标题**：经 Goals 的公开读动作 `goals.list@1`（目录，一次带回大多数标题）和 `goals.contract.read@2`（目录不列的归档或丢弃的目标，按 id 读一次），二者都在 `capabilities.consumes` 里，由平台核授权。目录面板当场渲染、等不了一次动作，所以 Coding 记下最近一次读到的标题（进程内加写入插件私有存储，重启后还在）；页面一打开就读的 `coding.state`、会话读取、搜索条目和所选 Goal 都会刷新它。从没读到过的 Goal，目录首屏显示 Goal 的 id，页面里显示「关联 Goal 暂不可用」，和 Goal 读不到时一向的样子一样；读到过、现在读不到的，保持最近一次读到的标题。
 - **Character**：经 Characters 的两个公开动作 `characters.list@1`（已发布的固定版本；新增 `plugin` 受众，形状、版本和 MCP 工具名不变）与新加的 `characters.runnable@1`（只给 `plugin` 受众：这个版本现在能不能跑，不能跑时答 `available: false`，带 Characters 自己给的原因），Coding 在 `capabilities.consumes` 里列出这两个。`characters.execution@1` 仍然只给本人：它答的是本机 Agent 的程序路径与工作目录，Coding 只要知道「能不能跑」，不该拿到这些。合同影响：多一个动作、`characters.list` 多一个受众，其余不变；内置 Coding 的必需权限仍是 `artifact:read`，`consumes` 不是授权项，不需要到设置页重新授权。
   - 决定（2026-10-21，评审与合并按防腐后果定）：PR 原稿给 `characters.execution` 加 `plugin` 受众，等于让任何声明了它、持 `artifact:read` 的插件读到本机程序路径和工作目录，信任边界比 Coding 实际要的宽；所以另开只答「能不能跑」的窄动作，`execution` 留在本人。
 
-1. **W5-01-CODING-23** Manifest：`model:read` 必需、没有 `model:invoke`，Coding 的动作也没有任何一个声明 `model:invoke`；`capabilities.consumes` 里有 Goals 的 `goals.list`、`goals.contract.read` 与 Characters 的 `characters.list`、`characters.runnable`，没有 `characters.execution`。测试：`tests/coding-input-ports.test.ts`。
-2. **W5-01-CODING-24** Coding 从 `services.model` 读模型列表和每个模型的可用性，安装只持有 `model:read`；页面的列表就是它；`complete()` 在发出之前被拒（`plugin.model_action_required`）。测试：`tests/coding-input-ports.test.ts`。
+1. **W5-01-CODING-23** Manifest：`model:read` 必需、`model:invoke` 可选（只给两处起草，PG-035），Coding 的动作没有任何一个声明 `model:invoke`；`capabilities.consumes` 里有 `agent.draft-text.v1`；`capabilities.consumes` 里有 Goals 的 `goals.list`、`goals.contract.read` 与 Characters 的 `characters.list`、`characters.runnable`，没有 `characters.execution`。测试：`tests/coding-input-ports.test.ts`。
+2. **W5-01-CODING-24** Coding 从 `services.model` 读模型列表和每个模型的可用性，安装只持有 `model:read` 时也是这样；页面的列表就是它；`complete()` 在发出之前被拒（`plugin.model_action_required`）。测试：`tests/coding-input-ports.test.ts`。
 3. **W5-01-CODING-25** V-13 只有一份模型列表：Coding 列出的与同一个 Home 里另一个持 `model:read` 的插件拿到的相同、同序，停用的模型两边都没有。测试：`tests/coding-input-ports.test.ts`。
 4. **W5-01-CODING-26** 会话关联的 Goal 标题，经 Goals 的公开列表动作、以插件受众（`host_plugin` 是 Coding）读到；读之前目录首屏给 id，读之后目录显示标题；Goals 读不到了标题保持，插件重启后目录里仍是这个标题。测试：`tests/coding-input-ports.test.ts`、`tests/coding-surface.test.ts`（20）。
 5. **W5-01-CODING-27** 目录不列的 Goal（归档、丢弃）按 id 经 `goals.contract.read` 读一次；读不到的 Goal 没有标题，这不是错误；已知的标题不重复读。测试：`tests/coding-input-ports.test.ts`。

@@ -3,9 +3,9 @@ export const GOAL_CANVAS_STYLES = `
   .immersive-plugin-stage > .goal-canvas-shell, .tab-pane-body > .goal-canvas-shell { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: hidden; overscroll-behavior: contain; background: var(--canvas); container: goal-board / inline-size; }
   .goal-canvas-shell [hidden] { display: none !important; }
   .goal-canvas-shell .goal-canvas-map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; padding: 0; margin: 0; overflow: hidden; background: transparent; }
-  .goal-canvas-shell .goal-kanban { position: absolute; inset: 0; display: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; background: var(--canvas); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .goal-canvas-shell .goal-kanban { position: absolute; inset: 0; display: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; background: var(--canvas); }
   /* Below the toolbar, not under it: no row scrolls through its buttons. */
-  .goal-canvas-shell .goal-stage-list { display: none; position: absolute; inset: calc(var(--control-h, 32px) + 20px) 0 0; z-index: 0; overflow: auto; overscroll-behavior: contain; padding: 0 24px 32px; background: var(--paper); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .goal-canvas-shell .goal-stage-list { display: none; position: absolute; inset: calc(var(--control-h, 32px) + 20px) 0 0; z-index: 0; overflow: auto; overscroll-behavior: contain; padding: 0 24px 32px; background: var(--paper); }
   .goal-canvas-shell[data-board-view="list"] .goal-stage-list { display: block; }
   .goal-canvas-shell[data-board-view="list"] { background: var(--paper); }
   .goal-canvas-shell[data-expanded="true"]:not([data-board-view="list"]) .goal-stage-list { display: none !important; }
@@ -319,7 +319,7 @@ export const GOAL_CANVAS_STYLES = `
   .goal-kanban-group-name { min-width: 0; white-space: nowrap; }
   .goal-kanban-count { color: var(--muted); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; flex: none; }
   .goal-kanban-empty { margin: 0; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 6px; color: var(--muted); font-size: 12px; }
-  .goal-kanban-column [data-kanban-cards] { position: absolute; inset: 36px 0 0; flex: none; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; padding: 0 0 8px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .goal-kanban-column [data-kanban-cards] { position: absolute; inset: 36px 0 0; flex: none; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; padding: 0 0 8px; }
   .goal-kanban-card { transition: border-color var(--motion-fast), background-color var(--motion-fast); flex: none; display: grid; gap: 4px; min-width: 0; padding: 8px 8px; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; text-align: left; cursor: pointer; }
   .goal-kanban-card:hover { border-color: color-mix(in srgb, var(--ink) 22%, var(--line)); }
   .goal-kanban-card.is-selected { border-color: var(--ink); }
@@ -566,7 +566,6 @@ export const GOAL_CANVAS_STYLES = `
   .goal-canvas-shell :focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .goal-canvas-shell ::selection { background: var(--blue-soft); color: var(--ink); }
   .goal-canvas-shell :is(input, textarea) { caret-color: var(--blue); }
-  .goal-canvas-shell :is(.goal-info-body, [data-event-timeline], .reader-content, .event-form) { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
   @container goal-workspace (max-width: 839px) {
     .goal-node-workbench { grid-template-columns: minmax(0, 1fr); }
     .goal-node-workspace:not([data-view-mode="document"]) .goal-details-aside { grid-area: 1 / 1; position: absolute; inset: 0 0 0 auto; width: min(330px, 100%); z-index: 5; background: var(--paper); box-shadow: none; }

@@ -550,8 +550,7 @@ const CRAFT_BASE_STYLES = `
   }
   /* The tab strip: the open works, a new one, then all works, the side pane and minimise. */
   ${ASSIST} .assistant-tabbar { flex: none; display: flex; align-items: flex-end; gap: 4px; height: 42px; padding: 6px 6px 0 8px; background: var(--desk); box-shadow: inset 0 -1px 0 var(--line); }
-  ${ASSIST} .assistant-tabs { position: relative; flex: 0 1 auto; min-width: 0; display: flex; align-items: flex-end; gap: 2px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
-  ${ASSIST} .assistant-tabs::-webkit-scrollbar { display: none; }
+  ${ASSIST} .assistant-tabs { position: relative; flex: 0 1 auto; min-width: 0; display: flex; align-items: flex-end; gap: 2px; overflow-x: auto; overflow-y: hidden; }
   ${ASSIST} .assistant-tab { position: relative; flex: 0 1 184px; width: 184px; min-width: 96px; display: flex; align-items: center; height: 34px; border-radius: 9px 9px 0 0; color: var(--muted); }
   ${ASSIST} .assistant-tab:hover { background: var(--nav-hover); color: var(--ink-soft); }
   ${ASSIST} .assistant-tab[data-current] { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line); clip-path: inset(-1px -1px 0 -1px); }
@@ -998,12 +997,12 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .immersive-plugin-stage { isolation: isolate; }
   /* The next steps sit just above the input, as part of it: the open panel moves up to make room (48px leaves 8px above a touch row). */
   ${ASSIST} .assistant-next-row{position:absolute;z-index:55;inset:auto auto calc(100% + 6px) 0;max-width:100%}
-  ${ASSIST} .assistant-next-row .mw-ix-steps{--mw-ix-step-h:32px;overflow-x:auto;scrollbar-width:none}
+  ${ASSIST} .assistant-next-row .mw-ix-steps{--mw-ix-step-h:32px;overflow-x:auto}
   ${ASSIST} .assistant-next-row .mw-ix-step:not(:hover){background:var(--paper)}
   ${ASSIST} .bar-center:has(>.assistant-next-row:not([hidden])){--next-row:48px}
   /* What the next Send carries, above the next steps: a chip each; the object on show, not added, is dashed with + to add it. */
   ${ASSIST} .assistant-context-strip{position:absolute;z-index:55;inset:auto auto calc(100% + 6px + var(--next-row,0px)) 0;max-width:100%}
-  ${ASSIST} .assistant-strip-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+  ${ASSIST} .assistant-strip-row{display:flex;gap:6px;overflow-x:auto}
   ${ASSIST} .bar-center:has(>.assistant-context-strip:not([hidden])){--context-row:38px}
   ${ASSIST} .assistant-strip-chip{display:inline-flex;flex:none;align-items:center;gap:4px;max-width:240px;height:32px;padding:0 0 0 8px;border:0;border-radius:8px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink);font:inherit;font-size:12px}
   ${ASSIST} .assistant-strip-chip.is-optional{box-shadow:none;outline:1px dashed var(--line-strong);outline-offset:-1px;color:var(--muted)}

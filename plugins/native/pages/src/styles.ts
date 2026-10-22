@@ -23,7 +23,6 @@ export const PAGES_STYLES = `
   .pages-workspace {
     display: flex; flex-direction: column; gap: 0;
     flex: 1; min-height: 0; overflow: auto;
-    scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
     background: var(--content-paper, var(--paper));
     color: var(--content-ink, var(--ink));
   }

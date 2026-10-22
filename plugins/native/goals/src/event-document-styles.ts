@@ -109,8 +109,6 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
   .goal-event-document .attachment small { color: var(--muted); font-size: 11px; }
   .goal-event-document .event-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
   .goal-event-document ::selection { background: var(--blue-soft); color: var(--ink); }
-  .goal-event-document [data-event-timeline]::-webkit-scrollbar, .goal-event-document .event-sheet::-webkit-scrollbar { width: 10px; }
-  .goal-event-document [data-event-timeline]::-webkit-scrollbar-thumb, .goal-event-document .event-sheet::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 45%, transparent); border-radius: 99px; }
   @container goal-event-read (max-width: 1100px) {
     .goal-layout { grid-template-columns: 278px minmax(0, 1fr) !important; }
     .goal-title-heading h1 { font-size: 15px; }

@@ -826,7 +826,7 @@ export const PRIMITIVE_STYLES = `
   .mw-card--tile {
     border: 0; background: transparent; overflow: visible; width: auto; display: block;
   }
-  .mw-scroll { overflow: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .mw-scroll { overflow: auto; min-height: 0; }
   .mw-table-wrap {
     overflow: auto; border: 1px solid var(--line);
     border-radius: 12px; background: var(--paper);

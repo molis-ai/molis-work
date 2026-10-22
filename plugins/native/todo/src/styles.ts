@@ -4,8 +4,7 @@ export const TODO_STYLES = `
   /* The header is in the flow (several rows), so the space the shell keeps for its single-row chrome is not needed. */
   body.immersive-workbench .plugin-stage-shell[data-todo=workbench] > .todo-list.plugin-stage-list { padding-top: 16px; }
   .todo-chrome { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-width: 0; }
-  .todo-views { display: flex; flex-wrap: nowrap; gap: 2px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-  .todo-views::-webkit-scrollbar { display: none; }
+  .todo-views { display: flex; flex-wrap: nowrap; gap: 2px; max-width: 100%; overflow-x: auto; }
   .todo-views .mw-toggle { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .todo-chrome-tools { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .todo-search { width: 200px; max-width: 100%; }

@@ -1,5 +1,6 @@
 /** Shared mw-* control language. Loaded with the visual foundation. */
 
+import { TOAST_STYLES } from "./toast.js";
 import { SELECT_MENU_STYLES } from "../select-menu-client.js";
 import { SR_ONLY_STYLES } from "./sr-only.js";
 import { STATE_RING_STYLES } from "./state-ring.js";
@@ -362,11 +363,7 @@ export const PRIMITIVE_STYLES = `
   }
   .frame-empty.mw-empty .mw-btn { margin-top: 4px; }
 
-  .mw-toast {
-    min-height: 36px; padding: 12px 16px; border: 0;
-    border-radius: 12px; background: var(--action);
-    box-shadow: var(--shadow); color: var(--action-ink); font-size: 13px;
-  }
+  ${TOAST_STYLES}
   .mw-spinner { width: 20px; height: 20px; display: inline-block; color: currentColor; }
   /* One loading rule everywhere: a quiet line with the spinner, shown only past a 250ms wait (a quick load never flashes). Skeletons (static),
      busy buttons and a plugin's dimmed region (mw-busy-dim to --busy-dim) wait the same, as animations; reduced motion drops only the fade. */
@@ -881,6 +878,8 @@ export const PRIMITIVE_STYLES = `
     display: grid; gap: 24px;
   }
   .mw-catalog__specimen { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+  .mw-catalog__toasts { display: grid; justify-items: start; gap: 8px; }
+  .mw-catalog__toasts > .mw-toast { max-width: 100%; }
   .mw-catalog__specimen figcaption,
   .mw-catalog__specimen > span {
     margin: 0; color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); letter-spacing: .01em;

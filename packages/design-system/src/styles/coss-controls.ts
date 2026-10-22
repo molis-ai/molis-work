@@ -220,7 +220,6 @@ export const COSS_CONTROL_STYLES = `
   :where(dialog[open])::backdrop { opacity: 1; transition-duration: var(--dur-move); }
   @starting-style { :where(dialog[open]) { opacity: 0; transform: translateY(8px) scale(.98); } :where(dialog[open])::backdrop { opacity: 0; } }
   [popover]:popover-open { animation: feedback-reveal 130ms var(--ease-quint); }
-  :is([data-toast], [data-settings-toast]).is-visible { animation: feedback-reveal 130ms var(--ease-quint); }
   :is(.form-error, .event-form-status, .event-field-error)[role=alert]:not([hidden]) { animation: feedback-reveal 130ms var(--ease-quint); }
   .form-disclosure[open] { border-color: var(--line-strong); }
   :is(.form-disclosure, .feed-task-extra) summary { transition: color 130ms var(--ease-quint); }

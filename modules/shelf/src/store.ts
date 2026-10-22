@@ -849,7 +849,7 @@ export function openShelfStore(root: string, files: PluginOwnerFilesClient, prob
 /** The instance's start-up initializer: the sample goes on a new shelf once (`ShelfStore.seedFirstRun`). */
 export function seedShelfFirstRun(writer: PluginOwnerFilesWriter): void {
   const files: PluginOwnerFilesClient = { stat: relative => writer.stat(relative), read: relative => writer.read(relative), list: relative => writer.list(relative),
-    write: () => Promise.reject(shelfErrors.invalid("首次示例只用启动时的写入")) };
+    write: () => Promise.reject(shelfErrors.invalid("首次示例只用启动时的写入")), location: () => { throw shelfErrors.invalid("首次示例只用启动时的写入"); } };
   new ShelfStore("", files).seedFirstRun(writer);
 }
 

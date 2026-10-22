@@ -32,7 +32,7 @@ export type {
 } from "./release-artifacts.js";
 
 export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, markPluginActionChecked, currentPluginAction, currentPluginInvocation, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction } from "./action-scope.js";
-export { createPluginOwnerFilesClient } from "./owner-files-service.js";
+export { createPluginOwnerFilesClient, type PluginOwnerFilesPort } from "./owner-files-service.js";
 export type { PluginOwnerFilesGate } from "./owner-files-service.js";
 export { createPluginBackgroundClient } from "./background-service.js";
 export { createPluginModelClient, pluginModelErrors } from "./model-service.js";

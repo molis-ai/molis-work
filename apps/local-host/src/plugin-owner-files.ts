@@ -2,7 +2,8 @@ import { constants, fchmodSync, ftruncateSync, readSync, readdirSync, renameSync
 import { constants as bufferConstants } from "node:buffer";
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
-import type { PluginOwnerFilesDeclaration, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginOwnerFilesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginOwnerFilesPort } from "@molis-ai/molis-work-plugin-runtime";
 import { ownerFileErrors, ownerFileHasCode, ownerFileNode, ownerFilePaths, unsafeOwnerFile, withOwnerFile } from "./plugin-owner-files-paths.js";
 
 const bytesOf = (bytes: Uint8Array) => {
@@ -25,12 +26,13 @@ function readOwnerFile(file: string): Uint8Array {
 }
 
 /** No retained descriptors, root creation, authority or secondary lifetime lives in this synchronous IO port. */
-export function openPluginOwnerFiles(home: string, declaration: PluginOwnerFilesDeclaration): PluginOwnerFilesWriter {
+export function openPluginOwnerFiles(home: string, declaration: PluginOwnerFilesDeclaration): PluginOwnerFilesPort {
   const paths = ownerFilePaths(home, declaration);
   const create = (file: string, bytes: Uint8Array) => {
     withOwnerFile(file, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, "file", fd => writeFileSync(fd, bytes));
   };
-  return Object.freeze<PluginOwnerFilesWriter>({
+  return Object.freeze<PluginOwnerFilesPort>({
+    location: () => paths.location,
     stat(relative) {
       const { stat } = paths.inspect(relative);
       return !stat ? null : stat.isFile() ? { kind: "file", byte_length: stat.size } : { kind: "directory" };

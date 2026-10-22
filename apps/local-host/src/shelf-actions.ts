@@ -25,6 +25,7 @@ export function openHostShelfFiles(home: string): PluginOwnerFilesClient {
     stat: relative => port.stat(relative),
     read: relative => port.read(relative),
     list: relative => port.list(relative),
+    location: () => port.location(),
     // The body runs before the first await, so a write never yields between its reads and its changes.
     async write<Result>(run: (writer: PluginOwnerFilesWriter) => Result): Promise<Result> {
       let active = true;

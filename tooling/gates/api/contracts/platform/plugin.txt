@@ -3256,6 +3256,7 @@ export type PluginOwnerFileInfo = {
 
 export interface PluginOwnerFilesClient extends PluginOwnerFilesReader {
     write<Result>(run: (writer: PluginOwnerFilesWriter) => Result): Promise<Result>;
+    location(): string;
 }
 
 export interface PluginOwnerFilesDeclaration {

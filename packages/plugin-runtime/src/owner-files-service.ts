@@ -9,9 +9,14 @@ export interface PluginOwnerFilesGate {
   requireGrant(permission: string): void;
 }
 
+/** The Host's IO over one declared root: the file primitives, and the folder they are in. */
+export interface PluginOwnerFilesPort extends PluginOwnerFilesWriter {
+  location(): string;
+}
+
 /** Every primitive is synchronous; the Host port itself carries no authority. */
 export function createPluginOwnerFilesClient(manifest: PluginManifest, declaration: PluginOwnerFilesDeclaration,
-  port: PluginOwnerFilesWriter, gate: PluginOwnerFilesGate): {
+  port: PluginOwnerFilesPort, gate: PluginOwnerFilesGate): {
     client: PluginOwnerFilesClient; initializeTrusted(run: (writer: PluginOwnerFilesWriter) => void): void;
   } {
   const permissions = new Set(manifest.permissions.map(item => item.permission));
@@ -59,6 +64,7 @@ export function createPluginOwnerFilesClient(manifest: PluginManifest, declarati
     stat(relative) { read(); return port.stat(relative); },
     read(relative) { read(); return port.read(relative); },
     list(relative) { read(); return port.list(relative); },
+    location() { read(); return port.location(); },
     async write<Result>(run: (writer: PluginOwnerFilesWriter) => Result): Promise<Result> {
       const scope = currentPluginAction();
       const authorize = () => check(scope, declaration.write_permission, true);

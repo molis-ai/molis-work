@@ -2629,3 +2629,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - `PluginStartContext` 加字段，属于合同改动，跑 `api:update`。
   - S-48 的条文改成覆盖全部服务；拒绝测试除了四个服务，再加至少两项。
   - 卡 `task_8d9f1662` 立即撤掉，免得重复。
+- **10-23 PG-038 的 Coding 一半开 PR #1029**，交 ⑩。
+  - 改动：后台作业改用 `keep()`，删掉 activations 表和 `stopCodingSurface`，新增动作 `coding.runs.queued@1`（只给本人）。
+  - BL-410 判为用例竞态，已改用例。它是浏览器用例，要等下一批 CI 全量证明。
+  - ⑩ 先审 #1029，再清红名单。红名单补上 `document-plugins-error-model`（main 上本来就红）。
+  - 子会话空出来了，由 ③ 派下一片。① 建议等 #1024 合入后接 C7 的插件一半。

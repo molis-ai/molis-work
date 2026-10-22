@@ -154,6 +154,10 @@ export type { FragmentOfferChoice } from "@molis-ai/molis-work-contracts/platfor
 export type { FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FragmentRole } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FragmentTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { HomeBackgroundTask } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { HomeBackgroundTaskCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { HomeBackgroundTaskCommand } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { HomeBackgroundTaskPhrase } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeEvent } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -189,6 +193,7 @@ export declare const PLUGIN_ROUTE_STREAM_LIMITS: Readonly<{
 
 export type { PlacementResult } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PluginActionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginActionDirectory } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginArtifactPublishInput } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -197,6 +202,7 @@ export type { PluginDatabaseReader } from "@molis-ai/molis-work-contracts/platfo
 export type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginLocalPageRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginMaterialRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginMaterialSourceRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -204,6 +210,8 @@ export type { PluginMaterialsClient } from "@molis-ai/molis-work-contracts/platf
 export type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginModelRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginOriginalContent } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginOriginalRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -272,13 +280,7 @@ export interface SyncDocumentOwner<T> {
     belongsToProject?(data: T, key: string, projectId: string, retained: readonly import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncMutation[]): boolean;
 }
 
-export interface SyncDocumentStorage {
-    read(): string | null;
-    compareAndSet(expected: string | null, value: string): boolean;
-    compareAndSetChecked?(expected: string | null, value: string, validate: () => void): boolean;
-    withReadLock?<R>(read: (current: string | null) => R): R;
-}
-
+export type { SyncDocumentStorage } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 export type { SyncEvent } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 
 export interface SyncJsonContentOptions {
@@ -293,6 +295,13 @@ export type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform
 export type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+export { WORK_EXECUTOR_ROLES } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkExecutorActionOptions } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkExecutorCalls } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkExecutorRole } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkExecutorRunControl } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkExecutorSession } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkExecutorState } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function actionErrorBody(error: unknown, options?: ActionErrorBodyOptions): ActionErrorBody;
 
@@ -366,6 +375,7 @@ export { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 export { defineFileContentAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFileEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFragmentOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineHomeBackgroundTasksAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineHomeEventsAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineInstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export { defineObjectCopyAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -382,6 +392,8 @@ export declare function definePollingIntegrationPlugin(input: {
 export { defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineWorkExecutorAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineWorkExecutorActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkflowContentActions } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function dismissActionCard<Card extends ActionCard>(card: Card, store: CardStore<Card>): Card;
@@ -400,6 +412,11 @@ export declare function inspectActionDeclarations(definitions: unknown, scenes: 
 export declare function instantIn(day: string, time: string, zone: string | undefined): string | null;
 
 export { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+
+export declare function isHomeAggregateQuery(definition: {
+    readonly operation: string;
+    readonly action: object;
+}): boolean;
 
 export declare function joinLines(lines: readonly DiffLine[]): string;
 
@@ -475,6 +492,8 @@ export { subjectContext } from "@molis-ai/molis-work-contracts/platform/actions"
 export declare function supportsMaterialExtension(extension: string): boolean;
 
 export declare function sweepActionCard<Card extends ActionCard>(card: Card, ports: Pick<ActionCardPorts<Card>, "store" | "readSubject" | "now" | "timeZone">): Promise<Card>;
+
+export declare function syncTupleLocation(surface: string, project: boolean, index?: number | undefined, itemTab?: boolean): (key: string) => string | null;
 
 export declare function textDiffRow(op: DiffOp): TextDiffRow;
 

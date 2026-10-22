@@ -3,12 +3,15 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { projectOrNull } from "./catalog-lookup.js";
 import { assistantNotices, handleAssistantHttp, type AssistantHttpPorts } from "./assistant/assistant-http.js";
+import { installedPagesPort } from "./assistant/assistant-pages.js";
 import { handleAttentionHttp } from "./attention-http.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleUnscopedAgentReviews } from "./agent-review-http.js";
 import { computerHolderFor } from "./computer/computer-surfaces.js";
 import { handleUnscopedComputerFiles } from "./computer/computer-record-source.js";
-import { handleLocalCatalogWebRequest, homeBackgroundTasks } from "./web-catalog.js";
+import { handleLocalCatalogWebRequest } from "./web-catalog.js";
+import { homeBackgroundTasks } from "./home-background-tasks.js";
+import { homeAggregatePorts } from "./home-aggregate.js";
 import { webProjectDeletionPorts } from "./project-deletion-service.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebComposition } from "./web-composition.js";
@@ -28,8 +31,8 @@ export const CATALOG_INDEX_ROUTES: readonly WebRoute<CatalogIndexContext>[] = [
     Boolean(serverOptions.homeDirectory) && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost }) },
   { id: "assistant", handle: async ({ request, response, url, assistant }) =>
     Boolean(assistant) && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, assistant!) },
-  { id: "attention", handle: async ({ request, response, url, assistant, projects }) => Boolean(assistant) && await handleAttentionHttp(request, response, url,
-    { backgroundTasks: () => homeBackgroundTasks(projects), notices: surface => assistantNotices(assistant!, surface) }) },
+  { id: "attention", handle: async ({ request, response, url, assistant, projects, localHost }) => Boolean(assistant) && await handleAttentionHttp(request, response, url,
+    { backgroundTasks: () => homeBackgroundTasks(homeAggregatePorts(localHost), projects), notices: surface => assistantNotices(assistant!, surface) }) },
   { id: "side-files", handle: async ({ request, response, url, serverOptions }) => Boolean(serverOptions.homeDirectory)
     && url.pathname.startsWith("/api/side/files/") && await handleUnscopedComputerFiles(request, response, url, serverOptions.homeDirectory!) },
   { id: "agent-reviews", handle: ({ request, response, url, agentHost, localHost, agentReady }) => handleUnscopedAgentReviews(request, response, url,
@@ -52,5 +55,6 @@ export function assistantPortsFor(homeDirectory: string, composition: LocalWebCo
       const project = catalog.getProject(projectId); return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
     projectTitle: async projectId => projectId === page?.reference.project_id && page.title !== undefined ? page.title
       : composition.withCatalog(home, catalog => projectOrNull(catalog, projectId)?.display_name ?? null),
+    pages: installedPagesPort(composition.withCatalog, homeDirectory),
   };
 }

@@ -86,6 +86,7 @@ test("Character manager publishes confirmed personal drafts through real project
 });
 
 test("Character manager client parses and its server-rendered route is escaped", () => {
+  // RAC-69: the client program still parses and builds a function after its requests moved to the workbench's request helper.
   assert.equal(typeof new Function(`return (${CHARACTERS_CLIENT_FACTORY_SCRIPT})`)(), "function");
   const html = renderCharacters({ route_prefix: '/projects/"<script>', primitives: { escape: value => escapeHtml(String(value)) } });
   assert.ok(!html.includes('/projects/"<script>'));

@@ -72,6 +72,8 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/plugins/todo/no-such-operation" },
   { method: "GET", path: "/api/project-settings/workspaces" },
   { method: "POST", path: "/api/project-settings/workspaces", body: {} },
+  { method: "GET", path: "/api/project-settings/write-checkers" },
+  { method: "POST", path: "/api/project-settings/write-checkers", body: {} },
   { method: "GET", path: "/side/todo/no-such-view", html: true },
   { method: "GET", path: "/side/no-such-plugin/x", html: true },
   { method: "GET", path: "/api/side/files/sources" },
@@ -105,6 +107,10 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/plugins/io.molis.work.lingguang/sparks" },
   { method: "GET", path: "/api/pages" },
   { method: "POST", path: "/api/pages/import/preview", body: {} },
+  // Pages' positive path is its Runtime route (W5-01-PAGES-02); the short routes above are only the removed aliases.
+  { method: "GET", path: "/api/plugins/io.molis.work.pages/pages" },
+  { method: "POST", path: "/api/plugins/io.molis.work.pages/pages/import/preview", body: {} },
+  { method: "GET", path: "/api/plugins/io.molis.work.pages/pages/no-such" },
   { method: "GET", path: "/api/dataset" },
   { method: "GET", path: "/api/dataset/no-such" },
   // Dataset's positive path is its Runtime route; the short route above is only the removed alias.
@@ -131,6 +137,8 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/assistant/works" },
   { method: "GET", path: "/api/attention" },
   { method: "GET", path: "/api/workflows" },
+  { method: "GET", path: "/api/plugins/io.molis.work.native.workflows/workflows" },
+  { method: "GET", path: "/api/plugins/io.molis.work.native.workflows/workflows/no-such" },
   { method: "GET", path: "/api/inbox" },
   { method: "GET", path: "/api/home/dock-judgment" },
   { method: "GET", path: "/api/home/actions/choices" },

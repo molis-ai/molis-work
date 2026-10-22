@@ -4,6 +4,8 @@ import type { PluginExecutionControl, PluginRouteResponse } from "@molis-ai/moli
 import type { PluginRouteRouter } from "@molis-ai/molis-work-plugin-runtime";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPlatform } from "./plugin-platform.js";
+import { offerRoutedOriginalFile } from "./plugin-actions-client.js";
+import { offeredOriginalFile } from "./material-original-entry.js";
 import { withPluginInteraction } from "./plugin-interaction-answer.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
@@ -14,8 +16,6 @@ import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
  * nothing to add passes nothing.
  */
 export interface RuntimePluginRouteHooks {
-  /** Runs after a restart or a release-quarantine ran, before its answer is sent. */
-  restarted?(): void;
   /** Runs before the plugin's route is dispatched, with the router that will dispatch it. */
   beforeDispatch?(router: PluginRouteRouter): Promise<void>;
   /** Runs after the plugin answered, before the answer is sent; may reshape `result.body`. */
@@ -53,7 +53,6 @@ export async function dispatchRuntimePluginRoute(
   if (operation === "restart" || operation === "release-quarantine") {
     if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "重试必须通过 POST 确认" }); return true; }
     const state = await platform.supervisor.restart(pluginId, { release_quarantine: operation === "release-quarantine" });
-    hooks.restarted?.();
     sendLocalWebJson(response, state.status === "running" ? 200 : 409, { state });
     return true;
   }
@@ -79,6 +78,9 @@ export async function dispatchRuntimePluginRoute(
   }
   const match = router.match(request.method ?? "GET", url.pathname);
   if (!match) return false;
+  // The Host's own entry may have put the person's chosen file on this request (material-original-entry.ts); only this request's
+  // Host-made control carries it, and only to this installation's actions.
+  if (active.install_id && controls.execution) offerRoutedOriginalFile(controls.execution, offeredOriginalFile(request, active.install_id));
   await hooks.beforeDispatch?.(router);
   let body: unknown;
   if (!["GET", "HEAD"].includes(request.method ?? "GET")) {

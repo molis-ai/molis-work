@@ -14,11 +14,16 @@ class GitReadError extends Error {
 }
 function failure(outcome: GitReadError["outcome"], message: string): never { throw new GitReadError(outcome, message); }
 export async function runWorkspaceGit(root: string, args: string[], maxBuffer = 8 * 1024 * 1024,
-  options: { indexFile?: string; input?: string } = {}): Promise<Buffer> {
+  options: { indexFile?: string; input?: string; configuration?: readonly (readonly [string, string])[] } = {}): Promise<Buffer> {
   const env: Record<string, string | undefined> = { ...process.env, LC_ALL: "C", GIT_TERMINAL_PROMPT: "0" };
   // Inherited Git overrides must not redirect a project read to another index/repository.
   for (const key of Object.keys(env)) if (key.startsWith("GIT_") && key !== "GIT_TERMINAL_PROMPT") delete env[key];
   if (options.indexFile) env.GIT_INDEX_FILE = options.indexFile;
+  // Keys go apart from values: `-c` splits at the first "=", and a subsection name may contain one.
+  if (options.configuration?.length) {
+    env.GIT_CONFIG_COUNT = String(options.configuration.length);
+    options.configuration.forEach(([key, value], index) => { env[`GIT_CONFIG_KEY_${index}`] = key; env[`GIT_CONFIG_VALUE_${index}`] = value; });
+  }
   const pending = run("git", ["--no-optional-locks", "--literal-pathspecs", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", ...args],
     { cwd: root, env, encoding: "buffer", maxBuffer, timeout: 10_000 });
   pending.child.stdin?.end(options.input);
@@ -39,16 +44,21 @@ async function tracksFileMode(root: string): Promise<boolean> {
   try { return (await git(root, ["config", "--bool", "--get", "core.filemode"])).toString().trim() !== "false"; }
   catch (error) { if ((error as { code?: number }).code === 1) return true; throw error; }
 }
-async function statusBytes(root: string): Promise<Buffer> {
-  // Even `status` can invoke clean/process filters for dirty files. Disable
-  // every configured driver for this read; never execute repository helpers.
+/**
+ * `git status` that executes no repository helper. Even `status` can invoke clean/process filters for dirty files, so every
+ * configured driver is disabled for this read; a submodule's work tree is not opened either, because its own config can name
+ * filters this one cannot see. A submodule whose checked-out commit moved still shows: the command line outranks an `ignore`
+ * the repository's `.gitmodules` or config sets. Overrides travel as `GIT_CONFIG_*`, since a driver's name may contain "=".
+ */
+export async function statusWithoutHelpers(root: string, args: readonly string[]): Promise<Buffer> {
   let keys = "";
   try { keys = (await git(root, ["config", "--null", "--name-only", "--get-regexp", "^filter\\..*\\.(clean|process|required)$"])).toString(); }
   catch (error) { if ((error as { code?: number }).code !== 1) throw error; }
   const drivers = new Set(keys.split("\0").map(key => /^(filter\..+)\.(clean|process|required)$/i.exec(key)?.[1]).filter((item): item is string => Boolean(item)));
-  const options = [...drivers].flatMap(driver => ["-c", driver + ".clean=", "-c", driver + ".process=", "-c", driver + ".required=false"]);
-  return git(root, [...options, "status", "--porcelain=v1", "-z", "--branch", "--untracked-files=all"]);
+  const configuration = [...drivers].flatMap(driver => [[driver + ".clean", ""], [driver + ".process", ""], [driver + ".required", "false"]] as const);
+  return git(root, ["status", "--ignore-submodules=dirty", ...args], undefined, { configuration });
 }
+const statusBytes = (root: string) => statusWithoutHelpers(root, ["--porcelain=v1", "-z", "--branch", "--untracked-files=all"]);
 interface Entry { mode: string; oid: string }
 async function indexEntry(root: string, name: string): Promise<{ raw: Buffer; entry: Entry | null }> {
   const raw = await git(root, ["ls-files", "--stage", "-z", "--", name]);

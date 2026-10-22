@@ -21,17 +21,17 @@
  * record does not mark that reply (a Prologue need in the spec), so the mark is the page's own and a reload loses it.
  */
 export const CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT = `({api,refresh,q,landed,receipts})=>{
-  const SENT={'next-boundary':'已送达，当前回复或这批工具结束后交给 AI。',interrupt:'已送达：正在写的回复已丢掉，按你的话接着做；已执行的操作不撤销。','after-run':'已存好，下一轮开始时带上。'};
+  const SENT={'next-boundary':L('coding.sent.next-boundary'),interrupt:L('coding.sent.interrupt'),'after-run':L('coding.sent.after-run')};
   const small=text=>{const node=document.createElement('small');node.className='coding-turn-receipt';node.textContent=text;return node;};
-  const AGAIN='之前已送到，没有重复发送。',unsure=error=>error instanceof TypeError||error.name=='SyntaxError',control=id=>'/sessions/'+encodeURIComponent(id)+'/control';let item=null;
+  const AGAIN=L('coding.sent.again'),unsure=error=>error instanceof TypeError||error.name=='SyntaxError',control=id=>'/sessions/'+encodeURIComponent(id)+'/control';let item=null;
   const send=async sent=>{
     sent.lost=0;item=sent;refresh();const writing=sent.mode=='interrupt'&&q('.coding-turn.is-writing');
     try{
       const {receipt}=await api(control(sent.id),'POST',{kind:'steer',run_id:sent.run,text:sent.text,key:sent.key,mode:sent.mode});
       if(item==sent)item=null;
-      if(writing&&receipt.delivered=='run'&&!receipt.replayed){writing.classList.add('is-dropped');writing.append(small('这段回复已丢掉（你打断了它）'));}
-      return receipt.replayed?AGAIN:receipt.delivered=='queued'&&sent.mode!='after-run'?'这一轮刚结束，'+SENT['after-run']:SENT[sent.mode];
-    }catch(error){if(unsure(error)){sent.lost=1;throw Error('没确认送到：连接断了，或回复读不出。')}if(item==sent)item=null;throw error;}
+      if(writing&&receipt.delivered=='run'&&!receipt.replayed){writing.classList.add('is-dropped');writing.append(small(L('coding.sent.dropped')));}
+      return receipt.replayed?AGAIN:receipt.delivered=='queued'&&sent.mode!='after-run'?L('coding.sent.just-ended'):SENT[sent.mode];
+    }catch(error){if(unsure(error)){sent.lost=1;throw Error(L('coding.sent.unconfirmed'))}if(item==sent)item=null;throw error;}
     finally{refresh();}
   };
   return {
@@ -40,10 +40,10 @@ export const CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT = `({api,refresh,q,land
       return send({id,run,text,mode,key:item?.lost&&item.id==id&&item.text==text&&item.mode==mode?item.key:'send.'+crypto.randomUUID()});
     },
     act(id,run){
-      const path=control(id),lost=error=>{throw unsure(error)?Error('没确认送到：再按一次，同一条不会重复。'):error;};
+      const path=control(id),lost=error=>{throw unsure(error)?Error(L('coding.sent.unconfirmed-again')):error;};
       return {
-        withdraw:input_id=>api(path,'POST',{kind:'withdraw',run_id:run,input_id}).then(({withdrawn})=>withdrawn.from=='queued'?'已撤回，下一轮不会带上它。':'',lost).finally(refresh),
-        correct:(about,text,key)=>api(path,'POST',{kind:'steer',run_id:run,text,about,key:'send.'+key}).then(({receipt})=>receipt.replayed?AGAIN:receipt.delivered=='queued'?SENT['after-run']:'更正已送达。',lost).finally(refresh),
+        withdraw:input_id=>api(path,'POST',{kind:'withdraw',run_id:run,input_id}).then(({withdrawn})=>withdrawn.from=='queued'?L('coding.sent.withdrawn'):'',lost).finally(refresh),
+        correct:(about,text,key)=>api(path,'POST',{kind:'steer',run_id:run,text,about,key:'send.'+key}).then(({receipt})=>receipt.replayed?AGAIN:receipt.delivered=='queued'?SENT['after-run']:L('coding.sent.corrected'),lost).finally(refresh),
       };
     },
     bubble(id,run){
@@ -51,7 +51,7 @@ export const CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT = `({api,refresh,q,land
       if(item.lost&&run.turns.some(turn=>turn.steer?.key==item.key)){const sent=item;item=null;landed(sent,AGAIN);return null;}
       if(item.node?.dataset.lost!=item.lost){
         const node=item.node=document.createElement('article');node.className='coding-turn is-sending';node.dataset.kind='user';node.dataset.lost=item.lost;node.textContent=item.text;
-        node.append(small(item.lost?'没确认送到 · 再按发送，同一条不会重复':'发送中…'));
+        node.append(small(item.lost?L('coding.sent.lost'):L('coding.sent.sending')));
       }
       return item.node;
     },

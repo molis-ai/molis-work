@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { Script } from 'node:vm';
 import {builtinSyncBindings,BUILTIN_PLUGIN_CATALOG,type BuiltinPluginEntry} from '@molis-ai/molis-work-app-workbench';
+
+test('every registered browser factory parses after composing its shared helpers',()=>{
+ for(const entry of BUILTIN_PLUGIN_CATALOG){
+  const script=entry.workbench.clientFactory;
+  if(script)new Script('('+script+')',{filename:entry.manifest.plugin_id});
+ }
+});
 
 test('PCSYNC-03/25 each declared collection resolves its own explicit factory, independent of order',()=>{
  const entry=BUILTIN_PLUGIN_CATALOG.find(row=>row.project_plugin_id==='pages')!;

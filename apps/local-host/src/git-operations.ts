@@ -6,7 +6,7 @@ import path from "node:path";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { parseFilePath, type GitOperation, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-git";
-import { runWorkspaceGit } from "./workspace-git.js";
+import { runWorkspaceGit, statusWithoutHelpers } from "./workspace-git.js";
 
 /**
  * Committing, branching, pushing and opening a pull request, each as one Host-reviewed operation.
@@ -14,7 +14,8 @@ import { runWorkspaceGit } from "./workspace-git.js";
  * The review shows exactly what will run and where; the operation is prepared against the repository's state (HEAD,
  * branch, upstream and staged content) and refuses to run once that state has moved. Commands run without a shell
  * and never prompt: remote credentials are whatever Git and the GitHub CLI already use on this machine, and nothing
- * here stores or reads a secret. Repository hooks run as they would for the person at a terminal.
+ * here stores or reads a secret. Repository hooks and filters run as they would for the person at a terminal, but only in
+ * the operation the person approved: reading the repository and preparing the review run none.
  */
 
 const exec = promisify(execFile);
@@ -55,7 +56,7 @@ async function repositoryRoot(workspace: ProjectWorkspaceRef): Promise<string> {
 /** Where committing, branching, pushing or opening a PR starts from, with the fingerprint an operation is held to. */
 export async function readGitSummary(workspace: ProjectWorkspaceRef): Promise<WorkspaceGitSummary> {
   const root = await repositoryRoot(workspace);
-  const porcelain = await gitText(root, ["status", "--porcelain=v1", "-z", "--branch", "--untracked-files=all"]);
+  const porcelain = (await statusWithoutHelpers(root, ["--porcelain=v1", "-z", "--branch", "--untracked-files=all"])).toString();
   const status = parsePorcelainStatus({ stdout: porcelain });
   const branch = status.head.kind === "detached" ? null : status.head.name;
   // The porcelain branch header names the branch but not its commit; HEAD is read on its own.
@@ -64,7 +65,7 @@ export async function readGitSummary(workspace: ProjectWorkspaceRef): Promise<Wo
   const remotes = await effectivePushTargets(root);
   const merging = (await optional(root, ["rev-parse", "-q", "--verify", "MERGE_HEAD"])) !== null;
   const staged = status.staged.map(change => ({ path: change.path.join("/"), status: change.code[0] ?? "M" }));
-  const index = await gitText(root, ["diff", "--cached", "--raw", "--no-abbrev", "-z"]);
+  const index = await gitText(root, ["diff", "--cached", "--raw", "--no-abbrev", "-z", "--no-ext-diff", "--no-textconv"]);
   const conflicts = await Promise.all(status.conflicted.map(async change => {
     const name = change.path.join("/"); return [name, await conflictFingerprint(root, name)];
   }));
@@ -136,7 +137,7 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
   // Merging needs a clean start: Git refuses when local changes would be overwritten, and a half-merged state is harder to read.
   // Untracked files do not count: Git merges around them, and refuses by itself if one would be overwritten.
   const clean = async () => { if (summary.merging) throw new Error("上一次合并还没完成：先解决冲突并提交，或放弃合并");
-    if (summary.staged.length || (await gitText(root, ["status", "--porcelain", "--untracked-files=no"])).trim()) throw new Error("工作区有未提交的改动，先提交或处理后再合并"); };
+    if (summary.staged.length || (await statusWithoutHelpers(root, ["--porcelain", "--untracked-files=no"])).toString().trim()) throw new Error("工作区有未提交的改动，先提交或处理后再合并"); };
   switch (operation.action) {
     case "commit": {
       const message = operation.message.replace(/\r\n/g, "\n").trim();
@@ -147,7 +148,7 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       return { tool: ACTION_TOOL.commit, summary: `提交暂存区的 ${summary.staged.length} 个文件`, check,
         fields: [...where, { label: "提交说明", value: message }, { label: "暂存的文件", value: summary.staged.map(file => `${file.status} ${file.path}`).join("\n") || "（完成合并）" },
           { label: "执行范围", value: "只提交已暂存的内容，未暂存的改动保持原样；会运行仓库配置的 Git hooks（如有）；不推送远端。" }],
-        async execute() { await check(); await operationRun("git", root, ["commit", "-F", "-"], message + "\n"); const head = (await gitText(root, ["log", "-1", "--format=%h %s"])).trim(); return `已提交 ${head}`; } };
+        async execute() { await check(); await operationRun("git", root, ["commit", "-F", "-"], message + "\n"); const head = (await gitText(root, ["log", "-1", "--no-show-signature", "--format=%h %s"])).trim(); return `已提交 ${head}`; } };
     }
     case "branch-create": {
       const name = operation.name.trim();

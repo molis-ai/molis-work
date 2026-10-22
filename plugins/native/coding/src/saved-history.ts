@@ -1,11 +1,12 @@
-import type {CodingSqliteDatabase} from './store.js';
+import type {ReplicaDatabase as CodingSqliteDatabase} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
+import type {PluginDatabaseReader} from '@molis-ai/molis-work-contracts/platform/plugin';
 import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions';
 const errors=defineErrorCodes('coding',{history_invalid:'invalid',history_changed:'conflict'});
 export const CODING_HISTORY_SCHEMA_SQL=`CREATE TABLE IF NOT EXISTS coding_saved_history (
  project_id TEXT NOT NULL,session_id TEXT NOT NULL,source_id TEXT NOT NULL,archive_json TEXT NOT NULL,
  PRIMARY KEY(project_id,session_id,source_id),FOREIGN KEY(project_id,session_id) REFERENCES coding_sessions(project_id,session_id) ON DELETE CASCADE);`;
-export function readCodingSavedHistory(db:CodingSqliteDatabase,projectId:string,sessionId:string,localSource:string|null=null):string[] {
- return (db.prepare('SELECT archive_json FROM coding_saved_history WHERE project_id=? AND session_id=? AND (? IS NULL OR source_id<>?) ORDER BY source_id').all(projectId,sessionId,localSource,localSource) as {archive_json:string}[]).map(row=>row.archive_json);
+export function readCodingSavedHistory(db:PluginDatabaseReader,projectId:string,sessionId:string,localSource:string|null=null):string[] {
+ return db.all('SELECT archive_json FROM coding_saved_history WHERE project_id=? AND session_id=? AND (? IS NULL OR source_id<>?) ORDER BY source_id',[projectId,sessionId,localSource,localSource]).map(row=>String(row.archive_json));
 }
 /** Refresh immutable derived exports through the trusted execution owner, then recheck the original binding. */
 export async function refreshCodingSavedHistory(db:CodingSqliteDatabase,projectId:string,read:(runtimeSessionId:string)=>Promise<string>,authorize:()=>void,validate:(json:string)=>{sessionId:string}):Promise<void> {

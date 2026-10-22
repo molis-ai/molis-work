@@ -7,6 +7,7 @@ export * from "@molis-ai/molis-work-contracts/modules/jelly";
 export * from "./manifest.js";
 export * from "./ui.js";
 export * from "./client.js";
+export { JELLY_MESSAGES } from "./messages.js";
 export * from "./styles.js";
 export * from "./en.js";
 export { JELLY_INSTRUCTIONS } from "./prompts.js";

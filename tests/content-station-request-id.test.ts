@@ -33,7 +33,7 @@ async function fixture(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "content-station-request-id-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, title: "Stations", actor_id: "owner", idempotency_key: "init" }));
+  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: PERMISSIONS };
   const client = host.actionClient(ref);
   const as = (audience: ActionAudience) => bindActionClient(client, () => ({ ...caller, audience }));

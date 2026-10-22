@@ -13,6 +13,7 @@ import { ACTION_GATEWAY_PATH, actionGatewayHomeId } from './action-gateway.js';
 import { createPersonalSync } from './personal-sync.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
 import {serveSpaceSync} from './space-sync-http.js';
+import { trackHostListener } from './host-endpoints.js';
 
 interface Surface {
   home:string; space:StorageSpace; token:string; server:SpaceWebSurface;
@@ -137,7 +138,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
  */
 export function createSpaceWebServer(options:WebServerOptions,createCore:(options:WebServerOptions)=>SpaceWebSurface,withCatalog?:LocalWebCatalogRunner):http.Server {
   const {home,local,native,account,rootToken,mutations,surface,selection,attach,sweep,syncFor,resume,surfaces,retiring,openSurface,stop,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server.address());
-  const server=http.createServer((request,response)=>{
+  const server=trackHostListener(http.createServer((request,response)=>{
     void runWithMolisWorkHome(home,async()=>{
       try {
         if(isStopping()){sendLocalWebJson(response,503,{error:'服务正在关闭。'});return;}
@@ -206,7 +207,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         else response.destroy();
       }
     });
-  });
+  }));
   server.on('upgrade',(request,socket,head)=>{
     void (async()=>{try{
       if(!requestHost(request)){

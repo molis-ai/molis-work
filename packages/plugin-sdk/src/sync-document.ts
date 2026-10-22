@@ -6,13 +6,8 @@ import { canonicalDocumentValue, documentKey, newDocumentState, parseDocumentSta
 import { documentReplica } from './sync-document-replica.js';
 
 /** One conditional replacement must include business content and its journal, never get + unconditional set. */
-export interface SyncDocumentStorage {
-  read(): string | null;
-  compareAndSet(expected: string | null, value: string): boolean;
-  /** Optional file-owner capabilities. Checked replacement and read lock must share the same cross-process mutex. */
-  compareAndSetChecked?(expected:string|null,value:string,validate:()=>void):boolean;
-  withReadLock?<R>(read:(current:string|null)=>R):R;
-}
+export type {SyncDocumentStorage} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
+import type {SyncDocumentStorage} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 export interface SyncDocumentOwner<T> {
   spaceId: string;
   storage: SyncDocumentStorage;

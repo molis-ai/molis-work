@@ -1,42 +1,39 @@
 import { replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { PagesComments } from "./comments-store.js";
 import { extractFromPagesBody, unpublishedKnowledgePages } from "./extract.js";
-import { ensureStorageSpace, homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { ensureStorageSpace, homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { StorageSpace } from "@molis-ai/molis-work-contracts/platform/storage";
 import { createPagesSyncAdapter, initializePagesSyncRevision, type PagesSyncContext } from "./sync.js";
 import { initializePagesReplication, createPagesReplica, bindPagesReplication, type PagesReplicationContext } from './replication.js';
 
 import { realpathSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PagesBody, PagesFolder, PagesRecord, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
 import { pagesErrors } from "./error.js";
 import { pagesTemplateById } from "./templates.js";
 import type { PagesPublicationIntent, PagesPublicationSnapshot } from "./promote.js";
 
-interface PagesRow {
-  id: string;
-  project_id: string;
-  title: string;
-  body_json: string;
-  folder_id: string;
-  starred: number;
-  goal_id: string;
-  artifact_id: string;
-  artifact_version: number;
-  publication_pending_json?: string | null;
-  created_at: string;
-  updated_at: string;
-  version: number;
+/** The SQL the store runs: its own connection, or the library the Runtime gives the plugin, read or inside one write transaction. */
+export type PagesSqlValue = string | number | null;
+type SqlRow = Readonly<Record<string, unknown>>;
+export interface PagesSql {
+  get(sql: string, parameters?: readonly PagesSqlValue[]): SqlRow | null | undefined;
+  all(sql: string, parameters?: readonly PagesSqlValue[]): readonly SqlRow[];
+  run(sql: string, parameters?: readonly PagesSqlValue[]): { changes: number | bigint };
 }
 
-interface FolderRow {
-  id: string;
-  project_id: string;
-  title: string;
-  created_at: string;
-  updated_at: string;
+/** Where the actions read and write: reads run on their own; a write waits for the call's authority first. */
+export interface PagesStores {
+  read<T>(run: (store: PagesStore) => T): T;
+  write<T>(caller: Pick<ActionExecutionContext, "beforeEffect">, run: (store: PagesStore) => T): Promise<T>;
+}
+
+/** Reads and writes on a store opened for each run, for tests and maintenance; the caller's beforeEffect is awaited, and the Store's own `atomically` still wraps each business operation. */
+export function ownPagesStores(withStore: <T>(run: (store: PagesStore) => T) => T): PagesStores {
+  return { read: withStore, async write(caller, run) { await caller.beforeEffect(); return withStore(run); } };
 }
 
 export interface PagesImportDocumentsInput {
@@ -44,8 +41,21 @@ export interface PagesImportDocumentsInput {
   readonly request_id: string;
   readonly request_hash: string;
   readonly folder_id?: string;
-  readonly documents: readonly { readonly title: string; readonly body: PagesBody }[];
+  readonly documents: readonly { readonly title?: string; readonly body?: PagesBody; readonly starred?: boolean; readonly goal_id?: string; readonly template_id?: string }[];
+  /** How a request that was already made is told, and who learns it was: the import dialog keeps `IMPORT_REPLAY`. */
+  readonly replay?: PagesReplay;
 }
+
+export interface PagesReplay {
+  /** Said when the same request comes with other content. */
+  readonly changed: string;
+  /** Said when a document the request made has since been deleted. */
+  readonly removed: string;
+  /** Called once the request is answered from what it made before, instead of making the documents again. */
+  readonly onReplay?: () => void;
+}
+
+const IMPORT_REPLAY: PagesReplay = { changed: "这次导入的文件、选择或文件夹已改变，请重新预览后导入", removed: "这批导入已完成，但部分文档已删除；不会重新创建" };
 
 /**
  * Generation attempts this process started: true while in progress, false once the call ended without being allowed to
@@ -58,96 +68,91 @@ const attemptKey = (record: Pick<PagesGenerationRecord, "project_id" | "request_
 
 export class PagesStore {
   readonly comments: PagesComments;
-  constructor(private readonly db: DatabaseSync, private readonly attempts = new Map<string, boolean>()) {
-    this.comments = new PagesComments(db, (id, project) => this.get(id, project));
+  /**
+   * `attempts` is the memory of the generation calls one plugin instance (or one own-connection store family) started; `atomically`
+   * runs one business operation as a unit (the Runtime adapter binds the Store inside its one `database.transaction`, so it is
+   * the identity there); `release` closes what the Store opened.
+   */
+  constructor(private readonly db: PagesSql, private readonly attempts = new Map<string, boolean>(),
+    private readonly atomically: <T>(run: () => T) => T = run => run(), private readonly release: () => void = () => {}) {
+    this.comments = new PagesComments(db, atomically, (id, project) => this.get(id, project));
   }
 
-  /** Memory only: a refused call releases only this database's attempt, including after reopening its Store. */
+  /** Memory only: a refused call releases only this instance's attempt, including after reopening its Store. */
   releaseGenerationAttempt(record: Pick<PagesGenerationRecord, "project_id" | "request_id" | "updated_at">): void {
     const key = attemptKey(record);
     if (this.attempts.has(key)) this.attempts.set(key, false);
   }
 
   close(): void {
-    this.db.close();
+    this.release();
   }
 
   generation(projectId: string, requestId: string): PagesGenerationRecord | null {
-    const row = this.db.prepare("SELECT record_json FROM page_generations WHERE project_id = ? AND request_id = ?")
-      .get(projectId, requestId) as { record_json: string } | undefined;
-    return row ? JSON.parse(row.record_json) as PagesGenerationRecord : null;
+    const row = this.db.get("SELECT record_json FROM page_generations WHERE project_id = ? AND request_id = ?", [projectId, requestId]);
+    return row ? JSON.parse(String(row.record_json)) as PagesGenerationRecord : null;
   }
 
   generations(projectId: string): PagesGenerationRecord[] {
-    return (this.db.prepare("SELECT record_json FROM page_generations WHERE project_id = ? ORDER BY updated_at DESC")
-      .all(projectId) as Array<{ record_json: string }>).map((row) => JSON.parse(row.record_json) as PagesGenerationRecord);
+    return this.db.all("SELECT record_json FROM page_generations WHERE project_id = ? ORDER BY updated_at DESC", [projectId])
+      .map((row) => JSON.parse(String(row.record_json)) as PagesGenerationRecord);
   }
 
   beginGeneration(record: PagesGenerationRecord): PagesGenerationRecord {
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
+    const started = this.atomically((): { replayed: PagesGenerationRecord } | { prior: PagesGenerationRecord | null; next: PagesGenerationRecord } => {
       const prior = this.generation(record.project_id, record.request_id);
       if (prior?.request_hash && prior.request_hash !== record.request_hash) throw pagesErrors.invalid("同一个请求的材料或要求已改变，请重新生成");
-      if (prior?.status === "completed") { this.db.exec("COMMIT"); return prior; }
+      if (prior?.status === "completed") return { replayed: prior };
       // A fresh running record keeps its lease, unless this process started that attempt and it has already ended.
       if (prior?.status === "running" && Date.now() - Date.parse(prior.updated_at) < 180_000
         && this.attempts.get(attemptKey(prior)) !== false) throw pagesErrors.unavailable("这份文稿仍在生成，请稍后查看结果");
       const next = { ...(prior ?? record), status: "running" as const, error: null, updated_at: new Date(Math.max(Date.now(), prior ? Date.parse(prior.updated_at) + 1 : 0)).toISOString() };
       this.saveGeneration(next);
-      this.db.exec("COMMIT");
-      if (prior) this.attempts.delete(attemptKey(prior));
-      this.attempts.set(attemptKey(next), true);
-      return next;
-    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+      return { prior, next };
+    });
+    if ("replayed" in started) return started.replayed;
+    if (started.prior) this.attempts.delete(attemptKey(started.prior));
+    this.attempts.set(attemptKey(started.next), true);
+    return started.next;
   }
 
   completeGeneration(record: PagesGenerationRecord, body: PagesBody): PagesRecord {
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
+    const document = this.atomically(() => {
       const prior = this.generation(record.project_id, record.request_id);
-      if (prior?.status === "completed" && prior.document_id) {
-        const document = this.get(prior.document_id, record.project_id);
-        this.db.exec("COMMIT"); return document;
-      }
+      if (prior?.status === "completed" && prior.document_id) return this.get(prior.document_id, record.project_id);
       if (!prior || prior.status !== "running" || prior.updated_at !== record.updated_at) throw pagesErrors.unavailable("此请求已由另一次处理接续，请查看最新结果");
-      const document = this.create({ project_id: record.project_id, title: record.title, body });
-      this.saveGeneration({ ...record, status: "completed", document_id: document.id, error: null, updated_at: new Date().toISOString() });
-      this.db.exec("COMMIT");
-      this.attempts.delete(attemptKey(record));
-      return document;
-    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+      const created = this.create({ project_id: record.project_id, title: record.title, body });
+      this.saveGeneration({ ...record, status: "completed", document_id: created.id, error: null, updated_at: new Date().toISOString() });
+      return created;
+    });
+    this.attempts.delete(attemptKey(record));
+    return document;
   }
 
   failGeneration(record: PagesGenerationRecord, message: string): void {
     const next = { ...record, status: "failed", error: message.slice(0, 500), updated_at: new Date(Math.max(Date.now(), Date.parse(record.updated_at) + 1)).toISOString() };
-    this.db.prepare("UPDATE page_generations SET updated_at = ?, record_json = ? WHERE project_id = ? AND request_id = ? AND updated_at = ? AND json_extract(record_json, '$.status') = 'running'")
-      .run(next.updated_at, JSON.stringify(next), record.project_id, record.request_id, record.updated_at);
+    this.db.run("UPDATE page_generations SET updated_at = ?, record_json = ? WHERE project_id = ? AND request_id = ? AND updated_at = ? AND json_extract(record_json, '$.status') = 'running'",
+      [next.updated_at, JSON.stringify(next), record.project_id, record.request_id, record.updated_at]);
     this.attempts.delete(attemptKey(record));
   }
 
   private saveGeneration(record: PagesGenerationRecord): void {
-    this.db.prepare("INSERT INTO page_generations (project_id, request_id, updated_at, record_json) VALUES (?, ?, ?, ?) ON CONFLICT(project_id, request_id) DO UPDATE SET updated_at = excluded.updated_at, record_json = excluded.record_json")
-      .run(record.project_id, record.request_id, record.updated_at, JSON.stringify(record));
+    this.db.run("INSERT INTO page_generations (project_id, request_id, updated_at, record_json) VALUES (?, ?, ?, ?) ON CONFLICT(project_id, request_id) DO UPDATE SET updated_at = excluded.updated_at, record_json = excluded.record_json",
+      [record.project_id, record.request_id, record.updated_at, JSON.stringify(record)]);
   }
 
   list(projectId: string): PagesRecord[] {
     const project_id = normalizeProjectId(projectId);
-    const rows = this.db.prepare(
-      "SELECT * FROM pages WHERE project_id = ? ORDER BY starred DESC, datetime(updated_at) DESC, title COLLATE NOCASE",
-    ).all(project_id) as unknown as PagesRow[];
-    return rows.map(fromPageRow);
+    return this.db.all("SELECT * FROM pages WHERE project_id = ? ORDER BY starred DESC, datetime(updated_at) DESC, title COLLATE NOCASE", [project_id]).map(fromPageRow);
   }
 
   listFolders(projectId: string): PagesFolder[] {
     const project_id = normalizeProjectId(projectId);
-    const rows = this.db.prepare(
-      "SELECT * FROM folders WHERE project_id = ? ORDER BY title COLLATE NOCASE",
-    ).all(project_id) as unknown as FolderRow[];
-    return rows.map(fromFolderRow);
+    return this.db.all("SELECT * FROM folders WHERE project_id = ? ORDER BY title COLLATE NOCASE", [project_id]).map(fromFolderRow);
   }
 
   get(id: string, projectId?: string): PagesRecord {
-    const row = this.db.prepare("SELECT * FROM pages WHERE id = ?").get(id) as PagesRow | undefined;
+    const row = this.db.get("SELECT * FROM pages WHERE id = ?", [id]);
     if (!row) throw pagesErrors.not_found("找不到这篇文档");
     if (projectId && row.project_id !== normalizeProjectId(projectId)) {
       throw pagesErrors.not_found("找不到这篇文档");
@@ -184,12 +189,11 @@ export class PagesStore {
       updated_at: now,
       version: 1,
     };
-    this.db.prepare(
+    this.db.run(
       "INSERT INTO pages (id, project_id, title, body_json, folder_id, starred, goal_id, artifact_id, artifact_version, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).run(
-      record.id, record.project_id, record.title, JSON.stringify(record.body),
-      record.folder_id, record.starred ? 1 : 0, record.goal_id, record.artifact_id, record.artifact_version,
-      record.created_at, record.updated_at, record.version,
+      [record.id, record.project_id, record.title, JSON.stringify(record.body),
+        record.folder_id, record.starred ? 1 : 0, record.goal_id, record.artifact_id, record.artifact_version,
+        record.created_at, record.updated_at, record.version],
     );
     return record;
   }
@@ -198,42 +202,34 @@ export class PagesStore {
   importDocuments(input: PagesImportDocumentsInput): PagesRecord[] {
     const project_id = normalizeProjectId(input.project_id);
     if (!input.documents.length || input.documents.length > 100) throw pagesErrors.invalid("请选择 1 到 100 篇文档");
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
-      const prior = this.db.prepare("SELECT request_hash, document_ids_json FROM page_imports WHERE project_id = ? AND request_id = ?")
-        .get(project_id, input.request_id) as { request_hash: string; document_ids_json: string } | undefined;
+    return this.atomically(() => {
+      const prior = this.db.get("SELECT request_hash, document_ids_json FROM page_imports WHERE project_id = ? AND request_id = ?", [project_id, input.request_id]);
       if (prior) {
-        if (prior.request_hash !== input.request_hash) {
-          throw pagesErrors.unavailable("这次导入的文件、选择或文件夹已改变，请重新预览后导入");
-        }
-        const ids = JSON.parse(prior.document_ids_json) as string[];
+        const replay = input.replay ?? IMPORT_REPLAY;
+        if (prior.request_hash !== input.request_hash) throw pagesErrors.unavailable(replay.changed);
+        const ids = JSON.parse(String(prior.document_ids_json)) as string[];
         const documents = ids.map((id) => {
           try { return this.get(id, project_id); }
           catch (error) {
             if (error instanceof ActionError && error.code === "pages.not_found") {
-              throw pagesErrors.unavailable("这批导入已完成，但部分文档已删除；不会重新创建");
+              throw pagesErrors.unavailable(replay.removed);
             }
             throw error;
           }
         });
-        this.db.exec("COMMIT");
+        replay.onReplay?.();
         return documents;
       }
       const folder_id = normalizeFolderId(input.folder_id, this, project_id);
       const documents = input.documents.map((document) => this.create({
         project_id,
         folder_id,
-        title: document.title,
-        body: document.body,
+        ...document,
       }));
-      this.db.prepare("INSERT INTO page_imports (project_id, request_id, request_hash, document_ids_json, created_at) VALUES (?, ?, ?, ?, ?)")
-        .run(project_id, input.request_id, input.request_hash, JSON.stringify(documents.map((document) => document.id)), new Date().toISOString());
-      this.db.exec("COMMIT");
+      this.db.run("INSERT INTO page_imports (project_id, request_id, request_hash, document_ids_json, created_at) VALUES (?, ?, ?, ?, ?)",
+        [project_id, input.request_id, input.request_hash, JSON.stringify(documents.map((document) => document.id)), new Date().toISOString()]);
       return documents;
-    } catch (error) {
-      this.db.exec("ROLLBACK");
-      throw error;
-    }
+    });
   }
 
   update(id: string, patch: {
@@ -262,56 +258,50 @@ export class PagesStore {
       updated_at: new Date().toISOString(),
       version: current.version + 1,
     };
-    const result = this.db.prepare(
+    const result = this.db.run(
       "UPDATE pages SET title = ?, body_json = ?, folder_id = ?, starred = ?, goal_id = ?, artifact_id = ?, artifact_version = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?",
-    ).run(
-      next.title, JSON.stringify(next.body), next.folder_id, next.starred ? 1 : 0,
-      next.goal_id, next.artifact_id, next.artifact_version,
-      next.updated_at, next.version, id, current.version,
+      [next.title, JSON.stringify(next.body), next.folder_id, next.starred ? 1 : 0,
+        next.goal_id, next.artifact_id, next.artifact_version,
+        next.updated_at, next.version, id, current.version],
     );
     if (result.changes !== 1) throw pagesErrors.conflict("文档已被其他窗口修改，请重新读取后保存");
     return next;
   }
 
   beginPublication(id: string, projectId: string, actorId: string, goalId?: string, expectedVersion?: number, existing?: PagesPublicationSnapshot, version?: number): PagesPublicationIntent {
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
+    return this.atomically(() => {
       const current = this.get(id, projectId);
       const pending = this.publicationIntent(id);
       if (expectedVersion !== undefined && current.version !== expectedVersion) throw pagesErrors.conflict("文档已改变，请重新读取后保存成果");
       if (pending) {
         if (pending.actor_id !== actorId) throw pagesErrors.publication_owner("请由上次保存的发起者恢复发布，原快照已保留");
         if (goalId !== undefined && goalId !== pending.goal_id) throw pagesErrors.publication_pending("请先恢复上次保存的成果，再关联新的 Goal");
-        this.db.exec("COMMIT"); return pending;
+        return pending;
       }
       const intent: PagesPublicationIntent = { title: existing?.title ?? current.title, body: existing?.body ?? current.body,
         goal_id: existing?.goal_id ?? normalizeGoalId(goalId ?? current.goal_id), original_goal_id: existing?.goal_id ?? current.goal_id,
         version: version ?? current.artifact_version + 1, source_version: current.version, actor_id: actorId };
-      this.db.prepare("UPDATE pages SET publication_pending_json = ? WHERE id = ?").run(JSON.stringify(intent), id);
-      this.db.exec("COMMIT"); return intent;
-    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+      this.db.run("UPDATE pages SET publication_pending_json = ? WHERE id = ?", [JSON.stringify(intent), id]);
+      return intent;
+    });
   }
 
   completePublication(id: string, projectId: string, intent: PagesPublicationIntent, artifact: { artifact_id: string; version: number }): PagesRecord {
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
+    return this.atomically(() => {
       const current = this.get(id, projectId);
-      if (current.artifact_id === artifact.artifact_id && current.artifact_version >= intent.version) {
-        this.db.exec("COMMIT"); return current;
-      }
+      if (current.artifact_id === artifact.artifact_id && current.artifact_version >= intent.version) return current;
       const pending = this.publicationIntent(id);
       if (!pending || JSON.stringify(pending) !== JSON.stringify(intent)) throw pagesErrors.publication_conflict("保存记录已改变，请重新读取文稿");
       this.update(id, { artifact_id: artifact.artifact_id, artifact_version: artifact.version,
         ...(current.goal_id === intent.original_goal_id ? { goal_id: intent.goal_id } : {}), expected_version: current.version }, projectId);
-      this.db.prepare("UPDATE pages SET publication_pending_json = NULL WHERE id = ?").run(id);
-      const document = this.get(id, projectId);
-      this.db.exec("COMMIT"); return document;
-    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+      this.db.run("UPDATE pages SET publication_pending_json = NULL WHERE id = ?", [id]);
+      return this.get(id, projectId);
+    });
   }
 
   private publicationIntent(id: string): PagesPublicationIntent | null {
-    const row = this.db.prepare("SELECT publication_pending_json FROM pages WHERE id = ?").get(id) as { publication_pending_json: string | null } | undefined;
-    return row?.publication_pending_json ? JSON.parse(row.publication_pending_json) as PagesPublicationIntent : null;
+    const pending = this.db.get("SELECT publication_pending_json FROM pages WHERE id = ?", [id])?.publication_pending_json;
+    return typeof pending === "string" && pending ? JSON.parse(pending) as PagesPublicationIntent : null;
   }
 
   /**
@@ -321,18 +311,15 @@ export class PagesStore {
    */
   relocate(id: string, from: string, to: string): PagesRecord {
     const target = normalizeProjectId(to);
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
+    return this.atomically(() => {
       const current = this.get(id, from);
       if (current.publication_pending) throw pagesErrors.publication_pending("上次成果保存还没完成，请先在原位置继续保存，再移动");
       // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
-      const result = this.db.prepare("UPDATE pages SET project_id = ?, folder_id = '', goal_id = '', artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?")
-        .run(target, id, current.version);
+      const result = this.db.run("UPDATE pages SET project_id = ?, folder_id = '', goal_id = '', artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?",
+        [target, id, current.version]);
       if (result.changes !== 1) throw pagesErrors.conflict("文档刚被修改，请重新读取后再移动");
-      const moved = this.get(id, target);
-      this.db.exec("COMMIT");
-      return moved;
-    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+      return this.get(id, target);
+    });
   }
 
   /** An independent copy in another partition; the same request always returns the same copy. */
@@ -344,7 +331,7 @@ export class PagesStore {
 
   delete(id: string, projectId?: string): void {
     this.get(id, projectId);
-    this.db.prepare("DELETE FROM pages WHERE id = ?").run(id);
+    this.db.run("DELETE FROM pages WHERE id = ?", [id]);
   }
 
   /** Keep what an edit replaced, so it can be taken back while nothing changed since; returns the change's id. */
@@ -354,13 +341,13 @@ export class PagesStore {
 
   /** Take one kept edit back: the document returns to what it was before, only if no one changed it since. */
   revertChange(changeId: string, projectId?: string): PagesRecord {
-    const row = this.db.prepare("SELECT page_id, to_version, before_json FROM page_changes WHERE change_id = ?").get(changeId) as { page_id: string; to_version: number; before_json: string } | undefined;
+    const row = this.db.get("SELECT page_id, to_version, before_json FROM page_changes WHERE change_id = ?", [changeId]);
     if (!row) throw pagesErrors.not_found("这次修改已经撤销过，或记录已过期（保留 14 天）");
-    const current = this.get(row.page_id, projectId);
-    if (current.version !== row.to_version) throw pagesErrors.conflict(`《${current.title || "未命名"}》在这次修改之后又改过（现在是第 ${current.version} 版），没有撤销；需要时请在 Pages 里自己改回`);
-    const before = JSON.parse(row.before_json) as Pick<PagesRecord, "title" | "body" | "folder_id" | "starred" | "goal_id">;
-    const restored = this.update(row.page_id, { ...before, expected_version: current.version }, projectId);
-    this.db.prepare("DELETE FROM page_changes WHERE change_id = ?").run(changeId);
+    const current = this.get(String(row.page_id), projectId);
+    if (current.version !== Number(row.to_version)) throw pagesErrors.conflict(`《${current.title || "未命名"}》在这次修改之后又改过（现在是第 ${current.version} 版），没有撤销；需要时请在 Pages 里自己改回`);
+    const before = JSON.parse(String(row.before_json)) as Pick<PagesRecord, "title" | "body" | "folder_id" | "starred" | "goal_id">;
+    const restored = this.update(String(row.page_id), { ...before, expected_version: current.version }, projectId);
+    this.db.run("DELETE FROM page_changes WHERE change_id = ?", [changeId]);
     return restored;
   }
 
@@ -368,21 +355,19 @@ export class PagesStore {
   discard(id: string, expectedVersion: number, projectId?: string): void {
     const current = this.get(id, projectId);
     if (current.version !== expectedVersion) throw pagesErrors.conflict(`《${current.title || "未命名"}》在新建之后改过（现在是第 ${current.version} 版），没有撤销；需要时请在 Pages 里自己删除`);
-    const result = this.db.prepare("DELETE FROM pages WHERE id = ? AND version = ?").run(id, expectedVersion);
+    const result = this.db.run("DELETE FROM pages WHERE id = ? AND version = ?", [id, expectedVersion]);
     if (result.changes !== 1) throw pagesErrors.conflict("文档刚被修改，没有撤销");
   }
 
   extract(id: string, projectId: string): { document: PagesRecord; cards: number; created: PagesRecord[] } {
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
+    return this.atomically(() => {
       const current = this.get(id, projectId);
       const extracted = extractFromPagesBody(current.title, current.body);
       const document = this.update(id, { body: extracted.body, expected_version: current.version }, projectId);
       const created = unpublishedKnowledgePages(this.list(projectId).map(page => page.title), extracted.knowledge)
         .map(page => this.create({ ...page, project_id: projectId, folder_id: current.folder_id }));
-      this.db.exec("COMMIT");
       return { document, cards: extracted.cards, created };
-    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+    });
   }
 
   createFolder(input: { title?: string; project_id: string }): PagesFolder {
@@ -394,14 +379,13 @@ export class PagesStore {
       created_at: now,
       updated_at: now,
     };
-    this.db.prepare(
-      "INSERT INTO folders (id, project_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-    ).run(folder.id, folder.project_id, folder.title, folder.created_at, folder.updated_at);
+    this.db.run("INSERT INTO folders (id, project_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+      [folder.id, folder.project_id, folder.title, folder.created_at, folder.updated_at]);
     return folder;
   }
 
   getFolder(id: string, projectId?: string): PagesFolder {
-    const row = this.db.prepare("SELECT * FROM folders WHERE id = ?").get(id) as FolderRow | undefined;
+    const row = this.db.get("SELECT * FROM folders WHERE id = ?", [id]);
     if (!row) throw pagesErrors.not_found("找不到这个文件夹");
     if (projectId && row.project_id !== normalizeProjectId(projectId)) {
       throw pagesErrors.not_found("找不到这个文件夹");
@@ -416,35 +400,33 @@ export class PagesStore {
       title: patch.title !== undefined ? normalizeFolderTitle(patch.title) : current.title,
       updated_at: new Date().toISOString(),
     };
-    this.db.prepare("UPDATE folders SET title = ?, updated_at = ? WHERE id = ?").run(next.title, next.updated_at, id);
+    this.db.run("UPDATE folders SET title = ?, updated_at = ? WHERE id = ?", [next.title, next.updated_at, id]);
     return next;
   }
 
   deleteFolder(id: string, projectId?: string): void {
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
+    this.atomically(() => {
       this.getFolder(id, projectId);
-      this.db.prepare("UPDATE pages SET folder_id = '', version = version + 1, updated_at = ? WHERE folder_id = ?").run(new Date().toISOString(), id);
-      this.db.prepare("DELETE FROM folders WHERE id = ?").run(id);
-      this.db.exec("COMMIT");
-    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+      this.db.run("UPDATE pages SET folder_id = '', version = version + 1, updated_at = ? WHERE folder_id = ?", [new Date().toISOString(), id]);
+      this.db.run("DELETE FROM folders WHERE id = ?", [id]);
+    });
   }
 }
 
-function keepPagesChange(db: DatabaseSync, before: PagesRecord, after: PagesRecord): string {
-    const changeId = crypto.randomUUID();
-    const now = new Date();
-    db.prepare("DELETE FROM page_changes WHERE created_at < ?").run(new Date(now.getTime() - 14 * 24 * 3600_000).toISOString());
-    db.prepare("INSERT INTO page_changes(change_id, page_id, to_version, before_json, created_at) VALUES (?, ?, ?, ?, ?)")
-      .run(changeId, after.id, after.version, JSON.stringify({ title: before.title, body: before.body, folder_id: before.folder_id, starred: before.starred, goal_id: before.goal_id }), now.toISOString());
-    return changeId;
+function keepPagesChange(db: PagesSql, before: PagesRecord, after: PagesRecord): string {
+  const changeId = crypto.randomUUID();
+  const now = new Date();
+  db.run("DELETE FROM page_changes WHERE created_at < ?", [new Date(now.getTime() - 14 * 24 * 3600_000).toISOString()]);
+  db.run("INSERT INTO page_changes(change_id, page_id, to_version, before_json, created_at) VALUES (?, ?, ?, ?, ?)",
+    [changeId, after.id, after.version, JSON.stringify({ title: before.title, body: before.body, folder_id: before.folder_id, starred: before.starred, goal_id: before.goal_id }), now.toISOString()]);
+  return changeId;
 }
 
 /**
  * The Pages store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version. Columns keep the order existing stores have them in.
  */
-export const PAGES_STORE_BASELINE: SqliteBaseline = { version: 3, schema: (`
+const PAGES_SCHEMA = `
   CREATE TABLE pages (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL DEFAULT '',
@@ -472,44 +454,60 @@ export const PAGES_STORE_BASELINE: SqliteBaseline = { version: 3, schema: (`
   -- What an edit by an agent or a workflow replaced, kept a while so the person can take that edit back (single use).
   CREATE TABLE page_changes (change_id TEXT PRIMARY KEY, page_id TEXT NOT NULL, to_version INTEGER NOT NULL, before_json TEXT NOT NULL, created_at TEXT NOT NULL);
   CREATE TABLE page_imports (project_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, document_ids_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(project_id, request_id));
-`)+replicaSchemaSql()+"CREATE TABLE pages_sync_revisions(project_id TEXT PRIMARY KEY,revision INTEGER NOT NULL);" };
+`+replicaSchemaSql()+"CREATE TABLE pages_sync_revisions(project_id TEXT PRIMARY KEY,revision INTEGER NOT NULL);";
+/** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
+export const PAGES_DATABASE: PluginDatabaseDeclaration = { store_name: "pages", version: 3,
+  read_permission: "pages:read", write_permission: "pages:write", schema: PAGES_SCHEMA };
+
+
 
 export function openPagesStore(homeDirectory: string): PagesStore & PagesSynchronization {
-  const db = openBaselineHomeSqlite(homeDirectory, PAGES_HOME_STORE.path, PAGES_STORE_BASELINE);
+  const db = openBaselineHomeSqlite(homeDirectory, PAGES_HOME_STORE.path, PAGES_DATABASE);
   const database = realpathSync(homeSqlitePath(homeDirectory, PAGES_HOME_STORE.path));
   let attempts = attemptsByDatabase.get(database);
   if (!attempts) attemptsByDatabase.set(database, attempts = new Map());
+  const sql: PagesSql = {
+    get: (text, parameters = []) => db.prepare(text).get(...parameters),
+    all: (text, parameters = []) => db.prepare(text).all(...parameters),
+    run: (text, parameters = []) => db.prepare(text).run(...parameters),
+  };
   initializePagesSyncRevision(db);
-  if (ensureStorageSpace(homeDirectory).kind === 'personal') initializePagesReplication(db);
-  return Object.assign(new PagesStore(db, attempts), pagesSynchronization(db, ensureStorageSpace(homeDirectory)));
+  if (ensureStorageSpace(homeDirectory).kind === "personal") initializePagesReplication(db);
+  return Object.assign(new PagesStore(sql, attempts, run => immediate(db, run), () => db.close()), pagesSynchronization(db, ensureStorageSpace(homeDirectory)));
 }
 
-function fromPageRow(row: PagesRow): PagesRecord {
-  const pending = row.publication_pending_json ? JSON.parse(row.publication_pending_json) as PagesPublicationIntent : null;
+function immediate<T>(db: DatabaseSync, run: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try { const result = run(); db.exec("COMMIT"); return result; }
+  catch (error) { db.exec("ROLLBACK"); throw error; }
+}
+
+function fromPageRow(row: SqlRow): PagesRecord {
+  const pending = row.publication_pending_json ? JSON.parse(String(row.publication_pending_json)) as PagesPublicationIntent : null;
   return {
-    id: row.id,
-    project_id: row.project_id ?? "",
-    title: row.title,
-    body: parsePagesBody(JSON.parse(row.body_json)),
-    folder_id: row.folder_id ?? "",
+    id: String(row.id),
+    project_id: String(row.project_id ?? ""),
+    title: String(row.title),
+    body: parsePagesBody(JSON.parse(String(row.body_json))),
+    folder_id: String(row.folder_id ?? ""),
     starred: Boolean(row.starred),
-    goal_id: row.goal_id ?? "",
-    artifact_id: row.artifact_id ?? "",
+    goal_id: String(row.goal_id ?? ""),
+    artifact_id: String(row.artifact_id ?? ""),
     artifact_version: Number(row.artifact_version) || 0,
     ...(pending ? { publication_pending: { version: pending.version, source_version: pending.source_version, goal_id: pending.goal_id } } : {}),
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    version: row.version,
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+    version: Number(row.version),
   };
 }
 
-function fromFolderRow(row: FolderRow): PagesFolder {
+function fromFolderRow(row: SqlRow): PagesFolder {
   return {
-    id: row.id,
-    project_id: row.project_id,
-    title: row.title,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
+    id: String(row.id),
+    project_id: String(row.project_id),
+    title: String(row.title),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
   };
 }
 
@@ -550,7 +548,7 @@ function normalizeFolderId(value: string | undefined, store: PagesStore, project
 }
 
 /** This plugin's store in the Home's store registry (W4-11): `pages/pages.db` at its one baseline. */
-export const PAGES_HOME_STORE: HomeStoreDeclaration = { path: "pages", library: { baseline: PAGES_STORE_BASELINE } };
+export const PAGES_HOME_STORE: HomeStoreDeclaration = { path: "pages", library: { baseline: PAGES_DATABASE } };
 
 /** Sync ports are composed beside the document store, not mixed into its editing implementation. */
 interface PagesSynchronization {

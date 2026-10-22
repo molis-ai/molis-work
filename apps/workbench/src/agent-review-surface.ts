@@ -151,6 +151,7 @@ function readable(document: AgentReviewDocument): boolean {
       && document.args.every(arg => typeof arg === "string") && typeof document.cwd === "string" && Number.isFinite(document.timeout_ms)
       && (document.env_allowlist === undefined || Array.isArray(document.env_allowlist) && document.env_allowlist.every(name => typeof name === "string"))
       && (document.escalate === undefined || typeof document.escalate === "boolean")
+      && (document.after_write_check === undefined || typeof document.after_write_check?.display_name === "string" && Number.isSafeInteger(document.after_write_check.version))
       && (document.grants === undefined || typeof document.grants.network === "boolean" && Array.isArray(document.grants.paths)
         && document.grants.paths.every(grant => typeof grant.path === "string" && (grant.access === "read" || grant.access === "write")));
     case "tool-operation": return typeof document.summary === "string" && Array.isArray(document.fields);
@@ -234,8 +235,8 @@ export function leakedMarkup(text: string): boolean {
 function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPrimitives): string {
   if (decidable) {
     const reviewId = p.escape(row.request.review_id);
-    // A round's own proposals (edits, commands, dispatches, MCP calls) can be refused with a reason the round receives.
-    return `${row.request.run && ["text-edit", "command", "tool-operation", "mcp"].includes(row.request.document.kind) && row.request.plugin_id === "io.molis.work.coding" ? `<label class="mw-field agent-review-feedback"><span class="mw-field__label">修改意见（可选）</span><textarea class="mw-textarea" data-slot="textarea" data-agent-review-feedback aria-label="修改意见（可选）" maxlength="2000" rows="1" placeholder="要改哪里？写下意见后点拒绝，交回给 Agent…"></textarea><span class="mw-field__hint">填写后随拒绝交给原任务；新提案仍需重新审查。</span></label>` : ""}<footer class="agent-review-actions">
+    // A round's own proposals (edits, commands, dispatches, MCP calls) of any plugin can be refused with a reason the round receives.
+    return `${row.request.run && ["text-edit", "command", "tool-operation", "mcp"].includes(row.request.document.kind) ? `<label class="mw-field agent-review-feedback"><span class="mw-field__label">修改意见（可选）</span><textarea class="mw-textarea" data-slot="textarea" data-agent-review-feedback aria-label="修改意见（可选）" maxlength="2000" rows="1" placeholder="要改哪里？写下意见后点拒绝，交回给 Agent…"></textarea><span class="mw-field__hint">填写后随拒绝交给原任务；新提案仍需重新审查。</span></label>` : ""}<footer class="agent-review-actions">
       ${row.request.document.kind === "command" && row.request.document.escalate === false && row.request.document.grants === undefined && row.request.run ? `<label class="agent-review-remember"><input type="checkbox" data-agent-review-remember>${p.escape("本会话内同样的命令不再询问")}</label>` : ""}
       <button class="mw-btn" type="button" data-agent-review-reject="${reviewId}">${p.escape("拒绝")}</button>
       <button class="mw-btn mw-btn--primary" type="button" data-agent-review-approve="${reviewId}">${p.escape("批准这一次")}</button>
@@ -301,6 +302,7 @@ function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives)
     case "command":
       return `<div class="agent-review-doc" data-agent-review-kind="command">
         <pre class="agent-review-command"><span class="agent-review-prompt" aria-hidden="true">$</span> ${p.escape([document.command, ...document.args].map(shellWord).join(" "))}</pre>
+        ${document.after_write_check ? `<p class="agent-review-meta" data-agent-review-check>${p.escape(`写后检查：${document.after_write_check.display_name}（配置 v${document.after_write_check.version}）`)}</p>` : ""}
         ${leakedMarkup([document.command, ...document.args].join(" ")) ? `<p class="agent-review-warning" role="note">${p.escape("命令里混有像工具调用标记的文本（例如 </arg…>、<item>），多半是模型输出出错；这样的命令通常无法正常运行，建议拒绝并说明。")}</p>` : ""}
         <p class="agent-review-meta">${p.escape(`在 ${document.cwd === "." ? "工作区根目录" : document.cwd} 运行 · ${document.escalate === undefined ? "执行范围未提供" : document.escalate ? "请求在沙箱外执行" : document.grants ? "超出宿主执行边界，另要下面这些" : "在宿主执行边界内"}`)}</p>
         ${document.grants ? `<div class="agent-review-grants" role="note" data-agent-review-grants><p>${p.escape("这条命令还点名要（只批这一次，不会记住）：")}</p><ul>${document.grants.paths.map(grant => `<li><span class="agent-review-tag">${p.escape(grant.access === "write" ? "读写" : "读取")}</span> <code>${p.escape(grant.path)}</code></li>`).join("")}${document.grants.network ? `<li><span class="agent-review-tag">${p.escape("联网")}</span> ${p.escape("这条命令要访问网络")}</li>` : ""}</ul><p class="agent-review-meta">${p.escape("本机没有系统级隔离：批准后命令照常运行，这里列的是它要求的范围，不是被限制在内的范围。")}</p></div>` : ""}

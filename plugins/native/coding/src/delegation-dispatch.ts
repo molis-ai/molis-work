@@ -3,24 +3,24 @@ import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/s
 import type { PluginStartContext, PluginCapabilityClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { materialArtifact, type CodingMaterial } from "./materials.js";
 import type { CodingSessionRecord } from "./store.js";
-import type { CodingExecutionPorts } from "./routes.js";
+import type { CodingExecution } from "./routes.js";
 import type { CodingBeforeWrite } from "./route-entry.js";
 import { asAttachment, isDelegation } from "./delegation-view.js";
 
 /** A known pre-dispatch failure may put the draft away; an uncertain dispatch keeps its original target and outbox. */
-export async function dispatchCodingDelegation(context: PluginStartContext, api: PluginCapabilityClient, execution: CodingExecutionPorts, activation: CodingExecutionPorts,
+export async function dispatchCodingDelegation(context: PluginStartContext, api: PluginCapabilityClient, execution: CodingExecution,
   record: CodingSessionRecord, input: { mine: string; task: string; title: string; materials: CodingMaterial[]; hops: number; ttlMs: number },
   beforeWrite: CodingBeforeWrite, runtimeSession: (target: CodingSessionRecord) => Promise<string>,
-  view: (letter: AgentSessionMessage, observed: AgentSessionMessage[], execution: CodingExecutionPorts) => unknown) {
+  view: (letter: AgentSessionMessage, observed: AgentSessionMessage[], execution: CodingExecution) => unknown) {
   const { mine, task, title, materials, hops } = input;
   const projectId = context.project_id!;
   await beforeWrite(); beforeWrite.assert_current();
   const at = new Date().toISOString();
   // The work happens in the Runtime of the session that asks (PG-054): the letter goes between two sessions of that one Runtime.
-  let target = execution.sessions.create({ project_id: projectId, session_id: crypto.randomUUID(), title: "委派：" + title, runtime_id: record.runtime_id, at });
+  let target = await execution.sessions.create(beforeWrite, { project_id: projectId, session_id: crypto.randomUUID(), title: "委派：" + title, runtime_id: record.runtime_id, at });
   let sent: AgentSessionMessage | undefined, dispatchStarted = false;
   try {
-    execution.sessions.inputs.write(projectId,target.session_id,0,{draft:task});
+    await execution.sessions.inputs.write(beforeWrite,projectId,target.session_id,0,{draft:task});
     if (materials.length) context.services!.storage!.set(`materials:${target.session_id}`, JSON.stringify(materials));
     // The work happens where the asking session works, with its model, unless the receiving person changes them.
     const configuration = context.services!.storage!.get(`configuration:${record.session_id}`);
@@ -38,13 +38,12 @@ export async function dispatchCodingDelegation(context: PluginStartContext, api:
   } catch (error) {
     // A Runtime that carries no letters between sessions says so before it sends anything: no letter exists, so this is a plain refusal.
     const refused = !sent && (error as { code?: unknown }).code === "agent.capability_unavailable";
-    if (!dispatchStarted || refused) { await beforeWrite(); beforeWrite.assert_current(); execution.sessions.archive(projectId, target.session_id, new Date().toISOString()); throw error; }
+    if (!dispatchStarted || refused) { await beforeWrite(); beforeWrite.assert_current(); await execution.sessions.archive(beforeWrite, projectId, target.session_id, new Date().toISOString()); throw error; }
     // Dispatch may already have flushed. Observe that same target and letter; never make another to compensate.
     await beforeWrite(); beforeWrite.assert_current();
     const observed = await api.invoke(agent.readMessages, [record.runtime_id, mine]).catch(() => [] as AgentSessionMessage[]);
     await beforeWrite(); beforeWrite.assert_current();
     sent = observed.find(letter => isDelegation(letter) && letter.from_session === mine && letter.to_session === target.runtime_session_id) ?? sent;
-    const sides = activation;
-    return { session: target, delegation: sent ? view(sent, observed, sides) : null, delivery_unconfirmed: !sent || sent.state === "queued" };
+    return { session: target, delegation: sent ? view(sent, observed, execution) : null, delivery_unconfirmed: !sent || sent.state === "queued" };
   }
 }

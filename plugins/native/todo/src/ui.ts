@@ -56,7 +56,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
     body: `
     <div class="plugin-stage-list feed-stage-list feed-stage-tree todo-list" data-todo="directory">
       <header class="todo-chrome">
-        <nav class="mw-toggle-group todo-views" data-slot="toggle-group" aria-label="${p.text("待办视图")}">
+        <nav class="mw-toggle-group todo-views" data-slot="toggle-group" data-overflow-fade aria-label="${p.text("待办视图")}">
           ${VIEWS.map((view, index) => toggle("data-todo-view", view, index === 0, ` data-todo-view-label="${p.escape(p.text(view[1]))}"`)).join("")}
           <button class="mw-toggle todo-review-toggle" type="button" data-todo-view="review" data-todo-view-label="${p.escape(p.text("待你确认"))}" aria-pressed="false" hidden>${p.text("待你确认")}</button>
         </nav>
@@ -69,7 +69,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
         <input class="mw-input todo-quick-input" data-todo-quick-input maxlength="400" aria-label="${p.text("记下一件事")}" placeholder="${p.text("记下一件事，例如：周四前给王总回电话")}">
         <div class="todo-quick-meta">
           <div class="todo-quick-parts" data-todo-quick-parts aria-live="polite"></div>
-          <div class="mw-toggle-group todo-quick-placement" data-slot="toggle-group" role="radiogroup" aria-label="${p.text("放在")}" data-todo-quick-placement></div>
+          <div class="mw-toggle-group todo-quick-placement" data-slot="toggle-group" role="radiogroup" aria-label="${p.text("放在")}" data-todo-quick-placement>${PLACEMENTS.map(([value, label]) => `<button class="mw-toggle${value === "unassigned" ? " is-current" : ""}" type="button" data-todo-quick-placement-choice="${value}" role="radio" aria-checked="${value === "unassigned"}">${p.text(label)}</button>`).join("")}</div>
           <button class="mw-btn mw-btn--primary" type="submit" data-todo-quick-submit disabled>${icon("plus")}<span>${p.text("记下")}</span></button>
         </div>
       </form>

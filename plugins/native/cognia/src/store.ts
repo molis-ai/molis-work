@@ -1,4 +1,4 @@
-import {replicaSchemaSql,type SqliteBaseline} from "@molis-ai/molis-work-storage";
+import {replicaSchemaSql} from "@molis-ai/molis-work-storage";
 import { randomUUID } from "node:crypto";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -37,7 +37,7 @@ export class CogniaStore {
       this.put({ ...material, domain_id: null, revision: material.revision + 1, updated_at: new Date().toISOString() }, previous.data);
     }
     for (const source of this.sources().filter(s => s.domain_id === id)) this.db.run("UPDATE cognia_sources SET body=? WHERE id=?", [JSON.stringify({ ...source, domain_id: null }), source.id]);
-    for (const draft of this.allDrafts().filter(d => d.domain_id === id)) this.db.run("UPDATE cognia_drafts SET body=? WHERE id=?", [JSON.stringify({ ...draft, domain_id: null }), draft.id]);
+    for (const draft of allDrafts(this.db).filter(d => d.domain_id === id)) this.db.run("UPDATE cognia_drafts SET body=? WHERE id=?", [JSON.stringify({ ...draft, domain_id: null }), draft.id]);
     this.removePreviewsFor(preview => preview.source.domain_id === id);
     this.db.run("DELETE FROM cognia_domains WHERE id=?", [id]);
   }); }
@@ -56,7 +56,7 @@ export class CogniaStore {
   }
   read(id: string, revision?: number): Material { const row = revision === undefined ? this.db.get("SELECT body FROM cognia_materials WHERE id=?", [id]) : this.db.get("SELECT body FROM cognia_versions WHERE material_id=? AND revision=?", [id, revision]); const value = parse<Material>(row); requireCognia(value, "资料或版本不存在", cogniaErrors.not_found); return value; }
   detail(id: string, revision?: number): { material: Material; etag:string; outgoing: ReturnType<typeof linksFor>; incoming: Material[]; references: Draft["references"] } {
-    const material = this.read(id, revision), all = this.materials(); const draft = this.allDrafts().find(d => adoptedFrom(d, id));
+    const material = this.read(id, revision), all = this.materials(); const draft = allDrafts(this.db).find(d => adoptedFrom(d, id));
     return { material,etag:contentHash(JSON.stringify(material)), outgoing: linksFor(material, all), incoming: all.filter(m => m.id !== id && linksFor(m, all).some(l => l.material_id === id)), references: draft?.references ?? [] };
   }
   download(id: string, revision?: number): { material: Material; bytes: Buffer } { const material = this.read(id, revision); const row = this.db.get("SELECT data FROM cognia_versions WHERE material_id=? AND revision=?", [id, material.revision]) as { data: string }; return { material, bytes: Buffer.from(row.data, "base64") }; }
@@ -128,7 +128,6 @@ export class CogniaStore {
     this.put(material, Buffer.from(body).toString("base64")); return material;
   }); }
   deleteMaterial(id: string): void { const result = this.db.run("DELETE FROM cognia_materials WHERE id=?", [id]); requireCognia(Number(result.changes) === 1, "资料不存在", cogniaErrors.not_found); } // a draft adopted as it keeps its link: the fixed versions keep their sources
-  private allDrafts(): StoredDraft[] { return this.db.all("SELECT body FROM cognia_drafts ORDER BY rowid DESC").map(r => parse<StoredDraft>(r)!); }
   drafts(): Draft[] { return viewDrafts(this.db); }
   addDraft(draft: Draft): Draft { return this.transaction(() => {
     // Domain deletion during generation must not reintroduce a dangling classification.
@@ -149,7 +148,7 @@ export class CogniaStore {
  * The Cognia store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version.
  */
-export const COGNIA_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
+export const COGNIA_DATABASE: PluginDatabaseDeclaration = { store_name: "cognia", read_permission: "cognia:read", write_permission: "cognia:write", version: 2, schema: `
   CREATE TABLE cognia_domains (id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE);
   CREATE TABLE cognia_sources (id TEXT PRIMARY KEY,body TEXT NOT NULL);
   CREATE TABLE cognia_materials (id TEXT PRIMARY KEY,source_id TEXT NOT NULL,path TEXT NOT NULL,updated_at TEXT NOT NULL,body TEXT NOT NULL,UNIQUE(source_id,path));
@@ -157,7 +156,7 @@ export const COGNIA_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
   CREATE TABLE cognia_previews (id TEXT PRIMARY KEY,body TEXT NOT NULL,expires_at INTEGER NOT NULL,receipt TEXT);
   CREATE TABLE cognia_drafts (id TEXT PRIMARY KEY,body TEXT NOT NULL,archived INTEGER NOT NULL DEFAULT 0);
 ` + replicaSchemaSql() };
-export const COGNIA_DATABASE: PluginDatabaseDeclaration = { ...COGNIA_STORE_BASELINE, store_name: "cognia", read_permission: "cognia:read", write_permission: "cognia:write" };
+
 
 export function openCogniaStore(home: string): CogniaStore {
   const db = openHomeSqliteDatabase(home, COGNIA_HOME_STORE.path);
@@ -173,3 +172,5 @@ function cogniaSql(db: DatabaseSync): CogniaSql {
   return { get: (sql, parameters = []) => db.prepare(sql).get(...parameters), all: (sql, parameters = []) => db.prepare(sql).all(...parameters),
     run: (sql, parameters = []) => db.prepare(sql).run(...parameters) };
 }
+
+function allDrafts(db: CogniaSql): StoredDraft[] { return db.all("SELECT body FROM cognia_drafts ORDER BY rowid DESC").map(r => parse<StoredDraft>(r)!); }

@@ -4,8 +4,8 @@ import { ISSUE_REVIEW_CLIENT_SCRIPT } from "./review-client.js";
 import { ISSUE_IMAGES_CLIENT_SCRIPT } from "./image-client.js";
 
 /**
- * One view in every place it mounts. Writing is never blocked: a capture leaves the composer at once and the
- * Assistant names it in the background (capture-client). Opening a record replaces the list; Back returns to it.
+ * One view in every place it mounts. Writing is never blocked: a capture leaves the composer at once and Issue
+ * names it in the background (capture-client). Opening a record replaces the list; Back returns to it.
  */
 export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host) {
   const root = host.root || document.querySelector('[data-issues="workbench"]');
@@ -23,7 +23,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   const home = $('home'), detail = $('detail'), composer = $('composer'), editor = $('editor'), list = $('list'), toastBox = $('toast');
   const desc = composer.elements.description, titleInput = editor.elements.title, detailInput = editor.elements.description;
   const kinds = { bug: 'Bug', experience: '体验问题', feature: '功能需求' };
-  const via = { assistant: '助理整理', manual: '手动记录', mcp: '外部客户端' }, mac = /Mac|iP/.test(navigator.platform);
+  const via = { assistant: '自动整理', manual: '手动记录', mcp: '外部客户端' }, mac = /Mac|iP/.test(navigator.platform);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const KEY = 'molis:issue-draft';
   let rows = [], next = null, pending = [], current = null, editing = false, saving = false, images = [], edits = [], fresh = null, listEpoch = 0, readEpoch = 0, toastTimer, toastRun;
@@ -37,9 +37,9 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     } catch (error) {
       if (scope.signal.aborted) throw error;
       // A write that lost its answer may have happened: say so instead of inviting a blind repeat.
-      throw new Error(L(/(update|delete|capture|discard|run)$/.test(path) ? '没收到结果，可能已经生效，请刷新列表核对。' : '连接中断，请稍后重试。'));
+      throw new Error(L(/(update|delete|capture|discard|run|name-draft)$/.test(path) ? '没收到结果，可能已经生效，请刷新列表核对。' : '连接中断，请稍后重试。'));
     }
-    if (!response.ok) throw Object.assign(new Error(L(result.error || '操作失败，请重试')), { status: response.status });
+    if (!response.ok) throw Object.assign(new Error(L(result.error || '操作失败，请重试')), { status: response.status, code: result.code });
     return result;
   };
   const read = id => api('read?id=' + encodeURIComponent(id));
@@ -50,7 +50,8 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     toastBox.firstChild.textContent = text; toastBox.lastChild.textContent = action; toastBox.hidden = false;
     toastTimer = scope.timeout(() => { toastBox.hidden = true; toastRun = null; }, action ? 7000 : 3500);
   };
-  const fit = area => { if (!area.clientWidth) return; area.style.height = 'auto'; area.style.height = area.scrollHeight + 'px'; };
+  // A description grows with the page (data-fit with no max); a value set here sends no input event.
+  const fit = area => window.molisFit?.(area);
   const when = iso => {
     const date = new Date(iso), now = new Date(), minutes = Math.round((now - date) / 60000), today = new Date(now).setHours(0, 0, 0, 0);
     const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -121,7 +122,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     const item = pending.find(entry => entry.id === id);
     if (item) { if (item.state === 'organizing') { toast(L('还在整理，稍等几秒')); return; }
       current = item; editing = true; fill(item.card ? { ...item, ...item.card } : item); flag(item.note); home.hidden = true; detail.hidden = false; mode();
-      // Asked for a fact: the words come first and the Assistant tries again. Failed: name it by hand.
+      // Asked for a fact: the words come first and Issue tries again. Failed: name it by hand.
       const asked = item.kind === 'question', area = detailInput;
       primary('redo', asked); primary('save', !asked);
       if (asked) { area.focus(); area.setSelectionRange(area.value.length, area.value.length); } else titleInput.focus();

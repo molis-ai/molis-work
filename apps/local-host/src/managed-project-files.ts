@@ -56,7 +56,6 @@ async provisionCreatedProject<T>(
       await initializeProjectDatabase(
         path.join(stagingDirectory, "molis-work.db"),
         record.project_id,
-        record.display_name,
         input.actorId,
       );
       await validateManagedBoard(path.join(stagingDirectory, "molis-work.db"), record.project_id);

@@ -5,23 +5,23 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, codingRouteHooks, handleProjectPluginHttp, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration, type AgentCollaborationCondition, type AgentCollaborationWait, type AgentContinuationView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 // The surface and its release from the same module: a second copy would not know the plugin this one started.
-import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/dist/coding-surface.js";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
+import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 // specs/prologue-adoption §4.6.10: the wait hangs on the session's step; once it is over the plugin starts the next round, which takes the continuation up.
 test("a round that ends waiting on an answer or a background command waits as the task graph keeps it, goes on with its task, keeps waiting across a restart, and can be given up", { timeout: 60_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-message-wait-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
-  const sessions = new CodingSessionStore(store.db), at = new Date().toISOString();
-  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "a", title: "改接口", runtime_id: "prologue", at });
-  sessions.setRuntimeSession(DEMO_PROJECT_ID, "a", "sdk-a", at);
-  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "b", title: "调用方", runtime_id: "prologue", at });
-  sessions.setRuntimeSession(DEMO_PROJECT_ID, "b", "sdk-b", at);
+  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  const sessions = codingSessions(store), at = new Date().toISOString();
+  await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "a", title: "改接口", runtime_id: "prologue", at });
+  await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "a", "sdk-a", at);
+  await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "b", title: "调用方", runtime_id: "prologue", at });
+  await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "b", "sdk-b", at);
   // The task graph's waits, as the Host serves them. B's model waits in each round it runs: on a request, or a command.
   type Held = { session_id: string; wait: AgentCollaborationWait; continuation: AgentContinuationView };
   const waits: Held[] = [], parks: Array<{ wait_id: string; condition: Omit<AgentCollaborationCondition, "last">; reason: string; until?: "settled"; on_failure?: "continue" }> = [];
@@ -53,9 +53,8 @@ test("a round that ends waiting on an answer or a background command waits as th
       else { one.wait.state = "cancelled"; one.wait.continued = true; one.continuation.state = "eligible"; continued.push(wait_id); }
       return { session: structuredClone(one) }; } },
   ] });
-  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const id = definition.capability_id, input = args as unknown as any[];
       if (id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
@@ -91,7 +90,7 @@ test("a round that ends waiting on an answer or a background command waits as th
       throw new Error(`Unexpected capability ${id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const call = async (path: string, body?: unknown) => {
@@ -134,7 +133,7 @@ test("a round that ends waiting on an answer or a background command waits as th
     parks.push({ wait_id: "w3", condition: { kind: "command", ref: "bg-1", label: "后台命令 npm test结束" }, reason: "等完整测试跑完", until: "settled" });
     assert.equal((await call("/sessions/b/runs", send("跑完整测试再修"))).status, 200);
     await until("B waits on the command", () => sessions.get(DEMO_PROJECT_ID, "b").state === "queued");
-    await releaseCodingSurface(store, DEMO_PROJECT_ID);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     const after = await call("/state");
     assert.equal(after.status, 200, JSON.stringify(after.body));
     assert.deepEqual([after.body.sessions.find((session: any) => session.session_id === "b").queued.waiting_for], ["command"]);
@@ -185,5 +184,5 @@ test("a round that ends waiting on an answer or a background command waits as th
     fire("w7", "failed", "收信的会话那一轮失败了，没有答复");
     await until("B goes on when the other round failed", () => starts.length === 10);
     assert.match(starts[9].task, /会话「改接口」的答复失败了（收信的会话那一轮失败了，没有答复）/);
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

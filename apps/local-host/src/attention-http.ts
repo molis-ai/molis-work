@@ -3,7 +3,7 @@ import { sendLocalWebJson } from "./web-http.js";
 
 /** Where each part of what waits on the person is read; every reader belongs to the part's owner. */
 export interface AttentionSources {
-  /** Coding sessions running or waiting on the person, in every project (the title bar's background tasks). */
+  /** Background tasks running or waiting on the person, in every open project, as the plugins that own them say (the title bar's list; `home-background-tasks.ts`). */
   backgroundTasks(): unknown[] | Promise<unknown[]>;
   /** The Assistant's notices for the surface the person is on. */
   notices(surface: string | null): Promise<unknown[]>;

@@ -4,12 +4,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, GoalProjectApplication, DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
+import { LocalProjectDatabase, GoalProjectApplication, DEMO_PROJECT_ID, openHostShelfStore, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { IMPORTED_DOCUMENT_TYPE } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, handleShelfNativePluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfActions as shelfDefinitions, SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 
 // specs/project-knowledge §9: what Shelf saves into a project is an imported document there, saved through the 成果库's own import
 // as the confirming person; the project's agents find and read it like any other piece (Coding's side: tests/coding-materials-http.test.ts).
@@ -17,7 +16,7 @@ test("Shelf saves the confirmed full text into project knowledge, a new version 
   const home = mkdtempSync(join(tmpdir(), "shelf-knowledge-")), dbPath = join(home, "board.db");
   seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const otherPath = join(home, "other.db"), otherStore = new LocalProjectDatabase(otherPath);
-  new GoalProjectApplication(otherStore).initializeBoard({ project_id: "other-project", title: "Other", actor_id: "web-user", idempotency_key: "init-other" });
+  new GoalProjectApplication(otherStore).initializeBoard({ project_id: "other-project", actor_id: "web-user", idempotency_key: "init-other" });
   otherStore.close();
   // Shelf copies are personal (Home); saving one into a project runs in that project's action client.
   const localHost = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -63,7 +62,7 @@ test("Shelf saves the confirmed full text into project knowledge, a new version 
 
     // An edit after the preview is a conflict; confirmed again, it is the next version of the same document, the first kept as it was.
     const changed = "新版🙂\n现在只允许核对文档，不做修改。";
-    assert.equal((await request(`/api/shelf/items/${id}/edit`, { text: changed })).status, 200);
+    assert.equal((await request(`/api/shelf/items/${id}/edit`, { text: changed, expected_content_hash: (await shelfActions.invoke(shelfDefinitions.readText, { item_id: id })).content_hash })).status, 200);
     assert.equal((await request(path, { expected_fingerprint: preview.body.fingerprint })).status, 409);
     const second = await request(path); assert.notEqual(second.body.fingerprint, preview.body.fingerprint);
     const saved2 = await request(path, { expected_fingerprint: second.body.fingerprint });
@@ -79,7 +78,7 @@ test("Shelf saves the confirmed full text into project knowledge, a new version 
       const item = (await request("/api/shelf/items", { filename, bytes_base64: bytes.toString("base64") })).body.item;
       assert.equal((await request(`/api/shelf/items/${item.item_id}/project-material`)).status, 400, filename);
     }
-    const sample = openShelfStore(home, { disabled: true }).seedSample();
+    const sample = await openHostShelfStore(home, { disabled: true }).seedSample();
     assert.equal((await request(`/api/shelf/items/${sample.item_id}/project-material`)).status, 400);
     assert.deepEqual([...new Set(documents().listArtifacts(DEMO_PROJECT_ID, { artifact_type_id: IMPORTED_DOCUMENT_TYPE }).map(row => row.artifact_id))], [save.body.reference.artifact_id]);
   } finally {

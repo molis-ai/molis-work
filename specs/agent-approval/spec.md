@@ -83,7 +83,7 @@ Molis 已有审查队列（`horizontal/agent-host/src/reviews.ts`）和 `beforeE
 ## 6. 关联
 
 - Coding 的评审与推送：[coding-quality-assurance](../coding-quality-assurance/spec.md)、[coding-plugin](../coding-plugin/spec.md)
-- Goal 完成与可信决定：[goal-closure-identity](../goal-closure-identity/spec.md)
+- Goal 完成与可信决定：[goal-closure-identity](../archive/goal-closure-identity/spec.md)
 - 动作授权与 `beforeEffect`：[action-architecture](../action-architecture/spec.md)
 - 安全边界：[SECURITY-INVARIANTS.md](../../docs/system/SECURITY-INVARIANTS.md)
 - 代码：`horizontal/agent-host/src/reviews.ts`、`apps/local-host/src/assistant/assistant-authority.ts`、`packages/kernel/src/action-service.ts`

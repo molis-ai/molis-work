@@ -2,7 +2,7 @@ import {join} from 'node:path';
 import {IMAGES_PLUGIN_ID} from '@molis-ai/molis-work-contracts/modules/images';
 import type {ProjectCopyAsset} from '@molis-ai/molis-work-contracts/services/placement';
 import {hasReplicaHistory,openBaselineHomeSqlite,openOwnerCopyStore,replicaTransaction,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
-import {IMAGES_STORE_BASELINE} from './store.js';
+import {IMAGES_DATABASE} from './store.js';
 import {createImagesPortableOwner,initializeImagesReplication,validateImageValue} from './replication.js';
 import {imagesErrors} from './error.js';
 
@@ -10,7 +10,7 @@ const kind=IMAGES_PLUGIN_ID+':image';
 const comparable=(value:ReturnType<typeof validateImageValue>)=>JSON.stringify([value.format,value.spaceId,value.project.id,value.project.title,Object.keys(value.record).sort().map(key=>[key,Reflect.get(value.record,key)]),value.images.map(image=>[image.id,image.mime_type,image.byte_length,image.data_base64])]);
 /** No runner, connection, provider or model is opened by this owner port. */
 export function openImagesCopyOwner(home:string,context:AggregateCopyContext){
- return openOwnerCopyStore(home,'images',IMAGES_STORE_BASELINE,context,(db,scope)=>{
+ return openOwnerCopyStore(home,'images',IMAGES_DATABASE,context,(db,scope)=>{
   if(scope.direction==='target')initializeImagesReplication(db);const saved=createImagesPortableOwner(db,join(home,'images','assets'),scope);
   const parse=(asset:ProjectCopyAsset)=>{
    scope.authorize();const parts:unknown=JSON.parse(asset.key);if(!Array.isArray(parts)||parts.length!==3||parts[1]!=='image'||parts.some(part=>typeof part!=='string'||!part||part.length>80))throw imagesErrors.invalid('图片复制标识无效');
@@ -26,5 +26,5 @@ export function openImagesCopyOwner(home:string,context:AggregateCopyContext){
    },
    apply(asset){scope.authorize();if(scope.direction!=='target')throw imagesErrors.invalid('源图片接口只读');replicaTransaction(db,()=>{scope.authorize();const incoming=parse(asset),current=saved.read(asset.key);if(current!==null){if(comparable(current)!==comparable(incoming.value))throw imagesErrors.copy_conflict('目标图片副本已经变化，未覆盖原内容');scope.authorize();return;}if(hasReplicaHistory(db,asset.key))throw imagesErrors.copy_conflict('目标图片副本已有删除历史，未重新创建原内容');saved.apply(asset.key,incoming.value);scope.authorize();});},
   };
- },()=>openBaselineHomeSqlite(home,'images',IMAGES_STORE_BASELINE));
+ },()=>openBaselineHomeSqlite(home,'images',IMAGES_DATABASE));
 }

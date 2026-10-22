@@ -33,7 +33,7 @@ export interface PluginModelImage {
 }
 
 export interface PluginModelRequest {
-  /** Copied before the first wait; at most 30 images, 32 MiB each and 128 MiB total. */
+  /** Copied before the first wait; at most 50 images, 32 MiB each and 128 MiB total. */
   readonly images?: readonly PluginModelImage[];
   /** Exact selection for this call; absent uses the Host default. An unavailable selection is refused, never replaced. */
   readonly selection?: PluginModelSelection;
@@ -69,22 +69,26 @@ export type PluginModelFailure = ActionError & {
   readonly validateResult?: () => void;
 };
 
-/** Model display metadata only; never a credential reference or endpoint. */
-export type PluginModelAvailability = ActionAvailability & { readonly runtime_label?: string };
+/**
+ * Model display metadata only; never a credential reference or endpoint. `vision` is true when the model this call would use
+ * declares that it reads images: `complete()` refuses images otherwise, so a plugin attaches them only when this is true.
+ */
+export type PluginModelAvailability = ActionAvailability & { readonly runtime_label?: string; readonly vision?: boolean };
 
 /**
- * The Host's text model, for a plugin the Host runs itself that declares `model:invoke`. It works only inside one of the plugin's
- * own actions that declares `model:invoke` and is scheduled "concurrent": the Host knows which action is running, the plugin
- * passes no call context. The call's `beforeEffect()` is asked before the model is and again before the answer is handed over,
+ * The Host's text model, for a plugin the Host runs itself that declares `model:read` or `model:invoke`. The list and availability
+ * need either, declared and held: a plugin that only lists and picks models declares the read-only `model:read`. `complete()`
+ * needs `model:invoke`, and works only inside one of the plugin's own actions that declares `model:invoke` and is scheduled
+ * "concurrent": the Host knows which action is running, the plugin passes no call context. The call's `beforeEffect()` is asked before the model is and again before the answer is handed over,
  * so a call that was cancelled, revoked, stopped, or whose action has already returned (`actions.expired`) gets no answer.
  * The plugin still checks `beforeEffect()` itself before it writes, and commits against the version it read.
  */
 export interface PluginModelClient {
   /** The declared Home consumer's model settings; writes only through its exact settings action. */
   readonly configuration?: import("./plugin-model-configuration.js").PluginModelConfigurationClient;
-  /** Available model names and capabilities only; no request or credential decryption. */
+  /** Available model names and capabilities only; no request or credential decryption. Needs `model:read` or `model:invoke`. */
   choices(): readonly PluginModelChoice[];
-  /** Whether this selection (or the Host default) is available now, while the plugin is running with its model grant. */
+  /** Whether this selection (or the Host default) is available now, while the plugin is running with `model:read` or `model:invoke`. */
   availability(selection?: PluginModelSelection): PluginModelAvailability;
   /**
    * `prompt` is the plugin's own registered instruction and this call's data (`instructed(instruction, data)`); a plain string is

@@ -1,6 +1,6 @@
 import type { BoundActionClient } from "./actions.js";
 import type { ArtifactReference } from "../modules/artifacts.js";
-export type { PluginBackgroundClient, PluginBackgroundExecution } from "./plugin-background.js";
+export type { PluginBackgroundClient, PluginBackgroundExecution, PluginJobControl, PluginJobDeclaration, PluginKeptJob } from "./plugin-background.js";
 import type { ConnectorDriver } from "../services/connector-host.js";
 import type { RawEventAdapter } from "../services/listener-host.js";
 import type { HostCapabilityDefinition } from "./app-host.js";
@@ -34,7 +34,7 @@ import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "./plu
 import type { InstructionPrompt } from "./model-prompts.js";
 import type { PluginModelClient } from "./plugin-model.js";
 import type { PluginMaterialsClient } from "./plugin-materials.js";
-export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, MaterialSourceContent } from "./plugin-materials.js";
+export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialDocumentsRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, MaterialSourceContent } from "./plugin-materials.js";
 
 /** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
 export const SURFACE_BROWSER_PERMISSION = "surface:browser";
@@ -81,29 +81,61 @@ export interface PluginCapabilityClient {
   ): Promise<Output>;
 }
 
+/**
+ * The Host's action directory as the plugin's own running action's caller sees it, for a plugin whose Manifest declares `actions:delegate`.
+ * Every call runs as the original caller under the workflow audience, never with the plugin's own grants; a target that audience or that
+ * caller's permissions do not reach is refused (docs/system/SECURITY-INVARIANTS.md S-43).
+ */
+export interface PluginActionDirectory {
+  discover(): Promise<readonly import("./actions.js").ActionView[]>;
+  invoke<Output = unknown>(reference: import("./actions.js").ActionReference, input: unknown, control?: PluginExecutionControl): Promise<Output>;
+  /** Refuses as `invoke` would before the target runs (a target this caller cannot reach, an input its schema rejects); runs and logs nothing. */
+  check(reference: import("./actions.js").ActionReference, input: unknown): Promise<void>;
+}
+
 /** Query delegation uses the active Runtime action's caller, never a caller supplied by the plugin. */
 export interface PluginActionClient extends BoundActionClient {
   invokeQuery<Input = unknown, Output = unknown>(reference: import("./actions.js").ActionReference, input: Input): Promise<Output>;
+  /** Present only when the Manifest declares `actions:delegate`; every call also needs the installation's grant. */
+  readonly directory?: PluginActionDirectory;
 }
 
 export interface PluginHostServices {
+  /** Pure SDK archive validation and display; no storage, runtime creation, import or execution. Present for declared Agent consumers. */
+  readonly savedHistory?: { view(json: string): import("../services/agent-host.js").AgentSavedHistoryView };
+
   /** One finite continuation of an accepted action; business jobs and recovery remain plugin-owned. */
   readonly background?: import("./plugin-background.js").PluginBackgroundClient;
   /** Host-bound entry to this Plugin's declared public actions; no arbitrary capability access. */
   readonly actions?: PluginActionClient;
   /** Present only when the Manifest declares private storage. Actual grant is checked on each operation. */
   readonly storage?: PluginPrivateStorage;
-  /** Plugin-owned SQLite, only for trusted Host entries declaring a database. 2026-10-18 改: by Manifest declaration (PG-022). */
+  /**
+   * Plugin-owned SQLite, only for trusted Host entries declaring a database. A Home entry's library may be partitioned by project
+   * (`HomePluginDatabaseDeclaration.partition`): then each call reaches the library of the project it runs in. 2026-10-18 改: by
+   * Manifest declaration (PG-022).
+   */
   readonly database?: import("./plugin-database.js").PluginDatabase;
+  /**
+   * The plugin's own tables in this project's library, present when its Manifest declares `databases.project`. Every statement is
+   * checked against the tables the platform made for it (and the project's root row, which it may read); a statement that reaches
+   * any other table, a schema step or a pragma is refused (specs/plugin-project-database).
+   */
+  readonly project_database?: import("./plugin-database.js").PluginDatabase;
   /** Owner-scoped binary files, only for a trusted Host entry declaring their directory. 2026-10-18 改: by Manifest declaration (PG-102). */
   readonly files?: import("./plugin-files.js").PluginFilesClient;
   readonly ownerFiles?: import("./plugin-owner-files.js").PluginOwnerFilesClient;
-  /** The Host's text model, for a plugin the Host runs itself that declares `model:invoke`; usable only from its own concurrent actions that declare it. */
+  /**
+   * The Host's text model, for a plugin the Host runs itself that declares `model:read` (the list and availability only) or
+   * `model:invoke`; requests only from its own concurrent actions that declare `model:invoke`.
+   */
   readonly model?: PluginModelClient;
   /** Image inference and connection binding, only for a trusted Home entry declaring this consumer. 2026-10-18 改: by Manifest declaration (PG-102). */
   readonly imageGeneration?: import("./plugin-image-generation.js").PluginImageGenerationClient;
-  /** Host material readers, independently declared as materials:read and materials:fetch. */
+  /** Host material readers, each declared on its own: materials:read, materials:fetch, materials:fetch_local, materials:original. */
   readonly materials?: PluginMaterialsClient;
+  /** A person-authorized directory, only when the Manifest declares directory:read; the Host never lets the Plugin name an absolute path. */
+  readonly directory?: import("./plugin-directory.js").PluginDirectoryService;
   /** Project artifact services are absent from Home activations. */
   readonly artifacts?: PluginArtifactClient;
   /** Present when the Manifest declares `process_items.produces`. */
@@ -281,6 +313,10 @@ export interface PluginManifest {
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
   /** Portable collection catalog; requires an authorized Host adapter. */
   sync?: import("./plugin-sync.js").PluginSyncDeclaration;
+  /** The plugin's own tables, by scope (PG-020, specs/plugin-project-database). */
+  databases?: import("./plugin-database.js").PluginManifestDatabases;
+  /** v2: jobs an activation may keep (`services.background.keep`, PG-038). */
+  background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[] };
   /** Complete, callable capabilities registered with the system action service. */
   actions?: readonly import("./actions.js").ActionDefinition[];
   /** Actual judgment consumption points, automatically discovered by configuration UIs. */
@@ -387,12 +423,6 @@ export interface PluginAppContribution {
   kind: "app";
   /** Optional implemented collections; a declared but undelivered collection stays unavailable. */
   sync?: readonly import('./plugin-sync.js').PluginSyncBinding[];
-  /**
-   * Trusted Home lifecycle: synchronously cancel this project's in-memory work; grants no persistence authority. 2026-10-18 改:
-   * removed; deleting a project cancels its work through `services.background` before the platform purges what the plugin declared
-   * (PG-106 in specs/repository-anti-corruption/privileges.md).
-   */
-  onProjectDeleted?(projectId: string): void;
   actions?: readonly import("./actions.js").ActionHandlerBinding[];
   action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];
   /** Renderers for the views the Manifest declares. */
@@ -443,7 +473,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "background"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "directory" | "background" | "savedHistory"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

@@ -22,7 +22,7 @@ function fixture(t: TestContext) {
   return { codec, key, value, encoded, read, revoke: () => { active = false; } };
 }
 
-test('S-62 PCSYNC-11 large Goal content preserves Unicode and exact bytes with small D1 metadata', async t => {
+test('S-74 PCSYNC-11 large Goal content preserves Unicode and exact bytes with small D1 metadata', async t => {
   const f = fixture(t);
   assert.ok(f.encoded.blobs.length > 1); assert.ok(Buffer.byteLength(JSON.stringify(f.encoded.value)) < 4096);
   assert.deepEqual(await f.codec.decode(f.key, f.encoded.value, f.read), f.value);
@@ -33,7 +33,7 @@ test('S-62 PCSYNC-11 large Goal content preserves Unicode and exact bytes with s
   await assert.rejects(() => f.codec.decode(f.key, f.value, f.read), { code: 'host.replica_limit' }, 'large values cannot bypass the content manifest');
 });
 
-test('S-62 PCSYNC-01 malformed or foreign Goal manifests are refused before any byte read', async t => {
+test('S-74 PCSYNC-01 malformed or foreign Goal manifests are refused before any byte read', async t => {
   const f = fixture(t);
   type Wire = { format: number; spaceId: string; project: { id: string; title: string }; content: { size: number; digest: string; parts: SyncBlobReference[] } };
   const edits: Array<(wire: Wire) => void> = [
@@ -49,7 +49,7 @@ test('S-62 PCSYNC-01 malformed or foreign Goal manifests are refused before any 
   await assert.rejects(() => f.codec.decode(JSON.stringify(['project', 'artifact', 'project']), f.encoded.value, f.read));
 });
 
-test('S-62 PCSYNC-06/12 Goal decode rejects damaged, reordered, relabelled and late content', async t => {
+test('S-74 PCSYNC-06/12 Goal decode rejects damaged, reordered, relabelled and late content', async t => {
   const f = fixture(t);
   await assert.rejects(() => f.codec.decode(f.key, f.encoded.value, async ref => { const bytes = Buffer.from(await f.read(ref)); bytes[0] ^= 1; return bytes; }));
   const wire = structuredClone(f.encoded.value) as { content: { parts: SyncBlobReference[] }; project: { title: string } };
@@ -61,7 +61,7 @@ test('S-62 PCSYNC-06/12 Goal decode rejects damaged, reordered, relabelled and l
   assert.throws(() => f.codec.encode(f.key, f.value), /REVOKED/);
 });
 
-test('S-51 PCSYNC-01/14 a complete Goal owner unit is validated before creating any target project',async t=>{
+test('S-63 PCSYNC-01/14 a complete Goal owner unit is validated before creating any target project',async t=>{
   const root=mkdtempSync(join(tmpdir(),'goal-prepare-owner-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
   const homes=[join(root,'source'),join(root,'target')],space=personalStorageSpace('https://auth.example.test','work','alice');
   homes.forEach(home=>ensureStorageSpace(home,space));let active=true;

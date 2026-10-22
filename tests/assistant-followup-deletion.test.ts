@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { AssistantService, AssistantStore, LocalHost, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 function reply(): Response {
@@ -46,7 +46,7 @@ for (const stage of ["state", "materials", "runtime", "enqueue"] as const) {
     let barrierUsed = false, key = "";
     const barrier = async () => { if (barrierUsed || !key || schedule.find(key)?.state !== "running") return;
       barrierUsed = true; entered.resolve(); await release.promise; };
-    const service = new AssistantService(store, { host: async () => host,
+    const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
       authority: async work => ({ ...assistantAuthority(local, work, () => new Set()), ...(stage === "runtime" ? { beforeStart: barrier } : {}) }),
       projectTitle: async () => { if (stage === "materials") await barrier(); return "Project"; }, timeZone: "UTC" }, "web-user");
     t.after(async () => { release.resolve(); service.continuations.close(); await adapter.close(); await local.close(); db.close(); await rm(directory, { recursive: true, force: true }); });
@@ -117,7 +117,7 @@ for (const stage of ["state", "sessions.update", "runs.start"] as const) {
     let key = "", held = false;
     const names = ["state", "sessions.create", "sessions.read", "sessions.update", "runs.start", "runs.control"];
     const definitions: ActionDefinition[] = names.map(name => { const query = name === "state" || name === "sessions.read";
-      return { capability_id: `coding.${name}`, version: 1, operation: query ? "query" : "command", action: { title: name,
+      return { capability_id: `coding.${name}`, version: name === "sessions.update" ? 2 : 1, operation: query ? "query" : "command", action: { title: name,
         description: name, kind: query ? "query" : "operation", scope: "project", audiences: ["user"], permissions: [], subject_kinds: [],
         input_schema: { type: "object", additionalProperties: true } } }; });
     local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.coding", kind: "plugin", title: "Coding fixture" }, definitions,
@@ -137,12 +137,10 @@ for (const stage of ["state", "sessions.update", "runs.start"] as const) {
         return {};
       } })) });
     const client = local.actionClient(project), store = new AssistantStore(db);
-    const service = new AssistantService(store, { host: async () => host, projectTitle: async () => "Project", timeZone: "UTC",
-      authority: async work => assistantAuthority(local, work, () => new Set()), personActions: async () => ({
-        discover: () => client.discover({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] }),
-        invoke: (reference, input, beforeDispatch) => client.invoke({ actor_id: "web-user", project_id: project.project_id,
-          audience: "user", permissions: [], validate_authority: beforeDispatch }, reference, input),
-      }) }, "web-user");
+    const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, projectTitle: async () => "Project", timeZone: "UTC",
+      // The person's client bound as the Host binds it: the follow-up's control joins its checks at each call (bindActionClient).
+      authority: async work => assistantAuthority(local, work, () => new Set()), personActions: async () => bindActionClient(client,
+        () => ({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] })) }, "web-user");
     t.after(async () => { release.resolve(); service.continuations.close(); await adapter.close(); await local.close(); db.close(); coding.close(); await rm(directory, { recursive: true, force: true }); });
     await service.attachSchedule();
     const sent = await service.send({ text: "Start as Assistant", request_id: "coding-followup-0001" }, { project_ref: project });

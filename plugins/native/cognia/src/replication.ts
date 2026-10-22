@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { SyncBlobReference } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import type { PluginSyncDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { createSqliteReplica, initializeReplica, openBaselineHomeSqlite, queueReplicaChange, readDatabaseSpace, replicaMarkSql, replicaTransaction, type AggregateReplicaContext } from '@molis-ai/molis-work-storage';
-import { COGNIA_STORE_BASELINE } from './store.js';
+import { COGNIA_DATABASE } from './store.js';
 import { requireCognia, type Material, type Source } from './types.js';
 import { syncObject, validateKnowledgeGraph, type KnowledgeGraph } from './sync-validation.js';
 import type { StoredDraft } from './drafts.js';
@@ -17,7 +17,7 @@ function initialize(db:DatabaseSync){if(readDatabaseSpace(db)?.kind!=='personal'
 });}
 /** Owner-selected graph only: no preview, local scanner, filesystem, model or import execution. */
 export function openCogniaSyncStore(home:string){
- const db=openBaselineHomeSqlite(home,'cognia',COGNIA_STORE_BASELINE);try{initialize(db);return {close:()=>db.close(),replica:(context:AggregateReplicaContext)=>replica(db,context)};}catch(error){db.close();throw error;}
+ const db=openBaselineHomeSqlite(home,'cognia',COGNIA_DATABASE);try{initialize(db);return {close:()=>db.close(),replica:(context:AggregateReplicaContext)=>replica(db,context)};}catch(error){db.close();throw error;}
 }
 function readGraph(db:DatabaseSync):KnowledgeGraph {
  const bodies=<T>(table:string)=>db.prepare(`SELECT body FROM ${table} ORDER BY id`).all().map(r=>JSON.parse(String(r.body)) as T);

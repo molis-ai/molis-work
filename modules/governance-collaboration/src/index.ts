@@ -63,15 +63,7 @@ export {
   mapGoalTreeProposalItem,
   parseJson as parseGovernanceJson,
 } from "./mappers.js";
-export {
-  GOVERNANCE_SCHEMA_SQL,
-  createGovernanceSchema,
-  type GovernanceSchemaDatabase,
-} from "./schema.js";
-export {
-  GovernanceEventDecisions,
-  GOAL_EVENT_TRUSTED_DECISIONS_SQL,
-} from "./event-decisions.js";
+export { GovernanceEventDecisions } from "./event-decisions.js";
 export {
   type GovernanceSqliteDatabase,
   type GovernanceSqliteStatement,

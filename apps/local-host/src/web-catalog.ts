@@ -6,10 +6,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { mcpAccessPageModel } from "./mcp-action-access.js";
-import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
-import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
-import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { molisWorkHostProjectReference } from "./project-host.js";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { handleFunctionsHttp } from "./functions-http.js";
 import { functionsConnectionStatus } from "./functions-host.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -33,7 +30,7 @@ import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js
 import { SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
 import { CHARACTERS_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-characters";
-import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest, holdsCodingSessions, listCodingBackgroundSessions } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 import { handleMcpActionSettingsHttp } from "./web-mcp-action-settings.js";
@@ -45,17 +42,12 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { selectedTypeSafeConnection } from "./typesafe-connection.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkOnboardingStatus } from "./onboarding.js";
-import { codingBackgroundTasks } from "./coding-background-tasks.js";
 import { createProjectArrivalHttp } from "./project-arrival-http.js";
 import { pruneProjectArrival } from "./project-arrival.js";
 import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 
 /** One per Host, so the few-second answer a brief is good for is shared by every look at the chooser. */
 const projectArrivalHttps = new WeakMap<MolisWorkLocalHost, ReturnType<typeof createProjectArrivalHttp>>();
-
-/** Coding sessions running or waiting on the person in any project: the title bar's background tasks, read with the page's attention (W4-10). */
-// A project that never held Coding lists nothing quietly; one whose store cannot be read is written (W5-13).
-export const homeBackgroundTasks = (projects: readonly WebProjectNavigation[]) => codingBackgroundTasks(projects, db => holdsCodingSessions(db) ? listCodingBackgroundSessions(db) : []);
 
 export async function handleLocalCatalogWebRequest(
   request: IncomingMessage, response: ServerResponse, url: URL, serverOptions: WebServerOptions,
@@ -84,15 +76,6 @@ export async function handleLocalCatalogWebRequest(
   if (await handlePlacementHttp(request, response, url, () => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS))) return;
   if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
     actions: bindLocalWebActions(localHost, undefined, ["functions:invoke", "functions:manage"]),
-  })) return;
-  if (serverOptions.homeDirectory && await handlePagesNativePluginHttp(request, response, url, async input => {
-    const projectId = input.query.get("project_id") ?? input.body.project_id;
-    if (typeof projectId !== "string" || !projectId.trim()) throw new ActionError("actions.project_required", "请选择项目");
-    const project = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.getProject(projectId));
-    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    return { projectId: project.project_id,
-      actions: bindActionClient(localHost.actionClient(reference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference.project_id,
-        audience: "user", permissions: PAGES_ACTION_PERMISSIONS })) };
   })) return;
   if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(request, response, url, {
     shelf: { actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS })) },

@@ -4,7 +4,7 @@ export const GOAL_CANVAS_STYLES = `
   .goal-canvas-shell [hidden] { display: none !important; }
   .goal-canvas-shell .goal-canvas-map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; padding: 0; margin: 0; overflow: hidden; background: transparent; }
   .goal-canvas-shell .goal-kanban { position: absolute; inset: 0; display: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; background: var(--canvas); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
-  .goal-canvas-shell .goal-stage-list { display: none; position: absolute; inset: 0; z-index: 0; overflow: auto; overscroll-behavior: contain; padding: 52px 24px 32px; background: var(--paper); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .goal-canvas-shell .goal-stage-list { display: none; position: absolute; inset: 0; z-index: 0; overflow: auto; overscroll-behavior: contain; padding: calc(var(--control-h, 32px) + 20px) 24px 32px; background: var(--paper); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
   .goal-canvas-shell[data-board-view="list"] .goal-stage-list { display: block; }
   .goal-canvas-shell[data-board-view="list"] { background: var(--paper); }
   .goal-canvas-shell[data-expanded="true"]:not([data-board-view="list"]) .goal-stage-list { display: none !important; }
@@ -157,9 +157,10 @@ export const GOAL_CANVAS_STYLES = `
     border-radius: 8px;
     overflow: visible;
   }
-  /* A phone has room for the title and its status: the progress, relations and creator columns step aside instead of running off the screen. */
+  /* A phone has room for the title and its status: the progress, relations and creator columns step aside instead of running off the screen.
+     The title comes first: a long status gives way at 45% and is read whole from its tooltip. */
   @media (max-width: 760px) {
-    body.immersive-workbench .goal-stage-list .tree-entry { grid-template-columns: minmax(0, 1fr) auto; }
+    body.immersive-workbench .goal-stage-list .tree-entry { grid-template-columns: minmax(0, 1fr) fit-content(45%); }
     body.immersive-workbench .goal-stage-list .tree-entry > :is(.tree-progress, .tree-relations, .tree-created-meta) { display: none !important; }
   }
   .goal-stage-list .tree-entry:hover { background: var(--nav-hover); }
@@ -298,7 +299,7 @@ export const GOAL_CANVAS_STYLES = `
     background: var(--paper);
     box-shadow: var(--surface-shadow);
   }
-  .goal-kanban-board { display: flex; align-items: stretch; gap: 8px; box-sizing: border-box; min-width: 0; flex: 1; min-height: 0; height: 100%; width: 100%; padding: 52px 12px 12px; }
+  .goal-kanban-board { display: flex; align-items: stretch; gap: 8px; box-sizing: border-box; min-width: 0; flex: 1; min-height: 0; height: 100%; width: 100%; padding: calc(var(--control-h, 32px) + 20px) 12px 12px; }
   .goal-kanban-column { flex: 1 1 0; width: auto; min-width: 0; height: 100%; display: flex; flex-direction: column; min-height: 0; overflow: hidden; position: relative; background: transparent; border: 0; border-radius: 0; }
   .goal-kanban-column > details { display: block; height: 100%; min-height: 0; overflow: hidden; }
   .goal-kanban-column > details > summary { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 0 0 8px; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 400; letter-spacing: -.011em; color: var(--ink); list-style: none; cursor: default; pointer-events: none; user-select: none; }

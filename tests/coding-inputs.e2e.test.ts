@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {openGoalBrowser} from './fixtures/goal-browser.js';
 
-// PCS-S6, S-53: the real Coding client retains dirty text through HTTP conflicts and a window reload.
+// PCS-S6, S-65: the real Coding client retains dirty text through HTTP conflicts and a window reload.
 test('Coding compares another writer against the original editor premise before saving or adopting', {timeout:90000}, async t=>{
  const browser=await openGoalBrowser(t,'seeded');if(!browser)return;
  const {command,sessionId,evaluate,waitFor,click,navigate,reloadPage,origin,projectId,controlToken}=browser;

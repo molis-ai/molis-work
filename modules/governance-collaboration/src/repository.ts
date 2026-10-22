@@ -13,7 +13,6 @@ import {
   text,
   type GovernanceRow,
 } from "./mappers.js";
-export { GOVERNANCE_SCHEMA_SQL, createGovernanceSchema } from "./schema.js";
 
 export interface GovernanceSqliteStatement {
   all(...params: unknown[]): unknown[];

@@ -78,6 +78,10 @@
       "types": "./dist/modules/governance-collaboration.d.ts",
       "import": "./dist/modules/governance-collaboration.js"
     },
+    "./modules/coding": {
+      "types": "./dist/modules/coding.d.ts",
+      "import": "./dist/modules/coding.js"
+    },
     "./modules/model-providers": {
       "types": "./dist/modules/model-providers.d.ts",
       "import": "./dist/modules/model-providers.js"
@@ -277,6 +281,10 @@
     "./modules/goal-actions": {
       "types": "./dist/modules/goal-actions.d.ts",
       "import": "./dist/modules/goal-actions.js"
+    },
+    "./platform/plugin-directory": {
+      "types": "./dist/platform/plugin-directory.d.ts",
+      "import": "./dist/platform/plugin-directory.js"
     }
   },
   "files": [

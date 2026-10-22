@@ -50,24 +50,21 @@ export function createViews(root: HTMLElement, createFormat: typeof createMessag
       return null;
     const top = node.getBoundingClientRect().top;
     const message = [...node.querySelectorAll<HTMLElement>('[data-message]')].find(item => item.getBoundingClientRect().bottom > top);
-    return { id: message?.dataset.message, offset: message ? message.getBoundingClientRect().top - top : 0, bottom: node.scrollHeight - node.scrollTop - node.clientHeight < 70 };
+    return { id: message?.dataset.message, offset: message ? message.getBoundingClientRect().top - top : 0, bottom: window.molisFollow?.(node).state === 'following' };
   };
-  const restoreScroll = (kind: StreamKind, anchor: ScrollAnchor | null) => {
-    if (!anchor)
-      return;
-    const node = scroller(kind);
-    if (anchor.bottom) {
-      node.scrollTop = node.scrollHeight;
-      return;
-    }
-    const message = anchor.id && node.querySelector('[data-message="' + CSS.escape(anchor.id) + '"]');
-    if (message)
-      node.scrollTop += message.getBoundingClientRect().top - node.getBoundingClientRect().top - anchor.offset;
+  // At the end means following (molisFollow, VUX-26). A saved place (`judge`) also tells the follower where it is; a redraw's
+  // compensation does not. This compensation is the one owner of the shift: these scrollers turn the browser's anchoring off.
+  const restoreScroll = (kind: StreamKind, anchor: ScrollAnchor | null, judge = true) => {
+    const node = scroller(kind), follow = window.molisFollow?.(node), message = anchor?.id && !anchor.bottom && node.querySelector('[data-message="' + CSS.escape(anchor.id) + '"]');
+    if (anchor?.bottom) { if (follow) { follow.resume(); follow.pin(); } else node.scrollTop = node.scrollHeight; return; }
+    if (!message || !anchor) return;
+    const place = node.scrollTop + message.getBoundingClientRect().top - node.getBoundingClientRect().top - anchor.offset;
+    if (follow && judge) follow.restore(place); else node.scrollTop = place;
   };
   const stream = (kind: StreamKind, messages: ImMessage[], page: ImMessagePage | null, threads: ImThread[], selectedThread: string, mode: 'preserve' | 'latest' | 'older' = 'preserve', draftSource = '', memberId = '') => {
     const node = q('[data-stream="' + kind + '"]');
     const scroll = scroller(kind), anchor = captureScroll(kind), oldHeight = scroll.scrollHeight, oldTop = scroll.scrollTop;
-    const atBottom = oldHeight - oldTop - scroll.clientHeight < 70;
+    const follow = window.molisFollow?.(scroll), atBottom = follow?.state !== 'detached';
     const oldLast = node.querySelector<HTMLElement>('.im-message:last-child')?.dataset.message;
     const existing = new Map(([...node.children] as HTMLElement[]).map(item => [item.dataset.message || item.dataset.row, item]));
     let lastDay = '';
@@ -133,17 +130,18 @@ export function createViews(root: HTMLElement, createFormat: typeof createMessag
       if (!keep.has(child))
         child.remove();
     if (mode === 'latest' || (mode !== 'older' && atBottom)) {
-      scroll.scrollTop = scroll.scrollHeight;
+      if (mode === 'latest') follow?.resume();
+      follow ? follow.pin() : scroll.scrollTop = scroll.scrollHeight;
       q('[data-action="latest-' + kind + '"]').hidden = true;
     }
     else if (mode === 'older') {
       scroll.scrollTop = oldTop + scroll.scrollHeight - oldHeight;
       if (anchor?.id)
-        restoreScroll(kind, { ...anchor, bottom: false });
+        restoreScroll(kind, { ...anchor, bottom: false }, false);
     }
     else {
       scroll.scrollTop = oldTop;
-      restoreScroll(kind, anchor);
+      restoreScroll(kind, anchor && { ...anchor, bottom: false }, false);
       if (oldLast && messages.at(-1)?.id !== oldLast)
         q('[data-action="latest-' + kind + '"]').hidden = false;
     }

@@ -169,7 +169,7 @@ Session 接续执行：先将项目 Session 目录、内容读取和原生恢复
 - [判断触发](../../plugins/native/feed/src/application.ts)、[判断服务](../../modules/functions/src/service.ts)、[判断模型调用](../../modules/functions/src/provider.ts)、[判断结果投影](../../apps/local-host/src/web-view.ts)。
 - [工作流程模板转换](../../plugins/native/workflows/src/model.ts)、[Actions 定位](../../docs/modules/actions.md)、历史 Execution 边界（`modules/execution` 已于 #268 删除）。
 - [现有对外 MCP Server](../../apps/local-host/src/mcp-server.ts)、[MCP 目录](../../apps/local-host/src/mcp-catalog.ts)、[协议适配](../../apps/mcp/src/protocol.ts)、[Agent 外部 MCP 接入](../../horizontal/agent-host/src/adapters/prologue-mcp.ts)。现有协议入口的 resources/list 返回空列表，不能把宣告支持 resources 视为内容已经打通。
-- [工作流程手写支持名单与分发](../../apps/local-host/src/workflows-native-plugin-http.ts)、[函数固定目的地](../../packages/contracts/src/modules/functions.ts)。它们是此次必须替换的扩展障碍。
+- 工作流程手写支持名单与分发（`apps/local-host/src/workflows-native-plugin-http.ts`，W5-01-WORKFLOWS 已删）、[函数固定目的地](../../packages/contracts/src/modules/functions.ts)。它们是此次必须替换的扩展障碍。
 
 ## 3. 架构中的职责
 
@@ -520,6 +520,14 @@ Pages 全量业务迁移沿用原文档库与 Artifact owner：文档查询/编�
 验证命令：定向包 typecheck/build；`node --import tsx --test --test-concurrency=1 tests/action-service.test.ts` 验核心合同与实际调用；后续按改动增加插件注册、MCP、工作流程及产品实操验证。最终运行受影响包构建、边界检查和相应回归。具体结果记录在 migration.md。
 
 已定产品边界：移除 Functions 独立插件，系统级动作服务与 Character、全局设置同岛；查询、判断、执行和双向 MCP 接入共用底座。暂建议新入口名为「能力」，名称仍可调整。首页是否也允许启动完整流程，以及具体函数签名、MCP 导出粒度和传输部署在实施切片中细化。
+
+### 精确动作选择的验收标准
+
+`action_tools`（Character、Agent 一轮、Coding 会话）里的精确引用只写动作身份、版本和提供方，不授予权限：动作服务按目录精确匹配提供方，每次调用都复查当前授权。所以提供方 id 不设字符表，平台做出的每一种 id 都要能被选中，外部 MCP 的 `system.connectors#mcp:<连接>`、`<插件>#mcp:<服务>` 就含 `#`，服务 id 还可以含任何字符（BL-354）。
+
+1. **EXR-01** `parseExactActionReferences` 接受平台做出的每一种提供方 id，含 `#mcp:` 与服务 id 里带空格、中文、斜杠的外部 MCP 提供方；经 Character 内容解析（`parseCharacterContent`）同样通过。
+2. **EXR-02** 点不出任何提供方的 id 一律以 `actions.reference_invalid` 拒绝：空白、含控制字符、超过 512 个字符、不是字符串。
+3. **EXR-03** 动作 id 的字符表、版本为正整数、至多 100 项、不许重复，仍照旧拒绝（同一错误码）。
 
 ### Inbox 存量接线
 

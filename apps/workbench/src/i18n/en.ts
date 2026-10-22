@@ -42,7 +42,6 @@ import { KNOWLEDGE_EN } from "./knowledge-en.js";
 
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
-
   // Placement comes first so an existing translation of the same words wins.
   ...PLACEMENT_EN,
   ...CONTEXTUAL_EN,
@@ -163,7 +162,7 @@ export const EN: Record<string, string> = {
   "此处单独保存拉取计划，不会保存上方的任务资料。": "Save the pull schedule separately. This does not save the task details above.",
   "撤销修改": "Discard changes",
   "向右分屏；按住 Shift 向下分屏": "Split right; hold Shift to split below",
-  "调整分屏大小": "Resize split panes",
+  "调整分屏大小": "Resize split panes", "这个布局没能保存到本机，刷新后会回到上次保存的样子": "This layout could not be saved on this device; after a reload it returns to the last saved one",
   "布局与分屏": "Layout and split view",
   "均分所有窗口": "Equalize all panes",
   "关闭当前窗口": "Close current pane",

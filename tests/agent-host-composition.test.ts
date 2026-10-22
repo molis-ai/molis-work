@@ -89,7 +89,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
   const client = localHost.client(reference);
   try {
     const management = managementGoals(localHost.actionClient(reference), "board");
-    await management.invoke(goalsActions.initialize, { title: "Guidance", idempotency_key: "init" });
+    await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
     const added = await management.invoke(goalsActions.guidanceAdd, { kind: "constraint",
       content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
     const request: AgentStartRequest = { project_id: "board", plugin_id: CODING, install_id: "coding", actor_id: "user", session: { runtime_id: "probe", session_id: "s" },
@@ -268,7 +268,7 @@ test('Git result projection excludes active, uncertain, undelivered and foreign 
       queue.request({ review_id: id, project_id: id === 'other-project' ? 'project-b' : 'project-a', run: null, plugin_id: 'io.molis.work.git', kind: 'git-index',
         operation: { kind: 'git-index', operation_id: id, workspace_id: id === 'other-workspace' ? 'other' : 'w' },
         document: { kind: 'git-index', action: 'stage', workspace_name: 'fixture', files: [{ path: 'note', before_text: 'old', after_text: 'new', before_mode: '100644', after_mode: '100644' }] },
-        requested_at: '2026-09-22T00:00:00Z', expires_at: null });
+        requested_at: '2026-09-22T00:00:00Z', expires_at: null }, { plugin_id: 'io.molis.work.git', install_id: 'fixture', holds: () => true });
       if (id === 'pending') continue;
       queue.decide({ review_id: id, decision: id === 'denied' ? 'reject' : 'approve', actor_id: 'reviewer' });
       if (id === 'denied') continue;

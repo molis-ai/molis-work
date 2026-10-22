@@ -1,16 +1,24 @@
-import { ActionError, defineErrorCodes, requireSynchronous, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginBackgroundClient, PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError, requireSynchronous, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginBackgroundClient, PluginExecutionControl, PluginJobControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import { currentPluginAction, runInPluginAction } from "./action-scope.js";
+import { backgroundErrors as errors, createActivationJobs, type ActivationJobGate } from "./activation-jobs.js";
 
-const errors = defineErrorCodes("plugin", { background_action_required: "forbidden", background_undeclared: "forbidden" });
-
-/** No persistence, retries or job state. One installation owns every continuation and revokes it before its cleanup. */
+/**
+ * No persistence, retries or job state. One installation owns every continuation and revokes it before its cleanup. Each execution
+ * keeps the project its action was called in, from the call, never from the work: deleting a project stops that project's executions
+ * before the platform clears what the plugin declared (`stopProject`, PG-038). The activation's jobs (`keep`, `createActivationJobs`)
+ * stop there too, and also when their project closes (`stopProjectJobs`).
+ */
 export function createPluginBackgroundClient(gate: {
   install_id: string; assertActive(): void; requireGrant(permission: string): void;
-}): { client: PluginBackgroundClient; close(): void } {
+  /** Present when the Manifest declares jobs (`background.jobs`). */
+  jobs?: Omit<ActivationJobGate, "install_id" | "assertActive" | "requireGrant">;
+}): { client: PluginBackgroundClient; starting<T>(run: () => T): T; stopProject(projectId: string): void; stopProjectJobs(projectId: string): void; close(): void } {
   let closed = false;
-  const active = new Set<AbortController>();
+  const active = new Map<AbortController, string | null>();
+  const jobs = gate.jobs?.declarations.length
+    ? createActivationJobs({ ...gate.jobs, install_id: gate.install_id, assertActive: gate.assertActive, requireGrant: gate.requireGrant }) : undefined;
   const assertActive = () => {
     if (closed) throw new ActionError("actions.plugin_unavailable", "插件后台执行已关闭");
     gate.assertActive();
@@ -26,25 +34,28 @@ export function createPluginBackgroundClient(gate: {
       if (definition.operation !== "command" || definition.action.scheduling !== "concurrent" || !definition.action.background_job) {
         throw errors.background_undeclared("后台执行需要并发 command，并声明 background_job 查询合同");
       }
-      await caller.beforeEffect();
-      caller.signal?.throwIfAborted(); assertActive();
-      const authority = caller.retainBackgroundAuthority!();
       const controller = new AbortController();
-      let running = true;
-      const check = () => {
-        if (!running) throw new ActionError("actions.expired", "这次后台执行已经结束");
-        assertActive();
-        for (const permission of definition.action.permissions) gate.requireGrant(permission);
-        requireSynchronous(authority.assertCurrent(), "最终后台授权检查必须同步完成");
-      };
-      check(); options.signal?.throwIfAborted();
-      const lifetime = createExecutionLifetime({ signal: options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal,
-        monitor: { intervalMs: 200, check } });
-      const control: ActionExecutionContext = { ...caller, signal: lifetime.signal, on_progress: undefined,
-        retainAuthority: undefined, retainBackgroundAuthority: undefined, retain_background_authority: undefined,
-        assert_authority_current: () => { lifetime.assertActive(); check(); },
-        beforeEffect: async () => { lifetime.assertActive(); check(); await authority(); lifetime.assertActive(); check(); } };
-      active.add(controller);
+      // Counted before the first wait: deleting the project also stops an execution still being accepted.
+      active.set(controller, caller.project_id);
+      let lifetime: ReturnType<typeof createExecutionLifetime>, control: ActionExecutionContext, check: () => void, running = true;
+      try {
+        await caller.beforeEffect();
+        caller.signal?.throwIfAborted(); assertActive(); controller.signal.throwIfAborted();
+        const authority = caller.retainBackgroundAuthority!();
+        check = () => {
+          if (!running) throw new ActionError("actions.expired", "这次后台执行已经结束");
+          assertActive();
+          for (const permission of definition.action.permissions) gate.requireGrant(permission);
+          requireSynchronous(authority.assertCurrent(), "最终后台授权检查必须同步完成");
+        };
+        check(); options.signal?.throwIfAborted();
+        lifetime = createExecutionLifetime({ signal: options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal,
+          monitor: { intervalMs: 200, check } });
+        control = { ...caller, signal: lifetime.signal, on_progress: undefined,
+          retainAuthority: undefined, retainBackgroundAuthority: undefined, retain_background_authority: undefined,
+          assert_authority_current: () => { lifetime.assertActive(); check(); },
+          beforeEffect: async () => { lifetime.assertActive(); check(); await authority(); lifetime.assertActive(); check(); } };
+      } catch (error) { active.delete(controller); throw error; }
       const pending = Promise.resolve().then(() => {
         control.assert_authority_current!();
         return runInPluginAction({ ...scope, caller: control }, () => work({ signal: control.signal, beforeEffect: control.beforeEffect,
@@ -55,9 +66,21 @@ export function createPluginBackgroundClient(gate: {
       void result.catch(() => undefined);
       return Object.freeze({ result, cancel: () => controller.abort(new ActionError("actions.cancelled", "后台执行已取消")) });
     },
-  }), close() {
+    keep(job: string, work: (control: PluginJobControl) => Promise<void>) {
+      if (!jobs) throw errors.background_undeclared("这个插件没有在 Manifest 的 background.jobs 里声明后台作业");
+      return jobs.keep(job, work);
+    },
+  }), starting: run => jobs ? jobs.starting(run) : run(), stopProject(projectId) {
+    for (const [controller, project] of active) {
+      if (project === projectId) controller.abort(new ActionError("actions.cancelled", "项目已删除，这次后台执行已停止"));
+    }
+    jobs?.stopProject(projectId, "项目已删除，这个后台作业已停止");
+  }, stopProjectJobs(projectId) {
+    jobs?.stopProject(projectId, "项目已关闭，这个后台作业已停止");
+  }, close() {
     closed = true;
-    for (const controller of active) controller.abort(new ActionError("actions.plugin_unavailable", "插件实例已停止"));
+    for (const controller of active.keys()) controller.abort(new ActionError("actions.plugin_unavailable", "插件实例已停止"));
     active.clear();
+    jobs?.close();
   } };
 }

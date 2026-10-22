@@ -78,7 +78,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const tone = (kind, group) => group === "clipboard" ? (kind === "url" ? "blue" : "slate") : kind === "pdf" ? "clay" : kind === "image" ? "plum" : kind === "url" || kind === "website" ? "blue" : kind === "markdown" || kind === "text" ? "slate" : "ochre";
   const items = () => [...(snapshot.materials || []), ...(snapshot.results || [])];
-  const itemsByIds = ids => ids.map(id => items().find(item => item.item_id === id)).filter(Boolean);
+  const itemById = id => items().find(item => item.item_id === id);
   const stageBusy = () => stage.classList.contains("is-confirm") || stage.classList.contains("is-run") || stage.classList.contains("is-fail");
   const runtime = () => snapshot.runtime || { runtime_key: "", title: L("Agent"), can_run_job: false, isolation: "none", isolation_fact: "" };
   const ai = () => snapshot.ai || { available: false, choices: [], selected: null };
@@ -278,7 +278,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const comparisonSources = () => {
     const ids = selected?.source_item_ids?.length ? selected.source_item_ids : [selected?.source_item_id].filter(Boolean);
-    return itemsByIds(ids);
+    return ids.map(itemById).filter(Boolean);
   };
   const readFullText = async (item, beginEdit=false) => {
     const version=textVersion;
@@ -292,13 +292,12 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const fillReading = () => {
     for (const node of preview.querySelectorAll("[data-shelf-read]")) {
-      const item = items().find(item => item.item_id === node.dataset.shelfRead);
+      const item = itemById(node.dataset.shelfRead);
       if (!item || textCache.has(item.item_id)) continue;
-      readFullText(item).then(text => {
-        if (node.isConnected) node.querySelector(".shelf-reading").innerHTML = reading.render(item, text);
+      readFullText(item).then(text => { // Same text as the preview shown: re-rendering would only wipe a selection made meanwhile.
+        if (node.isConnected && text !== item.preview_text) node.querySelector(".shelf-reading").innerHTML = reading.render(item, text);
       }).catch(error => {
-        if(error.name==='AbortError')return;
-        if (node.isConnected) { const line=document.createElement("p");line.className="shelf-read-error";line.textContent=error.message;node.append(line); }
+        if (error.name !== "AbortError" && node.isConnected) { const line=document.createElement("p");line.className="shelf-read-error";line.textContent=error.message;node.append(line); }
       });
     }
   };
@@ -437,7 +436,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       const payload = await next;snapshot = payload.snapshot;
       loadVersion++;textVersion++;textCache.clear();textCache.set(id, text);
       if (selected?.item_id === id) {
-        selected = items().find((item) => item.item_id === id) || payload.item || selected;
+        selected = itemById(id) || payload.item || selected;
         const status = preview.querySelector("[data-shelf-edit-status]");
         if (status) status.hidden = true;
       }
@@ -689,7 +688,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     snapshot = next;
     if (selectId) {
       editing = false;
-      selected = items().find((item) => item.item_id === selectId) || null;
+      selected = itemById(selectId) || null;
       selClip=selected?null:(snapshot.clipboard||[]).find(clip=>clip.clip_id===selectId)||null;
       clipSelection=new Set(selClip?[selClip.clip_id]:[]);
       if(selClip)clipExpanded=true;
@@ -702,7 +701,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       compare = false;
       compareSourceId = null;
     } else {
-      if (selected) selected = items().find((item) => item.item_id === selected.item_id) || null;
+      if (selected) selected = itemById(selected.item_id) || null;
       selection = new Set([...selection].filter((id) => items().some((item) => item.item_id === id)));
       if (selected && !selection.has(selected.item_id)) selection.add(selected.item_id);
       if (selClip) selClip = (snapshot.clipboard || []).find((clip) => clip.clip_id === selClip.clip_id) || null;
@@ -780,7 +779,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     await flushEdit();
     editing = false;
     selClip = null;
-    const folder = items().find((entry) => entry.item_id === itemId);
+    const folder = itemById(itemId);
     if (!folder) return;
     selected = folder;
     selection = new Set([itemId]);
@@ -798,7 +797,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     editing = false;
     selClip = null;
     clipSelection = new Set();
-    const item = items().find((entry) => entry.item_id === id);
+    const item = itemById(id);
     if (!item) return;
     selectedChild = null;
     if ((command || multiMode) && selected && selected.group === item.group) {
@@ -847,10 +846,11 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     syncShelfStage();
   };
 
+  const say = (text, ms) => { stickyHint = text; renderBar(lastBarKind); if (ms) lifetime.timeout(() => { if (stickyHint === text) { stickyHint = ""; renderBar(lastBarKind); } }, ms); };
+  const copyClip = async (text) => { const ok = await navigator.clipboard.writeText(text).then(() => true, () => false); say(L(ok ? "已复制" : "复制失败"), ok ? 2500 : 4000); return ok; };
   const makeClipCurrent = async (clipId) => {
     const clip = (snapshot.clipboard || []).find((item) => item.clip_id === clipId);
-    if (!clip) return;
-    await navigator.clipboard.writeText(clip.body);
+    if (!clip || !await copyClip(clip.body)) return;
     const payload = await post("/api/shelf/clipboard", { text: clip.body });
     selected = null;
     selClip = payload.clip || (payload.snapshot.clipboard || []).find((item) => item.clip_id === clipId) || clip;
@@ -862,23 +862,21 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const ids = picked.map(item => item.item_id);
     await flushEdit();
     lifetime.assertCurrent();
-    picked = itemsByIds(ids);
+    picked = ids.map(itemById).filter(Boolean);
     if (!picked.length) return;
     const native = invokeNative("shelf_copy_files", { paths: picked.filter(hasFile).map(filePathOf) });
     if (native) {
       await native;
-      stickyHint = L("已复制");
-      renderBar(lastBarKind);
-      lifetime.timeout(() => { if (stickyHint === L("已复制")) { stickyHint = ""; renderBar(lastBarKind); } }, 1200);
+      say(L("已复制"), 2500);
       return;
     }
     // A browser cannot place file URLs on the macOS pasteboard.
     for (const item of picked.filter(hasFile)) download(item);
-    stickyHint = L("浏览器已下载副本；桌面版可直接复制文件。");
-    renderBar(lastBarKind);
+    say(L("浏览器已下载副本；桌面版可直接复制文件。"));
   };
   const copyShelfItem = async (id) => {
-    await copyFiles(itemsByIds([id]));
+    const item = itemById(id);
+    if (item) await copyFiles([item]);
   };
 
   const joinClips = async (ids) => {
@@ -963,7 +961,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       return;
     }
     if (row?.dataset.shelfItem) {
-      const item = items().find((entry) => entry.item_id === row.dataset.shelfItem);
+      const item = itemById(row.dataset.shelfItem);
       if (item?.kind === "folder" && event.target.closest(".shelf-glyph")) {
         if (openFolders.has(item.item_id)) openFolders.delete(item.item_id);
         else openFolders.add(item.item_id);
@@ -981,7 +979,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const itemRow = event.target.closest("[data-shelf-item]");
     if (itemRow?.dataset.shelfItem && !event.target.closest("[data-shelf-row-action]")) {
       event.preventDefault();
-      const item = items().find((entry) => entry.item_id === itemRow.dataset.shelfItem);
+      const item = itemById(itemRow.dataset.shelfItem);
       if (!hasFile(item)) return;
       const opened = invokeNative("shelf_open_path", { path: filePathOf(item) });
       if (opened) { opened.catch(() => {}); return; }
@@ -1240,9 +1238,8 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     event.preventDefault();
     event.stopPropagation();
     event.dataTransfer.dropEffect = "copy";
-    tty.classList.add("is-drop");
   });
-  lifetime.listen(tty,"dragleave", () => tty.classList.remove("is-drop"));
+  window.molisDropZone?.(tty, (on) => tty.classList.toggle("is-drop", on), (types) => types.includes("application/x-molis-shelf") || types.includes("Files"));
   lifetime.listen(tty,"drop", async (event) => {
     const types = [...(event.dataTransfer?.types || [])];
     const internal = event.dataTransfer?.getData("application/x-molis-shelf") || "";
@@ -1251,8 +1248,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     // Dropping on the AI pane sends it to the terminal, with whatever is typed.
     event.preventDefault();
     event.stopPropagation();
-    tty.classList.remove("is-drop");
-    const field = inBench("[data-shelf-tty-input]");
+    const field = bench.querySelector("[data-shelf-tty-input]");
     const typed = field?.value?.trim() || "";
     let paths = [];
     if (internal) {
@@ -1464,11 +1460,12 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     event.dataTransfer.setData("application/x-molis-shelf", id || "1");
     event.dataTransfer.effectAllowed = "copy";
   });
+  // The page's drop-zone program says when a file drag is over Shelf's directory or page and when it has really left.
+  window.molisDropZone?.("[data-shelf], [data-plugin-section=shelf]", markDrop, (types) => !bench.hidden && types.includes("Files") && !types.includes("application/x-molis-shelf"));
   lifetime.listen(document,"dragenter", (event) => {
     if (bench.hidden) return;
     if (!isExternalFileDrag(event) || !insideShelfDrop(event.target)) return;
     event.preventDefault();
-    markDrop(true);
   });
   lifetime.listen(document,"dragover", (event) => {
     if (bench.hidden) return;
@@ -1476,17 +1473,10 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
   });
-  lifetime.listen(document,"dragleave", (event) => {
-    if (bench.hidden) return;
-    if (insideShelfDrop(event.relatedTarget)) return;
-    if (!insideShelfDrop(event.target)) return;
-    markDrop(false);
-  });
   lifetime.listen(document,"drop", async (event) => {
     if (bench.hidden) return;
     if (!isExternalFileDrag(event) || !insideShelfDrop(event.target)) return;
     event.preventDefault();
-    markDrop(false);
     const entries = [...(event.dataTransfer?.items || [])]
       .map((item) => (item.webkitGetAsEntry ? item.webkitGetAsEntry() : null))
       .filter(Boolean);
@@ -1533,7 +1523,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
 
   const copySelection = async () => {
     if (selClip) {
-      try { await navigator.clipboard.writeText(selClip.body); } catch {}
+      await copyClip(selClip.body);
       return;
     }
     const picked = batch().filter(hasFile);
@@ -1648,7 +1638,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       return;
     }
     if (typeof event.detail?.text === "string" && event.detail.text.trim()) { sendToTui(event.detail.text); return; }
-    const picked = itemsByIds(ids);
+    const picked = ids.map(itemById).filter(Boolean);
     const paths = await Promise.all(picked.map(async item => item.kind === "url" ? await readFullText(item) : quotePath(filePathOf(item))));
     if (paths.length) sendToTui(paths.join(" "));
   });

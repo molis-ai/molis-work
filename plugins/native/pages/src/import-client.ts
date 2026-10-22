@@ -53,7 +53,7 @@ export const PAGES_IMPORT_CLIENT_SCRIPT = String.raw`
   };
   const importRequest = async (path, body) => {
     if (projectId() !== importProject || routePrefix() !== importPrefix) throw new Error(L("项目已切换，请在目标项目重新打开导入。"));
-    const response = await fetch(importPrefix + "/api/plugins/pages/import" + path + "?project_id=" + encodeURIComponent(importProject), {
+    const response = await fetch(importPrefix + api + "/import" + path + "?project_id=" + encodeURIComponent(importProject), {
       method: "POST", headers: headers(), body: JSON.stringify({ ...body, project_id: importProject }),
     });
     const payload = await response.json().catch(() => ({}));
@@ -140,10 +140,10 @@ export const PAGES_IMPORT_CLIENT_SCRIPT = String.raw`
   importFilesInput.addEventListener("change", () => { void prepareImport([...importFilesInput.files]); });
   importAll.addEventListener("change", () => { importChecks().forEach((input) => { input.checked = importAll.checked; }); syncImportControls(); });
   importDocuments.addEventListener("change", syncImportControls);
-  importDrop.addEventListener("dragover", (event) => { event.preventDefault(); importDrop.classList.add("is-dragover"); });
-  importDrop.addEventListener("dragleave", () => importDrop.classList.remove("is-dragover"));
+  importDrop.addEventListener("dragover", (event) => { event.preventDefault(); });
+  window.molisDropZone?.(importDrop, (on) => importDrop.classList.toggle("is-dragover", on));
   importDrop.addEventListener("drop", (event) => {
-    event.preventDefault(); event.stopPropagation(); importDrop.classList.remove("is-dragover");
+    event.preventDefault(); event.stopPropagation();
     if (event.dataTransfer) void prepareImport([...event.dataTransfer.files]);
   });
   importDialog.addEventListener("cancel", (event) => { if (importBusy) event.preventDefault(); });

@@ -1,6 +1,7 @@
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import { agentWriteCheckerActions, type AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import { bindLocalWebActions } from "./local-web-actions.js";
@@ -8,23 +9,26 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { HOME_ACTION_PERMISSIONS } from "./home-actions.js";
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { handleAgentStudioHttp } from "./plugin-builder/agent-surface.js";
+import { configuredModelChoices } from "./configured-models.js";
 import { handleSideFilesHttp } from "./side-files-http.js";
 import { handleFunctionsHttp } from "./functions-http.js";
 import { handleAgentReviewHttp } from "./agent-review-http.js";
 import { computerHolderFor } from "./computer/computer-surfaces.js";
 import { inspectGitIndex } from "./workspace-git-index.js";
 import { isPluginEventManagementPath } from "./plugin-event-http.js";
-import { handleCodingPluginHttp, pluginEventsPending } from "./coding-surface.js";
+import { codingRouteHooks } from "./coding-surface.js";
+import { handleProjectPluginHttp, pluginEventsPending } from "./project-plugin-http.js";
 import { assistantNotices, handleAssistantHttp } from "./assistant/assistant-http.js";
 import { handleAttentionHttp } from "./attention-http.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
+import { directoryForHome } from "./plugin-directory-service.js";
 import { handleKnowledgeHttp } from "./knowledge-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { handleContextualHttp } from "./contextual/contextual-http.js";
-import { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
-import { homeBackgroundTasks } from "./web-catalog.js";
+import { homeBackgroundTasks } from "./home-background-tasks.js";
+import { homeAggregatePorts } from "./home-aggregate.js";
 import { projectNavigation } from "./web-project-presentation.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody, requestHeader } from "./web-http.js";
@@ -35,6 +39,20 @@ import type { WebRoute } from "./web-route-table.js";
 
 // The project's own platform routes (specs/repository-anti-corruption W5-07). None names a plugin package; the plugin
 // surfaces' entries, and the order of the whole table, are in web-request.ts.
+
+/** PRR-03 option B: the person authorizes one directory; a Plugin only ever sees the grant id. */
+export const directoryGrantRoute: WebRoute<ProjectRequestContext> = { id: "directory-grant", handle: async ({ request, response, url, serverOptions }) => {
+  if (url.pathname !== "/api/host/directory-grants" || request.method !== "POST") return false;
+  if (!serverOptions.homeDirectory) { sendJson(response, 501, { error: "这个 Host 没有 Home，不能授权目录" }); return true; }
+  try {
+    const body = await readBody(request), path = typeof body.path === "string" ? body.path.trim() : "";
+    if (!path || path.length > 2000) throw new Error("请选择一个绝对目录路径");
+    sendJson(response, 200, await directoryForHome(serverOptions.homeDirectory).authorize(path));
+  } catch (error) {
+    sendJson(response, 400, { error: error instanceof Error ? error.message : "目录授权失败" });
+  }
+  return true;
+} };
 
 /** A plugin's side panel tab (specs/archive/side-panel D13): the declared `side` view, served for a plugin enabled here. */
 export const sideViewRoute: WebRoute<ProjectRequestContext> = { id: "side-view", handle: async ({ request, response, url, options, shownPlugins, composition, controlToken }) => {
@@ -79,19 +97,36 @@ export const projectWorkspacesRoute: WebRoute<ProjectRuntimeContext> = { id: "pr
   return true;
 } };
 
+/**
+ * The after-write checkers of the project's authorized workspaces (specs/prologue-adoption §6.0p.12): the person's own two
+ * actions, called as the person. This route only adapts the form: it checks nothing itself and answers a refusal with the
+ * action's own code, so a stale version is a 409 and an invalid checker a 400 with the action's words.
+ */
+export const projectWriteCheckersRoute: WebRoute<ProjectRuntimeContext> = { id: "project-write-checkers", handle: async ({ request, response, url, options, localHost, hostReference }) => {
+  if (url.pathname !== "/api/project-settings/write-checkers" || !options.project || !["GET", "POST"].includes(request.method ?? "")) return false;
+  const actions = bindLocalWebActions(localHost, hostReference, ["projects:settings"]);
+  try {
+    sendJson(response, 200, request.method === "POST"
+      ? await actions.invoke<unknown, AgentWriteCheckerList>(agentWriteCheckerActions.save, await readBody(request))
+      : await actions.invoke(agentWriteCheckerActions.list, {}));
+  } catch (error) { const refusal = actionErrorResponse(error); sendJson(response, refusal.status, refusal.body); }
+  return true;
+} };
+
 /** The agent-built plugin studio: Prologue designer and code agent, sandboxed plugin backends. */
-export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-studio", handle: ({ request, response, url, store, options, serverOptions, codingServices, composition, controlToken }) =>
+export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-studio", handle: ({ request, response, url, store, options, serverOptions, pluginServices, composition, controlToken }) =>
   handleAgentStudioHttp(request, response, url, { store, projectId: options.projectId, homeDirectory: serverOptions.homeDirectory,
     routePrefix: projectRoutePrefix(options),
-    models: async () => await codingServices.execution?.models() ?? [], actorId: LOCAL_PERSON_ACTOR_ID,
-    actions: codingServices.actions,
+    // The one model list the platform keeps (V-13): what plugins read through `services.model`.
+    models: async () => serverOptions.homeDirectory ? configuredModelChoices(serverOptions.homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID,
+    actions: pluginServices.actions,
     // A generated plugin's design may need a built-in plugin this project has not enabled; the person enables it here.
     ...(options.project ? { enablePlugin: async (pluginId: string) => {
       const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId && !item.personal);
       if (!entry) throw new Error('这个插件不能在项目里启用：' + pluginId);
       await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.commit(() => catalog.addProjectPlugin({ project_id: options.project!.project_id, plugin_id: entry.project_plugin_id, actor_id: LOCAL_PERSON_ACTOR_ID })));
     } } : {}),
-    ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }, controlToken) };
+    ...(pluginServices.capabilities ? { capabilities: pluginServices.capabilities } : {}) }, controlToken) };
 
 /**
  * Runtime plugins' HTTP and the plugin update stream. Bundled installations retain project policy; other plugins are
@@ -109,7 +144,7 @@ export const runtimePluginsRoute: WebRoute<ProjectRuntimeContext> = { id: "runti
     : runtimeEntry?.personal || (options.project && (!runtimeEntry || await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
         catalog => availableProjectPluginIds(catalog.listProjectPlugins(options.project!.project_id)).has(runtimeEntry.project_plugin_id))));
   if (!enabled) { const refusal = actionErrorResponse(new ActionError("actions.plugin_disabled", "此项目未启用该插件")); sendJson(response, refusal.status, refusal.body); return true; }
-  return handleCodingPluginHttp(request, response, url, pluginPorts);
+  return handleProjectPluginHttp(request, response, url, pluginPorts, codingRouteHooks);
 } };
 
 /** The old addresses of the sessions page open the project page at its sessions. */
@@ -200,9 +235,9 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
   } },
   { id: "attention", handle: async context => {
     const assistant = projectAssistant(context);
-    const { request, response, url, composition, serverOptions, store, options, pluginPorts } = context;
+    const { request, response, url, composition, serverOptions, store, options, pluginPorts, localHost } = context;
     return Boolean(assistant) && await handleAttentionHttp(request, response, url, {
-      backgroundTasks: async () => homeBackgroundTasks(await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.listProjects().map(projectNavigation))),
+      backgroundTasks: async () => homeBackgroundTasks(homeAggregatePorts(localHost), await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.listProjects().map(projectNavigation))),
       notices: surface => assistantNotices(assistant!, surface), boardCursor: () => store.eventCursor(options.projectId),
       ...(options.project ? { pluginEventsPending: () => pluginEventsPending(pluginPorts) } : {}) });
   } },
@@ -210,13 +245,6 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
 
 const projectAssistant = ({ serverOptions, composition, localHost, agentHost, agentReady, hostReference, options }: ProjectRuntimeContext) => serverOptions.homeDirectory
   ? assistantPortsFor(serverOptions.homeDirectory, composition, localHost, agentHost, agentReady, { reference: hostReference, title: options.project?.display_name }) : null;
-
-export const workflowsRoute: WebRoute<ProjectRuntimeContext> = { id: "workflows", handle: async ({ request, response, url, serverOptions, localHost, hostReference, webViewCache, options }) =>
-  Boolean(serverOptions.homeDirectory) && await handleWorkflowsNativePluginHttp(request, response, url, {
-    // A workflow may use every action the person may run here, and nothing more: native plugins from their manifests, Runtime plugins by their installed grants.
-    actions: bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS),
-    invalidateWebView: () => webViewCache.delete(options.databasePath),
-  }) };
 
 export const homeDockRoute: WebRoute<ProjectRuntimeContext> = { id: "home-dock", handle: ({ request, response, url, homeActions, webViewCache, options }) =>
   handleHomeDockJudgmentHttp(request, response, url, { actions: homeActions, invalidateWebView: () => webViewCache.delete(options.databasePath) }) };

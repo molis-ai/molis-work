@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COGNIA_ACTIONS, COGNIA_ACTION_PERMISSIONS, cogniaActions as actions, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, directoryForHome } from "@molis-ai/molis-work-app-local-host";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 function fixture(t: { after(fn: () => Promise<void>): void }, completeText: HostCompleteText | null = null) {
   const home = mkdtempSync(join(tmpdir(), "cognia-actions-"));
@@ -30,6 +30,11 @@ test("S-34 PCSYNC-15 Cognia v2 requires the read etag and refuses stale content 
   assert.equal(current.material.body, "Changed elsewhere"); assert.equal(current.material.revision, 2); assert.notEqual(current.etag, opened.etag);
 });
 
+test("PRR-02 the Cognia directory actions stay user-only with the platform directory service", () => {
+  assert.deepEqual(actions.scan.action.audiences, ["user"]);
+  assert.deepEqual(actions.previewDirectory.action.audiences, ["user"]);
+});
+
 test("Cognia Home capabilities are discovered without UI/project; grants and separate Homes constrain actual calls", async t => {
   const f = fixture(t), other = fixture(t);
   const directory = await f.bound.discover();
@@ -38,7 +43,9 @@ test("Cognia Home capabilities are discovered without UI/project; grants and sep
   const readonly = bindActionClient(f.service, () => ({ ...f.caller, audience: "mcp", permissions: ["cognia:read"] }));
   assert.ok((await readonly.discover()).every(d => !d.capability_id.startsWith("cognia.") || d.operation === "query" && d.capability_id !== actions.scan.capability_id));
   await assert.rejects(readonly.invoke(actions.createMaterial, { title: "denied", body: "private" }), { code: "actions.forbidden" });
-  await assert.rejects(readonly.invoke(actions.scan, { path: f.home }), { code: "actions.forbidden" });
+  await assert.rejects(readonly.invoke(actions.scan, { grant_id: "denied", path: "." }), { code: "actions.forbidden" });
+  const agent = bindActionClient(f.service, () => ({ ...f.caller, audience: "agent" }));
+  await assert.rejects(agent.invoke(actions.scan, { grant_id: "denied", path: "." }), { code: "actions.forbidden" }, "the audience, not just the permission, keeps a non-person out");
   const { material } = await f.bound.invoke(actions.createMaterial, { title: "Stored", body: "Original Home data" });
   assert.equal((await readonly.invoke(actions.read, { id: material.id })).material.body, "Original Home data");
   assert.equal((await other.read()).materials.length, 0);
@@ -68,13 +75,14 @@ test("uploaded and directory imports use original preview receipts, bytes and fi
   await f.bound.invoke(actions.updateSource, { id: a.receipt.source_id, name: "Renamed" });
   assert.equal((await f.read()).sources.find(s => s.id === a.receipt.source_id)!.name, "Renamed");
   const vault = join(f.home, "vault"); mkdirSync(vault); writeFileSync(join(vault, "local.md"), "Local evidence"); symlinkSync(join(vault, "local.md"), join(vault, "alias.md"));
-  await assert.rejects(uploaded.invoke(actions.previewDirectory, { path: vault, kind: "markdown" }), { code: "actions.forbidden" });
-  const scanned = await f.bound.invoke(actions.scan, { path: vault });
+  const grant = await directoryForHome(f.home).authorize(vault);
+  await assert.rejects(uploaded.invoke(actions.previewDirectory, { grant_id: grant.grant_id, path: ".", kind: "markdown" }), { code: "actions.forbidden" });
+  const scanned = await f.bound.invoke(actions.scan, { grant_id: grant.grant_id, path: "." });
   assert.equal(scanned.files.find(row => row.path === "alias.md")!.data, undefined);
   assert.equal(Buffer.from(scanned.files.find(row => row.path === "local.md")!.data!, "base64").toString(), "Local evidence");
-  const local = await f.bound.invoke(actions.previewDirectory, { path: vault, kind: "markdown" });
+  const local = await f.bound.invoke(actions.previewDirectory, { grant_id: grant.grant_id, path: ".", kind: "markdown" });
   assert.equal((await f.bound.invoke(actions.commit, { preview_id: local.preview.id })).receipt.added, 1);
-  await assert.rejects(f.bound.invoke(actions.scan, { path: "relative" }), /绝对/);
+  await assert.rejects(f.bound.invoke(actions.scan, { grant_id: "missing", path: "." }), /授权|目录/);
   await f.bound.invoke(actions.deleteSource, { id: a.receipt.source_id });
   assert.ok(!(await f.read()).materials.some(m => m.id === material.id));
   assert.equal((await f.bound.invoke(actions.read, { id: material.id, revision: 2 })).material.body, "Changed");

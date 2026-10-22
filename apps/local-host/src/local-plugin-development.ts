@@ -42,7 +42,7 @@ export async function developInPrivateHost(host: MolisWorkLocalHost, reference: 
   refusePayloadIdentity(request, ["audit_actor_id"]);
   return host.withProject(reference, runtime => {
     if (request.project_id !== runtime.project_id) throw new ActionError("actions.scope_mismatch", "Plugin 开发不属于已打开的项目");
-    runtime.coordinator.initializeBoard({ project_id: runtime.project_id, title: "Plugin Development",
+    runtime.coordinator.initializeBoard({ project_id: runtime.project_id,
       actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID, idempotency_key: "plugin-development-board" });
     const privateStorage = new SqlitePluginPrivateStorage(runtime.store.db);
     return runPluginDevelopment(request, { project_id: runtime.project_id, actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID,

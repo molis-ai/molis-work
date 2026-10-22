@@ -1,6 +1,7 @@
 import { builderWorkbenchPanel } from "./plugin-builder-surface.js";
 import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./plugin-builder/agent-surface.js";
+import { configuredModelChoices } from "./configured-models.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { availableProjectPluginIds, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { goalsActions, resolveGoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
@@ -19,11 +20,11 @@ import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import { L } from "./web-locale.js";
 import { listPluginInstallationRecords } from "@molis-ai/molis-work-plugin-runtime";
 import {
-  codingCompanionStages,
+  builtinStagePanels,
   codingWorkbenchPanel,
-  charactersWorkbenchPanel,
   type CodingSurfacePorts,
 } from "./coding-surface.js";
+import { ensureProjectPlugins } from "./project-plugins.js";
 
 
 /** The page still opens without the installed plugins' entries; why they are missing is written. */
@@ -35,6 +36,12 @@ async function projectSettingsRequirements(homeDirectory: string | undefined, st
   const installed = new Set(listPluginInstallationRecords(store.db).filter(record => record.state !== "uninstalled").map(record => record.plugin_id));
   return withCatalog({ homeDirectory }, catalog => catalog.projectPluginRequirements(projectId)
     .map(plugin => ({ plugin_id: plugin.plugin_id, installed: plugin.installed || installed.has(plugin.plugin_id) })));
+}
+/** Opening the project page starts the project's plugin platform; the stages read what it runs. */
+async function projectPluginStages(ports: CodingSurfacePorts, enabled: readonly string[]): Promise<{ html: string[]; ids: string[] }> {
+  await ensureProjectPlugins(ports);
+  const builtin = await builtinStagePanels(ports, enabled);
+  return { html: [...builtin.html, await builderWorkbenchPanel(ports)], ids: builtin.ids };
 }
 type LocalGoalsReadPorts = {
   withCatalog: LocalWebCatalogRunner;
@@ -121,7 +128,7 @@ export function createLocalGoalsReadHttp(ports: LocalGoalsReadPorts) {
   async function page(request: IncomingMessage, response: ServerResponse, url: URL, options: WebViewOptions,
     homeDirectory: string | undefined, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, workActions: BoundActionClient, controlToken: string, goalActions: BoundActionClient, artifactActions: BoundActionClient,
     coordinator?: GoalProjectApplication, store?: LocalProjectDatabase,
-    codingServices?: Pick<CodingSurfacePorts, "capabilities" | "actions" | "execution" | "homeDirectory" | "characterWorkspaces" | "characterSpawn">,
+    pluginServices?: Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "characterWorkspaces" | "characterSpawn">,
   ): Promise<boolean> {
     const renderedGoalsPage = await renderWorkbenchGoalsPageRequest(
       request.method, url.pathname, readWebView,
@@ -138,24 +145,23 @@ export function createLocalGoalsReadHttp(ports: LocalGoalsReadPorts) {
         // that is not running, or that fails, simply contributes nothing and the
         // shell renders exactly as before.
         if (store && projectConfiguration !== null) {
-          if (!codingServices) throw new Error("项目插件缺少统一动作服务装配");
+          if (!pluginServices) throw new Error("项目插件缺少统一动作服务装配");
           const surfacePorts = {
-            ...codingServices,
+            ...pluginServices,
             store,
             projectId: options.projectId,
             actorId: LOCAL_PERSON_ACTOR_ID,
-            goalTitle: (goalId: string) => coordinator?.goalQueries.getGoal(options.projectId, goalId)?.title,
             escapeHtml,
             translate: (value: string) => value,
             workspaces: projectConfiguration.workspaces,
             routePrefix: view.route_prefix,
           };
-          const characterStage = await charactersWorkbenchPanel(surfacePorts);
-          view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), characterStage.panel, await builderWorkbenchPanel(surfacePorts), ...await codingCompanionStages(surfacePorts, projectConfiguration.plugins)] };
+          const builtinStages = await projectPluginStages(surfacePorts, projectConfiguration.plugins);
+          view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtinStages.html], plugin_stage_ids: builtinStages.ids };
           // Installed execution supplies rail entries and stages independently of opening the authoring studio.
           const installed = await installedPluginStages({ store, projectId: options.projectId, homeDirectory, routePrefix: view.route_prefix,
-            models: async () => await codingServices.execution?.models() ?? [], actorId: LOCAL_PERSON_ACTOR_ID, actions: codingServices.actions,
-            ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }).catch(noInstalledStages);
+            models: async () => homeDirectory ? configuredModelChoices(homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID, actions: pluginServices.actions,
+            ...(pluginServices.capabilities ? { capabilities: pluginServices.capabilities } : {}) }).catch(noInstalledStages);
           if (installed.length) view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.map(item => item.stage)], plugin_rail: installed.map(({ surface, label }) => ({ surface, label })) };
           if (projectConfiguration.plugins.includes("coding")) {
             const stage = await codingWorkbenchPanel(surfacePorts);

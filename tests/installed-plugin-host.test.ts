@@ -18,6 +18,7 @@ import { exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-
 import { studioStorage } from '../apps/local-host/dist/plugin-builder/storage.js';
 import { buildManifest } from '../apps/local-host/dist/plugin-builder/build-project.js';
 import { scheduleServiceFor } from '@molis-ai/molis-work-app-local-host';
+import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from './fixtures/plugin-callers.js';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
 
@@ -55,7 +56,8 @@ async function publishedFixture(home: string, name: string, lookup = false, secr
 
 test('Host discovery and invocation refresh generated cost without rewriting installed identity or running its capabilities', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-public-policy-')), fixture = await publishedFixture(home, 'project', true);
-  const host = new MolisWorkLocalHost({ homeDirectory: home }), client = host.actionClient(fixture.ref);
+  const reader = callerPlugin('costreader', 'project');
+  const host = new MolisWorkLocalHost({ homeDirectory: home, pluginFixtures: { project: [reader.definition] } }), client = host.actionClient(fixture.ref);
   let dispose = () => {}, calls = 0;
   const register = (cost: ActionExecutionPolicy['cost'], version = 1) => {
     dispose();
@@ -69,8 +71,12 @@ test('Host discovery and invocation refresh generated cost without rewriting ins
     register('none');
     assert.equal((await client.discover(caller)).find(view => view.capability_id === action('lookup').capability_id)!.action.execution?.cost, 'none');
     register('metered', 2);
+    // A plugin discovers as the caller the Host issued its session; the other audiences are the person's own call context.
+    const probe = registerProbe(host.actionRegistry(fixture.ref), 'project');
+    await startProjectPlugins(host, fixture.ref);
+    const asPlugin = callAs(await issuedCaller(probe, reader, DEMO_PROJECT_ID), []);
     for (const audience of ['user', 'agent', 'mcp', 'workflow', 'plugin'] as const) {
-      const views = await client.discover({ ...caller, audience });
+      const views = await client.discover(audience === 'plugin' ? asPlugin : { ...caller, audience });
       assert.equal(views.find(view => view.capability_id === action('lookup').capability_id)!.action.execution?.cost, 'metered');
       assert.equal(views.find(view => view.capability_id === action('read').capability_id)!.action.execution?.cost, 'none');
     }

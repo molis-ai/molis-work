@@ -18,6 +18,9 @@
 //             soon as one exists, so files can move one at a time (apps/workbench/README.md, section 界面文字).
 //             One definition per key, a key starts with its owner, zh and en use the same {placeholders}, a key is used only
 //             by its owner (shared words are `common.*`), and the named dictionary feeds a catalog entry's `messages` field.
+//             A registered dictionary may be assembled from parts, `export const X_MESSAGES = { ...X_A_MESSAGES, ...X_B_MESSAGES }`
+//             (exportedSpreads), so one owner's words can span several files; each part is checked like any dictionary and
+//             must be defined by the same owner as the dictionary that spreads it.
 //
 // What counts as a translator call (the first argument, or every argument a wrapper forwards)
 //   L(…)  x.L(…)  p.text(…)  primitives.text(…)  translate(…)  x.translate(…)  this.t(…)
@@ -278,6 +281,26 @@ const registeredMessages = (source) => {
   return registered;
 };
 
+// `export const X = { ...A, ...B as C }`: the names each exported object literal spreads, under their exported names (an
+// import alias is followed back). Only identifiers count; a spread of a call or a property is not a dictionary part.
+const exportedSpreads = (source) => {
+  const imports = new Map();
+  for (const statement of source.statements) {
+    const bindings = ts.isImportDeclaration(statement) ? statement.importClause?.namedBindings : null;
+    if (bindings && ts.isNamedImports(bindings)) for (const item of bindings.elements) imports.set(item.name.text, item.propertyName?.text ?? item.name.text);
+  }
+  const spreads = new Map();
+  for (const statement of source.statements) {
+    if (!ts.isVariableStatement(statement) || !statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      const object = ts.isIdentifier(declaration.name) ? objectOf(declaration.initializer) : null;
+      const parts = object ? object.properties.filter(ts.isSpreadAssignment).map((part) => unwrap(part.expression)).filter((part) => part && ts.isIdentifier(part)) : [];
+      if (parts.length) spreads.set(declaration.name.text, parts.map((part) => imports.get(part.text) ?? part.text));
+    }
+  }
+  return spreads;
+};
+
 const stableDictionaryName = (property) => {
   let node = property.parent?.parent;
   while (node && (ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isParenthesizedExpression(node))) node = node.parent;
@@ -285,6 +308,38 @@ const stableDictionaryName = (property) => {
 };
 
 const mentionable = (text) => text.length <= 600 && (HAN.test(text) || STABLE_KEY.test(text));
+
+// Every `messages: X_MESSAGES` a registration declares. The catalog imports registration objects, so the dictionary is
+// registered through that field rather than a direct `messages:` entry in the catalog file itself.
+const messageReferences = (source) => [...source.getFullText().matchAll(/\bmessages\s*:\s*([A-Za-z_$][\w$]*)/gu)].map((match) => match[1]);
+
+// The registration modules the generated catalog actually imports. A generated catalog lists identifiers such as
+// `codingRegistration`; the dictionary is reached through that module's `messages:` field, not a direct catalog field.
+const exportedNames = (source) => {
+  const names = new Set();
+  for (const statement of source.statements) {
+    if (!ts.isVariableStatement(statement) || !statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) continue;
+    for (const declaration of statement.declarationList.declarations) if (ts.isIdentifier(declaration.name)) names.add(declaration.name.text);
+  }
+  return names;
+};
+
+const catalogRegistrationImports = (source) => {
+  const imports = new Map(), entries = [];
+  for (const statement of source.statements) {
+    const bindings = ts.isImportDeclaration(statement) ? statement.importClause?.namedBindings : null;
+    if (bindings && ts.isNamedImports(bindings)) for (const item of bindings.elements) imports.set(item.name.text, { local: item.propertyName?.text ?? item.name.text, spec: statement.moduleSpecifier.text });
+  }
+  const visit = (node) => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "BUILTIN_PLUGIN_CATALOG") {
+      const array = unwrap(node.initializer);
+      if (array && ts.isArrayLiteralExpression(array)) for (const item of array.elements) if (ts.isIdentifier(item)) entries.push(item.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return entries.map((name) => imports.get(name)).filter(Boolean);
+};
 // The dictionaries a file refers to, by the dictionary they feed: `{ A_EN: Set(B_EN, C_EN) }` for `const A_EN = { ...B_EN }` and
 // `Object.assign(A_EN, C_EN)`, and `""` for a use that feeds none (a function, an array). A use is every mention of a `*_EN` name
 // under its exported name (`import { A_EN as B_EN }` makes B_EN mean A_EN), except where the name is declared, filled
@@ -331,7 +386,7 @@ export function scanFile(file, text, shared) {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const declared = declaredTranslators(source);
   const result = {
-    file, messages: registeredMessages(source), entries: [], stable: [], dictionaries: [], usesBy: dictionaryUses(source), calls: [], dynamic: [], mentions: new Set(),
+    file, messages: registeredMessages(source), messageRefs: messageReferences(source), catalogRegistrations: catalogRegistrationImports(source), exports: exportedNames(source), spreads: exportedSpreads(source), entries: [], stable: [], dictionaries: [], usesBy: dictionaryUses(source), calls: [], dynamic: [], mentions: new Set(),
     // for linkPrograms: the relative modules it imports, how many browser scripts it holds, and the wrappers those define
     imports: source.statements.filter((node) => (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text.startsWith(".")).map((node) => node.moduleSpecifier.text),
     scripts: 0, scriptWrappers: new Map(),
@@ -534,7 +589,37 @@ export function analyse(files) {
 
   const stableByKey = new Map();
   const stableErrors = [];
-  const registered = files.find(file => file.file === MESSAGES_ROOT)?.messages ?? new Set();
+  const registered = new Set([
+    ...(files.find(file => file.file === MESSAGES_ROOT)?.messages ?? []),
+  ]);
+  for (const { spec } of files.find(file => file.file === MESSAGES_ROOT)?.catalogRegistrations ?? []) {
+    const plugin = spec.split("/")[1]?.replace(/^molis-work-plugin-/u, "");
+    const file = plugin && files.find((candidate) => candidate.file.endsWith(`/${plugin}/src/registration.ts`));
+    for (const name of file?.messageRefs ?? []) registered.add(name);
+  }
+  // A registered dictionary's parts are registered too, when the same owner defines them (a part with no stable entries,
+  // say a table of something else, adds nothing to check).
+  const definedIn = new Map();
+  for (const file of files) {
+    for (const entry of file.stable) if (entry.dictionary && !definedIn.has(entry.dictionary)) definedIn.set(entry.dictionary, file.file);
+    for (const [name, parts] of file.spreads ?? []) {
+      if (!definedIn.has(name)) definedIn.set(name, file.file);
+      for (const part of parts) {
+        if (definedIn.has(part)) continue;
+        const home = files.find((candidate) => candidate.exports?.has(part));
+        definedIn.set(part, home?.file ?? file.file);
+      }
+    }
+  }
+  const pending = [...registered];
+  while (pending.length) {
+    const name = pending.pop();
+    for (const file of files) for (const part of file.spreads?.get(name) ?? []) {
+      const home = definedIn.get(part);
+      if (home && ownerOf(home) !== ownerOf(file.file)) stableErrors.push(`stable dictionary ${name} (${file.file}) spreads ${part}, which ${ownerOf(home)} defines (${home}); a dictionary's parts belong to its owner`);
+      else if (!registered.has(part)) { registered.add(part); pending.push(part); }
+    }
+  }
   for (const file of files) {
     const dictionaries = new Set(file.stable.map(entry => entry.dictionary));
     for (const name of dictionaries) if (!name || !registered.has(name)) {
@@ -549,6 +634,7 @@ export function analyse(files) {
       if (!allowed.includes(entry.key.split(".")[0])) stableErrors.push(`stable key ${entry.key} (${at}) must start with its owner: ${allowed.join(" or ")}`);
       if (!entry.zh || !entry.en) stableErrors.push(`stable key ${entry.key} (${at}) needs both zh and en as non-empty literal text`);
       else if (placeholdersOf(entry.zh) !== placeholdersOf(entry.en)) stableErrors.push(`stable key ${entry.key} (${at}): zh and en use different {placeholders}`);
+      else if (HAN.test(entry.en)) stableErrors.push(`stable key ${entry.key} (${at}): en still contains Chinese text`);
     }
   }
   for (const [key, list] of stableByKey) {

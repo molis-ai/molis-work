@@ -91,8 +91,7 @@ export interface LocalRuntime {
 
 export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   mkdirSync(dirname(options.databasePath), { recursive: true });
-  const database = openStudioDatabase(options.databasePath);
-  try{if(options.storage)initializeStudioReplication(database,options.storage.space,options.storage.projectId);}catch(error){database.close();throw error;}
+  const database = openRuntimeDatabase(options);
   const clock = { now: () => new Date().toISOString() };
   const idFactory = { next: (prefix: string) => `${prefix}_${randomUUID()}` };
   const actors = new AsyncLocalStorage<string>();
@@ -308,4 +307,12 @@ function initializeWorkspace(database: SqliteDatabase, settings: SqliteSettingsR
     settings.ensureDefaults("workspace-local", now);
     pulse.ensureDefaultSourceSettings(now);
   }).immediate();
+}
+
+function openRuntimeDatabase(options: LocalRuntimeOptions): SqliteDatabase {
+  const database = openStudioDatabase(options.databasePath);
+  try {
+    if (options.storage) initializeStudioReplication(database, options.storage.space, options.storage.projectId);
+    return database;
+  } catch (error) { database.close(); throw error; }
 }

@@ -4,6 +4,7 @@ import { GOALS_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
 import { GOALS_TREE_UI_CONTRIBUTION_ID } from "./tree-ui.js";
 import { GOALS_ACTIONS } from "./actions.js";
 import { PERSONAL_PLANNING_ACTIONS } from "./personal-planning-actions.js";
+import { GOALS_PROJECT_DATABASE } from "./project-database.js";
 
 export const GOALS_PLUGIN_ID = "io.molis.work.goals";
 /** What the project database stores for this Plugin. */
@@ -25,11 +26,15 @@ export const goalsManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-goals-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: actionPermissionDeclarations([...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS], "按调用者授权读取、推进和决定项目目标"),
+  permissions: [
+    ...actionPermissionDeclarations([...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS], "按调用者授权读取、推进和决定项目目标"),
+    { permission: "storage:private", required: true, reason: "读写 Goals 自己在项目库里的表" },
+  ],
   capabilities: { provides: [], consumes: [] },
   actions: [...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS],
   artifacts: { produces: [], consumes: [] },
   sync: { protocol_version: 1, collections: [{ id: 'project_goals', title: '目标、关系与工作记录', schema_version: 1, requires: [] }] },
+  databases: { project: GOALS_PROJECT_DATABASE },
   ui: {
     contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_SETTINGS_UI_CONTRIBUTION_ID],
     views: [

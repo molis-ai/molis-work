@@ -53,3 +53,44 @@ export const focusedPaneBoxAfterDrop = (state: any, ops: any, target: any, copy:
     || boxes.find((item: { paneId: string }) => item.paneId === target.paneId)
     || null;
 };
+
+// Where a split's divider may go, and how it settles near the default (specs/visual-ui-experience §drag-split, VUX-24).
+
+/** A layout tree node as the tab workspace stores it: a pane, or a split of two children along a direction. */
+export interface SplitNode { paneId?: string; direction?: string; ratio?: number; children?: SplitNode[] }
+
+/**
+ * The ratio range a split's divider may take when the split is `size` CSS px long along its direction: each side keeps the
+ * room its own panes need (a pane its minimum; a split along the same direction its children's together, with the gap; a
+ * split across it its larger child; a pane is 240 px wide or 160 px tall at least, room for its tab strip and a readable
+ * column), and never past 15–85 %, the range the drop preview reads. `null` when both sides cannot
+ * fit at once: the workspace then takes its narrow layout rather than clamping into an inverted range.
+ */
+export const splitRatioRange = (node: SplitNode, size: number): [number, number] | null => {
+  const need = (item: SplitNode | undefined, direction: string | undefined): number => !item ? 0 : item.paneId ? (direction === "row" ? 240 : 160)
+    : item.direction === direction ? need(item.children?.[0], direction) + need(item.children?.[1], direction) + 8
+      : Math.max(need(item.children?.[0], direction), need(item.children?.[1], direction));
+  const low = Math.max(0.15, need(node.children?.[0], node.direction) / size), high = Math.min(0.85, 1 - need(node.children?.[1], node.direction) / size);
+  return size > 0 && low <= high ? [low, high] : null;
+};
+
+/** Every split in the tree fits at the stage's size (`width` × `height` CSS px); false when one would invert its range. */
+export const splitTreeFits = (node: SplitNode | undefined, width: number, height: number): boolean => {
+  if (!node || node.paneId) return true;
+  const range = splitRatioRange(node, node.direction === "row" ? width : height);
+  if (!range) return false;
+  const ratio = Math.min(range[1], Math.max(range[0], node.ratio || 0.5));
+  return node.direction === "row"
+    ? splitTreeFits(node.children?.[0], width * ratio, height) && splitTreeFits(node.children?.[1], width * (1 - ratio), height)
+    : splitTreeFits(node.children?.[0], width, height * ratio) && splitTreeFits(node.children?.[1], width, height * (1 - ratio));
+};
+
+/**
+ * Snap with hysteresis: within 8 CSS px of `target` the divider settles on it, and once settled it stays until the pointer is
+ * 16 px away, so a hand resting near the default does not make the edge flicker between the two.
+ */
+export const snapSplitRatio = (ratio: number, target: number, snapped: boolean, size: number): { ratio: number; snapped: boolean } => {
+  const away = Math.abs(ratio - target) * size;
+  const settle = snapped ? away <= 16 : away <= 8;
+  return { ratio: settle ? target : ratio, snapped: settle };
+};

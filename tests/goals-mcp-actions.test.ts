@@ -34,7 +34,7 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
   const origin = served.origin;
   const clientId = "runtime:legacy-goals", session = "legacy-thread", auditActor = `${clientId}:${session}`;
   const context = { runtime_id: "legacy-goals", stable_work_context_id: session, host_declares_stable: true };
-  const aliases = { create: "molis_work_v1_action_goals.create__v1", list: "molis_work_v1_action_goals.list__v1", note: "molis_work_v1_action_goals.note__v1", state: "molis_work_v1_action_goals.state.read__v1", events: "molis_work_v1_action_goals.events.list__v1", event: "molis_work_v1_action_goals.events.read__v1" };
+  const aliases = { create: "molis_work_v1_action_goals.create__v1", list: "molis_work_v1_action_goals.list__v1", note: "molis_work_v1_action_goals.note__v1", state: "molis_work_v1_action_goals.state.read__v1", events: "molis_work_v1_action_goals.events.list__v2", event: "molis_work_v1_action_goals.events.read__v2" };
   const sdk = new Client({ name: "not-the-authorized-client", version: "1" });
   let pending: Promise<Awaited<ReturnType<typeof sdk.callTool>>> | undefined;
   try {

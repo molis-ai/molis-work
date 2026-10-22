@@ -5,7 +5,7 @@ import { createSqliteReplica, initializeReplica, openBaselineHomeSqlite, readDat
 import type { PluginSyncDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { DatabaseSync } from 'node:sqlite';
 import type { GeneratedImage } from '@molis-ai/molis-work-contracts/modules/images';
-import { IMAGES_STORE_BASELINE } from './store.js';
+import { IMAGES_DATABASE } from './store.js';
 import { imagesErrors } from './error.js';
 import { readPortableImage, savePortableImages,validatePortableImage, type PortableImage } from './sync-files.js';
 
@@ -15,7 +15,7 @@ type RecordValue=Record<(typeof columns)[number],string|null>;
 interface Wire {format:1;spaceId:string;project:{id:string;title:string};record:RecordValue;images:PortableImage[]}
 /** The sync connection neither takes a generation runner lock nor starts/recover jobs. */
 export function openImagesSyncStore(home:string) {
- const db=openBaselineHomeSqlite(home,'images',IMAGES_STORE_BASELINE),directory=join(home,'images','assets');
+ const db=openBaselineHomeSqlite(home,'images',IMAGES_DATABASE),directory=join(home,'images','assets');
  try{initializeImagesReplication(db);return {close:()=>db.close(),replica:(context:AggregateReplicaContext)=>replica(db,directory,context)};}catch(error){db.close();throw error;}
 }
 export function initializeImagesReplication(db:DatabaseSync){

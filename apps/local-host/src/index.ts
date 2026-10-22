@@ -16,10 +16,17 @@ export type { MolisWorkRuntimeContextHost } from "./runtime-context.js";
 export { prepareLocalProjectStorage } from "./project-storage.js";
 export { PluginHostExecutor } from "./plugin-executor.js";
 export { HomePluginHost, type HomePluginEntry, type HomePluginPlatform } from "./home-plugins.js";
+export { localWebActionContext } from "./local-web-actions.js";
+export { collectHomeAggregate, homeAggregatePorts, type HomeAggregateAnswer, type HomeAggregateIssue, type HomeAggregatePorts, type HomeAggregateResult } from "./home-aggregate.js";
 export { openPluginDatabase } from "./plugin-database.js";
+export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
+export { readMaterialLocalPage } from "./material-local-page.js";
+export { openHostShelfFiles, openHostShelfStore } from "./shelf-actions.js";
+export { isHostEndpointPort, trackHostChildEndpoint, trackHostPort } from "./host-endpoints.js";
+export { ORIGINAL_FILE_MAX_BYTES, readOriginalFile, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
 export type { PluginPlatform, PluginPlatformDatabase, PluginPlatformEntry, PluginPlatformOptions } from "./plugin-platform.js";
 export type { PluginHostExecutorOptions } from "./plugin-executor.js";
 export { runPluginDevelopment } from "./plugin-development.js";
@@ -137,9 +144,6 @@ export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-doc
 export { handleScheduleNativePluginHttp, type ScheduleNativePluginHttpOptions } from "./schedule-native-plugin-http.js";
 export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 export { handleFunctionsHttp } from "./functions-http.js";
-export { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
-export { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
-export { workflowsActionProvider } from "./workflows-actions.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
 
@@ -201,12 +205,6 @@ export {
   readWorkspaceTextFile,
   type WorkspaceReadPorts,
 } from "./workspace-files.js";
-export {
-  GIT_STATUS_MAX_BUFFER,
-  isGitRepository,
-  readGitStatus,
-  type GitStatusResult,
-} from "./git-status.js";
 export { ModelProviderStore, createModelProviderTables, type ModelProviderSqlite, type ModelProviderStoreOptions, type ModelSecretPort } from "./model-provider-store.js";
 export { MINIMAX_ANTHROPIC_BASE_URL, MODEL_PROVIDER_TEMPLATES, modelProviderTemplate } from "./model-provider-templates.js";
 export {
@@ -222,12 +220,14 @@ export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttp
 export {
   codingDirectoryPanel,
   codingNextSteps,
+  codingRouteHooks,
   diffStagePanel,
   filesDirectoryPanel,
   gitDirectoryPanel,
-  releaseCodingSurface,
   type CodingSurfacePorts,
 } from "./coding-surface.js";
+export { handleProjectPluginHttp, type ProjectPluginHttpPorts, type ProjectPluginRouteHooks } from "./project-plugin-http.js";
+export { releaseProjectPlugins } from "./project-plugins.js";
 export { createGitWorktreePort, type GitWorktreePort } from "./git-worktrees.js";
 export { readWriterIntegration, prepareWriterIntegration } from "./git-writer-integration.js";
 export { draftText } from "./model-draft.js";
@@ -246,6 +246,9 @@ export { placementCallPorts } from "./placement-call.js";
 export { ALCHEMIST_SEARCH_BASELINE, createAlchemistSearchPort } from "./alchemist-search.js";
 export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "./assistant/assistant-store.js";
 export { AssistantService } from "./assistant/assistant-service.js";
+// The Home's one Assistant as the Host composes it, its person clients included: what a check of who it calls as runs against.
+export { assistantServiceFor, closeAssistantService, type AssistantHttpPorts } from "./assistant/assistant-http.js";
+export { assistantSurroundings, repositoryName } from "./assistant/assistant-surroundings.js";
 export { AssistantFollowUps, AssistantFollowUpRecords, FOLLOW_UP_KIND, type AssistantFollowUpPorts } from "./assistant/assistant-followups.js";
 export { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
 export { CARD_RESULT_OPEN, cardOutcomeSteps, interactionNextSteps, NEXT_STEP, type NextStepCard, type NextStepReview, type OutcomeCard } from "./agent-next-steps.js";
@@ -290,8 +293,7 @@ export { projectOrNull } from "./catalog-lookup.js";
 export { createProjectArrivalHttp } from "./project-arrival-http.js";
 export { handleAttentionHttp, type AttentionSources } from "./attention-http.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
-export { codingBackgroundTasks } from "./coding-background-tasks.js";
-export { homeBackgroundTasks } from "./web-catalog.js";
+export { homeBackgroundTasks, type HomeBackgroundTaskRow } from "./home-background-tasks.js";
 export { startWebProjectSchedulers } from "./web-project-schedulers.js";
 export { hostLog, captureHostLog, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
 
@@ -301,3 +303,5 @@ export { connectorLocalActions } from "./connector-local-actions.js";
 export { connectorCliActions } from "./connector-cli-actions.js";
 export { handleProjectRecycleHttp } from "./web-project-recycle.js";
 export { bindSavedHistory } from "./saved-history-host.js";
+
+export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService } from "./plugin-directory-service.js";

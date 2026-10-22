@@ -22,4 +22,5 @@ export const COGNIA_EN: Record<string, string> = {
   "删除领域": "Delete domain",
   "重命名来源": "Rename source",
   "移出列表": "Remove from list",
+  "目录授权失败": "Could not authorize the folder",
 };

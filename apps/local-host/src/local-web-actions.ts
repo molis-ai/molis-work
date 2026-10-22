@@ -1,4 +1,4 @@
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type ActionView, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext, type ActionProvider, type ActionReference, type ActionView, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -13,11 +13,16 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   signal?.throwIfAborted();
   const installed = reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list()) : [];
   signal?.throwIfAborted();
-  const grants = new Map(installed.filter(row => row.state === "running").map(row => [row.install_id, row]));
-  for (const record of host.homePlugins?.installations() ?? []) if (record.state === "running") grants.set(record.install_id, record);
+  // A plugin that runs as the Home's instance and as a project's has one install_id in both databases (a hash of its id and publisher),
+  // each record with its own generation and grants. The two tables are never merged: an instance reads the record of its own database.
+  const projectRecords = new Map(installed.filter(row => row.state === "running").map(row => [row.install_id, row]));
+  const homeRecords = new Map((host.homePlugins?.installations() ?? []).filter(record => record.state === "running").map(record => [record.install_id, record]));
   // The installation a provider's grants come from is the one its registration names, not whatever its provider id looks like:
-  // a plugin that ships with the Host registers under its plugin_id, and its Host-assembled providers share that id.
-  const installOf = (provider: ActionProvider) => provider.plugin_install_id === undefined ? undefined : grants.get(provider.plugin_install_id);
+  // a plugin that ships with the Host registers under its plugin_id, and its Host-assembled providers share that id. A project's
+  // Plugin Runtime registers with its project_id, the Home's without, and that decides which database's record is the provider's.
+  const inProject = (provider: ActionProvider) => Boolean(provider.project_id);
+  const installOf = (provider: ActionProvider) => provider.plugin_install_id === undefined ? undefined
+    : (inProject(provider) ? projectRecords : homeRecords).get(provider.plugin_install_id);
   // The person's own permissions reach only what the Host registers itself. A provider the Plugin Runtime registered, built in
   // or not, names its installation, and is reached through that installation's grants alone.
   const ownerReaches = (view: ActionView) => view.provider.plugin_install_id === undefined
@@ -34,7 +39,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   });
   // Scene-only plugins have no action from which to infer their local-user permissions.
   // Inspect actual registrations using installed grants, then accept only the matching running owner.
-  const candidates = [...new Set([...builtinPermissions, ...[...grants.values()].flatMap(row => row.grants)])];
+  const candidates = [...new Set([...builtinPermissions, ...[...projectRecords.values(), ...homeRecords.values()].flatMap(row => row.grants)])];
   const scenes = await host.sceneClient(reference).discoverScenes({ ...base, permissions: candidates });
   signal?.throwIfAborted();
   const scenePermissions = scenes.flatMap(view => {
@@ -52,10 +57,10 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
       if (original && ownerReaches(original)) return;
       // Re-read the original grant owner directly, rather than rediscovering every provider on each nested call.
       // The common dispatcher separately checks current definitions, source lifetime and action availability.
+      // The record comes from the database `installOf` reads, by the same test, so its generation is only ever compared with that database's record.
       const installId = original?.provider.plugin_install_id;
-      const install = installId && original?.provider.project_id && reference
-        ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).get(installId))
-        : installId ? host.homePlugins?.installations().find(record => record.install_id === installId) : null;
+      const install = !installId || !original ? null : !inProject(original.provider) ? host.homePlugins?.installations().find(record => record.install_id === installId)
+        : reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).get(installId)) : null;
       if (!original || !install || install.state !== "running" || install.plugin_id !== original.provider.plugin_id
         || install.installation_generation !== installOf(original.provider)?.installation_generation
         || !original.action.permissions.every(permission => install.grants.includes(permission))) {
@@ -65,12 +70,25 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   };
 }
 
+/**
+ * The person's own action client, for one request. Its calls share one authority snapshot, so a caller must not keep the client
+ * across requests (in a cached handler, or a follow-up that runs later): a grant given later would stay out of its snapshot until
+ * the process restarts. Someone acting for the person later (the Assistant's scheduled follow-up) binds a new client when it acts.
+ */
 export function bindLocalWebActions(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
   builtinPermissions: readonly string[]): BoundActionClient {
   const client = reference ? host.actionClient(reference) : host.homeActionClient();
+  // A bound client serves one request: its calls share one authority snapshot instead of inspecting the whole directory per call.
+  // A grant revoked meanwhile is still refused, because every call re-reads its owner (validate_authority) and the dispatcher re-checks availability.
+  let context: Promise<ActionCallContext> | undefined;
+  const current = () => context ??= localWebActionContext(host, reference, builtinPermissions).catch(error => { context = undefined; throw error; });
   return {
-    discover: async () => client.discover(await localWebActionContext(host, reference, builtinPermissions)),
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) =>
-      await client.invoke(await localWebActionContext(host, reference, builtinPermissions), definition, input) as Output,
+    discover: async () => client.discover(await current()),
+    // A control (whose call this is still counting, say) joins this caller's checks the way every bound client joins it: at the
+    // dispatcher's validation, its last synchronous check and each `beforeEffect` of the handler, up to the effect itself.
+    invoke: async (definition, input, control, transport) => {
+      const caller = await current();
+      return await bindActionClient(client, () => caller).invoke(definition, input, control, transport);
+    },
   };
 }

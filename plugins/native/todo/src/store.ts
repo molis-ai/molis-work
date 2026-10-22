@@ -1,6 +1,6 @@
 import {initializeTodoReplication,createTodoReplica} from './replication.js';
 import {homeSqlitePath,applySqliteBaseline,type AggregateReplicaContext} from '@molis-ai/molis-work-storage';
-import {replicaSchemaSql,type SqliteBaseline} from "@molis-ai/molis-work-storage";
+import {replicaSchemaSql} from "@molis-ai/molis-work-storage";
 import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
@@ -496,7 +496,7 @@ export class TodoStore {
  * created from it, existing ones must already be at its version. The Runtime opens it for the plugin; tests and the project's
  * deletion open the same file with their own connection.
  */
-export const TODO_STORE_BASELINE: SqliteBaseline = { version: 3, schema: (`
+export const TODO_DATABASE: PluginDatabaseDeclaration = { store_name: "todo", read_permission: "todo:read", write_permission: "todo:write", version: 3, schema: (`
   CREATE TABLE todo_items (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -557,7 +557,7 @@ export const TODO_STORE_BASELINE: SqliteBaseline = { version: 3, schema: (`
     PRIMARY KEY (source_key, fingerprint)
   );
 `)+replicaSchemaSql()+"CREATE TABLE todo_editor_versions(id TEXT PRIMARY KEY,revision INTEGER NOT NULL);CREATE TABLE todo_imported_changes(change_id TEXT PRIMARY KEY);" };
-export const TODO_DATABASE: PluginDatabaseDeclaration = { ...TODO_STORE_BASELINE, store_name: "todo", read_permission: "todo:read", write_permission: "todo:write" };
+
 
 export function openTodoStore(homeDirectory: string, now?: () => Date): TodoStore {
   const db = openBaselineHomeSqlite(homeDirectory, TODO_HOME_STORE.path, TODO_DATABASE);
@@ -736,10 +736,10 @@ export const TODO_HOME_STORE: HomeStoreDeclaration = { path: TODO_DATABASE.store
 export function openTodoSyncStore(homeDirectory: string): {
   close(): void; replica(context: AggregateReplicaContext): ReturnType<typeof createTodoReplica>;
 } {
-  const db = openBaselineHomeSqlite(homeDirectory, "todo", TODO_STORE_BASELINE);
+  const db = openBaselineHomeSqlite(homeDirectory, "todo", TODO_DATABASE);
   try {
     db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
-    applySqliteBaseline(db, homeSqlitePath(homeDirectory, "todo"), TODO_STORE_BASELINE);
+    applySqliteBaseline(db, homeSqlitePath(homeDirectory, "todo"), TODO_DATABASE);
     initializeTodoReplication(db);
     return { close: () => db.close(), replica: context => createTodoReplica(db, context) };
   } catch (error) { db.close(); throw error; }

@@ -13,8 +13,8 @@ import { createSyncConflictState } from '@molis-ai/molis-work-plugin-sdk';
 
 function fixture(t: TestContext, projectId = 'project-shared') {
   const db = new Database(':memory:'); t.after(() => db.close()); db.pragma('foreign_keys=ON');
-  db.exec('CREATE TABLE boards(project_id TEXT PRIMARY KEY); CREATE TABLE events(seq INTEGER PRIMARY KEY AUTOINCREMENT,project_id TEXT);');
-  db.prepare('INSERT INTO boards VALUES (?)').run(projectId);
+  db.exec('CREATE TABLE project_root(project_id TEXT PRIMARY KEY); CREATE TABLE events(seq INTEGER PRIMARY KEY AUTOINCREMENT,project_id TEXT);');
+  db.prepare('INSERT INTO project_root VALUES (?)').run(projectId);
   const borrowed = db as ArtifactsSqliteDatabase;
   createArtifactsSchema(borrowed); createProcessItemsSchema(borrowed);
   let active = true;
@@ -34,7 +34,7 @@ function fixture(t: TestContext, projectId = 'project-shared') {
   return { db, borrowed, owner, context, options, replication, publish, revoke: () => { active = false; } };
 }
 
-test('S-44 PCSYNC-22 process items preserve complete fixed versions without entering the library or executing their producer', t => {
+test('S-56 PCSYNC-22 process items preserve complete fixed versions without entering the library or executing their producer', t => {
   const a = fixture(t), b = fixture(t);
   a.publish(1, 'full-body:'.repeat(40000)); a.publish(2, 'Second fixed version');
   a.owner.commands.archiveVersion({ project_id: a.context.projectId, artifact_id: 'coding-plan:session:1', version: 1, actor_id: 'plugin:coding' });
@@ -59,7 +59,7 @@ test('process identity remains independent from a library identity with the same
   assert.deepEqual(b.owner.query.getArtifactVersion(b.context.projectId, { artifact_id: 'coding-plan:session:1', version: 1 })!.payload, { text: 'Fixed plan' });
 });
 
-test('S-44 PCSYNC-01 tampered, foreign, library-shaped and incomplete process bundles leave original versions unchanged', t => {
+test('S-56 PCSYNC-01 tampered, foreign, library-shaped and incomplete process bundles leave original versions unchanged', t => {
   const a = fixture(t), b = fixture(t); a.publish(); a.publish(2); const snapshot = a.replication.read('coding-plan:session:1')!;
   const corrupt: ((bundle: PortableProcessItem) => void)[] = [
     value => { value.spaceId = 'space-bob'; }, value => { value.projectId = 'another-project'; },
@@ -83,7 +83,7 @@ test('S-44 PCSYNC-01 tampered, foreign, library-shaped and incomplete process bu
   assert.deepEqual(other.replication.read('coding-plan:session:1')!.versions[0]!.payload, { text: 'different' });
 });
 
-test('S-44 PCSYNC-06 late revocation rolls back imported process versions and their project events', t => {
+test('S-56 PCSYNC-06 late revocation rolls back imported process versions and their project events', t => {
   const a = fixture(t), b = fixture(t); a.publish();
   let calls = 0;
   const denied = createProcessItemReplication(b.borrowed, { ...b.context, authorize() { if (++calls === 4) throw new Error('REVOKED'); } }, b.options);
@@ -109,15 +109,15 @@ test('process journal freezes a per-item prefix and cascading deletion has no nu
   replica.acknowledge(key, first.operationId, 1);
   const second = replica.next()!; assert.equal(second.key, key);
   replica.acknowledge(key, second.operationId, 2);
-  f.db.prepare('DELETE FROM boards WHERE project_id=?').run(f.context.projectId);
+  f.db.prepare('DELETE FROM project_root WHERE project_id=?').run(f.context.projectId);
   const deleted = replica.next()!; assert.equal(deleted.key, key); assert.equal(deleted.value, null);
   replica.acknowledge(key, deleted.operationId, 3); assert.equal(replica.next(), null);
   assert.deepEqual(replica.counts(), { pending: 0, conflicts: 0 });
 });
 
-test('S-44 PCSYNC-01 a process id owned by another project cannot be rebound', t => {
+test('S-56 PCSYNC-01 a process id owned by another project cannot be rebound', t => {
   const a = fixture(t), b = fixture(t); a.publish();
-  b.db.prepare('INSERT INTO boards VALUES (?)').run('another-project');
+  b.db.prepare('INSERT INTO project_root VALUES (?)').run('another-project');
   b.owner.commands.registerVersion({ project_id: 'another-project', artifact_id: 'coding-plan:session:1', version: 1,
     artifact_type_id: 'coding.plan.v1', schema_version: 1, actor_id: 'plugin:coding',
     producer: { plugin_id: 'io.molis.work.coding', plugin_version: '0.3.0', binding_signature: 'official-coding-binding' },
@@ -128,7 +128,7 @@ test('S-44 PCSYNC-01 a process id owned by another project cannot be rebound', t
   assert.deepEqual(b.owner.query.getArtifactVersion('another-project', { artifact_id: 'coding-plan:session:1', version: 1 }), before);
 });
 
-test('S-44 PCSYNC-14 pure validation rejects incomplete bodies before any target project can be created', t => {
+test('S-56 PCSYNC-14 pure validation rejects incomplete bodies before any target project can be created', t => {
   const source = fixture(t); source.publish(); const snapshot = source.replication.read('coding-plan:session:1')!;
   assert.deepEqual(validateProcessItemReplication(snapshot, source.context), snapshot);
   const bad = structuredClone(snapshot); bad.versions[0]!.payload = { tampered: true };

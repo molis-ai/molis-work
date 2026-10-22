@@ -43,7 +43,7 @@ function fixture(t:TestContext,two=false){
   return {home,body,selections,protection,secrets,keyRef,create,db,snapshot,healthy:()=>{fail=false;},selectFirst:()=>{selected=selections.slice(0,1);},get chunks(){return chunks;},get commits(){return commits;},revoke:()=>{active=false;}};
 }
 
-test('S-46 PCSYNC-23 private download parts and deferred events stay sealed and resume after coordinator restart',async t=>{
+test('S-58 PCSYNC-23 private download parts and deferred events stay sealed and resume after coordinator restart',async t=>{
   const f=fixture(t),a=f.create();await a.run();a.close();
   assert.equal(f.chunks,1);assert.equal(f.commits,0);
   const saved=f.snapshot();assert.equal(saved.parts.length,1);assert.equal(saved.failures.length,1);
@@ -57,7 +57,7 @@ test('S-46 PCSYNC-23 private download parts and deferred events stay sealed and 
   assert.deepEqual(f.snapshot().parts,[]);assert.deepEqual(f.snapshot().failures,[]);
 });
 
-test('S-46 PCSYNC-12 missing private-cache key cannot replace data or advance the rejected event',async t=>{
+test('S-58 PCSYNC-12 missing private-cache key cannot replace data or advance the rejected event',async t=>{
   const f=fixture(t),a=f.create();await a.run();a.close();const before=f.snapshot();
   f.secrets.delete(f.keyRef);const sealedSecrets=readFileSync(join(f.home,'feed','secrets.json'));
   f.healthy();const b=f.create();await b.run();assert.match(b.status().error??'',/密钥不可用/);
@@ -65,14 +65,14 @@ test('S-46 PCSYNC-12 missing private-cache key cannot replace data or advance th
   assert.deepEqual(readFileSync(join(f.home,'feed','secrets.json')),sealedSecrets);
 });
 
-test('S-46 PCSYNC-01 dropping the trusted protection port cannot silently reopen the same namespace in plaintext mode',async t=>{
+test('S-58 PCSYNC-01 dropping the trusted protection port cannot silently reopen the same namespace in plaintext mode',async t=>{
   const f=fixture(t),a=f.create();await a.run();a.close();const before=f.snapshot();
   const selection=f.selections[0]!,namespace=syncNamespace(selection);
   const c=f.create(null);await c.run();assert.match(c.status().error??'',/保护配置已变化/);assert.deepEqual(f.snapshot(),before);
   assert.equal(f.db(db=>db.prepare('SELECT protected FROM sync_payload_modes WHERE namespace=?').get(namespace)!.protected),1);
 });
 
-test('S-46 PCSYNC-01 identical blob digests in separate namespaces retain independent protected caches and release only the accepted owner',async t=>{
+test('S-58 PCSYNC-01 identical blob digests in separate namespaces retain independent protected caches and release only the accepted owner',async t=>{
   const f=fixture(t,true),a=f.create();await a.run();a.close();const before=f.snapshot();
   assert.equal(before.parts.length,2);assert.equal(f.chunks,2);
   assert.notDeepEqual(before.parts[0]!.bytes,before.parts[1]!.bytes);
@@ -82,7 +82,7 @@ test('S-46 PCSYNC-01 identical blob digests in separate namespaces retain indepe
   assert.deepEqual(after.parts[0],before.parts.find(row=>row.namespace===other));
 });
 
-test('S-46 PCSYNC-01 cross-namespace cached ciphertext is rejected without redownload or owner writes',async t=>{
+test('S-58 PCSYNC-01 cross-namespace cached ciphertext is rejected without redownload or owner writes',async t=>{
   const f=fixture(t,true),a=f.create();await a.run();a.close();const saved=f.snapshot();
   f.db(c=>c.prepare('UPDATE sync_blob_parts SET bytes=? WHERE namespace=?').run(saved.parts[0]!.bytes,saved.parts[1]!.namespace));
   const before=f.snapshot();f.healthy();const b=f.create();await b.run();assert.match(b.status().error??'',/需要处理/);
@@ -90,7 +90,7 @@ test('S-46 PCSYNC-01 cross-namespace cached ciphertext is rejected without redow
   const other=String(saved.parts[1]!.namespace);assert.deepEqual(f.snapshot().parts,before.parts.filter(row=>row.namespace===other));
 });
 
-test('S-46 PCSYNC-01 transplanted deferred event ciphertext cannot be replayed under another collection',async t=>{
+test('S-58 PCSYNC-01 transplanted deferred event ciphertext cannot be replayed under another collection',async t=>{
   const f=fixture(t,true),a=f.create();await a.run();a.close();const saved=f.snapshot();
   const other=String(saved.failures[1]!.namespace);
   f.db(c=>c.prepare('UPDATE sync_failures SET event=? WHERE namespace=?').run(saved.failures[0]!.event,other));
@@ -100,7 +100,7 @@ test('S-46 PCSYNC-01 transplanted deferred event ciphertext cannot be replayed u
   assert.deepEqual(f.snapshot().parts,before.parts.filter(row=>row.namespace===other));
 });
 
-test('S-46 PCSYNC-23 the protected-data predicate is read-only and does not initialize a new Home',t=>{
+test('S-58 PCSYNC-23 the protected-data predicate is read-only and does not initialize a new Home',t=>{
   const home=mkdtempSync(join(tmpdir(),'sync-protection-predicate-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
   assert.equal(hasProtectedSyncPayloads(home,'private'),false);assert.equal(existsSync(join(home,'sync')),false);
 });

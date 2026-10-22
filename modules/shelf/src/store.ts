@@ -1,19 +1,11 @@
+import { createShelfCatalog } from './catalog.js';
 import {shelfHomeReplica} from './sync-owner.js';
 import { createHash, randomBytes } from "node:crypto";
-import {
-  appendFileSync,
-  chmodSync,
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+// The one remaining direct read: the person's own original file, hashed again before a job (Shelf migration S2 moves it to `materials:original`).
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
+import type { PluginOwnerFilesClient, PluginOwnerFilesReader, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MaterialExtraction } from "@molis-ai/molis-work-contracts/services/materials";
 import type {
   ShelfAdmitFolderInput,
@@ -37,10 +29,11 @@ import type {
   ShelfAiStatus,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { isShelfFailure, readShelfCopy, shelfErrors } from "./errors.js";
-import { prepareShelfTextEdit } from "./text-edit.js";
-import { createShelfCatalog, type CatalogFile, type StoredItem, type ShelfSyncOptions } from "./catalog.js";
+
+import { type CatalogFile, type StoredItem, type ShelfSyncOptions } from "./catalog.js";
+import { createShelfFilesCatalog } from "./files-catalog.js";
 import { shelfFileDigest as sha256 } from './file-hash.js';
-import { shelfPortableHash, stageShelfTextCopy } from './sync-files.js';
+import { shelfPortableHash } from './sync-files.js';
 import { shelfSyncKey } from './sync-shape.js';
 import { markdownFromExtract } from "./extract.js";
 import { OCR_MISSING, ocrLanguages, ocrMarkdown } from "./ocr.js";
@@ -65,6 +58,7 @@ import {
 } from "./settings.js";
 
 export const SHELF_JOB_TIMEOUT_MS = 10 * 60 * 1000;
+
 const SAMPLE_NAME = "试用示例.pdf";
 export const CLIPBOARD_LIMIT = 10;
 const MAX_CLIP_TEXT_BYTES = 256 * 1024;
@@ -101,28 +95,55 @@ function isStaleJob(job: ShelfJobRecord, root: string): boolean {
   return !activeJobs.has(jobKey(root, job.job_id));
 }
 
-function safeInside(root: string, target: string): string {
-  const base = path.resolve(root);
-  const resolved = path.resolve(target);
-  if (resolved !== base && !resolved.startsWith(`${base}${path.sep}`)) {
+/** A stored relative path (`/`-separated) stays under one top-level folder of the shelf and has no empty, `.` or `..` segment. */
+function safeInside(top: "files" | "jobs", relative: string): string {
+  const parts = relative.split("/");
+  if (parts[0] !== top || parts.length < 2 || parts.some((part) => !part || part === "." || part === "..")) {
     throw shelfErrors.path_invalid("删除路径不在架子内");
   }
-  return resolved;
+  return relative;
 }
+
+/** `base/relative` for a relative path kept in the catalog, refusing any segment that could leave `base`. */
+function within(base: string, relative: string): string {
+  if (relative.split("/").some((part) => !part || part === "." || part === "..")) throw shelfErrors.path_invalid("路径不在架子内");
+  return `${base}/${relative}`;
+}
+
+function assertSyncIdle(catalog: CatalogFile, key: string, root: string): void {
+      const identity=shelfSyncKey(key);
+      if(catalog.jobs.some(job=>job.status==='running'&&!isStaleJob(job,root)&&(identity.kind==='job'?job.job_id===identity.id:job.item_ids.includes(identity.id)||job.item_id===identity.id||job.result_item_id===identity.id)))throw shelfErrors.conflict('材料或任务正在使用中，稍后再同步',{sync_waiting:true});
+}
+
+/** Trusted sync binding: no file client or runtime probing is needed to inspect the owner's portable document. */
+export function openShelfReplica(root: string, sync: ShelfSyncOptions) {
+  const catalog = createShelfCatalog(root, sync, (value, key) => assertSyncIdle(value, key, root));
+  if (!catalog.replica) throw shelfErrors.invalid('本地空间未启用置物架同步');
+  return shelfHomeReplica(catalog.replica, catalog.collect);
+}
+
+function shelfId(prefix: string): string {
+  return `${prefix}_${Date.now().toString(36)}_${randomBytes(4).toString("hex")}`;
+}
+
+function requireShelfItem(catalog: CatalogFile, itemId: string): StoredItem {
+    const item = catalog.items.find((entry) => entry.item_id === itemId);
+    if (!item) throw shelfErrors.item_not_found("这份材料不在架子上");
+    return item;
+  }
+
 
 export class ShelfStore {
   private readonly probe: ShelfRuntimeProbe;
-  private readonly catalog: ReturnType<typeof createShelfCatalog>;
+  private readonly catalog: ReturnType<typeof createShelfFilesCatalog>;
 
-  constructor(readonly root: string, probe: ShelfRuntimeProbe = {}, private readonly materials: ShelfMaterialPorts = {}, private readonly ai?: ShelfAiPorts, sync?:ShelfSyncOptions) {
+  /**
+   * Shelf's own data is read and written only through `files`; `root` is the real folder behind it, kept for the snapshot and the one place
+   * an outside tool is handed a path (the frozen job input). The folders are created by the first write that needs them.
+   */
+  constructor(readonly root: string, private readonly files: PluginOwnerFilesClient, probe: ShelfRuntimeProbe = {}, private readonly materials: ShelfMaterialPorts = {}, private readonly ai?: ShelfAiPorts, sync?: ShelfSyncOptions) {
     this.probe = probe;
-    this.catalog = createShelfCatalog(root,sync,(catalog,key)=>{
-      const identity=shelfSyncKey(key);
-      if(catalog.jobs.some(job=>job.status==='running'&&!isStaleJob(job,root)&&(identity.kind==='job'?job.job_id===identity.id:job.item_ids.includes(identity.id)||job.item_id===identity.id||job.result_item_id===identity.id)))
-        throw shelfErrors.conflict('材料或任务正在使用中，稍后再同步',{sync_waiting:true});
-    });
-    mkdirSync(path.join(root, "files"), { recursive: true });
-    mkdirSync(path.join(root, "jobs"), { recursive: true });
+    this.catalog = createShelfFilesCatalog(root, files, sync, (catalog, key) => assertSyncIdle(catalog, key, root));
   }
 
   replica() {
@@ -152,15 +173,15 @@ export class ShelfStore {
     return normalizeSettings(this.catalog.read().settings);
   }
 
-  saveSettings(patch: ShelfSettingsPatch): ShelfDeviceSettings {
-    this.catalog.update((catalog) => {
+  async saveSettings(patch: ShelfSettingsPatch): Promise<ShelfDeviceSettings> {
+    await this.update((catalog) => {
       catalog.settings = normalizeSettings(mergeShelfSettings(normalizeSettings(catalog.settings), patch));
     });
     return this.settings();
   }
 
-  snapshot(): ShelfSnapshot {
-    const catalog = this.ensureSample(this.catalog.read());
+  async snapshot(): Promise<ShelfSnapshot> {
+    const catalog = await this.ensureSample(this.readCatalog());
     const visible = (group: StoredItem["group"]) =>
       catalog.items.filter((item) => item.group === group && !item.hidden).map(publicItem);
     const settings = normalizeSettings(catalog.settings);
@@ -197,35 +218,41 @@ export class ShelfStore {
     return this.admit(input, preview);
   }
 
-  /** Synchronous storage for copies whose derived preview has already been prepared. */
-  admit(input: ShelfAdmitInput, preparedPreview?: string | null): ShelfItemRecord {
-    // A retry returns the existing copy, preserving any user edits. Hidden copies
-    // can be explicitly received again; deleted copies are new admissions.
-    if (input.artifact_source) {
-      const source = input.artifact_source;
-      const original = this.catalog.read().items.find(item => item.artifact_source?.project_id === source.project_id
-        && item.artifact_source.reference.artifact_id === source.reference.artifact_id
-        && item.artifact_source.reference.version === source.reference.version);
-      if (original) {
-        if (original.artifact_source!.content_hash !== source.content_hash) throw shelfErrors.source_conflict("同一成果版本的内容不一致，未覆盖已有副本");
-        if (!existsSync(this.absolute(original))) throw shelfErrors.missing_output("原接收副本已不可读，请先在 Shelf 核对处理");
-        if (original.hidden) this.catalog.update(catalog => { this.requireItem(catalog, original.item_id).hidden = false; });
-        return publicItem({ ...original, hidden: false });
+  /** Stores a copy whose derived preview has already been prepared. The check, the file and the catalog row land in one write. */
+  async admit(input: ShelfAdmitInput, preparedPreview?: string | null): Promise<ShelfItemRecord> {
+    return this.files.write((writer) => {
+      const catalog = this.catalogFrom(writer);
+      // A retry returns the existing copy, preserving any user edits. Hidden copies
+      // can be explicitly received again; deleted copies are new admissions.
+      if (input.artifact_source) {
+        const source = input.artifact_source;
+        const original = catalog.items.find(item => item.artifact_source?.project_id === source.project_id
+          && item.artifact_source.project_path === source.project_path
+          && item.artifact_source.reference.artifact_id === source.reference.artifact_id
+          && item.artifact_source.reference.version === source.reference.version);
+        if (original) {
+          if (original.artifact_source!.content_hash !== source.content_hash) throw shelfErrors.source_conflict("同一成果版本的内容不一致，未覆盖已有副本");
+          if (!writer.stat(original.relative_path)) throw shelfErrors.missing_output("原接收副本已不可读，请先在 Shelf 核对处理");
+          if (original.hidden) {
+            original.hidden = false;
+            this.catalog.save(writer, catalog);
+          }
+          return publicItem({ ...original, hidden: false });
+        }
       }
-    }
-    const filename = safeFilename(input.filename);
-    const bytes = Buffer.from(input.bytes);
-    if (!bytes.byteLength) throw shelfErrors.empty_file("没有可加入的文件内容");
-    if (bytes.byteLength > 32 * 1024 * 1024) throw shelfErrors.too_large("文件超过 32 MB");
+      const bytes = Buffer.from(input.bytes);
+      if (!bytes.byteLength) throw shelfErrors.empty_file("没有可加入的文件内容");
+      if (bytes.byteLength > 32 * 1024 * 1024) throw shelfErrors.too_large("文件超过 32 MB");
+      return publicItem(this.shelve(writer, catalog, input, safeFilename(input.filename), bytes, preparedPreview));
+    });
+  }
+
+  /** Writes the copy and puts its row first in the catalog, saved by the same write. */
+  private shelve(writer: PluginOwnerFilesWriter, catalog: CatalogFile, input: ShelfAdmitInput, filename: string, bytes: Buffer, preparedPreview?: string | null): StoredItem {
     const kind = classify(filename, input.mime ?? "");
-    const itemId = this.id("item");
-    const relative = path.join("files", itemId, filename);
-    const abs = path.join(this.root, relative);
-    mkdirSync(path.dirname(abs), { recursive: true });
-    writeFileSync(abs, bytes);
-    const originHash = sha256(bytes);
-    const originRealpath = input.origin_realpath ? path.resolve(input.origin_realpath) : null;
-    const preview = preparedPreview ?? previewFor(kind, bytes);
+    const itemId = shelfId("item");
+    const relative = `files/${itemId}/${filename}`;
+    writer.writeFile(relative, bytes, "create");
     const item: StoredItem = {
       item_id: itemId,
       ...(input.artifact_source ? { artifact_source: structuredClone(input.artifact_source) } : {}),
@@ -235,31 +262,30 @@ export class ShelfStore {
       relative_path: relative,
       mime: input.mime || mimeFor(kind, filename),
       size_bytes: bytes.byteLength,
-      origin_hash: originHash,
-      copy_hash: originHash,
+      origin_hash: sha256(bytes),
+      copy_hash: sha256(bytes),
       hidden: false,
       created_at: now(),
       source_item_id: null,
       source_item_ids: [],
       job_id: null,
-      preview_text: preview,
+      preview_text: preparedPreview ?? previewFor(kind, bytes),
       status: "done",
       failure_reason: null,
       children: [],
-      origin_realpath: originRealpath,
+      origin_realpath: input.origin_realpath ? path.resolve(input.origin_realpath) : null,
     };
-    this.catalog.update((catalog) => {
-      catalog.items.unshift(item);
-      catalog.seeded_sample = true;
-    });
-    return publicItem(item);
+    catalog.items.unshift(item);
+    catalog.seeded_sample = true;
+    this.catalog.save(writer, catalog);
+    return item;
   }
 
   /**
    * A folder comes in whole: every file keeps its place under one shelf item.
    * The directory shows the children inline, never a second file browser.
    */
-  admitFolder(input: ShelfAdmitFolderInput): ShelfItemRecord {
+  async admitFolder(input: ShelfAdmitFolderInput): Promise<ShelfItemRecord> {
     const folderName = safeFilename(input.name);
     const entries = input.entries
       .map((entry) => ({ ...entry, relative: safeRelative(entry.relative) }))
@@ -267,62 +293,58 @@ export class ShelfStore {
     if (!entries.length) throw shelfErrors.empty_file("这个文件夹里没有可以加入的文件");
     const total = entries.reduce((sum, entry) => sum + entry.bytes.byteLength, 0);
     if (total > 64 * 1024 * 1024) throw shelfErrors.too_large("这个文件夹超过 64 MB");
-    const itemId = this.id("item");
-    const relative = path.join("files", itemId, folderName);
-    const root = path.join(this.root, relative);
-    const children: ShelfFolderChild[] = [];
-    const digest = createHash("sha256");
-    for (const entry of entries) {
-      const target = path.join(root, entry.relative);
-      if (!target.startsWith(`${root}${path.sep}`)) throw shelfErrors.path_invalid("文件夹里有越界的路径");
-      mkdirSync(path.dirname(target), { recursive: true });
-      const bytes = Buffer.from(entry.bytes);
-      writeFileSync(target, bytes);
-      digest.update(`${entry.relative}:${sha256(bytes)}\n`);
-      children.push({
-        relative: entry.relative,
-        name: path.basename(entry.relative),
-        kind: classify(entry.relative, entry.mime ?? ""),
-        size_bytes: bytes.byteLength,
-      });
-    }
-    const item: StoredItem = {
-      item_id: itemId,
-      group: "material",
-      kind: "folder",
-      name: folderName,
-      relative_path: relative,
-      mime: "inode/directory",
-      size_bytes: total,
-      origin_hash: digest.digest("hex"),
-      copy_hash: shelfPortableHash({kind:'folder'},entries.map(entry=>({relative:entry.relative,digest:sha256(entry.bytes),size:entry.bytes.byteLength,data:''}))),
-      hidden: false,
-      created_at: now(),
-      source_item_id: null,
-      source_item_ids: [],
-      job_id: null,
-      preview_text: null,
-      status: "done",
-      failure_reason: null,
-      children,
-      origin_realpath: input.origin_realpath ? path.resolve(input.origin_realpath) : null,
-    };
-    this.catalog.update((catalog) => {
+    const itemId = shelfId("item");
+    const relative = `files/${itemId}/${folderName}`;
+    return this.files.write((writer) => {
+      const children: ShelfFolderChild[] = [];
+      const digest = createHash("sha256");
+      for (const entry of entries) {
+        const bytes = Buffer.from(entry.bytes);
+        writer.replaceFileAtomic(within(relative, entry.relative), bytes);
+        digest.update(`${entry.relative}:${sha256(bytes)}\n`);
+        children.push({
+          relative: entry.relative,
+          name: path.basename(entry.relative),
+          kind: classify(entry.relative, entry.mime ?? ""),
+          size_bytes: bytes.byteLength,
+        });
+      }
+      const item: StoredItem = {
+        item_id: itemId,
+        group: "material",
+        kind: "folder",
+        name: folderName,
+        relative_path: relative,
+        mime: "inode/directory",
+        size_bytes: total,
+        origin_hash: digest.digest("hex"),
+        copy_hash: shelfPortableHash({kind:'folder'},entries.map(entry=>({relative:entry.relative,digest:sha256(entry.bytes),size:entry.bytes.byteLength,data:''}))),
+        hidden: false,
+        created_at: now(),
+        source_item_id: null,
+        source_item_ids: [],
+        job_id: null,
+        preview_text: null,
+        status: "done",
+        failure_reason: null,
+        children,
+        origin_realpath: input.origin_realpath ? path.resolve(input.origin_realpath) : null,
+      };
+      const catalog = this.catalogFrom(writer);
       catalog.items.unshift(item);
       catalog.seeded_sample = true;
+      this.catalog.save(writer, catalog);
+      return publicItem(item);
     });
-    return publicItem(item);
   }
 
   /** Read one file inside a staged folder. */
   readChild(itemId: string, relative: string): { name: string; mime: string; bytes: Buffer } {
-    const item = this.requireItem(this.catalog.read(), itemId);
+    const item = requireShelfItem(this.catalog.read(), itemId);
     if (item.kind !== "folder") throw shelfErrors.item_not_found("这不是一个文件夹");
     const child = item.children.find((entry) => entry.relative === relative);
     if (!child) throw shelfErrors.item_not_found("这个文件不在这个文件夹里");
-    const root = path.join(this.root, item.relative_path);
-    const file = safeInside(root, path.join(root, child.relative));
-    return { name: child.name, mime: mimeFor(child.kind, child.name), bytes: readFileSync(file) };
+    return { name: child.name, mime: mimeFor(child.kind, child.name), bytes: readShelfCopy(this.files, within(item.relative_path, child.relative)) };
   }
 
   /**
@@ -368,48 +390,43 @@ export class ShelfStore {
     });
   }
 
-  seedSample(): ShelfItemRecord {
-    const catalog = this.catalog.read();
-    const existing = catalog.items.find((item) => item.name === SAMPLE_NAME && item.group === "material" && !item.hidden);
-    if (existing) return publicItem(existing);
-    const item = this.admit({
-      filename: SAMPLE_NAME,
-      bytes: createExtractablePdf(SAMPLE_PDF_TEXT),
-      mime: "application/pdf",
-    }, SAMPLE_PDF_TEXT);
-    this.catalog.update((next) => {
-      next.seeded_sample = true;
+  async seedSample(): Promise<ShelfItemRecord> {
+    const bytes = Buffer.from(createExtractablePdf(SAMPLE_PDF_TEXT));
+    return this.files.write((writer) => {
+      const catalog = this.catalogFrom(writer);
+      const existing = catalog.items.find((item) => item.name === SAMPLE_NAME && item.group === "material" && !item.hidden);
+      if (existing) return publicItem(existing);
+      return publicItem(this.shelve(writer, catalog, { filename: SAMPLE_NAME, bytes, mime: "application/pdf" }, SAMPLE_NAME, bytes, SAMPLE_PDF_TEXT));
     });
-    return item;
   }
 
-  hide(itemId: string): void {
-    this.catalog.update((catalog) => {
-      const item = this.requireItem(catalog, itemId);
+  async hide(itemId: string): Promise<void> {
+    await this.update((catalog) => {
+      const item = requireShelfItem(catalog, itemId);
       assertNotBusy(catalog, itemId, this.root);
       item.hidden = true;
     });
   }
 
-  deleteCopy(itemId: string): void {
-    const catalog = this.catalog.read();
-    const item = this.requireItem(catalog, itemId);
-    assertNotBusy(catalog, item.item_id, this.root);
-    const copyDir = item.relative_path
-      ? safeInside(path.join(this.root, "files"), path.join(this.root, "files", item.item_id))
-      : null;
-    const jobDir = item.job_id
-      ? safeInside(path.join(this.root, "jobs"), path.join(this.root, "jobs", item.job_id))
-      : null;
-    this.catalog.update((next) => {
-      next.items = next.items.filter((entry) => entry.item_id !== itemId);
+  async deleteCopy(itemId: string): Promise<void> {
+    await this.files.write((writer) => {
+      const catalog = this.catalogFrom(writer);
+      const item = requireShelfItem(catalog, itemId);
+      assertNotBusy(catalog, item.item_id, this.root);
+      const copyDir = item.relative_path ? safeInside("files", path.posix.dirname(item.relative_path)) : null;
+      const jobDir = item.job_id ? safeInside("jobs", `jobs/${item.job_id}`) : null;
+      catalog.items = catalog.items.filter((entry) => entry.item_id !== itemId);
+      this.catalog.save(writer, catalog);
+      if (this.catalog.replica) {
+        try { this.catalog.collect?.(); } catch { /* Retry bounded cleanup later; the deletion CAS retained original bytes. */ }
+        return;
+      }
+      if (copyDir) writer.removeTree(copyDir);
+      if (jobDir && writer.stat(jobDir)) {
+        thawTree(writer, jobDir);
+        writer.removeTree(jobDir);
+      }
     });
-    if(this.catalog.collect){try{this.catalog.collect();}catch{/* A later bounded owner pass retries cleanup; original bytes are already preserved. */}return;}
-    if (copyDir) rmSync(copyDir, { recursive: true, force: true });
-    if (jobDir && existsSync(jobDir)) {
-      thawTree(jobDir);
-      rmSync(jobDir, { recursive: true, force: true });
-    }
   }
 
   /**
@@ -432,7 +449,7 @@ export class ShelfStore {
     const itemIds = input.item_ids?.length ? [...input.item_ids] : input.item_id ? [input.item_id] : [];
     if (!itemIds.length) throw shelfErrors.empty_selection("请先选择一份材料");
     const catalog = this.catalog.read();
-    const items = itemIds.map((id) => this.requireItem(catalog, id));
+    const items = itemIds.map((id) => requireShelfItem(catalog, id));
     for (const item of items) {
       if (item.group !== "material" || item.hidden) throw shelfErrors.item_not_found("请先选择一份材料");
       if (!accepts.includes(item.kind)) {
@@ -454,38 +471,16 @@ export class ShelfStore {
       copyHashes.set(item.item_id, this.contentHash(item));
     }
 
-    const jobId = this.id("job");
-    const jobRoot = path.join(this.root, "jobs", jobId);
-    const inputDir = path.join(jobRoot, "input");
-    const outputDir = path.join(jobRoot, "output");
-    mkdirSync(inputDir, { recursive: true });
-    mkdirSync(outputDir, { recursive: true });
-    const workNames: string[] = [];
-    for (const item of items) {
-      const source = this.absolute(item);
-      const name = uniqueName(inputDir, item.name);
-      if (item.kind === "folder") {
-        copyTree(source, path.join(inputDir, name));
-      } else {
-        copyFileSync(source, path.join(inputDir, name));
-      }
-      workNames.push(name);
-    }
-    freezeReadOnly(inputDir);
-    appendEvent(jobRoot, "复制到只读 input/");
-    writeFileSync(path.join(jobRoot, "manifest.json"), `${JSON.stringify({
-      id: jobId,
-      recipe: spec.recipe,
-      action: actionName,
-      agent: spec.requires_agent ? "prologue" : localActor(items[0].kind),
-      isolation: spec.requires_agent ? "model-input-only" : "none",
-      items: items.map((item) => ({ id: item.item_id, title: item.name, checksum: item.origin_hash })),
-    }, null, 2)}\n`);
-
+    const jobId = shelfId("job");
+    const jobRoot = `jobs/${jobId}`;
+    const inputRoot = `${jobRoot}/input`;
+    const outputRoot = `${jobRoot}/output`;
+    // The one real path an outside tool is handed: the model reads the frozen copies in this folder.
+    const inputDir = path.join(this.root, "jobs", jobId, "input");
     const outputName = shortcut
       ? shortcutOutputName(items[0].name, shortcut.name)
       : shelfRecipeOutputName(spec.recipe, items[0].kind, optionId);
-    const outputFile = path.join(outputDir, outputName);
+    const outputFile = `${outputRoot}/${outputName}`;
     const createdAt = now();
     const running: ShelfJobRecord = {
       job_id: jobId,
@@ -501,8 +496,29 @@ export class ShelfStore {
       created_at: createdAt,
       finished_at: null,
     };
-    this.catalog.update((next) => {
-      next.jobs.unshift(running);
+    const workNames: string[] = [];
+    await this.files.write((writer) => {
+      writer.mkdir(inputRoot);
+      writer.mkdir(outputRoot);
+      for (const item of items) {
+        const name = uniqueName(item.name, (candidate) => writer.stat(`${inputRoot}/${candidate}`) !== null);
+        if (item.kind === "folder") copyTree(writer, item.relative_path, `${inputRoot}/${name}`);
+        else writer.copyFile(item.relative_path, `${inputRoot}/${name}`);
+        workNames.push(name);
+      }
+      freezeReadOnly(writer, inputRoot);
+      appendEvent(writer, jobRoot, "复制到只读 input/");
+      writer.replaceFileAtomic(`${jobRoot}/manifest.json`, Buffer.from(`${JSON.stringify({
+        id: jobId,
+        recipe: spec.recipe,
+        action: actionName,
+        agent: spec.requires_agent ? "prologue" : localActor(items[0].kind),
+        isolation: spec.requires_agent ? "model-input-only" : "none",
+        items: items.map((item) => ({ id: item.item_id, title: item.name, checksum: item.origin_hash })),
+      }, null, 2)}\n`));
+      const catalog = this.catalogFrom(writer);
+      catalog.jobs.unshift(running);
+      this.catalog.save(writer, catalog);
     });
 
     const controller = new AbortController(), key = jobKey(this.root, jobId);
@@ -517,11 +533,11 @@ export class ShelfStore {
       }
       if (current.jobs.find(job => job.job_id === jobId)?.status !== "running") throw shelfErrors.cancelled("任务已取消");
       for (const [index, item] of items.entries()) {
-        const latest = this.requireItem(current, item.item_id);
+        const latest = requireShelfItem(current, item.item_id);
         if (latest.hidden || latest.relative_path !== item.relative_path) throw shelfErrors.item_not_found("材料已收起或改变，未保存结果");
         this.assertOriginUntouched(latest);
         if (this.contentHash(latest) !== copyHashes.get(item.item_id)
-          || this.contentHash(item, path.join(inputDir, workNames[index])) !== copyHashes.get(item.item_id)) throw shelfErrors.hash_changed("架子上的副本 Hash 已变化，已停止写入");
+          || this.contentHash(item, `${inputRoot}/${workNames[index]}`) !== copyHashes.get(item.item_id)) throw shelfErrors.hash_changed("架子上的副本 Hash 已变化，已停止写入");
       }
     };
     let validateResult: (() => void) | undefined;
@@ -534,6 +550,7 @@ export class ShelfStore {
     let materialCoverage: readonly string[] | undefined;
     try {
       await beforeCommit();
+      let output: string;
       if (spec.requires_agent) {
         const result = await lifetime.wait(this.ai!.generate({ recipe: spec.recipe as Exclude<ShelfRecipeId, "extract_text">,
           option_id: optionId, ...(shortcut ? { shortcut_prompt: shortcut.prompt } : {}), selection: ai.selected!, root: inputDir,
@@ -543,12 +560,12 @@ export class ShelfStore {
         execution = result.execution;
         materialCoverage = result.coverage;
         await beforeCommit();
-        writeFileSync(outputFile, result.text);
+        output = result.text;
       } else {
         const parts: string[] = [];
         for (const [index, item] of items.entries()) {
           const sourceName = item.kind === "pdf" ? "source.pdf" : path.extname(item.name) ? item.name : `source.${item.mime.slice("image/".length)}`;
-          const extracted = await this.materials.extract!({ file_name: sourceName, bytes: readFileSync(path.join(inputDir, workNames[index])) },
+          const extracted = await this.materials.extract!({ file_name: sourceName, bytes: readShelfCopy(this.files, `${inputRoot}/${workNames[index]}`) },
             { signal: lifetime.signal, pdfMode: "text", ...(item.kind === "image" ? { ocrLanguages: ocrLanguages(optionId) } : {}),
               timeoutMs: 60_000, limits: { maxBytes: 32 * 1024 * 1024 } });
           await beforeCommit();
@@ -557,12 +574,14 @@ export class ShelfStore {
             lines: extracted.pages.flatMap(page => page.lines ?? (page.text ? [{ text: page.text, confidence: null }] : [])) }]) + extractionNote(extracted) : extractionText(extracted);
           parts.push(items.length > 1 ? `## ${item.name}\n\n${body}` : item.kind === "image" ? body : markdownFromExtract(item.name, body));
         }
-        writeFileSync(outputFile, parts.join("\n\n"));
+        output = parts.join("\n\n");
       }
-      appendEvent(jobRoot, "写入 output/");
-
-      unlockDirectories(inputDir);
-      const result = this.storeResult({
+      await this.files.write((writer) => {
+        writer.replaceFileAtomic(outputFile, Buffer.from(output));
+        appendEvent(writer, jobRoot, "写入 output/");
+        unlockDirectories(writer, inputRoot);
+      });
+      const result = await this.storeResult({
         outputFile,
         outputName,
         jobId,
@@ -578,12 +597,10 @@ export class ShelfStore {
         result_item_id: result.item_id,
         finished_at: now(),
       };
-      this.catalog.update((next) => {
-        next.jobs = next.jobs.map((job) => job.job_id === jobId ? finished : job);
-      });
+      await this.update((next) => { next.jobs = next.jobs.map((job) => job.job_id === jobId ? finished : job); });
       return { job: finished, result, origin_hash: items[0].origin_hash };
     } catch (error) {
-      unlockDirectories(inputDir);
+      await this.unlock(inputRoot);
       await beforeCommit();
       if (isShelfFailure(error) && error.code === "shelf.configuration_changed") throw error;
       const cancelled = isShelfFailure(error) && error.code === "shelf.cancelled";
@@ -595,12 +612,10 @@ export class ShelfStore {
         error: cancelled ? null : reason,
         finished_at: now(),
       };
-      this.catalog.update((next) => {
-        next.jobs = next.jobs.map((job) => job.job_id === jobId ? closed : job);
-      });
+      await this.update((next) => { next.jobs = next.jobs.map((job) => job.job_id === jobId ? closed : job); });
       // A cancel leaves the shelf as it was; a failure leaves a row saying why.
       if (!cancelled) {
-        this.storeResult({
+        await this.storeResult({
           outputFile: null,
           outputName,
           jobId,
@@ -613,8 +628,13 @@ export class ShelfStore {
     } finally {
       activeJobs.delete(key);
       lifetime.dispose();
-      unlockDirectories(inputDir);
+      await this.unlock(inputRoot);
     }
+  }
+
+  /** Puts the job's copied inputs back to writable folders, so cleanup later can remove them. */
+  private unlock(inputRoot: string): Promise<void> {
+    return this.files.write((writer) => { unlockDirectories(writer, inputRoot); });
   }
 
   private requireRecipe(recipe: ShelfRecipeId) {
@@ -637,104 +657,110 @@ export class ShelfStore {
     status: "done" | "failed";
     failureReason?: string | null;
     coverage?: readonly string[];
-  }): ShelfItemRecord {
-    const taken = this.catalog.read().items.filter((item) => item.group === "result").map((item) => item.name);
-    const name = uniqueTitle(options.outputName, taken);
-    const resultId = this.id("item");
-    const kind = resultKind(name);
-    let relative = "";
-    let bytes: Buffer | null = null;
-    if (options.outputFile && existsSync(options.outputFile)) {
-      relative = path.join("files", resultId, name);
-      const absolute = path.join(this.root, relative);
-      mkdirSync(path.dirname(absolute), { recursive: true });
-      copyFileSync(options.outputFile, absolute);
-      bytes = readFileSync(absolute);
-    }
-    const result: StoredItem = {
-      item_id: resultId,
-      group: "result",
-      kind,
-      name,
-      relative_path: relative,
-      mime: resultMime(name),
-      size_bytes: bytes?.byteLength ?? 0,
-      origin_hash: bytes ? sha256(bytes) : "",
-      copy_hash: bytes ? sha256(bytes) : "",
-      hidden: false,
-      created_at: now(),
-      source_item_id: options.sourceItemIds[0] ?? null,
-      source_item_ids: [...options.sourceItemIds],
-      job_id: options.jobId,
-      preview_text: bytes ? previewFor(kind, bytes) : null,
-      children: [],
-      status: options.status,
-      failure_reason: options.failureReason ?? null,
-      ...(options.coverage?.length ? { material_coverage: options.coverage } : {}),
-      origin_realpath: null,
-    };
-    this.catalog.update((next) => {
-      next.items.unshift(result);
+  }): Promise<ShelfItemRecord> {
+    return this.files.write((writer) => {
+      const catalog = this.catalogFrom(writer);
+      const taken = catalog.items.filter((item) => item.group === "result").map((item) => item.name);
+      const name = uniqueTitle(options.outputName, taken);
+      const resultId = shelfId("item");
+      const kind = resultKind(name);
+      let relative = "";
+      let bytes: Buffer | null = null;
+      if (options.outputFile && writer.stat(options.outputFile)) {
+        relative = `files/${resultId}/${name}`;
+        writer.copyFile(options.outputFile, relative);
+        bytes = readShelfCopy(writer, relative);
+      }
+      const result: StoredItem = {
+        item_id: resultId,
+        group: "result",
+        kind,
+        name,
+        relative_path: relative,
+        mime: resultMime(name),
+        size_bytes: bytes?.byteLength ?? 0,
+        origin_hash: bytes ? sha256(bytes) : "",
+        copy_hash: bytes ? sha256(bytes) : "",
+        hidden: false,
+        created_at: now(),
+        source_item_id: options.sourceItemIds[0] ?? null,
+        source_item_ids: [...options.sourceItemIds],
+        job_id: options.jobId,
+        preview_text: bytes ? previewFor(kind, bytes) : null,
+        children: [],
+        status: options.status,
+        failure_reason: options.failureReason ?? null,
+        ...(options.coverage?.length ? { material_coverage: options.coverage } : {}),
+        origin_realpath: null,
+      };
+      catalog.items.unshift(result);
+      this.catalog.save(writer, catalog);
+      return publicItem(result);
     });
-    return publicItem(result);
   }
 
   /** Stop a run from another request; the materials stay, no result is filed. */
-  cancelJob(jobId: string): ShelfJobRecord {
-    const catalog = this.catalog.read();
-    const job = catalog.jobs.find((entry) => entry.job_id === jobId);
+  async cancelJob(jobId: string): Promise<ShelfJobRecord> {
+    const job = this.readCatalog().jobs.find((entry) => entry.job_id === jobId);
     if (!job) throw shelfErrors.item_not_found("这个任务不存在");
     if (job.status !== "running") return job;
     activeJobs.get(jobKey(this.root, jobId))?.abort(shelfErrors.cancelled("任务已取消"));
-    const cancelled: ShelfJobRecord = { ...job, status: "cancelled", finished_at: now() };
-    this.catalog.update((next) => {
-      next.jobs = next.jobs.map((entry) => entry.job_id === jobId ? cancelled : entry);
+    // Decided on the row the write finds: a run that finished in the meantime keeps its own record.
+    return this.files.write((writer) => {
+      const catalog = this.catalogFrom(writer);
+      const live = catalog.jobs.find((entry) => entry.job_id === jobId);
+      if (!live) throw shelfErrors.item_not_found("这个任务不存在");
+      if (live.status !== "running") return live;
+      const cancelled: ShelfJobRecord = { ...live, status: "cancelled", finished_at: now() };
+      catalog.jobs = catalog.jobs.map((entry) => entry.job_id === jobId ? cancelled : entry);
+      this.catalog.save(writer, catalog);
+      return cancelled;
     });
-    return cancelled;
   }
 
-  writeCopy(itemId: string, text: string, expectedContentHash: string): ShelfItemRecord {
-    const catalog = this.catalog.read();
-    const item = this.requireItem(catalog, itemId);
-    if (item.hidden) throw shelfErrors.item_not_found("这份材料不在架子上");
-    if (!isEditableShelfItem(item)) throw shelfErrors.not_text("这份材料不能编辑");
-    const abs = this.absolute(item);
-    const bytes = prepareShelfTextEdit(abs, text, expectedContentHash);
-    const staged=stageShelfTextCopy(this.root,item.item_id,item.name,bytes);
-    this.catalog.update((next) => {
-      const live = this.requireItem(next, itemId);
-      if(live.hidden||live.relative_path!==item.relative_path||live.copy_hash!==item.copy_hash)throw shelfErrors.conflict('副本已变化，未提交旧修改');
-      prepareShelfTextEdit(this.absolute(live),text,expectedContentHash);
-      live.relative_path=staged.relative;
-      live.copy_hash=staged.digest;
-      live.size_bytes = bytes.byteLength;
-      live.preview_text = previewFor(live.kind, bytes);
+  async writeCopy(itemId: string, text: string, expectedContentHash: string): Promise<ShelfItemRecord> {
+    return this.files.write((writer) => {
+      const catalog = this.catalogFrom(writer);
+      const item = requireShelfItem(catalog, itemId);
+      if (item.hidden) throw shelfErrors.item_not_found("这份材料不在架子上");
+      if (!isEditableShelfItem(item)) throw shelfErrors.not_text("这份材料不能编辑");
+      if (text.includes("\0")) throw shelfErrors.not_text("这份材料不能编辑");
+      const bytes = Buffer.from(text, "utf8");
+      if (bytes.byteLength > MAX_EDIT_BYTES) throw shelfErrors.too_large("文件超过 512 KB");
+      if (!item.relative_path) throw shelfErrors.missing_output("这次没有生成文件");
+      if (!/^[a-f0-9]{64}$/.test(expectedContentHash) || sha256(readShelfCopy(writer,item.relative_path))!==expectedContentHash)throw shelfErrors.conflict('副本已变化，请保留输入并重新读取后编辑');
+      const digest=sha256(bytes),relative=`files/${item.item_id}/versions/${digest}/${item.name}`;
+      if(writer.stat(relative)){if(sha256(readShelfCopy(writer,relative))!==digest)throw shelfErrors.invalid_file('已有副本字节不符');}
+      else {writer.mkdir(path.posix.dirname(relative));writer.writeFile(relative,bytes,'create');}
+      item.relative_path=relative;item.copy_hash=digest;
+      item.size_bytes = bytes.byteLength;
+      item.preview_text = previewFor(item.kind, bytes);
+      this.catalog.save(writer, catalog);
+      return publicItem(item);
     });
-    return publicItem(this.requireItem(this.catalog.read(), itemId));
   }
 
-  useAsMaterial(itemId: string): ShelfItemRecord {
-    const catalog = this.catalog.read();
-    const item = this.requireItem(catalog, itemId);
+  async useAsMaterial(itemId: string): Promise<ShelfItemRecord> {
+    const item = requireShelfItem(this.readCatalog(), itemId);
     if (item.group !== "result") throw shelfErrors.not_result("只有生成结果可以再用作材料");
     if (!item.relative_path) throw shelfErrors.missing_output("这次没有生成文件");
-    const bytes = readFileSync(this.absolute(item));
+    const bytes = readShelfCopy(this.files, item.relative_path);
     return this.admit({ filename: item.name, bytes, mime: item.mime }, item.preview_text);
   }
 
-  addClipboard(
+  async addClipboard(
     body: string,
     options: { concealed?: boolean; types?: readonly string[] } = {},
-  ): ShelfClipboardRecord | null {
+  ): Promise<ShelfClipboardRecord | null> {
     if (options.concealed || isConcealedClipboard(options.types ?? [])) {
-      this.catalog.update((catalog) => {
+      await this.update((catalog) => {
         catalog.current_clip_id = null;
       });
       return null;
     }
     const text = clipText(body);
     if (!text || isFileUrl(text)) {
-      this.catalog.update((catalog) => {
+      await this.update((catalog) => {
         catalog.current_clip_id = null;
       });
       return null;
@@ -743,7 +769,7 @@ export class ShelfStore {
     const fingerprint = clipFingerprint(kind, text);
     const title = clipTitleFor(kind, text);
     let recorded: ShelfClipboardRecord | null = null;
-    this.catalog.update((catalog) => {
+    await this.update((catalog) => {
       const existing = catalog.clipboard.find((entry) => entry.fingerprint === fingerprint);
       if (existing) {
         const moved: ShelfClipboardRecord = {
@@ -760,7 +786,7 @@ export class ShelfStore {
         return;
       }
       const clip: ShelfClipboardRecord = {
-        clip_id: this.id("clip"),
+        clip_id: shelfId("clip"),
         kind,
         title,
         body: text,
@@ -775,8 +801,8 @@ export class ShelfStore {
     return recorded;
   }
 
-  deleteClipboard(clipId: string): void {
-    this.catalog.update((catalog) => {
+  async deleteClipboard(clipId: string): Promise<void> {
+    await this.update((catalog) => {
       const exists = catalog.clipboard.some((entry) => entry.clip_id === clipId);
       if (!exists) throw shelfErrors.item_not_found("这条剪贴板不存在");
       catalog.clipboard = catalog.clipboard.filter((entry) => entry.clip_id !== clipId);
@@ -795,32 +821,32 @@ export class ShelfStore {
   }
 
   readFile(itemId: string): { item: ShelfItemRecord; bytes: Buffer } {
-    const item = this.requireItem(this.catalog.read(), itemId);
+    const item = requireShelfItem(this.catalog.read(), itemId);
     if (!item.relative_path) throw shelfErrors.missing_output("这次没有生成文件");
-    return { item: publicItem(item), bytes: readShelfCopy(this.absolute(item)) };
+    return { item: publicItem(item), bytes: readShelfCopy(this.files, item.relative_path) };
   }
 
-  private ensureSample(catalog: CatalogFile): CatalogFile {
+  private async ensureSample(catalog: CatalogFile): Promise<CatalogFile> {
     if (catalog.seeded_sample || catalog.items.length > 0) {
       return catalog;
     }
-    this.seedSample();
-    return this.catalog.read();
+    await this.seedSample();
+    return this.readCatalog();
   }
 
   /** A file hashes its bytes; a folder hashes every path and file under it. */
-  private contentHash(item: StoredItem, absolute = this.absolute(item)): string {
-    if (item.kind !== "folder") return sha256(readFileSync(absolute));
+  private contentHash(item: StoredItem, relative = item.relative_path): string {
+    if (item.kind !== "folder") return sha256(readShelfCopy(this.files, relative));
     const digest = createHash("sha256");
     const walk = (directory: string, prefix: string): void => {
-      for (const entry of readdirSync(directory).sort()) {
-        const full = path.join(directory, entry);
-        const relative = prefix ? `${prefix}/${entry}` : entry;
-        if (statSync(full).isDirectory()) walk(full, relative);
-        else digest.update(`${relative}:${sha256(readFileSync(full))}\n`);
+      for (const entry of this.files.list(directory)) {
+        const full = `${directory}/${entry.name}`;
+        const nested = prefix ? `${prefix}/${entry.name}` : entry.name;
+        if (entry.kind === "directory") walk(full, nested);
+        else digest.update(`${nested}:${sha256(readShelfCopy(this.files, full))}\n`);
       }
     };
-    walk(absolute, "");
+    walk(relative, "");
     return digest.digest("hex");
   }
 
@@ -832,23 +858,30 @@ export class ShelfStore {
     }
   }
 
-  private requireItem(catalog: CatalogFile, itemId: string): StoredItem {
-    const item = catalog.items.find((entry) => entry.item_id === itemId);
-    if (!item) throw shelfErrors.item_not_found("这份材料不在架子上");
-    return item;
+
+  /** The catalog as the reader sees it now; a missing file is an empty shelf. */
+  private catalogFrom(reader: PluginOwnerFilesReader): CatalogFile {
+    return this.catalog.read(reader);
   }
 
-  private absolute(item: StoredItem): string {
-    return path.join(this.root, item.relative_path);
+  private readCatalog(): CatalogFile {
+    return this.catalogFrom(this.files);
   }
 
-  private id(prefix: string): string {
-    return `${prefix}_${Date.now().toString(36)}_${randomBytes(4).toString("hex")}`;
+  /** Reads the catalog inside the write, changes it, and saves it: the change is made on what is there now. */
+  private async update(mutate: (catalog: CatalogFile) => void): Promise<void> {
+    await this.files.write((writer) => {
+      const catalog = this.catalogFrom(writer);
+      mutate(catalog);
+      this.catalog.save(writer, catalog);
+    });
   }
+
 }
 
-export function openShelfStore(homeDirectory: string, probe: ShelfRuntimeProbe = {}, materials: ShelfMaterialPorts = {}, ai?: ShelfAiPorts, sync?:ShelfSyncOptions): ShelfStore {
-  return new ShelfStore(path.join(path.resolve(homeDirectory), "shelf"), probe, materials, ai,sync);
+/** `root` is the real folder behind `files`; the Host that supplies both keeps them the same place. */
+export function openShelfStore(root: string, files: PluginOwnerFilesClient, probe: ShelfRuntimeProbe = {}, materials: ShelfMaterialPorts = {}, ai?: ShelfAiPorts, sync?: ShelfSyncOptions): ShelfStore {
+  return new ShelfStore(root, files, probe, materials, ai,sync);
 }
 
 async function beforeShelfEffect(control?: ShelfExecutionControl): Promise<void> {
@@ -913,7 +946,7 @@ function now(): string {
 }
 
 function safeFilename(value: string): string {
-  const base = path.basename(value).replaceAll("\0", "").trim() || "untitled";
+  const base = path.basename(value).replaceAll("\0", "").replaceAll("\\", "_").trim() || "untitled";
   if (base === "." || base === "..") return "untitled";
   return base.slice(0, 180);
 }
@@ -968,12 +1001,12 @@ function isFileUrl(text: string): boolean {
 }
 
 /** DropAgent `JobWorkspace.uniqueURL`: never overwrite a name already in the folder. */
-function uniqueName(directory: string, preferred: string): string {
+function uniqueName(preferred: string, taken: (candidate: string) => boolean): string {
   const base = preferred.replace(/\.[^.]+$/u, "");
   const extension = path.extname(preferred);
   let candidate = preferred;
   let index = 2;
-  while (existsSync(path.join(directory, candidate))) {
+  while (taken(candidate)) {
     candidate = `${base}-${index}${extension}`;
     index += 1;
   }
@@ -998,33 +1031,37 @@ function uniqueTitle(preferred: string, taken: readonly string[]): string {
  * folder itself is locked only while the job runs, so ordinary cleanup later
  * still works; the files stay read-only.
  */
-function freezeReadOnly(target: string): void {
-  const stats = statSync(target);
-  if (stats.isDirectory()) {
-    for (const entry of readdirSync(target)) freezeReadOnly(path.join(target, entry));
-    chmodSync(target, 0o555);
-    return;
+function freezeReadOnly(writer: PluginOwnerFilesWriter, target: string): void {
+  const stat = writer.stat(target);
+  if (!stat) return;
+  if (stat.kind === "directory") {
+    for (const entry of writer.list(target)) freezeReadOnly(writer, `${target}/${entry.name}`);
   }
-  chmodSync(target, 0o444);
+  writer.setAccess(target, "readonly");
 }
 
-function unlockDirectories(target: string): void {
-  if (!existsSync(target)) return;
-  if (!statSync(target).isDirectory()) return;
-  chmodSync(target, 0o755);
-  for (const entry of readdirSync(target)) unlockDirectories(path.join(target, entry));
+function unlockDirectories(writer: PluginOwnerFilesWriter, target: string): void {
+  if (writer.stat(target)?.kind !== "directory") return;
+  writer.setAccess(target, "readwrite");
+  for (const entry of writer.list(target)) unlockDirectories(writer, `${target}/${entry.name}`);
 }
 
-function thawTree(target: string): void {
-  if (!existsSync(target)) return;
-  const stats = statSync(target);
-  chmodSync(target, stats.isDirectory() ? 0o755 : 0o644);
-  if (!stats.isDirectory()) return;
-  for (const entry of readdirSync(target)) thawTree(path.join(target, entry));
+function thawTree(writer: PluginOwnerFilesWriter, target: string): void {
+  const stat = writer.stat(target);
+  if (!stat) return;
+  writer.setAccess(target, "readwrite");
+  if (stat.kind !== "directory") return;
+  for (const entry of writer.list(target)) thawTree(writer, `${target}/${entry.name}`);
 }
 
-function appendEvent(jobRoot: string, message: string): void {
-  appendFileSync(path.join(jobRoot, "events.jsonl"), `${JSON.stringify({ message })}\n`);
+
+
+/** The event log grows by whole-file replacement: read what is there now, add one line, swap the file in. */
+function appendEvent(writer: PluginOwnerFilesWriter, jobRoot: string, message: string): void {
+  const file = `${jobRoot}/events.jsonl`;
+  const before = writer.read(file);
+  const line = Buffer.from(`${JSON.stringify({ message })}\n`);
+  writer.replaceFileAtomic(file, before ? Buffer.concat([Buffer.from(before), line]) : line);
 }
 
 /** Folder entries stay inside the folder: no absolute paths, no `..`. */
@@ -1033,18 +1070,18 @@ function safeRelative(value: string): string {
     .split("/")
     .map((part) => part.trim())
     .filter((part) => part && part !== "." && part !== "..");
-  return parts.map((part) => part.replaceAll("\0", "")).join("/");
+  return parts.map((part) => part.replaceAll("\0", "").replaceAll("\\", "_")).join("/");
 }
 
-function copyTree(source: string, target: string): void {
-  const stats = statSync(source);
-  if (!stats.isDirectory()) {
-    mkdirSync(path.dirname(target), { recursive: true });
-    copyFileSync(source, target);
+function copyTree(writer: PluginOwnerFilesWriter, source: string, target: string): void {
+  const stat = writer.stat(source);
+  if (!stat) throw shelfErrors.missing_output("这份副本的文件已不在架子上，请重新放入");
+  if (stat.kind === "file") {
+    writer.copyFile(source, target);
     return;
   }
-  mkdirSync(target, { recursive: true });
-  for (const entry of readdirSync(source)) copyTree(path.join(source, entry), path.join(target, entry));
+  writer.mkdir(target);
+  for (const entry of writer.list(source)) copyTree(writer, `${source}/${entry.name}`, `${target}/${entry.name}`);
 }
 
 function localActor(kind: ShelfItemKind): string {

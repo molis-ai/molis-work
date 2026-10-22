@@ -400,6 +400,7 @@ export interface ActionCallContext extends ActionCallOrigin {
         readonly provenance: "host_snapshot" | "client_reported";
     };
     readonly audit_actor_id?: string;
+    readonly delegated_by?: string;
     readonly runtime_session_id?: string;
     readonly runtime_session_missing?: true;
     readonly actor_kind?: "user" | "runtime" | null;
@@ -414,7 +415,9 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly audience: ActionAudience;
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
+    readonly original_file?: HostOfferedOriginalFile;
     readonly query_only?: true;
+    readonly read_only_effects?: true;
     readonly permissions: readonly string[];
     readonly allowed_capability_ids?: readonly string[];
     readonly allowed_actions?: readonly ActionReference[];
@@ -466,7 +469,9 @@ export interface ActionErrorOptions {
 
 export interface ActionExecutionContext extends ActionCallContext {
     readonly beforeEffect: () => Promise<void>;
-    readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
+    readonly retainAuthority?: (references: readonly ActionReference[], options?: {
+        readonly audience?: "workflow";
+    }) => RetainedActionAuthority;
     readonly retainBackgroundAuthority?: (additionalPermissions?: readonly string[]) => RetainedActionAuthority;
 }
 
@@ -521,6 +526,7 @@ export interface ActionMetadata {
         readonly role: "context" | "reply";
         readonly subject_kind: string;
     };
+    readonly home_aggregate?: true;
     readonly subject_offer_choices?: readonly SubjectOfferChoice[];
     readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
     readonly intake?: ActionIntake;
@@ -653,12 +659,16 @@ export interface ActionSceneDefinition {
     readonly event_schema?: ActionSchema;
 }
 
+export interface ActionSceneExecutionContext extends ActionCallContext {
+    beforeEffect(): Promise<void>;
+}
+
 export interface ActionSceneHandlerBinding {
     readonly scene_id: string;
     readonly version: number;
     bindings(context: ActionCallContext): readonly ActionSceneBinding[] | Promise<readonly ActionSceneBinding[]>;
     targets?(context: ActionCallContext): readonly ActionSceneTargetDefinition[] | Promise<readonly ActionSceneTargetDefinition[]>;
-    bind(context: ActionCallContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): void | Promise<void>;
+    bind(context: ActionSceneExecutionContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): void | Promise<void>;
     prepare?(context: ActionCallContext, event: unknown): {
         input: unknown;
         state?: unknown;
@@ -666,11 +676,11 @@ export interface ActionSceneHandlerBinding {
         input: unknown;
         state?: unknown;
     }>;
-    consume(context: ActionCallContext, input: unknown, result: unknown, execution: {
+    consume(context: ActionSceneExecutionContext, input: unknown, result: unknown, execution: {
         binding: ActionSceneBinding;
         state?: unknown;
     }): unknown | Promise<unknown>;
-    failed?(context: ActionCallContext, input: unknown, error: unknown, execution: {
+    failed?(context: ActionSceneExecutionContext, input: unknown, error: unknown, execution: {
         binding: ActionSceneBinding;
         state?: unknown;
     }): unknown | Promise<unknown>;
@@ -1760,6 +1770,10 @@ export interface FragmentTarget {
     readonly truncated?: boolean;
 }
 
+export declare const HOME_BACKGROUND_TASKS_INPUT_TYPE = "molis.home-background-tasks.query.v1";
+
+export declare const HOME_BACKGROUND_TASKS_OUTPUT_TYPE = "molis.home-background-tasks.collection.v1";
+
 export declare const HOME_EVENTS_INPUT_TYPE = "molis.home-events.window.v1";
 
 export declare const HOME_EVENTS_OUTPUT_TYPE = "molis.home-events.collection.v1";
@@ -2120,6 +2134,34 @@ export declare const HOME_OPEN_TARGET_SCHEMA: {
     })[];
 };
 
+export interface HomeBackgroundTask {
+    id: string;
+    title: string;
+    state: string;
+    updated_at: string;
+    waiting: boolean;
+    standing: HomeBackgroundTaskPhrase[];
+    commands: HomeBackgroundTaskCommand[];
+}
+
+export interface HomeBackgroundTaskCollection {
+    source: {
+        surface: string;
+    };
+    tasks: HomeBackgroundTask[];
+}
+
+export interface HomeBackgroundTaskCommand {
+    task_id: string;
+    summary: string;
+    stop_path: string;
+}
+
+export interface HomeBackgroundTaskPhrase {
+    text: string;
+    count?: number;
+}
+
 export interface HomeEvent {
     event_id: string;
     subject: ActionSubject;
@@ -2164,7 +2206,15 @@ export interface HomeOpenTarget {
     label: string;
 }
 
+export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
+    readonly partition?: "project";
+}
+
 export interface HomeStoreDeclaration {
+    readonly replication?: (home: string, ownerId: string) => {
+        close(): void;
+        replica(context: import('./plugin-sync-registration.js').AggregateReplicaContext): import('./sync-transport.js').SyncReplicaAdapter;
+    };
     readonly path: string;
     readonly library?: {
         readonly baseline: {
@@ -2172,7 +2222,13 @@ export interface HomeStoreDeclaration {
             readonly schema: string;
         };
         readonly file?: string;
+        readonly partition?: "project";
     };
+}
+
+export interface HostOfferedOriginalFile {
+    readonly path: string;
+    readonly install_id: string;
 }
 
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
@@ -2395,12 +2451,18 @@ export interface PlacementResult {
 
 export interface PluginActionClient extends BoundActionClient {
     invokeQuery<Input = unknown, Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: Input): Promise<Output>;
+    readonly directory?: PluginActionDirectory;
+}
+
+export interface PluginActionDirectory {
+    discover(): Promise<readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionView[]>;
+    invoke<Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: unknown, control?: PluginExecutionControl): Promise<Output>;
+    check(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: unknown): Promise<void>;
 }
 
 export interface PluginAppContribution {
     kind: "app";
     sync?: readonly import('./plugin-sync.js').PluginSyncBinding[];
-    onProjectDeleted?(projectId: string): void;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionHandlerBinding[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
     views?: readonly UiContribution[];
@@ -2431,6 +2493,7 @@ export interface PluginBackgroundClient {
     start<T>(work: (control: PluginExecutionControl) => Promise<T>, options?: {
         signal?: AbortSignal;
     }): Promise<PluginBackgroundExecution<T>>;
+    keep(job: string, work: (control: PluginJobControl) => Promise<void>): PluginKeptJob;
 }
 
 export interface PluginBackgroundExecution<T> {
@@ -2726,15 +2789,20 @@ export interface PluginFilesDeclaration {
 }
 
 export interface PluginHostServices {
+    readonly savedHistory?: {
+        view(json: string): import("@molis-ai/molis-work-contracts/services/agent-host").AgentSavedHistoryView;
+    };
     readonly background?: import("platform/plugin-background").PluginBackgroundClient;
     readonly actions?: PluginActionClient;
     readonly storage?: PluginPrivateStorage;
     readonly database?: import("platform/plugin-database").PluginDatabase;
+    readonly project_database?: import("platform/plugin-database").PluginDatabase;
     readonly files?: import("platform/plugin-files").PluginFilesClient;
     readonly ownerFiles?: import("platform/plugin-owner-files").PluginOwnerFilesClient;
     readonly model?: PluginModelClient;
     readonly imageGeneration?: import("platform/plugin-image-generation").PluginImageGenerationClient;
     readonly materials?: PluginMaterialsClient;
+    readonly directory?: import("@molis-ai/molis-work-contracts/platform/plugin-directory").PluginDirectoryService;
     readonly artifacts?: PluginArtifactClient;
     readonly processItems?: PluginProcessItemClient;
     readonly ui: PluginUiClient;
@@ -2892,6 +2960,25 @@ export interface PluginIntegrationContribution {
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
 }
 
+export interface PluginJobControl {
+    readonly job: string;
+    readonly signal: AbortSignal;
+    beforeEffect(): Promise<void>;
+    assert_authority_current(): void;
+    readonly project_id?: string;
+}
+
+export interface PluginJobDeclaration {
+    readonly job_id: string;
+    readonly reason: string;
+    readonly permissions: readonly string[];
+}
+
+export interface PluginKeptJob {
+    readonly done: Promise<void>;
+    cancel(): void;
+}
+
 export type PluginKind = "native" | "integration" | "app";
 
 export interface PluginLifecycleReceipt {
@@ -2903,6 +2990,8 @@ export interface PluginLifecycleReceipt {
 }
 
 export type PluginLifecycleState = "installed" | "running" | "disabled" | "crashed" | "quarantined" | "uninstalled";
+
+export type PluginLocalPageRequest = Pick<MaterialExtractionOptions, "signal">;
 
 export interface PluginManifest {
     schema_version: 1 | 2;
@@ -2977,9 +3066,19 @@ export interface PluginManifest {
     methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").AgentSkillDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     sync?: import("platform/plugin-sync").PluginSyncDeclaration;
+    databases?: import("platform/plugin-database").PluginManifestDatabases;
+    background?: {
+        jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
+    };
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
 }
+
+export interface PluginManifestDatabases {
+    readonly project?: PluginDatabaseDeclaration;
+}
+
+export type PluginMaterialDocumentsRequest = MaterialDocumentOptions;
 
 export type PluginMaterialRequest = MaterialExtractionOptions;
 
@@ -2987,11 +3086,18 @@ export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signa
 
 export interface PluginMaterialsClient {
     extract?(source: MaterialSource, request?: PluginMaterialRequest): Promise<MaterialExtraction>;
+    readDocuments?(files: readonly MaterialUpload[], request?: PluginMaterialDocumentsRequest): Promise<MaterialDocumentBatch>;
+    imageTextAvailable?(): boolean;
     readSource?(url: string, request?: PluginMaterialSourceRequest): Promise<MaterialSourceContent>;
+    readLocalPage?(url: string, request?: PluginLocalPageRequest): Promise<MaterialExtraction>;
+    claimOriginal?(record_key: string): Promise<void>;
+    readOriginal?(record_key: string, request?: PluginOriginalRequest): Promise<PluginOriginalContent>;
+    releaseOriginal?(record_key: string): Promise<void>;
 }
 
 export type PluginModelAvailability = ActionAvailability & {
     readonly runtime_label?: string;
+    readonly vision?: boolean;
 };
 
 export interface PluginModelChoice extends PluginModelSelection {
@@ -3094,6 +3200,15 @@ export interface PluginModelResult {
 export interface PluginModelSelection {
     readonly provider_id: string;
     readonly model_id: string;
+}
+
+export interface PluginOriginalContent {
+    readonly bytes: Uint8Array;
+}
+
+export interface PluginOriginalRequest {
+    readonly signal?: AbortSignal;
+    readonly maxBytes?: number;
 }
 
 export interface PluginOutputPublishInput {
@@ -3450,7 +3565,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "background"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "directory" | "background" | "savedHistory"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -4148,6 +4263,136 @@ export declare const WORKFLOW_CONTENT_VERSIONS: {
     readonly create: 1;
 };
 
+export declare const WORK_EXECUTOR_PROTOCOL: Readonly<Record<WorkExecutorRole, WorkExecutorRoleContract>>;
+
+export declare const WORK_EXECUTOR_ROLES: readonly ["state", "session.open", "session.read", "session.update", "run.start", "run.control"];
+
+export interface WorkExecutorActionOptions {
+    readonly capability_id: string;
+    readonly version?: number;
+    readonly title: string;
+    readonly description: string;
+    readonly permissions: readonly string[];
+    readonly audiences?: readonly ActionAudience[];
+    readonly subject_kinds?: readonly string[];
+    readonly scheduling?: "concurrent";
+    readonly execution?: ActionExecutionPolicy;
+}
+
+export interface WorkExecutorCalls {
+    state: {
+        input: Record<string, never>;
+        output: WorkExecutorState;
+    };
+    "session.open": {
+        input: WorkExecutorSessionOpen;
+        output: WorkExecutorSessionRef;
+    };
+    "session.read": {
+        input: WorkExecutorSessionReadInput;
+        output: WorkExecutorSession;
+    };
+    "session.update": {
+        input: WorkExecutorSessionUpdate;
+        output: WorkExecutorSessionUpdate;
+    };
+    "run.start": {
+        input: WorkExecutorRunStart;
+        output: WorkExecutorRunStarted;
+    };
+    "run.control": {
+        input: WorkExecutorRunControl;
+        output: WorkExecutorRunControlResult;
+    };
+}
+
+export interface WorkExecutorMode {
+    id: string;
+    title: string;
+}
+
+export type WorkExecutorRole = (typeof WORK_EXECUTOR_ROLES)[number];
+
+export interface WorkExecutorRoleContract {
+    readonly operation: "query" | "command";
+    readonly input_type: string;
+    readonly output_type: string;
+    readonly input_schema: ActionSchema;
+    readonly output_schema: ActionSchema;
+}
+
+export type WorkExecutorRunControl = RoundRef & ({
+    kind: "stop" | "pause" | "resume";
+} | (AgentAnswerControl & {
+    pending_revision: number;
+}) | ({
+    kind: "steer";
+} & AgentInputSend) | {
+    kind: "withdraw";
+    input_id: string;
+});
+
+export interface WorkExecutorRunControlResult {
+    accepted: boolean;
+    receipt?: AgentSteerReceipt;
+}
+
+export interface WorkExecutorRunStart {
+    session_id: string;
+    task: string;
+}
+
+export interface WorkExecutorRunStarted {
+    run_id: string;
+}
+
+export interface WorkExecutorSession {
+    session_id: string;
+    title: string;
+    mode: string | null;
+    runs: AgentRunView[];
+    runtime_session_id: string | null;
+    recovery: {
+        message: string;
+    } | null;
+    workspace_id?: string | null;
+    mcp_tools?: AgentMcpToolRef[];
+}
+
+export interface WorkExecutorSessionOpen {
+    title: string;
+    mode?: string;
+}
+
+export interface WorkExecutorSessionReadInput {
+    session_id: string;
+    window?: number;
+}
+
+export interface WorkExecutorSessionRef {
+    session_id: string;
+}
+
+export interface WorkExecutorSessionUpdate {
+    session_id: string;
+    mode: string;
+}
+
+export interface WorkExecutorState {
+    modes: WorkExecutorMode[];
+    default_mode: string;
+    images: boolean;
+    workspace_id?: string | null;
+    workspaces?: WorkExecutorWorkspace[];
+    mcp?: AgentMcpServerView[];
+}
+
+export interface WorkExecutorWorkspace {
+    workspace_id: string;
+    name: string;
+    path: string;
+}
+
 export interface WorkflowContentActions {
     readonly list: ActionDefinition<Record<string, never>, readonly WorkflowStartItem[]>;
     readonly read: ActionDefinition<{
@@ -4312,6 +4557,8 @@ export declare function defineFragmentOffersAction(capabilityId: string, kinds: 
     offers: FragmentActionOffer[];
 }>;
 
+export declare function defineHomeBackgroundTasksAction(capabilityId: string, title: string, permissions: string[]): ActionDefinition<Record<string, never>, HomeBackgroundTaskCollection>;
+
 export declare function defineHomeEventsAction(capabilityId: string, kinds: string[], title: string, permissions: string[]): ActionDefinition<HomeEventWindow, HomeEventCollection>;
 
 export declare function defineObjectCopyAction(capabilityId: string, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementCopyInput, PlacementResult>;
@@ -4325,6 +4572,12 @@ export declare function defineSubjectContextAction(capabilityId: string, kind: s
 export declare function defineSubjectOffersAction(capabilityId: string, kinds: string[], title: string, permissions: string[], choices?: readonly SubjectOfferChoice[]): ActionDefinition<SubjectOffersInput, {
     offers: SubjectActionOffer[];
 }>;
+
+export declare function defineWorkExecutorAction<R extends WorkExecutorRole>(name: R, options: WorkExecutorActionOptions): ActionDefinition<WorkExecutorCalls[R]["input"], WorkExecutorCalls[R]["output"]>;
+
+export declare function defineWorkExecutorActions(options: Readonly<Record<WorkExecutorRole, WorkExecutorActionOptions>>): {
+    readonly [R in WorkExecutorRole]: ActionDefinition<WorkExecutorCalls[R]["input"], WorkExecutorCalls[R]["output"]>;
+};
 
 export declare function defineWorkflowContentActions(station: WorkflowStationSpec & {
     receive: false;
@@ -4555,9 +4808,16 @@ export declare function validActionResultView(value: unknown): value is ActionRe
 
 export declare function withActionEffect<D extends ActionDefinition<any, any>>(definition: D, effect: NonNullable<ActionMetadata["effect"]>, plugin?: false): D;
 
+export declare function withControlChecks(caller: ActionCallContext, control: Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current">): Pick<ActionCallContext, "validate_authority" | "assert_authority_current">;
+
 export declare function withinDueReminderWindow(value: string, window: DueReminderWindow): boolean;
 
 export declare function withinHomeEventWindow(value: string, window: HomeEventWindow): boolean;
+
+export declare function workExecutorRoleOf(action: {
+    input_type?: string;
+    output_type?: string;
+}): WorkExecutorRole | null;
 
 // Declarations the exports above refer to, which no entry exports itself:
 
@@ -4573,6 +4833,11 @@ interface DestinationDeclaration {
 type PluginCommandInputOf<Kind extends UiCommandInputKind, Payload = unknown> = {
     kind: Kind;
 } & Payload;
+
+type RoundRef = {
+    session_id: string;
+    run_id: string;
+};
 
 interface WorkflowStationSpec {
     id: string;

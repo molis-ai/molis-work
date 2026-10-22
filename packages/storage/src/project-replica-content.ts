@@ -23,7 +23,7 @@ export function createProjectContentReplicaFactory(definitions:readonly ProjectR
   return createSqliteReplica(namespacedReplicaDatabase(db,namespace),{authorize:context.authorize,conflictState:context.conflictState,
    read(input){check(input);const facts=Object.fromEntries(definitions.map((d,i)=>[d.id,sections[i]!.validate(sections[i]!.read())]));if(!Object.values(facts).some(part=>Object.values(part).some(rows=>rows.length)))return null;const wire={format:1,spaceId:context.spaceId,project:{id:context.projectId,title:context.title},facts};size(wire);return wire;},
    apply(input,value){check(input);db.exec('PRAGMA defer_foreign_keys=ON');
-    if(value===null){[...sections].reverse().forEach(section=>section.clear());return;}
+    if(value===null){[...sections].reverse().forEach(section=>section.clear(true));return;}
     const pure=validateProjectContentReplication(value,definitions,context);const rows=definitions.map((_d,i)=>sections[i]!.validate(pure[i]));
     [...sections].reverse().forEach(section=>section.clear());sections.forEach((section,i)=>section.write(rows[i] as ProjectReplicaRows));
     if(db.prepare('PRAGMA foreign_key_check').get())invalid();

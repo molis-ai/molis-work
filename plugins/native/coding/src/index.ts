@@ -2,6 +2,8 @@ export {refreshCodingSavedHistory} from './saved-history.js';
 export { CODING_INSTRUCTIONS, CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
 export { codingReportPreview } from "./report.js";
 export { codingChangeSetPreview, codingNetChange } from "./changeset.js";
+export { codingResultDocumentHandler } from "./results-document.js";
+export { codingOutputReferences, codingOutputs } from "./outputs.js";
 export { codingFollowUps, CODING_NEXT_STEP, type CodingFollowUpRun } from "./next-steps.js";
 export { codingContinuation, originalTask, requestText, CONTINUATION_MARKER, MENTIONS_MARKER } from "./continuation.js";
 export { codeTokens, codeLanguage, diffRowTokens } from "./highlight.js";
@@ -36,11 +38,13 @@ export {
   type CodingIdentityLayer,
   type CodingIdentityView,
 } from "./identity.js";
+export { CODING_MESSAGES } from "./messages.js";
 export {
   CODING_DIRECTORY_FACES,
   CODING_SETTINGS_UI_CONTRIBUTION_ID,
   CODING_UI_CONTRIBUTION_ID,
   codingUiContribution,
+  codingUiView,
   codingUiDescriptor,
   codingSettingsContribution,
   codingSettingsDescriptor,
@@ -59,6 +63,7 @@ export {
   type CodingUsageModel,
   type CodingReviewCardModel,
   type CodingUiModel,
+  type CodingUiHostModel,
   type CodingUiPrimitives,
   type CodingUiSurface,
 } from "./ui.js";
@@ -96,13 +101,11 @@ export {
 export {
   CodingSessionStore,
   CODING_ACTIVE_STATES,
-  CODING_SCHEMA_SQL,
-  holdsCodingSessions,
-  listCodingBackgroundSessions,
   toDirectoryEntries,
   type CodingBackgroundSession,
+  type CodingBeforeEffect,
   type CodingSessionRecord,
-  type CodingSqliteDatabase,
+  type CodingWriteGuard,
   type CreateCodingSessionInput,
 } from "./store.js";
 export {
@@ -124,7 +127,8 @@ export { codingSync, codingContentReplicationDefinition, CODING_CONTENT_REPLICA_
 export { CODING_ACTIONS, codingRouteActions } from "./route-actions.js";
 export { runControl } from "./run-inputs.js";
 export { reaskMaterial as codingReaskMaterial, codingReaskErrors } from "./reask.js";
-export type { CodingExecutionPorts, CodingModelChoice } from "./routes.js";
+export type { CodingExecution } from "./routes.js";
+export type { CodingModelChoice } from "./models.js";
 export { codingSessionTitleFrom, DEFAULT_SESSION_TITLE, planContinuesAfterTalk } from "./routes.js";
 export {
   projectMcp,
@@ -187,18 +191,10 @@ export { createCodingTimeline, type TimelineActivity, type TimelineRun } from ".
 export { codingTimelineWords } from "./timeline-words.js";
 export { createCodingTurnChanges } from "./turn-changes-client.js";
 export { codingQuestionAnswered } from "./question-answered-client.js";
-export {
-  STICK_THRESHOLD_PX,
-  atBottom,
-  onContentAppended,
-  onReaderScrolled,
-  READER_INTENT_MS,
-  type ScrollPosition,
-  type StickDecision,
-} from "./reading.js";
 
 export { CODING_STYLES } from "./styles.js";
 export { CODING_CLIENT_FACTORY_SCRIPT } from "./client.js";
+export { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "./workbench-client.js";
 export { CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT } from "./taskboard-client.js";
 export { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 export { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "./input-receipts-client.js";
@@ -208,3 +204,5 @@ export type { CodingCharacterChoice, CodingCharacterPorts } from "./characters.j
 export { codingMethods } from "./methods.js";
 
 export { CODING_SETTINGS_CLIENT_SCRIPT } from "./settings-client.js";
+
+export { CODING_PROJECT_DATABASE } from "./database.js";

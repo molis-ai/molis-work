@@ -105,7 +105,7 @@ test("Alchemist Pulse, cancellation and exports use real repositories and preser
   assert.equal((await call(a.pulseReports, {})).latestRun, undefined);
   const missingRun = await f.runtime.app.request("http://localhost/api/v1/runs/missing/cancel", { method: "POST" });
   assert.equal(missingRun.status, 404);
-  // W5-01-ALC-RES09: one cancel action stops either kind of run, so a job that is neither is "not found" for both.
+  // W5-01-ALC-RES11: one cancel action stops either kind of run, so a job that is neither is "not found" for both.
   assert.deepEqual(await missingRun.json(), { code: "alchemist.run_not_found", message: "没有找到这次研究或市场脉搏。" });
   await call(a.pulseSourceUpdate, { sourceId: "github", enabled: true });
   const pulse = await call(a.pulseStart, { sourceIds: ["github"] }); await f.runtime.runPending();

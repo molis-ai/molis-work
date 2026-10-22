@@ -1,6 +1,8 @@
-import { ActionError, type ActionAvailability, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { type ActionAvailability, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginContribution, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { runInPluginAction } from "./action-scope.js";
+import { pluginSceneHandler } from "./scene-provider.js";
+import { pluginCallbackContext } from "./callback-context.js";
 
 /**
  * What a running Plugin offers the action service: the actions and scenes its Manifest declares, each available only while
@@ -14,37 +16,24 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
     (context: ActionCallContext): ActionAvailability => {
       const grants = state.record()?.grants ?? [];
       if (permissions.some(p => !grants.includes(p))) return { available: false, code: "actions.plugin_permission", reason: "插件缺少能力所需授权" };
-      return own?.(context) ?? { available: true };
+      return own?.(pluginCallbackContext(context)) ?? { available: true };
     };
   return {
     provider: { provider_id: providerId, plugin_install_id: installId, plugin_id: manifest.plugin_id, title: manifest.name, kind: "plugin",
       ...(projectId ? { project_id: projectId } : {}) },
     definitions: manifest.actions ?? [], handlers: (contribution.actions ?? []).map(h => {
       const definition = manifest.actions!.find(d => d.capability_id === h.capability_id && d.version === h.version)!;
-      // The Plugin's services ask which action is running; the Host answers, the Plugin does not say.
-      return { ...h, handle: (context, input) => runInPluginAction({ install_id: installId, definition, caller: context }, () => h.handle(context, input)),
-        availability: grantAvailability(definition.action.permissions, h.availability) };
+      // The Plugin's services ask which action is running; the Host answers, the Plugin does not say. The call's own `beforeEffect`
+      // returning is one way it passes its last authority check (`PluginActionScope.checked`).
+      return { ...h, handle: (context, input) => {
+        const checked = { passed: false }, view = pluginCallbackContext(context), before = view.beforeEffect;
+        return runInPluginAction({ install_id: installId, definition, caller: context, checked },
+          () => h.handle(before ? { ...view, beforeEffect: async () => { await before(); checked.passed = true; } } : view, input));
+      }, availability: grantAvailability(definition.action.permissions, h.availability) };
     }),
     scenes: manifest.action_scenes ?? [], scene_handlers: (contribution.action_scenes ?? []).map(h => {
       const declaration = manifest.action_scenes!.find(d => d.scene_id === h.scene_id && d.version === h.version)!;
-      const configuration = grantAvailability(declaration.configuration_permissions ?? []);
-      return { ...h, availability: grantAvailability(declaration.permissions, h.availability),
-        configuration_availability: grantAvailability(declaration.configuration_permissions ?? [], h.configuration_availability),
-        ...(h.targets ? { targets: async (caller: ActionCallContext) => {
-          const targets = await h.targets!(caller);
-          const state = configuration(caller);
-          return targets.map(target => {
-            const activation = grantAvailability(target.activation_permissions ?? [])(caller);
-            return { ...target, ...(!state.available ? { availability: state } : {}),
-              ...(!activation.available ? { activation_availability: activation } : {}) };
-          });
-        } } : {}),
-        bind: (caller, binding, options) => {
-          const state = grantAvailability(options?.required_permissions ?? declaration.configuration_permissions ?? [])(caller);
-          if (!state.available) throw new ActionError(state.code, state.reason);
-          return h.bind(caller, binding, options);
-        },
-      };
+      return pluginSceneHandler(declaration, h, installId, grantAvailability);
     }),
     availability: () => {
       const current = state.record();

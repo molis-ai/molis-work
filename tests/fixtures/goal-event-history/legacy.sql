@@ -1,14 +1,6 @@
-PRAGMA user_version = 15;
+PRAGMA user_version = 16;
 PRAGMA foreign_keys=OFF;
 BEGIN TRANSACTION;
-CREATE TABLE boards (
-          project_id TEXT PRIMARY KEY,
-          title TEXT NOT NULL,
-          active_goal_id TEXT,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-INSERT INTO boards VALUES('goalboard-v1-demo','让第一次使用 Molis Work 的人顺利完成一次目标协作','V1','2026-09-10T07:03:28.489Z','2026-09-10T07:03:28.555Z');
 CREATE TABLE goals (
     goal_id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
@@ -535,15 +527,6 @@ CREATE TABLE goal_event_trusted_decisions (
     change_json TEXT,
     recorded_at TEXT NOT NULL
   );
-CREATE TABLE library_artifacts (
-    artifact_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    owner_actor_id TEXT NOT NULL,
-    producer_plugin_id TEXT NOT NULL,
-    producer_binding_signature TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    UNIQUE (artifact_id, project_id)
-  );
 CREATE TABLE library_artifact_versions (
     artifact_id TEXT NOT NULL REFERENCES library_artifacts(artifact_id) ON DELETE CASCADE,
     version INTEGER NOT NULL CHECK (version > 0),
@@ -577,15 +560,6 @@ CREATE TABLE library_artifact_versions (
       OR (content_kind = 'reference' AND payload_json IS NULL AND content_ref IS NOT NULL)
     )
   );
-CREATE TABLE process_items (
-    artifact_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    owner_actor_id TEXT NOT NULL,
-    producer_plugin_id TEXT NOT NULL,
-    producer_binding_signature TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    UNIQUE (artifact_id, project_id)
-  );
 CREATE TABLE process_item_versions (
     artifact_id TEXT NOT NULL REFERENCES process_items(artifact_id) ON DELETE CASCADE,
     version INTEGER NOT NULL CHECK (version > 0),
@@ -615,92 +589,6 @@ CREATE TABLE process_item_versions (
       OR (content_kind = 'reference' AND payload_json IS NULL AND content_ref IS NOT NULL)
     )
   );
-CREATE TABLE idempotency_records (
-          project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-          actor_id TEXT NOT NULL,
-          operation TEXT NOT NULL,
-          idempotency_key TEXT NOT NULL,
-          request_hash TEXT NOT NULL,
-          outcome_json TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          PRIMARY KEY (project_id, actor_id, operation, idempotency_key)
-        );
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','initialize_board','demo-board','0f9326d5c36b2448d19263ed58dc07612f8eb0a6903ac5f91b7386e2b40c8c34','{"project_id":"goalboard-v1-demo","observed_event_cursor":1}','2026-09-10T07:03:28.489Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-PLATFORM','6482c3a8d0633f75f1cda11eeefc3dd7ca543d0d43f9eca0eb3a38ba4a3b3eba','{"relation_id":"relation-46303826-25b2-4b8e-ad5e-b76617d90fc9","observed_event_cursor":15}','2026-09-10T07:03:28.510Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-WORKSPACE','c82e6659f90d83cf44078a6802429aab882e5248f7fb69d6deaae3603242a0cd','{"relation_id":"relation-d0cedc75-3cc4-4977-a253-247efa2b82fb","observed_event_cursor":16}','2026-09-10T07:03:28.512Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-ADOPTION','8c4c953cbbc131dd0107694b8bc264106228d57464282ad08412d37cae240fbc','{"relation_id":"relation-4814cf00-c15c-4d86-b625-15f7c60df9b7","observed_event_cursor":17}','2026-09-10T07:03:28.513Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-CORE','0d6f6c328d7f3070e0cc0641e9927279a8cd34565edc3ff5f0d0368ca54299f3','{"relation_id":"relation-9410d190-8f63-466a-8797-14efb68c326d","observed_event_cursor":18}','2026-09-10T07:03:28.514Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-INTERFACES','77f9377cf3bd2c7fe3c310ae04baa77d2a69d91e7378288bbb5d29cb67ad5de8','{"relation_id":"relation-e744e983-eef6-4ea8-ad99-96cd1b73b248","observed_event_cursor":19}','2026-09-10T07:03:28.515Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-WEB','1e3ff6a45cb626f0025e9d77216a8e89a046d9316f91aba036ab8c1d3317f13a','{"relation_id":"relation-8217b2ac-8515-4f15-82de-c772e6c97a23","observed_event_cursor":20}','2026-09-10T07:03:28.524Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-GRAPH','26812e7c892d637e16c8f6408364118c594f48da3efb1f8e3d471d633eb7c74f','{"relation_id":"relation-730b96da-261b-4736-9788-7f8f89edcf64","observed_event_cursor":21}','2026-09-10T07:03:28.525Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-DESKTOP','44ec270574fa0799cbb675c9fa729f770bd45ebf9cca33d639266580b66a370a','{"relation_id":"relation-f5af7868-c03c-4486-975b-01f92da14355","observed_event_cursor":22}','2026-09-10T07:03:28.526Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-RELEASE','a1042b41785a71853c0b2adc1994d358331d682ccb75ac09024fbaeab05920f2','{"relation_id":"relation-ecd7a888-4fdb-4ff5-8aeb-22b195aa8a45","observed_event_cursor":23}','2026-09-10T07:03:28.527Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-ONBOARDING','21fa6f6da09772a17e97aff9ec22ec5685353373dec53a92ed3f47defbbbb06f','{"relation_id":"relation-e62c0749-b7fe-4bd9-9669-e0063c9b289d","observed_event_cursor":24}','2026-09-10T07:03:28.527Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-DOCS','edebf6641ea067e7c1ffac4e7e424127a0e85c0efd82920b6b4b595c2d131424','{"relation_id":"relation-fd86817a-3c4e-41b0-8311-a2c55b7daaed","observed_event_cursor":25}','2026-09-10T07:03:28.528Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-dependency-interfaces','4212417003556279a15467e2beb05fedf495746c75c696da34f07de90e651303','{"relation_id":"relation-3db70bd7-947c-44d4-b92f-7c794331177d","observed_event_cursor":26}','2026-09-10T07:03:28.528Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-dependency-web','215aa0fb7f5fb5fe4cae3afdbfd6b063ea4fc7cf9cd1edf2732bf6c64be46509','{"relation_id":"relation-a2944b01-48f2-43a4-8215-bb3d5165fec8","observed_event_cursor":27}','2026-09-10T07:03:28.529Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-dependency-graph','a54fcefe992827478644cf65d7b0f4e12bcf8aee3d3c75e284138aa3c39f8300','{"relation_id":"relation-6b87504f-8ad9-49a9-acc4-4d75f39eea1d","observed_event_cursor":28}','2026-09-10T07:03:28.529Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-dependency-desktop','c9c2312048bd48ea14ed96929703343234592cad72dfcab1890e57a28e8c5442','{"relation_id":"relation-5e6401d7-b1dc-4a94-8c53-f04539921f6a","observed_event_cursor":29}','2026-09-10T07:03:28.530Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-dependency-onboarding','3e8414f6e7fd92b35a9c7937511a5a8c469503218711a28db6b4d551007502cf','{"relation_id":"relation-341fe1f6-94a5-4b9d-96d8-1481878e7570","observed_event_cursor":30}','2026-09-10T07:03:28.530Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-dependency-docs','7130416bf9475ebe006b6a08de7bf332cbb74fabfb4fffa75a49771f38bc5b70','{"relation_id":"relation-26184b19-74b6-4509-a239-b2c3d9ef3b67","observed_event_cursor":31}','2026-09-10T07:03:28.530Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_risk','demo-risk-first-restart','a5c777c15939f4df3d9150c8d8a736c4b9dc25aaaca03a59196ed1ecece1ca62','{"risk":{"risk_id":"RISK-FIRST-RESTART","project_id":"goalboard-v1-demo","description":"用户接入 Runtime 后没有新开会话，误以为安装失败","probability":"medium","impact":"用户看不到 Molis Work 工具，无法开始第一次使用","affected_surfaces":["首次安装","Runtime 接入"],"trigger":"用户继续使用接入前已经打开的会话","treatment":"mitigate","treatment_plan":"","blocking_mode":"none","revisit_condition":"安装结果和接入预览都清楚说明新开会话的原因和下一步","owner":"产品体验","state":"open","resolution_basis":null,"created_at":"2026-09-10T07:03:28.532Z","updated_at":"2026-09-10T07:03:28.532Z"},"transitions":[{"goal_id":"RELEASE","previous_action_token":"015c71bbe8e02f95e8983236eca05686","projection":{"goal_id":"RELEASE","contract_revision":1,"progress":"not_started","primary_action":{"action_id":"action-a8122f09c3549b87ffe37f55","actor":"runtime","kind":"clarify","status":"ready","target_type":"goal","target_id":"RELEASE","reasons":[]},"actions":[{"action_id":"action-a8122f09c3549b87ffe37f55","actor":"runtime","kind":"clarify","status":"ready","target_type":"goal","target_id":"RELEASE","reasons":[]}],"action_token":"015c71bbe8e02f95e8983236eca05686","display_status":"continue"},"affected_goals":[{"goal_id":"RELEASE","contract_revision":1,"progress":"not_started","primary_action":{"action_id":"action-a8122f09c3549b87ffe37f55","actor":"runtime","kind":"clarify","status":"ready","target_type":"goal","target_id":"RELEASE","reasons":[]},"action_token":"015c71bbe8e02f95e8983236eca05686","display_status":"continue"}],"summary":"已记录风险，不新增用户待办","observed_event_cursor":32}],"observed_event_cursor":32}','2026-09-10T07:03:28.532Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','claim_goal','demo-core-claim','f3f50cb4ff6f2131a98ef644fb4ecc7d3e970e6b38b2865275e8d82c78fb8122','{"allowed":true,"observed_event_cursor":33,"reasons":[],"claim":{"claim_id":"claim-dc5985a4-4a90-4aaa-880a-28f896f96e14","project_id":"goalboard-v1-demo","goal_id":"CORE","actor_id":"runtime-core","role":"executor","contract_revision":1,"action_kind":"execute","action_target_id":"CORE","state":"active","capabilities":[],"goal_mode_attestation":false,"resolved_policy":{"goal_mode":"preferred","required_capabilities":[],"self_verification":true,"cross_reviewers":0,"adversarial_reviewers":0,"human_approval":false,"max_lease_seconds":1800},"claimed_at":"2026-09-10T07:03:28.540Z","expires_at":"2026-09-10T07:33:28.540Z","renewed_at":null,"released_at":null,"release_reason":null},"replayed":false}','2026-09-10T07:03:28.539Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','start_run','demo-core-run','516fe370819c54c411c7adb73b7160988dad03999d738f2297741bd203d775cf','{"run":{"run_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","project_id":"goalboard-v1-demo","goal_id":"CORE","claim_id":"claim-dc5985a4-4a90-4aaa-880a-28f896f96e14","actor_id":"runtime-core","role":"executor","state":"started","block_reason":null,"output_refs":[],"discovery_refs":[],"started_at":"2026-09-10T07:03:28.541Z","ended_at":null},"observed_event_cursor":35}','2026-09-10T07:03:28.541Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','report_run','demo-core-run-complete','8e32de79bb818f1cf49734120236be23e1c4335f5246e6867de9411db905890a','{"run":{"run_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","project_id":"goalboard-v1-demo","goal_id":"CORE","claim_id":"claim-dc5985a4-4a90-4aaa-880a-28f896f96e14","actor_id":"runtime-core","role":"executor","state":"completed","block_reason":null,"output_refs":["tests/v1.test.ts"],"discovery_refs":[],"started_at":"2026-09-10T07:03:28.541Z","ended_at":"2026-09-10T07:03:28.543Z"},"observed_event_cursor":36,"transition":{"goal_id":"CORE","previous_action_token":"6bb6bf58c8d6e46dead0b1444437cd55","projection":{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-77c1abae7519eaaebb327691","actor":"runtime","kind":"submit_evidence","status":"active","target_type":"run","target_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","reasons":[{"code":"action.evidence_incomplete","severity":"warning","subject_type":"run","subject_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","message":"执行已经完成，还需要补齐完成依据","remediation":"提交当前 Contract revision 所需的最后一条 Evidence 后会自动释放工作。"}]},"actions":[{"action_id":"action-77c1abae7519eaaebb327691","actor":"runtime","kind":"submit_evidence","status":"active","target_type":"run","target_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","reasons":[{"code":"action.evidence_incomplete","severity":"warning","subject_type":"run","subject_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","message":"执行已经完成，还需要补齐完成依据","remediation":"提交当前 Contract revision 所需的最后一条 Evidence 后会自动释放工作。"}]}],"action_token":"2e51258038925f4e17921c9b7541f5c9","display_status":"in_progress"},"affected_goals":[{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-77c1abae7519eaaebb327691","actor":"runtime","kind":"submit_evidence","status":"active","target_type":"run","target_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","reasons":[{"code":"action.evidence_incomplete","severity":"warning","subject_type":"run","subject_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","message":"执行已经完成，还需要补齐完成依据","remediation":"提交当前 Contract revision 所需的最后一条 Evidence 后会自动释放工作。"}]},"action_token":"2e51258038925f4e17921c9b7541f5c9","display_status":"in_progress"}],"summary":"已记录本阶段产物","observed_event_cursor":36}}','2026-09-10T07:03:28.542Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','submit_evidence','demo-core-evidence','9f1efd1614152da15ae8d38183471667ebde917406f48b21bc6084cf4100d86f','{"evidence":{"evidence_id":"evidence-3aaba898-2eb4-4565-acbb-13cccced105f","project_id":"goalboard-v1-demo","goal_id":"CORE","contract_revision":1,"criterion_ids":["CORE-C1"],"producer_actor_id":"runtime-core","run_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","review_id":null,"kind":"test","locator":"command://pnpm-test","locator_status":"unverified","locator_validation_reason":"不透明或外部 locator 已保留为 UNVERIFIED；Molis Work 不会调用自定义协议","locator_checked_at":"2026-09-10T07:03:28.545Z","locator_workspace_id":null,"digest":null,"captured_at":"2026-09-10T07:03:28.545Z","result":"passed","lifecycle_state":"effective","correction":null,"historical_unmapped":false},"observed_event_cursor":38,"transition":{"goal_id":"CORE","previous_action_token":"2e51258038925f4e17921c9b7541f5c9","projection":{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-8b0b3c4001bbd07472c0f31a","actor":"runtime","kind":"review","status":"ready","target_type":"review_obligation","target_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","reasons":[]},"actions":[{"action_id":"action-8b0b3c4001bbd07472c0f31a","actor":"runtime","kind":"review","status":"ready","target_type":"review_obligation","target_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","reasons":[]}],"action_token":"bc49b6de772fa1099fcf9789ccfe42ae","display_status":"continue"},"affected_goals":[{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-8b0b3c4001bbd07472c0f31a","actor":"runtime","kind":"review","status":"ready","target_type":"review_obligation","target_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","reasons":[]},"action_token":"bc49b6de772fa1099fcf9789ccfe42ae","display_status":"continue"}],"summary":"已记录完成依据","observed_event_cursor":38}}','2026-09-10T07:03:28.545Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','submit_review','demo-core-review','c190c83074aaf56e00148d4ac063185a35144ffe0a09b98d4acf915cdc69ec39','{"review":{"review_id":"review-3c52c9fe-13b8-41ce-92d2-725de601ae6f","project_id":"goalboard-v1-demo","goal_id":"CORE","obligation_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","claim_id":null,"actor_id":"runtime-core","verdict":"pass","evidence_refs":["evidence-3aaba898-2eb4-4565-acbb-13cccced105f"],"reasoning":"生命周期测试通过","submitted_at":"2026-09-10T07:03:28.550Z"},"observed_event_cursor":40,"transition":{"goal_id":"CORE","previous_action_token":"bc49b6de772fa1099fcf9789ccfe42ae","projection":{"goal_id":"CORE","contract_revision":1,"progress":"verified","primary_action":null,"actions":[],"action_token":"e860ebc1537180e7b4660f8d71ccf5af","display_status":"completed"},"affected_goals":[{"goal_id":"CORE","contract_revision":1,"progress":"verified","primary_action":null,"action_token":"e860ebc1537180e7b4660f8d71ccf5af","display_status":"completed"}],"summary":"已记录复核结果","observed_event_cursor":40}}','2026-09-10T07:03:28.550Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','evaluate_leaf_completion','demo-core-complete','411b89fc57c66098a0d9a68d7e3c492c9933e671c0480e30cfe1a84e15237d03','{"satisfied":true,"reasons":[],"observed_event_cursor":40}','2026-09-10T07:03:28.553Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-interface','claim_goal','demo-interface-claim','6ffbf790d78c5f1a15ce473d4f7d6739b8b1ba547e70941c19dca0ff3be6d630','{"allowed":true,"observed_event_cursor":40,"reasons":[],"claim":{"claim_id":"claim-c44fe62b-c4bf-4b0e-9d14-3f302a74c45b","project_id":"goalboard-v1-demo","goal_id":"INTERFACES","actor_id":"runtime-interface","role":"executor","contract_revision":1,"action_kind":"execute","action_target_id":"INTERFACES","state":"active","capabilities":[],"goal_mode_attestation":false,"resolved_policy":{"goal_mode":"preferred","required_capabilities":[],"self_verification":true,"cross_reviewers":0,"adversarial_reviewers":0,"human_approval":false,"max_lease_seconds":1800},"claimed_at":"2026-09-10T07:03:28.554Z","expires_at":"2026-09-10T07:33:28.554Z","renewed_at":null,"released_at":null,"release_reason":null},"replayed":false}','2026-09-10T07:03:28.553Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-interface','start_run','demo-interface-run','ee73190f49d01e0b20782352a8aa00df648f62904407861918e968d588e6ff43','{"run":{"run_id":"run-65ec112f-54fe-499a-a41d-b5fc73d14f85","project_id":"goalboard-v1-demo","goal_id":"INTERFACES","claim_id":"claim-c44fe62b-c4bf-4b0e-9d14-3f302a74c45b","actor_id":"runtime-interface","role":"executor","state":"started","block_reason":null,"output_refs":[],"discovery_refs":[],"started_at":"2026-09-10T07:03:28.554Z","ended_at":null},"observed_event_cursor":42}','2026-09-10T07:03:28.554Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-interface','submit_candidate','demo-candidate','015b8f6ae3d66514b6d8178ff3e626a44aed82ed38376b8609884169bcfd79cb','{"candidate":{"candidate_id":"candidate-b0050ab4-1d01-4556-ac3d-fa0053f69ce2","project_id":"goalboard-v1-demo","submitted_by":"runtime-interface","discovered_in_run_id":"run-65ec112f-54fe-499a-a41d-b5fc73d14f85","proposed_goal":{"title":"让旧数据升级前先看到安全说明","outcome":"用户在升级前知道哪些内容会保留、哪些需要重新整理","why":"旧版数据和当前规则并不完全对应，直接迁移可能让用户误以为缺失内容仍然有效","business_logic":"用户升级时先看到每类旧数据的处理结果；能安全保留的内容明确列出，不能可靠迁移的内容提示重新整理，不会静默丢失或伪造。","acceptance_criteria":[{"statement":"升级报告逐项说明可迁移内容和需要重建的内容","decision_method":"automated_check","pass_condition":"迁移样例没有未解释字段"}]},"proposed_relations":[],"proposed_impacts":[],"proposed_risks":[],"blocking_mode":"none","state":"pending","decision":null,"created_at":"2026-09-10T07:03:28.555Z","decided_at":null},"observed_event_cursor":43}','2026-09-10T07:03:28.555Z');
-CREATE TABLE events (
-          seq INTEGER PRIMARY KEY AUTOINCREMENT,
-          event_id TEXT NOT NULL UNIQUE,
-          project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-          actor_id TEXT NOT NULL,
-          type TEXT NOT NULL,
-          object_type TEXT NOT NULL,
-          object_id TEXT NOT NULL,
-          reason TEXT NOT NULL,
-          payload_json TEXT NOT NULL,
-          at TEXT NOT NULL
-        );
-INSERT INTO events VALUES(1,'4005bba2-9fb1-4282-af2b-25b83e4ee59d','goalboard-v1-demo','demo-user','board.created','board','goalboard-v1-demo','创建 Molis Work 真相源','{"title":"让第一次使用 Molis Work 的人顺利完成一次目标协作"}','2026-09-10T07:03:28.489Z');
-INSERT INTO events VALUES(2,'1e0548b8-3bc3-49ef-9352-8d2055cdae7d','goalboard-v1-demo','demo-user','goal.created','goal','V1','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_compound"}','2026-09-10T07:03:28.489Z');
-INSERT INTO events VALUES(3,'a89a26dd-4a84-43cd-910e-39c2c41284e4','goalboard-v1-demo','demo-user','goal.created','goal','PLATFORM','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_compound"}','2026-09-10T07:03:28.490Z');
-INSERT INTO events VALUES(4,'5b17734a-9a8d-41f6-8aa4-5347bee2c9ea','goalboard-v1-demo','demo-user','goal.created','goal','WORKSPACE','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_compound"}','2026-09-10T07:03:28.504Z');
-INSERT INTO events VALUES(5,'834e4eff-f474-4a2c-b261-c08d4414f645','goalboard-v1-demo','demo-user','goal.created','goal','ADOPTION','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_compound"}','2026-09-10T07:03:28.505Z');
-INSERT INTO events VALUES(6,'4be81538-8e7a-4b88-850d-dde451f86da3','goalboard-v1-demo','demo-user','goal.created','goal','CORE','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.505Z');
-INSERT INTO events VALUES(7,'d1650f9d-9fb8-462e-ac0e-000f40978de6','goalboard-v1-demo','demo-user','goal.created','goal','INTERFACES','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.506Z');
-INSERT INTO events VALUES(8,'7e46eaab-f9e7-40ec-8293-6b34768a3722','goalboard-v1-demo','demo-user','goal.created','goal','WEB','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.507Z');
-INSERT INTO events VALUES(9,'3c6de0df-0efd-42f0-a9da-7f5db8c9833a','goalboard-v1-demo','demo-user','goal.created','goal','GRAPH','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.507Z');
-INSERT INTO events VALUES(10,'20d383ec-4973-4446-a4f7-5c909901f30e','goalboard-v1-demo','demo-user','goal.created','goal','DESKTOP','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.507Z');
-INSERT INTO events VALUES(11,'c4bee7cd-6369-4a05-8144-84a382442999','goalboard-v1-demo','demo-user','goal.created','goal','RELEASE','创建新 Goal','{"definition_state":"draft","decomposition_state":"abstract"}','2026-09-10T07:03:28.508Z');
-INSERT INTO events VALUES(12,'adab0c96-d84f-40df-a154-d9716e5f9534','goalboard-v1-demo','demo-user','goal.created','goal','ONBOARDING','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.508Z');
-INSERT INTO events VALUES(13,'c066123d-8bb0-4bc7-b55f-07a014a262f4','goalboard-v1-demo','demo-user','goal.created','goal','DOCS','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.509Z');
-INSERT INTO events VALUES(14,'c30d9bae-6b25-4911-82c6-1d6875fb80f6','goalboard-v1-demo','demo-user','goal.created','goal','AUTO-CONNECT','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.509Z');
-INSERT INTO events VALUES(15,'0e3b4c7f-3fa4-4eeb-b361-1d26779657b1','goalboard-v1-demo','demo-user','relation.added','relation','relation-46303826-25b2-4b8e-ad5e-b76617d90fc9','共同组成第一次完整的 Molis Work 使用体验','{"from_goal_id":"PLATFORM","to_goal_id":"V1","type":"part_of","reason":"共同组成第一次完整的 Molis Work 使用体验"}','2026-09-10T07:03:28.510Z');
-INSERT INTO events VALUES(16,'a8f67517-1803-41b7-b450-18b9353870d1','goalboard-v1-demo','demo-user','relation.added','relation','relation-d0cedc75-3cc4-4977-a253-247efa2b82fb','共同组成第一次完整的 Molis Work 使用体验','{"from_goal_id":"WORKSPACE","to_goal_id":"V1","type":"part_of","reason":"共同组成第一次完整的 Molis Work 使用体验"}','2026-09-10T07:03:28.512Z');
-INSERT INTO events VALUES(17,'f6f131ad-8701-4d9e-80d0-83ef4a9b3ea3','goalboard-v1-demo','demo-user','relation.added','relation','relation-4814cf00-c15c-4d86-b625-15f7c60df9b7','共同组成第一次完整的 Molis Work 使用体验','{"from_goal_id":"ADOPTION","to_goal_id":"V1","type":"part_of","reason":"共同组成第一次完整的 Molis Work 使用体验"}','2026-09-10T07:03:28.513Z');
-INSERT INTO events VALUES(18,'66f71884-9649-4d38-b006-7619fbbba895','goalboard-v1-demo','demo-user','relation.added','relation','relation-9410d190-8f63-466a-8797-14efb68c326d','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"CORE","to_goal_id":"PLATFORM","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.514Z');
-INSERT INTO events VALUES(19,'288f4dc5-7b96-410b-9188-c89423c8e4e9','goalboard-v1-demo','demo-user','relation.added','relation','relation-e744e983-eef6-4ea8-ad99-96cd1b73b248','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"INTERFACES","to_goal_id":"PLATFORM","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.515Z');
-INSERT INTO events VALUES(20,'ced3ad73-a66d-4c60-9f09-450aa42014b8','goalboard-v1-demo','demo-user','relation.added','relation','relation-8217b2ac-8515-4f15-82de-c772e6c97a23','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"WEB","to_goal_id":"WORKSPACE","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.524Z');
-INSERT INTO events VALUES(21,'3d45ee25-eb78-48b2-b880-7eb6cb092b3f','goalboard-v1-demo','demo-user','relation.added','relation','relation-730b96da-261b-4736-9788-7f8f89edcf64','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"GRAPH","to_goal_id":"WORKSPACE","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.525Z');
-INSERT INTO events VALUES(22,'64520514-3c85-4d42-879e-57ff5dcb72e7','goalboard-v1-demo','demo-user','relation.added','relation','relation-f5af7868-c03c-4486-975b-01f92da14355','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"DESKTOP","to_goal_id":"WORKSPACE","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.526Z');
-INSERT INTO events VALUES(23,'1a594912-70e4-475c-8f3f-0ac467667030','goalboard-v1-demo','demo-user','relation.added','relation','relation-ecd7a888-4fdb-4ff5-8aeb-22b195aa8a45','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"RELEASE","to_goal_id":"ADOPTION","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.527Z');
-INSERT INTO events VALUES(24,'98bb304c-9ce3-46f6-976b-2c61706c296c','goalboard-v1-demo','demo-user','relation.added','relation','relation-e62c0749-b7fe-4bd9-9669-e0063c9b289d','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"ONBOARDING","to_goal_id":"ADOPTION","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.527Z');
-INSERT INTO events VALUES(25,'d4a784b3-2739-4398-a11f-0ad8a6cbd2a4','goalboard-v1-demo','demo-user','relation.added','relation','relation-fd86817a-3c4e-41b0-8311-a2c55b7daaed','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"DOCS","to_goal_id":"ADOPTION","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.528Z');
-INSERT INTO events VALUES(26,'4927695b-c0b0-4bd0-ae0d-bb73508db30d','goalboard-v1-demo','demo-user','relation.added','relation','relation-3db70bd7-947c-44d4-b92f-7c794331177d','共享项目进度前，必须先保证每项工作的状态和完成依据可靠','{"from_goal_id":"INTERFACES","to_goal_id":"CORE","type":"depends_on","reason":"共享项目进度前，必须先保证每项工作的状态和完成依据可靠"}','2026-09-10T07:03:28.528Z');
-INSERT INTO events VALUES(27,'c740eeef-9c17-40b5-b155-29247d33fe12','goalboard-v1-demo','demo-user','relation.added','relation','relation-a2944b01-48f2-43a4-8215-bb3d5165fec8','页面显示必须和不同 Runtime 看到的项目进度一致','{"from_goal_id":"WEB","to_goal_id":"INTERFACES","type":"depends_on","reason":"页面显示必须和不同 Runtime 看到的项目进度一致"}','2026-09-10T07:03:28.529Z');
-INSERT INTO events VALUES(28,'c8a5255c-fbb0-4458-b080-92df8a2dfef0','goalboard-v1-demo','demo-user','relation.added','relation','relation-6b87504f-8ad9-49a9-acc4-4d75f39eea1d','关系图必须读取不同 Runtime 共享的同一份 Goal 关系事实','{"from_goal_id":"GRAPH","to_goal_id":"INTERFACES","type":"depends_on","reason":"关系图必须读取不同 Runtime 共享的同一份 Goal 关系事实"}','2026-09-10T07:03:28.529Z');
-INSERT INTO events VALUES(29,'d2c9656b-feb2-4ab1-aaf3-e1dbec8dfd1d','goalboard-v1-demo','demo-user','relation.added','relation','relation-5e6401d7-b1dc-4a94-8c53-f04539921f6a','桌面工作站必须先建立可靠的 Goal 状态与完成依据','{"from_goal_id":"DESKTOP","to_goal_id":"CORE","type":"depends_on","reason":"桌面工作站必须先建立可靠的 Goal 状态与完成依据"}','2026-09-10T07:03:28.530Z');
-INSERT INTO events VALUES(30,'350f3de8-5eab-49f0-a7fd-b32c4a36fe94','goalboard-v1-demo','demo-user','relation.added','relation','relation-341fe1f6-94a5-4b9d-96d8-1481878e7570','首次体验需要建立在可重复的安装与接入路径上','{"from_goal_id":"ONBOARDING","to_goal_id":"RELEASE","type":"depends_on","reason":"首次体验需要建立在可重复的安装与接入路径上"}','2026-09-10T07:03:28.530Z');
-INSERT INTO events VALUES(31,'f5dcb3fd-64d7-43fc-8ec6-7463b65de061','goalboard-v1-demo','demo-user','relation.added','relation','relation-26184b19-74b6-4509-a239-b2c3d9ef3b67','README 的演示必须来自已经走通的首次体验','{"from_goal_id":"DOCS","to_goal_id":"ONBOARDING","type":"depends_on","reason":"README 的演示必须来自已经走通的首次体验"}','2026-09-10T07:03:28.530Z');
-INSERT INTO events VALUES(33,'123a51e2-5d73-4cfc-ba4f-2fe994fb5d2d','goalboard-v1-demo','demo-user','goal.trashed','goal','AUTO-CONNECT','这会替用户猜项目；当前方案只展示历史候选，并再次询问用户','{"trash_record_id":"trash-c5c4a4b4-7cc5-45b5-94a4-dcd93556680b","deactivated_relation_ids":[],"active_goal_cleared":false}','2026-09-10T07:03:28.538Z');
-INSERT INTO events VALUES(44,'0a7bbc6e-88f6-4a94-87c7-944be0ff82e4','goalboard-v1-demo','migration-user','goal.created','goal','OLD-HUMAN','创建新 Goal','{"definition_state":"draft","decomposition_state":"abstract"}','2026-09-10T07:03:28.560Z');
-INSERT INTO events VALUES(45,'488bf575-5e66-484a-a26f-163e0097098a','goalboard-v1-demo','migration-user','goal.created','goal','OLD-POLICY','创建新 Goal','{"definition_state":"draft","decomposition_state":"abstract"}','2026-09-10T07:03:28.560Z');
-INSERT INTO events VALUES(46,'7c1558b1-e478-47b3-9f27-0c1954fc8a6d','goalboard-v1-demo','migration-user','goal.created','goal','OLD-RISK','创建新 Goal','{"definition_state":"draft","decomposition_state":"abstract"}','2026-09-10T07:03:28.561Z');
-INSERT INTO events VALUES(48,'gevt-9d876ebd-9ef4-4594-a512-5ed6930a24f6','goalboard-v1-demo','migration:36','goal.event_state.concern_opened','goal_work_event','gevt-9d876ebd-9ef4-4594-a512-5ed6930a24f6','迁入完成阻塞：付款记录存在遗漏，结果未确认','{"operation":"concern_opened","concern_id":"imported-risk:OLD-RISK:legacy-completion-risk","title":"付款记录存在遗漏，结果未确认","statement":"付款记录存在遗漏，结果未确认；全部付款记录可读取","scope":{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"},"blocks_closure":true}','2026-10-04T20:13:22.249Z');
 CREATE TABLE context_edges (
     scope_kind TEXT NOT NULL CHECK (scope_kind IN ('personal', 'team_project')),
     scope_id TEXT NOT NULL,
@@ -715,29 +603,6 @@ CREATE TABLE context_edges (
     state TEXT NOT NULL CHECK (state IN ('active', 'removed')),
     PRIMARY KEY (scope_kind, scope_id, edge_key, revision)
   );
-CREATE TABLE feed_sources (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-      source_id TEXT NOT NULL,
-      kind TEXT NOT NULL,
-      definition_id TEXT,
-      sync_kind TEXT NOT NULL DEFAULT 'manual' CHECK (sync_kind IN ('public_source', 'github', 'gmail', 'connector', 'manual')),
-      name TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      item_count INTEGER NOT NULL DEFAULT 0,
-      origin TEXT NOT NULL CHECK (origin = 'molis_work'),
-      config_json TEXT NOT NULL DEFAULT '{}',
-      schedule_json TEXT NOT NULL DEFAULT '{"mode":"manual"}',
-      credential_ref TEXT,
-      account_label TEXT,
-      last_sync_at TEXT,
-      last_outcome TEXT,
-      last_error_code TEXT,
-      imported_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, source_id)
-);
 CREATE TABLE source_events (
       event_id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
@@ -819,40 +684,6 @@ CREATE TABLE listener_deliveries (
       updated_at TEXT NOT NULL,
       PRIMARY KEY (project_id, source_id, raw_event_id)
     );
-CREATE TABLE feed_source_runs (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-      run_id TEXT NOT NULL,
-      operation_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      phase TEXT NOT NULL CHECK (phase IN ('running', 'terminal', 'interrupted')),
-      outcome TEXT,
-      empty INTEGER NOT NULL DEFAULT 0,
-      error_code TEXT,
-      receipt_json TEXT,
-      created_count INTEGER NOT NULL DEFAULT 0,
-      deduped_count INTEGER NOT NULL DEFAULT 0,
-      recovery_count INTEGER NOT NULL DEFAULT 0,
-      started_at TEXT NOT NULL,
-      completed_at TEXT,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, run_id),
-      UNIQUE (project_id, operation_id)
-    );
-CREATE TABLE inbox_entries (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-      entry_id TEXT NOT NULL,
-      subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
-      subject_id TEXT NOT NULL,
-      reason TEXT NOT NULL CHECK (reason IN ('manual', 'source_rule', 'goal_decision', 'source_fault', 'artifact_out_failed')),
-      status TEXT NOT NULL CHECK (status IN ('open', 'in_progress', 'done', 'dismissed')),
-      detail_json TEXT NOT NULL DEFAULT '{}',
-      revision INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      completed_at TEXT,
-      PRIMARY KEY (project_id, entry_id),
-      UNIQUE (project_id, subject_type, subject_id, reason)
-);
 CREATE TABLE attention_events (
       event_id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
@@ -862,55 +693,6 @@ CREATE TABLE attention_events (
       subject_id TEXT NOT NULL,
       at TEXT NOT NULL
     );
-CREATE TABLE feed_items (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-      item_id TEXT NOT NULL,
-      source_id TEXT,
-      signal_id TEXT,
-      signal_revision INTEGER,
-      kind TEXT NOT NULL,
-      title TEXT NOT NULL,
-      summary TEXT NOT NULL DEFAULT '',
-      body TEXT,
-      source_kind TEXT NOT NULL,
-      source_label TEXT NOT NULL,
-      external_id TEXT,
-      url TEXT,
-      origin_status TEXT NOT NULL,
-      priority TEXT NOT NULL,
-      tags_json TEXT NOT NULL DEFAULT '[]',
-      author TEXT,
-      disposition TEXT NOT NULL CHECK (disposition IN ('inbox', 'saved', 'promoted', 'processing', 'archived')),
-      read_at TEXT,
-      revision INTEGER NOT NULL DEFAULT 1,
-      source_created_at TEXT NOT NULL,
-      source_updated_at TEXT NOT NULL,
-      imported_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, item_id)
-    );
-CREATE TABLE feed_materials (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-      material_id TEXT NOT NULL,
-      item_id TEXT NOT NULL,
-      canonical_url TEXT,
-      title TEXT NOT NULL,
-      source_name TEXT NOT NULL,
-      published_at TEXT,
-      preview TEXT NOT NULL DEFAULT '',
-      content_hash TEXT,
-      content_ref TEXT,
-      content_available INTEGER NOT NULL DEFAULT 0,
-      content_type TEXT,
-      character_count INTEGER,
-      captured_at TEXT,
-      provenance_json TEXT NOT NULL DEFAULT '{}',
-      selected_for_context INTEGER NOT NULL DEFAULT 0,
-      imported_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, material_id),
-      FOREIGN KEY (project_id, item_id) REFERENCES feed_items(project_id, item_id) ON DELETE CASCADE
-    );
 CREATE TABLE feed_item_events (
       event_id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
@@ -918,19 +700,6 @@ CREATE TABLE feed_item_events (
       type TEXT NOT NULL,
       payload_json TEXT NOT NULL,
       at TEXT NOT NULL
-    );
-CREATE TABLE feed_out_rules (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-      rule_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      match_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      admission TEXT NOT NULL,
-      judgment_json TEXT,
-      revision TEXT NOT NULL,
-      PRIMARY KEY (project_id, rule_id)
     );
 CREATE TABLE feed_runtime_blobs (
     namespace TEXT NOT NULL, key TEXT NOT NULL, opaque TEXT NOT NULL, cas_token TEXT NOT NULL,
@@ -1085,8 +854,31 @@ CREATE TABLE schedule_operation_occurrences (
     project_id TEXT NOT NULL, operation_id TEXT NOT NULL, due_at TEXT NOT NULL, record_json TEXT NOT NULL,
     PRIMARY KEY (project_id, operation_id, due_at)
   );
-CREATE TABLE coding_sessions (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+CREATE TABLE coding_plan_drafts (
+      project_id TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      revision INTEGER NOT NULL,
+      draft_json TEXT NOT NULL,
+      PRIMARY KEY (project_id, session_id),
+      FOREIGN KEY (project_id, session_id) REFERENCES coding_sessions(project_id, session_id) ON DELETE CASCADE
+    );
+CREATE TABLE project_browsing_settings (
+    project_id TEXT PRIMARY KEY, workspace_id TEXT
+  );
+CREATE TABLE project_root (
+      project_id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL
+    );
+INSERT INTO project_root VALUES('goalboard-v1-demo','2026-09-10T07:03:28.489Z');
+CREATE TABLE IF NOT EXISTS "boards" (
+      project_id TEXT PRIMARY KEY REFERENCES project_root(project_id) ON DELETE CASCADE,
+      active_goal_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+INSERT INTO boards VALUES('goalboard-v1-demo','V1','2026-09-10T07:03:28.489Z','2026-09-10T07:03:28.555Z');
+CREATE TABLE IF NOT EXISTS "coding_sessions" (
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       session_id TEXT NOT NULL,
       title TEXT NOT NULL,
       state TEXT NOT NULL,
@@ -1102,17 +894,241 @@ CREATE TABLE coding_sessions (
       background_json TEXT,
       PRIMARY KEY (project_id, session_id)
     );
-CREATE TABLE coding_plan_drafts (
-      project_id TEXT NOT NULL,
-      session_id TEXT NOT NULL,
-      revision INTEGER NOT NULL,
-      draft_json TEXT NOT NULL,
-      PRIMARY KEY (project_id, session_id),
-      FOREIGN KEY (project_id, session_id) REFERENCES coding_sessions(project_id, session_id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS "events" (
+          seq INTEGER PRIMARY KEY AUTOINCREMENT,
+          event_id TEXT NOT NULL UNIQUE,
+          project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
+          actor_id TEXT NOT NULL,
+          type TEXT NOT NULL,
+          object_type TEXT NOT NULL,
+          object_id TEXT NOT NULL,
+          reason TEXT NOT NULL,
+          payload_json TEXT NOT NULL,
+          at TEXT NOT NULL
+        );
+INSERT INTO events VALUES(1,'4005bba2-9fb1-4282-af2b-25b83e4ee59d','goalboard-v1-demo','demo-user','board.created','board','goalboard-v1-demo','创建 Molis Work 真相源','{"title":"让第一次使用 Molis Work 的人顺利完成一次目标协作"}','2026-09-10T07:03:28.489Z');
+INSERT INTO events VALUES(2,'1e0548b8-3bc3-49ef-9352-8d2055cdae7d','goalboard-v1-demo','demo-user','goal.created','goal','V1','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_compound"}','2026-09-10T07:03:28.489Z');
+INSERT INTO events VALUES(3,'a89a26dd-4a84-43cd-910e-39c2c41284e4','goalboard-v1-demo','demo-user','goal.created','goal','PLATFORM','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_compound"}','2026-09-10T07:03:28.490Z');
+INSERT INTO events VALUES(4,'5b17734a-9a8d-41f6-8aa4-5347bee2c9ea','goalboard-v1-demo','demo-user','goal.created','goal','WORKSPACE','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_compound"}','2026-09-10T07:03:28.504Z');
+INSERT INTO events VALUES(5,'834e4eff-f474-4a2c-b261-c08d4414f645','goalboard-v1-demo','demo-user','goal.created','goal','ADOPTION','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_compound"}','2026-09-10T07:03:28.505Z');
+INSERT INTO events VALUES(6,'4be81538-8e7a-4b88-850d-dde451f86da3','goalboard-v1-demo','demo-user','goal.created','goal','CORE','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.505Z');
+INSERT INTO events VALUES(7,'d1650f9d-9fb8-462e-ac0e-000f40978de6','goalboard-v1-demo','demo-user','goal.created','goal','INTERFACES','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.506Z');
+INSERT INTO events VALUES(8,'7e46eaab-f9e7-40ec-8293-6b34768a3722','goalboard-v1-demo','demo-user','goal.created','goal','WEB','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.507Z');
+INSERT INTO events VALUES(9,'3c6de0df-0efd-42f0-a9da-7f5db8c9833a','goalboard-v1-demo','demo-user','goal.created','goal','GRAPH','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.507Z');
+INSERT INTO events VALUES(10,'20d383ec-4973-4446-a4f7-5c909901f30e','goalboard-v1-demo','demo-user','goal.created','goal','DESKTOP','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.507Z');
+INSERT INTO events VALUES(11,'c4bee7cd-6369-4a05-8144-84a382442999','goalboard-v1-demo','demo-user','goal.created','goal','RELEASE','创建新 Goal','{"definition_state":"draft","decomposition_state":"abstract"}','2026-09-10T07:03:28.508Z');
+INSERT INTO events VALUES(12,'adab0c96-d84f-40df-a154-d9716e5f9534','goalboard-v1-demo','demo-user','goal.created','goal','ONBOARDING','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.508Z');
+INSERT INTO events VALUES(13,'c066123d-8bb0-4bc7-b55f-07a014a262f4','goalboard-v1-demo','demo-user','goal.created','goal','DOCS','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.509Z');
+INSERT INTO events VALUES(14,'c30d9bae-6b25-4911-82c6-1d6875fb80f6','goalboard-v1-demo','demo-user','goal.created','goal','AUTO-CONNECT','创建新 Goal','{"definition_state":"accepted","decomposition_state":"closed_leaf"}','2026-09-10T07:03:28.509Z');
+INSERT INTO events VALUES(15,'0e3b4c7f-3fa4-4eeb-b361-1d26779657b1','goalboard-v1-demo','demo-user','relation.added','relation','relation-46303826-25b2-4b8e-ad5e-b76617d90fc9','共同组成第一次完整的 Molis Work 使用体验','{"from_goal_id":"PLATFORM","to_goal_id":"V1","type":"part_of","reason":"共同组成第一次完整的 Molis Work 使用体验"}','2026-09-10T07:03:28.510Z');
+INSERT INTO events VALUES(16,'a8f67517-1803-41b7-b450-18b9353870d1','goalboard-v1-demo','demo-user','relation.added','relation','relation-d0cedc75-3cc4-4977-a253-247efa2b82fb','共同组成第一次完整的 Molis Work 使用体验','{"from_goal_id":"WORKSPACE","to_goal_id":"V1","type":"part_of","reason":"共同组成第一次完整的 Molis Work 使用体验"}','2026-09-10T07:03:28.512Z');
+INSERT INTO events VALUES(17,'f6f131ad-8701-4d9e-80d0-83ef4a9b3ea3','goalboard-v1-demo','demo-user','relation.added','relation','relation-4814cf00-c15c-4d86-b625-15f7c60df9b7','共同组成第一次完整的 Molis Work 使用体验','{"from_goal_id":"ADOPTION","to_goal_id":"V1","type":"part_of","reason":"共同组成第一次完整的 Molis Work 使用体验"}','2026-09-10T07:03:28.513Z');
+INSERT INTO events VALUES(18,'66f71884-9649-4d38-b006-7619fbbba895','goalboard-v1-demo','demo-user','relation.added','relation','relation-9410d190-8f63-466a-8797-14efb68c326d','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"CORE","to_goal_id":"PLATFORM","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.514Z');
+INSERT INTO events VALUES(19,'288f4dc5-7b96-410b-9188-c89423c8e4e9','goalboard-v1-demo','demo-user','relation.added','relation','relation-e744e983-eef6-4ea8-ad99-96cd1b73b248','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"INTERFACES","to_goal_id":"PLATFORM","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.515Z');
+INSERT INTO events VALUES(20,'ced3ad73-a66d-4c60-9f09-450aa42014b8','goalboard-v1-demo','demo-user','relation.added','relation','relation-8217b2ac-8515-4f15-82de-c772e6c97a23','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"WEB","to_goal_id":"WORKSPACE","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.524Z');
+INSERT INTO events VALUES(21,'3d45ee25-eb78-48b2-b880-7eb6cb092b3f','goalboard-v1-demo','demo-user','relation.added','relation','relation-730b96da-261b-4736-9788-7f8f89edcf64','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"GRAPH","to_goal_id":"WORKSPACE","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.525Z');
+INSERT INTO events VALUES(22,'64520514-3c85-4d42-879e-57ff5dcb72e7','goalboard-v1-demo','demo-user','relation.added','relation','relation-f5af7868-c03c-4486-975b-01f92da14355','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"DESKTOP","to_goal_id":"WORKSPACE","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.526Z');
+INSERT INTO events VALUES(23,'1a594912-70e4-475c-8f3f-0ac467667030','goalboard-v1-demo','demo-user','relation.added','relation','relation-ecd7a888-4fdb-4ff5-8aeb-22b195aa8a45','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"RELEASE","to_goal_id":"ADOPTION","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.527Z');
+INSERT INTO events VALUES(24,'98bb304c-9ce3-46f6-976b-2c61706c296c','goalboard-v1-demo','demo-user','relation.added','relation','relation-e62c0749-b7fe-4bd9-9669-e0063c9b289d','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"ONBOARDING","to_goal_id":"ADOPTION","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.527Z');
+INSERT INTO events VALUES(25,'d4a784b3-2739-4398-a11f-0ad8a6cbd2a4','goalboard-v1-demo','demo-user','relation.added','relation','relation-fd86817a-3c4e-41b0-8311-a2c55b7daaed','在 Mock 项目中形成可追溯的产品目标层级','{"from_goal_id":"DOCS","to_goal_id":"ADOPTION","type":"part_of","reason":"在 Mock 项目中形成可追溯的产品目标层级"}','2026-09-10T07:03:28.528Z');
+INSERT INTO events VALUES(26,'4927695b-c0b0-4bd0-ae0d-bb73508db30d','goalboard-v1-demo','demo-user','relation.added','relation','relation-3db70bd7-947c-44d4-b92f-7c794331177d','共享项目进度前，必须先保证每项工作的状态和完成依据可靠','{"from_goal_id":"INTERFACES","to_goal_id":"CORE","type":"depends_on","reason":"共享项目进度前，必须先保证每项工作的状态和完成依据可靠"}','2026-09-10T07:03:28.528Z');
+INSERT INTO events VALUES(27,'c740eeef-9c17-40b5-b155-29247d33fe12','goalboard-v1-demo','demo-user','relation.added','relation','relation-a2944b01-48f2-43a4-8215-bb3d5165fec8','页面显示必须和不同 Runtime 看到的项目进度一致','{"from_goal_id":"WEB","to_goal_id":"INTERFACES","type":"depends_on","reason":"页面显示必须和不同 Runtime 看到的项目进度一致"}','2026-09-10T07:03:28.529Z');
+INSERT INTO events VALUES(28,'c8a5255c-fbb0-4458-b080-92df8a2dfef0','goalboard-v1-demo','demo-user','relation.added','relation','relation-6b87504f-8ad9-49a9-acc4-4d75f39eea1d','关系图必须读取不同 Runtime 共享的同一份 Goal 关系事实','{"from_goal_id":"GRAPH","to_goal_id":"INTERFACES","type":"depends_on","reason":"关系图必须读取不同 Runtime 共享的同一份 Goal 关系事实"}','2026-09-10T07:03:28.529Z');
+INSERT INTO events VALUES(29,'d2c9656b-feb2-4ab1-aaf3-e1dbec8dfd1d','goalboard-v1-demo','demo-user','relation.added','relation','relation-5e6401d7-b1dc-4a94-8c53-f04539921f6a','桌面工作站必须先建立可靠的 Goal 状态与完成依据','{"from_goal_id":"DESKTOP","to_goal_id":"CORE","type":"depends_on","reason":"桌面工作站必须先建立可靠的 Goal 状态与完成依据"}','2026-09-10T07:03:28.530Z');
+INSERT INTO events VALUES(30,'350f3de8-5eab-49f0-a7fd-b32c4a36fe94','goalboard-v1-demo','demo-user','relation.added','relation','relation-341fe1f6-94a5-4b9d-96d8-1481878e7570','首次体验需要建立在可重复的安装与接入路径上','{"from_goal_id":"ONBOARDING","to_goal_id":"RELEASE","type":"depends_on","reason":"首次体验需要建立在可重复的安装与接入路径上"}','2026-09-10T07:03:28.530Z');
+INSERT INTO events VALUES(31,'f5dcb3fd-64d7-43fc-8ec6-7463b65de061','goalboard-v1-demo','demo-user','relation.added','relation','relation-26184b19-74b6-4509-a239-b2c3d9ef3b67','README 的演示必须来自已经走通的首次体验','{"from_goal_id":"DOCS","to_goal_id":"ONBOARDING","type":"depends_on","reason":"README 的演示必须来自已经走通的首次体验"}','2026-09-10T07:03:28.530Z');
+INSERT INTO events VALUES(33,'123a51e2-5d73-4cfc-ba4f-2fe994fb5d2d','goalboard-v1-demo','demo-user','goal.trashed','goal','AUTO-CONNECT','这会替用户猜项目；当前方案只展示历史候选，并再次询问用户','{"trash_record_id":"trash-c5c4a4b4-7cc5-45b5-94a4-dcd93556680b","deactivated_relation_ids":[],"active_goal_cleared":false}','2026-09-10T07:03:28.538Z');
+INSERT INTO events VALUES(44,'0a7bbc6e-88f6-4a94-87c7-944be0ff82e4','goalboard-v1-demo','migration-user','goal.created','goal','OLD-HUMAN','创建新 Goal','{"definition_state":"draft","decomposition_state":"abstract"}','2026-09-10T07:03:28.560Z');
+INSERT INTO events VALUES(45,'488bf575-5e66-484a-a26f-163e0097098a','goalboard-v1-demo','migration-user','goal.created','goal','OLD-POLICY','创建新 Goal','{"definition_state":"draft","decomposition_state":"abstract"}','2026-09-10T07:03:28.560Z');
+INSERT INTO events VALUES(46,'7c1558b1-e478-47b3-9f27-0c1954fc8a6d','goalboard-v1-demo','migration-user','goal.created','goal','OLD-RISK','创建新 Goal','{"definition_state":"draft","decomposition_state":"abstract"}','2026-09-10T07:03:28.561Z');
+INSERT INTO events VALUES(48,'gevt-9d876ebd-9ef4-4594-a512-5ed6930a24f6','goalboard-v1-demo','migration:36','goal.event_state.concern_opened','goal_work_event','gevt-9d876ebd-9ef4-4594-a512-5ed6930a24f6','迁入完成阻塞：付款记录存在遗漏，结果未确认','{"operation":"concern_opened","concern_id":"imported-risk:OLD-RISK:legacy-completion-risk","title":"付款记录存在遗漏，结果未确认","statement":"付款记录存在遗漏，结果未确认；全部付款记录可读取","scope":{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"},"blocks_closure":true}','2026-10-04T20:13:22.249Z');
+CREATE TABLE IF NOT EXISTS "feed_items" (
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
+      item_id TEXT NOT NULL,
+      source_id TEXT,
+      signal_id TEXT,
+      signal_revision INTEGER,
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL DEFAULT '',
+      body TEXT,
+      source_kind TEXT NOT NULL,
+      source_label TEXT NOT NULL,
+      external_id TEXT,
+      url TEXT,
+      origin_status TEXT NOT NULL,
+      priority TEXT NOT NULL,
+      tags_json TEXT NOT NULL DEFAULT '[]',
+      author TEXT,
+      disposition TEXT NOT NULL CHECK (disposition IN ('inbox', 'saved', 'promoted', 'processing', 'archived')),
+      read_at TEXT,
+      revision INTEGER NOT NULL DEFAULT 1,
+      source_created_at TEXT NOT NULL,
+      source_updated_at TEXT NOT NULL,
+      imported_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, item_id)
     );
-CREATE TABLE project_browsing_settings (
-    project_id TEXT PRIMARY KEY, workspace_id TEXT
+CREATE TABLE IF NOT EXISTS "feed_materials" (
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
+      material_id TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      canonical_url TEXT,
+      title TEXT NOT NULL,
+      source_name TEXT NOT NULL,
+      published_at TEXT,
+      preview TEXT NOT NULL DEFAULT '',
+      content_hash TEXT,
+      content_ref TEXT,
+      content_available INTEGER NOT NULL DEFAULT 0,
+      content_type TEXT,
+      character_count INTEGER,
+      captured_at TEXT,
+      provenance_json TEXT NOT NULL DEFAULT '{}',
+      selected_for_context INTEGER NOT NULL DEFAULT 0,
+      imported_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, material_id),
+      FOREIGN KEY (project_id, item_id) REFERENCES feed_items(project_id, item_id) ON DELETE CASCADE
+    );
+CREATE TABLE IF NOT EXISTS "feed_out_rules" (
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
+      rule_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      match_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      admission TEXT NOT NULL,
+      judgment_json TEXT,
+      revision TEXT NOT NULL,
+      PRIMARY KEY (project_id, rule_id)
+    );
+CREATE TABLE IF NOT EXISTS "feed_source_runs" (
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
+      run_id TEXT NOT NULL,
+      operation_id TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      phase TEXT NOT NULL CHECK (phase IN ('running', 'terminal', 'interrupted')),
+      outcome TEXT,
+      empty INTEGER NOT NULL DEFAULT 0,
+      error_code TEXT,
+      receipt_json TEXT,
+      created_count INTEGER NOT NULL DEFAULT 0,
+      deduped_count INTEGER NOT NULL DEFAULT 0,
+      recovery_count INTEGER NOT NULL DEFAULT 0,
+      started_at TEXT NOT NULL,
+      completed_at TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, run_id),
+      UNIQUE (project_id, operation_id)
+    );
+CREATE TABLE IF NOT EXISTS "feed_sources" (
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
+      source_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      definition_id TEXT,
+      sync_kind TEXT NOT NULL DEFAULT 'manual' CHECK (sync_kind IN ('public_source', 'github', 'gmail', 'connector', 'manual')),
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      item_count INTEGER NOT NULL DEFAULT 0,
+      origin TEXT NOT NULL CHECK (origin = 'molis_work'),
+      config_json TEXT NOT NULL DEFAULT '{}',
+      schedule_json TEXT NOT NULL DEFAULT '{"mode":"manual"}',
+      credential_ref TEXT,
+      account_label TEXT,
+      last_sync_at TEXT,
+      last_outcome TEXT,
+      last_error_code TEXT,
+      imported_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, source_id)
+);
+CREATE TABLE IF NOT EXISTS "idempotency_records" (
+          project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
+          actor_id TEXT NOT NULL,
+          operation TEXT NOT NULL,
+          idempotency_key TEXT NOT NULL,
+          request_hash TEXT NOT NULL,
+          outcome_json TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (project_id, actor_id, operation, idempotency_key)
+        );
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','initialize_board','demo-board','44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a','{"project_id":"goalboard-v1-demo","observed_event_cursor":1}','2026-09-10T07:03:28.489Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-PLATFORM','6482c3a8d0633f75f1cda11eeefc3dd7ca543d0d43f9eca0eb3a38ba4a3b3eba','{"relation_id":"relation-46303826-25b2-4b8e-ad5e-b76617d90fc9","observed_event_cursor":15}','2026-09-10T07:03:28.510Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-WORKSPACE','c82e6659f90d83cf44078a6802429aab882e5248f7fb69d6deaae3603242a0cd','{"relation_id":"relation-d0cedc75-3cc4-4977-a253-247efa2b82fb","observed_event_cursor":16}','2026-09-10T07:03:28.512Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-ADOPTION','8c4c953cbbc131dd0107694b8bc264106228d57464282ad08412d37cae240fbc','{"relation_id":"relation-4814cf00-c15c-4d86-b625-15f7c60df9b7","observed_event_cursor":17}','2026-09-10T07:03:28.513Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-CORE','0d6f6c328d7f3070e0cc0641e9927279a8cd34565edc3ff5f0d0368ca54299f3','{"relation_id":"relation-9410d190-8f63-466a-8797-14efb68c326d","observed_event_cursor":18}','2026-09-10T07:03:28.514Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-INTERFACES','77f9377cf3bd2c7fe3c310ae04baa77d2a69d91e7378288bbb5d29cb67ad5de8','{"relation_id":"relation-e744e983-eef6-4ea8-ad99-96cd1b73b248","observed_event_cursor":19}','2026-09-10T07:03:28.515Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-WEB','1e3ff6a45cb626f0025e9d77216a8e89a046d9316f91aba036ab8c1d3317f13a','{"relation_id":"relation-8217b2ac-8515-4f15-82de-c772e6c97a23","observed_event_cursor":20}','2026-09-10T07:03:28.524Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-GRAPH','26812e7c892d637e16c8f6408364118c594f48da3efb1f8e3d471d633eb7c74f','{"relation_id":"relation-730b96da-261b-4736-9788-7f8f89edcf64","observed_event_cursor":21}','2026-09-10T07:03:28.525Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-DESKTOP','44ec270574fa0799cbb675c9fa729f770bd45ebf9cca33d639266580b66a370a','{"relation_id":"relation-f5af7868-c03c-4486-975b-01f92da14355","observed_event_cursor":22}','2026-09-10T07:03:28.526Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-RELEASE','a1042b41785a71853c0b2adc1994d358331d682ccb75ac09024fbaeab05920f2','{"relation_id":"relation-ecd7a888-4fdb-4ff5-8aeb-22b195aa8a45","observed_event_cursor":23}','2026-09-10T07:03:28.527Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-ONBOARDING','21fa6f6da09772a17e97aff9ec22ec5685353373dec53a92ed3f47defbbbb06f','{"relation_id":"relation-e62c0749-b7fe-4bd9-9669-e0063c9b289d","observed_event_cursor":24}','2026-09-10T07:03:28.527Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-DOCS','edebf6641ea067e7c1ffac4e7e424127a0e85c0efd82920b6b4b595c2d131424','{"relation_id":"relation-fd86817a-3c4e-41b0-8311-a2c55b7daaed","observed_event_cursor":25}','2026-09-10T07:03:28.528Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-dependency-interfaces','4212417003556279a15467e2beb05fedf495746c75c696da34f07de90e651303','{"relation_id":"relation-3db70bd7-947c-44d4-b92f-7c794331177d","observed_event_cursor":26}','2026-09-10T07:03:28.528Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-dependency-web','215aa0fb7f5fb5fe4cae3afdbfd6b063ea4fc7cf9cd1edf2732bf6c64be46509','{"relation_id":"relation-a2944b01-48f2-43a4-8215-bb3d5165fec8","observed_event_cursor":27}','2026-09-10T07:03:28.529Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-dependency-graph','a54fcefe992827478644cf65d7b0f4e12bcf8aee3d3c75e284138aa3c39f8300','{"relation_id":"relation-6b87504f-8ad9-49a9-acc4-4d75f39eea1d","observed_event_cursor":28}','2026-09-10T07:03:28.529Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-dependency-desktop','c9c2312048bd48ea14ed96929703343234592cad72dfcab1890e57a28e8c5442','{"relation_id":"relation-5e6401d7-b1dc-4a94-8c53-f04539921f6a","observed_event_cursor":29}','2026-09-10T07:03:28.530Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-dependency-onboarding','3e8414f6e7fd92b35a9c7937511a5a8c469503218711a28db6b4d551007502cf','{"relation_id":"relation-341fe1f6-94a5-4b9d-96d8-1481878e7570","observed_event_cursor":30}','2026-09-10T07:03:28.530Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-dependency-docs','7130416bf9475ebe006b6a08de7bf332cbb74fabfb4fffa75a49771f38bc5b70','{"relation_id":"relation-26184b19-74b6-4509-a239-b2c3d9ef3b67","observed_event_cursor":31}','2026-09-10T07:03:28.530Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_risk','demo-risk-first-restart','a5c777c15939f4df3d9150c8d8a736c4b9dc25aaaca03a59196ed1ecece1ca62','{"risk":{"risk_id":"RISK-FIRST-RESTART","project_id":"goalboard-v1-demo","description":"用户接入 Runtime 后没有新开会话，误以为安装失败","probability":"medium","impact":"用户看不到 Molis Work 工具，无法开始第一次使用","affected_surfaces":["首次安装","Runtime 接入"],"trigger":"用户继续使用接入前已经打开的会话","treatment":"mitigate","treatment_plan":"","blocking_mode":"none","revisit_condition":"安装结果和接入预览都清楚说明新开会话的原因和下一步","owner":"产品体验","state":"open","resolution_basis":null,"created_at":"2026-09-10T07:03:28.532Z","updated_at":"2026-09-10T07:03:28.532Z"},"transitions":[{"goal_id":"RELEASE","previous_action_token":"015c71bbe8e02f95e8983236eca05686","projection":{"goal_id":"RELEASE","contract_revision":1,"progress":"not_started","primary_action":{"action_id":"action-a8122f09c3549b87ffe37f55","actor":"runtime","kind":"clarify","status":"ready","target_type":"goal","target_id":"RELEASE","reasons":[]},"actions":[{"action_id":"action-a8122f09c3549b87ffe37f55","actor":"runtime","kind":"clarify","status":"ready","target_type":"goal","target_id":"RELEASE","reasons":[]}],"action_token":"015c71bbe8e02f95e8983236eca05686","display_status":"continue"},"affected_goals":[{"goal_id":"RELEASE","contract_revision":1,"progress":"not_started","primary_action":{"action_id":"action-a8122f09c3549b87ffe37f55","actor":"runtime","kind":"clarify","status":"ready","target_type":"goal","target_id":"RELEASE","reasons":[]},"action_token":"015c71bbe8e02f95e8983236eca05686","display_status":"continue"}],"summary":"已记录风险，不新增用户待办","observed_event_cursor":32}],"observed_event_cursor":32}','2026-09-10T07:03:28.532Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','claim_goal','demo-core-claim','f3f50cb4ff6f2131a98ef644fb4ecc7d3e970e6b38b2865275e8d82c78fb8122','{"allowed":true,"observed_event_cursor":33,"reasons":[],"claim":{"claim_id":"claim-dc5985a4-4a90-4aaa-880a-28f896f96e14","project_id":"goalboard-v1-demo","goal_id":"CORE","actor_id":"runtime-core","role":"executor","contract_revision":1,"action_kind":"execute","action_target_id":"CORE","state":"active","capabilities":[],"goal_mode_attestation":false,"resolved_policy":{"goal_mode":"preferred","required_capabilities":[],"self_verification":true,"cross_reviewers":0,"adversarial_reviewers":0,"human_approval":false,"max_lease_seconds":1800},"claimed_at":"2026-09-10T07:03:28.540Z","expires_at":"2026-09-10T07:33:28.540Z","renewed_at":null,"released_at":null,"release_reason":null},"replayed":false}','2026-09-10T07:03:28.539Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','start_run','demo-core-run','516fe370819c54c411c7adb73b7160988dad03999d738f2297741bd203d775cf','{"run":{"run_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","project_id":"goalboard-v1-demo","goal_id":"CORE","claim_id":"claim-dc5985a4-4a90-4aaa-880a-28f896f96e14","actor_id":"runtime-core","role":"executor","state":"started","block_reason":null,"output_refs":[],"discovery_refs":[],"started_at":"2026-09-10T07:03:28.541Z","ended_at":null},"observed_event_cursor":35}','2026-09-10T07:03:28.541Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','report_run','demo-core-run-complete','8e32de79bb818f1cf49734120236be23e1c4335f5246e6867de9411db905890a','{"run":{"run_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","project_id":"goalboard-v1-demo","goal_id":"CORE","claim_id":"claim-dc5985a4-4a90-4aaa-880a-28f896f96e14","actor_id":"runtime-core","role":"executor","state":"completed","block_reason":null,"output_refs":["tests/v1.test.ts"],"discovery_refs":[],"started_at":"2026-09-10T07:03:28.541Z","ended_at":"2026-09-10T07:03:28.543Z"},"observed_event_cursor":36,"transition":{"goal_id":"CORE","previous_action_token":"6bb6bf58c8d6e46dead0b1444437cd55","projection":{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-77c1abae7519eaaebb327691","actor":"runtime","kind":"submit_evidence","status":"active","target_type":"run","target_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","reasons":[{"code":"action.evidence_incomplete","severity":"warning","subject_type":"run","subject_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","message":"执行已经完成，还需要补齐完成依据","remediation":"提交当前 Contract revision 所需的最后一条 Evidence 后会自动释放工作。"}]},"actions":[{"action_id":"action-77c1abae7519eaaebb327691","actor":"runtime","kind":"submit_evidence","status":"active","target_type":"run","target_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","reasons":[{"code":"action.evidence_incomplete","severity":"warning","subject_type":"run","subject_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","message":"执行已经完成，还需要补齐完成依据","remediation":"提交当前 Contract revision 所需的最后一条 Evidence 后会自动释放工作。"}]}],"action_token":"2e51258038925f4e17921c9b7541f5c9","display_status":"in_progress"},"affected_goals":[{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-77c1abae7519eaaebb327691","actor":"runtime","kind":"submit_evidence","status":"active","target_type":"run","target_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","reasons":[{"code":"action.evidence_incomplete","severity":"warning","subject_type":"run","subject_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","message":"执行已经完成，还需要补齐完成依据","remediation":"提交当前 Contract revision 所需的最后一条 Evidence 后会自动释放工作。"}]},"action_token":"2e51258038925f4e17921c9b7541f5c9","display_status":"in_progress"}],"summary":"已记录本阶段产物","observed_event_cursor":36}}','2026-09-10T07:03:28.542Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','submit_evidence','demo-core-evidence','9f1efd1614152da15ae8d38183471667ebde917406f48b21bc6084cf4100d86f','{"evidence":{"evidence_id":"evidence-3aaba898-2eb4-4565-acbb-13cccced105f","project_id":"goalboard-v1-demo","goal_id":"CORE","contract_revision":1,"criterion_ids":["CORE-C1"],"producer_actor_id":"runtime-core","run_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","review_id":null,"kind":"test","locator":"command://pnpm-test","locator_status":"unverified","locator_validation_reason":"不透明或外部 locator 已保留为 UNVERIFIED；Molis Work 不会调用自定义协议","locator_checked_at":"2026-09-10T07:03:28.545Z","locator_workspace_id":null,"digest":null,"captured_at":"2026-09-10T07:03:28.545Z","result":"passed","lifecycle_state":"effective","correction":null,"historical_unmapped":false},"observed_event_cursor":38,"transition":{"goal_id":"CORE","previous_action_token":"2e51258038925f4e17921c9b7541f5c9","projection":{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-8b0b3c4001bbd07472c0f31a","actor":"runtime","kind":"review","status":"ready","target_type":"review_obligation","target_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","reasons":[]},"actions":[{"action_id":"action-8b0b3c4001bbd07472c0f31a","actor":"runtime","kind":"review","status":"ready","target_type":"review_obligation","target_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","reasons":[]}],"action_token":"bc49b6de772fa1099fcf9789ccfe42ae","display_status":"continue"},"affected_goals":[{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-8b0b3c4001bbd07472c0f31a","actor":"runtime","kind":"review","status":"ready","target_type":"review_obligation","target_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","reasons":[]},"action_token":"bc49b6de772fa1099fcf9789ccfe42ae","display_status":"continue"}],"summary":"已记录完成依据","observed_event_cursor":38}}','2026-09-10T07:03:28.545Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','submit_review','demo-core-review','c190c83074aaf56e00148d4ac063185a35144ffe0a09b98d4acf915cdc69ec39','{"review":{"review_id":"review-3c52c9fe-13b8-41ce-92d2-725de601ae6f","project_id":"goalboard-v1-demo","goal_id":"CORE","obligation_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","claim_id":null,"actor_id":"runtime-core","verdict":"pass","evidence_refs":["evidence-3aaba898-2eb4-4565-acbb-13cccced105f"],"reasoning":"生命周期测试通过","submitted_at":"2026-09-10T07:03:28.550Z"},"observed_event_cursor":40,"transition":{"goal_id":"CORE","previous_action_token":"bc49b6de772fa1099fcf9789ccfe42ae","projection":{"goal_id":"CORE","contract_revision":1,"progress":"verified","primary_action":null,"actions":[],"action_token":"e860ebc1537180e7b4660f8d71ccf5af","display_status":"completed"},"affected_goals":[{"goal_id":"CORE","contract_revision":1,"progress":"verified","primary_action":null,"action_token":"e860ebc1537180e7b4660f8d71ccf5af","display_status":"completed"}],"summary":"已记录复核结果","observed_event_cursor":40}}','2026-09-10T07:03:28.550Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','evaluate_leaf_completion','demo-core-complete','411b89fc57c66098a0d9a68d7e3c492c9933e671c0480e30cfe1a84e15237d03','{"satisfied":true,"reasons":[],"observed_event_cursor":40}','2026-09-10T07:03:28.553Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-interface','claim_goal','demo-interface-claim','6ffbf790d78c5f1a15ce473d4f7d6739b8b1ba547e70941c19dca0ff3be6d630','{"allowed":true,"observed_event_cursor":40,"reasons":[],"claim":{"claim_id":"claim-c44fe62b-c4bf-4b0e-9d14-3f302a74c45b","project_id":"goalboard-v1-demo","goal_id":"INTERFACES","actor_id":"runtime-interface","role":"executor","contract_revision":1,"action_kind":"execute","action_target_id":"INTERFACES","state":"active","capabilities":[],"goal_mode_attestation":false,"resolved_policy":{"goal_mode":"preferred","required_capabilities":[],"self_verification":true,"cross_reviewers":0,"adversarial_reviewers":0,"human_approval":false,"max_lease_seconds":1800},"claimed_at":"2026-09-10T07:03:28.554Z","expires_at":"2026-09-10T07:33:28.554Z","renewed_at":null,"released_at":null,"release_reason":null},"replayed":false}','2026-09-10T07:03:28.553Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-interface','start_run','demo-interface-run','ee73190f49d01e0b20782352a8aa00df648f62904407861918e968d588e6ff43','{"run":{"run_id":"run-65ec112f-54fe-499a-a41d-b5fc73d14f85","project_id":"goalboard-v1-demo","goal_id":"INTERFACES","claim_id":"claim-c44fe62b-c4bf-4b0e-9d14-3f302a74c45b","actor_id":"runtime-interface","role":"executor","state":"started","block_reason":null,"output_refs":[],"discovery_refs":[],"started_at":"2026-09-10T07:03:28.554Z","ended_at":null},"observed_event_cursor":42}','2026-09-10T07:03:28.554Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-interface','submit_candidate','demo-candidate','015b8f6ae3d66514b6d8178ff3e626a44aed82ed38376b8609884169bcfd79cb','{"candidate":{"candidate_id":"candidate-b0050ab4-1d01-4556-ac3d-fa0053f69ce2","project_id":"goalboard-v1-demo","submitted_by":"runtime-interface","discovered_in_run_id":"run-65ec112f-54fe-499a-a41d-b5fc73d14f85","proposed_goal":{"title":"让旧数据升级前先看到安全说明","outcome":"用户在升级前知道哪些内容会保留、哪些需要重新整理","why":"旧版数据和当前规则并不完全对应，直接迁移可能让用户误以为缺失内容仍然有效","business_logic":"用户升级时先看到每类旧数据的处理结果；能安全保留的内容明确列出，不能可靠迁移的内容提示重新整理，不会静默丢失或伪造。","acceptance_criteria":[{"statement":"升级报告逐项说明可迁移内容和需要重建的内容","decision_method":"automated_check","pass_condition":"迁移样例没有未解释字段"}]},"proposed_relations":[],"proposed_impacts":[],"proposed_risks":[],"blocking_mode":"none","state":"pending","decision":null,"created_at":"2026-09-10T07:03:28.555Z","decided_at":null},"observed_event_cursor":43}','2026-09-10T07:03:28.555Z');
+CREATE TABLE IF NOT EXISTS "inbox_entries" (
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
+      entry_id TEXT NOT NULL,
+      subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
+      subject_id TEXT NOT NULL,
+      reason TEXT NOT NULL CHECK (reason IN ('manual', 'source_rule', 'goal_decision', 'source_fault', 'artifact_out_failed')),
+      status TEXT NOT NULL CHECK (status IN ('open', 'in_progress', 'done', 'dismissed')),
+      detail_json TEXT NOT NULL DEFAULT '{}',
+      revision INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      completed_at TEXT,
+      PRIMARY KEY (project_id, entry_id),
+      UNIQUE (project_id, subject_type, subject_id, reason)
+);
+CREATE TABLE IF NOT EXISTS "library_artifacts" (
+    artifact_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
+    owner_actor_id TEXT NOT NULL,
+    producer_plugin_id TEXT NOT NULL,
+    producer_binding_signature TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (artifact_id, project_id)
   );
+CREATE TABLE IF NOT EXISTS "process_items" (
+    artifact_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
+    owner_actor_id TEXT NOT NULL,
+    producer_plugin_id TEXT NOT NULL,
+    producer_binding_signature TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (artifact_id, project_id)
+  );
+CREATE TABLE plugin_project_databases (
+      plugin_id TEXT PRIMARY KEY,
+      publisher_signature TEXT NOT NULL,
+      store_name TEXT NOT NULL UNIQUE,
+      version INTEGER NOT NULL CHECK (version >= 1),
+      tables_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+INSERT INTO plugin_project_databases VALUES('io.molis.work.coding','official-coding-binding','coding',1,'["coding_plan_drafts","coding_sessions","coding_sessions_project_updated_idx"]','2026-10-20T09:46:22.272Z');
+INSERT INTO plugin_project_databases VALUES('io.molis.work.feed','official-feed-binding','feed',1,'["feed_out_rules","feed_out_rules_project_enabled_idx"]','2026-10-20T09:46:22.272Z');
+INSERT INTO plugin_project_databases VALUES('io.molis.work.goals','official-goals-binding','goals',1,'["acceptance_criteria","acceptance_goal_idx","boards","goal_event_agreements","goal_event_applied_decisions","goal_event_applied_decisions_goal_idx","goal_event_closures","goal_event_closures_goal_idx","goal_event_concerns","goal_event_concerns_goal_idx","goal_event_config_versions","goal_event_configs","goal_event_decision_requests","goal_event_decision_requests_goal_idx","goal_event_progress_summaries","goal_event_progress_summaries_goal_idx","goal_event_requirement_bindings","goal_event_requirement_conclusions","goal_event_requirement_conclusions_latest_idx","goal_event_requirements","goal_event_requirements_goal_idx","goal_event_state_owners","goal_event_state_owners_project_idx","goal_event_trusted_decisions","goal_event_trusted_decisions_goal_idx","goal_event_types","goal_event_types_goal_idx","goal_event_work_status","goal_relations","goal_trash_one_open_per_goal","goal_trash_records","goal_trash_records_goal_idx","goal_trash_relation_records","goal_trash_relation_records_relation_idx","goal_tree_proposal_decisions","goal_tree_proposal_decisions_item_idx","goal_tree_proposal_items","goal_tree_proposal_items_project_idx","goal_tree_proposal_items_proposal_idx","goal_tree_proposals","goal_tree_proposals_project_idx","goal_tree_proposals_supersedes_idx","goal_work_event_judgments","goal_work_event_judgments_requirement_idx","goal_work_events","goal_work_events_goal_seq_idx","goals","goals_archive_idx","goals_project_idx","goals_ready_idx","goals_trash_idx","input_bindings","planning_method_packs","policies_scope_idx","policy_bindings","project_guidance_entries","project_guidance_project_idx","project_guidance_revisions","project_guidance_revisions_project_idx","relations_from_idx","relations_to_idx"]','2026-10-20T09:46:22.272Z');
+INSERT INTO plugin_project_databases VALUES('io.molis.work.schedule','official-schedule-binding','schedule',1,'["schedule_conversation_tasks","schedule_conversation_tasks_enabled_idx","schedule_conversation_turns","schedule_conversation_turns_task_idx","schedule_operation_occurrences","schedule_operations","schedule_plugin_reminders","schedule_plugin_reminders_owner"]','2026-10-20T09:46:22.272Z');
 INSERT INTO sqlite_sequence VALUES('events',48);
 CREATE INDEX goals_project_idx ON goals(project_id);
 CREATE INDEX goals_ready_idx ON goals(project_id, definition_state, decomposition_state, validity_state, fulfillment_state);
@@ -1167,19 +1183,12 @@ CREATE INDEX goal_tree_proposal_decisions_item_idx
     ON goal_tree_proposal_decisions(proposal_id, item_id, created_at, decision_id);
 CREATE INDEX goal_event_trusted_decisions_goal_idx
     ON goal_event_trusted_decisions(project_id, goal_id, recorded_at);
-CREATE INDEX library_artifacts_project_idx
-    ON library_artifacts(project_id, created_at DESC, artifact_id);
 CREATE INDEX library_artifact_versions_type_idx
     ON library_artifact_versions(artifact_type_id, schema_version, scope, lifecycle_state);
-CREATE INDEX process_items_project_idx
-    ON process_items(project_id, created_at DESC, artifact_id);
 CREATE INDEX process_item_versions_type_idx
     ON process_item_versions(artifact_type_id, schema_version, scope, lifecycle_state);
-CREATE INDEX events_project_idx ON events(project_id, seq);
 CREATE INDEX context_edges_source_idx ON context_edges
     (scope_kind, scope_id, relation_type, json_extract(source_json, '$.module'), json_extract(source_json, '$.id'));
-CREATE INDEX feed_sources_project_updated_idx
-      ON feed_sources(project_id, updated_at DESC, source_id);
 CREATE INDEX source_events_project_source_idx
       ON source_events(project_id, source_id, at, event_id);
 CREATE INDEX signals_project_source_observed_idx
@@ -1188,27 +1197,10 @@ CREATE INDEX signal_events_project_source_idx
       ON signal_events(project_id, source_id, at, event_id);
 CREATE INDEX listener_deliveries_recovery_idx
       ON listener_deliveries(project_id, source_id, state, updated_at, raw_event_id);
-CREATE INDEX feed_source_runs_project_source_idx
-      ON feed_source_runs(project_id, source_id, started_at DESC);
-CREATE INDEX inbox_entries_project_status_idx
-      ON inbox_entries(project_id, status, updated_at DESC, entry_id);
-CREATE INDEX inbox_entries_project_subject_idx
-      ON inbox_entries(project_id, subject_type, subject_id);
 CREATE INDEX attention_events_project_entry_idx
       ON attention_events(project_id, entry_id, at, event_id);
-CREATE INDEX feed_items_project_updated_idx
-      ON feed_items(project_id, disposition, source_updated_at DESC);
-CREATE UNIQUE INDEX feed_items_project_source_external_idx
-      ON feed_items(project_id, source_id, external_id)
-      WHERE source_id IS NOT NULL AND external_id IS NOT NULL;
-CREATE INDEX feed_materials_project_item_idx
-      ON feed_materials(project_id, item_id, updated_at DESC, material_id);
 CREATE INDEX feed_item_events_project_item_idx
       ON feed_item_events(project_id, item_id, at, event_id);
-CREATE UNIQUE INDEX feed_items_project_signal_idx
-      ON feed_items(project_id, signal_id) WHERE signal_id IS NOT NULL;
-CREATE INDEX feed_out_rules_project_enabled_idx
-      ON feed_out_rules(project_id, enabled, created_at, rule_id);
 CREATE UNIQUE INDEX plugin_events_board_sequence ON plugin_events (project_id, sequence);
 CREATE INDEX plugin_events_board_type_source
       ON plugin_events (project_id, event_type_id, type_version, source_plugin_id, sequence);
@@ -1221,156 +1213,123 @@ CREATE INDEX schedule_conversation_turns_task_idx
 CREATE INDEX schedule_plugin_reminders_owner ON schedule_plugin_reminders(project_id, plugin_id, installation_id);
 CREATE INDEX coding_sessions_project_updated_idx
       ON coding_sessions(project_id, updated_at DESC, session_id);
+CREATE INDEX events_project_idx ON events(project_id, seq);
+CREATE UNIQUE INDEX feed_items_project_signal_idx
+      ON feed_items(project_id, signal_id) WHERE signal_id IS NOT NULL;
+CREATE UNIQUE INDEX feed_items_project_source_external_idx
+      ON feed_items(project_id, source_id, external_id)
+      WHERE source_id IS NOT NULL AND external_id IS NOT NULL;
+CREATE INDEX feed_items_project_updated_idx
+      ON feed_items(project_id, disposition, source_updated_at DESC);
+CREATE INDEX feed_materials_project_item_idx
+      ON feed_materials(project_id, item_id, updated_at DESC, material_id);
+CREATE INDEX feed_out_rules_project_enabled_idx
+      ON feed_out_rules(project_id, enabled, created_at, rule_id);
+CREATE INDEX feed_source_runs_project_source_idx
+      ON feed_source_runs(project_id, source_id, started_at DESC);
+CREATE INDEX feed_sources_project_updated_idx
+      ON feed_sources(project_id, updated_at DESC, source_id);
+CREATE INDEX inbox_entries_project_status_idx
+      ON inbox_entries(project_id, status, updated_at DESC, entry_id);
+CREATE INDEX inbox_entries_project_subject_idx
+      ON inbox_entries(project_id, subject_type, subject_id);
+CREATE INDEX library_artifacts_project_idx
+    ON library_artifacts(project_id, created_at DESC, artifact_id);
+CREATE INDEX process_items_project_idx
+    ON process_items(project_id, created_at DESC, artifact_id);
+COMMIT;
 
-    CREATE TABLE IF NOT EXISTS goals_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS goals_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS goals_replica_changes_key ON goals_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS goals_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS goals_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS goals_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS goals_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-
-
-    CREATE TABLE IF NOT EXISTS artifacts_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS artifacts_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS artifacts_replica_changes_key ON artifacts_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS artifacts_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS artifacts_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS artifacts_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS artifacts_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-
-
-    CREATE TABLE IF NOT EXISTS schedule_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS schedule_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS schedule_replica_changes_key ON schedule_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS schedule_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS schedule_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS schedule_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS schedule_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-
-
-    CREATE TABLE IF NOT EXISTS feed_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS feed_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS feed_replica_changes_key ON feed_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS feed_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS feed_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS feed_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS feed_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-
-CREATE TABLE IF NOT EXISTS molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL);
-
-    CREATE TABLE IF NOT EXISTS sources_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS sources_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS sources_replica_changes_key ON sources_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS sources_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS sources_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS sources_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS sources_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS attention_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS attention_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS attention_replica_changes_key ON attention_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS attention_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS attention_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS attention_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS attention_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS messages_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS messages_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS messages_replica_changes_key ON messages_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS messages_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS messages_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS messages_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS messages_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS process_items_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS process_items_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS process_items_replica_changes_key ON process_items_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS process_items_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS process_items_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS process_items_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS process_items_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS coding_sessions (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-      session_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      state TEXT NOT NULL,
-      archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
-      goal_id TEXT,
-      runtime_id TEXT NOT NULL,
-      runtime_session_id TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      -- Who holds the unfinished plan steps, as last read: lets a list across projects show what waits on the person.
-      steps_json TEXT,
-      -- Background commands the session left running, as last read: lets the list across projects show and stop them.
-      background_json TEXT,
-      PRIMARY KEY (project_id, session_id)
-    );
-    CREATE INDEX IF NOT EXISTS coding_sessions_project_updated_idx
-      ON coding_sessions(project_id, updated_at DESC, session_id);
-    CREATE TABLE IF NOT EXISTS coding_plan_drafts (
-      project_id TEXT NOT NULL,
-      session_id TEXT NOT NULL,
-      revision INTEGER NOT NULL,
-      draft_json TEXT NOT NULL,
-      PRIMARY KEY (project_id, session_id),
-      FOREIGN KEY (project_id, session_id) REFERENCES coding_sessions(project_id, session_id) ON DELETE CASCADE
-    );
-    CREATE TABLE IF NOT EXISTS coding_plan_versions (
+-- Personal integration: new empty journals and Coding input/history tables; original business rows unchanged.
+CREATE TABLE molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL);
+CREATE TABLE goals_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE goals_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+CREATE INDEX goals_replica_changes_key ON goals_replica_changes(key);
+CREATE TABLE goals_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+CREATE TABLE goals_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+CREATE TABLE goals_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE goals_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE artifacts_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE artifacts_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+CREATE INDEX artifacts_replica_changes_key ON artifacts_replica_changes(key);
+CREATE TABLE artifacts_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+CREATE TABLE artifacts_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+CREATE TABLE artifacts_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE artifacts_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE process_items_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE process_items_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+CREATE INDEX process_items_replica_changes_key ON process_items_replica_changes(key);
+CREATE TABLE process_items_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+CREATE TABLE process_items_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+CREATE TABLE process_items_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE process_items_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE schedule_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE schedule_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+CREATE INDEX schedule_replica_changes_key ON schedule_replica_changes(key);
+CREATE TABLE schedule_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+CREATE TABLE schedule_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+CREATE TABLE schedule_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE schedule_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE feed_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE feed_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+CREATE INDEX feed_replica_changes_key ON feed_replica_changes(key);
+CREATE TABLE feed_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+CREATE TABLE feed_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+CREATE TABLE feed_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE feed_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE sources_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE sources_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+CREATE INDEX sources_replica_changes_key ON sources_replica_changes(key);
+CREATE TABLE sources_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+CREATE TABLE sources_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+CREATE TABLE sources_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE sources_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE attention_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE attention_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+CREATE INDEX attention_replica_changes_key ON attention_replica_changes(key);
+CREATE TABLE attention_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+CREATE TABLE attention_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+CREATE TABLE attention_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE attention_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE messages_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE messages_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+CREATE INDEX messages_replica_changes_key ON messages_replica_changes(key);
+CREATE TABLE messages_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+CREATE TABLE messages_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+CREATE TABLE messages_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE messages_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE coding_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE coding_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+CREATE INDEX coding_replica_changes_key ON coding_replica_changes(key);
+CREATE TABLE coding_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+CREATE TABLE coding_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+CREATE TABLE coding_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE coding_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE builder_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE builder_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+CREATE INDEX builder_replica_changes_key ON builder_replica_changes(key);
+CREATE TABLE builder_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+CREATE TABLE builder_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+CREATE TABLE builder_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE builder_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE coding_plan_versions (
       project_id TEXT NOT NULL,
       session_id TEXT NOT NULL,
       revision INTEGER NOT NULL CHECK (revision > 0),
       PRIMARY KEY (project_id, session_id)
     );
-    CREATE TRIGGER IF NOT EXISTS coding_plan_version_insert AFTER INSERT ON coding_plan_drafts BEGIN
-      INSERT INTO coding_plan_versions VALUES (NEW.project_id,NEW.session_id,NEW.revision)
-      ON CONFLICT(project_id,session_id) DO UPDATE SET revision=MAX(revision,excluded.revision);
-    END;
-    CREATE TRIGGER IF NOT EXISTS coding_plan_version_update AFTER UPDATE OF revision ON coding_plan_drafts BEGIN
-      INSERT INTO coding_plan_versions VALUES (NEW.project_id,NEW.session_id,NEW.revision)
-      ON CONFLICT(project_id,session_id) DO UPDATE SET revision=MAX(revision,excluded.revision);
-    END;
-    CREATE TRIGGER IF NOT EXISTS coding_plan_version_delete BEFORE DELETE ON coding_plan_drafts BEGIN
-      INSERT INTO coding_plan_versions VALUES (OLD.project_id,OLD.session_id,OLD.revision+1)
-      ON CONFLICT(project_id,session_id) DO UPDATE SET revision=MAX(revision,OLD.revision)+1;
-    END;
-
-    CREATE TABLE IF NOT EXISTS coding_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS coding_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS coding_replica_changes_key ON coding_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS coding_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS coding_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS coding_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS coding_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-
- CREATE TABLE IF NOT EXISTS coding_inputs (
+CREATE TABLE coding_inputs (
   project_id TEXT NOT NULL, session_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0),
   draft TEXT NOT NULL, questions_json TEXT NOT NULL,
   PRIMARY KEY(project_id,session_id),
   FOREIGN KEY(project_id,session_id) REFERENCES coding_sessions(project_id,session_id) ON DELETE CASCADE
  );
- CREATE TABLE IF NOT EXISTS coding_input_versions (
+CREATE TABLE coding_input_versions (
   project_id TEXT NOT NULL, session_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0), PRIMARY KEY(project_id,session_id)
  );
- CREATE TRIGGER IF NOT EXISTS coding_input_version_insert AFTER INSERT ON coding_inputs BEGIN
-  INSERT INTO coding_input_versions VALUES(NEW.project_id,NEW.session_id,NEW.revision)
-  ON CONFLICT(project_id,session_id) DO UPDATE SET revision=MAX(revision,NEW.revision);
- END;
- CREATE TRIGGER IF NOT EXISTS coding_input_version_update AFTER UPDATE OF revision ON coding_inputs BEGIN
-  INSERT INTO coding_input_versions VALUES(NEW.project_id,NEW.session_id,NEW.revision)
-  ON CONFLICT(project_id,session_id) DO UPDATE SET revision=MAX(revision,NEW.revision);
- END;
- CREATE TRIGGER IF NOT EXISTS coding_input_version_delete BEFORE DELETE ON coding_inputs BEGIN
-  INSERT INTO coding_input_versions VALUES(OLD.project_id,OLD.session_id,OLD.revision+1)
-  ON CONFLICT(project_id,session_id) DO UPDATE SET revision=MAX(revision,OLD.revision)+1;
- END;
-COMMIT;
-CREATE TABLE IF NOT EXISTS builder_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS builder_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS builder_replica_changes_key ON builder_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS builder_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS builder_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS builder_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS builder_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-
 CREATE TABLE coding_saved_history (
  project_id TEXT NOT NULL,session_id TEXT NOT NULL,source_id TEXT NOT NULL,archive_json TEXT NOT NULL,
  PRIMARY KEY(project_id,session_id,source_id),FOREIGN KEY(project_id,session_id) REFERENCES coding_sessions(project_id,session_id) ON DELETE CASCADE);
+UPDATE plugin_project_databases SET version=1, tables_json='["acceptance_criteria","acceptance_goal_idx","boards","goal_event_agreements","goal_event_applied_decisions","goal_event_applied_decisions_goal_idx","goal_event_closures","goal_event_closures_goal_idx","goal_event_concerns","goal_event_concerns_goal_idx","goal_event_config_versions","goal_event_configs","goal_event_decision_requests","goal_event_decision_requests_goal_idx","goal_event_progress_summaries","goal_event_progress_summaries_goal_idx","goal_event_requirement_bindings","goal_event_requirement_conclusions","goal_event_requirement_conclusions_latest_idx","goal_event_requirements","goal_event_requirements_goal_idx","goal_event_state_owners","goal_event_state_owners_project_idx","goal_event_trusted_decisions","goal_event_trusted_decisions_goal_idx","goal_event_types","goal_event_types_goal_idx","goal_event_work_status","goal_relations","goal_trash_one_open_per_goal","goal_trash_records","goal_trash_records_goal_idx","goal_trash_relation_records","goal_trash_relation_records_relation_idx","goal_tree_proposal_decisions","goal_tree_proposal_decisions_item_idx","goal_tree_proposal_items","goal_tree_proposal_items_project_idx","goal_tree_proposal_items_proposal_idx","goal_tree_proposals","goal_tree_proposals_project_idx","goal_tree_proposals_supersedes_idx","goal_work_event_judgments","goal_work_event_judgments_requirement_idx","goal_work_events","goal_work_events_goal_seq_idx","goals","goals_archive_idx","goals_project_idx","goals_ready_idx","goals_trash_idx","input_bindings","planning_method_packs","policies_scope_idx","policy_bindings","project_guidance_entries","project_guidance_project_idx","project_guidance_revisions","project_guidance_revisions_project_idx","relations_from_idx","relations_to_idx"]' WHERE plugin_id='io.molis.work.goals';
+UPDATE plugin_project_databases SET version=1, tables_json='["schedule_conversation_tasks","schedule_conversation_tasks_enabled_idx","schedule_conversation_turns","schedule_conversation_turns_task_idx","schedule_operation_occurrences","schedule_operations","schedule_plugin_reminders","schedule_plugin_reminders_owner"]' WHERE plugin_id='io.molis.work.schedule';
+UPDATE plugin_project_databases SET version=1, tables_json='["feed_out_rules","feed_out_rules_project_enabled_idx"]' WHERE plugin_id='io.molis.work.feed';
+UPDATE plugin_project_databases SET version=2, tables_json='["coding_input_versions","coding_inputs","coding_plan_drafts","coding_plan_versions","coding_saved_history","coding_sessions","coding_sessions_project_updated_idx"]' WHERE plugin_id='io.molis.work.coding';

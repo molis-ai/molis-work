@@ -5,25 +5,24 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
+import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 test("however many pages poll the Coding directory at once, one read runs and at most one waits; a request mid-read gets the next read", { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-state-coalesce-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
-  const sessions = new CodingSessionStore(store.db);
+  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  const sessions = codingSessions(store);
   for (const id of ["a", "b", "c"]) {
-    sessions.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: `会话 ${id}`, runtime_id: "prologue", at: new Date().toISOString() });
-    sessions.setRuntimeSession(DEMO_PROJECT_ID, id, `sdk-${id}`, new Date().toISOString());
+    await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: `会话 ${id}`, runtime_id: "prologue", at: new Date().toISOString() });
+    await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, id, `sdk-${id}`, new Date().toISOString());
   }
   let reads = 0, inFlight = 0, most = 0; const batches: string[][] = [];
-  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, _args: Input): Promise<Output> {
       if (definition.capability_id === agent.listRuntimes.capability_id) {
         reads++; inFlight++; most = Math.max(most, inFlight);
@@ -47,7 +46,7 @@ test("however many pages poll the Coding directory at once, one read runs and at
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const state = async () => {
@@ -77,7 +76,7 @@ test("however many pages poll the Coding directory at once, one read runs and at
     // A request after the others have been answered starts a fresh read.
     await state();
     assert.equal(reads, 3);
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
 // PG-054 (specs/repository-anti-corruption/privileges.md): Coding names no Runtime. A new session, and the methods and MCP servers the
@@ -94,16 +93,15 @@ const PLUGIN = "/api/plugins/io.molis.work.coding";
 
 async function harness(initial: Entry[]) {
   const root = mkdtempSync(join(tmpdir(), "coding-runtime-choice-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
-  const sessions = new CodingSessionStore(store.db);
+  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  const sessions = codingSessions(store);
   const calls: Array<[string, unknown]> = [];
   const world = { runtimes: initial, noLetters: false, created: 0 };
   const actions = pluginActions(store, DEMO_PROJECT_ID);
   const letter = (input: Wording, state: string) => ({ message_id: "m1", audience: "people", kind: "request",
     from_session: input.from_session, to_session: input.to_session, body: input.body, state, sent_at_ms: Date.now(), history: [], attachments: [] });
-  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const id = definition.capability_id, input: unknown[] = Array.isArray(args) ? args : [];
       calls.push([id, args]);
@@ -133,7 +131,7 @@ async function harness(initial: Entry[]) {
       throw new Error(`Unexpected capability ${id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const call = async (path: string, body?: unknown) => {
@@ -142,7 +140,7 @@ async function harness(initial: Entry[]) {
   };
   // The arguments of each call to a capability, as the list the Host takes (a single input is a list of one).
   const made = (capability: { capability_id: string }): unknown[][] => calls.filter(([id]) => id === capability.capability_id).map(([, args]) => Array.isArray(args) ? args : [args]);
-  const close = async () => { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); };
+  const close = async () => { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); };
   return { call, calls, made, sessions, world, close, root };
 }
 
@@ -233,7 +231,7 @@ test("PG-054 a Runtime whose matrix offers no MCP shows no MCP servers and refus
 test("PG-054 a delegation is made on the Runtime of the session that asks, and a Runtime with no letters between sessions refuses before sending anything", { timeout: 30_000 }, async () => {
   const h = await harness([runtime("beta"), runtime("prologue")]);
   const at = new Date().toISOString();
-  h.sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "a", title: "发起", runtime_id: "beta", at });
+  await h.sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "a", title: "发起", runtime_id: "beta", at });
   try {
     const sent = await h.call("/sessions/a/delegations", { task: "整理会议记录" });
     assert.equal(sent.status, 200, JSON.stringify(sent.body));
@@ -255,8 +253,8 @@ test("PG-054 integrating a child's work needs sub-agents in the session's own Ru
   const h = await harness([runtime("beta", { subagents: "unsupported" }), runtime("prologue")]);
   const at = new Date().toISOString();
   for (const [id, runtime_id] of [["a", "beta"], ["b", "prologue"]] as const) {
-    h.sessions.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id, at });
-    h.sessions.setRuntimeSession(DEMO_PROJECT_ID, id, `rt-${id}`, at);
+    await h.sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id, at });
+    await h.sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, id, `rt-${id}`, at);
   }
   try {
     const none = await h.call("/sessions/a/runs/r1/subagents/c1/integration");

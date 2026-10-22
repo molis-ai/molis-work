@@ -5,12 +5,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalHost, LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore, HISTORY_DIGEST_MARKER, digestTask } from "@molis-ai/molis-work-plugin-coding";
+import { LocalHost, LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
+import { HISTORY_DIGEST_MARKER, digestTask } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentDraftTextRequest, type AgentRunView, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import type { ActionCallContext, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
+import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 const run = (index: number, task: string, over: Record<string, unknown> = {}) => ({
   ref: { session_id: "sdk", run_id: `r${index}` }, phase: "completed", started_at: "2026-09-26T00:00:00.000Z", ended_at: "2026-09-26T00:01:00.000Z",
@@ -23,16 +24,15 @@ const run = (index: number, task: string, over: Record<string, unknown> = {}) =>
 
 test("整理前面的对话由模型写摘要：接着上次的摘要写，宿主事实附在后面，用量计入会话；模型写不成时改用宿主记录并说明", { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-history-summary-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
-  const sessions = new CodingSessionStore(store.db);
-  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "long", title: "长会话", runtime_id: "prologue", at: new Date().toISOString() });
-  sessions.setRuntimeSession(DEMO_PROJECT_ID, "long", "sdk", new Date().toISOString());
+  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  const sessions = codingSessions(store);
+  await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "long", title: "长会话", runtime_id: "prologue", at: new Date().toISOString() });
+  await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "long", "sdk", new Date().toISOString());
   const earlier: AgentRunView[] = [run(1, "给习惯加归档"), run(2, "周报跳过已归档的习惯")];
   const starts: AgentStartRequest[] = [], drafts: AgentDraftTextRequest[] = [];
   let draftFails = false;
-  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
@@ -51,7 +51,7 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const send = async (task: string) => {
@@ -98,15 +98,15 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
     assert.deepEqual(read.usage_total.digests, { calls: 2, tokens: { input: 10_000, output: 800 } });
     assert.deepEqual(read.usage_total.tokens, { input: 3 * 1000 + 10_000, output: 3 * 100 + 800 }, "the budget counts the summaries too");
     assert.equal(read.usage_total.rounds, 3, "a summary is not a round");
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
 test("a round whose digest the model is still writing runs beside the project's queue, and a call withdrawn meanwhile starts nothing", { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-digest-queue-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
-  const sessions = new CodingSessionStore(store.db);
-  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "long", title: "长会话", runtime_id: "prologue", at: new Date().toISOString() });
-  sessions.setRuntimeSession(DEMO_PROJECT_ID, "long", "sdk", new Date().toISOString());
+  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  const sessions = codingSessions(store);
+  await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "long", title: "长会话", runtime_id: "prologue", at: new Date().toISOString() });
+  await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "long", "sdk", new Date().toISOString());
   const earlier: AgentRunView[] = [run(1, "给习惯加归档"), run(2, "周报跳过已归档的习惯")];
   const starts: AgentStartRequest[] = [];
   let gate = Promise.withResolvers<void>(), asked = Promise.withResolvers<void>(), modelFails = false;
@@ -120,9 +120,8 @@ test("a round whose digest the model is still writing runs beside the project's 
   let cancel = new AbortController();
   const actions = { registry: localHost.actionRegistry(reference), project_id: DEMO_PROJECT_ID, client: { ...localHost.actionClient(reference),
     invoke: (caller: ActionCallContext, capability: ActionReference, input: unknown) => localHost.actionClient(reference).invoke({ ...caller, signal: cancel.signal }, capability, input) } };
-  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
@@ -137,7 +136,7 @@ test("a round whose digest the model is still writing runs beside the project's 
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const send = async (task: string) => {
@@ -190,5 +189,5 @@ test("a round whose digest the model is still writing runs beside the project's 
     const carried = await standing;
     assert.equal(carried.status, 200, JSON.stringify(carried.body));
     assert.equal(carried.body.digest.source, "records"); assert.equal(starts.length, 2);
-  } finally { gate.resolve(); await new Promise<void>(resolve => server.close(() => resolve())); await localHost.close(); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { gate.resolve(); await new Promise<void>(resolve => server.close(() => resolve())); await localHost.close(); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

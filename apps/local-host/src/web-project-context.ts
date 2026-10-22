@@ -31,12 +31,13 @@ export interface ProjectRuntimeContext extends ProjectRequestContext {
   /** Home shows and runs what any plugin offers the person here: native plugins by their manifests, Runtime plugins by their installed grants. */
   readonly homeActions: ReturnType<typeof bindLocalWebActions>;
   readonly goalActions: ReturnType<typeof bindGoalsWebActions>;
-  readonly codingServices: ProjectCodingServices;
+  readonly pluginServices: ProjectPluginServices;
   readonly pluginPorts: CodingSurfacePorts;
   readonly readWebView: () => Promise<MolisWorkWebView>;
 }
 
-export type ProjectCodingServices = Pick<CodingSurfacePorts, "capabilities" | "actions" | "execution" | "homeDirectory" | "characterWorkspaces" | "characterSpawn" | "observeGitOperations">;
+/** The services every project plugin surface is given: the unified action client, the Home, the native-Agent workspaces and terminal, and Git operation updates. */
+export type ProjectPluginServices = Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "characterWorkspaces" | "characterSpawn" | "observeGitOperations">;
 
 export function projectRequestContext(context: WebRequestContext, options: ResolvedWebBoardOptions): ProjectRequestContext {
   const { localHost, composition, serverOptions } = context;
@@ -60,7 +61,7 @@ export function homeRouteProjectPlugins({ composition, serverOptions }: WebReque
 /** `/projects/<id>` for a project page; empty for the board a fixture serves at the root. */
 export const projectRoutePrefix = (options: ResolvedWebBoardOptions) => options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "";
 
-export function projectCodingServices({ localHost, hostReference, options, agentHost, ptyHost, composition, serverOptions, agentReady }: ProjectRequestContext): ProjectCodingServices {
+export function projectPluginServices({ localHost, hostReference, options, agentHost, ptyHost, composition, serverOptions }: ProjectRequestContext): ProjectPluginServices {
   return {
     actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, project_id: hostReference.project_id, inspect: caller => localHost.inspectActions(caller, hostReference) },
     observeGitOperations: listener => observeGitOperations(agentHost.reviews, options.projectId, listener),
@@ -68,15 +69,6 @@ export function projectCodingServices({ localHost, hostReference, options, agent
     characterWorkspaces: () => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => options.project ? catalog.listWorkspaceDirectory(options.project.project_id) : []),
     homeDirectory: serverOptions.homeDirectory,
     capabilities: localHost.client(hostReference),
-    execution: {
-      ready: agentReady,
-      models: () => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => {
-        const healthy = new Set(catalog.models.health().filter((entry) => entry.status === "ready").map((entry) => entry.provider_id));
-        return catalog.models.list().filter((entry) => healthy.has(entry.provider_id)).flatMap((provider) =>
-          provider.models.filter((model) => model.enabled).map((model) => ({ provider_id: provider.provider_id,
-            model_id: model.model_id, label: `${provider.display_name} · ${model.display_name ?? model.model_id}`, reasoning_effort: model.reasoning_effort === true })));
-      }),
-    },
   };
 }
 

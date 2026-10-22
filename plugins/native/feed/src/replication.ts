@@ -3,7 +3,7 @@ import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platf
 import type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 import {
   createSqliteReplica, initializeReplica, namespacedReplicaDatabase, readDatabaseSpace,
-  replicaMarkSql, replicaTransaction, queueReplicaChange, type ReplicaDatabase,
+  installReplicaTrigger, replicaMarkSql, replicaTransaction, queueReplicaChange, type ReplicaDatabase,
 } from "@molis-ai/molis-work-storage";
 import { FEED_OUT_RULES_SCHEMA_SQL } from "./out-rules.js";
 
@@ -63,10 +63,11 @@ export function installFeedReplication(db: ReplicaDatabase, projectId: string): 
   const mark = (expression: string) => replicaMarkSql(expression).replace(/\breplica_/gu, "feed_replica_");
   replicaTransaction(db, () => {
     initializeReplica(ledger);
-    if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='feed_rule_sync_insert'").get()) return;
+    if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='feed_rule_sync_insert'").get()) {
     for(const row of db.prepare('SELECT rule_id FROM feed_out_rules WHERE project_id=? ORDER BY rule_id').all(projectId))queueReplicaChange(ledger,JSON.stringify([projectId,'feed_rule',row.rule_id]));
+    }
     for (const [event, row] of [["INSERT", "NEW"], ["UPDATE", "NEW"], ["DELETE", "OLD"]]) {
-      db.exec(`CREATE TRIGGER feed_rule_sync_${event.toLowerCase()} AFTER ${event} ON feed_out_rules
+      installReplicaTrigger(db, `feed_rule_sync_${event.toLowerCase()}`, `CREATE TRIGGER feed_rule_sync_${event.toLowerCase()} AFTER ${event} ON feed_out_rules
         WHEN ${row}.project_id='${projectId}' BEGIN ${mark(`json_array('${projectId}','feed_rule',${row}.rule_id)`)} END`);
     }
   });

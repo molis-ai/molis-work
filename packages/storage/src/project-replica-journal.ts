@@ -1,3 +1,4 @@
+import { installReplicaTrigger } from './replica-triggers.js';
 import { replicaError } from './project-replica-errors.js';
 import type { ProjectReplicaDefinition, ProjectReplicaRow } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import type { ReplicaDatabase } from './replica.js';
@@ -61,9 +62,9 @@ export function createProjectReplicaJournal(db: ReplicaDatabase, projectId: stri
       if(!kind||!/^[a-z][a-z0-9_]*$/.test(kind)||definitions.some(d=>d.assetKind!==kind))invalid();
       if(!types.length)return;
       const name = kind+'_journal_sync';
-      if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name=?").get(name)) return;
+
       const filter = types.map(pattern => `NEW.type LIKE '${pattern.replaceAll("'", "''")}'`).join(' OR ');
-      db.exec(`CREATE TRIGGER ${name} AFTER INSERT ON events WHEN NEW.type<>'board.created' AND (${filter}) BEGIN ${mark(`json_array(NEW.project_id,'${kind}',NEW.project_id)`)} END`);
+      installReplicaTrigger(db, name, `CREATE TRIGGER ${name} AFTER INSERT ON events WHEN NEW.type<>'board.created' AND (${filter}) BEGIN ${mark(`json_array(NEW.project_id,'${kind}',NEW.project_id)`)} END`);
     },
     apply(value: unknown) {
       const { events, receipts } = validate(value);

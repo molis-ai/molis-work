@@ -21,15 +21,8 @@ export interface AggregateDefinition {
   /** Explicit copy identity and typed references; free text and opaque user JSON are never searched for IDs. */
   copy?:{kind:string;references?(value:AggregateRecords,projectId:string):readonly ProjectCopyReference[];rebase?(value:AggregateRecords,identity:ProjectCopyIdentity):void};
 }
-export interface AggregateReplicaContext {
-  spaceId: string;
-  conflictState?: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncConflictState;
-  authorize(): void;
-  canUploadProject(projectId: string): boolean;
-  project(projectId: string): { title: string };
-  hasReference?(projectId:string,reference:{owner:'goals'|'artifacts';assetId:string;version?:number}):boolean;
-  hasArtifact(projectId: string, id: string, version: number): boolean;
-}
+export type {AggregateReplicaContext} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
+import type {AggregateReplicaContext} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 
 /** Owner-declared aggregate journal. This is not a database export/discovery API. */
 export function initializeAggregateReplication(db: ReplicaDatabase, definitions: readonly AggregateDefinition[]): void {

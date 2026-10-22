@@ -61,7 +61,7 @@ export const ATTENTION_STATUS_TRANSITIONS: Readonly<
 
 
 const INBOX_ENTRIES_COLUMNS = `
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,
       subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
       subject_id TEXT NOT NULL,

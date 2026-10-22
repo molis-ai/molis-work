@@ -5,9 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTIONS, SHELF_RUNTIME_ACTIONS, shelfActions as a } from "@molis-ai/molis-work-plugin-shelf";
-import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, openHostShelfStore, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 
 test("the personal Shelf is a Home action provider; clipboard, settings and local paths stay with the local user", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "shelf-actions-"));
@@ -29,7 +28,7 @@ test("the personal Shelf is a Home action provider; clipboard, settings and loca
     const edited = (await agent.invoke(a.edit, { item_id: item.item_id, text: "会议纪要：周五前定稿", expected_content_hash: initial.content_hash })).item;
     await assert.rejects(agent.invoke(a.edit, { item_id: item.item_id, text: "旧编辑不覆盖", expected_content_hash: initial.content_hash }), { code: "shelf.conflict" });
     assert.equal(edited.item_id, item.item_id);
-    assert.equal(openShelfStore(home).readFile(item.item_id).bytes.toString("utf8"), "会议纪要：周五前定稿");
+    assert.equal(openHostShelfStore(home).readFile(item.item_id).bytes.toString("utf8"), "会议纪要：周五前定稿");
     const listed = await agent.invoke(a.list, {});
     assert.deepEqual(Object.keys(listed).sort(), ["materials", "results", "running_jobs"], "the shared list carries no clipboard, settings or root path");
     assert.ok(listed.materials.some(row => row.item_id === item.item_id));
@@ -67,7 +66,7 @@ test("the personal Shelf is a Home action provider; clipboard, settings and loca
     const staleWrite = await handleMcpMessage({ jsonrpc: "2.0", id: 4, method: "tools/call", params: {
       name: "shelf.items.edit__v2", arguments: { item_id: item.item_id, text: "stale MCP draft", expected_content_hash: initial.content_hash } } }, writer);
     assert.match(JSON.stringify(staleWrite), /shelf.conflict/);
-    assert.equal(openShelfStore(home).readFile(item.item_id).bytes.toString("utf8"), "会议纪要：周五前定稿");
+    assert.equal(openHostShelfStore(home).readFile(item.item_id).bytes.toString("utf8"), "会议纪要：周五前定稿");
 
     // Without a configured model the automatic action refuses before creating a job, with the platform's word for it (as Jelly, Todo, Form and Dataset do).
     await assert.rejects(bound.invoke(a.generate, { recipe: "summarize", item_id: item.item_id }), { code: "actions.connection_required" });

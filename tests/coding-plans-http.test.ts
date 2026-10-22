@@ -5,20 +5,20 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { ProcessItemsModule, createProcessItemReplication } from "@molis-ai/molis-work-module-artifacts";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentStartRequest, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
+import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 test("Plan formal routes preserve confirmed revisions, reject stale/blocked/foreign proposals, and do not replay execution", async () => {
   const home = mkdtempSync(join(tmpdir(), "coding-plans-")), dbPath = join(home, "board.db");
   let activeHome = home;
-  seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
-  const sessions = new CodingSessionStore(store.db);
-  for (const id of ["app", "other"]) { sessions.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() }); sessions.setRuntimeSession(DEMO_PROJECT_ID, id, `sdk-${id}`, new Date().toISOString()); }
+  seedDemoBoard(dbPath); await seedConfiguredModels(home); let store = new LocalProjectDatabase(dbPath);
+  const sessions = codingSessions(store);
+  for (const id of ["app", "other"]) { await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() }); await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, id, `sdk-${id}`, new Date().toISOString()); }
   const content = { title: "修复运费边界", steps: [{ title: "核对 shipping.mjs", acceptance: "10000 分免运费，9999 分收 500 分" }], blockers: "", change_reason: "" };
   const makeRun = (id: string, role = "planner", text = JSON.stringify(content)): AgentRunView => ({
     ref: { runtime_id: "prologue", session_id: "sdk-app", run_id: id }, phase: "completed", started_at: new Date().toISOString(), ended_at: new Date().toISOString(),
@@ -29,9 +29,8 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
   const runs = [makeRun("proposal", "planner", "已核对文件，计划如下：\n" + JSON.stringify({ ...content, blockers: "无" })), makeRun("ambiguous", "planner", "```json\n" + JSON.stringify(content) + "\n```\n```json\n" + JSON.stringify(content) + "\n```"), makeRun("malformed", "planner", "我会改代码"), makeRun("ordinary", "reader")];
   runs.push(makeRun("ambiguous-prose", "planner", "说明\n" + JSON.stringify(content) + "\n" + JSON.stringify(content)), makeRun("trailing", "planner", "说明\n" + JSON.stringify(content) + "\n不是唯一正文"));
   const starts: AgentStartRequest[] = [];
-  const host = () => ({ store, homeDirectory: activeHome, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, homeDirectory: activeHome, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const input = args as any[];
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }, { workspace_id: "foreign", canonical_path: home + "-other", realpath_verified: true }] as Output;
@@ -51,7 +50,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const request = async (suffix = "", method = "GET", body?: unknown, id = "app") => {
@@ -75,7 +74,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     const fixed = { ...localFixed, source: portableSource };
     assert.equal(localPath, home);
     assert.deepEqual((await request("/plan/confirm", "POST", { expected_revision: 1 })).body.plan, localFixed);
-    // S-50 PCSYNC-22/23: use the actual confirmation producer, not a hand-written plan-shaped transport fixture.
+    // S-62 PCSYNC-22/23: use the actual confirmation producer, not a hand-written plan-shaped transport fixture.
     const originalStore = store, targetHome = join(home, "second-device"), targetPath = join(targetHome, "board.db");
     seedDemoBoard(targetPath); const targetStore = new LocalProjectDatabase(targetPath);
     const replication = (database: LocalProjectDatabase) => createProcessItemReplication(database.db,
@@ -88,16 +87,16 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       assert.equal(JSON.stringify(bundle).includes(home), false, "the owner's fixed bytes contain no original directory");
       replication(targetStore).apply(bundle);
       assert.deepEqual(replication(targetStore).read(fixed.confirmed.artifact_id), bundle);
-      assert.equal(new CodingSessionStore(targetStore.db).list(DEMO_PROJECT_ID).length, 0, "restoring a process item starts no session");
-      new CodingSessionStore(targetStore.db).create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "Observed plan", runtime_id: "prologue", at: new Date().toISOString() });
+      assert.equal(codingSessions(targetStore).list(DEMO_PROJECT_ID).length, 0, "restoring a process item starts no session");
+      await codingSessions(targetStore).create(noEffect,{ project_id: DEMO_PROJECT_ID, session_id: "app", title: "Observed plan", runtime_id: "prologue", at: new Date().toISOString() });
       // Devices do not share a running JS plugin activation. Close the source before opening the target in this process.
-      await releaseCodingSurface(originalStore, DEMO_PROJECT_ID);
+      await releaseProjectPlugins(originalStore, DEMO_PROJECT_ID);
       store = targetStore; activeHome = targetHome;
       assert.deepEqual((await request("/plan?revision=1")).body.plan, fixed);
       const denied = await start({ continue_step_board_of: "untrusted-run" });
       assert.equal(denied.status, 503); assert.equal(denied.body.code, "coding.plan_origin_unavailable");
       assert.equal(starts.length, 0, "a synced plan and a guessed continuation cannot start a Run");
-    } finally { await releaseCodingSurface(targetStore, DEMO_PROJECT_ID); store = originalStore; activeHome = home; targetStore.close(); }
+    } finally { await releaseProjectPlugins(targetStore, DEMO_PROJECT_ID); store = originalStore; activeHome = home; targetStore.close(); }
     const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
     for (const [revision, schema_version] of [[900, 1], [901, 2]] as const) {
       const reference = { artifact_id: `coding-plan:app:${revision}`, version: 1 };
@@ -124,7 +123,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.match(starts[0].text_materials![0].text, /10000 分免运费/);assert.match(starts[0].text_materials![0].text, /不批准任何文件修改或命令/);
     assert.equal((await request()).body.draft, "未发送的独立要求");
     assert.equal((await start()).body.existing, true);assert.equal(starts.length, 1, "lost-response retry does not start a second Run");
-    await releaseCodingSurface(store, DEMO_PROJECT_ID);store.close();store = new LocalProjectDatabase(dbPath);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);store.close();store = new LocalProjectDatabase(dbPath);
     assert.deepEqual((await request("/plan")).body.plan, localFixed);assert.equal((await start()).body.existing, true);
     assert.equal((await request("/plan", "POST", { expected_revision: 1, content: { ...content, title: "新计划" } })).status, 400);
     const adjusted = { ...content, title: "新计划", change_reason: "增加边界检查", blockers: "尚缺折扣约定" };
@@ -157,7 +156,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.equal(changed.runs.at(-1).phase,"failed");
     assert.equal(changed.subagents.at(-1).children[0].verdict.status,"needs-work");
     assert.equal(changed.subagents.at(-1).children[0].state,"completed","user rework is distinct from original execution state");
-    await releaseCodingSurface(store, DEMO_PROJECT_ID);store.close();store = new LocalProjectDatabase(dbPath);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);store.close();store = new LocalProjectDatabase(dbPath);
     const reopened=(await request()).body;
     assert.deepEqual(reopened.taskboard_plans,changed.taskboard_plans);assert.deepEqual(reopened.subagents,changed.subagents);
     const unreadable=makeRun("lost-plan","builder");unreadable.frozen.text_materials=[{material_id:"lost",title:"lost",source_artifact_id:"coding-plan:app:999",source_version:1},{material_id:"foreign",title:"foreign",source_artifact_id:"coding-plan:other:1",source_version:1}];runs.push(unreadable);
@@ -197,7 +196,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     response=await request(stepPath,"POST",{...evaluation,action:"needs-work",notes:"还需核对负数输入",expected_revision:1});assert.equal(response.status,200,JSON.stringify(response.body));
     assert.deepEqual(firstRun.step_board,originalBoard,"human rework never rewrites SDK success or report history");
     const verdict=response.body.verdict;
-    await releaseCodingSurface(store,DEMO_PROJECT_ID);store.close();store=new LocalProjectDatabase(dbPath);
+    await releaseProjectPlugins(store,DEMO_PROJECT_ID);store.close();store=new LocalProjectDatabase(dbPath);
     const assessed=(await request()).body.taskboard_plans.find((entry:any)=>entry.run_id==="execute-1");
     assert.deepEqual(assessed.verdicts["step-1"],verdict);assert.equal(assessed.plan.revision,1);assert.equal((await request()).body.plan.revision,4);
     const reportPath = "/runs/execute-1/report";
@@ -237,7 +236,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     response = await request(stepPath, "POST", { ...evaluation, expected_revision: 2, notes: "后续复核已经通过" });
     assert.equal(response.status, 200, JSON.stringify(response.body));
     assert.deepEqual((await request(reportPath, "POST", {})).body, savedReport, "later evaluation cannot rewrite a saved report");
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
     assert.deepEqual((await request(reportPath)).body, savedReport, "reopening keeps the exact saved assessment");
     firstRun.step_board!.nodes[0].state="blocked";firstRun.step_board!.version++;
     assert.equal((await request(stepPath,"POST",{...evaluation,expected_revision:2,board_version:4})).status,400,"blocked is not accepted as success");
@@ -258,6 +257,6 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.equal(missingPlanReport.report.steps.board, undefined);
 
   } finally {
-    await new Promise<void>(resolve => server.close(() => resolve()));await releaseCodingSurface(store, DEMO_PROJECT_ID);store.close();rmSync(home, { recursive: true, force: true });
+    await new Promise<void>(resolve => server.close(() => resolve()));await releaseProjectPlugins(store, DEMO_PROJECT_ID);store.close();rmSync(home, { recursive: true, force: true });
   }
 });

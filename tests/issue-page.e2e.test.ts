@@ -121,14 +121,17 @@ test("ISSUE-09 ISSUE-27 screenshots: six join a capture, a seventh and a mislabe
     $('[data-issue-composer] [name=description]').dispatchEvent(new ClipboardEvent('paste', { clipboardData: t, bubbles: true, cancelable: true })); return true; })()`);
   await v.until("$('[data-issue-composer] [data-issue-tip]').textContent === '图片无法读取，请重新选择有效的图片。'");
   assert.deepEqual(await v.ask("({ shots: d.querySelectorAll('[data-issue-thumbs] img').length, text: $('[data-issue-composer] [name=description]').value })"), { shots: 5, text: "一次贴六张截图" });
-  // Preview fits the window, zooms to the original size and closes with Escape back to its thumbnail.
+  // Preview fits the window. A screenshot that already shows at its own pixels offers no 原始尺寸 (it would change nothing);
+  // zoomed in from the keyboard, the button comes back to fit it again. It closes with Escape back to its thumbnail.
   await v.press("[data-issue-thumbs] figure:first-child [data-preview]"); await v.until("$('[data-issue-preview]').open");
-  await v.press("[data-issue-zoom]"); await v.until("$('[data-issue-preview]').hasAttribute('data-zoom') && $('[data-issue-zoom]').textContent === '适应窗口'");
+  await v.until("$('[data-issue-picture]').dataset.zoom === 'fit' && $('[data-issue-zoom]').hidden");
+  await v.ask("($('[data-issue-picture]').dispatchEvent(new KeyboardEvent('keydown', { key: '+', bubbles: true })), true)");
+  await v.until("$('[data-issue-picture]').dataset.zoom === 'zoomed' && !$('[data-issue-zoom]').hidden && $('[data-issue-zoom]').textContent === '适应窗口'");
   await v.escape(); await v.until("!$('[data-issue-preview]').open && d.activeElement?.matches('[data-issue-thumbs] figure:first-child [data-preview]')");
 });
 
 test("ISSUE-10 ISSUE-43 dropped screenshots preview, save and reopen; a late import joins nothing", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
   await issueModel(t, b.homeDirectory);
   const v = issueView(b, "issue-page");
   await v.viewport(1440, 940); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");

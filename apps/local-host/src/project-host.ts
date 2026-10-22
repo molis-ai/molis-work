@@ -19,10 +19,8 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { createWebCatalogAccess } from "./web-catalog-access.js";
 import { goalsActionProvider } from "./goals-actions.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
-import { pagesActionProvider } from "./pages-actions.js";
-import { scheduleActionProvider, scheduleReminderActionProvider } from "./schedule-actions.js";
+import { providerTablesOwner, scheduleActionProvider, scheduleReminderActionProvider } from "./schedule-actions.js";
 import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
-import { workflowsActionProvider } from "./workflows-actions.js";
 import { actionUsagesProvider } from "./action-usage-actions.js";
 import { ActionCallLog } from "./action-call-log.js";
 import { connectorAccountActionProvider } from "./connector-account-actions.js";
@@ -60,6 +58,7 @@ import { homePluginActions, withPreparedActions } from "./plugin-actions-client.
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { hostLog, logSearchIndexFailure } from "./host-log.js";
+import { withoutRefusedPlugins } from "./project-plugin-databases.js";
 
 async function openProjectRuntime(reference: LocalHostProjectReference, options: MolisWorkLocalHostOptions, catalogRunner: LocalWebCatalogRunner | undefined, personalMethods: () => readonly PlanningMethodPack[]): Promise<MolisWorkProjectRuntime> {
   if (catalogRunner) await catalogRunner({homeDirectory:options.homeDirectory}, catalog => {
@@ -182,20 +181,18 @@ export class MolisWorkLocalHost {
             add(projectWorkspaceActionProvider(reference.project_id, this.sessions, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined));
             add(artifactActionProvider(runtime, options, this.actionClient(reference)));
             for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) add(provider);
-            if (options.homeDirectory) add(pagesActionProvider(options.homeDirectory, runtime, this.actionClient(reference), options.completeText));
             add(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions }, feed));
             add(scheduleActionProvider(runtime, { homeDirectory: options.homeDirectory, workspaceFor: options.workspaceFor }));
             add(scheduleReminderActionProvider(runtime, options.projectRoutePrefix?.(reference.project_id)));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(shelfProjectActionProvider(reference.project_id, options.homeDirectory, this.actionClient(reference)));
-            if (options.homeDirectory) add(workflowsActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes, functions: options.functions }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
               }));
-            await registerProviders(this.host.actionRegistry(reference), providers);
+            await registerProviders(this.host.actionRegistry(reference), withoutRefusedPlugins(store.db, providers, entry => providerTablesOwner(entry.provider)));
             openProjectSchedulers(this, runtime, reference);
             return runtime;
           } catch (error) {
@@ -203,7 +200,7 @@ export class MolisWorkLocalHost {
             throw error;
           }
         },
-        close: (runtime, reference) => closeProjectRuntime(runtime, () => options.onRuntimeClose?.(reference), () => closeProjectSchedulers(this, runtime, reference)),
+        close: (runtime, reference) => closeProjectRuntime(runtime, () => options.onRuntimeClose?.(reference), () => closeProjectSchedulers(this, runtime, reference), () => this.homePlugins?.stopProjectJobs(runtime.project_id)),
       },
     });
     if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
@@ -439,12 +436,14 @@ async function registerProviders(registry: ActionRegistryPort, providers: readon
 /**
  * Releases a project's owners (authoring and preview, installed plugins, the project's other plugins) and closes its
  * database. Every step runs even when an earlier one fails: the Host forgets the project afterwards, so a skipped step
- * would leave its instances and the SQLite handle alive for good. The failures are reported once everything ran.
+ * would leave its instances and the SQLite handle alive for good. The failures are reported once everything ran. The Home
+ * instances' jobs kept in the project stop with it (PG-038); the project's own instances stop with their whole activation.
  */
-async function closeProjectRuntime(runtime: MolisWorkProjectRuntime, closed: () => void, stopSchedules: () => Promise<void>): Promise<void> {
+async function closeProjectRuntime(runtime: MolisWorkProjectRuntime, closed: () => void, stopSchedules: () => Promise<void>, stopHomeJobs: () => void): Promise<void> {
   const failures: unknown[] = [];
   const attempt = async (step: () => unknown) => { try { await step(); } catch (error) { failures.push(error); } };
   await attempt(stopSchedules);
+  await attempt(stopHomeJobs);
   for (const release of [releaseAgentStudio, releaseInstalledPlugins, releaseProjectPlugins]) await attempt(() => release(runtime.store, runtime.project_id));
   await attempt(() => runtime.store.close());
   await attempt(closed);

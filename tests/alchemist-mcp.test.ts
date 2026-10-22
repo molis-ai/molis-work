@@ -79,9 +79,9 @@ test("Alchemist standard MCP shares persisted business state across processes wi
   } finally { await close(); }
 });
 
-// W5-01-ALC-RES09: the tool an MCP client names is `alchemist.research.cancel__v1` (the action stays at version 1 although it now also stops a
+// W5-01-ALC-RES11: the tool an MCP client names is `alchemist.research.cancel__v1` (the action stays at version 1 although it now also stops a
 // Pulse: tool names and the grants made on them stay as they were). A wrong name or version resolves to no tool, so this fails with it.
-test("W5-01-ALC-RES09: a queued Pulse is stopped through the MCP tool alchemist.research.cancel__v1", { timeout: 120_000 }, async () => {
+test("W5-01-ALC-RES11: a queued Pulse is stopped through the MCP tool alchemist.research.cancel__v1", { timeout: 120_000 }, async () => {
   const { connect, call, close } = await mcpHome();
   try {
     // The studio of this process never drains, so the Pulse is still queued, between pulse.start and runPending, when the tool is called.

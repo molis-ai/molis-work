@@ -1,4 +1,6 @@
 import { pluginSurfaceClients } from "./plugin-workbench.js";
+import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import type { UiContribution, UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionView, type GoalCollectionModel } from "@molis-ai/molis-work-plugin-goals";
 import type { ProjectOperationsData, ProjectOperationsProject, ProjectOperationsSlice } from "@molis-ai/molis-work-plugin-work";
@@ -38,6 +40,8 @@ export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extend
    */
   plugin_panels?: Readonly<Record<string, string>>;
   plugin_stages?: readonly string[];
+  /** Contribution ids already rendered by a host stage path; the Manifest fallback skips them. */
+  plugin_stage_ids?: readonly string[];
   /** Rail entries for plugins installed at run time; each has a stage in plugin_stages. */
   plugin_rail?: readonly { surface: string; label: string }[];
   /** The Host runs in developer mode: the plugin list also offers what is otherwise kept out of it (Text Stats). */
@@ -62,6 +66,7 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   dataJson(view: TView): string;
   prefixLocalLinks(html: string, prefix: string, desktopShell?: boolean): string;
   renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest): string;
+  renderGoalProposals(view: TView): string;
   renderGoalDocument(item: TItem, view: TView, selected: boolean): string;
   renderTrashGoalDocument(item: TItem, selected: boolean): string;
   goalsDocumentRenderer: {
@@ -70,8 +75,8 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   goalsTreeRenderer: {
     renderGoalRootEntry(count: number, active: boolean): string;
     renderGoalDirectory(view: TView, collection: GoalCollectionModel<TItem>, active: boolean): string;
-    renderGoalRefreshDirectory(view: TView, collection: GoalCollectionModel<TItem>): string;
-    renderGoalStageList(view: TView, collection: GoalCollectionModel<TItem>): string;
+    renderGoalRefreshDirectory(view: TView, collection: GoalCollectionModel<TItem>, proposals: string): string;
+    renderGoalStageList(view: TView, collection: GoalCollectionModel<TItem>, proposals: string): string;
     renderTreeChrome(view: TView): string;
   };
   renderCreateDialog(view: TView): string;
@@ -93,7 +98,6 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderFormNativePluginSurface(surface: "directory" | "workbench"): string;
   renderDatasetNativePluginSurface(surface: "directory" | "workbench"): string;
   renderPptNativePluginSurface(surface: "directory" | "workbench"): string;
-  renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string;
   renderAlchemistNativePluginSurface(surface: "directory" | "workbench"): string;
   renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string;
 }
@@ -106,6 +110,30 @@ function renderProjectReferenceDialog(L: (text: string) => string): string {
     footer: `<a class="mw-btn mw-btn--secondary" data-project-reference-download download>${L("下载")}</a><button class="mw-btn mw-btn--primary" value="close">${L("关闭")}</button>` });
 }
 
+/** Manifest-declared stage views, rendered by each Plugin's own UI contribution; no per-plugin host branch (PRR-12).
+ * Only the stages this project shows, in the mode it shows them, and only those a host stage path has not already
+ * rendered. Stages whose contribution needs a model beyond the shared primitives are host-rendered and named in
+ * `plugin_stage_ids`; a fallback must not duplicate them with an empty model. */
+function renderManifestStageViews(
+  primitives: { escape(value: unknown): string; text(value: string): string },
+  { enabled, developerMode, rendered }: { enabled: readonly string[]; developerMode: boolean; rendered: readonly string[] },
+): string[] {
+  const shown = new Set(enabled), already = new Set(rendered);
+  return BUILTIN_PLUGIN_CATALOG.flatMap(entry => {
+    if (!shown.has(entry.project_plugin_id)) return [];
+    if (entry.project_plugin_id === "text-stats" && !developerMode) return [];
+    const declared = (entry.manifest.ui?.views as readonly UiViewDeclaration[] | undefined)?.find(view => view.slot === "stage");
+    if (!declared) return [];
+    const contributionId = declared.contribution_id ?? `${entry.manifest.plugin_id}.${declared.view_id}`;
+    if (already.has(contributionId)) return [];
+    const contribution = (entry.workbench.contributions as readonly UiContribution[]).find(item => item.descriptor.contribution_id === contributionId);
+    if (!contribution) return [];
+    // The fallback model is the shared primitives: a stage that needs project data is host-rendered and listed above.
+    try { return [contribution.render({ contribution_id: contributionId, surface: "workbench", model: { primitives } })]; }
+    catch { return []; }
+  });
+}
+
 /** Workbench owns placement; Goals/Feed/Work owners retain their actual UI and facts. */
 export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionItem,
   TView extends WorkbenchGoalsPageView<TItem>, TFeedEntry>(
@@ -113,10 +141,10 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
 ) {
   const { L, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
     renderIconSprite, clientI18nScript, dataJson, prefixLocalLinks, renderWorkbenchDocument,
-    renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
+    renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer, renderGoalProposals,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -133,7 +161,7 @@ function renderMolisWorkRefreshFragment(
     : goalsDocumentRenderer.renderEmptyGoalCollection(trashView, false);
   const bodyView = trashView ? "trash" : archiveView ? "archive" : "current";
   const html = `<!doctype html><html><body data-board-view="${bodyView}">
-    ${goalsTreeRenderer.renderGoalRefreshDirectory(view, collection)}
+    ${goalsTreeRenderer.renderGoalRefreshDirectory(view, collection, renderGoalProposals(view))}
     <section data-document-pane><section data-work-surface="goal">${document}</section></section>
     ${renderCreateDialog(view)}
     <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
@@ -181,7 +209,7 @@ function renderMolisWorkWeb(
   const goalDocument = `<section class="document-pane" id="goal-document-pane" data-document-pane aria-label="${escapeHtml(collectionTitle)}">
     <section class="desktop-work-surface" data-work-surface="goal" data-work-surface-label="Goals">${renderedDocumentContent}</section>
   </section>`;
-  const stageList = goalsTreeRenderer.renderGoalStageList(view, collection);
+  const stageList = goalsTreeRenderer.renderGoalStageList(view, collection, renderGoalProposals(view));
   const goalStage = showTui ? `<div class="goal-canvas-shell" data-goal-canvas-shell data-record-owner="goals" data-board-view="list">
     ${stageList}
     <section class="goal-work-planning-pane" data-goal-work-planning aria-label="${L("工作规划")}"></section>
@@ -294,7 +322,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${defer(renderFormNativePluginSurface("workbench"))}
             ${defer(renderDatasetNativePluginSurface("workbench"))}
             ${defer(renderPptNativePluginSurface("workbench"))}
-            ${defer(renderLingguangNativePluginSurface("workbench"))}
             ${defer(renderAlchemistNativePluginSurface("workbench"))}
             ${defer(renderWorkflowsNativePluginSurface("workbench"))}
             ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}
@@ -303,6 +330,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode })}</section>
             ${settingsSurfaces}
             ${(view.plugin_stages ?? []).map(defer).join("")}
+            ${renderManifestStageViews({ escape: primitives.escapeHtml, text: primitives.L }, { enabled: enabledPlugins, developerMode: Boolean(view.developer_mode), rendered: view.plugin_stage_ids ?? [] }).map(defer).join("")}
           </div>
         </div>
       </div>

@@ -11,7 +11,7 @@ const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
 /** Validate the complete current structure before any repository constructor can create a missing table. */
 export function openHomePluginStore(home: string) {
   // Validate before the common opener binds ownership: a damaged library must remain untouched.
-  const db = openHomeSqliteDatabase(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path, db => {
+  const db = openHomeSqliteDatabase(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path, undefined, db => {
     applySqliteBaseline(db, homeSqlitePath(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path), HOME_PLUGIN_RUNTIME_BASELINE);
     const metadata = readDatabaseSpace(db) ? STORAGE_SPACE_SCHEMA_SQL : "";
     const expected = describeSqliteBaseline({ ...HOME_PLUGIN_RUNTIME_BASELINE, schema: metadata + HOME_PLUGIN_RUNTIME_BASELINE.schema });

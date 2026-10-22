@@ -64,10 +64,10 @@ test("W2-18-WF-OPEN-01: the first search selection waits for the real lazy clien
     window.fetch = async (input, init) => {
       const url = new URL(String(input), location.origin);
       const response = await original(input, init);
-      if (first && url.pathname === '/projects/${browser.projectId}/api/workflows' && init?.method === 'GET') {
+      if (first && url.pathname === '/projects/${browser.projectId}/api/plugins/io.molis.work.native.workflows/workflows' && init?.method === 'GET') {
         first = false; await response.clone().text(); window.__wfListHeld = true;
         await new Promise(resolve => { window.__wfReleaseList = resolve; });
-      } else if (url.pathname.includes('/api/workflows/') && init?.method === 'GET') window.__wfOpened.push(url.pathname.split('/').at(-1));
+      } else if (url.pathname.includes('/api/plugins/io.molis.work.native.workflows/workflows/') && init?.method === 'GET') window.__wfOpened.push(url.pathname.split('/').at(-1));
       return response;
     };
   })()`);

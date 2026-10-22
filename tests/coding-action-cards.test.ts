@@ -3,12 +3,13 @@
 // exactly as shown, through the Agent Host's agent.offers.run; how it ended reads by the failure's kind.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DatabaseSync } from "node:sqlite";
 import { ActionError, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, agentOfferActions, type AgentRunOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_PROJECT_DATABASE, CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { codingFixtureRoutes } from "./fixtures/coding-surface.js";
+import { noEffect } from "./fixtures/coding-sessions.js";
+import { memoryPluginDatabase } from "./fixtures/plugin-database.js";
 
 const WRITE: ActionView = { capability_id: "fixture.notes.write", version: 1, operation: "command",
   provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true },
@@ -21,12 +22,11 @@ const run = (offers: AgentRunOffer[]) => ({ ref: { session_id: "sdk", run_id: "r
   usage: { tokens: { input: 0, output: 0 } }, frozen: { role_id: "builder", action_tools: [reference], text_materials: [] }, offers });
 
 /** Coding's routes over a session with one ended round, private storage that compares and sets, and a recorded Agent Host. */
-function codingCards(options: { offers?: AgentRunOffer[]; views?: () => ActionView[]; run?: (input: unknown) => Promise<unknown>; beforeCompare?: (stored: Map<string, string>) => void } = {}) {
-  const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
+async function codingCards(options: { offers?: AgentRunOffer[]; views?: () => ActionView[]; run?: (input: unknown) => Promise<unknown>; beforeCompare?: (stored: Map<string, string>) => void } = {}) {
+  const db = memoryPluginDatabase(CODING_PROJECT_DATABASE.schema, ["board"]);
   const sessions = new CodingSessionStore(db), at = "2026-10-16T08:00:00Z";
-  sessions.create({ project_id: "board", session_id: "app", title: "笔记", runtime_id: "prologue", at });
-  sessions.setRuntimeSession("board", "app", "sdk", at);
+  await sessions.create(noEffect, { project_id: "board", session_id: "app", title: "笔记", runtime_id: "prologue", at });
+  await sessions.setRuntimeSession(noEffect, "board", "app", "sdk", at);
   const stored = new Map<string, string>(), ran: unknown[] = [];
   const storage = { get: (key: string) => stored.get(key) ?? null, set: (key: string, value: string) => { stored.set(key, value); }, delete: (key: string) => stored.delete(key),
     compareAndSet: (key: string, expected: string | null, value: string) => { options.beforeCompare?.(stored); if ((stored.get(key) ?? null) !== expected) return false; stored.set(key, value); return true; } };
@@ -37,7 +37,7 @@ function codingCards(options: { offers?: AgentRunOffer[]; views?: () => ActionVi
     throw new Error("not in this fixture: " + definition.capability_id);
   } };
   const context: PluginStartContext = { project_id: "board", plugin_id: "io.molis.work.coding", services: { storage, capabilities } } as never;
-  const routes = codingFixtureRoutes(context, { sessions, goalTitle: () => undefined, ready: async () => {}, models: async () => [] });
+  const routes = codingFixtureRoutes(context, sessions);
   // The fixture redeems Coding's own actions; the Agent Host's suggestion runner is recorded here.
   const actions = context.services!.actions!, own = actions.invoke.bind(actions);
   Object.assign(actions, { invoke: async (definition: { capability_id: string }, input: unknown, control?: { beforeEffect?(): Promise<void> }) => {
@@ -53,7 +53,7 @@ function codingCards(options: { offers?: AgentRunOffer[]; views?: () => ActionVi
 type Shown = { runs: Array<{ cards: Array<{ card_id: string; status: string; revision: number; offer_id: string }> }> };
 
 test("D25 a round's suggestion lands once as a card beside its round, after the call's own check; reading again lands nothing new", async () => {
-  const f = codingCards();
+  const f = await codingCards();
   try {
     let checks = 0;
     const execution = { beforeEffect: async () => { checks++; }, assert_authority_current: () => {} };
@@ -72,7 +72,7 @@ test("D25 a round's suggestion lands once as a card beside its round, after the 
 test("D25 a suggestion read after its action stopped being offered, or by a call that was revoked, lands no card", async () => {
   // One Coding activation at a time: a newer one stops the one before it, as the Runtime does.
   for (const views of [() => [{ ...WRITE, availability: { available: false, code: "notes.disabled", reason: "Notes is turned off" } }], () => []]) {
-    const f = codingCards({ views });
+    const f = await codingCards({ views });
     try {
       const read = await f.call("coding.read-runs", { sessionId: "app" });
       assert.equal(read.status, 200, JSON.stringify(read.body));
@@ -80,7 +80,7 @@ test("D25 a suggestion read after its action stopped being offered, or by a call
       assert.equal(f.cards().length, 0);
     } finally { f.close(); }
   }
-  const revoked = codingCards();
+  const revoked = await codingCards();
   try {
     const execution = { beforeEffect: async () => { throw new ActionError("plugins.activation_revoked", "activation revoked"); }, assert_authority_current: () => {} };
     const read = await revoked.call("coding.read-runs", { sessionId: "app" }, { execution } as never);
@@ -90,7 +90,7 @@ test("D25 a suggestion read after its action stopped being offered, or by a call
 });
 
 test("D25 the person runs a card once, exactly as its suggestion named, with their changes; a second click and a stale revision run nothing", async () => {
-  const f = codingCards();
+  const f = await codingCards();
   try {
     await f.call("coding.read-runs", { sessionId: "app" });
     const [ranOnce, second] = await Promise.all([
@@ -111,14 +111,14 @@ test("D25 the person runs a card once, exactly as its suggestion named, with the
 
 test("D25 (D26) how a card's run ended reads by the Host's refusal kind: a changed contract is stale, a refused input failed and may be tried again", async () => {
   let refusal: ActionError = new ActionError("actions.definition_changed", "contract changed");
-  const f = codingCards({ run: async () => { throw refusal; } });
+  const f = await codingCards({ run: async () => { throw refusal; } });
   try {
     await f.call("coding.read-runs", { sessionId: "app" });
     const stale = await f.call("coding.card-run", { sessionId: "app", cardId: "card-offer-1" }, { body: { revision: 1, values: {} } });
     assert.equal((stale.body as { card: { status: string } }).card.status, "stale");
   } finally { f.close(); }
   {
-    const g = codingCards({ run: async () => { throw refusal; } });
+    const g = await codingCards({ run: async () => { throw refusal; } });
     try {
       refusal = new ActionError("actions.input_invalid", "text must be a string");
       await g.call("coding.read-runs", { sessionId: "app" });
@@ -141,7 +141,7 @@ test("D25 (D26) two cards of one session clicked at once both run and are both r
   const second: AgentRunOffer = { ...offer, offer_id: "offer-2", title: "再存一条", input: { text: "周五前交" } };
   type Card = { card_id: string; status: string; revision: number };
   const statuses = (cards: Array<Record<string, unknown>>) => Object.fromEntries(cards.map(card => [card.card_id, [card.status, card.revision]]));
-  const f = codingCards({ offers: [offer, second], run: async input => { await new Promise(resolve => setTimeout(resolve, 10)); return { saved: (input as { offer_id: string }).offer_id }; } });
+  const f = await codingCards({ offers: [offer, second], run: async input => { await new Promise(resolve => setTimeout(resolve, 10)); return { saved: (input as { offer_id: string }).offer_id }; } });
   try {
     await f.call("coding.read-runs", { sessionId: "app" });
     const [one, two] = await Promise.all(["card-offer-1", "card-offer-2"].map(cardId => f.call("coding.card-run", { sessionId: "app", cardId }, { body: { revision: 1, values: {} } })));
@@ -152,7 +152,7 @@ test("D25 (D26) two cards of one session clicked at once both run and are both r
   } finally { f.close(); }
   // The other card is changed between this card's read and its compare: the write reads again and keeps that change.
   let raced = false;
-  const g = codingCards({ offers: [offer, second], beforeCompare: stored => {
+  const g = await codingCards({ offers: [offer, second], beforeCompare: stored => {
     const raw = stored.get("cards:app"); if (raced || !raw) return;
     const held = JSON.parse(raw) as { cards: Array<Record<string, unknown>> };
     if (held.cards.length < 2 || held.cards[0]!.status !== "ready") return;

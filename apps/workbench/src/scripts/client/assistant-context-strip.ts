@@ -6,27 +6,27 @@
  * neither (§21.5). A work that already holds that object is one click away. It replaces the 「材料」 button and list.
  *
  * Shown while the panel is open, the input or the strip has focus, or the person put something in; a page's object or
- * selection alone does not raise it over the page. More chips than fit scroll sideways: the side with more fades out, a
- * chip reached by keyboard scrolls into view, and a vertical wheel scrolls the row (§21.5).
+ * selection alone does not raise it over the page. More chips than fit scroll sideways: the side with more fades out (the
+ * design system's overflow fade), a chip reached by keyboard scrolls into view, and a vertical wheel scrolls the row (§21.5).
+ *
+ * A chip keeps its element while its item stays (specs/visual-ui-experience §composer-mentions, VUX-16, VUX-18): a file
+ * being read turns into the material in the same element, a new chip makes its neighbours move aside and a removed one lets them close
+ * up (`window.molisReflow`), and the focused chip keeps focus. A file not in hand yet says so on its chip: 「读取中」, or its
+ * name and why it cannot go, with 重试 when trying again could help. A chip in a new state takes the new look in its own
+ * element, so it does not arrive again; focus stays on the same chip's button of the same kind, or the first one when that
+ * chip went away.
  */
 export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
   const { strip, L, el } = input;
   let signature = "";
   const row = el("div", "assistant-strip-row");
+  row.dataset.overflowFade = "";
   strip.append(row);
-  /** Which side has more than the row shows; the stylesheet fades that side. */
-  const edges = () => {
-    const room = row.scrollWidth - row.clientWidth, at = Math.abs(row.scrollLeft);
-    if (room <= 1) delete row.dataset.more;
-    else row.dataset.more = at < 1 ? "end" : at >= room - 1 ? "start" : "both";
-  };
-  row.addEventListener("scroll", edges, { passive: true });
   row.addEventListener("focusin", (event) => event.target.scrollIntoView({ block: "nearest", inline: "nearest" }));
   row.addEventListener("wheel", (event) => {
     if (row.scrollWidth <= row.clientWidth || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
     row.scrollLeft += event.deltaY; event.preventDefault();
   }, { passive: false });
-  if (typeof ResizeObserver === "function") new ResizeObserver(edges).observe(row);
   const act = (text, label, run) => {
     const button = el("button", "assistant-strip-act", text); button.type = "button";
     button.setAttribute("aria-label", label);
@@ -40,13 +40,16 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
       go.addEventListener("click", () => input.go(item.work));
       return go;
     }
-    const node = el("span", "assistant-strip-chip" + (item.optional ? " is-optional" : "") + (item.landing ? " is-landing" : ""));
-    node.title = item.note || (item.optional ? L("没加入：助理看不到它，这项工作也不会记在它下面") : item.auto ? L("来自当前页面") : L("你添加的"));
+    const node = el("span", "assistant-strip-chip" + (item.optional ? " is-optional" : "") + (item.landing ? " is-landing" : "") + (item.state ? " is-" + item.state : ""));
+    if (item.state === "reading") node.setAttribute("aria-busy", "true");
+    node.title = item.note || (item.state === "reading" ? L("读取中") : item.optional ? L("没加入：助理看不到它，这项工作也不会记在它下面") : item.auto ? L("来自当前页面") : L("你添加的"));
     if (item.thumb) { const thumb = el("img", "assistant-strip-thumb"); thumb.src = item.thumb; thumb.alt = ""; node.append(thumb); }
     const label = el("span", "assistant-strip-label", item.label);
     // The arrow and the short name are for the eye; a screen reader hears the whole sentence (「放进去的位置：…」).
     if (item.landing) { const arrow = el("span", "", "→"); arrow.setAttribute("aria-hidden", "true"); label.setAttribute("aria-hidden", "true"); node.append(arrow, el("span", "mw-sr-only", item.note)); }
     node.append(label);
+    if (item.state) node.append(el("span", "assistant-strip-note", item.state === "reading" ? L("读取中") : item.note));
+    if (item.again) node.append(act("↻", L("重试") + "：" + item.label, () => input.retry(item)));
     if (item.optional) node.append(el("span", "assistant-strip-note", L("没加入")), act("+", L("加入") + "：" + item.label, () => input.add(item)));
     else node.append(act("×", L("不带上") + "：" + item.label, () => { if (item.landing) { left = landing.object.id; paint(); } else input.drop(item); }));
     return node;
@@ -83,14 +86,29 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
     const shown = items.length > 0 && (input.open() || strip.contains(document.activeElement) || input.focused() || items.some((item) => item.put));
     strip.hidden = !shown;
     if (!shown) return;
-    const next = JSON.stringify(items.map((item) => [item.key, item.label, item.optional, item.note, Boolean(item.thumb)]));
-    if (next === signature) { edges(); return; }
+    const look = (item) => JSON.stringify([item.label, item.optional, item.note, Boolean(item.thumb), item.state, item.again]);
+    const next = JSON.stringify(items.map((item) => [item.key, look(item)]));
+    if (next === signature) return;
     signature = next;
-    // Rebuilt, focus stays on the same chip's button (or the first one when that chip went away).
-    const had = strip.contains(document.activeElement) ? document.activeElement.closest("[data-strip-key]")?.dataset.stripKey : null;
-    row.replaceChildren(...items.map((item) => { const node = chip(item); node.dataset.stripKey = item.key; return node; }));
-    if (had) { const same = row.querySelector('[data-strip-key="' + CSS.escape(had) + '"]'); ((same && (same.matches("button") ? same : same.querySelector("button"))) || row.querySelector("button"))?.focus(); }
-    edges();
+    const focused = strip.contains(document.activeElement) ? document.activeElement : null, had = focused?.closest("[data-strip-key]")?.dataset.stripKey;
+    const old = new Map([...row.children].map((node) => [node.dataset.stripKey, node]));
+    const nodes = items.map((item) => {
+      const kept = old.get(item.key), seen = look(item);
+      if (kept && kept.dataset.stripLook === seen) return kept;
+      const node = chip(item); node.dataset.stripKey = item.key; node.dataset.stripLook = seen;
+      if (!kept || kept.tagName !== node.tagName) return node;
+      for (const { name } of [...kept.attributes]) kept.removeAttribute(name);
+      for (const { name, value } of [...node.attributes]) kept.setAttribute(name, value);
+      kept.replaceChildren(...node.childNodes);
+      return kept;
+    });
+    const place = () => { nodes.forEach((node, index) => { if (row.children[index] !== node) row.insertBefore(node, row.children[index] || null); }); while (row.children.length > nodes.length) row.lastElementChild.remove(); };
+    if (window.molisReflow) window.molisReflow(row, place); else place();
+    if (had && !strip.contains(document.activeElement)) {
+      const same = row.querySelector('[data-strip-key="' + CSS.escape(had) + '"]'), label = focused.getAttribute("aria-label")?.split("：")[0];
+      const buttons = same ? (same.matches("button") ? [same] : [...same.querySelectorAll("button")]) : [];
+      (buttons.find((button) => button.getAttribute("aria-label")?.split("：")[0] === label) || buttons[0] || row.querySelector("button"))?.focus();
+    }
   };
   strip.setAttribute("aria-label", L("这次发送带上的"));
   return { paint, carried };

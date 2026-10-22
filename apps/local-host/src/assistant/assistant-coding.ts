@@ -1,22 +1,18 @@
-import type { ActionCallContext, ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AgentRunControl, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { ActionDefinition, ActionExecutionContext, ActionView, BoundActionClient, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AgentMcpServerView, AgentMcpToolRef, AgentRunControl, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputSend, AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { L } from "../web-locale.js";
 
 /** The person's own action client in a project: what the Coding page itself can do, nothing more. */
 export interface PersonActions {
   discover(): Promise<readonly ActionView[]>;
-  invoke(reference: ExactActionReference, input: unknown, beforeDispatch?: () => void): Promise<unknown>;
+  invoke(reference: ExactActionReference, input: unknown): Promise<unknown>;
 }
 
-/** The page client retains its own authority checks and adds the standing request's liveness at the common final boundary. */
-export function withPersonDispatchGuard(caller: ActionCallContext, beforeDispatch?: () => void): ActionCallContext {
-  if (!beforeDispatch) return caller;
-  return { ...caller, validate_authority: async selected => { await caller.validate_authority?.(selected); beforeDispatch(); },
-    assert_authority_current: (reference, requiredPermissions) => {
-      caller.assert_authority_current?.(reference, requiredPermissions); beforeDispatch();
-    } };
-}
+/** What says whether the call still counts (a follow-up not removed since it fired), joined to the person's own checks at each call's final boundary. */
+export type CodingControl = Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current">;
+/** A dispatch's control from its own check (a follow-up removed or edited since it fired stops): asked at each call's final check and at each effect inside the executor's action. */
+export const dispatchControl = (assertCurrent: () => void): CodingControl => ({ beforeEffect: async () => assertCurrent(), assert_authority_current: assertCurrent });
 
 export interface CodingSessionRead {
   session: { session_id: string; runtime_session_id?: string | null; state?: string; title?: string };
@@ -27,7 +23,7 @@ export interface CodingSessionRead {
 }
 
 /** Each Coding action this executor calls, at the version Coding publishes now: a new shape there is a new version here, in the same change. */
-const VERSIONS = { state: 1, "sessions.create": 1, "sessions.read": 1, "sessions.update": 1, "runs.start": 1, "runs.control": 7 } as const;
+const VERSIONS = { state: 1, "sessions.create": 1, "sessions.read": 1, "sessions.update": 2, "runs.start": 1, "runs.control": 7 } as const;
 type CodingActionName = keyof typeof VERSIONS;
 
 export class CodingUnavailable extends Error {
@@ -43,20 +39,21 @@ export class CodingExecutor {
   // dispatcher still checks each call's current definition and availability).
   private offered: Promise<readonly ActionView[]> | null = null;
 
-  constructor(private readonly actions: PersonActions, private readonly beforeDispatch?: () => void) {}
+  constructor(private readonly actions: BoundActionClient, private readonly dispatch?: CodingControl) {}
 
-  private async reference(name: CodingActionName): Promise<ExactActionReference> {
+  private async definition(name: CodingActionName): Promise<ActionDefinition> {
     this.offered ??= this.actions.discover();
     const view = (await this.offered).find(row => row.capability_id === `coding.${name}` && row.version === VERSIONS[name]);
     if (!view) throw new CodingUnavailable(L("这个项目还没有可用的 Coding 插件"), "在插件市场添加 Coding");
     if (!view.availability.available) throw new CodingUnavailable(view.availability.reason);
-    return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+    return { capability_id: view.capability_id, version: view.version, operation: view.operation, action: view.action, provider_id: view.provider.provider_id };
   }
 
   private async call<T>(name: CodingActionName, input: Record<string, unknown>): Promise<T> {
-    const reference = await this.reference(name);
-    this.beforeDispatch?.();
-    return await this.actions.invoke(reference, input, this.beforeDispatch) as T;
+    const definition = await this.definition(name);
+    // The dispatch's control is asked before anything is sent, then again by the person's client at validation, its last synchronous check and each effect.
+    this.dispatch?.assert_authority_current?.();
+    return await this.actions.invoke(definition, input, this.dispatch) as T;
   }
 
   async createSession(title: string): Promise<string> {
@@ -67,6 +64,18 @@ export class CodingExecutor {
   async read(sessionId: string, window = 6): Promise<CodingSessionRead> {
     const read = await this.call<CodingSessionRead & { runs: Array<AgentRunView | { unchanged: true }> }>("sessions.read", { session_id: sessionId, window });
     return { ...read, runs: read.runs.filter((run): run is AgentRunView => !("unchanged" in run)) };
+  }
+
+  /**
+   * Where the session's next round runs and which external tools it brings, as Coding has them: the directory is its own
+   * setting, else Coding's current one; the tools are the MCP tools chosen for the session, beside the servers as they are now.
+   */
+  async setup(sessionId: string): Promise<{ workspace: { workspace_id: string; name: string; path: string } | null; mcp: { chosen: AgentMcpToolRef[]; servers: AgentMcpServerView[] } }> {
+    const read = await this.call<CodingSessionRead & { mcp_tools?: AgentMcpToolRef[] }>("sessions.read", { session_id: sessionId, window: 1 });
+    const state = await this.call<{ workspace?: { workspace_id?: string } | null; workspaces?: Array<{ workspace_id: string; canonical_path: string; display_name?: string | null }>; mcp?: AgentMcpServerView[] }>("state", {});
+    const id = read.configuration?.workspace_id ?? state.workspace?.workspace_id, found = state.workspaces?.find(row => row.workspace_id === id);
+    return { workspace: found ? { workspace_id: found.workspace_id, name: found.display_name || found.canonical_path.split("/").filter(Boolean).at(-1) || found.canonical_path, path: found.canonical_path } : null,
+      mcp: { chosen: read.mcp_tools ?? [], servers: state.mcp ?? [] } };
   }
 
   /** A new round with the session's own settings, or Coding's defaults: carry out the task, first model, current directory. */

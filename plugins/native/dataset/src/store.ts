@@ -1,6 +1,6 @@
 import {createAggregateReplica,initializeAggregateReplication,createAggregateCopy,AGGREGATE_REPLICA_SCHEMA_SQL,type AggregateReplicaContext,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
 import {datasetAggregates} from './replication.js';
-import {replicaSchemaSql,type SqliteBaseline} from "@molis-ai/molis-work-storage";
+import {replicaSchemaSql} from "@molis-ai/molis-work-storage";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
@@ -290,7 +290,7 @@ export class DatasetStore {
  * must already be at its version. Columns keep the order existing stores have them in.
  */
 /** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const DATASET_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
+export const DATASET_DATABASE: PluginDatabaseDeclaration = { store_name: "dataset", read_permission: "dataset:read", write_permission: "dataset:write", version: 2, schema: (`
   CREATE TABLE datasets (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -315,7 +315,7 @@ export const DATASET_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   );
   CREATE TABLE dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
 `)+replicaSchemaSql()+AGGREGATE_REPLICA_SCHEMA_SQL };
-export const DATASET_DATABASE: PluginDatabaseDeclaration = { ...DATASET_STORE_BASELINE, store_name: "dataset", read_permission: "dataset:read", write_permission: "dataset:write" };
+
 
 export function openDatasetStore(homeDirectory: string) {
   const db = openBaselineHomeSqlite(homeDirectory, DATASET_HOME_STORE.path, DATASET_DATABASE);

@@ -6,9 +6,10 @@ import { pluginTabGlyphs } from "../../plugin-catalog.js";
 import { createTabWorkspaceOps, isCurrentTabWorkspace, isLoosePluginTab, settlePluginTabs, withPluginGroups } from "../../tab-workspace-ops.js";
 import { PLUGIN_TAB_GROUPS_FACTORY } from "./plugin-tab-groups.js";
 import { TAB_DRAG_SLOT_FACTORY } from "./tab-drag-slot.js";
+import { TAB_SASH_FACTORY } from "./tab-sash.js";
 import { tabIdsAfterMove, TAB_REORDER_EASE, TAB_REORDER_MS } from "../../tab-reorder.js";
 import { tabShareWidth, tabShareMin, tabScrollAllotment, TAB_SHARE_MAX, TAB_SHARE_MIN, TAB_SHARE_MIN_TOUCH } from "../../tab-strip-share.js";
-import { clampSplitRatio, focusedPaneBoxAfterDrop, layoutPaneBoxes, splitDropEdge, TAB_SASH_HALF, TAB_SASH_INSET, TAB_SPLIT_EDGE_X, TAB_SPLIT_EDGE_Y, TAB_SPLIT_RATIO } from "../../tab-split-drop.js";
+import { clampSplitRatio, focusedPaneBoxAfterDrop, layoutPaneBoxes, snapSplitRatio, splitDropEdge, splitRatioRange, splitTreeFits, TAB_SASH_HALF, TAB_SASH_INSET, TAB_SPLIT_EDGE_X, TAB_SPLIT_EDGE_Y, TAB_SPLIT_RATIO } from "../../tab-split-drop.js";
 
 /** Keep a popover inside the viewport. Tall menus scroll instead of clipping past the top.
  *  Stringified into the browser factory. Type annotations are erased before that string is sent. */
@@ -60,6 +61,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const TAB_SASH_HALF = ${TAB_SASH_HALF};
   const clampSplitRatio = ${clampSplitRatio.toString()};
   const splitDropEdge = ${splitDropEdge.toString()};
+  const splitRatioRange = ${splitRatioRange.toString()}, splitTreeFits = ${splitTreeFits.toString()}, snapSplitRatio = ${snapSplitRatio.toString()};
   const layoutPaneBoxes = ${layoutPaneBoxes.toString()};
   const focusedPaneBoxAfterDrop = ${focusedPaneBoxAfterDrop.toString()};
   const tabIdsAfterMove = ${tabIdsAfterMove.toString()};
@@ -72,7 +74,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const TAB_SHARE_MIN = ${TAB_SHARE_MIN};
   const TAB_SHARE_MIN_TOUCH = ${TAB_SHARE_MIN_TOUCH};
   const storageKey = "molis-work-tab-workspace:" + (getProjectId() || "board");
-  const paneParams = new URLSearchParams(location.search);
+  const paneParams = new URLSearchParams(location.search), personal = getProjectId() === "personal";
   // A link that asked for a plugin page (onboarding sends the person to Todo) is honored over "entering starts at home".
   let pluginRequestedOnLoad = false;
   const embedded = window.parent !== window && paneParams.has("workbenchPane");
@@ -91,10 +93,11 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       notifyParent("workbench-open-settings", { href: link.href });
     });
   }
-  const narrow = () => matchMedia("(max-width: 760px)").matches;
+  const narrow = () => matchMedia("(max-width: 760px)").matches || root.hasAttribute("data-split-narrow");
   let state = ops.create();
   const paneById = (id) => state.panes.find((pane) => pane.id === id);
-  const persist = () => { if (embedded) return; try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch {} };
+  let unsaved = false; // a layout this device would not keep is said once, and again only after it saved since
+  const persist = () => { if (embedded) return; try { localStorage.setItem(storageKey, JSON.stringify(state)); unsaved = false; } catch { if (!unsaved) showToast?.(L("这个布局没能保存到本机，刷新后会回到上次保存的样子"), true); unsaved = true; } };
   const restore = (requestedGoalId = "") => {
     if (embedded) {
       state = ops.create();
@@ -344,11 +347,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const surfaceShows = new Map();
   const {rememberScroll,restoreScroll} = (${SCROLL_MEMORY_FACTORY})();
   const paneMarkup = () => '<nav class="tab-strip" data-tab-strip></nav><div class="tab-pane-body" data-tab-pane-body></div><button type="button" class="tab-pane-close" data-tab-pane-close aria-label="' + L("关闭分栏") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button><div class="tab-drop-edges" data-tab-edges><button type="button" data-tab-edge="left" aria-label="' + L("拆到左侧") + '"></button><button type="button" data-tab-edge="right" aria-label="' + L("拆到右侧") + '"></button><button type="button" data-tab-edge="top" aria-label="' + L("拆到上方") + '"></button><button type="button" data-tab-edge="bottom" aria-label="' + L("拆到下方") + '"></button></div>';
-  const tabLabel = (tab) => {
-    if (tab.plugin === "home") return document.body.dataset.projectId === "personal" ? L("个人首页") : L("项目首页");
-    if (tab.kind === "plugin") return L(ops.pluginTitle(tab.plugin));
-    return tab.title;
-  };
+  const tabLabel = (tab) => tab.plugin === "home" ? (personal ? L("个人首页") : L("项目首页"))
+    : tab.kind === "plugin" ? L(ops.pluginTitle(tab.plugin)) : tab.title;
   const tabIcon = (plugin) => PLUGIN_TAB_ICON[plugin] || "frame";
   const iconMarkup = (plugin) => '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-' + tabIcon(plugin) + '"></use></svg>';
   /* The entries that open a cover, wherever the bar keeps them. Pressed again while their cover is up, they close it. */
@@ -371,7 +371,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
   };
   const appendTab = (parent, pane, tab) => {
-    const selected = tab.id === pane.activeTabId || pluginGroups.shows(pane, tab);
+    if (personal && tab.kind === "home") return; const selected = tab.id === pane.activeTabId || pluginGroups.shows(pane, tab), label = tabLabel(tab);
     const button = document.createElement("div");
     button.className = "tab-item" + (selected ? " is-active" : "");
     button.dataset.tabId = tab.id;
@@ -381,32 +381,32 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab.pinned) button.dataset.pinned = "true";
     button.style.setProperty("--plugin-color", PLUGIN_COLOR[tab.plugin] || "var(--muted)");
     button.draggable = true;
-    button.title = tabLabel(tab);
+    button.title = label;
     if (selected) button.setAttribute("aria-current", "page");
     const trigger = document.createElement("button");
     trigger.type = "button";
     trigger.role = "tab";
     trigger.className = "tab-item-trigger";
     trigger.tabIndex = selected ? 0 : -1;
-    trigger.setAttribute("aria-label", tabLabel(tab));
+    trigger.ariaLabel = label;
     trigger.setAttribute("aria-selected", String(selected));
     const name = document.createElement("span");
-    name.textContent = tabLabel(tab);
+    name.textContent = label;
     const close = document.createElement("button");
     close.type = "button";
     close.className = "tab-item-close";
     close.dataset.tabClose = tab.id;
     // A plugin tab closes its whole group.
     const closeWords = L(tab.kind === "plugin" ? "关闭标签组" : "关闭标签");
-    close.setAttribute("aria-label", closeWords);
-    close.title = closeWords + " · " + tabLabel(tab);
+    close.ariaLabel = closeWords;
+    close.title = closeWords + "·" + label;
     close.tabIndex = selected ? 0 : -1;
     close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
     trigger.innerHTML = tab.kind === "system" ? '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-sparkles"></use></svg>' : iconMarkup(tab.plugin);
     name.className = "tab-item-name";
     trigger.append(name);
     button.append(trigger);
-    if (!tab.pinned) button.append(close);
+    if (!tab.pinned) { button.append(close); trigger.setAttribute("aria-keyshortcuts", "Delete"); } // a tab not chosen keeps its close out of the tab order; Delete is its key
     parent.append(button);
   };
   const tabHugWidth = (node) => {
@@ -509,8 +509,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const alignActive = () => {
       const rail = railBox();
       const box = tab.getBoundingClientRect();
-      if (box.left < rail.left) scroller.scrollLeft -= rail.left - box.left;
-      else if (box.right > rail.right) scroller.scrollLeft += box.right - rail.right;
+      if (box.left < rail.left + 28) scroller.scrollLeft -= rail.left + 28 - box.left;
+      else if (box.right > rail.right - 28) scroller.scrollLeft += box.right - rail.right + 28;
     };
     alignActive();
     for (let step = 0; step < 4; step += 1) {
@@ -546,7 +546,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     strip.setAttribute("role", "tablist");
     strip.setAttribute("aria-label", L("工作区标签"));
     const fragment = document.createDocumentFragment();
-    const scrollArea = document.createElement("div"); scrollArea.className = "tab-scroll"; scrollArea.dataset.tabScroll = "";
+    const scrollArea = document.createElement("div"); scrollArea.className = "tab-scroll"; scrollArea.dataset.tabScroll = scrollArea.dataset.overflowFade = "";
     fragment.append(scrollArea);
     for (let index = 0; index < pane.tabs.length;) {
       const tab = pane.tabs[index];
@@ -680,14 +680,14 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       }
       return;
     }
-    const ratio = clampSplitRatio(node.ratio);
-    const split = panesEl.querySelector('[data-split-id="' + node.id + '"]');
+    const stage = panesEl.getBoundingClientRect(), length = (node.direction === "row" ? stage.width * box.w : stage.height * box.h) / 100, bounds = splitRatioRange(node, length) || [0.15, 0.85];
+    const ratio = Math.min(bounds[1], Math.max(bounds[0], clampSplitRatio(node.ratio))), split = panesEl.querySelector('[data-split-id="' + node.id + '"]');
     if (split) {
       Object.assign(split.style, { left: box.x + "%", top: box.y + "%", width: box.w + "%", height: box.h + "%" });
       const sash = split.firstElementChild;
       sash.style.left = node.direction === "row" ? "calc(" + ratio * 100 + "% - " + TAB_SASH_HALF + "px)" : "0";
       sash.style.top = node.direction === "column" ? "calc(" + ratio * 100 + "% - " + TAB_SASH_HALF + "px)" : "0";
-      sash.setAttribute("aria-valuenow", String(Math.round(ratio * 100)));
+      sash.setAttribute("aria-valuenow", String(Math.round(ratio * 100))); sash.setAttribute("aria-valuemin", String(Math.round(bounds[0] * 100))); sash.setAttribute("aria-valuemax", String(Math.round(bounds[1] * 100)));
     }
     if (node.direction === "row") {
       syncSplitSizes(node.children[0], { ...box, w: box.w * ratio });
@@ -697,6 +697,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       syncSplitSizes(node.children[1], { ...box, y: box.y + box.h * ratio, h: box.h * (1 - ratio) });
     }
   };
+  // Splits that cannot all keep their panes' minimum size at this stage size take the narrow layout (VUX-24), not a squeeze.
+  const layoutSplits = () => { syncSplitSizes(state.layout.tree); const stage = panesEl.getBoundingClientRect(); if (stage.width && stage.height) root.toggleAttribute("data-split-narrow", !splitTreeFits(state.layout.tree, stage.width, stage.height)); };
   let applying = false;
   let applyQueued = false;
   let historyLock = false;
@@ -714,9 +716,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       }
     } catch {}
   }
-  const persistHistory = () => {
-    if (embedded) return;
-    try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(Object.fromEntries([...tabHistory].filter(([paneId]) => state.panes.some((pane) => pane.id === paneId))))); } catch {}
+  const persistHistory = () => { // A closed pane's way back goes with it (VUX-36): the map holds only the panes that are open.
+    for (const paneId of tabHistory.keys()) if (!state.panes.some((pane) => pane.id === paneId)) tabHistory.delete(paneId); if (embedded) return;
+    try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(Object.fromEntries(tabHistory))); } catch {}
   };
   const paneHistory = (paneId) => {
     let entry = tabHistory.get(paneId);
@@ -1101,7 +1103,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         const split = document.createElement("div"); split.className = "tab-split"; split.dataset.splitId = tree.id; split.dataset.direction = tree.direction;
         const sash = document.createElement("div"); sash.className = "tab-sash"; sash.dataset.tabSash = tree.id; sash.role = "separator"; sash.tabIndex = 0;
         sash.setAttribute("aria-label", L("调整分屏大小")); sash.setAttribute("aria-orientation", tree.direction === "row" ? "vertical" : "horizontal");
-        sash.setAttribute("aria-valuemin", "15"); sash.setAttribute("aria-valuemax", "85");
         const handle = document.createElement("span"); handle.className = "tab-sash-handle"; handle.setAttribute("aria-hidden", "true");
         handle.innerHTML = '<svg aria-hidden="true"><use href="#icon-grip"></use></svg>';
         sash.append(handle);
@@ -1109,7 +1110,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       };
       renderSashes(state.layout.tree); panesEl.dataset.treeSignature = treeSignature;
     }
-    syncSplitSizes(state.layout.tree);
+    layoutSplits();
     if (embedded) setMobileView("document");
     } finally {
       applying = false;
@@ -1415,12 +1416,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       event.preventDefault(); event.stopPropagation(); tabMenu.hidePopover();
       (tabMenuAnchor?.querySelector(".tab-item-trigger") || tabMenuAnchor)?.focus({preventScroll:true}); return;
     }
-    if (event.target.closest("input")) return;
-    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-    const buttons = [...tabMenu.querySelectorAll("button")];
-    const index = buttons.indexOf(document.activeElement);
-    const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
-    event.preventDefault(); buttons[next]?.focus();
+    // Arrows, Home and End move through its items by the shared roving focus (design-system browser/roving-focus.ts).
   });
   // One item of the tab menu, for a tab's menu and a group's alike; a tab's puts focus back on the active tab.
   const menuItem = (paneId, refocus) => (label, icon, key, action) => {
@@ -1679,31 +1675,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     event.target.closest("details[open]")?.removeAttribute("open");
     closeCover();
   }, true);
-  panesEl.addEventListener("keydown", (event) => {
-    const sash = event.target.closest("[data-tab-sash]");
-    if (sash) {
-      const node = findSplit(state.layout.tree, sash.dataset.tabSash);
-      if (["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown", "Home"].includes(event.key)) {
-        event.preventDefault(); node.ratio = event.key === "Home" ? TAB_SPLIT_RATIO : clampSplitRatio(node.ratio + (["ArrowLeft", "ArrowUp"].includes(event.key) ? -.05 : .05));
-        syncSplitSizes(state.layout.tree); persist();
-      }
-      return;
-    }
-    handleStripKey(event.target.closest("[data-tab-pane]")?.dataset.tabPane, event);
-  });
-  panesEl.addEventListener("dblclick", (event) => {
-    const sash = event.target.closest("[data-tab-sash]"); if (!sash) return;
-    findSplit(state.layout.tree, sash.dataset.tabSash).ratio = TAB_SPLIT_RATIO; syncSplitSizes(state.layout.tree); persist();
-  });
-  panesEl.addEventListener("pointerdown", (event) => {
-    const sash = event.target.closest("[data-tab-sash]"); if (!sash) return;
-    event.preventDefault(); sash.setPointerCapture(event.pointerId); sash.classList.add("is-dragging");
-    const node = findSplit(state.layout.tree, sash.dataset.tabSash), rect = sash.parentElement.getBoundingClientRect();
-    root.classList.add("is-resizing");
-    const move = (pointer) => { node.ratio = clampSplitRatio(node.direction === "row" ? (pointer.clientX - rect.left) / rect.width : (pointer.clientY - rect.top) / rect.height); syncSplitSizes(state.layout.tree); };
-    const end = () => { root.classList.remove("is-resizing"); sash.classList.remove("is-dragging"); sash.removeEventListener("pointermove", move); sash.removeEventListener("pointerup", end); sash.removeEventListener("pointercancel", end); persist(); };
-    sash.addEventListener("pointermove", move); sash.addEventListener("pointerup", end); sash.addEventListener("pointercancel", end);
-  });
+  panesEl.addEventListener("keydown", (event) => { if (!event.target.closest("[data-tab-sash]")) handleStripKey(event.target.closest("[data-tab-pane]")?.dataset.tabPane, event); });
+  (${TAB_SASH_FACTORY})({ panes: panesEl, root, find: (id) => findSplit(state.layout.tree, id), sync: layoutSplits, persist, range: splitRatioRange, snap: snapSplitRatio, defaultRatio: TAB_SPLIT_RATIO });
   let dragTab = null;
   let reorderKey = "";
   const stripFor = (paneId) => {
@@ -1861,7 +1834,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       const pane = paneById(paneId), last = pane ? pane.tabs.findIndex((item) => item.id === (members?.at(-1) || tab.dataset.tabId)) : -1;
       const box = source.getBoundingClientRect();
       // The first preview is the place the drag started from, so nothing moves until the pointer does.
-      dragTab = { paneId, tabId: tab.dataset.tabId, width: Math.round(box.width) || 172, members, hoverBeforeId: pane?.tabs[last + 1]?.id };
+      dragTab = { paneId, tabId: tab.dataset.tabId, width: Math.round(box.width) || 172, members, hoverBeforeId: pane?.tabs[last + 1]?.id, homeBeforeId: pane?.tabs[last + 1]?.id };
       if (event.dataTransfer.effectAllowed !== "copy") event.dataTransfer.effectAllowed = "copyMove"; event.dataTransfer.setData("text/plain", tab.title);
       const ghost = document.createElement("nav");
       ghost.className = "tab-strip"; ghost.setAttribute("aria-hidden", "true");
@@ -1872,11 +1845,11 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       document.body.append(ghost);
       try { event.dataTransfer.setDragImage(ghost, Math.max(0, Math.min(event.clientX - box.left, dragTab.width)), Math.max(0, Math.min(event.clientY - box.top, box.height))); } catch {}
       requestAnimationFrame(() => ghost.remove());
-      root.classList.add("is-tab-dragging");
+      root.classList.add("is-tab-dragging"); window.addEventListener("pointermove", () => { if (dragTab) finishDrag(); }, { once: true, capture: true }); // a tab redrawn mid-drag takes its dragend with it; no pointer moves come during a drag
       document.body.classList.add("is-tab-dragging");
       document.body.style.setProperty("--tab-reorder-width", dragTab.width + "px");
     });
-    surface.addEventListener("dragend", finishDrag);
+    surface.addEventListener("dragend", finishDrag); surface.addEventListener("dragleave", (event) => { if (dragTab && !event.relatedTarget?.closest?.("[data-tab-panes], [data-titlebar-tabs]")) { root.querySelectorAll("[data-drop-preview]").forEach((node) => node.removeAttribute("data-drop-preview")); paintDropPreview({ paneId: dragTab.paneId, beforeId: dragTab.homeBeforeId }, false); } }); // off every tab surface a drop does nothing, so the preview is the tab back where it was
     surface.addEventListener("dragover", (event) => {
       if (!dragTab) return; event.preventDefault();
       const copy = isCopyDrop(event);

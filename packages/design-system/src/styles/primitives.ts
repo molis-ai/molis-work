@@ -1,6 +1,7 @@
 /** Shared mw-* control language. Loaded with the visual foundation. */
 
 import { SELECT_MENU_STYLES } from "../select-menu-client.js";
+import { SR_ONLY_STYLES } from "./sr-only.js";
 import { STATE_RING_STYLES } from "./state-ring.js";
 
 /** Keyboard focus: a 2px copper stroke just outside the control, the same on every control. */
@@ -13,10 +14,7 @@ export const PRIMITIVE_STYLES = `
   ${STATE_RING_STYLES}
   :where(a:not([class])) { color: var(--accent); text-underline-offset: 3px; }
   :where(a:not([class])):hover { color: var(--accent-strong, var(--accent)); }
-  .mw-sr-only {
-    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
-  }
+  ${SR_ONLY_STYLES}
 
   .mw-btn {
     position: relative;
@@ -151,11 +149,9 @@ export const PRIMITIVE_STYLES = `
     color: var(--danger-action-ink, var(--page));
   }
   .mw-btn[data-loading] { pointer-events: none; opacity: 1; }
-  .mw-btn[data-loading] > :not(.mw-spinner) { visibility: hidden; }
-  .mw-btn[data-loading] > .mw-spinner {
-    position: absolute;
-    visibility: visible;
-  }
+  .mw-btn[data-loading] > :not(.mw-spinner) { visibility: hidden; animation: mw-loading-out var(--dur-move) var(--ease-quint) var(--dur-move) backwards; }
+  .mw-btn[data-loading] > .mw-spinner { position: absolute; visibility: visible; animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both; }
+  @keyframes mw-loading-out { from { opacity: 1; visibility: visible; } to { opacity: 0; visibility: hidden; } }
 
   .mw-input, .mw-textarea, .mw-select {
     width: 100%;
@@ -373,15 +369,15 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-spinner { width: 20px; height: 20px; display: inline-block; color: currentColor; }
   /* One loading rule everywhere: a quiet line with the spinner, which appears only if the wait passes 250ms
-     (a quick load never flashes). Skeletons are static placeholders, never shimmer. */
+     (a quick load never flashes). Skeletons (static, never shimmer) and busy buttons wait the same; reduced motion drops only the fade. */
   .mw-loading {
     display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px;
     animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both;
   }
   @keyframes mw-loading-in { from { opacity: 0; } to { opacity: 1; } }
-  @media (prefers-reduced-motion: reduce) { .mw-loading { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .mw-loading, .mw-skeleton, .mw-btn[data-loading] > * { animation-duration: 0s; } }
   .mw-skeleton {
-    display: block; height: 12px; border-radius: 4px;
+    display: block; height: 12px; border-radius: 4px; animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both;
     background: color-mix(in srgb, var(--ink) 8%, transparent);
   }
   .mw-progress {
@@ -576,7 +572,7 @@ export const PRIMITIVE_STYLES = `
   @media (prefers-reduced-motion: reduce) {
     :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .form-export-panel, .characters-location, .feed-task-extra, .artifact-raw, .coding-material, .coding-checkpoints) > summary::before { transition: none; }
   }
-  .mw-collapsible__body { display: grid; gap: 12px; padding: 0 0 12px; }
+  .mw-collapsible__body { display: grid; gap: 12px; }
   .mw-accordion { display: grid; gap: 4px; }
   .mw-combobox { display: grid; gap: 4px; }
   .mw-combobox__list {
@@ -963,8 +959,8 @@ export const PRIMITIVE_STYLES = `
     display: block; grid-column: 2; grid-row: 1 / span 2; width: 8px; height: 36px;
     border-radius: 4px;
   }
-  .mw-swatch:has(.mw-swatch__fill) span,
-  .mw-swatch:has(.mw-swatch__fill) small { grid-column: 3; }
+  .mw-swatch > .mw-swatch__fill ~ span,
+  .mw-swatch > .mw-swatch__fill ~ small { grid-column: 3; }
   .mw-swatch span {
     grid-column: 2; color: var(--ink); font-size: 12px; font-weight: var(--weight-control, 500); line-height: 16px;
   }
@@ -1182,7 +1178,7 @@ export const PRIMITIVE_STYLES = `
       background-color 130ms var(--ease-quint),
       color 130ms var(--ease-quint);
   }
-  .mw-dir-row-wrap.is-yield:is(:hover, :has(.is-selected), :has([aria-current="page"])) .mw-dir-row {
+  .mw-dir-row-wrap.is-yield:is(:hover, :focus-within, :has(.is-selected), :has([aria-current="page"])) .mw-dir-row {
     padding-right: var(--dir-yield, 72px);
   }
   .mw-dir-row-wrap.is-yield .mw-dir-row__ops {
@@ -1194,7 +1190,7 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-dir-row-wrap.is-yield:has(.is-selected) .mw-dir-row__ops,
   .mw-dir-row-wrap.is-yield:has([aria-current="page"]) .mw-dir-row__ops { background: var(--nav-active); }
-  .mw-dir-row-wrap.is-yield:is(:hover, :has(.is-selected), :has([aria-current="page"])) .mw-dir-row__ops {
+  .mw-dir-row-wrap.is-yield:is(:hover, :focus-within, :has(.is-selected), :has([aria-current="page"])) .mw-dir-row__ops {
     opacity: 1; pointer-events: auto;
   }
   .mw-dir-row-wrap.is-yield .mw-dir-row__ops .mw-btn {

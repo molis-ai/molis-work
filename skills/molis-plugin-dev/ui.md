@@ -16,7 +16,10 @@
 - **位置不重复**：工作台标签条已经写了插件名，舞台里不再放一行插件名大标题；独立打开（预览、试用页）时才显示。
 - **浅色和深色都成立**：颜色一律用 token，不写死；在两种主题下各看一眼。
 - **反馈可见**：按下有回弹，保存后新记录可见（上浮进入），成功提示短暂出现后淡出，失败提示留下直到下次成功。
+- **共有机制直接用，不自己写**（组件板「视觉机制」有样例，工作台与侧栏页面都带着）：放不下的横向条（标签、chip、视图切换）标 `data-overflow-fade`，只在真有更多的一侧淡出；复制按钮调 `window.molisCopy(button, 文本, { done: "已复制", failed: "复制失败" })`，剪贴板真的收下才显示「已复制」、宽度不跳，返回是否成功，失败时再告诉人怎么手动复制；可折叠的明细写成 `<details class="mw-collapsible"><summary>…</summary><div class="mw-collapsible__body">…</div></details>`，按自然高度展开、途中反向接着走；会变的数字（计时、计数、序号）写成 `<span class="mw-num" data-num-ghost="取值范围里最宽的值">值</span>`，数字等宽，位数变化和字体切换都不推旁边的控件。
 - **窄屏可用**：可点目标约 44px，列表行在窄屏把操作换到下一行；工具条放不下时名称收成图标（名称仍是可访问名称）。
+- **悬停才出现的操作，键盘和触控也拿得到**：行里平时藏起、指针停上去才出现的按钮，同一条规则也要写 `:focus-within`（焦点进到行里就出现），并在 `@media (hover: none)` 里一直显示；只有选中后才出现的（选中即点一下）可以不写。键盘停点之外的按钮（如标签上的关闭）在行上用 `aria-keyshortcuts` 写明等价的键。
+- **被截的名字找得回来**：名称、路径、摘要可以用省略号或限定行数截短，但要放在能按下或能移到的控件或行里，平台的提示会在指针停留、键盘聚焦和触控按住时给出全文；不给被截的文字另写 `title` 或自己的提示，错误、状态与操作的标签不截在没有控件包着的地方。
 
 ## 槽：人从哪进来
 
@@ -83,7 +86,7 @@ renderPluginStageShell({
 
 ## 浏览器客户端
 
-Pages 族：交互在插件包的 `CLIENT_FACTORY_SCRIPT`（常是 `src/client.ts` 导出的工厂字符串），在 `builtin-plugins.ts` 的同一插件条目声明 `workbench.clientFactory` / `settingsClient`，由 `plugin-workbench.ts` 自动派生并注入。
+Pages 族：交互在插件包的 `CLIENT_FACTORY_SCRIPT`（常是 `src/client.ts` 导出的工厂字符串），在包 `registration` 里声明 `workbench.clientFactory` / `settingsClient`，由 `plugin-workbench.ts` 自动派生并注入。
 
 Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps/workbench/src/scripts/client/navigation-feed.ts`、`navigation-inbox.ts`、`events-primary.ts`。抄 Pages 的 client 到 Feed 不会接到现有画面。
 
@@ -119,6 +122,8 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 - 动效：`--dur-press` 130ms（按下与悬停）、`--dur-move` 250ms（状态移动）、`--dur-arrive` 420ms（到达），曲线 `--ease-quint`、`--ease-spring`。`mw-btn` 回弹、菜单从控件长出、对话框与侧边面板入场、列表到达都由 Host 提供，不要重写。`prefers-reduced-motion` 与自动化下全部静止。
 - 不引入 React/shadcn。HTML Slot：`mw-*` + `data-slot`。
 - 插件样式放包内 `styles.ts`，经 Workbench pack 的 `stylesheet` 注入；只写本插件的布局，不重画共享控件。
+
+媒体预览缩放用 `window.molisMediaZoom(viewport, image, { onChange })`（VUX-32），不要自己写 pan/zoom；缩放围绕实际看的位置、平移有边界。
 
 终层（`packages/design-system/src/styles/craft-finish.ts`，最后加载）：
 

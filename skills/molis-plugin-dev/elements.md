@@ -44,13 +44,13 @@ Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略
 
 `capabilities.provides` 是契约 id，不是别的插件包名。不带 `@` 时版本按 1：`functions.evaluate` 对得上 requires 里的 version 1；`functions.evaluate.v1` 是另一个 id。`consumes` 写不带版本的 id。Kernel 里任意满足者都可以。必需项没有提供者、依赖成环、或依赖的插件被挡住，才不激活。
 
-经 `context.services.actions.invoke` 调的动作，必须列在 `capabilities.consumes` 里；它可以是宿主的，也可以是别的插件的（用户 2026-10-14 定）。宿主以插件受众、本插件自己的授权去调，提供方固定为项目目录里唯一的那一个；没列出的是 `actions.forbidden`，缺授权的是 `plugin.grant_denied`，目录里没有或不止一个提供方的是 `actions.dependency_missing` / `actions.provider_ambiguous`。只对 `user` 开放、声明了 `plugin: false` 或不可撤销的动作，插件受众够不到。
+经 `context.services.actions.invoke` 调的动作，必须列在 `capabilities.consumes` 里；它可以是宿主的，也可以是别的插件的（用户 2026-10-14 定）。宿主以插件受众、本插件自己的授权去调，提供方固定为项目目录里唯一的那一个；没列出的是 `actions.forbidden`，缺授权的是 `plugin.grant_denied`，目录里没有或不止一个提供方的是 `actions.dependency_missing` / `actions.provider_ambiguous`。只对 `user` 开放、声明了 `plugin: false` 或不可撤销的动作，插件受众够不到。要像工作流那样替原调用者调目录里的动作、不事先列出，声明权限 `actions:delegate` 用 `services.actions.directory`（写法与限制见 `host.md` 的「动作目录委托」，S-43）。
 
 ## 个人 vs 项目
 
-Host catalog（`apps/workbench/src/builtin-plugins.ts`）的 `personal: true`：每个项目都可用，不进项目启用列表。今天（`BUILTIN_PLUGIN_CATALOG`）：Cognia、插件创作台、Images、Jelly、Shelf、灵光、Todo、Characters、Pages、Forms、Dataset、PPT、Alchemist、Workflows。
+插件 `registration`（各包 `src/registration.ts`）的 `personal: true`：每个项目都可用，不进项目启用列表。今天（`BUILTIN_PLUGIN_CATALOG`，由各包的 `registration` 生成）：Cognia、插件创作台、Images、Jelly、Shelf、灵光、Todo、Characters、Pages、Forms、Dataset、PPT、Alchemist、Workflows、Issues。
 
-其余按项目启用。必选输入口会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。Feed 启用会带上 Inbox（Feed 条目上的 `companions`）。
+其余按项目启用。必选输入口会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。Feed 启用会带上 Inbox（Feed `registration` 上的 `companions`）。
 
 市场卡片要同时有 catalog 的 `summary` 和一个 `navigator` 或 `island` 视图；没有这两种视图、页面只放在设置里的插件（Characters）不进内建市场。
 

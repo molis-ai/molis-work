@@ -32,7 +32,7 @@ export const TAB_GROUP_STYLES = `
   ${WORKBENCH} .tab-strip:has(.tab-view-chip.is-exclusive) ${GROUP_IN} .tab-item[aria-current]::after { display: none; }
   ${GROUP} .tab-group-count {
     flex: none; display: inline-grid; place-items: center; min-width: 16px; height: 16px; margin-left: 6px; padding: 0 4px;
-    border-radius: var(--r-tag, 6px); background: var(--group-color); color: var(--paper); font-size: 11px; font-weight: 600; line-height: 1;
+    border-radius: var(--r-tag, 6px); background: var(--group-color); color: var(--paper); font-size: 11px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums;
   }
   ${GROUP}[data-collapsed="true"] .tab-item[data-tab-kind="plugin"] { display: inline-flex; }
 

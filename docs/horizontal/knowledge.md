@@ -10,4 +10,4 @@
 
 **不拥有：** 插件的表与正文、搜索索引（`horizontal/search`）、权限授予、模型调用。
 
-**当前来源与 Goal：** `horizontal/knowledge`，Host 装配 `apps/local-host/src/knowledge-actions.ts`。见 `specs/project-knowledge/spec.md`。
+**当前来源与 Goal：** `horizontal/knowledge`，Host 装配 `apps/local-host/src/knowledge-actions.ts`。见 `specs/archive/project-knowledge/spec.md`。

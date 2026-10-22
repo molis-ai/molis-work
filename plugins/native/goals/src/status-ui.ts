@@ -30,7 +30,7 @@ function createStatusRenderer(primitives: GoalsStatusPrimitives) {
         if (status === "archived" || status === "trashed") {
             return renderStatus(status, attributes, labelAttributes);
         }
-        const label = item.status_label || goalDisplayStatusLabel(status as GoalDisplayStatus);
+        const label = item.status_label ? translate(item.status_label) : goalDisplayStatusLabel(status as GoalDisplayStatus); // The projection words it in Chinese (VUX-40).
         const state = item.status === "executing" && status === "in_progress" ? "running" : DISPLAY_STATUS_MARKS[status as GoalDisplayStatus];
         return `<span class="goal-status goal-status--${status}"${attributes ? ` ${attributes}` : ""} title="${escapeHtml(label)}">${renderStateRing({ state })}<span${labelAttributes ? ` ${labelAttributes}` : ""}>${escapeHtml(label)}</span></span>`;
     }

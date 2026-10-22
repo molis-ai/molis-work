@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
 import { issueView } from "./fixtures/issue-browser.js";
@@ -16,16 +15,13 @@ async function capture(b: Browser, description: string) {
   return v;
 }
 
-test("ISSUE-34 ISSUE-37 a question keeps the words and pictures, retires the asking work, and saves only after the new capture", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+test("ISSUE-34 ISSUE-37 ISSUE-50 a question keeps the words and pictures and saves only after the new capture", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
   const behavior: Parameters<typeof issueModel>[2] = { question: "free-text" };
-  const { requests } = await issueModel(t, b.homeDirectory, behavior);
+  const { namings } = await issueModel(t, b.homeDirectory, behavior);
   const v = await capture(b, "111");
   await v.until("$('[data-state=attention]')?.textContent.includes('需要补充：')", 20_000);
-  const [initial] = (await v.assistant(true)).works;
-  assert.equal(initial!.cards.length, 0); assert.equal(initial!.rounds[0]!.awaiting_input.length, 1);
-  assert.equal(initial!.rounds[0]!.activity.filter(action => action.verb === "ask").length, 1);
-  assert.equal(requests.length, 1, "one real SDK ask with no discovery round, then the runtime waits");
+  assert.equal(namings.length, 1, "one bounded call, then the question is the person's");
   assert.equal((await v.list()).items.length, 0);
   await v.press("[data-state=attention]");
   await v.until("d.activeElement === $('[data-issue-editor] [name=description]')");
@@ -43,49 +39,26 @@ test("ISSUE-34 ISSUE-37 a question keeps the words and pictures, retires the ask
   const issue = await v.read(saved!.id);
   assert.equal(issue.description, "111；点保存没反应"); assert.equal(issue.images[0]!.data_url, (source as { image: string }).image);
   assert.equal((await v.list()).items.length, 1, "neither question left a record behind");
-  const views = (await v.assistant(true)).works;
-  assert.equal(views.some(view => view.work.state === "waiting-input"), false, "the asking works were stopped once answered here");
-  const stale = await b.evaluate<{ ok: boolean; code: string }>(`fetch('/api/assistant/works/${initial!.work.work_id}/answer', { method: 'POST', headers: globalThis.molisWorkControlHeaders(),
-    body: JSON.stringify(${JSON.stringify({ run_id: initial!.rounds[0]!.run_id, pending_id: initial!.rounds[0]!.awaiting_input[0]!.pending_id, pending_revision: initial!.rounds[0]!.awaiting_input[0]!.pending_revision, text: "迟到回答" })}) }).then(async r => ({ ok: r.ok, code: (await r.json()).code }))`);
-  assert.equal(stale.ok, false, "an answer to a retired question cannot restart it"); assert.equal(stale.code, "assistant.stale");
-  assert.equal((await v.list()).items.length, 1);
+  assert.equal(namings.length, 3);
 });
 
-for (const question of ["correct-once", "never-correct"] as const) {
-  test(`ISSUE-34 SDK ask-user contract and one parameter correction: ${question}`, { timeout: 60_000 }, async t => {
-    const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
-    const { requests } = await issueModel(t, b.homeDirectory, { question });
-    const v = await capture(b, "111");
-    await v.until(`$('[data-state=attention]')?.textContent.includes(${JSON.stringify(question === "correct-once" ? "在哪个页面点击保存" : "没能自动整理")})`, 20_000);
-    const [view] = (await v.assistant(true)).works as AssistantWorkView[];
-    const asks = view!.rounds[0]!.activity.filter(action => action.verb === "ask");
-    assert.equal(asks.length, 2, "one failed attempt plus one correction, never six repeated failures");
-    assert.equal(asks.filter(action => action.state === "failed").length, question === "correct-once" ? 1 : 2);
-    const wire = requests as Array<{ tools: Array<{ name: string; input_schema: { properties: { questions: { items: { properties: { options: unknown } } } } } }>; messages: unknown }>;
-    // Both surfaces draw typed choice questions (ai-interaction A1, A2), so the model is offered that contract: options are objects with a label.
-    assert.deepEqual(wire[0]!.tools.find(tool => tool.name === "ask-user")!.input_schema.properties.questions.items.properties.options, {
-      type: "array", description: "choice only. Frozen choices; the answer is taken from these labels.",
-      items: { type: "object", properties: { label: { type: "string" },
-        description: { type: "string", description: "How this choice differs. For the recommended one, say why." },
-        recommended: { type: "boolean", description: "Your recommendation. It is not a choice: the person still picks." },
-        default: { type: "boolean", description: "Prefill this choice in the form. Not an answer." } }, required: ["label"], additionalProperties: false },
-    }, "the model really receives the typed choice contract the surfaces draw");
-    assert.match(JSON.stringify(wire[1]!.messages), /options each need a .{0,6}label/, "an option without a label is refused with the reason");
-    assert.match(JSON.stringify(wire[1]!.messages), /description.*补充具体问题后再生成/, "provider parsing retains the original malformed object, without silently converting it");
-    assert.equal(requests.length, 2, "no third model call after the second failed receipt or while awaiting input");
-    assert.equal(view!.cards.length, 0);
-    if (question === "correct-once") {
-      assert.deepEqual(view!.rounds[0]!.awaiting_input[0]!.questions?.[0]?.options.map(option => option.label), ["首页", "项目页"]);
-    } else {
-      assert.equal(view!.work.state, "stopped"); assert.equal(view!.rounds[0]!.awaiting_input.length, 0);
-      assert.equal(await v.ask("$('[data-state=attention]').textContent.includes('TOOL_ARGUMENTS_INVALID')"), false);
-    }
-    assert.equal((await v.list()).items.length, 0);
-  });
-}
+test("ISSUE-37 ISSUE-50 an answer Issue cannot use, or one that is not JSON, writes nothing and opens with the words kept", { timeout: 60_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
+  const behavior: Parameters<typeof issueModel>[2] = { unusable: true };
+  await issueModel(t, b.homeDirectory, behavior);
+  const v = await capture(b, "点保存没反应");
+  await v.until("$('[data-state=attention]')?.textContent.includes('模型没有给出可用的标题和类型')", 20_000);
+  behavior.unusable = false; behavior.replyText = "保存按钮没反应";
+  await v.press("[data-issue-composer] [name=description]"); await v.type("切换页面后输入丢失"); await v.send();
+  await v.until("[...d.querySelectorAll('[data-state=attention]')].some(row => row.textContent.includes('没能自动整理'))", 20_000);
+  assert.equal(await v.ask("[...d.querySelectorAll('[data-state=attention]')].some(row => /plugin\\.|model_output|JSON/.test(row.textContent))"), false, "no internal error text reaches the list");
+  assert.equal((await v.list()).items.length, 0);
+  await v.press("[data-state=attention]");
+  assert.equal(await v.ask("$('[data-issue-editor] [name=description]').value"), "切换页面后输入丢失");
+});
 
 test("ISSUE-34 ISSUE-37 an unavailable model and an organizing timeout keep the input, and a late answer cannot save beside a manual one", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
   const behavior: Parameters<typeof issueModel>[2] = { unavailable: true };
   await issueModel(t, b.homeDirectory, behavior);
   const v = await capture(b, "点保存没反应");

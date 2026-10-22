@@ -1,5 +1,6 @@
 import { TOUCH_TARGET_STYLES } from "./touch-targets.js";
 import { ASSISTANT_STAGE_STYLES } from "./assistant-stage.js";
+import { ASSISTANT_PROCESS_STYLES } from "./assistant-process.js";
 
 /** Soft Workbench finish: the last layer of every Molis Work page (module name kept from the craft pass).
  *
@@ -91,7 +92,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .tab-workspace[data-exclusive] .tab-workspace-exclusive { inset: 0 var(--sheet-inset) 0 0; }
     ${SHELL} .tab-workspace-panes > .tab-pane.is-focused { box-shadow: var(--sheet-shadow); }
     /* Split panes: the focused one carries a copper hint so typing lands where you expect. */
-    ${SHELL} .tab-workspace-panes:has(> .tab-pane + .tab-pane) > .tab-pane.is-focused {
+    ${SHELL} .tab-workspace[data-split] .tab-workspace-panes > .tab-pane.is-focused {
       box-shadow: var(--sheet-shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent);
     }
     /* The directory sits on the desk; one hair of desk separates it from the sheet. */
@@ -314,7 +315,7 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .bar-start .personal-sidebar-footer { display: contents; }
   ${SHELL} .account-global-menu { position: relative; flex: none; }
   ${SHELL} .account-global-trigger::-webkit-details-marker { display: none; }
-  ${SHELL} .account-global-menu:not([open]):has([data-market-update-count]:not([hidden])) > .account-global-trigger::after {
+  ${SHELL} .account-global-menu:not([open])[data-market-updates] > .account-global-trigger::after {
     content: ""; position: absolute; top: 8px; right: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
   }
   ${SHELL} .account-global-popover {
@@ -506,7 +507,7 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .plugin-picker-all { display: none; }
   ${SHELL} .plugin-picker-all svg { width: 20px; height: 20px; stroke-width: 1.6; }
   ${SHELL} .bar-start .plugin-picker-trigger { height: var(--dock-btn, 38px); position: relative; }
-  ${SHELL} .plugin-picker:has([data-market-update-count]:not([hidden])) > .plugin-picker-trigger::after {
+  ${SHELL} .plugin-picker[data-market-updates] > .plugin-picker-trigger::after {
     content: ""; position: absolute; top: 7px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
   }
   /* The head: search, and beside it the two ways to get more plugins — the market and the studio — as buttons, not rows among
@@ -644,9 +645,9 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-block-chevron::before { content: "›"; font-size: 13px; line-height: 1; transform: rotate(90deg); transition: transform var(--dur-move) var(--ease-quint); }
   ${ASSIST} .assistant-block-head[aria-expanded="false"] .assistant-block-chevron::before { transform: none; }
   ${ASSIST} .assistant-block-head:hover .assistant-block-chevron { color: var(--ink); }
-  /* Folding never animates height: a folded block is gone at once, and opening one lets its rows arrive. */
-  ${ASSIST} .assistant-block[data-folded] .assistant-block-body { display: none; }
-  ${ASSIST} .assistant-block[data-opening] .assistant-block-body { animation: craft-rise var(--dur-move) var(--ease-quint); }
+  ${ASSIST} .assistant-block:not([hidden], .assistant-block--usage) { /* opens and folds to its natural height (VUX-08, VUX-22): the body is a 0fr→1fr row; folded, out of reach */ display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; transition: grid-template-rows var(--dur-move) var(--ease-quint); }
+  ${ASSIST} .assistant-block[data-folded] { grid-template-rows: auto 0fr; }
+  ${ASSIST} .assistant-block[data-folded] .assistant-block-body { visibility: hidden; transition: visibility 0s var(--dur-move); }
   ${ASSIST} .assistant-block-title { color: var(--ink); font-size: 12px; font-weight: 600; }
   ${ASSIST} .assistant-block-sub { margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
   /* The name opens what it names, and its target is the whole row; the row's own actions sit above it. */
@@ -697,7 +698,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-block-badge { margin-left: auto; padding: 0 8px; border-radius: 999px; background: var(--wash); color: var(--muted); font-size: 11px; font-weight: 400; line-height: 18px; white-space: nowrap; }
   ${ASSIST} .assistant-block-badge.is-attention { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 15%, transparent); color: var(--tone-attention, #c27c0e); }
   ${ASSIST} .assistant-block--attention .assistant-block-head { box-shadow: none; padding-top: 2px; }
-  ${ASSIST} .assistant-block-body { padding-top: 6px; }
+  ${ASSIST} .assistant-block-body { min-height: 0; overflow: clip; overflow-clip-margin: 6px; } ${ASSIST} .assistant-block-body::before { /* the space under the head is content, so the row clips it as it folds; nothing but the row moves */ content: ""; display: block; height: 6px; }
   ${ASSIST} .assistant-group-list { display: flex; flex-direction: column; gap: 10px; }
   ${ASSIST} .assistant-group > .assistant-block-sub { margin: 0 0 6px; }
   /* Cards: glyph, title and one line; the title opens it and the whole card is its target; actions sit above that. */
@@ -827,7 +828,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-code-copy, ${ASSIST} .assistant-code-more { height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
     transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   ${ASSIST} :is(.assistant-code-copy, .assistant-code-more):hover { background: var(--nav-hover); color: var(--ink); }
-  ${ASSIST} .assistant-code-copy[data-done] { color: var(--tone-done, #3a8f5c); }
+  ${ASSIST} .assistant-code-copy[data-copy=done] { color: var(--tone-done, #3a8f5c); }
   ${ASSIST} .assistant-rich .assistant-code pre, ${ASSIST} .assistant-code pre { margin: 0; padding: 10px 12px; border-radius: 0; background: transparent; overflow: auto; font-size: 12px; line-height: 1.55; }
   ${ASSIST} .assistant-code[data-folded] pre { max-height: 300px; overflow: hidden; }
   ${ASSIST} .assistant-code-more { display: block; width: 100%; height: 28px; border-radius: 0; box-shadow: inset 0 1px 0 var(--line); }
@@ -903,9 +904,9 @@ const CRAFT_BASE_STYLES = `
   /* Copy an answer: it appears with the pointer over the round (always on touch) and says when it is done. */
   ${ASSIST} .assistant-copy { align-self: flex-start; margin: -6px 0 0 -6px; height: 22px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
     opacity: 0; transition: opacity var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
-  ${ASSIST} :is(.assistant-round:hover .assistant-copy, .assistant-copy:focus-visible, .assistant-copy[data-done]) { opacity: 1; }
+  ${ASSIST} :is(.assistant-round:hover .assistant-copy, .assistant-copy:focus-visible, .assistant-copy[data-copy]) { opacity: 1; }
   ${ASSIST} .assistant-copy:hover { background: var(--nav-hover); color: var(--ink); }
-  ${ASSIST} .assistant-copy[data-done] { color: var(--hue-green-fill); }
+  ${ASSIST} .assistant-copy[data-copy=done] { color: var(--hue-green-fill); }
   @media (hover: none) { ${ASSIST} .assistant-copy { opacity: 1; } }
   /* A later round opens with when it began. */
   ${ASSIST} .assistant-round-time { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
@@ -988,16 +989,6 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-more-value { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
   /* News alone is a quiet bell; a number means something waits for the person. */
   /* The work's own menu: where it belongs, who carries it, handing over, usage. */
-  /* The steps between two messages: one quiet line that opens to each step. */
-  ${ASSIST} .assistant-steps { margin: 0; font-size: 12px; color: var(--muted); }
-  ${ASSIST} .assistant-steps > summary { width: fit-content; margin-left: -4px; padding: 2px 4px; border-radius: 6px; list-style: none; cursor: pointer; }
-  ${ASSIST} .assistant-steps > summary::-webkit-details-marker { display: none; }
-  ${ASSIST} .assistant-steps > summary::before { content: "›"; display: inline-block; width: 12px; transition: transform var(--dur-hover) var(--ease-quint); }
-  ${ASSIST} .assistant-steps[open] > summary::before { transform: rotate(90deg); }
-  ${ASSIST} .assistant-steps > summary:hover { background: var(--nav-hover); color: var(--ink-soft); }
-  ${ASSIST} .assistant-steps > summary:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} .assistant-steps[data-state="failed"] > summary { color: var(--danger); }
-  ${ASSIST} .assistant-steps > .assistant-activity { padding: 2px 0 0 12px; }
   /* A long message of the person's folds after six lines. */
   ${ASSIST} .assistant-msg--user[data-folded] { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
   ${ASSIST} .assistant-msg-more { align-self: flex-end; margin-top: -8px; padding: 0 4px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
@@ -1012,17 +1003,14 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .bar-center:has(>.assistant-next-row:not([hidden])){--next-row:48px}
   /* What the next Send carries, above the next steps: a chip each; the object on show, not added, is dashed with + to add it. */
   ${ASSIST} .assistant-context-strip{position:absolute;z-index:55;inset:auto auto calc(100% + 6px + var(--next-row,0px)) 0;max-width:100%}
-  ${ASSIST} .assistant-strip-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;scroll-padding-inline:28px}
-  ${ASSIST} .assistant-strip-row[data-more=end]{mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}
-  ${ASSIST} .assistant-strip-row[data-more=start]{mask-image:linear-gradient(to left,#000 calc(100% - 28px),transparent)}
-  ${ASSIST} .assistant-strip-row[data-more=both]{mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+  ${ASSIST} .assistant-strip-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
   ${ASSIST} .bar-center:has(>.assistant-context-strip:not([hidden])){--context-row:38px}
   ${ASSIST} .assistant-strip-chip{display:inline-flex;flex:none;align-items:center;gap:4px;max-width:240px;height:32px;padding:0 0 0 8px;border:0;border-radius:8px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink);font:inherit;font-size:12px}
   ${ASSIST} .assistant-strip-chip.is-optional{box-shadow:none;outline:1px dashed var(--line-strong);outline-offset:-1px;color:var(--muted)}
   ${ASSIST} .assistant-strip-chip.is-work{padding:0 8px;color:var(--muted);cursor:pointer}
   ${ASSIST} .assistant-strip-chip.is-landing{background:var(--accent-soft);box-shadow:none}
   ${ASSIST} .assistant-strip-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  ${ASSIST} .assistant-strip-note{color:var(--faint);white-space:nowrap}
+  ${ASSIST} .assistant-strip-note{color:var(--faint);white-space:nowrap} ${ASSIST} .assistant-strip-chip.is-failed{max-width:320px;box-shadow:inset 0 0 0 1px var(--danger)} ${ASSIST} .is-failed>.assistant-strip-label{max-width:120px} ${ASSIST} .is-failed>.assistant-strip-note{min-width:0;overflow:hidden;color:var(--danger);text-overflow:ellipsis}
   ${ASSIST} .assistant-strip-thumb{width:20px;height:20px;border-radius:4px;object-fit:cover}
   ${ASSIST} .assistant-strip-act{flex:none;width:32px;height:32px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted);font:inherit;cursor:pointer}
   ${ASSIST} :is(.assistant-strip-act,.is-work):hover{background:var(--nav-hover);color:var(--ink)}
@@ -1042,7 +1030,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-notices-held > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 7px 2px; }
   ${ASSIST} .assistant-notices-held > .assistant-notice { margin-top: 6px; }
   ${ASSIST} .assistant-popover-title { margin: 0 0 4px; padding: 0 8px; font-size: 11px; color: var(--faint); }
-  ${ASSIST} .assistant-mention { display: grid; gap: 2px; text-align: left; }
+  ${ASSIST} .assistant-mention { display: grid; gap: 2px; text-align: left; } ${ASSIST} .assistant-mention.is-stale { opacity: .5; cursor: default; }
   ${ASSIST} .assistant-mention-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   ${ASSIST} .assistant-mention-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
   ${ASSIST} .assistant-composer[data-dropping] { outline: 2px dashed var(--accent, var(--ink)); outline-offset: 2px; }
@@ -1309,6 +1297,7 @@ const CRAFT_BASE_STYLES = `
     transition: opacity var(--dur-press) var(--ease-quint), transform var(--dur-press) var(--ease-quint);
   }
   .craft-tip[data-shown] { opacity: 1; transform: translate(var(--tip-x, 0), var(--tip-y, 0)); }
+  .craft-tip[data-cut] { width: max-content; max-width: min(420px, calc(100vw - 12px)); white-space: normal; overflow-wrap: anywhere; }
   .craft-tip kbd { margin-left: 8px; padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, var(--tip-ink) 16%, transparent); color: inherit; font: inherit; font-size: 11px; opacity: .8; }
 
   /* ─── Directory: rows on the desk; the selected one takes the neutral selection fill ── */
@@ -1825,7 +1814,7 @@ const STILL_RESET = `
   html[data-craft-still] *, html[data-craft-still] *::before, html[data-craft-still] *::after { transition-duration: 0s !important; transition-delay: 0s !important; }
 `;
 
-export const CRAFT_FINISH_STYLES = CRAFT_BASE_STYLES + TOUCH_TARGET_STYLES + ASSISTANT_STAGE_STYLES + STILL_RESET;
+export const CRAFT_FINISH_STYLES = CRAFT_BASE_STYLES + TOUCH_TARGET_STYLES + ASSISTANT_STAGE_STYLES + ASSISTANT_PROCESS_STYLES + STILL_RESET;
 
 /** Behaviour for the craft layer. Everything here is presentation: it never writes Goal state,
  * never moves focus and never cancels another handler. Without it the pages look the same, only
@@ -1955,78 +1944,8 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
     paintRecent();
   }
 
-  /* Rail tooltips: one element in the page, placed beside the control, so no scroll column clips it. */
-  const TIP_TARGETS = ".workbench-bar :is(.dock-pin, .bar-chat, .account-global-trigger, .navigator-project-selector, .plugin-picker-trigger), [data-craft-tip]";
-  const tip = document.createElement("div");
-  tip.className = "craft-tip";
-  tip.setAttribute("aria-hidden", "true");
-  let tipOwner = null, tipTimer = 0, lastHidden = 0;
-  const hoverable = matchMedia("(hover: hover) and (pointer: fine)");
-  const labelFor = (node) => {
-    if (node.matches(".navigator-project-selector")) return node.querySelector("strong")?.textContent?.trim() || node.getAttribute("aria-label") || "";
-    return node.dataset.craftTip || node.dataset.craftTitle || node.getAttribute("title") || node.getAttribute("aria-label") || "";
-  };
-  const place = (node) => {
-    const box = node.getBoundingClientRect();
-    const above = node.closest(".workbench-bar");
-    const x = box.left + box.width / 2 - tip.offsetWidth / 2;
-    const y = above ? box.top - tip.offsetHeight - 8 : box.bottom + 8;
-    tip.style.setProperty("--tip-x", Math.round(Math.max(6, Math.min(innerWidth - tip.offsetWidth - 6, x))) + "px");
-    tip.style.setProperty("--tip-y", Math.round(Math.max(6, y)) + "px");
-    tip.style.transformOrigin = above ? "bottom center" : "top center";
-  };
-  const showTip = (node) => {
-    const name = node.querySelector(":scope > span:not(.personal-account-avatar):not(.project-monogram), .personal-account-copy");
-    if (name && name.getBoundingClientRect().width > 2) return;
-    const text = labelFor(node);
-    if (!text) return;
-    if (node.hasAttribute("title")) { node.dataset.craftTitle = node.getAttribute("title"); node.removeAttribute("title"); }
-    tip.textContent = text;
-    const mac = /Mac|iPhone|iPad/.test(navigator.platform);
-    const shortcut = node.matches(".navigator-project-search") ? (mac ? "⌘K" : "Ctrl K")
-      : railShortcuts().indexOf(node) >= 0 ? (mac ? "⌥" : "Alt ") + (railShortcuts().indexOf(node) + 1) : "";
-    if (shortcut) {
-      const key = document.createElement("kbd");
-      key.textContent = shortcut;
-      tip.append(key);
-    }
-    if (!tip.isConnected) body.append(tip);
-    tipOwner = node;
-    place(node);
-    requestAnimationFrame(() => { if (tipOwner === node) tip.setAttribute("data-shown", ""); });
-  };
-  const hideTip = () => {
-    clearTimeout(tipTimer);
-    if (!tipOwner) return;
-    if (tipOwner.dataset.craftTitle != null) { tipOwner.setAttribute("title", tipOwner.dataset.craftTitle); delete tipOwner.dataset.craftTitle; }
-    tipOwner = null;
-    tip.removeAttribute("data-shown");
-    lastHidden = Date.now();
-  };
-  const queueTip = (node) => {
-    if (tipOwner === node) return;
-    hideTip();
-    const warm = Date.now() - lastHidden < 500;
-    tipTimer = setTimeout(() => showTip(node), warm ? 0 : 420);
-  };
-  document.addEventListener("pointerover", (event) => {
-    if (!hoverable.matches || event.pointerType === "touch") return;
-    const node = event.target instanceof Element ? event.target.closest(TIP_TARGETS) : null;
-    if (node) queueTip(node);
-  });
-  document.addEventListener("pointerout", (event) => {
-    const node = event.target instanceof Element ? event.target.closest(TIP_TARGETS) : null;
-    if (!node || (event.relatedTarget instanceof Node && node.contains(event.relatedTarget))) return;
-    hideTip();
-  });
-  document.addEventListener("focusin", (event) => {
-    const node = event.target instanceof Element ? event.target.closest(TIP_TARGETS) : null;
-    if (node && node.matches(":focus-visible")) queueTip(node);
-  });
-  document.addEventListener("focusout", hideTip);
-  document.addEventListener("pointerdown", hideTip, true);
-  document.addEventListener("scroll", hideTip, true);
-  addEventListener("blur", hideTip);
+  /* The tooltip is its own program (browser/tip.ts); it reads the rail's shortcuts from here. */
+  window.molisRailShortcuts = railShortcuts;
 
   /* Presentation of drag: the source leaves a faded hole; drop areas become visible. */
   const endDrag = () => {
@@ -2036,7 +1955,6 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
   document.addEventListener("dragstart", (event) => {
     const source = event.target instanceof Element ? event.target.closest("[draggable='true']") : null;
     if (!source) return;
-    hideTip();
     requestAnimationFrame(() => {
       if (!source.matches(".tab-item, .tab-item *")) source.setAttribute("data-craft-drag-source", "");
       body.setAttribute("data-craft-dragging", "");

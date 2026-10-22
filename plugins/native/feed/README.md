@@ -72,7 +72,7 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
 - 负责：Feed 导航、来源工作台、界面、处置与模块组合。
 - 不负责：Source/Signal/Feed/Attention 事实、Provider 实现。
 - 公开入口：`@molis-ai/molis-work-plugin-feed`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-plugin-sdk`（共同同步内容编解码）、`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 不拥有 Source、Signal、Feed 的表，不直接实现 GitHub 或 Gmail 协议。
   - 失败都是 `ActionError`：码是 `feed.<原因>`（`feedErrors`，声明在合同 `modules/feed`，因为 RSS、YouTube 集成和 Host 的同步文件也要用），Inbox 事项找不到是 `inbox.entry_not_found`（`inboxErrors`，合同 `modules/attention-resumption`）；状态只由 kind 推出，本插件没有错误类和状态表。提供方报告的失败是 `feed.connector_failed`，提供方自己的码（`connector.rate_limited` 等，运行与来源故障里存的就是它）放在 `details.error_code`。模块自己的 `FeedError`、`AttentionError` 在 `callFeed`、`callAttention` 处换成上面的码。

@@ -50,14 +50,16 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-project-knowledge-http.test
 - 公开入口：`@molis-ai/molis-work-plugin-shelf`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-module-shelf`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`）；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 架子的文件声明是 `SHELF_OWNER_FILES`（`catalog.json`、`files/`、`jobs/`，插件包导出）。Home 动作的提供方现在由 Host 按这份声明装配文件客户端（过渡，PG-026-S1，Shelf 的 Runtime Home 实例上线后改用 `services.ownerFiles`）；动作端口里改架子的方法返回 `T | Promise<T>`，处理器都 `await`。
   - 不依赖 Goals 或 Artifacts 实现；交给项目的文字材料是过程项，由 Host 注入的公开端口写入，未绑项目时不能发布。
   - 个人架子的编辑、隐藏或移除不改项目里的旧版本。
   - 首次打开时架子里放着一份「试用示例.pdf」，是有意的首次使用引导，不是演示数据：只在架子从未放过任何材料时放一次（`seeded_sample`；放入任何材料或示例本身之后，用户删除、隐藏都不会自动放回，设置里的「使用指南」可由用户主动再放一份），写在用户 Home 的个人架子里，不进任何项目库，不读不写用户的内容。它让「提取文字、拖走结果」在没有 Agent、没有授权、没有网络时也能走完一遍（[Shelf 插件需求](../../../specs/archive/shelf-plugin/spec.md)「动作与引导」）。保留是 W2-18 决定 12（2026-10-09）：不改成空状态按钮，不删除。
-  - 提交时 Host 重读原对象并核对预览指纹，浏览器不能提交替代正文。
+  - 提交时 Shelf 重读原对象并核对预览指纹，浏览器不能提交替代正文。
+  - 项目成果（Coding 的固定报告与变更）：Shelf 自己列（`services.artifacts.listConsumable()` 按 Manifest 声明的消费类型筛，加上输入端口接着的版本）、自己读（`services.artifacts.read`），正文向 Coding 要（Manifest `capabilities.consumes` 声明 `coding.results.document@1`，权限 `artifact:read`，经 `services.actions.invoke`；定义只在合同包 `@molis-ai/molis-work-contracts/modules/coding` 一处，Shelf 与 Coding 都从那里取，Shelf 里没有第二份，`tests/shelf-coding-results.test.ts` 的 W5-01-CODING-09 钉住 Shelf 的 Manifest 消费它的 id、Coding 的 Manifest 声明的是同一个对象）。副本的标题说明、来源和指纹由 Shelf 拼（`shelfCopyOf`），宿主不拼。只在项目里装了 Coding 时才有正文，没装是平台的 `actions.plugin_disabled`。宿主只给 `ShelfResultPorts` 两样：`projectPath()`（副本来源里要写项目页面的服务路径，只有宿主知道）和 `receive`（写入口，Shelf S2 后随宿主装配一起删）。
   - 旧确认不能覆盖后来的选择；跨项目、已归档或非自身的材料不能设为输出。
   - URL 入库和剪贴板转材料必须将 Action signal / beforeEffect 传到 Module；抓取后复查再保存，源剪贴板已删除时不能生成迟到材料。
   - 失败都是 `ActionError`：码是 `shelf.<原因>`（`shelfErrors`，声明在 Shelf 模块 `modules/shelf/src/errors.ts`，因为模块、本插件和 Host 的 AI 文件都用它）；状态只由 kind 推出，本插件没有错误类和状态表。失败的任务随错误带回整份置物架快照（`snapshot` 在响应体顶层，紧挨 `error` 和 `code`），面板据此重画那一行失败记录。生成动作没有可用文字模型时，目录里写的是平台的 `actions.connection_required`（和 Jelly、Todo、Form、Dataset 一样），不再是 `shelf.no_model`；任务已经开始后才发现没有模型选择，仍抛 `shelf.no_model`（409）。
-- 改动后必跑：`node scripts/run-tests.mjs tests/shelf-plugin.test.ts tests/shelf-actions.test.ts tests/shelf-project-knowledge-http.test.ts tests/shelf-project-results-http.test.ts tests/shelf-terminal-recovery.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts tests/plugin-host-services.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/shelf-plugin.test.ts tests/shelf-actions.test.ts tests/shelf-owner-files.test.ts tests/shelf-project-knowledge-http.test.ts tests/shelf-project-results-http.test.ts tests/shelf-terminal-recovery.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts tests/plugin-host-services.test.ts tests/shelf-coding-results.test.ts tests/shelf-coding-results-platform.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/shelf-plugin.e2e.test.ts`
 - 相关手册：[docs/modules/shelf.md](../../../docs/modules/shelf.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

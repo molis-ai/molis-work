@@ -319,7 +319,13 @@ test("visual foundation keeps the Goal navigator dense and relationships progres
 test("expanded desktop Goal Tree parents compact without hiding dependency metadata", () => {
   assert.match(
     VISUAL_FOUNDATION_STYLES,
-    /\.tree-item:not\(\.is-collapsed\):has\(> \.tree-children\)[^{]*\.tree-title-line strong \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/,
+    /\.tree-item:not\(\.is-collapsed\):has\(> \.tree-children\)[^{]*\.tree-title-line \{[^}]*--tree-title-overflow: ellipsis;[^}]*--tree-title-space: nowrap;/,
+  );
+  // Passed to the title rather than named after the :has() (VUX-36: a rule ending in a bare tag there makes every node put in
+  // the page check every <strong>).
+  assert.match(
+    VISUAL_FOUNDATION_STYLES,
+    /\.desktop-goal-directory \.tree-title-line strong \{[^}]*text-overflow: var\(--tree-title-overflow, clip\);[^}]*white-space: var\(--tree-title-space, normal\);/,
   );
   assert.match(
     VISUAL_FOUNDATION_STYLES,
@@ -428,7 +434,7 @@ test("plugin list titles yield at the squeeze edge", () => {
   assert.match(workbench, /\.mw-dir-row__copy strong \{[^}]*text-overflow: ellipsis/);
   assert.doesNotMatch(workbench, /\.mw-dir-row__copy strong \{[^}]*mask-image:/);
   assert.doesNotMatch(workbench, /\.feed-stage-leading strong[^{}]*\{[^}]*mask-image:/);
-  assert.match(workbench, /\.mw-dir-row-wrap\.is-yield:is\(:hover, :has\(\.is-selected\), :has\(\[aria-current="page"\]\)\) \.mw-dir-row \{[\s\S]*padding-right: var\(--dir-yield, 72px\)/);
+  assert.match(workbench, /\.mw-dir-row-wrap\.is-yield:is\(:hover, :focus-within, :has\(\.is-selected\), :has\(\[aria-current="page"\]\)\) \.mw-dir-row \{[\s\S]*padding-right: var\(--dir-yield, 72px\)/);
   assert.match(workbench, /\.feed-stage-entry \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(7rem, 12rem\) max-content max-content/);
   assert.match(workbench, /grid-template-columns: minmax\(12rem, 1\.2fr\) 4.75rem 7.5rem minmax\(10rem, 1fr\) 4.5rem/);
   assert.doesNotMatch(workbench, /\.plugin-stage-meta \{ max-width: 18rem/);

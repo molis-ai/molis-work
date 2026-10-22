@@ -220,7 +220,7 @@ test("invalid, empty, oversized and unauthorized imports leave Artifact records 
 
 test("external document snapshots preserve exact old versions and isolate the same source by project", async t => {
   const { coordinator, get } = await fixture(t);
-  coordinator.initializeBoard({ project_id: "other-project", title: "Other project", actor_id: "fixture-owner", idempotency_key: "create-other-project" });
+  coordinator.initializeBoard({ project_id: "other-project", actor_id: "fixture-owner", idempotency_key: "create-other-project" });
   let document: ImportedArtifactDocument = {
     source: "notion", source_id: "a1b2c3-source", source_url: "https://www.notion.so/a1b2c3-source",
     title: "来源文档", content: "第一次读取的正文", format: "markdown", warnings: [],
@@ -412,7 +412,7 @@ test("any file imports as a 成果 with its original bytes and real media type; 
   assert.equal(continued.status, 201, await continued.clone().text());
   const result = await continued.json() as { open: { surface: string; id: string; title: string } };
   assert.deepEqual([result.open.surface, result.open.title], ["pages", "接着写"]);
-  const pages = (await (await fetch(`${origin}/api/pages`)).json() as { documents: Array<{ id: string; title: string }> }).documents;
+  const pages = (await (await fetch(`${origin}/api/plugins/io.molis.work.pages/pages`)).json() as { documents: Array<{ id: string; title: string }> }).documents;
   assert.deepEqual(pages.filter(document => document.title === "接着写").map(document => document.id), [result.open.id], "exactly one document, the one that opens");
   const refused = await fetch(origin + "/api/artifacts/continue", { method: "POST", headers: headers(), body: JSON.stringify({ reference: image, plugin_id: "io.molis.work.pages" }) });
   assert.equal(refused.status, 400);

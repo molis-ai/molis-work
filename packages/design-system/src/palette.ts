@@ -288,8 +288,8 @@ export function renderShapeTokens(): string {
     "--control-ring: var(--focus);",
     "--hairline: color-mix(in srgb, var(--ink) 11%, transparent);",
     "--focus-ring: var(--accent); --focus-stroke: 2px solid var(--focus-ring); --focus-stroke-inset: 1px;",
-    "--motion-instant: 130ms; --motion-fast: 130ms; --motion-normal: 250ms; --motion-arrive: 420ms; --dur-hover: 130ms; --dur-press: 130ms; --dur-move: 250ms; --dur-arrive: 420ms; --dur-moment: 640ms;",
-    "--ease-quint: cubic-bezier(.22, 1, .36, 1); --ease-spring: cubic-bezier(.2, 1.35, .4, 1); --ease-out: var(--ease-quint); --ease-standard: var(--ease-quint);",
+    "--motion-instant: 130ms; --motion-fast: 130ms; --motion-normal: 250ms; --motion-arrive: 420ms; --dur-hover: 130ms; --dur-press: 130ms; --dur-move: 250ms; --dur-arrive: 420ms; --dur-moment: 640ms; --dur-reveal: 90ms;",
+    "--ease-quint: cubic-bezier(.22, 1, .36, 1); --ease-spring: cubic-bezier(.2, 1.35, .4, 1); --ease-out: var(--ease-quint); --ease-standard: var(--ease-quint); --ease-reveal: cubic-bezier(.215, .61, .355, 1);",
     "--icon-xs: 12px; --icon-sm: 14px; --icon-md: 16px; --icon-lg: 20px;",
   ].join(" ");
 }

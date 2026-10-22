@@ -1,0 +1,26 @@
+import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { PPT_INSTRUCTIONS, PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution, pptProjectData, PPT_HOME_STORE } from "./index.js";
+
+/**
+ * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
+ * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
+ */
+import { syncTupleLocation, createSyncJsonContent } from "@molis-ai/molis-work-plugin-sdk";
+import { openPptStore, openPptCopyOwner } from "./index.js";
+export const registration: PluginRegistration = {
+  sync:{presentations:{scope:'projects',locate:syncTupleLocation('ppt',true,2, false),open:openPptStore,copy:openPptCopyOwner,content:createSyncJsonContent}},
+  project_plugin_id: PPT_PROJECT_PLUGIN_ID, catalog_order: 18,
+  home_store: PPT_HOME_STORE,
+  manifest: pptManifest,
+  project_data: pptProjectData,
+  instructions: PPT_INSTRUCTIONS,
+  personal: true,
+  summary: "写大纲，放映或导出 PowerPoint。",
+  workbench: {
+    order: 12,
+    contributions: [pptUiContribution],
+    stylesheet: PPT_STYLES,
+    clientFactory: PPT_CLIENT_FACTORY_SCRIPT,
+    searchRow: { selector: "[data-ppt-id]", idDataset: "pptId" },
+  },
+};

@@ -1,7 +1,19 @@
 /** The agent-host contract (`services/agent-host`): what a run asks a person to review, and the review queue. */
 import type { AgentRunRef } from "./agent-host-runtime.js";
+import type { AgentWriteCheckNote } from "./agent-host-write-checkers.js";
 
 export type AgentReviewKind = "text-edit" | "command" | "tool-operation" | "mcp" | "rewind" | "git-index" | "git-integration";
+
+/**
+ * The person-reviewed Host operations a plugin may start (PG-009). A plugin declares each one it starts as the Manifest
+ * permission `review:<kind>`, and its installation must hold it: declaring and granting decide only whether the plugin may
+ * ask, never the answer, which is a person's every time. A `review:` permission naming any other kind is refused when the
+ * Manifest is read, so a plugin cannot make up a kind.
+ */
+export const PLUGIN_REVIEW_KINDS = ["git-index", "git-operation", "git-worktree", "git-integration"] as const;
+export type PluginReviewKind = (typeof PLUGIN_REVIEW_KINDS)[number];
+/** The Manifest permission for one kind is this prefix followed by the kind, e.g. `review:git-index`. */
+export const PLUGIN_REVIEW_PERMISSION_PREFIX = "review:";
 
 export interface AgentTextReviewDocument {
   kind: "text-edit";
@@ -35,6 +47,8 @@ export interface AgentCommandReviewDocument {
   background?: boolean;
   /** A background command that keeps running after the round ends, until it ends or is stopped. */
   outlives_run?: boolean;
+  /** The person's after-write check this command is: which checker, from which version of its workspace's list. */
+  after_write_check?: Pick<AgentWriteCheckNote, "checker_id" | "display_name" | "version">;
 }
 
 export interface AgentCommandGrants {
@@ -94,7 +108,7 @@ export interface AgentReviewRequest {
   /** Null for a manual operation; never fabricate an Agent Run. */
   run: AgentRunRef | null;
   operation?: { operation_id: string; session_id: string; kind: "checkpoint-rewind"; workspace_id?: never }
-    | { operation_id: string; workspace_id: string; kind: "git-index" | "git-worktree" | "git-integration" | "git-operation"; session_id?: never };
+    | { operation_id: string; workspace_id: string; kind: PluginReviewKind; session_id?: never };
   project_id: string;
   plugin_id: string;
   kind: AgentReviewKind;

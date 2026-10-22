@@ -65,7 +65,19 @@ export declare const goalHistoryPageSchema: Readonly<Record<string, unknown>>;
 
 export declare const goalPluginActions: {
     readonly list: ActionDefinition<GoalListActionInput, GoalEventDirectoryPage>;
-    readonly contract: ActionDefinition<GoalReadActionInput, GoalContractView>;
+    readonly contract: {
+        readonly version: 2;
+        readonly operation: "query" | "command";
+        readonly provider_id?: string;
+        readonly action: import("@molis-ai/molis-work-contracts/platform/actions").ActionMetadata;
+        readonly __types__?: {
+            input: GoalReadActionInput;
+            output: GoalContractView;
+        } | undefined;
+        readonly capability_id: string;
+        readonly scheduling?: "concurrent";
+        readonly action_provider?: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider;
+    };
     readonly state: ActionDefinition<GoalReadActionInput, GoalEventStateView>;
     readonly progress: ActionDefinition<BusinessInput<RecordGoalProgressSummaryInput>, GoalEventProgressResult>;
     readonly receipt: ActionDefinition<GoalReadActionInput & {

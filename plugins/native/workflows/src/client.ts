@@ -66,12 +66,12 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const headers = () => typeof molisWorkControlHeaders === 'function' ? molisWorkControlHeaders() : { 'content-type': 'application/json' };
   async function api(path, body) {
-    const reply = await fetch(host.route('/api/workflows' + path), {
+    const reply = await fetch(host.route('/api/plugins/io.molis.work.native.workflows/workflows' + path), {
       method: body === undefined ? 'GET' : 'POST', cache: 'no-store', headers: headers(),
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const res = await reply.json().catch(() => ({}));
-    if (!reply.ok) { const err = new Error(res.error || L('工作流程请求失败')); err.code = res.code; err.status = reply.status; throw err; }
+    if (!reply.ok) { const err = new Error(res.error || L('工作流程请求失败')); err.status = reply.status; throw err; }
     return res;
   }
 
@@ -248,7 +248,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       const runs = flow.instance_count ? L('{count} 次', { count: flow.instance_count }) + (flow.active_count ? ' · ' + L('{count} 次进行中', { count: flow.active_count }) : '') : L('还没走过');
       const live = flow.active_count ? '<i class="wf-row__live" title="' + esc(L('{count} 次进行中', { count: flow.active_count })) + '"></i>' : '';
       return '<button type="button" class="wf-row directory-list-row' + (selected ? ' is-selected' : '') + '" data-wf-open="' + esc(flow.workflow_id) + '"' + (selected ? ' aria-current="page"' : '') + '>'
-        + '<span class="wf-row__title"><span>' + esc(flow.title) + '</span>' + live + '</span><span class="wf-row__chain">' + chainText(flow) + '</span><span class="wf-row__meta">' + esc(runs) + '</span></button>';
+        + '<span class="wf-row__title"><span>' + esc(flow.title) + '</span>' + live + '</span><span class="wf-row__chain" data-overflow-fade>' + chainText(flow) + '</span><span class="wf-row__meta">' + esc(runs) + '</span></button>';
     }).join('') + '</nav>';
   }
 
@@ -805,9 +805,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     }
     lastRun.steps = steps; lastRun.links = links;
     if (stepFocus !== null && stepFocus !== undefined) vchain.querySelector('[data-wf-step="' + stepFocus + '"]')?.focus({ preventScroll: true });
-
     article.querySelector('[data-wf-stage-head]').innerHTML = '<span class="wf-stage__step">' + esc(L('第 {n} 步', { n: idx + 1 })) + '</span><span class="wf-station__icon" style="--station-tint:' + tint(step.plugin) + '">' + ico(stnMeta(step.plugin).icon) + '</span><strong>' + esc(label(run.chain.stations[idx])) + '</strong>' + (step.item && step.plugin !== 'action' ? '<span class="wf-muted">' + esc(step.item.title) + '</span>' : '');
-
     const handoffBox = article.querySelector('[data-wf-handoff]');
     const actionFocus = handoffBox.contains(document.activeElement) ? document.activeElement.dataset.wfAction : null;
     const key = handoffKey(run, idx);
@@ -920,7 +918,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       const draft = ui.handoff.draft;
       return '<form class="wf-manual" data-wf-manual><header><strong>' + esc(L('手动交给 {next}', { next })) + '</strong><span class="wf-muted">' + tx('看完再决定交不交、交什么。改好的内容会交过去。') + '</span></header>'
         + '<label class="mw-field"><span class="mw-field__label">' + tx('标题') + '</span><input class="mw-input" name="title" maxlength="200" value="' + esc(draft.title) + '"></label>'
-        + '<label class="mw-field"><span class="mw-field__label">' + tx('正文') + '</span><textarea class="mw-textarea" name="body" rows="5">' + esc(draft.body) + '</textarea></label>'
+        + '<label class="mw-field"><span class="mw-field__label">' + tx('正文') + '</span><textarea class="mw-textarea" name="body" data-fit rows="5">' + esc(draft.body) + '</textarea></label>'
         + '<footer><span class="wf-kbd-hint"><kbd class="mw-kbd">' + esc(MOD) + ' ↵</kbd>' + tx('交过去') + '<kbd class="mw-kbd">Esc</kbd>' + tx('先不交') + '</span>'
         + '<button class="mw-btn mw-btn--secondary" type="button" data-wf-action="handoff-cancel">' + tx('先不交') + '</button>'
         + '<button class="mw-btn mw-btn--primary" type="submit" data-wf-action="handoff-submit"' + (busy ? ' data-loading aria-disabled="true"' : '') + '>' + (busy ? '<span class="mw-spinner" aria-hidden="true"></span>' : '') + '<span>' + esc(L('交给 {next}', { next })) + '</span></button></footer></form>';
@@ -975,7 +973,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const tgt = ev.target.closest('[data-wf-action], [data-wf-open], [data-wf-open-instance], [data-wf-step]');
     if (!tgt || !root.contains(tgt) || pop.contains(tgt)) return;
     const act = tgt.dataset.wfAction;
-    const fromKeyboard = ev.detail === 0;
     try {
       if (tgt.dataset.wfOpen) { if (ui.workflow?.workflow_id !== tgt.dataset.wfOpen || ui.instance) await showFlow(tgt.dataset.wfOpen); return; }
       if (tgt.dataset.wfOpenInstance) { await openRun(tgt.dataset.wfOpenInstance); return; }

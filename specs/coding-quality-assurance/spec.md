@@ -103,6 +103,6 @@ Agent 产出的 PR 和会改变代码/数据/外部状态的变更，必须在�
 
 - Coding 下一阶段：[coding-plugin/next-requirements](../coding-plugin/next-requirements.md) D2、E8
 - 真人批准门：[agent-approval](../agent-approval/spec.md)
-- Goal 完成/可信决定：[goal-closure-identity](../goal-closure-identity/spec.md)
+- Goal 完成/可信决定：[goal-closure-identity](../archive/goal-closure-identity/spec.md)
 - 审查队列与动作授权：[action-architecture](../action-architecture/spec.md)
 - 代码：`horizontal/agent-host/src/reviews.ts`、`plugins/native/coding/src/roles.ts`、`apps/local-host/src/assistant/assistant-authority.ts`

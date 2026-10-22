@@ -5,13 +5,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GoalsModule, DEFAULT_GOAL_POLICY } from "@molis-ai/molis-work-module-goals";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 
 test("project policy saves atomically replace history, replay lost responses, and reject invalid or unconfirmed changes", t => {
   const directory = mkdtempSync(join(tmpdir(), "project-policy-"));
   const store = new LocalProjectDatabase(join(directory, "project.sqlite"));
   t.after(() => { store.close(); rmSync(directory, { recursive: true, force: true }); });
   const goals = new GoalsModule(store.db, {});
-  goals.commands.initializeBoard({ project_id: "project", title: "项目规则", actor_id: "user", idempotency_key: "init" });
+  writeProjectRoot(store.db, "project", "2026-10-20T00:00:00.000Z");
+  goals.commands.initializeBoard({ project_id: "project", actor_id: "user", idempotency_key: "init" });
   const input = { project_id: "project", actor_id: "user", user_confirmed: true,
     policy: { ...DEFAULT_GOAL_POLICY }, idempotency_key: "save-one" };
   const first = goals.commands.saveProjectPolicy(input);

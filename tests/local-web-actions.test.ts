@@ -11,13 +11,13 @@ import {
 import { feedItemActions, feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { SqlitePluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/todo";
 import { definePlugin, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { COGNIA_PLUGIN_ID } from "@molis-ai/molis-work-plugin-cognia";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
+import { bindLocalWebActions, localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { HOME_TALK_PERMISSIONS } from "../apps/local-host/dist/home-talk-actions.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -270,6 +270,45 @@ test("S-15 with todo:write revoked from its installation, Todo's web route refus
     await person.validate_authority!({ ...hostRead, provider_id: "host-owned" });
     assert.equal(await host.actionClient(reference).invoke(person, hostRead, {}), "host");
   } finally { withdraw(); }
+});
+
+// VUX-35: a bound client shares one authority snapshot across its calls. It is meant for one request: a grant revoked meanwhile is still
+// refused by the same client, and a grant given afterwards is only seen by a client bound after it.
+test("VUX-35 a bound client refuses a write revoked after it was bound, and a grant given later reaches only a client bound after it", { timeout: 90_000 }, async t => {
+  const { host } = await serveHomeRuntime(t);
+  const create = todoManifest.actions!.find(definition => definition.capability_id === "todo.items.create")!;
+  const owner = ["todo:read", "todo:write"];
+  const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(TODO_PLUGIN_ID)!;
+  const regrant = async (grants: readonly string[]) => {
+    await platform.runtime.stop(install.install_id);
+    platform.runtime.grant(install.install_id, [...grants]);
+    assert.equal((await platform.supervisor.restart(TODO_PLUGIN_ID)).status, "running");
+  };
+  const granted = bindLocalWebActions(host, undefined, owner);
+  await granted.invoke(create, { title: "绑定之后记下的待办" });
+  const without = install.grants.filter(permission => permission !== "todo:write");
+  await regrant(without);
+  await assert.rejects(granted.invoke(create, { title: "撤权之后同一个客户端记不下" }), { code: "actions.forbidden" });
+
+  const boundWhileRevoked = bindLocalWebActions(host, undefined, owner);
+  await boundWhileRevoked.discover();
+  await regrant([...without, "todo:write"]);
+  await assert.rejects(boundWhileRevoked.invoke(create, { title: "授权之前绑定的客户端看不到新授权" }), { code: "actions.forbidden" });
+  await bindLocalWebActions(host, undefined, owner).invoke(create, { title: "授权之后新绑定的客户端记得下" });
+});
+
+// S-51 (C8-1): the control a dispatch hands its bound client (whether the follow-up still counts) joins that client's checks, at the
+// dispatcher's validation and at its last synchronous check, so a control that no longer counts stops the write before the handler.
+test("S-51 a bound client passes its call's control on: a control refusing at beforeEffect or at its last check stops the write", { timeout: 90_000 }, async t => {
+  const { host } = await serveHomeRuntime(t);
+  const [create, list] = ["todo.items.create", "todo.items.list"].map(id => todoManifest.actions!.find(definition => definition.capability_id === id)!) as [ActionDefinition, ActionDefinition];
+  const client = bindLocalWebActions(host, undefined, ["todo:read", "todo:write"]), gone = () => new ActionError("actions.cancelled", "这次跟进已经不算数");
+  const total = async () => (await client.invoke(list, { all_projects: true }) as { counts: { all: number } }).counts.all, before = await total();
+  await assert.rejects(client.invoke(create, { title: "control 在 beforeEffect 拒绝" }, { beforeEffect: async () => { throw gone(); } }), { code: "actions.cancelled" });
+  await assert.rejects(client.invoke(create, { title: "control 在最后一次检查拒绝" }, { beforeEffect: async () => {}, assert_authority_current: () => { throw gone(); } }), { code: "actions.cancelled" });
+  assert.equal(await total(), before, "neither write reached Todo");
+  const made = await client.invoke(create, { title: "control 放行时记得下" }, { beforeEffect: async () => {}, assert_authority_current: () => {} }) as { item: { title: string } };
+  assert.equal(made.item.title, "control 放行时记得下"); assert.equal(await total(), before + 1, "the same client writes once its control lets it");
 });
 
 // §4 o of privileges.md (PG-007): a Runtime route's own permission is the person's only as far as its installation holds it, whatever else

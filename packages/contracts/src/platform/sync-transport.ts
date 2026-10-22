@@ -106,7 +106,7 @@ export interface ProjectReplicaDefinition {
 export interface ProjectReplicaSection {
   read(): ProjectReplicaRows;
   validate(value: unknown): ProjectReplicaRows;
-  clear(): void;
+  clear(tombstone?: boolean): void;
   write(rows: ProjectReplicaRows): void;
   installJournal(mark: (keyExpression: string) => string): void;
 }

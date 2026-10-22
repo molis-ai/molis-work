@@ -63,7 +63,7 @@ node --import tsx --test tests/inbox-native-plugin.test.ts tests/inbox-plugin.te
 - 负责：需要介入的事项列表、详情与处置（完成、忽略）。
 - 不负责：Feed 与 Goal 的事实和 Store、其他插件的实现。
 - 公开入口：`@molis-ai/molis-work-plugin-inbox`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-plugin-sdk`（共同同步内容编解码）、`@molis-ai/molis-work-contracts`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 不直接读 Feed 或 Goals 表，不依赖 Feed、Goals、Functions 插件的实现。
   - 失败都是 `ActionError`：码是 `inbox.<原因>`（`inboxErrors`，声明在合同 `modules/attention-resumption`，因为 Feed 插件找不到 Inbox 事项时也用它）；状态只由 kind 推出，本插件没有错误类和状态表。

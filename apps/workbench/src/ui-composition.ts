@@ -44,11 +44,6 @@ import {
   type PptUiSurface,
 } from "@molis-ai/molis-work-plugin-ppt";
 import {
-  LINGGUANG_UI_CONTRIBUTION_ID,
-  type LingguangUiModel,
-  type LingguangUiSurface,
-} from "@molis-ai/molis-work-plugin-lingguang";
-import {
   ALCHEMIST_UI_CONTRIBUTION_ID,
   type AlchemistUiModel,
   type AlchemistUiSurface,
@@ -109,12 +104,6 @@ const DATASET_SURFACE_SLOTS: Readonly<Record<DatasetUiSurface, UiSlotDescriptor>
 const PPT_SURFACE_SLOTS: Readonly<Record<PptUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
   workbench: WORKBENCH_UI_SLOTS.main,
-};
-
-const LINGGUANG_SURFACE_SLOTS: Readonly<Record<LingguangUiSurface, UiSlotDescriptor>> = {
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-  side: WORKBENCH_UI_SLOTS.side,
 };
 
 const ALCHEMIST_SURFACE_SLOTS: Readonly<Record<AlchemistUiSurface, UiSlotDescriptor>> = {
@@ -315,20 +304,6 @@ export function renderWorkflowsContribution(
     slot: WORKFLOWS_SURFACE_SLOTS[surface],
     contribution: {
       contribution_id: WORKFLOWS_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
-}
-
-export function renderLingguangContribution(
-  surface: LingguangUiSurface,
-  model: LingguangUiModel,
-): string {
-  return workbenchUiHost.mount({
-    slot: LINGGUANG_SURFACE_SLOTS[surface],
-    contribution: {
-      contribution_id: LINGGUANG_UI_CONTRIBUTION_ID,
       surface,
       model,
     },

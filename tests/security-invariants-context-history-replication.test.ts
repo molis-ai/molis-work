@@ -15,7 +15,7 @@ function fixture(){
   return {db,ledger,ports,put};
 }
 
-test('S-47 PCSYNC-23 the reference owner restores complete typed history without replaying normal binding commands',()=>{
+test('S-59 PCSYNC-23 the reference owner restores complete typed history without replaying normal binding commands',()=>{
   const a=fixture(),b=fixture();try{
     a.put('first','one');a.ledger.commands.remove({actor_id:'person',scope},'first','removed','2026-10-18T00:01:00.000Z');a.put('second','two');
     const original=a.ports().read(source());assert.equal(original.length,3);
@@ -27,7 +27,7 @@ test('S-47 PCSYNC-23 the reference owner restores complete typed history without
   }finally{a.db.close();b.db.close();}
 });
 
-test('S-47 PCSYNC-01 foreign scope, unknown fields, broken history and undeclared machine-local relations are refused unchanged',()=>{
+test('S-59 PCSYNC-01 foreign scope, unknown fields, broken history and undeclared machine-local relations are refused unchanged',()=>{
   const f=fixture();try{
     f.put('existing','kept');const before=f.ports().read(source());
     const changes=[(e:ContextEdge)=>{e.source.scope={kind:'personal',id:'other'};},
@@ -41,7 +41,7 @@ test('S-47 PCSYNC-01 foreign scope, unknown fields, broken history and undeclare
   }finally{f.db.close();}
 });
 
-test('S-47 PCSYNC-01 a replicated edge key cannot capture another source or another relation',()=>{
+test('S-59 PCSYNC-01 a replicated edge key cannot capture another source or another relation',()=>{
   const f=fixture(),other=fixture();try{
     f.put('shared','original',source('other'));other.put('shared','incoming');
     const rows=other.ports().read(source());assert.throws(()=>f.ports().replace(source(),rows),{code:'context_ledger.key_conflict'});
@@ -50,7 +50,7 @@ test('S-47 PCSYNC-01 a replicated edge key cannot capture another source or anot
   }finally{f.db.close();other.db.close();}
 });
 
-test('S-47 PCSYNC-06 revocation inside a history replacement rolls back every reference and preserves the prior branch',()=>{
+test('S-59 PCSYNC-06 revocation inside a history replacement rolls back every reference and preserves the prior branch',()=>{
   const f=fixture(),other=fixture();try{
     f.put('old','kept');other.put('new','incoming');const before=f.ports().read(source());let active=true;
     f.db.function('revoke_test_authority',()=>{active=false;return 1;});

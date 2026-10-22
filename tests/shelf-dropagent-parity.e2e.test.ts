@@ -3,11 +3,11 @@ import { chmod, mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { clearShelfRuntimeCache, openShelfStore } from "@molis-ai/molis-work-module-shelf";
+import { clearShelfRuntimeCache } from "@molis-ai/molis-work-module-shelf";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { openHostShelfStore, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 
 test("Shelf DropAgent parity: full copies, reading, comparison, actions and client bridges", { timeout: 180_000 }, async (t) => {
   const bin = await mkdtemp(join(tmpdir(), "shelf-parity-agent-"));
@@ -53,7 +53,7 @@ fi
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "shelf-parity", display_name: "测试模型", base_url: "http://127.0.0.1:9", api_format: "anthropic-messages",
       models: [{ model_id: "fixture-model", enabled: true }] });
   }));
-  const shelf = openShelfStore(homeDirectory, { pathEnvironment: bin, home: homeDirectory, preferred: "claude" }, {},
+  const shelf = openHostShelfStore(homeDirectory, { pathEnvironment: bin, home: homeDirectory, preferred: "claude" }, {},
     shelfTestAi(async () => ({ text: "# 合稿\n\n两份材料经过受控执行，来源可切换。\n", execution: shelfTestReceipt })));
   assert.equal(shelf.runtime().executable, join(bin, "claude"));
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -104,7 +104,7 @@ fi
     // construct a synthetic File or call the Shelf admission API directly.
     await command("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [file] }, sessionId);
     await waitFor(`document.querySelector('[data-shelf-item][data-shelf-name="${filename}"]') && document.querySelector('[data-shelf-file]').value === ''`, 8_000);
-    const item = shelf.snapshot().materials.find(item => item.name === filename);
+    const item = (await shelf.snapshot()).materials.find(item => item.name === filename);
     assert.ok(item);
     assert.equal(shelf.readFile(item.item_id).bytes.toString("utf8"), text);
     assert.equal(await evaluate(`document.querySelector('[data-shelf-item][data-shelf-name="${filename}"]').classList.contains('is-on')`), true);
@@ -206,14 +206,14 @@ fi
     assert.ok(action);
     assert.equal(action.prompt, "把材料里的待办整理成列表。");
     assert.equal(await evaluate(`document.querySelector('[data-shelf-act="shortcut:${action.id}"]')?.getAttribute('aria-disabled')`), null);
-    const resultsBefore = shelf.snapshot().results.length;
+    const resultsBefore = (await shelf.snapshot()).results.length;
     await click("[data-shelf-more]");
     await click("[data-shelf-arrange]");
     await waitFor("document.querySelector('[data-shelf-hide-act=summarize]')");
     await click("[data-shelf-act=summarize]");
     assert.equal(await evaluate("document.querySelector('[data-shelf-stage]').classList.contains('is-confirm')"), false);
-    assert.equal(shelf.snapshot().results.length, resultsBefore);
-    assert.equal(shelf.snapshot().running_jobs.length, 0);
+    assert.equal((await shelf.snapshot()).results.length, resultsBefore);
+    assert.equal((await shelf.snapshot()).running_jobs.length, 0);
     await click("[data-shelf-more]");
     await click("[data-shelf-arrange]");
     await click(`[data-shelf-act="shortcut:${action.id}"]`);

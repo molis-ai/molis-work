@@ -13,5 +13,7 @@ export * from "./plugin.js";
 export * from "./ui.js";
 export * from "./client.js";
 export * from "./methods.js";
+export * from "./prompts.js";
+export { issueNaming, issueNamingErrors, ISSUE_SCREENSHOTS_UNREAD, titleLanguage, type IssueNaming, type IssueNamingInput } from "./naming.js";
 
-export { IssueCaptures, type IssueDraft, type IssueCapture } from "./capture.js";
+export { IssueCaptures, type IssueDraft, type IssueCapture, type IssueNamed } from "./capture.js";

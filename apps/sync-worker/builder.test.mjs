@@ -10,7 +10,7 @@ import {AgentBuilderStore,builderManifest,builderPrivateValueReplicationOwner,BU
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {cloudFixture} from './testing.mjs';
 
-test('S-55 PCSYNC-15/22/23 real authoring KV CAS crosses Host/Rust/D1/R2 per build without execution authority or echo',async t=>{
+test('S-67 PCSYNC-15/22/23 real authoring KV CAS crosses Host/Rust/D1/R2 per build without execution authority or echo',async t=>{
  const cloud=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'builder-owner-cloud-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
  const env={MOLIS_WORK_SYNC_ORIGIN:'https://sync.example.test',MOLIS_WORK_SYNC_LOCAL:undefined,MOLIS_WORK_SECRET_BACKEND:'file',MOLIS_WORK_ENCRYPTION_KEY:''};
  const previous=Object.fromEntries(Object.keys(env).map(key=>[key,process.env[key]]));for(const [key,value] of Object.entries(env))if(value===undefined)delete process.env[key];else process.env[key]=value;

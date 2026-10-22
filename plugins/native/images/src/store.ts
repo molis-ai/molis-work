@@ -1,6 +1,6 @@
 import {retainLocalReplicaSnapshot} from "@molis-ai/molis-work-storage";
 import type {PortableImage} from "./sync-files.js";
-import {replicaSchemaSql,type SqliteBaseline} from "@molis-ai/molis-work-storage";
+import {replicaSchemaSql} from "@molis-ai/molis-work-storage";
 import { clearInExistingHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
 import { DatabaseSync } from "node:sqlite";
@@ -17,7 +17,7 @@ type Row = Record<string, unknown>;
  * The images store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version.
  */
-export const IMAGES_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
+export const IMAGES_DATABASE: PluginDatabaseDeclaration = { store_name: "images", read_permission: "storage:private", write_permission: "storage:private", version: 2, schema: `
   CREATE TABLE connections (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, api_format TEXT NOT NULL,
     base_url TEXT NOT NULL, model TEXT NOT NULL,
@@ -34,7 +34,7 @@ export const IMAGES_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
   );
   CREATE INDEX jobs_project_created ON jobs(project_id, created_at DESC);
 ` + replicaSchemaSql() };
-export const IMAGES_DATABASE: PluginDatabaseDeclaration = { ...IMAGES_STORE_BASELINE, store_name: "images", read_permission: "storage:private", write_permission: "storage:private" };
+
 
 /** Queries are side-effect free; the Runtime owns transaction and authority checks. */
 export class ImagesStore {

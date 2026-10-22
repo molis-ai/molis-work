@@ -382,7 +382,7 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 | Form | `services.model`（`plugins/native/form/src/drafting.ts`） | Plugin Runtime（项目） | `needs_input` → 问卷卡 | 已接，单次接续的示例（AC-26）；题型只开放单选 |
 | 插件创作台 | 设计者与编码者是 Prologue Skill（`horizontal/agent-host/src/adapters/plugin-builder.ts`）；生成插件的 `model.generate` 经 `hostTextGeneration` | 构建期条目（旧路径） | 无：设计者的澄清是 JSON 里的字符串题，只能问一次（`plugins/native/plugin-builder/src/agent-workflow.ts`），页面列成编号列表、在输入框里自由作答；方案卡、启用插件、选部件是自写的按钮 | 第二批接入：澄清改成带类型的题、用同一张问卷卡；方案卡保留。动提示词要 `pnpm studio:replay` 加真实模型冒烟，所以排在浏览器验证恢复之后 |
 | PPT | `services.model` 的 `complete`（`plugins/native/ppt/src/actions.ts`） | Plugin Runtime（项目） | 无 | 第二批接入：「AI 生成大纲」缺受众、页数时返回 `needs_input`，照 Form 的做法 |
-| Pages | 宿主注入的 `completeText`（`apps/local-host/src/pages-actions.ts`；`pages.ai`、`pages.generate`） | 构建期（经 `dispatchNativePluginJsonHttp`，问卷卡出口已在） | 无；选区动作的候选浮层可改、可采用或放弃 | 第二批接入：`pages.generate` 缺要求时返回 `needs_input`。选区动作与 context-toolbar 交叉，不动。Inbox 的 `inbox.pages.generate` 转给它，跟着得到 |
+| Pages | `services.model` 的 `complete`（`plugins/native/pages/src/plugin.ts`；`pages.ai`、`pages.generate`） | Plugin Runtime（项目；W5-01-PAGES，问卷卡出口随动作返回） | 无；选区动作的候选浮层可改、可采用或放弃 | 第二批接入：`pages.generate` 缺要求时返回 `needs_input`。选区动作与 context-toolbar 交叉，不动。Inbox 的 `inbox.pages.generate` 转给它，跟着得到 |
 | Cognia | `services.model`（`plugins/native/cognia/src/ai.ts`） | Plugin Runtime（Home） | 无；问一句 → 审阅知识草稿 | 第二批，排在 PPT、Pages 之后：范围不清时返回 `needs_input` |
 | 灵光 | `services.model`，已是流式（`plugins/native/lingguang/src/plugin.ts`；首轮写的「等 prologue-adoption」已过时） | Plugin Runtime（项目） | 无；自写的对话框 | 不接入问卷：它本身是自由对话，方向在对话里说；「只带过去」把材料交给助理 |
 | Alchemist | 自有 `AlchemistAiPort` → `hostTextGeneration`（`apps/local-host/src/alchemist-prologue.ts`） | 构建期；自有的流（`apps/local-host/src/alchemist-native-plugin-http.ts`），不经问卷卡出口 | 无；想法卡的保留、放弃、决定是自写的按钮 | 不接入：方向选择已经是想法卡，讨论是自由对话。以后要接，先让它的流经过 `withPluginInteraction` |
@@ -781,7 +781,7 @@ P5 的接入顺序：PPT → Pages → Cognia → 插件创作台（等浏览器
 
 每段按 `docs/system/PARALLEL-DEVELOPMENT.md` 拆 PR：合同与扩展点先合，实现后合；门禁改动不混进功能 PR。
 
-**归属补记（2026-10-19，统筹派单 D4）**：PG-036（`assistant-service.ts` 里 31 处 `executor.kind === "coding"`，讲助理怎样跨插件把活交给 Coding）改归本线，属防腐阶段 4，等阶段 3 与 W5-10 之后开工，现在只记归属；PG-054（Coding 把运行时写死成 `"prologue"`）仍归采用线。交互线 2026-10-20 收尾后，PG-036 不再归本线，按 `specs/repository-anti-corruption/privileges.md` 的 PG-036 行跟踪。
+**归属补记（2026-10-19，统筹派单 D4）**：PG-036（`assistant-service.ts` 里 31 处 `executor.kind === "coding"`，讲助理怎样跨插件把活交给 Coding）改归本线，属防腐阶段 4，等阶段 3 与 W5-10 之后开工，现在只记归属；PG-054（Coding 把运行时写死成 `"prologue"`）仍归采用线（10-20 改派 ②，③ 执行，见 `specs/repository-anti-corruption/privileges.md`）。交互线 2026-10-20 收尾后，PG-036 不再归本线，按 `specs/repository-anti-corruption/privileges.md` 的 PG-036 行跟踪。
 
 **P2 的落点（2026-10-12 核对，实施前再看一次）**：
 

@@ -1,7 +1,7 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { COPY_FEEDBACK_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
-import { renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { renderWorkbenchDocument, WORKBENCH_UI_SLOTS } from "./document-shell.js";
 import { pluginSurfaceClients } from "./plugin-workbench.js";
 import { sideEntries } from "./plugin-catalog.js";
@@ -63,6 +63,15 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
     body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${view.view_id}` },
     body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root>${html}</main>
     ${(surfaceClient?.assets ?? []).map(path => `<script src="${escape(path)}"></script>`).join("")}
+    <script>${OVERFLOW_FADE_CLIENT_SCRIPT}
+${COPY_FEEDBACK_CLIENT_SCRIPT}
+${SCROLL_FOLLOW_CLIENT_SCRIPT}
+${DROP_ZONE_CLIENT_SCRIPT}
+${FIELD_FIT_CLIENT_SCRIPT}
+${ROVING_FOCUS_CLIENT_SCRIPT}
+${FLOATING_DETAILS_CLIENT_SCRIPT}
+${TIP_CLIENT_SCRIPT}
+</script>
     <script>${input.clientI18nScript}${UI_REQUEST_CLIENT_SCRIPT}${SIDE_LINKS_SCRIPT}${homeToolKeysScript()}
       const L = globalThis.L;
       // This document is the view's host: the work surface a plugin reuses here waits, hidden, for its host to show it

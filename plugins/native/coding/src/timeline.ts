@@ -49,8 +49,8 @@ export function createCodingTimeline(words: TimelineWords) {
   const TERMINAL = ["completed", "failed", "stopped", "cancelled", "reconcile-required"];
   const svg = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
   const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] as string));
-  const { KIND, FAILURES, toolHint: hintFor } = words;
-  const kindOf = (item: TimelineActivity) => KIND[item.name] ?? { verb: item.name, icon: "activity", noun: "操作", unit: "项" };
+  const { KIND, FAILURES, toolHint: hintFor, other, tally, t: L } = words;
+  const kindOf = (item: TimelineActivity) => KIND[item.name] ?? other(item.name);
   /** A command's own exit code is a fact from its receipt; "passed" is never inferred beyond it. */
   const exitCode = (item: TimelineActivity): number | null => {
     if (item.name !== "run-command" || item.state !== "completed") return null;
@@ -78,15 +78,15 @@ export function createCodingTimeline(words: TimelineWords) {
   const REVIEWED = new Set(["edit", "write", "run-command", "start-command", "command-stop", "dispatch-subagent", "steer-subagent"]);
   const outcome = (item: TimelineActivity, ended: boolean, waiting = false, items?: TimelineActivity[]) => {
     const code = exitCode(item);
-    if (item.state === "started") return ended ? { tone: "unknown", label: "结果未返回" }
-      : waiting ? (REVIEWED.has(item.name) ? { tone: "waiting", label: "等你批准" } : { tone: "held", label: "等待中" })
-      : { tone: "running", label: "进行中" };
+    if (item.state === "started") return ended ? { tone: "unknown", label: L("coding.timeline.no-result") }
+      : waiting ? (REVIEWED.has(item.name) ? { tone: "waiting", label: L("coding.timeline.approve") } : { tone: "held", label: L("coding.timeline.held") })
+      : { tone: "running", label: L("coding.filter.running") };
     if (item.name === "reasoning" && item.state === "completed") return { tone: "quiet", label: "" };
     if (item.state === "failed") {
-      if (items && wasRetry(item, items)) return { tone: "retry", label: "已重试" };
-      return { tone: "failed", label: "失败" };
+      if (items && wasRetry(item, items)) return { tone: "retry", label: L("coding.timeline.retried") };
+      return { tone: "failed", label: L("coding.timeline.failed") };
     }
-    if (item.state === "unknown") return { tone: "unknown", label: "结果未知" };
+    if (item.state === "unknown") return { tone: "unknown", label: L("coding.recovery.unknown") };
     if (code !== null) return code === 0 ? { tone: "ok", label: "exit 0" } : { tone: "failed", label: `exit ${code}` };
     return { tone: "ok", label: "" };
   };
@@ -105,37 +105,36 @@ export function createCodingTimeline(words: TimelineWords) {
     // Reasoning is prose, so its row previews the first line as text rather than as a code target.
     const first = item.name === "reasoning" ? (item.output ?? "").trim().split("\n")[0]!.slice(0, 140) : "";
     // A wait the Run sleeps in says until when, in this machine's time.
-    const until = item.name === "sleep-wait" && Number.isFinite(Date.parse(item.target)) ? `到 ${new Date(item.target).toLocaleTimeString()}` : "";
+    const until = item.name === "sleep-wait" && Number.isFinite(Date.parse(item.target)) ? L("coding.timeline.until", { time: new Date(item.target).toLocaleTimeString() }) : "";
     const what = until ? `<span class="coding-tool-preview">${escape(until)}</span>`
       : item.target ? `<code>${escape(item.target)}</code>` : first ? `<span class="coding-tool-preview">${escape(first)}</span>` : "";
     const output = (item.output ?? "").trim();
     const shown = output ? lines(output, item.name === "reasoning" ? 120 : 24) : null;
     const hidden = (shown?.hidden ?? 0) + (item.output_hidden_lines ?? 0);
-    const body = shown ? `${toolHint(item)}<pre class="coding-tool-output">${escape(shown.text)}${hidden ? `\n… 另有 ${hidden} 行` : ""}${item.output_truncated ? "\n（输出已截断）" : ""}</pre>` : "";
+    const body = shown ? `${toolHint(item)}<pre class="coding-tool-output">${escape(shown.text)}${hidden ? `\n${L("coding.timeline.more-lines", { count: hidden })}` : ""}${item.output_truncated ? `\n${L("coding.timeline.truncated")}` : ""}</pre>` : "";
     const head = `<span class="coding-tool-icon">${svg(kind.icon)}</span><span class="coding-tool-verb">${escape(kind.verb)}</span>${what}<span class="coding-tool-state" data-tone="${result.tone}">${mark(result.tone)}${result.label ? `<span>${escape(result.label)}</span>` : ""}</span>`;
     return body
       ? `<details class="coding-tool" data-tone="${result.tone}" data-kind="${escape(item.name)}" data-tool="${escape(item.call_id)}"><summary>${head}</summary>${body}</details>`
       : `<div class="coding-tool" data-tone="${result.tone}" data-kind="${escape(item.name)}" data-tool="${escape(item.call_id)}"><div class="coding-tool-head">${head}</div></div>`;
   };
-  /** "读取 4 个文件 · 运行 3 条命令", or what is happening right now. */
+  /** "Read 4 files · Ran 3 commands", or what is happening right now. */
   const sumText = (items: TimelineActivity[], ended: boolean, waiting: boolean) => {
     const started = ended ? [] : [...items].reverse().filter(item => item.state === "started");
     const running = (waiting ? started.find(item => REVIEWED.has(item.name)) : undefined) ?? started[0];
     if (running) {
-      const kind = kindOf(running), what = `${kind.verb}${running.target ? " " + running.target : ""}`;
-      return waiting ? (REVIEWED.has(running.name) ? { live: false, waiting: true, text: `等你批准：${what}` } : { live: false, waiting: true, text: `暂停中：${what}` })
-        : { live: true, waiting: false, text: `正在${what}` };
+      const kind = kindOf(running), on = running.target ? " " + running.target : "", what = kind.verb + on;
+      return waiting ? (REVIEWED.has(running.name) ? { live: false, waiting: true, text: L("coding.timeline.approve") + L("coding.timeline.colon") + what } : { live: false, waiting: true, text: L("coding.timeline.held") + L("coding.timeline.colon") + what })
+        : { live: true, waiting: false, text: kind.doing + on };
     }
     const counts = new Map<string, { kind: ReturnType<typeof kindOf>; targets: Set<string>; calls: number }>();
     for (const item of items) {
-      const kind = kindOf(item), key = kind.verb + kind.noun;
+      const kind = kindOf(item), key = kind.key + kind.verb;
       const entry = counts.get(key) ?? { kind, targets: new Set<string>(), calls: 0 };
       entry.calls += 1; if (item.target) entry.targets.add(item.target); counts.set(key, entry);
     }
-    const parts = [...counts.values()].map(({ kind, targets, calls }) => kind.noun === "" && kind.unit === "" ? kind.verb
-      : `${kind.verb} ${kind.noun === "文件" || kind.noun === "目录" ? targets.size || calls : calls} ${kind.unit}${kind.noun}`);
+    const parts = [...counts.values()].map(({ kind, targets, calls }) => tally(kind, kind.tally === "targets" ? targets.size || calls : calls));
     const failed = items.filter(item => outcome(item, ended, waiting, items).tone === "failed").length;
-    return { live: false, waiting: false, text: parts.join(" · ") + (failed ? ` · ${failed} 项未成功` : "") };
+    return { live: false, waiting: false, text: parts.join(" · ") + (failed ? ` · ${L("coding.timeline.not-succeeded", { count: failed })}` : "") };
   };
   const opened = new Map<string, boolean>();
   /** Render a run of consecutive calls into `detail`, keeping the reader's open/closed choice across polls. */
@@ -169,7 +168,7 @@ export function createCodingTimeline(words: TimelineWords) {
   const duration = (from?: string | null, to?: string | null) => {
     if (!from) return "";
     const seconds = Math.max(0, Math.round(((to ? Date.parse(to) : Date.now()) - Date.parse(from)) / 1000));
-    return seconds < 60 ? `${seconds} 秒` : `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`;
+    return seconds < 60 ? L("coding.timeline.seconds", { seconds }) : L("coding.timeline.minutes", { minutes: Math.floor(seconds / 60), seconds: seconds % 60 });
   };
   /**
    * A failure explained in the user's words, with what to do next. The original code stays visible so the
@@ -180,11 +179,11 @@ export function createCodingTimeline(words: TimelineWords) {
     return match ? { title: match[1], hint: match[2] } : null;
   };
   const LIVE_TEXT: Record<string, string> = {
-    starting: "正在准备", running: "正在工作", compacting: "正在整理上下文", pausing: "正在暂停：这一步做完后停下", paused: "已暂停，可随时恢复",
-    "awaiting-input": "等你回答上面的问题", "awaiting-review": "等你决定上面这一步",
+    starting: L("coding.phase.starting"), running: L("coding.live.running"), compacting: L("coding.phase.compacting"), pausing: L("coding.live.pausing"), paused: L("coding.live.paused"),
+    "awaiting-input": L("coding.live.awaiting-input"), "awaiting-review": L("coding.live.awaiting-review"),
   };
   /** The live line at the bottom of an active round, or the closing card of a finished one. */
-  /** `planOpen`: an earlier round whose unfinished graph is still the session's latest plan; only "继续计划" is offered. */
+  /** `planOpen`: an earlier round whose unfinished graph is still the session's latest plan; only "continue the plan" is offered. */
   const renderFooter = (block: Element, run: TimelineRun, index: number, latest = false, planOpen = false) => {
     let footer = block.querySelector(":scope > .coding-run-footer") as Element | null;
     if (!footer) { footer = document.createElement("div"); footer.className = "coding-run-footer"; }
@@ -194,19 +193,19 @@ export function createCodingTimeline(words: TimelineWords) {
     if (!ended) {
       footer.dataset.state = ["awaiting-review", "awaiting-input", "paused"].includes(run.phase) ? "waiting" : "live";
       footer.dataset.started = run.started_at ?? "";
-      const text = LIVE_TEXT[run.phase] ?? "正在工作";
+      const text = LIVE_TEXT[run.phase] ?? LIVE_TEXT.running!;
       // Anything new from the round (a tool, a state change, more text) counts as hearing from it.
       const progress = [run.activity.length, ...run.activity.map(item => `${item.state}:${(item.output ?? "").length}`), ...(run.turns ?? []).map(turn => turn.text.length)].join(",");
       if (footer.dataset.progress !== progress) { footer.dataset.progress = progress; footer.dataset.heard = String(Date.now()); }
       // Only a round waiting on the model can go quiet; a running command or test is allowed to take its time.
       footer.dataset.quietable = String(run.phase === "running" && !run.activity.some(item => item.state === "started" && item.name !== "reasoning"));
-      const html = `<div class="coding-live"><span data-mw-state="${run.phase === "paused" ? "paused" : run.phase === "awaiting-input" ? "answer" : run.phase === "awaiting-review" ? "approval" : "running"}" aria-hidden="true"></span><span class="coding-live-text">${escape(text)}</span><span class="coding-live-time" data-coding-elapsed>${escape(duration(run.started_at))}</span></div><p class="coding-live-quiet" data-coding-quiet role="status" hidden></p>`;
+      const html = `<div class="coding-live"><span data-mw-state="${run.phase === "paused" ? "paused" : run.phase === "awaiting-input" ? "answer" : run.phase === "awaiting-review" ? "approval" : "running"}" aria-hidden="true"></span><span class="coding-live-text">${escape(text)}</span><span class="coding-live-time mw-num" data-num-ghost="${escape(L("coding.timeline.minutes", { minutes: 59, seconds: 59 }))}" data-coding-elapsed>${escape(duration(run.started_at))}</span></div><p class="coding-live-quiet" data-coding-quiet role="status" hidden></p>`;
       if (footer.dataset.html !== text + footer.dataset.state) { footer.innerHTML = html; footer.dataset.html = text + footer.dataset.state; }
       tick(block);
       return;
     }
     const edited = new Set(run.activity.filter(item => ["edit", "write"].includes(item.name) && item.state === "completed" && item.target).map(item => item.target));
-    const commands = run.activity.filter(item => item.name === "run-command" && item.state === "completed");
+    const commands = run.activity.filter(item => item.name === "run-command" && item.state === "completed"), dispatched = run.activity.filter(item => item.name === "dispatch-subagent" && item.state === "completed").length;
     const lastCommand = commands.at(-1), lastCode = lastCommand ? exitCode(lastCommand) : null;
     // A plan round is only done when its plan is: an ended round with steps left says so and offers to continue.
     const left = run.step_board && !run.step_board.terminal ? run.step_board.nodes.filter(node => !["succeeded", "cancelled"].includes(node.state)).length : 0;
@@ -217,36 +216,37 @@ export function createCodingTimeline(words: TimelineWords) {
     const acted = run.activity.some(item => item.name !== "reasoning");
     const stalled = latest && run.phase === "completed" && !acted && said.length < 160 && /^(好的[，,]?\s*)?(我先|我来|我会|让我|现在开始|接下来我|首先我)/.test(said);
     const tone = run.phase === "completed" ? left || stalled ? "partial" : "done" : run.phase === "failed" || run.phase === "reconcile-required" ? "failed" : "stopped";
-    const title = { done: "这一轮完成", partial: stalled ? "这一轮只说了下一步就结束了" : `这一轮结束，计划还剩 ${left} 步`, failed: run.phase === "reconcile-required" ? "这一轮需要核对结果" : "这一轮没有完成", stopped: "这一轮已停止" }[tone];
+    const title = { done: L("coding.round.done"), partial: stalled ? L("coding.round.stalled") : L("coding.round.plan-left", { count: left }), failed: run.phase === "reconcile-required" ? L("coding.round.reconcile") : L("coding.round.failed"), stopped: L("coding.round.stopped") }[tone];
     // A round cut off by a restart has no end time. Its last recorded moment is when it stopped; measuring to now
     // would keep the card changing every second, and each redraw replaces its buttons under the pointer. A recovered
-    // round may have kept no moment after its start at all, and then it shows no duration rather than "0 秒".
+    // round may have kept no moment after its start at all, and then it shows no duration rather than "0 s".
     const stoppedAt = run.ended_at ?? [...run.activity.map(item => item.at), ...(run.turns ?? []).map(turn => turn.at)]
       .filter((at): at is string => typeof at === "string" && (!run.started_at || at > run.started_at)).sort().at(-1);
     const facts = [
-      stoppedAt && duration(run.started_at, stoppedAt) && `用时 ${duration(run.started_at, stoppedAt)}`,
-      edited.size ? `修改 ${edited.size} 个文件` : "没有修改文件",
-      run.activity.some(item => item.name === "dispatch-subagent" && item.state === "completed") && `派出 ${run.activity.filter(item => item.name === "dispatch-subagent" && item.state === "completed").length} 个子任务`,
-      commands.length ? `运行 ${commands.length} 条命令` : "",
-      lastCommand ? `最后一条 ${lastCommand.target || "命令"} → exit ${lastCode ?? "?"}` : "",
+      stoppedAt && duration(run.started_at, stoppedAt) && L("coding.round.took", { duration: duration(run.started_at, stoppedAt) }),
+      edited.size ? tally(KIND.edit!, edited.size) : L("coding.round.no-edits"),
+      dispatched && tally(KIND["dispatch-subagent"]!, dispatched),
+      commands.length ? tally(KIND["run-command"]!, commands.length) : "",
+      lastCommand ? L("coding.round.last-command", { command: lastCommand.target || L("coding.round.command"), code: lastCode ?? "?" }) : "",
     ].filter(Boolean);
-    // A reason that only restates the title ("已停止" under "这一轮已停止") adds nothing.
-    const stated = (run.stop_reason ?? "").trim(), restates = stated !== "" && title.includes(stated.replace(/^已/, ""));
+    // A reason that only restates the title ("已停止" under "这一轮已停止") adds nothing. "已停止" is the runtime's own
+    // default reason for a stop, so it restates the title in every language.
+    const stated = (run.stop_reason ?? "").trim(), restates = stated !== "" && (title.includes(stated.replace(/^已/, "")) || (tone === "stopped" && stated === "已停止"));
     const explained = run.phase === "failed" && stated ? explainFailure(stated) : null;
     const reason = tone !== "done" && stated && !restates
-      ? explained ? `<p class="coding-run-reason"><strong>${escape(explained.title)}</strong>：${escape(explained.hint)}<br><small>${escape(stated)}</small></p>` : `<p class="coding-run-reason">${escape(stated)}</p>`
+      ? explained ? `<p class="coding-run-reason"><strong>${escape(explained.title)}</strong>${escape(L("coding.timeline.colon"))}${escape(explained.hint)}<br><small>${escape(stated)}</small></p>` : `<p class="coding-run-reason">${escape(stated)}</p>`
       : "";
     // Only the newest unfinished round can be picked up again; an interrupted one is checked first.
-    const resume = !latest ? (planOpen && left ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}继续计划</button>` : "") : run.phase === "reconcile-required"
-      ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-recover-continue="${escape(run.ref.run_id)}">${svg("play")}核对并继续</button>`
+    const resume = !latest ? (planOpen && left ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}${escape(L("coding.round.continue-plan"))}</button>` : "") : run.phase === "reconcile-required"
+      ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-recover-continue="${escape(run.ref.run_id)}">${svg("play")}${escape(L("coding.round.check-continue"))}</button>`
       : ["failed", "stopped", "cancelled"].includes(run.phase) || left
-        ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}${left ? "继续计划" : "从断点继续"}</button>`
-      : stalled ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-nudge="${escape(run.ref.run_id)}">${svg("play")}让它继续</button>` : "";
-    const files = edited.size ? `<ul class="coding-run-files">${[...edited].slice(0, 8).map(path => `<li>${svg("edit")}<code>${escape(path)}</code></li>`).join("")}${edited.size > 8 ? `<li>另有 ${edited.size - 8} 个文件</li>` : ""}</ul>` : "";
+        ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}${escape(left ? L("coding.round.continue-plan") : L("coding.round.resume"))}</button>`
+      : stalled ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-nudge="${escape(run.ref.run_id)}">${svg("play")}${escape(L("coding.round.nudge"))}</button>` : "";
+    const files = edited.size ? `<ul class="coding-run-files">${[...edited].slice(0, 8).map(path => `<li>${svg("edit")}<code>${escape(path)}</code></li>`).join("")}${edited.size > 8 ? `<li>${escape(L("coding.round.more-files", { count: edited.size - 8 }))}</li>` : ""}</ul>` : "";
     const html = `<div class="coding-run-card" data-tone="${tone}">
-      <header><span class="coding-run-mark" aria-hidden="true" data-mw-state="${run.phase === "reconcile-required" ? "verify" : tone === "done" ? "round-ended" : tone === "partial" && !stalled ? "partial" : tone === "failed" ? "failed" : "stopped"}"${completedFraction === undefined ? "" : ` data-ring-progress="${completedFraction}"`}></span><strong>${escape(title)}</strong><span class="coding-run-round">第 ${index + 1} 轮</span></header>
-      <p class="coding-run-facts">${facts.map(escape).join(" · ")}</p>${stalled ? `<p class="coding-run-reason">模型说了要做什么，但没有调用任何工具就结束了，所以什么都还没做。</p>` : reason}${files}
-      <div class="coding-run-actions">${resume}${edited.size ? `<button class="mw-btn" type="button" data-coding-change-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("columns")}查看变更</button>` : ""}${edited.size && run.phase === "completed" ? `<button class="mw-btn mw-btn--ghost" type="button" data-coding-commit-round="${escape(run.ref.run_id)}">${svg("git-branch")}提交这些改动…</button>` : ""}<button class="mw-btn mw-btn--ghost" type="button" data-coding-report-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("file")}执行报告</button></div>
+      <header><span class="coding-run-mark" aria-hidden="true" data-mw-state="${run.phase === "reconcile-required" ? "verify" : tone === "done" ? "round-ended" : tone === "partial" && !stalled ? "partial" : tone === "failed" ? "failed" : "stopped"}"${completedFraction === undefined ? "" : ` data-ring-progress="${completedFraction}"`}></span><strong>${escape(title)}</strong><span class="coding-run-round">${escape(L("coding.turn.number", { number: index + 1 }))}</span></header>
+      <p class="coding-run-facts">${facts.map(escape).join(" · ")}</p>${stalled ? `<p class="coding-run-reason">${escape(L("coding.round.stalled-why"))}</p>` : reason}${files}
+      <div class="coding-run-actions">${resume}${edited.size ? `<button class="mw-btn" type="button" data-coding-change-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("columns")}${escape(L("coding.round.changes"))}</button>` : ""}${edited.size && run.phase === "completed" ? `<button class="mw-btn mw-btn--ghost" type="button" data-coding-commit-round="${escape(run.ref.run_id)}">${svg("git-branch")}${escape(L("coding.round.commit"))}</button>` : ""}<button class="mw-btn mw-btn--ghost" type="button" data-coding-report-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("file")}${escape(L("coding.report.label"))}</button></div>
     </div>`;
     if (footer.dataset.html !== html) { footer.innerHTML = html; footer.dataset.html = html; footer.dataset.state = "ended"; }
   };
@@ -264,7 +264,7 @@ export function createCodingTimeline(words: TimelineWords) {
       const show = footer.dataset.state === "live" && footer.dataset.quietable === "true" && quiet >= QUIET_AFTER_SECONDS;
       if (node.hidden === !show && (!show || node.dataset.seconds === String(quiet))) return;
       node.hidden = !show; node.dataset.seconds = String(quiet);
-      node.textContent = show ? `模型已 ${quiet} 秒没有新输出，可能在长时间思考，也可能网络不稳。一直没有回应时这一轮会自动结束，已完成的操作都保留，可以从断点继续。` : "";
+      node.textContent = show ? L("coding.live.quiet", { seconds: quiet }) : "";
     });
   }
   return { renderGroup, renderFooter, tick, explainFailure };

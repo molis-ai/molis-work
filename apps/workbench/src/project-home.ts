@@ -13,7 +13,7 @@ export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: Imme
       </header>
       <div class="home-layout">
         <nav class="home-dates" aria-label="${L("日期")}">
-          <div class="home-dates__list" data-home-dates></div>
+          <div class="home-dates__list" data-home-dates data-overflow-fade></div>
           <span class="home-dates__line" aria-hidden="true"></span>
           <button class="mw-btn mw-btn--ghost mw-btn--icon-only home-today" type="button" data-home-today aria-label="${L("回到今天")}" title="${L("回到今天")}">${icon("calendar")}</button>
         </nav>
@@ -49,7 +49,7 @@ export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: Imme
       </div>
       <div class="home-talk__body" data-home-talk-body></div>
       <form class="home-talk__compose" data-home-talk-form>
-        <textarea class="mw-textarea" name="say" rows="2" maxlength="20000" aria-label="${L("消息文本")}" placeholder="${L("带着这件事说一句")}"></textarea>
+        <textarea class="mw-textarea" name="say" data-fit rows="2" maxlength="20000" aria-label="${L("消息文本")}" placeholder="${L("带着这件事说一句")}"></textarea>
         <button class="mw-btn mw-btn--primary mw-btn--icon-only" type="submit" aria-label="${L("发送消息")}" disabled>${icon("send")}</button>
       </form>
     </div>

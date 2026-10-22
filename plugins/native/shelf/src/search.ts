@@ -55,14 +55,15 @@ export function shelfFileEntries(snapshot: ShelfSnapshot) {
     open: { surface: "shelf", id: item.item_id } }));
 }
 
-export function createShelfSearchHandlers(snapshot: () => ShelfSnapshot, readFile?: (itemId: string) => { item: ShelfSnapshot["materials"][number]; bytes: Buffer }): ActionHandlerBinding[] {
-  return [{ capability_id: shelfSubjectAction.capability_id, version: shelfSubjectAction.version, handle: (_caller, input) => shelfSubjectContext(snapshot(), (input as { subject_id: string }).subject_id) },
-    bindSearchEntriesHandler(shelfSearchEntriesAction, () => shelfSearchEntries(snapshot())),
-    bindSearchEntriesHandler(shelfClipboardSearchEntriesAction, () => shelfClipboardSearchEntries(snapshot())),
-    bindFileEntriesHandler(shelfFileEntriesAction, () => shelfFileEntries(snapshot())),
-    { capability_id: shelfFileContentAction.capability_id, version: shelfFileContentAction.version, handle: (_caller, input) => {
+export function createShelfSearchHandlers(snapshot: () => ShelfSnapshot | Promise<ShelfSnapshot>, readFile?: (itemId: string) => { item: ShelfSnapshot["materials"][number]; bytes: Buffer }): ActionHandlerBinding[] {
+  return [{ capability_id: shelfSubjectAction.capability_id, version: shelfSubjectAction.version, handle: async (_caller, input) => shelfSubjectContext(await snapshot(), (input as { subject_id: string }).subject_id) },
+    bindSearchEntriesHandler(shelfSearchEntriesAction, async () => shelfSearchEntries(await snapshot())),
+    bindSearchEntriesHandler(shelfClipboardSearchEntriesAction, async () => shelfClipboardSearchEntries(await snapshot())),
+    bindFileEntriesHandler(shelfFileEntriesAction, async () => shelfFileEntries(await snapshot())),
+    { capability_id: shelfFileContentAction.capability_id, version: shelfFileContentAction.version, handle: async (_caller, input) => {
       const subject = (input as { subject: { kind: string; id: string } }).subject;
-      const item = [...snapshot().materials, ...snapshot().results].find(entry => entry.item_id === subject.id);
+      const current = await snapshot();
+      const item = [...current.materials, ...current.results].find(entry => entry.item_id === subject.id);
       if (!item) throw shelfErrors.not_found("这份材料已不在 Shelf 中");
       const media = shelfMedia(item), revision = searchRevisionOf([item.status, item.name, item.origin_hash]);
       // Links and captured text show as text (a link in it opens in the side panel's browser); files as their bytes.

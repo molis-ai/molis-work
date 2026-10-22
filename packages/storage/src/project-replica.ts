@@ -1,3 +1,4 @@
+import { installReplicaTrigger } from './replica-triggers.js';
 import { replicaError } from './project-replica-errors.js';
 import type { ProjectReplicaDefinition, ProjectReplicaRow, ProjectReplicaRows, ProjectReplicaSection } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import type { ReplicaDatabase } from './replica.js';
@@ -67,7 +68,7 @@ export function createProjectReplicaSection(db: ReplicaDatabase, definition: Pro
       definition.validate(rows, projectId);
       return rows;
     },
-    clear() {
+    clear(tombstone = false) {
       beforeClear=undefined;
       const captured=definition.restore||definition.beforeClear?local():undefined;
       if(captured)definition.beforeClear?.(captured,projectId);
@@ -75,18 +76,19 @@ export function createProjectReplicaSection(db: ReplicaDatabase, definition: Pro
       for (const table of [...definition.tables].reverse()) {
         if (!table.keepRoot) db.prepare(`DELETE FROM ${table.name} WHERE ${where(table)}`).run(projectId);
       }
+      if(tombstone && definition.restore)writeRows(Object.fromEntries(definition.tables.map(table=>[table.name,[]])));
     },
     write:writeRows,
     installJournal(mark) {
       for (const table of definition.tables) for (const operation of ['INSERT', 'UPDATE', 'DELETE']) {
         const name = `${definition.id}_sync_${table.name}_${operation.toLowerCase()}`;
-        if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name=?").get(name)) continue;
+
         const row = operation === 'DELETE' ? 'OLD' : 'NEW';
         const project = table.projectExpression?.replaceAll('$row', row) ?? `${row}.${table.projectColumn ?? 'project_id'}`;
         const predicate=operation==='UPDATE'&&table.journalUpdateCondition?table.journalUpdateCondition.replaceAll('$old','OLD').replaceAll('$new','NEW'):table.journalCondition?.replaceAll('$row',row);
         const condition=predicate?' WHEN '+predicate:'';
         const updated=operation==='UPDATE'&&table.journalColumns?' OF '+table.journalColumns.join(','):'';
-        db.exec(`CREATE TRIGGER ${name} ${operation === 'DELETE' ? 'BEFORE' : 'AFTER'} ${operation}${updated} ON ${table.name}${condition} BEGIN ${mark(`json_array(${project},'${definition.assetKind}',${project})`)} END`);
+        installReplicaTrigger(db, name, `CREATE TRIGGER ${name} ${operation === 'DELETE' ? 'BEFORE' : 'AFTER'} ${operation}${updated} ON ${table.name}${condition} BEGIN ${mark(`json_array(${project},'${definition.assetKind}',${project})`)} END`);
       }
     },
   };

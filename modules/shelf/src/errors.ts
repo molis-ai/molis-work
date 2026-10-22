@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
 import { defineErrorCodes, type ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginOwnerFilesReader } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { BoundedInferenceReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /**
@@ -55,13 +55,11 @@ export function isShelfFailure(error: unknown): error is ShelfFailure {
 }
 
 /**
- * The bytes of a copy on the shelf. A copy whose file is gone from the disk is a refusal with a plain sentence (the row is on the shelf, the file
- * is not), not the system's text with the path in it; any other failure to read stays what it is.
+ * The bytes of a copy on the shelf, read through the files client. A copy whose file is gone is a refusal with a plain sentence (the row is on
+ * the shelf, the file is not), not the system's text with the path in it; any other failure to read stays what it is.
  */
-export function readShelfCopy(file: string): Buffer {
-  try { return readFileSync(file); }
-  catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") throw shelfErrors.missing_output("这份副本的文件已不在架子上，请重新放入");
-    throw error;
-  }
+export function readShelfCopy(files: PluginOwnerFilesReader, relative: string): Buffer {
+  const bytes = files.read(relative);
+  if (!bytes) throw shelfErrors.missing_output("这份副本的文件已不在架子上，请重新放入");
+  return Buffer.from(bytes);
 }

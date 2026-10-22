@@ -1,0 +1,45 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/prologue.git",
+    "path": "packages/sdk",
+    "commit": "753dbae8359e56a74397d030af4d18abf402d5b5",
+    "mergedUpstream": {
+      "pullRequest": 57,
+      "head": "ac8d6a4a76eb0351ac9d9cd73cef9731d6ff9050",
+      "mergedAt": "2026-10-20T14:20:26Z",
+      "note": "Upstream main after #57 (squash merge 753dbae8: the OpenAI- and Anthropic-compatible adapters put all of a call's images before the text in the order they were given; before it each image was unshifted on its own, so several images reached the model reversed), on top of #56 (merge a321b849, head d3190cab: an attachment placeholder ends in -END, PROLOGUE-ATTACHMENT-<nonce>-<index>-END, so none is the start of another and a call with 11 or more images is sent), #55 (merge 26a86ff3, head 549615a0: call attribution follow-up, origin ids capped at 256 characters, EFFECT_ORIGIN_INVALID) and #54 (merge 27daa94e, head aecb97cd: an effect's origin and the awaiting-input origin may name the tool call, model call and board step that prepared it; optional toolCall, modelCall and step fields, the EffectOrigin type, ToolCallRequest.modelCallId; BL-162). Includes #52, #51, #50, #49, #48, #47, #46, #45, #44, #43, #42 and everything before. #53 is not merged and not included."
+    },
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": []
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-attachment-order.tgz",
+    "bytes": 1235604,
+    "sha256": "f39224701ae52eeeb7251e4486d32ee2c3c93a798c997f5764103e127280ceea",
+    "integrity": "sha512-koQXQxDHY7svUgjxp2VtQJxOwGMdEIzcUgR/yobMwiLNFaEsw5Vm/JF6fUmYqwfU20L/fhd+MXklAjL3LLXKMw=="
+  },
+  "build": {
+    "node": "24.21.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "x64",
+    "steps": [
+      "GitHub tarball of 753dbae8359e56a74397d030af4d18abf402d5b5 (repos/molis-ai/prologue/tarball/<commit>), extracted into an empty <dir>",
+      "pnpm install --frozen-lockfile --offline --config.engine-strict=false",
+      "pnpm --config.engine-strict=false --filter @prologue/sdk run build",
+      "cd packages/sdk && pnpm --config.engine-strict=false pack --out <dir>/prologue-sdk-0.0.0-rc.1-attachment-order.tgz"
+    ],
+    "packedOn": "2026-10-20",
+    "reproducedFrom": "753dbae8359e56a74397d030af4d18abf402d5b5",
+    "reproducedByteIdentical": true,
+    "note": "Packed twice from two separately extracted GitHub tarballs of upstream main 753dbae8; the two packs are byte-identical. engine-strict was turned off on the command line (this machine has node 24.21.0 darwin x64, not the pinned 24.14.0), the same toolchain as the previous package. Against the previous package (a51607fb) only the 26 files built from the 18 sources changed in a51607fb...753dbae8 differ (666 files in both); the rest, package.json included, are byte-identical. Against a pack of a321b849 (#56) only the two adapters #57 changed differ. On that tree: tsc -p tsconfig.typecheck.json passes; the SDK suite without live tests: 211 files, 2913 tests passed, no type errors; attachment-placeholders.live, coding-diagnose-after-write.live and resource-lineage.live: 3 files, 19 tests passed (local node and a 127.0.0.1 HTTP model only). The 13 consumer scripts were not available on this machine; packaged-consumer.test.ts is among the 211. No paid model requests, no real desktop control."
+  }
+}

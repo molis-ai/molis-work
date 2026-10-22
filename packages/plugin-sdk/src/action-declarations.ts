@@ -10,6 +10,7 @@ import { contextDeclarationProblems } from "./context-declarations.js";
 import {
   fileSourceDeclarationProblems, fragmentOfferDeclarationProblems, placementDeclarationProblems, searchSourceDeclarationProblems,
 } from "./source-declarations.js";
+import { workExecutorDeclarationProblems } from "./work-executor-declarations.js";
 
 // The shape checks for a Manifest's `actions` and `action_scenes`, made when a Manifest is parsed, when a plugin registers its
 // actions with the Kernel, and when an author calls `defineAction`. Moved here from the contracts package (W3-03): they run code,
@@ -42,12 +43,14 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
     ...subjectProtocolProblems(key, raw.operation, action),
     ...offerChoiceProblems(key, action),
     ...homeProtocolProblems(key, raw.operation, action),
+    ...homeAggregateProblems(key, raw.operation, action),
     ...backgroundJobProblems(key, raw.operation, action),
     ...undoProblems(key, raw.operation, action),
     ...searchSourceDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...fragmentOfferDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...fileSourceDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...placementDeclarationProblems(key, action, raw.operation, canonicalSchema),
+    ...workExecutorDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...workflowContentProblems(key, raw.version, raw.operation, action),
     ...operationKindProblems(key, raw.operation, action),
     ...contextDeclarationProblems(key, raw.operation, action),
@@ -166,6 +169,26 @@ function homeProtocolProblems(key: string, operation: unknown, a: ActionBody): s
     }
   }
   return problems;
+}
+
+// ---- gathered by the Home across projects ------------------------------------------------------------------------------------
+
+function homeAggregateProblems(key: string, operation: unknown, a: ActionBody): string[] {
+  if (a.home_aggregate === undefined) return [];
+  if (a.home_aggregate !== true || operation !== "query" || a.kind !== "query" || a.scope !== "project" || (a.effect !== undefined && a.effect !== "read")
+    || (a.permissions as string[]).includes("model:invoke") || (isObject(a.execution) && a.execution.cost === "metered") || !isText(a.output_type)) {
+    return [`能力 ${key} 的首页聚合声明必须是项目范围的只读查询，写明输出类型，不调用模型、不计费`];
+  }
+  return [];
+}
+
+/**
+ * Whether the Home may gather this action across projects (PG-043): it declares `home_aggregate` and passes the rule its Manifest is
+ * checked with. The Host asks again before each call, so a registration that skipped the check is still not called.
+ */
+export function isHomeAggregateQuery(definition: { readonly operation: string; readonly action: object }): boolean {
+  const action = definition.action as Record<string, unknown>;
+  return isCompleteBody(action) && action.home_aggregate === true && !homeAggregateProblems("", definition.operation, action).length;
 }
 
 // ---- background jobs and undo -----------------------------------------------------------------------------------------------

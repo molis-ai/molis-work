@@ -23,7 +23,7 @@ async function fixture(t:import('node:test').TestContext){
  return {source,target,local,personal,saved,identity,context,maps,calls:()=>calls,revoke(){active=false;}};
 }
 
-test('S-59 image copy preserves full saved bytes with independent identities and never copies connections or starts generation',async t=>{
+test('S-71 image copy preserves full saved bytes with independent identities and never copies connections or starts generation',async t=>{
  const f=await fixture(t),a=openImagesCopyOwner(f.source,f.context('source'))!,b=openImagesCopyOwner(f.target,f.context('target'))!;t.after(()=>{a.close();b.close();});
  const before=readFileSync(homeSqlitePath(f.source,'images'));writeFileSync(join(f.source,'images','assets','unreferenced-private.txt'),'not recorded by the owner');
  const preview=previewProjectCopy({sourceSpaceId:f.local.spaceId,projectIds:['original'],sources:[{ownerId:'io.molis.work.images',owner:a.owner}],authorize(){}});assert.equal(preview.view.assetCount,1);assert.deepEqual(preview.view.blockers,[]);
@@ -34,13 +34,13 @@ test('S-59 image copy preserves full saved bytes with independent identities and
  f.revoke();assert.throws(()=>b.owner.apply(asset),/ACCOUNT_CHANGED/);
 });
 
-test('S-59 image copy rejects corrupted bytes before writing files and rejects closed source handles',async t=>{
+test('S-71 image copy rejects corrupted bytes before writing files and rejects closed source handles',async t=>{
  const f=await fixture(t),a=openImagesCopyOwner(f.source,f.context('source'))!,b=openImagesCopyOwner(f.target,f.context('target'))!;t.after(()=>{a.close();b.close();});
  const asset=a.owner.snapshot('original')[0]!,bad=structuredClone(asset);(bad.value as {images:{data_base64:string;byte_length:number}[]}).images[0]!.data_base64='eA==';(bad.value as {images:{byte_length:number}[]}).images[0]!.byte_length=1;
  assert.throws(()=>a.owner.fork(bad,f.identity));assert.equal(b.owner.snapshot(f.maps.project('original')).length,0);a.close();assert.throws(()=>a.owner.snapshot('original'),/已关闭/);
 });
 
-test('S-59 image copy final authority refusal rolls back both the saved record and normal sync queue',async t=>{
+test('S-71 image copy final authority refusal rolls back both the saved record and normal sync queue',async t=>{
  const f=await fixture(t),a=openImagesCopyOwner(f.source,f.context('source'))!;let b:ReturnType<typeof openImagesCopyOwner>,inspecting=false,reject=true,observed=false;
  const check=()=>{if(b&&!inspecting&&reject){inspecting=true;try{if(b.owner.snapshot(f.maps.project('original')).length){observed=true;reject=false;throw new Error('FINAL_AUTHORITY_REVOKED');}}finally{inspecting=false;}}};
  b=openImagesCopyOwner(f.target,f.context('target',check))!;t.after(()=>{a.close();b?.close();});const asset=a.owner.fork(a.owner.snapshot('original')[0]!,f.identity);assert.throws(()=>b!.owner.apply(asset),/FINAL_AUTHORITY_REVOKED/);assert.ok(observed,'the refusal happened after the actual SQL row existed');assert.equal(b.owner.snapshot(f.maps.project('original')).length,0);

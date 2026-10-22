@@ -1,7 +1,6 @@
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
-import { openShelfStore, SHELF_DOCUMENT_PATH } from "@molis-ai/molis-work-module-shelf";
-import { personalDocumentOptions } from './personal-document-options.js';
+
 import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import { DEMO_PROJECT_ID } from "./demo-seed.js";
 import { LocalProjectDatabase } from "./project-database.js";
@@ -9,6 +8,7 @@ import { GoalProjectApplication } from "./goal-project-application.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { createLocalFeedSourceService } from "./feed-source-service.js";
 import { openWorkSessionRegistry } from "./session-registry.js";
+import { openHostShelfStore } from "./shelf-actions.js";
 import { artifactsManifest, DOCUMENT_ARTIFACT_TYPE } from "@molis-ai/molis-work-plugin-artifacts";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
@@ -212,7 +212,7 @@ export async function seedDemoProjectExtras(input: {
   homeDirectory: string;
   actorId: string;
 }): Promise<void> {
-  openShelfStore(input.homeDirectory,{}, {},undefined,personalDocumentOptions(input.homeDirectory,SHELF_DOCUMENT_PATH)).seedSample();
+  await openHostShelfStore(input.homeDirectory).seedSample();
   const registry = await openWorkSessionRegistry({ homeDirectory: input.homeDirectory });
   try {
     const existing = registry.list({ project_id: input.projectId })

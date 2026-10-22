@@ -9,8 +9,8 @@ import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { shelfActions as a, SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PLUGIN_ID, SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
-import { createExtractablePdf, openShelfStore, SHELF_RECIPES } from "@molis-ai/molis-work-module-shelf";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { createExtractablePdf, SHELF_RECIPES } from "@molis-ai/molis-work-module-shelf";
+import { MolisWorkLocalHost, openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
 import { shelfAiPorts } from "../apps/local-host/dist/shelf-ai.js";
@@ -72,7 +72,7 @@ test("Shelf Action -> registered prompt override -> shared Prologue -> result an
   const sent = JSON.stringify(f.requests[0]!.messages);
   assert.match(sent, /OVERRIDDEN_SHELF/); assert.match(sent, /周五交付/); assert.doesNotMatch(sent, /把完整结果写成文件|\/shelf\/files/);
   assert.equal(definitions.uses(registered.key).length, 1);
-  assert.match(openShelfStore(f.home).readFile(outcome.result!.item_id).bytes.toString(), /周五/);
+  assert.match(openHostShelfStore(f.home).readFile(outcome.result!.item_id).bytes.toString(), /周五/);
   const saved = JSON.parse(readFileSync(join(f.home, "shelf", "catalog.json"), "utf8"));
   assert.deepEqual(saved.jobs[0].execution, JSON.parse(JSON.stringify(outcome.job.execution)));
 }));
@@ -87,7 +87,7 @@ test("every recipe reaches its registered instruction; JSON alone uses JSON file
     assert.equal(out.job.status, "succeeded");
     if (recipe === "extract_structure") {
       assert.equal(out.result?.name.endsWith(option === "json" ? ".json" : ".md"), true);
-      if (option === "json") assert.deepEqual(JSON.parse(openShelfStore(f.home).readFile(out.result!.item_id).bytes.toString()), { amount: 120000 });
+      if (option === "json") assert.deepEqual(JSON.parse(openHostShelfStore(f.home).readFile(out.result!.item_id).bytes.toString()), { amount: 120000 });
     }
   }
   await f.actions.invoke(a.saveSettings, { shortcuts: [{ id: "custom", name: "提炼", prompt: "CUSTOM_USER_TASK", kinds: ["markdown", "text"] }] });
@@ -148,29 +148,29 @@ test("discovery has separate model cost/permissions, AI cannot borrow local extr
 
 test("Shelf rechecks the exact model binding after the final business authority wait", async () => fixture(async f => {
   const materials = { extract: extractMaterial }, port = shelfAiPorts(f.home, materials);
-  const store = openShelfStore(f.home, { disabled: true }, materials, { ...port, generate: async (input, control) => {
+  const store = openHostShelfStore(f.home, { disabled: true }, materials, { ...port, generate: async (input, control) => {
     const result = await port.generate(input, control);
     const provider = f.catalog.models.list()[0]!;
     f.catalog.models.upsert({ ...provider, models: provider.models.map(model => ({ ...model, enabled: false })) });
     return result;
   } });
-  const item = store.admit({ filename: "fact.md", bytes: Buffer.from("Original facts") });
+  const item = await store.admit({ filename: "fact.md", bytes: Buffer.from("Original facts") });
   await assert.rejects(store.runJob({ recipe: "summarize", item_id: item.item_id }), { code: "shelf.configuration_changed" });
-  assert.equal(f.requests.length, 1); assert.equal(store.snapshot().results.length, 0);
+  assert.equal(f.requests.length, 1); assert.equal((await store.snapshot()).results.length, 0);
   assert.equal(JSON.parse(readFileSync(join(store.root, "catalog.json"), "utf8")).jobs[0].status, "running");
 }));
 
 test("partial extraction remains visible on JSON results, and unsupported folder contents never silently disappear", async () => fixture(async f => {
   const materials = { extract: (source: Parameters<typeof extractMaterial>[0], options: Parameters<typeof extractMaterial>[1]) => extractMaterial(source, { ...options, limits: { ...options?.limits, maxCharacters: 5 } }) };
-  const store = openShelfStore(f.home, { disabled: true }, materials, shelfAiPorts(f.home, materials));
-  const pdf = store.admit({ filename: "partial.pdf", bytes: createExtractablePdf("A long PDF document with important facts.") });
+  const store = openHostShelfStore(f.home, { disabled: true }, materials, shelfAiPorts(f.home, materials));
+  const pdf = await store.admit({ filename: "partial.pdf", bytes: createExtractablePdf("A long PDF document with important facts.") });
   f.answer(() => '{"facts":true}');
   const out = await store.runJob({ recipe: "extract_structure", item_id: pdf.item_id, option_id: "json" });
   assert.deepEqual(JSON.parse(store.readFile(out.result!.item_id).bytes.toString()), { facts: true });
   assert.ok(out.result!.material_coverage?.some(note => note.includes("partial.pdf")));
   assert.deepEqual(out.result!.material_coverage, out.job.material_coverage);
   assert.match(JSON.stringify(f.requests.at(-1)), /partial.pdf/);
-  const folder = store.admitFolder({ name: "mixed", entries: [
+  const folder = await store.admitFolder({ name: "mixed", entries: [
     { relative: "valid.md", bytes: Buffer.from("facts") }, { relative: "binary.bin", bytes: Buffer.from([0, 1, 2, 3]) },
   ] });
   const count = f.requests.length;

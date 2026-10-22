@@ -7,8 +7,8 @@ import {ArtifactsModule,createArtifactsSchema,createArtifactReplication,type Art
 
 function fixture(t:TestContext,board='project-shared'){
   const db=new Database(':memory:');t.after(()=>db.close());db.pragma('foreign_keys=ON');
-  db.exec('CREATE TABLE boards(project_id TEXT PRIMARY KEY); CREATE TABLE events(seq INTEGER PRIMARY KEY AUTOINCREMENT,project_id TEXT);');
-  db.prepare('INSERT INTO boards VALUES (?)').run(board);createArtifactsSchema(db as ArtifactsSqliteDatabase);
+  db.exec('CREATE TABLE project_root(project_id TEXT PRIMARY KEY); CREATE TABLE events(seq INTEGER PRIMARY KEY AUTOINCREMENT,project_id TEXT);');
+  db.prepare('INSERT INTO project_root VALUES (?)').run(board);createArtifactsSchema(db as ArtifactsSqliteDatabase);
   let active=true;
   const options={eventCursor:(projectId:string)=>Number((db.prepare('SELECT COALESCE(MAX(seq),0) AS cursor FROM events WHERE project_id=?').get(projectId) as {cursor:number}).cursor),appendEvent:()=>Number(db.prepare('INSERT INTO events(project_id) VALUES (?)').run(board).lastInsertRowid),now:()=> '2026-09-30T00:00:00.000Z'};
   const owner=new ArtifactsModule({db:db as ArtifactsSqliteDatabase,...options});

@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./registration": {
+      "types": "./dist/registration.d.ts",
+      "import": "./dist/registration.js"
     }
   },
   "files": [
@@ -27,7 +31,8 @@
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-design-system": "workspace:*",
-    "@molis-ai/molis-work-plugin-sandbox": "workspace:*"
+    "@molis-ai/molis-work-plugin-sandbox": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
   "molis-work": {
     "path": "plugins/native/plugin-builder",
@@ -41,6 +46,7 @@
     "capabilities": [
       "plugin-builder.ui.v1",
       "plugin-builder.workflow.v1"
-    ]
+    ],
+    "registration": "./registration"
   }
 }

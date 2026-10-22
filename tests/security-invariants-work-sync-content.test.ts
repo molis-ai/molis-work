@@ -31,7 +31,7 @@ function fixture(t:TestContext){
   return {homes,space,options,replica,receive,open,armRevocation:()=>{revokeOnReplace=true;},reauthorize:()=>{active=true;}};
 }
 
-test('S-49 PCSYNC-23 actual Work owner preserves large private history, reencrypts on target and never resumes imported Handoffs',async t=>{
+test('S-61 PCSYNC-23 actual Work owner preserves large private history, reencrypts on target and never resumes imported Handoffs',async t=>{
   const f=fixture(t),a=await f.open(0);t.after(()=>a.close());
   const marker='PRIVATE-WORK-PLAINTEXT-MARKER-',body=marker.repeat(12000);
   const source=a.createSession({runtime_id:'synthetic-runtime',native_runtime_session_id:'source-native-handle',surface_id:'source-native-surface',actor_id:'person',user_confirmed:true,
@@ -56,7 +56,7 @@ test('S-49 PCSYNC-23 actual Work owner preserves large private history, reencryp
   }
 });
 
-test('S-49 PCSYNC-01 wrong-space content and foreign Session event IDs are isolated without overwriting either owner',async t=>{
+test('S-61 PCSYNC-01 wrong-space content and foreign Session event IDs are isolated without overwriting either owner',async t=>{
   const f=fixture(t),a=await f.open(0),b=await f.open(1);t.after(()=>{a.close();b.close();});
   const source=a.createSession({runtime_id:'synthetic',actor_id:'person',user_confirmed:true});
   a.appendEvent({session_id:source.session_id,source:'molis_work',kind:'user_message',source_id:'text',content:'retained body'});
@@ -73,7 +73,7 @@ test('S-49 PCSYNC-01 wrong-space content and foreign Session event IDs are isola
   assert.equal(f.replica(1,r=>r.conflicts()).length,2);
 });
 
-test('S-49 PCSYNC-06 late revocation rolls back the complete Session and references after restoring starts',async t=>{
+test('S-61 PCSYNC-06 late revocation rolls back the complete Session and references after restoring starts',async t=>{
   const f=fixture(t),a=await f.open(0);t.after(()=>a.close());
   const source=a.createSession({runtime_id:'synthetic',actor_id:'person',user_confirmed:true,project_id:'project',current_goal_id:'goal'});
   a.appendEvent({session_id:source.session_id,source:'molis_work',kind:'user_message',source_id:'saved',content:'retained'});
@@ -81,7 +81,7 @@ test('S-49 PCSYNC-06 late revocation rolls back the complete Session and referen
   const b=await f.open(1);t.after(()=>b.close());assert.deepEqual(b.list(),[]);assert.deepEqual(f.replica(1,r=>r.counts()),{pending:0,conflicts:0});
 });
 
-test('S-49 PCSYNC-23 active target native work refuses a restored history even during explicit conflict adoption',async t=>{
+test('S-61 PCSYNC-23 active target native work refuses a restored history even during explicit conflict adoption',async t=>{
   const f=fixture(t),a=await f.open(0);t.after(()=>a.close());
   const source=a.createSession({runtime_id:'synthetic',native_runtime_session_id:'source-bound-native',actor_id:'person',user_confirmed:true});
   a.appendEvent({session_id:source.session_id,source:'molis_work',kind:'user_message',source_id:'first',content:'before'});
@@ -98,7 +98,7 @@ test('S-49 PCSYNC-23 active target native work refuses a restored history even d
   assert.equal(b.events(source.session_id).length,1);assert.ok(comparison.state);assert.equal(comparison.local!==null,true);
 });
 
-test('S-49 PCSYNC-12 an unavailable source original is never frozen as the UI null placeholder and remains retryable',async t=>{
+test('S-61 PCSYNC-12 an unavailable source original is never frozen as the UI null placeholder and remains retryable',async t=>{
   const f=fixture(t),a=await f.open(0);t.after(()=>a.close());
   const source=a.createSession({runtime_id:'synthetic',actor_id:'person',user_confirmed:true});
   a.appendEvent({session_id:source.session_id,source:'molis_work',kind:'user_message',source_id:'saved',content:'source original must survive'});
@@ -111,7 +111,7 @@ test('S-49 PCSYNC-12 an unavailable source original is never frozen as the UI nu
 });
 
 
-test('S-49 PCSYNC-20 Work project scope follows ownership and retains unsettled deleted and frozen identities',async t=>{
+test('S-61 PCSYNC-20 Work project scope follows ownership and retains unsettled deleted and frozen identities',async t=>{
  const f=fixture(t),a=await f.open(0);t.after(()=>a.close());
  const session=a.createSession({runtime_id:'synthetic',actor_id:'person',user_confirmed:true,project_id:'a',current_goal_id:'goal-a'});
  a.createHandoffDraft({source_session_id:session.session_id,source_project_id:'a',source_goal_id:'goal-a',source_goal_version:1,target_runtime_id:'destination',target_project_id:'destination-project',content:'handoff',actor_id:'person'});

@@ -18,6 +18,7 @@ ProjectsModule 用注入数据库在包内建立 repository 与 service，公开
 | [src/project-service.ts](src/project-service.ts) | 项目记录操作 |
 | [src/workspace.ts](src/workspace.ts) | 工作区规则 |
 | [src/installation-inspection.ts](src/installation-inspection.ts) | 卸载只读检查 |
+| [src/project-root.ts](src/project-root.ts) | 项目库里的项目根行 `project_root` |
 
 可对照现有调用方 [apps/local-host/src/project-catalog.ts](../../apps/local-host/src/project-catalog.ts) 阅读装配方式。
 
@@ -54,12 +55,12 @@ node scripts/run-tests.mjs tests/projects-module.test.ts
 
 ## 开发要求
 
-- 负责：项目身份、目录（Catalog）、工作目录关联与生命周期。
+- 负责：项目身份、目录（Catalog）、工作目录关联与生命周期；项目库里代表项目本身的根行（`project_root`）。
 - 不负责：Session、桌面面板、Goal、Artifact、Runtime 进程状态。
 - 公开入口：`@molis-ai/molis-work-module-projects`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/projects`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 身份只有 `project_id`：目录条目、项目数据库与库里 Goals 的根记录同值。
+  - 身份只有 `project_id`：目录条目、项目数据库、库里的根行 `project_root` 与 Goals 的看板同值。项目库正好有一行根行，项目库里引用项目的外键（插件声明的表也一样）指向它，不指向 Goals 的表；根行不存标题，显示名只在目录里（`specs/plugin-project-database` §2.4）。
   - 目录关联只由本模块管理，不建第二份目录库；按项读取当前项目，不返回其他项目的关联。
   - 卸载检查只提供目录事实，不删除用户文件。
   - `query.wasProjectPluginRemoved` 只读本项目的移除事实，供可信 Host 区分从未安装和用户主动移除；同步到达不能覆盖后者的本机选择。

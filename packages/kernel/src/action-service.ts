@@ -1,4 +1,6 @@
-import { actionExecutionContext, visibleAction } from "./action-execution-context.js";
+import { actionExecutionContext, assertReadOnlyEffects, visibleAction } from "./action-execution-context.js";
+import { assertSceneHandler, consumeScene, protectSceneReads, runSceneEffect } from "./action-scene-execution.js";
+import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
 import { registeredActionMetadata } from "./action-metadata.js";
 import {
   ActionError, requireSynchronous,
@@ -69,7 +71,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       if (!active) return unavailable("actions.stopped", "能力来源已停止");
       if (!context.actor_id) return unavailable("actions.unauthenticated", "缺少可信调用身份");
       if (provider.project_id && context.project_id !== provider.project_id) return unavailable("actions.scope_mismatch", "能力属于其他项目");
-      return registration.availability?.(context) ?? { available: true };
+      return rememberInDirectoryPass(context, registration, () => registration.availability?.(context) ?? { available: true });
     };
     const dispose = () => {
       if (!active) return;
@@ -94,6 +96,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         const registeredDefinition = { ...definition, action_provider: provider };
         const callWindows = new Map<string, number[]>();
         const execute = (context: ActionCallContext, input: unknown) => {
+          assertReadOnlyEffects(context, definition);
           context.signal?.throwIfAborted(); assertSessionAuthorship(definition.action, context);
           validateActionInput(validateInput, definition, context, input);
           const policy = definition.action.execution;
@@ -141,18 +144,15 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       }
       for (const original of registration.scenes ?? []) {
         const definition = structuredClone(original);
-        const key = scopedSceneKey(definition, provider.project_id), handler = sceneHandlers.get(sceneKey(definition))!;
+        const key = scopedSceneKey(definition, provider.project_id);
+        const handler = protectSceneReads(sceneHandlers.get(sceneKey(definition))!, () => {
+          if (this.scenes.get(key) !== scene) throw new ActionError("actions.provider_changed", "原消费场景已停止或重新加载");
+        });
         if ([...this.scenes.values()].some(s => sceneKey(s.definition) === sceneKey(definition)
           && (!s.provider.project_id || !provider.project_id || s.provider.project_id === provider.project_id))) {
           throw new ActionError("actions.scene_duplicate", `消费场景重复：${sceneKey(definition)}`);
         }
-        if ([handler.bind, handler.bindings, handler.consume].some(v => typeof v !== "function")) {
-          throw new ActionError("actions.unredeemed", `场景 ${key} 必须兑现绑定查询、保存及结果消费`);
-        }
-        if (handler.targets !== undefined && (!definition.configuration_permissions || typeof handler.targets !== "function")) throw new ActionError("actions.definition_invalid", `场景 ${key} 缺少配置权限合同`);
-        if (handler.prepare !== undefined && typeof handler.prepare !== "function") throw new ActionError("actions.unredeemed", `场景 ${key} 的 prepare 不是函数`);
-        if (handler.failed !== undefined && typeof handler.failed !== "function") throw new ActionError("actions.unredeemed", `场景 ${key} 的 failed 不是函数`);
-        if (handler.prepare && !definition.event_schema) throw new ActionError("actions.definition_invalid", `场景 ${key} 的 prepare 缺少事件合同`);
+        assertSceneHandler(definition, sceneHandlers.get(sceneKey(definition))!);
         const scene: RegisteredScene = { definition, provider, handler,
           ...(definition.event_schema ? { validateEvent: compile(original.event_schema!, definition.event_schema) } : {}),
           validateInput: compile(original.input_schema, definition.input_schema), validateResult: compile(original.result_schema, definition.result_schema),
@@ -189,10 +189,10 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   private directory(context: ActionCallContext, inspection: boolean): ActionView[] {
-    // Visibility is checked with the rest of the directory's checks, before any row is made.
+    // Visibility is checked with the rest of the directory's checks, before any row is made. One pass: a provider is asked once for all its actions.
     const visible = inspection ? undefined : (definition: ActionDefinition, provider: ActionProvider) => visibleAction(definition, provider, context);
-    return registeredActionMetadata(this.registry, context, visible).map(metadata =>
-      ({ ...metadata, availability: this.registry.availability(context, { ...metadata, action_provider: metadata.provider }) }));
+    return inDirectoryPass(() => registeredActionMetadata(this.registry, context, visible).map(metadata =>
+      ({ ...metadata, availability: this.registry.availability(context, { ...metadata, action_provider: metadata.provider }) })));
   }
 
   /** Every way in is settled once, whether the handler ran or the call was turned away: host policy, lookup, authority, contract, rate limit. */
@@ -236,13 +236,13 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   async usages(context: ActionCallContext, judgment?: ActionReference): Promise<Array<ActionSceneBinding & { availability: ActionAvailability }>> {
-    const result: Array<ActionSceneBinding & { availability: ActionAvailability }> = [];
+    const result: Array<ActionSceneBinding & { availability: ActionAvailability }> = []; let known: ActionView[] | undefined;
     for (const scene of this.scenes.values()) {
       if (!sceneVisible(scene, context)) continue;
       for (const binding of await scene.handler.bindings(context)) {
         if (!bindingBelongsTo(binding, scene.definition, context)) continue;
         if (judgment && actionKey(binding.function) !== actionKey(judgment)) continue;
-        const directory = this.discover(context);
+        const directory = known ??= this.discover(context); // one directory per call, shared by every binding
         const fn = directory.find(d => actionKey(d) === actionKey(binding.function));
         const reason = !binding.function.provider_id ? "旧绑定缺少原提供方身份，请重新选择判断规则" : actionSceneCompatibilityReason(scene.definition, fn, binding.function, directory, scene.provider);
         const state = scene.availability(context);
@@ -255,7 +255,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   async targets(context: ActionCallContext, judgment?: ActionReference, selection?: Pick<ActionSceneTarget, "scene_id" | "scene_version" | "provider_id">): Promise<ActionSceneTarget[]> {
-    const result: ActionSceneTarget[] = [];
+    const result: ActionSceneTarget[] = []; let known: ActionView[] | undefined;
     for (const view of this.discoverScenes(context, judgment)) {
       if (selection && (view.definition.scene_id !== selection.scene_id || view.definition.version !== selection.scene_version || view.provider.provider_id !== selection.provider_id)) continue;
       const scene = this.scenes.get(scopedSceneKey(view.definition, view.provider.project_id))!;
@@ -263,7 +263,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       const targets = await scene.handler.targets(context);
       const bindings = await scene.handler.bindings(context);
       if (this.scenes.get(scopedSceneKey(view.definition, view.provider.project_id)) !== scene) throw new ActionError("actions.provider_changed", "读取配置位置时场景已重新加载");
-      const fn = judgment ? this.discover(context).find(action => actionKey(action) === actionKey(judgment)) : undefined;
+      const fn = judgment ? (known ??= this.discover(context)).find(action => actionKey(action) === actionKey(judgment)) : undefined;
       const ids = new Set<string>();
       for (const target of targets) {
         if (!target.binding_id || !target.title || (target.revision !== null && (typeof target.revision !== "string" || !target.revision)) || ids.has(target.binding_id)) {
@@ -317,6 +317,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     }
     const saved = binding.enabled ? { ...binding, function: { capability_id: binding.function.capability_id, version: binding.function.version,
       provider_id: this.requireCompatible(context, scene, binding.function).provider.provider_id } } : binding;
+    const judgment = binding.enabled ? this.actionDefinition(context, saved.function) : undefined, judgmentRegistration = judgment && this.registry.registrationToken(judgment);
     if (options && binding.enabled) {
       const definition = this.actionDefinition(context, saved.function)!;
       const registration = this.registry.registrationToken(definition);
@@ -333,8 +334,17 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     if (this.requireScene(context, binding, purpose) !== scene) throw new ActionError("actions.provider_changed", "配置期间消费场景已重新加载");
     context.signal?.throwIfAborted();
     assertCurrentAuthority(context, binding.enabled ? saved.function : undefined, requiredPermissions);
-    await scene.handler.bind(context, structuredClone(saved), options ? { provider_id: options.provider_id,
-      expected_revision: options.expected_revision, required_permissions: [...new Set(requiredPermissions)] } : undefined);
+    await runSceneEffect(context, { reference: binding.enabled ? saved.function : undefined, permissions: requiredPermissions,
+      assertCurrent: () => {
+        if (this.requireScene(context, binding, purpose) !== scene || (judgment && this.registry.registrationToken(judgment) !== judgmentRegistration)) throw new ActionError("actions.provider_changed", "配置期间场景或判断已重新加载");
+      },
+      recheck: async () => {
+        await options?.before_write?.();
+        if (binding.enabled) await context.validate_authority?.(saved.function);
+        await context.validate_permissions?.(requiredPermissions);
+        if (binding.enabled) this.requireCompatible(context, scene, saved.function);
+      } }, caller => scene.handler.bind(caller, structuredClone(saved), options ? { provider_id: options.provider_id,
+      expected_revision: options.expected_revision, required_permissions: [...new Set(requiredPermissions)] } : undefined));
   }
 
   /** Trigger owners supply events; prepared private state is never accepted from callers. */
@@ -366,27 +376,11 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       this.requireCompatible(context, scene, current.function);
       assertSceneCurrent();
     };
+    const effect = { reference: binding.function, permissions: scene.definition.permissions, assertCurrent: assertSceneCurrent,
+      recheck: async () => { await execution.beforeConsume?.(binding.function); await context.validate_authority?.(binding.function); await recheck(); } };
     await recheck();
-    let result: unknown;
-    try {
-      validateActionValue(scene.validateInput, prepared.input, "input");
-      result = await (execution.invoke ?? this.invoke.bind(this))({ ...context, scene_binding: { scene_id: reference.scene_id, binding_id: bindingId } }, binding.function, prepared.input);
-    } catch (error) {
-      await execution.beforeConsume?.(binding.function);
-      await context.validate_authority?.(binding.function);
-      await recheck();
-      assertCurrentAuthority(context, binding.function, scene.definition.permissions);
-      assertSceneCurrent();
-      if (!scene.handler.failed) throw error;
-      return scene.handler.failed(context, prepared.input, error, { binding: structuredClone(binding), state: prepared.state });
-    }
-    await execution.beforeConsume?.(binding.function);
-    await context.validate_authority?.(binding.function);
-    await recheck();
-    validateActionValue(scene.validateResult, result, "output");
-    assertCurrentAuthority(context, binding.function, scene.definition.permissions);
-    assertSceneCurrent();
-    return scene.handler.consume(context, prepared.input, result, { binding: structuredClone(binding), state: prepared.state });
+    return consumeScene(context, scene, binding, prepared, effect, () => (execution.invoke ?? this.invoke.bind(this))(
+      { ...context, scene_binding: { scene_id: reference.scene_id, binding_id: bindingId } }, binding.function, prepared.input));
   }
 
   private requireScene(context: ActionCallContext, reference: { scene_id: string; scene_version: number }, purpose: "execute" | "configure" = "execute"): RegisteredScene {

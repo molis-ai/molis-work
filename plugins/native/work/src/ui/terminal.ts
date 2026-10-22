@@ -68,7 +68,7 @@ function renderWorkTerminal(model: WorkTerminalUiModel): string {
         </div>
         <div class="tui-tabs">
           <span class="tui-mode-label">${L("终端")}</span>
-          <div class="tui-tab-list" data-tui-tabs></div>
+          <div class="tui-tab-list" data-tui-tabs data-overflow-fade></div>
           <button class="tui-add" type="button" data-tui-add aria-expanded="false" aria-controls="tui-open-menu" aria-haspopup="true" aria-label="${L("添加终端")}"${compoundParent ? ` disabled title="${escapeHtml(L("请进入一个具体的子 Goal"))}"` : ""}>${icon("plus")}<span>${L("添加终端")}</span></button>
         </div>
         <div class="tui-stage">

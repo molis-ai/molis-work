@@ -1,6 +1,6 @@
 import {createAggregateReplica,initializeAggregateReplication,createAggregateCopy,AGGREGATE_REPLICA_SCHEMA_SQL,type AggregateReplicaContext,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
 import {pptAggregates} from './replication.js';
-import {replicaSchemaSql,type SqliteBaseline} from "@molis-ai/molis-work-storage";
+import {replicaSchemaSql} from "@molis-ai/molis-work-storage";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
@@ -229,7 +229,7 @@ export class PptStore {
  * existing ones must already be at its version. Columns keep the order existing stores have them in.
  */
 /** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const PPT_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
+export const PPT_DATABASE: PluginDatabaseDeclaration = { store_name: "ppt", read_permission: "ppt:read", write_permission: "ppt:write", version: 2, schema: (`
   CREATE TABLE presentations (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -248,7 +248,7 @@ export const PPT_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   );
   CREATE TABLE presentation_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
 `)+replicaSchemaSql()+AGGREGATE_REPLICA_SCHEMA_SQL };
-export const PPT_DATABASE: PluginDatabaseDeclaration = { ...PPT_STORE_BASELINE, store_name: "ppt", read_permission: "ppt:read", write_permission: "ppt:write" };
+
 
 export function openPptStore(homeDirectory: string) {
   const db = openBaselineHomeSqlite(homeDirectory, PPT_HOME_STORE.path, PPT_DATABASE);

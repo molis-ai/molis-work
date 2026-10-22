@@ -1,3 +1,4 @@
+import type {} from "@molis-ai/molis-work-design-system";
 /** The page's own lifetime (packages/ui-host client-lifecycle): its timers and listeners end with the page. */
 export interface DraftLifetime {
   timeout(job: () => void, delay: number): number;
@@ -66,8 +67,10 @@ export function codingDraft({ lifetime, q, write, premise, input, current, key, 
   });
   return {
     owns, local, remember, later, save,
+    /** An adopted snapshot supersedes the unsent timer's captured body; queued writes retain their original premise. */
+    adopt(id: string, value: string) { if(id===current())lifetime.clearTimeout(timer); remember(id,value); },
     // This window's copy wins while it holds something; an empty copy never hides a draft the service kept.
-    claim(id: string, saved?: string) { input.value = local(id) ?? saved ?? ""; remember(id, input.value); owner = id; note("草稿已恢复；模型与方式用于下一轮。"); },
+    claim(id: string, saved?: string) { input.value = local(id) ?? saved ?? ""; window.molisFit?.(input); remember(id, input.value); owner = id; note("草稿已恢复；模型与方式用于下一轮。"); },
     // Another session is on show: until its first read claims the box, the box is no session's.
     release() { owner = ""; note("正在读取会话…"); },
     flush() { const id = current(); return owns(id) ? save(id, input.value) : done; },
@@ -77,6 +80,7 @@ export function codingDraft({ lifetime, q, write, premise, input, current, key, 
       if (!owns(id)) throw new Error(refusal);
       const value = build(input.value);
       input.value = value;
+      window.molisFit?.(input);
       await save(id, value);
     },
   };

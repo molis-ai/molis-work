@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
+import { catalogText } from "./gates/catalog-entries.mjs";
 import { checkGoalsManagementWiring } from "./gates/goals-management-wiring.mjs";
 
 import {
@@ -340,7 +341,7 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
   if (!uiAdapter.includes("renderFeedContribution") || !pluginUi.includes("feedUiContribution")) {
     errors.push("Feed UI must cross the Workbench public contribution entrypoint");
   }
-  if (!pluginRoutes.includes("class FeedPluginRouteTable") || !hasWorkbenchUiContribution(workbench, read("apps/workbench/src/plugin-workbench.ts"), "feedUiContribution", read("apps/workbench/src/builtin-plugins.ts"))) {
+  if (!pluginRoutes.includes("class FeedPluginRouteTable") || !hasWorkbenchUiContribution(workbench, read("apps/workbench/src/plugin-workbench.ts"), "feedUiContribution", builtinCatalogText(repositoryRoot))) {
     errors.push("Feed route/UI contributions must be registered by their declared public hosts");
   }
   if (!uiHost.includes("class UiHost") || !uiHost.includes("render<TModel>(request")) {
@@ -496,8 +497,14 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     errors.push(`${coordinatorPath}: retired lifecycle reconciliation construction must stay deleted`);
   }
 
-  if (!read("apps/local-host/src/project-database-schema.ts").includes("GOALS_SCHEMA_SQL") || !read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE")) {
-    errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must compose the public Goals schema");
+  // S8 (PG-020): Goals' tables are Goals' own. The baseline no longer composes them; the platform makes them from the Manifest.
+  const baselineSchema = read("apps/local-host/src/project-database-schema.ts");
+  if (!read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE")
+      || /GOALS_PROJECT_DATABASE|GOAL_BOARDS_SCHEMA_SQL|GOALS_SCHEMA_SQL|GOAL_INPUT_BINDINGS_SCHEMA_SQL|GOAL_EVENT_FACTS_SCHEMA_SQL|GOAL_EVENT_STATE_SCHEMA_SQL|GOVERNANCE_SCHEMA_SQL|molis-work-module-goals|molis-work-plugin-goals|molis-work-module-governance-collaboration/u.test(baselineSchema)) {
+    errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must not compose Goals' or Governance's schema; Goals declares its tables in its Manifest (databases.project)");
+  }
+  if (!/databases:\s*\{\s*project:\s*GOALS_PROJECT_DATABASE\s*\}/u.test(read("plugins/native/goals/src/manifest.ts"))) {
+    errors.push("plugins/native/goals/src/manifest.ts: Goals' Manifest must declare its project library tables (databases.project: GOALS_PROJECT_DATABASE)");
   }
 
   for (const relativePath of [
@@ -573,11 +580,9 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     ) {
       errors.push(`${relativePath}: Goal read callers must use the public Goal query application boundary`);
     }
-    if (relativePath === "apps/local-host/src/web-request.ts") {
-      if (!source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal read caller is missing goalQueries public usage`);
-    } else if (!WEB_DISPATCH_FILES.includes(relativePath)) {
-      if (source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal reads must not bypass the Host Client`);
-    }
+    // web-request.ts used to be required to call goalQueries: its only call was the Goal-title port it injected into Coding. Coding now
+    // reads titles through Goals' public read action (C2, PG-091), so no entry or dispatcher reads a Goal through goalQueries any more.
+    if (source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal reads must not bypass the Host Client`);
   }
   errors.push(...checkGoalReadOwnerSql(coordinator).map(error => `${coordinatorPath}: ${error}`));
 
@@ -660,7 +665,6 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
   const requiredOwnerFiles = [
     "packages/contracts/src/modules/governance-collaboration.ts",
     "modules/governance-collaboration/src/index.ts",
-    "modules/governance-collaboration/src/schema.ts",
     "modules/governance-collaboration/src/repository.ts",
     "modules/governance-collaboration/src/record-store.ts",
     "modules/governance-collaboration/src/goal-tree-records.ts",
@@ -1391,8 +1395,17 @@ export function checkGoalTreeApplicationOwnership(coordinator, host, application
   return errors;
 }
 
+// The built-in catalog's entries as one array text, whether the catalog writes them in place or lists each plugin's own
+// src/registration.ts (W5-02, scripts/gates/catalog-entries.mjs).
+export function builtinCatalogText(repositoryRoot) {
+  const native = path.join(repositoryRoot, "plugins/native");
+  const files = fs.existsSync(native) ? fs.readdirSync(native).map(directory => `plugins/native/${directory}/package.json`) : [];
+  return catalogText({ files, read: (file) => { try { return fs.readFileSync(path.join(repositoryRoot, file), "utf8"); } catch { return null; } } });
+}
+
 // Check both registration styles. An import alone is not a registered contribution:
 // the pack must list it and the composition root must register that pack's entries.
+// `descriptors` is the catalog's entries as one array text (builtinCatalogText).
 export function hasWorkbenchUiContribution(workbench, registry, name, descriptors = "") {
   if (workbench.includes(`host.register(${name})`)) return true;
   const importsRegistry = /import\s*\{\s*BUILTIN_PLUGIN_WORKBENCH(?:\s*,[^}]+)?\s*\}\s*from\s*["']\.\/plugin-workbench\.js["']/u.test(workbench);
@@ -1461,7 +1474,7 @@ export function checkPackageBoundaries(repositoryRoot) {
         + (file === "apps/workbench/src/index.ts" ? fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/ui-composition.ts"), "utf8") : ""));
       return checkProposalUiOwnership(renderer, workbench, proposalMount, "", clientDispatch,
         fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/plugin-workbench.ts"), "utf8"),
-        fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/builtin-plugins.ts"), "utf8"));
+        builtinCatalogText(repositoryRoot));
     })()).map(message => `[proposal-ui-owner] ${message}`),
     ...proposalCheckOwnership.map(message => `[proposal-check-owner] ${message}`),
     ...checkGoalTreeApplicationOwnership(...[

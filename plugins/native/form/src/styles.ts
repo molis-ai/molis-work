@@ -120,8 +120,8 @@ export const FORM_STYLES = `
   .plugin-stage-workspace.is-arriving,
   .is-arriving { animation: creative-arrive var(--motion-normal, 130ms) var(--ease-quint) both; }
   @keyframes creative-arrive {
-    from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
-    to { opacity: 1; transform: none; filter: none; }
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
   }
   @keyframes creative-pane {
     from { transform: translateY(4px); }

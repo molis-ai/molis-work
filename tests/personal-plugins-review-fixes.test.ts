@@ -1,9 +1,7 @@
 import { ActionError as ContractsError } from "@molis-ai/molis-work-contracts/platform/actions";
 import * as goalsPluginExports from "@molis-ai/molis-work-plugin-goals";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { handlePagesNativePluginHttp } from "@molis-ai/molis-work-app-local-host";
-import type { PagesPublishArtifactPort } from "@molis-ai/molis-work-plugin-pages";
-import { pagesTestPorts } from "./fixtures/pages-actions.js";
+import { servePages } from "./fixtures/pages-runtime.js";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { handleFunctionsHttp } from "@molis-ai/molis-work-app-local-host";
@@ -40,7 +38,6 @@ import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/function
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT, lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
-  openPagesStore,
   pagesActions,
   pagesManifest,
 } from "@molis-ai/molis-work-plugin-pages";
@@ -49,7 +46,6 @@ import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { homeStores, hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { handlePersonalNativePluginHttp } from "../apps/local-host/dist/personal-native-plugin-http.js";
 import { rewriteNativePluginApiPath } from "../apps/local-host/dist/native-plugin-api.js";
-import { registerPagesArtifactVersion } from "../apps/local-host/dist/pages-artifact.js";
 import { MolisWorkUninstallService } from "../apps/local-host/dist/installer/uninstall.js";
 import { RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkWebServiceManager } from "@molis-ai/molis-work-app-local-host";
@@ -73,15 +69,13 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 
 async function listenDispatcher(
   home: string,
-  ports: Parameters<typeof handlePersonalNativePluginHttp>[3] & Parameters<typeof pagesTestPorts>[2] & { publishArtifact?: PagesPublishArtifactPort } = {},
+  ports: Parameters<typeof handlePersonalNativePluginHttp>[3] = {},
 ): Promise<{ origin: string; close(): Promise<void> }> {
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions: { env: {} } });
   const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: "test", project_id: null, audience: "user", permissions: ["functions:manage", "functions:invoke"] }));
-  const pagesStore = openPagesStore(home);
-  const pagesPorts = pagesTestPorts(pagesStore, "project-alpha", ports);
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    void handleFunctionsHttp(request, response, url, home, { actions }).then(handled => handled || handlePagesNativePluginHttp(request, response, url, pagesPorts)).then(handled => handled || handlePersonalNativePluginHttp(request, response, url, ports)).then((handled) => {
+    void handleFunctionsHttp(request, response, url, home, { actions }).then(handled => handled || handlePersonalNativePluginHttp(request, response, url, ports)).then((handled) => {
       if (!handled && !response.headersSent) {
         response.writeHead(404);
         response.end();
@@ -98,14 +92,14 @@ async function listenDispatcher(
   if (!address || typeof address === "string") throw new Error("dispatcher 没有端口");
   return {
     origin: `http://127.0.0.1:${address.port}`,
-    close: async () => { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); await host.close(); pagesStore.close(); },
+    close: async () => { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); await host.close(); },
   };
 }
 
 // W4-11: the Home's one store registry. The pinned list is what a Home holds today; a new store is added here on purpose.
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
   assert.deepEqual(homeStores().stores.map(store => store.path), ["projects", "logs", "spaces", "storage-space.json", "config/native-session-token", "sync", "backups", "sessions", "shelf", "plugin-runtime", "assistant",
-    "placement", "agent-definitions", "connectors", "runtime", "context-onboarding", "alchemist", "functions", "characters", "memory", "search", "knowledge", "feed", "server",
+    "placement", "agent-definitions", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "functions", "characters", "memory", "search", "knowledge", "feed", "server",
     "issues", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "cache", "git-operation-details.json", "config/onboarding.json",
     "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"]);
@@ -192,7 +186,8 @@ test("客户端使用当前插件路径，保留的 Host 适配按合同改写",
   assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.shelf/file"), "/api/shelf/file");
   assert.equal(rewriteNativePluginApiPath("/api/pages/abc"), "/api/pages/abc");
   assert.equal(rewriteNativePluginApiPath("/api/plugins/unknown/x"), "/api/plugins/unknown/x");
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/pages/);
+  // W5-01-PAGES-02: the Runtime client uses its Manifest route, including the resource path.
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.pages\/pages/);
   // Forms runs on the Plugin Runtime (W4-04): its page calls the routes its Manifest declares, under the project, with no short path to rewrite to.
   assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/form/src/browser/request.ts", import.meta.url)), "utf8"), /host\.route\("\/api\/plugins\/io\.molis\.work\.form\/forms"/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /\.route\("\/api\/plugins\/io\.molis\.work\.form\/forms"/);
@@ -226,91 +221,22 @@ test("/api/plugins/functions 与 /api/functions 打到同一 handler", async () 
   });
 });
 
-test("catalog 路径 Promote 不发 Artifact；注入口之后 MCP 与 HTTP 同口写出", async () => {
-  await withHome(async (home) => {
-    const catalog = await listenDispatcher(home);
-    try {
-      const created = await fetch(`${catalog.origin}/api/plugins/pages?project_id=project-alpha`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ project_id: "project-alpha", title: "周记" }),
-      });
-      assert.equal(created.status, 200);
-      const document = (await created.json() as { document: { id: string } }).document;
-      const missing = await fetch(`${catalog.origin}/api/plugins/pages/${document.id}/promote?project_id=project-alpha`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ project_id: "project-alpha", goal_id: "CORE" }),
-      });
-      // W3-02-G1-02: the owner availability carries conflict through the Kernel; no publisher means 409 with the same code and no write.
-      assert.equal(missing.status, 409);
-      const missingBody = await missing.json() as { code: string; document?: { goal_id?: string } };
-      assert.equal(missingBody.code, "pages.unavailable");
-      assert.equal(missingBody.document, undefined);
-      const catalogPages = openPagesStore(home);
-      try {
-        assert.equal(catalogPages.get(document.id, "project-alpha").goal_id, "");
-      } finally {
-        catalogPages.close();
-      }
-    } finally {
-      await catalog.close();
-    }
+// The Host no longer assembles Pages: there is no "environment without a publisher" any more (the Runtime always gives the plugin the project's 成果库),
+// so the old 409 `pages.unavailable` case has nothing left to refuse. What remains is that the HTTP route and the action write one line.
+test("W5-01-PAGES-05 promote through the HTTP route and through the action write the same 成果 line in the project", async t => {
+  const f = await servePages(t);
+  const created = await f.http<{ document: { id: string } }>("", { title: "发出去", goal_id: "CORE" });
+  const promoted = await f.http<{ artifact: { artifact_id: string; version: number } }>(`/${created.document.id}/promote`, { goal_id: "CORE" });
+  assert.equal(promoted.artifact.artifact_id, `pages-${created.document.id}`);
+  const versionOf = (artifactId: string) => f.host.withProject(f.project.reference, runtime =>
+    runtime.coordinator.artifacts.query.getArtifactVersion(f.project.project_id, { artifact_id: artifactId, version: 1 }));
+  assert.equal((await versionOf(promoted.artifact.artifact_id))?.artifact_id, promoted.artifact.artifact_id);
 
-    const project = new LocalProjectDatabase(join(home, "project.db"));
-    try {
-      const coordinator = new GoalProjectApplication(project);
-      coordinator.initializeBoard({
-        project_id: DEMO_PROJECT_ID,
-        title: "复查",
-        actor_id: "web-user",
-        idempotency_key: "review-fixes-board",
-      });
-      const publishArtifact = registerPagesArtifactVersion(coordinator, DEMO_PROJECT_ID, "project-alpha");
-      const projectDispatcher = await listenDispatcher(home, { publishArtifact });
-      try {
-        const created = await fetch(`${projectDispatcher.origin}/api/plugins/pages?project_id=project-alpha`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ project_id: "project-alpha", title: "发出去", goal_id: "CORE" }),
-        });
-        const page = (await created.json() as { document: { id: string } }).document;
-        const promoted = await fetch(`${projectDispatcher.origin}/api/pages/${page.id}/promote?project_id=project-alpha`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ project_id: "project-alpha", goal_id: "CORE" }),
-        });
-        assert.equal(promoted.status, 200);
-        const httpBody = await promoted.json() as { artifact: { artifact_id: string; version: number } };
-        assert.equal(httpBody.artifact.artifact_id, `pages-${page.id}`);
-        assert.equal(
-          coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, {
-            artifact_id: httpBody.artifact.artifact_id,
-            version: 1,
-          })?.artifact_id,
-          httpBody.artifact.artifact_id,
-        );
-      } finally {
-        await projectDispatcher.close();
-      }
-
-      const pages = openPagesStore(home);
-      try {
-        const created = await pagesTestPorts(pages, "project-alpha").actions.invoke(pagesActions.create, { title: "Action 文档", goal_id: "CORE" });
-        const promoted = await pagesTestPorts(pages, "project-alpha", { publishArtifact }).actions.invoke(pagesActions.promote, { id: created.document.id, goal_id: "CORE" });
-        assert.equal(promoted.artifact.artifact_id, `pages-${created.document.id}`);
-        assert.equal(promoted.document.artifact_id, promoted.artifact.artifact_id);
-        assert.ok(coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, {
-          artifact_id: promoted.artifact.artifact_id,
-          version: 1,
-        }));
-      } finally {
-        pages.close();
-      }
-    } finally {
-      project.close();
-    }
-  });
+  const action = await f.bound.invoke(pagesActions.create, { title: "Action 文档", goal_id: "CORE" });
+  const pinned = await f.bound.invoke(pagesActions.promote, { id: action.document.id, goal_id: "CORE" });
+  assert.equal(pinned.artifact.artifact_id, `pages-${action.document.id}`);
+  assert.equal(pinned.document.artifact_id, pinned.artifact.artifact_id);
+  assert.ok(await versionOf(pinned.artifact.artifact_id));
 });
 
 test("草稿 CAS：过期 updated_at 不能覆盖已写入的草稿、预览和样例", async () => {
@@ -392,30 +318,15 @@ test("PPT 用色板，没有系统 color input", () => {
   assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /type=["']color["']/);
 });
 
-test("Host 文本补全口暂无模型；注入后 Pages AI 返回模型的候选文字，不带占位标记", async () => {
-  await withHome(async (home) => {
-    assert.equal(hostCompleteText({ homeDirectory: home, env: {} }), undefined);
-    const dispatcher = await listenDispatcher(home, { completeText: async () => "host-outline" });
-    try {
-      const created = await fetch(`${dispatcher.origin}/api/plugins/pages?project_id=project-alpha`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ project_id: "project-alpha", title: "写作" }),
-      });
-      const page = (await created.json() as { document: { id: string } }).document;
-      const ai = await fetch(`${dispatcher.origin}/api/plugins/pages/${page.id}/ai?project_id=project-alpha`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ project_id: "project-alpha", command: "outline", text: "先写目标再写范围" }),
-      });
-      assert.equal(ai.status, 200);
-      const body = await ai.json() as { text: string };
-      assert.equal("stub" in body, false);
-      assert.equal(body.text, "host-outline");
-    } finally {
-      await dispatcher.close();
-    }
-  });
+test("Host 文本补全口暂无模型；注入后 Pages AI 返回模型的候选文字，不带占位标记", async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-work-review-fixes-model-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  assert.equal(hostCompleteText({ homeDirectory: home, env: {} }), undefined);
+  const f = await servePages(t, { completeText: async () => "host-outline" });
+  const page = (await f.http<{ document: { id: string } }>("", { title: "写作" })).document;
+  const body = await f.http<{ text: string }>(`/${page.id}/ai`, { command: "outline", text: "先写目标再写范围" });
+  assert.equal("stub" in body, false);
+  assert.equal(body.text, "host-outline");
 });
 
 test("Host 不再从插件包进口 openFunctionsStore；错误类型来自 contracts", async () => {
@@ -483,7 +394,7 @@ test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", a
     const store = new LocalProjectDatabase(databasePath);
     try {
       const { platform } = await ensureProjectPlugins({ store, projectId: DEMO_PROJECT_ID,
-        actorId: "web-user", homeDirectory: home, goalTitle: () => undefined, actions: pluginActions(store, DEMO_PROJECT_ID) });
+        actorId: "web-user", homeDirectory: home, actions: pluginActions(store, DEMO_PROJECT_ID) });
       assert.ok(platform, "Runtime 必须实际启动，不能仅将 app 插件从检查中排除");
       const shipped = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.personal === true || Boolean(entry.summary));
       const packed = new Set(BUILTIN_PLUGIN_WORKBENCH.map(pack => pack.project_plugin_id));

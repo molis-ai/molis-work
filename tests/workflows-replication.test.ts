@@ -122,14 +122,15 @@ test("imported workflow history is blocked at the public continue action before 
   f.deliver(f.take());
   let dispatched = 0;
   const ports: WorkflowsActionPorts = {
-    withStore: async run => run(b),
+    read: run => run(b),
+    write: async (caller, run) => { await caller.beforeEffect(); return run(b); },
     content: () => ({}) as ReturnType<WorkflowsActionPorts["content"]>,
     actions: () => ({
       discover: async () => { dispatched++; throw new Error("action discovery must not run"); },
       invoke: async () => { dispatched++; throw new Error("action invocation must not run"); },
+      check: async () => { dispatched++; throw new Error("action validation must not run"); },
     }),
-    assertInput() {},
-    aiAvailable: () => false,
+    textModel: () => ({ available: false, reason: "No model in this test" }),
   };
   const handler = createWorkflowsActionHandlers("project", ports)
     .find(row => row.capability_id === workflowsActions.continue.capability_id);

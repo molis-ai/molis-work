@@ -53,7 +53,6 @@ export {
   FeedOutRuleStore,
   feedCaptureArtifactId,
   feedOutRuleMatches,
-  FEED_OUT_RULES_SCHEMA_SQL,
   parseFeedOutRulePatch,
   parseFeedOutRuleWrite,
 } from "./out-rules.js";
@@ -91,3 +90,5 @@ export * from "./scenes.js";
 export type { FeedRuleJudgmentSelection } from "./rule-actions.js";
 
 export { feedQueryActions, createFeedQueryHandlers, type FeedDirectorySnapshot } from "./query-actions.js";
+
+export { FEED_PROJECT_DATABASE } from "./database.js";

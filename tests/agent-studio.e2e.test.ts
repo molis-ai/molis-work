@@ -167,6 +167,8 @@ test('studio: a request becomes a working, published plugin that the person can 
     // Publish once; an unchanged build cannot be published again.
     await page.click('[data-as-action="publish"]');
     await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('v1 已是当前版本')`);
+    // VUX-26: the feed has the conversation's one scroll owner; nobody scrolled it, so it follows its end.
+    await page.wait(`(() => { const feed = document.querySelector('[data-as-feed]'); return feed.dataset.follow === 'following' && feed.scrollHeight - feed.scrollTop - feed.clientHeight <= 1; })()`);
 
     // Install into the project after an explicit consent; the installed plugin keeps its own data, apart from the preview.
     await page.click('[data-as-install]');
@@ -310,7 +312,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     await page.evaluate("document.querySelector('[data-agent-studio]').remove()");
     await observed(() => liveSubscriptions === 0);
 
-    // S-55 PCSYNC-22/23: real generated/published files, actual preview operation, actual Host sync registration.
+    // S-67 PCSYNC-22/23: real generated/published files, actual preview operation, actual Host sync registration.
     const post=async(componentId:string,binding:'read'|'submit',payload:unknown)=>{const response=await fetch(origin+'/api/plugin-builder/studio/builds/'+buildId+'/call',{method:'POST',headers:{'content-type':'application/json',origin,'x-molis-work-control-token':token,'x-molis-work-idempotency-key':randomUUID()},body:JSON.stringify({componentId,binding,payload})});assert.equal(response.status,200,await response.clone().text());return (await response.json() as {value:unknown}).value;};
     // Earlier assertions deliberately undo every visual revision. Create one new real revision, not synthetic history.
     const saved=await(await fetch(origin+'/api/plugin-builder/studio/builds/'+buildId)).json() as {build:{revision:number;active:unknown;phase:string;error:string|null;history:unknown[]}};

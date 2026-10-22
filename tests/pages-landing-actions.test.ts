@@ -27,7 +27,7 @@ async function fixture(run: (f: { client: ReturnType<MolisWorkLocalHost["actionC
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: PAGES_ACTION_PERMISSIONS };
   const client = host.actionClient(ref);
   try {
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, title: "Pages", actor_id: "owner", idempotency_key: "init" }));
+    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
     await run({ client, caller, bound: bindActionClient(client, () => caller) });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 }
@@ -78,7 +78,8 @@ test("a landing that went stale, a position outside the document or a cancelled 
     await assert.rejects(client.invoke(caller, landing("insert"), { ...fresh, head: 3 }), { code: "pages.invalid" }, "inserting needs a cursor");
     await assert.rejects(client.invoke(caller, landing("quote"), fresh), { code: "actions.input_invalid" }, "a quote names its source");
     await assert.rejects(client.invoke({ ...caller, permissions: ["pages:read"] }, landing("insert"), fresh), { code: "actions.forbidden" });
-    // Authority withdrawn while the call waited: the check before the write refuses, and nothing is written.
+    // Refused at its first authority check, before Pages starts: nothing is written. A call accepted first and withdrawn
+    // while it waits at the check before the write is tests/pages-landing-late-authority.test.ts (QA-015).
     const cancelled: ActionCallContext = { ...caller, validate_authority: async () => { throw new Error("revoked"); } };
     await assert.rejects(client.invoke(cancelled, landing("insert"), fresh), /revoked/);
     assert.deepEqual((await bound.invoke(actions.get, { id: document.id })).document, current);

@@ -24,6 +24,11 @@ export interface PluginHostExecutorOptions {
    * a generated one), whatever its Manifest asks for; the plugin never names a library. Needs `home`.
    */
   databaseFor?(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
+  /**
+   * The project's library, where a plugin whose Manifest declares `databases.project` gets its own tables
+   * (`services.project_database`); absent or `null`: none, and such a plugin does not start.
+   */
+  projectLibrary?: import("./plugin-project-library.js").ProjectLibrary | null;
   filesFor?(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
   /**
    * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its
@@ -31,8 +36,11 @@ export interface PluginHostExecutorOptions {
    * (the Runtime's `actions.providerId`) has to give the same answer: this is how the Plugin's own client finds them.
    */
   providerFor?(definition: PluginDefinition, installId: string): string;
-  /** Host start-list qualification of this actual definition; the returned release withdraws this session before stop. */
-  qualifyCaller?(definition: PluginDefinition, caller: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller): (() => void) | undefined;
+  /**
+   * The installation's record as the Runtime's repository holds it now. An activation's jobs read it before every write
+   * (`services.background.keep`, PG-038); without it a job is refused, never trusted.
+   */
+  record?(installId: string): PluginInstanceRecord | null;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
@@ -88,7 +96,7 @@ export class PluginHostExecutor implements PluginExecutor {
   async start(definition: PluginDefinition, context: PluginStartContext) {
     const session = openHostSession(this.options, definition, context);
     try {
-      const contribution = await definition.start(session.context);
+      const contribution = await session.starting(() => definition.start(session.context));
       this.sessions.set(context.install_id, session);
       return { contribution };
     } catch (error) {

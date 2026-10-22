@@ -1,16 +1,32 @@
 import type { PluginDefinition, PluginStartContext, PluginMaterialsClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginMaterialsClient } from "@molis-ai/molis-work-plugin-runtime";
 import { extractHomeMaterial } from "./material-home.js";
+import { readMaterialUploads } from "./material-documents.js";
+import { readMaterialLocalPage } from "./material-local-page.js";
+import { materialImageTextAvailable } from "./material-native.js";
+import { readOriginalFile, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
 import { readMaterialSource } from "./material-source-providers.js";
 import type { PluginPlatformHome } from "./home-side.js";
 
-/** Same trust boundary as services.model; a sandbox or platform without a Home receives no material service. */
+const MATERIAL_PERMISSIONS = ["materials:read", "materials:fetch", "materials:fetch_local", "materials:original"];
+
+/**
+ * Same trust boundary as services.model; a sandbox or platform without a Home receives no material service. `project_id` is the
+ * project the Host started this activation for (`null` for a Home-level one): original-file registrations are kept per project.
+ */
 export function pluginMaterialsFor(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, context: PluginStartContext,
-  assertActive: () => void): PluginMaterialsClient | undefined {
-  if (!home || definition.execution === "sandbox" || !definition.manifest.permissions.some(item => ["materials:read", "materials:fetch"].includes(item.permission))) return undefined;
+  assertActive: () => void, project_id: string | null): PluginMaterialsClient | undefined {
+  if (!home || definition.execution === "sandbox" || !definition.manifest.permissions.some(item => MATERIAL_PERMISSIONS.includes(item.permission))) return undefined;
   return createPluginMaterialsClient(definition.manifest, {
     extract: (source, options) => extractHomeMaterial(home.directory, source, options),
+    readDocuments: (files, options) => readMaterialUploads(files, { signal: options.signal, timeoutMs: options.timeoutMs }),
+    // The same passive check the Host's own screens use; it starts no helper and downloads no model.
+    imageTextAvailable: () => materialImageTextAvailable(),
     readSource: (url, options) => readMaterialSource(home.directory, url, { signal: options.signal,
       beforeEffect: options.beforeEffect, onProgress: options.onProgress, allow_model_download: options.allowModelDownload }),
-  }, { install_id: context.install_id, assertActive, requireGrant: permission => context.requireGrant(permission) });
+    readLocalPage: (url, options) => readMaterialLocalPage(url, { signal: options.signal, beforeDispatch: options.beforeEffect }),
+    claimOriginal: (key, offered, options) => registerOriginalFile(home.directory, key, offered, options.beforeEffect),
+    readOriginal: (key, options) => readOriginalFile(home.directory, key, { maxBytes: options.maxBytes, signal: options.signal }),
+    releaseOriginal: (key, options) => releaseOriginalFile(home.directory, key, options.beforeEffect),
+  }, { install_id: context.install_id, project_id, assertActive, requireGrant: permission => context.requireGrant(permission) });
 }

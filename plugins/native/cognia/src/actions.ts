@@ -7,13 +7,13 @@ import * as s from "./action-schema.js";
 import { cogniaSearchActions, createCogniaSearchHandlers } from "./search.js";
 
 const read = ["cognia:read"], write = [...read, "cognia:write"];
-function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions = operation === "query" ? read : write, concurrent = false, required_actions?: ActionDefinition["action"]["required_actions"], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
-  return { capability_id: `cognia.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "home", audiences: ["user", "workflow", "agent", "mcp"], permissions, subject_kinds: ["cognia_material"], input_schema: input, output_schema: output, ...(concurrent ? { scheduling: "concurrent" } : {}), ...(required_actions ? { required_actions } : {}) } };
+function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions = operation === "query" ? read : write, concurrent = false, required_actions?: ActionDefinition["action"]["required_actions"], execution?: ActionDefinition["action"]["execution"], audiences: ActionDefinition["action"]["audiences"] = ["user", "workflow", "agent", "mcp"]): ActionDefinition<I, O> {
+  return { capability_id: `cognia.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "home", audiences, permissions, subject_kinds: ["cognia_material"], input_schema: input, output_schema: output, ...(concurrent ? { scheduling: "concurrent" } : {}), ...(required_actions ? { required_actions } : {}) } };
 }
 type Summary = Omit<Material, "body" | "frontmatter"> & { excerpt: string };
 type Filters = { query?: string; domain_id?: string; source_id?: string };
 type ImportInput = { kind: SourceKind; name: string; files: ImportFile[]; locator?: string; source_id?: string; domain_id?: string | null };
-type DirectoryInput = { path: string; kind: SourceKind; source_id?: string; domain_id?: string | null };
+type DirectoryInput = { grant_id: string; path: string; kind: SourceKind; source_id?: string; domain_id?: string | null };
 type Scan = { locator: string; name: string; files: ImportFile[] };
 type Edit = { title: string; body: string; domain_id?: string | null };
 type MaterialRef = { id: string; revision: number };
@@ -34,8 +34,8 @@ export const cogniaActions = {
   updateMaterial: {...define<Edit & { id: string;etag:string }, { material: Material }>("material.update", "修改知识资料", "按读取时的 etag 修改手工或知识库资料并新增版本；资料已变化时拒绝旧编辑", "command", s.object({ id: s.id,etag:{...s.id,pattern:'^[a-f0-9]{64}$'}, ...s.materialInput }, ["id", "etag", "title", "body"]), s.object({ material: s.material })),version:2},
   deleteMaterial: define<{ id: string }, { deleted: true }>("material.delete", "删除当前资料", "删除当前资料，已保存的固定版本引用仍有效", "command", s.object({ id: s.id }), s.deleted),
   preview: define<ImportInput, { preview: Preview }>("import.preview", "预览文件导入", "校验上传的原始文件 Base64 并保存导入预览；locator 仅用于来源标识，不读取本机路径", "command", s.object({ ...s.importFields, files: s.files, locator: s.text }, ["kind", "name", "files"]), s.object({ preview: s.preview })),
-  scan: define<{ path: string }, Scan>("directory.scan", "读取本机资料目录", "读取明确指定的绝对目录；跳过符号链接、隐藏及不支持的文件，遵守文件与批次大小限制", "query", s.object({ path: { ...s.id, maxLength: 2000 } }), s.object({ locator: s.text, name: s.text, files: s.files }), ["cognia:read-local-files"], true),
-  previewDirectory: define<DirectoryInput, { preview: Preview }>("import.directory_preview", "预览本机目录导入", "通过授权目录读取形成导入预览；确认后才写入知识库", "command", s.object({ path: { ...s.id, maxLength: 2000 }, kind: s.kind, source_id: s.id, domain_id: s.nullable(s.text) }, ["path", "kind"]), s.object({ preview: s.preview }), [...write, "cognia:read-local-files"], true, [{ capability_id: "cognia.directory.scan", version: 1 }, { capability_id: "cognia.import.preview", version: 1 }]),
+  scan: { ...define<{ grant_id: string; path: string }, Scan>("directory.scan", "读取已授权的本机资料目录", "读取人在 Host 里授权过的目录下的相对路径；跳过符号链接、隐藏及不支持的文件，遵守文件与批次大小限制", "query", s.object({ grant_id: { ...s.id, maxLength: 200 }, path: { ...s.id, maxLength: 2000 } }, ["grant_id", "path"]), s.object({ locator: s.text, name: s.text, files: s.files }), ["directory:read"], true, undefined, undefined, ["user"]), version: 2 },
+  previewDirectory: { ...define<DirectoryInput, { preview: Preview }>("import.directory_preview", "预览已授权目录导入", "通过 Host 的目录授权读取形成导入预览；确认后才写入知识库", "command", s.object({ grant_id: { ...s.id, maxLength: 200 }, path: { ...s.id, maxLength: 2000 }, kind: s.kind, source_id: s.id, domain_id: s.nullable(s.text) }, ["grant_id", "path", "kind"]), s.object({ preview: s.preview }), [...write, "directory:read"], true, [{ capability_id: "cognia.directory.scan", version: 2 }, { capability_id: "cognia.import.preview", version: 1 }], undefined, ["user"]), version: 2 },
   commit: define<{ preview_id: string }, { receipt: Receipt }>("import.commit", "确认资料导入", "原子提交预览；相同预览重试返回原回执，冲突时不部分导入", "command", s.object({ preview_id: s.id }), s.object({ receipt: s.receipt })),
   cancel: define<{ preview_id: string }, { cancelled: true }>("import.cancel", "取消导入预览", "移除尚未提交的预览，已确认的导入保持有效", "command", s.object({ preview_id: s.id }), s.object({ cancelled: { const: true } })),
   synthesize: define<AiInput, { draft: Draft }>("knowledge.synthesize", "整理知识资料", "根据 1–5 份资料生成带引用的待审阅草稿；material_refs 明确固定版本，material_ids 读取执行时当前版本，二者择一。需明确采纳才写入知识库", "command", { ...s.object({ material_ids: { ...s.array(s.id), minItems: 1, maxItems: 5, uniqueItems: true }, material_refs: { ...s.array(s.object({ id: s.id, revision: s.revision })), minItems: 1, maxItems: 5, uniqueItems: true }, question: aiFields.question }, []), oneOf: [{ required: ["material_ids"] }, { required: ["material_refs"] }] }, s.object({ draft: s.draft }), [...write, "model:invoke"], true, undefined, { cost: "metered" }),
@@ -53,7 +53,7 @@ export interface CogniaActionPorts extends CogniaStores {
   model(): CogniaAiPorts;
   ai(caller: ActionExecutionContext): CogniaAiPorts;
   actions: BoundActionClient;
-  scan(path: string, signal?: AbortSignal): Promise<Scan>;
+  scan(grantId: string, path: string, signal?: AbortSignal): Promise<Scan>;
 }
 export function createCogniaActionHandlers(ports: CogniaActionPorts): ActionHandlerBinding[] {
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
@@ -74,8 +74,8 @@ export function createCogniaActionHandlers(ports: CogniaActionPorts): ActionHand
     bind(cogniaActions.updateMaterial, (input, caller) => ports.write(caller, store => ({ material: store.updateMaterial(input.id, input,input.etag) }))),
     bind(cogniaActions.deleteMaterial, (input, caller) => ports.write(caller, store => { store.deleteMaterial(input.id); return { deleted: true }; })),
     bind(cogniaActions.preview, (input, caller) => ports.write(caller, store => ({ preview: store.preview({ ...input, locator: input.locator ?? "upload" }) }))),
-    bind(cogniaActions.scan, (input, caller) => ports.scan(input.path, caller.signal)),
-    bind(cogniaActions.previewDirectory, async (input, caller) => { const scanned = await invokeNested(ports.actions, cogniaActions.scan, { path: input.path }, caller); await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted(); return invokeNested(ports.actions, cogniaActions.preview, { ...scanned, kind: input.kind, source_id: input.source_id, domain_id: input.domain_id }, caller); }),
+    bind(cogniaActions.scan, (input, caller) => ports.scan(input.grant_id, input.path, caller.signal)),
+    bind(cogniaActions.previewDirectory, async (input, caller) => { const scanned = await invokeNested(ports.actions, cogniaActions.scan, { grant_id: input.grant_id, path: input.path }, caller); await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted(); return invokeNested(ports.actions, cogniaActions.preview, { ...scanned, kind: input.kind, source_id: input.source_id, domain_id: input.domain_id }, caller); }),
     bind(cogniaActions.commit, (input, caller) => ports.write(caller, store => ({ receipt: store.commit(input.preview_id) }))),
     bind(cogniaActions.cancel, (input, caller) => ports.write(caller, store => { store.cancelPreview(input.preview_id); return { cancelled: true }; })),
     bind(cogniaActions.synthesize, async (input, caller) => ({ draft: await generateCogniaDraft(ports, { ...input, mode: "synthesize" }, { ...ports.ai(caller), beforeEffect: caller.beforeEffect }) }), available),

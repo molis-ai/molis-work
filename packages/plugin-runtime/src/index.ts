@@ -3,11 +3,12 @@ import { randomUUID } from "node:crypto";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
-import { assertContributionMatchesManifest } from "./contribution.js";
+import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type RedemptionScope } from "./contribution.js";
 
 import { pluginManifestDigest } from "./identity.js";
 import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow, validateInstalledManifest } from "./install-rules.js";
 import { pluginActionProvider } from "./action-provider.js";
+import { outsidePluginAction } from "./action-scope.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
 import { assertRequiredGrants, cloneRecord, definitionKey, installIdentity, normalizeErrorCode, safeErrorCode, safeErrorMessage, sameStrings, validateManifest } from "./runtime-rules.js";
@@ -17,6 +18,8 @@ export { SqlitePluginPrivateStorage, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, privateV
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
 export { SqlitePluginRuntimeRepository, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, listPluginInstallationRecords } from "./repository.js";
 export type { PluginRuntimeDatabase } from "./repository.js";
+export { PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PROJECT_ROOT_REFERENCE, inspectPluginProjectSchema, openPluginProjectDatabase, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginSchemaObject, type PluginSchemaShape } from "./project-database.js";
+export { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, type PluginStatementMode } from "./project-database-statements.js";
 export {
   createPluginRuntimeReleaseArtifact,
   MemoryPluginRuntimeReleaseArtifactRepository,
@@ -28,7 +31,7 @@ export type {
   PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
 
-export { currentPluginAction } from "./action-scope.js";
+export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, markPluginActionChecked, currentPluginAction, currentPluginInvocation, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction } from "./action-scope.js";
 export { createPluginOwnerFilesClient } from "./owner-files-service.js";
 export type { PluginOwnerFilesGate } from "./owner-files-service.js";
 export { createPluginBackgroundClient } from "./background-service.js";
@@ -42,7 +45,7 @@ export { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 export { NativePluginExecutor } from "./native-executor.js";
 export { pluginManifestDigest } from "./identity.js";
 export { loadDevelopmentPlugin } from "./development-loader.js";
-export { assertContributionMatchesManifest, viewContributionId } from "./contribution.js";
+export { assertContributionMatchesManifest, offeredManifest, viewContributionId, type RedemptionScope } from "./contribution.js";
 export { bindRuntimeSyncCollection } from './sync-binding.js';
 export type { RuntimeSyncCollection, RuntimeSyncAuthority } from './sync-binding.js';
 export { resolvePluginActivation } from "./resolution.js";
@@ -116,7 +119,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   constructor(
     private readonly repository: PluginRuntimeRepository = new MemoryPluginRuntimeRepository(),
     private readonly executor: PluginExecutor = new NativePluginExecutor(),
-    private readonly options: { now?: () => Date; maxRecoveryAttempts?: number;
+    private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope;
       actions?: { registry: ActionRegistryPort; project_id?: string; providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string } } = {},
   ) {}
 
@@ -310,7 +313,7 @@ export class PluginRuntime implements PluginRuntimeApi {
             },
           });
           try {
-            if (this.executor.validateUpgrade) await this.executor.validateUpgrade(input.definition, context, stopped);
+            if (this.executor.validateUpgrade) await outsidePluginAction(() => this.executor.validateUpgrade!(input.definition, context, stopped));
             else await input.definition.validateUpgrade({ from: cloneRecord(stopped), context });
           } catch (error) {
             throw pluginErrors.upgrade_validation_failed(`旧私有数据校验失败：${safeErrorMessage(error)}`);
@@ -426,7 +429,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     const definition = this.requireDefinition(current);
     assertRequiredGrants(definition.manifest, current.grants);
     try {
-      const handle = await this.executor.start(definition, this.activateContext(current, definition));
+      const handle = await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
       await this.redeem(definition, current, handle.contribution);
       const updated = {
         ...current,
@@ -479,7 +482,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     this.revokeContext(installId);
     this.contributions.delete(installId);
     try {
-      if (live) await this.executor.stop(definition, live);
+      if (live) await outsidePluginAction(() => this.executor.stop(definition, live));
     } catch (error) {
       this.contributions.delete(installId);
       const crashed = {
@@ -514,7 +517,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       const definition = this.requireDefinition(current);
       const live = this.liveContext(installId);
       try {
-        if (live) await this.executor.stop(definition, live);
+        if (live) await outsidePluginAction(() => this.executor.stop(definition, live));
       } catch {
         // A crashed executor may already be unavailable; lifecycle state is still authoritative.
       }
@@ -550,7 +553,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     assertRequiredGrants(definition.manifest, current.grants);
     const recoveryCount = current.recovery_count + 1;
     try {
-      const handle = await this.executor.start(definition, this.activateContext(current, definition));
+      const handle = await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
       await this.redeem(definition, current, handle.contribution);
       const updated = {
         ...current,
@@ -607,7 +610,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       this.revokeContext(installId);
       this.contributions.delete(installId);
       try {
-        if (live) await this.executor.stop(definition, live);
+        if (live) await outsidePluginAction(() => this.executor.stop(definition, live));
       } catch (error) {
         this.revokeContext(installId);
         this.contributions.delete(installId);
@@ -646,15 +649,15 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.contributions.get(installId) ?? null;
   }
 
-  /** A started Plugin must deliver exactly what its Manifest declared, or it does not run. */
+  /** A started Plugin must deliver exactly what its Manifest declared (a partial half: nothing beyond it), or it does not run. */
   private async redeem(
     definition: PluginDefinition,
     record: PluginInstanceRecord,
     contribution: PluginContribution,
   ): Promise<void> {
     try {
-      assertContributionMatchesManifest(definition.manifest, contribution);
-      const manifest = definition.manifest;
+      assertContributionMatchesManifest(definition.manifest, contribution, redemptionIn(this.options.redemption?.(definition), this.options.actions?.project_id));
+      const manifest = offeredManifest(definition.manifest, contribution);
       if ((manifest.actions?.length ?? 0) > 0 || (manifest.action_scenes?.length ?? 0) > 0) {
         const actions = this.options.actions;
         if (!actions) throw pluginErrors.contribution_unredeemed("宿主未提供系统动作注册服务");
@@ -664,7 +667,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     } catch (error) {
       const live = this.liveContext(record.install_id);
       try {
-        if (live) await this.executor.stop(definition, live);
+        if (live) await outsidePluginAction(() => this.executor.stop(definition, live));
       } catch {
         // The Plugin already failed its contract; lifecycle state stays authoritative.
       }
@@ -762,4 +765,4 @@ const runtimeFailureCodes = {
   "plugin.upgrade_rollback_failed": true
 } as const;
 
-export { createPluginMaterialsClient, type PluginMaterialsPort, type PluginMaterialsDispatch, type PluginMaterialsGate } from "./materials-service.js";
+export { createPluginMaterialsClient, type PluginMaterialsPort, type PluginMaterialsDispatch, type PluginMaterialsGate, type PluginOriginalFileKey } from "./materials-service.js";

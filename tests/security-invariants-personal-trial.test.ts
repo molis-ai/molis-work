@@ -7,8 +7,8 @@ import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-stor
 import {createDesktopWebHost,openMolisWorkProjectCatalog,withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {ProjectDeletionService} from '@molis-ai/molis-work-app-local-host';
 
-// PTR-01 / S-60: a forged confirmation cannot bypass the trusted personal Home policy.
-test('PTR-01 S-60 personal permanent deletion retains unique database and attachment before any runtime release',async t=>{
+// PTR-01 / S-72: a forged confirmation cannot bypass the trusted personal Home policy.
+test('PTR-01 S-72 personal permanent deletion retains unique database and attachment before any runtime release',async t=>{
  const root=mkdtempSync(join(tmpdir(),'trial-delete-')),home=join(root,'personal');ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));
  const catalog=await openMolisWorkProjectCatalog({homeDirectory:home});t.after(()=>{catalog.close();rmSync(root,{recursive:true,force:true});});
  const project=await catalog.createProject({display_name:'唯一原件',actor_id:'alice'}),attachment=join(dirname(project.database_path),'unique.bin');writeFileSync(attachment,Buffer.from([0,255,13,10,67]));
@@ -18,8 +18,8 @@ test('PTR-01 S-60 personal permanent deletion retains unique database and attach
  assert.equal(effects,0);assert.deepEqual(readFileSync(project.database_path),db);assert.deepEqual(readFileSync(attachment),bytes);assert.equal(catalog.listProjectDeletions().length,0);
 });
 
-// PTR-01 / S-60: this is the actual HTTP entry, without credentials or a configured sync server.
-test('PTR-01 S-60 HTTP refuses permanent cleanup without opening credentials',async()=>{
+// PTR-01 / S-72: this is the actual HTTP entry, without credentials or a configured sync server.
+test('PTR-01 S-72 HTTP refuses permanent cleanup without opening credentials',async()=>{
  const home=mkdtempSync(join(tmpdir(),'trial-http-')),token='synthetic-trial-control-token-0123456789';
  const server=createDesktopWebHost({ptyClientFilePath:()=>'/not-needed-for-this-test'})({homeDirectory:home,controlToken:token});
  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const address=server.address();assert.ok(address&&typeof address==='object');const origin='http://127.0.0.1:'+address.port;

@@ -6,10 +6,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore, CODING_REPORT_TYPE, CODING_CLIENT_FACTORY_SCRIPT, codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
+import { CODING_REPORT_TYPE, CODING_CLIENT_FACTORY_SCRIPT, codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, agentTextMaterialContent, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 // specs/ai-interaction-experience AC-09 (Coding's report): the report opens from its fixed versions, with or without a runtime.
 test("AC-09: formal report routes freeze real Artifact versions, distinguish missing/failed evidence, and reopen without a runtime", async () => {
@@ -17,10 +17,10 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
   const dbPath = join(dir, "board.db"); seedDemoBoard(dbPath);
   let store = new LocalProjectDatabase(dbPath);
   let api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
-  let sessionStore = new CodingSessionStore(store.db);
+  let sessionStore = codingSessions(store);
   for (const id of ["app", "other"]) {
-    sessionStore.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: '<img src=x onerror="bad()">', runtime_id: "prologue", at: "2026-09-21T00:00:00Z" });
-    sessionStore.setRuntimeSession(DEMO_PROJECT_ID, id, id === "app" ? "sdk" : "sdk-other", "2026-09-21T00:00:00Z");
+    await sessionStore.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: '<img src=x onerror="bad()">', runtime_id: "prologue", at: "2026-09-21T00:00:00Z" });
+    await sessionStore.setRuntimeSession(noEffect, DEMO_PROJECT_ID, id, id === "app" ? "sdk" : "sdk-other", "2026-09-21T00:00:00Z");
   }
   let runtimeAvailable = true;
   const run: AgentRunView = {
@@ -34,9 +34,8 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
     command_outputs: [{ call_id: "check", run_id: "failed" }, { call_id: "missing", run_id: "failed" }],
     usage: { tokens: { input: 0, output: 0 }, unavailable_reason: "未报告" }, awaiting_input: [], stop_reason: "检查失败",
   };
-  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    execution: { ready: async () => {}, models: async () => [] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (!runtimeAvailable) throw new Error("runtime offline");
       const values = args as unknown as Array<{ session_id?: string; run_id?: string; call_id?: string }>;
@@ -54,7 +53,7 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
     } },
   });
   const server = createServer((request, response) => {
-    void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => {
+    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => {
       response.writeHead(500); response.end(String(error));
     });
   });
@@ -101,7 +100,7 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
     assert.equal(api.query.listArtifactVersions(DEMO_PROJECT_ID, saved.reference.artifact_id).length, 1);
     run.turns[1]!.text = "不同的后续内容";
     assert.deepEqual((await request("app", "failed", "POST")).body, saved);
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close();
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close();
     store = new LocalProjectDatabase(dbPath);
     api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
     runtimeAvailable = false;
@@ -113,7 +112,7 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
     assert.equal(api.query.listArtifactVersions(DEMO_PROJECT_ID, saved.reference.artifact_id).length, 1);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(dir, { recursive: true, force: true });
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(dir, { recursive: true, force: true });
   }
 });
 
@@ -155,18 +154,18 @@ test("RCPT-341–343: the report's 补充要求 keeps the ledger's fact, the AI'
   const dbPath = join(dir, "board.db"); seedDemoBoard(dbPath);
   const store = new LocalProjectDatabase(dbPath);
   const api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
-  new CodingSessionStore(store.db).create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "登录", runtime_id: "prologue", at: "2026-10-17T00:00:00Z" });
-  new CodingSessionStore(store.db).setRuntimeSession(DEMO_PROJECT_ID, "app", "sdk", "2026-10-17T00:00:00Z");
+  await codingSessions(store).create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "app", title: "登录", runtime_id: "prologue", at: "2026-10-17T00:00:00Z" });
+  await codingSessions(store).setRuntimeSession(noEffect, DEMO_PROJECT_ID, "app", "sdk", "2026-10-17T00:00:00Z");
   const run = steerRun();
-  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
-    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value, execution: { ready: async () => {}, models: async () => [] },
+  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
+    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [run.ref] } as Output;
       if (definition.capability_id === agent.readRun.capability_id) return structuredClone(run) as Output;
       throw new Error(`Unexpected capability ${definition.capability_id} ${JSON.stringify(args)}`);
     } } });
   const server = createServer((request, response) => {
-    void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); });
+    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
@@ -209,6 +208,6 @@ test("RCPT-341–343: the report's 补充要求 keeps the ledger's fact, the AI'
     assert.equal(ownLines(material).filter(line => line === "## 执行状态").length, 1, "RCPT-343 and do not add a heading of their own");
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(dir, { recursive: true, force: true });
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(dir, { recursive: true, force: true });
   }
 });

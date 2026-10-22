@@ -80,7 +80,8 @@ export class IssueStore {
     const items = rows.slice(0, limit), last = items.at(-1);
     return { items, next_cursor: rows.length > limit && last ? { created_at: last.created_at, id: last.id } : null };
   }
-  async create(input: IssueCreate, caller: ActionExecutionContext, capture?: { id: string; validate: () => void }): Promise<Issue> {
+  /** `capture.named`: the title and type came from Issue's own model call, so the list says it was named for the person. */
+  async create(input: IssueCreate, caller: ActionExecutionContext, capture?: { id: string; validate: () => void; named?: boolean }): Promise<Issue> {
     text(input.title, "标题", 200, true); text(input.description, "描述", 100000);
     if (!ISSUE_TYPES.includes(input.type)) throw new ActionError("actions.input_invalid", "请选择问题类型");
     fields(input);
@@ -90,7 +91,7 @@ export class IssueStore {
       const now = new Date().toISOString(), id = capture?.id ?? crypto.randomUUID();
       const context: IssueContext = { recorded_at: now, page: caller.page_context ? { ...caller.page_context } : null,
         caller: { actor_id: caller.actor_id, audience: caller.audience } };
-      const entered = caller.audience === "mcp" ? "mcp" : caller.audience === "agent" ? "assistant" : "manual";
+      const entered = caller.audience === "mcp" ? "mcp" : caller.audience === "agent" || capture?.named ? "assistant" : "manual";
       db.run("INSERT INTO issues (id,title,type,description,context_json,images_json,submitter_id,entered_via,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?,?,?,1)",
         [id, input.title, input.type, input.description, JSON.stringify(context), JSON.stringify(input.images ?? []), this.owner, entered, now, now]);
       return this.read(id, db);

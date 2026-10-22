@@ -6,6 +6,7 @@ export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
 import type { ActionResultView } from "./action-result.js";
 import type { SubjectOfferChoice } from "./action-offers.js";
+export * from "./home-background-tasks.js";
 export * from "./home-events.js";
 export * from "./due-reminders.js";
 export * from "./action-offers.js";
@@ -25,6 +26,7 @@ export * from "./file-sources.js";
 export * from "./artifact-pins.js";
 export * from "./local-person.js";
 export * from "./placement.js";
+export * from "./work-executors.js";
 
 /** JSON Schema is preserved at the boundary; providers must not invent output guarantees. */
 export type ActionSchema = Readonly<Record<string, unknown>>;
@@ -54,6 +56,12 @@ export interface ActionCallOrigin {
   readonly call_id?: string;
 }
 
+/** A file the person gave the Host's entry, and the installation that entry served; see `ActionCallContext.original_file`. */
+export interface HostOfferedOriginalFile {
+  readonly path: string;
+  readonly install_id: string;
+}
+
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;
@@ -63,6 +71,12 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
   readonly audit_actor_id?: string;
+  /**
+   * The plugin (its Manifest `plugin_id`) whose running action made this call through its action directory (`actions:delegate`), on its
+   * original caller's behalf. Set only by the Host while it builds that nested caller; the call log keeps it beside the actor. It grants
+   * nothing and narrows nothing. Never business input.
+   */
+  readonly delegated_by?: string;
   /** Stable session supplied by the authenticated Host; never a business input. */
   readonly runtime_session_id?: string;
   /**
@@ -89,8 +103,16 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly plugin_install_id?: string;
   /** Trusted typed-capability origin. Never accepted from business arguments or persisted. */
   readonly host_plugin?: import("./app-host.js").HostPluginCaller;
+  /**
+   * The one original file the person handed the Host in this request (an import through the Host's own entry), set only on the control
+   * the Host made for that request and only for the installation whose route received it. It names a path and grants nothing: what a
+   * plugin may do with it is the `materials:original` service's, which asks for the declaration and the grant. Never business input.
+   */
+  readonly original_file?: HostOfferedOriginalFile;
   /** Restrict this call and its descendants to registered query operations; never grants authority. */
   readonly query_only?: true;
+  /** Read callbacks may inspect the original authorized directory, but execute only non-metered queries. */
+  readonly read_only_effects?: true;
   readonly permissions: readonly string[];
   readonly allowed_capability_ids?: readonly string[];
   /** Exact grants; when present, ID-only restrictions cannot widen versions or providers. */
@@ -128,8 +150,10 @@ export interface RetainedActionAuthority {
 
 export interface ActionExecutionContext extends ActionCallContext {
   readonly beforeEffect: () => Promise<void>;
-  /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect. */
-  readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
+  /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect.
+   * `audience: "workflow"` admits each target as the workflow audience sees it instead of this caller's own audience, for the Host when it calls
+   * the targets under that audience on this caller's behalf (the plugin action directory, S-43). Every other check is the same, and the guard still grants nothing. */
+  readonly retainAuthority?: (references: readonly ActionReference[], options?: { readonly audience?: "workflow" }) => RetainedActionAuthority;
   /** Capture this command's registration and original authority while active, for explicitly accepted background work.
    * Additional permissions must already belong to this caller and remain revocable. Entry-owned transport may detach;
    * absent a separate authority, the original cancellation boundary remains. */
@@ -173,6 +197,13 @@ export interface ActionMetadata {
   readonly file_source?: FileSourceDeclaration;
   /** Common owner protocol for reading a discussion and committing its fixed reply destination. */
   readonly thread_source?: { readonly role: "context" | "reply"; readonly subject_kind: string };
+  /**
+   * The Home may call this query in every open project and keep each project's answer apart (PG-043), as it gathers the background
+   * work still running. It only reads: a query of project scope that calls no model and costs nothing, with the `output_type` the
+   * Home asks for. Declaring it grants nothing: each call is made in its project with that project's grants, and where the plugin
+   * is off or not granted it is not called.
+   */
+  readonly home_aggregate?: true;
   /** Optional rule choices owned by this subject-offer query; each target is declared in the same registration, in the same scope, and handles the option's subject kinds. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
   /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); each target is declared in the same registration and scope. */
@@ -379,17 +410,23 @@ export interface ActionSceneBinding {
   readonly revision?: string;
 }
 
+/** Active scene callback control, issued by the Kernel; no action declaration or background authority is implied. */
+export interface ActionSceneExecutionContext extends ActionCallContext {
+  /** Recheck the original scene, judgment, permissions and caller after each wait and before committing an effect. */
+  beforeEffect(): Promise<void>;
+}
+
 export interface ActionSceneHandlerBinding {
   readonly scene_id: string;
   readonly version: number;
   bindings(context: ActionCallContext): readonly ActionSceneBinding[] | Promise<readonly ActionSceneBinding[]>;
   targets?(context: ActionCallContext): readonly ActionSceneTargetDefinition[] | Promise<readonly ActionSceneTargetDefinition[]>;
   /** Must write through the authoritative owner; when options are supplied, atomically reject a stale expected_revision. */
-  bind(context: ActionCallContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): void | Promise<void>;
+  bind(context: ActionSceneExecutionContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): void | Promise<void>;
   prepare?(context: ActionCallContext, event: unknown): { input: unknown; state?: unknown } | Promise<{ input: unknown; state?: unknown }>;
-  consume(context: ActionCallContext, input: unknown, result: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
+  consume(context: ActionSceneExecutionContext, input: unknown, result: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
   /** Optional explicit failure consumption, after the same stale-state and authority checks. */
-  failed?(context: ActionCallContext, input: unknown, error: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
+  failed?(context: ActionSceneExecutionContext, input: unknown, error: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
   availability?(context: ActionCallContext): ActionAvailability;
   /** Configuration-only availability must not depend on execution/model grants. */
   configuration_availability?(context: ActionCallContext): ActionAvailability;
@@ -429,13 +466,13 @@ export function requireSynchronous<T>(value: T, message = "此操作需要异步
   return value as Exclude<T, PromiseLike<unknown>>;
 }
 
-/** An entrypoint binds its authenticated context once; callers supply only business input. */
 /** One progress event a running action reports; on a streamed route the Host writes it as a `progress` line. */
 export type ActionProgressEvent = Parameters<NonNullable<ActionCallContext["on_progress"]>>[0];
 
 /** Where a call's progress goes. It carries no identity or authority, so it never changes whose call this is. */
 export interface ActionInvokeTransport { readonly on_progress?: (event: ActionProgressEvent) => void }
 
+/** An entrypoint binds its authenticated context once; callers supply only business input. */
 export interface BoundActionClient {
   discover(): Promise<readonly ActionView[]>;
   invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport): Promise<Output>;
@@ -447,13 +484,25 @@ export function bindActionClient(client: ActionClient, context: () => ActionCall
       const bound = context(), caller = transport?.on_progress ? { ...bound, on_progress: transport.on_progress } : bound;
       return await client.invoke(control ? { ...caller, query_only: caller.query_only || control.query_only || undefined, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context,
         retain_background_authority: control.retainBackgroundAuthority ? (references, additionalPermissions) => boundBackgroundAuthority(caller, definition, references, control.retainBackgroundAuthority!(), additionalPermissions) : undefined,
-        validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); },
-        assert_authority_current: (reference, requiredPermissions) => {
-          // The control belongs to its original caller; the bound caller owns the child's reference and permissions.
-          requireSynchronous(control.assert_authority_current?.(), "最终授权检查必须同步完成");
-          requireSynchronous(caller.assert_authority_current?.(reference, requiredPermissions), "最终授权检查必须同步完成");
-        } } : caller, definition, input) as Output;
+        ...withControlChecks(caller, control) } : caller, definition, input) as Output;
     } };
+}
+
+/**
+ * A caller's two authority checks with a control in front of each: the control's fence before the caller's own validation, and
+ * the control's final check before the caller's, both synchronous at the dispatcher's last boundary. Every client that carries a
+ * control into a call it makes (a bound client, the person's own client, a plugin's delegated call) joins it here, so a control
+ * that says the call no longer counts stops it whoever forwards it.
+ */
+export function withControlChecks(caller: ActionCallContext, control: Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current">): Pick<ActionCallContext, "validate_authority" | "assert_authority_current"> {
+  return {
+    validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); },
+    assert_authority_current: (reference, requiredPermissions) => {
+      // The control belongs to its original caller; the bound caller owns the child's reference and permissions.
+      requireSynchronous(control.assert_authority_current?.(), "最终授权检查必须同步完成");
+      requireSynchronous(caller.assert_authority_current?.(reference, requiredPermissions), "最终授权检查必须同步完成");
+    },
+  };
 }
 
 /** Keep both identities when a bound client accepts work on behalf of a parent. */
@@ -506,14 +555,21 @@ export function actionPermissionDeclarations(definitions: readonly ActionDefinit
 function object(v: unknown): v is Record<string, unknown> { return !!v && typeof v === "object" && !Array.isArray(v); }
 function text(v: unknown): v is string { return typeof v === "string" && v.trim().length > 0; }
 function id(v: unknown): v is string { return text(v) && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(v); }
+/**
+ * A provider id is only ever matched exactly against the directory, and the platform makes ids that follow no one alphabet: an external
+ * MCP server's is `system.connectors#mcp:<connection>` or `<plugin_id>#mcp:<server>`, with the server's own id in it. What is refused is
+ * what no provider can be named: a blank id, a control character, or one longer than any the platform makes.
+ */
+const PROVIDER_ID_LIMIT = 512;
+function providerId(v: unknown): v is string { return typeof v === "string" && v.trim().length > 0 && v.length <= PROVIDER_ID_LIMIT && !/\p{Cc}/u.test(v); }
 function version(v: unknown): v is number { return typeof v === "number" && Number.isSafeInteger(v) && v > 0; }
 
-/** Exact selections do not grant permission; the action service checks live authority. */
+/** Exact selections do not grant permission; the action service checks live authority, so a wider provider id reaches no new provider. */
 export type ExactActionReference = ActionReference & { readonly provider_id: string };
 export function parseExactActionReferences(value: unknown): ExactActionReference[] {
   if (!Array.isArray(value) || value.length > 100) throw new ActionError("actions.reference_invalid", "Invalid action selection or more than 100 actions");
   const refs = value.map(item => {
-    if (!object(item) || !id(item.capability_id) || !version(item.version) || !id(item.provider_id)) {
+    if (!object(item) || !id(item.capability_id) || !version(item.version) || !providerId(item.provider_id)) {
       throw new ActionError("actions.reference_invalid", "An action selection requires its exact identity, version and provider");
     }
     return { capability_id: item.capability_id, version: item.version, provider_id: item.provider_id };

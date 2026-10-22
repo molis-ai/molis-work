@@ -17,7 +17,7 @@ function fixture(t:TestContext){
   return {home,secrets,make,markUsed:()=>{used=true;}};
 }
 
-test('S-45 PCSYNC-23 the actual Home-bound provider opens without initialization and persists one pinned key for independent handles',t=>{
+test('S-57 PCSYNC-23 the actual Home-bound provider opens without initialization and persists one pinned key for independent handles',t=>{
   const f=fixture(t),first=f.make();
   assert.throws(()=>first.open(Buffer.from('not initialized'),'asset'),{code:'storage.local_payload_key_unavailable'});
   assert.equal(existsSync(join(f.home,'feed','secrets.json')),false,'read-only failure never creates a credential backend');
@@ -31,7 +31,7 @@ test('S-45 PCSYNC-23 the actual Home-bound provider opens without initialization
 });
 
 for(const fault of ['missing','invalid','replaced','identity-missing','all-missing'] as const){
-  test(`S-45 PCSYNC-12 ${fault} protection key refuses reads and writes without generating a replacement`,t=>{
+  test(`S-57 PCSYNC-12 ${fault} protection key refuses reads and writes without generating a replacement`,t=>{
     const f=fixture(t),provider=f.make(),body=Buffer.from('private content'),sealed=provider.seal(body,'asset');
     f.markUsed();const key=f.secrets.get(keyRef)!,identity=f.secrets.get(keyRef+':identity')!;
     if(fault==='missing'||fault==='all-missing')f.secrets.delete(keyRef);
@@ -48,7 +48,7 @@ for(const fault of ['missing','invalid','replaced','identity-missing','all-missi
   });
 }
 
-test('S-45 PCSYNC-01 the actual provider binds scope and purpose and rejects tampered ciphertext',t=>{
+test('S-57 PCSYNC-01 the actual provider binds scope and purpose and rejects tampered ciphertext',t=>{
   const f=fixture(t),provider=f.make(),sealed=provider.seal(Buffer.from('private text'),'outbox:asset');f.markUsed();
   assert.throws(()=>f.make('personal:bob:work').open(sealed,'outbox:asset'),{code:'storage.local_payload_invalid'});
   assert.throws(()=>provider.open(sealed,'recovery:asset'),{code:'storage.local_payload_invalid'});
@@ -56,7 +56,7 @@ test('S-45 PCSYNC-01 the actual provider binds scope and purpose and rejects tam
   assert.throws(()=>provider.open(modified,'outbox:asset'),{code:'storage.local_payload_invalid'});
 });
 
-test('S-45 PCSYNC-06 revocation while pinning a key returns no protected body and a later authorized retry uses the same key',t=>{
+test('S-57 PCSYNC-06 revocation while pinning a key returns no protected body and a later authorized retry uses the same key',t=>{
   const f=fixture(t);let active=true,once=true;
   const provider=createLocalPayloadProtection({keyRef,scope:'personal:alice:work',hasProtectedData:()=>false,
     authorize(){if(!active)throw new Error('REVOKED');},secrets:{get:ref=>f.secrets.get(ref),
@@ -68,7 +68,7 @@ test('S-45 PCSYNC-06 revocation while pinning a key returns no protected body an
   assert.equal(f.secrets.get(keyRef),key);assert.equal(Buffer.from(provider.open(sealed,'asset')).toString(),'private');
 });
 
-test('S-45 PCSYNC-23 separate processes racing first initialization pin the same actual SecretStore key',async t=>{
+test('S-57 PCSYNC-23 separate processes racing first initialization pin the same actual SecretStore key',async t=>{
   const f=fixture(t),entry=import.meta.resolve('@molis-ai/molis-work-storage');
   const workers=Array.from({length:2},(_,i)=>{
     const script=`import {createLazyFileSecretStore,createLocalPayloadProtection} from ${JSON.stringify(entry)};
@@ -93,7 +93,7 @@ test('S-45 PCSYNC-23 separate processes racing first initialization pin the same
   for(const [i,value] of sealed.entries())assert.equal(Buffer.from(f.make().open(value,'asset')).toString(),'worker-'+i);
 });
 
-test('S-45 PCSYNC-12 the retained key fingerprint prevents regeneration even after all protected payloads were released',t=>{
+test('S-57 PCSYNC-12 the retained key fingerprint prevents regeneration even after all protected payloads were released',t=>{
   const f=fixture(t),provider=f.make();provider.seal(Buffer.from('completed'),'asset');
   // hasProtectedData remains false, representing a cache already released after receipt.
   f.secrets.delete(keyRef);const path=join(f.home,'feed','secrets.json'),before=readFileSync(path);

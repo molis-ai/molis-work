@@ -14,7 +14,7 @@ function home(t:TestContext,personal=true){
   const directory=mkdtempSync(join(tmpdir(),'work-sync-state-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));
   ensureStorageSpace(directory,personal?personalStorageSpace('https://auth.example.test','work','alice'):undefined);return directory;
 }
-test('S-48 PCSYNC-12 a frozen complete v7 Session database is refused before WAL or content initialization',async t=>{
+test('S-60 PCSYNC-12 a frozen complete v7 Session database is refused before WAL or content initialization',async t=>{
   const root=home(t),directory=join(root,'sessions');mkdirSync(directory);const path=join(directory,'sessions.db'),db=new Database(path);
   db.exec(readFileSync(new URL('./fixtures/home-store-schemas/sessions-v7.sql',import.meta.url),'utf8'));
   db.prepare('INSERT INTO session_meta VALUES (?,?)').run('owner',SESSION_REGISTRY_OWNER);
@@ -23,7 +23,7 @@ test('S-48 PCSYNC-12 a frozen complete v7 Session database is refused before WAL
   assert.deepEqual(readFileSync(path),before);assert.deepEqual(readdirSync(directory),['sessions.db']);
 });
 
-test('S-48 PCSYNC-23 personal Session changes use the normal owner transaction; a rejected event leaves no queued change',async t=>{
+test('S-60 PCSYNC-23 personal Session changes use the normal owner transaction; a rejected event leaves no queued change',async t=>{
   const root=home(t),registry=await openWorkSessionRegistry({homeDirectory:root});t.after(()=>registry.close());
   const session=registry.createSession({runtime_id:'synthetic',actor_id:'person',user_confirmed:true});
   const db=new Database(registry.databasePath);t.after(()=>db.close());
@@ -37,7 +37,7 @@ test('S-48 PCSYNC-23 personal Session changes use the normal owner transaction; 
   assert.equal(replica.counts().pending,1);assert.equal(replica.next()!.key,session.session_id);
 });
 
-test('S-48 PCSYNC-01 ordinary local-space Session changes do not enqueue personal uploads',async t=>{
+test('S-60 PCSYNC-01 ordinary local-space Session changes do not enqueue personal uploads',async t=>{
   const root=home(t,false),registry=await openWorkSessionRegistry({homeDirectory:root});t.after(()=>registry.close());
   const session=registry.createSession({runtime_id:'synthetic',actor_id:'person',user_confirmed:true});
   registry.appendEvent({session_id:session.session_id,source:'molis_work',kind:'user_message',source_id:'local',content:'local text'});
@@ -47,7 +47,7 @@ test('S-48 PCSYNC-01 ordinary local-space Session changes do not enqueue persona
   }finally{db.close();}
 });
 
-test('S-48 PCSYNC-23 passive imported Handoffs preserve observed states but cannot resume, edit, dispatch or cancel',async t=>{
+test('S-60 PCSYNC-23 passive imported Handoffs preserve observed states but cannot resume, edit, dispatch or cancel',async t=>{
   const root=home(t),registry=await openWorkSessionRegistry({homeDirectory:root});let closed=false;t.after(()=>{if(!closed)registry.close();});
   const session=registry.createSession({runtime_id:'source',actor_id:'person',user_confirmed:true,project_id:'project',current_goal_id:'goal'});
   const draft=registry.createHandoffDraft({source_session_id:session.session_id,source_project_id:'project',source_goal_id:'goal',target_runtime_id:'destination',target_project_id:'project',content:'retained history',actor_id:'person'});
@@ -69,7 +69,7 @@ for(const [name,statement,expected] of [
   ['event-table','DROP TABLE session_events',/no such table: session_events/],
   ['ledger-table','DROP TABLE context_edges',/no such table: context_edges/],
   ['space-binding','DELETE FROM molis_storage_space',/空间记录缺失/],
-] as const)test(`S-48 PCSYNC-12 an existing v8 ${name} loss is refused without recreating tables, device identity or binding`,async t=>{
+] as const)test(`S-60 PCSYNC-12 an existing v8 ${name} loss is refused without recreating tables, device identity or binding`,async t=>{
   const root=home(t),registry=await openWorkSessionRegistry({homeDirectory:root}),file=registry.databasePath;registry.close();
   const db=new Database(file);db.exec(statement);db.close();const before=readFileSync(file);
   await assert.rejects(openWorkSessionRegistry({homeDirectory:root}),expected);

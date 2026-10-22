@@ -15,8 +15,8 @@ import {
   hashBytes,
   isConcealedClipboard,
   isEditableShelfItem,
-  openShelfStore,
 } from "@molis-ai/molis-work-module-shelf";
+import { openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
 import {
   SHELF_NATIVE_PLUGIN_ROUTES,
   SHELF_STYLES,
@@ -68,8 +68,8 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 
 test("empty shelf seeds a real extractable sample PDF and keeps origin hash", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home, NO_AGENT, { extract: extractMaterial });
-    const snapshot = store.snapshot();
+    const store = openHostShelfStore(home, NO_AGENT, { extract: extractMaterial });
+    const snapshot = await store.snapshot();
     assert.equal(snapshot.materials.length, 1);
     assert.equal(snapshot.materials[0]?.name, "试用示例.pdf");
     assert.equal(snapshot.materials[0]?.kind, "pdf");
@@ -90,17 +90,17 @@ test("empty shelf seeds a real extractable sample PDF and keeps origin hash", as
     assert.equal(existsSync(join(jobRoot, "input", origin.name)), true);
     assert.equal(existsSync(join(jobRoot, "input", origin.name)), true);
     assert.equal(existsSync(join(jobRoot, "output", "pdf.md")), true);
-    assert.equal(store.snapshot().results[0]?.name, "pdf.md");
+    assert.equal((await store.snapshot()).results[0]?.name, "pdf.md");
   });
 });
 
 test("admitting a local file copies bytes and refuses to write if the original hash changes", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home, NO_AGENT, { extract: extractMaterial });
+    const store = openHostShelfStore(home, NO_AGENT, { extract: extractMaterial });
     const originPath = join(home, "quote.pdf");
     const bytes = createExtractablePdf("Quote for the shelf copy.");
     await writeFile(originPath, bytes);
-    const item = store.admit({ filename: "quote.pdf", bytes, mime: "application/pdf", origin_realpath: originPath });
+    const item = await store.admit({ filename: "quote.pdf", bytes, mime: "application/pdf", origin_realpath: originPath });
     assert.equal(item.origin_hash, hashBytes(bytes));
     await store.runJob({ recipe: "extract_text", item_id: item.item_id });
     assert.equal(hashBytes(readFileSync(originPath)), item.origin_hash);
@@ -120,11 +120,11 @@ test("admitting a local file copies bytes and refuses to write if the original h
 
 test("hide, delete, clipboard, and use-as-material keep copies off the original path", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home, NO_AGENT, { extract: extractMaterial });
+    const store = openHostShelfStore(home, NO_AGENT, { extract: extractMaterial });
     const item = await store.admitText("clipboard body for the shelf", "note");
-    store.addClipboard("https://example.com/page");
-    store.addClipboard("plain clip");
-    const snapshot = store.snapshot();
+    await store.addClipboard("https://example.com/page");
+    await store.addClipboard("plain clip");
+    const snapshot = await store.snapshot();
     assert.equal(snapshot.clipboard[0]?.kind, "text");
     assert.equal(snapshot.clipboard[0]?.title, "plain clip");
     assert.equal(snapshot.clipboard[1]?.kind, "url");
@@ -132,24 +132,24 @@ test("hide, delete, clipboard, and use-as-material keep copies off the original 
     assert.equal(snapshot.current_clip_id, snapshot.clipboard[0]?.clip_id);
     const joined = await store.clipboardToMaterial(snapshot.clipboard[0]!.clip_id);
     assert.equal(joined.group, "material");
-    store.hide(item.item_id);
-    assert.equal(store.snapshot().materials.some((entry) => entry.item_id === item.item_id), false);
-    assert.equal(store.snapshot().materials.some((entry) => entry.name === "试用示例.pdf"), false);
-    const quote = store.admit({
+    await store.hide(item.item_id);
+    assert.equal((await store.snapshot()).materials.some((entry) => entry.item_id === item.item_id), false);
+    assert.equal((await store.snapshot()).materials.some((entry) => entry.name === "试用示例.pdf"), false);
+    const quote = await store.admit({
       filename: "quote.pdf",
       bytes: createExtractablePdf("Clipboard follow-up quote."),
       mime: "application/pdf",
     });
     const extracted = await store.runJob({ recipe: "extract_text", item_id: quote.item_id });
-    const reused = store.useAsMaterial(extracted.result!.item_id);
+    const reused = await store.useAsMaterial(extracted.result!.item_id);
     assert.equal(reused.group, "material");
-    store.deleteCopy(joined.item_id);
+    await store.deleteCopy(joined.item_id);
     assert.equal(existsSync(join(home, "shelf", joined.relative_path)), false);
     const urlItem = await store.clipboardToMaterial(snapshot.clipboard[1]!.clip_id);
     // A link is captured as a page: the fetch fails offline, the link still lands.
     assert.equal(urlItem.kind, "website");
     assert.match(urlItem.preview_text ?? "", /https:\/\/example\.com\/page/);
-    const site = store.admit({
+    const site = await store.admit({
       filename: "Example Domain.md",
       bytes: Buffer.from("# Example Domain\n\nhttps://example.com/\n\nHello\n", "utf8"),
       mime: "text/x-shelf-website",
@@ -162,44 +162,44 @@ test("hide, delete, clipboard, and use-as-material keep copies off the original 
 
 test("clipboard history dedupes, caps at 10, skips concealed types, and deletes records", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home, NO_AGENT, { extract: extractMaterial });
-    const first = store.addClipboard("https://example.com/page");
-    const again = store.addClipboard("https://example.com/page");
+    const store = openHostShelfStore(home, NO_AGENT, { extract: extractMaterial });
+    const first = await store.addClipboard("https://example.com/page");
+    const again = await store.addClipboard("https://example.com/page");
     assert.equal(again?.clip_id, first?.clip_id);
-    assert.equal(store.snapshot().clipboard.length, 1);
-    assert.equal(store.snapshot().clipboard[0]?.fingerprint, clipFingerprint("url", "https://example.com/page"));
-    assert.equal(store.addClipboard("secret password", { types: ["org.nspasteboard.ConcealedType"] }), null);
+    assert.equal((await store.snapshot()).clipboard.length, 1);
+    assert.equal((await store.snapshot()).clipboard[0]?.fingerprint, clipFingerprint("url", "https://example.com/page"));
+    assert.equal(await store.addClipboard("secret password", { types: ["org.nspasteboard.ConcealedType"] }), null);
     assert.equal(isConcealedClipboard(["org.nspasteboard.ConcealedType"]), true);
-    assert.equal(store.snapshot().clipboard.length, 1);
-    assert.equal(store.snapshot().current_clip_id, null);
-    store.addClipboard("https://example.com/page");
+    assert.equal((await store.snapshot()).clipboard.length, 1);
+    assert.equal((await store.snapshot()).current_clip_id, null);
+    await store.addClipboard("https://example.com/page");
     for (let index = 0; index < CLIPBOARD_LIMIT; index += 1) {
-      store.addClipboard(`clip body ${index}`);
+      await store.addClipboard(`clip body ${index}`);
     }
-    const snapshot = store.snapshot();
+    const snapshot = await store.snapshot();
     assert.equal(snapshot.clipboard.length, CLIPBOARD_LIMIT);
     assert.equal(snapshot.clipboard[0]?.title, `clip body ${CLIPBOARD_LIMIT - 1}`);
     assert.equal(snapshot.clipboard.some((clip) => clip.kind === "url"), false);
-    store.deleteClipboard(snapshot.clipboard[0]!.clip_id);
-    assert.equal(store.snapshot().clipboard.length, CLIPBOARD_LIMIT - 1);
-    assert.equal(store.snapshot().current_clip_id, null);
-    assert.equal(store.addClipboard("file:///tmp/local.pdf"), null);
+    await store.deleteClipboard(snapshot.clipboard[0]!.clip_id);
+    assert.equal((await store.snapshot()).clipboard.length, CLIPBOARD_LIMIT - 1);
+    assert.equal((await store.snapshot()).current_clip_id, null);
+    assert.equal(await store.addClipboard("file:///tmp/local.pdf"), null);
   });
 });
 
 test("writeCopy edits the shelf copy and leaves the original file hash untouched", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home, NO_AGENT, { extract: extractMaterial });
+    const store = openHostShelfStore(home, NO_AGENT, { extract: extractMaterial });
     const originPath = join(home, "note.md");
     await writeFile(originPath, "# keep\n");
-    const item = store.admit({
+    const item = await store.admit({
       filename: "note.md",
       bytes: Buffer.from("# keep\n"),
       mime: "text/markdown",
       origin_realpath: originPath,
     });
     assert.equal(isEditableShelfItem(item), true);
-    const edited = store.writeCopy(item.item_id, "# edited\n", hashBytes(store.readFile(item.item_id).bytes));
+    const edited = await store.writeCopy(item.item_id, "# edited\n", hashBytes(store.readFile(item.item_id).bytes));
     assert.equal(edited.preview_text, "# edited\n");
     assert.equal(edited.origin_hash, item.origin_hash);
     assert.equal(readFileSync(originPath, "utf8"), "# keep\n");
@@ -211,9 +211,9 @@ test("writeCopy edits the shelf copy and leaves the original file hash untouched
     );
     await writeFile(originPath, "# changed original\n");
     const pdfBytes = createExtractablePdf("PDF stays read-only on the shelf.");
-    const pdf = store.admit({ filename: "locked.pdf", bytes: pdfBytes, mime: "application/pdf" });
+    const pdf = await store.admit({ filename: "locked.pdf", bytes: pdfBytes, mime: "application/pdf" });
     assert.equal(isEditableShelfItem(pdf), false);
-    assert.throws(
+    await assert.rejects(
       () => store.writeCopy(pdf.item_id, "nope", hashBytes(store.readFile(pdf.item_id).bytes)),
       (error: unknown) => isShelfFailure(error) && error.code === "shelf.not_text",
     );
@@ -222,17 +222,17 @@ test("writeCopy edits the shelf copy and leaves the original file hash untouched
 
 test("hide keeps the copy; delete removes the copy and job folder, not the original", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home, NO_AGENT, { extract: extractMaterial });
+    const store = openHostShelfStore(home, NO_AGENT, { extract: extractMaterial });
     const originPath = join(home, "keep-me.md");
     await writeFile(originPath, "# original stays\n");
-    const item = store.admit({
+    const item = await store.admit({
       filename: "keep-me.md",
       bytes: Buffer.from("# original stays\n"),
       mime: "text/markdown",
       origin_realpath: originPath,
     });
     const copyPath = join(home, "shelf", item.relative_path);
-    const source = store.admit({
+    const source = await store.admit({
       filename: "keep-me.pdf",
       bytes: createExtractablePdf("Keep the original where it is."),
       mime: "application/pdf",
@@ -240,18 +240,18 @@ test("hide keeps the copy; delete removes the copy and job folder, not the origi
     const extracted = await store.runJob({ recipe: "extract_text", item_id: source.item_id });
     const jobRoot = join(home, "shelf", "jobs", extracted.job.job_id);
     assert.equal(existsSync(jobRoot), true);
-    store.hide(extracted.result!.item_id);
-    assert.equal(store.snapshot().results.some((entry) => entry.item_id === extracted.result!.item_id), false);
+    await store.hide(extracted.result!.item_id);
+    assert.equal((await store.snapshot()).results.some((entry) => entry.item_id === extracted.result!.item_id), false);
     assert.match(store.readFile(extracted.result!.item_id).bytes.toString("utf8"), /Keep the original where it is/);
-    store.deleteCopy(extracted.result!.item_id);
+    await store.deleteCopy(extracted.result!.item_id);
     assert.equal(existsSync(join(home, "shelf", extracted.result!.relative_path)), false);
     assert.equal(existsSync(jobRoot), false);
     assert.equal(readFileSync(copyPath, "utf8"), "# original stays\n");
-    store.hide(item.item_id);
-    assert.equal(store.snapshot().materials.some((entry) => entry.item_id === item.item_id), false);
+    await store.hide(item.item_id);
+    assert.equal((await store.snapshot()).materials.some((entry) => entry.item_id === item.item_id), false);
     assert.equal(readFileSync(copyPath, "utf8"), "# original stays\n");
     assert.equal(readFileSync(originPath, "utf8"), "# original stays\n");
-    store.deleteCopy(item.item_id);
+    await store.deleteCopy(item.item_id);
     assert.equal(existsSync(copyPath), false);
     assert.equal(readFileSync(originPath, "utf8"), "# original stays\n");
   });
@@ -415,16 +415,16 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.match(SHELF_STYLES, /\.shelf-name \{[\s\S]*flex: 0 1 auto;/);
   assert.match(SHELF_STYLES, /\.shelf-name \{[\s\S]*font-size: 13px/);
   assert.match(SHELF_STYLES, /\.shelf-name \{[\s\S]*color: var\(--ink\)/);
-  assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, \.is-on\):not\(\.is-child\) \{ padding-right: 72px; \}/);
+  assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, :focus-within, \.is-on\):not\(\.is-child\) \{ padding-right: 72px; \}/);
   assert.match(SHELF_STYLES, /\.shelf-row \.shelf-ops \{[\s\S]*display: flex;[\s\S]*opacity: 0/);
-  assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, \.is-on\):not\(\.is-child\) \.shelf-ops \{ opacity: 1/);
+  assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, :focus-within, \.is-on\):not\(\.is-child\) \.shelf-ops \{ opacity: 1/);
   assert.doesNotMatch(SHELF_STYLES, /\.shelf-ops \{[^}]*display: none/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /yieldName/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /includes\(":\/\/"\)/);
   assert.doesNotMatch(SHELF_STYLES, /shelf-cap/);
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /shelf-cap/);
   assert.match(SHELF_STYLES, /\.shelf-row \.shelf-when \{[\s\S]*color: var\(--da-faint\)/);
-  assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, \.is-on\):not\(\.is-child\) :is\(\.shelf-when, \.shelf-status, \.shelf-now\)/);
+  assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, :focus-within, \.is-on\):not\(\.is-child\) :is\(\.shelf-when, \.shelf-status, \.shelf-now\)/);
   assert.match(SHELF_STYLES, /html\[data-resolved-theme="dark"\] \[data-shelf\] \.shelf-paper \{[\s\S]*background: var\(--da-panel\)/);
   assert.match(SHELF_STYLES, /\.shelf-paper:active \{ background: var\(--da-press\); \}/);
   // No work-area stage, so no rule reaches into the workbench's plugin sections or its immersive body.

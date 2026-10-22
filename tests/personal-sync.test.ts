@@ -278,7 +278,7 @@ test('Artifact Host refuses an account or space that does not own its Home',t=>{
   assert.throws(()=>createPersonalArtifactRegistration(f.homes[0],'foreign-space','alice',()=>{},withMolisWorkProjectCatalog),{code:'host.version_sync_scope'});
 });
 
-test('S-44 PCSYNC-14 Host refuses malformed fixed content before creating any target project',async t=>{
+test('S-56 PCSYNC-14 Host refuses malformed fixed content before creating any target project',async t=>{
   const f=fixture(t),check=()=>{};
   const project=await withMolisWorkProjectCatalog({homeDirectory:f.homes[0]},c=>c.createProject({display_name:'Validated before creation',actor_id:'alice'}));
   const source=new LocalProjectDatabase(project.database_path);t.after(()=>source.close());

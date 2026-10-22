@@ -20,7 +20,7 @@ export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (
 );`)+replicaSchemaSql('characters') };
 
 /** The Characters store in the Home's store registry (W4-11): `characters/characters.sqlite`. */
-export const CHARACTERS_HOME_STORE = { path: "characters", library: { baseline: CHARACTERS_STORE_BASELINE, file: "characters.sqlite" } } as const satisfies HomeStoreDeclaration;
+export const CHARACTERS_HOME_STORE = { path: "characters", library: { baseline: CHARACTERS_STORE_BASELINE, file: "characters.sqlite" }, replication: createCharactersReplicationBinding } as const satisfies HomeStoreDeclaration;
 
 /** Installation-level personal drafts. No production credential store is opened. */
 export function openCharacters(homeDirectory: string, actorId: string): { service: CharactersService; close(): void } {

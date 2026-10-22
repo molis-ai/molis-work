@@ -10,9 +10,9 @@ const data=<T>(result:Awaited<ReturnType<Fixture['call']>>):T=>{assert.equal(res
 const configuration={intent:'discuss',workspace_id:'work',provider_id:'fixture',model_id:'fixture'};
 type Saved={draft:string;question_drafts:Record<string,unknown>;input_revision:number;configuration:unknown};
 
-// S-53, PCS-S6: the normal Action/HTTP path refuses missing or old premises before changing other preferences.
+// S-65, PCS-S6: the normal Action/HTTP path refuses missing or old premises before changing other preferences.
 test('Coding input edits require the original revision and preserve independent settings on refusal',async t=>{
- const fixture=await codingSdkRuntime(t);fixture.create('A');
+ const fixture=await codingSdkRuntime(t);await fixture.create('A');
  const url='/sessions/A',questions={question:{answers:[{question:1,indexes:[2]}]}};
  assert.equal(data<Saved>(await fixture.call(url)).input_revision,0);
  for(const expected of [undefined,1]){
@@ -37,7 +37,7 @@ test('Coding input edits require the original revision and preserve independent 
  const empty=data<Saved>(await fixture.call(url));assert.equal(empty.draft,'');assert.deepEqual(empty.question_drafts,questions);
 });
 
-// S-53, PCS-S6: use a real Runtime/SDK and local HTTP model. Only the accepted handle receipt is held back.
+// S-65, PCS-S6: use a real Runtime/SDK and local HTTP model. Only the accepted handle receipt is held back.
 for(const concurrentEdit of [false,true])test(`an accepted Coding Run clears only its original saved input (later typing: ${concurrentEdit})`,{timeout:30000},async t=>{
  let requests=0;const modelRequest=Promise.withResolvers<void>();
  const server=createServer((_request,response)=>{
@@ -46,7 +46,7 @@ for(const concurrentEdit of [false,true])test(`an accepted Coding Run clears onl
  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
  const address=server.address();assert.ok(address&&typeof address==='object');
  t.after(()=>new Promise<void>((resolve,reject)=>{server.close(error=>error?reject(error):resolve());server.closeAllConnections();}));
- const fixture=await codingSdkRuntime(t,`http://127.0.0.1:${address.port}/v1/messages`);fixture.create('A');
+ const fixture=await codingSdkRuntime(t,{modelEndpoint:`http://127.0.0.1:${address.port}/v1/messages`});await fixture.create('A');
  const url='/sessions/A',questions={original:{answers:[{question:1,value:'保留待答输入'}]}};
  data(await fixture.call(url,{draft:'sent task',question_drafts:questions,expected_input_revision:0},'PATCH'));
  const accepted=Promise.withResolvers<AgentRunRef>(),release=Promise.withResolvers<void>();t.after(()=>release.resolve());

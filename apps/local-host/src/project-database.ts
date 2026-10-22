@@ -1,7 +1,7 @@
 import type {ReplicaInputValue,ReplicaOutputValue} from "@molis-ai/molis-work-storage";
 import type {ReplicaDatabase} from "@molis-ai/molis-work-storage";
 import { catalogErrors } from "./project-catalog-contract.js";
-import { applySqliteBaseline, LocalSqliteStorage, SqliteSchemaVersionError, ensureStorageSpace, bindDatabaseSpace, namespacedReplicaDatabase, initializeReplica, replicaMarkSql, queueReplicaChange } from "@molis-ai/molis-work-storage";
+import { shareReplicaTriggerDefinitions, applySqliteBaseline, LocalSqliteStorage, SqliteSchemaVersionError, ensureStorageSpace, bindDatabaseSpace, namespacedReplicaDatabase, initializeReplica, replicaMarkSql, queueReplicaChange } from "@molis-ai/molis-work-storage";
 import { installArtifactReplicationJournal, installProcessItemReplicationJournal } from '@molis-ai/molis-work-module-artifacts';
 import { installProjectGoalReplication } from './project-replication.js';
 import pathUtil from 'node:path';
@@ -10,22 +10,32 @@ import { createGoalReadServices } from "@molis-ai/molis-work-module-goals";
 import { createGovernanceReadServices } from "@molis-ai/molis-work-module-governance-collaboration";
 import type { GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import { readMolisWorkSnapshot, type BoardSnapshot, type MolisWorkSnapshotPorts } from "@molis-ai/molis-work-plugin-goals";
-import { PROJECT_DATABASE_BASELINE, installPersonalProjectPluginReplication } from "./project-database-schema.js";
+import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
+import { installPersonalProjectPluginReplication } from "./project-content-replication.js";
+import { openProjectPluginDatabases, projectPluginDatabaseRefusal, type ProjectPluginDatabaseOutcome } from "./project-plugin-databases.js";
 
 /** A project database recovery cannot open: gone, or at another schema version than this build's baseline. */
 
 
-/** One local connection at the project database baseline, and public read services for a Project. */
+/**
+ * One local connection at the project database baseline, with the built-in plugins' own tables opened on it, and public read
+ * services for a Project. Recovery (`existingOnly`) opens a library already at this version and leaves its plugins' tables as
+ * they are.
+ */
 export class LocalProjectDatabase extends LocalSqliteStorage {
   readonly replicationDatabase:ReplicaDatabase;
   readonly goalsQuery: GoalsQueryApi;
+  /** What happened to each built-in plugin's tables when this library opened; a refused one stops only that plugin. */
+  readonly pluginDatabases: ReadonlyMap<string, ProjectPluginDatabaseOutcome>;
   private readonly snapshotQueries: MolisWorkSnapshotPorts;
 
   constructor(path: string, options: { existingOnly?: boolean } = {}) {
     super(options.existingOnly ? inspectExistingDatabase(path) : inspectCurrentDatabase(path), { fileMustExist: options.existingOnly });
-    this.replicationDatabase={exec:sql=>this.db.exec(sql),prepare:sql=>this.db.prepare<ReplicaInputValue[],Record<string,ReplicaOutputValue>>(sql)};
+    this.replicationDatabase = {exec: sql => this.db.exec(sql), prepare: sql => this.db.prepare<ReplicaInputValue[], Record<string, ReplicaOutputValue>>(sql)};
+    shareReplicaTriggerDefinitions(this.db, this.replicationDatabase);
     try {
       if (!options.existingOnly) applySqliteBaseline(this.db, path, PROJECT_DATABASE_BASELINE);
+      this.pluginDatabases = options.existingOnly ? new Map() : openProjectPluginDatabases(this.db, path);
       // Managed projects inherit their Home even when opened by CLI/background code.
       const candidate=pathUtil.resolve(pathUtil.dirname(path),'../..');
       // Standalone fixtures/inspection paths are not implicitly assigned to the
@@ -33,10 +43,11 @@ export class LocalProjectDatabase extends LocalSqliteStorage {
       if (pathUtil.basename(pathUtil.dirname(pathUtil.dirname(path)))==='projects' && fs.existsSync(pathUtil.join(candidate,'storage-space.json'))) {
         const space=ensureStorageSpace(candidate);bindDatabaseSpace(this.db,space);
         if(space.kind==='personal'){
-          installProjectGoalReplication(this.replicationDatabase);
+          const available=(id:string)=>!projectPluginDatabaseRefusal(this.db,id);
+          if(available('io.molis.work.goals'))installProjectGoalReplication(this.replicationDatabase);
           const managedProjectId=pathUtil.basename(pathUtil.dirname(path));
           // Newly created projects use a temporary staging directory before their final ID path exists.
-          if(!managedProjectId.startsWith('.staging-'))installPersonalProjectPluginReplication(this.replicationDatabase, managedProjectId);
+          if(!managedProjectId.startsWith('.staging-'))installPersonalProjectPluginReplication(this.replicationDatabase, managedProjectId, available);
           const ledger=namespacedReplicaDatabase(this.replicationDatabase,'artifacts');initializeReplica(ledger);
           installArtifactReplicationJournal(this.db,key=>replicaMarkSql(key).replace(/\breplica_/g,'artifacts_replica_'),(project,id)=>queueReplicaChange(ledger,JSON.stringify([project,'artifact',id])));
           const processLedger=namespacedReplicaDatabase(this.replicationDatabase,'process_items');initializeReplica(processLedger);

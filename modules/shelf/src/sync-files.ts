@@ -55,6 +55,8 @@ export function stageShelfPortableFiles(root: string, item: ShelfPortableItem, a
   // Verify every body before any destination path is created.
   const bodies=files.map(file=>({file,bytes:shelfPortableBytes(file)}));authorize();
   if(!files.length)return '';
+  if (existsSync(root) && lstatSync(root).isSymbolicLink()) throw shelfErrors.path_invalid('Shelf 根目录不能是链接');
+  mkdirSync(root, { recursive: true });
   const base=path.join('files',record.item_id,'versions',record.copy_hash,record.name);
   for(const {file,bytes}of bodies){authorize();immutable(root,record.kind==='folder'?path.join(base,file.relative):base,bytes);}
   authorize();return base;

@@ -269,6 +269,19 @@
     "type": "application/json",
     "error": "请选择当前项目已关联且可用的工作目录"
   },
+  "GET <project>/api/project-settings/write-checkers": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "lists"
+    ]
+  },
+  "POST <project>/api/project-settings/write-checkers": {
+    "status": 400,
+    "type": "application/json",
+    "code": "actions.input_invalid",
+    "error": "输入不符合能力合同：/ required, / required, / required"
+  },
   "GET <project>/side/todo/no-such-view (page)": {
     "status": 404,
     "type": "text/html",
@@ -489,6 +502,16 @@
     ]
   },
   "GET <project>/api/pages": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "POST <project>/api/pages/import/preview": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.pages/pages": {
     "status": 200,
     "type": "application/json",
     "keys": [
@@ -496,11 +519,17 @@
       "folders"
     ]
   },
-  "POST <project>/api/pages/import/preview": {
+  "POST <project>/api/plugins/io.molis.work.pages/pages/import/preview": {
     "status": 400,
     "type": "application/json",
     "code": "actions.input_invalid",
     "error": "输入不符合能力合同：/ required"
+  },
+  "GET <project>/api/plugins/io.molis.work.pages/pages/no-such": {
+    "status": 404,
+    "type": "application/json",
+    "code": "pages.not_found",
+    "error": "找不到这篇文档"
   },
   "GET <project>/api/dataset": {
     "status": 404,
@@ -686,6 +715,11 @@
     ]
   },
   "GET <project>/api/workflows": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.native.workflows/workflows": {
     "status": 200,
     "type": "application/json",
     "keys": [
@@ -693,6 +727,12 @@
       "stations",
       "workflows"
     ]
+  },
+  "GET <project>/api/plugins/io.molis.work.native.workflows/workflows/no-such": {
+    "status": 404,
+    "type": "application/json",
+    "code": "workflows.not_found",
+    "error": "找不到这条流程"
   },
   "GET <project>/api/inbox": {
     "status": 200,

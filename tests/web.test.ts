@@ -846,7 +846,6 @@ test("Web explains incomplete product decomposition and shows who owns each prod
   try {
     coordinator.initializeBoard({
       project_id: "web-decomposition-board",
-      title: "Product Decomposition",
       actor_id: "web-user",
       idempotency_key: "web-decomposition-init",
     });

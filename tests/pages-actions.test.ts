@@ -20,7 +20,7 @@ async function fixture(run: (f: { home: string; host: MolisWorkLocalHost; caller
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: PAGES_ACTION_PERMISSIONS };
   const client = host.actionClient(ref);
   try {
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, title: "Pages", actor_id: "owner", idempotency_key: "init" }));
+    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
     await run({ home, host, caller, client, ref, bound: bindActionClient(client, () => caller) });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 }
@@ -122,7 +122,7 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
         assert.equal((await bound.invoke(actions.list, {})).documents.length, 1, "a candidate is returned, not saved as a document");
       } else {
         const rejection = assert.rejects(pending, mode === "missing" ? { code: "actions.connection_required" }
-          : mode === "failure" ? /Fixture model failure/ : mode === "empty" ? /模型没有返回文字/
+          : mode === "failure" ? { code: "plugin.model_failed", message: "模型请求失败，请重试" } : mode === "empty" ? /模型没有返回文字/
           : mode === "cancel" ? { name: "AbortError" } : mode === "delete" ? { code: "pages.not_found" } : { code: "pages.conflict" });
         if (!["missing", "failure", "empty"].includes(mode)) {
           await entered;
@@ -146,7 +146,7 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
 
 test("a new document can be taken back only while unchanged: create names its undo, discard refuses once it was edited", async () => {
   const { actionEffect } = await import("@molis-ai/molis-work-contracts/platform/actions");
-  assert.deepEqual(actions.create.action.undo, { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "document.version" } });
+  assert.deepEqual(actions.create.action.undo, { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "created_version" } });
   assert.deepEqual(inspectActionDeclarations([actions.create, actions.discard], undefined), []);
   assert.equal(actionEffect(actions.discard.action, actions.discard.capability_id), "irreversible", "an agent calling discard itself is asked each time");
   await fixture(async ({ bound }) => {
@@ -216,5 +216,76 @@ test("rewriting a body from Markdown keeps the title the person gave; only a new
     }
     const { document: fresh } = await bound.invoke(actions.create, { markdown: "# 来自 Markdown 的标题\n\n正文" });
     assert.equal(fresh.title, "来自 Markdown 的标题");
+  });
+});
+
+// ---- W4-2 (specs/context-program §21.10): 存为文档 is Pages' own creation entry -----------------------------------------------------
+const selection = (over: Record<string, unknown>, request_id = "req-1") => ({ request_id, fragment: {
+  object: { kind: "pages_document", id: "doc-1", version: 3, title: "留存计划" }, granularity: "range",
+  targets: [{ kind: "text_range", role: "paragraph", text: "接口先不改，只加一层适配。" }], ...over } }) as never;
+
+test("W4-2-06 W4-2-12: 存为文档 is declared on pages.create@2 with its own deterministic offers query, and the declarations check", () => {
+  assert.equal(actions.create.version, 2);
+  assert.ok(Object.entries(actions).filter(([name]) => name !== "create").every(([, action]) => action.version === 1));
+  const intake = actions.create.action.intake!;
+  assert.deepEqual([intake.intake_id, intake.verb, intake.material_field, intake.effect, intake.prepare], ["document", "存为文档", "markdown", undefined, { capability_id: "pages.intake.offers", version: 1 }]);
+  assert.ok(intake.examples.length >= 1 && intake.examples.length <= 3);
+  assert.equal(actions.create.action.undo?.capability_id, "pages.discard", "taken back by Pages' own undo, not by a platform rule");
+  assert.equal(actions.intakeOffers.operation, "query");
+  assert.deepEqual(inspectActionDeclarations([actions.create, actions.discard, actions.intakeOffers], undefined), []);
+});
+
+test("W4-2-06: the offer is the whole input of pages.create from the selection: title from the heading above or its first line, the source on the last line", async () => {
+  await fixture(async ({ bound }) => {
+    const offerOf = async (over: Record<string, unknown>, request = "req-1") => (await bound.invoke(actions.intakeOffers, selection(over, request))).offers;
+    // Under a heading: the nearest heading names it; the text is the selection, then where it came from.
+    const [under] = await offerOf({ heading_path: ["方案", "兼容性"] });
+    assert.deepEqual([under!.offer_id, under!.title, under!.action], ["document", "存为文档", { capability_id: "pages.create", version: 2 }]);
+    assert.deepEqual(under!.input, { title: "兼容性", markdown: "接口先不改，只加一层适配。\n\n摘自『留存计划』", request_id: "req-1" });
+    assert.deepEqual(under!.editable, ["title", "markdown"]);
+    // No heading: the selection's own first line, without a list marker.
+    const [plain] = await offerOf({ targets: [{ kind: "block", role: "list", text: "- 先做适配层\n- 再迁移调用方" }] });
+    assert.equal((plain!.input as { title: string }).title, "先做适配层");
+    // A selected heading is the title and stays a heading in the text.
+    const [heading] = await offerOf({ granularity: "blocks", targets: [{ kind: "block", role: "heading", text: "兼容性" }, { kind: "block", role: "paragraph", text: "只加一层适配。" }] });
+    assert.deepEqual(heading!.input, { title: "兼容性", markdown: "## 兼容性\n\n只加一层适配。\n\n摘自『留存计划』", request_id: "req-1" });
+    // Long first lines are cut; a cut selection says so on the card.
+    const [long] = await offerOf({ targets: [{ kind: "text_range", role: "paragraph", text: "很".repeat(120), truncated: true }] });
+    assert.equal((long!.input as { title: string }).title.length, 80);
+    assert.match(long!.summary!, /选中的内容太长，只存了前面的部分/u);
+    // The cut never falls inside an emoji: no half of a pair is left at the end of the title, and Pages still accepts it.
+    const [emoji] = await offerOf({ targets: [{ kind: "text_range", role: "paragraph", text: `a${"😀".repeat(60)}` }] });
+    const emojiTitle = (emoji!.input as { title: string }).title;
+    assert.equal(emojiTitle, `a${"😀".repeat(39)}…`);
+    assert.doesNotMatch(emojiTitle, /[\ud800-\udfff]/u, "with the u flag only a lone half of a pair matches");
+    assert.equal((await bound.invoke(actions.create, emoji!.input as never)).document.title, emojiTitle);
+    // No document in a blank selection, a word, or whole objects.
+    assert.deepEqual(await offerOf({ targets: [{ kind: "text_range", role: "paragraph", text: "   " }] }), []);
+    assert.deepEqual(await offerOf({ granularity: "word" }), []);
+    assert.deepEqual(await offerOf({ granularity: "objects" }), []);
+  });
+});
+
+test("W4-2-06: pages.create with a request id makes the document once; other content under the same request is refused; preparing needs the read permission", async () => {
+  await fixture(async ({ bound, client, caller }) => {
+    const [offer] = (await bound.invoke(actions.intakeOffers, selection({}, "req-same"))).offers;
+    const first = await bound.invoke(actions.create, offer!.input as never);
+    const again = await bound.invoke(actions.create, offer!.input as never);
+    assert.equal(again.document.id, first.document.id, "the same request is the same document");
+    // Only the call that made the document can take it back: the undo reads `created_version`, which a retry does not carry.
+    assert.deepEqual([first.created_version, again.created_version], [1, undefined]);
+    assert.equal((await bound.invoke(actions.list, {})).documents.length, 1);
+    assert.equal(first.document.title, "接口先不改，只加一层适配。");
+    const [other] = (await bound.invoke(actions.intakeOffers, selection({}, "req-other"))).offers;
+    assert.notEqual((await bound.invoke(actions.create, other!.input as never)).document.id, first.document.id);
+    assert.equal((await bound.invoke(actions.list, {})).documents.length, 2);
+    await assert.rejects(bound.invoke(actions.create, { ...(offer!.input as object), markdown: "别的内容" } as never), { code: "pages.unavailable", message: /同一个请求的内容已改变，请重新发起/u });
+    // Without a request id, create behaves as it always did.
+    assert.equal((await bound.invoke(actions.create, { title: "无请求号" })).created_version, 1);
+    assert.equal((await bound.invoke(actions.list, {})).documents.length, 3);
+    // A request whose document has been deleted since is not made again, and says so in create's own words.
+    await bound.invoke(actions.delete, { id: first.document.id });
+    await assert.rejects(bound.invoke(actions.create, offer!.input as never), { code: "pages.unavailable", message: /这个请求已完成，但其中的文档已被删除；不会重新创建/u });
+    await assert.rejects(client.invoke({ ...caller, permissions: ["pages:write"] }, actions.intakeOffers, selection({})), { code: "actions.forbidden" });
   });
 });

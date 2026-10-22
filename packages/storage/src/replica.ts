@@ -9,10 +9,8 @@ import {replicaSerialization} from './replica-serialization.js';
 import type { SyncMutation, SyncEvent, SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 
 /** Common borrowed connection surface for node:sqlite and better-sqlite3 owners. */
-export interface ReplicaDatabase {
-  exec(sql:string):unknown;
-  prepare(sql:string):{get(...params:SQLInputValue[]):Record<string,SQLOutputValue>|undefined;all(...params:SQLInputValue[]):Record<string,SQLOutputValue>[];run(...params:SQLInputValue[]):unknown};
-}
+export type {ReplicaDatabase} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
+import type {ReplicaDatabase} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 /** Read-only technical history, including a locally deleted target whose body is now absent. */
 export function hasReplicaHistory(db:ReplicaDatabase,key:string):boolean {
  return ['replica_changes','replica_heads','replica_outbox','replica_conflicts','replica_resolutions'].some(table=>!!db.prepare(`SELECT 1 FROM ${table} WHERE key=? LIMIT 1`).get(key));

@@ -1,0 +1,28 @@
+import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { PAGES_INSTRUCTIONS, PAGES_PROJECT_PLUGIN_ID, pagesManifest, pagesMethods, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution, pagesProjectData, PAGES_HOME_STORE } from "./index.js";
+
+/**
+ * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
+ * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
+ */
+import { syncTupleLocation } from "@molis-ai/molis-work-plugin-sdk";
+import { openPagesReplicationBinding, createPagesSyncContent } from "./index.js";
+export const registration: PluginRegistration = {
+  sync:{documents:{scope:'projects',locate:syncTupleLocation('pages',true,2, true),open:openPagesReplicationBinding,content:createPagesSyncContent}},
+  project_plugin_id: PAGES_PROJECT_PLUGIN_ID, catalog_order: 15,
+  home_store: PAGES_HOME_STORE,
+  manifest: pagesManifest,
+  project_data: pagesProjectData,
+  instructions: PAGES_INSTRUCTIONS,
+  methods: pagesMethods,
+  personal: true,
+  summary: "写文档，可导出 Markdown / PDF。",
+  workbench: {
+    order: 9,
+    contributions: [pagesUiContribution],
+    stylesheet: PAGES_STYLES,
+    clientFactory: PAGES_CLIENT_FACTORY_SCRIPT, clientServed: true,
+    clientAssets: ["/assets/molis-work-pages-editor.js"],
+    searchRow: { selector: "button.feed-stage-entry[data-page-id]", idDataset: "pageId" },
+  },
+};

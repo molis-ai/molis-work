@@ -332,6 +332,9 @@ const PANEL_BODY = `(async () => {
     const tag = element.tagName.toLowerCase(), classes = element.className;
     kinds.set(tag + '.' + classes, [tag, classes]);
   }
+  // RING-06: built clients remove JavaScript trivia; every control still gets measured. The bundler renames the helper where
+  // a factory takes it as a parameter (\`el2\`, \`el3\`), so those calls are read too.
+  for (const match of text.matchAll(/\\bel\\d*\\(\\s*"(button|summary|a|input|select|textarea|label)"\\s*,\\s*"((?:assistant|mw)-[^"]*)"/g)) kinds.set(match[1] + "." + match[2], [match[1], match[2]]);
   const thread = panel.querySelector(".assistant-thread");
   if (panel.dataset.side === "open" && panel.dataset.layout === "drawer") panel.querySelector("[data-assistant-side-toggle]").click();
   await wait(300);
@@ -929,7 +932,8 @@ for (const scheme of ["light", "dark"] as const) {
       const { fit } = await w.line(`${name} · 620`, [...chips], [...kinds], floors.bar, true, false);
       assert.equal(fit.touchRules, false, "a fine-pointer window of 620px does not take the phone's rules");
       assert.equal(fit.stage, "", `${name} · 620: so the island marks no step`);
-      assert.deepEqual(await w.moreLabels(), ["添加文件或图片…", "引用项目里的内容", "用一个能力或方法"], `${name} · 620: and the "+" menu lists its usual rows, not the chips that are still on the line`);
+      // In a project the menu also offers the project-knowledge picker (PMAT-17; specs/project-knowledge/spec.md §9 and §14).
+      assert.deepEqual(await w.moreLabels(), ["添加文件或图片…", "选择项目资料…", "引用项目里的内容", "用一个能力或方法"], `${name} · 620: and the "+" menu lists its usual rows, not the chips that are still on the line`);
     }
   });
 }

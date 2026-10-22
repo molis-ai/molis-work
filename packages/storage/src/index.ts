@@ -22,6 +22,7 @@ export { createAtomicFileDocument } from './adapters/file-document.js';
 export { ensureStorageSpace, readStorageSpace, personalStorageSpace, bindDatabaseSpace, readDatabaseSpace, spaceAssetRef, STORAGE_SPACE_SCHEMA_SQL, type StorageSpace, type SpaceAssetRef } from './space.js';
 
 export {
+  homeSqlitePartitionDirectory,
   homeSqlitePath,
   openHomeSqliteDatabase,
   openReadOnlyHomeSqlite,
@@ -33,9 +34,11 @@ export {
   clearInExistingHomeSqlite,
   describeSqliteBaseline,
   describeSqliteSchema,
+  listSqliteObjects,
   openBaselineHomeSqlite,
   type SqliteBaseline,
   type SqliteBaselineDatabase,
+  type SqliteSchemaObject,
   type SqliteSchemaShape,
 } from "./sqlite-baseline.js";
 
@@ -56,6 +59,7 @@ export * from "./adapters/search-storage.js";
 export { createEvidenceContentStore, type EvidenceContentStore } from "./adapters/evidence-content.js";
 export { createLocalPayloadProtection } from './adapters/local-payload-protection.js';
 export { replicaSerialization as createSyncBodySerialization } from './replica-serialization.js';
+export { installReplicaTrigger, replicaTriggerDefinitions, shareReplicaTriggerDefinitions } from './replica-triggers.js';
 export {borrowedReplicaDatabase,hasReplicaBodies} from './borrowed-replica.js';
 export { openMemoryLedger, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_HOME_STORE } from "./adapters/memory-ledger.js";
 export { openKnowledgeCards, clearKnowledgeProject, KNOWLEDGE_CARDS_STORE, KNOWLEDGE_CARDS_BASELINE, KNOWLEDGE_CARDS_HOME_STORE } from "./adapters/knowledge-cards.js";

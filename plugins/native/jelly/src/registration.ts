@@ -1,0 +1,28 @@
+import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, createJellyPlugin, JELLY_DATABASE, JELLY_MODEL_CONFIGURATION } from "./index.js";
+import { JELLY_MESSAGES } from "./messages.js";
+
+/**
+ * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
+ * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
+ */
+import { syncTupleLocation, createSyncJsonContent } from "@molis-ai/molis-work-plugin-sdk";
+import { openJellyStore } from "./index.js";
+export const registration: PluginRegistration = {
+  sync:{jelly_workspace:{scope:'home',locate:syncTupleLocation('jelly',false, undefined, false),open:openJellyStore,content:createSyncJsonContent}},
+  project_plugin_id: JELLY_PROJECT_PLUGIN_ID, catalog_order: 5,
+  runtime: { scope: "home", create: createJellyPlugin, database: JELLY_DATABASE, model_configuration: JELLY_MODEL_CONFIGURATION,
+    package_name: "@molis-ai/molis-work-plugin-jelly", factory_export: "createJellyPlugin" },
+  messages: JELLY_MESSAGES,
+  manifest: jellyManifest,
+  instructions: JELLY_INSTRUCTIONS,
+  personal: true,
+  summary: "日历与笔记，按天安排。",
+  workbench: {
+    order: 3,
+    contributions: [jellyUiContribution],
+    stylesheet: JELLY_STYLES,
+    clientFactory: JELLY_CLIENT_FACTORY_SCRIPT,
+    searchRow: { selector: "[data-jelly-id]", idDataset: "jellyId" },
+  },
+};

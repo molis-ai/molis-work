@@ -26,7 +26,7 @@ function protection(key: Uint8Array, afterSeal = () => {}): SyncLocalProtection 
   };
 }
 
-test('S-45 PCSYNC-23 protected outbox, conflicts and recovery bodies round-trip without persisting plaintext', t => {
+test('S-57 PCSYNC-23 protected outbox, conflicts and recovery bodies round-trip without persisting plaintext', t => {
   const root = mkdtempSync(join(tmpdir(), 'protected-replica-'));t.after(() => rmSync(root, {recursive:true,force:true}));
   const file = join(root, 'owner.db');let db = new DatabaseSync(file);t.after(() => db.close());
   db.exec(replicaSchemaSql());initializeReplica(db);
@@ -58,7 +58,7 @@ test('S-45 PCSYNC-23 protected outbox, conflicts and recovery bodies round-trip 
   }
 });
 
-test('S-45 PCSYNC-01 a protected owner refuses plaintext, wrong keys and cross-asset ciphertext', t => {
+test('S-57 PCSYNC-01 a protected owner refuses plaintext, wrong keys and cross-asset ciphertext', t => {
   const db=new DatabaseSync(':memory:');t.after(()=>db.close());db.exec(replicaSchemaSql());initializeReplica(db);
   const key=randomBytes(32),owner={authorize(){},protection:protection(key),read:(id:string)=>'private-'+id,apply(){assert.fail('this test never applies content')}};
   const replica=createSqliteReplica(db,owner);queueReplicaChange(db,'first');const first=replica.next()!;
@@ -72,7 +72,7 @@ test('S-45 PCSYNC-01 a protected owner refuses plaintext, wrong keys and cross-a
   assert.equal(replica.counts().pending,1);assert.equal(replica.cursor(),0);
 });
 
-test('S-45 PCSYNC-06 revocation during protection rolls back technical writes and keeps the original queue',t=>{
+test('S-57 PCSYNC-06 revocation during protection rolls back technical writes and keeps the original queue',t=>{
   const db=new DatabaseSync(':memory:');t.after(()=>db.close());db.exec(replicaSchemaSql());initializeReplica(db);
   let active=true;
   const replica=createSqliteReplica(db,{authorize(){if(!active)throw new Error('REVOKED');},

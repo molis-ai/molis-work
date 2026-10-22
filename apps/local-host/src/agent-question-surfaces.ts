@@ -46,7 +46,9 @@ export function hostReferenceKinds(manifests: ReadonlyArray<{ plugin_id: string;
 const builtinOf = (view: ActionView) => {
   const pluginId = view.provider.plugin_id ?? view.provider.provider_id;
   const entry = BUILTIN_PLUGIN_CATALOG.find(candidate => candidate.manifest.plugin_id === pluginId);
-  return entry && (view.provider.plugin_install_id ?? pluginId) === pluginId ? entry : undefined;
+  // The Host registers a bundled Runtime plugin under its plugin_id; an external installation registers under its install id,
+  // even when its Manifest names a built-in plugin's id. The install id is a hash for both, so it cannot make this choice.
+  return entry && view.provider.provider_id === pluginId ? entry : undefined;
 };
 
 /**

@@ -24,7 +24,7 @@ export function mountComments(host: CommentSideHost): void {
     const response=await fetch(url,{method:body===undefined?'GET':'POST',headers:host.controlHeaders(),...(body===undefined?{}:{body:JSON.stringify(body)})});
     const data=await response.json();if(!response.ok)throw new Error(data.error||L('文档请求失败'));return data;
   };
-  const pagePath=(id: string)=>'/api/plugins/pages/'+encodeURIComponent(id)+'/comments';
+  const pagePath=(id: string)=>host.api+'/'+encodeURIComponent(id)+'/comments';
   const target=()=>({provider_id:'io.molis.work.pages',subject_kind:'pages_document',subject_id:context!.object_ref.id,thread_id:active});
   const button=(label: string,fn: ()=>void)=>{const node=document.createElement('button');node.type='button';node.className='mw-btn mw-btn--ghost';node.textContent=label;node.addEventListener('click',fn);return node;};
   const needsSave=()=>!!context?.unsaved&&!(draft().ai&&draft().includeDraft&&draft().anchor?.kind!=='text');
@@ -107,10 +107,11 @@ export function mountComments(host: CommentSideHost): void {
     void request<CommentStatus>('/api/assistant/threads/'+operation,input).then(result=>{if(before===draftKey()){status=result;paintRun();void load();}}).catch(e=>{if(draftKey()===before)error(commentErrorMessage(e));});
   });
   const commands=new Map<string,PendingCommentCommand>();
+  // Asked under the current context; one the page refused as asked under an older context (nothing ran) is asked again.
+  const ask=(request_id: string,waiting: PendingCommentCommand)=>{waiting.stale=false;waiting.epoch=epoch;parent.postMessage({type:'molis:side-context-command',context_epoch:epoch,command:{...waiting.value,request_id}},location.origin);};
   const command=(value: object)=>new Promise<CommentCommandResult>((resolve,reject)=>{
     const request_id=crypto.randomUUID(),timeout=window.setTimeout(()=>{commands.delete(request_id);reject(new Error(L('文档未响应，请重新打开评论面板')));},10000);
-    commands.set(request_id,{resolve,reject,timeout,page:context!.object_ref.id});
-    parent.postMessage({type:'molis:side-context-command',context_epoch:epoch,command:{...value,request_id}},location.origin);
+    const waiting={resolve,reject,timeout,page:context!.object_ref.id,value,epoch};commands.set(request_id,waiting);ask(request_id,waiting);
   });
   q('locate').addEventListener('click',()=>{const thread=threads.find(t=>t.thread_id===active);if(thread)void command({kind:'focus-mark',mark_id:thread.anchor.mark_id}).catch(e=>error(commentErrorMessage(e)));});
   const notes=async()=>{
@@ -130,10 +131,12 @@ export function mountComments(host: CommentSideHost): void {
       if(context?.plugin_id!=='io.molis.work.pages')context=null;
       q('title').textContent=context?.object_ref.title||L('选择一篇文档');q('notes').hidden=!context||mode!=='notes';q('discussion').hidden=!context||mode!=='comments';q('form').hidden=!context||mode!=='comments';
       if(id!==context?.object_ref.id){notesSeq++;active=context?activePages[context.object_ref.id]||'':'';loaded=null;threads=[];status=null;clearTimeout(timer);error('');q('notes').replaceChildren();if(context){paint();void load();if(mode==='notes')void notes();}}
-      else if(context){paintDraft();applyOpening();}
+      else if(context){paintDraft();applyOpening();for(const [request_id,waiting] of commands)if(waiting.stale&&waiting.page===context.object_ref.id)ask(request_id,waiting);}
     }else if(data?.type==='molis:side-shown'&&data.target){opening=data.target;applyOpening();}
     else if(data?.type==='molis:side-context-result'){
-      const waiting=commands.get(data.request_id);if(!waiting||waiting.page!==data.object_id)return;commands.delete(data.request_id);clearTimeout(waiting.timeout);data.error?waiting.reject(new Error(data.error)):waiting.resolve(data);
+      const waiting=commands.get(data.request_id);if(!waiting||waiting.page!==data.object_id)return;
+      if(data.stale){if(waiting.epoch<epoch)ask(data.request_id,waiting);else waiting.stale=true;return;}
+      commands.delete(data.request_id);clearTimeout(waiting.timeout);data.error?waiting.reject(new Error(data.error)):waiting.resolve(data);
     }
   });
   parent.postMessage({type:'molis:side-ready'},location.origin);

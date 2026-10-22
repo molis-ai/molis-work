@@ -1,5 +1,5 @@
 {
-  "name":"molis-personal-sync-notes-sample","version":"1.0.0","private":true,"type":"module","main":"./plugin.js",
+  "name":"molis-personal-sync-notes-sample","version":"1.0.0","private":true,"license":"SEE LICENSE IN LICENSE","type":"module","main":"./plugin.js",
   "files":["plugin.js","manifest.json","README.md"],"scripts":{"build":"node build.mjs","prepack":"node build.mjs"},
   "engines":{"node":">=24"},"dependencies":{"@molis-ai/molis-work-plugin-sdk":"0.0.0","@molis-ai/molis-work-contracts":"0.0.0"}
 }

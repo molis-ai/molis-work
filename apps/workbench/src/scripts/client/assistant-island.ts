@@ -3,12 +3,16 @@ import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
+import { ASSISTANT_PROCESS_FACTORY_SCRIPT } from "./assistant-process.js";
 import { ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT } from "./assistant-context-strip.js";
+import { ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT } from "./assistant-attachments.js";
+import { ASSISTANT_MENTION_FACTORY_SCRIPT } from "./assistant-mention.js";
 import { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "./assistant-work-objects.js";
+import { ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT, ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT, ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT } from "./assistant-side-context.js";
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_REPLY_KIND } from "@molis-ai/molis-work-contracts/services/contextual";
+import { ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { renderAssistantTextHtml, renderAssistantReviewHtml } from "../../assistant-text-html.js";
-
 // The existing Coding tokenizer is consumed here on the Host, never serialized into the Assistant's browser script.
 export const assistantTextHtml = (text: string, objects: AssistantWorkView["objects"], say: (text: string) => string): string =>
   renderAssistantTextHtml(text, { objects, say, language: codeLanguage, tokens: codeTokens });
@@ -206,7 +210,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
   let presentation, stepRow;
   const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
-  const syncSend = () => { send.disabled = busy || !!getWork()?.reply_target || !String(input.value || "").trim(); };
+  let attachments = null;
+  const syncSend = () => { send.disabled = busy || !!getWork()?.reply_target || !String(input.value || "").trim() || !!attachments?.reading(); };
 
   /* ─── Where the next Send goes ─────────────────────────────────────────── */
   const paintAim = () => {
@@ -378,22 +383,20 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (object.open && host.openItem) host.openItem(object.open.surface, object.open.id, object.title);
   };
 
-  /* The Host draws text and code from raw words; only reading interactions live here. */
+  /* The Host draws text and code from raw words; only reading interactions live here. A copy answers on its button through
+     the design system's one copy feedback; a refusal also says how to copy by hand. */
+  const copyFrom = (button, text) => window.molisCopy?.(button, text, { done: L("已复制"), failed: L("复制失败") }).then((copied) => { if (!copied) host.showToast?.(L("没能复制，请手动选中文字")); });
   const bindText = (root) => {
-    root.querySelectorAll(".assistant-code").forEach((figure) => {
-      const copy = figure.querySelector(".assistant-code-copy"), more = figure.querySelector(".assistant-code-more");
-      copy.addEventListener("click", async () => {
-        try { await navigator.clipboard.writeText(figure.querySelector("pre code").textContent); } catch { host.showToast?.(L("没能复制，请手动选中文字")); return; }
-        copy.textContent = L("已复制"); copy.dataset.done = "";
-        setTimeout(() => { copy.textContent = L("复制"); delete copy.dataset.done; }, 1400);
-      });
+    root.querySelectorAll(".assistant-code:not([data-bound])").forEach((figure) => {
+      figure.dataset.bound = ""; const copy = figure.querySelector(".assistant-code-copy"), more = figure.querySelector(".assistant-code-more");
+      copy.addEventListener("click", () => copyFrom(copy, () => figure.dataset.code));
       more?.addEventListener("click", () => {
         figure.toggleAttribute("data-folded");
         more.textContent = figure.hasAttribute("data-folded") ? L("展开全部 {n} 行").replace("{n}", figure.dataset.lines) : L("收起");
       });
     });
-    root.querySelectorAll("[data-assistant-object]").forEach((button) => {
-      const object = view.objects[Number(button.dataset.assistantObject)];
+    root.querySelectorAll("[data-assistant-object]:not([data-bound])").forEach((button) => {
+      button.dataset.bound = ""; const object = view.objects[Number(button.dataset.assistantObject)];
       if (!object || !host.openItem) { button.replaceWith(document.createTextNode("「" + button.textContent + "」")); return; }
       button.prepend(glyph(objectGlyph(object)));
       button.addEventListener("click", () => showObject(object));
@@ -401,33 +404,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
 
   /* ─── Rendering, updated in place so reading and focus are never disturbed ─ */
-  const nearBottom = () => thread.scrollHeight - thread.scrollTop - thread.clientHeight < 48;
+  let follow = null; const scrollOwner = () => follow ||= window.molisFollow?.(thread, { onChange: () => paintJump() }), nearBottom = () => scrollOwner()?.state !== "detached";
   const keyed = (parent, attribute, key, create) => {
     let node = [...parent.children].find((child) => child.getAttribute(attribute) === key);
     if (!node) { node = create(); node.setAttribute(attribute, key); parent.append(node); }
     return node;
   };
   const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
-  const VERBS = { lookup: "查找能力", read: "读取", change: "修改", suggest: "准备操作卡", ask: "向你提问", todo: "更新工作步骤", "lookup-tools": "查找工具",
-    delegate: "委托子任务", "delegate-check": "查看子任务", "delegate-follow-up": "让子任务补改", "delegate-stop": "停止子任务",
-    "memory-keep": "记下你的要求", "memory-list": "查看记住的事", "memory-forget": "删除一条记忆", "memory-suggest": "建议记住一条",
-    "file-read": "读取文件", "file-list": "查看目录", "file-search": "搜索代码", "file-change": "修改文件", command: "运行命令", "command-output": "查看命令输出", "auto-continue": "自动续做", compact: "整理上下文",
-    "browser-list": "找到侧栏浏览器", "browser-look": "查看网页", "browser-act": "操作网页", "computer-list": "查看可操作的应用", "computer-look": "查看应用窗口", "computer-act": "操作应用", "ended-on-promise": "收尾" };
-  const REASONS = { "not-authorized": "未获授权，没有执行", declined: "你拒绝了，没有执行", interrupted: "这一轮停止了，没有执行", unavailable: "这项能力已关闭或不再可用，没有执行" };
-  const VERB_GLYPH = { lookup: "search", "lookup-tools": "search", "file-search": "search", read: "note", "file-read": "file", "file-list": "list", change: "edit",
-    "file-change": "code", command: "terminal", "command-output": "terminal", ask: "question", todo: "list", suggest: "zap", delegate: "workflow", "delegate-check": "workflow",
-    "delegate-follow-up": "workflow", "delegate-stop": "workflow", "memory-keep": "sparkles", "memory-list": "sparkles", "memory-forget": "sparkles", "memory-suggest": "sparkles",
-    "auto-continue": "refresh", compact: "refresh", "browser-list": "globe", "browser-look": "globe", "browser-act": "globe", "computer-list": "system", "computer-look": "system", "computer-act": "system", "ended-on-promise": "alert" };
-  const verbGlyph = (item) => item.state === "started" ? spinner() : item.state === "failed" || item.state === "unknown" ? spinner(item.state === "failed" ? "failed" : "verify") : glyph(VERB_GLYPH[item.verb] || "circle");
-  const activityLine = (item) => {
-    const verb = L(VERBS[item.verb] || item.verb);
-    const what = item.target ? (item.verb === "ask" ? "：" : " ") + item.target : "";
-    if (item.state === "started") return L("正在") + verb + what;
-    // An answered question keeps what the person said, so the conversation shows the choice, not just that one was made.
-    if (item.state === "completed") return L("已") + verb + what + (item.verb === "ask" && item.answer ? " · " + L("你的回答") + "：" + item.answer : "");
-    if (item.state === "failed") return verb + what + " — " + L(REASONS[item.reason] || "没有完成");
-    return verb + what + " — " + L("结果未确认");
-  };
+  const proc = (${ASSISTANT_PROCESS_FACTORY_SCRIPT})({ L, el, keyed, setText, placer: (parent) => placer(parent), glyph: (name) => glyph(name), spinner: (state) => spinner(state) }), activityLine = proc.activityLine;
   /* Questions, action cards and next steps come drawn by the Host (in the person's language); the page binds them with the
      shared client. A node is redrawn only when its key changes, so what the person is typing stays put. */
   const ixClient = host.interaction, fills = new Map(); // fills: words from the composer into a card's draft (R4, assistant-send.ts)
@@ -576,37 +560,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       put(own);
       if (carried) { put(carried); carried = null; }
     } else node.querySelector(':scope > [data-entry="task"]')?.remove();
-    const placeLine = (item, into) => {
-      const line = keyed(into ? into.box : node, "data-entry", "a:" + item.call_id, () => el("p", "assistant-activity"));
-      line.dataset.state = item.state;
-      const words = activityLine(item);
-      if (line.dataset.text !== words || line.dataset.glyph !== item.state) { line.dataset.text = words; line.dataset.glyph = item.state; line.replaceChildren(verbGlyph(item), el("span", "", words)); }
-      if (item.detail) line.title = item.detail; else line.removeAttribute("title");
-      (into ? into.put : put)(line);
-    };
-    // The steps between two messages read as one quiet line — what it is doing now, or how many steps it took and any
-    // that did not finish — and open to each step. A single step stays a line of its own.
-    let run = [];
-    const flush = () => {
-      if (run.length === 1) placeLine(run[0]);
-      else if (run.length > 1) {
-        const first = "a:" + run[0].call_id;
-        [...node.children].forEach((child) => { if (child.getAttribute("data-entry") === first) child.remove(); });
-        const box = keyed(node, "data-entry", "g:" + run[0].call_id, () => { const box = el("details", "assistant-steps"); box.append(el("summary", "assistant-steps-summary")); return box; });
-        const live = [...run].reverse().find((item) => item.state === "started");
-        const unfinished = run.filter((item) => item.state === "failed" || item.state === "unknown").length;
-        box.dataset.state = live ? "started" : unfinished ? "failed" : "completed";
-        setText(box.firstElementChild, live ? activityLine(live) : L("过程") + " · " + run.length + " " + L("步") + (unfinished ? " · " + unfinished + " " + L("步没有完成") : ""));
-        const inBox = { box, put: placer(box) };
-        inBox.put(box.firstElementChild);
-        run.forEach((item) => placeLine(item, inBox));
-        put(box);
-      }
-      run = [];
-    };
+    // The steps between two messages read as one quiet line that opens to each step (assistant-process.ts). A single step stays a line of its own.
+    let run = [], anchor = "start";
+    const flush = () => { if (run.length) proc.place(node, run, put, anchor); run = []; };
     entries.forEach((entry) => {
       if (entry.turn) {
-        flush();
+        flush(); anchor = entry.key;
         const turn = entry.turn;
         // Words the Host wrote (a timed round, a work going on when its sub-tasks came back) are not shown as the person's; a supplement is the person's, whoever wrote the round.
         const kind = turn.kind === "user" ? (round.written_by === "host" && !turn.steer ? "host" : "user") : turn.kind === "assistant" ? "assistant" : "note";
@@ -615,18 +574,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         const reply = kind === "assistant" && JSON.stringify({ plugin_id: "assistant", object: { kind: ${JSON.stringify(ASSISTANT_REPLY_KIND)}, id: work.work_id + ":" + round.run_id + ":" + turn.turn_id, title: work.title } });
         if (reply && bubble.getAttribute("data-assistant-context") !== reply) bubble.setAttribute("data-assistant-context", reply);
         if (bubble.dataset.text !== turn.text) {
-          bubble.dataset.text = turn.text;
-          if (kind === "assistant") { bubble.innerHTML = turn.html; bindText(bubble); } else bubble.textContent = turn.text;
+          const had = bubble.dataset.text !== undefined; bubble.dataset.text = turn.text; // Only a reply still being written, seen arriving, shows its new words come in: never a reopen, a hidden page or the last update.
+          if (kind === "assistant") { if (window.molisStreamText) window.molisStreamText(bubble, turn.html, { reveal: had && work.state === "running" && !document.hidden }); else bubble.innerHTML = turn.html; bindText(bubble); } else bubble.textContent = turn.text;
         }
         put(bubble); receipts.line(thread, node, put, turn, round);
         if (kind === "assistant") {
           const copy = keyed(node, "data-entry", "copy:" + turn.turn_id, () => {
             const btnEl = el("button", "assistant-copy", L("复制")); btnEl.type = "button";
-            btnEl.addEventListener("click", async () => {
-              try { await navigator.clipboard.writeText(bubble.dataset.text || ""); } catch { host.showToast?.(L("没能复制，请手动选中文字")); return; }
-              btnEl.textContent = L("已复制"); btnEl.dataset.done = "";
-              setTimeout(() => { btnEl.textContent = L("复制"); delete btnEl.dataset.done; }, 1400);
-            });
+            btnEl.addEventListener("click", () => copyFrom(btnEl, () => bubble.dataset.text || ""));
             return btnEl;
           });
           put(copy);
@@ -649,7 +604,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         if ((kind === "user" || kind === "host") && carried) { put(carried); carried = null; }
       } else run.push(entry.item);
     });
-    flush();
+    flush(); proc.sweep(node);
     if (carried) put(carried);
     const memories = round.memories_used;
     if (memories && ((memories.used || []).length || (memories.omitted || []).length)) {
@@ -776,7 +731,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     build();
     if (key) [...node.querySelectorAll("button, select, input, summary")].find((one) => (one.getAttribute("aria-label") || one.textContent) === key)?.focus();
   };
-  /** A block: a heading with its glyph and a badge (folding it is remembered per viewer), then its content; with no content it is not shown. */
+  /** A block: a heading with its glyph and the summary that still says what matters folded (folding is remembered per viewer), then its content; with no content it is not shown. */
   const BLOCKS_KEY = "molis.assistant.blocks";
   const folded = (() => { try { const saved = JSON.parse(store.get(BLOCKS_KEY) || "{}"); return saved && typeof saved === "object" ? saved : {}; } catch { return {}; } })();
   const paintBlock = (node, title, icon, content, badge, attention, fixed) => {
@@ -784,22 +739,20 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!content) { node.replaceChildren(); return; }
     const key = node.dataset.assistantBlock;
     const head = el(fixed ? "p" : "button", "assistant-block-head" + (fixed ? " is-fixed" : ""));
-    if (!fixed) { head.type = "button"; head.setAttribute("aria-expanded", String(!folded[key])); head.append(el("span", "assistant-block-chevron")); }
+    if (!fixed) { head.type = "button"; head.setAttribute("aria-expanded", String(!folded[key])); head.setAttribute("aria-controls", "assistant-block-" + key); head.append(el("span", "assistant-block-chevron")); }
     head.append(glyph(icon), el("span", "assistant-block-title", title));
     if (badge) head.append(el("span", "assistant-block-badge" + (attention ? " is-attention" : ""), badge));
     if (!fixed) head.addEventListener("click", () => {
       folded[key] = !folded[key]; if (!folded[key]) delete folded[key];
-      // Opening lets the content arrive once; folding is immediate.
-      if (!folded[key]) { node.setAttribute("data-opening", ""); setTimeout(() => node.removeAttribute("data-opening"), 300); }
       store.set(BLOCKS_KEY, Object.keys(folded).length ? JSON.stringify(folded) : null);
       node.toggleAttribute("data-folded", Boolean(folded[key])); head.setAttribute("aria-expanded", String(!folded[key]));
     });
     node.toggleAttribute("data-folded", !fixed && Boolean(folded[key]));
-    const body = el("div", "assistant-block-body"); body.append(content);
+    const body = el("div", "assistant-block-body"); body.id = "assistant-block-" + key; body.append(content);
     node.replaceChildren(head, body);
   };
   const group = (label, ...children) => { const box = el("div", "assistant-group"); if (label) box.append(el("p", "assistant-block-sub", label)); box.append(...children); return box; };
-  const stack = (cards) => { const box = el("div", "assistant-stack"); cards.forEach((one) => box.append(one)); return box; };
+  const stack = (cards, key) => { const box = el("div", "assistant-stack"); cards.forEach((one) => box.append(one)); if (key) window.molisShowMore?.(box, { key, label: L("再显示 {n} 项"), keep: ":has(> .is-blocked)" }); return box; };
   const progress = (done, total, label) => {
     const meter = el("span", "assistant-progress"); const fill = el("span"); fill.style.width = Math.round(total ? done / total * 100 : 0) + "%"; meter.append(fill);
     meter.setAttribute("role", "img"); meter.setAttribute("aria-label", label + " " + done + "/" + total);
@@ -929,70 +882,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     });
   };
 
-  /* 材料: a place to drop what the next Send carries (named in the strip above the input), then what this work has used. */
+  /* 上下文, 工作环境, 连接与工具 are drawn in assistant-side-context.ts: what the next Send carries and what rounds used; where the work runs and what it can call. */
   const MATERIAL_KIND = { image: "图片", file: "文件", method: "方法", capability: "能力", text: "文字", selection: "选中的内容", object: "引用" };
-  const MATERIAL_GLYPH = { image: "image", file: "file", method: "zap", capability: "zap", text: "note", selection: "text", object: "file" };
-  function renderMaterialsBlock() {
-    const node = blocks.materials;
-    if (!node) return;
-    const work = view && view.work.work_id === curId ? view.work : null;
-    const objects = work && view.objects ? view.objects.filter((o) => o.relation === "material") : [];
-    const used = [];
-    (work ? view.rounds : []).forEach((round, index) => (round.materials || []).forEach((material) => {
-      if (material.object) return;
-      const key = material.kind + ":" + material.title;
-      if (!used.some((one) => one.key === key)) used.push({ key, material, round: index + 1 });
-    }));
-    const signature = JSON.stringify([work && work.work_id, sidePanelHere(),
-      objects.map((o) => [o.subject.id, o.state, o.title, o.current_revision]), used.map((one) => one.key)]);
-    if (node.dataset.signature === signature) return;
-    node.dataset.signature = signature;
-    keepFocus(node, () => {
-      // The next Send's materials go where things can be dropped; the strip above the input names each one.
-      const zone = el("div", "assistant-drop");
-      zone.append(el("p", "assistant-drop-label", L("下次发送带上")));
-      const hint = el("div", "assistant-drop-hint");
-      const pick = sideAct(L("添加文件"), L("下次发送带上"), async () => { fileInput?.click(); }, false, "secondary");
-      hint.append(glyph("upload"), el("span", "", L("拖到这里，或 @ 引用、/ 用能力")), pick);
-      zone.append(hint);
-      zone.addEventListener("dragover", (event) => { if (![...(event.dataTransfer?.types || [])].includes("Files")) return; event.preventDefault(); zone.dataset.dropping = "true"; });
-      zone.addEventListener("dragleave", (event) => { if (!zone.contains(event.relatedTarget)) delete zone.dataset.dropping; });
-      zone.addEventListener("drop", (event) => { delete zone.dataset.dropping; const dropped = [...(event.dataTransfer?.files || [])]; if (!dropped.length) return; event.preventDefault(); void addFiles(dropped); });
-      const tiles = el("div", "assistant-tiles");
-      objects.forEach((object) => {
-        const state = objectState(object), open = openObject(object);
-        const box = el("div", "assistant-tile" + (open ? " is-openable" : "") + (state ? " is-attention" : ""));
-        box.append(tile(objectGlyph(object), state ? "attention" : ""));
-        if (open) { const name = el("button", "assistant-item-title", object.title); name.type = "button"; name.setAttribute("aria-label", L("打开") + "：" + object.title); name.addEventListener("click", () => { void open(); }); box.append(name); }
-        else box.append(el("span", "assistant-item-title", objectTitle(object)));
-        box.append(el("span", "assistant-item-sub" + (state ? " is-attention" : ""), state || surfaceName(object.open && object.open.surface) || L("材料")));
-        box.title = objectDetail(object);
-        tiles.append(box);
-      });
-      used.forEach((one) => {
-        const box = el("div", "assistant-tile"), name = one.material.title.replace(/^(方法|用|图片|引用)：/, "");
-        const readable = one.material.kind === "file" && one.material.text && sidePanelHere()
-          ? () => { sidePreview({ preview: { title: name, media_type: "text/plain", text: one.material.text } }); } : readBack(one.material, name) || readImage(one.material, name);
-        const title = el(readable ? "button" : "span", "assistant-item-title", name);
-        if (readable) {
-          title.type = "button"; title.setAttribute("aria-label", L("预览") + "：" + name); box.classList.add("is-openable");
-          title.addEventListener("click", readable);
-        }
-        box.append(tile(MATERIAL_GLYPH[one.material.kind] || "file", ""), title,
-          el("span", "assistant-item-sub", L(MATERIAL_KIND[one.material.kind] || "材料") + " · " + L("第 {n} 轮").replace("{n}", String(one.round))
-            + (one.material.expired ? " · " + L("已失效") : "")));
-        if (one.material.expired) box.title = L(EXPIRED_IMAGE);
-        tiles.append(box);
-      });
-      const content = el("div", "assistant-group-list");
-      content.append(zone);
-      if (tiles.children.length) content.append(group(L("用过的"), tiles));
-      const changed = objects.filter((o) => o.state !== "current").length;
-      paintBlock(node, L("材料"), "paperclip", content, changed ? changed + " " + L("项有变化") : tiles.children.length ? String(tiles.children.length) : "", changed > 0);
-    });
-  }
 
-  /* 产出 (not the 成果库's 成果): what it produced or changed, each a card that opens it or takes it back; work still running elsewhere after it. */
+  /* 产出: what it made, a fixed version kept in the 成果库 (固定成果) apart from objects their owners keep changing (工作文件); each card opens it or takes it back. */
   const renderResults = (work) => {
     const node = blocks.results;
     if (!node) return;
@@ -1005,9 +898,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       jobs.map((j) => [j.job_id, j.state]), unsettled.map((u) => [u.change_id, u.state, u.detail]), kept.map((m) => [m.change_id, m.state, m.undoable, m.text])]);
     if (node.dataset.signature === signature) return;
     node.dataset.signature = signature;
-    keepFocus(node, () => {
+    keepFocus(node.parentNode, () => {
       const UNDO = { available: "可以撤销", undone: "已撤销", failed: "没能撤销" };
-      const made = results.map((o) => pickable(objectCard(o, "done"), o, objectTitle(o)));
+      const made = results.map((o) => pickable(objectCard(o, "done"), o, objectTitle(o))), fixed = made.filter((_, i) => results[i].subject.kind === ${JSON.stringify(ARTIFACT_SUBJECT_KIND)});
       const changes = undoable.slice().reverse().map((change) => card({ icon: change.state === "undone" ? "undo" : "edit", tone: change.state === "failed" ? "blocked" : "",
         title: change.title, sub: L(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : ""), subTone: change.state === "failed" ? "blocked" : "", done: change.state === "undone",
         actions: change.state !== "undone" ? [sideAct(L("撤销"), change.title, async () => {
@@ -1048,51 +941,17 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         return card({ icon: "sparkles", tone: undone ? "" : "suggest", title: change.text, done: undone,
           sub: [scope, undone ? L(UNDONE[change.kind]) : KEPT[change.kind] ? L(KEPT[change.kind]) : ""].filter(Boolean).join(" · "), actions });
       });
-      const content = el("div", "assistant-group-list");
-      if (made.length) content.append(group("", stack(made)));
-      if (changes.length) content.append(group(L("改动"), stack(changes)));
-      if (background.length) content.append(group(L("后台任务"), stack(background)));
-      if (stopped.length) content.append(group(L("停止时仍在执行"), stack(stopped)));
-      if (remembered.length) content.append(group(L("记住的事"), stack(remembered)));
-      const canUndo = undoable.filter((change) => change.state === "available").length;
-      paintBlock(node, L("产出"), "package", content.children.length ? content : null, canUndo ? canUndo + " " + L("项可撤销") : String(made.length + changes.length + background.length + stopped.length + remembered.length), false);
+      // Three groups of one kind (VUX-08): what it made, what it changed and how each stands, what still runs elsewhere; a failure shows folded.
+      const list = (block, ...parts) => { const box = el("div", "assistant-group-list"); parts.forEach(([label, cards]) => cards.length && box.append(group(label, stack(cards, work.work_id + ":" + block + ":" + label)))); return box.children.length ? box : null; };
+      const failed = undoable.concat(unsettled).filter((one) => one.state === "failed").length, canUndo = undoable.filter((one) => one.state === "available").length, running = jobs.filter((job) => job.state === "running").length, missed = jobs.filter((job) => job.state === "failed").length;
+      paintBlock(node, L("产出"), "package", list("results", [L("固定成果"), fixed], [L("工作文件"), made.filter((card) => !fixed.includes(card))]), String(made.length));
+      paintBlock(blocks.changes, L("变更"), "edit", list("changes", ["", changes], [L("停止时仍在执行"), stopped], [L("记住的事"), remembered]), failed ? failed + " " + L("项失败") : canUndo ? canUndo + " " + L("项可撤销") : String(changes.length + stopped.length + remembered.length), failed > 0);
+      paintBlock(blocks.background, L("后台任务"), "clock", list("background", ["", background]), missed ? missed + " " + L("项没有完成") : running ? running + " " + L("项进行中") : String(jobs.length), missed > 0);
     });
   };
 
   /* What this work used (its sub-tasks with it) and the cap the person gave it; a sub-task shows its delegating work's. */
-  const renderUsage = (work) => {
-    if (!usageBox) return;
-    const usage = work && view && view.usage ? view.usage : null;
-    const signature = JSON.stringify([work && work.work_id, usage]);
-    if (usageBox.dataset.signature === signature) return;
-    const wasOpen = usageBox.querySelector("details")?.open;
-    usageBox.dataset.signature = signature;
-    const over = Boolean(usage && usage.budget_tokens !== null && usage.tokens >= usage.budget_tokens);
-    usageBox.hidden = !usage;
-    if (!usage) { usageBox.replaceChildren(); return; }
-    const number = (value) => Number(value).toLocaleString("en-US");
-    const details = el("details", "assistant-usage");
-    details.open = wasOpen === undefined ? over : wasOpen || over;
-    details.append(el("summary", "", L("用量") + " · " + number(usage.tokens) + " tokens" + (usage.budget_tokens !== null ? " / " + number(usage.budget_tokens) : "") + (over ? " · " + L("已到上限") : "")));
-    if (usage.budget_of) {
-      details.append(el("p", "assistant-material-origin", L("子任务按委托它的工作计算") + "：「" + usage.budget_of.title + "」"));
-    } else {
-      const form = el("form", "assistant-usage-form");
-      const field = el("input", "assistant-usage-input"); field.type = "number"; field.min = "1000"; field.step = "1000"; field.inputMode = "numeric";
-      field.placeholder = L("不单独设限"); field.value = usage.budget_tokens !== null ? String(usage.budget_tokens) : "";
-      field.setAttribute("aria-label", L("这项工作的用量上限（tokens，含子任务）"));
-      const save = el("button", "assistant-side-action", L("保存上限")); save.type = "submit";
-      form.append(el("span", "assistant-material-origin", L("上限（tokens，含子任务）")), field, save);
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault(); save.disabled = true;
-        try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/budget", "POST", { budget_tokens: field.value.trim() === "" ? null : Number(field.value) }); render(); }
-        catch (error) { host.showToast?.(error); }
-        finally { save.disabled = false; }
-      });
-      details.append(form);
-    }
-    usageBox.replaceChildren(details);
-  };
+  const renderUsage = (work) => usagePane.paint(work);
   // Raising a work's cap is done in its usage box: the side pane opens on it.
   const openUsage = () => {
     if (spacious()) store.set(SIDE_KEY, null); else drawerOpen = true;
@@ -1140,7 +999,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!node) return;
     if (!spacious() && drawerOpen) { drawerOpen = false; paintLayout(); }
     const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    thread.scrollTo({ top: node.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop - 16, behavior: still ? "auto" : "smooth" });
+    scrollOwner()?.release(); thread.scrollTo({ top: node.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop - 16, behavior: still ? "auto" : "smooth" });
     node.removeAttribute("data-flash"); void node.offsetWidth; node.setAttribute("data-flash", "");
     setTimeout(() => node.removeAttribute("data-flash"), 700);
     // The card's own decision first (允许执行, 回答, the action), not a copy button inside the code it shows.
@@ -1321,7 +1180,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!jump) return;
     if (unseen && !nearBottom()) {
       jump.textContent = "↓ " + L("新消息");
-      jump.onclick = () => { unseen = false; thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" }); }; jump.hidden = false; return;
+      jump.onclick = () => { unseen = false; scrollOwner()?.toLatest(); paintJump(); }; jump.hidden = false; return;
     }
     unseen = false; jump.hidden = true;
   };
@@ -1361,15 +1220,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     emptyList.replaceChildren(...parts);
   }
   const render = () => {
-    const stick = nearBottom();
-    const before = thread.scrollHeight;
+    const stick = nearBottom(), before = thread.scrollHeight;
     const work = view && view.work.work_id === curId ? view.work : null;
     if (work) {
       const index = works.findIndex((row) => row.work_id === work.work_id);
       if (index >= 0) works[index] = Object.assign({}, works[index], work, { draft: works[index].draft });
       else works.unshift(work);
     }
-    renderAttention(work); renderPath(work); renderMaterialsBlock(); renderResults(work); renderUsage(work);
+    renderAttention(work); renderPath(work); surroundings.paint(work); sideContext.paint(); renderResults(work); renderUsage(work);
     if (empty) empty.hidden = Boolean(curId);
     paintEmpty(); receipts.paint(work && view.rounds[view.rounds.length - 1]);
     const rounds = work ? view.rounds : [];
@@ -1447,7 +1305,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       thread.append(box);
     }
     paintSum(); paintAim(); paintList(); drawTabs(); paintSideDot(work);
-    if (stick) thread.scrollTop = thread.scrollHeight; else if (thread.scrollHeight > before + 4) unseen = true;
+    if (stick) scrollOwner()?.pin(); else if (thread.scrollHeight > before + 4) unseen = true;
     paintJump();
   };
 
@@ -1728,21 +1586,27 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (page) relatedWorks(page.object).filter((row) => row.work_id !== curId).slice(0, 2)
       .forEach((row) => items.push({ key: "work:" + row.work_id, label: L("这个对象属于工作") + "「" + row.title + "」", optional: true, work: row }));
     if (sel && !removed.has("selection")) items.push({ key: "selection", label: L("选中的内容") + "：" + clip(sel.text.replace(/\s+/g, " "), 28), auto: true });
-    files.forEach((file) => items.push({ key: "file:" + file.material_id, label: (file.kind === "image" ? L("图片") + "：" : file.reference ? L("引用") + "：" : "") + file.title, auto: false, put: true, thumb: file.preview }));
-    return items;
+    files.forEach((file) => items.push({ key: "file:" + (file.chip || file.material_id), label: (file.kind === "image" ? L("图片") + "：" : file.reference ? L("引用") + "：" : "") + file.title, auto: false, put: true, thumb: file.preview }));
+    return items.concat(attachments ? attachments.items() : []);
   };
   /** Leaves an item out of this Send: a page object the person added goes back to optional; the rest are removed. */
   function dropMaterial(item) {
     const page = item.key === "object" ? pageObject() : null;
     if (page && joined.has(objectKey(page.object))) joined.delete(objectKey(page.object));
-    else if (item.key.startsWith("file:")) files = files.filter((file) => "file:" + file.material_id !== item.key); else removed.add(item.key);
+    else if (item.key.startsWith("file:")) { if (!attachments.drop(item.key)) files = files.filter((file) => "file:" + (file.chip || file.material_id) !== item.key); } else removed.add(item.key);
   }
   const stripNode = island.querySelector("[data-assistant-context-strip]");
+  attachments = (${ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT})({ L, api, toast: (text) => host.showToast?.(text), files: () => files, take: (file) => files.push(file), paint: () => paintMats() });
+  const sideContext = (${ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT})({ L, el, kinds: MATERIAL_KIND, tile, glyph, group, sideAct, paintBlock, keepFocus, sidePanelHere, sidePreview, readBack, readImage, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, addFiles,
+    current: () => (view && view.work.work_id === curId ? view : null), pickFile: () => fileInput?.click(), expired: EXPIRED_IMAGE, block: () => blocks.materials,
+    pending: () => materialsNow().filter((item) => !item.optional && !item.state).map((item) => ({ kind: item.key === "draft" ? "text" : item.key === "selection" ? "selection" : item.key.startsWith("file:") ? (files.find((file) => "file:" + (file.chip || file.material_id) === item.key) || {}).kind || "file" : "object", title: item.label })) });
+  const surroundings = (${ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT})({ L, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock: () => blocks.environment, toolsBlock: () => blocks.tools });
+  const usagePane = (${ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT})({ L, el, progress, api, toast: (error) => host.showToast?.(error), box: () => usageBox, current: () => (view && view.work.work_id === curId ? view : null), adopt: (next) => { view = next; render(); } });
   contextStrip = stripNode && (${ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT})({ strip: stripNode, L, el, items: materialsNow, open: () => Boolean(panel && !panel.hidden), focused: () => document.activeElement === input,
     add: () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMats(); },
-    drop: (item) => { dropMaterial(item); paintMats(); },
+    drop: (item) => { dropMaterial(item); paintMats(); }, retry: (item) => attachments.retry(item.key),
     go: (work) => { void switchTo(work.work_id); input.focus(); } });
-  function paintMats() { renderMaterialsBlock(); paintEmpty(); contextStrip?.paint(); }
+  function paintMats() { sideContext.paint(); paintEmpty(); contextStrip?.paint(); syncSend(); }
   island.addEventListener("focusin", () => contextStrip?.paint());
   island.addEventListener("focusout", () => setTimeout(() => contextStrip?.paint(), 0));
   /* Starting points for what is open (specs/archive/contextual-interaction §6.4.2): what the action directory offers for it,
@@ -1860,52 +1724,20 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!starters.length && !rows.length && !methods.length) startPop.append(el("p", "assistant-material-origin", L("没有匹配的能力；换个词，或直接说要做什么")));
   }
   function closeSlash() { if (startPop && startPop.dataset.mode === "slash") { delete startPop.dataset.mode; startPop.hidden = true; } }
-  /* “@”: find something in this project or the person's own content through the system search and bring it along.
-     A hit is only a pointer: the Host checks it with its owner and reads it before the round. */
-  const mentionOpen = () => startPop && !startPop.hidden && startPop.dataset.mode === "mention";
-  const mentionAt = () => {
-    const before = String(input.value || "").slice(0, input.selectionStart ?? String(input.value || "").length);
-    const match = /(^|\s)@([^\s@]{0,40})$/.exec(before);
-    return match ? { query: match[2], start: before.length - match[2].length - 1 } : null;
-  };
-  let mentionSeq = 0, mentionTimer = null;
-  function closeMention() { clearTimeout(mentionTimer); if (startPop && startPop.dataset.mode === "mention") { delete startPop.dataset.mode; startPop.hidden = true; } }
-  function setMention(found) {
-    if (!startPop) return;
-    clearTimeout(mentionTimer);
-    startPop.dataset.mode = "mention";
-    startPop.hidden = false;
-    const head = el("p", "assistant-popover-title", L("引用内容"));
-    if (!found.query) { startPop.replaceChildren(head, el("p", "assistant-material-origin", L("输入关键词，从本项目和你个人的内容里找"))); return; }
-    const seq = ++mentionSeq;
-    mentionTimer = setTimeout(async () => {
-      let res;
-      try {
-        res=await molisWorkRequest(host.route("/api/search/query"),{body:{query:found.query,scope:"all",limit:8},fallback:L("搜索暂时不可用，请稍后重试")});
-      } catch (error) { if (seq === mentionSeq && mentionOpen()) { const note=el("p","assistant-material-origin");molisWorkRequest.show(note,error);startPop.replaceChildren(head,note); } return; }
-      if (seq !== mentionSeq || !mentionOpen()) return;
-      startPop.replaceChildren(head);
-      (res.hits || []).forEach((hit) => {
-        const btnEl = el("button", "assistant-starter assistant-mention", ""); btnEl.type = "button";
-        btnEl.append(el("span", "assistant-mention-title", hit.plugin_title + " · " + hit.title), el("span", "assistant-mention-snippet", hit.snippet || ""));
-        btnEl.setAttribute("aria-label", L("引用") + "：" + hit.plugin_title + " · " + hit.title);
-        btnEl.addEventListener("mousedown", (event) => event.preventDefault());
-        btnEl.addEventListener("click", () => {
-          const at = mentionAt() || found;
-          const value = String(input.value || "");
-          input.value = value.slice(0, at.start) + "「" + hit.title + "」" + value.slice(at.start + 1 + at.query.length);
-          if (!files.some((file) => file.reference && file.object && file.object.kind === hit.subject.kind && file.object.id === hit.subject.id)) {
-            files.push({ material_id: "ref-" + crypto.randomUUID(), kind: "object", title: hit.title, explicit: true, reference: { hit_id: hit.hit_id },
-              object: { kind: hit.subject.kind, id: hit.subject.id, title: hit.title }, source: { surface: (hit.open && hit.open.surface) || hit.plugin_id, plugin_id: hit.plugin_id, title: hit.plugin_title },
-              text: hit.snippet || "" });
-          }
-          typed = true; syncSend(); saveDraft(false); closeMention(); paintMats(); input.focus();
-        });
-        startPop.append(btnEl);
-      });
-      if (!(res.hits || []).length) startPop.append(el("p", "assistant-material-origin", res.status === "indexing" ? L("内容还在建立索引，稍后再试") : L("没有找到；换个词试试")));
-    }, 180);
-  }
+  /* “@”: the system search's hits, brought along as references (assistant-mention.ts). */
+  const mention = (${ASSISTANT_MENTION_FACTORY_SCRIPT})({ L, el, pop: startPop, field: input,
+    search: (query) => molisWorkRequest(host.route("/api/search/query"), { body: { query, scope: "all", limit: 8 }, fallback: L("搜索暂时不可用，请稍后重试") }),
+    pick: (hit) => {
+      if (!files.some((file) => file.reference && file.object && file.object.kind === hit.subject.kind && file.object.id === hit.subject.id)) {
+        files.push({ material_id: "ref-" + crypto.randomUUID(), kind: "object", title: hit.title, explicit: true, reference: { hit_id: hit.hit_id },
+          object: { kind: hit.subject.kind, id: hit.subject.id, title: hit.title }, source: { surface: (hit.open && hit.open.surface) || hit.plugin_id, plugin_id: hit.plugin_id, title: hit.plugin_title },
+          text: hit.snippet || "" });
+      }
+      typed = true; syncSend(); saveDraft(false); paintMats();
+    } });
+  const mentionOpen = mention.isOpen, mentionAt = mention.at;
+  function closeMention() { mention.close(); }
+  function setMention(found) { mention.open(found); }
   function closeStarts() { if (startPop) { delete startPop.dataset.mode; startPop.hidden = true; } }
   input.addEventListener("blur", () => setTimeout(() => { if (!island.contains(document.activeElement) || document.activeElement === input) return; closeStarts(); }, 0));
   // What opens from the island, and the button focus returns to.
@@ -1924,43 +1756,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (startPop && !startPop.hidden) { stop(); closeStarts(); }
     choosers.forEach(put);
   }, true);
-  /* Files the person adds: text is read here and sent as their own material; what cannot be read is said plainly. */
-  const readBase64 = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] || ""); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
-  async function addFiles(chosen) {
-    for (const file of chosen) {
-      if (files.length >= 5) { host.showToast?.(L("一次最多带 5 个文件")); break; }
-      // A picture is taken in by the Agent runtime and shown to the model in the round it is sent with.
-      if (/^image\//.test(file.type) || /\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?|svg)$/i.test(file.name)) {
-        if (!/^image\/(png|jpeg|gif|webp)$/.test(file.type)) { host.showToast?.(L("只能带 PNG、JPEG、GIF 或 WebP 图片") + "：" + file.name); continue; }
-        if (files.filter((item) => item.kind === "image").length >= 4) { host.showToast?.(L("一次最多带 4 张图片")); continue; }
-        if (file.size > 5 * 1024 * 1024) { host.showToast?.(L("图片超过 5 MB，请压缩或截取需要的部分") + "：" + file.name); continue; }
-        try {
-          const data = await readBase64(file);
-          const { material } = await api("/attachments", "POST", { name: file.name, data });
-          // The preview is a data URL: the page's policy shows data images, not blob URLs.
-          files.push({ material_id: material.material_id, kind: "image", title: material.title, image: material.image, explicit: true, preview: "data:" + file.type + ";base64," + data });
-        } catch (error) { host.showToast?.({...error,name:"Error",message:file.name+"："+(error.message||String(error))}); }
-        continue;
-      }
-      // A PDF is read by the Agent runtime's own parser (text layer only); what cannot be read says why.
-      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
-        if (file.size > 8 * 1024 * 1024) { host.showToast?.(L("文件超过 8 MB，请只带需要的部分") + "：" + file.name); continue; }
-        try {
-          const { material } = await api("/attachments", "POST", { name: file.name, data: await readBase64(file) });
-          files.push({ material_id: material.material_id, kind: "file", title: material.title, text: material.text, explicit: true });
-        } catch (error) { host.showToast?.({...error,name:"Error",message:file.name+"："+(error.message||String(error))}); }
-        continue;
-      }
-      // Only text is read here; other binary files would reach the model as noise.
-      if (!/^text\//.test(file.type) && !/\.(txt|md|markdown|csv|tsv|json|jsonl|ya?ml|xml|html?|css|js|mjs|ts|tsx|jsx|py|rb|go|rs|java|kt|swift|c|h|cpp|sql|sh|log|ini|toml)$/i.test(file.name)) {
-        host.showToast?.(L("暂时只能读取文本文件、PDF 和图片") + "：" + file.name); continue;
-      }
-      if (file.size > 400000) { host.showToast?.(L("文件太大，请只带需要的部分") + "：" + file.name); continue; }
-      try { files.push({ material_id: "file-" + crypto.randomUUID(), kind: "file", title: file.name, text: await file.text(), explicit: true }); }
-      catch { host.showToast?.(L("读不了这个文件") + "：" + file.name); }
-    }
-    paintMats();
-  }
+  /* Files the person adds, picked, pasted or dropped: one path (assistant-attachments.ts). */
+  function addFiles(chosen) { return attachments.add(chosen); }
   const morePop = island.querySelector("[data-assistant-more]");
   const moreItem = (label, value, run) => {
     const row = el("button", "assistant-more-item"); row.type = "button";
@@ -2007,13 +1804,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     event.preventDefault();
     void addFiles(pasted.map(pastedName));
   });
-  compose?.addEventListener("dragover", (event) => {
-    if (![...(event.dataTransfer?.types || [])].includes("Files")) return;
-    event.preventDefault(); compose.dataset.dropping = "true";
-  });
-  compose?.addEventListener("dragleave", (event) => { if (!compose.contains(event.relatedTarget)) delete compose.dataset.dropping; });
+  compose?.addEventListener("dragover", (event) => { if ([...(event.dataTransfer?.types || [])].includes("Files")) event.preventDefault(); });
+  if (compose) window.molisDropZone?.(compose, (on) => { if (on) compose.dataset.dropping = "true"; else delete compose.dataset.dropping; });
   compose?.addEventListener("drop", (event) => {
-    delete compose.dataset.dropping;
     const dropped = [...(event.dataTransfer?.files || [])];
     if (!dropped.length) return;
     event.preventDefault();
@@ -2035,7 +1828,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const sendMaterials = () => {
     const ctx = pageCtx();
-    const list = files.map(({ preview: _preview, ...file }) => file);
+    const list = files.map(({ preview: _preview, chip: _chip, ...file }) => file);
     const page = pageObject();
     if (page && curId && joined.has(objectKey(page.object))) {
       list.push({ material_id: "object", kind: "object", title: page.object.title || page.object.id, explicit: true, object: page.object,

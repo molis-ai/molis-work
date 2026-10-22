@@ -22,10 +22,10 @@ export interface CodingWakeDeps<Execution> {
   readonly busy: Set<string>;
   readonly stopped: AbortSignal;
   pause(ms: number): Promise<void>;
+  /** Runs `run` in the activation's own context: a loop never answers to the action of the request that set it off. */
+  detach(run: () => void): void;
   records(execution: Execution): CodingSessionRecord[];
   record(execution: Execution, sessionId: string): CodingSessionRecord;
-  /** The activation's own execution ports, which a loop started from a request reads and starts with. */
-  activation(execution: Execution): Execution;
   startRound(record: CodingSessionRecord, body: Record<string, unknown>, actorId: string, api: Capabilities, execution: Execution, beforeWrite?: CodingBeforeWrite): Promise<unknown>;
 }
 
@@ -97,20 +97,27 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
   /**
    * One loop per runtime: it waits for a continuation to be ready (no polling of what the waits wait on) and takes it up.
    * It belongs to the activation, not to the request that started it: it reads and starts with the activation's own
-   * capabilities and execution ports.
+   * capabilities and execution (the same object for every request, route-entry.ts).
+   *
+   * A loop that `recovery` started (the activation found sessions tied to an Agent run) did not wait for the runtime to be ready: its
+   * first read starts the runtime. If that first read fails, before any has succeeded, the runtime is not there to be woken (not
+   * attached, or it cannot start), and the loop ends as it does for a Host without a task graph, instead of retrying every 5 to 30 s
+   * for nothing; the next `coding.state` read or round starts a loop again. A loop a request started keeps retrying.
    */
-  const wakeLoop = (_api: Capabilities, from: Execution, runtimeId: string) => {
-    const api = context.services!.capabilities!, execution = deps.activation(from);
+  const wakeLoop = (_api: Capabilities, execution: Execution, runtimeId: string, recovery = false) => {
+    const api = context.services!.capabilities!;
     if (waking.has(runtimeId) || deps.stopped.aborted) return;
     waking.add(runtimeId);
-    void (async () => {
+    deps.detach(() => void (async () => {
       const held = new Set<string>();
+      let served = false;
       // Transient read failures back off while this activation is alive; a Host without a task graph ends the loop.
       for (let failures = 0; !deps.stopped.aborted;) {
         let ready: CodingWaitView[];
-        try { ready = (await api.invoke(agent.awaitContinuations, [runtimeId, 25_000, [...held]], { signal: deps.stopped })).flatMap(view => openWait(view) ?? []); failures = 0; }
+        try { ready = (await api.invoke(agent.awaitContinuations, [runtimeId, 25_000, [...held]], { signal: deps.stopped })).flatMap(view => openWait(view) ?? []); failures = 0; served = true; }
         catch (error) {
           if (error && typeof error === "object" && "code" in error && error.code === "agent.capability_unavailable") break;
+          if (recovery && !served) break;
           failures += 1; await deps.pause(Math.min(30_000, failures * 5_000)); continue;
         }
         if (deps.stopped.aborted) break;
@@ -123,7 +130,7 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
         }
         if (later) await deps.pause(2_000);
       }
-    })().catch(() => undefined).finally(() => waking.delete(runtimeId));
+    })().catch(() => undefined).finally(() => waking.delete(runtimeId)));
   };
   /** The person gives the wait up: a request it waited on is withdrawn, a queued round's project work item goes. */
   const cancel = async (api: Capabilities, record: CodingSessionRecord, view: CodingWaitView, beforeWrite?: CodingBeforeWrite) => {

@@ -4,12 +4,13 @@ import { DELEGATION_ENDED, MAX_DELEGATION_HOPS } from "./cooperation.js";
 import { dispatchCodingDelegation } from "./delegation-dispatch.js";
 import { asAttachment, isDelegation } from "./delegation-view.js";
 import { CODING_MATERIALS_MAX, materialArtifact, materialSelection, resolveMaterials, savedMaterials, type CodingMaterial } from "./materials.js";
-import { codingActionControl } from "./route-entry.js";
+import { codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { type Capabilities, type CodingActivation, selected, sessionOutputs, delegationView } from "./route-activation.js";
+import { sessionOutputs } from "./outputs.js";
+import { type Capabilities, type CodingActivation, selected, delegationView } from "./route-activation.js";
 import { bodyOf } from "./route-selections.js";
 import { roundReport } from "./routes-changesets.js";
-import type { CodingExecutionPorts } from "./routes.js";
+import type { CodingExecution } from "./routes.js";
 import { text } from "./run-inputs.js";
 import { codingSessionTitleFrom } from "./session-title.js";
 import type { CodingSessionRecord } from "./store.js";
@@ -22,7 +23,7 @@ import { agentHostCapabilities as agent, type AgentMessageAttachment, type Agent
 /** A delegation's letters are the people's to answer, at their pace: they are kept a year before they lapse. */
 const DELEGATION_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 /** Letters for a delegation go between runtime sessions: a session that has not run yet gets its own now. */
-export const runtimeSessionOf = async (a: CodingActivation, record: CodingSessionRecord, api: Capabilities, execution: CodingExecutionPorts, actorId: string) => {
+export const runtimeSessionOf = async (a: CodingActivation, record: CodingSessionRecord, api: Capabilities, execution: CodingExecution, actorId: string, beforeWrite: CodingBeforeWrite) => {
   const { context, projectId } = a;
   if (record.runtime_session_id) return record.runtime_session_id;
   const saved = context.services?.storage?.get(`configuration:${record.session_id}`);
@@ -32,11 +33,11 @@ export const runtimeSessionOf = async (a: CodingActivation, record: CodingSessio
   if (!workspace) throw new Error("请先为这个项目选择已授权的工作区目录");
   const identity = { project_id: projectId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: actorId };
   const session = await api.invoke(agent.createSession, [record.runtime_id, { ...identity, directory: { canonical_path: workspace.canonical_path, realpath_verified: true }, title: record.title }]);
-  execution.sessions.setRuntimeSession(projectId, record.session_id, session.session_id, new Date().toISOString());
+  await execution.sessions.setRuntimeSession(beforeWrite, projectId, record.session_id, session.session_id, new Date().toISOString());
   return session.session_id;
 };
 /** The delegation named, as this session sees it; an action against an older revision is refused. */
-const delegationOf = async (a: CodingActivation, record: CodingSessionRecord, api: Capabilities, execution: CodingExecutionPorts, id: string, expected: unknown) => {
+const delegationOf = async (a: CodingActivation, record: CodingSessionRecord, api: Capabilities, execution: CodingExecution, id: string, expected: unknown) => {
   const letters = record.runtime_session_id ? await api.invoke(agent.readMessages, [record.runtime_id, record.runtime_session_id]) : [];
   const letter = letters.find(one => one.message_id === id && isDelegation(one));
   if (!letter) throw new Error("找不到这个委派");
@@ -78,9 +79,11 @@ const ROUTES: RouteMaker[] = [
       const incoming = received ? delegationView(a, execution, received, letters) : null;
       const referenced = [...new Set(savedMaterials(context, record.session_id).map(materialArtifact).flatMap(ref => ref && /^coding-(report|changeset|plan):/.test(ref.artifact_id) ? [decodeURIComponent(ref.artifact_id.split(":")[1]!)] : []))]
         .filter(id => id !== record.session_id);
+      const relatedIds = [...new Set([...outgoing.map(item => item.to_session), incoming?.from_session, ...referenced].filter((id): id is string => Boolean(id)))];
+      // The page refreshes this while a session is open: the project's outputs are listed only when there is a related session to show them under.
       const outputsBySession = new Map<string, Array<{ reference: { artifact_id: string; version: number }; kind: string }>>();
-      for (const output of sessionOutputs(execution)) (outputsBySession.get(output.session_id) ?? outputsBySession.set(output.session_id, []).get(output.session_id)!).push({ reference: output.reference, kind: output.reference.artifact_id.split(":")[0]!.replace("coding-", "") });
-      const related = [...new Set([...outgoing.map(item => item.to_session), incoming?.from_session, ...referenced].filter((id): id is string => Boolean(id)))].map(id => {
+      for (const output of relatedIds.length ? sessionOutputs(context) : []) (outputsBySession.get(output.session_id) ?? outputsBySession.set(output.session_id, []).get(output.session_id)!).push({ reference: output.reference, kind: output.reference.artifact_id.split(":")[0]!.replace("coding-", "") });
+      const related = relatedIds.map(id => {
         let session: { title: string; state: string; updated_at: string } | null = null;
         try { session = execution.sessions.get(projectId, id); } catch { session = null; }
         const relation = [outgoing.some(item => item.to_session === id) ? "你委派给它" : "", incoming?.from_session === id ? "它委派给你" : "", referenced.includes(id) ? "你引用了它的成果" : ""].filter(Boolean);
@@ -92,20 +95,20 @@ const ROUTES: RouteMaker[] = [
   // Delegating creates a session with the task as its draft and sends it the letter; nothing runs until that
   // session's person sends it.
   (a) => {
-    const { context, ports, route } = a;
+    const { context, route } = a;
     return route("coding.delegate", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution), body = bodyOf(request);
       const task = text(body.task, "委派的任务", 20_000), title = text(body.title ?? codingSessionTitleFrom(task), "委派标题", 80);
       const materials = materialSelection(body.materials ?? []);
       await resolveMaterials(context, materials, codingActionControl(beforeWrite));
-      const mine = await runtimeSessionOf(a, record, api!, execution, request.actor_id);
+      const mine = await runtimeSessionOf(a, record, api!, execution, request.actor_id, beforeWrite);
       // How far the work has been passed on: one more than the delegation this session was created for.
       const letters = await api!.invoke(agent.readMessages, [record.runtime_id, mine]);
       const hops = letters.filter(letter => isDelegation(letter) && letter.to_session === mine).at(-1)?.hops ?? 0;
       if (hops + 1 > MAX_DELEGATION_HOPS) throw new Error(`委派最多转交 ${MAX_DELEGATION_HOPS} 层；这个会话本身已是第 ${hops} 层委派`);
-      return dispatchCodingDelegation(context, api, execution, ports ?? execution, record,
+      return dispatchCodingDelegation(context, api, execution, record,
         { mine, task, title, materials, hops, ttlMs: DELEGATION_TTL_MS }, beforeWrite,
-        target => runtimeSessionOf(a, target, api, execution, request.actor_id), (letter, observed, side) => delegationView(a, side, letter, observed));
+        target => runtimeSessionOf(a, target, api, execution, request.actor_id, beforeWrite), (letter, observed, side) => delegationView(a, side, letter, observed));
     });
   },
   (a) => {

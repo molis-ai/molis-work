@@ -22,6 +22,7 @@ import {
   splitLines,
   textDiffRow,
 } from "@molis-ai/molis-work-plugin-sdk";
+import { pageText } from "./fixtures/page-text.js";
 
 const WS = { workspace_id: "ws-1", name: "项目" };
 
@@ -245,7 +246,7 @@ test("折叠只收起远离改动的未改变行，行号按钮仍在原处可�
   const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, files: [{ path: "a.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
     review: { review_id: "v", before_text: lines.join("\n") + "\n", after_text: after.join("\n") + "\n", decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
-  const primitives = { escape: (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
+  const primitives = { escape: (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"), text: pageText("zh"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
   const html = renderDiff({ view, route_prefix: "", primitives, line_feedback: true, fold_context: 3, sides: false });
   assert.doesNotMatch(html, /diff-sides/, "宿主已写明文件时不重复对比两侧");
   assert.match(html, /data-diff-unfold="0"[^>]*>.*展开 6 行未改变/, "改动上方离得远的 6 行收起");
@@ -262,8 +263,40 @@ test("折叠只收起远离改动的未改变行，行号按钮仍在原处可�
   assert.doesNotMatch(renderDiff({ view: tiny, route_prefix: "", primitives, fold_context: 3 }), /data-diff-unfold/, "少于四行不值得折叠");
 });
 
+test("VUX-33 行的几何共用一份：行号列按最长的行号定宽；并排是真的两栏，折叠、正负号与行号评论与统一视图一致", () => {
+  const primitives = { escape: (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"), text: pageText("zh"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
+  const compare = (before: string, after: string) => compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, files: [{ path: "a.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
+    review: { review_id: "v", before_text: before, after_text: after, decision: "approved", execution: "applied" } }] },
+  source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
+  const many = Array.from({ length: 10_020 }, (_, n) => `line ${n + 1}`);
+  const wide = compare(many.join("\n") + "\n", many.map((line, n) => n === 10_010 ? "changed" : line).join("\n") + "\n");
+  assert.match(renderDiff({ view: wide, route_prefix: "", primitives, fold_context: 3 }), /<ol class="diff-rows" style="--diff-digits:5">/, "五位行号的列和四位的一样对齐，不溢出");
+  const lines = Array.from({ length: 20 }, (_, n) => `line ${n + 1}`);
+  const after = [...lines.slice(0, 9), "changed", "added", ...lines.slice(10)];
+  const view = compare(lines.join("\n") + "\n", after.join("\n") + "\n");
+  const unified = renderDiff({ view, route_prefix: "", primitives, line_feedback: true, fold_context: 3, sides: false });
+  const split = renderDiff({ view: { ...view, mode: "split" }, route_prefix: "", primitives, line_feedback: true, fold_context: 3, sides: false });
+  assert.match(split, /<section class="diff" data-phase="ready" data-group="[^"]*" data-mode="split"/);
+  assert.match(split, /<ol class="diff-rows diff-split" style="--diff-digits:2">/);
+  const rows = [...split.matchAll(/<li data-kind="(equal|change)"[^>]*>(.*?)<\/li>/g)];
+  assert.equal(rows.length, 21, "改动的一对占一行，新增那行另起一行，未改变的各一行");
+  for (const [, , cells] of rows) assert.match(cells!, /^<span class="diff-before" data-kind="[^"]+">.*?<\/span><code class="diff-left" data-kind="[^"]+">.*?<\/code><span class="diff-after" data-kind="[^"]+">.*?<\/span><code class="diff-right" data-kind="[^"]+">.*?<\/code>$/, "每行左右各有行号与代码");
+  const changed = rows.find(([, kind, cells]) => kind === "change" && cells!.includes("data-coding-line=\"10\""))![2]!;
+  assert.match(changed, /<code class="diff-left" data-kind="delete"><span class="diff-sign" aria-label="删除">−<\/span>line 10<\/code>/, "删掉的原行在左");
+  assert.match(changed, /<code class="diff-right" data-kind="insert"><span class="diff-sign" aria-label="新增">\+<\/span>changed<\/code>/, "替换它的新行与它同一行在右");
+  const added = rows.find(([, , cells]) => cells!.includes(">added</code>"))![2]!;
+  assert.match(added, /^<span class="diff-before" data-kind="blank"><\/span><code class="diff-left" data-kind="blank"><\/code>/, "只有一侧的行，另一侧留同高的空位");
+  for (const html of [unified, split]) {
+    assert.match(html, /展开 6 行未改变/);
+    assert.match(html, /展开 7 行未改变/);
+    assert.equal(html.match(/<li data-kind="[^"]+" data-diff-folded=/g)?.length, 13, "两种视图收起同样的行");
+  }
+  assert.equal(split.match(/data-coding-line-side="before"/g)?.length, unified.match(/data-coding-line-side="before"/g)?.length, "并排里修改前的每个行号仍可评论");
+  assert.equal(split.match(/data-coding-line-side="after"/g)?.length, unified.match(/data-coding-line-side="after"/g)?.length, "修改后也是");
+});
+
 test("没有可比的内容时是共用的空态块：标记、说了什么、下一步，而不是一行小字", () => {
-  const primitives = { escape: (value: unknown) => String(value), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
+  const primitives = { escape: (value: unknown) => String(value), text: pageText("zh"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
   const waiting = renderDiff({ view: emptyDiff("snapshots"), route_prefix: "", primitives });
   assert.match(waiting, /^<div class="mw-empty" data-phase="waiting" data-group="snapshots"><span class="mw-empty__mark"><svg data-icon="git-compare"><\/svg><\/span><strong>先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异<\/strong><\/div>/);
   const gone = renderDiff({ view: emptyDiff("snapshots", "读不了这两份快照", "unavailable", recoveryMessage("snapshots")), route_prefix: "", primitives });

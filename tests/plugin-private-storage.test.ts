@@ -281,18 +281,25 @@ test("incompatible upgrade preflight failure leaves the old plugin available and
 test("persisted running state rehydrates a plugin contribution after process restart", async () => {
   const { MemoryPluginRuntimeRepository } = await import("@molis-ai/molis-work-plugin-runtime");
   const repository = new MemoryPluginRuntimeRepository();
-  const { createCodingPlugin } = await import("@molis-ai/molis-work-plugin-coding");
-  const definition = createCodingPlugin();
+  const { createCodingPlugin, CODING_PROJECT_DATABASE } = await import("@molis-ai/molis-work-plugin-coding");
+  const { memoryPluginDatabase } = await import("./fixtures/plugin-database.js");
+  // Coding keeps its sessions in the project library the Host lends it (`services.project_database`) and does not start without
+  // it. This bare Runtime has no Host, so the test lends one of its own; nothing else about the start changes.
+  const library = memoryPluginDatabase(CODING_PROJECT_DATABASE.schema, ["project-rehydrate"]);
+  const coding = createCodingPlugin();
+  const definition: PluginDefinition = { ...coding, start: context => coding.start({ ...context, services: { ...context.services!, project_database: library } }) };
   // Coding redeems its declared actions at start, so each process has its own action registry. Its Manifest requires goals:read and
-  // goals:write (W3-07 PR-8), so both installs grant every required permission; the Runtime still refuses a start without them.
+  // goals:write (W3-07 PR-8) and model:read (C2, PG-047: it reads the model list through services.model) and the review kinds it starts
+  // (C5, PG-009: review:git-worktree, review:git-integration), so both installs grant every required permission; the Runtime
+  // still refuses a start without them.
   const { ActionService } = await import("@molis-ai/molis-work-kernel");
   const process = () => ({ actions: { registry: new ActionService(), project_id: "project-rehydrate" } });
   const first = new PluginRuntime(repository, undefined, process());
-  const installed = first.install({definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","storage:private","workspace:read"]});
+  const installed = first.install({definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","storage:private","workspace:read","review:git-worktree","review:git-integration"]});
   await first.start(installed.install.install_id);
   // A new Runtime models a new process; the database still records running.
   const reopened = new PluginRuntime(repository, undefined, process());
-  const replayedInstall = reopened.install({definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","storage:private","workspace:read"]});
+  const replayedInstall = reopened.install({definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","storage:private","workspace:read","review:git-worktree","review:git-integration"]});
   assert.equal(replayedInstall.replayed,true);
   assert.equal(reopened.contribution(installed.install.install_id),null);
   const started = await reopened.start(installed.install.install_id);
@@ -300,6 +307,7 @@ test("persisted running state rehydrates a plugin contribution after process res
   assert.equal(reopened.contribution(installed.install.install_id)?.kind,"app");
   assert.equal((await reopened.start(installed.install.install_id)).replayed,true);
   await reopened.stop(installed.install.install_id);
+  library.close();
 });
 
 test("atomic private storage rejects stale writers across connections without overwriting the winner", () => {

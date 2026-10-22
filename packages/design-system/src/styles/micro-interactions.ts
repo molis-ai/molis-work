@@ -1,3 +1,12 @@
+import { COPY_FEEDBACK_STYLES } from "./copy-feedback.js";
+import { DISCLOSURE_STYLES } from "./disclosure.js";
+import { NUMBER_STYLES } from "./numbers.js";
+import { OVERFLOW_FADE_STYLES } from "./overflow-fade.js";
+import { SHOW_MORE_STYLES } from "../show-more.js";
+import { MEDIA_ZOOM_STYLES } from "../media-zoom.js";
+import { STREAM_TEXT_STYLES } from "../stream-text.js";
+import { FIELD_FIT_STYLES } from "../field-fit.js";
+
 /** Micro-interactions, in the places where movement carries information.
  *
  * Borrowed from React Bits (reactbits.dev/c/micro) as behaviour, not as code: this product has no
@@ -126,7 +135,7 @@ export const MICRO_INTERACTION_STYLES = `
     :is(.mw-menu, .mw-select-picker__menu, .assistant-composer):popover-open,
     .mw-select-picker__menu.is-open { animation: none; }
   }
-`;
+${OVERFLOW_FADE_STYLES}${COPY_FEEDBACK_STYLES}${DISCLOSURE_STYLES}${NUMBER_STYLES}${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${STREAM_TEXT_STYLES}${FIELD_FIT_STYLES}`;
 
 /** The travelling thumb is positioned inside the scrollable track, so visible deltas are not enough. */
 export function segmentThumbOffsets(
@@ -145,7 +154,10 @@ export function segmentThumbOffsets(
   };
 }
 
-/** Measures the three travelling marks. Absent, every surface keeps its static presentation. */
+/** Measures the three travelling marks. Absent, every surface keeps its static presentation. A changed mark is measured in
+ * the next frame, once however many changes a click made, not in the click itself. A segmented track is measured again when
+ * its own box changes (a pane resized, a hidden track shown), its labels change (another language) or fonts finish loading
+ * (VUX-22), so the thumb always sits on the real current option. */
 export const MICRO_INTERACTION_CLIENT_SCRIPT = `
 (() => {
   const SEGMENTED = ${JSON.stringify(SEGMENTED)};
@@ -198,10 +210,15 @@ export const MICRO_INTERACTION_CLIENT_SCRIPT = `
     list.setAttribute("data-search-glide", "");
   };
 
+  const pending = new Map();
+  const flush = () => { for (const [node, sync] of pending) { pending.delete(node); sync(node); } };
+  const request = (node, sync) => { if (!pending.size) requestAnimationFrame(flush); pending.set(node, sync); };
+  const sized = typeof ResizeObserver === "function" ? new ResizeObserver((entries) => entries.forEach((entry) => request(entry.target, syncSegment))) : null;
   const watch = (node, sync, attributeFilter) => {
     if (tracked.has(node)) return;
     tracked.add(node);
-    new MutationObserver(() => sync(node)).observe(node, { subtree: true, childList: true, attributes: true, attributeFilter });
+    new MutationObserver(() => request(node, sync)).observe(node, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter });
+    if (sync === syncSegment) sized?.observe(node);
     sync(node);
   };
 
@@ -238,6 +255,7 @@ export const MICRO_INTERACTION_CLIENT_SCRIPT = `
   addEventListener("resize", scan);
   addEventListener("pageshow", scan);
   document.addEventListener("DOMContentLoaded", scan);
+  document.fonts?.addEventListener?.("loadingdone", () => { for (const track of document.querySelectorAll(SEGMENTED)) if (tracked.has(track)) request(track, syncSegment); });
   scan();
 })();
 `;

@@ -1,5 +1,5 @@
 import type { ActionSchema } from "../platform/actions.js";
-import { goalEventClosureKinds, goalEventConcernStatuses, goalEventDecisionEffectKinds, goalEventDecisionPurposes,
+import { goalEventAcknowledgementCategories, goalEventAcknowledgementTreatments, goalEventClosureKinds, goalEventConcernStatuses, goalEventDecisionEffectKinds, goalEventDecisionPurposes,
   goalEventFieldFormats, goalEventJudgmentVerdicts, goalEventRequirementCurrentStatuses, goalEventSemanticFamilies,
   goalEventTrustedAuthoritySources, goalEventTypeSourceKinds, goalEventUserConclusionVerdicts, goalEventWorkStatuses,
   goalIntentSourceKinds, goalDecisionMethods, goalDecompositionReviewStatuses } from "./goals.js";
@@ -90,6 +90,8 @@ export const goalStateSchema = object({ project_id: text, goal_id: text,
 
 const operation = (name: string | readonly string[], fields: Record<string, ActionSchema>, required = Object.keys(fields)) =>
   object({ operation: typeof name === "string" ? { const: name } : enumeration(name), ...fields }, ["operation", ...required]);
+const acknowledgementReference = object({ event_id: text, category: enumeration(goalEventAcknowledgementCategories), operation: maybeText, title: text, journal_seq: count });
+const acknowledgementBy = object({ channel: enumeration(["mcp", "assistant", "agent"]), runtime_id: maybeText, session_id: maybeText });
 const systemPayload: ActionSchema = { anyOf: [
   operation("progress_summary", { ...progressFields, source: artifactSource }, Object.keys(progressFields)),
   operation("concern_opened", { concern_id: text, title: text, statement: text, scope, blocks_closure: boolean }),
@@ -104,6 +106,8 @@ const systemPayload: ActionSchema = { anyOf: [
   operation("work_resumed", { reason: text, previous_work_status: workStatus }),
   operation("event_owner_continued", { previous_fulfillment: enumeration(["unmet", "satisfied"]), reopened: boolean, previous_work_status: nullable(workStatus) }),
   operation("observation_note", { body: text }), operation("intent_created", { source_kind: enumeration(goalIntentSourceKinds) }),
+  operation("input_acknowledged", { reference: acknowledgementReference, treatment: enumeration(goalEventAcknowledgementTreatments),
+    note: text, read_cursor: count, by: acknowledgementBy }),
 ] };
 const eventBase = { event_id: text, project_id: text, goal_id: text, title: text, actor_id: text, actor_kind: actorKind, received_at: text,
   journal_seq: count, config_version: maybeCount, judgments: array(judgment) };

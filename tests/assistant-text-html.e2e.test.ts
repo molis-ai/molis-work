@@ -11,7 +11,8 @@ test("PAS-15: Host text streams, keeps reading state, copies exact code, opens n
   const pages = openPagesStore(homeDirectory);
   const page = pages.create({ project_id: projectId!, title: "代码验证文档", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "打开的是实际文档。" }] }] } });
   pages.close();
-  const code = Array.from({ length: 19 }, (_, index) => `const value${index} = "<safe>&";`).join("\n");
+  // VUX-33: an indented first line and a blank last line are part of the code, shown and copied as written.
+  const code = "  // 首行缩进\n" + Array.from({ length: 19 }, (_, index) => `const value${index} = "<safe>&";`).join("\n") + "\n";
   const model = await assistantTextModel(t, homeDirectory, `「${page.title}」\n\n<img src=x onerror="window.injected=1"> [不能执行](javascript:alert)\n\n\`\`\`ts\n${code}\n\`\`\``);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
@@ -27,13 +28,18 @@ test("PAS-15: Host text streams, keeps reading state, copies exact code, opens n
   assert.equal(await evaluate("window.firstBubble === document.querySelector('.assistant-msg--assistant')"), true, "the streaming bubble stays the same node");
   assert.equal(await evaluate("Boolean(window.injected) || !!document.querySelector('.assistant-rich img, .assistant-rich a[href^=javascript]')"), false);
   assert.equal(await evaluate("document.querySelector('.assistant-code pre code').textContent"), code);
+  assert.equal(await evaluate("document.querySelector('.assistant-code').dataset.lines"), String(code.split("\n").length), "the blank last line is counted");
   await evaluate("document.querySelector('.assistant-code-more').click()");
   assert.equal(await evaluate("document.querySelector('.assistant-code').hasAttribute('data-folded')"), false);
+  assert.equal(await evaluate(`(() => { const pre = document.querySelector('.assistant-code pre'), style = getComputedStyle(pre), line = parseFloat(getComputedStyle(pre.querySelector('code')).lineHeight);
+    return Math.round((pre.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)) / line); })()`), code.split("\n").length, "every line, the blank last one included, takes its own line");
   // Read the real Clipboard API after a real click, without replacing the production clipboard handler.
   await command("Browser.grantPermissions", { origin, permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"] });
+  // Copy takes the code as written, not what the page drew: a decoration added to the coloured lines is not copied.
+  await evaluate("document.querySelector('.assistant-code pre code').prepend(Object.assign(document.createElement('span'), { textContent: '12 ' }))");
   await evaluate("document.querySelector('.assistant-code-copy').scrollIntoView({block:'center'})");
   await click(".assistant-code-copy");
-  await waitFor("document.querySelector('.assistant-code-copy').hasAttribute('data-done')");
+  await waitFor("document.querySelector('.assistant-code-copy').dataset.copy === 'done'");
   assert.equal(await evaluate("navigator.clipboard.readText()"), code);
   const api = `/projects/${projectId}/api/assistant`;
   await waitFor(`fetch(${JSON.stringify(api + '/works')}).then(r=>r.json()).then(b=>b.works[0]?.state==='completed')`);

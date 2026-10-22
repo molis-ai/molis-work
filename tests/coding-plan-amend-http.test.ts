@@ -4,19 +4,18 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 test("plan changes are checked, applied through the Host's revise action, and told to the live round in plain words", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-plan-amend-")), path = join(root, "board.db"); seedDemoBoard(path);
-  const store = new LocalProjectDatabase(path), sessions = new CodingSessionStore(store.db);
-  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "app", runtime_id: "prologue", at: new Date().toISOString() });
-  sessions.setRuntimeSession(DEMO_PROJECT_ID, "app", "sdk", new Date().toISOString());
+  const store = new LocalProjectDatabase(path), sessions = codingSessions(store);
+  await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "app", title: "app", runtime_id: "prologue", at: new Date().toISOString() });
+  await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "app", "sdk", new Date().toISOString());
   const ref = { session_id: "sdk", run_id: "r" };
   const board = { project_id: "b1", version: 4, terminal: false, nodes: [
     { id: "step-1", state: "running", reports: [], title: "读取代码" }, { id: "step-2", state: "not-started", reports: [], title: "实现功能" }] };
@@ -30,13 +29,13 @@ test("plan changes are checked, applied through the Host's revise action, and to
     { ...agentInputActions.send, handle: async (_caller, input) => { const sent = input as { text: string; source?: string; run_id: string };
       assert.equal(sent.source, "host"); assert.equal(sent.run_id, "r");
       if (steerFails) throw new Error("run is not accepting input"); steers.push(sent.text); return { input_id: "steer-1", replayed: false, delivered: "run" }; } }] });
-  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
-    execution: { ready: async () => {}, models: async () => [] }, capabilities: { async invoke<I, O>(definition: { capability_id: string }, _args: I): Promise<O> {
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", escapeHtml: String, translate: (s: string) => s,
+    capabilities: { async invoke<I, O>(definition: { capability_id: string }, _args: I): Promise<O> {
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [ref] } as O;
       if (definition.capability_id === agent.readRun.capability_id) return { ref, phase: "running", step_board: board } as O;
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } } });
-  const server = createServer((req, res) => { void handleCodingPluginHttp(req, res, new URL(req.url!, "http://localhost"), host()).catch(error => { res.writeHead(500); res.end(String(error)); }); });
+  const server = createServer((req, res) => { void handleProjectPluginHttp(req, res, new URL(req.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { res.writeHead(500); res.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const post = async (body: unknown, run = "r") => { const result = await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/app/runs/${run}/plan-amendments`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); return { status: result.status, body: await result.json() }; };
@@ -62,5 +61,5 @@ test("plan changes are checked, applied through the Host's revise action, and to
     steerFails = true;
     const skipped = await post({ amendment: { kind: "skip", node: "step-2", reason: "这次不做" }, expected_version: 6 });
     assert.equal(skipped.status, 200); assert.equal(skipped.body.steered, false); assert.match(skipped.body.steer_error, /not accepting input/, "a graph change stands even when the round could not be told; the person is told so");
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

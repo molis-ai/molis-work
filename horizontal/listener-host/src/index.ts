@@ -87,7 +87,7 @@ export const LISTENER_HOST_SCHEMA_SQL = `
     -- The run ledger belongs to Listener Host and names its Source by id only: the Source table is modules/sources' own, and
     -- a Source's runs are forgotten explicitly (deleteListenerSourceState), never through another owner's foreign key.
     CREATE TABLE IF NOT EXISTS feed_source_runs (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       run_id TEXT NOT NULL,
       operation_id TEXT NOT NULL,
       source_id TEXT NOT NULL,

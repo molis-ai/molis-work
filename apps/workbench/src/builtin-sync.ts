@@ -1,4 +1,5 @@
-import {BUILTIN_PLUGIN_CATALOG,type BuiltinPluginEntry} from './builtin-plugins.js';
+import {BUILTIN_PLUGIN_CATALOG} from './builtin-plugins.js';
+import type {PluginRegistration as BuiltinPluginEntry} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 import type {PluginSyncCollection} from '@molis-ai/molis-work-contracts/platform/plugin';
 
 /** Bind by declared collection identity, never by its position in a manifest. No declaration grants consent. */

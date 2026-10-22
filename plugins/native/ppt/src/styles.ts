@@ -28,7 +28,7 @@ export const PPT_STYLES = `
   }
   .ppt-field { display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: var(--muted); }
   .ppt-meta [data-ppt-title] { font-size: 15px; letter-spacing: -0.02em; color: var(--ink); }
-  .ppt-slide-editor textarea.mw-textarea { field-sizing: content; min-height: 72px; max-height: 220px; resize: vertical; }
+  .ppt-slide-editor textarea.mw-textarea { min-height: 72px; max-height: 220px; resize: vertical; }
   .ppt-slide-editor textarea[data-ppt-slide-notes] { min-height: 48px; max-height: 120px; }
   .ppt-colors { display: flex; flex-wrap: wrap; gap: 12px 16px; padding-bottom: 4px; font-size: 12px; color: var(--muted); }
   .ppt-color-field { display: flex; flex-direction: column; gap: 8px; }
@@ -115,8 +115,8 @@ export const PPT_STYLES = `
   .plugin-stage-workspace.is-arriving,
   .is-arriving { animation: creative-arrive var(--motion-normal, 130ms) var(--ease-quint) both; }
   @keyframes creative-arrive {
-    from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
-    to { opacity: 1; transform: none; filter: none; }
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
   }
   @media (max-width: 900px) { .ppt-split { grid-template-columns: 1fr; } }
   @media (max-width: 720px) {

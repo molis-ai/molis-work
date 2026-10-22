@@ -50,7 +50,7 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
     .sort((a, b) => a.order - b.order);
   return `<section class="side-panel" id="side-panel" role="region" aria-label="${L("侧栏")}" data-side-panel hidden>
         <header class="side-panel-head">
-          <div class="side-panel-tabs" role="tablist" aria-label="${L("侧栏内容")}" data-side-tabs>
+          <div class="side-panel-tabs" role="tablist" aria-label="${L("侧栏内容")}" data-side-tabs data-overflow-fade>
             ${ordered.map(entry => entry.html).join("")}
           </div>
           <button class="side-panel-close" type="button" data-side-close aria-label="${L("收起侧栏")}" title="${L("收起侧栏")}">${icon("x")}</button>
@@ -143,8 +143,10 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   const expanded=()=>document.querySelectorAll('[data-side-toggle],[data-side-plugin-open]').forEach(b=>b.setAttribute('aria-expanded',String(open&&(!b.dataset.sidePluginOpen||current==='plugin:'+b.dataset.sidePluginOpen))));
   const ready=(inner,run)=>'loaded' in inner.dataset?run():inner.addEventListener('load',run,{once:true});
   const select=(id,target)=>{
-    if(!known(id))id=tabs()[0]?.dataset.sideTab;
-    current=id;write('molis:side-tab',id);
+    // The tab a page falls back to on load, with the panel closed and nobody choosing it, is not remembered: on Home that is
+    // a Home tool, and remembering it made a project's first open that tool instead of Shelf (side-shelf §3.1 AC-S01; QA-013).
+    known(id)?write('molis:side-tab',id):id=tabs()[0]?.dataset.sideTab;
+    current=id;
     for(const button of panel.querySelectorAll('[data-side-tab]')){const on=button.dataset.sideTab===id;button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;}
     for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open){load(body);const inner=target&&body.querySelector('[data-side-frame]');if(inner)ready(inner,()=>inner.contentWindow.postMessage({type:'molis:side-target',target},location.origin));}}
     expanded();imVisible();if(open)panel.querySelector('[data-side-tab][aria-selected="true"]')?.scrollIntoView({block:'nearest',inline:'nearest'});

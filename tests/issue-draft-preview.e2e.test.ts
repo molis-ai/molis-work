@@ -12,7 +12,7 @@ const digestImages = `(items => Promise.all(items.map(async image => {
 const thumbnails = digestImages + "([...d.querySelectorAll('[data-issue-thumbs] img')].map(i => ({ name: i.alt, data_url: i.src })))";
 
 test("ISSUE-45 image drafts survive full navigation, removal, sending and undo beyond localStorage quota", { timeout: 120_000 }, async t => {
-  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   await issueModel(t, b.homeDirectory);
   const v = issueView(b, "issue-draft-preview");
   await v.go("/"); await v.chord(); await v.composerFocused();
@@ -76,7 +76,7 @@ test("ISSUE-45 a failed draft write rejects the new image visibly and preserves 
 });
 
 test("ISSUE-45 sending clears immediately without erasing words typed during the disk write", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, 'empty', undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, 'empty'); if (!b) return;
   await issueModel(t, b.homeDirectory);
   const v = issueView(b);
   await v.go('/plugins/issues'); await v.press('[data-issue-composer] [name=description]');
@@ -120,16 +120,21 @@ test("ISSUE-46 preview close and zoom stay visible and clickable after two-axis 
       await v.viewport(width, 844);
       await v.ask(`(d.documentElement.dataset.theme = '${theme}', true)`);
       await v.press('[data-preview]'); await v.until("d.defaultView.getComputedStyle($('[data-issue-preview]')).opacity === '1'"); await v.press('[data-issue-zoom]');
-      await v.ask("(() => { const box = $('.issues-preview-body'); box.scrollLeft = box.scrollWidth; box.scrollTop = box.scrollHeight; return true; })()");
-      await v.until("$('.issues-preview-body').scrollLeft > 0 && $('.issues-preview-body').scrollTop > 0");
+      // At its own pixels the picture pans inside its viewport (VUX-32): moved to its far corner on both axes, it never
+      // leaves a gap at an edge, and the controls above it stay where they were.
+      await v.until("$('[data-issue-picture]').dataset.zoom === 'zoomed' && $('[data-issue-zoom]').textContent === '适应窗口'");
+      await v.ask("(() => { const view = $('[data-issue-picture]'); view.focus(); for (let i = 0; i < 80; i++) for (const key of ['ArrowRight', 'ArrowDown']) view.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })); return true; })()");
+      await v.until(`(() => { const view = $('[data-issue-picture]'), m = new DOMMatrix(d.defaultView.getComputedStyle($('[data-issue-picture] img')).transform);
+        return m.a === 1 && Math.abs(m.e - (view.clientWidth - 2400)) < 1 && Math.abs(m.f - (view.clientHeight - 2400)) < 1; })()`);
       assert.deepEqual(await v.ask(`[...d.querySelectorAll('.issues-preview header button')].map(button => {
         const r = button.getBoundingClientRect(); return r.top >= 0 && r.bottom <= d.defaultView.innerHeight && r.left >= 0 && r.right <= d.defaultView.innerWidth && button.contains(d.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
       })`), [true, true], `${path} ${width} ${theme}`);
       await v.shot(`preview-${path === '/' ? 'side' : 'page'}-${width}-${theme}`);
-      await v.press('[data-issue-zoom]'); await v.until("!$('[data-issue-preview]').hasAttribute('data-zoom')");
+      await v.press('[data-issue-zoom]'); await v.until("$('[data-issue-picture]').dataset.zoom === 'fit' && $('[data-issue-zoom]').textContent === '原始尺寸'");
+      await v.press('[data-issue-picture]'); await v.until("$('[data-issue-preview]').open");
       await v.press('.issues-preview header button:last-child'); await v.until("!$('[data-issue-preview]').open");
       await v.press('[data-preview]');
-      assert.equal(await v.ask("$('.issues-preview-body').scrollTop + $('.issues-preview-body').scrollLeft"), 0);
+      assert.equal(await v.ask("$('[data-issue-picture]').dataset.zoom"), "fit", "reopened, the picture fits again");
       await v.escape(); await v.until("!$('[data-issue-preview]').open");
     }
   }

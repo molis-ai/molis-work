@@ -1,6 +1,6 @@
 import {initializeWorkflowsReplication,createWorkflowsReplica} from './replication.js';
 import type {AggregateReplicaContext} from '@molis-ai/molis-work-storage';
-import {replicaSchemaSql,type SqliteBaseline} from "@molis-ai/molis-work-storage";
+import {replicaSchemaSql} from "@molis-ai/molis-work-storage";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
@@ -219,7 +219,7 @@ export function recordStoppedDelivery(store: WorkflowsStore, expected: WorkflowI
  * ones must already be at its version.
  */
 /** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const WORKFLOWS_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
+export const WORKFLOWS_DATABASE: PluginDatabaseDeclaration = { store_name: "workflows", read_permission: "workflows:read", write_permission: "workflows:write", version: 2, schema: (`
   CREATE TABLE workflows (
     workflow_id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
@@ -246,7 +246,7 @@ export const WORKFLOWS_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   CREATE INDEX instances_workflow ON instances (workflow_id, created_at);
 
 `)+replicaSchemaSql()+"CREATE TABLE workflow_editor_versions(workflow_id TEXT PRIMARY KEY, revision INTEGER NOT NULL);CREATE TABLE workflow_imported_instances(instance_id TEXT PRIMARY KEY);" };
-export const WORKFLOWS_DATABASE: PluginDatabaseDeclaration = { ...WORKFLOWS_STORE_BASELINE, store_name: "workflows", read_permission: "workflows:read", write_permission: "workflows:write" };
+
 
 export function openWorkflowsStore(homeDirectory: string) {
   const db = openHomeSqliteDatabase(homeDirectory, WORKFLOWS_HOME_STORE.path);

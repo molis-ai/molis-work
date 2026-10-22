@@ -8,6 +8,7 @@ import { CHARACTERS_ACTIONS, charactersActions as c } from "@molis-ai/molis-work
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 
+// RAC-63: the Module's handlers, bound by the plugin, are what the project Runtime redeems; RAC-64: other people are refused.
 test("Character management is redeemed by the project Runtime and bound to the person who owns the drafts", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "characters-actions-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
@@ -19,7 +20,9 @@ test("Character management is redeemed by the project Runtime and bound to the p
   const client = host.actionClient(ref), bound = bindActionClient(client, () => owner);
   try {
     const directory = (await client.discover(owner)).filter(row => row.provider.plugin_id === "io.molis.work.characters");
-    assert.deepEqual(directory.map(row => row.capability_id).sort(), CHARACTERS_ACTIONS.map(row => row.capability_id).sort());
+    // The person's directory lists every Characters action offered to the person; `characters.runnable` answers plugins only.
+    assert.deepEqual(directory.map(row => row.capability_id).sort(), CHARACTERS_ACTIONS.filter(row => row.action.audiences.includes("user")).map(row => row.capability_id).sort());
+    assert.ok(!directory.some(row => row.capability_id === c.runnable.capability_id), "the plugin-only runnable answer is not in the person's directory");
     assert.ok(directory.every(row => row.availability.available));
 
     const { draft } = await bound.invoke(c.create, {});

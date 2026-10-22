@@ -91,6 +91,32 @@ test("只有待决定的条目才给动作按钮：已决定的不能换个入�
   }
 });
 
+test("W5-01-CODING-48 a round's proposal from any plugin offers the feedback field, and a Host operation with no round does not", () => {
+  const feedback = /data-agent-review-feedback/;
+  const documents: AgentReviewRow["request"]["document"][] = [
+    row().request.document,
+    { kind: "command", command: "npm", args: ["test"], cwd: ".", timeout_ms: 30000, escalate: false },
+    { kind: "tool-operation", tool: "dispatch-subagent", summary: "派出一个子任务", fields: [] },
+    { kind: "mcp", server: "docs", tool: "search", arguments_json: "{}" },
+  ];
+  for (const plugin_id of ["io.molis.work.coding", "io.example.reviewer"]) {
+    for (const document of documents) {
+      const proposal = row();
+      proposal.request = { ...proposal.request, plugin_id, kind: document.kind, document };
+      assert.match(renderAgentReviewSurface({ rows: [proposal], primitives: p }), feedback, `${plugin_id} ${document.kind}`);
+      const settled = row({ receipt: receipt({ status: "rejected" }) });
+      settled.request = proposal.request;
+      assert.doesNotMatch(renderAgentReviewSurface({ rows: [settled], primitives: p }), feedback, "a decided one offers nothing");
+    }
+    // A Git or worktree operation a plugin started has no round to return a comment to.
+    const hostOperation = row();
+    hostOperation.request = { ...hostOperation.request, plugin_id, run: null, kind: "tool-operation",
+      operation: { operation_id: "op-1", workspace_id: "main", kind: "git-worktree" },
+      document: { kind: "tool-operation", tool: "git-worktree-create", summary: "创建独立工作树", fields: [] } };
+    assert.doesNotMatch(renderAgentReviewSurface({ rows: [hostOperation], primitives: p }), feedback, plugin_id);
+  }
+});
+
 test("待审内容里的标记被转义", () => {
   const nasty = row();
   nasty.request.document = {
@@ -133,6 +159,26 @@ test("review renders both file versions and exact command arguments, never only 
   const deliveryHtml = renderAgentReviewSurface({ rows: [unknownDelivery], primitives: p });
   assert.match(deliveryHtml, /执行方尚未确认收到/);
   assert.doesNotMatch(deliveryHtml, /尚未发生|执行未完成/);
+});
+
+test("PA-29 an after-write check's card names the checker and its configuration version; a card whose note is malformed cannot be approved", () => {
+  const check = row();
+  check.request.kind = "command";
+  check.request.document = { kind: "command", command: "node", args: ["--check", "a.js"], cwd: ".", timeout_ms: 15000,
+    after_write_check: { checker_id: "node-check", display_name: "<b>Node</b> 语法", version: 3 } };
+  const html = renderAgentReviewSurface({ rows: [check], primitives: p });
+  assert.match(html, /<p class="agent-review-meta" data-agent-review-check>写后检查：&lt;b&gt;Node&lt;\/b&gt; 语法（配置 v3）<\/p>/);
+  assert.equal(isDecidable(check), true);
+  assert.doesNotMatch(renderAgentReviewSurface({ rows: [row()], primitives: p }), /data-agent-review-check/);
+  for (const note of [null, { checker_id: "node-check", display_name: "Node 语法", version: "3" }, { checker_id: "node-check", version: 3 }]) {
+    const malformed = row();
+    malformed.request.kind = "command";
+    malformed.request.document = { kind: "command", command: "node", args: ["--check", "a.js"], cwd: ".", timeout_ms: 15000, after_write_check: note } as never;
+    assert.equal(isDecidable(malformed), false, JSON.stringify(note));
+    const shown = renderAgentReviewSurface({ rows: [malformed], primitives: p });
+    assert.match(shown, /审查内容不完整，暂不能批准/);
+    assert.doesNotMatch(shown, /data-agent-review-approve|data-agent-review-check/);
+  }
 });
 
 test("manual rewind shows both full versions, distinguishes empty/deleted files and refuses incomplete previews", () => {

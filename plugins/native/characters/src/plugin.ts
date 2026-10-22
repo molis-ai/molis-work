@@ -1,30 +1,58 @@
 import { bindCharacterLaunch } from "./launch-action.js";
-import type { ArtifactJsonValue, ArtifactReference, ArtifactVersionRecord, ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, characterErrors, parseCharacterContent, type CharacterContent, type CharactersCommand, type CharactersQuery } from "@molis-ai/molis-work-contracts/modules/characters";
-import type { PluginDefinition, PluginRouteBinding, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
+import type { PluginDefinition, PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { charactersManifest } from "./manifest.js";
 import { charactersSettingsUiContribution, charactersUiContribution } from "./ui.js";
-import type { CharactersImportPorts } from "./imports.js";
-import { characterBrowserPreview, characterSnapshotPreview, characterFilePreview } from "./import-preview.js";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, referencesAction, searchEntriesPage, subjectContext, type ActionDefinition, type ActionUsage, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindArtifactPreview, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { charactersActions, type CharacterLaunchInput } from "./actions.js";
-import { charactersArtifactPreviewHandler } from "./artifact-preview.js";
+import type { CharactersHandlerRuntime, CharactersHandlers } from "./handlers.js";
 
 export interface CharactersPluginPorts {
-  imports?: CharactersImportPorts;
+  /** The person these ports serve; the old route paths refuse every other caller. */
   actorId: string;
-  drafts: CharactersQuery & CharactersCommand;
-  /** Includes every publication version in the current project, including archived versions. */
-  references(): ArtifactReference[];
-  publish(id: string, revision: number, publisher: (content: CharacterContent) => Pick<ArtifactVersionResult, "artifact" | "replayed">): Pick<ArtifactVersionResult, "artifact" | "replayed">;
+  /** The owner's handlers (modules/characters), built by the Host from its ports for the runtime this plugin supplies when it starts. */
+  handlers(runtime: CharactersHandlerRuntime): CharactersHandlers;
 }
 
-/** A published character is a pinned revision of its draft (artifact-positioning A1). */
-function characterPublication(content: CharacterContent) {
-  return { origin: { kind: "pinned" as const, subject: { kind: "character", id: content.character_id }, revision: String(content.source.draft_revision) },
-    title: content.title.trim() || content.character_id, media_type: "application/json" };
+/** The JSON object an old route path sends; anything else is refused. */
+function body(request: PluginRouteRequest): Record<string, unknown> {
+  if (!request.body || typeof request.body !== "object" || Array.isArray(request.body)) throw new Error("角色请求格式无效");
+  return request.body as Record<string, unknown>;
+}
+
+/** The built-in Agent's catalog through the capabilities the Manifest declared; absent while the capability directory is not connected. */
+function agentCatalog(context: PluginStartContext): CharactersHandlerRuntime["agent"] {
+  const api = context.services?.capabilities;
+  if (!api) return undefined;
+  return { listRuntimes: () => api.invoke(agentHostCapabilities.listRuntimes, []), listActions: () => api.invoke(agentHostCapabilities.listActions, ["prologue", context.plugin_id]) };
+}
+
+/** Each action is bound to the owner's handler: the Runtime redeems the call as the person who owns the drafts, and checks authority before a write. */
+function bindHandlers(context: PluginStartContext, handlers: CharactersHandlers) {
+  const a = charactersActions;
+  return [bindArtifactPreview(a.artifactPreview, CHARACTER_ARTIFACT_TYPE, handlers.artifactPreview),
+    bindOwnerPluginAction(context, a.searchEntries, handlers.searchEntries),
+    bindOwnerPluginAction(context, a.subject, handlers.subject),
+    bindOwnerPluginAction(context, a.list, handlers.list),
+    bindOwnerPluginAction(context, a.actions, handlers.actions),
+    bindOwnerPluginAction(context, a.create, handlers.create),
+    bindOwnerPluginAction(context, a.update, handlers.update),
+    bindOwnerPluginAction(context, a.state, handlers.state),
+    bindOwnerPluginAction(context, a.publish, handlers.publish),
+    bindOwnerPluginAction(context, a.runs, handlers.runs),
+    bindOwnerPluginAction(context, a.discover, handlers.discover),
+    bindOwnerPluginAction(context, a.importFile, handlers.importFile),
+    bindOwnerPluginAction(context, a.import, handlers.import),
+    bindOwnerPluginAction(context, a.draftFile, handlers.draftFile),
+    bindOwnerPluginAction(context, a.publicationFile, handlers.publicationFile),
+    bindOwnerPluginAction(context, a.execution, handlers.execution),
+    bindOwnerPluginAction(context, a.runnable, handlers.runnable),
+    bindOwnerPluginAction(context, a.usages, handlers.usages),
+    bindCharacterLaunch(context, a.launch, handlers.launch),
+  ];
 }
 
 export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefinition {
@@ -32,126 +60,8 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
     for (const permission of charactersManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const projectId = context.project_id, artifacts = context.services?.artifacts;
     if (!projectId || !artifacts) throw new Error("角色的项目发布入口尚未装配");
-    const publications = (): ArtifactVersionRecord[] => ports.references().flatMap(ref => {
-      const record = artifacts.read(ref);
-      if (!record || !("origin" in record) || record.project_id !== projectId || record.owner_actor_id !== ports.actorId
-        || record.producer_plugin_id !== CHARACTER_PLUGIN_ID || record.producer_binding_signature !== CHARACTER_PUBLISHER_SIGNATURE
-        || record.artifact_type_id !== CHARACTER_ARTIFACT_TYPE || record.schema_version !== 1) return [];
-      // An invalid owned publication is an error, not permission to overwrite its identity/version.
-      const content = parseCharacterContent(record.payload);
-      if (content.source.owner_actor_id !== ports.actorId || record.artifact_id !== `character:${projectId}:${content.character_id}`) throw new Error("角色发布的来源或身份不一致");
-      return [record];
-    });
-    const body = (request: PluginRouteRequest): Record<string, unknown> => {
-      if (!request.body || typeof request.body !== "object" || Array.isArray(request.body)) throw new Error("角色请求格式无效");
-      return request.body as Record<string, unknown>;
-    };
-    const imports = () => { if (!ports.imports) throw new Error("本地 Agent 导入服务尚未接通"); return ports.imports; };
-    const actionCatalog = async () => {
-      const api = context.services?.capabilities;
-      if (!api) throw new Error("内置 Agent 能力目录尚未接通");
-      const runtimes = await api.invoke(agentHostCapabilities.listRuntimes, []);
-      if (!runtimes.some(runtime => runtime.runtime_id === "prologue" && runtime.supports_action_tools)) return [];
-      return api.invoke(agentHostCapabilities.listActions, ["prologue", context.plugin_id]);
-    };
-    const validateActions = async (refs?: ExactActionReference[] | null) => {
-      if (!refs?.length) return;
-      const catalog = await actionCatalog();
-      for (const ref of refs) {
-        const view = catalog.find(row => row.capability_id === ref.capability_id && row.version === ref.version && row.provider.provider_id === ref.provider_id);
-        if (!view || !view.action.audiences.includes("agent")) throw new Error(`原能力 ${ref.capability_id} · v${ref.version} 不可用或尚未授权给内置 Agent；草稿引用已保留`);
-        if (!view.availability.available) throw new Error(view.availability.reason);
-      }
-    };
-    const publication = (input: Record<string, unknown>, requireActive = true) => {
-      const ref = input.reference as ArtifactReference | undefined;
-      const record = publications().find(item => item.artifact_id === ref?.artifact_id && item.version === ref.version);
-      if (!record || requireActive && (record.lifecycle_state !== "active" || record.availability !== "available")) throw new Error("请选择当前项目已发布的角色版本");
-      const content = parseCharacterContent(record.payload), draft = ports.drafts.get(content.character_id);
-      if (requireActive && (!draft || draft.state !== "active")) throw new Error("该角色已停用或删除");
-      return { content, reference: { artifact_id: record.artifact_id, version: record.version } };
-    };
+    const handlers = bindHandlers(context, ports.handlers({ projectId, artifacts, get agent() { return agentCatalog(context); } }));
     const a = charactersActions;
-    const handlers = [charactersArtifactPreviewHandler,
-      // System search lists the person's own drafts; the reader returns the same current text.
-      bindOwnerPluginAction(context, a.searchEntries, input => searchEntriesPage(ports.drafts.list().filter(draft => draft.state !== "tombstoned").map(draft => ({
-        subject: { kind: "character", id: draft.character_id }, revision: String(draft.revision), title: draft.title || "未命名角色", summary: "",
-        updated_at: draft.updated_at, content: "context" as const, open: { surface: "characters", id: draft.character_id } })), input)),
-      bindOwnerPluginAction(context, a.subject, input => {
-        const draft = ports.drafts.get(input.subject_id);
-        if (!draft || draft.state === "tombstoned") throw new ActionError("characters.not_found", "角色已删除");
-        return subjectContext({ subject: { kind: "character", id: draft.character_id }, revision: String(draft.revision), title: draft.title || "未命名角色",
-          content: draft.instructions, goal_ids: [], session_id: null, open: { surface: "characters", id: draft.character_id } });
-      }),
-      bindOwnerPluginAction(context, a.list, () => ({ drafts: ports.drafts.list().map(characterBrowserPreview),
-        publications: publications().map(record => ({ ...record, payload: characterBrowserPreview(parseCharacterContent(record.payload)) })) })),
-      bindOwnerPluginAction(context, a.actions, async () => ({ actions: [...await actionCatalog()] })),
-      bindOwnerPluginAction(context, a.create, () => ({ draft: ports.drafts.create() })),
-      bindOwnerPluginAction(context, a.update, input => ({ draft: characterBrowserPreview(ports.drafts.update(input.id, input.expected_revision, {
-        title: input.title as string, instructions: input.instructions as string, host_tools: input.host_tools as string[] | null,
-        ...(input.action_tools === undefined ? {} : { action_tools: input.action_tools as import("@molis-ai/molis-work-contracts/modules/characters").CharacterDraftPatch["action_tools"] }),
-      })) })),
-      bindOwnerPluginAction(context, a.state, async (input, beforeWrite) => {
-        if (input.state === "active") await validateActions(ports.drafts.get(input.id)?.action_tools);
-        await beforeWrite();
-        return { draft: characterBrowserPreview(ports.drafts.setState(input.id, input.expected_revision, input.state)) };
-      }),
-      bindOwnerPluginAction(context, a.publish, async (input, beforeWrite) => {
-        const draft = ports.drafts.get(input.id);
-        if (!draft || draft.revision !== input.expected_revision) throw characterErrors.conflict("草稿已变化，请重新读取后发布");
-        await validateActions(draft.action_tools);
-        await beforeWrite();
-        const result = ports.publish(input.id, input.expected_revision, content => {
-          const artifact_id = `character:${projectId}:${content.character_id}`;
-          const existing = publications().filter(record => record.artifact_id === artifact_id).sort((a, b) => b.version - a.version);
-          const same = existing.find(record => record.lifecycle_state === "active" && record.availability === "available"
-            && JSON.stringify(parseCharacterContent(record.payload)) === JSON.stringify(content));
-          // A repeat confirmation returns the same immutable publication, also after a plugin upgrade.
-          if (same) return { artifact: same, replayed: true };
-          const previous = existing[0];
-          const version = (previous?.version ?? 0) + 1;
-          return artifacts.publish({ artifact_id, version, artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1,
-            content: { kind: "inline", payload: content as unknown as ArtifactJsonValue }, ...characterPublication(content),
-            ...(previous ? { supersedes_version: previous.version } : {}),
-          });
-        });
-        return { reference: { artifact_id: result.artifact.artifact_id, version: result.artifact.version }, publication: { ...result.artifact, payload: characterBrowserPreview(parseCharacterContent(result.artifact.payload)) }, replayed: result.replayed };
-      }),
-      bindOwnerPluginAction(context, a.runs, input => {
-        if (!ports.drafts.get(input.id)) throw new Error("角色不存在");
-        return imports().runs(input.id).then(runs => ({ runs }));
-      }),
-      bindOwnerPluginAction(context, a.discover, input => ({ candidates: imports().discover(input).map(candidate => ({ ...candidate, snapshot: characterSnapshotPreview(candidate.snapshot) })) })),
-      bindOwnerPluginAction(context, a.importFile, input => imports().previewFile(input.candidate_id as string, input)),
-      bindOwnerPluginAction(context, a.import, input => {
-        const result = imports().import(input.candidate_id as string, input.selection as Parameters<CharactersImportPorts["import"]>[1], input.existing as Parameters<CharactersImportPorts["import"]>[2]);
-        return { ...result, draft: characterBrowserPreview(result.draft) };
-      }),
-      bindOwnerPluginAction(context, a.draftFile, input => characterFilePreview(ports.drafts.get(String(input.id))?.import_snapshot, input)),
-      bindOwnerPluginAction(context, a.publicationFile, input => characterFilePreview(publication(input, false).content.import_snapshot, input)),
-      bindOwnerPluginAction(context, a.execution, input => imports().execution(publication(input).content)),
-      bindOwnerPluginAction(context, a.usages, input => {
-        const usages: ActionUsage[] = [];
-        for (const draft of ports.drafts.list()) {
-          if (draft.state === "tombstoned" || !draft.action_tools?.some(ref => referencesAction(ref, input.action))) continue;
-          usages.push({ usage_id: `draft:${draft.character_id}`, title: `角色「${draft.title}」`, detail: "内置 Agent 按这个角色运行时可以调用", enabled: draft.state === "active" });
-        }
-        // The latest publication per Character is what a run started from the project would use.
-        const latest = new Map<string, ArtifactVersionRecord>();
-        for (const record of publications()) if (record.lifecycle_state === "active" && (latest.get(record.artifact_id)?.version ?? 0) < record.version) latest.set(record.artifact_id, record);
-        for (const record of latest.values()) {
-          const content = parseCharacterContent(record.payload);
-          if (!content.action_tools?.some(ref => referencesAction(ref, input.action))) continue;
-          usages.push({ usage_id: `publication:${record.artifact_id}`, title: `角色「${content.title}」v${record.version}（已发布）`, detail: "从项目运行这个发布版本时可以调用",
-            enabled: record.availability === "available" && ports.drafts.get(content.character_id)?.state === "active" });
-        }
-        return { usages };
-      }),
-      bindCharacterLaunch(context, a.launch, (input, control) => {
-        const selected = publication(input);
-        return imports().launch(selected.content, selected.reference, { workspace_id: input.workspace_id, task: input.task, request_id: input.request_id }, { ...control, assert_current: () => { control.assert_current(); publication(input); } });
-      }),
-    ];
     // The old paths translate parameters and keep their status codes; execution is the registered owner-bound action.
     const route = <I, O>(route_id: string, definition: ActionDefinition<I, O>, input: (request: PluginRouteRequest) => I): PluginRouteBinding => ({ route_id, async handle(request) {
       if (request.actor_id !== ports.actorId) return { status: 403, body: { error: "不能操作其他人的角色" } };

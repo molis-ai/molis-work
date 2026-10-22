@@ -25,6 +25,10 @@ export {
   type UnifiedHunk,
 } from "./unified.js";
 export {
+  unifiedPatch,
+  type UnifiedPatchFile,
+} from "./patch.js";
+export {
   compareChangeSet,
   compareRunChangeSet,
   compareSnapshots,
@@ -62,5 +66,6 @@ export {
 export { createDiffPlugin, type DiffPluginPorts } from "./plugin.js";
 
 export { DIFF_STYLES } from "./styles.js";
+export { DIFF_MESSAGES } from "./messages.js";
 
 export { diffActions, DIFF_ACTIONS } from "./actions.js";

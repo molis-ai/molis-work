@@ -181,7 +181,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
         preview.textContent = "";
       }
       reasonInput.value = "";
-      editor.hidden = false;
+      editor.hidden = false; editor.closest(".guidance-document")?.setAttribute("data-editing", "");
       const reduceMotion = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
       editor.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
       focusTimer = setTimeout(() => { if (!editor.hidden) (editsContent ? contentInput : reasonInput).focus(); }, reduceMotion ? 0 : 220);
@@ -190,7 +190,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
       if (saving) return;
       clearTimeout(focusTimer);
       const focusTarget = returnFocus;
-      editor.hidden = true;
+      editor.hidden = true; editor.closest(".guidance-document")?.removeAttribute("data-editing");
       form.reset();
       errorBox.hidden = true;
       returnFocus = null;

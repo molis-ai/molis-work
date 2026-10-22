@@ -2,7 +2,6 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { AgentHostComposition } from "./agent-host-composition.js";
-import { configuredModelChoices } from "./configured-models.js";
 import { observeGitOperations } from "./git-operation-notifications.js";
 import { ensureInstalledPlugins } from "./installed-plugin-host.js";
 import type { LocalHost } from "./local-host.js";
@@ -45,14 +44,10 @@ export function ensureProjectPluginActions(source: ProjectPluginHost, reference:
   const agents = () => source.agents();
   return host.withRuntime(reference, runtime => ensureProjectPlugins({
     store: runtime.store, projectId: runtime.project_id, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: options.homeDirectory,
-    goalTitle: id => runtime.coordinator.goalQueries.getGoal(runtime.project_id, id)?.title,
     capabilities: host.client(reference),
     actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: reference.project_id },
     characterWorkspaces: async () => options.workspacesFor ? await options.workspacesFor(reference.project_id)
       : options.workspaceFor ? [await options.workspaceFor(reference.project_id)].filter((value): value is ProjectWorkspaceRef => !!value) : [],
     ...(agents() ? { observeGitOperations: listener => observeGitOperations(agents()!.agentHost.reviews, runtime.project_id, listener) } : {}),
-    // Headless callers reach Coding's actions through the Host's own Agent service; page adapters may still attach theirs.
-    ...(agents() && options.homeDirectory ? { execution: { ready: () => agents()!.ready,
-      models: async () => configuredModelChoices(options.homeDirectory!) } } : {}),
   }));
 }

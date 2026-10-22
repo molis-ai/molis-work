@@ -5,6 +5,7 @@ import type { SyncRegistration } from '@molis-ai/molis-work-module-sync-replicat
 import { availableProjectPluginIds, builtinSyncBindings } from '@molis-ai/molis-work-app-workbench';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
 import { personalDocumentOptions } from './personal-document-options.js';
+import { homeStores } from './home-stores.js';
 
 export function createPersonalPluginRegistrations(home:string,spaceId:string,userId:string,check:()=>void,withCatalog:LocalWebCatalogRunner,hasArtifact:AggregateReplicaContext['hasArtifact'],hasReference:AggregateReplicaContext['hasReference']):SyncRegistration[]{
   const space=ensureStorageSpace(home);if(space.kind!=='personal'||space.spaceId!==spaceId||space.ownerUserId!==userId)throw new Error('SYNC_PERSONAL_SPACE_REQUIRED');
@@ -15,7 +16,10 @@ export function createPersonalPluginRegistrations(home:string,spaceId:string,use
       return {locate:sync.locate,selection,dependencies,title:collection.title,content:sync.content?.({spaceId,authorize:check}),async refresh(){check();},async prepare(){check();},
         withReplica(run){check();if(!replica){const context=personalDocumentOptions(home,sync.path,check);if(!context||context.spaceId!==spaceId)throw new Error('SYNC_PERSONAL_SPACE_REQUIRED');replica=sync.open(home,context);}check();return run(replica);}};
     }
-    const binding={id:entry.project_plugin_id,manifest:entry.manifest,...sync};
+    const ownerStore=sync.scope==='home-store'?homeStores().get(sync.path):undefined;
+    if(sync.scope==='home-store'&&(!ownerStore?.replication||ownerStore.owner!==sync.owner))throw new Error('同步存储主人未注册');
+    const resolved=sync.scope==='home-store'?{...sync,scope:'home' as const,open:ownerStore!.replication!}:sync;
+    const binding={id:entry.project_plugin_id,manifest:entry.manifest,...resolved};
     let projects=new Map<string,{title:string;enabled:boolean}>();
     return {
       title:collection.title, content: binding.content?.({spaceId,authorize:check}),

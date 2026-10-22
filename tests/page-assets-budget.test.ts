@@ -670,6 +670,71 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1129841],
   // The outcome slot's +442 B (#789 with #803) is spent; main's budget has since fallen below its start.
   ["/assets/molis-work-workbench.js", 1130033],
+  // The project-knowledge allowances (#839) are spent.
+  ["/assets/molis-work-workbench.js", 1128644], ["/assets/molis-work-workbench.css", 1593165], ["/assets/molis-work-settings.css", 982397],
+  // The overflow-fade slice's intermediate starts (#856, VUX-27) are retired into the branch's one admission.
+  ["/assets/molis-work-workbench.js", 1130116], ["/assets/molis-work-workbench.css", 1603099], ["/assets/molis-work-settings.css", 988881],
+  ["/assets/molis-work-arrival.css", 698467],
+  // The copy, disclosure and live-number allowances (#860, VUX-19, VUX-22, VUX-42) are spent.
+  ["/assets/molis-work-workbench.js", 1130995], ["/assets/molis-work-workbench.css", 1603559], ["/assets/molis-work-settings.css", 989369],
+  ["/assets/molis-work-arrival.css", 698955], ["/assets/molis-work-pages-editor.js", 706942],
+  // The branch's one admission from main (#851, VUX-19, VUX-27, VUX-35) is spent.
+  ["/assets/molis-work-workbench.js", 1129525], ["/assets/molis-work-workbench.css", 1603154], ["/assets/molis-work-settings.css", 988933],
+  ["/assets/molis-work-arrival.css", 698519], ["/assets/molis-work-pages-editor.js", 706933],
+  // The scroll-owner and side-group allowances (#861, VUX-26, VUX-08) are spent.
+  ["/assets/molis-work-workbench.js", 1132686], ["/assets/molis-work-workbench.css", 1604785], ["/assets/molis-work-settings.css", 990560],
+  ["/assets/molis-work-arrival.css", 700146],
+  // The Coding scroll-owner allowance (#864, VUX-26) is spent.
+  ["/assets/molis-work-workbench.js", 1134508],
+  // The remaining copy and scroll consumers' allowances (#866, VUX-19, VUX-26) are spent.
+  ["/assets/molis-work-workbench.js", 1134824], ["/assets/molis-work-plugins/shelf.js", 75673],
+  ["/assets/molis-work-plugins/lingguang.js", 25265],
+  // The show-more allowances (#868, VUX-08) are spent.
+  ["/assets/molis-work-workbench.js", 1135021], ["/assets/molis-work-workbench.css", 1605196], ["/assets/molis-work-settings.css", 990971],
+  ["/assets/molis-work-arrival.css", 700557],
+  // The 产出 split allowance (#869, VUX-08) is spent.
+  ["/assets/molis-work-workbench.js", 1135978],
+  // The 上下文 allowance (#871, VUX-08/09) is spent.
+  ["/assets/molis-work-workbench.js", 1136122],
+  // The 工作环境 and 连接与工具 allowance (#873, VUX-08/09) is spent.
+  ["/assets/molis-work-workbench.js", 1138483], ["/assets/molis-work-workbench.css", 1605291], ["/assets/molis-work-settings.css", 991066],
+  ["/assets/molis-work-arrival.css", 700652],
+  // The 用量 allowance (#874, VUX-11) is spent.
+  ["/assets/molis-work-workbench.js", 1143359], ["/assets/molis-work-workbench.css", 1605330], ["/assets/molis-work-settings.css", 991105],
+  ["/assets/molis-work-arrival.css", 700691],
+  // The Coding MCP tools allowance (#876, VUX-08/09) is spent.
+  ["/assets/molis-work-workbench.js", 1146308],
+  // The text-wrap allowances (#900, VUX-04) are spent.
+  ["/assets/molis-work-workbench.js", 1158399], ["/assets/molis-work-workbench.css", 1607761], ["/assets/molis-work-settings.css", 991786],
+  ["/assets/molis-work-arrival.css", 702081],
+  // The roving-focus allowance (#902, VUX-28) is spent.
+  ["/assets/molis-work-workbench.js", 1158426],
+  // The layers allowance (#904, VUX-29) is spent.
+  ["/assets/molis-work-workbench.js", 1161486],
+  // The tooltip allowances (#906, VUX-05) are spent.
+  ["/assets/molis-work-workbench.js", 1161761], ["/assets/molis-work-workbench.css", 1607833], ["/assets/molis-work-settings.css", 991858],
+  ["/assets/molis-work-arrival.css", 702153],
+  // The hover-action allowances (#907, VUX-06) are spent.
+  ["/assets/molis-work-workbench.js", 1162964], ["/assets/molis-work-workbench.css", 1607967], ["/assets/molis-work-settings.css", 991992],
+  ["/assets/molis-work-arrival.css", 702287],
+  // The sizing-keys allowance (#908, VUX-06) is spent.
+  ["/assets/molis-work-pages-editor.js", 707306],
+  // The size-announcement allowances (#910, VUX-06) are spent.
+  ["/assets/molis-work-pages-editor.js", 708886], ["/assets/molis-work-workbench.js", 1163017],
+  // The narrow-container allowances (#911, VUX-30) are spent.
+  ["/assets/molis-work-workbench.css", 1608756], ["/assets/molis-work-settings.css", 992244], ["/assets/molis-work-workbench.js", 1163042],
+  // The drop-zone allowances (#912, VUX-18) are spent.
+  ["/assets/molis-work-workbench.js", 1163079], ["/assets/molis-work-plugins/shelf.js", 75771],
+  // The attachment-chip allowances (#913, VUX-16, VUX-18) are spent.
+  ["/assets/molis-work-workbench.js", 1163656], ["/assets/molis-work-workbench.css", 1608984], ["/assets/molis-work-settings.css", 992398], ["/assets/molis-work-arrival.css", 702433],
+  // The patch-copy allowance (#914, VUX-33) is spent.
+  ["/assets/molis-work-plugins/coding.js", 373159],
+  // The @-list allowances (#915, VUX-17) are spent.
+  ["/assets/molis-work-workbench.js", 1167224], ["/assets/molis-work-workbench.css", 1609383], ["/assets/molis-work-settings.css", 992797], ["/assets/molis-work-arrival.css", 702832],
+  // The no-accumulation allowance (#918, VUX-36) is spent.
+  ["/assets/molis-work-workbench.js", 1167962],
+  // The English-page allowances (#920, VUX-40) are spent.
+  ["/assets/molis-work-plugins/jelly.js", 91179], ["/assets/molis-work-plugins/coding.js", 373460],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -682,31 +747,36 @@ for (const [asset, old] of [
   });
 }
 
-// specs/project-knowledge (2026-10-19): the 项目资料 styles and the side panel's 资料 tab may grow these three once, each
-// from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from the new
-// baseline still fails.
-test("PMAT the project-knowledge allowances are bounded and spent once; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1128644, 1129525], "/assets/molis-work-workbench.css": [1593165, 1603154],
-    "/assets/molis-work-settings.css": [982397, 988933] } as const;
-  const assets = Object.keys(allowed) as (keyof typeof allowed)[];
-  branch("pmat-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
-  git("checkout", "-q", "-B", "pmat-change");
+// specs/visual-ui-experience (2026-10-20): each slice's growth is admitted once, from exactly the merge-base budget to the
+// measured size. The allowance is read from the gate as it stands, so the test follows the slice that wrote it rather than
+// naming one slice's numbers. One byte more, another asset, or growth from the new baseline still fails.
+const currentCeilings = () => {
+  const block = /const APPROVED_CEILINGS = \{([\s\S]*?)\};/.exec(readFileSync(script, "utf8"))?.[1] ?? "";
+  return Object.fromEntries([...block.matchAll(/"([^"]+)":\s*\[(\d+),\s*(\d+)\]/g)].map(([, asset, start, ceiling]) => [asset, [Number(start), Number(ceiling)]])) as Record<string, [number, number]>;
+};
+test("VUX the current one-time allowance is bounded and spent once; other assets and later growth still fail", () => {
+  const allowed = currentCeilings();
+  const assets = Object.keys(allowed);
+  // An empty allowance (a slice that only made things lighter) is `{}`: anything else in it is an entry.
+  assert.ok(assets.length > 0 || !/APPROVED_CEILINGS = \{\s*[^\s}]/.test(readFileSync(script, "utf8")), "every entry in the gate's allowance is read");
+  branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
+  git("checkout", "-q", "-B", "vux-change");
   for (const asset of assets) sizes[asset] = allowed[asset][1];
-  assert.equal(gate("--update", "--base", "pmat-base").code, 0);
-  assert.equal(gate("--base", "pmat-base").code, 0);
+  assert.equal(gate("--update", "--base", "vux-base").code, 0);
+  assert.equal(gate("--base", "vux-base").code, 0);
   for (const asset of assets) {
     sizes[asset]++;
-    assert.equal(gate("--update", "--base", "pmat-base").code, 1, `${asset}: one byte over its allowance`);
+    assert.equal(gate("--update", "--base", "vux-base").code, 1, `${asset}: one byte over its allowance`);
     sizes[asset]--;
   }
   sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "pmat-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "pmat-base").code, 0);
-  commit("freeze the measured project-knowledge sizes"); git("branch", "-f", "pmat-frozen");
+  assert.equal(gate("--update", "--base", "vux-base").code, 1, "other assets stay frozen");
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "vux-base").code, 0);
+  commit("freeze the measured sizes"); git("branch", "-f", "vux-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
-    assert.equal(gate("--base", "pmat-frozen").code, 1, `${asset}: the new baseline has no allowance`);
-    assert.equal(gate("--update", "--base", "pmat-frozen").code, 1);
+    assert.equal(gate("--base", "vux-frozen").code, 1, `${asset}: the new baseline has no allowance`);
+    assert.equal(gate("--update", "--base", "vux-frozen").code, 1);
     sizes[asset]--; putBudget(sizes);
   }
 });

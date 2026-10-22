@@ -1,5 +1,5 @@
 {
-  "name":"molis-work-personal-sync-tools", "private":true, "type":"module",
+  "name":"molis-work-personal-sync-tools", "private":true,"license":"SEE LICENSE IN LICENSE", "type":"module",
   "scripts":{
     "build":"node ../../apps/sync-worker/build.mjs",
     "dev":"wrangler dev --cwd ../../apps/sync-worker --config wrangler.jsonc --local --ip 127.0.0.1 --port 8788",

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { ASSISTANT_STORE_NAME, AssistantStore } from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
+import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // W2'-2 (specs/context-program §21.6): `openPlugin`, a search hit's `open.surface` and an Assistant notice's `open` name a
@@ -17,7 +20,7 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   t.after(() => { if (agentSetting === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT; else process.env.MOLIS_WORK_SHELF_AGENT = agentSetting; });
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
+  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-side-toggle]')");
@@ -52,16 +55,49 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   await landed("the search hit");
   await closePanel();
 
-  // SHELF-LINK-03: an Assistant notice whose stored `open` names Shelf, as the page's attention read hands it over.
-  const notice = { notice_id: "shelf-link-notice", work_id: "work-shelf-link", kind: "material", text: "材料已经放进 Shelf", created_at: new Date().toISOString(),
-    open: { surface: "shelf", id: item.item_id, title: item.name, project_id: projectId } };
-  await evaluate(`document.dispatchEvent(new CustomEvent('molis-work:attention', { detail: { notices: [${JSON.stringify(notice)}] } }))`);
-  // The list paints when it opens; its button may be folded into the bar's menu at this width, so it is pressed directly.
-  await evaluate("(() => { const button = document.querySelector('[data-assistant-attention]'); button.hidden = false; button.click(); })()");
-  const open = `[data-assistant-notices] [data-notice-id="shelf-link-notice"][data-notice-action="open"]`;
-  await waitFor(`Boolean(document.querySelector(${JSON.stringify(open)}))`);
-  await evaluate(`document.querySelector(${JSON.stringify(open)}).click()`);
+  // SHELF-LINK-03 (QA-018): an Assistant notice whose stored `open` names Shelf. Nothing in the product raises such a notice any more
+  // (the only notices that carry an `open` are due reminders, and the only provider of those names the Todo plugin), so this is
+  // the legacy stored row the spec means: written once, with the Host's own notice store and writer (`AssistantStore.raiseNotice`,
+  // the person's actor, the same row shape a due reminder has), and from there only the product is used. Nothing below sends a
+  // notice event to the page or un-hides the bell.
+  const dedupe = "reminder:legacy-shelf:shelf-link-03";
+  const seeded = (() => {
+    const db = openHomeSqliteDatabase(homeDirectory, ASSISTANT_STORE_NAME);
+    try {
+      return new AssistantStore(db).raiseNotice(LOCAL_PERSON_ACTOR_ID, { kind: "reminder", work_id: "", work_title: "Shelf", text: `提醒（Shelf · 09:00）：${item.name}`,
+        open: { surface: "shelf", id: item.item_id, title: item.name, project_id: projectId } }, dedupe);
+    } finally { db.close(); }
+  })();
+  assert.ok(seeded, "the stored notice was written");
+  // It is queryable through the Host's own notices API, exactly as stored.
+  const listed = () => evaluate<Array<{ notice_id: string; kind: string; open?: unknown }>>(`fetch(document.body.dataset.routePrefix + '/api/assistant/notices', { headers: molisWorkControlHeaders(), cache: 'no-store' }).then((r) => r.json()).then((body) => body.notices)`);
+  // A person comes back to the page: its attention read picks the notice up and the bell shows by itself.
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.querySelector('[data-side-toggle]')");
+  if (await evaluate("document.body.dataset.sideOpen === 'true'")) await closePanel();
+  assert.notEqual(await evaluate("document.body.dataset.sideOpen"), "true", "the side panel starts closed, so only the notice can open it");
+  const stored = (await listed()).find((one) => one.notice_id === seeded.notice_id);
+  assert.ok(stored, "the notices API lists the stored notice");
+  assert.equal(stored.kind, "reminder");
+  assert.deepEqual(stored.open, { surface: "shelf", id: item.item_id, title: item.name, project_id: projectId }, "with the `open` it was stored with");
+  const bell = "[data-assistant-attention]";
+  await waitFor(`!document.querySelector(${JSON.stringify(bell)}).hidden && document.querySelector(${JSON.stringify(bell)}).checkVisibility()`, 30_000);
+  assert.match(String(await evaluate(`document.querySelector(${JSON.stringify(bell)}).getAttribute('aria-label')`)), /^等你处理 · \d+$/, "the bell counts the notices that wait");
+  // The main area as it is before the notice is opened.
+  const mainArea = `({ surface: document.body.dataset.desktopSurface ?? null, tabs: [...document.querySelectorAll('[data-titlebar-tabs] [data-tab-id]')].map((tab) => tab.textContent.trim() + ':' + String(tab.hasAttribute('aria-current'))),
+    shelf: Boolean(document.querySelector('[data-work-surface=shelf], [data-titlebar-tabs] [data-plugin=shelf]')) })`;
+  const before = await evaluate<object>(mainArea);
+  // As a person does: the bell, then the notice's own 打开 button.
+  await click(bell);
+  const open = `[data-assistant-notices]:not([hidden]) [data-notice-id=${JSON.stringify(seeded.notice_id)}][data-notice-action="open"]`;
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(open)}))`, 10_000);
+  assert.match(String(await evaluate(`document.querySelector(${JSON.stringify(open)}).closest('.assistant-notice').textContent`)), new RegExp(item.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), "the list shows the notice's words");
+  await click(open);
   await landed("the Assistant notice");
+  assert.deepEqual(await evaluate(mainArea), before, "the main area is as it was: same surface, same tabs, nothing of Shelf in it");
+  // Opened, the notice is settled by the product itself: it leaves the API and the bell goes.
+  await waitFor(`fetch(document.body.dataset.routePrefix + '/api/assistant/notices', { headers: molisWorkControlHeaders(), cache: 'no-store' }).then((r) => r.json()).then((body) => !body.notices.some((one) => one.notice_id === ${JSON.stringify(seeded.notice_id)}))`, 10_000);
+  await waitFor(`document.querySelector(${JSON.stringify(bell)}).hidden`, 30_000);
 });
 
 test("SIDE-FWD-01 a side view's placement events reach the page; an unlisted event stays in the view", { timeout: 60_000 }, async (t) => {

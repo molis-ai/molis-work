@@ -1,15 +1,12 @@
+import { openHostShelfStore } from "./shelf-actions.js";
 import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { createCharactersPlugin } from "@molis-ai/molis-work-plugin-characters";
-import { charactersPluginPorts, codingCharacterPorts } from "./characters-host.js";
-import { codingShelfMaterial } from "./coding-shelf-material.js";
-import { openShelfStore, SHELF_DOCUMENT_PATH } from "@molis-ai/molis-work-module-shelf";
-import { personalDocumentOptions } from './personal-document-options.js';
+import { charactersPluginPorts } from "./characters-host.js";
 import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import {savedAgentHistoryView} from '@molis-ai/molis-work-service-agent-host';
-import { CODING_PLUGIN_ID, CODING_REPORT_TYPE, CODING_PLAN_TYPE, CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
+import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
@@ -17,15 +14,18 @@ import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { FORM_DATABASE, createFormPlugin } from "@molis-ai/molis-work-plugin-form";
 import { DATASET_DATABASE, createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
 import { LINGGUANG_DATABASE, createLingguangPlugin } from "@molis-ai/molis-work-plugin-lingguang";
+import { PAGES_DATABASE, createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_DATABASE, createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
+import { WORKFLOWS_DATABASE, createWorkflowsPlugin } from "@molis-ai/molis-work-plugin-workflows";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { SqlitePluginPrivateStorage, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
+import { SqlitePluginPrivateStorage, outsidePluginAction, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 import { projectScopeEntries } from "./plugin-scope-entries.js";
+import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
 
 export interface ProjectPluginPorts {
   observeGitOperations?(listener: (event: GitOperationUpdate) => void): () => void;
@@ -34,27 +34,41 @@ export interface ProjectPluginPorts {
   store: LocalProjectDatabase;
   projectId: string;
   actorId: string;
-  /** Sessions attach to Goals by id; the title is resolved here, never copied. */
-  goalTitle(goalId: string): string | undefined;
   /** Directories bound to this project. Empty means none is bound yet. */
   workspaces?: readonly ProjectWorkspaceRef[];
   capabilities?: PluginCapabilityPort;
   actions: import("./plugin-platform.js").PluginPlatformOptions["actions"];
-  execution?: Omit<CodingExecutionPorts, "sessions" | "goalTitle">;
   routePrefix?: string;
   homeDirectory?: string;
 }
 
 export interface ProjectPluginState {
   platform: PluginPlatform | null;
-  running: boolean;
+  /** Why the platform itself did not start. Whether one plugin runs is that plugin's own state (`projectPluginProblem`). */
   error?: string;
   updateObservers?(): void;
   stopObservers?(): void;
 }
 
+/**
+ * Why one plugin of the project is not running, or null when it runs: the project refused its database, or the supervisor's own
+ * state says why. Every plugin is read the same way; `reason` is null when nothing says why (the project does not run it at all).
+ */
+export function projectPluginProblem(state: ProjectPluginState, store: LocalProjectDatabase, pluginId: string): { readonly reason: string | null } | null {
+  const active = state.platform?.supervisor.state(pluginId);
+  if (active?.status === "running") return null;
+  return { reason: projectPluginDatabaseRefusal(store.db, pluginId)?.message ?? active?.message ?? state.error ?? null };
+}
+
 const started = new WeakMap<LocalProjectDatabase, Map<string, { ports: ProjectPluginPorts; ready: Promise<ProjectPluginState> }>>();
 
+export interface ProjectStageView { readonly surface: string; readonly label: string; readonly stage: string }
+
+/**
+ * Runtime stage views of the project's running plugins: the Manifest says a view sits in `stage`, and its contribution
+ * renders it with the page's primitives. A plugin with no such view contributes nothing; the host keeps no per-plugin
+ * renderer for the stage (PRR-12, S-20's declarative surface rule).
+ */
 /** A project's plugin platform when it is already running; never starts one. */
 export async function runningProjectPlatform(store: LocalProjectDatabase, projectId: string): Promise<PluginPlatform | null> {
   const opening = started.get(store)?.get(projectId);
@@ -94,7 +108,7 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
     if (existing.ports.actorId !== ports.actorId || existing.ports.homeDirectory !== ports.homeDirectory
       || existing.ports.actions.project_id !== ports.actions.project_id) throw new Error("项目插件实例的 Home、用户或项目身份不一致");
     // Entry-point adapters can arrive after headless discovery; identity and storage stay bound.
-    for (const key of ["execution", "characterSpawn", "characterWorkspaces", "workspaces", "routePrefix", "observeGitOperations"] as const) {
+    for (const key of ["characterSpawn", "characterWorkspaces", "workspaces", "routePrefix", "observeGitOperations"] as const) {
       if (ports[key] !== undefined) Object.assign(existing.ports, { [key]: ports[key] });
     }
     const state = await existing.ready;
@@ -108,7 +122,7 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
 }
 
 async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginState> {
-  const record: ProjectPluginState = { platform: null, running: false };
+  const record: ProjectPluginState = { platform: null };
   try {
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
     const artifacts = new ArtifactsModule({ db: ports.store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, appendEvent: event => ports.store.appendEvent(event), eventCursor: projectId => ports.store.eventCursor(projectId) });
@@ -137,36 +151,14 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         return ports.characterSpawn(request);
       });
     const shelfPorts: ShelfResultPorts | undefined = ports.homeDirectory ? {
-        // Coding's reports are 成果; its change sets are process items. Shelf can take a copy of either.
-        references: () => [...artifacts.query.listArtifacts(ports.projectId, { artifact_type_id: CODING_REPORT_TYPE }),
-          ...processItems.query.listArtifacts(ports.projectId, { artifact_type_id: "coding.changeset.v1" })]
-          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID).map(({ artifact_id, version }) => ({ artifact_id, version })),
-        preview: record => codingShelfMaterial(record, ports.projectId, ports.routePrefix ?? ""),
-        receive: preview => {
-          const shelf = openShelfStore(ports.homeDirectory!, shelfRuntimeProbe(),{},undefined,personalDocumentOptions(ports.homeDirectory!,SHELF_DOCUMENT_PATH));
-          const item = shelf.admit({ filename: preview.title + ".md", mime: "text/markdown", bytes: Buffer.from(preview.text, "utf8"), artifact_source: preview.source });
-          return { item, snapshot: shelf.snapshot() };
+        // What Shelf may take a copy of, and the text of it, it asks the platform for; the Host only holds the project's route prefix and the personal store.
+        projectPath: () => ports.routePrefix ?? "",
+        receive: async preview => {
+          const shelf = openHostShelfStore(ports.homeDirectory!, shelfRuntimeProbe());
+          const item = await shelf.admit({ filename: preview.title + ".md", mime: "text/markdown", bytes: Buffer.from(preview.text, "utf8"), artifact_source: preview.source });
+          return { item, snapshot: await shelf.snapshot() };
         },
       } : undefined;
-    const codingPorts: CodingPluginPorts = { execution: { savedHistoryView:savedAgentHistoryView,
-        ready: async () => {
-          if (!ports.execution) throw new Error("Agent 执行服务尚未接通");
-          await ports.execution.ready();
-        },
-        models: () => ports.execution?.models() ?? Promise.resolve([]),
-        sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
-        characters: codingCharacterPorts(ports.homeDirectory, ports.actorId, ports.projectId, artifacts.query),
-        reportReferences: () => artifacts.query.listArtifacts(ports.projectId, { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 })
-          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
-          .map(({ artifact_id, version }) => ({ artifact_id, version })),
-        changeSetReferences: () => processItems.query.listArtifacts(ports.projectId, { artifact_type_id: "coding.changeset.v1", schema_version: 1 })
-          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
-          .map(({ artifact_id, version }) => ({ artifact_id, version })),
-        // Confirmed plans, so another session can cite one as a fixed material.
-        planReferences: () => processItems.query.listArtifacts(ports.projectId, { artifact_type_id: CODING_PLAN_TYPE, schema_version: 1 })
-          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
-          .map(({ artifact_id, version }) => ({ artifact_id, version })),
-      } };
     const filesPorts = { readable: () => currentWorkspaceId(ports) !== null,
       onWorkspaceChanged: () => { platform.invalidateView(FILES_PLUGIN_ID); } };
     const operationListeners = new Set<(event: GitOperationUpdate) => void>();
@@ -174,7 +166,8 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.updateObservers = () => {
       if (closed || observer === ports.observeGitOperations) return;
       unsubscribe?.(); observer = ports.observeGitOperations;
-      unsubscribe = observer?.(event => { if (!closed) for (const listener of operationListeners) listener(event); });
+      // The Host delivers a settled operation on its own behalf, outside whichever action settled it: Git publishes for its own installation (S-18).
+      unsubscribe = observer?.(event => { if (!closed) outsidePluginAction(() => { for (const listener of operationListeners) listener(event); }); });
     };
     record.stopObservers = () => { closed = true; unsubscribe?.(); operationListeners.clear(); };
     record.updateObservers();
@@ -199,10 +192,10 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       },
       ...ports.homeDirectory ? homeLibraryPlugins() : [],
       {
-        definition: createCodingPlugin(codingPorts),
+        definition: createCodingPlugin(),
         bundled: true,
         releaseArtifact: nativePluginReleaseArtifact<typeof createCodingPlugin>(
-          "@molis-ai/molis-work-plugin-coding", "createCodingPlugin", factory => factory(codingPorts)),
+          "@molis-ai/molis-work-plugin-coding", "createCodingPlugin", factory => factory()),
       },
       {
         definition: createFilesPlugin(filesPorts),
@@ -229,10 +222,8 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           "@molis-ai/molis-work-plugin-text-stats", "createTextStatsPlugin", factory => factory()),
       },
     ];
-    const report = await platform.start(projectScopeEntries([...entries, ...projectFixtureEntries(ports.homeDirectory)], ports.homeDirectory));
+    await platform.start(projectScopeEntries(withoutRefusedPlugins(ports.store.db, [...entries, ...projectFixtureEntries(ports.homeDirectory)], entry => entry.definition.manifest.plugin_id), ports.homeDirectory));
     bindDeclaredDefaults(platform, ports.projectId, ports.actorId);
-    record.running = report.running.includes(CODING_PLUGIN_ID);
-    record.error = [...report.failed, ...report.blocked].find(entry => entry.plugin_id === CODING_PLUGIN_ID)?.message ?? undefined;
   } catch (error) {
     record.stopObservers?.();
     if (record.platform) {
@@ -240,8 +231,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       catch (cleanupError) { error = new AggregateError([error, cleanupError], "项目插件启动及清理失败"); }
       record.platform = null;
     }
-    record.error = error instanceof Error ? error.message : "Coding 启动失败";
-    record.running = false;
+    record.error = error instanceof Error ? error.message : "项目插件平台启动失败";
   }
   return record;
 }
@@ -261,9 +251,17 @@ function homeLibraryPlugins(): PluginPlatformEntry[] {
     releaseArtifact: nativePluginReleaseArtifact<typeof createLingguangPlugin>(
       "@molis-ai/molis-work-plugin-lingguang", "createLingguangPlugin", factory => factory()),
   }, {
+    definition: createPagesPlugin(), bundled: true, database: PAGES_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createPagesPlugin>(
+      "@molis-ai/molis-work-plugin-pages", "createPagesPlugin", factory => factory()),
+  }, {
     definition: createPptPlugin(), bundled: true, database: PPT_DATABASE,
     releaseArtifact: nativePluginReleaseArtifact<typeof createPptPlugin>(
       "@molis-ai/molis-work-plugin-ppt", "createPptPlugin", factory => factory()),
+  }, {
+    definition: createWorkflowsPlugin(), bundled: true, database: WORKFLOWS_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createWorkflowsPlugin>(
+      "@molis-ai/molis-work-plugin-workflows", "createWorkflowsPlugin", factory => factory()),
   }];
 }
 

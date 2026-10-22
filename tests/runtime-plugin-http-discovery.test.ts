@@ -8,8 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindPluginActionRoute, type ActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { ensureProjectPlugins, releaseProjectPlugins, runningProjectPlatform } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -151,7 +150,7 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
   const shared = pluginActions(store, DEMO_PROJECT_ID);
   let dependencyCalls = 0;
   const ports = { store, projectId: DEMO_PROJECT_ID, actorId: "web-user", actions: shared,
-    goalTitle: () => undefined, escapeHtml: String, translate: (value: string) => value,
+    escapeHtml: String, translate: (value: string) => value,
     capabilities: { availability: () => ({ available: true as const }), invoke: async () => { dependencyCalls++; return null as never; } } };
   const pluginId = `io.molis.work.example.${randomUUID()}`;
   const action: ActionDefinition<{ value: number }, { doubled: number; report: { title: string; body_markdown: string; run_id: string } }> = {
@@ -182,7 +181,7 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
     },
   };
   const server = createServer((request, response) => {
-    void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), ports).then(handled => {
+    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), ports, codingRouteHooks).then(handled => {
       if (!handled) { response.writeHead(404); response.end("fallthrough"); }
     }).catch(error => { response.writeHead(500); response.end(String(error)); });
   });
@@ -246,7 +245,7 @@ test("product Web server mounts a registered unfamiliar plugin with control-toke
   const platform = await host.withProject(reference, async runtime => {
     runtime.store.db.exec("CREATE TABLE web_plugin_notes (text TEXT NOT NULL)");
     const started = await ensureProjectPlugins({ store: runtime.store, projectId: project.project_id, actorId: "web-user",
-      homeDirectory: home, goalTitle: () => undefined, capabilities: host.client(reference),
+      homeDirectory: home, capabilities: host.client(reference),
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: project.project_id } });
     assert.ok(started.platform);
     await started.platform.start([{ definition: {

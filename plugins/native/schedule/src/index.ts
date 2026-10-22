@@ -54,7 +54,6 @@ export {
   composeScheduledTaskPrompt,
 } from "./reply.js";
 export {
-  SCHEDULE_TASKS_SCHEMA_SQL,
   scheduleConversationFingerprint,
   listScheduleConversationTasks,
   getScheduleConversationTask,
@@ -77,3 +76,5 @@ export {
   ownedScheduleJobs,
 } from "./wakeup.js";
 export type { ScheduledTaskRunner, ScheduleJobPort } from "./wakeup.js";
+
+export { SCHEDULE_PROJECT_DATABASE, SCHEDULE_TASKS_SCHEMA_SQL } from "./database.js";

@@ -8,9 +8,10 @@ export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
 export { parsePluginSyncDeclaration, expandPluginSyncSelection } from "./plugin-sync.js";
 export { createSyncJsonContent, type SyncJsonContentOptions } from './sync-content.js';
 export { createSyncDocument, type SyncDocument, type SyncDocumentOwner, type SyncDocumentStorage } from './sync-document.js';
+export { syncTupleLocation } from './sync-location.js';
 export { createSyncConflictState } from './sync-conflict.js';
 export type { PluginSyncDeclaration, PluginSyncCollection, PluginSyncIdentity, PluginSyncSnapshot, PluginSyncSnapshotAdapter, PluginSyncBinding, PluginSyncContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-export { inspectActionDeclarations } from "./action-declarations.js";
+export { inspectActionDeclarations, isHomeAggregateQuery } from "./action-declarations.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";
 /** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */
 export { DIFF_STEP_BUDGET, splitLines, joinLines, reconstructSides, compareTexts, textDiffRow, alignSplitRows } from "./text-diff.js";
@@ -34,18 +35,24 @@ export type { SubjectOffersInput, SubjectActionOffer, SubjectOfferChoice } from 
 /** Putting what the person has in hand somewhere: declare `intake` (this command creates an Item) or `attach` (it adds to one) on the command itself. */
 export type { ActionIntake, ActionAttach, ItemAttachPosition } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineHomeEventsAction, withinHomeEventWindow, assertHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+/** The Home title bar's background tasks: a read-only project query the Home asks in every open project (`home_aggregate`). */
+export { defineHomeBackgroundTasksAction } from "@molis-ai/molis-work-contracts/platform/actions";
 /** System search: list what your plugin can find (by version) and read it through your subject reader. */
 export { defineSearchEntriesAction, bindSearchEntriesHandler, searchEntriesPage, searchText, searchRevisionOf, SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFileEntriesAction, defineFileContentAction, bindFileEntriesHandler, fileEntriesPage, fileContentOf, FILE_SOURCE_AUDIENCES, FILE_CONTENT_MAX_BYTES } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FileEntry, FileContent, FileSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
+/** Taking on work the Assistant hands over: publish all six roles at once; the Assistant calls them as the person at this computer. */
+export { defineWorkExecutorAction, defineWorkExecutorActions, WORK_EXECUTOR_ROLES } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkExecutorRole, WorkExecutorActionOptions, WorkExecutorCalls, WorkExecutorState, WorkExecutorSession, WorkExecutorRunControl } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntry, SearchEntriesInput, SearchEntriesPage, SearchOpenTarget, SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeEventWindow, HomeEvent, HomeEventCollection, HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { HomeBackgroundTask, HomeBackgroundTaskCollection, HomeBackgroundTaskCommand, HomeBackgroundTaskPhrase } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionSubject, ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionExecutionContext, ActionExecutionPolicy, ActionResultView, ActionResultPresentation, ActionDefinition, ActionCallContext, ActionHandlerBinding, ActionSceneDefinition, ActionSceneHandlerBinding,
   ActionSceneReference, ActionSceneBinding, ActionSceneTargetDefinition, ActionSceneTarget, ActionSceneConfigureOptions, ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 export type {
   PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginPrivateStorage,
-  PluginUiClient, PluginHostServices, PluginActionClient,
+  PluginUiClient, PluginHostServices, PluginActionClient, PluginActionDirectory,
   PluginDatabase, PluginDatabaseReader, PluginDatabaseTransaction, PluginDatabaseDeclaration, PluginSqlValue, PluginSqlRow,
   PluginModelClient, PluginModelRequest, PluginModelResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -239,7 +246,7 @@ const manifestFailures = {
 } as const;
 
 export { decodeMaterialUpload, supportsMaterialExtension, MATERIAL_EXTENSIONS, MATERIAL_UPLOAD_MAX_BYTES } from "./material-upload.js";
-export { type PluginMaterialsClient, type PluginMaterialRequest, type PluginMaterialSourceRequest, type MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
-export { type MaterialSource, type MaterialUpload, type MaterialExtraction } from "@molis-ai/molis-work-contracts/services/materials";
+export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { MaterialSource, MaterialUpload, MaterialExtraction } from "@molis-ai/molis-work-contracts/services/materials";
 export { type SyncMutation, type SyncEvent, type SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 export { type ProjectCopyAsset, type ProjectCopyReference, type ProjectCopyIdentity, type ProjectCopyOwner } from "@molis-ai/molis-work-contracts/services/placement";

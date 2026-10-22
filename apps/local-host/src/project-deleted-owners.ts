@@ -6,13 +6,14 @@ import { createSessionLedger } from "./session-registry.js";
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
-import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { ProjectDeletedOwner } from "./project-deleted-hooks.js";
 import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import { pluginBuilderProjectOwner } from "./plugin-builder/project-data.js";
 import { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
+import { forgetProjectOriginalFiles } from "./material-original-files.js";
 
 /** The two owners whose data sits in a running service: what each says in the deletion receipt and, if it has one, in the dialog. */
 export const MEMORY_OWNER = { id: "memory", label: "这个项目及其角色的记忆" } as const;
@@ -58,15 +59,33 @@ function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
  * (`order`, then catalog order), which is the order the confirmation dialog lists them in.
  */
 function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
-  const declared: Array<{ id: string; data: ProjectDataDeclaration; survivesRebuild?: true }> = [
-    ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.project_data ? [{ id: entry.project_plugin_id, data: entry.project_data }] : []),
+  const declared: Array<{ id: string; data: ProjectDataDeclaration; survivesRebuild?: true; partitioned?: string }> = [
+    ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.project_data ? [{ id: entry.project_plugin_id, data: entry.project_data,
+      ...entry.runtime?.database?.partition === "project" ? { partitioned: entry.runtime.database.store_name } : {} }] : []),
     { id: "functions", data: functionsProjectData },
     // The demo's reset keeps its panels and Runtime bindings, so the Sessions they name stay with them.
     { id: "sessions", data: sessionsProjectData(db => createSessionLedger(db)), survivesRebuild: true },
   ];
   return declared.map((item, position) => ({ ...item, position }))
     .sort((a, b) => (a.data.order ?? Number.MAX_SAFE_INTEGER) - (b.data.order ?? Number.MAX_SAFE_INTEGER) || a.position - b.position)
-    .map(({ id, data, survivesRebuild }) => ({ id, label: data.label, ...(survivesRebuild ? { survivesRebuild } : {}), clear: projectId => data.purge(home, projectId) }));
+    .map(({ id, data, survivesRebuild, partitioned }) => ({ id, label: data.label, ...(survivesRebuild ? { survivesRebuild } : {}),
+      clear: partitioned ? removePartition(home, data, partitioned) : purgeOf(home, id, data) }));
+}
+
+function purgeOf(home: string, id: string, data: ProjectDataDeclaration): (projectId: string) => void | Promise<void> {
+  if (!data.purge) throw new Error(`${id} 的项目数据没有清理办法（purge）`);
+  return projectId => data.purge!(home, projectId);
+}
+
+/**
+ * A Home plugin whose library is partitioned by project, cleared without its instance running here: its own `purge`, if it has one,
+ * then the project's library goes. The running instance's owner (`plugin-project-cleanup.ts`) replaces this one while it runs.
+ */
+function removePartition(home: string, data: ProjectDataDeclaration, store: string): (projectId: string) => Promise<void> {
+  return async projectId => {
+    await data.purge?.(home, projectId);
+    await rm(homeSqlitePartitionDirectory(home, store, projectId), { recursive: true, force: true });
+  };
 }
 
 /**
@@ -86,6 +105,8 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     { id: "assistant", label: "助理在这个项目里的工作", clear: async projectId => { await purgeAssistantProject(home, projectId); } },
     // Project knowledge's cards (what the person edited on them, and what organizing used) are a plain library any process clears.
     { id: "knowledge", label: "项目资料的卡片与整理记录", clear: projectId => { clearKnowledgeProject(home, projectId); } },
+    // Where a project's plugins may read an imported file again: only the Host's record of the place goes, never the person's file.
+    { id: "plugin-originals", label: null, clear: projectId => { forgetProjectOriginalFiles(home, projectId); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).
     memoryOwnerWithoutService(home),
     searchOwnerWithoutService(home),

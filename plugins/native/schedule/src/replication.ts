@@ -5,12 +5,12 @@ import {
   initializeReplica,
   namespacedReplicaDatabase,
   readDatabaseSpace,
-  replicaMarkSql,
+  installReplicaTrigger, replicaMarkSql,
   replicaTransaction,
   queueReplicaChange,
   type ReplicaDatabase,
 } from "@molis-ai/molis-work-storage";
-import { SCHEDULE_TASKS_SCHEMA_SQL } from "./tasks.js";
+import { SCHEDULE_TASKS_SCHEMA_SQL } from "./database.js";
 
 const TASK_COLUMNS = [
   "task_id", "title", "instructions", "hour", "minute", "notify_important",
@@ -76,14 +76,15 @@ export function installScheduleReplication(db: ReplicaDatabase, projectId: strin
   const mark = (expression: string) => replicaMarkSql(expression).replace(/\breplica_/gu, "schedule_replica_");
   replicaTransaction(db, () => {
     initializeReplica(ledger);
-    if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='schedule_task_sync_insert'").get()) return;
+    if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='schedule_task_sync_insert'").get()) {
     for(const row of db.prepare('SELECT task_id FROM schedule_conversation_tasks ORDER BY task_id').all())queueReplicaChange(ledger,JSON.stringify([projectId,'schedule_task',row.task_id]));
+    }
     for (const [event, row] of [["INSERT", "NEW"], ["UPDATE", "NEW"], ["DELETE", "OLD"]]) {
-      db.exec(`CREATE TRIGGER schedule_task_sync_${event.toLowerCase()} AFTER ${event} ON schedule_conversation_tasks BEGIN ${mark(key(row))} END`);
+      installReplicaTrigger(db, `schedule_task_sync_${event.toLowerCase()}`, `CREATE TRIGGER schedule_task_sync_${event.toLowerCase()} AFTER ${event} ON schedule_conversation_tasks BEGIN ${mark(key(row))} END`);
     }
     for (const [event, row] of [["INSERT", "NEW"], ["UPDATE", "NEW"], ["DELETE", "OLD"]]) {
       const task = `(SELECT json_array('${projectId}','schedule_task',task_id) FROM schedule_conversation_tasks WHERE task_id=${row}.task_id)`;
-      db.exec(`CREATE TRIGGER schedule_turn_sync_${event.toLowerCase()} AFTER ${event} ON schedule_conversation_turns BEGIN ${mark(task)} END`);
+      installReplicaTrigger(db, `schedule_turn_sync_${event.toLowerCase()}`, `CREATE TRIGGER schedule_turn_sync_${event.toLowerCase()} AFTER ${event} ON schedule_conversation_turns BEGIN ${mark(task)} END`);
     }
   });
 }

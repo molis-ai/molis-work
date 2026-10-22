@@ -49,9 +49,9 @@ export function applySqliteBaseline(db: SqliteBaselineDatabase, path: string, ba
 }
 
 /** `openHomeSqliteDatabase` with one current schema: the store is created at, or must already be at, `baseline.version`. */
-export function openBaselineHomeSqlite(homeDirectory: string, storeName: string, baseline: SqliteBaseline): DatabaseSync {
-  return openHomeSqliteDatabase(homeDirectory, storeName, db =>
-    applySqliteBaseline(db, homeSqlitePath(homeDirectory, storeName), baseline));
+export function openBaselineHomeSqlite(homeDirectory: string, storeName: string, baseline: SqliteBaseline, projectId?: string): DatabaseSync {
+  return openHomeSqliteDatabase(homeDirectory, storeName, projectId, db =>
+    applySqliteBaseline(db, homeSqlitePath(homeDirectory, storeName, projectId), baseline));
 }
 
 /** What makes two schemas the same: tables, their columns in order, indexes, foreign keys and CHECK clauses. */
@@ -108,6 +108,16 @@ export function describeSqliteSchema(db: SqliteBaselineDatabase): SqliteSchemaSh
     shape.tables[table.name] = { columns, checks: checkClauses(table.sql ?? ""), foreign_keys: foreignKeys, indexes };
   }
   return shape;
+}
+
+/** One entry of a database's schema table. `automatic`: made by SQLite itself for a PRIMARY KEY or UNIQUE, without a statement. */
+export interface SqliteSchemaObject { type: string; name: string; table: string; automatic: boolean }
+
+/** Every object of a database, its own bookkeeping tables included, so a caller can tell what exists besides tables. */
+export function listSqliteObjects(db: SqliteBaselineDatabase): SqliteSchemaObject[] {
+  return (db.prepare("SELECT type, name, tbl_name AS \"table\", sql IS NULL AS automatic FROM sqlite_master ORDER BY type, name").all() as
+    Array<{ type: string; name: string; table: string; automatic: number }>)
+    .map(row => ({ type: row.type, name: row.name, table: row.table, automatic: Boolean(row.automatic) }));
 }
 
 /** Describe the current creation statements with SQLite itself, without opening or changing a Home library. */

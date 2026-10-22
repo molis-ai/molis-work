@@ -18,6 +18,7 @@ import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-c
 import type { PluginDefinition, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DEMO_PROJECT_ID, HOST_PROVIDER_ID, LocalProjectDatabase, MolisWorkLocalHost, PluginHostExecutor, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
 
 /** The parts of the routes' JSON answers this test reads; a key a route does not send fails the assertion that reads it. */
 interface Reply {
@@ -141,20 +142,31 @@ test("one read action serves everyone: the whole file is for plugins, and a call
   const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project-one" });
   const person = (permissions: readonly string[], audience: ActionCallContext["audience"] = "user"): ActionCallContext => ({ actor_id: "web-user", project_id: "project-one", audience, permissions });
   const everything = ["artifact:read", "artifact:write", "storage:private", "workspace:read"];
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspacesFor: async () => [workspace] });
+  const reader = callerPlugin("workspacereader", "project", { "workspace:read": true });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspacesFor: async () => [workspace], pluginFixtures: { project: [reader.definition] } });
   const bare = new MolisWorkLocalHost({ homeDirectory: join(root, "bare"), completeText: null });
   const bareReference = molisWorkHostProjectReference({ databasePath: join(root, "bare-project.sqlite"), projectId: "project-bare" });
   try {
-    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: "project-one", title: "读取", actor_id: "web-user", idempotency_key: "init" }));
+    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: "project-one", actor_id: "web-user", idempotency_key: "init" }));
     const client = host.actionClient(reference);
     const text = { workspace_id: workspace.workspace_id, path: ["chart.png"] };
 
-    // The whole file is for the preview of a plugin the Host runs: the person, the Agent, workflows, MCP clients and a plugin that
-    // calls as the plugin audience without the Host's identity for it (a generated plugin) are refused, even holding the permission.
-    for (const audience of ["user", "agent", "workflow", "mcp", "plugin"] as const) {
+    // The whole file is for the preview of a plugin the Host runs: the person, the Agent, workflows and MCP clients are refused, even holding the permission.
+    for (const audience of ["user", "agent", "workflow", "mcp"] as const) {
       await assert.rejects(client.invoke(person(["workspace:read"], audience), readFile, { ...text, kind: "bytes" }), { code: "actions.forbidden" }, audience);
       assert.equal((await client.invoke(person(["workspace:read"], audience), readFile, { ...text, kind: "text" }) as { outcome: string }).outcome, "binary", audience);
     }
+    // A call as the plugin audience without the caller the Host issued (a generated plugin used to be one) is refused at the gateway, whatever it reads.
+    for (const kind of ["bytes", "text"] as const) {
+      await assert.rejects(client.invoke(person(["workspace:read"], "plugin"), readFile, { ...text, kind }), { code: "host.plugin_caller_invalid" }, `plugin, ${kind}`);
+    }
+    // A plugin the Host runs, holding the read permission, calls with its issued caller: it reads the text, and the whole file is its to preview.
+    await host.withProject(reference, () => undefined);
+    const probe = registerProbe(host.actionRegistry(reference), "project");
+    await startProjectPlugins(host, reference);
+    const asPlugin = callAs(await issuedCaller(probe, reader, "project-one"), ["workspace:read"]);
+    assert.equal((await client.invoke(asPlugin, readFile, { ...text, kind: "text" }) as { outcome: string }).outcome, "binary", "plugin, issued, text");
+    assert.equal((await client.invoke(asPlugin, readFile, { ...text, kind: "bytes" }) as { outcome: string }).outcome, "bytes", "plugin, issued, bytes");
 
     // No second id is registered for the same read.
     const registered = host.status().capabilities.map(row => row.capability_id);
@@ -193,7 +205,7 @@ test("one read action serves everyone: the whole file is for plugins, and a call
     assert.equal(status.summary?.branch, "main");
 
     // Without a workspace port on the Host there is no read to depend on: the dependents say so.
-    await bare.withProject(bareReference, runtime => runtime.coordinator.initializeBoard({ project_id: "project-bare", title: "无工作区", actor_id: "web-user", idempotency_key: "init" }));
+    await bare.withProject(bareReference, runtime => runtime.coordinator.initializeBoard({ project_id: "project-bare", actor_id: "web-user", idempotency_key: "init" }));
     const bareDirectory = await bare.actionClient(bareReference).discover({ ...person(everything), project_id: "project-bare" });
     for (const definition of reading) {
       const row = bareDirectory.find(item => item.capability_id === definition.capability_id);

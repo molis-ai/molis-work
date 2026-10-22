@@ -2,10 +2,13 @@ import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginSyncDeclaration } from "./plugin-sync.js";
 import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
+import { PLUGIN_REVIEW_KINDS, PLUGIN_REVIEW_PERMISSION_PREFIX } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations } from "./action-declarations.js";
 import { inspectAgentDeclaration, inspectMethodDeclarations } from "./agent-declarations.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
+import { backgroundDeclarationProblems } from "./background-declarations.js";
+import { databaseDeclarationProblems } from "./database-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
@@ -68,7 +71,14 @@ export function parsePluginManifest(input: unknown): PluginManifest {
     } else if (permission.origins !== undefined) {
       throw pluginErrors.permission_invalid("只有 surface:browser 可以列出 origins");
     }
+    // A review kind is the platform's, never the plugin's: only the listed ones exist (PG-009).
+    if (permission.permission.startsWith(PLUGIN_REVIEW_PERMISSION_PREFIX)
+      && !(PLUGIN_REVIEW_KINDS as readonly string[]).includes(permission.permission.slice(PLUGIN_REVIEW_PERMISSION_PREFIX.length))) {
+      throw pluginErrors.permission_invalid(`没有 ${permission.permission} 这种审查；能声明的只有 ${PLUGIN_REVIEW_KINDS.map(kind => PLUGIN_REVIEW_PERMISSION_PREFIX + kind).join("、")}`);
+    }
   }
+  const databaseProblems = databaseDeclarationProblems(manifest.databases, permissions);
+  if (databaseProblems.length > 0) invalid(databaseProblems.join("；"));
   const capabilities = record(manifest.capabilities, "capabilities");
   strings(capabilities.provides, "capabilities.provides");
   strings(capabilities.consumes, "capabilities.consumes");
@@ -180,6 +190,7 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
     ["agent", manifest.agent],
     ["actions", manifest.actions],
     ["action_scenes", manifest.action_scenes],
+    ["background", manifest.background],
     ["ui.embedded_plugins", ui.embedded_plugins],
     ["ui.views", ui.views],
     ["ui.commands", ui.commands],
@@ -229,6 +240,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   problems.push(...inspectPortPermissions(parsed));
   problems.push(...artifactDeclarationProblems(parsed));
   problems.push(...inspectContextDeclarations(parsed));
+  problems.push(...backgroundDeclarationProblems(parsed.background, declaredPermissions));
   assertNoDeclarationProblems(problems);
 }
 

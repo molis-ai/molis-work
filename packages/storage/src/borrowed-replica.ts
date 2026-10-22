@@ -1,3 +1,4 @@
+import { shareReplicaTriggerDefinitions } from './replica-triggers.js';
 import type {ReplicaDatabase,ReplicaInputValue,ReplicaOutputValue} from './replica.js';
 import {syncError} from './project-replica-sync-errors.js';
 
@@ -11,10 +12,12 @@ function row(value:unknown):Record<string,ReplicaOutputValue> {
 }
 /** One checked bridge for borrowed SQLite drivers whose result type is unknown. No owner tables are inspected. */
 export function borrowedReplicaDatabase(db:BorrowedConnection):ReplicaDatabase {
-  return {exec:sql=>db.exec(sql),prepare(sql){const s=db.prepare(sql);return {
+  const adapter: ReplicaDatabase = {exec:sql=>db.exec(sql),prepare(sql){const s=db.prepare(sql);return {
     get(...args){const value=s.get(...args);return value===undefined?undefined:row(value);},
     all:(...args)=>s.all(...args).map(row),run:(...args)=>s.run(...args),
   };}};
+  shareReplicaTriggerDefinitions(db, adapter);
+  return adapter;
 }
 /** Complete body-presence predicate for a journal's frozen, conflict and recovery data. */
 export function hasReplicaBodies(db:ReplicaDatabase):boolean {

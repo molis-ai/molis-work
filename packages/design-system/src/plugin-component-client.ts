@@ -513,7 +513,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     } else if (!filtering && (['object', 'array'].includes(spec.type) || spec.type === 'string' && (spec.maxLength !== undefined ? spec.maxLength > (alone ? 1000 : 200)
       // Without a limit, the field's own name says whether it is a line (标题, 标签) or a passage (描述, 内容).
       : !alone && /描述|内容|正文|笔记|说明|详情|感受|心得|回答|答案|总结|摘抄|summary|content|body|description|note|answer|detail/i.test(field + ' ' + (spec.description ?? ''))))) {
-      input = make('textarea', undefined, 'mw-textarea'); input.dataset.slot = 'textarea'; input.rows = 3;
+      input = make('textarea', undefined, 'mw-textarea'); input.dataset.slot = 'textarea'; input.rows = 3; input.dataset.fit = ''; input.style.setProperty('--fit-max', '320px');
     } else if (spec.type === 'boolean') {
       input = make('input', undefined, 'mw-check'); input.type = 'checkbox'; input.dataset.slot = 'checkbox';
     } else {
@@ -599,8 +599,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
         const wrap = make('label', undefined, 'mw-field'); wrap.dataset.slot = 'field'; wrap.append(make('span', label, 'mw-field__label'), input);
         if (input instanceof HTMLTextAreaElement) {
           wrap.classList.add('pc-field-wide');
-          // A long answer grows with what is written; ⌘/Ctrl+Enter sends it.
-          input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight + 2, 320) + 'px'; });
+          // A long answer grows with what is written (data-fit, the shared intrinsic sizing); ⌘/Ctrl+Enter sends it.
           input.addEventListener('keydown', event => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); part.form?.requestSubmit(); } });
         }
         fields.append(wrap);
@@ -670,7 +669,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
           if (part.draft === submitted) {
             if (!Object.values(part.node.submit?.input ?? {}).some(source => source.source === 'form' && source.prefill)) {
               form.reset(); form.querySelectorAll<HTMLInputElement>('input[data-pc-choice]').forEach(input => { input.value = input.dataset.pcInitial ?? ''; }); syncChoices(form);
-              form.querySelectorAll('textarea').forEach(area => { area.style.height = ''; }); form.querySelectorAll('select').forEach(choice => choice.dispatchEvent(new Event('change', { bubbles: true })));
+              form.querySelectorAll('textarea').forEach(area => { area.style.height = ''; window.molisFit?.(area); }); form.querySelectorAll('select').forEach(choice => choice.dispatchEvent(new Event('change', { bubbles: true })));
             } part.dialog?.close();
             if (form.classList.contains('pc-composer')) form.querySelector<HTMLElement>('input:not([type=hidden]),textarea')?.focus({ preventScroll: true });
           }

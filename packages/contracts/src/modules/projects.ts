@@ -148,8 +148,9 @@ export interface ProjectDataDeclaration {
    * Clears the owner's data of the project from the Home. It works on the owner's own files, so any process on the Home
    * can run it without the owner's service running; it is idempotent (a failed receipt is retried, and a library that
    * does not exist yet is not created). Throws when something is left, and the step then stays pending in the receipt.
+   * Only a plugin whose Home library is partitioned by project may leave it out: the Host removes that project's library.
    */
-  purge(homeDirectory: string, projectId: string): void | Promise<void>;
+  purge?(homeDirectory: string, projectId: string): void | Promise<void>;
 }
 
 /** One owner's part of a deletion: it clears the data it keeps in the Home for the deleted project. */

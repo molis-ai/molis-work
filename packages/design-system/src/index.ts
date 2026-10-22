@@ -41,6 +41,20 @@ export {
   type MolisWorkTheme,
 } from "./visual-foundation.js";
 
+export { OVERFLOW_FADE_SAMPLES, OVERFLOW_FADE_WIDTH, overflowSides } from "./overflow-sides.js";
+export { OVERFLOW_FADE_STYLES } from "./styles/overflow-fade.js";
+export { COPY_FEEDBACK_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, SHOW_MORE_CLIENT_SCRIPT, STREAM_TEXT_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, REFLOW_CLIENT_SCRIPT } from "./page-clients.js";
+export type { DropMark } from "./drop-zone.js";
+export { FIELD_FIT_MAX, FIELD_FIT_ROOM, FIELD_FIT_STYLES, fieldHeight } from "./field-fit.js";
+export { SHOW_MORE_STYLES, type ShowMoreOptions } from "./show-more.js";
+export { STREAM_TEXT_STYLES, freshStart, type StreamTextOptions, type StreamTextResult } from "./stream-text.js";
+export { MEDIA_ZOOM_STYLES, mediaAxis, type MediaZoom, type MediaZoomOptions, type MediaZoomState } from "./media-zoom.js";
+export { FOLLOW_COOLDOWN_MS, FOLLOW_INPUT_WINDOW_MS, FOLLOW_NEAR_PX, FOLLOW_STYLES, followDistance, type FollowState, type ScrollFollower } from "./scroll-follow.js";
+export { COPY_DONE_HOLD_MS, COPY_FAILED_HOLD_MS, type CopyLabels } from "./copy-decay.js";
+export { DISCLOSURE_STYLES } from "./styles/disclosure.js";
+export { NUMBER_STYLES } from "./styles/numbers.js";
+export { COPY_FEEDBACK_STYLES } from "./styles/copy-feedback.js";
+export { SR_ONLY_STYLES } from "./styles/sr-only.js";
 export { SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES } from "./select-menu-client.js";
 export { renderFilePreviewHtml, FILE_PREVIEW_STYLES, FILE_PREVIEW_CLIENT_SCRIPT, type FilePreviewContent } from "./file-preview.js";
 export { ARRIVAL_MOTION_CLIENT_SCRIPT } from "./arrival-motion-client.js";

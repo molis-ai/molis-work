@@ -2698,6 +2698,108 @@ Goal 材料成果闭环、独立 Character（C12）、Plan→SubAgent→TaskBoar
 - E2 浏览器页与终端页在对应 Capability 注册之前，显示为真实不可用。
 - E3 批准不等于已发生：`effect_settled` 要等真实回执。
 
+### F. 固定成果交给别的插件（2026-10-21，PG-090 的 Coding 半边，C3）
+宿主不再替 Coding 和 Shelf 拼这条边界：Coding 的固定成果怎样变成文字归 Coding，Shelf 经平台的成果服务和它声明消费的动作来取。测试在 `tests/coding-results-document.test.ts`、`tests/shelf-coding-results.test.ts`、`tests/shelf-coding-results-platform.test.ts`。
+
+能不能读到正文，看的是插件消费了这个动作，不看它消费了哪种成果。Coding 的处理器看不到调用方的 Manifest：Runtime 交给插件的调用上下文不带调用方的签发对象（PG110-17）。所以一个项目插件只要声明 `capabilities.consumes: ["coding.results.document"]` 并持有 `artifact:read`，就能读到本项目任何一份 Coding 固定报告和固定变更的正文，不必在 `artifacts.consumes`、`process_items.consumes` 里声明这两种类型。消费动作本身也是 Manifest 声明，创作台做的插件还要人逐项批准（PG110-14）。要不要让平台把调用方的类型声明交给提供方去核，是信任边界的设计，待用户定（⑤ 评审 #905）。
+
+1. **W5-01-CODING-01** Coding 声明只给 plugin 受众的查询 `coding.results.document@1`（权限 `artifact:read`，输入 `{ reference }`，输出 `{ reference, title, saved_at, markdown }`）；人、Agent、工作流、MCP 都选不到它。`coding.artifacts.preview@1` 的动作 id 与版本不变。
+2. **W5-01-CODING-02** 一份固定报告答它自己的 Markdown，逐字节一致。
+3. **W5-01-CODING-03** 一份固定变更按文件答审查文本的修改前后和写入结果；没有可读的文本审查时，答固定的一句话。
+4. **W5-01-CODING-04** 已归档、其他项目、不可用、其他种类、签名不符、成果里的身份与引用不一致、项目里没有的版本，一律用 Coding 自己的 `coding.shelf_material_invalid` 拒绝，并用中文告诉使用者。
+5. **W5-01-CODING-05** 别的生产者钉死的版本，平台在 Coding 读到之前就以 `artifacts.plugin_denied` 拒绝。
+6. **W5-01-CODING-06** Coding 自己的报告、变更、计划列表经平台 `listConsumable()` 按类型和生产者取，没有宿主端口；已归档和别的生产者的版本不算当前成果。一次请求只列一次、每个版本只读一次：页面开着会话时会反复刷新这些列表。
+7. **W5-01-CODING-07** Shelf 对一份固定报告的预览（标题、正文、来源、内容哈希、指纹）与宿主原来拼出的一字不差。
+8. **W5-01-CODING-08** 同上，固定变更，连同代码围栏的长度。
+9. **W5-01-CODING-09** 这个动作的定义只在合同包 `@molis-ai/molis-work-contracts/modules/coding` 一处（含输入输出类型），Coding 与 Shelf 都从那里取，任何一边都没有第二份；Coding 的 Manifest 声明的就是这个对象，Shelf 的 Manifest `capabilities.consumes` 写它的 `capability_id` 并持有 `artifact:read`；Shelf 自己动作的受众不变。
+10. **W5-01-CODING-10** Shelf 的列表来自平台，按 Shelf 自己 Manifest 里的类型和端口筛选；Coding 不肯转成文字的版本不列出。
+11. **W5-01-CODING-11** 平台或 Coding 的拒绝带着自己的错误码到达使用者；找不到的版本是 Shelf 自己的 `shelf.unavailable`。
+12. **W5-01-CODING-12** 宿主不再拼这条边界：没有 `coding-shelf-material.ts`，`project-plugins.ts` 里没有 Coding 的三个列表端口，`ShelfResultPorts` 只剩 `projectPath` 和 `receive`。
+13. **W5-01-CODING-13** 在真实宿主上，声明了 Shelf 所声明的、持有授权的插件拿到 Coding 的 Markdown；项目里没有的版本得到 Coding 自己的拒绝。
+14. **W5-01-CODING-14** 在真实宿主上：没声明消费得 `actions.forbidden`，没有授权得 `plugin.grant_denied`，项目没装 Coding 得 `actions.plugin_disabled`；人、Agent、工作流、MCP 的调用得 `actions.forbidden`，MCP 的动作目录里看不到这一项。
+
+### G. 会话库走平台服务（2026-10-21，V-14，C1）
+
+会话表（`coding_sessions`、`coding_plan_drafts`，Manifest `databases.project`）归 Coding，只经宿主借给它的 `services.project_database` 读写：读是同步的 `get/all`，写只在 `transaction(beforeEffect, 同步体)` 里，平台在提交前再核一次原调用。宿主不再递原始库句柄（`CodingExecutionPorts.sessions` 已删），`apps/local-host/src/coding-surface.ts` 不再读 Coding 的表。关闭 `privileges.md` 的 V-14 和 PG-091 的原始库部分。
+
+1. **W5-01-CODING-15** 会话库的每一种写（建会话、改状态、开一轮、改名、归档、绑目标、记 runtime 会话、写步骤、写后台命令、存计划、确认计划）先等调用方的 `beforeEffect()`；被拒（撤权、取消、停用）就什么都不写，同一调用方式换成未被拒的调用则写入。用宿主真实的 `services.project_database` 证明。测试：`tests/coding-session-effect-control.test.ts`。
+2. **W5-01-CODING-16** 一次逻辑写动了几行，就是一个事务：一轮开始时的改名和置为运行中是一次提交，存计划和对会话的核对是一次提交；被拒或体内失败不留半截。测试：`tests/coding-session-effect-control.test.ts`。
+3. **W5-01-CODING-17** Coding 在 `start` 里用 `services.project_database` 自己建会话库；宿主没有借出这项服务时 `start` 失败，错误信息指明缺的是 `services.project_database`；有服务时它启动，路由写下的会话在项目库里，另一个客户端读得到。测试：`tests/coding-session-effect-control.test.ts`。
+4. **W5-01-CODING-18** 建会话、改名、归档、存计划的调用在提交前被取消或撤权，就不留会话、不改名、不归档、不改计划；一轮真实 SDK 读取途中被取消、撤权、被换掉提供方，计划行也不留。测试：`tests/coding-session-effect-control.test.ts`、`tests/coding-effect-control.test.ts`。
+5. **W5-01-CODING-19** 读一轮时顺手记下会话状态的调用，在提交前被取消或撤权，状态不被改写；后台跟随者带着被拒的调用，不存「运行中」。测试：`tests/coding-session-effect-control.test.ts`、`tests/coding-session-follow.test.ts`。
+6. **W5-01-CODING-20** 目录面板由运行中的 Coding 渲染，会话来自它自己的库；宿主只给页面的外观、伙伴页和图元，不再给目标标题（C2 起标题经 Goals 的公开读动作读，见 H 的 25）。测试：`tests/coding-surface.test.ts`。
+7. **W5-01-CODING-21** 激活停止之后，后台跟随者不再写会话状态。测试：`tests/coding-session-follow.test.ts`。
+8. **W5-01-CODING-22** 归档、存计划、确认计划、选目标的「正在提交任务／正在开始执行」检查，在写入的事务体里再做一次（`BEGIN` 之后、与 `COMMIT` 同一段同步代码）：写入等 `beforeEffect` 的时候同一条会话开始了一轮，仍然拒绝，库里一行不改。测试：`tests/coding-store.test.ts`。
+
+说明：没有单独的「消息」表。一轮里的消息走 Agent 宿主，Coding 自己写的是会话状态（`setState`、`roundStarted`），由 15、16、19、21 覆盖。
+
+### H. 输入端口走平台服务与公开动作（2026-10-21，PG-047、V-13、PG-086、PG-091，C2）
+
+Coding 原来由宿主递进四样东西（`CodingExecutionPorts` 的 `ready`、`models`、`goalTitle`、`characters`）。现在一样不递，`CodingExecutionPorts` 与宿主的 `execution` 端口整个删掉，Coding 自己从平台取：
+
+- **模型**：`services.model`。Manifest 把 `model:read` 列为必需，不声明 `model:invoke`；列表用 `choices()`，每次选模型用 `availability(selection)`；`complete()` 对 Coding 不可用（没有声明 `model:invoke` 的动作，装上也没有这项授权）。列表只有平台这一份（宿主里为 Coding 另算的那份与创作台里的第二份已删），所以过滤口径一致：停用的提供方与模型都不在其中。
+- **`ready`**：删掉。Agent 的能力处理器在被调用时自己初始化，Coding 不必再等。重启后找到挂着 Agent 运行的会话，Coding 直接起等待循环；它的第一次 `awaitContinuations` 失败（运行时没接上、起不来）就和 `agent.capability_unavailable` 一样结束循环，不再每 5 到 30 秒重试；下一次 `coding.state` 读或开一轮会再起一个。
+- **Goal 标题**：经 Goals 的公开读动作 `goals.list@1`（目录，一次带回大多数标题）和 `goals.contract.read@2`（目录不列的归档或丢弃的目标，按 id 读一次），二者都在 `capabilities.consumes` 里，由平台核授权。目录面板当场渲染、等不了一次动作，所以 Coding 记下最近一次读到的标题（进程内加写入插件私有存储，重启后还在）；页面一打开就读的 `coding.state`、会话读取、搜索条目和所选 Goal 都会刷新它。从没读到过的 Goal，目录首屏显示 Goal 的 id，页面里显示「关联 Goal 暂不可用」，和 Goal 读不到时一向的样子一样；读到过、现在读不到的，保持最近一次读到的标题。
+- **Character**：经 Characters 的两个公开动作 `characters.list@1`（已发布的固定版本；新增 `plugin` 受众，形状、版本和 MCP 工具名不变）与新加的 `characters.runnable@1`（只给 `plugin` 受众：这个版本现在能不能跑，不能跑时答 `available: false`，带 Characters 自己给的原因），Coding 在 `capabilities.consumes` 里列出这两个。`characters.execution@1` 仍然只给本人：它答的是本机 Agent 的程序路径与工作目录，Coding 只要知道「能不能跑」，不该拿到这些。合同影响：多一个动作、`characters.list` 多一个受众，其余不变；内置 Coding 的必需权限仍是 `artifact:read`，`consumes` 不是授权项，不需要到设置页重新授权。
+  - 决定（2026-10-21，评审与合并按防腐后果定）：PR 原稿给 `characters.execution` 加 `plugin` 受众，等于让任何声明了它、持 `artifact:read` 的插件读到本机程序路径和工作目录，信任边界比 Coding 实际要的宽；所以另开只答「能不能跑」的窄动作，`execution` 留在本人。
+
+1. **W5-01-CODING-23** Manifest：`model:read` 必需、没有 `model:invoke`，Coding 的动作也没有任何一个声明 `model:invoke`；`capabilities.consumes` 里有 Goals 的 `goals.list`、`goals.contract.read` 与 Characters 的 `characters.list`、`characters.runnable`，没有 `characters.execution`。测试：`tests/coding-input-ports.test.ts`。
+2. **W5-01-CODING-24** Coding 从 `services.model` 读模型列表和每个模型的可用性，安装只持有 `model:read`；页面的列表就是它；`complete()` 在发出之前被拒（`plugin.model_action_required`）。测试：`tests/coding-input-ports.test.ts`。
+3. **W5-01-CODING-25** V-13 只有一份模型列表：Coding 列出的与同一个 Home 里另一个持 `model:read` 的插件拿到的相同、同序，停用的模型两边都没有。测试：`tests/coding-input-ports.test.ts`。
+4. **W5-01-CODING-26** 会话关联的 Goal 标题，经 Goals 的公开列表动作、以插件受众（`host_plugin` 是 Coding）读到；读之前目录首屏给 id，读之后目录显示标题；Goals 读不到了标题保持，插件重启后目录里仍是这个标题。测试：`tests/coding-input-ports.test.ts`、`tests/coding-surface.test.ts`（20）。
+5. **W5-01-CODING-27** 目录不列的 Goal（归档、丢弃）按 id 经 `goals.contract.read` 读一次；读不到的 Goal 没有标题，这不是错误；已知的标题不重复读。测试：`tests/coding-input-ports.test.ts`。
+6. **W5-01-CODING-28** 角色列表与「能不能跑」经 `characters.list`、`characters.runnable`，以插件受众、Coding 的身份调用；不能跑的版本带 Characters 给的原因（`runnable` 答 `available: false` 与原因，不是失败的调用）。测试：`tests/coding-input-ports.test.ts`、`tests/coding-characters-http.test.ts`（真实 Characters 的整条链）。
+7. **W5-01-CODING-29** S-15：清单没有把 `characters.runnable` 列进 `consumes` 的插件，调它得 `actions.forbidden`，Characters 不被问到；列了的才够得到。只给本人的 `characters.execution`，插件就是列进 `consumes`、持有 `artifact:read` 也够不到（`actions.dependency_missing`：这个动作不对插件开放，在插件看来它不存在）。测试：`tests/coding-input-ports.test.ts`。
+8. **W5-01-CODING-30** S-15：人撤回授权（停用后收回再启动）之后，列了的动作得 `plugin.grant_denied`，Characters 不被问到；从没被授权的插件同样被拒。测试：`tests/coding-input-ports.test.ts`。
+9. **W5-01-CODING-31** 重启后第一次 Agent 读就失败的恢复循环只试一次就结束，不每 5 秒重试；之后的 `coding.state` 读会再起一个。测试：`tests/coding-input-ports.test.ts`；启动时 Agent 服务未接上、没有 `ready` 可等：`tests/project-plugin-startup.test.ts`（第一次能力调用得「能力未注册」，之后同一实例读到 Home 里新配的模型）。
+
+说明：助理（`assistant-http.ts`）与 `agent-host-composition.ts` 仍用 `characters-host.ts` 的 `codingCharacterPorts`，那是 C2b，不在这一片；`characters-host.ts` 因此还从 Coding 包取 `CodingCharacterChoice`、`CodingCharacterPorts` 两个类型。
+
+### I. 需要人审查的宿主操作按 Manifest 声明的种类放行（2026-10-21，PG-009，C5）
+
+宿主原来按插件 id 字面量（`io.molis.work.git`、`io.molis.work.coding`）决定谁能发起 Git 暂存、Git 操作、独立工作树和子任务成果整合的审查。现在插件在 Manifest 里声明 `review:<kind>`，种类只有平台列出的四种（`git-index`、`git-operation`、`git-worktree`、`git-integration`，合同 `PLUGIN_REVIEW_KINDS`）。宿主从这次调用里它发出的插件调用者取插件与安装，看这个调用者此刻是否持有该权限（Manifest 声明且安装授权）来决定放不放行。Git 声明 `git-index`、`git-operation`，Coding 声明 `git-worktree`、`git-integration`，都写成必需权限：存量安装由 `bundledGrants` 在启动时补齐，不另写迁移。安全不变量 S-50。
+
+- 发起时、发布审查之前、人批准时、真正执行之前各问一次。不持有就以 `agent.review_not_permitted` 拒绝：发起被拒时不出审查；已在等的审查只能拒绝、不能批准；执行前不持有的不执行，原因记在宿主审查记录里。已在等的审查不主动撤回，人还能拒绝。
+- 权限按激活冻结：停止、停用、升级、撤权或应用重启之后，新的激活不是发起的那个，原来的审查同样只能拒绝，要做就重新发起。批准的是「这个安装此刻要做的事」，不跨激活延续。
+- 决定（2026-10-21，按防腐后果定）：审查记录记下发起它的 `plugin_id` 与 `install_id`，不推断。早先没有这两项的 Git 审查记录读不出（「Git 审查归属不可读，不能猜测执行结果」），不写兼容分支。计划原稿说把它们「当作过期」，那要一条读取兼容路径；现在没有装到开发机之外的版本，也没有真实 Home 要迁（`docs/system/CONTRACT-CHANGES.md`）。
+- 宿主整合入口（`apps/local-host/src/agent-host-composition.ts` 的 `integrationSource`，读与准备两个处理器都走它，批准时与执行前的复查也走它）不再认 Coding 的 id：先看会话属于本项目（不属于就拒绝）；再看有没有插件调用者（没有就以 `host.plugin_caller_invalid` 拒绝，整合只能由插件发起）；最后要会话主人记下的 `plugin_id` 与 `install_id` 同时等于这次调用者的，只比插件 id 会放过同一插件的另一份安装。身份只来自宿主发出的调用者，不读输入。会话还需核对时照旧拒绝。
+- 审查卡片的「修改意见」框不再只给 Coding：任何插件发起的轮次内提案（文件修改、命令、派出、MCP 调用）都有。拒绝时的意见走的是同一条与插件无关的路：页面 `agent-review.ts` 把 `note` 随拒绝 POST 到 `/api/agent/reviews/decide`，路由交给 `reviews.respond`，Prologue 审批桥的 `recordDecision` 在拒绝后用 `steer` 把意见交回这一轮；这条路上没有任何地方看插件 id，只看这一轮仍在运行。没有轮次的宿主操作（Git 暂存、Git 操作、独立工作树）本来没有可交回的对象，仍不给这个框。
+
+验收：
+
+1. **W5-01-CODING-40** Manifest 里写平台没有的审查种类（如 `review:git-reset`、`review:`），读 Manifest 得 `plugin.permission_invalid`，安装得 `plugin.manifest_invalid`；四种平台种类都能声明。
+2. **W5-01-CODING-41** 没有声明 `review:git-worktree` 的插件调工作树准备，得 `agent.review_not_permitted`：不出审查、不建目录。
+3. **W5-01-CODING-42** 声明了、安装没授权，同上。
+4. **W5-01-CODING-43** 发起时持有、宿主准备审查途中被停止，同上：不发布审查。
+5. **W5-01-CODING-44** 审查已在等，发起的安装停止（再启动也一样）或被撤权后，人批准得 `agent.review_not_permitted`；审查仍在等，人能拒绝；不建目录、不授权目录。
+6. **W5-01-CODING-45** 人没批准之前不执行：等待中的审查没有可用的批准（`agent.review_not_approved`），拒绝后也不执行；持有的安装经人批准，同一条路径真的建出工作树并授权目录。
+7. **W5-01-CODING-46** 整合入口按调用者认会话：会话主人是同一插件的另一份安装，读和准备都以「不属于发起整合的这份插件安装」拒绝；另一个持有 `review:git-integration` 并声明消费整合动作的插件，在 Coding 的会话上读和准备都被拒绝，且不出审查；没有插件发起的调用（`client.invoke`）得 `host.plugin_caller_invalid`；别的项目仍以「不属于」拒绝。Coding 自己的安装读、准备、拒绝、改动后失效的提案和批准整合照旧。测试两处，断言相同的三种拒绝：`tests/security-invariants-review-kinds.test.ts`（S-50，CI 里跑：用宿主里一个记在别人名下的会话，不需要仓库和子任务，因为三种拒绝都发生在读取任何一轮执行之前，并以主人自己的安装得到下一道检查（此轮执行不属于原会话）作对照）；`tests/writer-integration-host.test.ts`（端到端，只在本机跑：真实的 Coding 会话、子任务与 Git 工作树）。
+8. **W5-01-CODING-47** Git 的 Manifest 里 `review:` 权限恰好是 `review:git-index`、`review:git-operation`，Coding 的恰好是 `review:git-worktree`、`review:git-integration`，都是必需并带理由；合起来正好是平台列出的四种，且都能通过 Manifest 解析。测试：`tests/security-invariants-review-kinds.test.ts`。
+9. **W5-01-CODING-48** 审查卡片对任何插件的轮次内提案（文件修改、命令、派出、MCP 调用）给出「修改意见」框，已决定的不给；没有轮次的宿主操作不给。测试：`tests/agent-review-surface.test.ts`（不开浏览器，直接渲染工作台的审查面）。
+
+测试：`tests/security-invariants-review-kinds.test.ts`（真实的 Plugin Runtime、宿主与 Agent 服务）；队列一层见 `tests/git-operation-review.test.ts`；Git 暂存审查整条产品链见 `tests/coding-git-diff-product.test.ts`（Git 声明 `review:git-index` 之后转绿）。
+
+### J. 首页的后台任务列表走首页聚合（2026-10-21，PG-043，C4）；后台跟随者不迁（PG-038）
+
+首页标题栏的后台任务列表原来由宿主打开每个项目库、读 Coding 的 `coding_sessions`（`apps/local-host/src/coding-background-tasks.ts`，Coding 导出的 `listCodingBackgroundSessions`、`holdsCodingSessions`），页面脚本里还写着 `coding` 的名字、会话地址和状态词。现在 Coding 把它声明成自己的查询，宿主与页面都不认识 Coding：
+
+- **Coding 的查询**：`coding.home.background-tasks@1`（`plugins/native/coding/src/home-background.ts`，定义函数 `defineHomeBackgroundTasksAction` 在合同包 `platform/home-background-tasks`）。项目范围、只读、`audiences: ["user"]`、权限只有 `artifact:read`、`home_aggregate: true`，输入输出类型 `molis.home-background-tasks.query.v1` 与 `.collection.v1`。答案是 `{ source: { surface: "coding" }, tasks: [...] }`；每个任务带 id（会话 id，页面据此在 `surface` 上打开它）、标题、状态、更新时间、是否在等人、几句话（`standing`，句子加可选的数字，`{n}` 由数字替换）和它留着的后台命令（命令 id、说明、相对 Coding 的停止路径）。读的是 Coding 自己的库（`CodingSessionStore.backgroundSessions`）：进行中或等人的会话，以及一轮已结束、但人还有一步没做完或还有后台命令在跑的会话；归档的不列；解析不了的列当作没有，不猜。
+- **本次激活之前就记着在跑的**：没有一轮能跨过重启，所以更新时间早于这次激活开始、状态是进行中的会话，答案里写成「需要核对」，说「服务重启前没有结束，打开后核对」，不算等人。排队中的会话还没开始，不受影响。
+- **宿主**：`apps/local-host/src/home-background-tasks.ts` 用首页聚合（`home-aggregate.ts`，S-49）对每个已打开的项目问这一类型的查询，把各项目的答案摊平、保留项目；校验答案（`surface` 是普通名字，停止路径只是插件下的普通段，不含 `..`、反斜杠、控制字符），拼出停止地址 `/projects/<项目>/api/plugins/<提供方插件>/<路径>`；没打开的项目不读也不打开，停用或没授权的项目安静跳过，读不了或答案读不懂的按项目记一条（`home` 区域 `background_tasks_unreadable`，开始失败时一条）。停止仍走会话原来的路由 `coding.background-stop`，没改。
+- **页面**：`apps/workbench/src/scripts/client/attention.ts` 只按行里的 `surface`、`id`、`state`、`waiting`、`standing`、`commands` 画，不含 `coding`。
+- **不迁的**：PG-038 的 Coding 一半。后台跟随者与唤醒循环（`start-round.ts` 的 `follow`、`wake-loop.ts`）不在声明了 `background_job` 的并发命令里启动，而是由页面路由和激活启动；`services.background` 只接受插件自己的、声明了 `background_job` 的并发命令里启动的有限执行，随调用的撤权、取消、插件停止而停。R-CODING-RECEIPT-01/02 要的恰好相反：发起调用被拒或被取消之后，已受理的 Run 仍被跟随（`tests/coding-session-follow.test.ts`）。要迁得先裁定，不是在这一片里能改的。PG038-P（#963，S-52）之后另有 `services.background.keep`：随激活存活的作业只有安装自己的授权，不随单次调用的撤权、取消停，插件停止、项目关闭或删除、Home 关闭才停；迁到它归 ③（`specs/repository-anti-corruption/privileges.md` PG-038）。
+
+1. **W5-01-CODING-32** Manifest 声明 `coding.home.background-tasks@1`：项目范围的只读查询，`home_aggregate`、输出类型是首页后台任务的集合，权限只有 `artifact:read`（没有 `model:invoke`），过首页每次调用前重查的规则（`isHomeAggregateQuery`）。Coding 包不再导出 `listCodingBackgroundSessions`、`holdsCodingSessions`、`CodingSqliteDatabase`，`web-catalog.ts` 不再读 Coding 的表。测试：`tests/coding-background-tasks.test.ts`。
+2. **W5-01-CODING-33** 经真实宿主，首页列出每个已打开项目里进行中、等人处理、等核对或留着后台命令的 Coding 会话，按更新时间新的在前，带项目名；一轮已结束又没有东西留给人的不列；人还有一步要做的会话列为「等你回答」；重启前记着在跑的会话列为「需要核对」、不计入等人；没有装 Coding 的项目、没有打开的项目不出现。测试：同上。
+3. **W5-01-CODING-34** Coding 的读取器列出进行中或有人要做的步骤或有后台命令的会话；归档的、只有子任务的步骤的、空闲的不列；解析不了的列当作没有，只读，读完一行没变，只回答被问的项目。测试：同上。
+4. **W5-01-CODING-35** 会话留着的后台命令，停止地址是 `/projects/<项目>/api/plugins/io.molis.work.coding/sessions/<会话>/background/<命令>/stop`，即 Manifest 里 `coding.background-stop` 路由的路径；提供方和项目是宿主自己的，不是插件说的。测试：同上。
+5. **W5-01-CODING-36** 首页不认识 Coding：换一个不是 Coding 的插件声明同一类型的查询，它的任务显示在它自己的 `surface` 上，只在它开着、已打开的项目里被问，每次调用都标了只读；停用的项目和没打开的项目不被问。测试：同上。
+6. **W5-01-CODING-37** 答案先检查再画：不是普通名字的 `surface`、不是列表的 `tasks`、形状不对的任务整个不要，只留好的；离开插件的、不是普通段的、太深的停止路径不提供。测试：同上。
+7. **W5-01-CODING-38** 收集、摊平和画列表的源码（`home-background-tasks.ts`、`home-aggregate.ts`、`attention.ts`）里没有 Coding 的名字。测试：同上。
+8. **W5-01-CODING-39** 问这个列表不写项目库里的任何东西；问之前就已取消的调用，一个项目也不问。测试：同上。
+9. **W5-01-CODING-49** 一个项目的答案读不了，按项目记一条，下一次轮询不再记，读通之后再坏才再记；插件在某个项目停用时安静跳过（W5-13-06）。测试：`tests/host-log-catches.test.ts`。
+10. **W5-01-CODING-50** Coding 说的每一句话（状态词、「你负责 {n} 步」之类）在页面的英文词典里都有英文。测试：`tests/coding-background-tasks.test.ts`。
+
 ## 5. 阶段（历史切片记录；当前产品完成度以 §0 为准）
 
 | 阶段 | 内容 | 状态 |
@@ -2709,7 +2811,7 @@ Goal 材料成果闭环、独立 Character（C12）、Plan→SubAgent→TaskBoar
 | C4 | 宿主审查面 | **已接进产品装配**：`composeAgentHost` 在 `web-server` 里被调用，CLI 运行时已注册（当时的记录；该运行时已于 2026-10 删除，见 [plugin-platform-v2](../plugin-platform-v2/spec.md) D5），插件经 Capability 真的够得到（`tests/agent-host-composition.test.ts` 5 项）。会话里的审查摘要卡已做（含「卡片上不能有任何按钮」这条硬断言）。**审查队列已经走 HTTP**：`/api/agent/reviews` 读、`/api/agent/reviews/decide` 决定，复用既有的本地控制护栏（同源 + 控制令牌 + 一次性键），重放返回 409。宿主渲染器现已挂入 Coding 结果区，正式页面已有 MiniMax 单处补丁审查实操；拒绝/冲突/恢复见 §0 当前验证。`agent-review-surface` 7 项、`coding-review-card` 5 项、`agent-review-http` 4 项 |
 | C5 | 审批桥挂到 Prologue + 真实模型验证 | **文件审批已接通，失败路径与恢复验证中**：桥挂上之后 `text-edit` 才申报支持（`command` 不跟着变，见下）。两种 API 格式已对着真实 MiniMax 验证通过，见 C6。`tests/prologue-approval-attachment.test.ts` 5 项 |
 | C6 | 模型供应商管理（设置页 + 两种 API 格式） | **基础实现存在，产品闭环见 §0**：契约、设置页、落库（目录库 schema 17）、到 `modelConfiguration()` 的映射，以及**跨密钥库的凭据交接**。`model-providers` 9 项、`model-provider-store` 7 项、`prologue-credential-bridge` 6 项 |
-| C9 | 对齐 FlyLeaf 的全部能力 | **基础实现存在，产品闭环见 §0**：方法/MCP 选择、检查点、子代理与验收、恢复投影、工作区事件、并行写入（含真实 git 工作树）、报告与用量视图、贴底行为。`coding-selection` 8、`coding-delegation` 8、`coding-recovery` 7、`coding-events` 8、`coding-writers` 9、`git-worktrees` 5、`coding-reading` 6、`coding-report-usage` 4 |
+| C9 | 对齐 FlyLeaf 的全部能力 | **基础实现存在，产品闭环见 §0**：方法/MCP 选择、检查点、子代理与验收、恢复投影、工作区事件、并行写入（含真实 git 工作树）、报告与用量视图、贴底行为。`coding-selection` 8、`coding-delegation` 8、`coding-recovery` 7、`coding-events` 8、`coding-writers` 9、`git-worktrees` 5、贴底由平台的滚动主人负责（`scroll-follow`、`coding-question-card` AC-10-6）、`coding-report-usage` 4 |
 | C8 | 结构化提问（AskUser） | **基础实现存在，产品闭环见 §0**：问题进 `AgentRunView.awaiting_input`，回答是独立的控制动作（不是 steer），Coding 侧有提问卡片。`coding-question-card` 7 项、`agent-pending-questions` 4 项 |
 | C7 | Coding 由 Plugin Runtime 托管 | **基础实现存在，产品闭环见 §0**：产品经 `coding-surface.ts` 起平台、启动 Coding、用它的 contribution 渲染目录；`kind` 已从 `native` 翻成 `app`。`coding-plugin-activation` 3 项、`coding-surface` 3 项、`plugin-panel-seam` 3 项 |
 | C10 | 复现 FlyLeaf 的另外五个插件 | **基础实现存在，产品闭环见 §0**：`workspace` / `files` / `diff` / `git` / `text-stats` 五个包，Manifest v2 端口与输入组、纯投影层、UI 贡献，全部在真平台上一起启动并能连线。跨插件的载荷契约收进 `contracts/modules/workspace-artifacts`（插件之间不许互相 import）。`workspace-plugin` 7、`files-plugin` 13、`diff-plugin` 16、`git-plugin` 18、`text-stats-plugin` 7、`workspace-plugin-graph` 5、`plugin-catalog-companions` 7 |

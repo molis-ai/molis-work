@@ -283,3 +283,62 @@ test("W2-18-GIT-CONFLICT-03 a busy Git index and an oversized UTF-8 resolution c
   assert.deepEqual(await readFile(f.index), f.beforeIndex);
   assert.equal(await readFile(f.index + ".lock", "utf8"), "another Git writer");
 });
+
+test("S-53 reading the repository and preparing a review run no filter, fsmonitor or hook, the repository's or a submodule's, whatever Git variables the Host inherited or the filter is named; the approved commit runs the repository's hooks", async t => {
+  const f = await isolatedRepository(t), ran = path.join(f.directory, "ran");
+  await mkdir(ran);
+  // A filter passes its content through; anything else must leave stdin alone (a commit reads its message from it).
+  const helper = async (name: string, filter = true) => {
+    const file = path.join(f.directory, `${name}.sh`);
+    await writeFile(file, `#!/bin/sh\ntouch "${path.join(ran, name)}"\n${filter ? "cat" : "exit 1"}\n`, { mode: 0o755 });
+    return file;
+  };
+  // A submodule whose filter only its own config names, a filter of the repository's own, and one whose name holds an "=",
+  // which `-c name=value` would split in the wrong place.
+  const source = path.join(f.directory, "source"), inner = path.join(f.root, "inner");
+  await mkdir(source);
+  const sub = (...args: string[]) => exec("git", args, { cwd: source });
+  await sub("init", "-q", "-b", "main"); await sub("config", "user.name", "Fixture"); await sub("config", "user.email", "fixture@example.invalid");
+  await writeFile(path.join(source, ".gitattributes"), "*.txt filter=inner\n"); await writeFile(path.join(source, "inner.txt"), "inner\n");
+  await sub("add", "."); await sub("commit", "-qm", "inner");
+  await f.git("-c", "protocol.file.allow=always", "submodule", "add", "-q", source, "inner");
+  await writeFile(path.join(f.root, "nested", "c.md"), "base\n");
+  await writeFile(path.join(f.root, ".gitattributes"), "*.txt filter=outer\n*.md filter=a=b\n");
+  await f.git("add", "."); await f.git("commit", "-qm", "submodule and attributes");
+  await f.git("branch", "topic");
+  // Helpers are configured after the fixture's own Git commands, so anything that runs them is the Host.
+  await f.git("config", "filter.outer.clean", await helper("outer-filter")); await f.git("config", "filter.outer.required", "true");
+  await f.git("config", "filter.a=b.clean", await helper("named-filter"));
+  await f.git("config", "core.fsmonitor", await helper("fsmonitor", false));
+  await exec("git", ["config", "filter.inner.clean", await helper("inner-filter")], { cwd: inner });
+  const hooks = path.join(f.directory, "hooks");
+  await mkdir(hooks); await writeFile(path.join(hooks, "pre-commit"), `#!/bin/sh\ntouch "${path.join(ran, "pre-commit")}"\n`, { mode: 0o755 });
+  await f.git("config", "core.hooksPath", hooks);
+  // Same sizes as committed, so Git must read the content (through the filter) to tell them changed.
+  await writeFile(path.join(f.root, "nested", "a.txt"), "BASE\n");
+  await writeFile(path.join(f.root, "nested", "c.md"), "BASE\n");
+  await writeFile(path.join(inner, "inner.txt"), "INNER\n");
+  // Variables the Host process inherited that would point Git at another repository and index.
+  const decoy = path.join(f.directory, "decoy");
+  await exec("git", ["init", "-q", "-b", "decoy", decoy]);
+  const inherited = { GIT_DIR: path.join(decoy, ".git"), GIT_WORK_TREE: decoy, GIT_INDEX_FILE: path.join(decoy, ".git", "index") };
+  const saved = Object.fromEntries(Object.keys(inherited).map(key => [key, process.env[key]]));
+  try {
+    Object.assign(process.env, inherited);
+    const summary = await readGitSummary(f.workspace);
+    assert.equal(summary.branch, "main", "the read is of the granted repository, not where the inherited variables point");
+    assert.equal(summary.unstaged, 2, "the edited files count; the submodule's work tree is not opened");
+    await assert.rejects(prepareGitOperation(f.workspace, summary.revision, { action: "merge", branch: "topic" }), /工作区有未提交的改动/);
+  } finally {
+    for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+  }
+  assert.deepEqual(await fs.readdir(ran), [], "reading and preparing ran no repository helper");
+
+  await writeFile(path.join(f.root, "nested", "b.md"), "reviewed\n"); await f.git("-c", "core.fsmonitor=false", "add", "nested/b.md");
+  await rm(ran, { recursive: true }); await mkdir(ran);
+  const commit = await prepareGitOperation(f.workspace, (await readGitSummary(f.workspace)).revision, { action: "commit", message: "Reviewed" });
+  assert.match(commit.fields.find(field => field.label === "执行范围")!.value, /hooks/, "the review says the repository's hooks will run");
+  assert.deepEqual(await fs.readdir(ran), [], "preparing the commit runs no hook");
+  await commit.execute();
+  assert.ok((await fs.readdir(ran)).includes("pre-commit"), "the approved commit runs the repository's hooks, as at a terminal");
+});

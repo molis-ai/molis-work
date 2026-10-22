@@ -75,6 +75,14 @@ test("S-32 a project's list leaves out a hidden plugin, a built-in it does not s
   assert.deepEqual(boundReferenceKinds(candidates).kinds.map(entry => entry.kind), ["goal", "x_note", "x_pose"]);
 });
 
+test("PRR-13 a Runtime built-in plugin is recognized by its provider id, not by an install hash", () => {
+  const todo = offering({ provider_id: "io.molis.work.todo", plugin_id: "io.molis.work.todo", plugin_install_id: "plugin-install-6ed43d717d2e579c2d6345b4e217c614" }, "todo_item", "待办");
+  assert.deepEqual(projectReferenceKinds(todo, new Set(["goals"]), new Set()), [], "a built-in the project does not show offers nothing");
+  const shown = projectReferenceKinds(todo, new Set(["goals", "todo"]), new Set());
+  assert.deepEqual(shown.map(entry => [entry.plugin_id, entry.builtin, entry.kind]), [["io.molis.work.todo", true, "todo_item"]]);
+  assert.deepEqual(projectReferenceKinds(todo, new Set(["goals", "todo"]), new Set(["todo"])), [], "a hidden built-in offers nothing");
+});
+
 test("S-32 another project's plugin is not in this project's round, and only the local person's rounds list a project's kinds", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "reference-kinds-projects-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });

@@ -26,7 +26,7 @@ const until = async (description: string, check: () => boolean | Promise<boolean
 
 // W2-18-CODING-DELEGATE-01: actual SDK outbox flush, delivery failure and reopen, preserving the same target and letter.
 for (const fault of ["send-after-flush", "deliver"] as const) test(`delegation ${fault} preserves the original SDK letter and target for explicit retry`, { timeout: 30_000 }, async t => {
-  const fixture = await codingSdkRuntime(t); fixture.create("A"); body(await fixture.call("/sessions/A", { configuration }, "PATCH"));
+  const fixture = await codingSdkRuntime(t); await fixture.create("A"); body(await fixture.call("/sessions/A", { configuration }, "PATCH"));
   const messages = fixture.adapter.messages!; let inject = true;
   if (fault === "send-after-flush") {
     const send = messages.sendForPeople!.bind(messages);
@@ -49,7 +49,7 @@ for (const fault of ["send-after-flush", "deliver"] as const) test(`delegation $
 
 // W2-18-CODING-DELEGATE-01: a known pre-send failure and a revoked original invocation have distinct recovery behavior.
 test("a known pre-send SDK refusal archives its prepared target and produces no letter", async t => {
-  const fixture = await codingSdkRuntime(t); fixture.create("A"); body(await fixture.call("/sessions/A", { configuration }, "PATCH"));
+  const fixture = await codingSdkRuntime(t); await fixture.create("A"); body(await fixture.call("/sessions/A", { configuration }, "PATCH"));
   const create = fixture.adapter.createSession.bind(fixture.adapter);
   t.mock.method(fixture.adapter, "createSession", async (...args) => { if (args[0].title.startsWith("委派：")) throw new Error("target session unavailable before send"); return create(...args); });
   const result = await fixture.call("/sessions/A/delegations", { title: "Known refusal", task: "Never sent." }); assert.ok(result && result.status >= 400);
@@ -58,7 +58,7 @@ test("a known pre-send SDK refusal archives its prepared target and produces no 
 });
 
 test("revocation after an actual SDK send flush preserves the outbox but returns no protected target or letter", async t => {
-  const fixture = await codingSdkRuntime(t); fixture.create("A"); body(await fixture.call("/sessions/A", { configuration }, "PATCH")); let current = true;
+  const fixture = await codingSdkRuntime(t); await fixture.create("A"); body(await fixture.call("/sessions/A", { configuration }, "PATCH")); let current = true;
   const messages = fixture.adapter.messages!, send = messages.sendForPeople!.bind(messages);
   t.mock.method(messages, "sendForPeople", async (...args) => { const accepted = await send(...args); current = false; return accepted; });
   const assertCurrent = () => { if (!current) throw new Error("original delegation authority revoked"); };
@@ -74,7 +74,7 @@ test("revocation after an actual SDK send flush preserves the outbox but returns
 
 // W2-18-CODING-BACKGROUND-01: real SDK command observation, owner cache preservation on failure, and recovery.
 test("a failed SDK background read preserves the last actual command observation and marks it unreadable", { timeout: 30_000 }, async t => {
-  const fixture = await codingSdkRuntime(t); fixture.create("A"); let turn = 0;
+  const fixture = await codingSdkRuntime(t); await fixture.create("A"); let turn = 0;
   t.mock.method(globalThis, "fetch", async () => ++turn === 1 ? codingToolResponse("start-command", { executable: process.execPath, argv: ["-e", "setTimeout(()=>{},30000)"] }) : cogniaModelResponse("The command is running in the background."));
   const started = body<Started>(await fixture.call("/sessions/A/runs", { ...configuration, task: "Start a controlled background command.", intent: "execute" }));
   await until("command approval did not appear", () => fixture.reviews.list(DEMO_PROJECT_ID, "pending").length > 0);
@@ -89,11 +89,15 @@ test("a failed SDK background read preserves the last actual command observation
 });
 
 // W2-18-CODING-WAKE-01: a persisted real SDK wait wakes on activation alone, despite four consecutive read failures.
+// W5-01 C2 (expected change): Coding no longer waits for the Host's `ready()` before it starts the loop, so the loop's first read is the
+// one that starts the runtime. A first read that fails ends a loop the activation started (W5-01-CODING-31, tests/coding-input-ports.test.ts);
+// a loop whose first read was answered keeps retrying. So the four failures here come after one answered read (nothing ready at that
+// instant); before this change the Host's `ready()` was that answer.
 // The command ends while the plugin is stopped, so the wait is over on the record before the SDK reopens: a finished
 // fact may start the next round by itself (specs/prologue-adoption §4.6.4). A command the restart cut off is not one: its
 // result is unknown, so the step is held for the person (needs-reconciliation) and nothing is started.
 test("Coding activation resumes a persisted SDK wait without opening a page and keeps retrying transient owner failures", { timeout: 100_000 }, async t => {
-  const fixture = await codingSdkRuntime(t); fixture.create("A"); let turn = 0; const requests: string[] = [];
+  const fixture = await codingSdkRuntime(t); await fixture.create("A"); let turn = 0; const requests: string[] = [];
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const wire = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
     const messages = JSON.stringify(JSON.parse(wire).messages); requests.push(messages); turn++;
@@ -110,8 +114,8 @@ test("Coding activation resumes a persisted SDK wait without opening a page and 
   await fixture.reopenSdk(); const persisted = (await fixture.adapter.collaboration!.read(DEMO_PROJECT_ID))[0]!;
   assert.deepEqual([persisted.wait?.wait_id, persisted.wait?.state, persisted.continuation?.state], [parked[0]!.wait_id, "satisfied", "eligible"], "the wait is over on the record");
   assert.equal(turn, 3, "reopening asks no model");
-  const original = fixture.adapter.collaboration!.awaitReady.bind(fixture.adapter.collaboration), entered = Promise.withResolvers<void>(); let failures = 0;
-  t.mock.method(fixture.adapter.collaboration!, "awaitReady", async (...args) => { if (failures < 4) { failures++; entered.resolve(); throw new Error("transient owner read failure"); } return original(...args); });
+  const original = fixture.adapter.collaboration!.awaitReady.bind(fixture.adapter.collaboration), entered = Promise.withResolvers<void>(); let failures = 0, reads = 0;
+  t.mock.method(fixture.adapter.collaboration!, "awaitReady", async (...args) => { if (reads++ === 0) return []; if (failures < 4) { failures++; entered.resolve(); throw new Error("transient owner read failure"); } return original(...args); });
   await fixture.platform.supervisor.restart("io.molis.work.coding"); await entered.promise;
   // No HTTP/directory/session read starts this work: only the new plugin activation owns the loop.
   await until("activation stopped retrying or failed to resume the persisted wait", () => turn >= 4, 70_000);
@@ -123,7 +127,7 @@ test("Coding activation resumes a persisted SDK wait without opening a page and 
 
 // W2-18-CODING-REPORT-01: current SDK inserted graph -> user verdict -> immutable report, including SDK reopening.
 test("a real inserted SDK step and its verdict are saved in a fixed report that later evaluation cannot rewrite", { timeout: 45_000 }, async t => {
-  const fixture = await codingSdkRuntime(t); fixture.create("A");
+  const fixture = await codingSdkRuntime(t); await fixture.create("A");
   t.mock.method(globalThis, "fetch", async () => cogniaModelResponse(JSON.stringify({ title: "One step", steps: [{ title: "Read", acceptance: "Record evidence" }], blockers: "", change_reason: "" })));
   const planning = await start(fixture, "A", "Plan this task.", "plan");
   body(await fixture.call("/sessions/A/plan", { run_id: planning.run_id, expected_revision: 0 }));
@@ -164,7 +168,7 @@ const pick = (reference: ArtifactReference, title: string): Piece => ({ kind: "a
 
 // W2-18-CODING-DELIVERY-01: actual SDK letters, fixed reports and the next SDK Run's frozen material version.
 test("30 materials refuse a new delivery without committing receipts; removing one permits acceptance and actual consumption", { timeout: 120_000 }, async t => {
-  const fixture = await codingSdkRuntime(t); fixture.create("A"); body(await fixture.call("/sessions/A", { configuration }, "PATCH"));
+  const fixture = await codingSdkRuntime(t); await fixture.create("A"); body(await fixture.call("/sessions/A", { configuration }, "PATCH"));
   t.mock.method(globalThis, "fetch", async () => cogniaModelResponse("DELIVERED_FIXED_TEXT"));
   const delegated = body<Delegated>(await fixture.call("/sessions/A/delegations", { title: "Report", task: "Produce fixed reports." })), target = delegated.session.session_id;
   const references: Piece[] = [];

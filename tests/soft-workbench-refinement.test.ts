@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { PLUGIN_ICON, STATUS_ICON } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs } from "../apps/workbench/src/plugin-catalog.js";
 import {
@@ -32,6 +34,23 @@ test("each state has its own fixed glyph", () => {
   assert.deepEqual(Object.keys(STATUS_ICON), ["todo", "progress", "waiting", "needs-you", "blocked", "done", "cancelled"]);
 });
 
+// specs/visual-ui-experience §bezier-timing (the guard's expected change, VUX-14): the motion tokens are the four durations and
+// two curves, plus the one reveal pair (90 ms, out-cubic) chosen for newly written text. Business styles still name a token,
+// never a duration or a curve of their own, so the reveal's 90 ms appears only in its token's definition.
+const MOTION_TOKENS = { "dur-hover": "130ms", "dur-press": "130ms", "dur-move": "250ms", "dur-arrive": "420ms", "dur-moment": "640ms", "dur-reveal": "90ms",
+  "motion-instant": "130ms", "motion-fast": "130ms", "motion-normal": "250ms", "motion-arrive": "420ms",
+  "ease-quint": "cubic-bezier(.22, 1, .36, 1)", "ease-spring": "cubic-bezier(.2, 1.35, .4, 1)", "ease-reveal": "cubic-bezier(.215, .61, .355, 1)",
+  "ease-out": "var(--ease-quint)", "ease-standard": "var(--ease-quint)", "ease-swift": "var(--ease-quint)", "ease-settle": "var(--ease-spring)" };
+test("the motion tokens are the chosen set and nothing defines another", () => {
+  for (const [name, css] of sheets()) {
+    for (const match of css.matchAll(/(?<![\w-])--((?:dur|motion|ease)-[\w-]+)\s*:\s*([^;}]+)/g)) {
+      const token = match[1]!, value = match[2]!.trim().replace(/\s+/g, " ");
+      assert.ok(token in MOTION_TOKENS, `${name}: --${token} is not one of the chosen motion tokens`);
+      assert.equal(value, MOTION_TOKENS[token as keyof typeof MOTION_TOKENS], `${name}: --${token}`);
+    }
+  }
+});
+
 test("motion uses four durations and two curves", () => {
   const allowed = new Set([130, 250, 420, 640]);
   for (const [name, css] of sheets()) {
@@ -47,15 +66,81 @@ test("motion uses four durations and two curves", () => {
   }
 });
 
+// specs/visual-ui-experience §5 (the guard's expected change): grid-template-rows moves only on the outer row of a
+// natural-height fold (0fr → 1fr), each named here: the shared disclosure, and the Assistant's side groups, whose head is a
+// button because folding is remembered per viewer (VUX-08). Every other selector, grid-template-columns and every other
+// layout property is still refused.
+const NATURAL_HEIGHT_ROWS = [/\.mw-collapsible::details-content$/, /\.assistant-block:not\(\[hidden\], ?\.assistant-block--usage\)$/];
 test("motion never animates layout properties", () => {
   const layout = /^(?:width|height|min-width|max-width|min-height|max-height|margin(?:-[a-z]+)?|padding(?:-[a-z]+)?|top|left|right|bottom|inset|gap|grid-template-(?:columns|rows)|flex-basis|font-size|letter-spacing|border-width)$/;
+  const folds = new Set<RegExp>();
   for (const [name, css] of sheets()) {
     for (const match of css.matchAll(/([^{};]*)\{[^{}]*?(?<![\w-])transition(?:-property)?\s*:\s*([^;}]+)/g)) {
+      const selector = match[1]!.trim();
       for (const part of match[2]!.split(",")) {
-        assert.doesNotMatch(part.trim().split(/\s+/)[0]!, layout, `${name}: ${match[1]!.trim().slice(-100)} → ${part.trim()}`);
+        const property = part.trim().split(/\s+/)[0]!;
+        const fold = property === "grid-template-rows" ? NATURAL_HEIGHT_ROWS.find(row => row.test(selector)) : undefined;
+        if (fold) { folds.add(fold); continue; }
+        assert.doesNotMatch(property, layout, `${name}: ${selector.slice(-100)} → ${part.trim()}`);
       }
     }
   }
+  assert.deepEqual(NATURAL_HEIGHT_ROWS.filter(row => !folds.has(row)), [], "every named fold is found, so no exception is dead");
+});
+
+// The other expected change (VUX-14): `filter` moves only in the fresh-text reveal, a 2 px blur on a piece of newly written
+// text; no other keyframes, transition or element blurs, and the reveal is the only user of its duration and curve.
+test("filter animates only in the fresh-text reveal", () => {
+  for (const [name, css] of sheets()) {
+    const frames = [...css.matchAll(/@keyframes\s+([\w-]+)\s*\{((?:[^{}]*\{[^{}]*\})*)[^{}]*\}/g)];
+    for (const [, frame, body] of frames) if (/(?<![\w-])filter\s*:/.test(body!)) assert.equal(frame, "mw-fresh", `${name}: @keyframes ${frame} blurs`);
+    assert.match(css, /@keyframes mw-fresh\{from\{opacity:0;filter:blur\(2px\)\}\}/, `${name}: the reveal starts from 2 px and ends on the text as it is`);
+    for (const match of css.matchAll(/([^{};]*)\{[^{}]*?(?<![\w-])transition(?:-property)?\s*:\s*([^;}]+)/g)) {
+      assert.doesNotMatch(match[2]!, /(?<![\w-])(?:filter|backdrop-filter|all)(?![\w-])/, `${name}: ${match[1]!.trim().slice(-100)} → ${match[2]}`);
+    }
+    for (const match of css.matchAll(/([^{};]*)\{[^{}]*?(?<![\w-])animation(?:-name)?\s*:\s*[^;}]*(?<![\w-])mw-fresh(?![\w-])/g)) assert.equal(match[1]!.trim(), ".mw-fresh", `${name}: only .mw-fresh plays the reveal`);
+    for (const match of css.matchAll(/([^{};]*)\{[^{}]*var\(--(?:dur|ease)-reveal\)/g)) assert.equal(match[1]!.trim(), ".mw-fresh", `${name}: the reveal tokens belong to the reveal`);
+    assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{\.mw-fresh\{animation:none\}\}/, `${name}: reduced motion shows fresh text at once`);
+  }
+});
+
+// VUX-27: an edge that fades is the one shared overflow fade, shown only where there is more; no surface keeps a fixed
+// gradient mask of its own (Workflows' chain had one, faded even when the chain fit). An icon drawn as a mask is not a fade.
+test("a gradient mask is only the shared overflow fade", () => {
+  for (const [name, css] of sheets()) {
+    for (const match of css.matchAll(/([^{};]*)\{[^{}]*?(?<![\w-])(?:-webkit-)?mask(?:-image)?\s*:\s*([^;}]+)/g)) {
+      if (!/gradient\(/.test(match[2]!)) continue;
+      assert.match(match[1]!.trim(), /^\[data-overflow-fade\]\[data-more\]$/, `${name}: ${match[1]!.trim().slice(-100)} masks with a gradient of its own`);
+    }
+  }
+});
+
+// specs/visual-ui-experience §composer-mentions (VUX-16): one intrinsic sizing. A field that grows with what is written
+// marks itself data-fit; no page writes its own field-sizing rule or sets a height from scrollHeight.
+test("a field grows only through the shared intrinsic sizing", () => {
+  for (const [name, css] of sheets()) {
+    for (const match of css.matchAll(/([^{};]*)\{[^{}]*?field-sizing\s*:\s*content/g)) assert.equal(match[1]!.trim(), ":where(textarea[data-fit])", `${name}: ${match[1]!.trim().slice(-100)} sizes a field of its own`);
+  }
+  const roots = ["apps", "packages", "plugins/native"].flatMap(top => readdirSync(top, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => join(top, entry.name, "src")));
+  const own = new Set([join("packages", "design-system", "src", "field-fit.ts"), join("packages", "design-system", "src", "browser", "field-fit.ts")]);
+  for (const root of roots) {
+    let files: string[];
+    try { files = readdirSync(root, { recursive: true, encoding: "utf8" }); } catch { continue; }
+    for (const file of files.filter(file => file.endsWith(".ts")).map(file => join(root, file))) {
+      if (own.has(file)) continue;
+      const source = readFileSync(file, "utf8");
+      assert.doesNotMatch(source, /field-sizing\s*:\s*content/, `${file} sizes a field of its own; mark it data-fit`);
+      assert.doesNotMatch(source, /\.style\.height\s*=[^;\n]*scrollHeight/, `${file} grows a field by hand; mark it data-fit`);
+    }
+  }
+});
+
+test("the natural-height exception admits only the fold's outer row", () => {
+  const refused = (selector: string) => !NATURAL_HEIGHT_ROWS.some(row => row.test(selector));
+  assert.equal(refused(".mw-collapsible::details-content"), false);
+  assert.equal(refused("body .assistant-block:not([hidden], .assistant-block--usage)"), false);
+  for (const selector of [".mw-collapsible", ".mw-collapsible::details-content .inner", ".assistant-log", "details::details-content",
+    ".assistant-block", ".assistant-block-body", ".assistant-block:not([hidden], .assistant-block--usage) .assistant-block-body"]) assert.equal(refused(selector), true, selector);
 });
 
 test("only loading indicators loop", () => {

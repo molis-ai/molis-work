@@ -34,7 +34,6 @@ function fixture() {
   const app = new GoalProjectApplication(store);
   app.initializeBoard({
     project_id: BOARD,
-    title: "状态效果",
     actor_id: "user-1",
     idempotency_key: "init",
   });
@@ -637,7 +636,7 @@ test("protected Web user entry records a decision; Host-injected identity is req
   try {
     const actions = new ActionService();
     actions.registerProvider({ provider: { provider_id: "goals", title: "Goals", kind: "plugin", project_id: BOARD },
-      definitions: GOALS_ACTIONS, handlers: createGoalsActionHandlers({ events: data.app.goalEvents, projectId: BOARD,
+      definitions: GOALS_ACTIONS, handlers: createGoalsActionHandlers({ events: data.app.goalEvents, acknowledgements: data.app.goalAcknowledgements, projectId: BOARD,
         board: { immediate: operation => data.store.immediate(operation), query: data.store.goalsQuery,
         initializeBoard: input => data.app.initializeBoard(input), commands: data.app.goals.commands,
         adoptOwner: input => data.app.goalEvents.adoptOwner(input) },
@@ -1262,7 +1261,7 @@ test("same-millisecond closures keep this-event receipt and journal-seq current 
   const app = new GoalProjectApplication(store, () => frozen);
   const data = { directory, store, app };
   try {
-    app.initializeBoard({ project_id: BOARD, title: "同毫秒", actor_id: "user-1", idempotency_key: "init-ms" });
+    app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-ms" });
     const created = app.goalEvents.createIntent({
       project_id: BOARD, title: "同毫秒收尾", outcome: "可回读", actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "intent-ms",
     });
@@ -3083,7 +3082,7 @@ test("the management caller factory acts as the person on this machine, builds t
   seen.length = 0;
   await management.invoke(goalsActions.snapshot, {});
   assert.deepEqual(seen[0]!.caller.user_action, { source: "management", conversation_ref: `management:${BOARD}`, message_ref: `management:${goalsActions.snapshot.capability_id}` }, "a read has no key: its reference is the action");
-  await management.invoke(goalsActions.initialize, { title: "资料库", idempotency_key: "init" });
+  await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
   assert.deepEqual(seen[1]!.caller.user_action, { source: "management", conversation_ref: `management:${BOARD}`, message_ref: "management:init" });
 
   // Who decides is the Host's to say: an identity in the evidence is refused, and evidence belongs to the two decisions only. Nothing reaches the client.
@@ -3092,7 +3091,7 @@ test("the management caller factory acts as the person on this machine, builds t
     await assert.rejects(management.invoke(goalsActions.decide, decision, { conversation_ref: "conversation://x", ...named }), { code: "goals.event_decision_authority_invalid" }, Object.keys(named).join());
     await assert.rejects(management.invoke(goalsActions.treeDecide, { proposal_id: "p", idempotency_key: "k" }, { conversation_ref: "conversation://x", ...named }), { code: "goals.goal_tree_proposal.authority_source_invalid" }, Object.keys(named).join());
   }
-  await assert.rejects(management.invoke(goalsActions.initialize, { title: "资料库", idempotency_key: "init" }, { conversation_ref: "conversation://x" }), { code: "actions.input_invalid" });
+  await assert.rejects(management.invoke(goalsActions.initialize, { idempotency_key: "init" }, { conversation_ref: "conversation://x" }), { code: "actions.input_invalid" });
 
   // Nor do the arguments of a write take an identity: refused in the words the typed door used, naming the field, and before the evidence is
   // looked at, for the two decisions that take evidence (an identity in both is the arguments' refusal). Nothing reaches the client.

@@ -336,9 +336,9 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
   border-color:var(--ink);
   outline:var(--focus-stroke, 1px solid var(--ink)); outline-offset:var(--focus-stroke-inset, -1px);
 }
-/* The field grows with what is written, up to a limit, instead of offering a resize grip. */
+/* The field grows with what is written (data-fit, the shared intrinsic sizing), up to 320px and 40% of the frame. */
 .coding-composer-shell textarea {
-  resize:none; field-sizing:content; width:100%; min-height:56px; max-height:min(40vh,320px); overflow-y:auto; line-height:1.65;
+  --fit-max:320px; width:100%; min-height:56px; line-height:1.65;
   margin:0; padding:12px 8px 4px; border:0; border-radius:8px; background:transparent; box-shadow:none;
   caret-color:var(--ink);
 }
@@ -492,7 +492,7 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 /* Reasoning reads as quoted prose under its row, never as tool output. */
 .coding-tools-chevron { display:inline-flex; color:var(--faint); opacity:0; transition:opacity 130ms var(--ease-quint),transform 130ms var(--ease-quint); }
 .coding-tools-chevron svg { width:12px; height:12px; }
-.coding-activity > summary:hover .coding-tools-chevron,.coding-activity > summary:focus-visible .coding-tools-chevron,.coding-activity[open] > summary .coding-tools-chevron { opacity:1; }
+.coding-activity > summary:hover .coding-tools-chevron,.coding-activity > summary:focus-visible .coding-tools-chevron,.coding-activity[open] > summary .coding-tools-chevron { opacity:1; } @media (hover:none) { .coding-tools-chevron { opacity:1; } }
 .coding-activity[open] > summary .coding-tools-chevron { transform:rotate(90deg); }
 .coding-tool-list { margin:8px 0 0 12px; padding-left:16px; border-left:1px solid var(--line); display:grid; gap:1px; animation:coding-rise 130ms var(--ease-quint); }
 .coding-tool > summary, .coding-tool-head { list-style:none; display:flex; align-items:center; gap:8px; min-width:0; padding:4px 8px; border-radius:6px; color:var(--muted); }
@@ -642,12 +642,8 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-change-body:empty { display:none; }
 [data-coding-change-reader] .diff .diff-notices { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 8px; }
 [data-coding-change-reader] .diff .diff-notices li { padding:4px 8px; border-radius:999px; background:var(--nav-hover); font-size:12px; line-height:1.6; }
-[data-coding-change-reader] .diff .diff-rows { margin:0; padding:4px 0; border-radius:10px; background:var(--paper); font-size:12px; line-height:20px; }
-[data-coding-change-reader] .diff .diff-rows li { grid-template-columns:5ch 5ch minmax(max-content,1fr); gap:0; padding:0; }
-[data-coding-change-reader] .diff .diff-rows li.diff-fold { display:block; }
-[data-coding-change-reader] .diff .diff-rows li[hidden] { display:none; }
-[data-coding-change-reader] .diff .diff-rows code { padding:0 16px 0 8px; }
-[data-coding-change-reader] .diff .diff-before,[data-coding-change-reader] .diff .diff-after { padding-right:8px; color:var(--faint); user-select:none; }
+[data-coding-change-reader] .diff .diff-rows { --diff-bg:var(--paper); margin:0; padding:4px 0; border-radius:10px; font-size:12px; line-height:20px; }
+[data-coding-change-reader] .diff .diff-before,[data-coding-change-reader] .diff .diff-after { color:var(--faint); }
 [data-coding-change-reader] .diff [data-kind=insert] .diff-sign { color:var(--green); }
 [data-coding-change-reader] .diff [data-kind=delete] .diff-sign { color:var(--red); }
 [data-coding-change-reader] [data-coding-line] { all:unset; box-sizing:border-box; display:block; width:100%; padding-right:4px; border-radius:4px; text-align:right; cursor:pointer; }
@@ -793,9 +789,6 @@ dialog[data-coding-integration-dialog] .mw-form__body { grid-template-columns:mi
 .coding-integration-diff { margin-top:8px; }
 .coding-integration-diff > summary { cursor:pointer; font-size:12px; color:var(--muted); }
 .coding-integration-diff .diff .diff-rows { margin:8px 0 0; max-height:360px; font-size:12px; line-height:20px; }
-.coding-integration-diff .diff .diff-rows li { grid-template-columns:5ch 5ch minmax(max-content,1fr); gap:0; }
-.coding-integration-diff .diff .diff-rows li[hidden] { display:none; }
-.coding-integration-diff .diff .diff-rows li.diff-fold { display:block; }
 .coding-merge { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; margin-top:8px; padding:12px; border:1px solid color-mix(in srgb,var(--amber) 40%,var(--line)); border-radius:10px; background:color-mix(in srgb,var(--amber) 5%,var(--paper)); }
 .coding-merge > p { margin:0; font-size:12px; color:var(--muted); }
 .coding-merge-editor { box-sizing:border-box; width:100%; max-width:100%; min-height:12rem; font:12px/1.6 var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); white-space:pre; overflow:auto; resize:vertical; }

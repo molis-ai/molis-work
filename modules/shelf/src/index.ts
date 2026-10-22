@@ -1,3 +1,4 @@
+export { openShelfReplica } from './store.js';
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-shelf",
   packagePath: "modules/shelf",

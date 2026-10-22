@@ -1,31 +1,42 @@
+import { savedAgentHistoryView } from '@molis-ai/molis-work-service-agent-host';
 import {
   ActionError, requireSynchronous, type ActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDatabase, PluginDefinition, PluginManifest, PluginModelClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDirectoryService } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
 import {
+  assertPluginActionCurrent,
+  assertCapturedPluginActionCurrent,
   createPluginCapabilityClient,
   createPluginInputsClient,
   createPluginOutputsClient,
-  currentPluginAction,
+  currentPluginInvocation,
+  markPluginActionChecked,
+  pluginInvocationReadOnly,
   type PluginCapabilityPort,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
+import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { openPluginDatabase } from "./plugin-database.js";
 import { openPluginFiles } from "./plugin-files.js";
+import { openPluginProjectLibrary } from "./plugin-project-library.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { syncActivation } from "./sync-activation.js";
+import { DIRECTORY_READ_PERMISSION, directoryForHome } from "./plugin-directory-service.js";
 
 /** What the executor keeps of one started Plugin until it stops. */
 export interface HostSession {
   readonly context: PluginStartContext;
+  /** Runs the Plugin's `start()`: until it settles, the activation may keep its jobs outside every action (PG-038). */
+  starting<T>(run: () => T): T;
   revoke(): void;
   dispose(): void;
 }
@@ -43,34 +54,42 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let active = true;
   let disposeArtifacts = () => {};
   let library: ReturnType<typeof openPluginDatabase> | undefined;
+  let projectLibrary: ReturnType<typeof openPluginProjectLibrary> | undefined;
   let files: ReturnType<typeof openPluginFiles> | undefined;
   let background: ReturnType<typeof pluginBackgroundFor>;
   let withdrawAgentDefinitions: (() => void) | undefined;
   let withdrawCaller: (() => void) | undefined;
-  const dispose = () => { active = false; background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); files?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
+  const dispose = () => { active = false; background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); files?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     const manifest = definition.manifest;
     const pluginCaller = hostPluginCaller(options, definition, context, assertActive);
-    withdrawCaller = options.qualifyCaller?.(definition, pluginCaller);
+    withdrawCaller = issuePluginCaller(pluginCaller, heldPermissions(manifest, context.grants));
     const providerId = options.providerFor?.(definition, context.install_id) ?? context.install_id;
-    const artifactService = createPluginArtifactClient({ assertInput: assertActionInput, api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions,
-      project_id: options.project_id, actor_id: options.actor_id,
+    const artifactService = createPluginArtifactClient({ assertInput: assertActionInput, api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions, plugin_caller: pluginCaller,
+      project_id: options.project_id, actor_id: options.actor_id, assertCallerCurrent: () => assertPluginActionCurrent(context.install_id),
       // A version pinned inside one of this installation's actions is the caller's (an Agent, a workflow, an MCP client, the person).
-      author: () => { const scope = currentPluginAction(); return scope?.install_id === context.install_id ? scope.caller.actor_id : undefined; } });
+      author: () => { const scope = currentPluginInvocation(); return scope?.install_id === context.install_id ? scope.caller.actor_id : undefined; } });
     disposeArtifacts = artifactService.dispose;
     library = openDeclaredLibrary(options, definition, context, assertActive);
+    projectLibrary = openProjectTables(options, definition, context, assertActive);
     const fileDeclaration = options.filesFor?.(definition);
     if (fileDeclaration) {
       if (!options.home) throw new Error("私有文件服务需要 Home");
-      files = openPluginFiles(options.home.directory, fileDeclaration, permission => { assertActive(); context.requireGrant(permission); });
+      files = openPluginFiles(options.home.directory, fileDeclaration, permission => { assertActive(); context.requireGrant(permission); }, context.install_id);
     }
     withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
-    background = pluginBackgroundFor(definition, context, assertActive);
+    background = pluginBackgroundFor(definition, context, assertActive, { actor_id: options.actor_id, project_id: options.project_id,
+      ...(options.record ? { record: () => options.record!(context.install_id) } : {}) });
+    const directory = options.home && manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
+      ? directoryForHome(options.home.directory) : undefined;
+    const directoryService: PluginDirectoryService | undefined = directory
+      ? { read: (request, signal) => { assertActive(); context.requireGrant(DIRECTORY_READ_PERMISSION); return directory.read(request, signal); } } : undefined;
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
-      database: library?.client, files: files?.client, model: pluginModelFor(options.home, definition, context, assertActive),
-      materials: pluginMaterialsFor(options.home, definition, context, assertActive), background: background?.client });
-    return { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose };
+      database: library?.client, project_database: projectLibrary?.client, files: files?.client, model: pluginModelFor(options.home, definition, context, assertActive),
+      materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), background: background?.client, directory: directoryService });
+    return { context: hosted, starting: run => background ? background.starting(run) : run(),
+      revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose };
   } catch (error) {
     dispose();
     throw error;
@@ -87,7 +106,18 @@ function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: Plu
   const declaration = options.databaseFor?.(definition);
   if (declaration === undefined) return undefined;
   if (!options.home) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了 Home 库，但这个插件平台没有 Home`);
-  return openPluginDatabase(options.home.directory, declaration, permission => { assertActive(); context.requireGrant(permission); });
+  return openPluginDatabase(options.home.directory, declaration, permission => { assertActive(); context.requireGrant(permission); }, context.install_id);
+}
+
+/**
+ * The plugin's own tables in the project's library, when its Manifest declares them (`databases.project`). Unlike a library in
+ * the Home, the declaration is the plugin's own: the platform makes the tables and checks them against the ledger when the
+ * plugin starts, and checks every statement against them after. Every call follows the same rules as a library in the Home.
+ */
+function openProjectTables(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void) {
+  if (!definition.manifest.databases?.project) return undefined;
+  if (!options.projectLibrary) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了项目库，但这个插件平台没有项目库`);
+  return openPluginProjectLibrary(options.projectLibrary, definition.manifest, permission => { assertActive(); context.requireGrant(permission); }, context.install_id);
 }
 
 function hostPluginCaller(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void): HostPluginCaller {
@@ -110,11 +140,15 @@ interface SessionParts {
   readonly isActive: () => boolean;
   /** The library the Host's start list declared for this plugin, if any (`openDeclaredLibrary`). */
   readonly database: PluginDatabase | undefined;
+  /** The plugin's own tables in the project's library, if its Manifest declares them (`openProjectTables`). */
+  readonly project_database: PluginDatabase | undefined;
   readonly files: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesClient | undefined;
-  /** The Host's text model, when the Manifest declares `model:invoke` and the Host runs the plugin itself (`pluginModelFor`). */
+  /** The Host's text model, when the Manifest declares `model:read` or `model:invoke` and the Host runs the plugin itself (`pluginModelFor`); only `model:invoke` sends requests. */
   readonly model: PluginModelClient | undefined;
   readonly materials: ReturnType<typeof pluginMaterialsFor>;
   readonly background: import("@molis-ai/molis-work-contracts/platform/plugin").PluginBackgroundClient | undefined;
+  /** The person-authorized directory reader, only when the Manifest declares `directory:read`. */
+  readonly directory: PluginDirectoryService | undefined;
 }
 
 /** The context the Plugin's `start` receives: its identity plus the services below. */
@@ -129,16 +163,20 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
     ...(wiring === undefined ? {} : { input_group: wiring.selectedGroup(manifest.plugin_id) }),
     services: Object.freeze({
       ...(actions ? { actions } : {}),
+      ...(manifest.agent ? { savedHistory: { view(json: string) { assertActive(); return savedAgentHistoryView(json); } } } : {}),
+
       storage: manifest.permissions.some(item => item.permission === "storage:private")
         ? options.privateStorageFor(context, manifest) : undefined,
       artifacts: artifactService.client,
       ...((manifest.process_items?.produces ?? []).length > 0 ? { processItems: artifactService.process } : {}),
       ui: ui.client,
       ...(parts.database === undefined ? {} : { database: parts.database }),
+      ...(parts.project_database === undefined ? {} : { project_database: parts.project_database }),
       ...(parts.files === undefined ? {} : { files: parts.files }),
       ...(parts.model === undefined ? {} : { model: parts.model }),
       ...(parts.materials === undefined ? {} : { materials: parts.materials }),
       ...(parts.background === undefined ? {} : { background: parts.background }),
+      ...(parts.directory === undefined ? {} : { directory: parts.directory }),
       ...coordinationServices(options, manifest, context, parts),
     }) });
 }
@@ -154,7 +192,7 @@ function coordinationServices(options: PluginHostExecutorOptions, manifest: Plug
   const declaresCapabilities = manifest.capabilities.consumes.length > 0;
   const wiringInput = wiring === undefined
     ? undefined
-    : { manifest, graph: wiring, artifacts: artifactService.client, processItems: artifactService.process, scopeKey: options.scopeKey ?? null,
+    : { manifest, install_id: context.install_id, graph: wiring, artifacts: artifactService.client, processItems: artifactService.process, scopeKey: options.scopeKey ?? null,
         requireGrant: (permission: string) => context.requireGrant(permission),
         latestVersion: (artifactId: string) => options.processItems.query.latestArtifactVersion(options.project_id, artifactId)?.version ?? 0 };
   return {
@@ -169,7 +207,7 @@ function coordinationServices(options: PluginHostExecutorOptions, manifest: Plug
       ? { inputs: createPluginInputsClient(wiringInput) }
       : {}),
     ...(declaresOutputs && wiringInput !== undefined
-      ? { outputs: createPluginOutputsClient(wiringInput) }
+      ? { outputs: createPluginOutputsClient(wiringInput, pluginCaller.assertActive) }
       : {}),
     ...(declaresCapabilities && options.capabilities !== undefined
       ? { capabilities: createPluginCapabilityClient(manifest, withPluginCaller(pluginCaller, options.capabilities), isActive) }
@@ -181,18 +219,22 @@ function withPluginCaller(caller: HostPluginCaller, port: PluginCapabilityPort):
   return {
     ...(port.availability ? { availability: (capability: ActionReference, options?: Pick<HostCapabilityCallOptions, "consumer">) => port.availability!(capability, options) } : {}),
     invoke(capability, input, options) {
+      const outer = currentPluginInvocation();
       caller.assertActive();
+      assertCapturedPluginActionCurrent(outer, caller.install_id);
       const beforeEffect = options?.before_effect, current = options?.assert_authority_current, signal = options?.signal;
       const assertAuthorityCurrent = () => {
         caller.assertActive(); signal?.throwIfAborted();
         requireSynchronous(current?.(), "最终授权检查必须同步完成");
+        assertCapturedPluginActionCurrent(outer, caller.install_id);
         signal?.throwIfAborted(); caller.assertActive();
       };
-      const bound = { ...options, consumer: "plugin" as const, plugin_caller: caller, before_effect: async () => {
+      const bound = { ...options, ...(pluginInvocationReadOnly(outer) ? { query_only: true as const } : {}), consumer: "plugin" as const, plugin_caller: caller, before_effect: async () => {
         caller.assertActive(); signal?.throwIfAborted(); await beforeEffect?.(); assertAuthorityCurrent();
       }, assert_authority_current: assertAuthorityCurrent };
       // The port knows no capability by name: a capability that depends on who is calling reads the trusted invocation itself.
-      return port.invoke(capability, input, bound);
+      // A command it accepted passed every check of the call it was made in: from then on that call may keep a job (PG-038).
+      return port.invoke(capability, input, bound).then(output => { if (capability.operation !== "query") markPluginActionChecked(outer); return output; });
     },
   };
 }

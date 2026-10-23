@@ -3356,3 +3356,13 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 两条都还没合 main。冲突与下一步写在交接说明 §2 第 11、12 行。
 - **BL-387、BL-388**：两行在 #1112 里，合入以后 main 上才有。
 - **改了的文档**：交接说明 §2、§3、§8、§9 里「没推」的说法；`notes/` 重拷了 ③ 后来改过的 `migration-line-not-done-1024.md` 和 `w506-pr-body.md`；登记册 §3 改了 W5-06 余项那一行、加了 SC-3 一行，§4 删了「两条分支没推」那一条。
+
+### 10-23 17:30 UTC　接手：本机 Claude 任统筹与开发派发，Codex 管在途 PR 冲突、测试与修复
+
+- **分工**（用户 10-23 给接手会话的目标；Codex 在 #1076 17:14 UTC 的评论写了同样的分法）：
+  - 本机 Claude 主会话＝统筹：排合并顺序、审 diff、合 PR、组集成批、维护本目录（交接说明、登记册、已知红、本日志）。开发片派给子会话，每片一个 PR、从 main 开。
+  - Codex：在途 PR 的冲突整理、集成批、测试与问题修复。PR 自己的失败照登记册 §0 从作者分支开叠加 PR。Codex 不合 PR。
+  - 在途 PR（#1076、#1099、#1100、#1087、#1098、#1107、#1084、#1083、#1112）的冲突归 Codex；SC-3（`migrate/sessions-sc3-terminal-workspaces`，没开 PR）归本机的开发派发。
+- **合并顺序改走「#1099 先合」那条路**：Codex 已把 #1099 合 main 并按实测刷新 `workbench.js`（`1420bd8ba`，1190716 字节），又组了 `integration/batch-1023-12`（`65adb02ae` = main `8f49a77ff` + #1099 + #1100 + #1087 `502ffa9c6` + #1084 按 squash 感知合入），[全量 39990751603](https://github.com/molis-ai/molis-work/actions/runs/39990751603) 16:55 UTC 起在跑。#1076 的放行键由 Codex 在 #1099 合入后的 main 上重算。
+- **已合入**：#1096（`01a875af0`）、#1093（`8b8ee3131`）。R-12、R-15 随 #1096 关；`known-red-main.md` 里 `health-gates-api-snapshot`、`goal-event-http` 两行随之失效，下一次更新已知红时删。
+- 本机路径：本机的 Codex 工作树在 `/private/tmp/handoff/`，协调分支工作树在主检出的 `.claude/worktrees/coord-handoff-1014`。

@@ -1,3 +1,4 @@
+import { pluginInteraction } from "./plugin-interaction.js";
 import { pluginNotificationsFor } from "./plugin-notification-service.js";
 import { pluginInstallationsFor } from "./plugin-installation-directory.js";
 import { pluginAgentsFor } from "./plugin-agent-service.js";
@@ -192,6 +193,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       artifacts: artifactService.client,
       ...((manifest.process_items?.produces ?? []).length > 0 ? { processItems: artifactService.process } : {}),
       ui: ui.client,
+      interaction: pluginInteraction,
       ...(parts.database === undefined ? {} : { database: parts.database }),
       ...(parts.project_database === undefined ? {} : { project_database: parts.project_database }),
       ...(parts.scheduler === undefined ? {} : { scheduler: parts.scheduler }),

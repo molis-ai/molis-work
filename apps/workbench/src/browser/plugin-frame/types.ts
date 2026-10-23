@@ -31,6 +31,7 @@ export interface FrameHost {
   openPlugin?(...args: unknown[]): void;
   hideDirectory?(): void;
   showToast?(message: string, failure?: boolean): void;
+  readRefusal?(status: number, code: unknown): string;
   status?(...args: unknown[]): void;
 }
 export interface FramePack { id: string; plugin_id: string; bundle: string; assets: string[];

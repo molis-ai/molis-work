@@ -1,33 +1,72 @@
-import { ActionError, type BoundActionClient, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionAvailability, type BoundActionClient, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ARTIFACT_FILE_IMPORT_ACTION } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { ShelfArtifactPreview, ShelfMaterialPorts } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { openShelfStore, type ShelfRuntimeProbe } from "@molis-ai/molis-work-module-shelf";
-import { createShelfActionHandlers, createShelfProjectActionHandlers, SHELF_PROJECT_ACTIONS, shelfActions } from "./actions.js";
+import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
+import type { PluginDefinition, PluginMaterialsClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/services/materials";
+import type { ShelfArtifactPreview, ShelfDeviceSettings, ShelfMaterialPorts, ShelfModelSelection } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { openShelfStore, shelfRuntimeProbe, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
+import { createShelfActionHandlers, createShelfProjectActionHandlers, SHELF_PROJECT_ACTIONS, shelfActions, type ShelfActionPorts } from "./actions.js";
+import { shelfAiPorts } from "./ai.js";
 import { shelfManifest } from "./manifest.js";
 import { shelfUiContribution } from "./ui.js";
 import { shelfSettingsUiContribution } from "./settings-ui.js";
-import { shelfRuntimeAi } from "./runtime-ai.js";
 import { shelfReceiveCopy, shelfRuntimeActions } from "./runtime-actions.js";
 import { createShelfRouteHandlers } from "./route-handlers.js";
 import { SHELF_NATIVE_PLUGIN_ROUTES } from "./routes.js";
+
+/** A page on this machine is read by `readLocalPage`, any other by `readSource`; the Host refuses what neither may reach. */
+function websiteReader(materials: PluginMaterialsClient): MaterialWebsiteReader {
+  return async (url, options = {}) => {
+    await options.beforeDispatch?.();
+    if (URL.canParse(url) && isLoopbackHttpUrl(new URL(url))) return materials.readLocalPage!(url, { signal: options.signal });
+    const source = await materials.readSource!(url, { signal: options.signal });
+    return { text: source.text, ...(source.title ? { title: source.title } : {}), extractor: source.extractor, pages: source.pages ?? [], coverage: source.coverage };
+  };
+}
+
+function shelfMaterialPorts(materials: PluginMaterialsClient): ShelfMaterialPorts {
+  return { readWebsite: websiteReader(materials), extract: (source, options) => materials.extract!(source, options),
+    imageTextAvailable: () => materials.imageTextAvailable?.() ?? false };
+}
+
+/**
+ * The store's methods as the actions call them; each call opens the store fresh, so it reads the current agent PATH.
+ * Availability is asked outside any action (a workflow listing its steps asks it inside its own), where Shelf's files cannot be
+ * read: it answers from the model choice the last action read or saved (only this instance's actions save that choice), and before
+ * any has, from whether any model is configured.
+ */
+export function shelfStorePorts(store: () => ShelfStore, availability: (selection: ShelfModelSelection | null) => ActionAvailability): ShelfActionPorts {
+  let selection: ShelfModelSelection | null = null;
+  const remember = (settings: ShelfDeviceSettings) => { selection = settings.model_selection ?? null; return settings; };
+  return {
+    aiAvailability: () => availability(selection),
+    snapshot: async () => { const snapshot = await store().snapshot(); remember(snapshot.settings); return snapshot; },
+    settings: () => remember(store().settings()),
+    saveSettings: async patch => remember(await store().saveSettings(patch)),
+    admit: (input, control) => store().admitFile(input, control),
+    admitText: (text, title, capture, control) => store().admitText(text, title, capture, control),
+    admitFolder: input => store().admitFolder(input),
+    readChild: (itemId, relative) => store().readChild(itemId, relative),
+    seedSample: () => store().seedSample(),
+    hide: itemId => store().hide(itemId),
+    deleteCopy: itemId => store().deleteCopy(itemId),
+    runJob: (job, control) => store().runJob(job, control),
+    cancelJob: jobId => store().cancelJob(jobId),
+    useAsMaterial: itemId => store().useAsMaterial(itemId),
+    addClipboard: (text, extra) => store().addClipboard(text, extra),
+    clipboardToMaterial: (clipId, control) => store().clipboardToMaterial(clipId, control),
+    deleteClipboard: clipId => store().deleteClipboard(clipId),
+    writeCopy: (itemId, text) => store().writeCopy(itemId, text),
+    readFile: itemId => store().readFile(itemId),
+  };
+}
 
 /** The personal Shelf uses the public services and lifecycle of a Home plugin. */
 export function createHomeShelfPlugin(): PluginDefinition {
   return { manifest: shelfManifest, async start(context) {
     for (const grant of shelfManifest.permissions) if (grant.required) context.requireGrant(grant.permission);
-    const { store, ai, actions } = shelfServices(context);
-    const handlers = createShelfActionHandlers({
-      aiStatus: () => ai.status(store().settings().model_selection), snapshot: () => store().snapshot(), settings: () => store().settings(),
-      saveSettings: patch => store().saveSettings(patch), admit: (input, control) => store().admitFile(input, control),
-      admitText: (text, title, capture, control) => store().admitText(text, title, capture, control),
-      admitFolder: input => store().admitFolder(input), readChild: (id, relative) => store().readChild(id, relative),
-      seedSample: () => store().seedSample(), hide: id => store().hide(id), deleteCopy: id => store().deleteCopy(id),
-      runJob: (job, control) => store().runJob(job, control), cancelJob: id => store().cancelJob(id),
-      useAsMaterial: id => store().useAsMaterial(id), addClipboard: (text, extra) => store().addClipboard(text, extra),
-      clipboardToMaterial: (id, control) => store().clipboardToMaterial(id, control), deleteClipboard: id => store().deleteClipboard(id),
-      writeCopy: (id, text) => store().writeCopy(id, text), readFile: id => store().readFile(id),
-    });
+    const { store, model, actions } = shelfServices(context);
+    const handlers = createShelfActionHandlers(shelfStorePorts(store, selection => model.availability(selection ?? undefined)));
     return { kind: "app", views: [shelfUiContribution, shelfSettingsUiContribution], actions: [...handlers,
       { ...shelfActions.terminal, async handle(caller) {
         await caller.beforeEffect();
@@ -68,13 +107,10 @@ export function createHomeShelfPlugin(): PluginDefinition {
   } };
 }
 
+/** The store opens on each call, inside the action that asks: the files service, and the folder behind it, answer only there. */
 function shelfServices(context: PluginStartContext) {
   const services = context.services, files = services?.ownerFiles, model = services?.model, materials = services?.materials, actions = services?.actions;
-  if (!files || !model || !materials?.extract || !materials.readSource || !actions?.dependencies) throw new ActionError("actions.unredeemed", "Shelf 需要公共文件、模型、材料与动作服务");
-  const ai = shelfRuntimeAi(files, model, materials);
-  const readers: ShelfMaterialPorts = { extract: materials.extract, imageTextAvailable: materials.imageTextAvailable,
-    readWebsite: async (url, control) => { await control?.beforeDispatch?.(); const result = await materials.readSource!(url, control); return { ...result, pages: result.pages ?? [] }; } };
-  const probe: ShelfRuntimeProbe = process.env.MOLIS_WORK_SHELF_AGENT === "off" ? { disabled: true } : {
-    pathEnvironment: process.env.MOLIS_WORK_SHELF_AGENT_PATH, preferred: process.env.MOLIS_WORK_SHELF_AGENT };
-  return { actions, ai, store: () => openShelfStore(files.rootPath(), files, probe, readers, ai) };
+  if (!files || !model || !materials?.extract || !materials.readSource || !materials.readLocalPage || !actions?.dependencies) throw new ActionError("actions.unredeemed", "Shelf 需要公共文件、模型、材料与动作服务");
+  const readers = shelfMaterialPorts(materials), ai = shelfAiPorts(model, readers);
+  return { actions, model, store: () => openShelfStore(files.rootPath(), files, shelfRuntimeProbe(), readers, ai) };
 }

@@ -2651,3 +2651,6 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - 成果库预览改用 SDK `/rich-text`，开一条 BL（③ 的段，从 381 起），挂在 Artifacts 平台化名下。
     - Pages 编辑器高亮改用 SDK `/highlight`，要先做设计决定，也开一条 BL。
     - 其余几项不开。
+- **10-23 #1025 G1 已合入**，③ 的 G5 不用再等。
+- **10-23 ③ 开 #1048（S5，PG094）**，交 ⑩ 评审；D3（项目运行时只开一对版本库，插件平台共用）另由 ② 评审。BL-381、BL-382（C7 §4 的两条）一起放在这个 PR 里。③ 接下来做 S6（PG094-08），然后 G5；#1028 合入后做 Git、Files 订阅 `host.workspace.changed`，同时关 BL-379。
+- **10-23 C7 裁定直接发给了 PG-038 子会话**（之前没有经 ③ 转过去）。顺序：S1 → S2 → S3 → S4a → S4b。

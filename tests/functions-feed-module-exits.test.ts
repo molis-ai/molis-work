@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { withFunctionsService } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import {
   INBOX_DISMISS_BEHAVIOR_ID,
   INBOX_DONE_BEHAVIOR_ID,
@@ -12,6 +13,7 @@ import {
   SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
   SYSTEM_INBOX_NEXT_FUNCTION_KEY,
 } from "@molis-ai/molis-work-contracts/modules/functions";
+import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
 import * as feedModule from "@molis-ai/molis-work-module-feed";
 import * as functionsModule from "@molis-ai/molis-work-module-functions";
@@ -91,4 +93,30 @@ test("RAC-173 the resolver is given each rule's scene, subject kinds and option 
     assert.deepEqual(seen.get(SYSTEM_HOME_DOCK_FUNCTION_KEY), { function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY, scene_id: "home.dock",
       subject_kinds: ["inbox_entry"], option_keys: [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID] });
   });
+});
+
+/**
+ * RAC-176: an offer id two declarations answer to is left unmapped rather than guessed (PG-010's ambiguity branch). The one
+ * composition point the Host reads is the built catalog's public export, so a second declaration of Inbox's offers is pushed
+ * there for this test and removed in `finally`; no test-only entry point is added.
+ */
+test("RAC-176 an offer id that two declarations answer to is left unmapped, not guessed", async () => {
+  const inbox = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === "io.molis.work.inbox");
+  assert.ok(inbox, "the Inbox plugin is in the built-in catalog");
+  const offers = inbox.manifest.actions?.find(definition => definition.capability_id === "inbox.actions.prepare");
+  assert.ok(offers?.action.subject_offer_choices?.some(choice => choice.offer_id === INBOX_DONE_BEHAVIOR_ID), "Inbox declares the Home rule's done option");
+  const second: PluginRegistration = { ...inbox, manifest: { ...inbox.manifest, plugin_id: "io.molis.work.inbox.second" } };
+  const declarations = BUILTIN_PLUGIN_CATALOG as PluginRegistration[];
+  declarations.push(second);
+  try {
+    await withHome(home => {
+      withFunctionsService(home, service => {
+        assert.deepEqual({ ...service.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)!.scene_map }, {},
+          "the done and dismiss offers are declared twice, so neither target is picked");
+      }, { env: {}, credential: () => null });
+    });
+  } finally {
+    declarations.splice(declarations.indexOf(second), 1);
+  }
+  assert.equal(declarations.includes(second), false, "the added declaration is removed again");
 });

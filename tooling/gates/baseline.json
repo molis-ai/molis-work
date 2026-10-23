@@ -1,5 +1,5 @@
 {
-  "giantUnits": 120,
+  "giantUnits": 117,
   "giant": {
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
@@ -41,7 +41,7 @@
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 285,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2047,
-    "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
+    "file apps/workbench/src/scripts/client/navigation-feed.ts": 955,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1966,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 191,
@@ -82,15 +82,6 @@
     "class horizontal/search/src/index.ts#SearchService": {
       "lines": 403,
       "methods": 26
-    },
-    "class modules/feed/src/index.ts#FeedModule": {
-      "lines": 501,
-      "methods": 16
-    },
-    "file modules/functions/src/store.ts": 937,
-    "class modules/functions/src/store.ts#FunctionsStore": {
-      "lines": 331,
-      "methods": 22
     },
     "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": {
       "lines": 371,
@@ -682,12 +673,8 @@
     "plugin-module-import#plugins/native/shelf -> modules/shelf": 1,
     "lists#declared": 1
   },
-  "moduleRepositoryExportsTotal": 8,
+  "moduleRepositoryExportsTotal": 4,
   "moduleRepositoryExports": {
-    "modules/feed#export:FeedEvidenceContentStore": 1,
-    "modules/feed#export:createFeedEvidenceContentStore": 1,
-    "modules/functions#export:openFunctionsStore": 1,
-    "modules/functions#export:FunctionsStore": 1,
     "modules/private-work-context#export:createSessionContentStore": 1,
     "modules/private-work-context#export:SessionContentStore": 1,
     "modules/shelf#export:ShelfStore": 1,

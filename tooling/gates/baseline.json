@@ -145,7 +145,7 @@
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
     "file packages/design-system/src/styles/craft-finish.ts": 2017,
-    "file packages/design-system/src/styles/momentum.ts": 823,
+    "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
     "file packages/im-ui/src/browser/controller.ts": 961,
     "function packages/im-ui/src/browser/controller.ts#startIm": 952,
@@ -777,7 +777,7 @@
   },
   "rootStrayTotal": 0,
   "rootStrays": {},
-  "translationConflictTotal": 192,
+  "translationConflictTotal": 191,
   "translationConflicts": {
     "{agent} 的执行能力将在运行时检查，登录与隔离范围尚未确认。": 2,
     "{count} 次": 2,
@@ -823,7 +823,6 @@
     "方式": 2,
     "放在": 2,
     "风险": 2,
-    "复制": 2,
     "根据工具说明确认作用范围；点击后会执行该工具，包括它声明的写入操作。": 2,
     "更多操作": 2,
     "更新": 2,
@@ -1012,7 +1011,7 @@
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 173,
+  "unknownCastsTotal": 171,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1021,7 +1020,6 @@
     "apps/local-host/src/feed-application.ts": 1,
     "apps/local-host/src/feed-connector-sync.ts": 1,
     "apps/local-host/src/goal-project-application.ts": 4,
-    "apps/local-host/src/memory/memory-host.ts": 2,
     "apps/local-host/src/placement-http.ts": 2,
     "apps/local-host/src/plugin-builder/agent-surface.ts": 1,
     "apps/local-host/src/plugin-builder/catalog.ts": 2,

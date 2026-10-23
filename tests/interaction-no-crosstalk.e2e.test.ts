@@ -228,8 +228,9 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
   assert.equal(await other("document.visibilityState"), "visible");
   await otherWaits(`document.querySelector('[data-plugin-strip] [data-plugin-id="coding"]')`);
   await other(`document.querySelector('[data-plugin-strip] [data-plugin-id="coding"]').click()`);
-  // The list is drawn by the server first; the row is clicked once Coding's page script has loaded and listens.
-  await otherPage.waitFor(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]') && !document.querySelector('[data-ui-client-state="loading"]')`);
+  // SYS-53: the server renders links before their handlers load; the readiness marker belongs to the trusted owner.
+  await otherWaits(`document.querySelector('[data-work-surface="coding"]')?.dataset.uiClientState === 'ready' && !document.querySelector('[data-work-surface="coding"]').inert`);
+  await otherPage.waitFor(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]')`);
   await otherPage.evaluate(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]').click()`);
   await otherPage.waitFor(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(session)} && document.querySelector(${JSON.stringify(card(coding))})`);
   // Its request to answer waits in its page until released; the reply is kept for the assertions. Every read of the session that

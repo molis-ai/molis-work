@@ -1,7 +1,7 @@
 import { ActionError, requireSynchronous, withControlChecks, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginActionDirectory, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
-import { currentPluginAction } from "@molis-ai/molis-work-plugin-runtime";
+import { currentPluginAction, inPluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginActionProvider, pluginActionView } from "./plugin-action-provider.js";
 import { checkedReference } from "./plugin-action-query.js";
 
@@ -25,7 +25,7 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
   const originOf = (): ActionExecutionContext => {
     grant();
     const scope = currentPluginAction();
-    if (!scope || scope.install_id !== context.install_id || !scope.caller.retainAuthority) throw new ActionError("actions.forbidden", "动作目录只能由本插件正在执行的动作使用");
+    if (!scope || !inPluginInstance(scope, context) || !scope.caller.retainAuthority) throw new ActionError("actions.forbidden", "动作目录只能由本插件正在执行的动作使用");
     if (options.project_id !== undefined && scope.caller.project_id !== options.project_id) throw new ActionError("actions.scope_mismatch", "调用所在的项目与插件实例不一致");
     if (scope.caller.audience === "plugin") throw new ActionError("actions.forbidden", "插件自己的授权发起的调用不能放宽成工作流受众");
     return scope.caller;

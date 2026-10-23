@@ -65,6 +65,51 @@ test("proposal deduplication and the three-candidate limit use only authorized c
   assert.equal((await env.raw(person).candidates.list("project", "project-a")).length, 6);
 });
 
+for (const boundary of ["formal-read", "candidate-fallback"] as const) test(`proposal ignores candidates whose form authority closes during ${boundary}`, { timeout: 30_000 }, async t => {
+  const env = await memoryServiceHome(t, { projects: ["project-a"] });
+  const memory = await env.open(), work = { work_id: "changing-work", title: "核对约定" };
+  const input = (text: string, kind: "fact" | "convention" | "experience" = "convention") => ({ scope: "project" as const,
+    text, kind, basis: "inferred" as const, why: "待本人核对", from: "gate" as const });
+  const first = await memory.propose({ ...person, work, operation_id: "first" }, input("项目部署按阶段核验", "fact"));
+  if (boundary === "formal-read") {
+    await memory.propose({ ...person, work, operation_id: "second" }, input("办公室位于河东", "fact"));
+    await memory.propose({ ...person, work, operation_id: "third" }, input("采购窗口在周五", "fact"));
+  } else await memory.propose({ ...person, work, operation_id: "hidden" }, input("先验证结果再整理经验", "experience"));
+  const restrictions = boundary === "candidate-fallback" ? [rule("off", "off", { kind: "experience" })] : [];
+  memory.savePrefs(person, "project", { learn_from_work: false, class_restrictions: restrictions });
+  const recipe = await memory.forRun({ ...worker("prepare"), session_id: "changing-session" }, { query: "核对约定" }); assert.ok(recipe);
+  const caller: MemoryCaller = { ...worker("authorized-convention"), source_use: "explicit", purpose: "task", session_id: "changing-session",
+    class_restrictions: recipe.class_restrictions, work };
+  const reached = Promise.withResolvers<void>(), gate = Promise.withResolvers<void>();
+  t.after(() => gate.resolve());
+  let held = false;
+  const backend = observeMemoryBackend(env.raw(), bound => ({ ...bound,
+    async list(scope, owner) {
+      const entries = await bound.list(scope, owner);
+      if (boundary === "formal-read" && !held) { held = true; reached.resolve(); await gate.promise; }
+      return entries;
+    },
+    candidates: { ...bound.candidates, async get(request) {
+      if (boundary === "candidate-fallback" && !held) { held = true; reached.resolve(); await gate.promise; }
+      return bound.candidates.get(request);
+    } },
+  }));
+  const service = new MemoryService({ backend, ledger: env.ledger() });
+  const pending = service.propose(caller, input(boundary === "formal-read" ? "账单采用季度汇总" : first.text));
+  await reached.promise;
+  memory.savePrefs(person, "project", { class_restrictions: [...restrictions, rule("inherit", "off", { kind: "fact" })] });
+  gate.resolve();
+  const proposed = await pending;
+  assert.notEqual(proposed.candidate_id, first.candidate_id);
+  assert.equal(proposed.kind, "convention");
+  assert.equal(proposed.state, "pending");
+  assert.equal(env.ledger().candidates(person.actor_id).filter(row => row.candidate_id === proposed.candidate_id).length, 1);
+  assert.equal((await env.raw(person).candidates.get({ scope: "project", owner: "project-a", candidate_id: proposed.candidate_id }))?.text, proposed.text);
+  await assert.rejects(service.propose({ ...caller, operation_id: "duplicate-explicit" }, input(proposed.text)), /已经建议过/,
+    "explicit proposals still deduplicate while automatic work learning is off");
+  assert.deepEqual(await env.raw(person).list("project", "project-a"), [], "proposal never creates formal memory");
+});
+
 for (const damage of ["missing", "corrupt"] as const) test(`an inaccessible but ${damage} canonical candidate still blocks proposal without ledger repair after restart`, async t => {
   const env = await memoryServiceHome(t, { projects: ["project-a"] });
   let memory = await env.open();

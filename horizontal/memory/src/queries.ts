@@ -6,7 +6,7 @@ import type { MemoryCaller } from "./service.js";
 import { MemoryScopeCommands } from "./scope-commands.js";
 import { fromEntryMeta } from "./facts.js";
 import { consumerAccess } from "./prefs.js";
-import { formationReferenceAllowed } from "./formation.js";
+import { formationReferenceAllowed, type FormationSnapshot } from "./formation.js";
 import { isExpired, personOnly, visibleTo } from "./places.js";
 import { memoryErrors } from "./errors.js";
 
@@ -131,10 +131,10 @@ export class MemoryQueries {
   }
 
   /** Join the ledger's notes with the current candidate owner; reading never repairs missing facts. */
-  async candidateRecords(caller: MemoryCaller, scope: MemoryScope, owner: string, options: { formation?: boolean } = {}): Promise<MemoryCandidateRecord[]> {
+  async candidateRecords(caller: MemoryCaller, scope: MemoryScope, owner: string, options: { formation?: boolean } = {}): Promise<FormationSnapshot["pending"]> {
     const candidates = this.ports.backend.withCaller(caller).candidates;
     const held = new Map((await candidates.list(scope, owner)).map(item => [item.candidate_id, item]));
-    const out: MemoryCandidateRecord[] = [];
+    const out: FormationSnapshot["pending"] = [];
     for (const note of this.ports.ledger.candidates(caller.actor_id).filter(item => item.scope === scope && item.owner === owner)) {
       let found = held.get(note.candidate_id);
       if (!found && options.formation && !caller.person) {
@@ -147,7 +147,7 @@ export class MemoryQueries {
       }
       if (!found) throw memoryErrors.not_found("记忆建议的原记录不可读；请核对存储后继续");
       const state: MemoryCandidateRecord["state"] = found.state === "promoted" ? "accepted" : found.state;
-      out.push({ ...note, text: found.text, version: found.version, state, memory_id: found.memory_id ?? note.memory_id });
+      out.push({ note: { ...note, text: found.text, version: found.version, state, memory_id: found.memory_id ?? note.memory_id }, entry: found });
     }
     return out;
   }
@@ -156,7 +156,7 @@ export class MemoryQueries {
     const note = this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === candidateId);
     if (!note) throw memoryErrors.not_found("没有这条建议");
     const holder = caller.person && caller.project_id === null ? { ...caller, project_id: note.project_id } : caller;
-    const record = (await this.candidateRecords(holder, note.scope, note.owner)).find(item => item.candidate_id === candidateId);
+    const record = (await this.candidateRecords(holder, note.scope, note.owner)).find(item => item.note.candidate_id === candidateId)?.note;
     if (!record) throw memoryErrors.not_found("没有这条建议");
     return record;
   }

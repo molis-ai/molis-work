@@ -62,6 +62,7 @@ import { keywordScore, looksLikeInstruction, looksLikeSecret, recallKeywords, sa
 import { fromEntryMeta, restoredEntryFacts, toEntryMeta } from "./facts.js";
 import { MemoryEdits } from "./edits.js";
 import { newMemoryClassification } from "./classification.js";
+import { formationReferenceAllowed } from "./formation.js";
 import { MemoryQueries, type MemoryPageLimits } from "./queries.js";
 import { MemoryScopeCommands, type Located } from "./scope-commands.js";
 import type { AgentMemoryMeta, AgentMemoryUseReceipt, AgentRecalledMemory, AgentMemorySourceRef } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -576,7 +577,7 @@ export class MemoryService {
     for (const where of owners.values()) {
       if (!caller.person && !consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id).allowed) continue;
       const holder = anywhere ? { ...caller, project_id: where.project } : caller;
-      for (const record of await this.queries.candidateRecords(holder, where.scope, where.owner)) {
+      for (const { note: record } of await this.queries.candidateRecords(holder, where.scope, where.owner)) {
         if (record.state !== "pending") continue;
         if (filter.work_id && record.work?.work_id !== filter.work_id) continue;
         if (Date.parse(record.created_at) < stale) { await this.settleCandidate(holder,record, "expired"); continue; }
@@ -601,10 +602,16 @@ export class MemoryService {
     if (looksLikeSecret(text)) throw memoryErrors.invalid("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
     // Candidate context is internal formation work; formal reads and the proposal retain the original caller.
     const candidateCaller: MemoryCaller = { ...caller, purpose: "management", source_use: caller.source_use === "learning" ? "learning" : "explicit" };
-    const earlier = await this.queries.candidateRecords(candidateCaller, input.scope, where.owner, { formation: true });
+    const captured = await this.queries.candidateRecords(candidateCaller, input.scope, where.owner, { formation: true });
     const work = caller.work ?? null;
     if (options.sources && !this.sourceAllowed(caller.actor_id, input.scope, where.owner, options.sources)) throw memoryErrors.forbidden("这份来源已遗忘，不能重新形成候选");
     const prior = options.combines ? (await this.ports.backend.withCaller(candidateCaller).candidates.list(input.scope, where.owner)).find(item => item.candidate_id === options.combines) : undefined;
+    const entries = !this.operations.find(caller, "propose") || input.supersedes ? await this.scopeCommands.located(caller, input.scope, where.owner) : [];
+    const target = input.supersedes ? entries.find(item => item.entry.memory_id === input.supersedes) : undefined;
+    caller.signal?.throwIfAborted();
+    // All canonical reads have finished. Revoked candidates cannot influence deduplication or this work's quota.
+    const prefs = this.scopeCommands.prefsAt(caller.actor_id, where);
+    const earlier = captured.filter(row => caller.person || formationReferenceAllowed(candidateCaller, prefs, input.scope, row.entry.meta, "form")).map(row => row.note);
     const combines = prior?.state === "pending" && prior.sources?.length && options.sources
       && prior.sources.every(old => options.sources!.some(ref => ref.event_id === old.event_id && ref.version === old.version))
       && options.sources.some(ref => !prior.sources!.some(old => old.event_id === ref.event_id))
@@ -614,10 +621,9 @@ export class MemoryService {
     if (!this.operations.find(caller, "propose") && earlier.some(item => !(combines && item.candidate_id === options.combines) && item.state !== "expired" && (sameText(item.text, text)
       || (item.state === "pending" && work !== null && item.work?.work_id === work.work_id && similarity(item.text, text) >= 0.6))))
       throw memoryErrors.invalid("这条已经建议过了（用户认可、拒绝或还在等），不要再提");
-    if (!this.operations.find(caller, "propose") && (await this.scopeCommands.located(caller, input.scope, where.owner)).some(located => sameWords(located.entry.text, text))) throw memoryErrors.invalid("已经记着这一条了");
+    if (!this.operations.find(caller, "propose") && entries.some(located => sameWords(located.entry.text, text))) throw memoryErrors.invalid("已经记着这一条了");
     if (!this.operations.find(caller, "propose") && work && earlier.filter(item => item.work?.work_id === work.work_id && item.state === "pending").length >= PENDING_PER_WORK)
       throw memoryErrors.limit(`这项工作已有 ${PENDING_PER_WORK} 条建议在等用户，先不要再提`);
-    const target = input.supersedes ? (await this.scopeCommands.located(caller, input.scope, where.owner)).find(item => item.entry.memory_id === input.supersedes) : undefined;
     const formalExpiry = options.formal_expires_at === undefined ? target?.meta.expires_at ?? null : options.formal_expires_at;
     if (formalExpiry !== null && !Number.isFinite(Date.parse(formalExpiry))) throw memoryErrors.invalid("候选的正式期限不合格");
     const retained: AgentMemoryMeta = options.classificationMeta ?? target?.entry.meta ?? newMemoryClassification(caller, formalExpiry);

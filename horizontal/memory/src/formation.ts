@@ -44,13 +44,13 @@ export function formationReadPossible(caller: MemoryCaller, prefs: MemoryPrefs, 
 
 /** Recheck already-captured context synchronously after the last asynchronous canonical read. */
 export function formationReferenceAllowed(caller: MemoryCaller, prefs: MemoryPrefs, scope: MemoryScope, target: MemoryClassTarget, mode: "read" | "form"): boolean {
-  if (mode === "read" && caller.session_id && !caller.class_restrictions) return false;
+  if (caller.session_id && !caller.class_restrictions) return false;
   const accessMode = mode === "read" ? "task" : "explicit";
   const access = consumerAccess(prefs, caller.consumer, caller.plugin_id, accessMode);
   const plugin = caller.plugin_id ? consumerAccess(prefs, "plugin", caller.plugin_id, accessMode) : undefined;
   if (!access.allowed || (plugin && !plugin.allowed)
     || (target.kind && (access.kinds && !access.kinds.some(kind => kind === target.kind) || plugin?.kinds && !plugin.kinds.some(kind => kind === target.kind)))) return false;
-  if (mode === "form") return prefs.form && prefs.learn_from_work && formationClassAllowed(caller, prefs, scope, target);
+  if (mode === "form") return prefs.form && (caller.source_use === "explicit" || prefs.learn_from_work) && formationClassAllowed(caller, prefs, scope, target);
   const context = { consumer: caller.consumer, current_scene: newMemoryClassification(caller, null).classification!.scenes[0]! };
   const frozen = caller.class_restrictions?.[scope === "personal" ? "personal" : "project"];
   return memoryClassReadAllowed(prefs.class_restrictions, context, target, "task")

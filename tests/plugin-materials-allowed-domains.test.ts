@@ -16,7 +16,7 @@ const manifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
 };
 
-test("BL-492 the plugin client passes a checked list to the Host's reader, and nothing leaves on a list it refuses", async () => {
+test("BL492-05 the plugin client passes a checked list to the Host's reader, and nothing leaves on a list it refuses", async () => {
   const dispatches: PluginMaterialsDispatch[] = [];
   const port: PluginMaterialsPort = {
     async extract() { throw new Error("not read"); }, async readDocuments() { throw new Error("not read"); },
@@ -33,7 +33,8 @@ test("BL-492 the plugin client passes a checked list to the Host's reader, and n
   await read({});
   assert.equal(dispatches.at(-1)!.allowedDomains, undefined, "without a list the Host's reader is not narrowed");
   const before = dispatches.length;
-  for (const allowedDomains of [[], "docs.example.com", [1], ["Docs.Example.com"], ["docs.example.com", "docs.example.com"], ["localhost"], ["https://docs.example.com"], ["docs.example.com/path"], ["a.example", ...Array.from({ length: 20 }, (_, i) => `h${i}.example.com`)]]) {
+  for (const allowedDomains of [[], "docs.example.com", [1], ["Docs.Example.com"], ["docs.example.com", "docs.example.com"], ["localhost"], ["https://docs.example.com"], ["docs.example.com/path"],
+    ["*.example.com"], ["127.0.0.1"], ["8.8.8.8"], ["docs.example.com:443"], ["docs.example.com."], ["a..example.com"], ["-bad.example.com"], [""], ["例子.com"], ["docs.example.com", null], { 0: "docs.example.com", length: 1 }, ["a.example", ...Array.from({ length: 20 }, (_, i) => `h${i}.example.com`)]]) {
     await assert.rejects(read({ allowedDomains } as never), code("plugin.materials_domains_invalid"), JSON.stringify(allowedDomains).slice(0, 60));
   }
   assert.equal(dispatches.length, before, "no refused list reached the Host's reader");

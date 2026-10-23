@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import dnsPromises from "node:dns/promises";
+import https from "node:https";
+import { syncBuiltinESMExports } from "node:module";
 import { Readable } from "node:stream";
 import { gzipSync, brotliCompressSync, deflateSync } from "node:zlib";
 import { classifyMaterialSource, materialSourceEmbeddedJSON, materialXiaohongshuNoteID, parseMaterialXiaohongshu, parseMaterialXiaoyuzhouAudio, readMaterialSource, type MaterialSourceOptions } from "../apps/local-host/src/material-source-providers.js";
@@ -142,7 +145,7 @@ const refusal = (expected: string) => (error: unknown) => (error as { code?: str
 const NOT_ALLOWED = "material.source.domain_not_allowed";
 const host = (value: string) => new URL(value);
 
-test("BL-492 a host outside the allowed list is refused, by exact name, and without a list every public host is allowed", () => {
+test("BL492-01 a host outside the allowed list is refused, by exact name, and without a list every public host is allowed", () => {
   const allowed = ["docs.example.com", "example.org"];
   assert.doesNotThrow(() => assertMaterialHostAllowed(host("https://docs.example.com/a?b=1"), allowed));
   assert.doesNotThrow(() => assertMaterialHostAllowed(host("https://DOCS.example.com:443/a"), allowed), "a host name is compared as the URL parser lowercases it");
@@ -153,9 +156,12 @@ test("BL-492 a host outside the allowed list is refused, by exact name, and with
   assert.doesNotThrow(() => assertMaterialHostAllowed(host("https://anything.example/"), undefined));
 });
 
-test("BL-492 the first request is refused before any lookup or request, and a redirect off the list is refused the same way", async () => {
+test("BL492-02 the first request is refused before any lookup or request, and a redirect off the list is refused the same way", async () => {
   // A host that would resolve and answer if asked: the refusal is the reader's own, before it asks anyone.
   await assert.rejects(fetchMaterialPublicBytes("https://example.com/", { allowedHosts: ["docs.example.com"] }), refusal(NOT_ALLOWED));
+  // A name that cannot be resolved: had the reader looked it up first, the failure would be a DNS one, not the list's.
+  await assert.rejects(fetchMaterialPublicBytes("https://never-resolves.invalid/", { allowedHosts: ["docs.example.com"] }), refusal(NOT_ALLOWED));
+  await assert.rejects(fetchMaterialPublicBytes("https://docs.example.com/", { allowedHosts: [] }), refusal(NOT_ALLOWED), "an empty list allows nothing, it does not mean no list");
   const from = host("https://docs.example.com/start");
   assert.equal(materialRedirectTarget(from, "/next?page=2", ["docs.example.com"]), "https://docs.example.com/next?page=2");
   assert.equal(materialRedirectTarget(from, "https://example.org/", ["docs.example.com", "example.org"]), "https://example.org/");
@@ -167,7 +173,7 @@ test("BL-492 the first request is refused before any lookup or request, and a re
   assert.throws(() => materialRedirectTarget(from, "http://[bad", ["docs.example.com"]), refusal("material.source.redirect_invalid"));
 });
 
-test("BL-492 every request a source's reader makes carries the list: its page, the API it follows to and the media it downloads", async () => {
+test("BL492-04 every request a source's reader makes carries the list: its page, the API it follows to and the media it downloads", async () => {
   const url = "https://www.bilibili.com/video/BVexample"; const seen: string[] = [];
   const state = '<script>__INITIAL_STATE__={"videoData":{"bvid":"BVexample","cid":123,"title":"视频标题"}}</script>';
   const options = (allowedHosts: readonly string[]): MaterialSourceOptions => ({
@@ -198,4 +204,39 @@ test("BL-492 every request a source's reader makes carries the list: its page, t
   } });
   assert.equal((await article(["example.com"])).provider, "article");
   await assert.rejects(article(["docs.example.com"]), refusal(NOT_ALLOWED));
+});
+
+test("BL492-03 a redirect the server answers with is refused off the list before its host is looked up or contacted, and followed on the list", async t => {
+  // The reader's own transport and resolver, replaced for this test only: what is looked up and what is requested is what is counted.
+  const looked: string[] = [], requested: string[] = [];
+  const answers = new Map<string, { status: number; location?: string }>([
+    ["https://docs.example.com/start", { status: 302, location: "https://evil.example/steal" }],
+    ["https://docs.example.com/inside", { status: 302, location: "/landed" }],
+    ["https://docs.example.com/landed", { status: 200 }],
+    ["https://docs.example.com/hop", { status: 307, location: "https://docs.example.com.evil.example/" }],
+  ]);
+  t.mock.method(dnsPromises, "lookup", async (hostname: string) => { looked.push(hostname); return [{ address: "93.184.216.34", family: 4 }]; });
+  t.mock.method(https, "request", (target: URL, _options: unknown, onResponse: (response: unknown) => void) => {
+    requested.push(target.href);
+    const answer = answers.get(target.href)!;
+    const body = Readable.from([Buffer.from("ok")]);
+    const response = Object.assign(body, { statusCode: answer.status, headers: { ...(answer.location ? { location: answer.location } : {}), "content-type": "text/plain" }, destroy() { return body; } });
+    return { on() { return this; }, end() { queueMicrotask(() => onResponse(response)); }, destroy() {} };
+  });
+  syncBuiltinESMExports();
+  try {
+    const allowedHosts = ["docs.example.com"];
+    await assert.rejects(fetchMaterialPublicBytes("https://docs.example.com/start", { allowedHosts }), refusal(NOT_ALLOWED));
+    assert.deepEqual(looked, ["docs.example.com"], "the host the server redirected to was never looked up");
+    assert.deepEqual(requested, ["https://docs.example.com/start"], "and never contacted");
+    await assert.rejects(fetchMaterialPublicBytes("https://docs.example.com/hop", { allowedHosts }), refusal(NOT_ALLOWED), "a name that only starts like an allowed one is another host");
+    const followed = await fetchMaterialPublicBytes("https://docs.example.com/inside", { allowedHosts });
+    assert.equal(followed.final_url, "https://docs.example.com/landed");
+    assert.equal(followed.data.toString(), "ok");
+    // The same redirect with no list is followed to another host: the list is what refused it.
+    looked.length = 0; requested.length = 0;
+    answers.set("https://evil.example/steal", { status: 200 });
+    assert.equal((await fetchMaterialPublicBytes("https://docs.example.com/start", {})).final_url, "https://evil.example/steal");
+    assert.deepEqual(looked, ["docs.example.com", "evil.example"]);
+  } finally { t.mock.restoreAll(); syncBuiltinESMExports(); }
 });

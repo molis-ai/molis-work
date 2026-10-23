@@ -75,6 +75,12 @@ checks every statement against the plugin's tables. A transaction is one Host wr
 statement writes none of it. BLOBs, infinities and integers past 2^53 do not cross back. The Host's refusal
 codes (`plugin.project_database.*`) reach the plugin; other failures become `sandbox.database_error`.
 
+`interaction.questionHtml/cardHtml/nextStepsHtml` reach the Host's `services.interaction`, which only draws html
+from what the plugin passes and writes nothing, so no effect is declared or granted for it (S-56). The broker
+takes objects only: a wrong argument count, a value that is not an object, or an unknown method is
+`sandbox.invalid_request`, and an option counts only when it is exactly `true`. The Host checks each shape
+again before drawing; without the service the call is `sandbox.service_unavailable`.
+
 The trusted Host can pass per-call `limits.operationTimeoutMs` and `limits.serviceTimeoutMs`
 from current capability metadata. They are copied when the call enters the queue and do
 not mutate process defaults or another call's policy. Values must be positive timer-safe

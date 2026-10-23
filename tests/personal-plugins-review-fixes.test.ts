@@ -183,6 +183,7 @@ test("个人插件 Manifest 声明 storage:private，Pages 另有 artifact:write
 test("客户端使用当前插件路径，保留的 Host 适配按合同改写", () => {
   assert.equal(rewriteNativePluginApiPath("/api/plugins/pages/abc/promote"), "/api/pages/abc/promote");
   assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.form"), "/api/form");
+  // Shelf's Home half is a Home Runtime instance (PG-026 S2): its routes are served under its own id, with no short native path.
   assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.shelf/file"), "/api/plugins/io.molis.work.shelf/file");
   assert.equal(rewriteNativePluginApiPath("/api/pages/abc"), "/api/pages/abc");
   assert.equal(rewriteNativePluginApiPath("/api/plugins/unknown/x"), "/api/plugins/unknown/x");

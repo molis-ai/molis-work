@@ -3,6 +3,7 @@ import type { ArtifactReference } from "./artifacts.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition } from "../platform/actions.js";
 import type { MaterialExtractor, MaterialWebsiteReader } from "../services/materials.js";
+import type { PluginOwnerFilesReader } from "../platform/plugin-owner-files.js";
 
 /** Execution authority is supplied by the Host, never by a serialized Shelf request. */
 export interface ShelfExecutionControl { signal?: AbortSignal; beforeEffect?(): void | Promise<void> }
@@ -14,12 +15,15 @@ export interface ShelfAiStatus {
   readonly selected: ShelfModelSelection | null;
   readonly choices: readonly (ShelfModelSelection & { readonly label: string; readonly vision: boolean })[];
 }
-/** Trusted Host sources are built by the store, never accepted from an Action input. */
+/**
+ * Sources are the job's frozen copies, built by the store and never accepted from an Action input: `root` is their folder in
+ * Shelf's own files, read through `files`.
+ */
 export interface ShelfAiPorts {
   status(selection?: ShelfModelSelection | null): ShelfAiStatus;
   generate(input: {
     recipe: Exclude<ShelfRecipeId, "extract_text">; option_id: string | null; shortcut_prompt?: string;
-    selection: ShelfModelSelection; root: string;
+    selection: ShelfModelSelection; files: PluginOwnerFilesReader; root: string;
     sources: readonly { relative_path: string; name: string; kind: ShelfItemKind; mime: string }[];
   }, control: ShelfExecutionControl): Promise<{ text: string; execution?: BoundedInferenceReceipt; coverage?: readonly string[]; validateResult?(): void }>;
 }
@@ -66,13 +70,14 @@ export interface ShelfAdmitActionInput {
 /**
  * `shelf.items.admit`, defined once: Shelf registers its handler for this definition, and another plugin that puts a
  * file it made into the person's Shelf (Images' 放进 Shelf) invokes it through the action directory, never reaching
- * Shelf's implementation.
+ * Shelf's implementation. Admitting reads the shelf and writes the copy, and may read the material on the way: a PDF's preview
+ * (`materials:read`), the web pages a text names (`materials:fetch`, or `materials:fetch_local` for a page on this machine).
  */
 export const SHELF_ADMIT_ACTION: ActionDefinition<ShelfAdmitActionInput, { item: ShelfItemRecord }> = {
   capability_id: "shelf.items.admit", version: 1, operation: "command",
   action: {
     title: "放进 Shelf", description: "把一段文字（可抓取其中网页）或一个文件副本放进置物架；同一原件重复加入保留原副本", kind: "operation",
-    scope: "home", scheduling: "concurrent", audiences: ["user", "workflow", "agent", "mcp"], permissions: ["shelf:read", "shelf:write", "materials:read", "materials:fetch"], subject_kinds: ["shelf_item"],
+    scope: "home", scheduling: "concurrent", audiences: ["user", "workflow", "agent", "mcp"], permissions: ["shelf:read", "shelf:write", "materials:read", "materials:fetch", "materials:fetch_local"], subject_kinds: ["shelf_item"],
     input_schema: {
       type: "object",
       properties: {

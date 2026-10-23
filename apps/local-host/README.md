@@ -45,6 +45,7 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 | [src/project-deletion-service.ts](src/project-deletion-service.ts)、[src/project-deletion-gateway.ts](src/project-deletion-gateway.ts) | 删除项目的一份 Host 服务（网页设置页与 MCP 共用）和 stdio MCP 转给常驻 Host 的内部通道；[src/resident-host-request.ts](src/resident-host-request.ts) 是转给常驻 Host 的那一份传输（地址检查 `residentHostOrigin` 与那一次 POST `postToResidentHost`；动作网关的客户端 `LocalActionGatewayClient`、MCP 的删除通道与命令行的 `demo remove` 都经它）|
 | [src/goal-project-application.ts](src/goal-project-application.ts) | 跨 Module 应用组合 |
 | [src/plugin-host-services.ts](src/plugin-host-services.ts) | 一个插件启动时宿主交给它的身份和服务（动作、私人存储、成果、事件、输入输出）；`PluginHostExecutor` 只管启停 |
+| [src/plugin-interaction.ts](src/plugin-interaction.ts) | `services.interaction`（PG-062）：插件自己的页面要的问题卡、操作卡与下一步行，用助理同一套画法、按调用的语言画；只画不写、不要权限，交来的值形状不对就拒（S-56） |
 | [src/plugin-route-operations.ts](src/plugin-route-operations.ts) | Runtime 插件 HTTP 共用的那一段：重启、解除隔离、升级、未运行的 503、视图版本号、已声明路由的分发；不认识任何插件，属于某个插件或项目输入图的部分由调用方经钩子给（项目一侧的调用方是 `project-plugin-http.ts`） |
 | [src/project-plugin-http.ts](src/project-plugin-http.ts) | 项目插件的 HTTP 入口，与 Home 一侧的 `home-plugin-http.ts` 对称：升级候选、事件的恢复与跳过、`/api/plugins/<插件 id>/…` 都在这里，交给 `plugin-route-operations.ts`；不认识任何插件，Coding 族还要加的两段（`coding-surface.ts` 的 `codingRouteHooks`）由调用方经钩子给 |
 | [src/project-plugin-ports.ts](src/project-plugin-ports.ts) | 项目里内置插件和已安装插件用到的端口（`MolisWorkLocalHost` 的两个入口转到这里） |

@@ -45,7 +45,7 @@ export const ACTION_ERROR_KINDS = {
   "actions.provider_replaced": "conflict", "actions.definition_changed": "conflict", "actions.configuration_changed": "conflict", "actions.expired": "conflict",
   "actions.offer_changed": "conflict", "actions.offer_invalid": "conflict", "actions.offer_source_changed": "conflict",
   "actions.event_changed": "conflict", "actions.event_invalid": "conflict", "actions.event_source_changed": "conflict",
-  "actions.service_configured": "conflict", "actions.mcp_name_conflict": "conflict", "actions.scene_duplicate": "conflict",
+  "actions.mcp_name_conflict": "conflict", "actions.scene_duplicate": "conflict",
   // The input or the declaration is wrong.
   "actions.input_invalid": "invalid", "actions.version_required": "invalid", "actions.project_required": "invalid", "actions.reference_invalid": "invalid",
   "actions.binding_invalid": "invalid", "actions.transport_invalid": "invalid", "actions.usage_invalid": "invalid", "actions.schema_invalid": "invalid",

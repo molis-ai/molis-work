@@ -239,12 +239,12 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // Onboarding without limits (slice 99, user 2026-10-22): the 资料导入 sends a non-text file over 6 MB as the raw body of the 成果库's
-  // original route, its name in a header. 26305 → 26689 (+384).
-  "/assets/molis-work-knowledge.js": [26305, 26689],
+  // original route, its name in a header. 26516 → 26900 (+384).
+  "/assets/molis-work-knowledge.js": [26516, 26900],
   // Onboarding without limits (slice 99): the shared request client sends a Blob as a raw body. It is bundled into the
-  // workbench and the isolated plugin frame: 1186501 → 1186639 (+138) and 187115 → 187226 (+111).
-  "/assets/molis-work-workbench.js": [1186501, 1186639],
-  "/assets/molis-work-plugin-frame.js": [187115, 187226],
+  // workbench and the isolated plugin frame: 1186577 → 1186715 (+138) and 187730 → 187841 (+111).
+  "/assets/molis-work-workbench.js": [1186577, 1186715],
+  "/assets/molis-work-plugin-frame.js": [187730, 187841],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -2888,3 +2888,16 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   3. kind 改动 Agent、MCP、工作流也看得到，PR 正文按 CONTRACT-CHANGES 写影响；快照有变就跑 `api:update` / `actions:update`。
   4. 查工作台客户端有没有按 400 判断这几个路由；forbidden 400→403、多一个 code 字段，列成预期变化。
 
+### 10-23 19:09（11:09 UTC） CI 拥堵：缓推
+
+- ⑤ 报：#1067 在 11:04 UTC 以 checks_timed_out 被合并队列踢出。它的 Verify 排了 60 分钟没轮到 runner。⑤ 已重排，batch-1023-8 先不推。
+- ① 查了 Actions：
+  - 仓库一共 20 个 runner，一个 Full suite 占 16 片。
+  - 排着三个 Full suite：batch-1023-6（在跑）、batch-1023-7，还有同事在 #1073 上贴 label 触发的那个。
+  - 还有 4 个已作废的旧队列 run（对应的 `gh-readonly-queue` 分支已经不存在）仍在排队：我们的 #1066、#1067、#1077 各一个，同事的 #1078 一个。
+- ① 想取消我们那 3 个，被本机权限拦下，已转告用户，没有转托别的会话去做。
+- 安排（登记 R-21）：
+  - 集成分支的 Full suite 在 CI 上一次只跑一个。
+  - ②、⑩ 已收到缓推通知：提交攒到一片做完再推；队列里和批次里的 PR 不推；不贴 full-suite label。
+  - 给 ③ 的同一条通知被本机权限拦下，已转告用户。
+

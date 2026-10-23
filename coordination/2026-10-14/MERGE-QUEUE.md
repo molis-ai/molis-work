@@ -30,7 +30,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 5 | [#1107](https://github.com/molis-ai/molis-work/pull/1107) | W5-06 第 3 片：项目级 Runtime 实例的舞台 | #1098 | 同 #1098 | 叠在 #1098 上；`ac-review` 一轮：**可合**（[评论](https://github.com/molis-ai/molis-work/pull/1107)） |
 | 7 | [#1083](https://github.com/molis-ai/molis-work/pull/1083) | Shelf S4 | #1076 已合（squash），要合 main 解 18 个文件的历史冲突 | 同 #1076 | 头 `14d4849e8`；`ac-review` 一轮：**修后可合**，2 条挡合并（演示示例的生产路径无测试且吞 `forbidden`；合 main 后再核），[评论](https://github.com/molis-ai/molis-work/pull/1083)；Codex 已认领，排在 #1119 之后串行做 |
 | 8 | [#1112](https://github.com/molis-ai/molis-work/pull/1112) | W5-06 余项第一片（草稿） | 排在 #1076、#1099 之后 | 同 #1076 | `ac-review` 一轮：修后可合，2 条交 Codex（[评论](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6370952389)）；统筹裁定规格板选 (b)、补 RAC-80～84（[裁定](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6371157480)）；Codex 合 main、重量 page-assets、转 ready |
-| 9 | [#1113](https://github.com/molis-ai/molis-work/pull/1113) | Sessions 清理 SC-3（PG-082） | — | `full` 非空（assembly、spans-packages），和 #1076、#1083、#1112 同批或下一批 | 头 `bb3ee063e`（`38111ce61` squash 感知同步 + baseline 重生成；`git diff main` 只剩 62 文件）；Codex 二轮可合；批-1023-13 全绿；新 head CI 排队中，绿后入队（合入后 #1130 自动改投 main） |
 | 11 | [#1117](https://github.com/molis-ai/molis-work/pull/1117) | R7：可信 `user_action` 来源（PG-029、PG-030、BL-374，S-58） | — | `full` 非空（shared-core、spans-packages），进下一批 | 头 `a1eae5555`：S-58 已补（`kernel.user_action_untrusted`），合了 main；`ac-review` 一轮待审；改了安全不变量，合前看 Security invariants |
 | 13 | [#1119](https://github.com/molis-ai/molis-work/pull/1119) | BL-395 整片：沙箱项目库语句跑在宿主能杀的子进程里（时间、内存、结果、递归上限；S-59，改 S-46） | **#1117 先合**（S 号连续的门禁要 S-58 在 main 上） | `full` 非空（shared-core、spans-packages，219 文件），进下一批 | 头 `a699e421c`；子进程已补齐、BL-480 已删；`ac-review` 排队审；改了安全不变量，合前看 Security invariants |
 | 14 | [#1120](https://github.com/molis-ai/molis-work/pull/1120) | R5：Feed/Functions 入口不再导出 Repository/Store、PG-010 首页规则目标按声明找、两包巨大单元 | — | `full` 非空（shared-core、storage、spans-packages、deletes-code，141 文件），进下一批 | 头 `0cd8cc7b6`；`ac-review` 一轮「修后可合」，修复已推（19:37Z：CHECKLIST 路径、HOME-DATA、巨大单元、RAC-176 回归等）；**等二轮确认**；合并 Agent 已起批-1023-14（Full suite run 40021912725） |
@@ -76,3 +75,5 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1124 | `e8e79e53e` | 10-23 20:07 UTC |
 | #1076 | `38111ce61` | 10-23 20:30 UTC |
 | #1118 | `f8d1e5ba9` | 10-23 20:40 UTC |
+| #1136 | `15b656648` | 10-23 21:33 UTC |
+| #1113 | `587a5ea58` | 10-23 21:34 UTC |

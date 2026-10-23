@@ -244,6 +244,10 @@ const APPROVED_CEILINGS = {
   // sheet that carries the Assistant's process styles: +232 each.
   "/assets/molis-work-workbench.js": [1189644, 1190721],
   "/assets/molis-work-workbench.css": [1614322, 1614554],
+  // A holder the Host labels in its own words (本会话, 子任务「…」, 用户, 没人认领…) is said on the English page with page
+  // words (P3 #928, 2026-10-23): the two client helpers that read a holder by kind, and two catalog keys, 375409 → 376282
+  // (+873). The served pack is tightened, so comments do not count there; the words and the reading are the cost.
+  "/assets/molis-work-plugins/coding.js": [375409, 376282],
   "/assets/molis-work-settings.css": [995885, 996117],
   "/assets/molis-work-arrival.css": [705437, 705669],
 };

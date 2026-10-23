@@ -75,11 +75,15 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       const deps=(node.depends_on||[]).map(id=>board.nodes.find(other=>other.id===id)).filter(Boolean),waiting=deps.filter(dep=>!settled(dep)),stuck=waiting.filter(dep=>['failed','blocked'].includes(dep.state));
       const chip=el('span','coding-board-deps '+(!deps.length?'is-empty':stuck.length?'is-blocked':waiting.length?'is-waiting':'is-ready'));
       if(deps.length){chip.textContent=L('coding.board.deps',{count:deps.length})+' · '+(stuck.length?L('coding.board.deps-blocked',{count:stuck.length}):waiting.length?L('coding.board.deps-waiting',{count:waiting.length}):L('coding.board.deps-ready'));chip.title=deps.map(dep=>stepOf(entry.plan,dep).title).join('\\n');}
-      // Who holds the step on the graph: this session (its executor), a subtask, you, or no one.
-      const holder=node.owner,name=!holder||holder.kind==='session'?who:holder.kind==='person'?L('coding.board.you'):holder.label;
+      // Who holds the step on the graph: this session (its executor), a subtask, you, or no one; the page says each kind with a page
+      // word, and keeps a subtask's title (the person's own words, quoted in 「」).
+      const holder=node.owner,holderText=(value)=>{
+        if(value.kind==='subtask'){const title=/[「“"](.+?)[」”"]/.exec(value.label||'')?.[1];return title?L('coding.board.holder-subtask',{title}):L('coding.board.subtask');}
+        return value.kind==='session'?L('coding.board.this-session'):value.kind==='person'?L('coding.board.you'):value.kind==='none'?L('coding.board.unclaimed'):L('coding.board.holder-other');
+      },name=!holder||holder.kind==='session'?who:holderText(holder);
       const meta=el('span','coding-board-meta'),time=el('time','coding-board-time'+(node.reports.length?'':' is-empty'),node.reports.length?clock(node.reports.at(-1).at_ms):''),avatar=el('span','coding-board-avatar'+(holder?.kind==='none'?' is-unknown':''),holder?.kind==='none'?'':Array.from(name)[0]);
       if(holder?.kind==='none')avatar.innerHTML=svg('user');else{let h=0;for(const char of name)h=(h*31+char.codePointAt(0))%360;avatar.style.setProperty('--board-avatar-hue',String(holder&&holder.kind!=='session'?h:hueValue));}
-      avatar.title=L('coding.board.holder',{holder:holder?(holder.kind==='session'?L('coding.board.this-session')+' · '+who:holder.kind==='person'?L('coding.board.you'):holder.label):who});avatar.setAttribute('aria-label',avatar.title);meta.append(time,avatar);
+      avatar.title=L('coding.board.holder',{holder:holder?(holder.kind==='session'?L('coding.board.this-session')+' · '+who:holderText(holder)):who})+(holder?.expired?' · '+L('coding.board.expired'):'');avatar.setAttribute('aria-label',avatar.title);meta.append(time,avatar);
       line.append(lead,state,chip,meta);row.append(line);
       if(editable){
         const tools=el('span','coding-board-tools coding-plan-tools'),tool=(label,icon,action)=>{const button=el('button','mw-btn mw-btn--ghost mw-btn--icon-only');button.type='button';button.title=label;button.setAttribute('aria-label',label+'：'+step.title);button.innerHTML=svg(icon);lifetime.listen(button,'click',action);tools.append(button);};

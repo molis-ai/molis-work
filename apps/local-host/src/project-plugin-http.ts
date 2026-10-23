@@ -1,3 +1,4 @@
+import { pluginPageRequest } from "./plugin-page-authority.js";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
@@ -60,13 +61,13 @@ export async function handleProjectPluginHttp(request: IncomingMessage, response
   }
   const pluginId = pluginRoute![1]!, platform = record.platform;
   const around = hooks?.({ platform, pluginId, request, url, ports }) ?? {};
-  const abort = new AbortController();
+  const abort = new AbortController(), pageAuthority = pluginPageRequest(request);
   const stop = () => abort.abort(new ActionError("actions.cancelled", "这次调用已结束"));
   request.once("aborted", stop); response.once("close", stop);
   let routed: ReturnType<typeof projectRouteControl> | undefined;
   try {
     const current = () => { if (platform.supervisor.state(pluginId)?.status !== "running") throw new ActionError("actions.plugin_unavailable", "插件已停止"); };
-    const plain = pluginRouteControl(abort.signal, current);
+    const plain = pluginRouteControl(pageAuthority ? AbortSignal.any([abort.signal, pageAuthority.signal]) : abort.signal, current, pageAuthority?.assertCurrent);
     abort.signal.throwIfAborted();
     const caller = await ports.routeCaller?.();
     abort.signal.throwIfAborted();

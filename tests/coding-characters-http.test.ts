@@ -17,7 +17,7 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 test("Coding saves exact Character versions, blocks unavailable selection before SDK creation, and preserves task drafts across reopen", async () => {
   const home = mkdtempSync(join(tmpdir(), "coding-characters-")), dbPath = join(home, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(home); let store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(home); seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
   const personal = openCharacters(home, "web-user"), draft = personal.service.create();
   personal.service.update(draft.character_id, 1, { title: "原角色", instructions: "旧的固定要求", host_tools: null });
   const ports = () => ({ db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event), eventCursor: (projectId: string) => store.eventCursor(projectId) });

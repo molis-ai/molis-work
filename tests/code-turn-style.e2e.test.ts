@@ -11,24 +11,26 @@ const seconds = ({ metrics }: Metrics, name: string) => {
 
 test("VUX-36 / LTP-01/02/03: one node in a long turn has local style cost; a broad :has() regression exceeds the same budget", { timeout: 120_000 }, async t => {
   const opened = await openCoding(t); if (!opened) return;
-  const { start, evaluate, command, sessionId } = opened;
+  const { start, evaluate, frameCommand: command } = opened;
   await start("长对话的单节点样式开销");
   await evaluate(`(() => { const pre = document.createElement('pre'); pre.id = 'long-turn-style';
     for (let i = 0; i < 30000; i++) { const span = document.createElement('span'); span.className = 'tok-keyword'; span.textContent = 'x '; pre.append(span); }
     document.querySelector('${coding} [data-coding-turns]').append(pre); pre.offsetHeight; })()`);
-  await command("Performance.enable", {}, sessionId);
+  await command("Performance.enable", {});
   try {
     for (const broadSelector of [false, true]) {
+      // Installing the deliberately quadratic negative control can exceed the normal CDP command deadline.
+      // Its measured insertion must still exceed the unchanged 50 ms budget below.
       if (broadSelector) await evaluate(`(() => { const style = document.createElement('style'); style.id = 'long-turn-bad-selector';
         style.textContent = '.coding-stage:has([data-coding-change-reader]:not([hidden])) span { color: inherit; }';
-        document.head.append(style); document.body.offsetHeight; })()`);
+        document.head.append(style); document.body.offsetHeight; })()`, 60_000);
       // getComputedStyle also lays out the 60,000-character inline formatting context. Keep that work, but measure the
       // intended regression (restyling the whole subtree) independently of line layout. CDP durations are in seconds.
-      const before = await command<Metrics>("Performance.getMetrics", {}, sessionId);
+      const before = await command<Metrics>("Performance.getMetrics", {});
       const wall = await evaluate<number>(`(() => { const pre = document.querySelector('#long-turn-style'), start = performance.now();
         const span = document.createElement('span'); span.id = 'long-turn-new-span'; span.className = 'tok-keyword'; span.textContent = 'x';
         pre.append(span); getComputedStyle(span).color; return performance.now() - start; })()`);
-      const after = await command<Metrics>("Performance.getMetrics", {}, sessionId);
+      const after = await command<Metrics>("Performance.getMetrics", {});
       const style = 1000 * (seconds(after, "RecalcStyleDuration") - seconds(before, "RecalcStyleDuration"));
       const layout = 1000 * (seconds(after, "LayoutDuration") - seconds(before, "LayoutDuration"));
       t.diagnostic(`${broadSelector ? "broad selector" : "production styles"}: style ${style.toFixed(1)} ms, layout ${layout.toFixed(1)} ms, insertion ${wall.toFixed(1)} ms`);
@@ -38,6 +40,6 @@ test("VUX-36 / LTP-01/02/03: one node in a long turn has local style cost; a bro
     }
   } finally {
     await evaluate("document.querySelector('#long-turn-style')?.remove(); document.querySelector('#long-turn-bad-selector')?.remove()");
-    await command("Performance.disable", {}, sessionId);
+    await command("Performance.disable", {});
   }
 });

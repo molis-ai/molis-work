@@ -7,6 +7,8 @@ import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
 export interface WebServerOptions {
+  /** Trusted embedding/test port. Production uses the shared system directory chooser. */
+  chooseDirectory?: import("./plugin-directory-service.js").DirectorySelection;
   /**
    * In-process fixture input. The public Web command always starts from the
    * Molis Work project catalog and never accepts a database path.

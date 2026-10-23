@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { parseFilePath, type GitFileMode, type WorkspaceGitQuery, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-git";
+import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { readWorkspaceFile } from "./workspace-files.js";
 
 const run = promisify(execFile), TEXT_LIMIT = 256 * 1024;

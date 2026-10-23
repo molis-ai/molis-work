@@ -27,6 +27,7 @@ import { SqliteSchemaVersionError, applySqliteBaseline, describeSqliteSchema, li
  * they are deleted, and the CHANGELOG says which Git commit still has them.
  */
 const MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v8.sql", import.meta.url), "utf8");
+const NEXT_MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v9.sql", import.meta.url), "utf8");
 /** The version 7 schema, as that build's baseline made it (the fixture of tests/project-database-baseline.test.ts at 7ca40f1c3). */
 const VERSION_7_SCHEMA = readFileSync(new URL("./fixtures/project-database-schema-v7.sql", import.meta.url), "utf8");
 /** The tables whose foreign key version 8 points at the root instead of the board. */
@@ -137,31 +138,32 @@ async function oldHome(directory: string): Promise<OldHome> {
     for (const table of MOVED) pointAtBoard(db, table);
     nameTheBoard(db);
     db.prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'events'").run(sequence.seq);
-    db.exec("DROP TABLE plugin_project_databases; DROP TABLE project_root; PRAGMA user_version = 7; COMMIT; PRAGMA foreign_keys = ON");
+    db.exec("DROP TABLE schedule_action_bindings; DROP TABLE plugin_project_databases; DROP TABLE project_root; PRAGMA user_version = 7; COMMIT; PRAGMA foreign_keys = ON");
     db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     return made;
   });
   return { home, projectId, databasePath: project.database_path, receipt };
 }
 
-/** A project library a new Home would get from this build, with the plugins' tables the Host makes when it opens one. */
+/** The intermediate v8 library, before the separately rehearsed v9 action bindings are installed. */
 function freshDatabase(directory: string): string {
   const path = join(directory, "fresh.db");
   new LocalProjectDatabase(path).close();
+  withDatabase(path, db => db.exec("DROP TABLE schedule_action_bindings; PRAGMA user_version = 8"));
   return path;
 }
 
 const runMaintenance = (path: string) => withDatabase(path, db => { db.exec(MAINTENANCE); });
 
-test("PLIB-05: this build's project library is version 8, and a version 7 one, exactly that build's schema, is refused without being touched", async t => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 8, "the project library moved on: the maintenance has to be rewritten for the version the Homes need");
+test("PLIB-05: this build's project library is version 9, and a version 7 one, exactly that build's schema, is refused without being touched", async t => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 9, "the offline maintenance chain reaches the current version");
   const { databasePath } = await oldHome(await scratch(t));
   const before = snapshot(databasePath);
   assert.equal(before.version, 7);
   assert.deepEqual(before.shape, shapeOfSql(VERSION_7_SCHEMA), "the rehearsal library is what the version 7 build made, table for table");
   for (const table of ["coding_sessions", "events", "feed_out_rules", "feed_sources", "inbox_entries", "process_items"]) assert.ok((before.rows[table]?.length ?? 0) > 0, `${table} holds a row`);
 
-  assert.throws(() => new LocalProjectDatabase(databasePath), (error: unknown) => error instanceof SqliteSchemaVersionError && error.path === databasePath && error.found === 7 && error.expected === 8);
+  assert.throws(() => new LocalProjectDatabase(databasePath), (error: unknown) => error instanceof SqliteSchemaVersionError && error.path === databasePath && error.found === 7 && error.expected === 9);
   assert.throws(() => new LocalProjectDatabase(databasePath, { existingOnly: true }), { code: "catalog.project_recovery_unsupported_schema" });
   assert.deepEqual(snapshot(databasePath), before, "a refused library keeps its version, its tables and its rows: opening never upgrades in place");
 });
@@ -227,8 +229,11 @@ test("PLIB-05, PLIB-13: the maintenance makes a version 7 library the one a new 
 test("PLIB-05: after the maintenance the plugins' tables open as recorded, this build opens the library, and the Goal written before is still there", async t => {
   const directory = await scratch(t);
   const { home, projectId, databasePath } = await oldHome(directory);
-  const fresh = snapshot(freshDatabase(directory));
+  const freshPath = freshDatabase(directory);
+  withDatabase(freshPath, db => db.exec(NEXT_MAINTENANCE));
+  const fresh = snapshot(freshPath);
   runMaintenance(databasePath);
+  withDatabase(databasePath, db => db.exec(NEXT_MAINTENANCE));
   const after = snapshot(databasePath);
 
   withDatabase(databasePath, db => {
@@ -252,7 +257,7 @@ test("PLIB-05: after the maintenance the plugins' tables open as recorded, this 
   assert.deepEqual(opened.shape, fresh.shape, "opening it as the Host does adds nothing");
   assert.deepEqual(opened.rows.plugin_project_databases, after.rows.plugin_project_databases, "and records nothing new: the four rows the maintenance wrote, Goals' among them, are all there is");
   assert.equal(opened.rows.plugin_project_databases!.length, 4);
-  assert.equal(opened.version, 8);
+  assert.equal(opened.version, 9);
 });
 
 test("PLIB-05: the maintenance stops and changes nothing unless the library is exactly a version 7 one with one board", async t => {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
 
@@ -13,13 +14,14 @@ const STRIP = "[data-assistant-context-strip]:not([hidden])";
 async function openNotes(t: test.TestContext, content: object[] = [paragraph(FIRST)], ready = FIRST) {
   const browser = await openGoalBrowser(t, "user");
   if (!browser) return null;
+  const child = await pluginFrameBrowser(t, browser, "pages");
   const { command, sessionId, navigate, waitFor, origin, projectId, homeDirectory } = browser;
   const model = await issueModel(t, homeDirectory, { replyText: "收到。" });
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const pages = openPagesStore(homeDirectory);
   const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(ready)})`);
+  await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(ready)})`);
   const related = () => browser.evaluate<Array<{ work_id: string; relation: string }>>(`fetch(document.body.dataset.routePrefix + '/api/assistant/related?kind=pages_document&id=' + ${JSON.stringify(page.id)}, { headers: molisWorkControlHeaders() }).then(r => r.json()).then(body => body.works)`);
   // What the model was asked, as text: the Host names the object a round is about as 「正在看的对象：…」.
   const asked = (index: number) => JSON.stringify(model.requests[index] ?? null);
@@ -29,7 +31,7 @@ async function openNotes(t: test.TestContext, content: object[] = [paragraph(FIR
     await command("Input.insertText", { text: words }, sessionId);
     for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   };
-  return { ...browser, model, page, related, asked, send };
+  return { ...browser, child, model, page, related, asked, send };
 }
 
 test("STRIP-01: the object on show goes with a Send only once added with +: then the model sees it and the work is linked under it, otherwise neither", { timeout: 120_000 }, async t => {
@@ -64,7 +66,7 @@ test("STRIP-02: ✦助理 puts what is in hand in the strip with the object it i
   const b = await openNotes(t);
   if (!b) return;
   const { evaluate, waitFor, click, model, related, asked, send } = b;
-  await evaluate(`(() => {
+  await b.child.evaluate(`(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const range = document.createRange(); range.selectNodeContents(editor.querySelector('p').firstChild);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
@@ -195,7 +197,7 @@ test("STRIP-04: the landing is on the strip only while its object goes with the 
   const b = await openNotes(t, STEPS, "第二步");
   if (!b) return;
   const { evaluate, waitFor, model, asked, send } = b;
-  await evaluate(caretAfterSecond);
+  await b.child.evaluate(caretAfterSecond);
   await evaluate("document.querySelector('[data-assistant-input]').focus()");
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(STRIP + " .is-optional")}))`, 10_000);
   await new Promise(resolve => setTimeout(resolve, 500));
@@ -220,7 +222,7 @@ test("STRIP-05: a round is told the landing once its owner reads the object agai
   const b = await openNotes(t, STEPS, "第二步");
   if (!b) return;
   const { evaluate, waitFor, model, asked, send, page, homeDirectory, projectId } = b;
-  await evaluate(caretAfterSecond);
+  await b.child.evaluate(caretAfterSecond);
   await evaluate("document.querySelector('[data-assistant-input]').focus()");
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(STRIP + " .is-optional .assistant-strip-act")}))`, 10_000);
   await evaluate(`document.querySelector(${JSON.stringify(STRIP + " .is-optional .assistant-strip-act")}).click()`);
@@ -250,13 +252,14 @@ test("CTX-COVER-01: the selection toolbar waits while the Assistant's panel cove
   const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden])";
   for (const [width, height, mobile] of [[390, 844, true], [1440, 950, false]] as const) {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile }, sessionId);
-    await evaluate(`(() => {
+    await b.child.evaluate(`(() => {
       const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
       const range = document.createRange(); range.selectNodeContents(editor.querySelector('p').firstChild);
       const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
     })()`);
     await waitFor(`Boolean(document.querySelector(${JSON.stringify(BAR)}))`, 10_000);
-    const passage = await evaluate<{ x: number; y: number }>(`(() => { const r = document.querySelector('[data-pages-editor] .ProseMirror p').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+    const box = await b.child.evaluate<{x:number;y:number}>("(() => {const box=document.querySelector('[data-pages-editor] .ProseMirror p').getBoundingClientRect();return {x:box.x+box.width/2,y:box.y+box.height/2}})()");
+    const passage = await evaluate<{x:number;y:number}>(`(() => {const frame=document.querySelector('iframe[data-plugin-frame=pages]').getBoundingClientRect();return {x:frame.x+${box.x},y:frame.y+${box.y}}})()`);
     await send("看看这段");
     await waitFor("!document.querySelector('[data-assistant-panel]').hidden", 10_000);
     const covered = await evaluate<boolean>(`Boolean(document.elementFromPoint(${passage.x}, ${passage.y})?.closest('[data-assistant-panel]'))`);

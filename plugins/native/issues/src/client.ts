@@ -31,7 +31,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   const api = async (path, body) => {
     let response, result;
     try {
-      response = await scope.fetch(path[0] === '/' ? path : '/api/plugins/io.molis.work.issues/' + path, { method: body === undefined ? 'GET' : 'POST',
+      response = await scope.fetch(host.route(path[0] === '/' ? path : '/api/plugins/io.molis.work.issues/' + path), { method: body === undefined ? 'GET' : 'POST',
         headers: globalThis.molisWorkControlHeaders(), ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
       result = await response.json();
     } catch (error) {
@@ -214,6 +214,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   // frame also focuses it; that click goes where it was aimed, with nothing moved under it.
   let pointed = 0;
   scope.listen(document, 'pointerdown', () => { pointed = Date.now(); }, true);
+  scope.listen(window, 'blur', () => { pointed = 0; });
   scope.listen(window, 'focus', () => {
     if (Date.now() - pointed < 500 || home.hidden || ![document.body, null].includes(document.activeElement)) return;
     home.scrollTop = 0; desc.focus({ preventScroll: true });

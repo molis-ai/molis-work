@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openFormStore } from "@molis-ai/molis-work-plugin-form";
@@ -8,15 +9,18 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 type Download = { name: string; content: string };
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
-const open = async (b: Browser, plugin: string, id: string) => {
+const open = async (b: Browser, plugin: string, id: string, child: Awaited<ReturnType<typeof pluginFrameBrowser>>) => {
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=${plugin}&${plugin === 'form' ? 'openRecord' : 'openItem'}=${id}` }, b.sessionId));
-  await b.waitFor(`document.querySelector('[data-${plugin}=workbench]')?.dataset.expanded === 'true'`);
+  await child.waitFor(`document.querySelector('[data-${plugin}=workbench]')?.dataset.expanded === 'true'`);
 };
 // Capture only the download sink: the page still creates its actual Blob and runs its own export/submit handler.
 const captureDownloads = (b: Browser) => b.evaluate(`(() => { const urls=new Map();window.contentDownloads=[];const create=URL.createObjectURL,click=HTMLAnchorElement.prototype.click;URL.createObjectURL=blob=>{const url=create.call(URL,blob);urls.set(url,blob);return url;};HTMLAnchorElement.prototype.click=function(){if(!this.download)return click.call(this);const file={name:this.download,content:null};window.contentDownloads.push(file);urls.get(this.href).text().then(text=>file.content=text);};window.restoreContentDownloads=()=>{URL.createObjectURL=create;HTMLAnchorElement.prototype.click=click;};})()`);
 const downloads = (b: Browser) => b.evaluate<Download[]>("window.contentDownloads");
-async function assertQuestionNames(b: Browser, nativeSelect = false) {
-  const { nodes } = await b.command<{ nodes: { ignored: boolean; role?: { value: string }; name?: { value: string }; properties?: { name: string; value: { value: unknown } }[] }[] }>("Accessibility.getFullAXTree", {}, b.sessionId);
+async function assertQuestionNames(b: Browser, nativeSelect = false, child?: Awaited<ReturnType<typeof pluginFrameBrowser>>) {
+  type Tree = { nodes: { ignored: boolean; role?: { value: string }; name?: { value: string }; properties?: { name: string; value: { value: unknown } }[] }[] };
+  const { nodes } = child
+    ? await child.frameCommand<Tree>("Accessibility.getFullAXTree", { frameId: await child.frameId() })
+    : await b.command<Tree>("Accessibility.getFullAXTree", {}, b.sessionId);
   const active = nodes.filter(node => !node.ignored);
   for (const [role, name] of [["textbox", "Required words"], ["combobox", "Choose team"], ["radiogroup", "Choose one"], ["group", "Choose several"]] as const) {
     const question = active.find(node => node.role?.value === role && node.name?.value.includes(name));
@@ -33,6 +37,7 @@ async function assertQuestionNames(b: Browser, nativeSelect = false) {
 
 test("W2-18-FORM-ANSWER-01 / W2-18-FORM-LABEL-01: exported HTML creates an importable 4000 answer once; oversized text/multichoice retain input without a file, with browser question names", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
+  const child = await pluginFrameBrowser(t,b,"form");
   const store = openFormStore(b.homeDirectory);
   const form = (() => { try { return store.receive(b.projectId!, "portable-form", "Portable answers", [
     { id: "words", title: "Required words", type: "text", required: true },
@@ -41,12 +46,12 @@ test("W2-18-FORM-ANSWER-01 / W2-18-FORM-LABEL-01: exported HTML creates an impor
     { id: "team", title: "Choose team", type: "dropdown", required: true, options: [{ id: "a", label: "Design" }, { id: "b", label: "Engineering" }] },
     { id: "date", title: "Answer date", type: "date", required: true },
   ]); } finally { store.close(); } })();
-  await open(b, "form", form.id); await b.click('[data-form-tab="preview"]');
-  await assertQuestionNames(b);
-  await b.click('[data-form-preview] [data-answer-id="words"]');
+  await open(b, "form", form.id, child); await child.click('[data-form-tab="preview"]');
+  await assertQuestionNames(b,false,child);
+  await child.click('[data-form-preview] [data-answer-id="words"]');
   await b.command("Input.insertText", { text: "Keyboard answer" }, b.sessionId);
-  assert.equal(await b.evaluate('document.querySelector(\'[data-form-preview] [data-answer-id="words"]\').value'), "Keyboard answer");
-  await captureDownloads(b); await b.click("[data-form-export-fill]");
+  assert.equal(await child.evaluate('document.querySelector(\'[data-form-preview] [data-answer-id="words"]\').value'), "Keyboard answer");
+  await captureDownloads(b); await child.click("[data-form-export-fill]");
   await b.waitFor("window.contentDownloads[0]?.content");
   const html = (await downloads(b))[0]!.content;
   // Answers typed into the preview are unsaved input: leaving asks first, and this journey means to leave.
@@ -72,16 +77,17 @@ test("W2-18-FORM-ANSWER-01 / W2-18-FORM-LABEL-01: exported HTML creates an impor
   const answer = (await downloads(b))[0]!;
   const parsed = JSON.parse(answer.content) as { answers: Record<string, string> };
   assert.equal(parsed.answers.words, "x".repeat(4000)); assert.equal(parsed.answers.date, "2026-11-03"); assert.equal(parsed.answers.one, "Alpha"); assert.equal(parsed.answers.team, "Design");
-  await open(b, "form", form.id); await b.click('[data-form-tab="results"]');
-  const importAnswer = () => b.evaluate(`(() => { const data=new DataTransfer();data.items.add(new File([${JSON.stringify(answer.content)}],${JSON.stringify(answer.name)},{type:'application/json'}));const input=document.querySelector('[data-form-import-files]');input.files=data.files;input.dispatchEvent(new Event('change',{bubbles:true})); })()`);
-  await importAnswer(); await b.waitFor("document.querySelector('[data-form-note]').textContent.includes('导入 1 份')");
-  await importAnswer(); await b.waitFor("document.querySelector('[data-form-note]').textContent.includes('已导入过')");
+  await open(b, "form", form.id, child); await child.click('[data-form-tab="results"]');
+  const importAnswer = () => child.evaluate(`(() => { const data=new DataTransfer();data.items.add(new File([${JSON.stringify(answer.content)}],${JSON.stringify(answer.name)},{type:'application/json'}));const input=document.querySelector('[data-form-import-files]');input.files=data.files;input.dispatchEvent(new Event('change',{bubbles:true})); })()`);
+  await importAnswer(); await child.waitFor("document.querySelector('[data-form-note]').textContent.includes('导入 1 份')");
+  await importAnswer(); await child.waitFor("document.querySelector('[data-form-note]').textContent.includes('已导入过')");
   const after = openFormStore(b.homeDirectory);
   try { const submissions = after.listSubmissions(form.id, b.projectId!); assert.equal(submissions.length, 1); assert.deepEqual(submissions[0]!.answers, parsed.answers); } finally { after.close(); }
 });
 
 test("W2-18-PAGES-EXPORT-01: real Markdown/HTML download and print-frame document preserve independent rich facts", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
+  const child = await pluginFrameBrowser(t,b,"pages");
   const store = openPagesStore(b.homeDirectory);
   const page = (() => { try { return store.create({ project_id: b.projectId!, title: "Rich portable page", body: { type: "doc", content: [
     { type: "table", content: [{ type: "table_row", content: [{ type: "table_cell", content: [paragraph("Cell first"), paragraph("Cell second")] }] }] },
@@ -90,8 +96,8 @@ test("W2-18-PAGES-EXPORT-01: real Markdown/HTML download and print-frame documen
     { type: "page_ref", attrs: { title: "Source page", page_id: "source" } },
     { type: "paragraph", content: [{ type: "page_mention", attrs: { title: "Another page", page_id: "another" } }] },
   ] } }); } finally { store.close(); } })();
-  await open(b, "pages", page.id); await captureDownloads(b);
-  for (const format of ["md", "html"]) { await b.click("[data-pages-more]"); await b.click(`[data-pages-export="${format}"]`); }
+  await open(b, "pages", page.id, child); await captureDownloads(b);
+  for (const format of ["md", "html"]) { await child.click("[data-pages-more]"); await child.click(`[data-pages-export="${format}"]`); }
   await b.waitFor("window.contentDownloads.length===2 && window.contentDownloads.every(file=>file.content)");
   const expected = ["Cell first", "Cell second", "Call Alice", "Keep details", "进行中", "2026-11-03", "Launch meeting", "2026-11-05", "Source page", "Another page"];
   const exported = await downloads(b);
@@ -99,7 +105,7 @@ test("W2-18-PAGES-EXPORT-01: real Markdown/HTML download and print-frame documen
   assert.match(exported.find(file => file.name.endsWith(".md"))!.content, /Cell first<br>Cell second/);
   // Intercept the native print dialog after the actual iframe has loaded, and inspect the document passed to it.
   await b.evaluate(`(() => { const append=Element.prototype.append;Element.prototype.append=function(...nodes){for(const node of nodes)if(node instanceof HTMLIFrameElement)node.addEventListener('load',()=>{if(node.contentDocument.URL!=='about:srcdoc')return;node.contentWindow.print=()=>{window.contentPrintCalls=(window.contentPrintCalls||0)+1;window.contentPrint=node.contentDocument.body.innerText;};},{capture:true});return append.apply(this,nodes);};window.restoreContentPrint=()=>Element.prototype.append=append;})()`);
-  await b.click("[data-pages-more]"); await b.click("[data-pages-print]"); await b.waitFor("window.contentPrint");
+  await child.click("[data-pages-more]"); await child.click("[data-pages-print]"); await b.waitFor("window.contentPrint");
   assert.equal(await b.evaluate<number>("window.contentPrintCalls"), 1, "the production handler actually called print on its loaded document");
   const printed = await b.evaluate<string>("window.contentPrint");
   for (const fact of expected) assert.ok(printed.includes(fact), `print frame: ${fact}`);
@@ -109,15 +115,18 @@ test("W2-18-PAGES-EXPORT-01: real Markdown/HTML download and print-frame documen
 
 test("W2-18-PAGES-SOURCES-01: actual multi-selection focus and Host prepare keep the 1500 prefixes marked as excerpts", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, async () => "# Combined\nAdopted evidence."); if (!b) return;
+  const child = await pluginFrameBrowser(t,b,"pages");
   const store = openPagesStore(b.homeDirectory);
   const pages = (() => { try { return ["A", "B"].map(letter => store.create({ project_id: b.projectId!, title: `Page ${letter}`, body: { type: "doc", content: [paragraph(`Prefix ${letter} ` + letter.repeat(1700) + ` OMITTED_${letter}`)] } })); } finally { store.close(); } })();
-  await open(b, "pages", pages[0]!.id);
+  await open(b, "pages", pages[0]!.id, child);
   // D24 the Pages list picks several (aria-multiselectable), so the plugin tab group leaves this Ctrl-click to it.
-  await b.evaluate(`(() => { document.addEventListener('molis:surface-focus',event=>window.contentObjectsFocus=event.detail);document.querySelector('button[data-page-id="${pages[1]!.id}"]').dispatchEvent(new MouseEvent('click',{bubbles:true,ctrlKey:true}));})()`);
+  await b.evaluate("document.addEventListener('molis:surface-focus',event=>window.contentObjectsFocus=event.detail)");
+  await child.evaluate(`(() => { document.querySelector('button[data-page-id="${pages[1]!.id}"]').dispatchEvent(new MouseEvent('click',{bubbles:true,ctrlKey:true}));})()`);
   await b.waitFor("window.contentObjectsFocus?.granularity==='objects'");
   // D24, QA-024: the Ctrl-click picked B beside the open A, opened no tab for it, and left A open in the editor.
-  assert.deepEqual(await b.evaluate(`[[...document.querySelectorAll('[data-pages-rows] button[data-page-id][aria-selected=true]')].map(row=>row.dataset.pageId).sort().join(),document.querySelectorAll('.tab-item[data-tab-kind=item][data-item-id="${pages[1]!.id}"]').length,document.querySelector('[data-pages-title]')?.value]`),
-    [pages.map(page => page.id).sort().join(), 0, "Page A"]);
+  assert.deepEqual(await child.evaluate(`[[...document.querySelectorAll('[data-pages-rows] button[data-page-id][aria-selected=true]')].map(row=>row.dataset.pageId).sort().join(),document.querySelector('[data-pages-title]')?.value]`),
+    [pages.map(page => page.id).sort().join(), "Page A"]);
+  assert.equal(await b.evaluate(`document.querySelectorAll('.tab-item[data-tab-kind=item][data-item-id="${pages[1]!.id}"]').length`),0);
   const focus = await b.evaluate<SurfaceFocus>("window.contentObjectsFocus");
   assert.equal(focus.targets.length, 2);
   for (const target of focus.targets) { assert.equal(target.text.length, 1500); assert.equal(target.truncated, true); assert.doesNotMatch(target.text, /OMITTED_/); }

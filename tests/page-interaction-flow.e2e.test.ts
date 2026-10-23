@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // specs/archive/page-interaction-flow: every entry of the bar is a switch, every cover has a way out, history walks both,
@@ -95,48 +96,49 @@ test("a plugin's page keeps what was open in it across switches and a reload", {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, reloadPage } = browser;
+  const lingguang = await pluginFrameBrowser(t, browser, "lingguang");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await click('[data-plugin-picker-popover] [data-plugin-id=lingguang]');
-  await waitFor("!document.querySelector('[data-work-surface=lingguang]').hidden");
-  await evaluate("[...document.querySelectorAll('[data-work-surface=lingguang] button')].find(button => button.getClientRects().length && button.textContent.includes('记下'))?.click()");
-  await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true' && !!document.querySelector('[data-lingguang-id]')");
-  const noteId = await evaluate<string>("document.querySelector('[data-work-surface=lingguang] [data-lingguang-id]').dataset.lingguangId");
+  await lingguang.waitFor("!document.querySelector('[data-work-surface=lingguang]').hidden");
+  await lingguang.evaluate("[...document.querySelectorAll('[data-work-surface=lingguang] button')].find(button => button.getClientRects().length && button.textContent.includes('记下'))?.click()");
+  await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true' && !!document.querySelector('[data-lingguang-id]')");
+  const noteId = await lingguang.evaluate<string>("document.querySelector('[data-work-surface=lingguang] [data-lingguang-id]').dataset.lingguangId");
   // A note left with nothing written is thrown away when the page goes (W2-18 decision 6): these are notes with words in them.
   const write = async (text: string) => {
-    await evaluate(`(() => { const body = document.querySelector('[data-work-surface=lingguang] [data-lingguang-body]'); body.value = ${JSON.stringify(text)}; body.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
-    await waitFor("document.querySelector('[data-work-surface=lingguang] [data-lingguang-save-status]').textContent === '已保存'");
+    await lingguang.evaluate(`(() => { const body = document.querySelector('[data-work-surface=lingguang] [data-lingguang-body]'); body.value = ${JSON.stringify(text)}; body.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
+    await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang] [data-lingguang-save-status]').textContent === '已保存'");
   };
   await write("第一条灵光");
-  await evaluate(`document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${noteId}"]').click()`);
-  await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true'");
+  await lingguang.evaluate(`document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${noteId}"]').click()`);
+  await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true'");
   await click('[data-dock-pin="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal'");
   await click('[data-plugin-picker-popover] [data-plugin-id=lingguang]');
-  await waitFor("!document.querySelector('[data-work-surface=lingguang]').hidden");
-  assert.equal(await evaluate("document.querySelector('[data-work-surface=lingguang]').dataset.expanded"), "true", "the open note is still open");
+  await lingguang.waitFor("!document.querySelector('[data-work-surface=lingguang]').hidden");
+  assert.equal(await lingguang.evaluate("document.querySelector('[data-work-surface=lingguang]').dataset.expanded"), "true", "the open note is still open");
   await reloadPage();
-  await waitFor("document.querySelector('[data-work-surface=lingguang]')?.dataset.expanded === 'true'");
+  await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]')?.dataset.expanded === 'true'");
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=back]').disabled"), false, "history survives the reload");
   // The plugin's tab goes back to the list, and the list is what then stays.
   await click('[data-titlebar-tabs] [data-tab-kind="plugin"][data-plugin="lingguang"] .tab-item-trigger');
-  await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'false'");
+  await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'false'");
 
   // A record opened on the page is a step of history: Back from a second note is the first, then the list.
-  await evaluate("[...document.querySelectorAll('[data-work-surface=lingguang] button')].find(button => button.getClientRects().length && button.textContent.includes('记下'))?.click()");
-  await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true' && document.querySelectorAll('[data-work-surface=lingguang] [data-lingguang-id]').length >= 2");
+  await lingguang.evaluate("[...document.querySelectorAll('[data-work-surface=lingguang] button')].find(button => button.getClientRects().length && button.textContent.includes('记下'))?.click()");
+  await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true' && document.querySelectorAll('[data-work-surface=lingguang] [data-lingguang-id]').length >= 2");
   const opened = (id: string) => `document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true' && document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${id}"]')?.matches('.is-selected, [aria-selected="true"]')`;
-  const newId = await evaluate<string>(`[...document.querySelectorAll('[data-work-surface=lingguang] [data-lingguang-id]')].find(row => row.matches('.is-selected, [aria-selected="true"]'))?.dataset.lingguangId`);
+  const newId = await lingguang.evaluate<string>(`[...document.querySelectorAll('[data-work-surface=lingguang] [data-lingguang-id]')].find(row => row.matches('.is-selected, [aria-selected="true"]'))?.dataset.lingguangId`);
   assert.ok(newId && newId !== noteId, "the new note is the chosen row");
   await write("第二条灵光");
-  await evaluate(`document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${noteId}"]').click()`);
-  await waitFor(opened(noteId));
+  await lingguang.evaluate(`document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${noteId}"]').click()`);
+  await lingguang.waitFor(opened(noteId));
   await click("[data-workspace-history=back]");
-  await waitFor(opened(newId));
+  await lingguang.waitFor(opened(newId));
   await click("[data-workspace-history=back]");
-  await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'false'");
+  await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'false'");
   await click("[data-workspace-history=forward]");
-  await waitFor(opened(newId));
+  await lingguang.waitFor(opened(newId));
 });

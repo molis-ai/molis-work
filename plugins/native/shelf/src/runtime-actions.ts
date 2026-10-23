@@ -13,9 +13,9 @@ const reference = object({ artifact_id: { type: "string", minLength: 1, maxLengt
 const preview = { type: "object", properties: { title: text, text, fingerprint: text, source: { type: "object" } }, required: ["title", "text", "fingerprint", "source"] };
 const SHARED: readonly ActionAudience[] = ["user", "agent", "workflow", "mcp"];
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
-  permissions: readonly string[], audiences: readonly ActionAudience[] = SHARED): ActionDefinition<I, O> {
+  permissions: readonly string[], audiences: readonly ActionAudience[] = SHARED, scope: "home" | "project" = "project"): ActionDefinition<I, O> {
   return { capability_id: `shelf.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
-    scope: "project", audiences, permissions, subject_kinds: ["shelf_item", "artifact"], input_schema: input, output_schema: output } };
+    scope, scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item", "artifact"], input_schema: input, output_schema: output } };
 }
 
 /** What this project's Runtime instance redeems: Coding results offered to Shelf. */
@@ -28,15 +28,14 @@ export const shelfRuntimeActions = {
   // The answer repaints the personal panel, clipboard history included, so only that panel receives.
   receive: define<{ reference: ArtifactReference; expected_fingerprint: string }, { item: ShelfItemRecord; snapshot: ShelfSnapshot }>("results.receive", "把项目成果放进 Shelf",
     "按已预览的指纹把固定版本成果复制进置物架；成果变化时拒绝", "command", object({ reference, expected_fingerprint: { type: "string", minLength: 1 } }),
-    { type: "object", required: ["item", "snapshot"] }, ["artifact:read", "storage:private"], ["user"]),
+    { type: "object", required: ["item", "snapshot"] }, ["artifact:read", "storage:private", "shelf:read", "shelf:write", "actions:invoke"], ["user"]),
 };
 export const SHELF_RUNTIME_ACTIONS: readonly ActionDefinition[] = Object.values(shelfRuntimeActions);
 
-export interface ShelfResultPorts {
-  /** Where this project's pages are served from: a copy's source names it, so the Shelf can open the original. */
-  projectPath(): string;
-  receive(preview: ShelfArtifactPreview): Promise<{ item: ShelfItemRecord; snapshot: ShelfSnapshot }>;
-}
+/** Only Shelf's project instance delivers a checked fixed version to its Home store. */
+export const shelfReceiveCopy = define<ShelfArtifactPreview, { item: ShelfItemRecord; snapshot: ShelfSnapshot }>(
+  "results.copy", "保存 Shelf 成果副本", "接收同一插件项目实例校验的固定版本副本", "command", preview,
+  { type: "object", required: ["item", "snapshot"] }, ["shelf:read", "shelf:write"], ["plugin"], "home");
 
 /** What the artifact service refuses (a version that is not there) is the caller's mistake (400), not a failure of ours. */
 const refused = async <T>(run: () => T | Promise<T>): Promise<T> => {
@@ -45,23 +44,21 @@ const refused = async <T>(run: () => T | Promise<T>): Promise<T> => {
 };
 
 /** Owner-bound: the results land in the local user's personal Shelf. `manifest` is Shelf's own: its input ports and the types it consumes. */
-export function shelfRuntimeActionHandlers(context: PluginStartContext, results: ShelfResultPorts | undefined,
+export function shelfRuntimeActionHandlers(context: PluginStartContext,
   manifest: Pick<PluginManifest, "ports" | "artifacts" | "process_items">): ActionHandlerBinding[] {
   const services = context.services;
   const consumed = new Set([...manifest.artifacts.consumes, ...manifest.process_items?.consumes ?? []].map(type => type.artifact_type_id));
   // The version is read here, as this plugin; its text is the producer's own, asked for through the action this plugin consumes.
   const read = async (ref: ArtifactReference) => {
-    if (!results) throw shelfErrors.unavailable("项目成果接收尚未装配");
     const record = await refused(() => services?.artifacts?.read(ref));
     if (!record || record.lifecycle_state !== "active" || record.availability !== "available") throw shelfErrors.unavailable("原成果已归档、不可用或不存在");
     const actions = services?.actions, projectId = context.project_id;
     if (!actions || !projectId) throw shelfErrors.unavailable("项目成果接收尚未装配");
     const document = checkedDocument(await refused(() => actions.invoke(codingResultDocument, { reference: ref })));
-    return shelfCopyOf(record, document, { project_id: projectId, project_path: results.projectPath() });
+    return shelfCopyOf(record, document, { project_id: projectId, project_path: `/projects/${encodeURIComponent(projectId)}` });
   };
   return [
     bindOwnerPluginAction(context, shelfRuntimeActions.results, async () => {
-      if (!results) throw shelfErrors.unavailable("项目成果接收尚未装配");
       const connected = (manifest.ports?.inputs ?? []).flatMap(({ port }) => { const ref = services?.inputs?.reference(port); return ref ? [ref] : []; });
       const listed = (services?.artifacts?.listConsumable() ?? []).filter(row => consumed.has(row.artifact_type_id)).map(({ artifact_id, version }) => ({ artifact_id, version }));
       const seen = new Set<string>(), rows: { reference: ArtifactReference; title: string; connected: boolean }[] = [];
@@ -79,7 +76,9 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, results:
       const value = await read(input.reference);
       if (input.expected_fingerprint !== value.fingerprint) throw shelfErrors.conflict("成果与已查看的版本不一致，请重新预览后接收");
       await beforeWrite();
-      return results!.receive(value);
+      if (!services?.actions?.dependencies) throw shelfErrors.unavailable("成果接收动作服务不可用");
+      return services.actions.dependencies.invoke<{ item: ShelfItemRecord; snapshot: ShelfSnapshot }>(
+        { ...shelfReceiveCopy, provider_id: context.plugin_id }, value);
     }),
   ];
 }

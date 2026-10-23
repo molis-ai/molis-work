@@ -5,10 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, MEMORY_GATE_RULE, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
-import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
-import { learnFromWork } from "../apps/local-host/dist/memory/memory-learning.js";
+import { openHomeSqliteDatabase, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { ASSISTANT_STORE_NAME, AssistantStore, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AgentRunRef, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { learnFromQueuedWork, learnFromWork } from "../apps/local-host/dist/memory/memory-learning.js";
 import { MEMORY_EXTRACT } from "../apps/local-host/dist/agent-definitions/system-prompts.js";
+import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
 async function memoryHome(t: { after(fn: () => Promise<void> | void): void }) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-learning-"));
@@ -38,7 +41,7 @@ test("a wish said once is only suggested; said again in another work it is kept 
   assert.match(waiting!.hold_reason!, /只在一项工作里出现过/);
   assert.equal((await service.list(person)).items.length, 0, "nothing kept yet");
 
-  // A second work, the person says it again in their own words: repeated → kept automatically (preferences, conventions, lessons only).
+  // A second work, the person says it again in their own words: repeated → kept automatically (preferences and conventions only).
   const secondSaid = ["周报草稿", "风险还是要放在最前面，上次也是这么说的"];
   const second = await service.learnFromWork(inWork("work-2", "周报 9/30"), { said: secondSaid,
     proposals: [{ ...riskFirst, quote: "风险还是要放在最前面", same_as: waiting!.candidate_id }] });
@@ -46,7 +49,7 @@ test("a wish said once is only suggested; said again in another work it is kept 
   const [kept] = (await service.list(person)).items;
   assert.equal(kept!.source, "auto");
   assert.equal(kept!.basis, "repeated");
-  assert.deepEqual(kept!.approved_by, { by: "policy", policy: "memory.write-gate", version: 1 });
+  assert.deepEqual(kept!.approved_by, { by: "policy", policy: "memory.write-gate", version: 2 });
   assert.match(kept!.origin, new RegExp(`^${MEMORY_GATE_RULE}`));
   assert.equal((await service.candidates(person, { scope: "project" })).length, 0, "the suggestion was settled by the promotion");
   const [change] = service.changes(person, { scope: "project" });
@@ -89,6 +92,27 @@ test("only once, only inferred, a background fact, words the person never said, 
   service.savePrefs(person, "project", { learn_from_work: false });
   service.savePrefs(person, "personal", { learn_from_work: false });
   assert.equal(service.worthLearning(inWork("work-7", "x"), ["以后周报都用要点"]), false);
+});
+
+// MEM-12: independent repetition verifies a source; it does not make an experience eligible for automatic approval.
+test("an experience repeated in two works stays the same pending candidate until the person accepts it", { timeout: 60_000 }, async t => {
+  const { service } = await memoryHome(t);
+  const proposal = { text: "预热缓存后发布告警通常更少", kind: "experience" as const, scope: "project" as const, basis: "explicit" as const, quote: "预热缓存后发布告警通常更少" };
+  const first = await service.learnFromWork(inWork("experience-1", "首次复盘"), { said: ["记住这个经验：预热缓存后发布告警通常更少"], proposals: [proposal] });
+  assert.equal(first[0]!.outcome, "candidate");
+  assert.match(first[0]!.reason, /经验.*认可/);
+  assert.doesNotMatch(first[0]!.reason, /会自动记住/);
+  const second = await service.learnFromWork(inWork("experience-2", "第二次复盘"), { said: ["下次也参考这个经验，预热缓存后发布告警通常更少"], proposals: [proposal] });
+  assert.equal(second[0]!.outcome, "candidate");
+  assert.equal(second[0]!.candidate_id, first[0]!.candidate_id);
+  assert.match(second[0]!.reason, /经验.*认可/);
+  assert.deepEqual((await service.list(person, { scope: "project" })).items, []);
+  const waiting = await service.candidates(person, { scope: "project" });
+  assert.equal(waiting.length, 1);
+  assert.equal(waiting[0]!.state, "pending");
+  const accepted = await service.accept(person, waiting[0]!.candidate_id);
+  assert.equal(accepted.memory!.kind, "experience");
+  assert.deepEqual(accepted.memory!.approved_by, { by: "person" });
 });
 
 test("the drawing-out sends the registered instruction and the person's words, reads the checked structure, and hands it to the gate; a malformed answer writes nothing", { timeout: 60_000 }, async t => {
@@ -210,4 +234,175 @@ test("what the person said in a deleted project's work is not learned: the proje
   const there = await learnFromWork(service, home, request, reply(proposals), async () => true);
   assert.deepEqual(there.learned.map(item => item.outcome), ["candidate"]);
   assert.equal(await kept(), 1);
+});
+
+async function reached<T>(read: () => Promise<T> | T): Promise<NonNullable<T>> {
+  for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
+  throw new Error("The real learning queue did not settle");
+}
+
+/** Real source stores, Runtime queue and SDK writes; only the provider's answer is controlled. */
+async function queuedLearning(t: test.TestContext) {
+  const home = await mkdtemp(join(tmpdir(), "molis-memory-originals-"));
+  let roundGate: Promise<void> | null = null, modelCalls = 0, alive = true;
+  const asked = Promise.withResolvers<void>();
+  t.mock.method(globalThis, "fetch", async () => { asked.resolve(); await roundGate; return cogniaModelResponse("完成。"); });
+  const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME), originals = new AssistantStore(db), ledger = openMemoryLedger({ homeDirectory: home });
+  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.memory-originals-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  let adapter = await open();
+  const backend = prologueMemoryBackend(async () => adapter.memory!), ports = { backend, ledger, projectTitle: async () => "Q4 plan" };
+  const service = new MemoryService(ports), outcomes: Awaited<ReturnType<typeof learnFromQueuedWork>>[] = [];
+  let inModel: () => Promise<void> = async () => {}, afterLearning: () => void = () => {}, projectExists = true;
+  const generate = async () => {
+    modelCalls++; await inModel();
+    return { value: "{}", structured: { candidates: [{ ...riskFirst, quote: "以后周报都把风险放最前面" }] }, run_ref: { kind: "run", id: "fixture", revision: 1 } as never,
+      state: "completed" as const, configuredModel: "fixture", reportedModels: [], usage: [] };
+  };
+  const attach = () => adapter.schedule!.handle("memory.learn", async task => { outcomes.push(await learnFromQueuedWork(home, task,
+    { adapter, service, ports, backend: control => prologueMemoryBackend(async () => adapter.memory!, control), alive: () => alive, projectExists: async () => projectExists }, generate)); afterLearning(); });
+  const start = async (text = "以后周报都把风险放最前面", written_by?: "page") => {
+    const owner = { actor_id: "web-user", project_id: "project-q4", plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_PLUGIN_ID };
+    const session = await adapter.createSession({ ...owner, workspace: "none", role_id: "assistant", title: "周报" });
+    const work = originals.create({ actor_id: owner.actor_id, title: "周报", scope: { kind: "project", project_id: owner.project_id }, project_ref: { project_id: owner.project_id, storage_key: "memory:project-q4" }, origin: null });
+    originals.update(owner.actor_id, work.work_id, null, { session_id: session.session_id });
+    const handle = await adapter.start({ ...owner, session, workspace: "none", task: text, role_id: "assistant",
+      role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
+    originals.addRound(work.work_id, { run_id: handle.ref.run_id, text, ...(written_by ? { written_by } : {}), materials: [], context: null, started_at: new Date().toISOString() });
+    const task = { key: `memory-learn:${work.work_id}:${handle.ref.run_id}`, session_id: session.session_id,
+      payload: { actor_id: owner.actor_id, work_id: work.work_id, session_id: session.session_id, run_id: handle.ref.run_id,
+        sources: [{ run_id: handle.ref.run_id, input_id: null as string | null, version: "1" }] } };
+    return { work, ref: handle.ref, task };
+  };
+  const ended = (ref: AgentRunRef) => reached(async () => { const run = await adapter.read(ref); return ["completed", "cancelled"].includes(run.phase) && run; });
+  const enqueue = (task: Pick<AgentScheduledTask, "key" | "session_id" | "payload">, due = Date.now(), max_attempts = 1) => adapter.schedule!.enqueue({ ...task, kind: "memory.learn", due_at: new Date(due).toISOString(), max_attempts });
+  const settled = (key: string) => reached(() => { const task = adapter.schedule!.find(key); return task && ["done", "failed"].includes(task.state) && task; });
+  const empty = async () => {
+    assert.deepEqual(await service.candidates(person, { scope: "all", anywhere: true }), []);
+    assert.deepEqual((await service.list(person)).items, []);
+    assert.deepEqual(service.changes(person), [], "no application history was left behind");
+  };
+  t.after(async () => { alive = false; await adapter.close(); ledger.close(); db.close(); await rm(home, { recursive: true, force: true }); });
+  return { home, originals, service, start, ended, enqueue, settled, empty, attach, outcomes, asked,
+    get adapter() { return adapter; }, get modelCalls() { return modelCalls; },
+    holdRound: (gate: Promise<void>) => { roundGate = gate; }, duringModel: (fn: () => Promise<void>) => { inModel = fn; },
+    afterLearning: (fn: () => void) => { afterLearning = fn; },
+    projectRemoved: () => { projectExists = false; }, stopHost: () => { alive = false; },
+    restart: async () => { await adapter.close(); adapter = await open(); },
+  };
+}
+
+test("MEM-SOURCE-01: a references-only learning task survives restart, learns once, and preserves candidate accept/history/delete", { timeout: 60_000 }, async t => {
+  const fixture = await queuedLearning(t), first = await fixture.start();
+  assert.equal((await fixture.ended(first.ref)).phase, "completed");
+  const queued = await fixture.enqueue(first.task, Date.now() + 250);
+  assert.equal(JSON.stringify(queued.payload).includes("以后周报"), false, "the queue does not duplicate original text");
+  await fixture.restart(); fixture.attach();
+  assert.equal((await fixture.settled(first.task.key)).state, "done");
+  assert.equal(fixture.modelCalls, 1);
+  const [candidate] = await fixture.service.candidates(person, { scope: "project" });
+  assert.equal(candidate!.basis, "explicit");
+  assert.equal(candidate!.work?.work_id, first.work.work_id);
+  await fixture.enqueue(first.task);
+  assert.equal(fixture.adapter.schedule!.find(first.task.key)!.runs, 1, "replay names the same task");
+  await fixture.restart(); fixture.attach();
+  assert.deepEqual((await fixture.service.candidates(person, { scope: "project" })).map(item => item.candidate_id), [candidate!.candidate_id]);
+  assert.equal(fixture.modelCalls, 1, "a completed task is not modeled again after restart");
+  const accepted = await fixture.service.accept(person, candidate!.candidate_id);
+  assert.equal((await fixture.service.history(person, accepted.memory!.memory_id)).revisions.length, 1);
+  const [change] = fixture.service.changes(person);
+  await assert.rejects(fixture.service.undo(person, change!.change_id), { code: "memory.invalid" }, "manual acceptance retains its existing non-undoable contract");
+  await fixture.service.change(person, { memory_id: accepted.memory!.memory_id, action: "remove" });
+  assert.deepEqual((await fixture.service.list(person)).items, []);
+});
+
+test("MEM-SOURCE-07: a real queue retry after candidate commit remains one source, and a renamed job cannot make it independent", { timeout: 60_000 }, async t => {
+  const fixture = await queuedLearning(t), first = await fixture.start(); await fixture.ended(first.ref);
+  let attempts = 0;
+  fixture.afterLearning(() => { if (++attempts === 1) throw new Error("fixture: reply lost after learning committed"); });
+  fixture.attach(); await fixture.enqueue(first.task, Date.now(), 2);
+  assert.equal((await fixture.settled(first.task.key)).state, "done");
+  assert.equal(fixture.modelCalls, 2, "the Runtime really retried the callback");
+  assert.deepEqual(fixture.outcomes.map(item => item.learned.map(one => one.outcome)), [["candidate"], ["skipped"]]);
+  const [candidate] = await fixture.service.candidates(person, { scope: "project" });
+  assert.equal(candidate!.basis, "explicit");
+  const sdkCandidates = await fixture.adapter.memory!.candidates!.list("project", "project-q4");
+  assert.equal(sdkCandidates.length, 1);
+  assert.equal(sdkCandidates[0]!.meta?.evidence?.length, 1, "replay did not add a second occurrence");
+  assert.deepEqual((await fixture.service.list(person)).items, []); assert.deepEqual(fixture.service.changes(person), []);
+  const renamed = { ...first.task, key: `${first.task.key}:different-job` };
+  await fixture.enqueue(renamed); assert.equal((await fixture.settled(renamed.key)).state, "done");
+  assert.equal(fixture.modelCalls, 2, "a new job label cannot stand in for a new original round");
+  assert.deepEqual((await fixture.service.candidates(person, { scope: "project" })).map(item => item.candidate_id), [candidate!.candidate_id]);
+});
+
+test("MEM-SOURCE-02: old queued text is usable only with matching original identity and full text", { timeout: 60_000 }, async t => {
+  const fixture = await queuedLearning(t); fixture.attach();
+  for (const mode of ["missing", "wrong-owner", "changed", "page", "valid"] as const) {
+    const first = await fixture.start("以后周报都把风险放最前面", mode === "page" ? "page" : undefined); await fixture.ended(first.ref);
+    const task = { ...first.task, payload: { caller: { ...inWork(first.work.work_id, "周报"), actor_id: mode === "wrong-owner" ? "someone-else" : "web-user",
+      work: { work_id: mode === "missing" ? "no-original-work" : first.work.work_id, title: "周报" } }, said: [mode === "changed" ? "以后周报" : "以后周报都把风险放最前面"] } };
+    await fixture.enqueue(task); assert.equal((await fixture.settled(task.key)).state, "done");
+    if (mode !== "valid") { assert.equal(fixture.modelCalls, 0, mode); await fixture.empty(); }
+  }
+  assert.equal(fixture.modelCalls, 1);
+  assert.equal((await fixture.service.candidates(person, { scope: "project" })).length, 1);
+});
+
+test("MEM-SOURCE-03: a queued cancelled run or withdrawn input costs no extraction and writes no candidate/history", { timeout: 60_000 }, async t => {
+  const fixture = await queuedLearning(t), gate = Promise.withResolvers<void>(); fixture.holdRound(gate.promise);
+  const first = await fixture.start(); await fixture.asked.promise;
+  const input = await fixture.adapter.inputs!.send(first.ref, { text: "以后周报都把风险放最前面", key: "learning.withdraw" });
+  const task = { ...first.task, payload: { ...first.task.payload, sources: [{ run_id: first.ref.run_id, input_id: input.input_id, version: "1" }] } };
+  await fixture.enqueue(task, Date.now() + 100);
+  await fixture.adapter.inputs!.withdraw!(first.ref, input.input_id);
+  gate.resolve(); await fixture.ended(first.ref); fixture.attach();
+  assert.equal((await fixture.settled(task.key)).state, "done"); assert.equal(fixture.modelCalls, 0); await fixture.empty();
+  const held = Promise.withResolvers<void>(); fixture.holdRound(held.promise);
+  const cancelled = await fixture.start();
+  await fixture.enqueue(cancelled.task, Date.now() + 100);
+  await fixture.adapter.control(cancelled.ref, { kind: "cancel" }); held.resolve();
+  assert.equal((await fixture.ended(cancelled.ref)).phase, "cancelled");
+  assert.equal((await fixture.settled(cancelled.task.key)).state, "done"); assert.equal(fixture.modelCalls, 0); await fixture.empty();
+});
+
+for (const when of ["before-model", "during-model", "sdk-write"] as const) test(`MEM-SOURCE-04: formation disabled ${when} leaves no candidate, formal memory or history`, { timeout: 60_000 }, async t => {
+  const fixture = await queuedLearning(t), first = await fixture.start(); await fixture.ended(first.ref);
+  let intercepted = false;
+  const off = () => { fixture.service.savePrefs(person, "project", { learn_from_work: false }); fixture.service.savePrefs(person, "personal", { learn_from_work: false }); };
+  if (when === "before-model") off();
+  if (when === "during-model") fixture.duringModel(async () => { off(); });
+  if (when === "sdk-write") {
+    const candidates = fixture.adapter.memory!.candidates!, original = candidates.propose.bind(candidates);
+    t.mock.method(candidates, "propose", async (...args: Parameters<typeof original>) => { intercepted = true; off(); return original(...args); });
+  }
+  fixture.attach(); await fixture.enqueue(first.task);
+  assert.equal((await fixture.settled(first.task.key)).state, "done");
+  if (when === "sdk-write") { assert.equal(intercepted, true); assert.deepEqual(fixture.outcomes[0]!.learned.map(item => item.outcome), ["skipped"], "the existing per-proposal result reports the refused write"); }
+  assert.equal(fixture.modelCalls, when === "before-model" ? 0 : 1); await fixture.empty();
+  await fixture.restart(); await fixture.empty();
+});
+
+for (const stop of ["archive", "project-deleted", "host-closed"] as const) test(`MEM-SOURCE-05: ${stop} while extraction waits cannot restore learning on return`, { timeout: 60_000 }, async t => {
+  const fixture = await queuedLearning(t), first = await fixture.start(); await fixture.ended(first.ref);
+  fixture.duringModel(async () => {
+    if (stop === "archive") fixture.originals.update("web-user", first.work.work_id, null, { archived: true });
+    if (stop === "project-deleted") fixture.projectRemoved();
+    if (stop === "host-closed") fixture.stopHost();
+  });
+  fixture.attach(); await fixture.enqueue(first.task);
+  assert.equal((await fixture.settled(first.task.key)).state, "done"); assert.equal(fixture.modelCalls, 1); await fixture.empty();
+});
+
+test("MEM-SOURCE-06: an original archived after model checks is re-read at the actual SDK candidate commit", { timeout: 60_000 }, async t => {
+  const fixture = await queuedLearning(t), first = await fixture.start(); await fixture.ended(first.ref);
+  let intercepted = false;
+  const candidates = fixture.adapter.memory!.candidates!, original = candidates.propose.bind(candidates);
+  t.mock.method(candidates, "propose", async (...args: Parameters<typeof original>) => {
+    intercepted = true; fixture.originals.update("web-user", first.work.work_id, null, { archived: true }); return original(...args);
+  });
+  fixture.attach(); await fixture.enqueue(first.task);
+  assert.equal((await fixture.settled(first.task.key)).state, "done"); assert.equal(fixture.modelCalls, 1); assert.equal(intercepted, true);
+  assert.deepEqual(fixture.outcomes[0]!.learned.map(item => item.outcome), ["skipped"]);
+  await fixture.empty(); await fixture.restart(); await fixture.empty();
 });

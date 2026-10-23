@@ -24,7 +24,7 @@ interface DiffStateInput { reference?: { artifact_id: string; version: number };
 /** `html` is the comparison drawn for a page, in the page's language; a model or a workflow reads `view` alone. */
 interface DiffState { view: DiffView; html?: string }
 export const diffActions = {
-  state: { capability_id: "diff.state", version: 1, operation: "query", action: { ...base,
+  state: { capability_id: "diff.state", version: 1, operation: "query", action: { ...base, audiences: [...base.audiences, "plugin"],
     title: "读取固定差异", description: "读取明确指定的固定成果或当前已选输入组，保留原版本、来源和失效状态，不读取当前磁盘", permissions: ["artifact:read"],
     input_schema: object({ reference, change_index: count }, []), output_schema: object({ view, html: text }, ["view"]) } } as ActionDefinition<DiffStateInput, DiffState>,
   compare: { capability_id: "diff.compare", version: 1, operation: "query", action: { ...base,

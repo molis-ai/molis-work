@@ -25,7 +25,7 @@
 - 项目被删除时清掉该项目及其角色的记忆（`purgeProjectMemories`，Host 在 `apps/local-host/src/memory/memory-host.ts` 里把它登记为删除收据里的一步）：存储里的条目与候选、旁表里与之相关的一切；Agent 运行环境只有执行进程会为这一步启动，别的入口把这一步留给它。
 - 界面信号计数：情境动作被接受、忽略、改写、撤销的次数（只记动作和标题，不记内容）。单次事件不会形成记忆；次数和不同场合都过了门槛，才提出一条待认可的建议。
 
-**技术状态：** 旁表在 `{home}/memory/memory.db`（版本 2，建库代码在 `packages/storage/src/adapters/memory-ledger.ts`）：历史版本、候选、最近变动、开关、界面信号、使用记录、所有者标题、配对和标记。记忆正文、版本号、墓碑和作用域隔离在 Prologue Memory，经 `horizontal/agent-host` 的适配器访问；旁表只在条目存在时保留某个旧版本的文字，条目删除时一并清掉。
+**技术状态：** 旁表在 `{home}/memory/memory.db`（版本 3，建库代码在 `packages/storage/src/adapters/memory-ledger.ts`）：历史版本、候选、最近变动、开关、界面信号、使用记录、所有者标题、配对和标记。记忆正文、版本号、墓碑和作用域隔离在 Prologue Memory，经 `horizontal/agent-host` 的适配器访问；旁表只在条目存在时保留某个旧版本的文字，条目删除时一并清掉。
 
 **不拥有：** 记忆正文与版本（Prologue Memory）；模型调用和提炼（Agent Host，记忆服务自己不调模型）；交互规则（助理规则引擎）；项目说明（Goals）；设置页面（工作台，`apps/workbench/src/settings-memory.ts`）。
 

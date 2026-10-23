@@ -155,15 +155,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     confirmBox.addEventListener("close", onClose);
     confirmBox.showModal();
   });
-  const download = (filename, text, type) => {
-    const blob = new Blob([text], { type });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
+  const download = (filename, text, type) => host.download(new Blob([text], { type }), filename);
   const columnsFromDom = () => [...tableEl.querySelectorAll("[data-dataset-column]")].map((cell, index) => ({
     id: cell.dataset.columnId,
     name: cell.querySelector("[data-column-name]").value.trim() || L("列") + " " + (index + 1),
@@ -587,13 +579,13 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-dataset-export-csv]") && selected) {
         await save();
         const payload = await request("GET", api + "/" + encodeURIComponent(selected.id) + "/export");
-        download((selected.title || "dataset") + ".csv", "\ufeff" + (payload.csv || ""), "text/csv;charset=utf-8");
+        await download((selected.title || "dataset") + ".csv", "\ufeff" + (payload.csv || ""), "text/csv;charset=utf-8");
         placed({ verb: "exported", title: selected.title, file: { name: (selected.title || "dataset") + ".csv", format: L("{count} 行 · Excel、Numbers 可以打开", { count: (selected.rows || []).length }) } });
         return;
       }
       if (event.target.closest("[data-dataset-export-json]") && selected) {
         await save();
-        download((selected.title || "dataset") + ".json", JSON.stringify(selected, null, 2), "application/json");
+        await download((selected.title || "dataset") + ".json", JSON.stringify(selected, null, 2), "application/json");
         placed({ verb: "exported", title: selected.title, file: { name: (selected.title || "dataset") + ".json", format: L("数据文件") } });
         return;
       }

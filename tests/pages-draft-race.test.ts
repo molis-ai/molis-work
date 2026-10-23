@@ -184,8 +184,8 @@ test("Pages 切换文档会先保存离开的草稿，旧响应不能把新正�
   const previousFetch = globalThis.fetch;
   globalThis.fetch = fetchStub;
   try {
-    const factory = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; projectId: string }) => void;
-    factory({ translate: (text) => text, projectId: "project-pages" });
+    const factory = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; projectId: string; view: {onClosing(): void} }) => void;
+    factory({ translate: (text) => text, projectId: "project-pages", view: {onClosing() {}} });
     await flush();
     await workbench.listeners.click(click("button[data-page-id]", { pageId: "A" }));
     await flush();
@@ -331,8 +331,8 @@ test("Pages 保存失败时不发布、不关闭、不切走草稿", async () =>
     return json({ document: documents[0] });
   }) as typeof fetch;
   try {
-    const factory = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; projectId: string }) => void;
-    factory({ translate: (text) => text, projectId: "project-pages" });
+    const factory = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; projectId: string; view: {onClosing(): void} }) => void;
+    factory({ translate: (text) => text, projectId: "project-pages", view: {onClosing() {}} });
     await flush();
     await workbench.listeners.click(click("button[data-page-id]", { pageId: "A" }));
     editorBody = "unsaved";

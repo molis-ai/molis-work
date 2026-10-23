@@ -48,8 +48,9 @@ export const pagesManifest: PluginManifest = {
     { permission: "storage:private", required: true, reason: "本机文档库" },
     { permission: "artifact:write", required: true, reason: "把文档存为成果" },
     { permission: "artifact:read", required: true, reason: "给下一版编号、恢复没存完的固定版本时读回自己固定的文档" },
+    { permission: "goals:read", required: true, reason: "选择文档所属的目标" },
   ],
-  capabilities: { provides: [], consumes: [] },
+  capabilities: { provides: [], consumes: ["goals.collection.read"] },
   actions: [...PAGES_ACTIONS, ...Object.values(pagesContentActions)],
   artifacts: {
     produces: [{ artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION, title: "文档",

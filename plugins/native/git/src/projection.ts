@@ -1,6 +1,6 @@
 import { pathLabel } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
-import { headLabel, type GitChange, type GitStatus } from "./status.js";
+import type { GitChange, GitHead, GitStatus } from "@molis-ai/molis-work-plugin-sdk";
 
 /**
  * What the Git surface shows.
@@ -113,6 +113,12 @@ function item(kind: GitListKind, change: GitChange): GitListItem {
     label,
     code: change.code,
   };
+}
+
+export function headLabel(head: GitHead): string {
+  if (head.kind === "branch") return head.name;
+  if (head.kind === "unborn") return `${head.name}（还没有提交）`;
+  return `游离于 ${head.commit.slice(0, 8)}`;
 }
 
 function trackingLabel(status: GitStatus): string {

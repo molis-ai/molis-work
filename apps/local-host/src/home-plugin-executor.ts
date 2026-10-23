@@ -1,3 +1,6 @@
+import { pluginPagesFor } from "./plugin-page-authority.js";
+import { pluginPageActions } from "./plugin-page-actions.js";
+import { pluginPageFiles } from "./plugin-page-files.js";
 import { ActionError, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginOwnerFilesClient, type SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
@@ -13,10 +16,12 @@ import { pluginModelFor } from "./plugin-model-service.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { pluginImageGenerationFor } from "./plugin-image-generation-service.js";
-import type { PluginDirectoryService } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
-import { DIRECTORY_READ_PERMISSION, directoryForHome } from "./plugin-directory-service.js";
+import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService } from "./plugin-directory-service.js";
 import type { PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
+import { pluginTerminalFor } from "./plugin-terminal-service.js";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
+import { realpathSync } from "node:fs";
+import { join } from "node:path";
 
 /** The Home service set deliberately contains no project Artifact, event, or wiring clients. */
 export class HomePluginExecutor implements PluginExecutor {
@@ -70,10 +75,12 @@ export class HomePluginExecutor implements PluginExecutor {
     let partitions: PartitionedPluginDatabase | undefined;
     let files: ReturnType<typeof openPluginFiles> | undefined;
     let background: ReturnType<typeof pluginBackgroundFor>;
+    let terminal: ReturnType<typeof pluginTerminalFor>;
     let withdrawAgentDefinitions: (() => void) | undefined;
-    let withdrawCaller: (() => void) | undefined;
+    let withdrawCaller: (() => void) | undefined, withdrawPages: (() => void) | undefined;
+    let directory: ReturnType<DirectoryGrantService["connect"]> | undefined;
     const dispose = () => {
-      active = false; background?.close(); withdrawCaller?.();
+      active = false; withdrawPages?.(); terminal?.dispose(); directory?.dispose(); background?.close(); withdrawCaller?.();
       const failures: unknown[] = [];
       for (const release of [() => database?.close(), () => partitions?.close(), () => files?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
         try { release(); } catch (error) { failures.push(error); }
@@ -91,7 +98,7 @@ export class HomePluginExecutor implements PluginExecutor {
       if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize, context.install_id);
       const owned = this.options.ownerFiles(definition);
       const ownerFiles = owned ? createPluginOwnerFilesClient(manifest, owned.declaration, openPluginOwnerFiles(this.options.home, owned.declaration),
-        { install_id: context.install_id, assertActive, requireGrant: authorize }) : undefined;
+        { install_id: context.install_id, assertActive, requireGrant: authorize }, join(realpathSync(this.options.home), owned.declaration.store_name)) : undefined;
       if (owned?.initialize && context.grants.includes("storage:private") && context.grants.includes(owned.declaration.write_permission)) ownerFiles!.initializeTrusted(owned.initialize);
       withdrawAgentDefinitions = registerPluginAgentDefinitions(home, definition, context.install_id);
       const caller = Object.freeze({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actorId, project_id: null,
@@ -101,20 +108,25 @@ export class HomePluginExecutor implements PluginExecutor {
       const model = pluginModelFor(home, definition, authorized, assertActive, this.options.modelConfiguration(definition));
       const imageGeneration = pluginImageGenerationFor(home, definition, authorized, this.options.imageGeneration(definition), assertActive);
       const materials = pluginMaterialsFor(home, definition, authorized, assertActive, null);
-      const directory = manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION) ? directoryForHome(this.options.home) : undefined;
-      const directoryService: PluginDirectoryService | undefined = directory
-        ? { read: (request, signal) => { assertActive(); authorize(DIRECTORY_READ_PERMISSION); return directory.read(request, signal); } } : undefined;
+      directory = manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
+        ? directoryForHome(this.options.home).connect({ plugin_id: manifest.plugin_id, install_id: context.install_id, name: manifest.name,
+          project_id: null, actor_id: this.options.actorId, assertCurrent: () => authorize(DIRECTORY_READ_PERMISSION) }) : undefined;
       // A Home instance's jobs have no project of their own: each takes the project of the call that kept it.
       background = pluginBackgroundFor(definition, authorized, assertActive, { actor_id: this.options.actorId, record: activeRecord });
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
+      terminal = pluginTerminalFor(this.options.home, manifest, authorized, ownerFiles?.client, assertActive);
       const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
-        ui: ui.client, database: (partitions ?? database)?.client, ...(files ? { files: files.client } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(directoryService ? { directory: directoryService } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
+        ui: ui.client, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(files ? { files: files.client } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });
+      withdrawPages = pluginPagesFor(this.options.home).connect({ manifest, install_id: context.install_id, project_id: null, actor_id: this.options.actorId,
+        resolveFiles: owned ? pluginPageFiles(this.options.home, owned.declaration, authorize) : undefined,
+        invoke: pluginPageActions(manifest, authorized, { client: this.options.client, actions: hosted.services?.actions, caller, provider: this.options.providerFor(definition, context.install_id) }),
+        assertCurrent: permission => permission ? authorize(permission) : assertActive() });
       const contribution = await (background ? background.starting(() => definition.start(hosted)) : definition.start(hosted));
-      this.sessions.set(context.install_id, { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose, partitions, background });
+      this.sessions.set(context.install_id, { context: hosted, revoke: () => { active = false; withdrawPages?.(); terminal?.dispose(); directory?.dispose(); background?.close(); withdrawCaller?.(); }, dispose, partitions, background });
       return { contribution };
     } catch (error) {
       try { dispose(); } catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与服务释放失败"); }

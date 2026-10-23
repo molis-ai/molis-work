@@ -27,7 +27,6 @@ export function homeStores(): HomeStoreRegistry {
     ...owned("apps/local-host", ...at("projects", "logs")),
     ...owned("apps/local-host/src/installer", ...at("backups")),
     ...owned("modules/private-work-context", ...at("sessions")),
-    ...owned("modules/shelf", ...at("shelf")),
     ...owned("apps/local-host", HOME_PLUGIN_RUNTIME_HOME_STORE, ASSISTANT_HOME_STORE, PLACEMENT_HOME_STORE, AGENT_DEFINITIONS_HOME_STORE,
       CONNECTORS_HOME_STORE, CONNECTOR_TOOLS_HOME_STORE, CONTEXT_ONBOARDING_HOME_STORE, ALCHEMIST_HOME_STORE, ORIGINAL_FILES_HOME_STORE),
     ...owned("modules/functions", FUNCTIONS_HOME_STORE),

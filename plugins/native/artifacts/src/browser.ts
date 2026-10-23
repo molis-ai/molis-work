@@ -105,14 +105,18 @@ export function matchArtifactBrowserRoute(pathname: string): ArtifactBrowserRout
 const INLINE_IMAGE = /^image\/(?:png|jpeg|gif|webp|avif)$/u;
 
 /**
- * An imported version's file (specs/artifact-positioning A3): the original bytes when one was kept, else the text it was
- * read into. Null when the version is not an available imported document.
+ * An imported version's file (specs/artifact-positioning A3): the original bytes when one was kept inline, else the text it was
+ * read into; an original kept in the 成果库's store (`stored`, over 6 MB) has no bytes here, its reader is the Host's
+ * (`openArtifactOriginal`), and `text` is what was read out of it. Null when the version is not an available imported document.
  */
-export function importedFileOf(artifact: ArtifactVersionRecord | null): { filename: string; mime: string; bytes: Buffer; inline: boolean } | null {
+export function importedFileOf(artifact: ArtifactVersionRecord | null): { filename: string; mime: string; inline: boolean } & (
+  { bytes: Buffer; stored?: undefined } | { stored: { sha256: string; size_bytes: number }; text: string }) | null {
   const file = importedDocumentFile(artifact);
   if (!file) return null;
+  const inline = (file.data_base64 !== undefined || file.stored !== undefined) && INLINE_IMAGE.test(file.mime);
+  if (file.stored) return { filename: file.filename, mime: file.mime, inline, stored: file.stored, text: file.text ?? "" };
   const bytes = file.data_base64 !== undefined ? Buffer.from(file.data_base64, "base64") : Buffer.from(file.text ?? "", "utf8");
-  return { filename: file.filename, mime: file.mime, bytes, inline: file.data_base64 !== undefined && INLINE_IMAGE.test(file.mime) };
+  return { filename: file.filename, mime: file.mime, bytes, inline };
 }
 
 

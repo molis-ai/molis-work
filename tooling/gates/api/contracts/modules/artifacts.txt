@@ -148,6 +148,10 @@ export interface ImportedDocumentFile {
     filename: string;
     mime: string;
     data_base64?: string;
+    stored?: {
+        sha256: string;
+        size_bytes: number;
+    };
     text?: string;
 }
 

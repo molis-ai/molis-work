@@ -238,12 +238,13 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // VUX-20/43 (slice 101): a rate-limited round counts down to the runtime's retry time — the countdown factory and its four
-  // sentences, and one tabular-digits rule carried by the three stylesheets. 1186577 → 1187755 (+1178); CSS +133 each.
-  "/assets/molis-work-workbench.js": [1186577, 1187755],
-  "/assets/molis-work-workbench.css": [1614004, 1614137],
-  "/assets/molis-work-settings.css": [995567, 995700],
-  "/assets/molis-work-arrival.css": [705708, 705841],
+  // Onboarding without limits (slice 101, user 2026-10-22): the 资料导入 sends a non-text file over 6 MB as the raw body of the 成果库's
+  // original route, its name in a header. 26516 → 26900 (+384).
+  "/assets/molis-work-knowledge.js": [26516, 26900],
+  // Onboarding without limits (slice 101): the shared request client sends a Blob as a raw body. It is bundled into the
+  // workbench and the isolated plugin frame: 1186577 → 1186715 (+138) and 187730 → 187841 (+111).
+  "/assets/molis-work-workbench.js": [1186577, 1186715],
+  "/assets/molis-work-plugin-frame.js": [187730, 187841],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

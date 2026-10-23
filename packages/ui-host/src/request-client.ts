@@ -20,7 +20,7 @@ export interface UiFetchInit {
   readonly method: string;
   readonly headers: Record<string, string>;
   readonly cache: "no-store";
-  body?: string;
+  body?: string | Blob;
   signal?: AbortSignal;
   keepalive?: boolean;
 }
@@ -81,7 +81,7 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
 
   async function call(url: string, init: UiRequestInit = {}): Promise<unknown> {
     const as = init.as ?? "json";
-    const method = init.method ?? (init.body === undefined ? "GET" : "POST");
+    const method = init.method ?? (init.body === undefined && init.file === undefined ? "GET" : "POST");
     const read = method === "GET";
     const fallback = (): string => init.fallback ?? ports.translate("暂时处理不了，请稍后重试");
     let target: URL | null = null;
@@ -93,7 +93,8 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
     const options: UiFetchInit = { method, headers, cache: "no-store" };
     if (init.signal) options.signal = init.signal;
     if (init.keepalive) options.keepalive = true;
-    if (!read && init.body !== undefined) options.body = JSON.stringify(init.body);
+    if (!read && init.file !== undefined) { options.body = init.file; headers["content-type"] = init.file.type || "application/octet-stream"; }
+    else if (!read && init.body !== undefined) options.body = JSON.stringify(init.body);
 
     let response: Response;
     let answer = "";

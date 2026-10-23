@@ -3,6 +3,7 @@ import type { DropMark } from "@molis-ai/molis-work-design-system";
 import { el, L, request } from "./common.js";
 
 const MAX_FILES = 200;
+/** What one request carries inline; a bigger file that is not text goes as its raw body (`/import/original`), any size. */
 const MAX_BYTES = 6 * 1024 * 1024;
 const TEXT_FILE = /\.(md|markdown|txt|html|htm)$/iu;
 /** Files the Host recognizes or transcribes while the import waits (a scanned PDF too), which take seconds to minutes. */
@@ -47,6 +48,11 @@ async function bodyOf(file: File): Promise<Record<string, unknown>> {
   return { source: "file", filename: file.name, original_file: { filename: file.name, mime: file.type || "application/octet-stream", data_base64: btoa(binary) } };
 }
 
+/** A file too big to carry inline that the 成果库 keeps as its original: its raw bytes, its name in a header. */
+const rawOriginal = (file: File) => !TEXT_FILE.test(file.name) && file.size > MAX_BYTES;
+const originalRoute = (base: string, allowDownload: boolean) => base + "/import/original" + (allowDownload ? "?allow_model_download=true" : "");
+const originalHeaders = (file: File, accept?: string): Record<string, string> => ({ "x-molis-work-filename": encodeURIComponent(file.name), ...accept ? { accept } : {} });
+
 /** A row's note, cut to one line; the whole of it on hover. */
 const note = (mark: HTMLElement | null | undefined, text: string) => { if (mark) { mark.textContent = text; mark.title = text; } };
 const FAILED = () => L("导入失败。请检查文件、链接、文档权限和连接器配置后重试。");
@@ -70,8 +76,9 @@ function bindModelConsent(dialog: HTMLDialogElement, base: string, exclusive: (r
       const mark = row?.querySelector("small");
       text.textContent = L("正在转写：{name}", { name: item.path });
       try {
-        const saved = await request().stream<Imported>(base + "/import", { body: { ...await bodyOf(item.file), allow_model_download: true },
-          headers: { accept: "application/x-ndjson" }, fallback: FAILED(), onProgress: event => {
+        const saved = await request().stream<Imported>(rawOriginal(item.file) ? originalRoute(base, true) : base + "/import", {
+          ...rawOriginal(item.file) ? { file: item.file, headers: originalHeaders(item.file, "application/x-ndjson") }
+            : { body: { ...await bodyOf(item.file), allow_model_download: true }, headers: { accept: "application/x-ndjson" } }, fallback: FAILED(), onProgress: event => {
             text.textContent = event.stage === "downloading" || event.stage === "model_download" ? L("正在下载转写模型（只下载这一次）")
               : event.stage === "loading" ? L("正在加载模型") : L("正在转写：{name}", { name: item.path });
             bar.value = Math.max(0, Math.min(1, event.progress));
@@ -132,7 +139,7 @@ export function bindKnowledgeImport(root: HTMLElement): void {
   const drawPicked = () => {
     pickedList.replaceChildren(...picked.slice(0, MAX_FILES).map(item => {
       const row = el("li");
-      row.append(el("span", "", item.path), el("small", "", item.file.size > MAX_BYTES ? L("超过 6 MB") : ""));
+      row.append(el("span", "", item.path), el("small", "", item.file.size > MAX_BYTES && TEXT_FILE.test(item.path) ? L("超过 6 MB") : ""));
       return row;
     }));
     if (kind() !== "online") submit.disabled = busy || !picked.length;
@@ -177,8 +184,9 @@ export function bindKnowledgeImport(root: HTMLElement): void {
       status.textContent = SLOW_FILE.test(item.path) ? L("正在导入 {at} / {count}：{name}（识别文字或转写要一会儿）", { at: index + 1, count: queue.length, name: item.path })
         : L("正在导入 {at} / {count}：{name}", { at: index + 1, count: queue.length, name: item.path });
       try {
-        if (item.file.size > MAX_BYTES) throw new Error(L("超过 6 MB"));
-        const saved = await one(await bodyOf(item.file));
+        if (item.file.size > MAX_BYTES && !rawOriginal(item.file)) throw new Error(L("超过 6 MB"));
+        const saved = rawOriginal(item.file) ? await request()<Imported>(originalRoute(base, false), { file: item.file, headers: originalHeaders(item.file), fallback: FAILED() })
+          : await one(await bodyOf(item.file));
         done += 1;
         if (saved.model_required) { untranscribed.push({ item, row: rows[index] }); bytes ??= saved.model_required.approximate_bytes; }
         // A file still waiting on the speech model is not done yet: its note stays neutral until it is transcribed.

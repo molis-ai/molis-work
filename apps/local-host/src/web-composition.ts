@@ -12,6 +12,7 @@ import { createLocalOnboardingHttp } from "./web-onboarding.js";
 import { createLocalPlanningHttp } from "./web-planning.js";
 import { createLocalGoalsReadHttp } from "./web-goals-read.js";
 import { registerConnectorDevicePolling } from "./connector-github-device.js";
+import { registerOnboardingStagingCleanup } from "./context-onboarding-service.js";
 import { createPeriodicTasks } from "./periodic-tasks.js";
 import type { MolisWorkProjectCatalog, MolisWorkProjectCatalogOptions } from "./project-catalog.js";
 
@@ -52,6 +53,7 @@ export function createLocalWebComposition(platform: LocalWebPlatform, home: stri
   });
   const periodicTasks = createPeriodicTasks();
   registerConnectorDevicePolling(home, periodicTasks);
+  registerOnboardingStagingCleanup(home, periodicTasks);
   return {
     PAGE_CSP, withCatalog, workbenchRenderer, isDesktopShellRequest,
     desktopRuntimeAvailability: platform.cliAvailability,

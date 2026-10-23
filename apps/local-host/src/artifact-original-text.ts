@@ -53,10 +53,10 @@ function nativeFailure(error: unknown, what: "识别" | "转写"): OriginalText 
  * an audio or video file's transcript (the macOS helpers); and any other file that is plain UTF-8 text. A file it cannot read is
  * still imported, with a note saying why and no text (it then gets a card from its name and is not sent to a model).
  */
-export async function readOriginalText(file: { filename: string; data_base64: string }, home: string, options: OriginalTextOptions = {}): Promise<OriginalText> {
+export async function readOriginalText(file: { filename: string; bytes: Buffer }, home: string, options: OriginalTextOptions = {}): Promise<OriginalText> {
   const { signal } = options;
   const extension = file.filename.toLowerCase().match(/\.([a-z0-9]+)$/u)?.[1] ?? "";
-  const source = { file_name: file.filename, bytes: Buffer.from(file.data_base64, "base64") };
+  const source = { file_name: file.filename, bytes: file.bytes };
   const within = (timeoutMs: number) => ({ ...(signal ? { signal } : {}), timeoutMs });
   const native = async (options: MaterialExtractionOptions, what: "识别" | "转写", empty: string): Promise<OriginalText> => {
     let read: MaterialExtraction;

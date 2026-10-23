@@ -142,7 +142,7 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/browser/plugin-frame/document.ts": "Host-owned opaque iframe document for installed plugin content",
   "apps/workbench/src/plugin-document-shell.ts": "Host-owned frame document for installed plugin views",
   "apps/workbench/src/document-shell.ts": "the workbench document itself",
-  "apps/workbench/src/goals-page-renderer.ts": "the workbench",
+  "apps/workbench/src/shell-page-renderer.ts": "the workbench",
   "apps/workbench/src/home-plugin-page.ts": "Home workbench: Host document and UI lifetime, Runtime plugin content only",
   "apps/workbench/src/side-view-document.ts": "宿主排版的侧栏文档",
   "apps/local-host/src/web-project-platform-routes.ts": "宿主排版的侧栏文档：插件不在时侧栏框里的一句说明",

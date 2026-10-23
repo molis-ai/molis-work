@@ -51,6 +51,24 @@ export function materialRequest(value: SandboxJson | undefined, keys: ReadonlyAr
     ...(pdfMode !== undefined ? { pdfMode } : {}), ...(ocrLanguages !== undefined ? { ocrLanguages: ocrLanguages as SandboxMaterialRequest['ocrLanguages'] } : {}) };
 }
 
+/**
+ * The page a plugin asked the Host to read: an https address with no credentials and no port of its own, as the sandbox's own network
+ * accepts. Its host is what the broker holds to the operation's approved `networkDomains`.
+ */
+export function materialSourceUrl(value: SandboxJson | undefined): URL {
+  let url: URL;
+  try { url = new URL(typeof value === 'string' ? value : ''); } catch { throw invalid('A page to read is an https address'); }
+  if (url.protocol !== 'https:' || url.username || url.password || url.port || !url.hostname) throw invalid('A page to read is an https address without credentials or a port');
+  return url;
+}
+
+/** The hosts one read may contact: those the operation declared and the person approved. The Host's reader takes at most 20. */
+export function materialReadDomains(declared: readonly string[] | undefined, approved: readonly string[] | undefined): string[] {
+  const domains = (declared ?? []).filter(domain => approved?.includes(domain));
+  if (domains.length > 20) throw invalid('A page read can be held to at most 20 approved domains');
+  return domains;
+}
+
 /** What a reader answers, as the plain JSON the channel carries: a field it left `undefined` is not there. */
 export function plainJson(value: unknown): SandboxJson {
   return JSON.parse(JSON.stringify(value ?? null));

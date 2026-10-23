@@ -3,7 +3,7 @@ import type { PluginConnectionMethod, PluginConnectionsClient } from '@molis-ai/
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkRequest, SandboxNetworkResponse, SandboxOperationContract, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
-import { materialRequest, materialSource, materialUploads, plainJson } from './materials.js';
+import { materialReadDomains, materialRequest, materialSource, materialSourceUrl, materialUploads, plainJson } from './materials.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
 
@@ -115,10 +115,18 @@ export class SandboxBroker {
       return { status, headers: { ...headers }, body, authenticated };
     }
     if (method.startsWith('materials.')) {
-      // Reading is the one effect (`materials: ['read']`), and it reads bytes the plugin sent, never a path or an address: what reaches out
-      // to a network, a machine's own pages or the Host's saved originals has no method here. The Host's client checks the rest.
+      // `read` reads bytes the plugin sent. `fetch` reads one public page and is a network request as far as the person's approval goes: its
+      // host must also be one of the operation's approved `networkDomains`, and the read may contact those hosts and no others. A machine's
+      // own pages and the Host's saved originals have no method here. The Host's client checks the rest.
       const materials = this.services.materials;
-      permit('materials', 'read');
+      permit('materials', method === 'materials.readSource' ? 'fetch' : 'read');
+      if (method === 'materials.readSource') {
+        count(1);
+        const url = materialSourceUrl(args[0]);
+        permit('networkDomains', url.hostname);
+        const allowedDomains = materialReadDomains(effects.networkDomains, this.grants.networkDomains);
+        return materials?.readSource ? plainJson(await materials.readSource(url.href, { signal: context.signal, allowedDomains })) : missing();
+      }
       if (method === 'materials.imageTextAvailable') { count(0); return materials?.imageTextAvailable ? materials.imageTextAvailable() : missing(); }
       if (method !== 'materials.readDocuments' && method !== 'materials.extract') throw new SandboxError('sandbox.invalid_request', 'Unknown materials method');
       count(2);

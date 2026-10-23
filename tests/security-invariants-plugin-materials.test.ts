@@ -76,7 +76,7 @@ test("PG-050 / W5-01-PAGES-01 a document batch is read by the Host under materia
   await assert.rejects(probe.contexts.at(-1)!.services!.materials!.readDocuments!([upload("outside.md", "x")]), { code: "plugin.materials_action_required" });
 });
 
-test("RAC-25 S-60 RAC-235 a sandboxed definition receives the Host's readers of bytes, and a package that asks for a network, local or original-file read is refused at start", async t => {
+test("RAC-25 S-60 RAC-235 a sandboxed definition receives the Host's readers of bytes and public pages, and a package that asks for a local page or original-file read is refused at start", async t => {
   const { home } = await serveHomeRuntime(t);
   const file = join(mkdtempSync(join(home, "project-")), "project.db"); seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), shared = pluginActions(store, DEMO_PROJECT_ID);
@@ -91,8 +91,12 @@ test("RAC-25 S-60 RAC-235 a sandboxed definition receives the Host's readers of 
     assert.equal(reads.contexts.length, 1);
     const materials = reads.contexts[0]!.services!.materials!;
     assert.deepEqual(Object.keys(materials).sort(), ["extract", "imageTextAvailable", "readDocuments"]);
+    // A package that asks to read a public page is started too: its client has the page reader, the broker the host check.
+    const pages = materialsProbe("boxedpages", { execution: "sandbox", permissions: ["materials:read", "materials:fetch"] });
+    await platform.start([{ definition: pages.definition, grants: pages.permissions }]);
+    assert.deepEqual(Object.keys(pages.contexts[0]!.services!.materials!).sort(), ["extract", "imageTextAvailable", "readDocuments", "readSource"]);
     // What the sandbox is not given is refused with a code before its code starts, whether the package needs it or the person approved it.
-    for (const refused of [["materials:fetch"], ["materials:fetch_local"], ["materials:original"], ["materials:read", "materials:fetch_local", "materials:original"]]) {
+    for (const refused of [["materials:fetch_local"], ["materials:original"], ["materials:read", "materials:fetch_local", "materials:original"]]) {
       const name = `boxed${refused.join("").replace(/[^a-z]/g, "")}`, probe = materialsProbe(name, { execution: "sandbox", permissions: refused });
       await platform.start([{ definition: probe.definition, grants: probe.permissions }]);
       assert.equal(probe.contexts.length, 0, `${refused.join(", ")}: the sandboxed package's start never ran`);

@@ -60,7 +60,7 @@ export function sandboxServicesFor(host: SandboxHostServices | undefined, extras
     ...(host.interaction ? { interaction: host.interaction } : {}),
     // Requests through the person's bound account: the Host's client, which checks the slot, the grant and the call's action itself.
     ...(host.connections ? { connections: host.connections } : {}),
-    // The readers the Host built for the activation from its Manifest's `materials:*` permissions; the broker has methods for the reads of bytes only.
+    // The readers the Host built for the activation from its Manifest's `materials:*` permissions; the broker has methods for bytes and public pages only.
     ...(host.materials ? { materials: host.materials } : {}),
   };
 }
@@ -89,8 +89,6 @@ const NOT_GIVEN: readonly NotGiven[] = [
     declared: (definition, held) => asksFor(definition, held, ['model:read', 'model:invoke']) },
   { service: 'instructions', reason: 'Registered instructions are not given to sandboxed plugins yet (PG-017 P1, V-20).',
     declared: definition => !!definition.instructions?.length },
-  { service: 'materials', reason: 'Reading a page from the network (materials:fetch) is not given to sandboxed plugins yet (PG-017 BL-492).',
-    declared: (definition, held) => asksFor(definition, held, ['materials:fetch']) },
   { service: 'materials', reason: 'Reading a page on this machine (materials:fetch_local) and the Host\'s saved original files (materials:original) are never given to sandboxed plugins (PG-017).',
     declared: (definition, held) => asksFor(definition, held, ['materials:fetch_local', 'materials:original']) },
   { service: 'background', reason: 'Background jobs are not given to sandboxed plugins yet (PG-017 P3).',

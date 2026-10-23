@@ -26,7 +26,7 @@ export interface SandboxEffects {
     resources?: string[];
     projectDatabase?: Array<'read' | 'write'>;
     connections?: string[];
-    materials?: Array<'read'>;
+    materials?: Array<'read' | 'fetch'>;
 }
 
 export type SandboxHostMessage = {
@@ -198,11 +198,12 @@ export interface SandboxSdk {
         imageTextAvailable(): Promise<boolean>;
         readDocuments(files: SandboxMaterialFile[], request?: Pick<SandboxMaterialRequest, 'timeoutMs'>): Promise<import('../services/materials.js').MaterialDocumentBatch>;
         extract(file: SandboxMaterialFile, request?: SandboxMaterialRequest): Promise<import('../services/materials.js').MaterialExtraction>;
+        readSource(url: string): Promise<import('../services/materials.js').MaterialSourceContent>;
     };
     interaction: import('./plugin-interaction.js').PluginInteractionClient;
 }
 
-export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
+export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
 export type SandboxSqlRow = {
     [column: string]: SandboxSqlValue;

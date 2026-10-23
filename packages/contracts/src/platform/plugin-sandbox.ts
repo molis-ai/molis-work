@@ -33,8 +33,12 @@ export interface SandboxEffects {
   projectDatabase?: Array<'read' | 'write'>;
   /** Slots of the Manifest's `connections.slots` the operation sends requests through (`sdk.connections`); the plugin's package also declares `connections:use`. */
   connections?: string[];
-  /** `read`: the Host's document and file readers (`sdk.materials`); the plugin's package also declares `materials:read`. */
-  materials?: Array<'read'>;
+  /**
+   * `read`: the Host's readers of files the plugin holds (`sdk.materials`); the plugin's package also declares `materials:read`.
+   * `fetch`: a public page read by the Host (`readSource`); the package also declares `materials:fetch`, and the operation names the
+   * page's host in `networkDomains`, because the person approves a page's host the way they approve a network request's.
+   */
+  materials?: Array<'read' | 'fetch'>;
 }
 
 export interface SandboxOperationExample {
@@ -160,11 +164,14 @@ export interface SandboxSdk {
    * a ZIP of those, `extract` reads one file (PDF, image, office document) as text, `imageTextAvailable` says whether an image's text can
    * be read on this machine now. Declare `effects.materials: ['read']` on the operation. A file and a result cross as JSON, so a read
    * is bounded by the channel (half of 1 MiB for the result); pages and the Host's helpers are not the plugin's to choose.
+   * `readSource` reads a public https page for its text: the page's host must be one of the operation's approved `networkDomains`, and
+   * the read (its redirects, and the interfaces and media of sites the Host knows) goes to those hosts only.
    */
   materials: {
     imageTextAvailable(): Promise<boolean>;
     readDocuments(files: SandboxMaterialFile[], request?: Pick<SandboxMaterialRequest, 'timeoutMs'>): Promise<import('../services/materials.js').MaterialDocumentBatch>;
     extract(file: SandboxMaterialFile, request?: SandboxMaterialRequest): Promise<import('../services/materials.js').MaterialExtraction>;
+    readSource(url: string): Promise<import('../services/materials.js').MaterialSourceContent>;
   };
   /** The platform's question card, action card and next-step row as html, in the call's language (`services.interaction`); nothing to declare. */
   interaction: import('./plugin-interaction.js').PluginInteractionClient;
@@ -174,7 +181,7 @@ export type SandboxOperations = Record<string, (input: SandboxJson, sdk: Sandbox
 export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list'
   | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
   | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request'
-  | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract'
+  | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource'
   | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
 /** Only one active operation per channel. Every host request belongs to that invocation. */

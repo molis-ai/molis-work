@@ -44,6 +44,7 @@ function sdk(callId: string): SandboxSdk {
       imageTextAvailable: () => answer<boolean>(invoke('materials.imageTextAvailable', [])),
       readDocuments: (files, request) => answer<Awaited<ReturnType<SandboxSdk['materials']['readDocuments']>>>(invoke('materials.readDocuments', [json(files), json(request ?? {})])),
       extract: (file, request) => answer<Awaited<ReturnType<SandboxSdk['materials']['extract']>>>(invoke('materials.extract', [json(file), json(request ?? {})])),
+      readSource: url => answer<Awaited<ReturnType<SandboxSdk['materials']['readSource']>>>(invoke('materials.readSource', [url])),
     },
     interaction: {
       questionHtml: (question, options) => invoke('interaction.questionHtml', [json(question), json(options ?? {})]) as Promise<string>,

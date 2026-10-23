@@ -14,9 +14,11 @@ import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import {
-  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, createPluginPlatform, homeStores, molisWorkHostProjectReference, seedDemoBoard,
+  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, captureHostLog, createPluginPlatform, homeStores, molisWorkHostProjectReference, seedDemoBoard,
+  type HostLogEntry,
 } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 // W3-06 D: a plugin the Host runs in a project's platform can have a library in the Home, through the one service main has for
 // it, `services.database`, when the Host's own start list declares one for it (`PluginPlatformEntry.database`). Nothing the
@@ -238,9 +240,9 @@ test("a library at another version is refused when its plugin starts and left as
     } finally { second.store.close(); }
   }));
 
-test("a library is the plugin's only while the plugin runs: after stop, after a restart (for the handle kept from before) and after uninstall every call is refused, the stop hook cannot write once the stop has begun, and the library stays when the plugin goes",
+test("a library is the plugin's only while the plugin runs: after stop, after a restart (for the handle kept from before) and after uninstall every call is refused and does nothing (BL-411), the stop hook cannot write once the stop has begun, and the library stays when the plugin goes",
   withDirectory(async directory => {
-    const stopWrites: string[] = [];
+    const stopWrites: string[] = [], logged: HostLogEntry[] = [], restore = captureHostLog(logged);
     const plugin = probe({ name: "lifeprobe", onStop: async database => {
       try { await noteInto(database!, "from the stop hook"); stopWrites.push("written"); }
       catch (error) { stopWrites.push((error as { code?: string }).code ?? "?"); }
@@ -253,21 +255,26 @@ test("a library is the plugin's only while the plugin runs: after stop, after a 
       const installId = item.installId(plugin.id);
       await item.platform.runtime.stop(installId);
       assert.deepEqual(stopWrites, ["actions.forbidden"], "the stop revokes first, then lets the plugin's own cleanup run");
-      for (const call of [() => first.get("SELECT 1"), () => first.all("SELECT 1"), () => noteInto(first, "after stop")]) {
-        await assert.rejects(Promise.resolve().then(call), { code: "actions.plugin_unavailable" });
-      }
+      // BL-411: a handle used outside every call once its activation stopped is refused without a throw: reads return nothing and a
+      // write never settles. The Host logs the first refusal of each method; the rows below show none of the writes landed.
+      assert.deepEqual([first.get("SELECT 1"), first.all("SELECT 1")], [undefined, undefined]);
+      assert.equal(await within(noteInto(first, "after stop")), PENDING);
 
       await item.platform.runtime.start(installId);
       const second = plugin.database();
       assert.notEqual(second, first);
-      await assert.rejects(noteInto(first, "an old handle"), { code: "actions.plugin_unavailable" }, "the handle of the earlier start stays dead");
+      assert.equal(await within(noteInto(first, "an old handle")), PENDING, "the handle of the earlier start stays dead");
       assert.deepEqual(plain(second.all("SELECT text FROM notes")), [{ text: "before" }]);
 
       await item.platform.runtime.stop(installId);
       await item.platform.runtime.uninstall(installId);
-      await assert.rejects(noteInto(second, "uninstalled"), { code: "actions.plugin_unavailable" });
+      assert.equal(await within(noteInto(second, "uninstalled")), PENDING);
       assert.deepEqual(rows(directory, LIBRARY), ["before"], "uninstalling removes the plugin's key-value data, not its library; the purge is the person's own choice");
-    } finally { item.store.close(); }
+      const refused = logged.filter(entry => entry.event === "stopped_service_call").map(entry => entry.fields);
+      assert.ok(refused.every(fields => fields?.plugin_id === plugin.id && fields.install_id === installId));
+      assert.deepEqual([...new Set(refused.map(fields => `${String(fields?.service)}.${String(fields?.method)}`))].sort(),
+        ["database.all", "database.get", "database.transaction"], "every call after the stop was refused, the stop hook's own write is not among them");
+    } finally { restore(); item.store.close(); }
   }));
 
 // W4-11: each shipped plugin's library is registered to that plugin, so only it (or the Runtime plugin that replaces it under
@@ -276,7 +283,7 @@ test("every shipped plugin's Home library is registered to that plugin, at the b
   const shipped = BUILTIN_PLUGIN_CATALOG.flatMap(entry => [
     ...entry.home_store ? [{ path: entry.home_store.path, owner: entry.manifest.plugin_id, baseline: entry.home_store.library?.baseline }] : [],
     ...entry.runtime?.database ? [{ path: entry.runtime.database.store_name, owner: entry.manifest.plugin_id, baseline: entry.runtime.database }] : []]);
-  assert.deepEqual(shipped.map(store => store.path).sort(), ["cognia", "dataset", "form", "images", "issues", "jelly", "lingguang", "pages", "ppt", "shelf", "todo", "workflows"]);
+  assert.deepEqual(shipped.map(store => store.path).sort(), ["artifacts", "cognia", "dataset", "form", "images", "issues", "jelly", "lingguang", "pages", "ppt", "shelf", "todo", "workflows"]);
   for (const { path, owner, baseline } of shipped) {
     const store = homeStores().get(path);
     assert.equal(store?.owner, owner, path);

@@ -81,7 +81,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       body: payloadBody === undefined || method === "GET" ? undefined : JSON.stringify(payloadBody),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw Object.assign(new Error(payload.error || L("文档请求失败")), { status: response.status });
+    if (!response.ok) throw Object.assign(new Error((method === "GET" && host.readRefusal?.(response.status, payload.code)) || payload.error || L("文档请求失败")), { status: response.status });
     return payload;
   };
   const showNote = (text, isError) => {
@@ -93,18 +93,13 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     note.textContent = text || "";
     note.classList.toggle("is-error", Boolean(isError && text));
   };
-  const ask = (message, okLabel) => new Promise((resolve) => {
-    if (!confirmDialog) { resolve(false); return; }
-    confirmDialog.querySelector("[data-confirm-text]").textContent = message;
-    confirmDialog.querySelector("[data-confirm-ok]").textContent = okLabel;
-    confirmDialog.returnValue = "cancel";
-    const onClose = () => {
-      confirmDialog.removeEventListener("close", onClose);
-      resolve(confirmDialog.returnValue === "ok");
-    };
-    confirmDialog.addEventListener("close", onClose);
-    confirmDialog.showModal();
-  });
+  // The shared box (host.confirmBox): with a run function the request goes out inside it and a refusal is said there.
+  const ask = (message, okLabel, run) => {
+    if (!confirmDialog) return Promise.resolve(false);
+    const ok = confirmDialog.querySelector("[data-confirm-ok]");
+    confirmDialog.querySelector("[data-confirm-text]").textContent = message; ok.textContent = okLabel;
+    return host.confirmBox(confirmDialog, ok, run);
+  };
   const askName = (message, initial, save) => new Promise((resolve) => {
     if (!nameDialog) { resolve(null); return; }
     const input = nameDialog.querySelector("[data-name-input]"), ok = nameDialog.querySelector("[data-name-ok]"), bad = nameDialog.querySelector("[data-name-error]");
@@ -705,7 +700,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       dirty = false;
       editRev += 1;
       showNote("", false);
-    })().catch((error) => { if (seq !== selectionSeq) return; if (error.status === 404) bench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: id } })); if (!sel && !event.detail?.quiet) { bench.setAttribute("data-expanded", "true"); workspace.hidden = false; workspace.dataset.missing = ""; titleEl.textContent = L("文档"); } showNote(error.message || L("保存失败"), true); })
+    })().catch((error) => { if (seq !== selectionSeq) return; if (error.status === 404 || error.status === 403) bench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: id } })); if (!sel && (!event.detail?.quiet || error.status === 403)) { bench.setAttribute("data-expanded", "true"); workspace.hidden = false; workspace.dataset.missing = ""; titleEl.textContent = L("文档"); } showNote(error.message || L("保存失败"), true); })
       .finally(() => { if (seq === selectionSeq) openingId = null; });
   });
   /** Tell the workbench what just happened, so it can say where the result is and what comes next. */
@@ -917,11 +912,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       const folderDelete = event.target.closest("[data-pages-folder-delete]");
       if (folderDelete) {
         stop(event);
-        const ok = await ask(L("要删除这个文件夹吗？里面的文档会回到未分类。"), L("删除"));
-        if (!ok) return;
         const id = folderDelete.dataset.pagesFolderDelete;
-        if (sel?.folder_id === id) await saveOpen(sel.id);
-        await request("POST", api + "/folders/" + encodeURIComponent(id) + "/delete", {});
+        const ok = await ask(L("要删除这个文件夹吗？里面的文档会回到未分类。"), L("删除"), async () => {
+          if (sel?.folder_id === id) await saveOpen(sel.id);
+          await request("POST", api + "/folders/" + encodeURIComponent(id) + "/delete", {});
+        });
+        if (!ok) return;
         await loadList();
         return;
       }
@@ -1016,10 +1012,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-pages-delete]") && sel) {
         closeMore();
-        const ok = await ask(L("要删除这篇文档吗？删除后无法恢复。"), L("删除"));
-        if (!ok) return;
         const id = sel.id;
-        await request("POST", pageUrl(id, "/delete"), {});
+        const ok = await ask(L("要删除这篇文档吗？删除后无法恢复。"), L("删除"), () => request("POST", pageUrl(id, "/delete"), {}));
+        if (!ok) return;
         closeEditor();
         await loadList();
       }

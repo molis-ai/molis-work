@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { GoalProjectApplication, LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { handleGoalEventDecisionHttp, hostEventDecisionAuthority, GOALS_ACTIONS, GOALS_PLUGIN_ID, goalsActions, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
+import { goalsRoutes, hostEventDecisionAuthority, GOALS_ACTIONS, GOALS_PLUGIN_ID, goalsActions, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { bindGoalsManagementActions, bindGoalsWebActions } from "../apps/local-host/dist/goals-actions.js";
@@ -659,28 +659,27 @@ test("protected Web user entry records a decision; Host-injected identity is req
     });
     const goalId = created.goal.goal_id;
     configure(data.app, goalId, "cfg-web", { new_requirements: [{ requirement_id: "web-ok", statement: "用户确认" }] });
-    let status = 0;
-    let body: unknown;
-    const handled = await handleGoalEventDecisionHttp({
+    // PG094-09: the page's decision is the declared route `goals.event-decision`, called the way the Host mounts it.
+    const route = goalsRoutes({
+      actions: () => bindGoalsWebActions(actions, { project_id: BOARD, storage_key: "fixture" }),
+      routePrefix: () => "",
+      idempotencyKey: () => undefined,
+      changed: () => undefined,
+    }).find((binding) => binding.route_id === "goals.event-decision");
+    assert.ok(route);
+    const { status, body } = await route.handle({
       method: "POST",
       pathname: `/api/goals/${goalId}/event-decision`,
-      search: new URLSearchParams(),
-      readBody: async () => ({
+      params: { goalId },
+      query: {},
+      body: {
         conclusion: "网页确认可以试用",
         accepts_requirements: true,
         scope: { requirement_ids: ["web-ok"] },
         idempotency_key: "web-http-1",
-      }),
-      respond: (code, payload) => {
-        status = code;
-        body = payload;
       },
-      options: { projectId: BOARD, routePrefix: "" },
-      idempotencyHeader: undefined,
-      actions: bindGoalsWebActions(actions, { project_id: BOARD, storage_key: "fixture" }),
-      changed: () => undefined,
+      actor_id: LOCAL_PERSON_ACTOR_ID,
     });
-    assert.equal(handled, true);
     assert.equal(status, 200);
     const decision = body as { decision: { authority_source: string; actor_id: string } };
     assert.equal(decision.decision.authority_source, "web");

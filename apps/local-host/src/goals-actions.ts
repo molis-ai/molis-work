@@ -3,6 +3,7 @@ import { ActionError, bindActionClient, pinActionSubject, pinnableSubjectKinds, 
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
+import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
 import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-module-goals";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { PlanningMethodPack, ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -10,7 +11,10 @@ import type { PlanningMethodPack, ProjectGuidanceView } from "@molis-ai/molis-wo
 /** Permissions of the owners' pin actions: the local person handing in a deliverable pins with each owner's own permissions (A5). */
 const pinPermissions = () => [...new Set([...artifactTypeDeclarations().values()].flatMap(declaration => declaration.pin?.action.permissions ?? []))];
 
+/** Goals' assembly for one opened project; 2026-10-18 改: S9 turns this into the plugin's own start(). */
 export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMethods: () => readonly PlanningMethodPack[], client: ActionClient): ActionProviderRegistration {
+  // A refused Goals stops alone (PLIB-14): the catch-up would read the tables the platform refused, so it waits until they are put right.
+  if (!projectPluginDatabaseRefusal(runtime.store.db, GOALS_PLUGIN_ID)) runtime.coordinator.projectOpened(runtime.project_id);
   return { provider: { provider_id: goalsManifest.plugin_id, plugin_id: goalsManifest.plugin_id,
     title: goalsManifest.name, kind: "plugin", project_id: runtime.project_id },
     definitions: goalsManifest.actions!.filter(definition => definition.action.scope === "project"), handlers: createGoalsActionHandlers({ events: runtime.coordinator.goalEvents, acknowledgements: runtime.coordinator.goalAcknowledgements, projectId: runtime.project_id,

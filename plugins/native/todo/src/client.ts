@@ -2,7 +2,7 @@ import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platfo
 import { parseTodoQuickText } from "./quick-parse.js";
 
 /** Todo workbench client: views, quick entry, inline completion, batch changes, the detail editor and undo.
- * Saving failures block navigation and follow-up writes; explicit reload/delete may discard. Pending input survives outside refreshes.
+ * Saving failures block navigation and follow-up writes; explicit reload/delete may discard. Pending input survives outside refreshes. `loadBatches` keeps the newest read only: an earlier read of the organize results answering late would bring back a candidate already decided (tests/late-list-responses.e2e.test.ts).
  * `markView` scrolls only the narrow view-tab strip, sideways: `scrollIntoView` would scroll the list as well and put an organize result opened by its id back off the screen (tests/todo.e2e.test.ts, tests/narrow-lists.e2e.test.ts).
  * `todoObject` and `todoMaterial`: the resident Assistant hears about a todo through its page message (spec 8.3 of the Assistant), with the todo as the object and its details as material; handing over needs a real click here, anything else is only offered to the person. (The script is served as written and its bytes are budgeted in tooling/gates/page-assets.json, so a comment that belongs to no single line lives here.) */
 export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
@@ -97,7 +97,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     const response = await fetch(route(path.startsWith("/api/") ? path : "/api/plugins/io.molis.work.todo" + path), { method, headers: headers(), body: body === undefined || method === "GET" ? undefined : JSON.stringify(body) });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const error = new Error(payload.error || L("待办请求失败"));
+      const error = new Error((method === "GET" && host.readRefusal?.(response.status, payload.code)) || payload.error || L("待办请求失败"));
       error.code = payload.code; error.status = response.status;
       throw error;
     }
@@ -185,14 +185,12 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     detailNote.textContent = text || "";
     detailNote.classList.toggle("is-error", Boolean(error));
   };
-  const ask = (message, okLabel) => new Promise((resolve) => {
-    confirmBox.querySelector("[data-confirm-text]").textContent = message;
-    confirmBox.querySelector("[data-confirm-ok]").textContent = okLabel;
-    confirmBox.returnValue = "cancel";
-    const onClose = () => { confirmBox.removeEventListener("close", onClose); resolve(confirmBox.returnValue === "ok"); };
-    confirmBox.addEventListener("close", onClose);
-    confirmBox.showModal();
-  });
+  // The shared box (host.confirmBox): with a run function the request goes out inside it and a refusal is said there.
+  const ask = (message, okLabel, run) => {
+    const ok = confirmBox.querySelector("[data-confirm-ok]");
+    confirmBox.querySelector("[data-confirm-text]").textContent = message; ok.textContent = okLabel;
+    return host.confirmBox(confirmBox, ok, run);
+  };
 
   // What the Assistant sees when the person turns to it: the open todo, its revision and unsaved input.
   const publishContext = () => {
@@ -442,7 +440,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
 
   // ---------- reminders ----------
   let reminders = [];
-  let reminderSeq = 0;
+  let reminderSeq = 0, batchSeq = 0;
   const laterOptions = () => {
     const now = new Date();
     const at = (hours, minutes, dayOffset) => { const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset, hours, minutes); return d; };
@@ -671,7 +669,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   };
   const loadBatches = async () => {
-    const payload = await request("GET", "/organize");
+    const seq = ++batchSeq, payload = await request("GET", "/organize"); if (seq !== batchSeq) return;
     batches = payload.batches || [];
     const waiting = batches.reduce((sum, batch) => sum + batch.candidates.filter((candidate) => !candidate.decision).length, 0);
     reviewToggle.hidden = !batches.length && view !== "review";
@@ -1173,11 +1171,12 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (button.matches("[data-todo-delete]")) {
         button.closest("details").open = false;
-        if (!await ask(L("永久删除「{title}」？删除后不能撤销，修改记录也会一起删掉。").replace("{title}", selected.title), L("删除"))) return;
-        clearTimeout(saveTimer); saveTimer = 0;
-        if (saving) await saving.catch(() => {});
         const title = selected.title;
-        await post(selected, "/delete");
+        if (!await ask(L("永久删除「{title}」？删除后不能撤销，修改记录也会一起删掉。").replace("{title}", title), L("删除"), async () => {
+          clearTimeout(saveTimer); saveTimer = 0;
+          if (saving) await saving.catch(() => {});
+          try { await post(selected, "/delete"); } catch (error) { if (error.code === "todo.conflict") void load().catch(() => {}); throw error; }
+        })) return;
         dirtyKeys = new Set();
         await closeDetail();
         await load();
@@ -1197,7 +1196,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       void closeDetail().then(() => { focusBatch = String(id).slice(6); view = "review"; return load(); }).catch((error) => showNote(error.message, { error: true }));
       return;
     }
-    void flush().then(() => openDetail(id)).catch((error) => { if (error.status === 404) workbench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: id } })); showNote(error.message, { error: true }); });
+    void flush().then(() => openDetail(id)).catch((error) => { if (error.status === 404 || error.status === 403) workbench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: id } })); showNote(error.message, { error: true }); });
   });
   window.addEventListener("molis:assistant-effect", (event) => {
     const capability = event.detail && event.detail.capability_id;

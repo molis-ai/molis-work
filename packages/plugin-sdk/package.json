@@ -21,6 +21,10 @@
     "./rich-text": {
       "types": "./dist/rich-text.d.ts",
       "import": "./dist/rich-text.js"
+    },
+    "./diff-view": {
+      "types": "./dist/diff-view.d.ts",
+      "import": "./dist/diff-view.js"
     }
   },
   "files": [

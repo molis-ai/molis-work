@@ -11,6 +11,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { PluginRuntime, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { PluginHostExecutor, LocalProjectDatabase, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 test("unknown plugin HTTP adapter executes through the shared Kernel and revokes even zero-permission clients", async () => {
   const home = mkdtempSync(join(tmpdir(), "plugin-action-route-")), file = join(home, "board.sqlite");
@@ -63,10 +64,13 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
     await runtime.reportCrash(installed.install_id);
     await runtime.recover(installed.install_id);
     assert.equal(oldCapabilities.availability(backend).available, false);
-    await assert.rejects(oldCapabilities.invoke(backend, {}), /已停止/);
+    // BL-411: outside every call the crashed activation's clients are refused and throw nothing: their calls never answer.
+    assert.equal(await within(oldCapabilities.invoke(backend, {})), PENDING);
     assert.equal(contexts[1]!.services!.capabilities!.availability(backend).available, true);
-    await assert.rejects(old.invoke(action, { value: 7 }), { code: "actions.forbidden" });
-    await assert.rejects(old.discover(), { code: "actions.forbidden" });
+    assert.equal(await within(old.invoke(action, { value: 7 })), PENDING);
+    assert.equal(await within(old.discover()), PENDING);
+    // BL-403: the Host routes requests to the running activation only. Held directly, the crashed activation's route is refused by
+    // the Runtime with 403 before its handler runs; the action does not run (`calls` below).
     assert.equal((await route.handle(request("owner", { value: 7 }))).status, 403);
     assert.deepEqual(await contexts[1]!.services!.actions!.invoke(action, { value: 3 }), { doubled: 6 });
     assert.equal(calls, 2);
@@ -76,7 +80,8 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
     const failedClient = contexts.at(-1)!.services!.actions!;
     failStart = false;
     await runtime.recover(installed.install_id);
-    await assert.rejects(failedClient.invoke(action, { value: 9 }), { code: "actions.forbidden" });
+    // An activation that never started is over as well: its call never answers, and the action does not run.
+    assert.equal(await within(failedClient.invoke(action, { value: 9 })), PENDING);
     assert.equal(calls, 2);
     await runtime.stop(installed.install_id);
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }

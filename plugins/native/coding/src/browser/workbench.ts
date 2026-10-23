@@ -46,6 +46,8 @@ export interface CodingWorkbenchHost {
   readonly mountPluginClient: MountPluginClient;
   /** The page's words; Files' and Git's clients read theirs through it as `host.translate`. */
   readonly translate: (text: string, values?: Record<string, string | number>) => string;
+  /** What a page says when the router refused a read for who-may-read reasons; empty for any other failure. */
+  readonly readRefusal?: (status: number, code: unknown) => string;
   readonly route: (path: string) => string;
   readonly headers: () => Record<string, string>;
   readonly interaction?: unknown;
@@ -77,7 +79,7 @@ export function codingWorkbench(host: CodingWorkbenchHost, coding: CodingClient,
       { runIds: refs.map(ref => ref.run_id), sessionId, workspaceId, ...query }, { signal: control?.signal,
         onDecision: state => ports.onDecision?.({ workspaceId, sessionId, state }) });
   // What every client mounted here (Coding's own, Files, Git, a companion page) gets besides its own ports.
-  const lent = { mountPluginClient, translate: host.translate };
+  const lent = { mountPluginClient, translate: host.translate, readRefusal: host.readRefusal };
   const headers = () => host.headers();
   const request: CompanionRequest = (plugin, path, method = "GET", body, signal) => {
     const url = new URL(path, "https://plugin.invalid");

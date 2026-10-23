@@ -459,3 +459,28 @@ test("a command activity names the whole argv, quoted where a shell would need i
   );
   assert.deepEqual(state.activity.map((entry) => entry.target), ["npm test", "node -e 'console.log('\\''x y'\\'')'"]);
 });
+
+test("VUX-20/VUX-43: a model call waiting to retry carries the runtime's time and reason until the call answers or the Run ends", () => {
+  const state = emptyPrologueStreamState();
+  const retryAtMs = Date.parse("2026-10-23T10:00:30Z");
+  const wait = (attempt: number, at: number, reason: "rate-limited" | "unavailable" | "not-sent") =>
+    ({ type: "retry-waiting", model: "m", attempt, waitMs: 30_000, retryAtMs: at, reason, why: "Too many requests", status: 429 });
+  assert.equal(applyRunEvent(state, wait(1, retryAtMs, "rate-limited"), AT), true);
+  assert.deepEqual(state.retry_wait, { until: "2026-10-23T10:00:30.000Z", reason: "rate-limited", attempt: 1 });
+  assert.equal(state.unknown_frames, 0, "the frame is read, not counted as unknown");
+  assert.equal(state.activity.length, 0, "a wait to retry is not a step of the work");
+  // A person's added instruction during the wait does not end it; a second failure replaces it; an answer ends it.
+  apply(state, { type: "steer-applied" });
+  assert.equal(state.retry_wait?.attempt, 1);
+  apply(state, { type: "usage-recorded", callId: "c2", receipt: receipt("reported") }, wait(2, retryAtMs + 60_000, "unavailable"));
+  assert.deepEqual(state.retry_wait, { until: "2026-10-23T10:01:30.000Z", reason: "unavailable", attempt: 2 });
+  assert.equal(applyRunEvent(state, { type: "text-delta", text: "好" }, AT), true);
+  assert.equal(state.retry_wait, undefined);
+  // A Run that ends while waiting is not left waiting; a frame without a usable time is ignored.
+  const ended = emptyPrologueStreamState();
+  apply(ended, wait(1, retryAtMs, "not-sent"), { type: "failed", why: "x" });
+  assert.equal(ended.retry_wait, undefined);
+  const bad = emptyPrologueStreamState();
+  assert.equal(applyRunEvent(bad, wait(1, Number.NaN, "rate-limited"), AT), false);
+  assert.equal(bad.retry_wait, undefined);
+});

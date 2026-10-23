@@ -14,6 +14,7 @@ export const DIFF_MESSAGES = {
   "diff.sign.delete": { zh: "删除", en: "Removed" },
   "diff.sign.same": { zh: "未改变", en: "Unchanged" },
   "diff.fold.reveal": { zh: "展开 {count} 行未改变", en: "Show {count} unchanged lines" },
+  "diff.board.files": { zh: "一轮的文件行 · 增删行数与长路径", en: "A round's file rows · lines added and removed, long paths" },
   // The view's and the actions' own sentences are action output an Agent reads too, so they stay as written and are their
   // own keys here: the page shows them through the translator.
   "先选一组输入：两份快照、Coding 准备的变更，或 Git 的工作区改动": { zh: "先选一组输入：两份快照、Coding 准备的变更，或 Git 的工作区改动", en: "Choose an input first: two snapshots, a change Coding prepared, or a Git workspace change" },
@@ -34,7 +35,8 @@ export const DIFF_MESSAGES = {
   "文件权限：移除执行权限（100755 → 100644）": { zh: "文件权限：移除执行权限（100755 → 100644）", en: "File mode: no longer executable (100755 → 100644)" },
   "正文未改变": { zh: "正文未改变", en: "The text is unchanged" },
   // Sentences with a path or a count in them are written in Chinese by the producer (an Agent reads them too), so each is a
-  // template here: `sentences.ts` finds which template a sentence is, and the page says it with the values in its own words.
+  // template here (`DIFF_TEMPLATES`): the SDK's `diffViewText` finds which template a sentence is, and the page says it with the
+  // values in its own words. The three about a hunk are the sentences the SDK's `parseUnifiedDiff` refuses with.
   "diff.msg.no-change-in": { zh: "这一轮没有改动 {path}", en: "This round didn't change {path}" },
   "diff.msg.renamed": { zh: "重命名：{from} → {to}", en: "Renamed: {from} → {to}" },
   "diff.msg.hunk-count": { zh: "hunk 行数与 @@ 头不一致：声明 {declaredBefore}/{declaredAfter}，实际 {sawBefore}/{sawAfter}", en: "A hunk's line counts don't match its @@ header: declared {declaredBefore}/{declaredAfter}, found {sawBefore}/{sawAfter}" },
@@ -46,3 +48,6 @@ export const DIFF_MESSAGES = {
   "Git 固定变更当前不可读，请重新选择原变更": { zh: "Git 固定变更当前不可读，请重新选择原变更", en: "The pinned Git change can't be read right now. Choose the original change again." },
   "请选择两份文件快照进行对比": { zh: "请选择两份文件快照进行对比", en: "Choose two file snapshots to compare" },
 } as const;
+
+/** The keys above that are sentences with values in them. */
+export const DIFF_TEMPLATES: readonly string[] = ["diff.msg.no-change-in", "diff.msg.renamed", "diff.msg.hunk-count", "diff.msg.hunk-header"];

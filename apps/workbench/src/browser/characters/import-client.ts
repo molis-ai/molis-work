@@ -25,11 +25,10 @@ export interface ImportClient {
 
 interface Candidate { candidate_id: string; label: string; executable: string | null; snapshot: ImportSnapshot; warnings: string[] }
 interface Selection { rule_paths: string[]; skill_ids: string[] }
-interface RunRecord { panel_id: string; session_id: string; created_at: string; output?: string | null; reference: ArtifactVersionRef }
+/** A native run as Characters records it (`characters.runs@2`): no terminal output is kept, the terminal shows it while the process runs. */
+interface RunRecord { run_id: string; panel_id: string; created_at: string; reference: ArtifactVersionRef; status: "starting" | "dispatched" | "failed"; status_message: string | null }
 interface Execution { workspaces: Array<{ workspace_id: string; canonical_path: string }>; notice: string; executable: boolean }
 interface Published { reference: ArtifactVersionRef; publication: { payload: PublicationPayload } }
-
-const NO_OUTPUT = "尚无已保存输出。";
 
 function skillChoice(skill: SnapshotSkill): HTMLLabelElement {
   const label = el("label"), check = el("input");
@@ -213,13 +212,13 @@ class ImportView {
 
   private showRun(item: RunRecord): void {
     const { q } = this;
-    q("native-section").hidden = false; q("run-output").textContent = item.output || NO_OUTPUT;
-    window.dispatchEvent(new CustomEvent("molis-work:character-terminal", { detail: { panelId: item.panel_id, sessionId: item.session_id, attachOnly: true } }));
+    q("native-section").hidden = false;
+    window.dispatchEvent(new CustomEvent("molis-work:character-terminal", { detail: { panelId: item.panel_id, attachOnly: true } }));
   }
 
   private runButton(item: RunRecord): HTMLButtonElement {
-    const button = el("button", new Date(item.created_at).toLocaleString() + " · v" + item.reference.version, "mw-btn mw-btn--ghost");
-    button.type = "button"; button.onclick = () => this.showRun(item);
+    const button = el("button", new Date(item.created_at).toLocaleString() + " · v" + item.reference.version + (item.status === "failed" ? " · 启动失败" : ""), "mw-btn mw-btn--ghost");
+    button.type = "button"; button.title = "在终端里看" + (item.status_message ? "：" + item.status_message : ""); button.onclick = () => this.showRun(item);
     return button;
   }
 
@@ -231,7 +230,6 @@ class ImportView {
       const target = q("native-runs");
       target.replaceChildren(); q("native-section").hidden = !result.runs.length;
       for (const item of result.runs) target.append(this.runButton(item));
-      if (result.runs.length) q("run-output").textContent = result.runs[0].output || NO_OUTPUT;
     } catch (error) {
       host.note(messageOf(error));
     }

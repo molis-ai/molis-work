@@ -5,6 +5,7 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import type { ActionCallContext, ActionDefinition, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginActionDirectory, PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
 const target: ActionDefinition = { capability_id: "dependency.write", version: 1, operation: "command", action: {
@@ -84,7 +85,8 @@ test("SYS-15-D2: outside, undeclared, foreign installation/project, query writes
   await assert.rejects(elsewhere.invoke(directory => directory.discover()), { code: "actions.forbidden" });
   await a.invoke(async directory => { assert.ok((await directory.discover()).some(view => view.capability_id === target.capability_id)); }, "query");
   await assert.rejects(a.invoke(directory => directory.invoke(target, { text: "query write" }), "query"));
-  await a.stop(); await assert.rejects(a.directory!.discover(), { code: "actions.forbidden" });
+  // BL-411: once stopped, the refusal throws nothing outside every call: the call never answers.
+  await a.stop(); assert.equal(await within(a.directory!.discover()), PENDING);
   assert.equal(f.stored(), "");
 });
 

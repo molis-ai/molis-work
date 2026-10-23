@@ -2,21 +2,23 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { compareChangeSet, compareRunChangeSet, renderDiff } from "@molis-ai/molis-work-plugin-diff";
+import { compareChangeSet, compareRunChangeSet, DIFF_LABELS } from "@molis-ai/molis-work-plugin-diff";
+import { renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { GIT_CLIENT_FACTORY_SCRIPT, GIT_SENTENCE_TABLE, headLabel, projectGit, renderGitChanges, sayHostSentence } from "@molis-ai/molis-work-plugin-git";
 import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { pageText } from "./fixtures/page-text.js";
+import { diffPageText } from "./fixtures/diff-page-text.js";
 
 // specs/visual-ui-experience VUX-40 (English coverage): the sentences Diff and Git write once, in Chinese, with a path, a name or a
 // count inside (the path a round didn't change, a rename, a unified diff that can't be read; a remote's host, the files a merge
 // stopped on, a branch that already exists) are said again in the page's language. What an Agent reads is unchanged.
 
 const HAN = /[一-鿿]/;
-const primitives = (locale: "zh" | "en") => ({ escape: (value: unknown) => String(value), text: pageText(locale), icon: () => "" });
+const primitives = (locale: "zh" | "en") => ({ escape: (value: unknown) => String(value), text: diffPageText(locale), icon: () => "" });
 const WS = { workspace_id: "ws-1", name: "项目" };
 const run = (diff: string) => ({ scope: "run-frozen" as const, run_id: "run-1", applied: false,
   files: [{ path: "a.ts", kind: "modified" as const, added_lines: 1, removed_lines: 1, diff }] });
-const shown = (locale: "zh" | "en", view: Parameters<typeof renderDiff>[0]["view"]) => renderDiff({ view, primitives: primitives(locale), sides: false });
+const shown = (locale: "zh" | "en", view: Parameters<typeof renderDiff>[0]["view"]) => renderDiff({ labels: DIFF_LABELS, view, primitives: primitives(locale), sides: false });
 
 test("VUX-40: Diff's path, rename and unified-diff sentences read in English on the English page and are unchanged for an Agent", () => {
   const input = (diff: string) => ({ content: run(diff), source_plugin_id: "io.molis.work.coding", content_version: 1 });
@@ -101,7 +103,7 @@ test("VUX-40: every sentence the Host's Git code sends to the Git page has an En
   const en = pageText("en");
   const base = new URL("../apps/local-host/src/", import.meta.url);
   const left: string[] = [];
-  for (const file of ["git-operations.ts", "workspace-git.ts", "workspace-git-index.ts", "workspace-git-actions.ts"]) {
+  for (const file of ["workspace-git-operations.ts", "workspace-git.ts", "workspace-git-index.ts", "workspace-git-actions.ts"]) {
     const source = readFileSync(new URL(file, base), "utf8");
     for (const [, , body] of source.matchAll(/(["`])((?:\\.|(?!\1)[^\\\n])*)\1/g)) {
       if (!HAN.test(body!)) continue;

@@ -526,14 +526,16 @@ test("W5-01-D1-06: a process item port keeps its own version sequence: selecting
     await rig.runtime.stop(rig.supervisor.state(PRODUCER)!.install_id!);
     assert.deepEqual(rig.services[CONSUMER]!.artifacts!.read(first), first, "producer stop does not invalidate a fixed consumable version");
     assert.ok(rig.services[CONSUMER]!.artifacts!.listConsumable().some(row => row.artifact_id === unbound.artifact_id));
-    assert.throws(() => process.readOwn(first), { code: "plugin.grant_denied" });
-    assert.throws(() => process.head(first.artifact_id), { code: "plugin.grant_denied" });
+    // BL-411: outside every call the stopped producer's handles are refused and answer nothing (they answered both above).
+    assert.equal(process.readOwn(first), undefined);
+    assert.equal(process.head(first.artifact_id), undefined);
   } finally { rig.close(); }
 });
 
 
 // W3-02-F-INTEGRATION: C's owner binding and foreign-IO refusal survive the migration of Shelf's own declared errors.
 test("Shelf's Runtime action wraps an outside IO error before the SDK route can trust its forged code or diagnostic id", async () => {
+  // Shelf's personal actions are its Home half's; this project's half redeems only the Coding-result ones.
   const rig = harness(() => [], true);
   let reads = 0;
   rig.artifacts.query.getArtifactVersion = () => {

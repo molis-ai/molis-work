@@ -180,7 +180,7 @@ test("a capability registered as concurrent (a model draft) runs beside the queu
   await host.close();
 });
 
-test("a capability call copies only the descriptor it needs: the registry grows with every project's actions", async t => {
+test("AAP-01 a capability call copies only its descriptor and a full status keeps the caller's own copies", async t => {
   const host = new LocalHost<{ value: number }>({ instanceId: "lookup-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
   for (let index = 0; index < 200; index++) host.register({ capability_id: `test.other.${index}`, version: 1, operation: "query" } as HostCapabilityDefinition<void, number>, () => index);
   const read = { capability_id: "test.read", version: 1, operation: "query" } as HostCapabilityDefinition<void, number>;
@@ -198,6 +198,30 @@ test("a capability call copies only the descriptor it needs: the registry grows 
   dispose();
   assert.equal(host.status().capabilities.some(item => item.capability_id === "test.read"), false, "the order is rebuilt after a removal");
   await host.close();
+});
+
+test("AAP-01 project states are live, sorted and isolated without reading the capability directory", async t => {
+  const opened = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const host = new LocalHost<string>({ runtimeFactory: {
+    open: async reference => { if (reference.project_id === "a") await opened.promise; return reference.project_id; },
+    close: () => {},
+  } });
+  t.after(async () => { opened.resolve(); release.resolve(); await host.close(); });
+  const a = { project_id: "a", storage_key: "memory:a" }, z = { project_id: "z", storage_key: "memory:z" };
+  await host.withRuntime(z, () => undefined);
+  const using = host.withRuntime(a, () => { entered.resolve(); return release.promise; });
+  const directory = t.mock.method(host.capabilities, "descriptors", () => { throw new Error("project reads must not enumerate capabilities"); });
+  const first = host.projects();
+  assert.deepEqual(first, [{ ...a, state: "opening" }, { ...z, state: "ready" }]);
+  first[0]!.project_id = "changed"; first[0]!.state = "closing"; first.pop();
+  assert.deepEqual(host.projects(), [{ ...a, state: "opening" }, { ...z, state: "ready" }]);
+  opened.resolve(); await entered.promise;
+  assert.equal(host.projects()[0]!.state, "ready");
+  const closing = host.closeProject(a);
+  assert.equal(host.projects()[0]!.state, "closing");
+  release.resolve(); await using; await closing;
+  assert.deepEqual(host.projects(), [{ ...z, state: "ready" }]);
+  assert.equal(directory.mock.callCount(), 0);
 });
 
 test("CLI snapshot, MCP intent, and Workbench-style client share one writer and recover after restart", async () => {

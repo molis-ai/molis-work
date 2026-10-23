@@ -272,10 +272,11 @@ const toDataset: Command = {
 const remove: Command = {
   find: on("[data-form-delete]"),
   async run(page) {
-    if (!await ask(page, page.L("删除这份问卷？答卷也会一起删掉。"), page.L("删除"))) return;
-    await save(page);
-    const sel = open(page);
-    await page.request("POST", path(sel.id, "/delete"), { expected_version: sel.version });
+    if (!await ask(page, page.L("删除这份问卷？答卷也会一起删掉。"), page.L("删除"), async () => {
+      await save(page);
+      const sel = open(page);
+      await page.request("POST", path(sel.id, "/delete"), { expected_version: sel.version });
+    })) return;
     closeEditor(page);
     await loadList(page);
   },

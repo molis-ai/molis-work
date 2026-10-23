@@ -20,7 +20,7 @@ import {
 import { createWorkbenchFeedProjectionRenderer, type FeedSupplementalEntry } from "./feed-projection-ui.js";
 import { createWorkbenchFocusSections } from "./focus-sections.js";
 import { createWorkbenchGoalsFragmentRenderer } from "./goals-fragment-renderer.js";
-import { createWorkbenchGoalsPageRenderer } from "./goals-page-renderer.js";
+import { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
 import type { createWorkbenchLocale, WebLocale } from "./i18n.js";
 import { createWorkbenchInboxProjectionRenderer } from "./inbox-projection-ui.js";
 import { createWorkbenchScheduleProjectionRenderer } from "./schedule-projection-ui.js";

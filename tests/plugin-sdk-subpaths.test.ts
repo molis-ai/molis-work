@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
+import * as diffView from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import * as highlight from "@molis-ai/molis-work-plugin-sdk/highlight";
 
 // specs/coding-plugin/spec.md §K (PG-062, C7): code colouring, rich text and secret redaction live once, in the plugin SDK, so a
@@ -58,14 +60,22 @@ test("W5-01-CODING-61: only /rich-text loads the Markdown parser and sanitizer, 
     assert.ok(manifest.peerDependencies?.[name], `${name} is a peer of the SDK`);
     assert.equal(manifest.peerDependenciesMeta?.[name]?.optional, true, `${name} is an optional peer`);
   }
-  // The README tells such a plugin what to add, with the peer ranges; the workbench and the Host add the same ranges.
+  // The README tells such a plugin what to add, with the peer ranges; every package of the repository that imports /rich-text adds
+  // the same ranges (the workbench and Coding, PG-062).
   const readme = readFileSync(join(sdkDirectory, "README.md"), "utf8");
+  // The workspace's package roots, as pnpm-workspace.yaml lists them.
+  const packages = [...["apps", "packages", "modules", "horizontal", "plugins/native", "plugins/official-integrations"].flatMap(group =>
+    readdirSync(join(root, group), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => `${group}/${entry.name}`)), "server", "tooling/plugin-cli"];
+  const consumers = packages.filter(directory => directory !== "packages/plugin-sdk" && existsSync(join(root, directory, "src"))
+    && readdirSync(join(root, directory, "src"), { recursive: true, encoding: "utf8" }).some(name => name.endsWith(".ts")
+      && readFileSync(join(root, directory, "src", name), "utf8").includes("@molis-ai/molis-work-plugin-sdk/rich-text")));
+  assert.ok(consumers.includes("apps/workbench") && consumers.includes("plugins/native/coding"), consumers.join(", "));
   for (const name of ["marked", "sanitize-html"]) {
     const range = manifest.peerDependencies![name]!;
     assert.ok(readme.includes(`\`${name}@${range}\``), `the README names ${name}@${range}`);
-    for (const consumer of ["apps/workbench", "apps/local-host"]) {
+    for (const consumer of consumers) {
       const declared = (JSON.parse(readFileSync(join(root, consumer, "package.json"), "utf8")) as Manifest).dependencies?.[name];
-      assert.equal(declared, range, `${consumer} declares ${name} in the SDK's peer range`);
+      assert.equal(declared, range, `${consumer} imports /rich-text and declares ${name} in the SDK's peer range`);
     }
   }
 });
@@ -99,5 +109,52 @@ test("W5-01-CODING-63: there is one copy: Coding and Feed hold and export none o
   const names = /\b(?:codeTokens|growCodeTokens|diffRowTokens|codeLanguage|renderFeedRichText|feedPlainText|redactFeedContextSecrets|renderRichText|richPlainText|redactSecrets)\b/u;
   for (const entry of ["plugins/native/coding/src/index.ts", "plugins/native/feed/src/index.ts"]) {
     assert.doesNotMatch(readFileSync(join(root, entry), "utf8"), names, entry);
+  }
+});
+
+test("PG062-08: /diff-view loads only the SDK's own files and the contracts, holds no words, and draws with the escape, words, label keys and icons its caller passes", () => {
+  // Walk the built module graph from the subpath's entry, as a plugin's bundle would.
+  const dist = join(sdkDirectory, "dist"), entry = join(sdkDirectory, manifest.exports["./diff-view"]!.import);
+  const specifiers = /\bfrom\s*["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)|^\s*import\s*["']([^"']+)["']|\brequire\s*\(\s*["']([^"']+)["']\s*\)/gmu;
+  const seen = new Set<string>(), queue = [entry];
+  while (queue.length) {
+    const file = queue.pop()!;
+    if (seen.has(file)) continue;
+    seen.add(file);
+    for (const found of readFileSync(file, "utf8").matchAll(specifiers)) {
+      const specifier = found.slice(1).find(value => value !== undefined)!;
+      if (specifier.startsWith(".")) {
+        const next = join(dirname(file), specifier);
+        assert.ok(next.startsWith(dist), `${specifier} stays inside the SDK`);
+        queue.push(next);
+      } else assert.match(specifier, /^@molis-ai\/molis-work-contracts\//u, `${file.slice(dist.length + 1)} loads ${specifier}`);
+    }
+  }
+  assert.ok([...seen].some(file => file.endsWith("text-diff.js")), "the comparison is the SDK's one");
+  for (const file of seen) assert.doesNotMatch(file, /rich-text|highlight/u);
+  // No words of its own: a plugin's words stay in its own dictionary, so the subpath carries no table of them.
+  for (const file of seen) assert.doesNotMatch(readFileSync(file, "utf8"), /\b(?:zh|en)\s*:\s*["'`]/u, `${file.slice(dist.length + 1)} holds no words`);
+  // Nothing is escaped, worded or drawn as an icon but by what the caller passes, and each label is the caller's key.
+  const roles = ["before", "after", "pinned", "mismatch", "partial", "coarse", "created", "removed", "identical", "comment_before", "comment_after", "insert", "delete", "same", "reveal"] as const;
+  const labels: diffView.DiffViewLabels = Object.fromEntries(roles.map(role => [role, `K.${role}`])) as Record<(typeof roles)[number], string>;
+  const primitives = { escape: (value: unknown) => `«${String(value)}»`, text: (key: string, values?: Record<string, string | number>) => `T(${key}${values ? `:${Object.values(values).join(",")}` : ""})`, icon: (name: string) => `I(${name})` };
+  const side = { workspace_id: "w", workspace_name: "W", path: "a.ts", source_plugin_id: "p", content_version: 1 };
+  const view = diffView.compareChange("g", { before: side, after: side }, { before: "a <b>\n", after: "c\n", created: true });
+  const html = diffView.renderDiff({ view, line_feedback: true, labels, primitives });
+  assert.match(html, /«a <b>»/u); assert.doesNotMatch(html, /&lt;|&amp;/u, "the SDK escapes nothing itself");
+  for (const label of ["T(K.before:a.ts,1)", "T(K.pinned:W)", "T(K.created)", "T(K.comment_before:1)", "T(K.comment_after:1)", "T(K.delete)", "T(K.insert)"]) assert.ok(html.includes(label), label);
+  const { before: _before, after: _after, pinned: _pinned, ...withoutSides } = labels;
+  assert.doesNotMatch(diffView.renderDiff({ view, labels: withoutSides, primitives }), /diff-sides/u, "without the header's labels there is no header");
+  assert.match(diffView.renderDiff({ view: diffView.emptyDiffView("g", "nothing"), labels, primitives: { escape: String, text: key => key, icon: name => `I(${name})` } }), /I\(git-compare\)/u);
+});
+
+test("PG062-10: there is one drawing of a comparison and one comparison: the SDK's", () => {
+  const sources = execFileSync("git", ["grep", "-l", "-E", "function (renderDiff|compareTexts|parseUnifiedDiff|hunkRows|unifiedPatch)\\(", "--", "*.ts", ":!tests"], { cwd: root, encoding: "utf8" })
+    .trim().split("\n");
+  assert.deepEqual(sources.sort(), ["packages/plugin-sdk/src/diff-view.ts", "packages/plugin-sdk/src/text-diff.ts", "packages/plugin-sdk/src/unified-diff.ts"]);
+  for (const gone of ["plugins/native/diff/src/unified.ts", "plugins/native/diff/src/patch.ts", "plugins/native/diff/src/sentences.ts"]) assert.equal(existsSync(join(root, gone)), false, gone);
+  // Diff and Coding draw with it: neither carries a renderer of its own.
+  for (const user of ["plugins/native/diff/src/ui.ts", "plugins/native/diff/src/actions.ts", "plugins/native/coding/src/change-html.ts"]) {
+    assert.match(readFileSync(join(root, user), "utf8"), /from "@molis-ai\/molis-work-plugin-sdk\/diff-view"/u, user);
   }
 });

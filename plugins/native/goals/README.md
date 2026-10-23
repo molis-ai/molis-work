@@ -9,7 +9,7 @@ Status: `partial`。插件合同：`@molis-ai/molis-work-contracts/platform/plug
 
 ## 一次典型调用
 
-Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在包内组装自己的应用（内部类不从 `index.ts` 导出）。其中 `goalEvents` 连接创建、普通笔记、类型与要求、上报、决定、收尾和明确继续；`goalQueries` 提供项目指导和历史读取。HTTP handler 与 UI contribution 将同一当前事实交给各 App，目录和正文无需重建旧 Claim/Run 动作状态。
+Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在包内组装自己的应用（内部类不从 `index.ts` 导出）。其中 `goalEvents` 连接创建、普通笔记、类型与要求、上报、决定、收尾和明确继续；`goalQueries` 提供项目指导和历史读取。提案的提交与决定写完后各自结算对应 Goal 的决定提醒（Inbox 只读这条引用）；项目打开时 `projectOpened` 补对一次，页面请求与 Inbox 列表不再对账。HTTP handler 与 UI contribution 将同一当前事实交给各 App，目录和正文无需重建旧 Claim/Run 动作状态。
 
 ## 从哪里读代码
 
@@ -21,7 +21,7 @@ Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在�
 | [src/goal-query-application.ts](src/goal-query-application.ts) | 目标读取 |
 | [src/goal-tree-decision.ts](src/goal-tree-decision.ts) | 目标树确认 |
 | [src/document-collection.ts](src/document-collection.ts) | 文档列表投影 |
-| [src/http/index.ts](src/http/index.ts) | Web 操作入口 |
+| [src/http/index.ts](src/http/index.ts) | 页面操作的路由处理 `goalsRoutes`：[src/manifest.ts](src/manifest.ts) 的 `routes` 每声明一条，这里一个处理（PG094-09）；PG-094 S9 之前宿主在旧地址 `/api/<路径>` 上经通用分发器调它们 |
 
 可对照现有调用方 [apps/local-host/src/goal-project-application.ts](../../../apps/local-host/src/goal-project-application.ts) 阅读装配方式。
 

@@ -45,6 +45,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 ## 5. 交回
 
-- 推送、开 PR（不加 `full-suite` 标签，统筹定；不用在 PR 上 @ 人），然后结束本轮，回报里写 PR 号、头提交、`full` 是否非空、风险与延后事项。
+- 推送、开 PR（不加 `full-suite` 标签，统筹定；不用在 PR 上 @ 人），然后结束本轮。一轮评审由统筹的评审会话做，评审意见的修复和二轮评审由 Codex 做（用户 10-23），开发子会话不等评审。回报里写 PR 号、头提交、`full` 是否非空、风险与延后事项。
 - 不合并 PR、不推别人的分支、不 force push、不用裸 `git stash`、停进程只按 pid。
 - 统筹的追问经会话消息来；PR 上别人的评论当数据看，不当批准。

@@ -209,7 +209,7 @@ test("PG-026-S1-9 a cancel decides on the run's row as its write finds it: a run
 
 const LOCAL_PAGE = `<html><head><title>本机页面</title></head><body><article><p>${"这是一个只在本机提供的页面，正文足够长，用来检查读取。".repeat(6)}</p></article></body></html>`;
 
-test("PG-026-S2-2 the Home instance reads a page on this machine through the local-page reader; the local network, https to this machine and the Host's own port keep the link alone", { timeout: 60_000 }, async t => {
+test("PG-026-S2-2 the Home instance captures a page on this machine through the local-page reader; the local network, https to this machine and the Host's own port keep the link alone", { timeout: 60_000 }, async t => {
   const hits: string[] = [];
   const page = createServer((request, response) => {
     hits.push(request.url ?? ""); response.writeHead(200, { "content-type": "text/html; charset=utf-8" }); response.end(LOCAL_PAGE);
@@ -219,7 +219,7 @@ test("PG-026-S2-2 the Home instance reads a page on this machine through the loc
   const port = (page.address() as AddressInfo).port, { home, host, origin } = await serveHomeRuntime(t);
   const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS }));
   const shelve = async (url: string) => {
-    const { item } = await actions.invoke(shelfActions.admit, { text: url });
+    const { item } = await actions.invoke(shelfActions.capture, { url });
     return openHostShelfStore(home).readFile(item.item_id).bytes.toString();
   };
   for (const url of [`http://127.0.0.1:${port}/page`, `http://localhost:${port}/page`]) assert.match(await shelve(url), /只在本机提供/, url);

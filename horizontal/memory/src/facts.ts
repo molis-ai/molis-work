@@ -14,14 +14,13 @@ export function pauseReason(state: Exclude<MemoryState, "active">, reason: strin
   return `${state === "disabled" ? DISABLED : PAUSED}:${(reason ?? "").slice(0, 180)}`;
 }
 
-function stateOf(paused: { reason: string } | undefined): { state: MemoryState; state_reason: string | null } {
-  if (!paused) return { state: "active", state_reason: null };
-  const [kind, ...rest] = paused.reason.split(":");
-  const reason = rest.join(":") || null;
-  return kind === PAUSED ? { state: "paused", state_reason: reason } : { state: "disabled", state_reason: reason ?? "你停用了" };
+function stateOf(paused: { reason: string } | undefined, disabled: { reason: string } | undefined): { state: MemoryState; state_reason: string | null } {
+  if (disabled) return { state: "disabled", state_reason: disabled.reason };
+  if (paused) return { state: "paused", state_reason: paused.reason };
+  return { state: "active", state_reason: null };
 }
 
-export function toEntryMeta(record: Pick<MemoryMetaRecord, "kind" | "source" | "basis" | "evidence" | "applies" | "expires_at" | "approved_by" | "plugin_id">): AgentMemoryMeta {
+export function toEntryMeta(record: Pick<MemoryMetaRecord, "kind" | "source" | "basis" | "evidence" | "applies" | "expires_at" | "approved_by" | "plugin_id">, previous: AgentMemoryMeta = {}): AgentMemoryMeta {
   const time = (iso: string | null | undefined) => { const at = iso ? Date.parse(iso) : NaN; return Number.isFinite(at) ? at : undefined; };
   const applies = record.applies ?? {};
   const when = {
@@ -32,7 +31,10 @@ export function toEntryMeta(record: Pick<MemoryMetaRecord, "kind" | "source" | "
     ...(time(applies.from) !== undefined ? { from_ms: time(applies.from)! } : {}),
     ...(time(applies.until) !== undefined ? { until_ms: time(applies.until)! } : {}),
   };
+  const { kind: _kind, source: _source, basis: _basis, evidence: _evidence, applies_when: _when,
+    expires_at_ms: _expires, approved_by: _approved, namespace: _namespace, ...retained } = previous;
   return {
+    ...retained,
     kind: record.kind, source: record.source, basis: record.basis,
     ...(Object.keys(when).length ? { applies_when: when } : {}),
     ...(record.evidence.length ? { evidence: record.evidence.slice(-6).map(item => ({ kind: item.kind, ...(item.text ? { text: item.text.slice(0, 200) } : {}),
@@ -44,7 +46,7 @@ export function toEntryMeta(record: Pick<MemoryMetaRecord, "kind" | "source" | "
 }
 
 /** The facts an entry carries, when the platform wrote them (`source` is always there then); null for older entries. */
-export function fromEntryMeta(input: { memory_id: string; scope: MemoryScope; owner: string; meta: AgentMemoryMeta; paused?: { reason: string }; created_at_ms: number; updated_at_ms: number },
+export function fromEntryMeta(input: { memory_id: string; scope: MemoryScope; owner: string; meta: AgentMemoryMeta; paused?: { reason: string }; disabled?: { reason: string }; created_at_ms: number; updated_at_ms: number },
   now: Date): MemoryMetaRecord | null {
   const meta = input.meta;
   if (!meta || typeof meta.source !== "string" || typeof meta.kind !== "string") return null;
@@ -64,7 +66,7 @@ export function fromEntryMeta(input: { memory_id: string; scope: MemoryScope; ow
     return { kind: (["said", "object", "work", "signal"].includes(item.kind) ? item.kind : "work") as MemoryEvidence["kind"], ...(item.text ? { text: item.text } : {}), ...(ref ? { ref } : {}),
       at: iso(item.at_ms) ?? now.toISOString() };
   });
-  const { state, state_reason } = stateOf(input.paused);
+  const { state, state_reason } = stateOf(input.paused, input.disabled);
   const created = input.created_at_ms > 0 ? new Date(input.created_at_ms).toISOString() : now.toISOString();
   return {
     memory_id: input.memory_id, scope: input.scope, owner: input.owner, kind: meta.kind as MemoryKind, source: meta.source as MemorySource,

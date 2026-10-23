@@ -13,7 +13,8 @@ import type { ModelProviderStore } from "./model-provider-store.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
-import { registerMemoryHost } from "./memory/memory-host.js";
+import { memoryHostFor, registerMemoryHost } from "./memory/memory-host.js";
+import { memoryRuntimePolicy } from "./memory/memory-runtime-policy.js";
 import { browserSurfacesFor } from "./browser/browser-surfaces.js";
 import { computerSurfacesFor } from "./computer/computer-surfaces.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
@@ -58,6 +59,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         : workspaces.workspaceFor?.(projectId) ?? null,
       prologue: {
         storageRoot: agentRuntimeDirectory(storageHome),
+        memory: memoryRuntimePolicy(() => memoryHostFor(localHost)?.policy),
         // The question types every surface that shows a run's questions can draw (specs/ai-interaction-experience D8).
         questionTypes: hostQuestionTypes(),
         // The kinds a reference question may ask for, so the model names one the person can find (T2, AC-28-1).
@@ -91,6 +93,11 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
       executes: () => owner.withCatalog !== undefined,
       projects: async () => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().map(project => project.project_id)) : [],
       projectExists: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().some(project => project.project_id === projectId)) : null,
+      pendingMemoryDeletion: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => {
+        const receipt = catalog.listProjectDeletions().find(row => row.project_id === projectId && row.actor_id === LOCAL_PERSON_ACTOR_ID
+          && row.cleanup_state === "pending" && row.owner_steps.some(step => step.owner_id === "memory" && step.state === "pending"));
+        return receipt ? { deletion_id: receipt.deletion_id } : null;
+      }) : null,
       projectTitle: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null) : null });
     const unbind = bindPrologueInference(storageHome, service.inference);
     const unbindBuilder = bindPrologueBuilder(storageHome, service.createBuilderAgent);

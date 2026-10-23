@@ -8,20 +8,25 @@ import { memoryActions, MEMORY_PERMISSIONS } from "@molis-ai/molis-work-contract
 import { MemoryService, characterOwner, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, ensureSystemAgentService, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { observeMemoryBackend } from "./fixtures/memory-service-home.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-const person: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui", person: true };
+const projectId = "project-onboarding-00000000-0000-4000-8000-000000000001";
+const person: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, consumer: "ui", person: true };
 const worker: MemoryCaller = { ...person, person: false, consumer: "assistant", work: { work_id: "work-a", title: "周报" } };
 const proposal = { scope: "personal" as const, text: "周报先写风险", kind: "preference" as const, basis: "repeated" as const, why: "本人在两项工作提出", from: "extraction" as const };
 
 /** Actual Home startup, SDK Node storage and ledger; reopening exercises the persisted choice. */
 async function memoryHome(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-presets-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  try { await catalog.createProject({ project_id: projectId, display_name: "Memory presets", actor_id: LOCAL_PERSON_ACTOR_ID }); } finally { catalog.close(); }
   const open = async () => {
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-    const agents = ensureSystemAgentService(host, home); await agents.ready;
+    const agents = ensureSystemAgentService(host, home, withMolisWorkProjectCatalog); await agents.ready;
     const ledger = openMemoryLedger({ homeDirectory: home });
-    const backend = prologueMemoryBackend(async () => agents.agentHost.adapter("prologue").memory!);
+    const backend = prologueMemoryBackend(async () => agents.agentHost.adapter("prologue").memory!).withCaller(person);
     const service = new MemoryService({ ledger, backend });
     const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user" as const, permissions: [...MEMORY_PERMISSIONS] }));
     return { host, ledger, backend, service, actions, close: async () => { ledger.close(); await host.close(); } };
@@ -96,11 +101,13 @@ test("manual allows personal saving and acceptance while task reads and learning
   const accepted = await service.accept(person, candidate.candidate_id);
   assert.ok(accepted.memory);
   const saved = await service.write(person, { scope: "personal", text: "周报用短句" }); assert.equal(saved.outcome, "written");
-  assert.equal(await service.forRun(worker, { scopes: ["personal"], query: "周报" }), null);
+  assert.equal((await service.forRun(worker, { scopes: ["personal"], query: "周报" }))?.skip, true);
   assert.equal(service.worthLearning({ ...worker, project_id: null }, ["以后都写短句"]), false);
-  assert.equal((await service.learnFromWork({ ...worker, project_id: null }, { said: ["以后都写短句"], proposals: [{ ...proposal, quote: "以后都写短句" }] })).every(item => item.outcome === "skipped"), true);
+  assert.equal((await service.learnFromWork({ ...worker, project_id: null }, { said: ["以后都写短句"], proposals: [{ ...proposal, basis: "explicit", quote: "以后都写短句" }] })).every(item => item.outcome === "skipped"), true);
   assert.equal((await service.learningContext({ ...worker, project_id: null })).existing.length, 0);
-  assert.equal((await service.recall(worker, { scopes: ["personal"], query: "周报" }, { readMode: "explicit" })).items.length, 2);
+  // Only the Host-bound person can explicitly bypass task_recall; a worker cannot claim that intent.
+  assert.equal((await service.recall(worker, { scopes: ["personal"], query: "周报" }, { readMode: "explicit" })).items.length, 0);
+  assert.equal((await service.recall(person, { scopes: ["personal"], query: "周报" }, { readMode: "explicit" })).items.length, 2);
   service = (await env.reopen()).service;
   assert.equal((await service.history(person, accepted.memory!.memory_id)).revisions.length, 1);
   service.savePrefs(person, "personal", "reviewed"); service.savePrefs(person, "personal", { form: false });
@@ -132,13 +139,13 @@ test("disabled task reads do no backend scan and a closing switch rejects an in-
   const env = await memoryHome(t), { service, ledger, backend } = env.current;
   await service.write(person, { scope: "personal", text: "周报先写风险" });
   let scans = 0;
-  const checked = new MemoryService({ ledger, backend: { ...backend, list: async (...args) => { scans += 1; return backend.list(...args); } } });
+  const checked = new MemoryService({ ledger, backend: observeMemoryBackend(backend, bound => ({ ...bound, list: async (...args) => { scans += 1; return bound.list(...args); } })) });
   service.savePrefs(person, "personal", "manual");
   assert.equal((await checked.recall(worker, { scopes: ["personal"] })).state, "off"); assert.equal(scans, 0);
   service.savePrefs(person, "personal", "reviewed");
   let release!: () => void, entered!: () => void;
   const ready = new Promise<void>(done => { entered = done; }), blocked = new Promise<void>(done => { release = done; });
-  const waiting = new MemoryService({ ledger, backend: { ...backend, list: async (...args) => { const rows = await backend.list(...args); entered(); await blocked; return rows; } } });
+  const waiting = new MemoryService({ ledger, backend: observeMemoryBackend(backend, bound => ({ ...bound, list: async (...args) => { const rows = await bound.list(...args); entered(); await blocked; return rows; } })) });
   const pending = waiting.recall(worker, { scopes: ["personal"], query: "周报" });
   await ready; service.savePrefs(person, "personal", "off"); release();
   await assert.rejects(pending, { code: "memory.off" });
@@ -156,10 +163,12 @@ test("character preset resolves the existing project profile and survives restar
   assert.equal(ledger.prefs(person.actor_id, `project:${characterOwner(person.project_id!, character.character.id)}`), null);
   ({ service, ledger } = await env.reopen());
   assert.equal(service.prefs(character, "character").prefs.task_recall, false);
-  assert.equal(await service.forRun({ ...character, person: false }, { scopes: ["character"], query: "周报" }), null);
+  assert.equal((await service.forRun({ ...character, person: false }, { scopes: ["character"], query: "周报" }))?.skip, true);
   service.savePrefs(character, "character", "off");
   const preview = await service.previewScope(person, "project"); assert.equal(preview.count, 1);
-  assert.deepEqual(await service.clearScope(person, "project", preview.fingerprint), { removed: 1 });
+  assert.deepEqual(await service.clearScope(person, "project", preview.fingerprint), {
+    removed: 1, complete: true, items: [{ memory_id: held.memory!.memory_id, outcome: "completed" }],
+  });
 });
 
 // MEM-24: switching off never traps an automatic addition; undo may still remove it, but may not recreate it.

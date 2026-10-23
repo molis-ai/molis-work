@@ -1,39 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, MEMORY_GATE_RULE, SIGNAL_THRESHOLD, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
-import type { MemoryLedgerPort, MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
+import type { MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
+import { memoryServiceHome } from "./fixtures/memory-service-home.js";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { NOT_THEIRS, THEIRS } from "./fixtures/memory-said-cases.js";
 
-/** A real Prologue runtime (its Memory is the store) and the Host ledger in a scratch Home; restartable. */
-async function memoryHome(t: { after(fn: () => Promise<void> | void): void }, clock?: () => Date) {
-  const home = await mkdtemp(join(tmpdir(), "molis-memory-service-"));
-  let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | null = null, ledger: MemoryLedgerPort | null = null, host: AgentHost | null = null;
-  const open = async () => {
-    const queue = new AgentReviewQueue();
-    host = new AgentHost({ reviews: queue });
-    adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.memory-service-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
-      modelConfiguration: async () => null as never, resolveCredential: () => null });
-    host.register(adapter);
-    ledger = openMemoryLedger({ homeDirectory: home });
-    const current = host;
-    return new MemoryService({ backend: prologueMemoryBackend(async () => current.adapter("prologue").memory!), ledger, timeZone: "Asia/Shanghai", ...(clock ? { now: clock } : {}),
-      projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙" });
-  };
-  const close = async () => { ledger?.close(); ledger = null; await adapter?.close(); adapter = null; };
-  t.after(async () => { await close(); await rm(home, { recursive: true, force: true }); });
-  /** Prologue Memory itself, as the first version wrote to it (no ledger facts). */
-  const raw = () => prologueMemoryBackend(async () => host!.adapter("prologue").memory!);
-  return { home, open, close, ledger: () => ledger!, raw, memory: () => adapter!.memory! };
-}
+const memoryHome = (t: Parameters<typeof memoryServiceHome>[0], clock?: () => Date) => memoryServiceHome(t, {
+  projects: ["project-a", "project-b"], ...(clock ? { now: clock } : {}),
+  projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙",
+});
 
-const person = (project: string | null = "project-a"): MemoryCaller => ({ actor_id: "web-user", project_id: project, consumer: "ui", person: true });
-const assistant = (project: string | null = "project-a", work = { work_id: "work-1", title: "季度复盘" }): MemoryCaller => ({ actor_id: "web-user", project_id: project, consumer: "assistant", work });
+const person = (project: string | null = "project-a"): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project, consumer: "ui", person: true });
+const assistant = (project: string | null = "project-a", work = { work_id: "work-1", title: "季度复盘" }): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project, consumer: "assistant", work });
 /**
  * What the Host does when the Assistant's `remember` is called: it hands the gate the messages the person typed (the third argument of `write`), and the quote the model gives only
  * points at one of them. Most tests here are about the gate, not about the Assistant's tool, and state the person's message in `said`; this passes it on as the one the Host saved.
@@ -343,12 +323,14 @@ test("repeated experience waits across restart, then a person's acceptance repla
 });
 
 test("recall is scoped, filtered and bounded, honours each consumer's switch, and records where each memory was used", { timeout: 60_000 }, async t => {
-  const env = await memoryHome(t);
+  let now = new Date("2025-12-31T00:00:00.000Z");
+  const env = await memoryHome(t, () => now);
   const memory = await env.open();
   const style = (await keep(memory, assistant(), { scope: "personal", text: "回答用要点列表", said: "回答用要点列表" })).memory!;
   const nsm = (await keep(memory, assistant(), { scope: "project", text: "NSM 指北极星指标", kind: "fact", said: "NSM 指北极星指标" })).memory!;
   const pages = (await memory.write(person(), { scope: "personal", text: "在 Pages 里标题不超过十个字", applies: { plugin_ids: ["io.molis.work.pages"] } })).memory!;
   const old = (await memory.write(person(), { scope: "personal", text: "九月底前周报发给王总", expires_at: "2026-01-01T00:00:00.000Z" })).memory!;
+  now = new Date("2026-01-02T00:00:00.000Z");
 
   // Project A sees both; project B only the personal one; no other project's memory ever.
   const inA = await memory.recall(assistant(), { query: "NSM 这周怎么样" });
@@ -377,12 +359,12 @@ test("recall is scoped, filtered and bounded, honours each consumer's switch, an
   assert.match(ui.reason!, /界面推荐/);
   assert.equal((await memory.recall(assistant(), { query: "总结" })).state, "ok");
   // Plugins read only the kinds they are allowed: preferences and conventions by default, never facts.
-  const plugin = await memory.recall({ actor_id: "web-user", project_id: "project-a", consumer: "plugin", plugin_id: "io.example.notes" }, { query: "NSM 北极星" });
+  const plugin = await memory.recall({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "plugin", plugin_id: "io.example.notes" }, { query: "NSM 北极星" });
   assert.ok(!plugin.items.some(item => item.kind === "fact"));
   memory.savePrefs(person(), "project", { plugins: { "io.example.notes": { allowed: false } } as never });
-  assert.ok(!(await memory.recall({ actor_id: "web-user", project_id: "project-a", consumer: "plugin", plugin_id: "io.example.notes" }, { query: "NSM" })).items.some(item => item.scope === "project"));
+  assert.ok(!(await memory.recall({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "plugin", plugin_id: "io.example.notes" }, { query: "NSM" })).items.some(item => item.scope === "project"));
   // External clients never read personal memories unless the person allows it.
-  const mcp = await memory.recall({ actor_id: "web-user", project_id: "project-a", consumer: "mcp" }, { query: "NSM 北极星 要点" });
+  const mcp = await memory.recall({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "mcp" }, { query: "NSM 北极星 要点" });
   assert.ok(mcp.items.every(item => item.scope === "project"));
 
   // Budget: what does not fit is listed as omitted, never silently dropped.
@@ -463,20 +445,23 @@ test("interface signals are counted once per event; single events never form a m
   assert.equal((await report("event-0005", "ctx-3")).state, "off");
 });
 
-test("facts live on the Prologue entry itself: kind, source, applies and expiry in its metadata, switched off as the entry paused; an entry without them is not the platform's", { timeout: 60_000 }, async t => {
+test("facts live on the Prologue entry itself: kind, source, applies and expiry in its metadata, switched off as the entry disabled; an entry without them is not the platform's", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
-  const memory = await env.open();
+  let memory = await env.open();
   const kept = (await keep(memory, assistant(), { scope: "personal", text: "周报用要点列表", said: "周报用要点列表", applies: { task: "写周报时" }, expires_at: "2099-01-01T00:00:00.000Z" })).memory!;
   const [raw] = await env.raw().list("personal", "web-user");
   assert.deepEqual([raw!.meta.kind, raw!.meta.source, raw!.meta.basis, raw!.meta.applies_when?.task, raw!.meta.expires_at_ms, raw!.meta.approved_by], ["preference", "said", "explicit", "写周报时", Date.parse("2099-01-01T00:00:00.000Z"), { by: "person" }]);
   assert.equal(raw!.meta.evidence?.[0]?.text, "周报用要点列表");
   await memory.change(person(), { memory_id: kept.memory_id, action: "disable" });
-  assert.match((await env.raw().list("personal", "web-user"))[0]!.paused?.reason ?? "", /^disabled:/);
-  await memory.change(person(), { memory_id: kept.memory_id, action: "enable" });
+  assert.ok((await env.raw().list("personal", "web-user"))[0]!.disabled);
   assert.equal((await env.raw().list("personal", "web-user"))[0]!.paused, undefined);
+  await memory.change(person(), { memory_id: kept.memory_id, action: "enable" });
+  assert.equal((await env.raw().list("personal", "web-user"))[0]!.disabled, undefined);
 
   // Every entry the platform writes carries its facts; one written without them is not listed, recalled or changed here.
-  const foreign = await env.raw().write({ scope: "project", owner: "project-a", text: "发布前先跑回归", origin: "别处写入", tags: [], meta: {} });
+  memory = await env.seedUnclassified("project", "project-a", "historical-foreign", "发布前先跑回归");
+  const [foreign] = await env.raw().list("project", "project-a");
+  assert.ok(foreign); assert.equal(foreign.meta.classification, undefined);
   assert.equal((await memory.list(person())).items.some(item => item.memory_id === foreign.memory_id), false);
   assert.ok((await env.raw().list("project", "project-a")).some(item => item.memory_id === foreign.memory_id), "the entry itself is left as it is");
 });
@@ -630,7 +615,7 @@ test("the gate judges the text against the messages the Host saved when it gives
 test("an Agent that is not the Assistant has none of the person's messages to be checked against: its own quote is never the message, so what it writes is the Assistant's suggestion and never 'you said'", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
-  const agent = (n: number): MemoryCaller => ({ actor_id: "web-user", project_id: "project-a", consumer: "agent", work: { work_id: `work-${n}`, title: `工作 ${n}` } });
+  const agent = (n: number): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "agent", work: { work_id: `work-${n}`, title: `工作 ${n}` } });
   // The Host passes no message: a quote that is the text itself, whole, proves nothing, because the Agent wrote it.
   const alone = await memory.write(agent(1), { scope: "personal", text: "自动合并分支", said: "自动合并分支" });
   assert.deepEqual([alone.outcome, alone.candidate?.basis, alone.memory], ["candidate", "inferred", null]);
@@ -761,7 +746,8 @@ test("a missing SDK candidate is refused unchanged, before and after restart", a
   const env = await memoryHome(t); let memory = await env.open();
   const offered = await memory.offer(assistant(), { scope: "personal", text: "回答用短句", kind: "preference", basis: "inferred", why: "fixture inference", from: "extraction" });
   const notes = env.ledger().candidates("web-user"), note = notes.find(one => one.candidate_id === offered.candidate!.candidate_id)!;
-  await env.raw().candidates.purge({ scope: note.scope, owner: note.owner, candidate_id: note.candidate_id });
+  const current = (await env.raw().candidates.list(note.scope, note.owner)).find(item => item.candidate_id === note.candidate_id)!;
+  await env.raw().candidates.purge({ scope: note.scope, owner: note.owner, candidate_id: note.candidate_id, expected_version: current.version, operation_id: "remove-sdk-candidate" });
   const unchanged = env.ledger().candidates("web-user");
   for (let read = 0; read < 2; read++) {
     await assert.rejects(memory.candidates(person()), /原记录不可读/);
@@ -775,21 +761,24 @@ test("a missing SDK candidate is refused unchanged, before and after restart", a
 });
 
 // W2-18-MEMORY-EFFECT-01 / -02: overlapping SDK operations retain separate final checks and successful facts.
-test("two SDK memory calls never exchange execution controls, and a committed entry survives another call's refusal", async t => {
-  const env = await memoryHome(t); await env.open(); const memory = env.memory();
-  const kept = await memory.write({ scope: "app", owner: "one", text: "original", origin: "fixture", tags: [] });
+test("two SDK memory calls never exchange execution controls, and a committed entry survives another call's refusal", { timeout: 30_000 }, async t => {
+  const env = await memoryHome(t); await env.open(); const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui", person: true, current_scene: "common", purpose: "management" } as const;
+  const memory = env.memory().withCaller(caller);
+  const meta = { kind: "fact", source: "manual", approved_by: { by: "person" as const }, classification: { scenes: ["common"], lifecycle: "long-term" } };
+  const kept = await memory.write({ scope: "user", owner: LOCAL_PERSON_ACTOR_ID, text: "original", origin: "fixture", tags: [], meta, operation_id: "original" });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let valid = true;
   const first = memory.withExecution!({ beforeEffect: async () => { entered.resolve(); await release.promise; }, assert_current: () => { if (!valid) throw new Error("original call cancelled"); } });
-  const pending = first.update({ scope: "app", owner: "one", memory_id: kept.memory_id, text: "forbidden update" });
+  const pending = first.update({ scope: "user", owner: LOCAL_PERSON_ACTOR_ID, memory_id: kept.memory_id, change: { text: "forbidden update" }, expected_version: kept.version, operation_id: "cancelled-update" });
   const rejection = assert.rejects(pending, /original call cancelled/);
   await entered.promise;
   let checks = 0;
   const second = memory.withExecution!({ beforeEffect: async () => {}, assert_current: () => { checks++; } });
-  await second.write({ scope: "app", owner: "two", text: "accepted independently", origin: "fixture", tags: [] });
-  assert.ok(checks > 0); valid = false; release.resolve(); await rejection;
-  assert.deepEqual((await memory.list("app", "one")).map(entry => entry.text), ["original"]);
-  assert.deepEqual((await memory.list("app", "two")).map(entry => entry.text), ["accepted independently"]);
+  const accepted = second.write({ scope: "project", owner: "project-a", text: "accepted independently", origin: "fixture", tags: [], meta, operation_id: "independent" });
+  // Calls overlap, but this SDK owner serializes commits. Release the first before awaiting the queued second.
+  valid = false; release.resolve(); await rejection; await accepted; assert.ok(checks > 0);
+  assert.deepEqual((await memory.list("user", LOCAL_PERSON_ACTOR_ID)).map(entry => entry.text), ["original"]);
+  assert.deepEqual((await memory.list("project", "project-a")).map(entry => entry.text), ["accepted independently"]);
   await env.close(); await env.open();
-  assert.deepEqual((await env.memory().list("app", "one")).map(entry => entry.text), ["original"]);
-  assert.deepEqual((await env.memory().list("app", "two")).map(entry => entry.text), ["accepted independently"]);
+  assert.deepEqual((await env.memory().withCaller(caller).list("user", LOCAL_PERSON_ACTOR_ID)).map(entry => entry.text), ["original"]);
+  assert.deepEqual((await env.memory().withCaller(caller).list("project", "project-a")).map(entry => entry.text), ["accepted independently"]);
 });

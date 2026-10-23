@@ -437,6 +437,19 @@ export interface AgentMcpToolRef {
     configuration_version?: number;
 }
 
+export interface AgentMemoryCaller {
+    actor_id: string;
+    character_id?: string;
+    project_id: string | null;
+    consumer: string;
+    plugin_id?: string | null;
+    person?: boolean;
+    session_id?: string;
+    current_scene?: string;
+    facts?: AgentRecalledMemory["facts"];
+    purpose: "management" | "task";
+}
+
 export interface AgentMemoryCandidateCapability {
     propose(input: {
         scope: AgentMemoryEntry["scope"];
@@ -445,30 +458,32 @@ export interface AgentMemoryCandidateCapability {
         origin: string;
         tags?: string[];
         meta?: AgentMemoryMeta;
+        sources?: AgentMemorySourceRef[];
+        expected_version: 0;
+        operation_id: string;
+        signal?: AbortSignal;
     }): Promise<AgentMemoryCandidateEntry>;
     list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryCandidateEntry[]>;
-    accept(input: {
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        candidate_id: string;
+    accept(input: AgentCandidateLocation & AgentMemoryMutation & {
         text?: string;
         origin?: string;
         meta?: AgentMemoryMeta;
     }): Promise<AgentMemoryEntry>;
-    promote(input: {
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        candidate_id: string;
+    promote(input: AgentCandidateLocation & AgentMemoryMutation & {
         policy: string;
         version: number;
         origin?: string;
         meta?: AgentMemoryMeta;
     }): Promise<AgentMemoryEntry>;
-    settleInto(input: {
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        candidate_id: string;
-        memory_id: string;
+    settleInto(input: AgentCandidateLocation & {
+        candidate_expected_version: number;
+        operation_id: string;
+        signal?: AbortSignal;
+        target: {
+            memory_id: string;
+            expected_version: number;
+            change: AgentMemoryChange;
+        };
         by: {
             by: "person";
         } | {
@@ -477,38 +492,30 @@ export interface AgentMemoryCandidateCapability {
             version: number;
         };
     }): Promise<AgentMemoryEntry>;
-    discard(input: {
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        candidate_id: string;
-    }): Promise<AgentMemoryCandidateEntry>;
-    expire(input: {
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        candidate_id: string;
-    }): Promise<AgentMemoryCandidateEntry>;
-    purge(input: {
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        candidate_id: string;
-    }): Promise<void>;
+    discard(input: AgentCandidateLocation & AgentMemoryMutation): Promise<AgentMemoryCandidateEntry>;
+    expire(input: AgentCandidateLocation & AgentMemoryMutation): Promise<AgentMemoryCandidateEntry>;
+    reconcileDecision(input: AgentCandidateLocation & AgentMemoryMutation): Promise<AgentMemoryDecisionReceipt>;
+    purge(input: AgentCandidateLocation & AgentMemoryMutation): Promise<void>;
 }
 
 export interface AgentMemoryCandidateEntry {
     candidate_id: string;
+    version: number;
+    sources?: AgentMemorySourceIdentity[];
     scope: AgentMemoryEntry["scope"];
     owner: string;
     text: string;
     origin: string;
     tags: string[];
     meta: AgentMemoryMeta;
-    state: "pending" | "accepted" | "promoted" | "discarded" | "expired";
+    state: "pending" | "accepted" | "promoted" | "discarded" | "expired" | "cancelled";
     created_at_ms: number;
     settled_at_ms?: number;
     memory_id?: string;
 }
 
 export interface AgentMemoryCapability {
+    withCaller(caller: AgentMemoryCaller): AgentMemoryCapability;
     withExecution?(control: AgentMemoryExecutionControl): AgentMemoryCapability;
     list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
     write(input: {
@@ -518,35 +525,23 @@ export interface AgentMemoryCapability {
         origin: string;
         tags?: string[];
         meta?: AgentMemoryMeta;
+        operation_id: string;
+        signal?: AbortSignal;
     }): Promise<AgentMemoryEntry>;
-    update(input: {
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        memory_id: string;
-        text: string;
+    update(input: AgentMemoryLocation & AgentMemoryMutation & {
+        change: AgentMemoryChange;
     }): Promise<AgentMemoryEntry>;
-    setMeta?(input: {
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        memory_id: string;
+    setMeta(input: AgentMemoryLocation & AgentMemoryMutation & {
         meta: AgentMemoryMeta;
     }): Promise<AgentMemoryEntry>;
-    pause?(input: {
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        memory_id: string;
+    pause(input: AgentMemoryLocation & AgentMemoryMutation & {
         reason: string;
     }): Promise<AgentMemoryEntry>;
-    resume?(input: {
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        memory_id: string;
+    disable(input: AgentMemoryLocation & AgentMemoryMutation & {
+        reason: string;
     }): Promise<AgentMemoryEntry>;
-    remove(input: {
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        memory_id: string;
-    }): Promise<boolean>;
+    resume(input: AgentMemoryLocation & AgentMemoryMutation): Promise<AgentMemoryEntry>;
+    remove(input: AgentMemoryLocation & AgentMemoryMutation): Promise<void>;
     recall(input: {
         scope: AgentMemoryEntry["scope"];
         owner: string;
@@ -558,22 +553,51 @@ export interface AgentMemoryCapability {
         entry: AgentMemoryEntry;
         score: number;
     }>>;
-    candidates?: AgentMemoryCandidateCapability;
+    candidates: AgentMemoryCandidateCapability;
     screen?(text: string): Promise<{
         hold: boolean;
         reasons: string[];
         redacted: string;
     }>;
-    previewScope?(scope: AgentMemoryEntry["scope"], owner: string): Promise<{
-        count: number;
-        fingerprint: string;
-        memory_ids: string[];
-    }>;
-    clearScope?(input: {
+    previewScope(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryScopePreview>;
+    clearScope(input: {
         scope: AgentMemoryEntry["scope"];
         owner: string;
-        fingerprint: string;
-    }): Promise<string[]>;
+        preview: AgentMemoryScopePreview;
+        operation_id: string;
+        signal?: AbortSignal;
+    }): Promise<AgentMemoryClearResult>;
+}
+
+export interface AgentMemoryChange {
+    text: string;
+    origin?: string;
+    meta?: AgentMemoryMeta;
+}
+
+export interface AgentMemoryClearResult {
+    items: Array<{
+        memory_id: string;
+        outcome: "completed" | "already-absent" | "conflict" | "not-executed" | "unknown";
+        version?: number;
+    }>;
+}
+
+export interface AgentMemoryDecisionReceipt {
+    outcome: "closed" | "needs-reconcile";
+    future_commit: "blocked" | "unknown";
+    past_commit: "committed" | "not-committed" | "unknown";
+    candidate: {
+        candidate_id: string;
+        version: number;
+    };
+    target: {
+        memory_id: string;
+        observed_version?: number;
+        state: "present" | "cleared" | "unknown";
+    };
+    operation_id: string;
+    decision_operation_id: string;
 }
 
 export interface AgentMemoryEntry {
@@ -589,6 +613,15 @@ export interface AgentMemoryEntry {
         reason: string;
         at_ms: number;
     };
+    disabled?: {
+        reason: string;
+        at_ms: number;
+    };
+    tombstoned: boolean;
+    key?: {
+        domain: string;
+        key: string;
+    };
     created_at_ms: number;
     updated_at_ms: number;
 }
@@ -599,6 +632,16 @@ export interface AgentMemoryExecutionControl {
 }
 
 export interface AgentMemoryMeta {
+    classification?: {
+        scenes: string[];
+        lifecycle: string;
+        extra?: Record<string, string[]>;
+    };
+    session_ref?: {
+        kind: "session";
+        id: string;
+        revision: number;
+    };
     kind?: string;
     source?: string;
     basis?: "explicit" | "repeated" | "inferred";
@@ -627,6 +670,12 @@ export interface AgentMemoryMeta {
     namespace?: string;
 }
 
+export interface AgentMemoryMutation {
+    expected_version: number;
+    operation_id: string;
+    signal?: AbortSignal;
+}
+
 export interface AgentMemoryRecallFact {
     method: "pinned" | "recall";
     injected: Array<{
@@ -638,6 +687,75 @@ export interface AgentMemoryRecallFact {
         version: number;
     }>;
     unavailable: string[];
+    selected?: Array<{
+        memory_id: string;
+        version: number;
+    }>;
+    retrievals?: Array<{
+        receipt_id: string;
+        outcome: "ready" | "none" | "skip" | "unavailable" | "failed" | "timeout" | "cancelled";
+        error_code?: string;
+    }>;
+    contexts?: Array<{
+        call_id: string;
+        status: "prepared" | "not-dispatched" | "dispatched-or-unknown" | "response-observed";
+        tokens: number;
+        budget_tokens: number;
+        basis: "conservative-estimate" | "provider-reported";
+        references: Array<{
+            receipt_id: string;
+            memory_id: string;
+            version: number;
+        }>;
+        parts: Array<{
+            index: number;
+            tokens: number;
+            form: "entry" | "excerpt" | "summary";
+        }>;
+    }>;
+}
+
+export interface AgentMemoryScopePreview {
+    count: number;
+    fingerprint: string;
+    operation_id: string;
+    items: Array<{
+        memory_id: string;
+        version: number;
+    }>;
+    decision: {
+        version: 1;
+        binding: string;
+        scope: AgentMemoryEntry["scope"];
+        owner: string;
+        items: readonly {
+            ref: {
+                kind: "memory";
+                id: string;
+                revision: 1;
+            };
+            expectedVersion: number;
+            operationId: string;
+            mutation: {
+                kind: "purge";
+            };
+        }[];
+    };
+}
+
+export interface AgentMemorySourceIdentity extends AgentMemorySourceRef {
+    speaker: {
+        kind: "person" | "app" | "model" | "tool";
+        id: string;
+    };
+    derivation: "original" | "derived";
+    occurred_at_ms: number;
+    about?: AgentMemorySourceRef;
+}
+
+export interface AgentMemorySourceRef {
+    event_id: string;
+    version: string;
 }
 
 export interface AgentMemoryTools {
@@ -707,6 +825,7 @@ export interface AgentPinnedMemory {
     scope: "user" | "project" | "character";
     owner: string;
     memory_id: string;
+    version?: number;
 }
 
 export interface AgentProjectWork {
@@ -751,7 +870,21 @@ export type AgentReasoningEffort = "low" | "medium" | "high";
 
 export interface AgentRecalledMemory {
     pinned: AgentPinnedMemory[];
+    consumer: string;
+    current_scene: string;
+    scopes: Array<{
+        scope: "user" | "project" | "character";
+        owner: string;
+    }>;
+    task: boolean;
+    skip: boolean;
+    budget_tokens: number;
     budget_chars: number;
+    facts?: {
+        plugins?: string[];
+        object_kinds?: string[];
+        goals?: string[];
+    };
     receipt_id?: string;
 }
 
@@ -1612,6 +1745,12 @@ export declare const servicesAgentHostContract: {
 
 // Declarations the exports above refer to, which no entry exports itself:
 
+type AgentCandidateLocation = {
+    scope: AgentMemoryEntry["scope"];
+    owner: string;
+    candidate_id: string;
+};
+
 interface AgentCreateSessionFields {
     project_id: string;
     plugin_id: string;
@@ -1672,6 +1811,12 @@ interface AgentFrozenStartFields {
     }>;
     budget: AgentRunBudget | null;
 }
+
+type AgentMemoryLocation = {
+    scope: AgentMemoryEntry["scope"];
+    owner: string;
+    memory_id: string;
+};
 
 interface AgentStartRequestFields {
     action_tools?: ExactActionReference[];

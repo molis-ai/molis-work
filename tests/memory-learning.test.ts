@@ -1,30 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { MemoryService, MEMORY_GATE_RULE, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
-import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
+import { memoryServiceHome } from "./fixtures/memory-service-home.js";
+import { MEMORY_GATE_RULE, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { learnFromWork } from "../apps/local-host/dist/memory/memory-learning.js";
 import { MEMORY_EXTRACT } from "../apps/local-host/dist/agent-definitions/system-prompts.js";
 
-async function memoryHome(t: { after(fn: () => Promise<void> | void): void }) {
-  const home = await mkdtemp(join(tmpdir(), "molis-memory-learning-"));
-  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.memory-learning-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
-    modelConfiguration: async () => null as never, resolveCredential: () => null });
-  host.register(adapter);
-  const ledger = openMemoryLedger({ homeDirectory: home });
-  t.after(async () => { ledger.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
-  const service = new MemoryService({ backend: prologueMemoryBackend(async () => host.adapter("prologue").memory!), ledger, timeZone: "Asia/Shanghai",
-    projectTitle: async () => "Q4 plan" });
-  return { home, service };
+async function memoryHome(t: Parameters<typeof memoryServiceHome>[0]) {
+  const env = await memoryServiceHome(t, { projects: ["project-q4"], projectTitle: async () => "Q4 plan" });
+  return { home: env.home, service: await env.open() };
 }
 
-const inWork = (work_id: string, title: string): MemoryCaller => ({ actor_id: "web-user", project_id: "project-q4", consumer: "assistant", work: { work_id, title } });
-const person: MemoryCaller = { actor_id: "web-user", project_id: "project-q4", consumer: "ui", person: true };
+const inWork = (work_id: string, title: string): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", consumer: "assistant", work: { work_id, title } });
+const person: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", consumer: "ui", person: true };
 const riskFirst = { text: "Q4 plan 的周报把风险放在最前面", kind: "convention" as const, scope: "project" as const, applies_when: "写 Q4 plan 的周报时", basis: "explicit" as const };
 
 test("a wish said once is only suggested; said again in another work it is kept automatically by the gate, shows as a recent change, and undo removes it from the store and from recall", { timeout: 60_000 }, async t => {
@@ -117,7 +105,7 @@ test("the drawing-out sends the registered instruction and the person's words, r
   const sent: Array<{ prompt: string; options: any }> = [];
   const reply = (structured: unknown) => async (prompt: string, options?: any) => {
     sent.push({ prompt, options });
-    return { value: "{}", structured, run_ref: { kind: "run", id: "r", revision: 1 } as never, state: "completed" as const, configuredModel: "m", reportedModels: [], usage: [] };
+    return { value: "{}", structured, run_ref: { kind: "run", id: "r", revision: 1 } as never, state: "completed" as const, configuredModel: "m", reportedModels: [], usage: [], validateResult: () => undefined };
   };
   const request = { caller: inWork("work-1", "周报 9/23"), said: ["以后周报都把风险放最前面"] };
   const outcome = await learnFromWork(service, home, request, reply({ candidates: [{ ...riskFirst, quote: "以后周报都把风险放最前面", same_as: null, supersedes: null }] }));
@@ -207,7 +195,7 @@ test("what the person said in a deleted project's work is not learned: the proje
   let asked = 0;
   const reply = (structured: unknown, during?: () => void) => async () => {
     asked += 1; during?.();
-    return { value: "{}", structured, run_ref: { kind: "run", id: "r", revision: 1 } as never, state: "completed" as const, configuredModel: "m", reportedModels: [], usage: [] };
+    return { value: "{}", structured, run_ref: { kind: "run", id: "r", revision: 1 } as never, state: "completed" as const, configuredModel: "m", reportedModels: [], usage: [], validateResult: () => undefined };
   };
   const proposals = { candidates: [{ ...riskFirst, quote: "以后周报都把风险放最前面", same_as: null, supersedes: null }] };
   const request = { caller: inWork("work-1", "周报 9/23"), said: ["以后周报都把风险放最前面"] };

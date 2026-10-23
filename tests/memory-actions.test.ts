@@ -4,14 +4,16 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import type { AgentMemoryCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { MolisWorkLocalHost, memoryRuntimePolicy } from "@molis-ai/molis-work-app-local-host";
+import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryHostFor, registerMemoryHost } from "../apps/local-host/dist/memory/memory-host.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
 import { assistantAuthority, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 
-const person: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
+const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
 const agent: ActionCallContext = { actor_id: "agent:coding-1", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [...MEMORY_PERMISSIONS] };
 
 test("memory is one system.memory provider in the shared directory: the person manages it, agents read and write by the gate, the local person owns what agents keep", { timeout: 60_000 }, async t => {
@@ -37,22 +39,36 @@ test("memory is one system.memory provider in the shared directory: the person m
   assert.match(suggested.reason, /没有保存/);
   assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items, [], "nothing was recorded as the person's words");
   // It becomes a memory when the person accepts it: the local person's personal memory, as accepted.
-  const kept = await asPerson.invoke(memoryActions.accept, { candidate_id: suggested.candidate!.candidate_id });
+  const kept = await asPerson.invoke(memoryActions.accept, { candidate_id: suggested.candidate!.candidate_id, expected_version: suggested.candidate!.version });
   assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items.map(item => [item.text, item.source]), [["回答用要点列表", "accepted"]]);
   // The person's page recalls as the interface consumer; an agent as Agent work.
   const recalled = await asAgent.invoke(memoryActions.recall, { query: "总结一下", used_for: "Coding 工作" });
   assert.deepEqual(recalled.items.map(item => item.text), ["回答用要点列表"]);
-  await asPerson.invoke(memoryActions.savePrefs, { scope: "personal", prefs: { consumers: { agent: false } } });
+  const personalPrefs = await asPerson.invoke(memoryActions.prefs, { scope: "personal" });
+  await asPerson.invoke(memoryActions.savePrefs, { scope: "personal", prefs: { consumers: { ...personalPrefs.prefs.consumers, agent: false } } });
   const off = await asAgent.invoke(memoryActions.recall, { query: "总结一下" });
   assert.equal(off.state, "off");
   assert.match(off.reason ?? "", /Agent 工作/);
   // Management is the person's own: an agent cannot reach it at all.
-  await assert.rejects(client.invoke(agent, { capability_id: memoryActions.change.capability_id, version: 1, provider_id: MEMORY_PROVIDER_ID }, { memory_id: kept.memory!.memory_id, action: "remove" }));
+  await assert.rejects(client.invoke(agent, memoryActions.change, { memory_id: kept.memory!.memory_id, expected_version: kept.memory!.version, action: "remove" }));
   // Undo and history by the person.
   const history = await asPerson.invoke(memoryActions.history, { memory_id: kept.memory!.memory_id });
   assert.equal(history.revisions.length, 1);
-  const removed = await asPerson.invoke(memoryActions.change, { memory_id: kept.memory!.memory_id, action: "remove" });
+  assert.equal("snapshot" in history.revisions[0]!, false, "internal restore metadata does not change the public history schema");
+  const changes = await asPerson.invoke(memoryActions.changes, {});
+  assert.ok(changes.changes.length > 0);
+  for (const change of changes.changes) {
+    assert.equal("operation_id" in change, false); assert.equal("applied_version" in change, false);
+  }
+  const ledger = openMemoryLedger({ homeDirectory: home });
+  try {
+    assert.ok(ledger.revisions(kept.memory!.memory_id)[0]!.snapshot, "canonical restore information remains in the ledger");
+    const accepted = ledger.changesOf(kept.memory!.memory_id).find(change => change.kind === "accepted")!;
+    assert.ok(accepted.operation_id); assert.equal(accepted.applied_version, kept.memory!.version);
+  } finally { ledger.close(); }
+  const removed = await asPerson.invoke(memoryActions.change, { memory_id: kept.memory!.memory_id, expected_version: kept.memory!.version, action: "remove" });
   assert.equal(removed.memory, null);
+  assert.equal("operation_id" in removed.change, false); assert.equal("applied_version" in removed.change, false);
   assert.equal((await asPerson.invoke(memoryActions.list, {})).items.length, 0);
   // The Assistant keeps and reads memories only through its own tools, under its own switches: its gateway never offers these.
   const assistant = assistantAuthority(host, { work_id: "work-1", session_id: null, project_ref: null } as never, () => new Set());
@@ -76,19 +92,32 @@ test("memory.recall cancelled while it waits for the store settles nothing: no r
 
   // The call is stopped while it is reading the store: the read finishes, the call's own effect check refuses, and no receipt is written.
   const controller = new AbortController();
-  // Each call reads through a store bound to that call (memory-host's prologueMemoryBackend over the runtime's memory with the
-  // call's execution control), so the call is stopped where every such store reads: the Home runtime's own memory list.
+  // Follow the actual per-call binding: stopping its completed store read must stop receipt settlement too.
   const sdk = ensureSystemAgentService(host, home).agentHost.adapter("prologue").memory!;
-  const list = sdk.list.bind(sdk);
-  t.mock.method(sdk, "list", async (...args: Parameters<typeof list>) => { controller.abort(); return list(...args); });
+  const withCaller = sdk.withCaller.bind(sdk);
+  let reads = 0;
+  t.mock.method(sdk, "withCaller", (caller: Parameters<AgentMemoryCapability["withCaller"]>[0]) => observedMemory(withCaller(caller), {
+    afterList: async () => { reads++; controller.abort(); },
+  }));
   try { await assert.rejects(client.invoke({ ...agent, signal: controller.signal }, recallRef, { query: "总结一下" })); }
   finally { t.mock.restoreAll(); }
+  assert.equal(reads, 1, "the cancellation reached the actual bound store read");
   assert.deepEqual(service.uses({}), [], "a stopped recall leaves no 最近用于");
 
   // Not stopped: the receipt is written as before.
   const recalled = await asAgent.invoke(memoryActions.recall, { query: "总结一下" });
   assert.deepEqual(service.uses({ receipt_id: recalled.receipt_id }).map(use => use.state), ["used"]);
 });
+
+// Observe the actual bound capability without replacing its caller or final execution guard.
+function observedMemory(memory: AgentMemoryCapability, hooks: { afterList?(): Promise<void>; beforeCommit?(): Promise<void> }): AgentMemoryCapability {
+  return { ...memory,
+    list: async (...args) => { const rows = await memory.list(...args); await hooks.afterList?.(); return rows; },
+    withCaller: caller => observedMemory(memory.withCaller(caller), hooks),
+    ...(memory.withExecution ? { withExecution: (control: Parameters<NonNullable<AgentMemoryCapability["withExecution"]>>[0]) =>
+      observedMemory(memory.withExecution!({ ...control, beforeEffect: async () => { await hooks.beforeCommit?.(); await control.beforeEffect(); } }), hooks) } : {}),
+  };
+}
 
 // W2-18-MEMORY-EFFECT-01 / -02: the production registration, SDK memory and ledger commit under the original call.
 for (const phase of ["startup", "screen", "list", "sdk-commit"] as const) for (const stop of ["cancel", "revoke"] as const)
@@ -97,24 +126,28 @@ for (const phase of ["startup", "screen", "list", "sdk-commit"] as const) for (c
     // A Host built on a Home registers that Home's own memory provider in its constructor (home-side.ts), so the production
     // registration under test gets a Host without a Home of its own: only the controlled SDK adapter below provides memory.
     const localHost = new MolisWorkLocalHost({ completeText: null });
-    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.memory-effects-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+      memory: memoryRuntimePolicy(() => memoryHostFor(localHost)?.policy),
       modelConfiguration: async () => { throw new Error("no model in memory regression"); }, resolveCredential: () => { throw new Error("no credentials in memory regression"); } });
     const agentHost = new AgentHost(); agentHost.register(adapter);
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
     let holding = true, revoked = false;
     const barrier = async () => { if (holding) { entered.resolve(); await release.promise; } };
     const sdk = adapter.memory!;
-    if (phase === "screen") { const original = sdk.screen!.bind(sdk); t.mock.method(sdk, "screen", async text => { await barrier(); return original(text); }); }
-    if (phase === "list") { const original = sdk.list.bind(sdk); t.mock.method(sdk, "list", async (scope, owner) => { const rows = await original(scope, owner); await barrier(); return rows; }); }
-    if (phase === "sdk-commit") {
-      const original = sdk.withExecution!.bind(sdk);
-      t.mock.method(sdk, "withExecution", control => original({ ...control, beforeEffect: async () => { await barrier(); await control.beforeEffect(); } }));
+    if (phase === "screen") {
+      const original = sdk.screen; assert.ok(original);
+      sdk.screen = async text => { await barrier(); return original(text); };
+      t.after(() => { sdk.screen = original; });
+    }
+    if (phase === "list" || phase === "sdk-commit") {
+      const withCaller = sdk.withCaller.bind(sdk);
+      t.mock.method(sdk, "withCaller", (caller: Parameters<AgentMemoryCapability["withCaller"]>[0]) => observedMemory(withCaller(caller), phase === "list" ? { afterList: barrier } : { beforeCommit: barrier }));
     }
     const finished = Promise.withResolvers<void>(), originalRegistry = localHost.actionRegistry.bind(localHost);
-    t.mock.method(localHost, "actionRegistry", (...args) => {
+    t.mock.method(localHost, "actionRegistry", (...args: Parameters<typeof originalRegistry>) => {
       const registry = originalRegistry(...args);
-      return { ...registry, registerProvider: registration => registry.registerProvider({ ...registration, handlers: registration.handlers?.map(binding =>
-        binding.capability_id !== memoryActions.write.capability_id ? binding : { ...binding, handle: async (caller, input) => {
+      return { ...registry, registerProvider: (registration: ActionProviderRegistration) => registry.registerProvider({ ...registration, handlers: registration.handlers?.map(binding =>
+        binding.capability_id !== memoryActions.write.capability_id ? binding : { ...binding, handle: async (caller: ActionExecutionContext, input: unknown) => {
           try { return await binding.handle(caller, input); } finally { finished.resolve(); }
         } }) }) };
     });

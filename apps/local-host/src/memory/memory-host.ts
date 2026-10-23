@@ -1,14 +1,14 @@
-import { existsSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryEntry, AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AgentMemoryCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { ActionError, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   MEMORY_PROVIDER_ID,
   memoryActions,
   type MemoryChangeRequest,
+  type MemoryCandidateDecision,
   type MemoryListRequest,
   type MemoryPrefsWriteRequest,
   type MemoryRecallRequest,
@@ -16,18 +16,19 @@ import {
   type MemorySignalReport,
   type MemoryWriteRequest,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { memoryErrors, MemoryService, purgeProjectMemories, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { ProjectDeletedDeferred, projectDeletedHooksFor } from "../project-deleted-hooks.js";
-import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
-import { MEMORY_OWNER, memoryOwnerWithoutService } from "../project-deleted-owners.js";
+import { memoryErrors, MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { learnFromWork, type MemoryLearningRequest } from "./memory-learning.js";
 import { runUpkeep, subjectTitles } from "./memory-upkeep.js";
-import { memoryCallService, memoryCaller } from "./memory-effect.js";
+import { memoryCallService, memoryCaller, memoryCommandBody } from "./memory-effect.js";
 import { hostLog } from "../host-log.js";
+import { prologueMemoryBackend } from "./memory-backend.js";
+import type { MemoryRuntimePolicyOwner } from "./memory-runtime-policy.js";
+import { registerMemoryProjectDeletion } from "./memory-project-deletion.js";
+export { prologueMemoryBackend } from "./memory-backend.js";
 
 /**
  * Host wiring of the platform memory (specs/archive/memory-system §5.2): Prologue Memory of this Home's one runtime as the
@@ -41,6 +42,7 @@ const RUNTIME = "prologue";
 
 interface MemoryHost {
   readonly service: MemoryService;
+  readonly policy: MemoryRuntimePolicyOwner;
   /** Who the call is for, from its trusted context: the consumer from the audience, never from input. */
   caller(context: ActionCallContext, work?: { work_id: string; title: string } | null): MemoryCaller;
   /**
@@ -76,6 +78,7 @@ interface MemoryHostPorts {
   projects?(): Promise<string[]>;
   /** Whether the project is still in this Home's catalog; null when this process has no catalog to ask. */
   projectExists?(projectId: string): Promise<boolean | null>;
+  pendingMemoryDeletion?(projectId: string): Promise<{ deletion_id: string } | null>;
   projectTitle?(projectId: string): Promise<string | null>;
 }
 
@@ -87,7 +90,7 @@ export async function memoryForAgentRun(localHost: MolisWorkLocalHost, input: { 
   character?: { artifact_id: string; title: string } }) {
   const host = memoryHostFor(localHost);
   if (!host) return null;
-  return host.service.forRun({ actor_id: LOCAL_PERSON, project_id: input.project_id, consumer: "agent", ...(input.character ? { character: { id: input.character.artifact_id, title: input.character.title } } : {}) },
+  return host.service.forRun({ actor_id: LOCAL_PERSON, project_id: input.project_id, consumer: "agent", ...(input.plugin_id ? { plugin_id: input.plugin_id } : {}), ...(input.character ? { character: { id: input.character.artifact_id, title: input.character.title } } : {}) },
     { query: input.task.slice(0, 2000), used_for: input.used_for.slice(0, 80), ...(input.plugin_id ? { situation: { plugin_id: input.plugin_id } } : {}), limit: 12 });
 }
 
@@ -120,9 +123,10 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     { ...memoryActions.change, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).change(caller(context), input<MemoryChangeRequest>(value)); } },
     { ...memoryActions.history, handle: (context, value) => forCall(context).history(caller(context), String(input<{ memory_id: string }>(value).memory_id)) },
     { ...memoryActions.candidates, handle: async (context, value) => { return { candidates: await forCall(context).candidates(caller(context), input(value)) }; } },
-    { ...memoryActions.accept, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ candidate_id: string; text?: string }>(value);
-      return forCall(context).accept(caller(context), request.candidate_id, request.text !== undefined ? { text: request.text } : {}); } },
-    { ...memoryActions.discard, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).discard(caller(context), input<{ candidate_id: string }>(value).candidate_id); } },
+    { ...memoryActions.accept, handle: async (context, value) => { await context.beforeEffect(); const request = input<MemoryCandidateDecision>(value);
+      return forCall(context).accept(caller(context), request.candidate_id, request); } },
+    { ...memoryActions.discard, handle: async (context, value) => { await context.beforeEffect(); const request = input<MemoryCandidateDecision>(value);
+      return forCall(context).discard(caller(context), request.candidate_id, request.expected_version); } },
     { ...memoryActions.changes, handle: (context, value) => ({ changes: forCall(context).changes(caller(context), input(value)) }) },
     { ...memoryActions.undo, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).undo(caller(context), input<{ change_id: string }>(value).change_id); } },
     { ...memoryActions.prefs, handle: (context, value) => forCall(context).prefs(caller(context), input<{ scope?: MemoryScope }>(value).scope) },
@@ -193,36 +197,19 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     queueAttached = true;
     void scheduleUpkeep(new Date()).catch(error => hostLog.warn("memory", "upkeep_not_queued", error));
   };
-  // The runtime has started in this process: it holds the Home's runtime whatever transport it serves.
-  let runtimeHere = false;
-  void ports.started?.().then(() => { runtimeHere = true; attachQueue(); }).catch(() => undefined);
-  // Deleting a project clears its memories and its Characters' from the runtime, and the ledger forgets their history.
-  // The runtime has one owner process in the Home, the executor: only a Host that runs it (`ports.executes`, or one whose
-  // runtime has started) starts it for this, and while another process owns it the step is deferred (it stays pending in
-  // the deletion's receipt, and the process that owns the runtime runs it), never failed. A Host that only forwards to
-  // the executor behaves as a process with no memory service at all: it never takes the runtime, which would lock the
-  // resident Host's AI out of it. A Home whose runtime never started (no directory yet) has no store to clear, so none
-  // is started for it: only the ledger forgets the project.
+  void ports.started?.().then(attachQueue).catch(() => undefined);
   let closed = false;
-  const executes = () => ports.executes() || runtimeHere;
-  const runtimeExists = () => existsSync(agentRuntimeDirectory(ports.homeDirectory));
-  const elsewhere = memoryOwnerWithoutService(ports.homeDirectory);
-  const whileRuntimeIsOurs = async <T>(work: () => Promise<T>): Promise<T> => {
-    try { return await work(); }
-    catch (error) {
-      if ((error as { code?: unknown }).code === "agent.storage_busy") throw new ProjectDeletedDeferred("记忆放在 Agent 执行服务里，而它正由另一个 Molis Work 进程使用；那个进程会接着清理，或关闭它后重试");
-      throw error;
-    }
-  };
-  projectDeletedHooksFor(ports.homeDirectory).register({ ...MEMORY_OWNER, alive: () => !closed,
-    check: () => executes() ? (runtimeExists() ? whileRuntimeIsOurs(() => ports.ready()) : undefined) : elsewhere.check?.(),
-    clear: async projectId => {
-      if (!executes()) return elsewhere.clear(projectId);
-      if (!runtimeExists()) { await purgeProjectMemories({ backend: null, ledger }, projectId); return; }
-      await whileRuntimeIsOurs(async () => { await ports.ready(); await purgeProjectMemories({ backend, ledger }, projectId); });
-    } });
+  const deletion = registerMemoryProjectDeletion({ ...ports, backend, ledger, alive: () => !closed });
   const host: MemoryHost = {
     service,
+    policy: {
+      alive: () => !closed,
+      prefsFor: (scope, projectId) => service.prefsFor(LOCAL_PERSON, scope, projectId),
+      owners: projectId => ledger.owners(projectId),
+      candidateOwners: projectId => ledger.candidateOwners(projectId),
+      projectExists: projectId => ports.projectExists?.(projectId) ?? Promise.resolve(null),
+      deletingProject: deletion.deletingProject,
+    },
     caller,
     learnLater: async request => {
       const said = request.said.map(text => text.trim()).filter(Boolean).slice(-6);
@@ -242,66 +229,23 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   return host;
 }
 
-/** Prologue Memory of the runtime as the memory service's store: personal memories are its `user` scope. */
-export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapability>, control?: AgentMemoryExecutionControl): MemoryBackendPort {
-  const store = async () => {
-    const memory = await source();
-    if (!control) return memory;
-    if (!memory.withExecution) throw memoryErrors.off("当前运行时不能保留记忆调用的执行控制");
-    return memory.withExecution(control);
-  };
-  const prologueScope = (scope: MemoryScope) => scope === "personal" ? "user" as const : scope === "character" ? "character" as const : "project" as const;
-  const view = (entry: AgentMemoryEntry) => ({ memory_id: entry.memory_id, text: entry.text, origin: entry.origin, tags: [...entry.tags], version: entry.version,
-    meta: entry.meta ?? {}, ...(entry.paused ? { paused: entry.paused } : {}), created_at_ms: entry.created_at_ms ?? 0, updated_at_ms: entry.updated_at_ms ?? 0 });
-  const required = <K extends "setMeta" | "pause" | "resume" | "previewScope" | "clearScope">(memory: AgentMemoryCapability, name: K): NonNullable<AgentMemoryCapability[K]> => {
-    const method = memory[name];
-    if (!method) throw memoryErrors.off("当前运行时的记忆不支持结构化信息与暂停");
-    return method.bind(memory) as NonNullable<AgentMemoryCapability[K]>;
-  };
-  return {
-    list: async (scope, owner) => (await (await store()).list(prologueScope(scope), owner)).map(view),
-    write: async input => view(await (await store()).write({ scope: prologueScope(input.scope), owner: input.owner, text: input.text, origin: input.origin, tags: input.tags, meta: input.meta })),
-    update: async input => view(await (await store()).update({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id, text: input.text })),
-    setMeta: async input => view(await required(await store(), "setMeta")({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id, meta: input.meta })),
-    pause: async input => view(await required(await store(), "pause")({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id, reason: input.reason })),
-    resume: async input => view(await required(await store(), "resume")({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id })),
-    remove: async input => { await (await store()).remove({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id }); },
-    screen: async text => { const memory = await store(); if (!memory.screen) throw memoryErrors.off("当前运行时不能筛查"); return memory.screen(text); },
-    previewScope: async (scope, owner) => required(await store(), "previewScope")(prologueScope(scope), owner),
-    clearScope: async input => required(await store(), "clearScope")({ scope: prologueScope(input.scope), owner: input.owner, fingerprint: input.fingerprint }),
-    candidates: {
-      propose: async input => candidateView(await (await box(store)).propose({ scope: prologueScope(input.scope), owner: input.owner, text: input.text, origin: input.origin, tags: input.tags, meta: input.meta })),
-      list: async (scope, owner) => (await (await box(store)).list(prologueScope(scope), owner)).map(candidateView),
-      accept: async input => view(await (await box(store)).accept({ scope: prologueScope(input.scope), owner: input.owner, candidate_id: input.candidate_id, text: input.text, origin: input.origin, meta: input.meta })),
-      promote: async input => view(await (await box(store)).promote({ scope: prologueScope(input.scope), owner: input.owner, candidate_id: input.candidate_id, policy: input.policy,
-        version: input.version, origin: input.origin, meta: input.meta })),
-      settleInto: async input => view(await (await box(store)).settleInto({ scope: prologueScope(input.scope), owner: input.owner, candidate_id: input.candidate_id, memory_id: input.memory_id, by: input.by })),
-      discard: async input => { await (await box(store)).discard({ scope: prologueScope(input.scope), owner: input.owner, candidate_id: input.candidate_id }); },
-      expire: async input => { await (await box(store)).expire({ scope: prologueScope(input.scope), owner: input.owner, candidate_id: input.candidate_id }); },
-      purge: async input => { await (await box(store)).purge({ scope: prologueScope(input.scope), owner: input.owner, candidate_id: input.candidate_id }); },
-    },
-  };
-}
-
-const box = async (store: () => Promise<AgentMemoryCapability>) => {
-  const candidates = (await store()).candidates;
-  if (!candidates) throw memoryErrors.off("当前运行时没有记忆候选箱");
-  return candidates;
-};
-const candidateView = (item: AgentMemoryCandidateEntry) => ({ candidate_id: item.candidate_id, text: item.text, state: item.state, ...(item.memory_id ? { memory_id: item.memory_id } : {}) });
-
 /**
  * `/api/memory/*` for the settings pages and the work panel: each call is the shared directory's `memory.*` action,
  * invoked with the local person's own context in this page's scope (the project page reaches that project's memories).
  */
 export async function handleMemoryHttp(request: IncomingMessage, response: ServerResponse, url: URL,
   ports: { localHost: MolisWorkLocalHost; projectRef?: LocalHostProjectReference }): Promise<boolean> {
-  return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/memory", maxBodyBytes: 400_000,
-    async handle({ method, pathname, body }) {
+  const abort = new AbortController();
+  const disconnected = () => { if (!response.writableEnded) abort.abort(new ActionError("actions.cancelled", "调用已取消")); };
+  request.once("aborted", disconnected); response.once("close", disconnected);
+  try { return await dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/memory", maxBodyBytes: 400_000,
+    async handle({ method, pathname, body: rawBody }) {
       if (!memoryHostFor(ports.localHost)) return { status: 503, body: { error: "记忆服务还没有就绪，请稍后再试", code: "memory.unavailable" } };
       const parts = pathname.slice("/api/memory/".length).split("/").map(decodeURIComponent);
       const client = ports.projectRef ? ports.localHost.actionClient(ports.projectRef) : ports.localHost.homeActionClient();
-      const context = { ...await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS),
+      const { body, operation_id } = memoryCommandBody(rawBody);
+      const context = { ...await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS, abort.signal),
+        ...(method === "POST" && operation_id ? { memory_operation_id: operation_id } : {}),
         ...(method === "POST" && parts.length === 1 && parts[0] === "recall" ? { memory_read_mode: "explicit" as const } : {}) };
       const call = (definition: { capability_id: string; version: number }, input: unknown) =>
         client.invoke(context, { capability_id: definition.capability_id, version: definition.version, provider_id: MEMORY_PROVIDER_ID }, input);
@@ -326,8 +270,8 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       if (parts.length === 1 && parts[0] === "items") return { status: 200, body: await call(memoryActions.write, body) };
       if (parts.length === 1 && parts[0] === "change") return { status: 200, body: await call(memoryActions.change, body) };
       if (parts.length === 1 && parts[0] === "prefs") return { status: 200, body: await call(memoryActions.savePrefs, body) };
-      if (parts.length === 3 && parts[0] === "candidates" && parts[2] === "accept") return { status: 200, body: await call(memoryActions.accept, { candidate_id: parts[1], ...(typeof body.text === "string" && body.text.trim() ? { text: body.text } : {}) }) };
-      if (parts.length === 3 && parts[0] === "candidates" && parts[2] === "discard") return { status: 200, body: await call(memoryActions.discard, { candidate_id: parts[1] }) };
+      if (parts.length === 3 && parts[0] === "candidates" && parts[2] === "accept") return { status: 200, body: await call(memoryActions.accept, { candidate_id: parts[1], expected_version: body.expected_version, ...(typeof body.text === "string" && body.text.trim() ? { text: body.text } : {}) }) };
+      if (parts.length === 3 && parts[0] === "candidates" && parts[2] === "discard") return { status: 200, body: await call(memoryActions.discard, { candidate_id: parts[1], expected_version: body.expected_version }) };
       if (parts.length === 3 && parts[0] === "changes" && parts[2] === "undo") return { status: 200, body: await call(memoryActions.undo, { change_id: parts[1] }) };
       if (parts.length === 1 && parts[0] === "signals") return { status: 200, body: await call(memoryActions.signal, body) };
       if (parts.length === 1 && parts[0] === "preview") return { status: 200, body: await call(memoryActions.preview, body) };
@@ -338,5 +282,5 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       if (parts.length === 1 && parts[0] === "import") return { status: 200, body: await call(memoryActions.import, body) };
       return null;
     },
-  });
+  }); } finally { request.off("aborted", disconnected); response.off("close", disconnected); }
 }

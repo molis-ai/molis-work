@@ -1,6 +1,8 @@
 import type { MemoryLedgerPort, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import { projectPrefsKey } from "./prefs.js";
-import type { MemoryBackendPort } from "./service.js";
+import type { MemoryBackendPort, MemoryCaller } from "./service.js";
+import type { AgentMemoryScopePreview } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { memoryErrors } from "./errors.js";
 
 /**
  * The project is deleted: its memories and those of its Characters go from the store, every candidate waiting in their
@@ -13,14 +15,18 @@ import type { MemoryBackendPort } from "./service.js";
  * it (a suggestion made before its owner was noted still names its scope). `backend` is null where the Home has no Agent
  * runtime, so no store: only the ledger has anything to forget.
  */
-export async function purgeProjectMemories(ports: { backend: MemoryBackendPort | null; ledger: MemoryLedgerPort }, projectId: string): Promise<{ removed: number }> {
+export async function purgeProjectMemories(ports: { backend: MemoryBackendPort | null; ledger: MemoryLedgerPort; caller?: MemoryCaller }, projectId: string): Promise<{ removed: number }> {
   const { backend, ledger } = ports;
   const scopes: Array<{ scope: MemoryScope; owner: string }> = [{ scope: "project", owner: projectId }];
   for (const found of [...ledger.owners(projectId), ...ledger.candidateOwners(projectId)]) {
     if (found.scope === "character" && !scopes.some(target => target.scope === "character" && target.owner === found.owner)) scopes.push({ scope: "character", owner: found.owner });
   }
   const forgotten = new Set<string>();
-  if (backend) for (const target of scopes) await purgeScope(backend, target, forgotten);
+  if (backend) {
+    if (!ports.caller?.operation_id) throw memoryErrors.forbidden("删除项目记忆必须由宿主提供当前本人授权和稳定操作号");
+    const bound = backend.withCaller(ports.caller);
+    for (const target of scopes) await purgeScope(bound, ledger, ports.caller, target, forgotten);
+  }
   ledger.transaction(() => {
     for (const id of forgotten) ledger.forget(id);
     ledger.forgetScopes({ scopes, project_id: projectId, prefs_keys: [projectPrefsKey(projectId)],
@@ -29,14 +35,25 @@ export async function purgeProjectMemories(ports: { backend: MemoryBackendPort |
   return { removed: forgotten.size };
 }
 
-/** Empties one scope of the store: its candidates, then its memories (the ids go into `forgotten` for the ledger). */
-async function purgeScope(backend: MemoryBackendPort, target: { scope: MemoryScope; owner: string }, forgotten: Set<string>): Promise<void> {
-  for (const entry of await backend.list(target.scope, target.owner)) forgotten.add(entry.memory_id);
-  for (const candidate of await backend.candidates.list(target.scope, target.owner)) await backend.candidates.purge({ ...target, candidate_id: candidate.candidate_id });
-  if (backend.previewScope && backend.clearScope) {
-    const preview = await backend.previewScope(target.scope, target.owner);
-    if (preview.count) for (const id of await backend.clearScope({ ...target, fingerprint: preview.fingerprint })) forgotten.add(id);
-  } else {
-    for (const entry of await backend.list(target.scope, target.owner)) await backend.remove({ ...target, memory_id: entry.memory_id });
+/** The deletion receipt retries the original SDK preview and candidate versions, never a new list of targets. */
+async function purgeScope(backend: MemoryBackendPort, ledger: MemoryLedgerPort, caller: MemoryCaller,
+  target: { scope: MemoryScope; owner: string }, forgotten: Set<string>): Promise<void> {
+  const key = `memory-project-clear:${caller.operation_id}:${target.scope}:${target.owner}`;
+  let plan = ledger.marker(caller.actor_id, key)?.body as { preview: AgentMemoryScopePreview; candidates: Array<{ candidate_id: string; version: number }> } | undefined;
+  if (!plan) {
+    plan = { preview: await backend.previewScope(target.scope, target.owner),
+      candidates: (await backend.candidates.list(target.scope, target.owner)).map(item => ({ candidate_id: item.candidate_id, version: item.version })) };
+    ledger.setMarker(caller.actor_id, key, plan, new Date().toISOString());
+  }
+  // A reserved candidate refuses purge until its original decision is explicitly reconciled by the current owner.
+  for (const candidate of plan.candidates) await backend.candidates.purge({ ...target, candidate_id: candidate.candidate_id,
+    expected_version: candidate.version, operation_id: `${plan.preview.operation_id}:candidate:${candidate.candidate_id}`,
+    ...(caller.signal ? { signal: caller.signal } : {}) });
+  const result = await backend.clearScope({ ...target, preview: plan.preview, operation_id: plan.preview.operation_id,
+    ...(caller.signal ? { signal: caller.signal } : {}) });
+  for (const item of result.items) if (item.outcome === "completed" || item.outcome === "already-absent") forgotten.add(item.memory_id);
+  ledger.transaction(() => { for (const id of forgotten) ledger.forget(id); });
+  if (result.items.some(item => item.outcome !== "completed" && item.outcome !== "already-absent")) {
+    throw memoryErrors.conflict("项目记忆只完成了部分清理；保留原操作号与预览后重试，未知结果需要对账");
   }
 }

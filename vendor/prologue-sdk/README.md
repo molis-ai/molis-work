@@ -4,16 +4,13 @@
 
 目录里现在有这些东西：
 
-- 当前包 `prologue-sdk-0.0.0-rc.1-attachment-order.tgz`（`horizontal/agent-host/package.json` 以 `file:` 依赖它）；
-- 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
-- `patch-history.json`：已删除的 26 份历史补丁和 30 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
-- 本文件。
+- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,328,632 字节），SHA-256 `b6f06de6fa9de1d4557f4e75b37e60e6b065456d6e9c95df62bcb97ae741c2a3`。来源为 Prologue [#84](https://github.com/molis-ai/molis-prologue/pull/84) 的干净代码提交 `c8c7b4dac41175484bd1964352780d289ae49fa9`。最终 head `bc32dcb00c457e42cf7b46a13003ca2d9af2192f` 已合 main `1e6b4d3ce8807ba9c8310ccdd7fb37e81375fc1a`，整树一致；相对制包提交只改包外根文档一句，SDK 与打包输入未变，无补丁。含 Memory CAS/分类管理、可信来源与召回、显式离线 `adoptStorage`、Run 适用性事实及长操作地址修复。
 
-另外两个 vendored 包各自带 `.sha256`、`.provenance.json` 和 `sbom.cdx.json`：[intelligence-client](../intelligence-client/)、[search-evidence-layer](../search-evidence-layer/)。这三个包的 tgz 按决定（2026-10-08，[spec](../../specs/repository-anti-corruption/spec.md) §1「Prologue SDK 收敛与私有包」）将来改从私有 registry 或 release 附件取，不再放进公开仓库；registry 就绪前仍留在仓库里（[方案](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §5）。`pnpm health:check` 限制本目录的 tgz 份数（`tooling/gates/limits.json` 的 `vendoredPrologueSdk`），并由 `scripts/gates/vendored-provenance.mjs` 核对三个包的 tgz 与各自的 `.sha256`、`.provenance.json` 相符、`alsoBuildableFrom` 点名的补丁在目录里且字节数、SHA-256 相符、`patch-history.json` 的格式对、已删的补丁没有回到目录里（只核对形状，不去 Git 里重算 `gitBlob` 的字节数与 SHA-256，见 [REPOSITORY-HYGIENE](../../docs/system/REPOSITORY-HYGIENE.md)）；`tests/vendor-provenance.test.ts` 给门禁的每一条检查各造一个违例，方法与限度也在那份文档里。
+该 head 的完整 `pnpm quality`、干净安装消费者和新旧包兼容专项通过。制包环境为 macOS arm64、Node 24.19.0、pnpm 11.9.0；实际 Node 与仓库声明的 24.14.0 有差异。本次未作独立逐字节重建，不宣称完成 Molis 采用、模型收益或用户验收。Molis 集成与严格 baseline 切换状态以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) §13 为准。
 
-## 当前依赖：attachment-order（2026-10-20）
+## 上一份主线依赖：attachment-order（2026-10-20）
 
-当前包 `prologue-sdk-0.0.0-rc.1-attachment-order.tgz`（1,235,604 字节），SHA-256 `f39224701ae52eeeb7251e4486d32ee2c3c93a798c997f5764103e127280ceea`。来源为上游 main `753dbae8359e56a74397d030af4d18abf402d5b5`，即 [Prologue #57](https://github.com/molis-ai/prologue/pull/57) 的 squash 合并（head `ac8d6a4a`），当时的 main 头；无补丁、dirty 为 false。上游按这个提交给的源码归档（GitHub tarball）解到两个各自独立的空目录，各自装依赖、构建、打包，两份逐字节相同。版本号仍是 `0.0.0-rc.1`，只换上游提交，不算发版。
+上一份包 `prologue-sdk-0.0.0-rc.1-attachment-order.tgz`（1,235,604 字节），SHA-256 `f39224701ae52eeeb7251e4486d32ee2c3c93a798c997f5764103e127280ceea`。来源为上游 main `753dbae8359e56a74397d030af4d18abf402d5b5`，即 [Prologue #57](https://github.com/molis-ai/prologue/pull/57) 的 squash 合并（head `ac8d6a4a`），当时的 main 头；无补丁、dirty 为 false。上游按这个提交给的源码归档（GitHub tarball）解到两个各自独立的空目录，各自装依赖、构建、打包，两份逐字节相同。版本号仍是 `0.0.0-rc.1`，只换上游提交，不算发版。
 
 比上一份多四项（[#53](https://github.com/molis-ai/prologue/pull/53) 没有合入，不在里面）：
 

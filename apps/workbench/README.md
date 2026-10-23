@@ -162,3 +162,9 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 
 
 引导、项目选择、Functions与MCP授权/连接页面共用`globalThis.molisWorkRequest`：Host请求保留code/status/callId/body，错误位置用同一failure view提供可查询的诊断编号。Functions的项目feed adapter仍以有没有project决定是否提供；未保存字段、选择序号、取消与旧DOM检查保留。原已授权但刷新失败的连接恢复入口继续只重载信息，不重新授权。定向验证：`tests/workbench-request-pages.e2e.test.ts`、`tests/workbench-functions-late.e2e.test.ts`、`tests/functions-draft-retention.test.ts`、`tests/context-onboarding-blank.e2e.test.ts`、`tests/request-failure-call-id.e2e.test.ts`。
+
+### 记忆管理的版本与部分清空
+
+现有个人/项目记忆页按 [memory strategy §9.4 M2](../../specs/prologue-memory-strategy/spec.md) 发送实际所见的正式或候选版本。同一编辑决定失败后保留输入、版本及领域操作号，不自动刷新到新版本重做；HTTP 一次性键仍由统一请求助手每次生成。历史恢复分别携当前版本与目标历史版，撤销、导入、导出保持原入口。清空保留本页已确认的 fingerprint，部分完成显示逐项结果并允许显式重试；重新预览必须另行确认，不向旧范围加入新记忆。`tests/memory-settings-cas.e2e.test.ts` 用生产渲染/客户端/请求助手与真实 Chrome、HTTP 验证消费协议；SDK/授权与持久化由 MemoryService/LocalHost 集成测试证明。
+
+失败的普通记忆命令保留在当前页面绑定的不可变快照里，包含原动作、完整请求、所见版本与操作号；多个失败分别显示“重试这次操作”。筛选、重新读取列表和其它操作成功都不丢失它们，重试成功只移除对应记录；改变内容、对象或动作形成新决定，不借重试读取最新版本。浏览器刷新或离页不承诺恢复，页面明确说明。该快照不授予权限，每次 HTTP 派发仍有新请求键，并重新经过 Host 当前授权。固定清空继续使用原独立预览。回归仍为上述 `tests/memory-settings-cas.e2e.test.ts`，覆盖重画、重读、多个失败、原版本重放、修改决定、请求键及实际响应诊断；不新增后台重试或持久恢复账。

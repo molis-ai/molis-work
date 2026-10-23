@@ -1,0 +1,36 @@
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import { MemoryService, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+
+test("Run recipes use live switches without reading bodies, automatically pinning kinds or recording use", async t => {
+  const home = await mkdtemp(join(tmpdir(), "memory-run-recipe-"));
+  const ledger = openMemoryLedger({ homeDirectory: home });
+  t.after(async () => { ledger.close(); await rm(home, { recursive: true, force: true }); });
+  let accesses = 0;
+  const backend = new Proxy({}, { get() { accesses++; throw new Error("Preparing a recipe must not access SDK memory"); } }) as MemoryBackendPort;
+  const service = new MemoryService({ backend, ledger });
+  const who: MemoryCaller = { actor_id: "alice", project_id: "project-a", consumer: "agent", plugin_id: "io.molis.work.coding" };
+  const person = { ...who, consumer: "ui" as const, person: true };
+  service.savePrefs(person, "personal", "off");
+  service.savePrefs(person, "project", "reviewed");
+  const recipe = await service.forRun(who, { query: "Solve a coding task", situation: { object_kind: "file" }, budget_chars: 3000 });
+  assert.equal(recipe!.consumer, "agent"); assert.equal(recipe!.current_scene, "coding");
+  assert.equal(recipe!.task, true); assert.equal(recipe!.skip, false);
+  assert.deepEqual(recipe!.pinned, []);
+  assert.deepEqual(recipe!.scopes, [{ scope: "user", owner: "alice" }, { scope: "project", owner: "project-a" }]);
+  assert.deepEqual(recipe!.facts, { plugins: ["io.molis.work.coding"], object_kinds: ["file"] });
+  assert.equal(recipe!.budget_tokens, 800); assert.equal(recipe!.budget_chars, 3000);
+  assert.deepEqual(service.uses({ receipt_id: recipe!.receipt_id }), []);
+  service.savePrefs(person, "project", "manual");
+  const manual = await service.forRun(who, { query: "Solve a coding task" });
+  assert.equal(manual!.task, false); assert.equal(manual!.skip, true);
+  assert.deepEqual(manual!.scopes, recipe!.scopes, "manual mode retains owned scopes for separately authorized explicit recollection");
+  service.savePrefs(person, "project", "reviewed");
+  assert.equal((await service.forRun(who, {}, { skip: true }))!.skip, true);
+  assert.equal((await service.forRun({ ...who, consumer: "assistant", plugin_id: undefined }, {}))!.current_scene, "assistant");
+  assert.equal(accesses, 0);
+});

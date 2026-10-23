@@ -1737,7 +1737,7 @@ export class AssistantService {
    */
   async memoryForRound(work: StoredWork, task: string, context: AssistantContextSnapshot | null = null): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory | null> {
     const prepared = this.chosenMemory.get(work.work_id);
-    if (prepared !== undefined) return prepared ? { pinned: prepared.pinned, budget_chars: prepared.budget_chars, receipt_id: prepared.receipt_id } : null;
+    if (prepared !== undefined) return prepared ? structuredClone(prepared) : null;
     const memory = this.ports.memory?.();
     if (!memory) return null;
     // Where the person is (plugin, object kind, Goal) decides which limited memories apply; the page's claim only narrows.
@@ -1747,7 +1747,7 @@ export class AssistantService {
       ...(Object.keys(situation).length ? { situation } : {}) }).catch(() => null);
     if (chosen) this.recalled.set(work.work_id, chosen.receipt_id);
     this.chosenMemory.set(work.work_id, chosen);
-    return chosen && { pinned: chosen.pinned, budget_chars: chosen.budget_chars, receipt_id: chosen.receipt_id };
+    return chosen && structuredClone(chosen);
   }
 
   /** What each round was given from memory and what did not fit, and what this work changed in memory (for the panel). */

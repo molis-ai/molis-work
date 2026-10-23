@@ -43,6 +43,7 @@ export type MemoryBasis = "explicit" | "repeated" | "inferred";
 
 export interface MemoryCandidate {
     candidate_id: string;
+    version: number;
     scope: MemoryScope;
     project_id: string | null;
     kind: MemoryKind;
@@ -57,17 +58,19 @@ export interface MemoryCandidate {
     } | null;
     hold_reason: string | null;
     supersedes: string | null;
-    state: "pending" | "accepted" | "discarded" | "expired";
+    state: "pending" | "accepted" | "discarded" | "expired" | "cancelled";
     created_at: string;
     memory_id: string | null;
 }
 
 export interface MemoryCandidateDecision {
     candidate_id: string;
+    expected_version: number;
     text?: string;
 }
 
 export interface MemoryCandidateRecord extends MemoryCandidate {
+    formal_expires_at?: string | null;
     actor_id: string;
     owner: string;
 }
@@ -94,6 +97,8 @@ export interface MemoryChange {
 export type MemoryChangeKind = "kept" | "auto_kept" | "replaced" | "auto_replaced" | "merged" | "edited" | "restored" | "moved" | "disabled" | "auto_disabled" | "enabled" | "paused" | "resumed" | "removed" | "accepted" | "imported" | "cleared";
 
 export interface MemoryChangeRecord extends MemoryChange {
+    operation_id?: string;
+    applied_version?: number;
     actor_id: string;
     owner: string;
     undo: MemoryUndoPlan | null;
@@ -101,6 +106,7 @@ export interface MemoryChangeRecord extends MemoryChange {
 
 export interface MemoryChangeRequest {
     memory_id: string;
+    expected_version?: number;
     action: "update" | "disable" | "enable" | "remove" | "restore" | "move";
     text?: string;
     kind?: MemoryKind;
@@ -113,6 +119,15 @@ export interface MemoryChangeRequest {
 export interface MemoryChangeResult {
     memory: MemoryItem | null;
     change: MemoryChange;
+}
+
+export interface MemoryClearResult {
+    removed: number;
+    complete: boolean;
+    items: Array<{
+        memory_id: string;
+        outcome: "completed" | "already-absent" | "conflict" | "not-executed" | "unknown";
+    }>;
 }
 
 export type MemoryConsumer = "assistant" | "agent" | "ui" | "plugin" | "mcp";
@@ -131,7 +146,7 @@ export interface MemoryEvidence {
 
 export interface MemoryExportPackage {
     format: "molis.memory";
-    version: 1;
+    version: 2;
     exported_at: string;
     scope: MemoryScope;
     entries: Array<{
@@ -142,6 +157,9 @@ export interface MemoryExportPackage {
         applies: MemoryApplies;
         origin: string;
         expires_at: string | null;
+        classification?: import("services/agent-host-memory").AgentMemoryMeta["classification"];
+        session_ref?: import("services/agent-host-memory").AgentMemoryMeta["session_ref"];
+        namespace?: string;
     }>;
     redactions: Array<{
         kind: string;
@@ -390,6 +408,10 @@ export interface MemoryRecalled {
 }
 
 export interface MemoryRevision {
+    snapshot?: {
+        origin: string;
+        meta: import("services/agent-host-memory").AgentMemoryMeta;
+    };
     version: number;
     text: string;
     kind: MemoryKind;
@@ -456,6 +478,7 @@ export type MemoryUndoPlan = {
     source: MemorySource;
     basis: MemoryBasis;
     applies: MemoryApplies;
+    snapshot?: MemoryRevision["snapshot"];
 };
 
 export interface MemoryUpkeepReport {
@@ -509,6 +532,8 @@ export interface MemoryWriteResult {
     change_id: string | null;
 }
 
+export declare function isCompleteMemoryPrefs(value: unknown): value is MemoryPrefs;
+
 export declare const memoryActions: {
     recall: ActionDefinition<MemoryRecallRequest, MemoryRecallResponse>;
     list: ActionDefinition<MemoryListRequest, MemoryListResponse>;
@@ -527,9 +552,7 @@ export declare const memoryActions: {
         candidate: MemoryCandidate;
         memory: MemoryItem | null;
     }>;
-    discard: ActionDefinition<{
-        candidate_id: string;
-    }, {
+    discard: ActionDefinition<Pick<MemoryCandidateDecision, "candidate_id" | "expected_version">, {
         candidate: MemoryCandidate;
     }>;
     changes: ActionDefinition<{
@@ -567,9 +590,7 @@ export declare const memoryActions: {
     clear: ActionDefinition<{
         scope: MemoryScope;
         fingerprint: string;
-    }, {
-        removed: number;
-    }>;
+    }, MemoryClearResult>;
     export: ActionDefinition<{
         scope: MemoryScope;
     }, {

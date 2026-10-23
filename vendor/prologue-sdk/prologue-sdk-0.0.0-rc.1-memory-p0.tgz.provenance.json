@@ -1,0 +1,42 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/molis-prologue.git",
+    "path": "packages/sdk",
+    "commit": "c8c7b4dac41175484bd1964352780d289ae49fa9",
+    "mergedUpstream": {
+      "pullRequest": 84,
+      "head": "bc32dcb00c457e42cf7b46a13003ca2d9af2192f",
+      "merge": "1e6b4d3ce8807ba9c8310ccdd7fb37e81375fc1a",
+      "note": "Main tree equals final PR head. Package was built from clean c8c7b4da; the only later change is a root contract sentence, outside the SDK package. SDK code and package inputs are unchanged."
+    },
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": []
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
+    "bytes": 1328632,
+    "sha256": "b6f06de6fa9de1d4557f4e75b37e60e6b065456d6e9c95df62bcb97ae741c2a3",
+    "integrity": "sha512-tPo6zK4M6xHB2OakuGxAQl4HG/vcQR0YOHJ9949lr8dKCd0L5A0kVzXy/MTXE8s/5oEauxlseFRc5nUhdhoKJA=="
+  },
+  "build": {
+    "node": "24.19.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "pnpm quality",
+      "cd packages/sdk && pnpm pack --out <isolated-package-output>",
+      "Copy the verified package to the Molis vendor path"
+    ],
+    "packedOn": "2026-10-23",
+    "note": "Clean PR #84 code head; complete quality including 679 tests, clean installed SDK and Rust passed. Public adoption method is adoptStorage with no alias. Final PR head adds only a root document sentence absent from the package. Not a release or Molis acceptance; no byte-identical independent rebuild claimed. Actual Node24.19.0 differs from declared24.14.0."
+  }
+}

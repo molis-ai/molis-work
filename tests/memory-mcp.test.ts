@@ -3,10 +3,10 @@ import test from "node:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions, type MemoryRecallResponse } from "@molis-ai/molis-work-contracts/services/memory";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, readMcpToolPreference, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkServer, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 
 /** What the server answers to tools/list and tools/call, as far as this test reads it. */
 interface McpResult { tools: Array<{ name: string }>; isError?: boolean; content: Array<{ text: string }> }
@@ -22,9 +22,14 @@ test("an external MCP client reads memory only through the person's grant for me
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const servers: MolisWorkServer[] = [];
   t.after(async () => { for (const server of servers) await server.close(); await host.close(); await rm(home, { recursive: true, force: true }); });
-  const projectId = "memory-mcp";
-  const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId });
-  const person: ActionCallContext = { actor_id: "web-user", project_id: projectId, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
+  const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
+    const created = await catalog.createProject({ display_name: "Memory MCP", actor_id: LOCAL_PERSON_ACTOR_ID });
+    return catalog.getProject(created.project_id);
+  });
+  ensureSystemAgentService(host, home, withMolisWorkProjectCatalog);
+  const projectId = project.project_id;
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId });
+  const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
   const asPerson = bindActionClient(host.actionClient(reference), () => person);
   await asPerson.invoke(memoryActions.write, { scope: "project", text: "本项目的周报先写风险", kind: "convention" });
   await asPerson.invoke(memoryActions.write, { scope: "personal", text: "我的周报先写风险再写进展", kind: "preference" });
@@ -71,11 +76,13 @@ test("an external MCP client reads memory only through the person's grant for me
 
   // The client reads the project's memories; the person's personal ones stay out until the person switches that on for external AI clients.
   assert.deepEqual((await recalled(codex, "周报 风险")).items.map(item => [item.scope, item.text]), [["project", "本项目的周报先写风险"]]);
-  await asPerson.invoke(memoryActions.savePrefs, { scope: "personal", prefs: { consumers: { mcp: true } } });
+  const personalPrefs = await asPerson.invoke(memoryActions.prefs, { scope: "personal" });
+  await asPerson.invoke(memoryActions.savePrefs, { scope: "personal", prefs: { consumers: { ...personalPrefs.prefs.consumers, mcp: true } } });
   assert.deepEqual((await recalled(codex, "周报 风险")).items.map(item => item.scope).sort(), ["personal", "project"]);
-  await asPerson.invoke(memoryActions.savePrefs, { scope: "project", prefs: { consumers: { mcp: false } } });
+  const projectPrefs = await asPerson.invoke(memoryActions.prefs, { scope: "project" });
+  await asPerson.invoke(memoryActions.savePrefs, { scope: "project", prefs: { consumers: { ...projectPrefs.prefs.consumers, mcp: false } } });
   assert.deepEqual((await recalled(codex, "周报 风险")).items.map(item => item.scope), ["personal"], "the project switch for external clients holds");
-  await asPerson.invoke(memoryActions.savePrefs, { scope: "project", prefs: { consumers: { mcp: true } } });
+  await asPerson.invoke(memoryActions.savePrefs, { scope: "project", prefs: { consumers: { ...projectPrefs.prefs.consumers, mcp: true } } });
 
   // Who is asking comes from the connection, never from the arguments; unknown arguments are refused rather than read as a claim.
   const forged = await codex.call(RECALL_TOOL, { query: "周报 风险", consumer: "ui", actor_id: "web-user", project_id: "other" });

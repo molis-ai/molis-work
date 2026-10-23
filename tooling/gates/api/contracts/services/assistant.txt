@@ -270,7 +270,7 @@ export interface AssistantMemoryCandidate {
     text: string;
     why: string;
     applies: string;
-    state: "pending" | "accepted" | "discarded" | "expired";
+    state: "pending" | "accepted" | "discarded" | "expired" | "cancelled";
     created_at: string;
     memory_id?: string;
     held?: string;

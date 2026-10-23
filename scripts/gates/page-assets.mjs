@@ -238,9 +238,9 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // VUX-39/VUX-12 (slice 96): an interrupted round's check list marks each outcome with its tone and puts the close after the list, not in it;
-  // a group of steps whose only open outcome is unknown says so instead of failure. 1186408 → 1186501 (+93).
-  "/assets/molis-work-workbench.js": [1186408, 1186501],
+  // Memory P0, user approved 2026-10-23: fixed-version command retries and per-item clear/import results.
+  // Three local deduplications saved 381 bytes; the necessary remainder is exactly 3093 bytes, not a reusable allowance.
+  "/assets/molis-work-workbench.js": [1186501, 1189594],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

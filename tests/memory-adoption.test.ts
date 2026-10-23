@@ -100,7 +100,7 @@ function files(directory: string): Record<string, string> {
 }
 
 // MEM-24/MEM-40: three supported product entrances plus late Home binding refuse before SDK writes or inference binding.
-for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partial-prefs", "six-field-prefs"] as const) {
+for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partial-prefs", "six-field-prefs", "adopting"] as const) {
   test(`an existing Home with ${shape} is refused without interpreting it as a new user`, async t => {
     const home = scratch(t);
     mkdirSync(join(home, "agent-runtime")); writeFileSync(join(home, "agent-runtime", "existing"), "keep SDK bytes");
@@ -115,6 +115,11 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
         const { enabled: _enabled, task_recall: _task, ...prior } = originalPrefs;
         ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", prior);
         ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", prior);
+      }
+      if (shape === "adopting") {
+        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", originalPrefs);
+        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", originalPrefs);
+        ledger.setMarker(LOCAL_PERSON_ACTOR_ID, "strategy-adoption", { origin: "adopting", original_origin: "existing-home" }, "2026-10-23T00:00:00Z");
       }
       ledger.close();
       if (shape === "wrong-version") { const db = new DatabaseSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)); db.exec("PRAGMA user_version = 2"); db.close(); }

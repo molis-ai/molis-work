@@ -35,6 +35,12 @@ const answersFor = async (evaluate: <T>(expression: string) => Promise<T>, part:
   evaluate<Answer[]>(`window.__answers.filter(answer => answer.url.includes(${JSON.stringify(part)}))`);
 
 type Evaluate = <T>(expression: string) => Promise<T>;
+// This is the other window's own current read, not the stale page silently rebasing its pending decision.
+const removeCurrentMemory = (evaluate: Evaluate, memoryId: string) => evaluate(`(async () => {
+  const {items} = await molisWorkRequest('/api/memory/overview?scope=personal');
+  const current = items.find(item => item.memory_id === ${JSON.stringify(memoryId)});
+  return molisWorkRequest('/api/memory/change', {body: {memory_id: current.memory_id, expected_version: current.version, action: 'remove'}});
+})()`);
 type Command = (method: string, params?: Record<string, unknown>, sessionId?: string) => Promise<unknown>;
 
 /** The toast's box, and where its glyph sits (the glyph hangs on the toast's left edge at a fixed offset from the top). */
@@ -89,7 +95,7 @@ test("a failure the Host recorded shows its diagnostic ID, which copies whole an
   const row = `[data-memory-settings] [data-memory-id="${memoryId}"]`;
   await waitFor(`!!document.querySelector(${JSON.stringify(row)})`, 20_000);
   // Deleted somewhere else (a second window, the assistant) while this page still shows it.
-  await evaluate(`molisWorkRequest('/api/memory/change', { body: { memory_id: ${JSON.stringify(memoryId)}, action: 'remove' } })`);
+  await removeCurrentMemory(evaluate, memoryId);
   await evaluate(RECORD_ANSWERS);
   await click(`${row} button[aria-label^="停用"]`);
   const errorButton = "[data-memory-settings] [data-memory-error] [data-molis-call-id]";
@@ -162,7 +168,7 @@ test("a failure the Host recorded shows its diagnostic ID, which copies whole an
     await open("/settings/memory");
     const staleRow = `[data-memory-settings] [data-memory-id="${stale}"]`;
     await waitFor(`!!document.querySelector(${JSON.stringify(staleRow)})`, 20_000);
-    await evaluate(`molisWorkRequest('/api/memory/change', { body: { memory_id: ${JSON.stringify(stale)}, action: 'remove' } })`);
+    await removeCurrentMemory(evaluate, stale);
     await click(`${staleRow} button[aria-label^="停用"]`);
     await waitFor("!!document.querySelector('[data-toast].is-visible.is-error [data-molis-call-id]') && !!document.querySelector('[data-memory-settings] [data-memory-error] [data-molis-call-id]')", 15_000);
     const shown = await toastBox(evaluate, "[data-toast].is-visible.is-error");

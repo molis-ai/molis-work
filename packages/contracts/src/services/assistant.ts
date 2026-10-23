@@ -632,7 +632,7 @@ export interface AssistantMemoryCandidate {
   why: string;
   /** When it applies. */
   applies: string;
-  state: "pending" | "accepted" | "discarded" | "expired";
+  state: "pending" | "accepted" | "discarded" | "expired" | "cancelled";
   created_at: string;
   memory_id?: string;
   /** Why the write gate held back what the person asked to keep, in the memory service's words; absent for the work's own suggestions. */ held?: string;

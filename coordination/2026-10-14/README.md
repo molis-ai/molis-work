@@ -2923,3 +2923,22 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 活文档里没有指向旧文件名的链接。
 - 风险记在 §3：本机没跑 `boundary:check` 和 `health:check --base`，以 CI 和批次为准。
 
+### 10-23 19:31（11:31 UTC） Codex 在 #1081 报 P1：复用连接跳过发送前复核
+
+- Codex 的 VERIFY（`9a73bd1b3`，11:25 UTC）和 #1081 评论 6363784929 报了一个候选 P1：
+  - `public-https.ts` 只在 DNS lookup 回调里调 `beforeEffect()`；
+  - 没传 agent 时用的是 HTTPS 全局 Agent，Node 19 起默认 keep-alive；
+  - 复用的连接不再解析 DNS，所以解析账号期间如果授权失效，请求照样发出去；
+  - Runtime 的另一次复核在响应回来以后，拦不住已经发出的 POST。
+- Codex 没有复现，也没改代码，按 §0 交 ① 裁定分工。这一步做得对，不算异常。
+- ① 核实过：读了 `c59a65b71` 的源码，本机 Node v24.21.0 实读 `https.globalAgent.keepAlive === true`。`public-https.ts` 是 #1081 新加的，main 上没有，算 PR 自己的问题。
+- ① 裁：**② 在 #1081 里修**，不走 Codex 叠加 PR。
+  - 理由：这是 S-57 的安全行为，作者最清楚；#1081 还没进任何已推的批次，现在修最省事。
+  - 做法：每次发送新开连接（照 main 上 `anysearch-transport.ts` 的 `agent: false`），保留 DNS 后复核；测试和生产走同一条路；补一条 S-57 拒绝用例。
+  - Codex 用新 head 复验，合并前要等复验通过。
+  - 已在 #1081 上回复 Codex（6363878028），已告诉 ② 和 ⑤。CI 拥堵期间 #1081 可以推这一次。
+- Codex 的全量在它那台机器上跑到约 1,229/1,352。新出现的首次失败：
+  - `fill-message.test.ts`：属于 R-18，⑤ 的 #1082 在修；
+  - `issue-capture-page.e2e.test.ts`：等 Codex 和基线对照的结果。
+- Codex 查看的频率：每 30 分钟一次，18:58、19:28 各查了一次。
+

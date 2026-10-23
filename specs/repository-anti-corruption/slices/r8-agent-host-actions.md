@@ -179,3 +179,66 @@ PR 等 #1121 合入再开，不开第三层。
   - 测试夹具：`withFakeAgentHost` 让 Coding 测试的假 Agent Host 同时回答这些动作；动作服务两头都校验，所以假回答缺的顶层字段由夹具补中性值（`completeView`）。
 
 BL-364 剩 13 条。
+
+## 10. `waitRun` 一批（计划，只写了规格，待统筹裁定 §10.3）
+
+`agent.run.wait.v1` 是第 3 批留下的唯一一条读会话、跑轮次的 typed 条目，归规矩 2：等待要么是 `concurrent` 的动作，带上限、可取消、写前 `beforeEffect`，要么拆成「开始等」加「查结果」。验收编号 RAC-181。
+
+### 10.1 现在的样子（2026-10-23 看代码）
+
+- **描述符**：`operation: "wait"`，没有 `action`。输入 `[session, run, since, timeoutMs]`，输出 `{ version, view }`。
+- **处理器**（`capability-registration.ts` 的 `waitRun`）：
+  - 先 `requireRun`，已经按项目与调用者核会话归属。
+  - `timeoutMs` 被悄悄夹到 0～25 000。`observe` 一轮，第一次变化后再收 40 ms 的变化，回答最新的视图。视图里有待回答的问题时，再完整读一次。
+  - 调用的 `signal` 取消时，放开观察并拒绝。
+  - 注册外壳在处理器返回后调 `assertAuthorityCurrent()`，所以等待期间被撤权的调用拿不到视图。
+- **宿主里 `wait` 的特殊待遇**：
+  - 不进动作目录（`kernel/src/action-metadata.ts`）。
+  - 不排进项目队列，关项目时先被取消（`local-host.ts` 的 `callSignal`、`withRuntime`）。
+  - 调用记录里永远不留行（`action-call-log.ts` 的 `recordedOperation`）。
+  - `checkActionAvailability` 遇到 `wait` 直接返回，不走 `admitPluginCall`。
+- **调用方**：Coding 只有两处。
+  - `routes-timeline.ts` 的 `coding.live`：页面的长轮询，每次最多 25 秒，路由自己先夹一次上限。
+  - `start-round.ts` 的 `follow`：后台作业 `background.keep("follow")` 里一轮一轮地等，用安装自己的权限、作业的 `signal`。
+- **测试**：`agent-run-wait`（直接调处理器）、`coding-message-wait`、`coding-material-consumption`、`coding-session-follow`、`coding-queued-round`。
+
+### 10.2 推荐：一条 `concurrent` 的查询动作，不拆
+
+- **为什么不拆**：现在的等待不在宿主留任何状态，「从哪个版本起等」由调用方带着 `since`。拆成「开始等」加「查结果」，就要在宿主里新存一份观察：谁开的、什么时候过期、别人能不能取消（规矩 4）、关项目时怎么收。换来的东西，长轮询本来就有。不拆，规矩 4 自然满足：没有可被别人取消的东西，取消就是调用方中止自己的调用。
+- **写法**：
+  - `operation: "query"`、`action.kind: "query"`、`...pluginOnly`、`scheduling: "concurrent"`，排在项目队列之外，跟现在一样。
+  - `execution: { timeout_ms: 30_000 }`：处理器自己最多等 25 秒，加 40 ms 收集和一次完整读取，30 秒是宿主替它兜底的上限，超了就是 `actions.timeout`。
+  - **输入**：`[sessionRef, runRef, since: string | null（maxLength 200）, timeoutMs: integer 0～25 000]`，`additionalItems: false`。超出范围由 schema 拒，不再悄悄夹；Coding 两处调用本来就先夹到 25 000，没有影响。
+  - **输出**：`{ version: string, view: runViewOutput }`，顶层 `required` 加 `additionalProperties: false`，`view` 沿用第 3 批的 `runViewOutput`（BL-470）。
+  - **处理器**：
+    - 照旧先 `requireRun`。
+    - 解出视图之后、回答之前，调 `invocation.beforeEffect()` 和 `assertAuthorityCurrent()`。这是读，没有副作用，这一步只为「撤了权就不给」：调用者在等待期间被停用或撤权，答复丢掉。注册外壳返回后已有一次 `assertAuthorityCurrent()`，这里提前到解出视图时就查，把撤权与回答放进同一个同步段。
+    - 取消：调用的 `signal`（动作服务合进了宿主关项目的信号）一到就放开观察并拒绝，不再读运行时。
+- **Coding**：
+  - `coding.live` 改经 `codingActions(context, beforeWrite)`，`signal` 用路由调用自己的。
+  - `follow` 改经 `context.services.actions`，带作业的 `signal` 和 `control.beforeEffect`。作业持有的是安装的权限，插件停用时作业的 `signal` 结束等待，和现在一样。
+- **夹具**：`withFakeAgentHost` 自动多答这一条，Coding 测试里的假 `waitRun` 回答由 `completeView` 补齐顶层字段。
+
+### 10.3 待统筹裁定
+
+1. **取消的长轮询会不会在调用记录里留行。**
+   - 现在 `wait` 一行不留。改成查询以后，动作服务把被取消、超时的读当作失败的读，会留一行只有错误码的诊断行（`action-call-log.ts`：读只在失败时留行）。
+   - 每关一次页面、每开下一轮让旧的 `follow` 作业停下，就多一行「agent.run.wait 已取消」。
+   - 方案：
+     - ①（推荐）调用记录不给「调用方自己取消的、`concurrent` 的查询」留行，超时与被拒的照留。改的是 `action-call-log.ts` 的 `recordedOperation`，不碰门禁和信任边界，但它是平台行为，所以先问。
+     - ② 接受这些行。
+     - ③ 保留 `operation: "wait"`，给 `wait` 的动作补上 `admitPluginCall` 和可用性检查。这要改 `checkActionAvailability` 的早退，属于动线上的授权检查，要过评审。
+2. **`wait` 的特殊待遇以后还留不留。** 这一条转完，仓库里就没有 `operation: "wait"` 的条目了，`action-metadata.ts`、`local-host.ts`、`action-call-log.ts`、`typed-call-settlement.ts` 里的 `wait` 分支都成了空转。推荐同一个 PR 删掉，`HostCapabilityOperation` 去掉 `"wait"`：这是合同变化，跑 `pnpm api:update`，写影响。也可以另记一条 BL，以后再删。
+3. **并发上限。** 每个开着的页面同时挂一个长轮询，每个会话一个 `follow`。动作服务没有「同时进行的调用数」这种上限，只有每分钟次数（`max_calls_per_minute`）。推荐这一批不加：观察只在内存里，一次等待最多 25 秒，开了几个页面就挂几个。以后要加，是动作服务的新策略，另起。
+
+### 10.4 验收（RAC-181）
+
+- 描述符是只给插件的 `concurrent` 查询，带 `execution.timeout_ms` 上限。
+- 拒绝用例，每条都断言运行时的 `observe` 没被调用：
+  - 别的插件、项目、安装、人的会话：按「找不到」拒（`agent.session_unknown`）。
+  - 不属于这条会话的一轮：`agent.run_unknown`。
+  - 不消费它的插件，人、Agent、工作流、MCP：`actions.forbidden`。
+  - 输入里带身份字段，`timeoutMs` 超过 25 000、为负数或不是整数：`actions.input_invalid`。
+- 等待中被取消：拒绝，观察被放开（`agent-run-wait` 已有的放开断言改走动作）。
+- 等待中被撤权：拿不到视图。
+- `coding.live` 与 `follow` 的现有用例照旧通过。

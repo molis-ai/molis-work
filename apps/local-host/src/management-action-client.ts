@@ -21,7 +21,7 @@ export function catalogManagementProject(home: string, databasePath: string): { 
     assertOwnedCatalog(storage, path); assertCurrentCatalog(storage, path);
     const target = realpathSync(databasePath);
     // Only reads the catalog, so it knows no Plugin to enable.
-    const matches = new ProjectsModule({ db: storage.db, plugins: { has: () => false, companions: () => [] } }).query.listProjects()
+    const matches = new ProjectsModule({ db: storage.db, projects_directory: join(home, "projects"), plugins: { has: () => false, companions: () => [] } }).query.listProjects()
       .filter(project => existsSync(project.database_path) && realpathSync(project.database_path) === target);
     if (matches.length > 1) throw new ActionError("actions.scope_mismatch", "这个数据库对应多个项目，不能选择管理调用范围");
     const project = matches[0];

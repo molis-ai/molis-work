@@ -132,8 +132,8 @@
       "methods": 29
     },
     "class modules/projects/src/repository.ts#ProjectsRepository": {
-      "lines": 287,
-      "methods": 29
+      "lines": 282,
+      "methods": 28
     },
     "file modules/shelf/src/store.ts": 1067,
     "class modules/shelf/src/store.ts#ShelfStore": {

@@ -19,14 +19,14 @@ for (const owned of [true, false]) {
         db.exec(`
           CREATE TABLE catalog_meta (key TEXT PRIMARY KEY, value TEXT);
           CREATE TABLE projects (
-            project_id TEXT PRIMARY KEY, display_name TEXT, database_path TEXT,
+            project_id TEXT PRIMARY KEY, display_name TEXT,
             source TEXT, data_class TEXT, created_at TEXT, updated_at TEXT
           );
         `);
         db.prepare("INSERT INTO catalog_meta VALUES ('owner', ?)").run(owned ? "molis-work-project-catalog-v1" : "other-app");
-        const insert = db.prepare("INSERT INTO projects VALUES (?, ?, ?, 'created', 'user', ?, ?)");
-        insert.run("user-project", "用户项目", join(home, "projects", "user.db"), "2026-01-01", "2026-01-01");
-        insert.run("second-project", "第二个项目", join(home, "projects", "second.db"), "2026-01-02", "2026-01-02");
+        const insert = db.prepare("INSERT INTO projects VALUES (?, ?, 'created', 'user', ?, ?)");
+        insert.run("user-project", "用户项目", "2026-01-01", "2026-01-01");
+        insert.run("second-project", "第二个项目", "2026-01-02", "2026-01-02");
       } finally { db.close(); }
       const before = await readFile(databasePath);
       const service = createLocalUninstallService({
@@ -80,10 +80,10 @@ test("uninstall preview refuses a catalog.db that has no catalog_meta table: it 
   const { plan, untouched } = await previewCatalog(db => {
     db.exec(`
       CREATE TABLE projects (
-        project_id TEXT PRIMARY KEY, display_name TEXT, database_path TEXT,
+        project_id TEXT PRIMARY KEY, display_name TEXT,
         source TEXT, data_class TEXT, created_at TEXT, updated_at TEXT
       );
-      INSERT INTO projects VALUES ('stray', 'Stray', '/elsewhere/stray.db', 'created', 'user', '2026-01-01', '2026-01-01');
+      INSERT INTO projects VALUES ('stray', 'Stray', 'created', 'user', '2026-01-01', '2026-01-01');
     `);
   });
   assert.equal(plan.status, "conflict");

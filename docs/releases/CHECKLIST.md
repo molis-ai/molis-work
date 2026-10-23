@@ -36,7 +36,7 @@
 | 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 1 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 拒绝（只停 Feed） |
 | 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 1 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 拒绝（只停 Goals） |
 | 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 1 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 拒绝（只停 Schedule） |
-| 目录库 | `projects/catalog.db` | 22 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 拒绝 |
+| 目录库 | `projects/catalog.db` | 23 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 拒绝 |
 | 会话库 | `sessions/sessions.db` | 7 | `session_meta.schema_version` | `modules/private-work-context/src/session-schema.ts#SESSION_REGISTRY_SCHEMA_VERSION` | 拒绝 |
 | Functions | `functions/functions.db` | 3 | `user_version` | `modules/functions/src/store.ts#FUNCTIONS_STORE_BASELINE` | 拒绝 |
 | 助理 | `assistant/assistant.db` | 2 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 拒绝 |
@@ -93,7 +93,7 @@
 - [ ] 现在的做法是离线整份备份 Home（`docs/installation.md`「离线备份与恢复边界」）：先退出 App、停止常驻服务和其他写入进程，再把整个 Home 拷到 Home 之外（过去用 `~/molis-work-backups/<日期>-before-<事项>`；APFS 上可以用克隆，逻辑大小不变、实际占用少）。不要只拷单个 `.db`：目录库、会话库、加密正文和密钥必须是同一时点。外部工作区文件不在 Home 里，另行备份。
 - [ ] 服务已停的情况下，备份与原 Home 逐个比对一致（库和配置文件），记下路径、大小和比对方式，写进发布 PR。
 - [ ] Keychain 或环境变量里的密钥不随 Home 文件复制，另行确认还在（`docs/installation.md`）。
-- [ ] 恢复只能恢复到原来的绝对路径：目录库保存了项目库的绝对路径（`ProjectService.prepareRecord` 里的 `database_path`，`modules/projects/src/project-service.ts:61`）。路线图 W5-17 把目录库改成由 Home 和 `project_id` 推导路径（目录库 v23，用户 2026-10-08 的决定；v22 是删除收据的所有者步骤表，见 spec §4.1 的维护四），那一版之后这一条和 `docs/installation.md` 里的同一句一起改。
+- [ ] 目录库不再保存项目库的绝对路径（W5-17，目录库 v23，用户 2026-10-08 的决定）：项目库是 `<Home>/projects/<project_id>/molis-work.db`，由 `modules/projects/src/project-paths.ts` 推出，备份恢复到别的 Home 路径后目录库照样指向那里的文件。v22 的目录库先做维护（`node tests/fixtures/catalog-path-maintenance.mjs`：`list` 在副本上只读，`rewrite` 在真实 Home 上要用户批准的窗口；spec §4.1 的维护清单有一行），再装 v23 的构建。
 - [ ] 旧备份删不删由用户定，发布者不自行清理；2026-10-08 用户已经定了一次性清理的范围，见第 4.5 节「Home 里没有来路不明的东西」一项。
 
 ### 4.3 第 3 节有库的版本变了：先演练再动真库
@@ -101,7 +101,7 @@
 没有变化的发布跳过这一节，但第一项每次都做。这一节的做法（版本不符就拒绝，旧 Home 先一次性维护）只适用到第一个装到开发机之外的版本为止（第 1 节第 2 项）。
 
 - [ ] 发布前逐库对照上一个装出去的构建（看它的提交，不只看版本号：0.2.0 的 tag 是 9 月的，真实 Home 装的是 10-11 用同一版本号构建的）：第 3 节表里每个库的版本，和那个提交里定义处的数比；升了的每一个都要在 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的「库版本维护清单」里有一行（哪个提交改的、怎么维护、做没做），没有的先补上再往下走；对 merge-base 的那一半由 `pnpm health:check` 拦（`scripts/gates/store-versions.mjs`），对上一个装出去的构建的这一半只能在这里查。
-- [ ] 把备份再拷一份作演练副本，维护流程先在副本上跑完。演练脚本只许打开副本里的路径：目录库存的是真实 Home 的绝对路径，照着它去开会打到真库——2026-10-07 的演练就误开过一个项目库，靠版本不符被拒绝才没改动文件（`specs/repository-anti-corruption/spec.md` §4.1）。
+- [ ] 把备份再拷一份作演练副本，维护流程先在副本上跑完。演练脚本只许打开副本里的路径：目录库 v22 存的是真实 Home 的绝对路径，照着它去开会打到真库（v23 起目录库不存路径，这一条只对还没维护的 v22 副本成立）——2026-10-07 的演练就误开过一个项目库，靠版本不符被拒绝才没改动文件（`specs/repository-anti-corruption/spec.md` §4.1）。
 - [ ] 副本上逐库核对：结构与当前基线逐项相同（表、列顺序、索引、外键、CHECK，`packages/storage/src/sqlite-baseline.ts` 的 `describeSqliteSchema`），版本等于第 3 节的数，`PRAGMA integrity_check` 为 `ok`，`PRAGMA foreign_key_check` 没有行，行数与搬之前一致。
 - [ ] 演练通过后，在真库上按同一份流程做：被换下的原库不删，也不留在 Home 里，搬到 `~/molis-work-backups` 下（用户 2026-10-08 的决定，「真实 Home 的残留物」一行），建议目录名 `<日期>-replaced-by-<事项>/`、权限 700（维护三留下的 `maintenance-3-replaced/` 就是 700）；2026-10-07 维护三留在 Home 里的 `~/.molis-work/maintenance-3-replaced/` 在 4.5 的一次性清理里按同一规则搬走。密钥文件（如 `feed/secrets.json`）不读值：要改就只按键名改，原文件先原样备份（2026-10-07 的做法，`specs/repository-anti-corruption/spec.md` §1）。
 - [ ] 维护流程和演练记录（日期、副本、每库行数与核对结果）写进发布说明的「兼容与升级」或对应 spec。流程里用到的一次性脚本要么入库，要么在记录里写清它的输入输出，不让「怎么做的」只留在会话里。

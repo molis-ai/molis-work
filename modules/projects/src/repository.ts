@@ -9,6 +9,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import { createDeletionStepsSchema } from "./deletion-steps.js";
+import { projectDatabasePath } from "./project-paths.js";
 
 type Row = Record<string, unknown>;
 
@@ -32,7 +33,8 @@ export interface StoredProjectDeletion extends ProjectDeletionReceipt {
 }
 
 export class ProjectsRepository {
-  constructor(readonly db: ProjectsSqliteDatabase) {}
+  /** `projectsDirectory` is where the Host keeps the project databases: the catalog stores no path, a project's is derived from it (W5-17). */
+  constructor(readonly db: ProjectsSqliteDatabase, private readonly projectsDirectory: string) {}
 
   transaction<T>(operation: () => T): T {
     return this.db.transaction(operation)();
@@ -41,24 +43,23 @@ export class ProjectsRepository {
   listProjects(): ProjectRecord[] {
     return (this.db.prepare(
       "SELECT * FROM projects ORDER BY display_name COLLATE NOCASE, created_at, project_id",
-    ).all() as Row[]).map(mapProject);
+    ).all() as Row[]).map(row => mapProject(row, this.projectsDirectory));
   }
 
   getProject(projectId: string): ProjectRecord | null {
     const row = this.db.prepare("SELECT * FROM projects WHERE project_id = ?").get(projectId) as Row | undefined;
-    return row ? mapProject(row) : null;
+    return row ? mapProject(row, this.projectsDirectory) : null;
   }
 
   insertProject(record: ProjectRecord): void {
     this.db.prepare(`
       INSERT INTO projects (
-        project_id, display_name, database_path, source,
+        project_id, display_name, source,
         data_class, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?)
     `).run(
       record.project_id,
       record.display_name,
-      record.database_path,
       "created",
       record.data_class,
       record.created_at,
@@ -103,11 +104,6 @@ export class ProjectsRepository {
   renameProject(projectId: string, displayName: string, updatedAt: string): void {
     this.db.prepare("UPDATE projects SET display_name = ?, updated_at = ? WHERE project_id = ?")
       .run(displayName, updatedAt, projectId);
-  }
-
-  updateDatabasePath(projectId: string, databasePath: string, updatedAt: string): void {
-    this.db.prepare("UPDATE projects SET database_path = ?, updated_at = ? WHERE project_id = ?")
-      .run(databasePath, updatedAt, projectId);
   }
 
   touchProject(projectId: string, updatedAt: string): void {
@@ -325,7 +321,6 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
     CREATE TABLE IF NOT EXISTS projects (
       project_id TEXT PRIMARY KEY,
       display_name TEXT NOT NULL,
-      database_path TEXT NOT NULL UNIQUE,
       source TEXT NOT NULL CHECK (source IN ('created')),
       data_class TEXT NOT NULL CHECK (data_class IN ('user', 'regenerable_demo')),
       created_at TEXT NOT NULL,
@@ -406,11 +401,11 @@ function projectDataClass(value: unknown): ProjectRecord["data_class"] {
   return text(value) === "regenerable_demo" ? "regenerable_demo" : "user";
 }
 
-function mapProject(row: Row): ProjectRecord {
+function mapProject(row: Row, projectsDirectory: string): ProjectRecord {
   return {
     project_id: text(row.project_id),
     display_name: text(row.display_name),
-    database_path: text(row.database_path),
+    database_path: projectDatabasePath(projectsDirectory, text(row.project_id)),
     source: "created",
     data_class: projectDataClass(row.data_class),
     created_at: text(row.created_at),

@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { resolve, sep, join } from "node:path";
+import { join } from "node:path";
 import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
 import { refreshSourceConnectionState } from "@molis-ai/molis-work-module-sources";
@@ -15,11 +15,9 @@ export function refreshFeedConnectionState(homeDirectory: string, connectionId: 
   if (!existsSync(catalogPath)) return;
   const catalog = new LocalSqliteStorage(catalogPath, { readonly: true });
   try {
-    const root = resolve(homeDirectory, "projects") + sep;
-    for (const databasePath of listProjectDatabasePaths(catalog.db)) {
-      const path = resolve(databasePath);
-      if (!path.startsWith(root) || !existsSync(path)) continue;
-      const project = new LocalSqliteStorage(path, { fileMustExist: true });
+    for (const databasePath of listProjectDatabasePaths(catalog.db, join(homeDirectory, "projects"))) {
+      if (!existsSync(databasePath)) continue;
+      const project = new LocalSqliteStorage(databasePath, { fileMustExist: true });
       try {
         refreshSourceConnectionState(project.db, { connection_id: connectionId, available });
       } finally { project.close(); }

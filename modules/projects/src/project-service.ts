@@ -1,4 +1,3 @@
-import path from "node:path";
 import { projectCatalogErrors as catalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import type {
@@ -12,18 +11,20 @@ import type {
   RemoveProjectPluginInput,
 } from "@molis-ai/molis-work-contracts/modules/projects";
 
+import { projectDatabasePath } from "./project-paths.js";
 import { deletionRecord, ProjectsRepository, type StoredProjectDeletion } from "./repository.js";
 
 export interface ProjectRecordDraftInput {
   project_id?: string;
   display_name: string;
-  projects_directory: string;
   data_class: ProjectRecord["data_class"];
 }
 
 export class ProjectService {
   constructor(
     private readonly repository: ProjectsRepository,
+    /** Where the project databases are; a project's path is derived from it, never stored (W5-17). */
+    private readonly projectsDirectory: string,
     private readonly now: () => string,
     private readonly id: (prefix: string) => string,
     /** Which Plugins exist is a Host fact. Projects only validates against it. */
@@ -55,7 +56,7 @@ export class ProjectService {
     return {
       project_id: projectId,
       display_name: displayName,
-      database_path: path.join(input.projects_directory, projectId, "molis-work.db"),
+      database_path: projectDatabasePath(this.projectsDirectory, projectId),
       source: "created",
       data_class: input.data_class,
       created_at: at,
@@ -70,10 +71,7 @@ export class ProjectService {
         if (!this.plugins.has(pluginId)) throw catalogErrors.plugin_not_found("新项目的默认插件未在目录登记");
         this.repository.addProjectPlugin(record.project_id, pluginId, record.created_at);
       }
-      this.appendEvent(record.project_id, eventType, this.requiredActorId(actorId), {
-        project_id: record.project_id,
-        database_path: record.database_path,
-      });
+      this.appendEvent(record.project_id, eventType, this.requiredActorId(actorId), { project_id: record.project_id });
     });
   }
 
@@ -162,14 +160,6 @@ export class ProjectService {
         display_name: nextName,
       });
     });
-    return this.get(existing.project_id);
-  }
-
-  updateDatabasePath(projectId: string, databasePath: string): ProjectRecord {
-    const existing = this.get(projectId);
-    const next = databasePath.trim();
-    if (path.resolve(existing.database_path) === path.resolve(next)) return existing;
-    this.repository.updateDatabasePath(existing.project_id, next, this.now());
     return this.get(existing.project_id);
   }
 

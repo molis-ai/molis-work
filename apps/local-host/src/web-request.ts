@@ -30,7 +30,6 @@ import { cachedMolisWorkWebView, lookingForArea, type MolisWorkWebViewCache } fr
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
-import { SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
@@ -184,9 +183,6 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
 /** The person in this project, under one plugin's permissions. */
 const asPerson = ({ localHost, hostReference }: ProjectRuntimeContext, permissions: readonly string[]) =>
   bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user", permissions: [...permissions] }));
-/** The person outside any project (a Home plugin), with the surface's transport. */
-const asHomePerson = (localHost: MolisWorkLocalHost, permissions: readonly string[], transport: object) =>
-  bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [...permissions], ...transport }));
 
 /** The Goals settings and planning pages: the project's work and its Goals, read by their owners. */
 const planningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
@@ -200,7 +196,6 @@ const planningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 const nativePluginRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "personal", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost, userActions }) => Boolean(serverOptions.homeDirectory)
     && await handlePersonalNativePluginHttp(request, response, url, {
-      projectId: options.project?.project_id ?? "",
       alchemist: { projectId: hostReference.project_id, routePrefix: options.routePrefix ?? "",
         actions: { invoke: async (definition, input, signal) => {
           if (!signal) throw new ActionError("actions.forbidden", "缺少请求生命周期");
@@ -209,11 +204,6 @@ const nativePluginRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
           });
           return userActions(ALCHEMIST_ACTION_PERMISSIONS).invoke(definition, input, control);
         } } },
-      shelf: {
-        actions: asHomePerson(localHost, SHELF_ACTION_PERMISSIONS, {}),
-        project: { title: options.project?.display_name ?? options.projectId,
-          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user", permissions: SHELF_PROJECT_ACTION_PERMISSIONS })) },
-      },
     }) },
 ];
 

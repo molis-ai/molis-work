@@ -11,10 +11,9 @@ import { openHostShelfFiles } from "@molis-ai/molis-work-app-local-host";
 import { ShelfStore } from "../modules/shelf/dist/store.js";
 import { SHELF_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
 import { createShelfRouteHandlers } from "@molis-ai/molis-work-plugin-shelf";
-import { ShelfPluginRouteTable } from "@molis-ai/molis-work-plugin-shelf";
 import { SHELF_STYLES } from "@molis-ai/molis-work-plugin-shelf";
 import { renderShelfWorkbench } from "@molis-ai/molis-work-plugin-shelf";
-import { directShelfActions } from "./shelf-direct-actions.js";
+import { directShelfActions, ShelfPluginRouteTable } from "./shelf-direct-actions.js";
 
 // The only stub is runtime availability, so client handoffs can be exercised
 // without installing or launching an agent. Storage and HTTP handlers are real.
@@ -67,7 +66,7 @@ async function openShelfBrowser(t: TestContext) {
       const chunks: Buffer[] = [];
       for await (const chunk of request) chunks.push(Buffer.from(chunk));
       const bytes = Buffer.concat(chunks);
-      const result = await routes.handle({ method: request.method === "POST" ? "POST" : "GET", pathname: url.pathname.replace("/api/plugins/io.molis.work.shelf", "/api/shelf").replace(/^\/api\/shelf\/$/, "/api/shelf"), query: url.searchParams, body: bytes.length ? JSON.parse(bytes.toString("utf8")) : {} });
+      const result = await routes.handle({ method: request.method === "POST" ? "POST" : "GET", pathname: url.pathname, query: url.searchParams, body: bytes.length ? JSON.parse(bytes.toString("utf8")) : {} });
       if (!result) { response.writeHead(404); response.end(); return; }
       if (request.method === "GET" && url.pathname === "/api/plugins/io.molis.work.shelf/" && delayNextRead) { const wait = delayNextRead; delayNextRead = undefined; await wait(); }
       if (request.method === "GET" && url.pathname.endsWith("/file") && delayNextFile) { const wait = delayNextFile; delayNextFile = undefined; await wait(); }

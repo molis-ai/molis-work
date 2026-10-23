@@ -8,6 +8,7 @@ import test, { type TestContext } from "node:test";
 import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
 import { TODO_ACTION_PERMISSIONS, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 import { withContextJourneys, type ContextJourney, type ContextReference } from "../apps/local-host/dist/context-onboarding-store.js";
+import { startContextJourney, waitContextJourney } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean } from "./fixtures/layout-audit.js";
 
@@ -180,7 +181,13 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   assert.equal(await evaluate("document.querySelector('[data-action=start] [data-slot=button-label]').textContent"), "先带入资料");
   // RING-05: model setup retains its own connection state beside the existing copy.
   assert.equal(await evaluate("document.querySelector('.ob-model .mw-state-ring')?.dataset.mwState"), "disconnected");
+  // ONB-LIM-10: the upload goes by bytes across every source. Each upload waits a moment here, so the bar can be read part-way.
+  await evaluate("(() => { const send = window.fetch; window.fetch = (url, init) => String(url).includes('/files?path=') ? new Promise(resolve => setTimeout(resolve, 400)).then(() => send(url, init)) : send(url, init); })()");
   await click("[data-action=start]");
+  await waitFor("Number(document.querySelector('.ob-upload [role=progressbar]')?.getAttribute('aria-valuenow')) > 0");
+  const upload = await evaluate<{ now: number; max: number; text: string }>("(() => { const bar = document.querySelector('.ob-upload [role=progressbar]'); return { now: +bar.getAttribute('aria-valuenow'), max: +bar.getAttribute('aria-valuemax'), text: document.querySelector('.ob-upload small').textContent }; })()");
+  assert.ok(upload.now < upload.max, JSON.stringify(upload)); assert.match(upload.text, /^已上传 \d.* \/ \d.*B$/);
+  await assertLayoutClean(evaluate, "scope, uploading");
   await waitFor(obView("materials"), 20_000);
   assert.ok(await evaluate("!!document.querySelector('[data-action=materials-only]')"));
   await assertLayoutClean(evaluate, "materials ready");
@@ -195,6 +202,43 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   assert.match(await evaluate<string>("location.pathname"), /^\/projects\/[^/]+\/?$/);
   const created = await (await fetch(origin + "/api/settings/projects")).json() as { projects: Array<{ display_name: string }> };
   assert.deepEqual(created.projects.map(project => project.display_name), [LONG_NAME]);
+});
+
+// While organizing (user 2026-10-22): reading goes by bytes, the summary by its calls, and once a call has finished the page says how
+// long the rest may take, worked out from the calls done; reopening the page shows the same, from the journey.
+test("ONB-LIM-10 while organizing, bars go by bytes and by calls, the time left comes once a call has finished, and reopening shows the same", { timeout: 120_000 }, async t => {
+  const journey = await openJourneyBrowser(t, true);
+  if (!journey) return;
+  const { view, go, evaluate, waitFor, homeDirectory } = journey;
+  await view(1440);
+  // One long material, already read: about 270,000 characters make several batches, one more for their notes, then the proposal.
+  const text = "# 长材料\n\n" + "普通的工作背景。\n".repeat(30_000), sha256 = createHash("sha256").update(text).digest("hex"), bytes = Buffer.byteLength(text);
+  const id = journey.seed(item => { item.sources = [{ kind: "files", selected: true, references: [{ ...reference(1, "长材料"), text: { sha256, bytes, chars: text.length }, original: { filename: "长材料.md", mime: "text/markdown", sha256, size_bytes: bytes } }] }]; });
+  for (const kind of ["files", "texts"]) writeFileSync(join(homeDirectory, "context-onboarding", "journeys", id, kind, sha256), text);
+  let first!: () => void, hold!: (error: Error) => void;
+  const firstGate = new Promise<void>(resolve => { first = resolve; }), held = new Promise<string>((_, reject) => { hold = reject; });
+  let calls = 0;
+  const completeText = async () => { if (++calls > 1) return held; await firstGate; return "# 要点\n普通的工作背景 [S1]"; };
+  startContextJourney(homeDirectory, id, { model: async () => ({ runtimeLabel: "stub", completeText }) } as never);
+  // On a failure the round is let go here; the Home goes in the browser's own clean-up, which runs before this one.
+  const release = () => { first(); hold(new Error("test over")); };
+  t.after(release);
+  const summary = "document.querySelectorAll('.ob-phase')[1]";
+  const bar = `${summary}?.querySelector('[role=progressbar]')`;
+  await go(`/onboarding?mode=new-project&journey=${id}`);
+  await waitFor(`/正在估算剩余时间/.test(${summary}?.textContent ?? '')`, 20_000);
+  const all = withContextJourneys(homeDirectory, store => store.get(id)).synthesis!.batches.all;
+  assert.ok(all > 2, "the first round's batches, a round for their notes, and the proposal");
+  assert.deepEqual(await evaluate(`[${bar}.getAttribute('aria-valuenow'), ${bar}.getAttribute('aria-valuemax')]`), ["0", String(all)], "every call is counted before the first is made");
+  assert.deepEqual(await evaluate("(() => { const b = document.querySelector('.ob-right [role=progressbar]'); return [b.getAttribute('aria-valuenow'), b.getAttribute('aria-valuemax')]; })()"), [String(bytes), String(bytes)], "reading goes by bytes");
+  first();
+  await waitFor(`/还要不到 1 分钟/.test(${summary}?.textContent ?? '') && ${bar}.getAttribute('aria-valuenow') === '1'`, 20_000);
+  await assertLayoutClean(evaluate, "reading, time left");
+  await go(`/onboarding?mode=new-project&journey=${id}`);
+  await waitFor(`/还要不到 1 分钟/.test(${summary}?.textContent ?? '') && ${bar}?.getAttribute('aria-valuenow') === '1'`, 20_000);
+  await view(390);
+  await assertLayoutClean(evaluate, "reading, time left, 390");
+  release(); await waitContextJourney(homeDirectory, id);
 });
 
 const SCREENS: Array<{ name: string; width: number; height?: number }> = [
@@ -310,8 +354,9 @@ async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof open
   const longQueue = seed(item => {
     item.sources = [{ kind: "files", selected: true, files: fileMeta(12).map(file => ({ path: file.path, staged: MAIL_SHA256 })), reading: { done: 120, total: 300, references: [], issues: [] } }];
     item.phase = "failed"; item.error = "读取在第 121 份时中断，已读的会沿用。";
-    item.synthesis = { key: "fixture", stage: 1, completed: 3, total: 8, notes: [] };
-    item.todo = { status: "pending", batches: [], total: 6, error: null };
+    item.reading_bytes = { done: 48_000_000, total: 120_000_000 };
+    item.synthesis = { key: "fixture", stage: 1, completed: 3, total: 8, notes: [], batches: { done: 3, all: 10 }, timing: { ms: 90_000, calls: 3 } };
+    item.todo = { status: "pending", batches: [], total: 6, error: null, timing: { ms: 0, calls: 0 } };
   });
   const reselect = seed(item => {
     item.sources = [{ kind: "browser", selected: true, references: [{ ...reference(1), original: undefined as never }] }];
@@ -322,7 +367,7 @@ async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof open
     ["sources, materials added", `/onboarding?mode=new-project&journey=${added}`, `${obView("sources")} && document.querySelectorAll('.ob-right .mw-file-group').length === 2`],
     ["scope, long names", `/onboarding?mode=new-project&journey=${scope}`, `${obView("preview")} && document.querySelectorAll('.mw-file-row').length > 20`],
     ["reading, interrupted", `/onboarding?mode=new-project&journey=${interrupted}`, obView("reading")],
-    ["reading, a long queue interrupted", `/onboarding?mode=new-project&journey=${longQueue}`, `${obView("reading")} && document.querySelectorAll('.ob-phase').length === 3 && /120\\D+300/.test(document.querySelector('.ob-phases').textContent) && /8\\D+4/.test(document.querySelectorAll('.ob-phase')[1].textContent) && /6\\D+1/.test(document.querySelectorAll('.ob-phase')[2].textContent)`],
+    ["reading, a long queue interrupted", `/onboarding?mode=new-project&journey=${longQueue}`, `${obView("reading")} && document.querySelectorAll('.ob-phase').length === 3 && /120\\D+300/.test(document.querySelector('.ob-phases').textContent) && /8\\D+4/.test(document.querySelectorAll('.ob-phase')[1].textContent) && /6\\D+1/.test(document.querySelectorAll('.ob-phase')[2].textContent) && /48\\.0 MB \\/ 120\\.0 MB/.test(document.querySelector('.ob-phases').textContent) && document.querySelector('.ob-right [role=progressbar]').getAttribute('aria-valuenow') === '48000000' && document.querySelectorAll('.ob-phase [role=progressbar]').length === 2`],
     ["materials ready", `/onboarding?mode=new-project&journey=${needsModel}`, obView("materials")],
     ["review with drafts", `/onboarding?mode=new-project&journey=${reviewWithDrafts}`, `${obView("review")} && document.querySelectorAll('[data-draft]').length === 3`],
     ["review, long name, no drafts", `/onboarding?mode=new-project&journey=${reviewPlain}`, obView("review")],

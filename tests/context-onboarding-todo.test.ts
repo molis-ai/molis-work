@@ -104,6 +104,7 @@ test("ONB-LIM-05 todo drafts come in batches of 50 materials, a long one in part
   assert.equal(ready.phase, "review", ready.error ?? "");
   assert.equal(ready.todo?.status, "ready", ready.todo?.error ?? "");
   assert.equal(ready.todo!.total, 3); assert.equal(ready.todo!.batches.length, 3);
+  assert.equal(ready.todo!.timing.calls, 3, "ONB-LIM-10 each todo batch's call is timed, so the page can say how long the rest may take");
   assert.ok(prompts.some(prompt => prompt.includes("Long · 第 3 / 3 部分")), "the long material goes in parts Todo reads whole");
   assert.deepEqual(ready.todo!.batches.map(batch => batch.title), [1, 2, 3].map(k => `开始使用时整理的待办（第 ${k} / 3 批）`));
   const kept = ready.todo!.batches.flatMap(batch => batch.candidates.filter(candidate => candidate.selected).map(candidate => candidate.candidate_id));

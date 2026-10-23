@@ -27,6 +27,8 @@ export interface ContextSource {
   /** Reading in progress, one file at a time: what is read so far survives a restart, and reading resumes after it. */
   reading?: { done: number; total: number; references: ContextReference[]; issues: { path: string; reason: string }[] };
 }
+/** How long the model calls of a phase took so far, so the page can say how long the rest may take. */
+export interface CallTiming { ms: number; calls: number }
 export interface ContextJourney {
   id: string; phase: "selecting" | "reading" | "review" | "failed" | "adopting" | "complete";
   sources: ContextSource[]; model: string | null; error: string | null;
@@ -36,7 +38,7 @@ export interface ContextJourney {
   /** Todo drafts organized from the same materials; applied into the new project's todos on adoption. */
   /** Todo drafts, one organizer batch per 50 materials (or parts of long ones); `total` is how many the round needs. */
   /** `key` names the material set the batches came from: another set (the person went back and chose again) starts over. */
-  todo?: { status: "pending" | "ready" | "failed"; key: string; batches: TodoBatch[]; total: number; error: string | null; added?: string[] };
+  todo?: { status: "pending" | "ready" | "failed"; key: string; batches: TodoBatch[]; total: number; error: string | null; added?: string[]; timing: CallTiming };
   auto_start?: boolean;
   previewed?: boolean;
   artifact_references?: ArtifactReference[];
@@ -47,8 +49,13 @@ export interface ContextJourney {
   oauth_status?: "pending" | "connected" | "cancelled" | "failed";
   oauth_state?: string;
   oauth_expires_at?: number;
-  /** The summary's batches: the round, its batches done and in all; `notes` are the batches whose notes are staged (by digest). */
-  synthesis?: { key: string; stage: number; completed: number; total: number; notes: string[] };
+  /**
+   * The summary's batches: the round, its batches done and in all; `notes` are the batches whose notes are staged (by digest).
+   * `batches` counts every call of the summary, done and still to come (later rounds estimated from how much the notes shrink).
+   */
+  synthesis?: { key: string; stage: number; completed: number; total: number; notes: string[]; batches: { done: number; all: number }; timing: CallTiming };
+  /** Bytes of the chosen materials read so far and in all; a source read at the start (mail, pasted text) adds its own when read. */
+  reading_bytes?: { done: number; total: number };
 }
 const CONTEXT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 export function contextJourneyId(value: unknown): string {

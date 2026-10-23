@@ -6,9 +6,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { pagesActions, blocksFromMarkdown } from "@molis-ai/molis-work-plugin-pages";
 import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
-import { withContextJourneys, type ContextJourney, type ContextReference } from "./context-onboarding-store.js";
+import { withContextJourneys, type CallTiming, type ContextJourney, type ContextReference, type ImportFile } from "./context-onboarding-store.js";
 import { contextFilePath, contextSources, readContextSource } from "./context-onboarding-sources.js";
-import { diskFull, dropStagedNotes, readStagedNote, readStagedText, removeJourneyStaging, stageContextUpload, stageNote, stagedFilePath, stagedJourneyIds, isStagedDigest } from "./context-onboarding-staging.js";
+import { diskFull, dropStagedNotes, readStagedNote, readStagedText, removeJourneyStaging, stageContextUpload, stageNote, stagedFilePath, stagedFileSize, stagedJourneyIds, isStagedDigest } from "./context-onboarding-staging.js";
 import type { PeriodicTasks } from "./periodic-tasks.js";
 import { configuredTextPort, type TextModelPort } from "./configured-text-port.js";
 import { prepareContextDocument } from "./context-onboarding-documents.js";
@@ -156,6 +156,16 @@ export async function waitContextJourney(home: string, id: string): Promise<Cont
 async function organize(home: string, journey: ContextJourney, ports: ContextOnboardingPorts): Promise<void> {
   const save = () => withContextJourneys(home, store => store.save(journey));
   try {
+    // Bytes, not files, say how far reading has come (2026-10-22): one large file can be most of the wait. Staged files are counted
+    // from the disk before reading starts, what the Host reads itself (mail, pasted text) as it is read; every pass counts again,
+    // so a restart never counts a file twice.
+    const stagedSize = (file: ImportFile) => file.staged ? stagedFileSize(home, journey.id, file.staged) : Promise.resolve(0);
+    const bytes = journey.reading_bytes = { done: 0, total: 0 };
+    for (const source of journey.sources.filter(s => s.selected)) {
+      if (source.references) { const read = source.references.reduce((sum, ref) => sum + ref.original.size_bytes, 0); bytes.done += read; bytes.total += read; }
+      else for (const file of source.files ?? []) bytes.total += await stagedSize(file);
+    }
+    save();
     // Reading is a queue: one file at a time, each saved as it is read, so a restart resumes after the last one (no limits, 2026-10-22).
     for (const source of journey.sources.filter(s => s.selected)) {
       if (source.references) continue;
@@ -163,6 +173,9 @@ async function organize(home: string, journey: ContextJourney, ports: ContextOnb
       try {
         const input = await (ports.readSource ?? readContextSource)(home, source);
         const reading = source.reading?.total === input.files.length ? source.reading : { done: 0, total: input.files.length, references: [], issues: [] };
+        const counted = Boolean(source.files?.length);
+        const sizeOf = async (file: ImportFile) => { if (counted) return stagedSize(file); const size = file.bytes?.length ?? 0; bytes.total += size; return size; };
+        for (const file of input.files.slice(0, reading.done)) bytes.done += await sizeOf(file);
         source.reading = reading; save();
         // The checkpoint is written every 100 files or every second, whichever comes first: the row holds every reference so far, so a
         // write per file would cost the square of the file count. A restart reads those few files again, which staging makes cheap.
@@ -170,7 +183,7 @@ async function organize(home: string, journey: ContextJourney, ports: ContextOnb
         for (const file of input.files.slice(reading.done)) {
           const read = await prepareContextDocument(home, journey.id, source.kind, file);
           if ("reference" in read) reading.references.push(read.reference); else reading.issues.push(read.issue);
-          reading.done++;
+          bytes.done += await sizeOf(file); reading.done++;
           if (reading.done % 100 === 0 || Date.now() - saved >= 1000) { save(); saved = Date.now(); }
         }
         source.references = reading.references; source.issues = reading.issues; source.skipped = reading.issues.length;
@@ -182,6 +195,7 @@ async function organize(home: string, journey: ContextJourney, ports: ContextOnb
       }
       save();
     }
+    bytes.done = bytes.total; save();
     const refs = journey.sources.filter(s => s.selected).flatMap(s => s.references ?? []);
     const unique = [...new Map(refs.map(r => [r.source_id + ":" + r.version, r])).values()].map((r, i) => ({ ...r, label: "S" + (i + 1) }));
     if (!unique.length) throw new Error("还没有读到正文，请检查来源范围后重试");
@@ -198,6 +212,22 @@ async function organize(home: string, journey: ContextJourney, ports: ContextOnb
 }
 type Evidence = { body: string; labels: string[]; title?: string; part?: number };
 const BATCH_LIMIT = 80_000;
+/** A batch's note is at most 8,000 characters of at most 80,000 in: a round's notes are about a tenth of its input until measured. */
+const NOTE_SHRINK = 0.1;
+
+/** A model call, its time added to the phase's: the page divides the rest by the calls done to say how long it may take. */
+async function timedCall<T>(timing: CallTiming, call: () => Promise<T>): Promise<T> {
+  const started = Date.now();
+  const result = await call();
+  timing.ms += Date.now() - started; timing.calls++;
+  return result;
+}
+/** Calls still to come: the rest of this round, the rounds its notes will make (each about `shrink` of the one before), the final one. */
+function summaryCallsLeft(total: number, completed: number, shrink: number): number {
+  let left = total - completed + 1;
+  for (let next = Math.ceil(total * shrink); next > 1; next = Math.ceil(next * shrink)) left += next;
+  return left;
+}
 
 /** Every material's text, in parts of at most 12,000 characters, read from the journey's staging one material at a time. */
 async function* materialEvidence(home: string, id: string, references: ContextReference[]): AsyncGenerator<Evidence> {
@@ -234,8 +264,12 @@ async function* batchesOf(items: AsyncIterable<Evidence>): AsyncGenerator<Eviden
  */
 async function summarizeContext(home: string, references: ContextReference[], ai: TextModelPort, journey: ContextJourney, save: () => unknown): Promise<string> {
   const cacheKey = JSON.stringify([journey.model, references.map(r => [r.source_id, r.version, r.label])]);
-  if (journey.synthesis?.key !== cacheKey || !Array.isArray(journey.synthesis.notes)) journey.synthesis = { key: cacheKey, stage: 1, completed: 0, total: 0, notes: [] };
+  if (journey.synthesis?.key !== cacheKey || !Array.isArray(journey.synthesis.notes)) journey.synthesis = { key: cacheKey, stage: 1, completed: 0, total: 0, notes: [], batches: { done: 0, all: 0 }, timing: { ms: 0, calls: 0 } };
   const checkpoint = journey.synthesis;
+  // Every call of the summary, done and to come: the rounds before this one, this one, and the estimated rest. Counted again on
+  // every pass (notes staged by an earlier pass count as done without a call), so a restart never counts a batch twice.
+  let before = 0, shrink = NOTE_SHRINK;
+  const count = () => { checkpoint.batches = { done: before + checkpoint.completed, all: before + checkpoint.completed + summaryCallsLeft(checkpoint.total, checkpoint.completed, shrink) }; };
   // Registered instructions (editable in “Prompt 与 Character”), then this batch's materials, fenced under the fixed notice (S-13).
   const wrap = (instruction: InstructionPrompt, data: unknown) => instructed(instruction, fencedMaterials(data, "MATERIALS_" + randomUUID()));
   let evidence = () => materialEvidence(home, journey.id, references), stage = 1;
@@ -243,7 +277,7 @@ async function summarizeContext(home: string, references: ContextReference[], ai
     let total = 0;
     for await (const _ of batchesOf(evidence())) total++;
     if (total <= 1) break;
-    checkpoint.stage = stage++; checkpoint.completed = 0; checkpoint.total = total; save();
+    checkpoint.stage = stage++; checkpoint.completed = 0; checkpoint.total = total; count(); save();
     const notes: { labels: string[]; key: string }[] = [];
     let inSize = 0, outSize = 0;
     for await (const batch of batchesOf(evidence())) {
@@ -251,15 +285,16 @@ async function summarizeContext(home: string, references: ContextReference[], ai
       const labels = [...new Set(batch.flatMap(item => item.labels))];
       let note = await readStagedNote(home, journey.id, key);
       if (note === null) {
-        note = await ai.completeText!(wrap(ONBOARDING_NOTES, batch), { signal: AbortSignal.timeout(180_000) });
+        note = await timedCall(checkpoint.timing, () => ai.completeText!(wrap(ONBOARDING_NOTES, batch), { signal: AbortSignal.timeout(180_000) }));
         parseContextSummary(note, references.filter(r => labels.includes(r.label)));
         if (note.length > 8_000) throw new Error("分批整理结果过长，请重试；已完成批次和原文已保留。");
         await stageNote(home, journey.id, key, note);
         checkpoint.notes.push(key);
       }
       notes.push({ labels, key }); inSize += JSON.stringify(batch).length; outSize += JSON.stringify({ labels, body: note }).length;
-      checkpoint.completed++; save();
+      checkpoint.completed++; shrink = Math.min(0.5, Math.max(0.02, outSize / inSize)); count(); save();
     }
+    before += total;
     if (outSize >= inSize) {
       const keys = notes.map(note => note.key);
       await dropStagedNotes(home, journey.id, keys);
@@ -270,9 +305,9 @@ async function summarizeContext(home: string, references: ContextReference[], ai
   }
   const final: Evidence[] = [];
   for await (const item of evidence()) final.push(item);
-  checkpoint.stage = stage; checkpoint.completed = 0; checkpoint.total = 1; save();
-  const result = await ai.completeText!(wrap(ONBOARDING_PROPOSAL, final), { signal: AbortSignal.timeout(180_000) });
-  checkpoint.completed = 1; save();
+  checkpoint.stage = stage; checkpoint.completed = 0; checkpoint.total = 1; checkpoint.batches = { done: before, all: before + 1 }; save();
+  const result = await timedCall(checkpoint.timing, () => ai.completeText!(wrap(ONBOARDING_PROPOSAL, final), { signal: AbortSignal.timeout(180_000) }));
+  checkpoint.completed = 1; checkpoint.batches = { done: before + 1, all: before + 1 }; save();
   return result;
 }
 export function parseContextSummary(raw: string, references: ContextReference[]): NonNullable<ContextJourney["summary"]> {
@@ -332,14 +367,14 @@ async function draftTodos(home: string, journey: ContextJourney, references: Con
   if (journey.todo?.key === key && journey.todo.status === "ready") return;
   let total = 0;
   for await (const _ of todoBatches(home, journey.id, references)) total++;
-  const todo: NonNullable<ContextJourney["todo"]> = journey.todo = { status: "pending", key, batches: journey.todo?.key === key ? journey.todo.batches : [], total, error: null }; save();
+  const todo: NonNullable<ContextJourney["todo"]> = journey.todo = { status: "pending", key, batches: journey.todo?.key === key ? journey.todo.batches : [], total, error: null, timing: journey.todo?.key === key ? journey.todo.timing : { ms: 0, calls: 0 } }; save();
   try {
     let index = 0;
     for await (const materials of todoBatches(home, journey.id, references)) {
       if (++index <= todo.batches.length) continue;
       // The journey id and the batch number make a retried pass return the same drafts instead of organizing twice.
-      const { batch } = await ports.homeActions(home, AbortSignal.timeout(20 * 60_000)).invoke(todoOrganizeActions.extract, { origin: "onboarding",
-        title: total > 1 ? L("开始使用时整理的待办（第 {k} / {n} 批）", { k: index, n: total }) : L("开始使用时整理的待办"), request_id: `onboarding:${journey.id}:${key}:${index}`, materials });
+      const { batch } = await timedCall(todo.timing, () => ports.homeActions!(home, AbortSignal.timeout(20 * 60_000)).invoke(todoOrganizeActions.extract, { origin: "onboarding",
+        title: total > 1 ? L("开始使用时整理的待办（第 {k} / {n} 批）", { k: index, n: total }) : L("开始使用时整理的待办"), request_id: `onboarding:${journey.id}:${key}:${index}`, materials }));
       todo.batches.push(batch); save();
     }
     todo.status = "ready";

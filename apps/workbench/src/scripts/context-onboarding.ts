@@ -23,7 +23,10 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   let preparing = '', readingLocal = '', uploading = null;
   const invoke = (command,args) => globalThis.__TAURI__.core.invoke(command,args);
   const directory = s => directories.includes(s.kind);
-  const size = bytes => bytes < 1000 ? Math.max(1, Math.round(bytes)) + ' B' : bytes < 1000000 ? Math.max(1, Math.round(bytes/1000)) + ' KB' : (bytes/1000000).toFixed(1) + ' MB';
+  const size = bytes => bytes < 1000 ? Math.max(1, Math.round(bytes)) + ' B' : bytes < 1000000 ? Math.max(1, Math.round(bytes/1000)) + ' KB' : bytes < 1e9 ? (bytes/1000000).toFixed(1) + ' MB' : (bytes/1e9).toFixed(1) + ' GB';
+  const amount = bytes => bytes ? size(bytes) : '0 B';
+  // How long the rest of a phase may take, from the calls it has made: said once one has finished, never guessed before.
+  const remaining = (left, timing) => { if (!timing?.calls) return L('正在估算剩余时间'); const minutes = Math.ceil(left * timing.ms / timing.calls / 60000); return minutes <= 1 ? L('还要不到 1 分钟') : minutes < 60 ? L('约还要 {n} 分钟', {n:minutes}) : L('约还要 {h} 小时 {m} 分钟', {h:Math.floor(minutes / 60), m:minutes % 60}); };
   const included = s => (s.metadata?.files||[]).filter(f=>!(s.excluded||[]).some(p=>f.path===p||f.path.startsWith(p+'/')));
   const route = path => desktop && !/[?&]desktop=1(&|$)/.test(path) ? path + (path.includes('?') ? '&' : '?') + 'desktop=1' : path;
   let config = {}, journey = null, expanded = null, busy = false, error = '', blank = false, materialsOnly = false, editing = false, timer = 0, inputTimer = 0, authTimer = 0, opener = null;
@@ -58,6 +61,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const empty = o => '<div class="mw-empty" data-slot="empty"><span class="mw-empty__mark">' + glyph(o.icon) + '</span><h2>' + esc(o.title) + '</h2><p>' + esc(o.body) + '</p>' + (o.action || '') + '</div>';
   const collapsible = (summary, body) => '<details class="mw-collapsible" data-slot="collapsible"><summary>' + esc(summary) + '</summary><div class="mw-collapsible__body">' + body + '</div></details>';
   const progressBar = (value, max, label) => '<div class="mw-progress" data-slot="progress" role="progressbar" aria-valuemin="0" aria-valuemax="' + max + '" aria-valuenow="' + Math.min(value, max) + '" aria-label="' + esc(label) + '"><span style="width:' + (max ? Math.min(100, value / max * 100) : 0) + '%"></span></div>';
+  const meter = (value, max, label, text) => '<div class="ob-upload">' + progressBar(value, max, label) + '<small>' + esc(text) + '</small></div>';
   const toggles = (label, items) => '<div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="' + esc(label) + '">' + items.map(i => '<button type="button" class="mw-toggle' + (i.current ? ' is-current' : '') + '" aria-pressed="' + (i.current ? 'true' : 'false') + '"' + attrs(i.attrs) + '>' + esc(i.label) + '</button>').join('') + '</div>';
   const title = text => '<h1 id="ob-title" tabindex="-1">' + text + '</h1>';
   const question = (text, sub) => '<header class="ob-q">' + title(esc(text)) + (sub ? '<p>' + esc(sub) + '</p>' : '') + '</header>';
@@ -231,7 +235,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function scopeView() {
     const total = selectionTotal(), missing = picked().some(s => !previewReady(s)), queued = total.count > QUEUED.count || total.bytes > QUEUED.bytes;
     const left = question(L('确认这次读取的范围'), L(picked().some(s => s.references?.length) ? '沿用已暂存正文，新选文件只显示信息。' : '取消不需要的文件；开始后才读取正文。')) + errorLine(error)
-      + (uploading ? note(L('正在上传文件；上传完成前请留在此页，之后就可以离开。'), 'clock') : queued ? note(L('材料较多，开始后排队逐份读取；可以离开此页，回来时从断点继续。'), 'clock') : '')
+      + (uploading ? note(L('正在上传文件；上传完成前请留在此页，之后就可以离开。'), 'clock') + meter(uploading.done, uploading.total, L('上传进度'), L('已上传 {done} / {total}', {done:amount(uploading.done), total:amount(uploading.total)})) : queued ? note(L('材料较多，开始后排队逐份读取；可以离开此页，回来时从断点继续。'), 'clock') : '')
       + modelLine() + note(L(config.ai_available ? '开始后读取选中正文并发给所选模型；原文件保持原样。' : '开始后读取选中正文，暂存在本机；原文件保持原样。'), 'shield')
       + (picked().some(s => s.kind === 'gmail') ? note(L('读取所选时间内最近的 20 封邮件。'), 'mail') : '')
       + collapsible(L('读取规则'), '<p>' + L('不限份数和大小：文件逐份上传、排队读取，长文全文读入。PDF 读取文本层，Word 读取正文；单个文件失败会保留原因，不影响其他文件。只做本次整理，不自动持续同步。') + '</p>');
@@ -265,18 +269,20 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const heading = reading ? (done===picked().length ? '正在整理工作脉络' : '正在读入你的材料') : '材料已保留';
     // Files, not sources: each source is read file by file, and its checkpoint says how far it has come.
     const files = picked().reduce((n, s) => ({done:n.done + (s.references ? s.references.length + (s.issues?.length || 0) : s.reading?.done || 0), total:n.total + (s.references ? s.references.length + (s.issues?.length || 0) : s.reading?.total || 0)}), {done:0, total:0});
-    const synthesis = journey.synthesis, todo = journey.todo;
-    const phases = [['读入材料', files.total ? L('{done} / {total} 份', {done:files.done, total:files.total}) : L('{done} / {total} 份', {done, total:picked().length}), done >= picked().length ? 'done' : 'progress'],
-      ['整理工作脉络', synthesis && synthesis.total > 1 ? L('整理分 {n} 批，第 {k} 批', {n:synthesis.total, k:Math.min(synthesis.completed + 1, synthesis.total)}) : L('背景、进展与时间线'), done >= picked().length && reading ? 'progress' : 'idle'],
-      ...(todo && todo.total > 1 ? [['待办草稿', todo.status === 'pending' ? L('待办草稿分 {n} 批整理，第 {k} 批…', {n:todo.total, k:Math.min(todo.batches.length + 1, todo.total)}) : L('{done} / {total} 批', {done:todo.batches.length, total:todo.total}), todo.status === 'ready' ? 'done' : todo.status === 'pending' && reading ? 'progress' : 'idle']] : [])];
+    const synthesis = journey.synthesis, todo = journey.todo, bytes = journey.reading_bytes?.total ? journey.reading_bytes : null;
+    // Reading goes by bytes; the summary and the todo drafts by their calls, with what is left timed by the calls done (2026-10-22).
+    const summing = done >= picked().length && reading, calls = synthesis?.batches;
+    const phases = [['读入材料', (files.total ? L('{done} / {total} 份', {done:files.done, total:files.total}) : L('{done} / {total} 份', {done, total:picked().length})) + (bytes ? ' · ' + amount(Math.min(bytes.done, bytes.total)) + ' / ' + amount(bytes.total) : ''), done >= picked().length ? 'done' : 'progress', null],
+      ['整理工作脉络', (synthesis && synthesis.total > 1 ? L('整理分 {n} 批，第 {k} 批', {n:synthesis.total, k:Math.min(synthesis.completed + 1, synthesis.total)}) : L('背景、进展与时间线')) + (summing && calls?.all ? ' · ' + remaining(calls.all - calls.done, synthesis.timing) : ''), summing ? 'progress' : 'idle', calls?.all > 1 ? [calls.done, calls.all, L('整理进度')] : null],
+      ...(todo && todo.total > 1 ? [['待办草稿', (todo.status === 'pending' ? L('待办草稿分 {n} 批整理，第 {k} 批…', {n:todo.total, k:Math.min(todo.batches.length + 1, todo.total)}) : L('{done} / {total} 批', {done:todo.batches.length, total:todo.total})) + (todo.status === 'pending' && reading ? ' · ' + remaining(todo.total - todo.batches.length, todo.timing) : ''), todo.status === 'ready' ? 'done' : todo.status === 'pending' && reading ? 'progress' : 'idle', [todo.batches.length, todo.total, L('待办草稿进度')]]] : [])];
     const queuedHint = reading && (files.total > 1 || (synthesis && synthesis.total > 1)) ? note(L(files.done < files.total ? '材料较多，排队逐份读取；可以离开此页，回来时从断点继续。' : '可以离开此页，回来时从断点继续。'), 'clock') : '';
     const left = question(L(heading), L(reading ? '可以离开，回来后接着整理。' : '修复连接或模型设置后，可以接着完成。'))
-      + '<ol class="ob-phases" role="list">' + phases.map(([name, sub, tone]) => '<li class="ob-phase is-' + tone + '"><span class="ob-phase__mark" data-mw-state="' + (tone === 'done' ? 'done' : tone === 'progress' ? (reading ? 'running' : failed ? 'failed' : 'doing') : 'idle') + '"></span><span class="ob-phase__text"><strong>' + L(name) + '</strong><small>' + esc(sub) + '</small></span></li>').join('') + '</ol>'
+      + '<ol class="ob-phases" role="list">' + phases.map(([name, sub, tone, bar]) => '<li class="ob-phase is-' + tone + '"><span class="ob-phase__mark" data-mw-state="' + (tone === 'done' ? 'done' : tone === 'progress' ? (reading ? 'running' : failed ? 'failed' : 'doing') : 'idle') + '"></span><span class="ob-phase__text"><strong>' + L(name) + '</strong><small>' + esc(sub) + '</small>' + (bar ? progressBar(bar[0], bar[1], bar[2]) : '') + '</span></li>').join('') + '</ol>'
       + (journey.synthesis ? '<p class="cx-hint ob-note">' + glyph('info') + '<span>' + L('分批整理') + ' · ' + L('第 {n} 轮',{n:journey.synthesis.stage}) + ' · ' + journey.synthesis.completed + ' / ' + journey.synthesis.total + '</span></p>' : '')
       + queuedHint + errorLine(journey.error||error)
       + (failed ? '<div class="ob-cfg-actions">' + btn({variant:'secondary', size:'sm', label:L('返回清单，调整范围'), attrs:{'data-action':'restart'}}) + (picked().some(s=>s.references?.length) ? btn({variant:'secondary', size:'sm', label:L('带入资料，先开始'), attrs:{'data-action':'materials-only'}}) : '') + '</div>' : '') + note(L('只读取刚才选中的范围。'), 'shield');
     return {kind:'onboard', view:'reading', step:'整理', left,
-      right:stageHead(L('读入材料'), files.total ? L('{done} / {total} 份', {done:'<b>' + files.done + '</b>', total:files.total}) : L('{done} / {total} 份', {done:'<b>' + done + '</b>', total:picked().length})) + (files.total ? progressBar(files.done, files.total, L('读入进度')) : progressBar(done, total, L('读入进度'))) + receipts(),
+      right:stageHead(L('读入材料'), files.total ? L('{done} / {total} 份', {done:'<b>' + files.done + '</b>', total:files.total}) : L('{done} / {total} 份', {done:'<b>' + done + '</b>', total:picked().length})) + (bytes ? progressBar(Math.min(bytes.done, bytes.total), bytes.total, L('读入进度')) : files.total ? progressBar(files.done, files.total, L('读入进度')) : progressBar(done, total, L('读入进度'))) + receipts(),
       bar:{start:exitButton() + stepsBar('整理'), center:barStatus({spin:reading, glyph:'alert', title:L(heading), caption:L(reading ? '可以离开，回来后接着整理' : '材料已保留')}),
         end:failed ? linkBtn({variant:'secondary', size:'lg', label:L('模型设置'), href:route('/settings/models'), blank:true, attrs:{}}) + primary('继续整理','retry',{disabled:busy}) : btn({variant:'primary', size:'lg', icon:'clock', label:L('整理中'), disabled:true})}};
   }
@@ -522,22 +528,26 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   async function start() {
     if(journey.phase==='selecting') {
       if(picked().some(s=>!previewReady(s)))throw new Error(L('请补齐来源或跳过本次不需要的内容。'));
+      // No limits (2026-10-22): each chosen file goes up on its own into the round's staging, and the selection names it by digest.
+      const lists=[];
       for(const s of picked()) {
         if(s.references?.length)continue;
-        readingLocal=names[s.kind];render();
-        // No limits (2026-10-22): each chosen file goes up on its own into the round's staging, and the selection names it by digest.
         const chosen=directory(s)?included(s):uploads.has(s.kind)?uploads.get(s.kind).filter(file=>included(s).some(f=>f.path===(file.webkitRelativePath||file.name))):[];
-        if(!chosen.length)continue;
-        // The whole page is drawn again for a new count at most four times a second, so thousands of files do not redraw thousands of times.
-        s.files=[];let drawn=0;
-        try{for(const [index,item] of chosen.entries()) {
-          uploading={k:index+1,n:chosen.length};if(Date.now()-drawn>=250){drawn=Date.now();render();}
-          // A folder's file goes from the desktop shell straight to the Host, in pieces; the page only gets its digest back.
-          if(directory(s)){const file=await invoke('context_directory_stage',{id:s.kind,journey:journey.id,file:item});s.files.push(file.staged?{path:file.path,staged:file.staged}:{path:file.path,reason:file.reason||L('无法读取文件')});continue;}
-          const staged=await molisWorkRequest(endpoint('files')+'?path='+encodeURIComponent(item.webkitRelativePath||item.name),{file:item,fallback:L('上传失败，请重试')});
-          s.files.push({path:staged.path,staged:staged.staged});
-        }}finally{uploading=null;}
+        if(chosen.length)lists.push([s,chosen]);
       }
+      // Bytes say how far the upload has come, across every source; the page is drawn again at most four times a second.
+      const files=lists.reduce((n,[,chosen])=>n+chosen.length,0),total=lists.reduce((n,[,chosen])=>n+chosen.reduce((m,f)=>m+(f.size||0),0),0);
+      let k=0,sent=0,drawn=0;
+      try{for(const [s,chosen] of lists) {
+        readingLocal=names[s.kind];s.files=[];
+        for(const item of chosen) {
+          uploading={k:++k,n:files,done:sent,total};if(Date.now()-drawn>=250){drawn=Date.now();render();}
+          // A folder's file goes from the desktop shell straight to the Host, in pieces; the page only gets its digest back.
+          if(directory(s)){const file=await invoke('context_directory_stage',{id:s.kind,journey:journey.id,file:item});s.files.push(file.staged?{path:file.path,staged:file.staged}:{path:file.path,reason:file.reason||L('无法读取文件')});}
+          else{const staged=await molisWorkRequest(endpoint('files')+'?path='+encodeURIComponent(item.webkitRelativePath||item.name),{file:item,fallback:L('上传失败，请重试')});s.files.push({path:staged.path,staged:staged.staged});}
+          sent+=item.size||0;
+        }
+      }}finally{uploading=null;}
       readingLocal='';uploading=null;await save();
     }
     journey=await api(endpoint('start'),{});render();timer=setTimeout(poll,800);

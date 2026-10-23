@@ -61,6 +61,10 @@ export async function stagedFilePath(home: string, id: string, sha256: string): 
   if (!(await stat(path).catch(() => null))?.isFile()) throw new Error("暂存的文件不见了，请重新选择这份文件");
   return path;
 }
+/** A staged file's size; 0 when it is not there (reading it says so). */
+export async function stagedFileSize(home: string, id: string, sha256: string): Promise<number> {
+  return (await stat(staged(home, id, "files", sha256)).catch(() => null))?.size ?? 0;
+}
 export async function readStagedFile(home: string, id: string, sha256: string): Promise<Buffer> {
   return readFile(await stagedFilePath(home, id, sha256));
 }

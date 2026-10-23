@@ -213,10 +213,10 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-phase__text { display: grid; }
   .ob-phase__text strong { font-size: 13px; font-weight: var(--weight-control, 500); line-height: 18px; }
   .ob-phase.is-idle .ob-phase__text strong { color: var(--muted); font-weight: var(--weight-body, 400); }
-  .ob-phase__text small { font-size: 12px; line-height: 16px; color: var(--muted); }
-  .ob-right .mw-progress { height: 4px; }
-  .ob-right .mw-progress > span { background: var(--accent); }
-  .ob-name { display: grid; gap: 6px; }
+  :is(.ob-phase__text, .ob-upload) small { font-size: 12px; line-height: 16px; color: var(--muted); }
+  .ob-phase__text .mw-progress { margin-top: 6px; }
+  :is(.ob-right, .ob-phase, .ob-upload) .mw-progress > span { background: var(--accent); }
+  .ob-name, .ob-upload { display: grid; gap: 6px; }
   .ob-name__input.mw-input { min-height: 44px; padding: 0 2px; border: 0; border-radius: 0; border-bottom: 1.5px solid var(--line-strong); background: transparent; font-size: 20px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; box-shadow: none; }
   .ob-name__input.mw-input:focus, .ob-name__input.mw-input:focus-visible { border-color: var(--accent); box-shadow: none; outline: none; background: transparent; }
   .ob-name__input::placeholder { color: var(--faint); font-weight: var(--weight-body, 400); }

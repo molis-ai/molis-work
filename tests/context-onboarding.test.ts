@@ -101,6 +101,28 @@ test('large materials keep their ending and resume completed model batches after
   assert.match(j.summary!.body,/October 10/);assert.equal(j.summary!.references.length,1);
 });
 
+// The page shows the summary's calls as a bar and times the rest by the calls done (user 2026-10-22). The count of every call, later
+// rounds included, is known from the first batch on and is the same on a restart, which counts staged notes as done without a call.
+test('ONB-LIM-10 the summary counts all its calls from the start, times each one, and a restart neither counts a batch twice nor times a cached one', async t => {
+  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
+  const original='# Long material\n\n'+('Ordinary work context.\n'.repeat(9000))+'FINAL FACT.\n';
+  selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[await staged(dir,id,'long.md',original)]}]});
+  const seen:{done:number;all:number;calls:number}[]=[];let calls=0;
+  const ports={...pagesPorts(dir),model:async()=>({runtimeLabel:'timing fixture',completeText:async(input:ModelPromptInput)=>{
+    const s=withContextJourneys(dir,store=>store.get(id)).synthesis!;seen.push({...s.batches,calls:s.timing.calls});
+    if(++calls===3)throw Error('Temporary batch failure');
+    await new Promise(resolve=>setTimeout(resolve,15));
+    return typeof input!=='string'&&input.instruction.prompt_id==='onboarding.notes'?'# Evidence\nWork facts retained [S1]':'# Work\nFinal fact [S1]';
+  }})};
+  startContextJourney(dir,id,ports);let j=await waitContextJourney(dir,id);assert.equal(j.phase,'failed');
+  assert.deepEqual(seen,[{done:0,all:4,calls:0},{done:1,all:4,calls:1},{done:2,all:4,calls:2}],'three batches, then one call for the proposal');
+  assert.equal(j.synthesis!.timing.calls,2,'a failed call is not timed');assert.ok(j.synthesis!.timing.ms>=25);
+  seen.length=0;startContextJourney(dir,id,ports);j=await waitContextJourney(dir,id);assert.equal(j.phase,'review',j.error??'');
+  assert.deepEqual(seen,[{done:2,all:4,calls:2},{done:3,all:4,calls:3}],'the two staged notes count as done, untimed');
+  assert.deepEqual(j.synthesis!.batches,{done:4,all:4});assert.equal(j.synthesis!.timing.calls,4);
+  assert.deepEqual(j.reading_bytes,{done:Buffer.byteLength(original),total:Buffer.byteLength(original)});
+});
+
 // Before B1 onboarding borrowed Cognia's port: its calls ran under Cognia's role and were recorded as Cognia's use of the onboarding
 // instructions. The served Host's real path (register, configured model, HTTP) now runs them as onboarding's own.
 test('the person\'s versions of both onboarding instructions are what the model reads, with no other owner\'s role, recorded as onboarding\'s use', { timeout: 60_000 }, async t => {
@@ -438,11 +460,15 @@ test('ONB-LIM-03 a round of 300 files is read one by one and adopted whole: ever
   withContextJourneys(dir,s=>s.create(id));
   const files=[];for(let i=0;i<300;i++)files.push(await staged(dir,id,'notes/n-'+i+'.md','# Note '+i+'\n\nFact number '+i+'.'));
   selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files}]});
-  const seen:number[]=[];const ports={...pagesPorts(dir),model:async()=>({})};
-  const timer=setInterval(()=>{const r=withContextJourneys(dir,s=>s.get(id)).sources[0]?.reading;if(r)seen.push(r.done);},5);t.after(()=>clearInterval(timer));
+  const seen:number[]=[],bytes:{done:number;total:number}[]=[];const ports={...pagesPorts(dir),model:async()=>({})};
+  const timer=setInterval(()=>{const j=withContextJourneys(dir,s=>s.get(id)),r=j.sources[0]?.reading;if(r){seen.push(r.done);bytes.push(j.reading_bytes!);}},5);t.after(()=>clearInterval(timer));
   startContextJourney(dir,id,ports);const read=await waitContextJourney(dir,id);clearInterval(timer);
   assert.equal(read.phase,'failed');assert.equal(read.needs_model,true);assert.equal(read.sources[0]!.references!.length,300);assert.equal(read.sources[0]!.reading,undefined);
   assert.ok(seen.some(n=>n>0&&n<300),'the checkpoint says how far reading has come');
+  // ONB-LIM-10: how far by bytes, of a total known before the first file is read.
+  const sizes=read.sources[0]!.references!.reduce((n,r)=>n+r.original.size_bytes,0);
+  assert.ok(bytes.length&&bytes.every(b=>b.total===sizes&&b.done<=b.total),JSON.stringify(bytes.slice(0,3)));assert.ok(bytes.some(b=>b.done>0&&b.done<sizes),'bytes read part-way are counted');
+  assert.deepEqual(read.reading_bytes,{done:sizes,total:sizes});
   assert.ok(JSON.stringify(withContextJourneys(dir,s=>s.get(id))).length<300*1_000,'the journey row names materials by digest, without their text');
   const adopted=await adoptContextJourney(dir,id,{title:'Three hundred',materials_only:true},ports);assert.equal(adopted.phase,'complete',adopted.error??'');
   const pages=openPagesStore(dir);try{assert.equal(pages.list(adopted.project_id).length,301);}finally{pages.close();}

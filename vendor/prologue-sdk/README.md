@@ -4,7 +4,7 @@
 
 目录里现在有这些东西：
 
-- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,335,783 字节），SHA-256 `4ea6e04c393e37fc1f9672272d52b0916d826b487c0460e45a1f87b1773c96f4`。来源为 Prologue [#88](https://github.com/molis-ai/molis-prologue/pull/88) 的干净提交 `89bded90a73e88fb0b21b09231ce00714a567fab`，已合 main `8c9c5460d0d24ef449c7fc01b262c52206a0b801`，整树一致，无补丁。包含此前 Memory CAS/分类管理、可信来源、策略晋升、未分类读取与采用，并修复同一 Run 停用/编辑/删除后移除旧投影继续执行；当前授权、最终发送门和累计预算不变。
+- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,336,510 字节），SHA-256 `fc53257a002459fdc25cc84f437cb6960dfc3b9e177e5c4973c729f8673a84a6`。来源为 Prologue [#89](https://github.com/molis-ai/molis-prologue/pull/89) 的干净提交 `c85dcd33563629f9ed56c184168fad216f21e46f`，已合 main `0c9ffb1546e201fec96cc8fd6a1c77d3cd4403ed`，整树一致，无补丁。包含此前 Memory CAS/分类管理、可信来源、策略晋升、未分类读取、采用及同 Run 失效投影修复；本片补充首次接受时间跨队列/接续/重启不变，旧未知时间保持未知，模型对子代理补充明确为 peer。
 
 该 head 的完整 `pnpm quality`、干净安装消费者和新旧包兼容专项通过。制包环境为 macOS arm64、Node 24.19.0、pnpm 11.9.0；实际 Node 与仓库声明的 24.14.0 有差异。本次未作独立逐字节重建，不宣称完成 Molis 采用、模型收益或用户验收。Molis 集成与严格 baseline 切换状态以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) §13 为准。
 

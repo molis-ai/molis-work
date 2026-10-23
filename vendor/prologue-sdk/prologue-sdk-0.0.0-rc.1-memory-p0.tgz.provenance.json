@@ -9,11 +9,11 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "89bded90a73e88fb0b21b09231ce00714a567fab",
+    "commit": "c85dcd33563629f9ed56c184168fad216f21e46f",
     "mergedUpstream": {
-      "pullRequest": 88,
-      "head": "89bded90a73e88fb0b21b09231ce00714a567fab",
-      "merge": "8c9c5460d0d24ef449c7fc01b262c52206a0b801",
+      "pullRequest": 89,
+      "head": "c85dcd33563629f9ed56c184168fad216f21e46f",
+      "merge": "0c9ffb1546e201fec96cc8fd6a1c77d3cd4403ed",
       "note": "Main tree equals the verified PR head; no local SDK patch."
     },
     "dirty": false,
@@ -22,9 +22,9 @@
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1335783,
-    "sha256": "4ea6e04c393e37fc1f9672272d52b0916d826b487c0460e45a1f87b1773c96f4",
-    "integrity": "sha512-g+Ac1ZrOoykPA3DSMcdGqpexUQwvuQhcyw0SwJHY8ENI0O0PoHLzYjxnZrHUYa07vgmR3jv5zljgtyDm7v3ZTg=="
+    "bytes": 1336510,
+    "sha256": "fc53257a002459fdc25cc84f437cb6960dfc3b9e177e5c4973c729f8673a84a6",
+    "integrity": "sha512-gjbuzhmwbGNIbMXoLJBKfWKzWCzhbTZZofPNicwKoTP9D/X7034llMTfsC6ovNlu9AXOKDCekhXzPh1Tvegung=="
   },
   "build": {
     "node": "24.19.0",
@@ -37,6 +37,6 @@
       "Copy the verified package to the Molis vendor path"
     ],
     "packedOn": "2026-10-23",
-    "note": "Clean PR #88 head; final complete quality including 679 stable tests, clean installed SDK real tool disable followed by a successful second HTTP request, Rust and 167 targeted tests passed. Invalid canonical projections are retired before reuse, without weakening current permission/final dispatch checks or refunding budget. Not a release or Molis acceptance; no byte-identical independent rebuild claimed. Actual Node24.19.0 differs from declared24.14.0."
+    "note": "Clean PR #89 head; complete quality including 679 stable tests, clean installed SDK real HTTP/Node queue/carry/reopen, Rust and 102 targeted tests passed. First accepted input time survives carry/cancel/trimming/restart; unknown old times stay unknown; model-to-subagent steer is peer. Not a release or Molis acceptance; no byte-identical independent rebuild claimed. Actual Node24.19.0 differs from declared24.14.0."
   }
 }

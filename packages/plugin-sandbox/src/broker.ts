@@ -1,3 +1,4 @@
+import type { PluginInteractionClient } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkRequest, SandboxNetworkResponse, SandboxOperationContract, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
@@ -19,6 +20,8 @@ export interface SandboxServices {
   resource?: { read(context: SandboxServiceContext, name: string): Promise<string> };
   /** The plugin's own tables in the project's library (`sandboxDatabase` over `services.project_database`). */
   projectDatabase?: SandboxDatabaseService;
+  /** The activation's `services.interaction`: drawing only, so no effect is declared or granted for it (S-56). */
+  interaction?: PluginInteractionClient;
 }
 interface BrokerLimits { sdkQueue: number; sdkPerMinute: number; eventsPerMinute: number; serviceTimeoutMs: number; storageBytes: number; messageBytes: number }
 
@@ -90,6 +93,21 @@ export class SandboxBroker {
       const statement = sandboxStatement(args[0], args[1]);
       if (!database) return missing();
       return method === 'projectDatabase.get' ? database.get(context, statement) : database.all(context, statement);
+    }
+    if (method.startsWith('interaction.')) {
+      // Drawing reads only what the plugin passes and writes nothing; the Host checks each drawing's shape, the channel that it is an object.
+      const object = <T>(index: number): T => {
+        const value: unknown = args[index];
+        if (!value || typeof value !== 'object' || Array.isArray(value)) throw new SandboxError('sandbox.invalid_request', 'Interaction drawings take objects');
+        return value as T;
+      };
+      if (method === 'interaction.nextStepsHtml') { count(1); const input = object<Parameters<PluginInteractionClient['nextStepsHtml']>[0]>(0); return this.services.interaction ? this.services.interaction.nextStepsHtml(input) : missing(); }
+      if (method !== 'interaction.questionHtml' && method !== 'interaction.cardHtml') throw new SandboxError('sandbox.invalid_request', 'Unknown interaction method');
+      count(2);
+      const options = object<{ reask?: unknown; redo?: unknown }>(1), interaction = this.services.interaction ?? missing();
+      return method === 'interaction.questionHtml'
+        ? interaction.questionHtml(object<Parameters<PluginInteractionClient['questionHtml']>[0]>(0), { reask: options.reask === true })
+        : interaction.cardHtml(object<Parameters<PluginInteractionClient['cardHtml']>[0]>(0), { redo: options.redo === true });
     }
     switch (method) {
       case 'artifacts.get': {

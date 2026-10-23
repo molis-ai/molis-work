@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,7 +12,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { createMaterialExtractor, extractMaterial, readMaterialHtml } from "../apps/local-host/src/material-extraction.js";
 import { extractUploadedMaterial } from "../apps/local-host/src/material-upload.js";
-import { prepareContextDocuments } from "../apps/local-host/src/context-onboarding-documents.js";
+import { prepareContextDocument } from "../apps/local-host/src/context-onboarding-documents.js";
 
 function pdf(texts: string[]): Buffer {
   const objects = ["<< /Type /Catalog /Pages 2 0 R >>", `<< /Type /Pages /Kids [${texts.map((_, i) => `${4 + i * 2} 0 R`).join(" ")}] /Count ${texts.length} >>`, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
@@ -140,18 +141,27 @@ test("Host sends the selected OCR languages to its helper and rejects invalid li
     }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
-test("onboarding rejects partially readable PDFs and truncated text, preserves exact originals and titles", async () => {
-  const html = '<title>Project</title><article><h1>Plan</h1><p>Ship it</p></article>';
-  const files = [{ path: "partial.pdf", data: pdf(["Readable", ""]).toString("base64") },
-    { path: "large.txt", data: Buffer.from("中".repeat(700_000)).toString("base64") },
-    { path: "page.html", data: Buffer.from(html).toString("base64") }];
-  const result = await prepareContextDocuments("files", files);
-  assert.deepEqual(result.issues.map(issue => issue.path), ["partial.pdf", "large.txt"]);
-  assert.match(result.issues[0]!.reason, /第 2 页/); assert.match(result.issues[1]!.reason, /2 MB/);
-  assert.equal(result.references.length, 1); assert.equal(result.references[0]!.title, "Project");
-  assert.equal(result.references[0]!.original.data_base64, files[2]!.data); assert.match(result.references[0]!.body, /# Plan/);
-  const controller = new AbortController(), stopped = new Error("cancel onboarding"); controller.abort(stopped);
-  await assert.rejects(prepareContextDocuments("files", files, controller.signal), error => error === stopped);
+// A long text is read whole (user 2026-10-22, replaces the 2 MB rejection of slice 90): each file is read on its own into the
+// journey's staging, under its digest; a partly readable PDF still fails on its own.
+test("onboarding rejects partially readable PDFs, reads long text whole, preserves exact originals and titles", async () => {
+  const home = mkdtempSync(path.join(tmpdir(), "molis-onboarding-documents-")), id = randomUUID();
+  try {
+    const html = '<title>Project</title><article><h1>Plan</h1><p>Ship it</p></article>', long = "中".repeat(700_000);
+    const files = [{ path: "partial.pdf", bytes: pdf(["Readable", ""]) }, { path: "large.txt", bytes: Buffer.from(long) }, { path: "page.html", bytes: Buffer.from(html) }];
+    const read = [];
+    for (const file of files) read.push(await prepareContextDocument(home, id, "files", file));
+    const issues = read.flatMap(r => "issue" in r ? [r.issue] : []), references = read.flatMap(r => "reference" in r ? [r.reference] : []);
+    assert.deepEqual(issues.map(issue => issue.path), ["partial.pdf"]); assert.match(issues[0]!.reason, /第 2 页/);
+    const staged = (kind: "files" | "texts", sha256: string) => readFileSync(path.join(home, "context-onboarding", "journeys", id, kind, sha256));
+    const [large, page] = references;
+    assert.equal(references.length, 2); assert.equal(page!.title, "Project");
+    assert.equal(String(staged("texts", large!.text.sha256)), long, "the whole long text, not cut at 2 MB");
+    assert.match(String(staged("texts", page!.text.sha256)), /# Plan/);
+    assert.equal(page!.original.sha256, createHash("sha256").update(html).digest("hex"));
+    assert.equal(String(staged("files", page!.original.sha256)), html, "the exact original");
+    const controller = new AbortController(), stopped = new Error("cancel onboarding"); controller.abort(stopped);
+    await assert.rejects(prepareContextDocument(home, id, "files", files[2]!, controller.signal), error => error === stopped);
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
 

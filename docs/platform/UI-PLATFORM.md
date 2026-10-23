@@ -23,7 +23,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 ### 插件页面隔离与公共服务（SYS-15，迁移中）
 
-已迁移的插件客户端在不透明来源的 `sandbox="allow-scripts allow-forms"` iframe 中运行；表单由页面 JavaScript 处理，CSP 的 `form-action 'none'` 拒绝原生表单导航，`connect-src 'none'` 拒绝直接网络连接。可信外壳持有控制令牌、页面授权和 MessageChannel，子页面不能读父 DOM、原生 IPC 或其他插件页面。页面授权绑定实际激活、安装、项目与 actor，生命周期由 Host 撤销。当前迁移范围及未完成页面见 [系统修复 spec](../../specs/system-review-fixes/spec.md)。
+已迁移的插件客户端在不透明来源的 `sandbox="allow-scripts allow-forms"` iframe 中运行；表单由页面 JavaScript 处理，CSP 的 `form-action 'none'` 拒绝原生表单导航，`connect-src 'none'` 拒绝直接网络连接。可信外壳持有控制令牌、页面授权和 MessageChannel，子页面不能读父 DOM、原生 IPC 或其他插件页面。页面授权绑定实际激活、安装、项目与 actor，生命周期由 Host 撤销。当前迁移范围及未完成页面见 [系统修复 spec](../../specs/archive/system-review-fixes/spec.md)。
 
 客户端的 `host` 提供同一组受限服务（类型在 contracts 的 `platform/ui`，SDK 重导出）：`invokeAction(reference,input)` 调用自身或 Manifest 声明消费的动作，服务端使用实际定义、当前 grants 与 audience；`messages.send/listen` 承接已登记的主区与侧栏上下文消息；`download`、`printDocument`、`loadMedia` 负责导出、无脚本打印与经授权读取的图片/PDF；`terminal.send/listen` 只连接本安装、本项目在服务端创建的终端，返回事件确认结果，不能提交启动命令。直接读父窗口、拼接控制头、任意 URL 代理与从页面传入可信身份都不属于公共服务。
 

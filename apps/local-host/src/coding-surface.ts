@@ -23,7 +23,6 @@ import {
   renderDiff,
   unifiedPatch,
   compareRunChangeSet,
-  type DiffView,
 } from "@molis-ai/molis-work-plugin-diff";
 import {
   FILES_PLUGIN_ID,
@@ -34,7 +33,7 @@ import {
   renderGitBrowserDirectory,
   renderGitBrowserResult,
 } from "@molis-ai/molis-work-plugin-git";
-import { TEXT_STATS_UI_CONTRIBUTION_ID, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
+import { TEXT_STATS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-text-stats";
 
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -122,8 +121,9 @@ function readsFilesOutputs(platform: { supervisor: { manifest(pluginId: string):
 
 /**
  * What the Coding family still adds around a project's plugin route (project-plugin-http.ts): a consumer of Files' outputs reads
- * them fresh first, and a few plugins' answers carry markup the Host renders for them. The markup goes with the result decoration's
- * move to its plugins (C7), the Files refresh once the workspace has a platform notice (N-14); then the hooks go too.
+ * them fresh first, and Coding's answers carry markup the Host renders for it. Diff and Text Stats draw their own (PG-062); Coding's
+ * markup goes with the rest of the result decoration's move to Coding (C7), the Files refresh once the workspace has a platform
+ * notice (N-14); then the hooks go too.
  */
 export const codingRouteHooks: ProjectPluginRouteHooks = ({ platform, pluginId, request, url, ports }) => ({
   async beforeDispatch(router) {
@@ -133,13 +133,8 @@ export const codingRouteHooks: ProjectPluginRouteHooks = ({ platform, pluginId, 
     await router.dispatch({ method: "GET", pathname: `/api/plugins/${FILES_PLUGIN_ID}/state`, actor_id: ports.actorId, query: {} });
     await platform.wiring.drain();
   },
-  async afterDispatch(result) { decorateRuntimeResult(result, pluginId, request, url, ports); },
+  async afterDispatch(result) { if (pluginId === CODING_PLUGIN_ID) decorateCodingResult(result, request, url); },
 });
-
-function decorateRuntimeResult(result: PluginRouteResponse, pluginId: string, request: IncomingMessage, url: URL, ports: ProjectPluginHttpPorts): void {
-  if (result.status === 200 && url.pathname.endsWith("/state")) decorateCompanionState(pluginId.replace("io.molis.work.", "") + ".state", result.body, ports.routePrefix ?? "");
-  if (pluginId === CODING_PLUGIN_ID) decorateCodingResult(result, request, url, ports);
-}
 
 /**
  * The row beside Coding's composer (AC-25; AC-06, H4): the round's questions and cards as the Assistant's are, then, once
@@ -156,21 +151,7 @@ export function codingNextSteps(run: CodingFollowUpRun & { awaiting_input: reado
 /** A card of a Coding session as Coding keeps it: the SDK's card, with no work of the Assistant's around it. */
 type CodingCard = Omit<StoredCard, "work_id">;
 
-/** The same presentation is attached after a declared page action or a plugin's own HTTP query has passed authorization. */
-export function decorateCompanionState(capabilityId: string, result: unknown, routePrefix: string): void {
-  const content = result as { view?: unknown; html?: string } | null;
-  if (!content?.view) return;
-  if (capabilityId === "diff.state") content.html = renderDiff({
-    route_prefix: routePrefix, view: content.view as DiffView,
-    primitives: { escape: value => escapeHtml(String(value)), text: L, icon: name => icon(name as Parameters<typeof icon>[0]) },
-  });
-  if (capabilityId === "text-stats.state") content.html = renderTextStats({
-    view: content.view as TextStatsView,
-    primitives: { escape: value => escapeHtml(String(value)), text: L, icon: name => icon(name as Parameters<typeof icon>[0]) },
-  });
-}
-
-function decorateCodingResult(result: PluginRouteResponse, request: IncomingMessage, url: URL, ports: ProjectPluginHttpPorts): void {
+function decorateCodingResult(result: PluginRouteResponse, request: IncomingMessage, url: URL): void {
   // The existing sanitized rich-text renderer is supplied by the composition;
   // Coding neither imports another plugin nor trusts model-produced HTML.
   const body = result.body as { runs?: Array<CodingFollowUpRun & { turns: Array<{ text: string; kind: string }>; awaiting_input: AgentPendingQuestion[]; cards?: CodingCard[] }> } | undefined;
@@ -214,7 +195,7 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
     Object.assign(changeBody, { view_mode: netFiles ? "net" : "write",
       net_groups: groups.map(group => ({ path: group.path, indices: group.indices, available: group.available, ...(group.available ? {} : { reason: group.reason }) })) });
     // The reader picks unified or side by side; anything else reads as unified.
-    changeBody.html = renderDiff({ view: { ...view, mode: url.searchParams.get("layout") === "split" ? "split" : "unified" }, route_prefix: ports.routePrefix ?? "", line_feedback: Boolean(changeBody.reference), fold_context: 3, sides: false,
+    changeBody.html = renderDiff({ view: { ...view, mode: url.searchParams.get("layout") === "split" ? "split" : "unified" }, line_feedback: Boolean(changeBody.reference), fold_context: 3, sides: false,
       primitives: { escape: value => escapeHtml(String(value)), text: L, icon: name => icon(name as Parameters<typeof icon>[0]) } });
     // 复制补丁 copies the change on show as a patch git takes (VUX-33), written from the same rows.
     Object.assign(changeBody, { patch: chosen && view.phase === "ready" ? unifiedPatch(view.rows, { path: chosen.path, created: (netFiles?.[0] ?? chosen).kind === "added", removed: (netFiles?.[0] ?? chosen).kind === "deleted" }) : "" });
@@ -228,7 +209,7 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
         kind: file.before_text === null ? "added" : file.after_text === null ? "deleted" : "modified", added_lines: 0, removed_lines: 0, diff: "",
         review: { review_id: "integration", before_text: file.before_text, after_text: file.after_text ?? "", decision: "approved", execution: "applied" } }] } as never,
         source_plugin_id: CODING_PLUGIN_ID, content_version: 1 }, undefined, 0);
-      file.diff_html = renderDiff({ view, route_prefix: ports.routePrefix ?? "", fold_context: 3, sides: false,
+      file.diff_html = renderDiff({ view, fold_context: 3, sides: false,
         primitives: { escape: value => escapeHtml(String(value)), text: L, icon: name => icon(name as Parameters<typeof icon>[0]) } });
     }
   }

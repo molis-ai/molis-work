@@ -49,10 +49,10 @@ test("SYS-49/VUX-33: a large block reads at once and is coloured a slice a frame
     const expected = new Map(); window.matchesColour = (code, text) => {
       if (!expected.has(text)) expected.set(text, JSON.stringify(tokensOf(text, "ts")));
       return JSON.stringify(colourParts(code)) === expected.get(text); };
-    window.steps = []; const frame = window.requestAnimationFrame.bind(window);
+    window.steps = []; window.stepCosts = []; const frame = window.requestAnimationFrame.bind(window);
     window.grown = 0; const grow = ${growCodeTokens.toString()};
     window.paint = (() => {
-      const requestAnimationFrame = (step) => frame((stamp) => { const start = performance.now(); step(stamp); window.code?.getBoundingClientRect(); window.steps.push(performance.now() - start); });
+      const requestAnimationFrame = (step) => frame((stamp) => { const start = performance.now(); step(stamp); const worked=performance.now(); window.code?.getBoundingClientRect(); const end=performance.now(); window.steps.push(end-start); window.stepCosts.push([worked-start,end-worked]); });
       return (${createCodingCodePaint.toString()})(tokensOf, (last, text, language, tokens) => { const next = grow(last, text, language, tokens); window.grown += text.length - (next.starts[next.from] ?? text.length); return next; }, (hint) => hint); })();
     window.block = () => { document.querySelector('#scale')?.remove(); const pre = document.body.appendChild(document.createElement('pre')); pre.id = 'scale'; return pre.appendChild(document.createElement('code')); };`);
   const text = textOf(300_000);
@@ -63,6 +63,7 @@ test("SYS-49/VUX-33: a large block reads at once and is coloured a slice a frame
   // Done when the slices end on what colouring it whole gives.
   await waitFor("matchesColour(code, text)", 30_000);
   const steps = await evaluate<number[]>("steps.slice()");
+  t.diagnostic(JSON.stringify({ first, slices: await evaluate("stepCosts") }));
   assert.ok(steps.length >= 15 && Math.max(...steps) < 50, `${steps.length} frames, the longest ${Math.max(...steps).toFixed(1)} ms`);
 
   // Growing while it is coloured: the job takes the longer text and goes on; nothing starts over.

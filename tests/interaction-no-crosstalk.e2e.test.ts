@@ -206,6 +206,13 @@ test("AC-05: a question's draft and answer stay in the session it was asked in; 
 test("AC-08: two tabs answer one Coding question: one is taken, the other is refused with a code, the round hears once and nothing is written twice", { timeout: 240_000 }, async t => {
   const opened = await openCoding(t, [LOGIN]); if (!opened) return;
   const { click, waitFor, command, coding, heard, enter, ask, projectId, origin, homeDirectory } = opened;
+  const frameEvents: object[] = [];
+  for (const event of ["Target.attachedToTarget", "Target.detachedFromTarget", "Target.targetDestroyed", "Inspector.targetCrashed", "Page.frameDetached", "Runtime.executionContextDestroyed", "Runtime.executionContextsCleared"]) {
+    t.after(opened.on(event, (params, attachedSession) => {
+      const info = params.targetInfo as { targetId?: string; type?: string } | undefined;
+      frameEvents.push({ event, at: Date.now(), attachedSession, session: params.sessionId, target: info?.targetId ?? params.targetId, kind: info?.type, frame: params.frameId, reason: params.reason });
+    }));
+  }
   await enter(projectId!);
   const session = await ask(LOGIN.task);
   // A window of its own, so both pages stay in front: Coding reads and follows a session only in a page that is shown.
@@ -231,7 +238,12 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
   // The list is drawn by the server first; the row is clicked once Coding's page script has loaded and listens.
   await otherPage.waitFor(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]') && !document.querySelector('[data-ui-client-state="loading"]')`);
   await otherPage.evaluate(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]').click()`);
+  try {
   await otherPage.waitFor(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(session)} && document.querySelector(${JSON.stringify(card(coding))})`);
+  } catch (error) {
+    t.diagnostic(JSON.stringify({ frameEvents: frameEvents.slice(-120), owner: await other("({ready:document.readyState,visibility:document.visibilityState,frames:[...document.querySelectorAll('iframe')].map(f=>({plugin:f.dataset.pluginFrame,connected:f.isConnected,box:f.getBoundingClientRect().toJSON()})),surfaces:[...document.querySelectorAll('[data-work-surface]')].map(s=>({name:s.dataset.workSurface,ready:s.dataset.uiClientState,hidden:s.hidden,childCount:s.childElementCount}))})").catch(() => null) }));
+    throw error;
+  }
   // Its request to answer waits in its page until released; the reply is kept for the assertions. Every read of the session that
   // starts after the reply waits until `__rereads()`, and is counted once the page has drawn from it: its JSON taken, and the page's own
   // code after that run.

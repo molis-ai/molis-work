@@ -12,10 +12,9 @@
  * (GET/HEAD) only; the installed plugin reaches it fully.
  */
 import { isIP } from 'node:net';
-import type { Agent } from 'node:https';
 import type { SandboxIdentity, SandboxNetworkResponse } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
-import { publicAddress, sendPublicHttps, type PublicHttpsFailure, type PublicLookup } from '../public-https.js';
+import { publicAddress, sendPublicHttps, type PublicHttpsFailure, type PublicHttpsTestServer, type PublicLookup } from '../public-https.js';
 
 export { publicAddress };
 
@@ -35,8 +34,8 @@ interface HostNetworkOptions {
   secret?(pluginId: string, reference: string): Promise<{ header: string; value: string } | null>;
   /** Whether this identity may reach the network, and with which methods ('read' = GET/HEAD only). */
   reach(identity: Readonly<SandboxIdentity>): 'none' | 'read' | 'all';
-  /** Only for tests: how TLS connections are made (a local server), and which addresses they allow. */
-  agent?: Agent;
+  /** Only for tests: a local TLS server standing in for the site, and which addresses a connection may use. */
+  testServer?: PublicHttpsTestServer;
   allowAddress?(address: string): boolean;
 }
 
@@ -68,7 +67,7 @@ export function hostNetwork(options: HostNetworkOptions): NonNullable<SandboxSer
       context.signal.throwIfAborted(); await context.beforeEffect?.(); context.signal.throwIfAborted();
       const response = await sendPublicHttps({ url, method, headers, ...(request.body === undefined ? {} : { body: request.body }), signal: context.signal,
         ...(context.beforeEffect ? { beforeEffect: context.beforeEffect } : {}), ...(options.lookup ? { lookup: options.lookup } : {}),
-        ...(options.allowAddress ? { allowAddress: options.allowAddress } : {}), ...(options.agent ? { agent: options.agent } : {}),
+        ...(options.allowAddress ? { allowAddress: options.allowAddress } : {}), ...(options.testServer ? { testServer: options.testServer } : {}),
         failure: (reason, detail) => new SandboxError(FAILURE_CODES[reason], detail) });
       const visible: Record<string, string> = {};
       for (const name of VISIBLE) { const value = response.headers[name]; if (typeof value === 'string') visible[name] = value; }

@@ -1,5 +1,4 @@
 import { existsSync } from "node:fs";
-import type { Agent } from "node:https";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginConnectionResponse } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { CONNECTOR_REQUEST_SERVICES, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
@@ -8,7 +7,7 @@ import type { PluginConnectionDispatch, PluginConnectionsPort, PluginConnectionT
 import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
-import { sendPublicHttps, type PublicHttpsFailure, type PublicLookup } from "./public-https.js";
+import { sendPublicHttps, type PublicHttpsFailure, type PublicHttpsTestServer, type PublicLookup } from "./public-https.js";
 
 // The Host's side of a plugin's `services.connections` (S0b-2, security invariant S-57): which account a slot is bound to, the
 // credential, the one origin it may reach and the transport. The runtime client (packages/plugin-runtime `createPluginConnectionsClient`)
@@ -37,10 +36,10 @@ const FAILURES: Record<PublicHttpsFailure, (detail: string) => Error> = {
 };
 
 export interface PluginConnectionsPortOptions {
-  /** Only for tests: how names resolve, which addresses a connection may use (a local server) and how TLS connections are made. */
+  /** Only for tests: how names resolve, which addresses a connection may use (a local server) and that server. */
   readonly lookup?: PublicLookup;
   allowAddress?(address: string): boolean;
-  readonly agent?: Agent;
+  readonly testServer?: PublicHttpsTestServer;
 }
 
 /**
@@ -86,7 +85,7 @@ async function send(dispatch: PluginConnectionDispatch, authorization: string | 
   const headers = { "user-agent": "Molis-Work", ...dispatch.headers, ...(authorization ? { authorization } : {}) };
   const response = await sendPublicHttps({ url: dispatch.url, method: dispatch.method, headers, ...(dispatch.body === undefined ? {} : { body: dispatch.body }),
     signal: dispatch.signal, beforeEffect: dispatch.beforeEffect, ...(options.lookup ? { lookup: options.lookup } : {}),
-    ...(options.allowAddress ? { allowAddress: options.allowAddress } : {}), ...(options.agent ? { agent: options.agent } : {}),
+    ...(options.allowAddress ? { allowAddress: options.allowAddress } : {}), ...(options.testServer ? { testServer: options.testServer } : {}),
     failure: (reason, detail) => FAILURES[reason](detail) });
   const visible: Record<string, string> = {};
   for (const [name, value] of Object.entries(response.headers)) if (typeof value === "string" && visibleHeader(name)) visible[name] = value;

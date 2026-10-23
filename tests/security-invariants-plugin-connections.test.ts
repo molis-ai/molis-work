@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { Agent, createServer } from "node:https";
+import { createServer } from "node:https";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { connect as tlsConnect } from "node:tls";
 import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -149,14 +148,15 @@ async function githubStandIn(t: TestContext) {
     response.writeHead(200, { "content-type": "application/json", "set-cookie": "session=1", "x-ratelimit-remaining": "59", "x-oauth-scopes": "repo" });
     response.end('{"login":"someone"}');
   });
+  let connections = 0;
+  server.on("secureConnection", () => { connections += 1; });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   t.after(() => { server.closeAllConnections(); return new Promise(resolve => server.close(resolve)); });
-  const port = (server.address() as AddressInfo).port;
-  // Reach the local server as if it were api.github.com on 443; the connection still asks the port's own lookup.
-  const agent = Object.assign(new Agent({ ca: cert }), { createConnection: (options: object) => tlsConnect({ ...options, port }) });
-  t.after(() => agent.destroy());
+  // Reach the local server as if it were api.github.com: its port and certificate, on the same path as a real request
+  // (a connection of its own that asks the port's own lookup).
+  const testServer = { port: (server.address() as AddressInfo).port, ca: cert };
   const lookup = (_host: string, callback: (error: Error | null, addresses: Array<{ address: string; family: number }>) => void) => callback(null, [{ address: "127.0.0.1", family: 4 }]);
-  return { seen, agent, lookup };
+  return { seen, testServer, lookup, connections: () => connections };
 }
 
 const dispatch = (url: string, extra: Partial<PluginConnectionDispatch> = {}): PluginConnectionDispatch =>
@@ -164,9 +164,9 @@ const dispatch = (url: string, extra: Partial<PluginConnectionDispatch> = {}): P
 
 test("S-57 the Host adds the bound credential only on the service origin, hides cookies, hands redirects back and refuses private addresses", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "connections-home-")); t.after(() => rm(home, { recursive: true, force: true }));
-  const { seen, agent, lookup } = await githubStandIn(t);
+  const { seen, testServer, lookup } = await githubStandIn(t);
   const target = { plugin_id: "io.molis.work.example.connectionsport", install_id: "install-s57", slot_id: "github", service_id: "github" };
-  const port = createPluginConnectionsPort(home, { lookup, allowAddress: () => true, agent });
+  const port = createPluginConnectionsPort(home, { lookup, allowAddress: () => true, testServer });
   // Unbound: the request goes out as the plugin wrote it, without any credential.
   const anonymous = await port.request(target, dispatch("https://api.github.com/user"));
   assert.equal(anonymous.authenticated, false);
@@ -186,7 +186,7 @@ test("S-57 the Host adds the bound credential only on the service origin, hides 
   assert.deepEqual([moved.status, moved.headers.location, moved.headers["set-cookie"]], [302, "https://evil.example/collect", undefined]);
   assert.equal(seen.length, hits + 1, "the redirect was not followed");
   // With the real address policy, a name that resolves to a private address is refused before anything is sent.
-  const strict = createPluginConnectionsPort(home, { lookup, agent });
+  const strict = createPluginConnectionsPort(home, { lookup, testServer });
   await assert.rejects(strict.request(target, dispatch("https://api.github.com/user")), code("connector.plugin_requests.private_address"));
   // Authority lost between DNS and the connection: refused, nothing sent.
   let allowed = true;
@@ -197,4 +197,25 @@ test("S-57 the Host adds the bound credential only on the service origin, hides 
   // The origin is the platform's; the port refuses another one even when it is handed one directly.
   await assert.rejects(port.request(target, dispatch("https://evil.example/")), code("connector.plugin_requests.origin_refused"));
   await assert.rejects(port.request({ ...target, service_id: "example-mail" }, dispatch("https://api.github.com/user")), code("connector.plugin_requests.service_unknown"));
+});
+
+test("S-57 every request opens its own connection, so a call that lost its authority while the account resolved is never sent", { timeout: 30_000 }, async t => {
+  // #1081 review: a pooled keep-alive connection is reused without resolving the name, which skipped the recheck after DNS.
+  const home = await mkdtemp(join(tmpdir(), "connections-home-")); t.after(() => rm(home, { recursive: true, force: true }));
+  const { seen, testServer, lookup, connections } = await githubStandIn(t);
+  const target = { plugin_id: "io.molis.work.example.connectionsport", install_id: "install-s57-fresh", slot_id: "github", service_id: "github" };
+  const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: BEARER_VALUE }));
+  withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope(target.install_id), pluginId: target.plugin_id, slotId: "github", serviceId: "github", connectionId: connection.connection_id }));
+  const port = createPluginConnectionsPort(home, { lookup, allowAddress: () => true, testServer });
+  for (const sent of [1, 2]) {
+    assert.equal((await port.request(target, dispatch("https://api.github.com/user"))).authenticated, true);
+    assert.deepEqual([seen.length, connections()], [sent, sent], "each request went out on a connection of its own");
+  }
+  // The call loses its authority while its account is still being resolved: refused, and nothing reaches the server, on an old
+  // connection or a new one.
+  let allowed = true;
+  const revoked = port.request(target, dispatch("https://api.github.com/user", { beforeEffect: async () => { if (!allowed) throw new Error("revoked"); } }));
+  allowed = false;
+  await assert.rejects(revoked, (error: unknown) => !String((error as Error).message).includes(BEARER_VALUE));
+  assert.deepEqual([seen.length, connections()], [2, 2], "the refused request was not sent");
 });

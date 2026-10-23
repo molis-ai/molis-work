@@ -133,14 +133,20 @@ export interface MemoryClearResult {
 export type MemoryConsumer = "assistant" | "agent" | "ui" | "plugin" | "mcp";
 
 export interface MemoryEvidence {
-    kind: "said" | "object" | "work" | "signal";
+    kind: string;
     text?: string;
     ref?: {
         kind: string;
         id: string;
         revision?: string | null;
         project_id?: string | null;
-    };
+    } | string;
+    at: string | null;
+}
+
+export interface MemoryEvidenceInput extends Omit<MemoryEvidence, "kind" | "ref" | "at"> {
+    kind: "said" | "object" | "work" | "signal";
+    ref?: Exclude<MemoryEvidence["ref"], string>;
     at: string;
 }
 
@@ -153,7 +159,7 @@ export interface MemoryExportPackage {
         text: string;
         kind: MemoryKind;
         source: MemorySource;
-        basis: MemoryBasis;
+        basis: MemoryBasis | null;
         applies: MemoryApplies;
         origin: string;
         expires_at: string | null;
@@ -188,17 +194,17 @@ export interface MemoryItem {
     kind: MemoryKind;
     text: string;
     source: MemorySource;
-    basis: MemoryBasis;
+    basis: MemoryBasis | null;
     origin: string;
     evidence: MemoryEvidence[];
     applies: MemoryApplies;
     state: MemoryState;
     state_reason: string | null;
     expires_at: string | null;
-    approved_by: MemoryApproval;
+    approved_by: MemoryApproval | null;
     plugin_id: string | null;
-    created_at: string;
-    updated_at: string;
+    created_at: string | null;
+    updated_at: string | null;
     last_used: MemoryUse | null;
 }
 
@@ -304,16 +310,16 @@ export interface MemoryMetaRecord {
     owner: string;
     kind: MemoryKind;
     source: MemorySource;
-    basis: MemoryBasis;
+    basis: MemoryBasis | null;
     evidence: MemoryEvidence[];
     applies: MemoryApplies;
     state: MemoryState;
     state_reason: string | null;
     expires_at: string | null;
-    approved_by: MemoryApproval;
+    approved_by: MemoryApproval | null;
     plugin_id: string | null;
-    created_at: string;
-    updated_at: string;
+    created_at: string | null;
+    updated_at: string | null;
 }
 
 export interface MemoryPair {
@@ -476,7 +482,7 @@ export type MemoryUndoPlan = {
     text: string;
     kind: MemoryKind;
     source: MemorySource;
-    basis: MemoryBasis;
+    basis: MemoryBasis | null;
     applies: MemoryApplies;
     snapshot?: MemoryRevision["snapshot"];
 };
@@ -613,9 +619,9 @@ export declare const memoryActions: {
 export declare function memoryAppliesText(scope: MemoryScope, applies: MemoryApplies, projectTitle?: string | null, characterTitle?: string | null): string;
 
 export declare const servicesMemoryContract: {
-    readonly contractId: "io.molis.work.service.memory.v1";
+    readonly contractId: "io.molis.work.service.memory.v2";
     readonly kind: "service";
-    readonly schemaVersion: 1;
+    readonly schemaVersion: 2;
     readonly maturity: "partial";
-    readonly ssot: "specs/archive/memory-system/spec.md";
+    readonly ssot: "specs/prologue-memory-strategy/spec.md";
 };

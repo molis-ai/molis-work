@@ -100,7 +100,7 @@ test("upkeep switches off expired and long-unused automatic memories, merges aut
   // Advance the shared Service/Node clock 91 days beyond the stored creation times: automatic values unused for 90 days are disabled.
   const written = (await memory.list(person(), { scope: "all" })).items;
   assert.ok(written.some(item => item.memory_id === oldAuto.memory_id) && written.some(item => item.memory_id === auto1.memory_id));
-  clock.now = new Date(Math.max(...written.map(item => Date.parse(item.created_at))) + 91 * 86_400_000);
+  clock.now = new Date(Math.max(...written.map(item => { assert.ok(item.created_at, "new writes have a known creation time"); return Date.parse(item.created_at); })) + 91 * 86_400_000);
   // The model finds the near-duplicates (their wording differs too much for the character-pair rule).
   const report = await memory.upkeep(person(null), { projects: ["project-a"], tidy: async entries => ({ duplicates: ([[auto1.memory_id, auto3.memory_id], [said1.memory_id, said2.memory_id]] as Array<[string, string]>)
     .filter(([a, b]) => entries.some(item => item.memory_id === a) && entries.some(item => item.memory_id === b)), conflicts: [] }) });

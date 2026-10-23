@@ -62,7 +62,7 @@ export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
     if (session !== undefined && (!session || session.kind !== "session" || typeof session.id !== "string" || !session.id.trim()
       || !Number.isSafeInteger(session.revision) || session.revision < 1)) refuse(`${at}的会话关联损坏`);
     if (item.namespace !== undefined && (typeof item.namespace !== "string" || !item.namespace.trim())) refuse(`${at}的命名空间损坏`);
-    if (!["explicit", "repeated", "inferred"].includes(item.basis)) refuse(`${at}的依据类别损坏`);
+    if (item.basis !== null && !["explicit", "repeated", "inferred"].includes(item.basis)) refuse(`${at}的依据类别损坏`);
     return { text: item.text.trim(), kind: item.kind, source: "imported", basis: item.basis, applies: item.applies ?? {}, origin: item.origin, expires_at: item.expires_at ?? null,
       classification: structuredClone(classification!), ...(session ? { session_ref: { ...session } } : {}), ...(item.namespace ? { namespace: item.namespace } : {}) };
   });

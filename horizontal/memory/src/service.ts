@@ -16,6 +16,7 @@ import {
   type MemoryChangeResult,
   type MemoryConsumer,
   type MemoryEvidence,
+  type MemoryEvidenceInput,
     type MemoryItem,
   type MemoryPair,
   type MemoryUpkeepReport,
@@ -44,13 +45,13 @@ import { consumerAccess, CONSUMER_LABELS } from "./prefs.js";
 import { MemoryPreferences } from "./preferences.js";
 import { MemoryOperations } from "./operations.js";
 import { memoryUses } from "./usage.js";
-import { automaticMemoryHold, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
+import { assertFormationFacts, automaticMemoryHold, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
 import { memoryErrors } from "./errors.js";
 import { applies, disownAutomatic, isExpired, personOnly, placeOf, visibleTo } from "./places.js";
 import { MAX_TEXT, candidateView, changeView, revisionView, pairKey, useTitle } from "./shapes.js";
 import { UNCHECKED, UNSAID, quotedFrom, theirWords } from "./spoken.js";
 import { keywordScore, looksLikeInstruction, looksLikeSecret, recallKeywords, sameText, sameWords, similarity } from "./text.js";
-import { fromEntryMeta, toEntryMeta } from "./facts.js";
+import { fromEntryMeta, restoredEntryFacts, toEntryMeta } from "./facts.js";
 import { newMemoryClassification } from "./classification.js";
 import { MemoryScopeCommands, type Located } from "./scope-commands.js";
 import type { AgentMemoryMeta, AgentMemoryUseReceipt, AgentRecalledMemory } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -148,7 +149,7 @@ export class MemoryService {
     this.scopeCommands = new MemoryScopeCommands({ backend: ports.backend, ledger: ports.ledger, preferences: this.preferences, operations: this.operations,
       now: this.now, newId: this.newId, timeZone: ports.timeZone,
       importEntry: (caller, scope, item, origin) => this.commit(caller, { scope, text: item.text, kind: item.kind, applies: item.applies,
-        expires_at: item.expires_at, source: "imported", basis: item.basis, evidence: [], approved_by: { by: "person" }, origin,
+        expires_at: item.expires_at, source: "imported", basis: item.basis, evidence: [], approved_by: null, origin,
         retainedMeta: { classification: item.classification, session_ref: item.session_ref, namespace: item.namespace } }),
       recordClear: (caller, scope, owner, removed, complete) => { this.recordChange(caller, { kind: "cleared", scope, owner, memory_id: null,
         text: "", by: "person", rule: null, reason: `${complete ? "清空" : "部分清空"}了 ${removed} 条`, undo: null }); },
@@ -187,7 +188,7 @@ export class MemoryService {
         items.push(item);
       }
     }
-    items.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+    items.sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""));
     const weekAgo = this.now().getTime() - 7 * 24 * 60 * 60 * 1000;
     const owners = new Set(scopes.map(where => `${where.scope}:${where.owner}`));
     const auto_this_week = this.ports.ledger.changes(caller.actor_id, 500).filter(change => change.kind === "auto_kept" && change.state === "active"
@@ -225,7 +226,7 @@ export class MemoryService {
         if (!applies(meta.applies, request.situation, now)) continue;
         const hits = keywordScore(keywords, `${located.entry.text} ${meta.applies.task ?? ""}`);
         if (keywords.length && hits === 0 && STANDING[meta.kind] < 0.2) continue;
-        const ageDays = Math.max(0, (now.getTime() - Date.parse(meta.updated_at)) / 86_400_000);
+        const ageDays = meta.updated_at === null ? Infinity : Math.max(0, (now.getTime() - Date.parse(meta.updated_at)) / 86_400_000);
         const recency = ageDays <= 30 ? 1 : Math.max(0.7, 1 - (ageDays - 30) / 300);
         const score = (STANDING[meta.kind] + (keywords.length ? hits : 0.3) * 0.55) * KIND_WEIGHT[meta.kind] * recency * SOURCE_WEIGHT[meta.source];
         ranked.push({ located, score: Math.round(score * 1000) / 1000 });
@@ -233,14 +234,14 @@ export class MemoryService {
     }
     if (!ranked.length && offScopes.length && offScopes.length === scopes.length)
       return { state: "off", reason: `你关掉了“${CONSUMER_LABELS[caller.consumer]}”使用${offScopes.join("和")}`, items: [], omitted: [], method: "keyword-cjk", receipt_id };
-    ranked.sort((a, b) => b.score - a.score || b.located.meta.updated_at.localeCompare(a.located.meta.updated_at));
+    ranked.sort((a, b) => b.score - a.score || (b.located.meta.updated_at ?? "").localeCompare(a.located.meta.updated_at ?? ""));
     const items: MemoryRecalled[] = [], omitted: MemoryRecallResponse["omitted"] = [];
     // Two that contradict each other (a pair the person has not settled yet): only the stronger one goes in, the other is named.
     const explicit = (one: Located) => EXPLICIT_SOURCES.includes(one.meta.source) ? 1 : 0;
     for (const pair of this.ports.ledger.pairs(caller.actor_id).filter(item => item.state === "pending" && item.kind === "conflict")) {
       const a = ranked.find(one => one.located.entry.memory_id === pair.a.memory_id), b = ranked.find(one => one.located.entry.memory_id === pair.b.memory_id);
       if (!a || !b) continue;
-      const loser = explicit(a.located) !== explicit(b.located) ? (explicit(a.located) > explicit(b.located) ? b : a) : (a.located.meta.updated_at >= b.located.meta.updated_at ? b : a);
+      const loser = explicit(a.located) !== explicit(b.located) ? (explicit(a.located) > explicit(b.located) ? b : a) : ((a.located.meta.updated_at ?? "") >= (b.located.meta.updated_at ?? "") ? b : a);
       ranked.splice(ranked.indexOf(loser), 1);
       omitted.push({ memory_id: loser.located.entry.memory_id, scope: loser.located.scope, reason: "conflict" });
     }
@@ -334,7 +335,8 @@ export class MemoryService {
    * low-risk kinds are written automatically (undoable) when 自动记住 is on; everything else waits for the person.
    */
   async offer(caller: MemoryCaller, input: { scope: MemoryScope; text: string; kind: MemoryKind; applies?: MemoryApplies; basis: MemoryBasis; why: string;
-    evidence?: MemoryEvidence[]; from: MemoryCandidate["from"]; supersedes?: string | null; candidate_id?: string }): Promise<MemoryWriteResult> {
+    evidence?: MemoryEvidenceInput[]; from: MemoryCandidate["from"]; supersedes?: string | null; candidate_id?: string }): Promise<MemoryWriteResult> {
+    assertFormationFacts(input.basis, input.evidence);
     caller = this.operations.caller(caller);
     return this.commit(caller, { scope: input.scope, text: input.text, kind: input.kind, applies: input.applies ?? {}, expires_at: null, source: "auto", basis: input.basis,
       classificationMeta: newMemoryClassification(caller, null),
@@ -343,8 +345,8 @@ export class MemoryService {
   }
 
   private async commit(caller: MemoryCaller, input: {
-    scope: MemoryScope; text: string; kind: MemoryKind; applies: MemoryApplies; expires_at: string | null; source: MemorySource; basis: MemoryBasis;
-    evidence: MemoryEvidence[]; approved_by: MemoryApproval; replaces?: string; said?: string; /** The messages the person typed, as the Host saved them. */ originals?: readonly string[]; why?: string; from?: MemoryCandidate["from"]; origin?: string;
+    scope: MemoryScope; text: string; kind: MemoryKind; applies: MemoryApplies; expires_at: string | null; source: MemorySource; basis: MemoryBasis | null;
+    evidence: MemoryEvidence[]; approved_by: MemoryApproval | null; replaces?: string; said?: string; /** The messages the person typed, as the Host saved them. */ originals?: readonly string[]; why?: string; from?: MemoryCandidate["from"]; origin?: string;
     /** The waiting candidate this settles (an automatic write of something already suggested once). */
     candidate_id?: string;
     /** Prepared only for new App inputs; old imports and undo reconstruction must not acquire a guessed class. */
@@ -398,7 +400,8 @@ export class MemoryService {
         memory: this.scopeCommands.item(await this.scopeCommands.find(caller, same.entry.memory_id)), candidate: null, change_id: null };
     }
     if (input.replaces && !target) throw memoryErrors.not_found("要替换的那条记忆不在这个范围里（可能已删除，或属于别的范围）");
-    const asCandidate = async (why: string, basis: MemoryBasis = input.basis): Promise<MemoryWriteResult> => {
+    const asCandidate = async (why: string, basis: MemoryBasis | null = input.basis): Promise<MemoryWriteResult> => {
+      if (basis === null) return refused("原记忆依据未知，不能替它生成新的候选依据");
       // Already waiting (suggested once before): it keeps waiting, now saying why it was not kept automatically.
       const waiting = input.candidate_id ? this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === input.candidate_id) : undefined;
       if (waiting) {
@@ -420,7 +423,7 @@ export class MemoryService {
     // Approved by a policy rather than the person: the write gate's (automatic) or a plugin's install-time grant (its own namespace).
     const automatic = input.source === "auto" || input.source === "plugin";
     const requiresPromotion = input.source === "auto";
-    const policy = input.approved_by.by === "policy" ? input.approved_by : { by: "policy" as const, policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION };
+    const policy = input.approved_by?.by === "policy" ? input.approved_by : { by: "policy" as const, policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION };
     const rule = input.source === "plugin" ? `插件「${caller.plugin_id ?? "?"}」记下` : MEMORY_GATE_RULE;
     if (where.scope === "character" && caller.character) this.ports.ledger.noteOwner({ scope: "character", owner: where.owner, project_id: where.project, title: caller.character.title, subject: caller.character.id });
     if (target) {
@@ -457,7 +460,7 @@ export class MemoryService {
       : await this.ports.backend.withCaller(caller).write({ scope: input.scope, owner: where.owner, text, origin, tags: [input.source, input.kind], meta: toEntryMeta(facts, input.retainedMeta ?? input.classificationMeta),
         operation_id: creation.operation_id, ...(caller.signal ? { signal: caller.signal } : {}) });
     if (entry.version !== 1 && !creation.result) throw memoryErrors.conflict("原创建已被后继版本覆盖，不能把当前正文当作初始历史；请核对原操作");
-    const meta = fromEntryMeta({ ...entry, scope: input.scope, owner: where.owner }, this.now());
+    const meta = fromEntryMeta({ ...entry, scope: input.scope, owner: where.owner });
     if (!meta) throw memoryErrors.conflict("提交后的记忆事实不可确认，请使用原操作对账");
     const kind: MemoryChangeKind = automatic ? "auto_kept" : input.source === "accepted" ? "accepted" : input.source === "imported" ? "imported" : "kept";
     const change = this.ports.ledger.transaction(() => {
@@ -523,7 +526,7 @@ export class MemoryService {
           if (!undoing) disownAutomatic(this.ports.ledger, entry.memory_id);
           return this.recordChange(caller, { kind: "edited", scope, owner, memory_id: entry.memory_id, text: entry.text, by, rule: null, reason: null, undo: null });
         });
-        return { memory: this.scopeCommands.item({ scope, owner, project, entry, meta: fromEntryMeta({ ...entry, scope, owner }, this.now())! }), change: changeView(change) };
+        return { memory: this.scopeCommands.item({ scope, owner, project, entry, meta: fromEntryMeta({ ...entry, scope, owner })! }), change: changeView(change) };
       }
       case "disable": case "enable": {
         // Asked by the person through the Assistant: switched off in the Assistant's name, and the person can switch it back on.
@@ -556,7 +559,7 @@ export class MemoryService {
           if (!undoing) disownAutomatic(this.ports.ledger, entry.memory_id);
           return this.recordChange(caller, { kind: "restored", scope, owner, memory_id: entry.memory_id, text: entry.text, by, rule: null, reason: `回到第 ${revision.version} 版`, undo: null });
         });
-        return { memory: this.scopeCommands.item({ scope, owner, project, entry, meta: fromEntryMeta({ ...entry, scope, owner }, this.now())! }), change: changeView(change) };
+        return { memory: this.scopeCommands.item({ scope, owner, project, entry, meta: fromEntryMeta({ ...entry, scope, owner })! }), change: changeView(change) };
       }
       case "move": {
         const to = request.to;
@@ -620,7 +623,8 @@ export class MemoryService {
    * first version's rules hold: one suggestion of the same text ever, at most three waiting per work, never what is kept.
    */
   async propose(caller: MemoryCaller, input: { scope: MemoryScope; text: string; kind: MemoryKind; applies?: MemoryApplies; basis: MemoryBasis; why: string;
-    from: MemoryCandidate["from"]; hold_reason?: string | null; supersedes?: string | null; evidence?: MemoryEvidence[] }, options: { gate?: boolean; classificationMeta?: Pick<AgentMemoryMeta, "classification" | "session_ref" | "namespace">; formal_expires_at?: string | null } = {}): Promise<MemoryCandidate> {
+    from: MemoryCandidate["from"]; hold_reason?: string | null; supersedes?: string | null; evidence?: MemoryEvidenceInput[] }, options: { gate?: boolean; classificationMeta?: Pick<AgentMemoryMeta, "classification" | "session_ref" | "namespace">; formal_expires_at?: string | null } = {}): Promise<MemoryCandidate> {
+    assertFormationFacts(input.basis, input.evidence);
     caller = this.operations.caller(caller);
     const where = placeOf(caller, input.scope);
     this.preferences.assertFormation(caller.actor_id, where, input.from, options.gate === true);
@@ -802,11 +806,8 @@ export class MemoryService {
     }
     if (plan.action === "recreate") {
       // Undoing a merge brings back the one merged away, as it was.
-      if (!plan.snapshot?.meta.classification) throw memoryErrors.invalid("原变动缺少分类快照，请明确分类后恢复，不能推断旧记忆用途");
       await this.commit({ ...holder, person: true }, { scope: record.scope, text: plan.text, kind: plan.kind, applies: plan.applies,
-        expires_at: plan.snapshot.meta.expires_at_ms === undefined ? null : new Date(plan.snapshot.meta.expires_at_ms).toISOString(),
-        retainedMeta: plan.snapshot.meta, source: plan.source === "auto" ? "manual" : plan.source,
-        basis: plan.basis, evidence: [], approved_by: { by: "person" }, origin: plan.snapshot.origin });
+        source: plan.source === "auto" ? "manual" : plan.source, ...restoredEntryFacts(plan.snapshot) });
     } else if (located) {
       const memoryId = located.entry.memory_id;
       if (plan.action === "remove") await this.purge(caller,located);
@@ -883,7 +884,7 @@ export class MemoryService {
       const pointed = earlier ? undefined : records.find(item => waitingElsewhere(item) && item.candidate_id === proposal.same_as);
       if (records.some(item => item.state === "pending" && sameText(item.text, text) && item.work?.work_id === work?.work_id)) { skip("这项工作里已经提过"); continue; }
       const at = this.now().toISOString();
-      const evidence: MemoryEvidence[] = verified ? [{ kind: "said", text: quote, ...(work ? { ref: { kind: "work", id: work.work_id } } : {}), at }] : [];
+      const evidence: MemoryEvidenceInput[] = verified ? [{ kind: "said", text: quote, ...(work ? { ref: { kind: "work", id: work.work_id } } : {}), at }] : [];
       const supersedes = proposal.supersedes && (await this.scopeCommands.located(caller, scope, where.owner)).some(located => located.entry.memory_id === proposal.supersedes) ? proposal.supersedes : null;
       // A personal memory travels to every project, so what explains it never names a project's works (spec §11).
       const named = scope !== "personal";
@@ -971,7 +972,7 @@ export class MemoryService {
         }
         // What it rests on: an object deleted or no longer readable pauses it; back again, it resumes.
         const object = one.meta.evidence.find(item => item.kind === "object" && item.ref)?.ref;
-        if (object && options.objectState) {
+        if (object && typeof object !== "string" && options.objectState) {
           const state = await options.objectState({ kind: object.kind, id: object.id, project_id: object.project_id ?? where.project }).catch(() => "unknown" as const);
           if (state === "missing" && one.meta.state === "active") { await turnOff(one, "paused", `依据已不存在或读不到了（${object.kind} ${object.id}）`, "paused", { action: "enable" }); report.paused += 1; }
           else if (state === "ok" && one.meta.state === "paused" && (one.meta.state_reason ?? "").startsWith("依据已不存在")) {
@@ -1005,7 +1006,7 @@ export class MemoryService {
       const mergedAway = new Set<string>();
       const handleDuplicate = async (a: Located, b: Located, why: string) => {
         if (mergedAway.has(a.entry.memory_id) || mergedAway.has(b.entry.memory_id)) return;
-        if (a.meta.source === "auto" && b.meta.source === "auto" && a.meta.kind === b.meta.kind) {
+        if (a.meta.source === "auto" && b.meta.source === "auto" && a.meta.kind === b.meta.kind && a.meta.created_at !== null && b.meta.created_at !== null) {
           const [keep, drop] = a.meta.created_at <= b.meta.created_at ? [a, b] : [b, a];
           await merge(keep, drop); mergedAway.add(drop.entry.memory_id);
         } else raise(a, b, "duplicate", why);
@@ -1031,7 +1032,7 @@ export class MemoryService {
       // Automatic ones not used for 90 days are switched off (after merging, so a merged one counts its provenances once).
       for (const one of located.filter(item => !mergedAway.has(item.entry.memory_id) && item.meta.state === "active" && item.meta.source === "auto")) {
         const used = this.ports.ledger.lastUse(one.entry.memory_id)?.at ?? one.meta.created_at;
-        if (now.getTime() - Date.parse(used) > 90 * day) { await turnOff(one, "disabled", "90 天没有用到", "auto_disabled", { action: "enable" }); report.unused += 1; }
+        if (used !== null && now.getTime() - Date.parse(used) > 90 * day) { await turnOff(one, "disabled", "90 天没有用到", "auto_disabled", { action: "enable" }); report.unused += 1; }
       }
     }
     this.ports.ledger.setMarker(caller.actor_id, "upkeep", report, at);

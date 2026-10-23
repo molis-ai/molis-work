@@ -120,6 +120,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 - 拒绝由公开 `memoryErrors` 声明并返回共同 `ActionError`：权限与范围是 `forbidden`，不存在是 `not_found`，待处理建议上限与预览后变动是 `conflict`，输入与开关是 `invalid`。Host 和助理保留 `memory.*` 码、消息、kind 与 details；HTTP 经 SDK 分别回答 403、404、409、400，不另把它改成助理码。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 正式记忆缺少依据、批准者或原时间时投影为 `null`；未知证据类别和原引用保持原值，状态编辑和恢复不补造事实。新写与候选的依据、证据输入保持严格。导出不含证据正文；未知依据往返，导入缺少原批准事实仍未知。缺时间不获新近权重、不能据此执行 90 天自动停用。见当前 Memory 策略 spec §9.4。
   - 前台控制按调用贯穿 SDK 的异步准备、实际 storage 提交和同步 owner 账本；后台维护使用自身授权。被拒绝的后续写入不反抹已经提交的 SDK 事实，部分失败明确报出并可重开核对。
   - 模型只提议不批准：自动写入由确定性的写入门决定，规则版本写进来源与最近变动。
   - 单次行为、仅靠推断的内容、背景事实、经验、像指令的文字、形似秘密的文字都不会被自动写入；只有偏好/约定可通过重复证据与开关门自动晋升，推断不能覆盖用户明确说过的。
@@ -138,7 +139,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
   - 显式召回只记录返回，不更新最近参考；最近参考由真实 Run 的 `response-observed` Context 回执投影。派发未知和记录失败单独显示，不重发模型；迟到回执不能恢复已遗忘身份。
   - 项目被删除时 `purgeProjectMemories` 清掉该项目及其角色的记忆（存储里的条目与候选）和账本里与之相关的一切（修订、使用、变动、候选记录、成对提示、开关、界面计数）；角色的范围从账本记下的所有者（写入记忆时才记下）和候选记录上的项目找到，所以只有建议、没有写过记忆的角色也清得掉；Home 里没有 Agent 运行环境时 `backend` 为 null，只清账本；不需要预览指纹确认，删除项目就是本人的确认。
   - 个人记忆的出处不写项目里的工作名；个人记忆只归本人。
-- 改动后必跑：`node scripts/run-tests.mjs tests/memory-presets.test.ts tests/memory-adoption.test.ts tests/memory-runtime-policy.test.ts tests/memory-plugin-save.test.ts tests/memory-use-receipts.test.ts tests/prologue-memory-run-context.test.ts tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-upkeep.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/memory-presets.test.ts tests/memory-adoption.test.ts tests/memory-runtime-policy.test.ts tests/memory-plugin-save.test.ts tests/memory-use-receipts.test.ts tests/prologue-memory-run-context.test.ts tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-unknown-facts.test.ts tests/memory-upkeep.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
 - 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

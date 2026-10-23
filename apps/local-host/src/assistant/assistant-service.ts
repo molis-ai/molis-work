@@ -1676,7 +1676,7 @@ export class AssistantService {
   /** The person's memories: personal ones, and — given a project — that project's. Disabled ones are listed as such. */
   async memories(projectId?: string | null): Promise<AssistantMemory[]> {
     const { items } = await this.memory().list(this.memoryCaller(null, projectId ?? null, true), { scope: "all" });
-    return items.sort((a, b) => (a.scope === b.scope ? 0 : a.scope === "personal" ? -1 : 1) || a.created_at.localeCompare(b.created_at))
+    return items.sort((a, b) => (a.scope === b.scope ? 0 : a.scope === "personal" ? -1 : 1) || (a.created_at === null ? b.created_at === null ? 0 : 1 : b.created_at === null ? -1 : a.created_at.localeCompare(b.created_at)))
       .map(item => ({ memory_id: item.memory_id, scope: item.scope, ...(item.project_id ? { project_id: item.project_id } : {}), text: item.text, origin: item.origin, disabled: item.state !== "active" }));
   }
 

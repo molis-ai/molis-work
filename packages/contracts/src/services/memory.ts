@@ -8,11 +8,11 @@ import type { ActionDefinition } from "../platform/actions.js";
  * Memory; the Host Memory Service owns policy, the write gate, recall orchestration and the settings pages.
  */
 export const servicesMemoryContract = {
-  contractId: "io.molis.work.service.memory.v1",
+  contractId: "io.molis.work.service.memory.v2",
   kind: "service",
-  schemaVersion: 1,
+  schemaVersion: 2,
   maturity: "partial",
-  ssot: "specs/archive/memory-system/spec.md",
+  ssot: "specs/prologue-memory-strategy/spec.md",
 } as const satisfies ContractDescriptor;
 
 export const MEMORY_PROVIDER_ID = "system.memory";
@@ -58,10 +58,18 @@ export interface MemoryApplies {
 
 /** What a memory rests on: the person's words, or an object (with the version it was read at). */
 export interface MemoryEvidence {
-  kind: "said" | "object" | "work" | "signal";
+  /** Read projection preserves an unrecognized stored kind; it is not admissible new evidence. */
+  kind: string;
   /** The person's words (bounded); never secrets — the write gate refuses those. */
   text?: string;
-  ref?: { kind: string; id: string; revision?: string | null; project_id?: string | null };
+  ref?: { kind: string; id: string; revision?: string | null; project_id?: string | null } | string;
+  at: string | null;
+}
+
+/** New evidence remains strict; unknown stored facts are only a read/restore projection. */
+export interface MemoryEvidenceInput extends Omit<MemoryEvidence, "kind" | "ref" | "at"> {
+  kind: "said" | "object" | "work" | "signal";
+  ref?: Exclude<MemoryEvidence["ref"], string>;
   at: string;
 }
 
@@ -81,7 +89,7 @@ export interface MemoryItem {
   kind: MemoryKind;
   text: string;
   source: MemorySource;
-  basis: MemoryBasis;
+  basis: MemoryBasis | null;
   /** Plain-language provenance. A personal memory's never names a project's content. */
   origin: string;
   evidence: MemoryEvidence[];
@@ -90,11 +98,11 @@ export interface MemoryItem {
   /** Why it is paused or was switched off automatically; null otherwise. */
   state_reason: string | null;
   expires_at: string | null;
-  approved_by: MemoryApproval;
+  approved_by: MemoryApproval | null;
   /** A plugin's own memory: only that plugin writes it. Null for the person's and the project's shared memories. */
   plugin_id: string | null;
-  created_at: string;
-  updated_at: string;
+  created_at: string | null;
+  updated_at: string | null;
   /** The last work it was used in. */
   last_used: MemoryUse | null;
 }
@@ -393,7 +401,7 @@ export interface MemoryExportPackage {
   version: 2;
   exported_at: string;
   scope: MemoryScope;
-  entries: Array<{ text: string; kind: MemoryKind; source: MemorySource; basis: MemoryBasis; applies: MemoryApplies; origin: string; expires_at: string | null;
+  entries: Array<{ text: string; kind: MemoryKind; source: MemorySource; basis: MemoryBasis | null; applies: MemoryApplies; origin: string; expires_at: string | null;
     classification?: import("./agent-host-memory.js").AgentMemoryMeta["classification"];
     session_ref?: import("./agent-host-memory.js").AgentMemoryMeta["session_ref"]; namespace?: string }>;
   /** What was taken out, by kind and count (never the text taken out). */
@@ -414,8 +422,8 @@ const stateSchema = { enum: ["active", "disabled", "paused"] };
 const idList = { type: "array", maxItems: 20, items: { type: "string", minLength: 1, maxLength: 200 } };
 const appliesSchema = { type: "object", properties: { plugin_ids: idList, object_kinds: idList, goal_ids: idList,
   task: { type: "string", maxLength: 200 }, from: { type: "string", maxLength: 40 }, until: { type: "string", maxLength: 40 } }, additionalProperties: false };
-const evidenceSchema = { type: "object", properties: { kind: { enum: ["said", "object", "work", "signal"] }, text, at: text,
-  ref: { type: "object", properties: { kind: text, id: text, revision: nullableText, project_id: nullableText }, required: ["kind", "id"], additionalProperties: false } },
+const evidenceSchema = { type: "object", properties: { kind: text, text, at: nullableText,
+  ref: { anyOf: [text, { type: "object", properties: { kind: text, id: text, revision: nullableText, project_id: nullableText }, required: ["kind", "id"], additionalProperties: false }] } },
   required: ["kind", "at"], additionalProperties: false };
 const useSchema = { type: "object", properties: { at: text, consumer: consumerSchema, title: text, work_id: text }, required: ["at", "consumer", "title"], additionalProperties: false };
 const approvalSchema = { anyOf: [
@@ -424,8 +432,8 @@ const approvalSchema = { anyOf: [
 ] };
 const itemSchema = { type: "object", properties: {
   memory_id: text, version: { type: "integer", minimum: 1 }, scope: scopeSchema, project_id: nullableText, character_id: nullableText, character_title: nullableText, kind: kindSchema, text, source: sourceSchema,
-  basis: { enum: ["explicit", "repeated", "inferred"] }, origin: text, evidence: { type: "array", items: evidenceSchema }, applies: appliesSchema, state: stateSchema,
-  state_reason: nullableText, expires_at: nullableText, approved_by: approvalSchema, plugin_id: nullableText, created_at: text, updated_at: text,
+  basis: { enum: ["explicit", "repeated", "inferred", null] }, origin: text, evidence: { type: "array", items: evidenceSchema }, applies: appliesSchema, state: stateSchema,
+  state_reason: nullableText, expires_at: nullableText, approved_by: { anyOf: [{ type: "null" }, approvalSchema] }, plugin_id: nullableText, created_at: nullableText, updated_at: nullableText,
   last_used: { anyOf: [{ type: "null" }, useSchema] } },
   required: ["memory_id", "version", "scope", "project_id", "character_id", "character_title", "kind", "text", "source", "basis", "origin", "evidence", "applies", "state", "state_reason", "expires_at", "approved_by", "plugin_id", "created_at", "updated_at", "last_used"],
   additionalProperties: false };
@@ -485,7 +493,7 @@ export const memoryActions = {
     output_schema: { type: "object", properties: { state: { enum: ["ok", "off"] }, reason: nullableText, items: { type: "array", items: recalledSchema },
       omitted: { type: "array", items: { type: "object", properties: { memory_id: text, scope: scopeSchema, reason: { enum: ["budget", "limit", "conflict"] } }, required: ["memory_id", "scope", "reason"], additionalProperties: false } },
       method: { enum: ["keyword-cjk", "keyword", "vector"] }, receipt_id: text }, required: ["state", "reason", "items", "omitted", "method", "receipt_id"], additionalProperties: false } } } as ActionDefinition<MemoryRecallRequest, MemoryRecallResponse>,
-  list: { capability_id: "memory.list", version: 1, operation: "query", action: { ...reads, ...notForPlugins, audiences: ["user", "agent"] as ("user" | "agent")[], permissions: [MEMORY_READ_PERMISSION],
+  list: { capability_id: "memory.list", version: 2, operation: "query", action: { ...reads, ...notForPlugins, audiences: ["user", "agent"] as ("user" | "agent")[], permissions: [MEMORY_READ_PERMISSION],
     title: "列出记住的事", description: "列出个人记忆与当前项目的记忆（正文、类别、来源、适用情境、状态与最近使用），可按范围、类别、来源、状态筛选。用于回答“你记住了我什么”。",
     input_schema: { type: "object", properties: { scope: { enum: ["personal", "project", "character", "all"] }, kinds: { type: "array", maxItems: 4, items: kindSchema },
       sources: { type: "array", maxItems: 6, items: sourceSchema }, states: { type: "array", maxItems: 3, items: stateSchema }, query: { type: "string", maxLength: 200 } }, additionalProperties: false },
@@ -609,21 +617,21 @@ export interface MemoryMetaRecord {
   owner: string;
   kind: MemoryKind;
   source: MemorySource;
-  basis: MemoryBasis;
+  basis: MemoryBasis | null;
   evidence: MemoryEvidence[];
   applies: MemoryApplies;
   state: MemoryState;
   state_reason: string | null;
   expires_at: string | null;
-  approved_by: MemoryApproval;
+  approved_by: MemoryApproval | null;
   plugin_id: string | null;
-  created_at: string;
-  updated_at: string;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 /** How a change is taken back: delete what was written, go back to a version, switch back on (and forget an expiry), or bring back one merged away. */
 export type MemoryUndoPlan = { action: "remove" } | { action: "restore"; version: number } | { action: "enable"; clear_expiry?: boolean } | { action: "disable" }
-  | { action: "recreate"; text: string; kind: MemoryKind; source: MemorySource; basis: MemoryBasis; applies: MemoryApplies; snapshot?: MemoryRevision["snapshot"] };
+  | { action: "recreate"; text: string; kind: MemoryKind; source: MemorySource; basis: MemoryBasis | null; applies: MemoryApplies; snapshot?: MemoryRevision["snapshot"] };
 
 export interface MemoryChangeRecord extends MemoryChange {
   operation_id?: string;

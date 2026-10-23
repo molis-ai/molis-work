@@ -53,7 +53,7 @@ export class MemoryScopeCommands {
     // Every entry this service writes carries its facts; one without them is not the platform's and stays out of sight.
     return entries.flatMap(entry => {
       const meta = fromEntryMeta({ memory_id: entry.memory_id, scope, owner, meta: entry.meta, ...(entry.paused ? { paused: entry.paused } : {}), ...(entry.disabled ? { disabled: entry.disabled } : {}),
-        created_at_ms: entry.created_at_ms, updated_at_ms: entry.updated_at_ms }, this.ports.now());
+        created_at_ms: entry.created_at_ms, updated_at_ms: entry.updated_at_ms });
       return meta ? [{ scope, owner, entry, project, meta }] : [];
     });
   }

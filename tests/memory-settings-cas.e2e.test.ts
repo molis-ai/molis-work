@@ -17,7 +17,7 @@ const { renderMolisWorkProjectSettingsHub, renderMolisWorkSettingsStylesheet } =
 interface Request { path: string; body: Record<string, unknown>; key: string }
 const entry = (id: string, version: number, state = "active") => ({ memory_id: id, version, state,
   text: `记忆 ${id}`, kind: "preference", source: "manual", scope: "project", applies: {}, origin: "本人", created_at: "2026-10-23T00:00:00Z",
-  classification: { scenes: ["common"], lifecycle: "long-term" }, expired: false, expires_at: null as string | null });
+  classification: { scenes: ["common"], lifecycle: "long-term" } as { scenes: string[]; lifecycle: string } | null, expired: false, expires_at: null as string | null });
 interface PageInput { query?: string; cursor?: string; filter?: { kinds?: string[]; scenes?: string[]; states?: string[]; expired?: boolean; unclassified?: boolean } }
 const pageOf = (items: unknown[], extra: object = {}) => ({ items, exhausted: true, stopped: "end", total: { kind: "exact", value: items.length },
   scanned: "unknown", cost: {}, labels: { goals: {} }, ...extra });
@@ -51,7 +51,7 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
       response.statusCode = result.status ?? 200;
       if (!response.destroyed) response.end(JSON.stringify(result.body)); return;
     }
-    if (path.endsWith("/history")) { response.end(JSON.stringify({ revisions: [{ version: 2, text: "旧版", at: "2026-10-22T00:00:00Z" }] })); return; }
+    if (path.endsWith("/history")) { response.end(JSON.stringify({ revisions: [{ version: 2, text: "旧版", kind: "preference", classification: { scenes: ["common"], lifecycle: "long-term" }, expires_at: null, snapshot_available: true, at: "2026-10-22T00:00:00Z" }] })); return; }
     let raw = ""; for await (const chunk of request) raw += chunk;
     const call = { path, body: JSON.parse(raw || "{}"), key: String(request.headers["x-molis-work-idempotency-key"] || "") }; calls.push(call);
     const result = answer(call); response.statusCode = result.status ?? 200; response.end(JSON.stringify(result.body));
@@ -88,10 +88,10 @@ test("Memory page continues after an empty scan, preserves unknown totals and se
   assert.match(await f.page.evaluate<string>("document.querySelector('[data-memory-id=expired] .memory-meta').textContent"), /未分类/);
   assert.match(await f.page.evaluate<string>("document.querySelector('[data-memory-id=expired] .memory-meta').textContent"), /已到期/);
   assert.equal(await f.page.evaluate("document.querySelector('[data-memory-id=expired] [data-mw-state=disabled]')"), null, "expiry is not a fabricated disabled state");
+  // M3's formal-management contract now includes all six kinds; expiry is still a separate restriction.
   for (const id of ["expired", "decision"]) {
-    assert.match(await f.page.evaluate<string>(`document.querySelector('${item(id)} .memory-actions').textContent`), /此类别暂仅查看/);
-    assert.equal(await f.page.evaluate(`document.querySelector('${item(id)} button, ${item(id)} select')`), null,
-      "display-only SDK categories never enter the four-category editor or its write actions");
+    assert.equal(await f.page.evaluate(`Boolean(document.querySelector('${item(id)} button[aria-label^=修改]'))`), true);
+    assert.equal(await f.page.evaluate(`Boolean(document.querySelector('${item(id)} summary[aria-label^=更多操作]'))`), true);
   }
   assert.equal(f.calls.length, 0);
 });
@@ -305,4 +305,67 @@ test("Import retry retains the selected package after the file input clears and 
   const status = await page.evaluate<string>("document.querySelector('[data-settings-toast]').textContent");
   assert.match(status, /导入 1/); assert.match(status, /跳过 1/); assert.match(status, /没有导入 1/);
   assert.doesNotMatch(status, /这次操作已完成/);
+});
+
+// M3 classification correction: protocol fixtures isolate the page's decision; SDK authority is tested separately.
+test("Memory text editing preserves null and unknown classification values instead of silently replacing them", { timeout: 60_000 }, async t => {
+  const f = await open(t, () => ({ body: {} })); if (!f) return;
+  const cases = [null, { scenes: ["common", "future-scene"], lifecycle: "long-term" }, { scenes: ["common"], lifecycle: "future-lifecycle" }];
+  for (const [index, classification] of cases.entries()) {
+    f.overview.items[0]!.classification = classification;
+    await f.reset();
+    await f.page.click(item() + " " + textButton("修改"));
+    await f.page.click(item() + " .memory-origin summary");
+    const shown = await f.page.evaluate<string>(`document.querySelector('${item()} .memory-origin').textContent`);
+    assert.ok(shown.includes(classification?.lifecycle === "future-lifecycle" ? "future-lifecycle" : classification ? "future-scene" : "未分类"));
+    await f.page.fill(item() + " textarea", "保留未知分类的正文修改");
+    await f.page.click(item() + " button[type=submit]");
+    await f.page.wait("!document.querySelector('[data-memory-id=active] textarea')");
+    assert.equal(f.calls.length, index + 1);
+    const body: Request["body"] = f.calls.at(-1)!.body;
+    assert.equal(body.action, "update"); assert.equal(body.text, "保留未知分类的正文修改"); assert.equal(body.expected_version, 7);
+    assert.equal(Object.hasOwn(body, "classification"), false); assert.equal(Object.hasOwn(body, "expires_at"), false);
+    assert.equal(await f.page.evaluate("Boolean(document.querySelector('.memory-confirm'))"), false);
+  }
+});
+
+test("Memory explicitly replacing unknown classification values names them before confirmation", { timeout: 45_000 }, async t => {
+  const f = await open(t, () => ({ body: {} })); if (!f) return;
+  f.overview.items[0]!.classification = { scenes: ["common", "future-scene"], lifecycle: "future-lifecycle" };
+  await f.reset(); await f.page.click(item() + " " + textButton("修改"));
+  await f.page.click(item() + " .memory-origin summary");
+  await f.page.click(item() + ' .mw-select-picker:has([data-memory-lifecycle]) .mw-select-picker__trigger');
+  await f.page.click('.mw-select-picker__menu:popover-open [data-value="long-term"]');
+  await f.page.click(item() + " button[type=submit]"); await f.page.wait("document.querySelector('.memory-confirm')");
+  const description = await f.page.evaluate<string>("document.querySelector('.memory-confirm').textContent");
+  assert.match(description, /原|适用场景/);
+  assert.match(description, /将移除未声明的分类值：future-scene、future-lifecycle/);
+  await f.page.click(".memory-confirm button:not([data-memory-confirm-yes])");
+  assert.equal(f.calls.length, 0);
+  assert.ok(await f.page.evaluate(`Boolean(document.querySelector('${item()} textarea'))`));
+  await f.page.click(item() + " button[type=submit]"); await f.page.wait("document.querySelector('[data-memory-confirm-yes]')");
+  await f.page.click("[data-memory-confirm-yes]"); await f.page.wait("!document.querySelector('[data-memory-id=active] textarea')");
+  assert.equal(f.calls.length, 1); assert.equal(f.calls[0]!.body.action, "reclassify");
+  assert.deepEqual(f.calls[0]!.body.classification, { scenes: ["common"], lifecycle: "long-term" });
+  assert.equal(Object.hasOwn(f.calls[0]!.body, "text"), false);
+});
+
+test("Memory classification editing rejects expired and session-bound entries without sending a mutation", { timeout: 60_000 }, async t => {
+  const f = await open(t, () => ({ body: {} })); if (!f) return;
+  f.overview.items[0]!.expired = true; f.overview.items[0]!.expires_at = "2026-01-01T00:00:00Z";
+  f.overview.items[1]!.classification = { scenes: ["common"], lifecycle: "session" };
+  for (const [id, reason] of [["active", "已到期"], ["disabled", "可信会话绑定"]]) {
+    await f.reset();
+    await f.page.click(item(id) + " " + textButton("修改"));
+    const picker = item(id) + ' .mw-select-picker:has(select[aria-label="类别"]) .mw-select-picker__trigger';
+    await f.page.wait(`document.querySelector(${JSON.stringify(picker)})`);
+    await f.page.click(picker);
+    await f.page.click('.mw-select-picker__menu:popover-open [data-value="habit"]');
+    await f.page.click(item(id) + " button[type=submit]");
+    await f.page.wait("!document.querySelector('[data-memory-error]').hidden");
+    assert.ok((await f.page.evaluate<string>("document.querySelector('[data-memory-error]').textContent")).includes(reason!));
+    assert.equal(f.calls.length, 0, "a prohibited reclassification never enters HTTP or a pending retry");
+    assert.equal(await f.page.evaluate(`document.querySelector('${item(id)} select[aria-label=类别]').value`), "habit", "the rejected decision remains editable");
+    assert.equal(await f.page.evaluate("document.querySelector('[data-memory-retries]').hidden"), true);
+  }
 });

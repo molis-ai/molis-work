@@ -1,5 +1,5 @@
 import type { ActionDefinition } from "../platform/actions.js";
-import type { MemoryItem, MemoryKind, MemoryScope, MemorySource, MemoryState } from "./memory.js";
+import type { MemoryItem, MemoryKind, MemoryFormalKind, MemoryScope, MemorySource, MemoryState } from "./memory.js";
 import type { AgentMemoryMeta, AgentMemoryPage } from "./agent-host-memory.js";
 
 export interface MemoryListRequest {
@@ -16,7 +16,7 @@ export interface MemoryListResponse {
 }
 
 /** Management displays all declared kinds; write and formation retain their narrower product contract. */
-export type MemoryManagementKind = MemoryKind | "habit" | "project-decision";
+export type MemoryManagementKind = MemoryFormalKind;
 export interface MemoryManagementItem extends Omit<MemoryItem, "kind"> {
   kind: MemoryManagementKind;
   classification: NonNullable<AgentMemoryMeta["classification"]> | null;

@@ -115,6 +115,7 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 - 公开入口：`@molis-ai/molis-work-app-workbench`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
+  - 正式记忆的六类管理与自动形成的四类许可分开。现「修改」编辑器的「分类与期限」可纠正场景、类型、长期/短期及期限；仅正文/适用情境编辑按控件初始值判定未改类，沿原 update 保留未知分类；编辑区显示原分类，明确移除未声明场景/生命周期时点名确认，实际分类变化通过 memory.change@3 的 reclassify 一次提交正文、适用情境与分类。期限默认保留原绝对时间，移除须明确选择，扩大场景或保留时间先展示前后值并确认；不传 namespace、session 或 classification.extra。到期与会话绑定分类在本片明确拒绝，停用/暂停不会因纠正复活。历史显示分类、期限与完整快照事实，恢复仍受当前权限和期限限制。原版本冲突、操作重试和撤销入口保留。定向回归：`tests/memory-settings-classification.e2e.test.ts`、`tests/memory-settings-cas.e2e.test.ts`、`tests/memory-settings-pages.e2e.test.ts`；完整 M3 的分类开关、批量及旧格式采用仍待后续。
   - 窄屏仍显示完整内容（`DESIGN.md` Layout、VUX-40）：放置完成卡的长项目名在卡内换行，移动与关闭按钮留在视口内；Home 日期条为「今天」与事件点统一预留底部空间，日期数字不与状态字相叠，各日期仍对齐。手机沿用现有 70px 高度，比原来的 64px 多出 6px 容纳三层字形及后备字体，列宽仍为 49px。不改文字与日期行为，不加截断与审计例外。回归 `tests/chinese-completion-layout.e2e.test.ts`、原 `tests/chinese-layers.e2e.test.ts` 与 `tests/placement-card-clearance.e2e.test.ts`。
   - Home 工具（目录项 `runtime.keys`，现在是 Issue 的 `Mod+Shift+I`）是开关：按钮或组合键打开它的侧栏视图并把键盘送进视图文档，从视图里再按一次收起。组合键在同源框架里（侧栏视图、嵌入窗格，以及本机 Host 发的讨论页）由 `homeToolKeysScript()` 转交给外壳；从视图里收起时键盘回到打开它的地方，打开前没有焦点就离开侧栏；带组合键的视图在页面空闲时预载，第一次按下就可用。视图可回报 `molis:side-status`（`busy` / `attention`），外壳在它的页签和按钮上标点，侧栏收起时也看得到。Home 插件侧栏始终只展示当前页。验证见 `tests/issue-global-navigation.e2e.test.ts`。
   - 侧栏脚本（`side-panel*.ts`）发出时去掉整行注释：说明留在源码里，不进页面资源。

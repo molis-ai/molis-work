@@ -1,4 +1,4 @@
-import type { MemoryLedgerPort, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import type { MemoryChangeRequest, MemoryLedgerPort, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller } from "./service.js";
 import { memoryErrors } from "./errors.js";
 
@@ -56,6 +56,24 @@ export class MemoryOperations {
   find(caller: MemoryCaller, key: string): OperationMark | undefined {
     if (!caller.operation_id) return undefined;
     return this.ledger.marker(caller.actor_id, `${PREFIX}${caller.operation_id}:${key}`)?.body as OperationMark | undefined;
+  }
+
+  /** Claim a whole change before its first SDK step; an existing claim only checks identity, including after deletion. */
+  changeRequest(caller: MemoryCaller, request: Pick<MemoryChangeRequest, "action" | "memory_id" | "expected_version">,
+    located?: { scope: MemoryScope; owner: string; version: number }): void {
+    const existing = this.find(caller, "change-request");
+    if (existing) {
+      if (existing.kind !== request.action || existing.memory_id !== request.memory_id
+        || request.expected_version !== undefined && existing.expected_version !== request.expected_version
+        || located && (existing.scope !== located.scope || existing.owner !== located.owner))
+        throw memoryErrors.conflict("同一记忆操作号不能改变目标、动作或确认版本");
+      // Closed child operations still refuse writes; the original purge receipt may finish its deletion projection.
+      return;
+    }
+    if (!located) return;
+    const original = this.find(caller, `change:${request.memory_id}`);
+    this.begin(caller, "change-request", { kind: request.action, scope: located.scope, owner: located.owner,
+      memory_id: request.memory_id, expected_version: request.expected_version ?? original?.expected_version ?? located.version });
   }
 
   begin(caller: MemoryCaller, key: string, identity: OperationIdentity): OperationMark {

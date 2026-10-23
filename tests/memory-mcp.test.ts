@@ -16,7 +16,7 @@ interface McpResult { tools: Array<{ name: string }>; isError?: boolean; content
 // person's grant (`config/mcp-tools.json`, which only the person's own settings write) the way a real external client meets it: nothing is
 // visible or callable before the grant, only `memory.recall` can be granted, what it reads follows the person's switches, and revoking the
 // grant takes the tool away.
-const RECALL_TOOL = "molis_work_v1_action_memory.recall__v1";
+const RECALL_TOOL = "molis_work_v1_action_memory.recall__v2";
 
 test("an external MCP client reads memory only through the person's grant for memory.recall, by the person's switches, and loses it when the grant is revoked", { timeout: 240_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-mcp-"));
@@ -52,7 +52,7 @@ test("an external MCP client reads memory only through the person's grant for me
     return JSON.parse(result.content[0].text) as MemoryRecallResponse;
   };
   // The person's grant, as the settings page records it: one record per client, action, version and provider; memory.recall is a Home action.
-  const grant = { client_id: "runtime:codex", project_id: null, capability_id: "memory.recall", version: 1, provider_id: MEMORY_PROVIDER_ID, permissions: ["memory:recall"], enabled: true };
+  const grant = { client_id: "runtime:codex", project_id: null, capability_id: "memory.recall", version: 2, provider_id: MEMORY_PROVIDER_ID, permissions: ["memory:recall"], enabled: true };
   const record = async (grants: readonly object[]) => {
     await mkdir(join(home, "config"), { recursive: true });
     await writeFile(join(home, "config", "mcp-tools.json"), JSON.stringify({ version: 2, action_grants: grants }, null, 2));
@@ -67,7 +67,7 @@ test("an external MCP client reads memory only through the person's grant for me
   // What an MCP client can be granted of memory is memory.recall and nothing else: listing everything, writing and managing stay closed to it.
   const mcpCaller: ActionCallContext = { actor_id: "runtime:codex", project_id: projectId, audience: "mcp", permissions: [] };
   const inspected = (await host.inspectActions(mcpCaller, reference)).filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID);
-  assert.deepEqual(inspected.map(view => [view.capability_id, view.version, view.action.permissions]), [["memory.recall", 1, ["memory:recall"]]]);
+  assert.deepEqual(inspected.map(view => [view.capability_id, view.version, view.action.permissions]), [["memory.recall", 2, ["memory:recall"]]]);
 
   await record([grant]);
   assert.deepEqual((await readMcpToolPreference(home)).action_grants, [grant], "the record is one the Host accepts");

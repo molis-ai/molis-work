@@ -155,7 +155,7 @@ test("memory.recall cancelled while it waits for the store settles nothing: no r
   const client = host.homeActionClient();
   const asAgent = bindActionClient(client, () => agent), asPerson = bindActionClient(client, () => person);
   await asPerson.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表" });
-  const recallRef = { capability_id: memoryActions.recall.capability_id, version: 1, provider_id: MEMORY_PROVIDER_ID };
+  const recallRef = { capability_id: memoryActions.recall.capability_id, version: 2, provider_id: MEMORY_PROVIDER_ID };
 
   // The call is stopped while it is reading the store: the read finishes, the call's own effect check refuses, and no receipt is written.
   const controller = new AbortController();

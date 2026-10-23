@@ -6,9 +6,20 @@
 
 每次请求只执行一个 owner 的一次 SDK page，共用一份 App 限额（缺省 40 条、最多 100 条、最多扫描 200 个记录槽，可由 Service ports 配置）。跨 owner 游标携固定查询及当前 owner 序列；开始及返还前比较当前序列，SDK 仍最终复核该页范围、条目和版本。游标不是许可，重启可以继续，范围或查询变化须重新开始。不建立缓存或分页表，不把 Node 目录枚举说成有界记录扫描。
 
-搜索与未分类筛选只过滤本次已授权页正文；没有命中且未穷尽时继续分页，不回退全库 list。跨 owner、后续页或存在正文/未分类后筛选时总数为 unknown；只有单 owner 首页完整且没有后筛选才能沿 SDK 报 exact。物理成本沿 SDK 当前诊断许可返回，unknown 不填 0。管理投影显示六类、真实状态、独立 expired 与 classification/null，不给旧未分类条目猜 common。四类自动形成与原 list DTO 不改变。
+搜索与未分类筛选只过滤本次已授权页正文；没有命中且未穷尽时继续分页，不回退全库 list。跨 owner、后续页或存在正文/未分类后筛选时总数为 unknown；只有单 owner 首页完整且没有后筛选才能沿 SDK 报 exact。物理成本沿 SDK 当前诊断许可返回，unknown 不填 0。管理投影显示六类、真实状态、独立 expired 与 classification/null，不给旧未分类条目猜 common。四类自动形成保持不变；正式条目的六类 DTO 随下述逐条纠正片补全。
 
 正常、取消、范围撤回、固定 cursor 变化与跨重启通过真实 Node owner 的 `tests/memory-management-pages.test.ts`；Action/HTTP 入口及 overview 不全量读取由 `tests/memory-management-page-http.test.ts` 验证。首片不接批量操作、改类或候选分页。
+
+
+## M3 逐条纠正正式分类
+
+沿 spec §9.4，现 `memory.change@3` 的 `reclassify` 由本人明确选择六种正式类别、已声明场景和 long-term/short-term 生命周期。旧 `MemoryKind` 仍是自动形成/工具默认的四类，正式读取、历史、变更回执及 v2 导入导出使用 `MemoryFormalKind` 六类。页面所见版本与原操作号绑定 SDK CAS；所有 change 请求在定位与授权完成后、任何 SDK 步骤前，同步在现 ledger 固定不含目标 ID 的 change-request 标记，绑定动作、scope/owner、memory_id 和所见版本；后续同号请求核原绑定，等待 SDK 提交期间也不能换目标或动作。标记只确认身份，删除后 closed 标记不妨碍原 purge 回执补齐删除投影，SDK 子步骤操作号保持不变；分类合成在 `classification.ts`，内容/分类编辑及历史恢复由 `MemoryEdits` 共同提交，Service 保留原授权和范围入口。
+
+期限省略保留原绝对时间，ISO 时间明确替换，null 明确移除；短期必须有未来截止时间，改长期不自动清期限。纯分类编辑使用一次 setMeta；正文或原适用情境同时修改时一次 update。原 ref、来源、依据、证据、namespace、key、扩展分类及 paused/disabled 不因改类改变。已到期条目的本人续期、Session 可信管理绑定、批量和按类 read/form 仍是 P0 后续，本片明确拒绝未经支持的分类更改。
+
+`memory.history@2` 仅投影原快照的分类、期限及结构完整标志；缺快照返回未知，不补 common 或长期。snapshot_available 不随当前时钟或权限变化，恢复是否允许仍由原 SDK 对当前版本、分类、到期与 Session 检查。原操作补账不保存第二份正文，不换成后继版本；人工纠正仍使旧自动删除/恢复撤销失效。正式召回的 habit/project-decision 沿用偏好/约定的固定权重，未扩大自动形成许可。
+
+定向验证：`node scripts/run-tests.mjs --jobs 2 tests/memory-classification-edit.test.ts tests/memory-classification-edit-http.test.ts tests/memory-retention-roundtrip.test.ts tests/memory-service-cas.test.ts tests/memory-actions.test.ts tests/memory-mcp.test.ts`。真实 Node/SQLite/HTTP 覆盖六类、旧未分类、期限三态、同版本竞争、原操作重试/重启补账、当前授权、状态与拒绝；最终页面实操和资源门禁由集成任务按槽位验收。
 
 
 个人与项目记忆的平台服务：开关与策略、确定性写入门、召回编排、待认可的建议、最近变动与撤销、界面信号计数。记忆正文、版本、删除与作用域隔离都在 Prologue Memory（经 Agent Host），本服务不保存第二份正文，也不调用模型。

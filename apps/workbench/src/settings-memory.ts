@@ -128,6 +128,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       root.append(dialog); dialog.showModal(); cancel.focus();
     });
     const KIND = { preference: "偏好", convention: "约定", fact: "背景事实", experience: "经验" };
+    const FORMAL_KIND = { ...KIND, habit: "习惯", "project-decision": "项目决策" };
     const CLASS = { coding: "Coding", assistant: "助理", common: "通用", "long-term": "长期", "short-term": "短期", session: "会话内", habit: "习惯", "project-decision": "项目决策" };
     const SOURCE = { said: "你说的", accepted: "你认可的", auto: "自动记住", manual: "手动添加", imported: "导入", plugin: "插件记下" };
     const STATE = { active: "生效", disabled: "停用", paused: "已暂停" };
@@ -160,7 +161,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const api = (path, payload) => molisWorkRequest(base + path, { body: payload });
     const pendingCommands = new Map();
     const commandTitle = (path, payload) => {
-      const actions = { update: "修改", disable: "停用", enable: "启用", remove: "删除", move: "改范围", restore: "回到旧版本", items: "添加", import: "导入", undo: "撤销", accept: "认可", discard: "不用" };
+      const actions = { reclassify: "纠正分类", update: "修改", disable: "停用", enable: "启用", remove: "删除", move: "改范围", restore: "回到旧版本", items: "添加", import: "导入", undo: "撤销", accept: "认可", discard: "不用" };
       const title = L(actions[payload.action || path.split("/").at(-1)]);
       const subject = payload.text || data?.items?.find(item => item.memory_id === payload.memory_id)?.text
         || data?.candidates?.find(item => path.startsWith("/candidates/" + encodeURIComponent(item.candidate_id) + "/"))?.text;
@@ -322,28 +323,101 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       return form;
     }
 
+    const classificationText = classification => classification
+      ? classification.scenes.map(scene => L(CLASS[scene] || scene)).concat(L(CLASS[classification.lifecycle] || classification.lifecycle)).join(" · ") : L("未分类");
+    const expiryText = expires => expires ? new Date(expires).toLocaleString() : L("无固定期限");
+
+    function classificationFields(item) {
+      const host = el("details", "memory-origin"), scenes = el("div", "memory-editor-fields");
+      host.append(el("summary", "", L("分类与期限")), el("p", "settings-muted", L("原分类") + "：" + classificationText(item.classification)));
+      const sceneNames = ["coding", "assistant", "common"];
+      const initialScenes = sceneNames.filter(scene => item.classification?.scenes.includes(scene));
+      scenes.setAttribute("role", "group"); scenes.setAttribute("aria-label", L("适用场景"));
+      host.append(el("strong", "settings-muted", L("适用场景")), scenes);
+      for (const scene of sceneNames) {
+        const label = el("label", "settings-check"), box = el("input"); box.type = "checkbox"; box.value = scene;
+        box.dataset.memoryScene = ""; box.checked = Boolean(item.classification?.scenes.includes(scene));
+        label.append(box, document.createTextNode(" " + L(CLASS[scene]))); scenes.append(label);
+      }
+      const fields = el("div", "memory-editor-fields"), lifecycle = el("select", "mw-select");
+      lifecycle.setAttribute("aria-label", L("保留时间")); lifecycle.dataset.memoryLifecycle = "";
+      for (const [key, title] of [["", "请选择保留类型"], ["long-term", "长期"], ["short-term", "短期"]]) {
+        const option = el("option", "", L(title)); option.value = key; lifecycle.append(option);
+      }
+      if (item.classification?.lifecycle === "session") {
+        const option = el("option", "", L("会话内")); option.value = "session"; option.disabled = true; lifecycle.append(option);
+      }
+      lifecycle.value = item.classification?.lifecycle || "";
+      const initialLifecycle = lifecycle.value;
+      const expiry = el("select", "mw-select"); expiry.setAttribute("aria-label", L("期限决定")); expiry.dataset.memoryExpiry = "";
+      for (const [key, title] of [["keep", "保留原期限"], ["set", "设置截止时间"], ["remove", "移除固定期限"]]) {
+        const option = el("option", "", L(title)); option.value = key; expiry.append(option);
+      }
+      const date = el("input", "mw-input"); date.type = "datetime-local"; date.step = "1"; date.disabled = true; date.hidden = true;
+      date.setAttribute("aria-label", L("截止时间（本地时间）")); date.dataset.memoryExpiresAt = "";
+      expiry.addEventListener("change", () => { date.disabled = date.hidden = expiry.value !== "set"; date.required = expiry.value === "set"; });
+      fields.append(lifecycle, expiry, date);
+      host.append(fields, el("p", "settings-muted", L("原期限") + "：" + expiryText(item.expires_at)),
+        el("p", "settings-muted", L("改为长期不会自动移除期限；短期必须有未来的截止时间。")));
+      return { host, read: kindChanged => {
+        const selected = Array.from(scenes.querySelectorAll("input:checked"), box => box.value);
+        if (!kindChanged && selected.length === initialScenes.length && selected.every(scene => initialScenes.includes(scene))
+          && lifecycle.value === initialLifecycle && expiry.value === "keep") return null;
+        host.open = true;
+        if (item.expired || item.classification?.lifecycle === "session") throw new Error(L(item.expired
+          ? "这条记忆已到期，暂不支持在这里续期或纠正分类。" : "会话内记忆需要可信会话绑定，暂不支持在这里纠正分类。"));
+        if (!lifecycle.value) throw new Error(L("请选择保留类型"));
+        if (!selected.length) throw new Error(L("至少选择一个适用场景"));
+        const expires = expiry.value === "keep" ? item.expires_at : expiry.value === "remove" ? null : new Date(date.value).toISOString();
+        if (lifecycle.value === "short-term" && (!expires || Date.parse(expires) <= Date.now())) throw new Error(L("短期记忆需要未来的截止时间"));
+        if (expiry.value === "set" && Date.parse(expires) <= Date.now()) throw new Error(L("截止时间必须晚于现在"));
+        const classification = { scenes: selected, lifecycle: lifecycle.value };
+        const expanded = selected.some(scene => !item.classification?.scenes.includes(scene))
+          || (item.classification?.lifecycle === "short-term" && lifecycle.value === "long-term")
+          || (item.expires_at && (!expires || Date.parse(expires) > Date.parse(item.expires_at)));
+        const removed = (item.classification?.scenes || []).filter(scene => !sceneNames.includes(scene));
+        if (item.classification && !["long-term", "short-term", "session"].includes(item.classification.lifecycle)) removed.push(item.classification.lifecycle);
+        return { classification, ...(expiry.value !== "keep" ? { expires_at: expires } : {}),
+          confirmation: expanded || removed.length ? L("适用场景与保留时间") + "：" + classificationText(item.classification) + " → " + classificationText(classification)
+            + "；" + L("有效至") + "：" + expiryText(item.expires_at) + " → " + expiryText(expires)
+            + (removed.length ? "；" + L("将移除未声明的分类值") + "：" + removed.join("、") : "") : "" };
+      } };
+    }
+
     function itemEditor(item, onSave) {
       const form = el("form", "memory-editor");
       const area = el("textarea", "mw-input memory-editor-text"); area.value = item ? item.text : ""; area.maxLength = 400; area.rows = 2; area.required = true;
       area.placeholder = L("一句能单独读懂的话，例如：周报用要点列表，每条一句"); area.setAttribute("aria-label", L("记忆内容"));
       const fields = el("div", "memory-editor-fields");
       const kind = el("select", "mw-select"); kind.setAttribute("aria-label", L("类别"));
-      Object.keys(KIND).forEach((key) => { const option = el("option", "", L(KIND[key])); option.value = key; kind.append(option); });
+      const kinds = item ? FORMAL_KIND : KIND;
+      Object.keys(kinds).forEach((key) => { const option = el("option", "", L(kinds[key])); option.value = key; kind.append(option); });
       kind.value = item ? item.kind : (scope === "project" ? "convention" : "preference");
       const task = el("input", "mw-input"); task.maxLength = 200; task.placeholder = L("适用于（可选），例如：写周报时"); task.setAttribute("aria-label", L("适用情境"));
       task.value = item && item.applies && item.applies.task ? item.applies.task : "";
       fields.append(kind, task);
+      const correction = item ? classificationFields(item) : null;
       const row = el("div", "memory-editor-actions");
       const ok = button(L("保存"), "mw-btn--primary"); ok.type = "submit";
       const cancel = button(L("取消"), "mw-btn--ghost");
       cancel.addEventListener("click", () => paint());
       row.append(ok, cancel);
-      form.append(area, fields, row);
-      form.addEventListener("submit", (event) => {
+      form.append(area, fields); if (correction) form.append(correction.host); form.append(row);
+      form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const text = area.value.trim(); if (!text) return;
+        const text = area.value.trim(); if (!text || busy || ok.disabled) return;
         const applies = Object.assign({}, item ? item.applies : {}); if (task.value.trim()) applies.task = task.value.trim(); else delete applies.task;
-        run(() => onSave({ text, kind: kind.value, applies }), item ? "已保存" : "已记住");
+        ok.disabled = true;
+        try {
+          const corrected = correction?.read(kind.value !== item.kind);
+          if (corrected) {
+            const { confirmation, ...values } = corrected;
+            if (confirmation && !await ask(L("确认分类与期限变更？"), confirmation, L("确认保存"))) return;
+            await run(() => onSave({ action: "reclassify", kind: kind.value, ...values, ...(text !== item.text ? { text } : {}),
+              ...(task.value.trim() !== (item.applies?.task || "") ? { applies } : {}) }), "已保存");
+          } else await run(() => onSave({ ...(item ? { action: "update" } : {}), text, kind: kind.value, applies }), item ? "已保存" : "已记住");
+        } catch (failure) { fail(failure); }
+        finally { ok.disabled = false; }
       });
       return form;
     }
@@ -357,11 +431,14 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         body.revisions.slice().reverse().forEach((revision) => {
           const entry = el("li", "");
           entry.append(el("span", "memory-history-version", L("第") + " " + revision.version + " " + L("版") + " · " + day(revision.at)), el("span", "", revision.text));
-          if (revision.version !== item.version) {
+          entry.append(el("span", "settings-muted", L(FORMAL_KIND[revision.kind] || revision.kind) + " · " + classificationText(revision.classification)
+            + " · " + L("有效至") + "：" + (revision.expires_at || revision.snapshot_available ? expiryText(revision.expires_at) : L("期限未知"))));
+          if (revision.version !== item.version && revision.snapshot_available) {
             const back = button(L("回到这一版"), "mw-btn--link"), restore = mutation();
             back.addEventListener("click", () => run(() => restore("/change", { memory_id: item.memory_id, expected_version: item.version, action: "restore", version: revision.version }), "已回到这一版"));
             entry.append(back);
-          } else entry.append(el("span", "memory-tag", L("当前")));
+            entry.append(el("span", "settings-muted", L("恢复时仍会核对当前权限、期限和会话条件。")));
+          } else entry.append(el("span", "memory-tag", L(revision.version === item.version ? "当前" : "缺少完整快照，不能恢复")));
           list.append(entry);
         });
         panel.append(list);
@@ -400,13 +477,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const origin = el("details", "memory-origin"); origin.append(el("summary", "", L("出处")), el("p", "", item.origin));
         copy.append(origin);
         const actions = el("div", "memory-actions");
-        if (!KIND[item.kind]) {
-          actions.append(el("span", "settings-muted", L("此类别暂仅查看")));
-          row.append(copy, actions); list.append(row); return;
-        }
         const edit = button(L("修改"), "mw-btn--ghost", L("修改") + "：" + item.text);
         edit.addEventListener("click", () => {
-          const editor = itemEditor(item, (value) => change({ action: "update", text: value.text, kind: value.kind, applies: value.applies }));
+          const editor = itemEditor(item, change);
           row.replaceChildren(editor); editor.querySelector("textarea").focus();
         });
         const toggleLabel = item.state === "paused" ? L("恢复使用") : L(item.state === "disabled" ? "启用" : "停用");

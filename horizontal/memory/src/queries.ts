@@ -42,7 +42,7 @@ export class MemoryQueries {
         if (!visibleTo(caller, located.meta)) continue;
         if (where.scope === "personal") personal += 1; else project += 1;
         const item = this.ports.scopes.item(located);
-        if (request.kinds?.length && !request.kinds.includes(item.kind)) continue;
+        if (request.kinds?.length && !request.kinds.some(kind => kind === item.kind)) continue;
         if (request.sources?.length && !request.sources.includes(item.source)) continue;
         if (request.states?.length && !request.states.includes(item.state)) continue;
         if (request.query?.trim() && !item.text.toLowerCase().includes(request.query.trim().toLowerCase())) continue;

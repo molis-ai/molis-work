@@ -8,6 +8,8 @@ export declare const MEMORY_CONSUMERS: readonly MemoryConsumer[];
 
 export declare const MEMORY_EXPORT_PERMISSION = "memory:export";
 
+export declare const MEMORY_FORMAL_KINDS: readonly MemoryFormalKind[];
+
 export declare const MEMORY_KINDS: readonly MemoryKind[];
 
 export declare const MEMORY_PERMISSIONS: readonly ["memory:read", "memory:recall", "memory:write", "memory:configure", "memory:export"];
@@ -108,9 +110,10 @@ export interface MemoryChangeRecord extends MemoryChange {
 export interface MemoryChangeRequest {
     memory_id: string;
     expected_version?: number;
-    action: "update" | "disable" | "enable" | "remove" | "restore" | "move";
+    action: "reclassify" | "update" | "disable" | "enable" | "remove" | "restore" | "move";
     text?: string;
-    kind?: MemoryKind;
+    kind?: MemoryFormalKind;
+    classification?: MemoryClassificationCorrection;
     applies?: MemoryApplies;
     expires_at?: string | null;
     version?: number;
@@ -120,6 +123,13 @@ export interface MemoryChangeRequest {
 export interface MemoryChangeResult {
     memory: MemoryItem | null;
     change: MemoryChange;
+}
+
+export type MemoryClassification = NonNullable<import("services/agent-host-memory").AgentMemoryMeta["classification"]>;
+
+export interface MemoryClassificationCorrection {
+    scenes: ("coding" | "assistant" | "common")[];
+    lifecycle: "long-term" | "short-term";
 }
 
 export interface MemoryClearResult {
@@ -158,7 +168,7 @@ export interface MemoryExportPackage {
     scope: MemoryScope;
     entries: Array<{
         text: string;
-        kind: MemoryKind;
+        kind: MemoryFormalKind;
         source: MemorySource;
         basis: MemoryBasis | null;
         applies: MemoryApplies;
@@ -174,9 +184,11 @@ export interface MemoryExportPackage {
     }>;
 }
 
+export type MemoryFormalKind = MemoryKind | "habit" | "project-decision";
+
 export interface MemoryHistoryResponse {
     memory_id: string;
-    revisions: MemoryRevision[];
+    revisions: MemoryRevisionView[];
 }
 
 export interface MemoryImportResult {
@@ -192,7 +204,7 @@ export interface MemoryItem {
     project_id: string | null;
     character_id: string | null;
     character_title: string | null;
-    kind: MemoryKind;
+    kind: MemoryFormalKind;
     text: string;
     source: MemorySource;
     basis: MemoryBasis | null;
@@ -311,13 +323,13 @@ export interface MemoryManagementItem extends Omit<MemoryItem, "kind"> {
     expired: boolean;
 }
 
-export type MemoryManagementKind = MemoryKind | "habit" | "project-decision";
+export type MemoryManagementKind = MemoryFormalKind;
 
 export interface MemoryMetaRecord {
     memory_id: string;
     scope: MemoryScope;
     owner: string;
-    kind: MemoryKind;
+    kind: MemoryFormalKind;
     source: MemorySource;
     basis: MemoryBasis | null;
     evidence: MemoryEvidence[];
@@ -437,7 +449,7 @@ export interface MemoryRecalled {
     memory_id: string;
     version: number;
     scope: MemoryScope;
-    kind: MemoryKind;
+    kind: MemoryFormalKind;
     text: string;
     source: MemorySource;
     origin: string;
@@ -452,11 +464,17 @@ export interface MemoryRevision {
     };
     version: number;
     text: string;
-    kind: MemoryKind;
+    kind: MemoryFormalKind;
     applies: MemoryApplies;
     change: "created" | "edited" | "replaced" | "restored" | "merged";
     by: "person" | "policy" | "maintenance";
     at: string;
+}
+
+export interface MemoryRevisionView extends Omit<MemoryRevision, "snapshot"> {
+    classification: MemoryClassification | null;
+    expires_at: string | null;
+    snapshot_available: boolean;
 }
 
 export type MemoryScope = "personal" | "project" | "character";
@@ -515,7 +533,7 @@ export type MemoryUndoPlan = {
 } | {
     action: "recreate";
     text: string;
-    kind: MemoryKind;
+    kind: MemoryFormalKind;
     source: MemorySource;
     basis: MemoryBasis | null;
     applies: MemoryApplies;

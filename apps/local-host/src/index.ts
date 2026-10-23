@@ -207,7 +207,6 @@ export { referenceKindsPort } from "./agent-reference-kinds.js";
 export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
 export {
   codingDirectoryPanel,
-  codingNextSteps,
   codingRouteHooks,
   type CodingSurfacePorts,
 } from "./coding-surface.js";
@@ -241,6 +240,7 @@ export { AssistantFollowUps, AssistantFollowUpRecords, FOLLOW_UP_KIND, type Assi
 export { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
 export { CARD_RESULT_OPEN, cardOutcomeSteps, interactionNextSteps, NEXT_STEP, type NextStepCard, type NextStepReview, type OutcomeCard } from "./agent-next-steps.js";
 export { withPluginInteraction } from "./plugin-interaction-answer.js";
+export { pluginInteraction } from "./plugin-interaction.js";
 export { assistantCardHtml } from "./assistant/assistant-card-view.js";
 export { assistantStepRow, drawAssistantReply } from "./assistant/assistant-view-html.js";
 export { assistantOutcomeSteps } from "./assistant/assistant-outcome.js";

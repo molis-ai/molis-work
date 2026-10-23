@@ -29,9 +29,9 @@ function project() {
   const generated: string[] = [];
   const unregister = registerPlatformCapabilities(actions, { generate: async (pluginId, input) => { generated.push(pluginId + ':' + input.input); return { text: '真实回答' }; } });
   service.registerProvider({ provider: { provider_id: SCHEDULE_REMINDER_PROVIDER_ID, title: 'Schedule 提醒', kind: 'system', project_id: 'p' },
-    definitions: REMINDER_ACTIONS, handlers: createReminderActionHandlers('p', { add: () => ({ reminderId: 'fixture' }), cancel: () => ({ cancelled: true }) }) });
+    definitions: REMINDER_ACTIONS, handlers: createReminderActionHandlers('p', { pluginId: () => 'io.molis.work.test', add: () => ({ reminderId: 'fixture' }), cancel: () => ({ cancelled: true }) }) });
   service.registerProvider({ provider: { provider_id: SCHEDULE_OPERATION_PROVIDER_ID, title: 'Schedule 定时操作', kind: 'system', project_id: 'p' },
-    definitions: SCHEDULE_OPERATION_ACTIONS, handlers: createScheduledOperationActionHandlers('p', { add: () => ({ scheduleId: 'fixture' }), cancel: () => ({ cancelled: true }) }) });
+    definitions: SCHEDULE_OPERATION_ACTIONS, handlers: createScheduledOperationActionHandlers('p', { pluginId: () => 'io.molis.work.test', add: () => ({ scheduleId: 'fixture' }), cancel: () => ({ cancelled: true }) }) });
   return { actions, calls, generated, unregister };
 }
 

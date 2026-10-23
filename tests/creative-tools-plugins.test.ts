@@ -1,3 +1,4 @@
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import { pptTestPorts } from "./fixtures/ppt-actions.js";
 import { formTestPorts } from "./fixtures/form-actions.js";
 import { datasetTestPorts } from "./fixtures/dataset-actions.js";
@@ -145,7 +146,8 @@ test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
 });
 
 test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label 里", () => {
-  const html = renderMolisWorkWeb(emptyView());
+  const owner = renderMolisWorkWeb(emptyView());
+  const html = owner + pluginDocuments(owner).join("\n");
   assert.match(html, /data-plugin-id="form"/);
   assert.match(html, /data-plugin-id="dataset"/);
   assert.match(html, /data-plugin-id="ppt"/);

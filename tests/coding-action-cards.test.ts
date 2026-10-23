@@ -61,10 +61,11 @@ test("D25 a round's suggestion lands once as a card beside its round, after the 
     assert.equal(first.status, 200, JSON.stringify(first.body));
     const shown = (first.body as Shown).runs[0]!.cards;
     assert.deepEqual(shown.map(card => [card.card_id, card.status, card.revision, card.offer_id]), [["card-offer-1", "ready", 1, "offer-1"]]);
-    assert.ok(checks >= 1, "the card was written after the call's own check");
+    assert.ok(checks >= 1, "the projection was returned after the call's own check");
     await f.call("coding.read-runs", { sessionId: "app" });
     await f.call("coding.read-runs", { sessionId: "app" });
-    assert.equal(f.cards().length, 1, "one card per suggestion, however often it is read");
+    assert.equal(f.cards().length, 0, "SYS-15-Q1: repeated queries persist no card");
+    assert.deepEqual(((await f.call("coding.read-runs", { sessionId: "app" })).body as Shown).runs[0]!.cards, shown, "the same offer has a stable projection before it is saved");
     assert.equal(f.ran.length, 0, "landing runs nothing");
   } finally { f.close(); }
 });

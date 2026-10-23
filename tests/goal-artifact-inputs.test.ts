@@ -7,7 +7,7 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createGoalsDeliverableActionHandlers, goalsArtifactInputActions, goalsDeliverableActions, type GoalDeliverable } from "@molis-ai/molis-work-plugin-goals";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -19,6 +19,7 @@ const controlToken = "goal-artifact-inputs-control-token-0123456789";
 test("a 成果 version becomes a Goal's input from its detail, shows on the Goal and under 「被谁引用」, and can be removed", async t => {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goal-inputs-"));
   const databasePath = join(directory, "fixture.db");
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
@@ -67,6 +68,7 @@ test("a 成果 version becomes a Goal's input from its detail, shows on the Goal
 test("a document taken as a Goal's input 「固定这一版」 is pinned by Pages and listed with the Goal's other inputs", async t => {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goal-inputs-pin-"));
   const databasePath = join(directory, "fixture.db");
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
@@ -120,6 +122,7 @@ test("inputs from anyone but the person are proposals, kept apart from deliverab
 test("a proposed Feed input shows on the Goal as pending with 认可 and 移除; the person's accept makes it confirmed, and removing takes it off", async t => {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goal-inputs-accept-"));
   const databasePath = join(directory, "fixture.db");
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);

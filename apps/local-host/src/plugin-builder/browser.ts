@@ -186,10 +186,17 @@ class BuilderBrowser {
   private sequence = 0;
   private session = '';
   private closed = false;
+  private readonly contexts = new Map<string, { id: number; session: string }>();
   private readonly pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: NodeJS.Timeout }>();
   private constructor(private readonly child: ChildProcess, private readonly socket: WebSocket, private readonly directory: string, private readonly signal: AbortSignal) {
     socket.on('message', raw => {
-      const result = JSON.parse(String(raw)); if (!result.id) return;
+      const result = JSON.parse(String(raw));
+      if (result.method === 'Runtime.executionContextCreated' && result.params.context.auxData?.isDefault) {
+        this.contexts.set(result.params.context.auxData.frameId, { id: result.params.context.id, session: result.sessionId });
+      }
+      if (result.method === 'Runtime.executionContextsCleared') for (const [frame, context] of this.contexts) if (context.session === result.sessionId) this.contexts.delete(frame);
+      if (result.method === 'Target.attachedToTarget' && result.params.targetInfo.type === 'iframe') void this.command('Runtime.enable', {}, result.params.sessionId).catch(() => { /* Navigation may replace a frame before attachment. */ });
+      if (!result.id) return;
       const pending = this.pending.get(result.id); if (!pending) return;
       this.pending.delete(result.id); clearTimeout(pending.timer);
       if (result.error) pending.reject(new Error(result.error.message || '浏览器命令失败')); else pending.resolve(result.result);
@@ -220,19 +227,43 @@ class BuilderBrowser {
       const browser = new BuilderBrowser(child, socket, directory, signal);
       const target = await browser.command<{ targetId: string }>('Target.createTarget', { url: 'about:blank' });
       const { sessionId } = await browser.command<{ sessionId: string }>('Target.attachToTarget', { targetId: target.targetId, flatten: true }); browser.session = sessionId;
-      await browser.command('Page.enable'); return browser;
+      await browser.command('Page.enable'); await browser.command('Runtime.enable');
+      await browser.command('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }); return browser;
     } catch (error) { socket?.close(); child.kill('SIGKILL'); await rm(directory, { recursive: true, force: true }); throw error; }
   }
-  command<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+  command<T = unknown>(method: string, params: Record<string, unknown> = {}, session = this.session): Promise<T> {
     this.signal.throwIfAborted(); if (this.closed) throw new Error('浏览器已关闭'); const id = ++this.sequence;
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('浏览器步骤超时：' + method)); }, 30_000);
-      this.pending.set(id, { resolve: value => resolve(value as T), reject, timer }); this.socket.send(JSON.stringify({ id, method, params, ...(this.session ? { sessionId: this.session } : {}) }));
+      this.pending.set(id, { resolve: value => resolve(value as T), reject, timer }); this.socket.send(JSON.stringify({ id, method, params, ...(session ? { sessionId: session } : {}) }));
     });
   }
-  async evaluate<T = unknown>(expression: string): Promise<T> { const result = await this.command<{ result: { value: T }; exceptionDetails?: { text: string; exception?: { description: string } } }>('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text); return result.result.value; }
+  private async pageContext() {
+    const object = await this.command<{ result: { objectId?: string } }>('Runtime.evaluate', { expression: 'document.querySelector("iframe[data-plugin-frame]")' });
+    if (!object.result.objectId) return undefined;
+    try {
+      const { node } = await this.command<{ node: { frameId?: string } }>('DOM.describeNode', { objectId: object.result.objectId });
+      const context = node.frameId && this.contexts.get(node.frameId);
+      if (!context) throw new Error('插件页面尚未打开');
+      return context;
+    } finally { await this.command('Runtime.releaseObject', { objectId: object.result.objectId }); }
+  }
+  async evaluate<T = unknown>(expression: string): Promise<T> {
+    const context = await this.pageContext();
+    const result = await this.command<{ result: { value: T }; exceptionDetails?: { text: string; exception?: { description: string } } }>('Runtime.evaluate', {
+      expression, returnByValue: true, awaitPromise: true, ...(context ? { contextId: context.id } : {}),
+    }, context?.session);
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text); return result.result.value;
+  }
   async navigate(url: string) { const parsed = new URL(url); if (!isLoopbackHttpUrl(parsed)) throw new Error('界面验收只能打开宿主本机预览'); await this.command('Page.navigate', { url }); }
-  async wait(expression: string) { await this.evaluate(`new Promise((resolve,reject)=>{const deadline=Date.now()+20000;function check(){try{if(${expression})return resolve(true)}catch(e){return reject(e)}if(Date.now()>deadline)return reject(Error('验收等待超时'));setTimeout(check,50)}check()})`); }
+  async wait(expression: string) {
+    const deadline = Date.now() + 20_000; let failure: unknown;
+    while (Date.now() < deadline) {
+      try { if (await this.evaluate(expression)) return; } catch (error) { failure = error; }
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error('验收等待超时', { cause: failure });
+  }
   async click(expression: string) {
     await this.wait(`!!(${expression})`);
     const point = await this.evaluate<{ x: number; y: number }>(`(async()=>{(${expression}).scrollIntoView({block:'center',behavior:'instant'});await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));const el=${expression};if(!el)throw Error('验收目标已变化');if(el.disabled)throw Error('验收操作不可用');const b=el.getBoundingClientRect();if(!b.width||!b.height)throw Error('验收目标不可见');if(!el.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2)))throw Error('验收操作被遮挡');return{x:b.x+b.width/2,y:b.y+b.height/2}})()`);

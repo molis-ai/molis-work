@@ -29,6 +29,21 @@ function saveNewScheduleReminder(db: ScheduleTaskDatabase, reminder: ScheduleRem
     .run(reminder.id, reminder.projectId, reminder.pluginId, reminder.installationId, JSON.stringify(reminder));
 }
 
+function cancelReminderRecord(db: ScheduleTaskDatabase, schedule: ReminderScheduler, record: ScheduleReminder): void {
+    try { schedule.cancel(record.jobId, record.jobOwner); }
+    catch (error) { if (!(error instanceof ActionError) || error.code !== "scheduler.job_not_found") throw error; }
+    db.prepare("DELETE FROM schedule_plugin_reminders WHERE id = ?").run(record.id);
+}
+
+export function cancelInstallationReminders(db: ScheduleTaskDatabase, schedule: ReminderScheduler, projectId: string, pluginId: string, installationId: string): number {
+  return db.transaction(() => {
+    const rows = db.prepare("SELECT record_json FROM schedule_plugin_reminders WHERE project_id = ? AND plugin_id = ? AND installation_id = ?")
+      .all(projectId, pluginId, installationId) as Array<{ record_json: string }>;
+    for (const row of rows) cancelReminderRecord(db, schedule, JSON.parse(row.record_json) as ScheduleReminder);
+    return rows.length;
+  }).immediate();
+}
+
 /** Product rules and persistence; the Host supplies installation metadata and same-database Scheduler. */
 export function createScheduleReminders(options: {
   db: ScheduleTaskDatabase; projectId: string; schedule: ReminderScheduler;
@@ -41,11 +56,6 @@ export function createScheduleReminders(options: {
     const descriptor = options.describe(identity);
     if (!descriptor.generation) throw scheduleErrors.job_invalid("提醒缺少当前安装世代");
     return descriptor;
-  };
-  const cancelRecord = (record: ScheduleReminder) => {
-    try { schedule.cancel(record.jobId, record.jobOwner); }
-    catch (error) { if (!(error instanceof ActionError) || error.code !== "scheduler.job_not_found") throw error; }
-    db.prepare("DELETE FROM schedule_plugin_reminders WHERE id = ?").run(record.id);
   };
   return {
     add(identity: ReminderIdentity, input: ReminderInput): { reminderId: string } {
@@ -75,18 +85,11 @@ export function createScheduleReminders(options: {
         const record = getScheduleReminder(db, input.reminderId);
         if (!record || record.projectId !== options.projectId || record.pluginId !== identity.pluginId || record.installationId !== identity.installationId
           || record.installationGeneration !== descriptor.generation) return { cancelled: false };
-        cancelRecord(record); return { cancelled: true };
+        cancelReminderRecord(db, schedule, record); return { cancelled: true };
       }).immediate();
     },
     /** A trusted uninstall path removes only this installation's reminders. */
-    cancelInstallation(pluginId: string, installationId: string): number {
-      return db.transaction(() => {
-        const rows = db.prepare("SELECT record_json FROM schedule_plugin_reminders WHERE project_id = ? AND plugin_id = ? AND installation_id = ?")
-          .all(options.projectId, pluginId, installationId) as Array<{ record_json: string }>;
-        for (const row of rows) cancelRecord(JSON.parse(row.record_json) as ScheduleReminder);
-        return rows.length;
-      }).immediate();
-    },
+    cancelInstallation: (pluginId: string, installationId: string) => cancelInstallationReminders(db, schedule, options.projectId, pluginId, installationId),
   };
 }
 

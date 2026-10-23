@@ -18,7 +18,7 @@ test("LOGIC-01 a project that will not open is skipped: the ones after it open, 
   const errors: unknown[] = [];
   let run: (() => Promise<void>) | undefined;
   const schedulers = startWebProjectSchedulers({
-    localHost: { async withProject(reference: { project_id: string }) {
+    localHost: { async inspectActions(_caller: unknown, reference: { project_id: string }) {
       opened.push(reference.project_id);
       if (reference.project_id === "a" && failA) throw Object.assign(new Error("file is not a database"), { code: "SQLITE_NOTADB" });
     } } as never,
@@ -28,7 +28,6 @@ test("LOGIC-01 a project that will not open is skipped: the ones after it open, 
       { database_path: paths[1], project_id: "b" },
     ] } as never),
     fixture: null,
-    agents: { agentHost: {} as never, ready: Promise.resolve() },
     periodic: { every(task: { run(): Promise<void> }) { run = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
     changed() {},
     onError(error) { errors.push(error); },
@@ -64,11 +63,10 @@ test("LOGIC-01 stopping the host finishes while an open is still failing", async
   const entered = new Promise<void>(resolve => { markEntered = resolve; });
   let run: (() => Promise<void>) | undefined;
   const schedulers = startWebProjectSchedulers({
-    localHost: { withProject: () => new Promise((_resolve, reject) => { rejectOpen = reject; markEntered(); }) } as never,
+    localHost: { inspectActions: () => new Promise((_resolve, reject) => { rejectOpen = reject; markEntered(); }) } as never,
     homeDirectory: home,
     withCatalog: async (_options, operation) => operation({ listProjects: async () => [{ database_path: path, project_id: "a" }] } as never),
     fixture: null,
-    agents: { agentHost: {} as never, ready: Promise.resolve() },
     periodic: { every(task: { run(): Promise<void> }) { run = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
     changed() {},
     onError() { throw new Error("a stopped host does not report the open"); },

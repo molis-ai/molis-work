@@ -17,6 +17,7 @@ import { registerMemoryHost } from "./memory/memory-host.js";
 import { browserSurfacesFor } from "./browser/browser-surfaces.js";
 import { computerSurfacesFor } from "./computer/computer-surfaces.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
+import { prepareMemoryHome } from "./memory/memory-adoption.js";
 
 const owners = new WeakMap<MolisWorkLocalHost, { withCatalog?: LocalWebCatalogRunner; home: string; release?: () => void }>();
 type WorkspacePorts = Pick<AgentHostCompositionOptions, "workspacesFor"> & Partial<Pick<AgentHostCompositionOptions, "workspaceFor">>;
@@ -27,13 +28,13 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
   const owner = owners.get(localHost) ?? { home: storageHome, withCatalog };
   if (owner.home !== storageHome) throw new ActionError("actions.home_mismatch", "Agent 服务与 Host 必须属于同一个 Home");
   if (withCatalog) owner.withCatalog = withCatalog;
-  owners.set(localHost, owner);
   const models = async <T>(operation: (store: ModelProviderStore | undefined) => T | Promise<T>): Promise<T> => {
     if (owner.withCatalog) return owner.withCatalog({ homeDirectory: storageHome }, catalog => operation(catalog.models));
     const opened = openConfiguredModels(storageHome);
     try { return await operation(opened?.store); } finally { opened?.storage.close(); }
   };
   return localHost.ensureAgentService(storageHome, () => {
+    prepareMemoryHome(storageHome);
     const connectors = createAgentConnectorPorts(storageHome);
     const service = composeAgentHost({
       localHost, homeDirectory: storageHome,
@@ -83,8 +84,6 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         }),
       },
     });
-    const unbind = bindPrologueInference(storageHome, service.inference);
-    const unbindBuilder = bindPrologueBuilder(storageHome, service.createBuilderAgent);
     // Memory lives in this runtime: the platform memory is registered with it (specs/archive/memory-system §5.2).
     // The Web server and the embedded MCP pass the catalog owner: they have taken this service as their own and run the Home's
     // runtime. The lazy binding every Host with a Home gets in its constructor, all a forwarding stdio MCP has, does not.
@@ -93,7 +92,10 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
       projects: async () => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().map(project => project.project_id)) : [],
       projectExists: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().some(project => project.project_id === projectId)) : null,
       projectTitle: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null) : null });
+    const unbind = bindPrologueInference(storageHome, service.inference);
+    const unbindBuilder = bindPrologueBuilder(storageHome, service.createBuilderAgent);
     owner.release = () => { unbind(); unbindBuilder(); };
+    owners.set(localHost, owner);
     const dispose = service.dispose.bind(service);
     service.dispose = () => { owner.release?.(); owners.delete(localHost); memory.close(); return dispose(); };
     return service;

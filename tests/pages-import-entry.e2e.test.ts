@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
@@ -8,12 +9,14 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
 /** Open Pages in a project, open the import dialog and let it read one Markdown file up to the preview. */
-async function openImportPreview({ command, sessionId, evaluate, waitFor, navigate, click, origin, projectId }: Browser, width: number): Promise<void> {
+async function openImportPreview(browser: Browser, child: Awaited<ReturnType<typeof pluginFrameBrowser>>, width: number): Promise<void> {
+  const {command,sessionId,navigate,origin,projectId}=browser;
+  const {evaluate,waitFor,click}=child;
   await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
-  await waitFor("document.querySelector('[data-plugin-id=pages]')");
-  if (await evaluate("document.body.dataset.desktopSurface") !== "pages") await click('[data-plugin-strip] [data-plugin-id=pages]');
-  await waitFor("document.body.dataset.desktopSurface === 'pages' && Boolean(document.querySelector('[data-pages-import]'))");
+  await browser.waitFor("document.querySelector('[data-plugin-id=pages]')");
+  if (await browser.evaluate("document.body.dataset.desktopSurface") !== "pages") await browser.click('[data-plugin-strip] [data-plugin-id=pages]');
+  await waitFor("Boolean(document.querySelector('[data-pages-import]'))");
   // An empty library offers import next to the templates; the header has it too.
   await click("[data-pages-import]");
   await waitFor("document.querySelector('[data-pages-import-dialog]')?.open === true");
@@ -31,10 +34,12 @@ for (const width of [1440, 390]) {
   test(`Pages ${width}px: its own import turns a file into a Pages document, not a 成果`, { timeout: 90_000 }, async t => {
     const browser = await openGoalBrowser(t, true, undefined, null);
     if (!browser) return;
-    const { evaluate, waitFor, click, projectId, homeDirectory, store: project } = browser;
+    const child = await pluginFrameBrowser(t,browser,"pages");
+    const {evaluate,waitFor,click}=child;
+    const {projectId, homeDirectory, store: project} = browser;
     const artifactsBefore = (project.db.prepare("SELECT COUNT(*) AS n FROM library_artifact_versions").get() as { n: number }).n;
 
-    await openImportPreview(browser, width);
+    await openImportPreview(browser, child, width);
     await click("[data-pages-import-submit]");
     await waitFor("document.querySelector('[data-pages-import-status]').textContent.includes('已导入')", 15_000);
     await waitFor("!document.querySelector('[data-pages-import-open]').hidden");
@@ -56,8 +61,9 @@ for (const width of [1440, 390]) {
 test("Pages import: a 413 clears the submission, so the retry carries a new request id", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
-  const { evaluate, waitFor, click } = browser;
-  await openImportPreview(browser, 1440);
+  const child = await pluginFrameBrowser(t,browser,"pages");
+  const {evaluate,waitFor,click}=child;
+  await openImportPreview(browser, child, 1440);
   // The first import request is answered 413 by a stand-in for the Host; the second one reaches the real Host and imports.
   await evaluate(`(() => {
     const real = window.fetch.bind(window); window.__importRequestIds = [];

@@ -33,6 +33,7 @@ test("closing an unused or initializing service cannot leave a runtime alive or 
 
 test("MCP composes a lazy Host-owned review service before Web; later Web approves the same real Git operation and closing surfaces preserves it", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "system-agents-")), directory = join(home, "repo");
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   await mkdir(directory);
   const git = (...args: string[]) => execFileSync("git", args, { cwd: directory, encoding: "utf8" });
   git("init", "-q", "-b", "main"); git("config", "user.name", "Fixture"); git("config", "user.email", "fixture@example.invalid");
@@ -117,6 +118,7 @@ test("MCP composes a lazy Host-owned review service before Web; later Web approv
 
 test("another process cannot recover the active SDK owner; ownership is released by process death", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "agent-owner-process-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const script = fileURLToPath(new URL("./fixtures/agent-storage-owner.ts", import.meta.url));
   const child = spawn(process.execPath, ["--import", "tsx", script, home], { stdio: ["ignore", "pipe", "pipe", "ipc"] });
   let errors = ""; child.stderr?.on("data", data => { errors += String(data); });

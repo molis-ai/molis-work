@@ -21,7 +21,7 @@ export interface ShelfAiPorts {
     recipe: Exclude<ShelfRecipeId, "extract_text">; option_id: string | null; shortcut_prompt?: string;
     selection: ShelfModelSelection; root: string;
     sources: readonly { relative_path: string; name: string; kind: ShelfItemKind; mime: string }[];
-  }, control: ShelfExecutionControl): Promise<{ text: string; execution: BoundedInferenceReceipt; coverage?: readonly string[]; validateResult?(): void }>;
+  }, control: ShelfExecutionControl): Promise<{ text: string; execution?: BoundedInferenceReceipt; coverage?: readonly string[]; validateResult?(): void }>;
 }
 
 /** Provenance of an explicitly imported personal copy, never an execution authority. */
@@ -72,7 +72,7 @@ export const SHELF_ADMIT_ACTION: ActionDefinition<ShelfAdmitActionInput, { item:
   capability_id: "shelf.items.admit", version: 1, operation: "command",
   action: {
     title: "放进 Shelf", description: "把一段文字（可抓取其中网页）或一个文件副本放进置物架；同一原件重复加入保留原副本", kind: "operation",
-    scope: "home", scheduling: "concurrent", audiences: ["user", "workflow", "agent", "mcp"], permissions: ["shelf:write"], subject_kinds: ["shelf_item"],
+    scope: "home", scheduling: "concurrent", audiences: ["user", "workflow", "agent", "mcp"], permissions: ["shelf:read", "shelf:write", "materials:read", "materials:fetch"], subject_kinds: ["shelf_item"],
     input_schema: {
       type: "object",
       properties: {

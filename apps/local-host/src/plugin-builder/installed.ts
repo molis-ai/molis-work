@@ -29,10 +29,12 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
         context.signal.throwIfAborted();
         const raw = storage.get(ENTRIES);
         const working = new Map<string, SandboxJson>(raw ? JSON.parse(raw) as Array<[string, SandboxJson]> : []);
+        const before = JSON.stringify([...working]);
         const result = mutate(working);
         await context.beforeEffect?.();
         context.signal.throwIfAborted();
-        if (!storage.compareAndSet!(ENTRIES, raw, JSON.stringify([...working]))) throw new Error('数据被同时修改，请重试');
+        const after = JSON.stringify([...working]);
+        if (after !== before && !storage.compareAndSet!(ENTRIES, raw, after)) throw new Error('数据被同时修改，请重试');
         return result;
       };
       const next = chain.then(run, run);

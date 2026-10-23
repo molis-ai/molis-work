@@ -32,8 +32,8 @@ const logOf = async (label: string, run: (home: string, log: ActionCallLog) => v
 test("commands that ran are recorded with caller, outcome and diagnostic id, successful queries are not, failed ones are, and inputs never reach the record", { timeout: 60_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "action-call-log-"));
   const dbPath = join(home, "project.db");
-  seedDemoBoard(dbPath, PROJECT);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  seedDemoBoard(dbPath, PROJECT);
   const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: NATIVE_CONTENT_PERMISSIONS };
   const actions = bindActionClient(host.actionClient(reference), () => caller);
@@ -104,10 +104,10 @@ test("a command turned away before its handler ran leaves a 「未执行」 row,
 test("PREP-108-01/03: a command cancelled, revoked or disabled before its handler started leaves a 「未执行」 row under the number of its operation, and a handler that ran and failed leaves one without the mark", { timeout: 60_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "action-call-log-before-handler-"));
   const dbPath = join(home, "project.db");
-  seedDemoBoard(dbPath, PROJECT);
   let availability: ActionAvailability = { available: true };
   let opened = 0;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: () => availability, onRuntimeOpen: () => { opened++; } });
+  seedDemoBoard(dbPath, PROJECT);
   const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: NATIVE_CONTENT_PERMISSIONS };
   const client = host.actionClient(reference);
@@ -210,9 +210,9 @@ test("PREP-108-01/02: cancellation, open failure or Host close during Runtime pr
 test("a 「未执行」 row keeps who, what, the outcome and the error code and no content: not the reason the provider gave, not what was asked with", { timeout: 60_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "action-call-log-reason-"));
   const dbPath = join(home, "project.db");
-  seedDemoBoard(dbPath, PROJECT);
   const reason = "服务暂停：客户张三的备注";
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: () => ({ available: false, code: "test.paused", reason }) });
+  seedDemoBoard(dbPath, PROJECT);
   const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: NATIVE_CONTENT_PERMISSIONS };
   try {

@@ -1,3 +1,4 @@
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
@@ -18,13 +19,14 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const child=await pluginFrameBrowser(t,browser,"pages");
   const store = openPagesStore(homeDirectory);
   const left = store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
   const made = store.create({ project_id: projectId!, title: "访谈纪要", body: { type: "doc", content: [paragraph("离线也要能记下想法。")] } });
   store.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   // What the page reports, and every flash asked for and every flash line Pages draws.
-  await command("Page.addScriptToEvaluateOnNewDocument", { source: `document.addEventListener('molis:surface-landing', (event) => { window.lastLanding = event.detail; });
+  await pluginFrameInitScript(t, browser, `document.addEventListener('molis:surface-landing', (event) => { window.lastLanding = event.detail; });
     document.addEventListener('molis:surface-focus', (event) => { window.lastFocus = event.detail; });
     window.flashAsked = 0; window.flashLines = 0;
     // A judgment held back until the test lets it go, and how many came back (PICK-05).
@@ -34,9 +36,9 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
       try { return await realFetch.apply(window, args); } finally { if (judge) window.judged += 1; } };
     document.addEventListener('molis:surface-landing-flash', () => { window.flashAsked += 1; }, true);
     new MutationObserver((records) => { for (const record of records) for (const node of record.addedNodes) if (node.classList?.contains('pages-landing-flash')) window.flashLines += 1; })
-      .observe(document, { childList: true, subtree: true });` }, sessionId);
+      .observe(document, { childList: true, subtree: true });`);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${left.id}` }, sessionId));
-  await waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
+  await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
 
   // A work, and the document it made handed back to it as its result.
   await issueModel(t, homeDirectory, { replyText: "整理好了，写在「访谈纪要」里。" });
@@ -56,7 +58,7 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   assert.equal(await evaluate<string>(`document.querySelector(${JSON.stringify(CARD)}).getAttribute('aria-label')`), "拿起：访谈纪要");
 
   // The cursor in the document on the left is where it would go.
-  await evaluate(`(() => {
+  await child.evaluate(`(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = [...editor.querySelectorAll('p')].find((node) => node.textContent === '先完成核心体验。').firstChild;
     const range = document.createRange(); range.setStart(text, 3); range.collapse(true);
@@ -81,7 +83,7 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   const at = await evaluate<{ x: number; y: number }>(`(() => { const box = document.querySelector(${JSON.stringify(CARD)} + ' .assistant-glyph').getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; })()`);
   for (const type of ["mousePressed", "mouseReleased"]) await command("Input.dispatchMouseEvent", { type, x: at.x, y: at.y, button: "left", clickCount: 1 }, sessionId);
   await waitFor(`window.lastFocus?.object?.id === ${JSON.stringify(made.id)}`);
-  assert.equal(await evaluate<string>("document.querySelector('[data-pages-title]').value"), "发布计划", "the card picked it up; only its title opens it");
+  assert.equal(await child.evaluate<string>("document.querySelector('[data-pages-title]').value"), "发布计划", "the card picked it up; only its title opens it");
   await waitFor(`Boolean(${INSERT})`, 15_000);
 
   // FLASH-01: hovering the offer flashes the landing once; out and in again while it shows asks again but draws no second line.
@@ -90,16 +92,17 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
     await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y }, sessionId);
   };
   await hover(true);
-  await waitFor("window.flashAsked === 1 && window.flashLines === 1");
-  await waitFor("document.querySelector('.pages-landing-flash')?.style.height !== ''");
+  await waitFor("window.flashAsked === 1");
+  await child.waitFor("window.flashLines === 1");
+  await child.waitFor("document.querySelector('.pages-landing-flash')?.style.height !== ''");
   await hover(false); await hover(true);
   await waitFor("window.flashAsked === 2");
-  assert.equal(await evaluate<number>("window.flashLines"), 1, "not again while it shows");
-  await waitFor("document.querySelector('.pages-landing-flash') === null", 5_000);
+  assert.equal(await child.evaluate<number>("window.flashLines"), 1, "not again while it shows");
+  await child.waitFor("document.querySelector('.pages-landing-flash') === null", 5_000);
   await hover(false); await hover(true);
-  await waitFor("window.flashLines === 2", 5_000);
+  await child.waitFor("window.flashLines === 2", 5_000);
   // Off the offer onto the bar between its buttons, and back: a new entry, so it flashes again.
-  await waitFor("document.querySelector('.pages-landing-flash') === null", 5_000);
+  await child.waitFor("document.querySelector('.pages-landing-flash') === null", 5_000);
   const gap = await evaluate<{ x: number; y: number }>(`(() => { const bar = ${INSERT}.closest('.mw-ctx'), box = bar.getBoundingClientRect();
     for (let y = box.top + 1; y < box.bottom; y += 2) for (let x = box.left + 1; x < box.right; x += 2) {
       const at = document.elementFromPoint(x, y); if (at && bar.contains(at) && !at.closest('[data-key]')) return { x, y }; }
@@ -107,16 +110,16 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   assert.ok(gap, "the bar has room between its buttons");
   await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: gap.x, y: gap.y }, sessionId);
   await hover(true);
-  await waitFor("window.flashLines === 3", 5_000);
+  await child.waitFor("window.flashLines === 3", 5_000);
   // Focus on the offer flashes it as hover does.
   await hover(false);
-  await waitFor("document.querySelector('.pages-landing-flash') === null", 5_000);
-  const lines = await evaluate<number>("window.flashLines");
+  await child.waitFor("document.querySelector('.pages-landing-flash') === null", 5_000);
+  const lines = await child.evaluate<number>("window.flashLines");
   await evaluate(`${INSERT}.focus()`);
-  await waitFor(`window.flashLines === ${lines + 1}`, 5_000);
+  await child.waitFor(`window.flashLines === ${lines + 1}`, 5_000);
 
   // FLASH-02: a landing that went away is not asked: no event, no error.
-  await waitFor("document.querySelector('.pages-landing-flash') === null", 5_000);
+  await child.waitFor("document.querySelector('.pages-landing-flash') === null", 5_000);
   await hover(false);
   await evaluate(`(() => { const gone = document.createElement('div'); document.body.append(gone);
     gone.dispatchEvent(new CustomEvent('molis:surface-landing', { bubbles: true, detail: { ...window.lastLanding } })); gone.remove(); window.flashGoneFrom = window.flashAsked; window.flashGoneAt = window.lastLanding.targets[0].anchor; })()`);
@@ -124,7 +127,7 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   await new Promise((resolve) => setTimeout(resolve, 400));
   assert.equal(await evaluate<number>("window.flashAsked - window.flashGoneFrom"), 0, "nothing asked of a landing that is gone");
   // FLASH-03: the person moves the cursor, so the page reports its landing again; choosing the offer previews the result's name there.
-  await evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
+  await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = [...editor.querySelectorAll('p')].find((node) => node.textContent === '先完成核心体验。').firstChild;
     const range = document.createRange(); range.setStart(text, 2); range.collapse(true); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); })()`);
   await waitFor("window.lastLanding?.position === 'cursor' && window.lastLanding.targets[0].anchor !== window.flashGoneAt");
@@ -145,17 +148,19 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   await evaluate(`document.querySelector(${JSON.stringify(CARD)}).focus()`);
   await key("Enter", "Enter", 13);
   await waitFor(`Boolean(${INSERT})`, 15_000);
-  await evaluate(`${INSERT}.click()`);
-  await waitFor("document.querySelector('.pages-landing-preview')?.textContent === '访谈纪要'", 10_000);
-  assert.equal(await evaluate<string>(editorText), "先完成核心体验。再安排发布。", "nothing is written before the person confirms");
-  await evaluate(`[...document.querySelectorAll('.pages-pop .mw-btn--primary')].find((node) => node.textContent === '放进去').click()`);
-  await waitFor(`${editorText} === '先完访谈纪要成核心体验。再安排发布。'`, 10_000);
+  await evaluate(`${INSERT}.dataset.testInsert="true"`);
+  await click("[data-test-insert]");
+  await child.waitFor("document.querySelector('.pages-landing-preview')?.textContent === '访谈纪要'", 10_000);
+  assert.equal(await child.evaluate<string>(editorText), "先完成核心体验。再安排发布。", "nothing is written before the person confirms");
+  await child.evaluate(`[...document.querySelectorAll('.pages-pop .mw-btn--primary')].find((node) => node.textContent === '放进去').click()`);
+  await child.waitFor(`${editorText} === '先完访谈纪要成核心体验。再安排发布。'`, 10_000);
 });
 
 test("PRR-21 QA-017 opens the side panel; W3-A3b PICK-02 on the real result card the title asks to open the card's own object once and picks nothing; a drag that selects its text picks nothing; the card body still picks", { timeout: 150_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const child=await pluginFrameBrowser(t,browser,"pages");
   const store = openPagesStore(homeDirectory);
   const left = store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。")] } });
   const made = store.create({ project_id: projectId!, title: "访谈纪要", body: { type: "doc", content: [paragraph("离线也要能记下想法。")] } });
@@ -170,7 +175,7 @@ test("PRR-21 QA-017 opens the side panel; W3-A3b PICK-02 on the real result card
     window.addEventListener('molis:side-open', (event) => { window.opens.push(event.detail?.target ?? null); }, true);
     document.addEventListener('click', (event) => { if (event.target.closest?.(${JSON.stringify(CARD)})) window.clicks.push({ title: Boolean(event.target.closest('.assistant-item-title')), prevented: event.defaultPrevented }); });` }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${left.id}` }, sessionId));
-  await waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
+  await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
 
   // A work, and the document it made handed back to it as its result (as the first test does).
   await issueModel(t, homeDirectory, { replyText: "整理好了，写在「访谈纪要」里。" });
@@ -207,7 +212,7 @@ test("PRR-21 QA-017 opens the side panel; W3-A3b PICK-02 on the real result card
   assert.deepEqual(await held("clicks"), [{ title: true, prevented: false }], "one click, on the title, not cancelled on its way to the page");
   assert.equal(await held("picks"), 0, "a click on the title is not a pick up");
   assert.equal(await inHand(), null, "and nothing is in hand");
-  assert.equal(await evaluate<string>("document.querySelector('[data-pages-title]').value"), "发布计划", "the document on the left was not replaced by the title's request");
+  assert.equal(await child.evaluate<string>("document.querySelector('[data-pages-title]').value"), "发布计划", "the document on the left was not replaced by the title's request");
   // QA-017: the title really opened the panel; close it again so the card and the Assistant stay in view for the rest.
   await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
   await waitFor("document.body.dataset.sideOpen === 'false'", 10_000);

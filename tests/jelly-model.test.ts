@@ -1,4 +1,5 @@
 import test from "node:test";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import fs, { mkdtempSync, mkdirSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -125,7 +126,8 @@ test("Jelly model actions reuse the original provider and preference owners and 
   const { MolisWorkLocalHost } = await import("@molis-ai/molis-work-app-local-host");
   const { jellyActions, jellyServiceActions } = await import("@molis-ai/molis-work-plugin-jelly");
   const { bindActionClient } = await import("@molis-ai/molis-work-contracts/platform/actions");
-  const home = homeFor(t);
+  const home = homeFor(t, false);
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
   const shared = modelConnection(home, "已有模型", "fixture-key", "https://shared.example.com/v1");
   providerStore(home, store => {
     store.upsert({ credential_ref: shared.credential_ref!, provider_id: "shared", display_name: "已有模型", base_url: "https://shared.example.com/v1", api_format: "openai-chat-completions", models: [{ model_id: "model", enabled: true }] });
@@ -158,7 +160,9 @@ test("Jelly model actions reuse the original provider and preference owners and 
 test("W5-01-JMC-01 real Jelly Runtime keeps all actions, isolated selection and settings-only repair without network", async t => {
   const { serveHomeRuntime, person } = await import("./fixtures/home-runtime.js");
   const { jellyActions, jellyServiceActions, JELLY_ACTIONS, JELLY_PLUGIN_ID } = await import("@molis-ai/molis-work-plugin-jelly");
-  const home = homeFor(t), { host, request } = await serveHomeRuntime(t, { homeDirectory: home });
+  const home = homeFor(t, false);
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
+  const { host, request } = await serveHomeRuntime(t, { homeDirectory: home });
   try {
   const connection = modelConnection(home, "配置账号", "runtime-config-fixture");
   const platform = await host.homePlugins!.ready(), installation = host.homePlugins!.installation(JELLY_PLUGIN_ID)!;
@@ -185,7 +189,9 @@ test("W5-01-JMC-01 real Jelly Runtime keeps all actions, isolated selection and 
 test("W5-01-JMC-02 revoked private storage prevents preference, provider and connector-origin writes", async t => {
   const { serveHomeRuntime, person } = await import("./fixtures/home-runtime.js");
   const { jellyServiceActions, JELLY_PLUGIN_ID } = await import("@molis-ai/molis-work-plugin-jelly");
-  const home = homeFor(t), { host } = await serveHomeRuntime(t, { homeDirectory: home });
+  const home = homeFor(t, false);
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
+  const { host } = await serveHomeRuntime(t, { homeDirectory: home });
   try {
   const connection = modelConnection(home, "尚未绑定地址", "no-late-effects-fixture");
   const platform = await host.homePlugins!.ready(), installation = host.homePlugins!.installation(JELLY_PLUGIN_ID)!;
@@ -271,7 +277,9 @@ test("W5-01-JMC-02 a fixture cannot self-declare configuration and trusted decla
   const { MolisWorkLocalHost } = await import("@molis-ai/molis-work-app-local-host");
   const { homeProbe } = await import("./fixtures/home-runtime.js");
   const probe = homeProbe("forgedconfiguration"), forged = Object.assign(probe.definition, { model_configuration: JELLY_MODEL_CONFIGURATION });
-  const home = homeFor(t), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [forged] } });
+  const home = homeFor(t, false);
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [forged] } });
   try {
     await host.homePlugins!.ready();
     assert.equal(probe.contexts.at(-1)!.services!.model!.configuration, undefined);

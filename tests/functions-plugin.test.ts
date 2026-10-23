@@ -745,6 +745,7 @@ test("invoke uses published config once and does not overwrite last_preview", as
 
 test("HTTP invoke by key and the Functions actions hide drafts", async () => {
   await withHome(async (home) => {
+    await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
     const service = createFunctionsService({
       store: openFunctionsStore(home),
       credential: () => "sk-test",

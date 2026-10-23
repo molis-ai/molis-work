@@ -151,7 +151,7 @@ const ROUTES: RouteMaker[] = [
         const earlierFingerprint = summariesFingerprint(earlier);
         const last = runs.at(-1);
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
-        const updated = state === record.state ? record : await execution.sessions.setState(beforeWrite, projectId, record.session_id, state, record.updated_at);
+        const updated = { ...record, state };
         const compactRequested = context.services?.storage?.get(`compact-next:${record.session_id}`) === "1";
         return { session: { ...updated, queued: queuedView, queued_inputs: snapshot.queued_inputs, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitles.known(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(a, api!, record.session_id, session, runs, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
           run_count: snapshot.runs.length, runs_offset: offset,
@@ -162,7 +162,7 @@ const ROUTES: RouteMaker[] = [
       } catch (error) {
         // Never replace a lost runtime reference with a new session: that would
         // silently lose history and could repeat effects after a restart.
-        const session = await execution.sessions.setState(beforeWrite, projectId, record.session_id, "reconcile-required", record.updated_at);
+        const session = { ...record, state: "reconcile-required" as const };
         return { session, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, recovery_required: true,
           error: (error as { code?: string }).code === "agent.session_unknown"
             ? codingText(execution.locale)("coding.server.record-not-restored")

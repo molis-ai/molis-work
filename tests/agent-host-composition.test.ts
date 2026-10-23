@@ -114,6 +114,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
 
 test("an Agent round carries the number of the call that started it: its tool calls and the start the Runtime is given", async t => {
   const home = await realpath(await mkdtemp(join(tmpdir(), "agent-call-id-")));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const localHost = new MolisWorkLocalHost({ completeText: null });
   let served: Awaited<ReturnType<typeof serveTestHost>> | undefined;
   t.after(async () => {

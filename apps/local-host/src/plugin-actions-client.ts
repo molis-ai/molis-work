@@ -6,6 +6,7 @@ import { assertCapturedPluginActionCurrent, currentPluginInvocation, markPluginA
 import { invokePluginQuery } from "./plugin-action-query.js";
 import { pluginActionProvider } from "./plugin-action-provider.js";
 import { routedPluginCaller } from "./plugin-callers.js";
+import { pluginActionDependencies } from "./plugin-action-dependencies.js";
 
 /**
  * The controls this Host made for a route it dispatched inside a project, each with that project's action client and whether its request
@@ -90,7 +91,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       assertCapturedPluginActionCurrent(outer, context);
     };
     return {
-      actor_id: options.actor_id, project_id: projectId,
+      actor_id: outer?.caller.actor_id ?? options.actor_id, project_id: projectId,
       audience: "user", permissions: context.grants, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
       allowed_actions: [...(manifest.actions ?? []).map(action => ({ ...action, provider_id: ownProvider })), ...required],
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
@@ -114,13 +115,13 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     return {
       actor_id: options.actor_id, actor_kind: "user", project_id: projectId, audience: "plugin", permissions: context.grants,
       host_plugin: routedPluginCaller(options.pluginCaller, projectId), plugin_install_id: context.install_id, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
-      allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, ...(providerId ? { provider_id: providerId } : {}) }],
+      // Mandatory dependencies remain limited to what this installation explicitly consumes.
+      ...(consumed.has(definition.capability_id) ? { allowed_capability_ids: [...consumed] }
+        : { allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, ...(providerId ? { provider_id: providerId } : {}) }] }),
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
     };
   };
-  // The client exists when the Plugin has actions of its own or lists anything under `consumes`: a Plugin with no
-  // action of its own still reaches a Host action it consumes. Without either there is nothing to call.
-  // The person's original file reaches only this installation's own actions, from the route request that carried it.
+  // An original file reaches only this installation's own actions, from the route that carried it.
   const offered = (scope: { original_file?: HostOfferedOriginalFile }) => scope.original_file?.install_id === context.install_id ? { original_file: scope.original_file } : {};
   const ownProvider = options.providerId ?? context.provider_id ?? context.install_id;
   // A command that returned passed every check of the call it was made in: from then on that call may keep a job (PG-038).
@@ -157,11 +158,15 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       .filter(view => view.provider.plugin_install_id === context.install_id),
     invokeQuery: (reference, input) => invokePluginQuery(context, manifest, options, reference, input),
     ...(declaresActionDelegation(manifest) ? { directory: pluginActionDirectory(context, manifest, options) } : {}),
+    dependencies: pluginActionDependencies(context, manifest, options),
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: PluginExecutionControl, transport?: ActionInvokeTransport) => {
       const outer = currentPluginInvocation(), job = outer && "job" in outer ? outer : undefined;
       // A job's calls are the installation's own, in the job's project (PG-038): never a request's, whose control names its person.
       if (job && control && routedControls.has(control)) throw new ActionError("actions.forbidden", "后台作业不能用请求的 control 调用动作");
-      const scope = job ? { project_id: job.caller.project_id, client: options.client } : callScope(options.project_id, options.client, control), projectId = scope.project_id;
+      // A nested call keeps the captured project and actor, while its grants and allowed actions remain the plugin's own.
+      const scope = job ? { project_id: job.caller.project_id, client: options.client } : outer
+        ? { project_id: outer.caller.project_id, client: options.client }
+        : callScope(options.project_id, options.client, control), projectId = scope.project_id;
       const own = manifest.actions?.find(action => sameAction(action, definition));
       if (own && !job) return passed(outer, own, await routedActions(scope, own, outer).invoke(own, input, control, transport) as Output);
       if (!own && !consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项动作");

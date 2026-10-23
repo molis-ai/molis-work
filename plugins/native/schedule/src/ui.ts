@@ -30,7 +30,7 @@ export interface ScheduleUiModel {
 
 export const scheduleUiDescriptor: UiContributionDescriptor = {
   contribution_id: SCHEDULE_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.native.schedule",
+  plugin_id: "io.molis.work.schedule",
   kind: "primary-page",
   navigation_id: "schedule",
   label: "Schedule",

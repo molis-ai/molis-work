@@ -22,11 +22,11 @@ test("AC-S01 QA-013 a fresh browser's first side panel is Shelf through Home and
   const closePanel = async () => { await click("[data-side-toggle]"); await waitFor("document.body.dataset.sideOpen === 'false'"); };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
 
-  // Through Home: its panel holds only Home tools, so the tab it falls back to is one of them — and it stays unremembered.
+  // Through Home: Shelf now belongs to Home too. Its automatic fallback still stays unremembered.
   await go("/");
   await waitFor(`${selected} !== undefined`);
   const homeFallback = await evaluate<string>(selected);
-  assert.notEqual(homeFallback, SHELF, "Home's panel falls back to a Home tool, the case QA-013 is about");
+  assert.equal(homeFallback, SHELF, "Home Shelf is the first tab after its Home Runtime migration");
   assert.equal(await evaluate("document.body.dataset.sideOpen"), "false", "nobody has opened the panel on Home");
   assert.equal(await evaluate(remembered), null, "a tab nobody chose is not remembered");
   await click("#row-personal");

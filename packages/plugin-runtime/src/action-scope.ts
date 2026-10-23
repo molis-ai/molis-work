@@ -77,7 +77,8 @@ export function currentPluginInvocation(): PluginInvocationScope | undefined {
 
 /** Only the captured Runtime context and declared callback purpose determine this narrowing. */
 export function pluginInvocationReadOnly(scope: PluginInvocationScope | undefined): true | undefined {
-  return scope && (scope.caller.query_only || scope.caller.read_only_effects || ("scene" in scope && scope.read_only)) ? true : undefined;
+  return scope && (scope.caller.query_only || scope.caller.read_only_effects || ("scene" in scope && scope.read_only)
+    || ("definition" in scope && scope.definition.operation === "query")) ? true : undefined;
 }
 
 /**

@@ -518,6 +518,18 @@ SDK 的 prepare 回调先在现 ledger 保存足以恢复的操作身份及原�
 
 Coding 来源归属补充：非本人 Coding 调用即使写入个人记忆，也只能使用当前可信 Session 同项目、同安装的原件。SourcePort 通过已有 caller.session_id 读取 Session owner，核 actor/project/plugin，再核来源 Session 的 project/install 和当前安装许可；仅证明来源安装仍存在不能替代调用者有权读取它。缺绑定明确无来源，不从页面参数或来源引用补造；本人管理与助理原有合法范围不因此扩大或收窄。真实双 Session 回归覆盖跨项目、跨安装、缺 caller Session 的零候选，以及同安装合法读取与撤权。
 
+混合补充原件续片：Assistant 本身执行及通过 Coding 执行时，受保护 HTTP 交来的原话与材料/选区组合后，外层正文继续是唯一模型输入，原话通过 SDK `source:app + original:{text,source:person}` 保存在既有输入主人。沿用 inputId、首次 acceptedAtMs、重试 key、排队/取消/carry/重启，不增正文账、不从材料分隔符反拆原话。HostOfferedOriginalInput 用明确 supplement 用途区分首次输入；初始 start 不接受补充证明。补充证明仅绑定本次受保护请求、实际安装和确切外层 Action，不进入后台、通用 invoke control 或业务参数。
+
+AgentInputSend 的 original 仅供可信 Host→Adapter；公开 agent.inputs.send 业务 schema 不收它。Action 在现 Session/Run owner 检查后读取当前 Host stamp，核安装、Action 及 `send.<input_id>`；缺证明时，业务自报 person 或缺省来源均按 Host 内容处理。Assistant 驱动 Coding 的绑定由受保护 Host 装配点解析实际安装，不由插件携带证明。该语义收紧正常提升 agent.inputs.send 和 Coding runs.control 版本，保留首次输入的原授权条件。
+
+公开回执/队列投影携带原件；typedMemorySources、memoryInputSnapshots 及 SourcePort 只把合法 original.text 作为本人来源，纯 person 的可信旧路径保留。异步最终检查复核原文、作者、首次时间、当前撤回及现工作/安装/偏好权限。允许修改输入 DTO、Host 证明与薄绑定、AgentHost 输入适配、Assistant/Coding 补充派发及来源读取、必要 API/Action 快照和相关 README；不触碰维护 Service/operations、存储 schema 或晋升规则。两条真实 HTTP→Node→SourcePort→候选路径覆盖附材/选区、重试、排队/跨 Run/重启同一身份、材料零本人来源，及无/伪 stamp、错安装/Action、结束后复用、page/peer/自动接续、撤回/撤权的拒绝；无付费模型调用。
+
+形成接线续片：保留现 worthLearning、高信号与完整原件规则、每次最多三条及跨 kind 纠正能力；唯一 HostTextGeneration 提炼移入 SDK memory-extractor，生产链改为 form→持久候选→既有本人接受或 v3 晋升。无信号零原件读取/提炼调用；不并存旧 App propose 与新 form 两条自动形成路径。App 沿当前授权读取 canonical ref/version 的已有记忆与候选，再冻结有界 slots/上下文；已有 pending 的可信来源与本次原件一起在 form 前求并集、由 SourcePort 重读，不能靠旧摘要或重试凑独立证据。上下文现有裁剪不称为存储查询下推，后续只按实测需求优化。
+
+SDK slot 可固定 replacement(ref、expectedVersion)，草稿只能选 slot；目标随创建身份持久保存，settleInto 不得换目标或追最新 version，accept/promote 不得将其绕成新建。草稿可补 slot 未规定的 task 条件，或提交完全相同的 task，其余既定适用约束保持，不猜不同文字是否等价。草稿的 suggestedBasis 只保留 explicit/inferred 建议，不直接写正式 meta.basis；explicit 仍由 App 对完整本人原件独立验证，inferred 禁止自动晋升，本人仍可审查接受。候选新语义用明确 shape 拒绝旧包降写，原旧候选不补造这些字段；普通取消保持既有可管理正文与创建身份，仅在现有 purge/遗忘实际清正文时同步清新字段，不能残留被删正文。
+
+App 复用已有形成限额配置，为有限创建/替换槽选择可解释的上限，不改 SDK 默认、不在每槽重复传整份上下文；所有合法分类共享一次实际 extractor 调用。公开结果保留逐项 created/replayed/rejected/unknown、取消/撤权/迟到结果、实际模型用量及未知成本，部分成功不能装成全无写。允许修改 SDK 现 memory formation/candidate/授权与公开快照、Molis Memory learning 与现 AgentHost/HostTextGeneration 装配和定向测试；不新建模块、表、模型执行循环或上下文读取 API。验收先用真实 Node/本机 HTTP 验证链路、固定目标 CAS、跨 kind 纠正、独立来源晋升与遗忘重放；真实 Provider 质量/token 收益仍按已冻结预算和 B0/B1/B2 口径单独验收，不能以脚本提炼器代替。
+
 离线采用组合补充：普通 Runtime 已声明晋升后，维护 Runtime 仍只提供 `adoptStorage/verifyAdoption`，不得假装装配晋升实例。AgentHost 的既有维护入口保留 App taxonomy、版本、key domains 与限额，内存中的配方限定 `manage-read`、零形成；scope 仍由显式采用范围及同一独占 owner 授权。不持久化该维护配方、不改变普通 Runtime 的策略、偏好和可用能力。以真实已声明晋升的产品策略重跑采用及重启验证，保留旧包拒绝和零网络断言。
 
 维护组合补充：一次 upkeep 中合并与随后闲置停用是不同语义步骤，现 ledger 为同一父操作及步骤事务性保存一次短子操作身份，重试和重启复用；不截断合法长父操作号，也不增设正文账。每步沿用读取版本和 SDK CAS，同一步重试不增写。合并成功后使用实际合并后的元数据与版本，后续停用不得丢掉原来源。保留过期、合并、闲置停用、历史与撤销断言，补同一批合并后停用/重启/重试回归，不放宽 SDK 同操作不同输入的拒绝。
@@ -526,7 +538,11 @@ Coding 来源归属补充：非本人 Coding 调用即使写入个人记忆，�
 
 维护补账续片：复用现 ledger 的 operation marker 和 revision history，保存固定父/子操作、目标与原版本、旧快照指针及完成状态，不存第二份提议正文或另建恢复表。历史准备前由同一 SDK management.preview 对实际固定命令完成内容与当前权限预检；只新增所需的固定预览薄口，执行时仍重新过门。pending 步骤在重新扫描 active 条目前恢复，按原操作与原版本重放；只有 SDK 确认实际提交才能在一个 ledger 事务中补唯一 change、applied_version、历史与完成标记。后继人工编辑、未知提交或目标被物理清除但没有原回执时明确冲突/待对账，不用正文相同、版本加一或缺失猜成功。
 
+后台下一次调度不必持有前次 caller.operation_id：同一 actor 的现 marker 保存有界在途索引，仅含原操作、范围/owner、项目/安装约束及计划引用，完成即移除。创建计划与登记索引、补账完成与移除索引各在同一个 ledger 事务中；新维护调用先按当前许可与原约束的交集对账，再处理新目标。并发 pass 不得覆盖在途项或替同一目标另起操作。若索引达到明确容量，停止接收新维护动作，保留所有未完成项。remove 的预检不负责校验旧正文，因此合并撤销只引用已经存在且精确匹配的安全 revision；缺少它时明确报告未执行，不把旧正文另抄进历史，也不把拒绝计为维护成功。
+
 维护合并的冗余条目改用 SDK 已有逻辑 remove，经 AgentHost/Backend 窄 tombstone 口返回实际版本；保留原删除回执直到账完成，再清其 ledger 历史。用户 remove/clear 仍走物理 purge 和来源抑制，不变更它们的语义。SDK 成功而保存变更失败时保留旧 revision，重启后同操作只补账；忘记、清空与项目删除的屏障优先。object-restored 同样保留变更前状态和精确版本的撤销，不把原先 undo=null 当作已完成承诺。
+
+撤销的版本条件绑定实际写目标：remove/restore/状态恢复仍核原 canonical 的 applied_version，不能覆盖后继编辑；merge 的 recreate 只重建被合并项，不改变 survivor，因此不拿 survivor 后续停用或编辑的版本拒绝它，也不为 survivor 创建无用写操作。真实验收需同时证明 survivor 正文/状态/版本不变，以及遗忘/清空后不能靠旧 merge 撤销复活来源。
 
 允许修改 Memory 维护/operations/Backend、必要的同包完整维护职责文件、AgentHost Memory 窄口与 DTO、LocalHost 薄适配、相关 API 快照/README 和真实维护恢复测试；不改 SDK、存储 schema、UI 或供应商。验收包含状态提交后账失败、合并更新后/逻辑删除后故障、ledger 事务失败与重开；每项只补一次且实际可撤销，后继修改/撤权/取消/遗忘不复活，长父操作和长 owner 不突破既有上限。没有可靠回执的既有物理删除失败不追溯伪补。
 
@@ -819,6 +835,9 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 | M2 来源晋升与维护首片 | `cf54c58f8` 已推送；两份独立本人原件经规则 v3 才晋升，准备/记账沿 SDK 回调和现 ledger，遗忘抑制历史来源并集。维护不同语义步骤使用稳定短子操作，合并不冒充遗忘、不清原来源候选；维护来源错误的两个真实反例先红后绿。整体 build、6 文件 87 项及 health 对 main 通过 | Service 23、learning 21、promotion 9、upkeep 9、SourcePort 7、Assistant 18。维护提交后账失败的补账边界与 Coding personal 来源跨项目边界另行收束；SDK form、完整产品和用户验收仍待完成 |
 | S2 候选正式地址 | [Prologue #92](https://github.com/molis-ai/molis-prologue/pull/92) 已合 main `cb0ceaa5`，与已测干净 head `cdbb4913` 整树一致。复用已有有界 append 地址选择，合法旧地址保持，完整 owner 和候选操作键仍验证；不放宽 Host 128 字符限制。新 8 例、相关 111 项、完整 quality 684 项及干净包/Rust 通过，实际旧包恢复不重复正式写 | 实际 run `39939444106`/job `120366987584` 零 step 原注解为付款/额度限制；统筹独审、无冲突与待处理评审后按私仓授权合并。Molis 接入提交 `4deeb0cf1`，离线冻结安装、770 个 dist 文件比对和整体 build 通过；原采用失败已通过 11/11，不代表完整 P0 |
 | M2 当前来源生产装配 | `bcf6cbae0` 接入 App SourcePort、助理 canonical 原件、当前安装/偏好/工作状态与遗忘检查。Coding 非本人调用即使目标为 personal 也核当前 Session 项目和安装；两个真实 SDK 跨项目/跨安装反例先红后绿，不把来源安装存在当作读取授权。SDK #92 整合 7 文件 74 项全部通过 | Coding 原件 8、SourcePort 9、Assistant 18、upkeep 9、SDK采用 7、晋升桥 12、App采用 11；health/资源门禁对 main `a259350ac` 通过并收紧本地快查。混合附材原文、SDK form、维护提交后补账及最终完整工程/产品/B2/用户验收仍待完成 |
+| S2 混合补充原件 | [Prologue #93](https://github.com/molis-ai/molis-prologue/pull/93) 已合 main `cbf7d7a4`，统筹核合并树与已测 `98d4ae69` 一致。完整 quality 684 项、输入专项 19 项含新 6 例和真实 SIGKILL、干净安装通过；统筹另在新临时存储重跑安装包 HTTP/队列/carry/重启/导出导入。实际旧 #92 包六入口零提交拒绝，旧恢复先取消一个独立 Pending，InputBook/Run 原件字节不变 | 云端 run `39943206634`/job `120379426438` 零步骤，原注解确认付款/额度限制，按私仓授权合并。Molis 包接入已提交 `211ea65a5`，离线冻结安装与 770 个 dist 文件比对通过；App 混合输入绑定、形成接线与完整回归未完成，不把 SDK 保存能力当产品来源已接通 |
+| I0 包来源门禁修复 | Molis `755f9dfd2` 的 CI run `39941681549` 中 Gates 的来源回归仍断言旧 retry-waiting 包。将当前包断言更新为已合 #93 的确切 head/merge，保留全部摘要、无补丁和历史来源校验，未改门禁脚本；本地 78/78 通过 | 修复尚待新提交的正常 CI；历史 patch-history 仍记录其实际核验的 #60 main，不伪称它已重新逐项核验最新头 |
+| I0 冻结整合回归进行中 | 已推送 Molis `755f9dfd2`/SDK #92 的独立工作树整体 build 通过。首次全量发现 Homebrew Node 24.19 动态库被产品 Seatbelt 拦截，保留日志并停止该轮；改用本机同版本独立 Node，两份原失败文件 19 项通过、1 项既有真实 npm 条件跳过，未改代码/沙箱/断言；重新启动 1374 文件全量，真实模型/账号开关关闭 | 该轮尚未结束，不宣称全量通过；只对应冻结 `755f9dfd2`，不覆盖后续 SDK #93、维护恢复或混合输入接线。真实 Provider 和用户验收另计 |
 | S2 / S3 / M2 / M3 / I0 | 按 §9.3 核对可信来源/候选门、异步召回/Context、产品管理与真实 SDK 接入的可并行边界；统筹负责共享装配、包及最终集成 | P0 全部行为、干净包/真实 Host、成对 B2 质量与成本、最终 App 实操及用户验收仍待完成 |
 
 交付按可独立验收部分拆 PR：C0/Q0 合同、工具与冻结结果先行；S1 第一片单独交付版本检查、并发写入与恢复；M1 第一片单独交付有效配置采用与启动保护。两仓实现 PR 分别依赖各自 C0/Q0 父 PR，后续分类、形成、召回和界面按 §9.3 依赖继续拆分；父 PR 进入 main 后再合并子 PR，不将 stacked 分支合并视为进入 main。此处持续补充 PR 和最终 head 的验证结果；未操作真实 Home，也未发布。

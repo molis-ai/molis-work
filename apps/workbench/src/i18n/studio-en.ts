@@ -12,6 +12,8 @@ import { BOARD_EN } from "./board-en.js";
 export const STUDIO_EN: Record<string, string> = {
   ...PLUGIN_COMPONENTS_EN,
   ...BOARD_EN,
+  // The UI catalog's Calendar component (#1145 dropped the Jelly word this came from).
+  "日历": "Calendar",
   // The stage: header, composer, tabs.
   "插件创作工作台": "Plugin Studio",
   "我的插件": "My plugins",

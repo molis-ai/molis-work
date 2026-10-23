@@ -13,7 +13,7 @@ Goals 迁到 Plugin Runtime（PG-094）的第四步：宿主不再绕开 Goals �
 | `artifact-actions.ts:22` | 成果库提供方的 `goalTitle` 端口读 `goalQueries.getGoal` | **留着**：三处同步的端口，随 T1 解冻与 Coding 一族（PG-091）一起改 |
 | `demo-seed.ts` | 样例项目直接写 Goal 事实 | **留着**：S9 与样例种子一起改 |
 | `goals-actions.ts`、`goal-project-application.ts`、`project-host.ts` | 宿主装配 Goals | **留着**：S9 删（`createGoalsPlugin` 由监督器启动） |
-| `managed-project-database.ts`、`local-plugin-development.ts`、`project-database.ts` | 项目库的身份是 Goals 看板：新库先建看板、读看板快照 | **留着**：S8 的另一半（PG094-10，等 X-5） |
+| `managed-project-database.ts`、`local-plugin-development.ts`、`project-database.ts`、`demo-plugin-seed.ts` | 项目库的身份是 Goals 看板：新库先建看板、读看板快照；样例插件种子先问「演示项目的看板在不在」 | **留着**：S8 的另一半（PG094-10，等 X-5） |
 | `feed-application.ts` | Feed 的注意力检查读 Goals 的 `getGoal` | **留着**：随 Feed 迁到 Runtime（PG-093） |
 
 ## 2. 范围
@@ -33,7 +33,7 @@ Goals 迁到 Plugin Runtime（PG-094）的第四步：宿主不再绕开 Goals �
 - **RAC-250**：宿主的 `web-*.ts` 不出现 `coordinator`、`GoalProjectApplication`；项目请求上下文的类型不带协调器。（`tests/goals-host-no-direct-reads.test.ts`）
 - **RAC-251**：`apps/` 里持有协调器（`coordinator`、`GoalProjectApplication`）的文件恰好是清单上的那几个，次数不超过登记值；清单上的文件不再持有或次数变少时，必须改清单。
 - **RAC-252**：`apps/` 里读 Goals 表（`goalsQuery`、`createGoalReadServices`、`readMolisWorkSnapshot`）的文件恰好是清单上的那几个，且都在 `apps/local-host/src`；命令行、MCP、工作台、桌面壳一处也没有。
-- **RAC-253**：清单的每一条写了原因，原因里点明由哪一片或哪条 PG 删掉它。
+- **RAC-253**：清单的每一条写了原因，原因里点明由哪一片（S8、S9）、T1 或哪条 PG 删掉它；判断只认这几种写法，不认「样例」之类的泛称。
 
 ## 5. 对调用方的影响
 

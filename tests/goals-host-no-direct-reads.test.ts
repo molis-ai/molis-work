@@ -45,7 +45,7 @@ const TABLE_READERS: Record<string, { references: number; why: string }> = {
   "apps/local-host/src/goals-actions.ts": { references: 1, why: "hands `goalsQuery` to the configuration handlers; S9 deletes this file" },
   "apps/local-host/src/managed-project-database.ts": { references: 1, why: "lists the library's projects from the board; S8's other half (PG094-10)" },
   "apps/local-host/src/demo-seed.ts": { references: 1, why: "the sample project; S9 and the sample seed" },
-  "apps/local-host/src/demo-plugin-seed.ts": { references: 1, why: "the sample plugin seed asks whether the board exists; with the sample seed" },
+  "apps/local-host/src/demo-plugin-seed.ts": { references: 1, why: "the demo plugin seed asks whether the demo project's board exists: the library's identity is the board, which S8's other half (PG094-10) replaces with the project root" },
   "apps/local-host/src/feed-application.ts": { references: 2, why: "Feed's attention checks whether a Goal exists; Feed moves to the Runtime with PG-093" },
 };
 
@@ -58,7 +58,7 @@ test("PG094-06 RAC-250 the web layer never holds Goals' coordinator: the project
   assert.doesNotMatch(context, /MolisWorkProjectRuntime\["coordinator"\]/, "the project request context does not carry the coordinator");
 });
 
-test("PG094-06 RAC-251 the Host objects that hold Goals' coordinator are exactly the reasoned list, each count equal or lower", () => {
+test("PG094-06 RAC-251 the Host objects that hold Goals' coordinator are exactly the reasoned list, each count exactly as listed", () => {
   const found = holders(/\bcoordinator\b|\bGoalProjectApplication\b/g);
   for (const [path, references] of Object.entries(found)) {
     const allowed = COORDINATOR_HOLDERS[path];
@@ -88,6 +88,6 @@ test("PG094-06 RAC-252 only the Host's library and seeds read Goals' tables; the
 test("PG094-06 RAC-253 every frozen entry names a reason and the slice that removes it", () => {
   for (const [path, entry] of [...Object.entries(COORDINATOR_HOLDERS), ...Object.entries(TABLE_READERS)]) {
     assert.ok(entry.why.length > 20, `${path} gives its reason`);
-    assert.match(entry.why, /S8|S9|T1|PG-0\d\d|sample/, `${path} names what removes it`);
+    assert.match(entry.why, /\bS(?:8|9)\b|\bT1\b|\bPG-\d{3}\b|\bPG094-\d{2}\b/, `${path} names the slice or PG row that removes it`);
   }
 });

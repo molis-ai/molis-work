@@ -2779,7 +2779,7 @@ Coding 原来由宿主递进四样东西（`CodingExecutionPorts` 的 `ready`、
 
 测试：`tests/security-invariants-review-kinds.test.ts`（真实的 Plugin Runtime、宿主与 Agent 服务）；队列一层见 `tests/git-operation-review.test.ts`；Git 暂存审查整条产品链见 `tests/coding-git-diff-product.test.ts`（Git 声明 `review:git-index` 之后转绿）。
 
-### J. 首页的后台任务列表走首页聚合（2026-10-21，PG-043，C4）；后台跟随者不迁（PG-038）
+### J. 首页的后台任务列表走首页聚合（2026-10-21，PG-043，C4）
 
 首页标题栏的后台任务列表原来由宿主打开每个项目库、读 Coding 的 `coding_sessions`（`apps/local-host/src/coding-background-tasks.ts`，Coding 导出的 `listCodingBackgroundSessions`、`holdsCodingSessions`），页面脚本里还写着 `coding` 的名字、会话地址和状态词。现在 Coding 把它声明成自己的查询，宿主与页面都不认识 Coding：
 
@@ -2787,7 +2787,7 @@ Coding 原来由宿主递进四样东西（`CodingExecutionPorts` 的 `ready`、
 - **本次激活之前就记着在跑的**：没有一轮能跨过重启，所以更新时间早于这次激活开始、状态是进行中的会话，答案里写成「需要核对」，说「服务重启前没有结束，打开后核对」，不算等人。排队中的会话还没开始，不受影响。
 - **宿主**：`apps/local-host/src/home-background-tasks.ts` 用首页聚合（`home-aggregate.ts`，S-49）对每个已打开的项目问这一类型的查询，把各项目的答案摊平、保留项目；校验答案（`surface` 是普通名字，停止路径只是插件下的普通段，不含 `..`、反斜杠、控制字符），拼出停止地址 `/projects/<项目>/api/plugins/<提供方插件>/<路径>`；没打开的项目不读也不打开，停用或没授权的项目安静跳过，读不了或答案读不懂的按项目记一条（`home` 区域 `background_tasks_unreadable`，开始失败时一条）。停止仍走会话原来的路由 `coding.background-stop`，没改。
 - **页面**：`apps/workbench/src/scripts/client/attention.ts` 只按行里的 `surface`、`id`、`state`、`waiting`、`standing`、`commands` 画，不含 `coding`。
-- **不迁的**：PG-038 的 Coding 一半。后台跟随者与唤醒循环（`start-round.ts` 的 `follow`、`wake-loop.ts`）不在声明了 `background_job` 的并发命令里启动，而是由页面路由和激活启动；`services.background` 只接受插件自己的、声明了 `background_job` 的并发命令里启动的有限执行，随调用的撤权、取消、插件停止而停。R-CODING-RECEIPT-01/02 要的恰好相反：发起调用被拒或被取消之后，已受理的 Run 仍被跟随（`tests/coding-session-follow.test.ts`）。要迁得先裁定，不是在这一片里能改的。PG038-P（#963，S-52）之后另有 `services.background.keep`：随激活存活的作业只有安装自己的授权，不随单次调用的撤权、取消停，插件停止、项目关闭或删除、Home 关闭才停；迁到它归 ③（`specs/repository-anti-corruption/privileges.md` PG-038）。
+- 后台跟随者与唤醒循环原来写在这里「不迁」，2026-10-22 已迁到 `services.background.keep`，见 L 节。
 
 1. **W5-01-CODING-32** Manifest 声明 `coding.home.background-tasks@1`：项目范围的只读查询，`home_aggregate`、输出类型是首页后台任务的集合，权限只有 `artifact:read`（没有 `model:invoke`），过首页每次调用前重查的规则（`isHomeAggregateQuery`）。Coding 包不再导出 `listCodingBackgroundSessions`、`holdsCodingSessions`、`CodingSqliteDatabase`，`web-catalog.ts` 不再读 Coding 的表。测试：`tests/coding-background-tasks.test.ts`。
 2. **W5-01-CODING-33** 经真实宿主，首页列出每个已打开项目里进行中、等人处理、等核对或留着后台命令的 Coding 会话，按更新时间新的在前，带项目名；一轮已结束又没有东西留给人的不列；人还有一步要做的会话列为「等你回答」；重启前记着在跑的会话列为「需要核对」、不计入等人；没有装 Coding 的项目、没有打开的项目不出现。测试：同上。
@@ -2821,6 +2821,20 @@ Coding 原来由宿主递进四样东西（`CodingExecutionPorts` 的 `ready`、
 4. **W5-01-CODING-63** 仓库里只有一份：没有 Coding 的 `highlight.ts`、Feed 的 `rich-content.ts` 与 `context.ts`，Coding 与 Feed 的入口不导出这些函数。测试：同上。
 
 原有断言不动，只改成从 SDK 导入：富文本的在 `tests/feed-rich-content.test.ts`，着色的在 `tests/code-incremental-colour.test.ts`、`tests/code-diff-scale.e2e.test.ts`。插件一半（Diff、Text Stats、Coding 的路由结果自己带 html，删 `decorateRuntimeResult`、`decorateCodingResult`）归 ③，验收号取 64～69。
+
+### L. 后台跟随者与唤醒循环是激活的后台作业（2026-10-22，PG-038 的 Coding 一半）
+
+Coding 跟住已经开始的一轮、接起等待结束的下一轮，原来靠模块级的 `activations` 表（按安装与项目记一个 `AbortController`）、`setTimeout` 写的暂停和 `AsyncResource` 绑定的分离执行；插件停止时由 `stop()` 调 `stopCodingSurface` 打断。现在两件事都是这次激活的后台作业（`services.background.keep`，PG038-P，S-52），由平台在激活、项目、Home 关闭或撤权时停，`stop()` 只做插件自己的收尾：
+
+- **Manifest**：`background.jobs` 声明两项。`follow`（跟住已经开始的这一轮，不要权限：它只读 Agent 的 Run、写自己的库）和 `wake`（等待结束后接着开始下一轮，要 `artifact:read`、`storage:private`，与开始一轮的动作相同）。
+- **跟随者**（`start-round.ts` 的 `follow`）：开始一轮之前，在开始这一轮的命令里登记 `follow`，作业等到 Run 被受理才开始跟。每次写会话状态之前过作业自己的 `beforeEffect`，`waitRun` 带作业的 `signal`。发起调用在 Run 受理之后被拒、被取消、被撤权（R-CODING-RECEIPT-01/02），跟随者照旧把这一轮的结果与回执收敛到底（§12.10 的窄例外），但这一轮停在等待上时只把会话记成「排队」，不再替被拒的调用叫醒下一轮。
+- **唤醒循环**（`wake-loop.ts`）：激活的 `start()` 里登记 `wake`，它空闲着，直到某次读 `coding.state`、一轮停在等待上、或恢复时要看某个运行时；一个运行时同一时间只有一个循环。暂停是 `node:timers/promises` 的 `setTimeout`，带作业的 `signal`、不挂住进程，作业一停计时器就清掉（BL-411）；`awaitContinuations` 也带这个 `signal`。接起的下一轮以激活的 `context.actor_id` 开始（原来按排队便条或上一轮 `last-start` 里记下的 actor 取人的 `actorOf` 删掉，这两处也不再记 actor；宿主的 `assertInputOwner` 本来就以会话记下的主人为准），每次写入之前过作业的检查；被拒、撤权、取消就把这个继续记成「不再接」，不写便条。
+- **人从页面接起排队的一轮**（`/sessions/:sessionId/queued`）：现在是 Coding 的动作 `coding.runs.queued@1`（只给本人、`command`、`concurrent`、计费，权限与开始一轮相同，输入 `{ session_id, action: "start" | "cancel" }`），因为开始的这一轮要登记跟随者，而 `keep` 只在通过了最后一次授权检查的命令里登记。页面仍走原来的路径。
+- 删掉的：`activations` 表、`stopCodingSurface`、`pause`、`detach`、`coding.server.instance-stopped`。
+
+1. **W5-01-CODING-82** 发起调用在 Run 受理之后被拒：这一轮的结果照旧记下，会话停在「排队」；等待结束时唤醒作业不以被拒的调用开始任何一轮，也不去问 Agent 有没有可接的继续（Run 与会话各只有一个）。没被拒的同一条路径，唤醒作业接起下一轮。测试：`tests/coding-session-follow.test.ts`。
+2. **W5-01-CODING-83** 唤醒作业在退避中（读不了 Agent 的运行时，等 5 秒再问），插件撤权并停止之后，计时器随作业清掉：之后再也不问 Agent，进程里没有抛出的错误（BL-411）。测试：同上。
+3. **W5-01-CODING-84** 唤醒作业把就绪的继续接过来的那一刻安装被撤权：不开新的 Run、不建新的会话、不写便条，私有存储一字不改，会话仍是「排队」。测试：同上。
 
 ## 5. 阶段（历史切片记录；当前产品完成度以 §0 为准）
 

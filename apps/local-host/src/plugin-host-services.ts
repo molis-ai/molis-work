@@ -19,9 +19,11 @@ import {
   createPluginInputsClient,
   createPluginOutputsClient,
   currentPluginInvocation,
+  inPluginInstance,
   markPluginActionChecked,
   pluginInvocationReadOnly,
   type PluginCapabilityPort,
+  type PluginInstance,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
@@ -73,22 +75,22 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     withdrawCaller = issuePluginCaller(pluginCaller, heldPermissions(manifest, context.grants));
     const providerId = options.providerFor?.(definition, context.install_id) ?? context.install_id;
     const artifactService = createPluginArtifactClient({ assertInput: assertActionInput, api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions, plugin_caller: pluginCaller,
-      project_id: options.project_id, actor_id: options.actor_id, assertCallerCurrent: () => assertPluginActionCurrent(context.install_id),
+      project_id: options.project_id, actor_id: options.actor_id, assertCallerCurrent: () => assertPluginActionCurrent(context),
       // A version pinned inside one of this installation's actions is the caller's (an Agent, a workflow, an MCP client, the person).
-      author: () => { const scope = currentPluginInvocation(); return scope?.install_id === context.install_id ? scope.caller.actor_id : undefined; } });
+      author: () => { const scope = currentPluginInvocation(); return inPluginInstance(scope, context) ? scope!.caller.actor_id : undefined; } });
     disposeArtifacts = artifactService.dispose;
     library = openDeclaredLibrary(options, definition, context, assertActive);
     projectLibrary = openProjectTables(options, definition, context, assertActive);
     const fileDeclaration = options.filesFor?.(definition);
     if (fileDeclaration) {
       if (!options.home) throw new Error("私有文件服务需要 Home");
-      files = openPluginFiles(options.home.directory, fileDeclaration, permission => { assertActive(); context.requireGrant(permission); }, context.install_id);
+      files = openPluginFiles(options.home.directory, fileDeclaration, permission => { assertActive(); context.requireGrant(permission); }, context);
     }
     withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
     background = pluginBackgroundFor(definition, context, assertActive, { actor_id: options.actor_id, project_id: options.project_id,
       ...(options.record ? { record: () => options.record!(context.install_id) } : {}) });
     directory = options.home && manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
-      ? directoryForHome(options.home.directory).connect({ plugin_id: manifest.plugin_id, install_id: context.install_id, name: manifest.name,
+      ? directoryForHome(options.home.directory).connect({ plugin_id: manifest.plugin_id, install_id: context.install_id, installation_generation: context.installation_generation, name: manifest.name,
         project_id: options.project_id, actor_id: options.actor_id, assertCurrent: () => { assertActive(); context.requireGrant(DIRECTORY_READ_PERMISSION); } }) : undefined;
     scheduler = pluginSchedulerFor(manifest, context, projectLibrary?.client, options.scheduler, assertActive, {
       client: options.actions.client, plugin_caller: pluginCaller, provider_id: providerId, record: () => options.record?.(context.install_id) ?? null });
@@ -118,7 +120,7 @@ function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: Plu
   const declaration = options.databaseFor?.(definition);
   if (declaration === undefined) return undefined;
   if (!options.home) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了 Home 库，但这个插件平台没有 Home`);
-  return openPluginDatabase(options.home.directory, declaration, permission => { assertActive(); context.requireGrant(permission); }, context.install_id);
+  return openPluginDatabase(options.home.directory, declaration, permission => { assertActive(); context.requireGrant(permission); }, context);
 }
 
 /**
@@ -129,7 +131,7 @@ function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: Plu
 function openProjectTables(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void) {
   if (!definition.manifest.databases?.project) return undefined;
   if (!options.projectLibrary) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了项目库，但这个插件平台没有项目库`);
-  return openPluginProjectLibrary(options.projectLibrary, definition.manifest, permission => { assertActive(); context.requireGrant(permission); }, context.install_id);
+  return openPluginProjectLibrary(options.projectLibrary, definition.manifest, permission => { assertActive(); context.requireGrant(permission); }, context);
 }
 
 function hostPluginCaller(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void): HostPluginCaller {
@@ -210,7 +212,7 @@ function coordinationServices(options: PluginHostExecutorOptions, manifest: Plug
   const declaresCapabilities = manifest.capabilities.consumes.length > 0;
   const wiringInput = wiring === undefined
     ? undefined
-    : { manifest, install_id: context.install_id, graph: wiring, artifacts: artifactService.client, processItems: artifactService.process, scopeKey: options.scopeKey ?? null,
+    : { manifest, install_id: context.install_id, installation_generation: context.installation_generation, graph: wiring, artifacts: artifactService.client, processItems: artifactService.process, scopeKey: options.scopeKey ?? null,
         requireGrant: (permission: string) => context.requireGrant(permission),
         latestVersion: (artifactId: string) => options.processItems.query.latestArtifactVersion(options.project_id, artifactId)?.version ?? 0 };
   return {
@@ -228,23 +230,23 @@ function coordinationServices(options: PluginHostExecutorOptions, manifest: Plug
       ? { outputs: createPluginOutputsClient(wiringInput, pluginCaller.assertActive) }
       : {}),
     ...(declaresCapabilities && options.capabilities !== undefined
-      ? { capabilities: createPluginCapabilityClient(manifest, withPluginCaller(pluginCaller, options.capabilities), isActive) }
+      ? { capabilities: createPluginCapabilityClient(manifest, withPluginCaller(pluginCaller, context, options.capabilities), isActive) }
       : {}),
   };
 }
 
-function withPluginCaller(caller: HostPluginCaller, port: PluginCapabilityPort): PluginCapabilityPort {
+function withPluginCaller(caller: HostPluginCaller, instance: PluginInstance, port: PluginCapabilityPort): PluginCapabilityPort {
   return {
     ...(port.availability ? { availability: (capability: ActionReference, options?: Pick<HostCapabilityCallOptions, "consumer">) => port.availability!(capability, options) } : {}),
     invoke(capability, input, options) {
       const outer = currentPluginInvocation();
       caller.assertActive();
-      assertCapturedPluginActionCurrent(outer, caller.install_id);
+      assertCapturedPluginActionCurrent(outer, instance);
       const beforeEffect = options?.before_effect, current = options?.assert_authority_current, signal = options?.signal;
       const assertAuthorityCurrent = () => {
         caller.assertActive(); signal?.throwIfAborted();
         requireSynchronous(current?.(), "最终授权检查必须同步完成");
-        assertCapturedPluginActionCurrent(outer, caller.install_id);
+        assertCapturedPluginActionCurrent(outer, instance);
         signal?.throwIfAborted(); caller.assertActive();
       };
       const bound = { ...options, ...(pluginInvocationReadOnly(outer) ? { query_only: true as const } : {}), consumer: "plugin" as const, plugin_caller: caller, before_effect: async () => {

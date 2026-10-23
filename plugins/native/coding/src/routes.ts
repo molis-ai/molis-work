@@ -18,7 +18,6 @@ import type { CodingSessionStore } from "./store.js";
 import { codingZh } from "./words.js";
 import { startCodingObservation } from "./observation-job.js";
 
-export { stopCodingSurface } from "./route-activation.js";
 export { planContinuesAfterTalk } from "./routes-timeline.js";
 export { codingSessionTitleFrom, DEFAULT_SESSION_TITLE } from "./session-title.js";
 

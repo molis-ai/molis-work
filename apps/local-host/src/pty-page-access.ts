@@ -14,7 +14,7 @@ export function pageTerminalOwnership(home?: string) {
     record(panelId: string, attachOnly: boolean, alive: boolean) {
       const invocation = currentPluginInvocation();
       if (!invocation) return;
-      assertCapturedPluginActionCurrent(invocation, invocation.install_id);
+      assertCapturedPluginActionCurrent(invocation, invocation);
       const owner = { install_id: invocation.install_id, project_id: invocation.caller.project_id, actor_id: invocation.caller.actor_id };
       const existing = owners.get(panelId);
       if (!existing && (attachOnly || alive)) throw new ActionError("actions.forbidden", "不能接管其他入口创建的终端");

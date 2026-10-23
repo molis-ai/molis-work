@@ -42,7 +42,7 @@ test("W3-02-G1-02 SDK owner binding preserves dependency and before-write availa
   service.registerProvider({ provider: { provider_id: "example", title: "Example", kind: "plugin", plugin_install_id: "install" }, definitions: [action],
     handlers: [{ ...action, availability: () => unavailable, handle: () => { writes++; return null; } }] });
   const bound = bindActionClient(service, () => caller);
-  const context: PluginStartContext = { actor_id: "owner", plugin_id: "io.molis.work.example.availability", install_id: "install", version: "1.0.0",
+  const context: PluginStartContext = { actor_id: "owner", plugin_id: "io.molis.work.example.availability", install_id: "install", installation_generation: "1", version: "1.0.0",
     deployment: "local", grants: [], requireGrant: () => undefined, services: { actions: bound,
       ui: { register: () => undefined, unregister: () => undefined },
       capabilities: { availability: () => unavailable, invoke: async () => { throw new Error("An unavailable dependency must not execute"); } } } };

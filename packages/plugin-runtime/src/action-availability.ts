@@ -1,9 +1,9 @@
 import { ActionError, requireSynchronous, type ActionAvailability, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { runInPluginAction } from "./action-scope.js";
+import { runInPluginAction, type PluginInstance } from "./action-scope.js";
 import { pluginCallbackContext } from "./callback-context.js";
 
 /** Availability reads the same owner's settings, but never acquires execution or background authority. */
-export function pluginActionAvailability(installId: string, definition: ActionDefinition, caller: ActionCallContext,
+export function pluginActionAvailability(instance: PluginInstance, definition: ActionDefinition, caller: ActionCallContext,
   read: (context: ActionCallContext) => ActionAvailability): ActionAvailability {
   let active = true;
   const check = () => {
@@ -16,7 +16,7 @@ export function pluginActionAvailability(installId: string, definition: ActionDe
     beforeEffect: async () => { throw new ActionError("actions.forbidden", "可用性检查不能执行动作或写入"); } };
   try {
     check();
-    return runInPluginAction({ install_id: installId, definition, caller: context },
+    return runInPluginAction({ install_id: instance.install_id, installation_generation: instance.installation_generation, definition, caller: context },
       () => requireSynchronous(read(pluginCallbackContext(context)), "可用性检查必须同步完成"));
   } finally { active = false; }
 }

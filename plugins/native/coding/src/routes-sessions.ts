@@ -228,7 +228,7 @@ const ROUTES: RouteMaker[] = [
           const { wait_for: _dropped, ...rest } = body;
           // The session's step waits on that work; the send is kept here, by the wait, to start when the work is done.
           const item = await api!.invoke(agent.queueProjectRound, [record.runtime_id, { session, directory, task, after: target.work_id, title }]);
-          if (item.wait_id) a.waits.keepQueued(item.wait_id, rest, request.actor_id, item.work_id);
+          if (item.wait_id) a.waits.keepQueued(item.wait_id, rest, item.work_id);
           await execution.sessions.setState(beforeWrite, projectId, record.session_id, "queued", new Date().toISOString());
           a.waits.wakeLoop(api!, execution, record.runtime_id);
           return { queued: { work_id: item.work_id, ...(item.wait_id ? { wait_id: item.wait_id } : {}), after: target } };

@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
@@ -19,7 +19,7 @@ test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact
   const rows = [false, true].map((applied, n) => ({ request: { review_id: `review-${n}`, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: ref, kind: "text-edit",
     document: { kind: "text-edit", target_path: "cart.mjs", exists: true, before_text: n ? "new\r\n" : "old\r\n", after_text: n ? "latest <script>\n" : "new\r\n" } },
     receipt: { review_id: `review-${n}`, status: "approved", effect_settled: applied, effect_error: null } }));
-  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", escapeHtml: String, translate: (s: string) => s,
+  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", escapeHtml: String, translate: (s: string) => s,
     capabilities: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {
       // Files also refreshes project browsing settings before dispatch; count only Agent reads.
       if ([agent.readSession.capability_id, agent.readRun.capability_id, agent.readRunReviews.capability_id].includes(definition.capability_id)) reads++;

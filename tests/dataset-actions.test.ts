@@ -51,7 +51,7 @@ test("W5-01-DATASET-01: Dataset registers all business actions; snapshots, CSV a
   const promoted = await invoke("promote", { id: dataset.id });
   assert.equal(promoted.artifact.artifact_id, "dataset-" + dataset.id); assert.equal(promoted.dataset.artifact_version, 1);
   await f.host.withProject(f.ref, runtime => {
-    const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id, promoted.artifact)!;
+    const artifact = runtime.artifacts.query.getArtifactVersion(f.ref.project_id, promoted.artifact)!;
     // A pinned dataset belongs to the Home's person; the actor who pinned it is its producer.
     assert.equal(artifact.owner_actor_id, LOCAL_PERSON_ACTOR_ID); assert.equal(artifact.created_by, "owner"); assert.deepEqual((artifact.payload as any).rows, imported.rows);
   });
@@ -80,11 +80,11 @@ test("Dataset publication recovers original Artifact after restart without repla
     const restored = await bound.invoke(actions.promote, { id: dataset.id, expected_version: edited.version });
     assert.equal(restored.recovered, true); assert.equal(restored.dataset.title, "New local edit"); assert.equal(restored.dataset.publication_pending, undefined);
     await host.withProject(ref, runtime => {
-      assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion(ref.project_id, restored.artifact)!.payload as any).title, "Publication v1");
-      assert.equal(runtime.coordinator.artifacts.query.getArtifactVersion(ref.project_id, { ...restored.artifact, version: 2 }), null);
+      assert.equal((runtime.artifacts.query.getArtifactVersion(ref.project_id, restored.artifact)!.payload as any).title, "Publication v1");
+      assert.equal(runtime.artifacts.query.getArtifactVersion(ref.project_id, { ...restored.artifact, version: 2 }), null);
     });
     const next = await bound.invoke(actions.promote, { id: dataset.id }); assert.equal(next.artifact.version, 2);
-    await host.withProject(ref, runtime => assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion(ref.project_id, next.artifact)!.payload as any).title, "New local edit"));
+    await host.withProject(ref, runtime => assert.equal((runtime.artifacts.query.getArtifactVersion(ref.project_id, next.artifact)!.payload as any).title, "New local edit"));
   } finally { db.close(); }
 });
 

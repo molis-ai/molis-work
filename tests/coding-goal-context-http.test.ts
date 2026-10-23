@@ -109,9 +109,9 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
   await createGoal("original"); await createGoal("next"); await createGoal("oversized", DEMO_PROJECT_ID, "长".repeat(21_000));
   await host.withProject(ref, ({ coordinator }) => coordinator.initializeBoard({ project_id: "other", actor_id: "web-user", idempotency_key: "other" }));
   await createGoal("foreign", "other");
-  const server = createServer((request, response) => { void host.withProject(ref, async ({ store }) => handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), {
+  const server = createServer((request, response) => { void host.withProject(ref, async ({ store, artifacts, processItems }) => handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), {
     actions: { registry: host.actionRegistry(ref), client: { ...host.actionClient(ref), ...host.syncActionClient(ref) }, project_id: ref.project_id },
-    store, projectId: DEMO_PROJECT_ID, actorId: "web-user",
+    store, artifacts, processItems, projectId: DEMO_PROJECT_ID, actorId: "web-user",
     capabilities: host.client(ref), homeDirectory: root,
     escapeHtml: value => String(value), translate: value => value,
   }, codingRouteHooks)).catch(error => { const refused = actionErrorResponse(error); response.writeHead(refused.status); response.end(JSON.stringify(refused.body)); }); });
@@ -247,7 +247,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     assert.equal((await request(`${sessionPath}/goal`, "PUT", { goal_id: null })).status, 200);
     assert.equal((await start()).status, 200); assert.deepEqual(starts.at(-1)?.text_materials, []);
     assert.deepEqual((await request(`${sessionPath}/runs/run-1/report`)).body, report.body);
-    await host.withProject(ref, ({ coordinator }) => coordinator.processItems.commands.archiveVersion({
+    await host.withProject(ref, ({ processItems }) => processItems.commands.archiveVersion({
       project_id: DEMO_PROJECT_ID, actor_id: "web-user", ...original.reference,
     }));
     const missingSource = await request(`${sessionPath}/runs/run-2/report`, "POST");
@@ -267,7 +267,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     const revisedReport = (await request(`${sessionPath}/runs/run-5/report`, "POST")).body;
     assert.equal(revisedReport.report.goal.agreement_version, 4);
     assert.deepEqual(revisedReport.report.goal.reference, latest.reference);
-    const countBeforeOutput = await host.withProject(ref, ({ coordinator }) => coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length);
+    const countBeforeOutput = await host.withProject(ref, ({ artifacts }) => artifacts.query.listArtifacts(DEMO_PROJECT_ID).length);
     const revisedOutputPath = `${sessionPath}/runs/run-5/report/output`;
     assert.equal((await request(revisedOutputPath, "POST", { expected_reference: null })).status, 400, "stale output confirmation cannot overwrite another choice");
     assert.equal((await request(revisedOutputPath, "POST", { expected_reference: report.body.reference })).status, 200);
@@ -275,7 +275,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     assert.equal((await request(outputPath, "POST", { expected_reference: null })).status, 400);
     await host.closeProject(ref);
     assert.deepEqual((await request(revisedOutputPath)).body.current, revisedReport.reference, "output selection survives project restart");
-    assert.equal(await host.withProject(ref, ({ coordinator }) => coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length), countBeforeOutput, "no duplicate report Artifact or version");
+    assert.equal(await host.withProject(ref, ({ artifacts }) => artifacts.query.listArtifacts(DEMO_PROJECT_ID).length), countBeforeOutput, "no duplicate report Artifact or version");
     assert.deepEqual((await request(`${sessionPath}/runs/run-1/report`)).body, report.body);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); rmSync(root, { recursive: true, force: true });

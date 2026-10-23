@@ -13,9 +13,9 @@ import {
   createLocalFeedApplication,
   createLocalFeedSourceService,
   DEMO_PROJECT_ID,
-  GoalProjectApplication,
   LocalProjectDatabase,
   listFeedSourceCatalog,
+  openProjectVersionStores,
   seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -39,7 +39,7 @@ function harness(artifacts?: Parameters<typeof createLocalFeedApplication>[1]) {
   const path = join(directory, "project.sqlite");
   seedDemoBoard(path);
   const store = new LocalProjectDatabase(path);
-  const app = new GoalProjectApplication(store);
+  const app = openProjectVersionStores(store);
   const feed = createLocalFeedApplication(store.db, artifacts);
   const source = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID).register({
     kind: "web_query",

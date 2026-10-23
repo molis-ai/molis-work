@@ -6,10 +6,11 @@
 
 原因类别只用四种：断言过期、产品回归、测试缺陷、环境与时序。
 
-## 当前已知红（0 个文件）
+## 当前已知红（1 个文件）
 
 | 文件 | 失败的用例 | 原因类别 | 依据 |
 | --- | --- | --- | --- |
+| `agent-built-plugins-checks.test.ts`（macOS） | G2：生成的 `developer/sdk.d.ts` 找不到 `./plugin-interaction.js` | 产品回归：声明依赖漏交付 | 统筹20:45派C0；#1119一轮6373464651报告相同失败。Codex已静态核main38111：#1079增加相对类型引用，创建目录/G1/G2快照仍只交付一个文件；尚待C0在main基线复现及修复。现有整文件标macOS，Linux全量跳过；不是Linux已验证通过。 |
 
 #1041 那 4 份（`host-pages-error-model`、`fill-message`、`personal-plugins-review-fixes`、`plugin-project-database`）在 batch-1023-8（基底含 #1082 `1ded3c218`）都过了，22:50 删行。`coding-rich-html` 已由 #1089（`62f76db72`）修好，22:20 删行。
 
@@ -79,14 +80,11 @@
 ## 机读清单（当前已知红 + 间歇红）
 
 ```
+tests/agent-built-plugins-checks.test.ts
 tests/workbench-deferred-clients.e2e.test.ts
 ```
 
-在途 PR 自带、已认领的（只用来比批次结果，比 main 时不用）：
-
-```
-tests/coding-interaction-html.test.ts
-```
+在途 PR 自带、已认领的：当前无。`coding-interaction-html` 的修复已随 #1084 于10-23合入 `3f715261f`，从这份旧机读项删除；历史证据保留在上文。
 
 ## 依据的 run
 

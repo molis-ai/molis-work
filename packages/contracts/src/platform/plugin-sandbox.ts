@@ -31,6 +31,8 @@ export interface SandboxEffects {
   resources?: string[];
   /** The plugin's own tables in the project's library, which its Manifest declares (`databases.project`). */
   projectDatabase?: Array<'read' | 'write'>;
+  /** Slots of the Manifest's `connections.slots` the operation sends requests through (`sdk.connections`); the plugin's package also declares `connections:use`. */
+  connections?: string[];
 }
 
 export interface SandboxOperationExample {
@@ -91,6 +93,21 @@ export interface SandboxNetworkResponse {
   body: string;
 }
 
+/** A request through the account the person bound to a slot (`sdk.connections`): only https addresses on the slot's service, never a credential header. */
+export interface SandboxConnectionRequest {
+  url: string;
+  method?: 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  headers?: Record<string, string>;
+  body?: string;
+}
+export interface SandboxConnectionResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+  /** Whether the Host added the bound account's credential; `false` means the request went out anonymously. */
+  authenticated: boolean;
+}
+
 /** What a statement in the project's library takes and gives back across the channel: no BLOBs, no integers past 2^53. */
 export type SandboxSqlValue = null | number | string;
 export type SandboxSqlRow = { [column: string]: SandboxSqlValue };
@@ -121,6 +138,11 @@ export interface SandboxSdk {
     all(sql: string, parameters?: SandboxSqlValue[]): Promise<SandboxSqlRow[]>;
     transaction(statements: SandboxSqlStatement[]): Promise<Array<{ changes: number }>>;
   };
+  /**
+   * Requests through the account the person bound to one of the Manifest's connection slots. The credential never reaches the plugin and
+   * only the slot's service can be reached; a query may only send `GET` and `HEAD`. Declare the slot in the operation's `effects.connections`.
+   */
+  connections: { request(slot_id: string, request: SandboxConnectionRequest): Promise<SandboxConnectionResponse> };
   /** The platform's question card, action card and next-step row as html, in the call's language (`services.interaction`); nothing to declare. */
   interaction: import('./plugin-interaction.js').PluginInteractionClient;
 }
@@ -128,7 +150,7 @@ export interface SandboxSdk {
 export type SandboxOperations = Record<string, (input: SandboxJson, sdk: SandboxSdk) => Promise<SandboxJson>>;
 export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list'
   | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
-  | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction'
+  | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request'
   | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
 /** Only one active operation per channel. Every host request belongs to that invocation. */

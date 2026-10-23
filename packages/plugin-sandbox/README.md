@@ -148,7 +148,7 @@ answers and validates every resulting address; it does not change production def
 
 ## 开发要求
 
-- 负责：生成插件的 macOS 进程隔离与异步宿主中介（网络、存储、项目库、能力调用），以及宿主给这次激活建出来的服务哪些经 broker 送进沙箱（`sandboxServicesFor`），和沙箱不给的服务的启动期拒绝（`assertSandboxDeclarations`）。
+- 负责：生成插件的 macOS 进程隔离与异步宿主中介（网络、存储、项目库、能力调用、经平台的服务账号发请求），以及宿主给这次激活建出来的服务哪些经 broker 送进沙箱（`sandboxServicesFor`），和沙箱不给的服务的启动期拒绝（`assertSandboxDeclarations`）。
 - 不负责：插件产品状态、模型执行、安装流程与构建门禁。
 - 公开入口：`@molis-ai/molis-work-plugin-sandbox`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin-sandbox`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（共享执行生命周期）。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
@@ -161,5 +161,5 @@ answers and validates every resulting address; it does not change production def
   - 私有存储按完整身份串行，回调拿到快照，只在成功且信号仍有效时原子落盘；适配器在提交副作用前遵守取消。
   - 一次操作发起的 SDK 服务调用，在调起这次 `call()` 当时的异步上下文里运行（`AsyncResource`），不在进程启动时的上下文里，所以宿主按调用上下文给出的东西（调用编号）跟着这次操作走；沙箱不读、不传这些值，也不依赖提供它们的包。
   - 沙箱不能直接联网，Host 必须显式装配网络适配器。`createHttpsProxy` 要求精确批准的域名、443 端口、URL 不带凭据、每个 DNS 答案必须是公网地址；fake-IP 需注入批准的 DoH 解析器。现有生成式 Host 适配器的代理策略见上文，不能把两者误写成同一实现。
-- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-sandbox.test.ts tests/plugin-sandbox-network.test.ts tests/security-invariants-plugin-project-database.test.ts tests/security-invariants-sandbox-services.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-sandbox.test.ts tests/plugin-sandbox-network.test.ts tests/security-invariants-plugin-project-database.test.ts tests/security-invariants-sandbox-services.test.ts tests/security-invariants-sandbox-connections.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

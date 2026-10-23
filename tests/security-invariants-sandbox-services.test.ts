@@ -33,8 +33,6 @@ test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not gi
     ["model", declaring({}, {}, [permission("model:invoke", true)]), []],
     ["model", declaring({}, {}, [permission("model:read", false)]), ["model:read"]],
     ["instructions", declaring({ instructions: [{ prompt_id: "probe", version: 1, owner_id: PLUGIN_ID, title: "probe", body: "probe", layer: "task" } as never] }), []],
-    ["connections", declaring({}, {}, [permission("connections:use", true)]), []],
-    ["connections", declaring({}, { connections: { slots: [{ slot_id: "probe" } as never] } }), []],
     ["materials", declaring({}, {}, [permission("materials:fetch_local", true)]), []],
     ["materials", declaring({}, {}, [permission("materials:original", false)]), ["materials:original"]],
     ["background", declaring({}, { background: { jobs: [{ job_id: "probe" } as never] } }), []],
@@ -51,6 +49,8 @@ test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not gi
 
 test("S-60 RAC-238 an optional permission the person did not approve is not an ask, and what the sandbox is given passes", () => {
   assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, {}, [permission("model:invoke", false), permission("materials:read", false)]), ["storage:private"]));
+  // Connections are given (PG-017 P2, tests/security-invariants-sandbox-connections.test.ts): declaring a slot is not refused.
+  assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, { connections: { slots: [{ slot_id: "github", service_id: "github", reason: "probe" }] } }, [permission("connections:use", true)]), ["connections:use"]));
   assert.doesNotThrow(() => assertSandboxDeclarations(declaring(), ["storage:private"]));
   // The project's own tables are given (S-59): declaring them is not refused.
   assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, { databases: { project: { store_name: "probe", version: 1, read_permission: "probe:read", write_permission: "probe:write", schema: "CREATE TABLE probe_rows (id INTEGER PRIMARY KEY);" } } },
@@ -64,6 +64,8 @@ test("S-60 the broker's services are the ones the Host built for the activation,
   assert.deepEqual(Object.keys(sandboxServicesFor({ storage })), ["storage"]);
   assert.deepEqual(Object.keys(sandboxServicesFor({ storage, project_statements: statements, interaction })).sort(), ["interaction", "projectDatabase", "storage"]);
   assert.deepEqual(Object.keys(sandboxServicesFor({ storage }, { network: { request: async () => ({}) as never } })).sort(), ["network", "storage"]);
+  const connections = { request: async () => ({ status: 200, headers: {}, body: "", authenticated: false }) };
+  assert.deepEqual(Object.keys(sandboxServicesFor({ storage, connections })).sort(), ["connections", "storage"]);
   assert.throws(() => sandboxServicesFor({}), /尚未装配/);
   assert.throws(() => sandboxServicesFor(undefined), /尚未装配/);
 });

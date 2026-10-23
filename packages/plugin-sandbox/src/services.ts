@@ -39,7 +39,7 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
 
 type HostServices = NonNullable<PluginStartContext['services']>;
 /** What the Host built for the activation that the sandbox can be given. */
-export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'interaction'>;
+export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'interaction' | 'connections'>;
 /** Services the caller builds itself (the platform capabilities the person approved, the network adapter): the broker still checks each call against the grants. */
 export type SandboxHostExtras = Pick<SandboxServices, 'capability' | 'network'>;
 
@@ -58,6 +58,8 @@ export function sandboxServicesFor(host: SandboxHostServices | undefined, extras
     ...(extras.network ? { network: extras.network } : {}),
     // The activation's drawing of questions, cards and next steps, reached through the broker like every other service.
     ...(host.interaction ? { interaction: host.interaction } : {}),
+    // Requests through the person's bound account: the Host's client, which checks the slot, the grant and the call's action itself.
+    ...(host.connections ? { connections: host.connections } : {}),
   };
 }
 
@@ -85,8 +87,6 @@ const NOT_GIVEN: readonly NotGiven[] = [
     declared: (definition, held) => asksFor(definition, held, ['model:read', 'model:invoke']) },
   { service: 'instructions', reason: 'Registered instructions are not given to sandboxed plugins yet (PG-017 P1, V-20).',
     declared: definition => !!definition.instructions?.length },
-  { service: 'connections', reason: 'Connections (connections:use) are not given to sandboxed plugins yet (PG-017 P2).',
-    declared: (definition, held) => !!definition.manifest.connections?.slots.length || asksFor(definition, held, ['connections:use']) },
   { service: 'materials', reason: 'Materials are not given to sandboxed plugins yet (PG-017 P2).',
     declared: (definition, held) => asksFor(definition, held, ['materials:read', 'materials:fetch', 'materials:fetch_local', 'materials:original']) },
   { service: 'background', reason: 'Background jobs are not given to sandboxed plugins yet (PG-017 P3).',

@@ -86,3 +86,55 @@
 **RAC-197** 这 4 条是只给插件、不要权限的项目动作，在宿主启动插件的那个项目里运行：放下与探查交给 Runtime 的项目来自调用；另一个项目的会话，状态单独回「当前项目找不到这条会话」，排队被拒（`agent.session_unknown`），Runtime 没有被要求排队；自己项目的会话排给插件自己的 actor。没有消费它的插件、人、Agent、工作流、MCP 调不到；schema 拒绝空会话 id、排队里多出的 `actor_id`、少一项的元组，被拒的调用到不了 Runtime。
 
 没改的：第 1 批 §6 建议 1 的归属缺口在这 4 条里同样存在——`readProjectWork` 本来就读整个项目的工作，`releaseProjectRound` 只按工作 id 放下，不核这项工作是不是调用插件的会话的；`readSessionStatuses` 与 `queueProjectRound` 核会话归属。这是原 typed 路径已有的行为，仍等统筹给的 BL 与 owner，本片不改信任设计。剩 26 条：`listActions`、`listRuntimes`、`availableRoles`（谁能调、`pluginId` 从输入读）、两个 `wait`、`listSkills` 等 7 条从输入读 `pluginId` 的、`cancelSubagent`（`actorId` 从输入读）、`listReviews`（`projectId` 从输入读），以及读会话、跑轮次的其余各条。
+
+## 9. 第 3 批：读会话、跑轮次（计划，待统筹在这里裁定 §9.3）
+
+统筹 10-23 定了剩下 26 条的五条规矩，这一批按它们做：
+1. 身份（调用者、项目、安装）一律从调用上下文取，输入里的不当身份。
+2. 等待声明 `scheduling: "concurrent"`，带上限、可取消、写前 `beforeEffect`。
+3. 列表读只给调用者看得见的。
+4. 取消只许取消自己发起的。
+5. 先做读会话、跑轮次这一组。
+
+PR 等 #1121 合入再开，不开第三层。
+
+### 9.1 范围（13 条）与归到哪条规矩
+
+| 描述符 | 输入里的身份 | 规矩 | 改法 |
+| --- | --- | --- | --- |
+| `createSession` | `AgentCreateSessionInput` 带 `project_id`、`plugin_id`、`install_id`、`actor_id`，处理器 `assertInputOwner` 比对 | 1 | 动作输入去掉这四个字段，处理器只从调用者取；Coding 三处调用（`routes-sessions.ts`、`start-round.ts`、`routes-delegations.ts`）不再拼 `identity` |
+| `startRun` | `AgentStartRequest` 同样带四个字段 | 1 | 同上；处理器原来「请求与会话归属一致」的检查改成「会话归属与调用者一致」，`start-round.ts` 一处 |
+| `readSession`、`readRun`、`readRunReviews`、`listSubagents`、`readCommandOutput`、`inspectRecovery`、`listCheckpoints` | 只有会话、轮次引用 | 照 §3 | 处理器已经按项目与调用者核会话归属（`readScopedSession`、`requireRun`） |
+| `controlRun`、`recoverRun`、`prepareRewind` | 只有会话、轮次引用 | 照 §3 | 命令，处理器已有 `beforeEffect` 与归属检查 |
+| `cancelSubagent` | 输入第 4 项 `actorId` | 1、4 | 去掉 `actorId`；取消的人从调用者取；只许取消调用者自己会话里发起的子任务（`requireRun` 已核会话归属），补拒绝用例 |
+
+`waitRun` 属规矩 2，不在这一批：先定成一条 `concurrent` 的动作，还是拆成「开始等」加「查结果」，单独一批。
+
+### 9.2 每条要补的拒绝用例
+
+- 另一个项目的会话或轮次：拒绝，Runtime 没被调用。
+- 同项目里别的插件的会话：拒绝（`actions.forbidden` 一类）。
+- 不消费它的插件，人、Agent、工作流、MCP：调不到。
+- 输入里带回身份字段（`plugin_id`、`actor_id`……）：schema 拒绝（`actions.input_invalid`）。
+- `cancelSubagent`：取消别人会话里的子任务被拒。
+
+### 9.3 规矩没盖到的，请统筹裁定
+
+1. **大视图的输出 schema。**
+   - `AgentRunView`（`agent-host-run-view.ts`，内含步骤板、事件、冻结的角色与工具、审查等）和 `AgentSessionView` 嵌套很深，跨四五个文件的类型。照第 1 批的口径把每个字段列全、`additionalProperties: false`，要写几百行 schema；Runtime 每加一个字段，动作派发就会以 `actions.output_invalid` 拒掉整条读取。
+   - 我建议：
+     - 顶层列必填字段与类型；
+     - 嵌套的大对象只约束 `type: "object"`，不禁多出的字段；
+     - 小而稳的类型照第 1 批写全：`AgentSessionRef`、`AgentRunHandle`、`AgentCheckpoint`、`AgentRecoveryReport`、命令输出。
+     - 理由写进 schema 旁的注释。
+   - 另一种是全列。请定。
+2. **`AgentStartRequest` 去掉身份字段是合同改动**（规矩 1 的直接结果）。
+   - 动作输入用一个新的 schema，不收这四个字段；
+   - TypeScript 类型 `AgentStartRequest` 还被 Runtime 适配器当作「处理器补全身份后交给 Runtime 的请求」用。我打算：
+     - 拆成插件给的 `AgentStartInput`，不带身份；
+     - 宿主补全后的 `AgentStartRequest` 保持现在的形状，只在宿主和适配器之间用。
+   - `createSession` 同理。请定是否这样拆。
+3. **plugin-builder 的 Manifest** 在 consumes 里点名了 `createSession`、`readSession`、`startRun`、`readRun`、`controlRun`，但代码里没有经插件调用它们（创作台是平台能力，经 `createBuilderAgent`）。
+   - 转成只给插件的动作后，这几行仍然合法；
+   - 但如果创作台不再是插件（PG-051 Q2），这几行应删。
+   - 我建议这一批不动，留给创作台去插件化那一片。

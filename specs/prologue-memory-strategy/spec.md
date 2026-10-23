@@ -480,6 +480,28 @@ MEM-24 的配置验收：off 在 SDK 读取前停止任务/显式 recall 和非�
 
 验收经真实生产队列、隔离 Home、Node SDK 和可控本地模型响应：正常本人初始消息/补充形成候选；排队后撤回、Run 取消、关闭形成、删除工作或项目在提炼前零模型请求，模型返回或写入等待后失效零候选/正式正文/历史；重启重读原件且重复任务不形成独立证据，代写内容不得成为本人来源。保留现有记住、history/undo/import/export/delete 回归，不调用外部付费模型。此片不完成 SDK MemorySourcePort 装配、同源遗忘抑制及 pending 决定对账；这些仍随 S2 和严格 SDK 采用接入，不能以本片宣布 MEM-35 全部完成。
 
+#### M2 前置片：Coding 初始输入原件（实现中）
+
+本片只闭环受保护 Coding HTTP 普通发送的原件、同 Session 派生继续、重启读取及同输入重试。客户端 `original_input: { input_id, text }` 是独立 HTTP 信封，Host 校验后剥离；正文、作者与时间不能由 Action 参数自称。Host 沿原 `projectRouteControl` 私有控制对象把原件只交给这次安装的第一个精确 own Action，调用结束失效；现 Action 权限、取消与提交前检查不变。AgentHost 从真实 Action scope 接收同一投影，核对请求的原身份与正文；没有这份证明的输入不记为本人。原件不是形成许可。
+
+`AgentOriginalInputRef` 为 `{ session_id, input_id, version: 1 }`；初次原件包含原始 `text`、`written_by: person | host` 与首次可信受理的 `occurred_at`。原文在文件提及、目录分工、摘要与计划材料拼接之前固定，只保存在现加密 `SessionIndex.attempts` 的首次原件；后续 attempt 和 FrozenStart 保存引用，RunView 由同一主人解析。相同 owner/Session/input_id 的重试核对正文与作者，复用原时间和版本，不把新接收时间、Run.started_at、chunk 或重试次数算新来源。已接受但结果未知仍按既有恢复流程核对，不因输入键自动重派 Run。
+
+普通继续及自动 nudge 传同 Session 的 canonical `continued_from` RunRef，由 AgentHost 读取原件并保留原引用；不能从客户端生成的 `next.task`、`last-start.origin_task` 或 `turns.user-1` 反推本人原话。计划执行、重新提问、摘要及缺少可信 stamp 的调用保持 Host 派生；确认计划的固定 ArtifactRef 不等于本人说过整个模型计划。已有来源不明 Run 不回填原件。
+
+验收通过真实受保护 HTTP、生产 Coding/AgentHost、Node SDK 与隔离 Home：拼接后仍能读取精确原文；关闭重启保留身份/原时间；同输入重试不增独立原件、改正文或作者拒绝；摘要降级复用同原件；同 Session 继续保持原引用，跨 Session/伪造引用拒绝；裸 Action/插件 DTO 不能自称 person。仅使用可控本地模型响应，不调用付费 Provider。本片不接 MemorySourcePort/提炼/晋升，queued 初始原件、steer/carry 原发生时间和跨 Session 继承仍是后续必须完成的 P0，不宣称全部 Coding 来源完成，也不改变这些入口当前执行功能。
+
+- **M2 未知旧元数据**：读取缺少依据、批准者或时间的正式记忆时，公开投影明确返回 `null`，不补成本人明确表态、本人批准或当前时间；旧证据的未知 `kind` 与原引用保持原值，缺少发生时间为 `null`。新写与候选形成仍只接受既有依据、证据类别和有效时间，不把只读投影的未知值变成自动晋升输入。状态与元数据编辑保持未知；导出仍不包含证据正文，未知依据可往返，导入不把缺失的原批准事实补成人审；撤销重建只从已有授权快照恢复，不造来源或发生时间。无已知创建/更新时间的条目不享受新近权重、不因假定已过 90 天被自动停用；管理排序将未知时间放末。只修改 Memory 合同、facts/shapes/Service/scope/policy、包 README、日期空值展示及真实 Node 专项，不建新账、不改 SDK。验收覆盖真实持久记录读取、编辑、停用/恢复、重启、导出导入、撤销和新输入拒绝，读操作本身零写；动作操作者与本次提交时间仍记录真实当前操作，不能与原记忆批准/发生事实混淆。
+
+公开版本边界：本刀只扩展可选来源事实，start/read 能力没有新增或收窄 schema、不改变既有字段与权限，保留现能力 ID/version；SessionIndex 继续同一加密/CAS/schema1，缺原件的历史维持来源未知，不迁写。公开 TypeScript 变化由 API 快照显式审查；此决定不适用于后续必填字段、改义或新 writer 能力。
+
+#### M2 前置片：Assistant 消费同一初始原件（实现中）
+
+受保护的助理发送 HTTP 入口把原始 `text`、`request_id` 和入口受理时间交给可信 `AssistantCaller.original_input`，不从业务正文采信作者或来源。Service 核对这份原件与本次普通发送一致，再经既有 `AgentStartAuthority` 交给同一 AgentHost；页面代写、重新提问、Host 提示及委托不成为本人表态。没有 stamp 的旧调用仍可执行，但不产生本人初始来源。原文、首次时间和稳定引用仍由 `SessionIndex.attempts` 唯一持有，不新增 Assistant 原件表；同 Session 自动接续传实际上一 Run 的 `continued_from`，保留同一原引用。
+
+人工记住与完成学习都从 SDK RunView 的 canonical 原件读取，按原 Session/input/version 去重；不再从 Assistant 展示轮次正文或 `starting` 字符串推断本人。第一个工具早于 App 登记轮次时，仍通过现 Session 的 latest Run 读取原件。队列只带引用，重读时继续核对工作、Session/Run 归属及当前撤回状态。补充输入继续以 SDK 自有 input 身份为准；首次受理时间须等 SDK 实际公开 `acceptedAtMs` 后接入，旧无证据保持未知，不用当前时间补造。
+
+范围限于 Assistant HTTP/调用者、round-start、continuation、输入原件读取、学习来源读取、现记忆工具入口及相关真实 Node/HTTP 回归；不改 Coding 场景归属、SDK 包、权限决策、形成/晋升配置或 source ledger。验收保留原记住/撤回/来源/关闭开关断言，并覆盖首工具、重启、同原件跨 Run 去重、伪造业务来源与派生输入拒作本人；真实模型语义收益及 queued/carry 原时间仍不由本片宣称完成。
+
 ### 9.5 Q0 基线记录与证据边界
 
 本轮固定的 B1 为 Molis `f6b2ff4bfba4f7ceb5aeaf95495a5e41fe85ea10`，实际使用 `attachment-order` SDK 包，上游来源 `753dbae8359e56a74397d030af4d18abf402d5b5`。Prologue 的实现起点是 `f481d53726b3a896a525386d8e93225f6091e947`，两者不能当作同一版本。B0 在相同初始材料和任务下关闭记忆；B2 只在新生产路径可运行后测量，缺席不是零成本。必要时补“新 SDK + 原 Molis 配方”的归因对照，区分 SDK 既有修复与新记忆策略的收益，不把其差异全部归功于本方案。
@@ -554,6 +576,10 @@ B1 冷启动失败另有 estimated input 6926、output 3072 和 partial cached i
 2026-10-23 用户明确批准此页单次资源增长：`/assets/molis-work-workbench.js` 从 1,186,501 到 1,189,594 字节，净增 3,093（约 0.26%）。命令标题、候选行和正式行三处等价去重已省 381 字节；开发注释原本由 Host 移除，未虚报为节省。沿既有 `APPROVED_CEILINGS` 只登记这一个基数和上限，不扩大其它门禁。真实 Chrome/Host 4 文件 44 项回归通过；旧预算上的 +93 例外随本次替换移除。后续页面变化仍重新计量，不能复用为通用额度。
 
 2026-10-23 合入主干 `91c24d8f5`（#1050/#1055）：#1055 已独立批准并冻结 workbench +76 B，故本分支沿用新基数 1,186,577，仍只增加原批准的 3,093 B，上限为 1,189,670；不新增额度。其余三个资源保留主干预算，已用一次性例外移除。引用展示的后续增量仍需独立处理。
+
+2026-10-23 用户另行明确批准引用送达状态与旧文本清除所需的 +105 B。该资源本分支上限由 1,189,670 调为 1,189,775 B（原 +3,093 与本次 +105 分别留痕），其他资源和门禁不变；后续未知时间展示或其它改动的增量不在此授权内。 本次未知日期显示复用 Date 数值转换后，整体产物实测为 1,189,770 B，低于批准上限 5 B；按既有规则将预算冻结到实际值，不保留余量。
+
+2026-10-23 用户独立批准 Coding 原件身份片资源 +738 B：`/assets/molis-work-plugins/coding.js` 由 374,235 到 374,973 B。初始输入稳定身份、失败重试复用与自动接续派生排除归现 input-receipts-client；等价消除无用局部变量省 16 B。只登记该资源该基数的一次性增长，其余门禁不变。
 
 #### M2 未分类旧记忆读取保留
 
@@ -737,7 +763,11 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 | M2 采用完成故障恢复 | 对 `6bbacc107` 的采用源码与 SDK `b6f06de6…`，真实旧 App 非空副本经真实维护桥完成 SDK 转换后，注入一次 SQLite 偏好快照冲突；ledger 完成拒绝，仍为 3/adopting，新旧普通 App 均拒绝。新维护 Runtime 重读确认 SDK 当前格式；只撤销注入偏好，不回滚 SDK，默认公开采用重试返回 adopted=0/current=1、完成 ledger4。原引用/version2/历史/偏好保留，新写两次重启保留，源 Home/备份字节未变 | 真实 Node/SQLite 故障注入工程证据；仅覆盖该单条个人记忆组合恢复，不代表 TTL/候选/全部旧 Home、最终产品或用户验收。探针无模型调用，未观察到 global fetch |
 | M1 四预设 | [Molis #1059](https://github.com/molis-ai/molis-work/pull/1059) 保持 Draft，head `c886c603bd2678bcabaf5128dd8879e0d7a08607`。build、83 文件 1066 项与本地门禁通过；首轮 catalog fixture 写死 v1 导致 Security invariants 失败，修正为 prefs 声明 v2 后定向 35 项通过，新 CI `39892584084` 13 项成功、1 可选跳过，含 Product/security | 工程配置片已验证；旧 ledger3 App 会忽略新字段，必须随 M2 严格采用一起交付，不能先独立合入发布 |
 | M2 最新主干组合 | 已整合 main `0a714d688`（含 #1060 可信来源队列和 Coding 后台跟随），整体 build 通过。8 文件组合中 6 文件全绿：管理动作 11、命令上下文 2、CAS 13、Coding 跟随 8、回执 3、Run 上下文 1；学习 18/20，通过新增来源重读/撤回/重试用例，2 项自动晋升仍拒绝；助理 3/18，可信 facade 夹具、形成和使用回执接线待修 | 工程集成检查，保留全部失败断言，非基线豁免；PR #1064 仍 Draft，不可合并。未运行最终完整安装/全量回归，不宣称最终 App 或用户验收 |
-| M2 真实使用投影与当前管理 | 本地已将真实 Run Context 回执交给现 ledger：返回、未派发、未知派发与确认响应分开，保留原 Run/call/条目版本及轮次时间。重读原 Run 可补记录，不重发模型；关闭等待在途回执，遗忘身份不会复活。真实 Node/HTTP/SQLite 回执、故障补账、关闭恢复通过；当前权限及来源绑定 14 项、插件 namespace 直接保存 5 项通过 | 本片作为独立后端 checkpoint 交入 Draft #1064；浏览器新引用展示 18 项已通过，资源仍比批准上限超 230 B，继续等价精简且不提高上限。最终组合待验。助理真实回归现在 15/18，剩余 2 项晋升及 1 项同 Run 停用后旧 Context 拒绝；后者已证明无第二次 HTTP、无旧内容再发，按独立 SDK 修复继续，不删失败断言。来源桥不等于完整形成链 |
+| M2 真实使用投影与当前管理 | 本地已将真实 Run Context 回执交给现 ledger：返回、未派发、未知派发与确认响应分开，保留原 Run/call/条目版本及轮次时间。重读原 Run 可补记录，不重发模型；关闭等待在途回执，遗忘身份不会复活。真实 Node/HTTP/SQLite 回执、故障补账、关闭恢复通过；当前权限及来源绑定 14 项、插件 namespace 直接保存 5 项通过 | 本片作为独立后端 checkpoint `12a9da0ef` 推入 Draft #1064；后续浏览器引用展示与资源精简见下方独立记录。最终组合待验。助理真实回归现在 15/18，剩余 2 项晋升及 1 项同 Run 停用后旧 Context 拒绝；后者已证明无第二次 HTTP、无旧内容再发，按独立 SDK 修复继续，不删失败断言。来源桥不等于完整形成链 |
+| S3 同 Run 失效投影 | [Prologue #88](https://github.com/molis-ai/molis-prologue/pull/88) 已合 main `8c9c5460d0d24ef449c7fc01b262c52206a0b801`，与已测 head `89bded90` 整树一致。工具停用/编辑/删除后，Memory 当前许可复核通过才移除对应 SDK 消息，混源摘要整块移除，不退款、不替换新正文；撤权、取消和最终发送 fence 保持拒绝。五个真实 Node/HTTP 反例先红后绿，最终 14 文件 167 项、完整 quality 679 项、干净安装真实工具与 Rust 通过 | 统筹独审代码、专项和最终日志；CI `39920942748`/job `120305734903` 实际注解为账单未启动，无冲突或待处理评审，按既定私仓本地门禁合并。Molis 已推送 SDK 接入 `3464c64a0`，整体构建通过，真实助理回归由 15/18 变为 16/18，同 Run 停用后的继续路径通过；剩余两项仍为自动晋升未接。非空真实用户产品和用户验收未完成 |
+| M2 未知旧事实 | `83b2cf373` 独立提交；缺依据/批准/时间明确 null，旧未知证据与引用、历史、撤销、导出导入往返保持，未知时间无新近加分且不能推定 90 天未使用。新形成输入仍严格；memory.list 与服务 descriptor 升 v2，其他本 PR 新 v2 结果同步快照 | 新反例先红后绿 5/5，连同 retention/actions 29/29；职责收束后 5/5 再过，窄 strict tsc 与 health against main 通过。upkeep 3/6 的三项仍因策略晋升未接失败，未放宽断言；整体验收未完成 |
+| M2 Coding 原件桥 | `cfc0ccf39` 独立提交；受保护 HTTP 的初始原文、Host 首收时间与稳定 id 存入既有加密 Session attempt，重试及同 Session 继续共享原件引用；跨 Session、不同正文同 id、无 Host 证明和派生输入不能成为本人来源。真实 HTTP/Node/重启与客户端实际脚本专项 7/7，零重试；整体 build 后最终 Coding 单包复验通过 | 只证明原件桥，不代表 SDK 形成与产品闭环。客户端必要 +738 B 经用户独立批准，实测 374,973 B；workbench 实测 1,189,770 B 已低于批准上限并收紧。资源门禁按现 merge-base 通过；最终 head 全量/真实模型/用户验收待完成 |
+| M2 引用状态展示 | `31bbbff08` 已推送 Draft #1064，包含已提供/送达未确认/旧内容隐藏/记录未保存及空引用清除。初始化依赖顺序修正后，真实 Work/HTTP/Chrome 渲染合同和脚本/i18n 4 文件 18 项通过，零重试；保留先前初始化失败日志。合并 main `91c24d8f5` 后整体构建通过，最后 UI 单包构建通过 | DTO 替换只证明展示，派发事实另由 SDK 回归证明。原 +3,093 B 与主干独立 +76 B 合并后限额为 1,189,670 B；用户已单独批准本片 +105 B，现上限 1,189,775 B。此授权只覆盖本片，随后整合资源仍须重新计量。最终整合构建、全量和产品验收待完成 |
 | S2 / S3 / M2 / M3 / I0 | 按 §9.3 核对可信来源/候选门、异步召回/Context、产品管理与真实 SDK 接入的可并行边界；统筹负责共享装配、包及最终集成 | P0 全部行为、干净包/真实 Host、成对 B2 质量与成本、最终 App 实操及用户验收仍待完成 |
 
 交付按可独立验收部分拆 PR：C0/Q0 合同、工具与冻结结果先行；S1 第一片单独交付版本检查、并发写入与恢复；M1 第一片单独交付有效配置采用与启动保护。两仓实现 PR 分别依赖各自 C0/Q0 父 PR，后续分类、形成、召回和界面按 §9.3 依赖继续拆分；父 PR 进入 main 后再合并子 PR，不将 stacked 分支合并视为进入 main。此处持续补充 PR 和最终 head 的验证结果；未操作真实 Home，也未发布。

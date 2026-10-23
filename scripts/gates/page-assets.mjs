@@ -240,8 +240,12 @@ const headErrors = (measured, budget, base) => {
 const APPROVED_CEILINGS = {
   // Memory P0, user approved 2026-10-23: fixed-version command retries and per-item clear/import results.
   // Original 1186501 -> 1189594 is +3093. Main #1055 independently adds 76 bytes; retain that base, not another allowance.
-  // This branch therefore admits exactly 1186577 -> 1189670 (+3093); later memory-reference UI growth is not included.
-  "/assets/molis-work-workbench.js": [1186577, 1189670],
+  // User separately approved another 105 bytes on 2026-10-23 for memory-reference delivery status and stale-text clearing.
+  // Unknown-date rendering then saved 5 bytes: freeze the measured 1189770, not the approved 1189775 ceiling.
+  "/assets/molis-work-workbench.js": [1186577, 1189770],
+  // User separately approved 2026-10-23: stable original-input identity across Coding retries and continuations.
+  // Reusing the existing input sender and removing one unused local saved 16 bytes; only the remaining 738 are admitted.
+  "/assets/molis-work-plugins/coding.js": [374235, 374973],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

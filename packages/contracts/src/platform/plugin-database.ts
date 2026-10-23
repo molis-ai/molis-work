@@ -33,13 +33,14 @@ export type PluginProjectRow = Record<string, null | number | string>;
 /**
  * SQL over a plugin's own tables in the project's library for a plugin whose code the Host does not run in its own process
  * (`execution: "sandbox"`; `services.project_statements`, in place of `services.project_database`). The statements run in a process
- * the Host kills when one runs too long or takes too much memory (`plugin.project_database.statement_timeout`, `.statement_memory`),
- * never on the Host's thread, and each call makes the checks `PluginDatabase` makes. `all` gives at most `limits.rows` rows and
- * `limits.bytes` bytes (more is `plugin.project_database.result_too_large`). A transaction is all of its statements or none:
- * `beforeEffect` runs before it begins, and nothing is committed once `signal` aborts or the grants or the original caller go.
+ * whose controller kills it when one runs too long or takes too much memory (`plugin.project_database.statement_timeout`, `.statement_memory`),
+ * never on the Host's thread, and each call makes the checks `PluginDatabase` makes. `get` and `all` give at most `limits.bytes`
+ * bytes, and `all` at most `limits.rows` rows (more is `plugin.project_database.result_too_large`). A transaction is all of its statements or none:
+ * `beforeEffect` runs before it begins; signal and authority are checked before each statement and before COMMIT.
+ * An interruption before COMMIT rolls back; interruption while COMMIT is in flight has an unknown outcome and must not be retried automatically.
  */
 export interface PluginProjectStatements {
-  get(sql: string, parameters: readonly (null | number | string)[], signal: AbortSignal): Promise<PluginProjectRow | null>;
+  get(sql: string, parameters: readonly (null | number | string)[], limits: { readonly bytes: number }, signal: AbortSignal): Promise<PluginProjectRow | null>;
   all(sql: string, parameters: readonly (null | number | string)[], limits: { readonly rows: number; readonly bytes: number }, signal: AbortSignal): Promise<PluginProjectRow[]>;
   transaction(beforeEffect: () => Promise<void>, statements: readonly PluginProjectStatement[], signal: AbortSignal): Promise<Array<{ changes: number }>>;
 }

@@ -3509,7 +3509,9 @@ export interface PluginProjectStatement {
 }
 
 export interface PluginProjectStatements {
-    get(sql: string, parameters: readonly (null | number | string)[], signal: AbortSignal): Promise<PluginProjectRow | null>;
+    get(sql: string, parameters: readonly (null | number | string)[], limits: {
+        readonly bytes: number;
+    }, signal: AbortSignal): Promise<PluginProjectRow | null>;
     all(sql: string, parameters: readonly (null | number | string)[], limits: {
         readonly rows: number;
         readonly bytes: number;

@@ -794,9 +794,10 @@
     ]
   },
   "GET <project>/api/panels": {
-    "status": 404,
+    "status": 400,
     "type": "application/json",
-    "error": "页面或接口不存在"
+    "code": "actions.input_invalid",
+    "error": "终端面板需要 goal_id（它属于哪条 Goal）"
   },
   "GET <project>/api/panels/no-such-panel": {
     "status": 404,

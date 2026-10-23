@@ -1,5 +1,6 @@
 import type { DesktopPanelApi, DesktopPanelRecord } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { decodeLocalWebPathPart, respondLocalWebRefusal } from "./web-http.js";
 
 interface PanelSpawnSpec {
@@ -39,12 +40,19 @@ export interface PanelHttpContext {
 type PanelHandler = (context: PanelHttpContext, host: PanelHost, id: string) => Promise<void>;
 
 const PANEL_PATHS = [
-  ["goal-panels", /^\/api\/goals\/([^/]+)\/panels$/],
+  ["panels", /^\/api\/panels$/],
   ["advance-prompt", /^\/api\/goals\/([^/]+)\/advance-prompt$/],
   ["panel", /^\/api\/panels\/([^/]+)$/],
   ["panel-exited", /^\/api\/panels\/([^/]+)\/exited$/],
   ["panel-reopen", /^\/api\/panels\/([^/]+)\/reopen$/],
 ] as const;
+
+/** The Goal a panel list or a new panel belongs to: `?goal_id=`, so the route does not sit under Goals' own `/api/goals/` namespace (BL-384). */
+function goalOfQuery(url: URL): string {
+  const goalId = url.searchParams.get("goal_id")?.trim();
+  if (!goalId) throw new ActionError("actions.input_invalid", "终端面板需要 goal_id（它属于哪条 Goal）");
+  return goalId;
+}
 
 /** A parent Goal finished by its children: its terminals are history, read only. */
 const isParentGoal = (goal: PanelGoal) => goal.decomposition_state === "closed_compound" && !goal.event_work;
@@ -161,8 +169,8 @@ async function reopenPanel(context: PanelHttpContext, host: PanelHost, panelId: 
 
 const PANEL_HANDLERS: Record<string, PanelHandler> = {
   "GET advance-prompt": readAdvancePrompt,
-  "GET goal-panels": listGoalPanels,
-  "POST goal-panels": openGoalPanel,
+  "GET panels": listGoalPanels,
+  "POST panels": openGoalPanel,
   "DELETE panel": closePanel,
   "POST panel-exited": markPanelExited,
   "POST panel-reopen": reopenPanel,
@@ -180,7 +188,7 @@ export async function handlePanelHttp(context: PanelHttpContext): Promise<boolea
     const handler = PANEL_HANDLERS[`${context.method} ${name}`];
     if (!handler) return false;
     try {
-      const id = decodeLocalWebPathPart(match[1]);
+      const id = name === "panels" ? goalOfQuery(context.url) : decodeLocalWebPathPart(match[1]!);
       await context.withHost((host) => handler(context, host, id));
     } catch (error) {
       respondLocalWebRefusal(context, error);

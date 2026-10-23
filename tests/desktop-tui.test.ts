@@ -848,7 +848,7 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
     const prefix = `/projects/${encodeURIComponent(fixture.project.project_id)}`;
-    const panelsUrl = `${origin}${prefix}/api/goals/TUI-GOAL/panels`;
+    const panelsUrl = `${origin}${prefix}/api/panels?goal_id=TUI-GOAL`;
 
     const browserPage = await (await webFetch(`${origin}${prefix}/goals/TUI-GOAL`)).text();
     assert.match(browserPage, /class="tui-pane"|data-tui-pane/);
@@ -895,10 +895,16 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     assert.match(desktopPage, /添加终端/);
     assert.match(desktopPage, /data-native-desktop="true"/);
 
+    // RAC-260 (BL-384): the terminal panels sit at `/api/panels?goal_id=`, not under Goals' `/api/goals/:id/`; the old address is gone.
+    for (const method of ["GET", "POST"]) {
+      const gone = await webFetch(`${origin}${prefix}/api/goals/TUI-GOAL/panels`, { method, headers: { "content-type": "application/json" }, body: method === "POST" ? JSON.stringify({ runtime_kind: "generic", command: "cat" }) : undefined });
+      assert.equal(gone.status, 404, `${method} the old panel address`);
+    }
+
     // A caller's mistake is refused as invalid with its code, never answered as a Host fault (SC-3).
     for (const [url, body, code] of [
       [panelsUrl, { runtime_kind: "generic" }, "desktop.launch_command_required"],
-      [`${origin}${prefix}/api/goals/%E0%A4%A/panels`, { runtime_kind: "generic", command: "cat" }, "host.request_path_invalid"],
+      [`${origin}${prefix}/api/panels`, { runtime_kind: "generic", command: "cat" }, "actions.input_invalid"],
     ] as const) {
       const refused = await webFetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       assert.equal(refused.status, 400, await refused.clone().text());
@@ -1003,7 +1009,7 @@ test("compound parent terminals become read-only and direct execution APIs requi
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
     const prefix = `/projects/${encodeURIComponent(fixture.project.project_id)}`;
-    const parentPanelsUrl = `${origin}${prefix}/api/goals/TUI-PARENT/panels`;
+    const parentPanelsUrl = `${origin}${prefix}/api/panels?goal_id=TUI-PARENT`;
 
     const parentPage = await (await webFetch(`${origin}${prefix}/goals/TUI-PARENT`)).text();
     assert.match(parentPage, /data-tui-parent-read-only="true"/);
@@ -1038,7 +1044,7 @@ test("compound parent terminals become read-only and direct execution APIs requi
     assert.equal(reopenBlocked.status, 409);
     assert.match(await reopenBlocked.text(), /只能查看/);
 
-    const childOpened = await webFetch(`${origin}${prefix}/api/goals/TUI-CHILD/panels`, {
+    const childOpened = await webFetch(`${origin}${prefix}/api/panels?goal_id=TUI-CHILD`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ runtime_kind: "generic", command: "cat" }),
@@ -1761,7 +1767,7 @@ test("OpenCode, Pi Agent, and Grok Build panels keep their launch recipes", asyn
     const address = server.address();
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
-    const panelsUrl = `${origin}/projects/${encodeURIComponent(fixture.project.project_id)}/api/goals/TUI-RUNTIMES/panels`;
+    const panelsUrl = `${origin}/projects/${encodeURIComponent(fixture.project.project_id)}/api/panels?goal_id=TUI-RUNTIMES`;
     const recipes = [
       { runtime_kind: "opencode", command: "opencode", resume_session_id: "ses_abc", args: ["--session", "ses_abc"] },
       { runtime_kind: "pi-agent", command: "pi", resume_session_id: "pi-sess", args: ["--session", "pi-sess"] },
@@ -1895,7 +1901,7 @@ test("opening a terminal without a project workspace is rejected", async () => {
     const address = server.address();
     assert.ok(address && typeof address === "object");
     const opened = await webFetch(
-      `http://127.0.0.1:${address.port}/projects/${encodeURIComponent(projectId)}/api/goals/NO-WS/panels`,
+      `http://127.0.0.1:${address.port}/projects/${encodeURIComponent(projectId)}/api/panels?goal_id=NO-WS`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1970,7 +1976,7 @@ test("deleting a panel kills the PTY on the server", async () => {
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
     const opened = await webFetch(
-      `${origin}/projects/${encodeURIComponent(fixture.project.project_id)}/api/goals/TUI-KILL/panels`,
+      `${origin}/projects/${encodeURIComponent(fixture.project.project_id)}/api/panels?goal_id=TUI-KILL`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },

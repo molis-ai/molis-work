@@ -32,7 +32,7 @@ interface PanelContext {
 const panelPath = (options: TerminalPanelsOptions, panelId: string, suffix = "") =>
   options.route(`/api/panels/${encodeURIComponent(panelId)}${suffix}`);
 const goalPanelsPath = (options: TerminalPanelsOptions, goalId: string) =>
-  options.route(`/api/goals/${encodeURIComponent(goalId)}/panels`);
+  options.route(`/api/panels?goal_id=${encodeURIComponent(goalId)}`);
 
 function handleExit(ctx: PanelContext, value: Extract<PtyServerMessage, { type: "exit" }>) {
   const { options, state } = ctx;

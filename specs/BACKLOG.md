@@ -251,6 +251,9 @@
 | BL-381 | 成果库预览在宿主那一路还用 design-system 自己的 Markdown 渲染（`packages/design-system/src/file-preview.ts:27` 的 `markdown()`，手写、只转义、没有消毒器），没用插件 SDK 的 `/rich-text`（`packages/plugin-sdk/src/rich-text.ts` 的 `renderRichText`）：同一段 Markdown 在成果库预览和插件里显示得不一样，仓库里也就多了一份渲染器。改成调 `/rich-text`，删掉 `markdown()`，挂在 Artifacts 平台化名下 | C7 插件一半的计划 §4 第 1 项（① 2026-10-23 定） | 已知缺口 | C7 只做插件一半；成果库预览归 Artifacts 平台化 | #1024（已合） | 中 | ③ |
 | BL-382 | Pages 编辑器的代码高亮自带 `highlight.js` 与 `lowlight`（`plugins/native/pages/src/code-highlight.ts`），没用插件 SDK 的 `/highlight`。改用后，`molis-work-pages-editor.js`（709,541 B）可以去掉这两个库，预计小几十 KB。但颜色和支持的语言都会变（SDK 返回 token 种类，编辑器要换成区间装饰），所以先做设计决定，再动代码 | C7 插件一半的计划 §4 第 4 项（① 2026-10-23 定） | 未实现 | 颜色与语言范围要先做设计决定 | #1024（已合） | 低 | 未分配 |
 
+| BL-412 | 系统评审修复完整回归中三份文件仅重试通过：`coding-workbench.e2e`（Files 切 Git 等待）、`stream-text.e2e`（Assistant 淡入清理等待）、`workbench-deferred-clients.e2e`（Pages 资源失败后的重试按钮等待）。另在 #1049 的完整回归中，`code-scale.e2e` 的 Coding/Assistant 着色两项未满足 50ms 预算（最后一次 84.0/100.4ms）；该 PR 未改着色代码，main 与 PR 的同条件对照结果记在 #1049。根因尚未定位，不能认定都是测试缺陷；分别保留失败证据，确认产品、观察时点或环境原因后修复，不放宽断言或增加固定延迟 | [系统评审收尾](archive/system-review-fixes/spec.md)、[CI 39901353563](https://github.com/molis-ai/molis-work/actions/runs/39901353563) | 已知缺口 | 一骏 2026-10-23 确认 #1049 合入后本任务完成，此项单独后续处理 | 无 | 中 | Codex（原系统评审线） |
+| BL-413 | 系统评审修复的真实 Home 维护与安装验收：项目库 v8 → v9 的副本演练已通过，真实 Home 尚未维护；在单独授权的维护窗口备份、迁移、安装并验证首次打开、插件主链路与恢复，再记录最终产物实操和本人验收。不得将工程 CI 通过当成已安装 | [系统评审收尾](archive/system-review-fixes/spec.md)、[发布检查单](../docs/releases/CHECKLIST.md) | 未实现 | 会改真实 Home，依发布维护流程单独授权；本轮仅修复并合入 | 维护窗口与待安装版本 | 中 | Codex（原系统评审线，发布时交接） |
+
 ## 8. 交给第二步（防腐整理）
 
 本轮按「没有旧用户」清除兼容逻辑、统一装配路径。下列是梳理时看到、属于第二步范围的具体对象；第二步的完整清单在 [合入后审查 §12](archive/post-merge-review/spec.md#12-交给第二步的清单)。

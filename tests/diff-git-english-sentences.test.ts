@@ -16,7 +16,7 @@ const primitives = (locale: "zh" | "en") => ({ escape: (value: unknown) => Strin
 const WS = { workspace_id: "ws-1", name: "项目" };
 const run = (diff: string) => ({ scope: "run-frozen" as const, run_id: "run-1", applied: false,
   files: [{ path: "a.ts", kind: "modified" as const, added_lines: 1, removed_lines: 1, diff }] });
-const shown = (locale: "zh" | "en", view: Parameters<typeof renderDiff>[0]["view"]) => renderDiff({ view, route_prefix: "", primitives: primitives(locale), sides: false });
+const shown = (locale: "zh" | "en", view: Parameters<typeof renderDiff>[0]["view"]) => renderDiff({ view, primitives: primitives(locale), sides: false });
 
 test("VUX-40: Diff's path, rename and unified-diff sentences read in English on the English page and are unchanged for an Agent", () => {
   const input = (diff: string) => ({ content: run(diff), source_plugin_id: "io.molis.work.coding", content_version: 1 });

@@ -1,3 +1,4 @@
+import { SchedulePluginRouteTable, SCHEDULE_NATIVE_PLUGIN_ROUTES } from "./schedule-direct-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -8,11 +9,10 @@ import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  MolisWorkLocalHost, molisWorkHostProjectReference, scheduledTaskReadiness, withConnectorConnections,
+  MolisWorkLocalHost, molisWorkHostProjectReference, withConnectorConnections,
 } from "@molis-ai/molis-work-app-local-host";
 import {
-  SCHEDULE_ACTION_PERMISSIONS, SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_NATIVE_PLUGIN_ROUTES, SchedulePluginRouteTable,
-  createScheduleRouteHandlers, scheduleActions as s, scheduleUiContribution,
+  SCHEDULE_ACTION_PERMISSIONS, SCHEDULE_CLIENT_FACTORY_SCRIPT, createScheduleRouteHandlers, scheduleActions as s, scheduleUiContribution,
   type ScheduleUiModel,
 } from "@molis-ai/molis-work-plugin-schedule";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -49,20 +49,9 @@ async function configureModel(home: string): Promise<void> {
   } finally { catalog.close(); }
 }
 
-test("the readiness probe answers whether a text model is configured and whether the project has a verified bound workspace", async () => withHome(async home => {
-  assert.deepEqual(await scheduledTaskReadiness({ homeDirectory: home, projectId: "p" }), { model: false, workspace: false }, "nothing set up");
-  assert.deepEqual(await scheduledTaskReadiness({ homeDirectory: home, projectId: "p", workspaceFor: () => verified }), { model: false, workspace: true });
-  assert.deepEqual(await scheduledTaskReadiness({ homeDirectory: home, projectId: "p", workspaceFor: async () => ({ ...verified, realpath_verified: false }) }),
-    { model: false, workspace: false }, "a directory that is not verified is refused by the runner, so it does not count");
-  assert.deepEqual(await scheduledTaskReadiness({ homeDirectory: home, projectId: "p", workspaceFor: () => null }), { model: false, workspace: false });
-  await configureModel(home);
-  assert.deepEqual(await scheduledTaskReadiness({ homeDirectory: home, projectId: "p", workspaceFor: async () => verified }), { model: true, workspace: true });
-  assert.deepEqual(await scheduledTaskReadiness({ projectId: "p", workspaceFor: () => verified }), { model: false, workspace: true }, "a Host without a Home has no model");
-}));
-
 test("the readiness action is a project query that reports what the Host reports, and the route maps to it", { timeout: 60_000 }, async () => withHome(async home => {
   let workspace: ProjectWorkspaceRef | null = null;
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspaceFor: () => workspace });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, workspaceFor: () => workspace });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: SCHEDULE_ACTION_PERMISSIONS };
   try {
@@ -79,13 +68,18 @@ test("the readiness action is a project query that reports what the Host reports
     const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ actions: bound, changed: () => undefined }));
     assert.ok(SCHEDULE_NATIVE_PLUGIN_ROUTES.some(route => route.route_id === "schedule.readiness" && route.method === "GET"));
     const get = (pathname: string) => routes.handle({ method: "GET", pathname, query: new URLSearchParams(), body: {} });
-    assert.deepEqual((await get("/api/schedule/readiness"))?.body, { model: false, workspace: false });
+    assert.deepEqual((await get("/api/plugins/io.molis.work.schedule/readiness"))?.body, { model: false, workspace: false });
     workspace = verified;
-    assert.deepEqual((await get("/api/schedule/readiness"))?.body, { model: false, workspace: true }, "read each time, so a model or folder added later shows up");
+    assert.deepEqual((await get("/api/plugins/io.molis.work.schedule/readiness"))?.body, { model: false, workspace: true }, "read each time, so a model or folder added later shows up");
+    workspace = { ...verified, realpath_verified: false };
+    assert.deepEqual(await bound.invoke(s.readiness, {}), { model: false, workspace: false }, "an unverified directory does not count");
+    workspace = verified;
+    await configureModel(home);
+    assert.deepEqual(await bound.invoke(s.readiness, {}), { model: true, workspace: true }, "the public model service reads settings saved after activation");
 
     // Missing both never stops a task from being made: the hint is advice, not a gate.
     workspace = null;
-    const created = await routes.handle({ method: "POST", pathname: "/api/schedule/tasks", query: new URLSearchParams(),
+    const created = await routes.handle({ method: "POST", pathname: "/api/plugins/io.molis.work.schedule/tasks", query: new URLSearchParams(),
       body: { title: "晨报", instructions: "汇总未读", time: "08:30" } });
     assert.equal(created?.status, 201);
     const listed = await bound.invoke(s.list, {});
@@ -99,7 +93,7 @@ test("a Host that gives no readiness check answers the way other missing host po
   const bound = directScheduleActions({ listJobs: () => [], setEnabled: unused, listTasks: () => [], recoverReminder: unused, createTask: unused, updateTask: unused,
     archiveTask: unused, setTaskEnabled: unused, openTask: unused });
   const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ actions: bound, changed: () => undefined }));
-  const answered = await routes.handle({ method: "GET", pathname: "/api/schedule/readiness", query: new URLSearchParams(), body: {} }).catch(actionErrorResponse);
+  const answered = await routes.handle({ method: "GET", pathname: "/api/plugins/io.molis.work.schedule/readiness", query: new URLSearchParams(), body: {} }).catch(actionErrorResponse);
   assert.deepEqual([answered?.status, (answered?.body as { code: string }).code], [503, "actions.unredeemed"]);
 });
 
@@ -138,7 +132,7 @@ test("each hint says where to fix it with a plain link: the model settings, and 
 });
 
 test("the client reads readiness when the dialog opens, and a failed read stays silent (the behaviour itself is in plugin-small-ux.e2e.test.ts)", () => {
-  assert.match(SCHEDULE_CLIENT_FACTORY_SCRIPT, /\/api\/schedule\/readiness[\s\S]{0,400}\.catch\(/);
+  assert.match(SCHEDULE_CLIENT_FACTORY_SCRIPT, /route\("\/readiness"\)[\s\S]{0,400}\.catch\(/);
 });
 
 // The dialog asks the Host each time it opens for a new task. The answer belongs to that opening: if the person has since closed the
@@ -183,7 +177,7 @@ async function scheduleDialog() {
   } });
   Object.defineProperty(globalThis, "sessionStorage", { value: { getItem: () => null, removeItem() {} }, configurable: true, writable: true });
   globalThis.fetch = (async (url: string) => {
-    assert.match(String(url), /\/api\/schedule\/readiness$/);
+    assert.match(String(url), /\/api\/plugins\/io\.molis\.work\.schedule\/readiness$/);
     return new Promise<Response>(resolve => {
       asked.push(async answer => { resolve(new Response(JSON.stringify(answer), { status: 200, headers: { "content-type": "application/json" } })); await flush(); });
     });

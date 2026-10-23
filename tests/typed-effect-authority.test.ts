@@ -29,7 +29,7 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
     // Hold the downstream Goals policy only after the actual originating execution's async check completed.
     // SDK discovery pins the consumed action too, but only the actual invoke has a dispatcher-issued call_id.
     if (held && originChecked && caller.call_id && view.capability_id === "goals.note"
-      && caller.allowed_actions?.some(reference => reference.capability_id === "goals.note")) {
+      && caller.audience === "plugin" && caller.host_plugin?.plugin_id === "io.molis.work.example.typed-authority") {
       entered.resolve(); await release.promise;
     }
     return { available: true };

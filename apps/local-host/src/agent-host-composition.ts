@@ -57,6 +57,8 @@ export interface AgentHostCompositionOptions {
 }
 
 export interface AgentHostComposition {
+  /** Resolves only this live installation's declarations and the project's verified workspaces. */
+  preparePlugin(caller: HostPluginCaller): Promise<{ authority: AgentStartAuthority; workspaces: readonly ProjectWorkspaceRef[] }>;
   readonly inference: PrologueInferenceClient;
   mcpLibrary(): Promise<AgentMcpLibrary | undefined>;
   refreshExternalMcp(owner: AgentSkillOwner): Promise<void>;
@@ -146,7 +148,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const reference = await options.projectReference(owner.project_id); await initialize();
     if (prologue?.mcpLibrary) await externalMcp.refresh(reference, "prologue", prologue.mcpLibrary, owner);
   };
-  return { agentHost, inference, createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
+  return { preparePlugin: caller => preparePluginAgent(options, caller), agentHost, inference, createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();
@@ -178,6 +180,18 @@ function keptWriteCheckers(prologue: { writeCheckers: AgentWriteCheckerStore } |
 /** The project's authorized workspaces, from the list when the Host keeps one, else the single one. */
 async function workspaceGrants(options: Pick<AgentHostCompositionOptions, "workspacesFor" | "workspaceFor">, projectId: string): Promise<readonly ProjectWorkspaceRef[]> {
   return options.workspacesFor ? await options.workspacesFor(projectId) : [await options.workspaceFor(projectId)].filter((item): item is ProjectWorkspaceRef => item !== null);
+}
+
+async function preparePluginAgent(options: AgentHostCompositionOptions, caller: HostPluginCaller) {
+  caller.assertActive();
+  if (!caller.project_id || !options.projectReference) throw new ActionError("actions.connection_required", "Agent 需要项目连接目录");
+  const reference = await options.projectReference(caller.project_id);
+  caller.assertActive();
+  const authority = await options.localHost.withProject(reference, runtime =>
+    startAuthority(runtime, caller.plugin_id, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller));
+  const workspaces = await workspaceGrants(options, caller.project_id);
+  caller.assertActive();
+  return { authority, workspaces };
 }
 
 async function startAuthority(

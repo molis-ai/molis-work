@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
@@ -16,17 +17,19 @@ const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "tex
 test("S1 W4-1 contextual Todo: real selection → made at once from what was selected → once per request → owner readback → undo only while unchanged", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
+  const child=await pluginFrameBrowser(t,browser,"pages");
   const { command, sessionId, navigate, evaluate, waitFor, origin, projectId, homeDirectory } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const pages = openPagesStore(homeDirectory);
   const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
-  const select = (index: number) => evaluate(`(() => {
+  await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
+  await evaluate("document.addEventListener('molis:surface-focus',event=>window.todoTestFocus=event.detail)");
+  const select = async (index: number) => { await child.evaluate(`(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[${index}].firstChild, range = document.createRange(); range.selectNodeContents(text);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
-  })()`);
+  })()`); await waitFor(`window.todoTestFocus?.targets?.[0]?.text === ${JSON.stringify(index === 0 ? FIRST : SECOND)}`); };
   const access = { actor: "user" as const, actorId: "web-user", projectId: projectId!, everything: true };
   const todos = () => { const owner = openTodoStore(homeDirectory); try { return owner.list(access); } finally { owner.close(); } };
   const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
@@ -52,7 +55,7 @@ test("S1 W4-1 contextual Todo: real selection → made at once from what was sel
   await waitFor("typeof window.releaseCreate === 'function'", 10_000);
   assert.equal((await evaluate<{ focus: { targets: { text: string }[] } }>("window.createAsked")).focus.targets[0]?.text, FIRST);
   await select(1);
-  assert.equal(await evaluate("getSelection().toString()"), SECOND);
+  assert.equal(await child.evaluate("getSelection().toString()"), SECOND);
   await evaluate("window.releaseCreate()");
   await waitFor(`Boolean(${CARD("已记成待办")})`, 10_000);
   assert.equal(await evaluate("window.created.length"), 1, "one request while the first was being made");
@@ -107,7 +110,7 @@ test("S1 W4-1 contextual Todo: real selection → made at once from what was sel
   await evaluate(`[...${CARD("已记成待办")}.querySelectorAll('button')].find(button => button.textContent === '撤销').click()`);
   await waitFor(`Boolean(${CARD("已撤销")})`, 10_000);
   assert.deepEqual(todos().map(todo => todo.title), ["改过的待办"]);
-  assert.equal(await evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), FIRST + SECOND, "the page is not written");
+  assert.equal(await child.evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), FIRST + SECOND, "the page is not written");
 
   // 打开: the todo it made opens in Todo.
   await select(1);
@@ -129,17 +132,19 @@ test("S1 W4-1 contextual Todo: real selection → made at once from what was sel
 test("S1 W4-1 a card whose run is refused writes nothing and can run again: Goals 拆成目标步骤 from a real selection, which moves while it is prepared", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
+  const child=await pluginFrameBrowser(t,browser,"pages");
   const { command, sessionId, navigate, evaluate, waitFor, click, origin, projectId, homeDirectory, store } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const pages = openPagesStore(homeDirectory);
   const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
-  const select = (index: number) => evaluate(`(() => {
+  await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
+  await evaluate("document.addEventListener('molis:surface-focus',event=>window.todoTestFocus=event.detail)");
+  const select = async (index: number) => { await child.evaluate(`(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[${index}].firstChild, range = document.createRange(); range.selectNodeContents(text);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
-  })()`);
+  })()`); await waitFor(`window.todoTestFocus?.targets?.[0]?.text === ${JSON.stringify(index === 0 ? FIRST : SECOND)}`); };
   await select(0);
   const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
   const WRITE = `[...document.querySelectorAll('${BAR} button,.mw-ctx-menu button')].find(button => !button.disabled && button.textContent.startsWith('拆成目标步骤'))`;
@@ -166,7 +171,7 @@ test("S1 W4-1 a card whose run is refused writes nothing and can run again: Goal
   const asked = await evaluate<{ focus: { targets: { text: string }[]; object: { id: string } } }>("window.draftAsked");
   assert.equal(asked.focus.targets[0]?.text, FIRST); assert.equal(asked.focus.object.id, page.id);
   await select(1);
-  assert.equal(await evaluate("getSelection().toString()"), SECOND);
+  assert.equal(await child.evaluate("getSelection().toString()"), SECOND);
   await evaluate("window.releaseDraft()");
   await waitFor("window.placedCard?.status === 200 && !document.querySelector('[data-assistant-panel]').hidden", 20_000);
   const placed = await evaluate<{ work_id: string; asked: { card: { materials: { text: string }[] } } }>("window.placedCard");
@@ -195,6 +200,6 @@ test("S1 W4-1 a card whose run is refused writes nothing and can run again: Goal
   await waitFor(`document.querySelector('[data-card="${card.card_id}"]')?.dataset.status === 'done'`, 20_000);
   assert.equal(proposals(), 1, "run again, it is written once");
   assert.ok(JSON.stringify(listed()).includes("联系阿杰确认秋季发布计划")); assert.equal(JSON.stringify(listed()).includes("小王"), false);
-  assert.equal(await evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), FIRST + SECOND);
+  assert.equal(await child.evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), FIRST + SECOND);
   await evaluate("window.fetch = window.cardFetch");
 });

@@ -190,7 +190,7 @@ export class PagesBlockMenu {
     };
     this.dom.append(
       ...this.moveItems(), this.modeItem("tone"), this.modeItem("turn"),
-      menuItem("copy", this.text("复制"), () => finish(duplicateSpan(grouped.anchor, grouped.head))),
+      menuItem("copy", this.text("创建副本"), () => finish(duplicateSpan(grouped.anchor, grouped.head))),
       menuItem("trash", this.text("删除"), () => finish(deleteSpan(grouped.anchor, grouped.head)), true),
     );
   }
@@ -198,7 +198,7 @@ export class PagesBlockMenu {
     this.appendTableActions();
     this.dom.append(
       this.modeItem("turn"), this.modeItem("tone"), ...this.moveItems(),
-      menuItem("copy", this.text("复制"), () => {
+      menuItem("copy", this.text("创建副本"), () => {
         runBlockCommand(this.view, duplicateRow(this.pos));
         this.close();
       }),
@@ -257,18 +257,16 @@ export class PagesBlockMenu {
     if (columnListAt >= 0) {
       this.dom.append(
         menuItem("columns", this.text("加一栏"), () => {
-          const tr = addColumn(this.view.state, columnListAt);
-          this.apply(tr);
+          this.apply(addColumn(this.view.state, columnListAt));
         }),
         menuItem("rows", this.text("取消分栏"), () => {
-          const tr = unwrapColumns(this.view.state, columnListAt);
-          this.apply(tr);
+          this.apply(unwrapColumns(this.view.state, columnListAt));
         }),
       );
     }
     this.dom.append(
       this.modeItem("turn"), this.modeItem("tone"),
-      menuItem("copy", this.text("复制"), () => {
+      menuItem("copy", this.text("创建副本"), () => {
         runBlockCommand(this.view, duplicateBlock(block));
         this.close();
       }),

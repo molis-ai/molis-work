@@ -7,7 +7,7 @@ import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
-import { scheduleCapabilities } from "@molis-ai/molis-work-contracts/services/scheduler";
+import { agentHostCapabilities as service } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PluginCapabilityClient, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
@@ -33,7 +33,7 @@ async function scheduleSdk(t: Parameters<typeof openTestHome>[0], home: TestHome
 
 function object(value: unknown) { assert.ok(isCrossEntryObject(value), JSON.stringify(value)); return value; }
 async function page(home: TestHome, path: string, input: unknown) {
-  const response = await fetch(home.origin + path, { method: "POST", headers: { origin: home.origin, "content-type": "application/json",
+  const response = await fetch(home.origin + path.replace("/list/tasks", "/tasks"), { method: "POST", headers: { origin: home.origin, "content-type": "application/json",
     "x-molis-work-control-token": home.controlToken, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(input) });
   const body: unknown = await response.json();
   return { status: response.status, body: object(body), callId: response.headers.get("x-molis-work-call-id") };
@@ -112,7 +112,7 @@ test("W3-09-1-01 T4: the actual typed service records refusals, requires its ori
   const definition: PluginDefinition = {
     manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.cross-entry-service", version: "1.0.0", name: "Typed service fixture", kind: "app",
       publisher: { publisher_id: "fixture", signature: "typed-service-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
-      permissions: [], capabilities: { provides: [], consumes: [scheduleCapabilities.cancel.capability_id, scheduleCapabilities.list.capability_id] },
+      permissions: [], capabilities: { provides: [], consumes: [service.createSession.capability_id, service.listRuntimes.capability_id] },
       artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
     async start(context) { client = context.services?.capabilities; return { kind: "app", views: [], actions: [] }; }, async stop() {},
   };
@@ -122,17 +122,18 @@ test("W3-09-1-01 T4: the actual typed service records refusals, requires its ori
   assert.ok(client, "the production executor opened the fixture's declared service port");
   const changed = t.mock.method(home.host.search!, "changed");
   const directId = newCallId();
-  await withCallId(directId, () => assert.rejects(home.host.client(project.reference).invoke(scheduleCapabilities.cancel, { job_id: "missing" }),
-    { code: "scheduler.job_invalid", message: "插件身份无效" }));
-  const direct = row(home, directId, scheduleCapabilities.cancel.capability_id);
-  assert.deepEqual([direct.path, direct.actor_id, direct.ok, direct.code], ["typed", "local-host", false, "scheduler.job_invalid"]);
+  const forged = ["prologue", { project_id: "foreign", plugin_id: "io.molis.work.other", install_id: "foreign", actor_id: "foreign", title: "refused" }] as never;
+  await withCallId(directId, () => assert.rejects(home.host.client(project.reference).invoke(service.createSession, forged),
+    { code: "agent.session_unknown" }));
+  const direct = row(home, directId, service.createSession.capability_id);
+  assert.deepEqual([direct.path, direct.actor_id, direct.ok, direct.code], ["typed", "local-host", false, "agent.session_unknown"]);
   const native = client, missingId = newCallId();
-  await withCallId(missingId, () => assert.rejects(native.invoke(scheduleCapabilities.cancel, { job_id: "missing" }),
-    { code: "scheduler.job_not_found", message: "定时任务不存在" }));
-  const missing = row(home, missingId, scheduleCapabilities.cancel.capability_id);
-  assert.deepEqual([missing.path, missing.ok, missing.code], ["typed", false, "scheduler.job_not_found"]);
+  await withCallId(missingId, () => assert.rejects(native.invoke(service.createSession, forged),
+    { code: "agent.session_unknown" }));
+  const missing = row(home, missingId, service.createSession.capability_id);
+  assert.deepEqual([missing.path, missing.ok, missing.code], ["typed", false, "agent.session_unknown"]);
   const readId = newCallId();
-  assert.deepEqual(await withCallId(readId, () => native.invoke(scheduleCapabilities.list, {})), { jobs: [] });
+  assert.ok(Array.isArray(await withCallId(readId, () => native.invoke(service.listRuntimes, []))));
   assert.deepEqual(home.host.callLog!.find(readId), [], "a successful typed query is not a platform command");
   assert.equal(changed.mock.calls.length, 0, "the typed service creates no plugin owner-change signal");
 });
@@ -195,7 +196,7 @@ test("W3-09-1-01 T5: a real Shelf page caller retains the operation id on schema
   assert.deepEqual(await home.web.get(path), before, "invalid material creates no Shelf item or job");
 });
 
-test("W3-09-1-01 T6: a disabled ordinary plugin returns the same 403 refusal through its page and actual Host gateway, with findable rows and no owner write", { timeout: 60_000 }, async t => {
+test("W3-09-1-01 T6: a stopped Runtime withdraws its actions and rejects page and saved gateway access without owner writes", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), project = await home.createProject("Disabled cross entry", ["schedule"]);
   await home.grant(clientId, project.project_id, [subject.create, subject.list]);
   const path = subject.path(project.project_id), before = await home.web.get(path);
@@ -204,40 +205,35 @@ test("W3-09-1-01 T6: a disabled ordinary plugin returns the same 403 refusal thr
   const input = subject.input("停用后不得新建", "23:00");
   const refusedPage = await page(home, path + "/tasks", input);
   assert.equal(refusedPage.status, 403); assert.equal(refusedPage.body.code, "actions.plugin_disabled");
-  assert.equal(refusedPage.callId, refusedPage.body.call_id); assert.ok(typeof refusedPage.body.error === "string");
+  assert.equal(refusedPage.callId, null); assert.equal(refusedPage.body.call_id, undefined, "the page is rejected before entering an action");
+  assert.ok(typeof refusedPage.body.error === "string");
   const gatewayId = newCallId();
   await withCallId(gatewayId, () => assert.rejects(connection.client.invoke(connection.caller, subject.create, input),
-    { code: "actions.plugin_disabled", message: refusedPage.body.error }));
+    { code: "actions.missing" }));
   const typedId = newCallId();
   await withCallId(typedId, () => assert.rejects(home.host.client(project.reference).invoke(subject.create, input),
-    { code: "actions.forbidden" }));
-  assert.equal(row(home, typedId, subject.create.capability_id).code, "actions.forbidden");
-  for (const id of [refusedPage.callId, gatewayId]) {
-    const record = row(home, id, subject.create.capability_id);
-    assert.deepEqual([record.ok, record.code, record.refused], [false, "actions.plugin_disabled", true]);
-    const diagnostics = await fetch(home.origin + "/settings/diagnostics?call=" + String(id).slice(0, 8));
-    assert.equal(diagnostics.status, 200);
-    const html = await diagnostics.text();
-    assert.ok(html.includes(`data-molis-call-id="${id}"`), "the real diagnostics page offers the actual operation number for copying");
-    assert.match(html, /actions\.plugin_disabled/u); assert.match(html, /未执行/u);
-  }
+    { code: "actions.dependency_missing" }));
+  assert.equal(row(home, typedId, subject.create.capability_id).code, "actions.dependency_missing");
+  const diagnostics = await fetch(home.origin + "/settings/diagnostics?call=" + typedId.slice(0, 8));
+  assert.equal(diagnostics.status, 200);
+  const html = await diagnostics.text();
+  assert.ok(html.includes(`data-molis-call-id="${typedId}"`));
+  assert.match(html, /actions\.dependency_missing/u); assert.match(html, /未执行/u);
   await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
   assert.deepEqual(await home.web.get(path), before, "reenabling exposes the unchanged owner's task facts");
 });
 
-test("W3-09-2-01: a real MCP tool hidden after plugin disable still reaches the Host under its exact saved grant and records one refusal", { timeout: 60_000 }, async t => {
+test("W3-09-2-01: a stopped Runtime removes the MCP tool even with a saved grant; reenabling preserves owner facts and revocation still applies", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), project = await home.createProject("Named unavailable action", ["schedule"]);
   await home.grant(clientId, project.project_id, [subject.create, subject.list]);
   const path = subject.path(project.project_id), before = await home.web.get(path);
   const mcp = mcpFor(home, project); t.after(() => mcp.close());
   await home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
   const input = subject.input("隐藏能力不得写入", "23:00"), fromMcp = await mcpCall(mcp, subject.create.capability_id, input, false);
-  assert.equal(fromMcp.result.isError, true); assert.equal(fromMcp.body.code, "actions.plugin_disabled");
+  assert.equal(fromMcp.result.isError, true); assert.equal(fromMcp.body.code, "mcp.tool_unknown");
   assert.ok(typeof fromMcp.body.error === "string");
-  const record = row(home, fromMcp.body.call_id, subject.create.capability_id);
-  assert.deepEqual([record.ok, record.code, record.refused, record.actor_id, record.audience, record.project_id],
-    [false, "actions.plugin_disabled", true, clientId, "mcp", project.project_id]);
-  assert.equal(home.host.callLog!.find(String(fromMcp.body.call_id)).length, 1, "the named tool does not create a second diagnostic or typed row");
+  assert.equal(fromMcp.body.call_id, undefined, "an unregistered tool never starts a platform invocation");
+  assert.equal(home.host.callLog!.recent(100).filter(row => row.capability_id === subject.create.capability_id).length, 0);
   const ungranted = await mcp.handleMessage({ jsonrpc: "2.0", id: 3, method: "tools/call", params: {
     name: `molis_work_v1_action_${subject.archive.capability_id}__v1`, arguments: { task_id: "missing" } } });
   assert.match(JSON.stringify(ungranted), /mcp\.tool_unknown/u);
@@ -249,7 +245,7 @@ test("W3-09-2-01: a real MCP tool hidden after plugin disable still reaches the 
     name: `molis_work_v1_action_${subject.create.capability_id}__v1`, arguments: input } });
   // Removing the saved grant makes this dynamic tool unknown; no second Host row is made.
   assert.match(JSON.stringify(denied), /mcp\.tool_unknown/u);
-  assert.equal(home.host.callLog!.recent(100).filter(row => row.capability_id === subject.create.capability_id).length, 1, "revoked authority does not enter the Host a second time");
+  assert.equal(home.host.callLog!.recent(100).filter(row => row.capability_id === subject.create.capability_id).length, 0, "revoked authority never enters the Host");
 });
 
 test("W3-09-3-01/02: actual Home Todo MCP writes require complete read revisions while the person's page keeps its contract", { timeout: 60_000 }, async t => {

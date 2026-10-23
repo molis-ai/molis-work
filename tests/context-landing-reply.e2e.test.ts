@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
@@ -23,13 +24,14 @@ test("BL-150 AC-S15: a passage selected in an Assistant reply is put at the curs
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const child=await pluginFrameBrowser(t,browser,"pages");
   const store = openPagesStore(homeDirectory);
   const left = store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
   store.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "document.addEventListener('molis:surface-landing', (event) => { window.lastLanding = event.detail; }); document.addEventListener('molis:surface-focus', (event) => { window.lastFocus = event.detail; });" }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${left.id}` }, sessionId));
-  await waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
+  await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
 
   // A work whose reply has the words to put on the left.
   await issueModel(t, homeDirectory, { replyText: "用户说：离线也要能记下想法。" });
@@ -57,14 +59,14 @@ test("BL-150 AC-S15: a passage selected in an Assistant reply is put at the curs
   assert.equal(`t:${turnId}`, first.entry, "the turn id the Host gave the reply");
   assert.equal(first.object.title, first.title, "the work's title, as the Assistant has it");
   await navigate(() => command("Page.reload", {}, sessionId));
-  await waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
+  await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
   // A reload leaves the panel closed: the person opens the work again, and the reply is there to select.
   await evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { work_id: ${JSON.stringify(workId)} } }))`);
   await waitFor(`${reply}?.checkVisibility() === true`, 15_000);
   assert.equal((await named()).object.id, first.object.id, "the same reply has the same id after a reload");
 
   // The person leaves the cursor in the document on the left: that is where it lands.
-  await evaluate(`(() => {
+  await child.evaluate(`(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = [...editor.querySelectorAll('p')].find(node => node.textContent === '先完成核心体验。').firstChild;
     const range = document.createRange(); range.setStart(text, 3); range.collapse(true);
@@ -89,10 +91,10 @@ test("BL-150 AC-S15: a passage selected in an Assistant reply is put at the curs
   await evaluate(`[...document.querySelectorAll(${JSON.stringify(attach)})].find(node => node.textContent.includes('插入到光标处')).click()`);
 
   // The preview stands at the landing, in Pages; nothing is written before the person confirms.
-  await waitFor("document.querySelector('.pages-landing-preview')?.textContent === '离线也要能记下想法'", 10_000);
-  assert.equal(await evaluate<string>(editorText), "先完成核心体验。再安排发布。", "the document is unchanged under the preview");
-  await evaluate(`[...document.querySelectorAll('.pages-pop .mw-btn--primary')].find(node => node.textContent === '放进去').click()`);
-  await waitFor(`${editorText} === '先完成离线也要能记下想法核心体验。再安排发布。'`, 10_000);
+  await child.waitFor("document.querySelector('.pages-landing-preview')?.textContent === '离线也要能记下想法'", 10_000);
+  assert.equal(await child.evaluate<string>(editorText), "先完成核心体验。再安排发布。", "the document is unchanged under the preview");
+  await child.evaluate(`[...document.querySelectorAll('.pages-pop .mw-btn--primary')].find(node => node.textContent === '放进去').click()`);
+  await child.waitFor(`${editorText} === '先完成离线也要能记下想法核心体验。再安排发布。'`, 10_000);
   const saved = openPagesStore(homeDirectory);
   try { assert.match(JSON.stringify(saved.get(left.id, projectId!).body), /先完成离线也要能记下想法核心体验。/u); } finally { saved.close(); }
 });

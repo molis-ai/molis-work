@@ -68,7 +68,7 @@ test("W4-10-01 QA-022 a real Todo reminder that came due is in the Home page's a
 // QA-022: a delivery the market holds for the person is counted exactly; a cursor that has caught up is not.
 test("W4-10-01 QA-022 a project page's attention read counts exactly the plugin deliveries waiting on the person", async t => {
   const home = await openTestHome(t);
-  const project = await home.createProject("Attention");
+  const project = await home.createProject("Attention", ["coding", "files"]);
   const base = `/projects/${encodeURIComponent(project.project_id)}`;
   assert.equal((await home.web.get<Attention>(`${base}/api/attention`)).plugin_events_pending, 0, "nothing waits in a new project");
   // As a Host crash leaves it (tests/plugin-event-recovery.e2e.test.ts), through the owner's repository on the project's database:

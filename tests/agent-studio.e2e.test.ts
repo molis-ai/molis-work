@@ -1,3 +1,5 @@
+import { framedStudioPage, studioFrameAsset, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
+import { pluginPagesFor } from "@molis-ai/molis-work-app-local-host";
 import { VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
 import { createWorkbenchLocale } from '@molis-ai/molis-work-app-workbench';
 import assert from 'node:assert/strict';
@@ -16,7 +18,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { openStudioChrome } from './fixtures/plugin-builder-browser.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
-import { STUDIO_HARNESS_PATH, studioHarnessPage } from '../scripts/agent-studio-harness.mjs';
+import { STUDIO_HARNESS_PATH } from '../scripts/agent-studio-harness.mjs';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { handleAgentStudioHttp, installedPluginStages, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
@@ -34,22 +36,23 @@ test('studio: a request becomes a working, published plugin that the person can 
   const databasePath = join(home, 'project.db'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0); let modelDelay = 0;
-  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, ...fixture,
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture,
     generate: async (pluginId: string, input: { prompt?: string; instructions?: string; input: string }) => { await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
   let liveSubscriptions = 0, subscriptions = 0;
   const server: Server = createServer((request, response) => {
     if (request.url?.endsWith("/events")) { liveSubscriptions++; subscriptions++; response.on("close", () => { liveSubscriptions--; }); }
     const url = new URL(request.url ?? '/', 'http://localhost') /* as the product server does: no port in the base */;
+    if (studioFrameAsset(response, url.pathname)) return;
     if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
     // The studio as the workbench mounts it in its stage (scripts/agent-studio-harness.mts): it has no page of its own.
-    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); response.end(studioHarnessPage(token)); return; }
+    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); response.end(isolatedStudioHarness(home, DEMO_PROJECT_ID, token)); return; }
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
-    void handleAgentStudioHttp(request, response, url, options, token).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); });
+    void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, token); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
   try {
-    const page = await browser.page();
+    const page = await framedStudioPage(t, browser, await browser.page());
     await page.viewport(1440, 900);
     await page.command('Page.enable');
     // The studio is drawn in the workbench's stage (specs/artifact-positioning S4): it has no page of its own, framed or not.
@@ -61,6 +64,8 @@ test('studio: a request becomes a working, published plugin that the person can 
     await page.wait(`[...document.querySelectorAll('[data-as-model] option')].some(o=>o.value.startsWith('fixture'))`);
     // The models and the canvas load separately; wait for the canvas's own empty state instead of reading it at once.
     await page.wait(`/这里会出现你的插件/.test(document.querySelector('[data-as-empty]')?.innerText || '')`);
+    // SYS-15: plugin code cannot read the host DOM or its control credential.
+    assert.deepEqual(await page.evaluate(`(()=>{let parentDenied=false;try{void parent.document.body}catch{parentDenied=true}return {parentDenied,token:document.querySelector('meta[name=molis-work-control-token]')?.content??null,ipc:typeof globalThis.__TAURI__};})()`), {parentDenied:true,token:null,ipc:'undefined'});
     assert.equal(await page.evaluate('Math.round(document.querySelector(".as-shell").getBoundingClientRect().top)'), 0, 'nothing pushes the studio down (e.g. an unstyled icon sprite)');
 
     // Choose the model the build will use, then describe the plugin.
@@ -125,11 +130,11 @@ test('studio: a request becomes a working, published plugin that the person can 
 
     // A visual revision uses a separate acceptance namespace and keeps the person's trial records.
     const visualBuildId = await page.evaluate<string>('document.querySelector("[data-as-builds]").value');
-    const beforeVisual = await (await fetch(origin + '/api/plugin-builder/studio/builds/' + visualBuildId)).json() as { build: { runs: Array<{ role: string }> } };
-    await page.evaluate(`(async()=>{const r=await fetch('/api/plugin-builder/studio/builds/'+${JSON.stringify(visualBuildId)}+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:'visual',message:'收紧间距，保留完整内容'})});if(!r.ok)throw Error(await r.text())})()`);
+    const beforeVisual = await (await fetch(origin + '/projects/' + DEMO_PROJECT_ID + '/api/plugin-builder/studio/builds/' + visualBuildId)).json() as { build: { runs: Array<{ role: string }> } };
+    await page.evaluate(`(async()=>{const r=await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+${JSON.stringify(visualBuildId)}+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:'visual',message:'收紧间距，保留完整内容'})});if(!r.ok)throw Error(await r.text())})()`);
     await page.wait(`document.querySelector('[data-as-phase]').dataset.phase==='ready'&&!!document.querySelector('[data-pc-open="editor"]')`);
     await page.wait(`document.querySelector('[data-component-id="notes"] .pc-output').innerText.includes('间隔复习比集中复习记得更久')`);
-    const afterVisual = await (await fetch(origin + '/api/plugin-builder/studio/builds/' + visualBuildId)).json() as typeof beforeVisual;
+    const afterVisual = await (await fetch(origin + '/projects/' + DEMO_PROJECT_ID + '/api/plugin-builder/studio/builds/' + visualBuildId)).json() as typeof beforeVisual;
     assert.equal(afterVisual.build.runs.filter(run => run.role === 'coder').length, beforeVisual.build.runs.filter(run => run.role === 'coder').length);
     await page.click('[data-as-compare]');
     await page.wait(`document.querySelector('[data-as-plugin]').inert&&!document.querySelector('[data-pc-open="editor"]')`);
@@ -157,10 +162,13 @@ test('studio: a request becomes a working, published plugin that the person can 
     assert.match(stages[0]!.stage, new RegExp('data-work-surface="' + stages[0]!.surface + '"[^>]*hidden><iframe src="' + pluginHref.replaceAll('.', '\\.') + '\\?frame=workbench"'));
     // Its address opened directly (a link in a notice, say) opens the workbench on that plugin's stage, not a page of its own.
     const directPlugin = await fetch(origin + pluginHref, { redirect: 'manual' });
-    assert.equal(directPlugin.status, 302); assert.equal(directPlugin.headers.get('location'), '/?openSurface=' + encodeURIComponent(stages[0]!.surface)); await directPlugin.text();
-    const installedPage = await browser.page();
+    assert.equal(directPlugin.status, 302); assert.equal(directPlugin.headers.get('location'), options.routePrefix + '/?openSurface=' + encodeURIComponent(stages[0]!.surface)); await directPlugin.text();
+    const installedPage = await framedStudioPage(t, browser, await browser.page());
     await installedPage.command('Page.enable');
     await installedPage.command('Page.navigate', { url: origin + pluginHref + '?frame=workbench' });
+    await installedPage.wait('globalThis.__molisPluginReady===true');
+    // SYS-15: a generated plugin is equally isolated and cannot call the authoring or another plugin API.
+    assert.deepEqual(await installedPage.evaluate(`(async()=>{let parentDenied=false;try{void parent.document.body}catch{parentDenied=true}const denied=[];for(const path of ['/api/plugin-builder/studio/state','/api/plugins/io.molis.work.schedule/tasks']){try{const r=await fetch('${options.routePrefix}'+path);denied.push(r.status)}catch{denied.push(403)}}return {parentDenied,token:document.querySelector('meta[name=molis-work-control-token]')?.content??null,denied};})()`), {parentDenied:true,token:null,denied:[403,403]});
     assert.equal(await installedPage.evaluate(`Boolean(document.querySelector('.as-installed-bar, a[href*="/plugin-builder/studio"]'))`), false, 'the frame shows only the plugin: no own header or link back');
     await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('还没有笔记')`);
     await installedPage.click('[data-pc-open="editor"]');
@@ -190,11 +198,11 @@ test('studio: a request becomes a working, published plugin that the person can 
     assert.match(await installedPage.evaluate<string>(`document.querySelector('[data-component-id="notes"] .pc-output').innerText`), /正式使用的第一条/);
 
     // Publish the preceding presentation as v2, upgrade, then roll back to the exact v1 layout without losing data.
-    await page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)};const act=async(action,extra={})=>{const {build}=await(await fetch('/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action,revision:build.revision,...extra})});if(!r.ok)throw Error(await r.text())};await act('undo');await act('publish');await act('upgrade',{version:2,grants:{consent:true}})})()`);
+    await page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)};const act=async(action,extra={})=>{const {build}=await(await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action,revision:build.revision,...extra})});if(!r.ok)throw Error(await r.text())};await act('undo');await act('publish');await act('upgrade',{version:2,grants:{consent:true}})})()`);
     await installedPage.command('Page.reload');
     await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
     assert.equal(await installedPage.evaluate(`!!document.querySelector('[data-pc-open="editor"]')`), false, 'v2 uses the preceding inline form');
-    await page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)},{build}=await(await fetch('/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:'rollback',revision:build.revision,version:1})});if(!r.ok)throw Error(await r.text())})()`);
+    await page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)},{build}=await(await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:'rollback',revision:build.revision,version:1})});if(!r.ok)throw Error(await r.text())})()`);
     await installedPage.command('Page.reload');
     await installedPage.wait(`globalThis.__molisPluginReady===true&&!!document.querySelector('[data-pc-open="editor"]')&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
 
@@ -202,10 +210,10 @@ test('studio: a request becomes a working, published plugin that the person can 
     // The open plugin is the one chosen in the studio's own picker (in the workbench the address does not name it).
     const buildId = await page.evaluate<string>(`document.querySelector('[data-as-builds]').value`);
     assert.match(buildId, /^[a-f0-9-]{36}$/);
-    const standalone = await browser.page();
+    const standalone = await framedStudioPage(t, browser, await browser.page());
     await standalone.command('Page.enable');
     const directPreview = await fetch(origin + '/plugin-builder/studio/preview/' + buildId, { redirect: 'manual' });
-    assert.equal(directPreview.status, 302); assert.equal(directPreview.headers.get('location'), '/?openPlugin=plugin-builder'); await directPreview.text();
+    assert.equal(directPreview.status, 302); assert.equal(directPreview.headers.get('location'), options.routePrefix + '/?openPlugin=plugin-builder'); await directPreview.text();
     await standalone.command('Page.navigate', { url: origin + '/plugin-builder/studio/preview/' + buildId + '?frame=workbench' });
     await standalone.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('间隔复习比集中复习记得更久')`);
 
@@ -220,7 +228,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     await page.wait(`document.querySelector('[data-as-uninstall]')`);
 
     // A switched-off install takes the next version without being switched on, and is switched on when the person says so.
-    const lifecycle = (action: string, version: number) => page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)},{build}=await(await fetch('/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:${JSON.stringify(action)},revision:build.revision,version:${version},grants:{consent:true}})});if(!r.ok)throw Error(await r.text())})()`);
+    const lifecycle = (action: string, version: number) => page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)},{build}=await(await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:${JSON.stringify(action)},revision:build.revision,version:${version},grants:{consent:true}})});if(!r.ok)throw Error(await r.text())})()`);
     await lifecycle('disable', 1);
     await page.command('Page.reload');
     await page.wait(`document.querySelector('[data-as-upgrade]')`);
@@ -288,6 +296,7 @@ test('studio: a request becomes a working, published plugin that the person can 
   } catch (error) {
     const state = await (await fetch(origin + '/api/plugin-builder/studio/state')).json() as { builds: any[] };
     t.diagnostic(JSON.stringify(state.builds.map(b => ({phase:b.phase,error:b.error,steps:b.steps.slice(-3),browser:b.browserResult}))));
+
     throw error;
   } finally {
     await browser.close();
@@ -310,17 +319,18 @@ test('studio in English: its controls, labels, phases and boards are English', {
   const databasePath = join(home, 'project.db'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0);
-  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, ...fixture };
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture };
   const locale = createWorkbenchLocale(() => 'en');
   const server: Server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
+    if (studioFrameAsset(response, url.pathname)) return;
     if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
     if (url.pathname === STUDIO_HARNESS_PATH) {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-      response.end(studioHarnessPage(token, { lang: 'en', translate: locale.L, clientScript: locale.clientI18nScript() })); return;
+      response.end(isolatedStudioHarness(home, DEMO_PROJECT_ID, token, { lang: 'en', translate: locale.L, clientScript: locale.clientI18nScript() })); return;
     }
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
-    void handleAgentStudioHttp(request, response, url, options, token).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); });
+    void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, token); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
@@ -332,7 +342,7 @@ test('studio in English: its controls, labels, phases and boards are English', {
     const walker=document.createTreeWalker(shell,NodeFilter.SHOW_TEXT);for(let n;n=walker.nextNode();){if(n.parentElement.closest('${DATA},[hidden]'))continue;if(HAN.test(n.textContent))found.push('text:'+n.textContent.trim()+' <'+n.parentElement.tagName+'.'+n.parentElement.className+'>');}
     return found;})()`;
   try {
-    const page = await browser.page();
+    const page = await framedStudioPage(t, browser, await browser.page());
     await page.viewport(1440, 900);
     await page.command('Page.enable');
     await page.command('Page.navigate', { url: origin + STUDIO_HARNESS_PATH });
@@ -425,7 +435,7 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
     }) });
   });
   const file = join(home, 'project.db'); seedDemoBoard(file); const store = new LocalProjectDatabase(file), token = randomUUID(), mutations = new Map<string, LocalMutationState>();
-  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, ...agentStudioFixture(0) }, installed = await ensureInstalledPlugins(options);
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...agentStudioFixture(0) }, installed = await ensureInstalledPlugins(options);
   const build = installed.releases.create('Network upgrade fixture'), pluginId = 'io.molis.work.generated.' + build.id;
   // A design always has at least one page (agent-experience refuses one without); the studio canvas draws from the first.
   const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [{ id: 'main', title: '天气', regions: [{ id: 'main', title: '天气', operationIds: ['fetch'] }] }], acceptance: [], operations: [
@@ -440,14 +450,15 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
   installed.releases.release(next); installed.releases.update(build.id, build.revision, value => { value.phase = 'ready'; value.design = next.design; value.connected = ['fetch']; });
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
+    if (studioFrameAsset(response, url.pathname)) return;
     if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
-    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html' }); response.end(studioHarnessPage(token)); return; }
+    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html' }); response.end(isolatedStudioHarness(home, DEMO_PROJECT_ID, token)); return; }
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
-    void handleAgentStudioHttp(request, response, url, options, token).then(handled => { if (!handled) sendLocalWebJson(response, 404, {}); });
+    void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, token); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, {}); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve)); const address = server.address(); assert.ok(address && typeof address === 'object');
   t.after(async () => { await browser.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await releaseAgentStudio(store, DEMO_PROJECT_ID); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); tlsServer.closeAllConnections(); await new Promise<void>(resolve => tlsServer.close(() => resolve())); transport.mock.restore(); dnsMock.mock.restore(); syncBuiltinESMExports(); await rm(home, { recursive: true, force: true }); });
-  const page = await browser.page(); await page.command('Page.navigate', { url: `http://127.0.0.1:${address.port}` + STUDIO_HARNESS_PATH });
+  const page = await framedStudioPage(t, browser, await browser.page()); await page.command('Page.navigate', { url: `http://127.0.0.1:${address.port}` + STUDIO_HARNESS_PATH });
   await page.wait(`document.querySelector('[data-as-builds] option[value="${build.id}"]')`);
   await page.evaluate(`(()=>{const select=document.querySelector('[data-as-builds]');select.value=${JSON.stringify(build.id)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await page.wait(`document.querySelector('[data-as-upgrade="2"]')`); await page.click('[data-as-upgrade="2"]');

@@ -781,23 +781,23 @@ test("VUX the current one-time allowance is bounded and spent once; other assets
   }
 });
 
-// The user approved one new asset on 2026-10-19, the 项目资料 browser code, at its measured size. No other asset may be added,
+// The user approved one new asset on 2026-10-22, the isolated plugin frame client, at its measured size. No other asset may be added,
 // it may not come in a byte larger, and once budgeted it only falls.
-test("PMAT the approved knowledge asset may be added once at its measured size; no other new asset, no growth after", () => {
-  const asset = "/assets/molis-work-knowledge.js";
-  branch("knowledge-base", () => { putBudget(sizes); });
-  git("checkout", "-q", "-B", "knowledge-change");
-  (sizes as Record<string, number>)[asset] = 26362;
-  assert.equal(gate("--update", "--base", "knowledge-base").code, 1, "a byte over the approved size");
-  (sizes as Record<string, number>)[asset] = 26361;
-  assert.equal(gate("--update", "--base", "knowledge-base").code, 0);
-  assert.equal(gate("--base", "knowledge-base").code, 0);
+test("SYS-15 the approved plugin frame asset may be added once at its measured size; no other new asset, no growth after", () => {
+  const asset = "/assets/molis-work-plugin-frame.js";
+  branch("plugin-frame-base", () => { putBudget(sizes); });
+  git("checkout", "-q", "-B", "plugin-frame-change");
+  (sizes as Record<string, number>)[asset] = 187121;
+  assert.equal(gate("--update", "--base", "plugin-frame-base").code, 1, "a byte over the approved size");
+  (sizes as Record<string, number>)[asset] = 187120;
+  assert.equal(gate("--update", "--base", "plugin-frame-base").code, 0);
+  assert.equal(gate("--base", "plugin-frame-base").code, 0);
   (sizes as Record<string, number>)["/assets/molis-work-other.js"] = 10;
-  assert.equal(gate("--update", "--base", "knowledge-base").code, 1, "no other asset may be added");
+  assert.equal(gate("--update", "--base", "plugin-frame-base").code, 1, "no other asset may be added");
   delete (sizes as Record<string, number>)["/assets/molis-work-other.js"];
-  assert.equal(gate("--update", "--base", "knowledge-base").code, 0);
-  commit("budget the approved knowledge asset"); git("branch", "-f", "knowledge-frozen");
-  (sizes as Record<string, number>)[asset] = 26361 + 1; putBudget(sizes);
-  assert.equal(gate("--base", "knowledge-frozen").code, 1, "once budgeted it only falls");
-  assert.equal(gate("--update", "--base", "knowledge-frozen").code, 1);
+  assert.equal(gate("--update", "--base", "plugin-frame-base").code, 0);
+  commit("budget the approved plugin frame asset"); git("branch", "-f", "plugin-frame-frozen");
+  (sizes as Record<string, number>)[asset] = 187120 + 1; putBudget(sizes);
+  assert.equal(gate("--base", "plugin-frame-frozen").code, 1, "once budgeted it only falls");
+  assert.equal(gate("--update", "--base", "plugin-frame-frozen").code, 1);
 });

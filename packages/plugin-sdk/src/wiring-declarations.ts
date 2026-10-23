@@ -1,5 +1,5 @@
 import {
-  eventTypeKey, isHostEventType, isReservedEventType, isValidEventTypeId, isValidEventTypeVersion, ownsEventType,
+  eventTypeKey, hostEventType, isReservedEventType, isValidEventTypeId, isValidEventTypeVersion, ownsEventType,
   type PluginEventsDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import { isValidPortName, type PluginPortsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-wiring";
@@ -93,6 +93,7 @@ export function inspectPortDeclarations(ports: PluginPortsDeclaration | undefine
 export function inspectEventDeclarations(
   pluginId: string,
   events: PluginEventsDeclaration | undefined,
+  declaredPermissions: ReadonlySet<string>,
 ): string[] {
   if (!events) return [];
   const problems: string[] = [];
@@ -136,8 +137,15 @@ export function inspectEventDeclarations(
       problems.push(`订阅宿主事件 ${item.event_type_id} 不写来源插件：它只由宿主发出`);
       continue;
     }
-    if (host && !isHostEventType(item.event_type_id, item.type_version)) {
+    const hostType = host ? hostEventType(item.event_type_id, item.type_version) : undefined;
+    if (host && !hostType) {
       problems.push(`宿主没有事件 ${eventTypeKey(item.event_type_id, item.type_version)}`);
+      continue;
+    }
+    // A broadcast goes to every subscriber that holds its permission (S-54), so the author declares it up front; the Host still
+    // checks the grant at delivery.
+    if (hostType?.permission && !declaredPermissions.has(hostType.permission)) {
+      problems.push(`订阅宿主事件 ${eventTypeKey(item.event_type_id, item.type_version)} 要声明权限 ${hostType.permission}`);
       continue;
     }
     if (!host && (!Array.isArray(item.from_plugin_ids) || item.from_plugin_ids.length === 0)) {

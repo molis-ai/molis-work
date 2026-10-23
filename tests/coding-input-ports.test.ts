@@ -20,6 +20,7 @@ import { codingSdkRuntime } from "./fixtures/coding-sdk-runtime.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { fakeGoalDirectory } from "./fixtures/plugin-actions.js";
+import { deferred } from "./fixtures/home-runtime.js";
 
 // Coding reads what it used to be handed by the Host through the platform instead (W5-01 C2; specs/coding-plugin §4 H): the models
 // from `services.model` (PG-047, V-13), the Goal titles from Goals' public read action (PG-091), the Characters from Characters' two
@@ -101,8 +102,16 @@ test("W5-01-CODING-25 V-13 one model list only: what Coding lists is the list ev
   assert.deepEqual(listed.map(entry => `${entry.provider_id}/${entry.model_id}`), ["fixture/fixture", "second/on"], "the disabled model is dropped from the one list");
 });
 
-test("W5-01-CODING-26 a session's Goal title is read through Goals' public list action as a plugin caller, kept for the directory, and survives a restart with Goals gone", { timeout: 60_000 }, async t => {
-  const s = await codingSdkRuntime(t), titles: Record<string, string> = { g1: "让首次使用不再卡住" }, seen: ActionCallContext[] = [];
+test("W5-01-CODING-26 SYS-15-Q1 SYS-15-Q2 a Goal title is read without persistence, saved by observation and survives a restart with Goals gone", { timeout: 60_000 }, async t => {
+  const release = deferred(); t.after(() => release.resolve());
+  let services: PluginStartContext["services"];
+  const s = await codingSdkRuntime(t, { wrapCoding: definition => ({ ...definition, async start(context) {
+    services = context.services;
+    const background = context.services!.background!;
+    return definition.start({ ...context, services: { ...context.services, background: { ...background,
+      keep: (id, work) => background.keep(id, async control => { await release.promise; return work(control); }),
+    } } });
+  } }) }), titles: Record<string, string> = { g1: "让首次使用不再卡住" }, seen: ActionCallContext[] = [];
   fakeGoalDirectory(registration(s.service), () => titles, 100, seen);
   await s.sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "with-goal", title: "带目标的会话", runtime_id: "prologue", goal_id: "g1", at });
   // The directory is drawn at once and cannot wait for an action: before any read it shows the Goal's id.
@@ -114,6 +123,9 @@ test("W5-01-CODING-26 a session's Goal title is read through Goals' public list 
   assert.equal(state.body.sessions.find(session => session.session_id === "with-goal")?.goal_title, "让首次使用不再卡住");
   assert.ok(seen.length >= 1 && seen.every(caller => caller.audience === "plugin" && caller.host_plugin?.plugin_id === CODING_PLUGIN_ID), "Goals answered Coding as a plugin");
   assert.match(directoryHtml(s.platform), /让首次使用不再卡住/);
+  assert.equal(services!.storage!.get("goal-title:g1"), null, "the query changes no persistent title while observation is held");
+  release.resolve();
+  await until(() => services!.storage!.get("goal-title:g1") === titles.g1, 10_000);
   // Goals can no longer be read: the title stays what it was, in this process and, kept in Coding's private storage, after a restart.
   delete titles.g1;
   assert.equal((await callOf(s.call)("/state")).body.sessions.find(session => session.session_id === "with-goal")?.goal_title, "让首次使用不再卡住");
@@ -248,7 +260,7 @@ test("W5-01-CODING-30 S-15 once the person has withdrawn the grant, the listed a
   } finally { item.close(); }
 });
 
-test("W5-01-CODING-31 recovery after a restart with a failing first Agent read tries once and ends; the next coding.state read starts a loop again", { timeout: 60_000 }, async t => {
+test("W5-01-CODING-31 SYS15-Q2 recovery retries after a failed Agent read without a page; coding.state never starts a loop", { timeout: 60_000 }, async t => {
   const waits: unknown[] = [];
   const s = await codingSdkRuntime(t, { wrapCapabilities: client => new Proxy(client, { get(target, key) {
     const value = Reflect.get(target, key, target);
@@ -264,9 +276,8 @@ test("W5-01-CODING-31 recovery after a restart with a failing first Agent read t
   await s.sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "tied", "sdk", at);
   await s.platform.supervisor.restart(CODING_PLUGIN_ID);
   await until(() => waits.length >= 1);
-  // A loop that kept retrying would ask again after five seconds.
-  await new Promise(resolve => setTimeout(resolve, 5_500));
-  assert.equal(waits.length, 1, "the recovery loop ended at its first failed read");
+  await until(() => waits.length >= 2, 10_000);
+  const beforeQuery = waits.length;
   assert.equal((await callOf(s.call)("/state")).status, 200);
-  await until(() => waits.length >= 2);
+  assert.equal(waits.length, beforeQuery, "a query does not revive the failed loop");
 });

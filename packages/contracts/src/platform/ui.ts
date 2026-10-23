@@ -1,4 +1,105 @@
 import type { ContractDescriptor } from "./package.js";
+import type { ActionReference } from "./actions.js";
+
+/** The isolated page calls only its installation's own or declared consumed actions. Identity and grants stay with the Host. */
+/** The current contribution only; the Host chooses its address and rechecks its installation. */
+/** Refreshing the shell always uses its current address; plugins cannot select a host URL. */
+export interface UiPageView<Element = unknown> {
+  readDocument(): Promise<string>;
+  /** Replace the current own-action cleanup; null cancels it. The Host runs it before revoking this page. */
+  onClosing(action: { reference: ActionReference; input: unknown } | null): void;
+  refreshShell(): void;
+  /** The shell displays another current-project object inside this slot; its DOM and authority stay outside this page. */
+  embed(element: Element, target: { surface: string; itemId: string; title?: string }): { ready: Promise<void>; dispose(): void };
+}
+
+export interface UiPageActions {
+  invokeAction<Output = unknown>(reference: ActionReference, input: unknown): Promise<Output>;
+}
+
+/** Current-project directories only. Linking requires confirmation in the trusted Host; selecting grants no new access. */
+export interface UiPageWorkspaces {
+  add(path: string): Promise<{ workspace_id: string }>;
+  select(workspaceId: string): Promise<void>;
+}
+
+/** A Host-owned review surface. The page supplies filters and a slot, never a decision or review contents. */
+export interface UiPageReviewQuery {
+  readonly runIds: readonly string[];
+  readonly sessionId?: string | null;
+  readonly workspaceId?: string | null;
+  readonly runSession?: string;
+  readonly limit?: number;
+}
+/** Completion only; detailed review contents and receipts remain in the trusted Host. */
+export type UiPageReviewOutcome = "unavailable" | "uncertain" | "rejected" | "reconciled" | "failed" | "settled" | "pending";
+export interface UiPageReviews<Element = unknown> {
+  show(element: Element, query: UiPageReviewQuery, options?: { signal?: AbortSignal; onDecision?: (outcome: UiPageReviewOutcome) => void }): Promise<void>;
+}
+
+/** Browser-local unsent drafts, namespaced by the Host to this installation. Keys are at most 256 characters; values at most 16 MiB of UTF-8. */
+export interface UiPageDrafts {
+  read(key: string): Promise<string | null>;
+  write(key: string, value: string | null): Promise<void>;
+}
+
+/** Modal page interactions work without native browser dialogs in an isolated view. Closing the view cancels them. */
+export interface UiPageDialogs {
+  confirm(message: string): Promise<boolean>;
+  prompt(message: string, initial?: string): Promise<string | null>;
+}
+
+/** Page commands only address a terminal already created by this installation in the current project. */
+export type UiTerminalCommand = { type: "attach"; panelId: string; cols?: number; rows?: number }
+  | { type: "write"; panelId: string; data: string } | { type: "resize"; panelId: string; cols: number; rows: number }
+  | { type: "kill"; panelId: string };
+export type UiTerminalEvent = { type: "disconnected" }
+  | { type: "spawned"; panelId: string; attached: boolean; started: boolean; replay: string }
+  | { type: "data"; panelId: string; data: string } | { type: "exit"; panelId: string; exitCode: number; signal: number }
+  | { type: "error"; panelId?: string; message: string };
+export interface UiTerminalView {
+  focus(): void;
+  fit(): void;
+  /** Release the view. The accepted server process continues. */
+  dispose(): void;
+}
+export interface UiTerminalMountOptions {
+  readonly panelId: string;
+  readonly onEvent?: (event: UiTerminalEvent) => void;
+}
+export interface UiPageTerminal<Element = unknown> {
+  /** The Host supplies rendering, keyboard input, replay, theme and resize handling. */
+  mount(element: Element, options: UiTerminalMountOptions): Promise<UiTerminalView>;
+  /** Resolves after handing the command to the transport; terminal events confirm its effect. */
+  send(command: UiTerminalCommand): Promise<void>;
+  listen(receive: (event: UiTerminalEvent) => void): () => void;
+}
+
+/** Presentation messages between one plugin's stage and contextual side view, routed by the shell. */
+export interface UiPageMessage {
+  type: "molis:side-open" | "molis:side-ready" | "molis:side-context" | "molis:side-shown" | "molis:side-context-command" | "molis:side-context-result";
+  [key: string]: unknown;
+}
+export interface UiPageMessages {
+  send(message: UiPageMessage): void;
+  listen(receive: (message: UiPageMessage) => void): () => void;
+}
+/** Export content created by this page, or load media through its installation-bound request channel. */
+export interface UiPageFiles<Element = unknown> {
+  /** Desktop handoff of files inside this installation's declared owner directory. Paths must be relative. */
+  readonly nativeFiles?: {
+    copy(paths: readonly string[]): Promise<void>;
+    drag(paths: readonly string[], itemIds?: readonly string[]): Promise<void>;
+    open(path: string): Promise<void>;
+    /** Search in the trusted desktop picker. Only files the person selects there are returned; paths never enter this page. */
+    pick(query: string): Promise<readonly File[]>;
+  };
+  /** Write text after a user interaction; no clipboard read permission is granted. */
+  copyText(text: string): Promise<void>;
+  download(blob: Blob, filename: string): Promise<void>;
+  printDocument(html: string): void;
+  loadMedia(element: Element, path: string): void;
+}
 
 export const platformUiContract = {
   contractId: "io.molis.work.platform.ui.v1",
@@ -194,6 +295,8 @@ export interface UiRequestInit {
   /** Extra request headers. They cannot add or replace the control token, the one-time key or the content type. */
   readonly headers?: Readonly<Record<string, string>>;
   readonly signal?: AbortSignal;
+  /** Allow the browser to finish a small request while the document closes. Authority is still checked by the Host. */
+  readonly keepalive?: boolean;
   /** The view's lifetime: leaving the page cancels the request, and an answer that arrives after that is dropped. */
   readonly scope?: UiRequestScope;
   /** Shown when the answer carries no explanation of its own. */

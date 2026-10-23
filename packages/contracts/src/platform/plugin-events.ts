@@ -20,11 +20,26 @@ export const RESERVED_EVENT_NAMESPACES = ["molis.", "host."] as const;
 
 /**
  * Host events (X-6): what the Host itself publishes. A Plugin subscribes to one by type and version and names no source, since
- * the Host is the only one; it receives one only when the Host addresses it to that installation (S-54). They are not stored:
- * an installation that is not running when one is sent never gets it.
+ * the Host is the only one (S-54). Each type fixes how it is delivered, and no caller chooses: an `addressed` one goes only to
+ * the installation the Host names; a `broadcast` one goes to every installation of the project that runs, subscribes to it and
+ * holds its `permission` (declared and granted), and a Manifest that subscribes to it must declare that permission. They are not
+ * stored: an installation that is not running when one is sent never gets it.
  */
 export const HOST_REVIEW_SETTLED_EVENT = "host.review.settled";
-export const HOST_EVENT_TYPES = [{ event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1 }] as const;
+export const HOST_WORKSPACE_CHANGED_EVENT = "host.workspace.changed";
+
+export interface HostEventType {
+  readonly event_type_id: string;
+  readonly type_version: number;
+  readonly delivery: "addressed" | "broadcast";
+  /** A broadcast's recipients must hold this permission; the type table, not the sender, decides. */
+  readonly permission?: string;
+}
+
+export const HOST_EVENT_TYPES: readonly HostEventType[] = [
+  { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1, delivery: "addressed" },
+  { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1, delivery: "broadcast", permission: "workspace:read" },
+];
 
 /** `source_plugin_id` and `source_install_id` of a host event's record. Never a plugin id: those are `io.molis.work.…`. */
 export const HOST_EVENT_SOURCE = "host";
@@ -39,6 +54,16 @@ export interface HostReviewSettledPayload {
   operation_id: string;
   workspace_id: string;
   outcome: "succeeded" | "failed" | "unknown";
+}
+
+/**
+ * `host.workspace.changed@1`: files in this project's workspace may have changed, so a subscriber that shows or holds them reads
+ * them again. It carries no review, operation, outcome or installation: it tells every subscriber that holds `workspace:read`
+ * only what any of them could read for itself. Treat every `cause` alike; new causes come as new values.
+ */
+export interface HostWorkspaceChangedPayload {
+  workspace_id: string;
+  cause: "plugin-operation";
 }
 
 export type PluginEventErrorCode =
@@ -274,9 +299,12 @@ export function isReservedEventType(eventTypeId: string): boolean {
   return RESERVED_EVENT_NAMESPACES.some((prefix) => eventTypeId.startsWith(prefix));
 }
 
-/** Whether the Host publishes this type at this version: the only reserved types a Plugin may subscribe to. */
-export function isHostEventType(eventTypeId: string, typeVersion: number): boolean {
-  return HOST_EVENT_TYPES.some((type) => type.event_type_id === eventTypeId && type.type_version === typeVersion);
+/**
+ * The Host's own declaration of this type at this version: how it is delivered and what its recipients must hold. Undefined when
+ * the Host does not publish it; the declared ones are the only reserved types a Plugin may subscribe to.
+ */
+export function hostEventType(eventTypeId: string, typeVersion: number): HostEventType | undefined {
+  return HOST_EVENT_TYPES.find((type) => type.event_type_id === eventTypeId && type.type_version === typeVersion);
 }
 
 /** A Plugin owns exactly the `<plugin_id>.` event namespace. */

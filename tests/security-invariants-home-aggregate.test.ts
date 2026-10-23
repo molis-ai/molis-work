@@ -38,10 +38,12 @@ const ungranted = define("ungranted", "query", [READ, EXTRA], { home_aggregate: 
 const touch = define("touch", "command", [READ], { audiences: ["user", "plugin"] });
 
 function aggregatePlugin() {
+  const waits = new Map<string, (signal?: AbortSignal) => Promise<void>>();
   const contexts: PluginStartContext[] = [], calls: { id: string; project: string | null; query_only: boolean }[] = [], nested: string[] = [], touched: string[] = [];
   const sdk = (projectId: string) => contexts.filter(context => context.project_id === projectId).at(-1)?.services?.actions ?? assert.fail(`homeagg started in ${projectId}`);
   const answer = (definition: ActionDefinition) => ({ ...definition, async handle(caller: ActionExecutionContext, value: unknown) {
     calls.push({ id: definition.capability_id, project: caller.project_id ?? null, query_only: caller.query_only === true });
+    if (definition === tasks) await waits.get(caller.project_id!)?.(caller.signal);
     if ((value as { nest?: boolean }).nest) {
       try { await sdk(caller.project_id!).invoke(touch, {}); nested.push("ran"); }
       catch (error) { nested.push(error instanceof ActionError ? error.code : "not-an-action-error"); }
@@ -58,7 +60,7 @@ function aggregatePlugin() {
     return { kind: "app", views: [], actions: [...[tasks, plain, elsewhere, ungranted].map(answer),
       { ...touch, handle(caller: ActionExecutionContext) { touched.push(caller.project_id ?? ""); return { project: caller.project_id }; } }] };
   } };
-  return { definition, calls, nested, touched };
+  return { definition, calls, nested, touched, waits };
 }
 
 async function rig(t: import("node:test").TestContext) {
@@ -103,10 +105,10 @@ test("S-49 PG-043 the Home calls only declared read-only queries, one call per o
   assert.deepEqual(after.answers.map(item => item.project_id), [a.project_id]);
   assert.deepEqual(open(), [a, off].map(reference => reference.project_id).sort());
 
-  // The same query called by the person directly, not read-only, reaches its command: the refusal above came from the Home's mark.
+  // SYS-15-D2: the query declaration is itself read-only, including a direct call by the person.
   const ports = homeAggregatePorts(host), caller = await ports.context(a), source = after.answers[0]!.source;
   await ports.client(a).invoke(caller, source, { nest: true });
-  assert.deepEqual(plugin.touched, [a.project_id]); assert.equal(plugin.nested.at(-1), "ran");
+  assert.deepEqual(plugin.touched, []); assert.equal(plugin.nested.at(-1), "actions.forbidden");
 });
 
 test("S-49 PG-043 a home_aggregate declaration that writes, calls a model, costs money, reaches the Home scope or names no type is refused", () => {
@@ -128,4 +130,50 @@ test("S-49 PG-043 a home_aggregate declaration that writes, calls a model, costs
     assert.ok(inspectActionDeclarations([definition], undefined).some(problem => problem.includes("首页聚合")), `${label} is refused when it is declared`);
     assert.equal(isHomeAggregateQuery(definition), false, `${label} is never gathered`);
   }
+});
+
+// SYS-05: real Host queries with one non-cooperating provider; timeout does not withhold other projects or accept late results.
+test("SYS-05 a stalled Home provider is cancelled, other projects return, and a later retry works", { timeout: 15_000 }, async t => {
+  const { host, plugin, a, b } = await rig(t);
+  for (const ref of [a, b]) await startProjectPlugins(host, ref);
+  const release = Promise.withResolvers<void>();
+  t.after(() => release.resolve());
+  let providerSignal: AbortSignal | undefined;
+  plugin.waits.set(a.project_id, async signal => { providerSignal = signal; await release.promise; });
+  const result = await collectHomeAggregate<{ project: string }>(homeAggregatePorts(host), TYPE, {});
+  assert.deepEqual(result.answers.map(answer => answer.project_id), [b.project_id]);
+  assert.deepEqual(result.issues.map(issue => [issue.project_id, issue.source?.capability_id, issue.code]), [[a.project_id, tasks.capability_id, "actions.timeout"]]);
+  assert.equal(providerSignal?.aborted, true);
+  release.resolve();
+  plugin.waits.clear();
+  const retry = await collectHomeAggregate<{ project: string }>(homeAggregatePorts(host), TYPE, {});
+  assert.deepEqual(retry.answers.map(answer => answer.project_id).sort(), [a.project_id, b.project_id].sort());
+  assert.deepEqual(retry.issues, []);
+  assert.equal(result.answers.length, 1, "a late result cannot mutate the returned partial snapshot");
+});
+
+test("SYS-05 Home discovery has a deadline and cancelling the caller rejects the whole read", { timeout: 15_000 }, async t => {
+  const { host, plugin, a, b } = await rig(t);
+  for (const ref of [a, b]) await startProjectPlugins(host, ref);
+  const ports = homeAggregatePorts(host), held = Promise.withResolvers<void>();
+  t.after(() => held.resolve());
+  let discoverySignal: AbortSignal | undefined;
+  const result = await collectHomeAggregate({ ...ports, context: async (reference, signal) => {
+    if (reference.project_id === a.project_id) { discoverySignal = signal; await held.promise; }
+    return ports.context(reference, signal);
+  } }, TYPE, {});
+  assert.equal(discoverySignal?.aborted, true);
+  assert.deepEqual(result.answers.map(answer => answer.project_id), [b.project_id]);
+  assert.deepEqual(result.issues, [{ project_id: a.project_id, source: null, code: "actions.timeout" }]);
+  held.resolve();
+  const started = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
+  t.after(() => release.resolve());
+  plugin.waits.set(a.project_id, async () => { started.resolve(); await release.promise; });
+  const pending = collectHomeAggregate(ports, TYPE, {}, controller.signal);
+  const reason = new Error("person left the Home");
+  const rejected = assert.rejects(pending, error => error === reason);
+  await started.promise;
+  controller.abort(reason);
+  await rejected;
+  release.resolve();
 });

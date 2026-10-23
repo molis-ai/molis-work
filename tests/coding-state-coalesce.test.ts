@@ -61,9 +61,9 @@ test("however many pages poll the Coding directory at once, one read runs and at
     assert.deepEqual(batches.map(batch => [...batch].sort()), [["sdk-a", "sdk-b", "sdk-c"]]);
     const byId = Object.fromEntries(first.body.sessions.map((session: { session_id: string }) => [session.session_id, session]));
     assert.equal(byId.a.state, "waiting-approval");
-    // Who holds the open plan steps travels with the row, and is kept for lists that read the store directly.
+    // SYS15-Q1: query projections carry current plan holders without changing the stored session.
     assert.deepEqual(byId.a.steps, { mine: 1, subtasks: 1, unowned: 0 });
-    assert.deepEqual(sessions.stepsOf(DEMO_PROJECT_ID, "a"), { mine: 1, subtasks: 1, unowned: 0 });
+    assert.equal(sessions.stepsOf(DEMO_PROJECT_ID, "a"), null);
     assert.equal(byId.b.steps, undefined);
     assert.equal(byId.b.state, "idle"); assert.equal(byId.b.checkpoint_busy, true);
     assert.equal(byId.c.state, "reconcile-required", "an unreadable session is never shown as safe to continue");
@@ -76,6 +76,7 @@ test("however many pages poll the Coding directory at once, one read runs and at
     // A request after the others have been answered starts a fresh read.
     await state();
     assert.equal(reads, 3);
+    assert.equal(sessions.stepsOf(DEMO_PROJECT_ID, "a"), null, "polling never persists the projected steps");
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });
 

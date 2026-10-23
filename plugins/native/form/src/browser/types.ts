@@ -12,6 +12,7 @@ interface FormInteraction {
 /** What the workbench hands a plugin page's client: its translator, the project, its route prefix and the shared card. */
 export interface FormClientHost {
   readonly translate: Translate;
+  readonly download: (blob: Blob, filename: string) => Promise<void>;
   readonly projectId?: string | (() => string);
   readonly route: (path: string) => string;
   readonly interaction?: (card: Element, options: { onSubmit: () => void }) => FormInteraction;

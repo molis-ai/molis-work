@@ -1,16 +1,17 @@
+import { SchedulePluginRouteTable, SCHEDULE_NATIVE_PLUGIN_ROUTES } from "./schedule-direct-actions.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import {
   SCHEDULE_CLIENT_FACTORY_SCRIPT,
-  SCHEDULE_NATIVE_PLUGIN_ROUTES,
   SCHEDULE_UI_CONTRIBUTION_ID,
-  SchedulePluginRouteTable,
   createScheduleActionHandlers,
   createScheduleRouteHandlers,
+  createSchedulePlugin,
   scheduleUiContribution,
   type ScheduleConversationTaskView,
   type ScheduleUiModel,
@@ -18,6 +19,12 @@ import {
 import { railEntries } from "@molis-ai/molis-work-app-workbench";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
 import { directScheduleActions } from "./schedule-direct-actions.js";
+
+test("SYS-15-S1: the zero-port Schedule factory declares valid public services and background actions", () => {
+  const plugin = createSchedulePlugin();
+  assert.deepEqual(parsePluginManifest(plugin.manifest), plugin.manifest);
+  assert.equal(plugin.manifest.background?.wakeups?.length, 3);
+});
 
 const primitives: ScheduleUiModel["primitives"] = {
   escape: (value) => String(value ?? "")
@@ -173,7 +180,7 @@ test("Schedule HTTP 能列出任务并暂停", async () => {
   }));
   const listed = await routes.handle({
     method: "GET",
-    pathname: "/api/schedule",
+    pathname: "/api/plugins/io.molis.work.schedule/list",
     query: new URLSearchParams(),
     body: {},
   });
@@ -181,7 +188,7 @@ test("Schedule HTTP 能列出任务并暂停", async () => {
   assert.deepEqual((listed?.body as { jobs: ScheduleJobRecord[] }).jobs[0]?.job_id, "job-1");
   const paused = await routes.handle({
     method: "POST",
-    pathname: "/api/schedule/jobs/job-1/enabled",
+    pathname: "/api/plugins/io.molis.work.schedule/jobs/job-1/enabled",
     query: new URLSearchParams(),
     body: { enabled: false },
   });
@@ -255,5 +262,6 @@ test("启用 Schedule 后导航出现且没有第二列目录", () => {
   assert.match(html, /data-plugin-id="schedule"[^>]*data-work-surface-open="schedule"/);
   assert.doesNotMatch(html, /data-directory-open="schedule"/);
   assert.match(html, /data-work-surface="schedule" data-work-surface-label="Schedule"/);
-  assert.match(html, /data-schedule-job-id="job-1"/);
+  const documents = [...html.matchAll(/<script type="application\/json" data-plugin-document>([^<]+)<\/script>/g)].map(match => JSON.parse(match[1]!));
+  assert.ok(documents.some(document => /data-work-surface="schedule"/.test(document) && /data-schedule-job-id="job-1"/.test(document)), 'the actual Schedule projection is inert until mounted in its isolated frame');
 });

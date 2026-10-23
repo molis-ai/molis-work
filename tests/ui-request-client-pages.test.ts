@@ -102,7 +102,7 @@ test("a Home plugin page carries the request helper before the plugin's client r
   const html = renderHomePluginPage(entry, "<section data-work-surface></section>", null, TOKEN, createWorkbenchLocale(() => "zh"));
   assert.equal(count(html, UI_REQUEST_CLIENT_SCRIPT), 1);
   assert.doesNotMatch(html, OWN_HEADERS_FUNCTION);
-  assert.ok(html.indexOf(UI_REQUEST_CLIENT_SCRIPT) < html.indexOf("molisWorkbenchPluginFactories"), "the helper is there when the client mounts");
+  assert.ok(html.indexOf(UI_REQUEST_CLIENT_SCRIPT) < html.indexOf("molisPluginFrames.mount"), "the helper is there before the isolated client mounts");
 });
 
 // The Workbench's shared program (/assets/molis-work-workbench.js) is the one place the page budget is measured, and it is where the

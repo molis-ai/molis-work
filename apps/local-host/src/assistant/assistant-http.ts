@@ -1,3 +1,4 @@
+import { pageRelatedWorks } from "./assistant-page-related.js";
 import { AssistantThreads } from "./assistant-threads.js";
 import { assistantThreadActions, assistantThreadRegistration } from "./assistant-thread-actions.js";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
@@ -116,9 +117,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     pages: () => ports.pages(),
     // The platform memory, registered with this Home's Agent service (the Assistant is one of its consumers).
     memory: () => memoryHostFor(ports.localHost)?.service,
-    learnFromRound: ({ work, said, run_id }) => {
-      void memoryHostFor(ports.localHost)?.learnLater({ caller: { actor_id: WEB_ACTOR, project_id: work.project_ref?.project_id ?? null, consumer: "assistant",
-        work: { work_id: work.work_id, title: work.title } }, said, key: `${work.work_id}:${run_id}`, session_id: work.session_id ?? null })
+    learnFromRound: ({ work, sources, run_id }) => {
+      if (!work.session_id) return;
+      void memoryHostFor(ports.localHost)?.learnLater({ actor_id: WEB_ACTOR, work_id: work.work_id, run_id, session_id: work.session_id, sources })
         .catch(error => console.warn("[memory] 没有排上提炼", error));
     },
     authority: async (work, origin) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
@@ -209,7 +210,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 1 && parts[0] === "related") {
         const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";
         if (!kind || !id) throw assistantErrors.invalid("需要对象种类与标识");
-        return { status: 200, body: { works: await service.related(ports.projectRef?.project_id ?? null, { kind, id }) } };
+        return { status: 200, body: await pageRelatedWorks(service, request, ports.projectRef?.project_id ?? null, { kind, id }) };
       }
       // Characters the person may choose here: for a work (its own project), or for a new work on this page.
       if (method === "GET" && parts.length === 1 && parts[0] === "characters") {

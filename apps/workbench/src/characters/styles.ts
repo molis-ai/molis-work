@@ -6,7 +6,7 @@ export const CHARACTERS_STYLES = `
   .characters-dialog textarea { width: 100%; min-height: 110px; }
   .characters-sources { display: flex; flex-wrap: wrap; gap: 8px; }
   .characters-sources button { white-space: normal; text-align: left; }
-  .characters-sources button[aria-pressed="true"] { border-color: var(--accent); background: var(--hover); }
+  .characters-sources button[aria-pressed="true"] { border-color: var(--accent); background: var(--nav-active); }
   .characters-import-item { padding: 12px 0; border-top: 1px solid var(--line); }
   .characters-import-item > label { flex-direction: row; align-items: center; color: var(--ink); }
   .characters-import-item small { display: block; overflow-wrap: anywhere; color: var(--muted); margin: 4px 0; }

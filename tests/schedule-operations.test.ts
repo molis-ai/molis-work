@@ -9,12 +9,13 @@ import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platfo
 import { createScheduleService, PluginWakeupIndex } from '@molis-ai/molis-work-service-scheduler';
 import { createScheduledOperationManagement, createScheduledOperations, getScheduledOperation, listScheduledOperations, listScheduledOperationOccurrences,
   prepareScheduledOperation, reconcileScheduledOperations, runScheduledOperation, setScheduledOperationEnabled,
-  SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP } from '@molis-ai/molis-work-plugin-schedule';
+  SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, scheduledOperationActions, type ScheduledOperation, type ScheduledOperationOutcome } from '@molis-ai/molis-work-plugin-schedule';
 import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
-import { bindScheduleDeliveryFeed, scheduleServiceFor } from '../apps/local-host/dist/schedule-runtime.js';
-import { bindInstalledOperationCaller, hostScheduledOperationManagement } from '../apps/local-host/dist/schedule-operations.js';
+import type { ScheduleWakeupControl } from '@molis-ai/molis-work-contracts/services/scheduler';
+import { bindPluginNotificationFeed } from '../apps/local-host/dist/plugin-notification-service.js';
+import { scheduleRuntimeFixture } from './fixtures/schedule-runtime.js';
 import { captureHostLog, createLocalFeedApplication, type HostLogEntry } from '@molis-ai/molis-work-app-local-host';
 
 const at = '2026-09-28T00:00:00.000Z', DAY = 86_400_000;
@@ -25,19 +26,37 @@ const installation = (generation = 'first'): PluginInstanceRecord => ({ install_
   last_error_code: null, installed_at: at, updated_at: at, uninstalled_at: null, retain_private_data: false });
 const descriptor = (generation = 'first') => ({ installationId: identity.installationId, generation, title: '定时笔记', version: '1.0.0', operations: [{ id: 'summarize', description: '汇总' }] });
 
+/** Domain state-machine fixture: production stores/reconciliation/leases, an external executor and a transactional delivery sink. */
 async function harness(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), 'schedule-operations-')), path = join(home, 'project.db'); seedDemoBoard(path, identity.projectId);
-  const store = new LocalProjectDatabase(path), clock = { now: new Date(at) };
-  t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
+  const store = new LocalProjectDatabase(path), clock = { now: new Date(at) }, index = new PluginWakeupIndex();
+  store.db.exec('CREATE TABLE schedule_test_deliveries(summary TEXT, url TEXT)');
   const repository = new SqlitePluginRuntimeRepository(store.db); repository.save(installation());
-  const schedule = scheduleServiceFor(store.db, () => clock.now);
-  const options = { db: store.db, projectId: identity.projectId, schedule, describe: () => descriptor(repository.get(identity.installationId)!.installation_generation),
-    now: () => clock.now.getTime(), link: () => '/original-plugin' };
+  type Executor = { describe(): ReturnType<typeof descriptor>; call(run: ScheduledOperation, control: ScheduleWakeupControl): Promise<ScheduledOperationOutcome> };
+  let executor: { port: Executor; controller: AbortController } | undefined;
+  index.register(SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, (input, control) => runScheduledOperation(store.db, input, control, {
+    now: () => clock.now,
+    currentInstallation: run => { const record = repository.get(run.installationId!); return !!record && record.state !== 'uninstalled' && record.plugin_id === run.pluginId && record.installation_generation === run.installationGeneration; },
+    executor: run => {
+      const captured = executor;
+      return captured ? { signal: captured.controller.signal, beforeEffect: () => captured.controller.signal.throwIfAborted(), invoke: current => captured.port.call(run, current) } : null;
+    },
+    deliver: (run, _dueAt, _outcome, text) => { store.db.prepare('INSERT INTO schedule_test_deliveries VALUES (?, ?)').run(text, run.link); },
+  }), { prepare: input => prepareScheduledOperation(store.db, input) });
+  const base = createScheduleService(store.db, { wakeupIndex: index, now: () => clock.now });
+  const schedule = { ...base, async tick() { reconcileScheduledOperations(store.db, base); const result = await base.tick(); reconcileScheduledOperations(store.db, base); return result; } };
+  t.after(async () => { executor?.controller.abort(); await base.close(); store.close(); await rm(home, { recursive: true, force: true }); });
+  const describe = () => descriptor(repository.get(identity.installationId)!.installation_generation);
+  const options = { db: store.db, projectId: identity.projectId, schedule, describe, now: () => clock.now.getTime(), link: () => '/original-plugin' };
   const operations = createScheduledOperations(options);
   const get = (id: string) => getScheduledOperation(store.db, identity.projectId, id)!;
   const occurrences = (id: string) => listScheduledOperationOccurrences(store.db, identity.projectId, id);
-  const inbox = () => createLocalFeedApplication(store.db).snapshot(identity.projectId).feed_items.filter(item => item.source_id === 'plugin-runs');
-  return { home, path, store, clock, repository, schedule, operations, options, get, occurrences, inbox };
+  const inbox = () => store.db.prepare('SELECT summary, url FROM schedule_test_deliveries').all() as Array<{ summary: string; url: string }>;
+  return { home, path, store, clock, repository, schedule, operations, options, get, occurrences, inbox,
+    manage: () => createScheduledOperationManagement({ db: store.db, projectId: identity.projectId, schedule, currentInstallation: () => ({ ...describe(), publisher: 'test' }), now: () => clock.now }),
+    bind: (port: Executor) => { executor?.controller.abort(); const current = { port, controller: new AbortController() }; executor = current;
+      return () => { current.controller.abort(); if (executor === current) executor = undefined; }; },
+  };
 }
 
 test('unavailable execution remains durable; binding cannot dispatch, a fresh tick runs once with Inbox and fixed cadence', async t => {
@@ -47,7 +66,7 @@ test('unavailable execution remains durable; binding cannot dispatch, a fresh ti
   assert.equal(h.schedule.get(h.get(scheduleId).jobId)?.next_due_at, at);
   assert.equal(h.schedule.get(h.get(scheduleId).jobId)?.last_wakeup?.status, 'plugin_unavailable');
   let calls = 0;
-  const stop = bindInstalledOperationCaller(h.store.db, identity.projectId, { describe: () => descriptor(), async call(run, control) {
+  const stop = h.bind({ describe: () => descriptor(), async call(run, control) {
     control.beforeEffect(); calls++; assert.deepEqual(run.input, { limit: 3 });
     assert.equal(h.occurrences(scheduleId)[0]?.state, 'running'); return { state: 'succeeded', value: { text: '今天的汇总' } };
   } }); t.after(stop);
@@ -61,53 +80,44 @@ test('unavailable execution remains durable; binding cannot dispatch, a fresh ti
   h.clock.now = new Date(Date.parse(at) + DAY); await h.schedule.tick(); assert.equal(calls, 1);
 });
 
-test('a scheduled result delivered to the Inbox starts the same judgments as any other arrival, after the delivery commits', async t => {
-  const h = await harness(t), seen: string[] = [];
-  bindScheduleDeliveryFeed(h.store.db, {
+test('a real Runtime scheduled result starts the ordinary Feed and Inbox judgments after committing', async t => {
+  const f = await scheduleRuntimeFixture(t), store = await f.store(), seen: string[] = [], at = new Date(Date.now() + 1000).toISOString();
+  bindPluginNotificationFeed(store.db, () => ({
     inboxJudgment: async entry => { seen.push('inbox:' + entry.entry_id); throw new Error('provider down'); },
-    captureJudgment: async event => { seen.push('capture:' + event.item_id); },
-    homeJudgment: async subject => { seen.push('home:' + subject.kind); },
-  });
-  const { scheduleId } = h.operations.add(identity, { at, operation: 'summarize', inbox: true });
-  const stop = bindInstalledOperationCaller(h.store.db, identity.projectId, { describe: () => descriptor(), async call() {
-    assert.deepEqual(seen, [], 'nothing is judged before the result is delivered'); return { state: 'succeeded', value: { text: '今天的汇总' } };
-  } }); t.after(stop);
-  await h.schedule.tick();
-  const [item] = h.inbox(); assert.ok(item);
-  const entry = createLocalFeedApplication(h.store.db).listInboxEntries(identity.projectId).find(row => row.subject_id === item.item_id);
-  assert.ok(entry, 'the result waits in the Inbox');
-  assert.ok(seen.includes('inbox:' + entry.entry_id), 'its Inbox entry got the next-step judgment');
-  assert.ok(seen.includes('capture:' + item.item_id) && seen.includes('home:feed_item'), 'its Feed item went through capture rules and the Home dock');
-  assert.equal(h.occurrences(scheduleId)[0]?.state, 'succeeded', 'a failing judgment never un-delivers the result');
+    captureJudgment: async event => { seen.push('capture:' + event.item_id); }, homeJudgment: async subject => { seen.push('home:' + subject.kind); },
+  }));
+  const { scheduleId } = await f.sdk.invoke(scheduledOperationActions.add, { at, operation: 'summarize', input: { text: '今天的汇总' }, inbox: true });
+  f.execute(async () => { assert.deepEqual(seen, [], 'nothing is judged before delivery'); return { text: '今天的汇总' }; });
+  await f.tick(at);
+  const [item] = await f.inbox(); assert.ok(item);
+  const entry = createLocalFeedApplication(store.db).listInboxEntries(f.project.project_id).find(row => row.subject_id === item.item_id); assert.ok(entry);
+  assert.ok(seen.includes('inbox:' + entry.entry_id)); assert.ok(seen.includes('capture:' + item.item_id) && seen.includes('home:feed_item'));
+  assert.equal(listScheduledOperationOccurrences(store.db, f.project.project_id, scheduleId)[0]?.state, 'succeeded');
 });
 
-test('a judgment that fails after a delivery never drops the judgments queued behind it, and leaves its code in the Host log (D4-d)', async t => {
-  const h = await harness(t), seen: string[] = [];
-  bindScheduleDeliveryFeed(h.store.db, {
+test('a failed post-commit judgment preserves the queued judgments and logs only its code (D4-d)', async t => {
+  const f = await scheduleRuntimeFixture(t), store = await f.store(), seen: string[] = [], at = new Date(Date.now() + 1000).toISOString();
+  bindPluginNotificationFeed(store.db, () => ({
     captureJudgment: async event => { seen.push('capture:' + event.item_id); throw Object.assign(new Error('rule store: 用户的笔记正文'), { code: 'feed.rule_store_down' }); },
-    homeJudgment: async subject => { seen.push('home:' + subject.kind); },
-    inboxJudgment: async entry => { seen.push('inbox:' + entry.entry_id); },
-  });
-  const { scheduleId } = h.operations.add(identity, { at, operation: 'summarize', inbox: true });
-  const stop = bindInstalledOperationCaller(h.store.db, identity.projectId, { describe: () => descriptor(), async call() { return { state: 'succeeded', value: { text: '今天的汇总' } }; } });
-  t.after(stop);
+    homeJudgment: async subject => { seen.push('home:' + subject.kind); }, inboxJudgment: async entry => { seen.push('inbox:' + entry.entry_id); },
+  }));
+  const { scheduleId } = await f.sdk.invoke(scheduledOperationActions.add, { at, operation: 'summarize', input: { text: '今天的汇总' }, inbox: true });
   const log: HostLogEntry[] = [], restore = captureHostLog(log);
-  try { await h.schedule.tick(); } finally { restore(); }
-  const [item] = h.inbox(); assert.ok(item);
-  const entry = createLocalFeedApplication(h.store.db).listInboxEntries(identity.projectId).find(row => row.subject_id === item.item_id);
-  assert.ok(entry);
-  assert.deepEqual(seen, ['capture:' + item.item_id, 'home:feed_item', 'inbox:' + entry.entry_id, 'home:inbox_entry'], 'the Home dock and the Inbox entry are still judged');
-  assert.equal(h.occurrences(scheduleId)[0]?.state, 'succeeded', 'the delivery stands');
-  const failed = log.filter(line => line.event === 'delivery_judgment_failed');
-  assert.deepEqual(failed.map(line => [line.level, line.area, line.error]), [['warn', 'schedule', { name: 'Error', code: 'feed.rule_store_down' }]]);
-  assert.ok(!JSON.stringify(log).includes('笔记正文'), 'the failure is logged by code, not by its message');
+  try { await f.tick(at); } finally { restore(); }
+  const [item] = await f.inbox(); assert.ok(item);
+  const entry = createLocalFeedApplication(store.db).listInboxEntries(f.project.project_id).find(row => row.subject_id === item.item_id); assert.ok(entry);
+  assert.deepEqual(seen, ['capture:' + item.item_id, 'home:feed_item', 'inbox:' + entry.entry_id, 'home:inbox_entry']);
+  assert.equal(listScheduledOperationOccurrences(store.db, f.project.project_id, scheduleId)[0]?.state, 'succeeded');
+  const failed = log.filter(line => line.event === 'judgment_failed');
+  assert.deepEqual(failed.map(line => [line.level, line.area, line.error]), [['warn', 'plugin_notifications', { name: 'Error', code: 'feed.rule_store_down' }]]);
+  assert.ok(!JSON.stringify(log).includes('笔记正文'));
 });
 
 test('an explicit failure is failed, and an unknown outcome stops future cadence without an automatic replay', async t => {
   const h = await harness(t);
   const failed = h.operations.add(identity, { at, operation: 'summarize' }).scheduleId;
   let calls = 0, unknown = false;
-  const stop = bindInstalledOperationCaller(h.store.db, identity.projectId, { describe: () => descriptor(), async call() {
+  const stop = h.bind({ describe: () => descriptor(), async call() {
     calls++; return { state: unknown ? 'unknown' : 'failed', value: 'provider rejected' };
   } }); t.after(stop);
   await h.schedule.tick();
@@ -125,7 +135,7 @@ for (const revoke of ['pause', 'cancel', 'reinstall', 'replace-caller', 'lease-e
   const h = await harness(t), released = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>();
   let calls = 0;
   const id = h.operations.add(identity, { at, operation: 'summarize', repeat: 'daily', inbox: true }).scheduleId, jobId = h.get(id).jobId;
-  const stop = bindInstalledOperationCaller(h.store.db, identity.projectId, { describe: () => descriptor(), async call() {
+  const stop = h.bind({ describe: () => descriptor(), async call() {
     calls++; entered.resolve(); await released.promise; return { state: 'succeeded', value: 'late answer' };
   } }); t.after(stop);
   const ticking = h.schedule.tick(); await entered.promise;
@@ -135,7 +145,7 @@ for (const revoke of ['pause', 'cancel', 'reinstall', 'replace-caller', 'lease-e
     if (revoke === 'reinstall') h.repository.save(installation('replacement'));
     if (revoke === 'lease-expired') h.clock.now = new Date(Date.parse(at) + 30_000);
     if (revoke === 'replace-caller') {
-      t.after(bindInstalledOperationCaller(h.store.db, identity.projectId, { describe: () => descriptor(), async call() { assert.fail('replacement must not replay'); } }));
+      t.after(h.bind({ describe: () => descriptor(), async call() { assert.fail('replacement must not replay'); } }));
     }
   } finally { released.resolve(); await ticking; }
   assert.equal(h.inbox().length, 0);
@@ -235,7 +245,7 @@ test('review rechecks installation and operation history, rolls back failed reco
   assert.equal(h.get(id).installationGeneration, target.generation); assert.equal(h.get(id).link, '/original-plugin');
   assert.equal(h.schedule.get(job.job_id)?.next_due_at, at);
   assert.throws(() => manage.recover(input), /已变更/, 'duplicate submissions do not rearm a job');
-  t.after(bindInstalledOperationCaller(h.store.db, identity.projectId, { describe: () => target, async call() { calls++; return { state: 'succeeded', value: 'restored' }; } }));
+  t.after(h.bind({ describe: () => target, async call() { calls++; return { state: 'succeeded', value: 'restored' }; } }));
   await h.schedule.tick(); assert.equal(calls, 1);
   const read = manage.list()[0]!, receipt = h.schedule.get(job.job_id)?.last_wakeup;
   setScheduledOperationEnabled(h.store.db, h.schedule, job.job_id, false);
@@ -246,11 +256,11 @@ test('review rechecks installation and operation history, rolls back failed reco
 for (const decision of ['retry', 'skip'] as const) test(`review ${decision} of an unknown call is explicit, preserves history, and never dispatches during confirmation`, async t => {
   const h = await harness(t), id = h.operations.add(identity, { at, operation: 'summarize', inbox: true }).scheduleId;
   let calls = 0;
-  t.after(bindInstalledOperationCaller(h.store.db, identity.projectId, { describe: () => descriptor(), async call() {
+  t.after(h.bind({ describe: () => descriptor(), async call() {
     calls++; return { state: calls === 1 ? 'unknown' : 'succeeded', value: calls === 1 ? 'response lost' : 'after review' };
   } }));
   await h.schedule.tick();
-  const manage = hostScheduledOperationManagement({ db: h.store.db, projectId: identity.projectId, schedule: h.schedule, now: () => h.clock.now });
+  const manage = h.manage();
   const v = manage.list()[0]!, input = { operation_id: id, decision, expected_revision: v.revision,
     expected_installation_id: v.installation!.installationId, expected_generation: v.installation!.generation, expected_version: v.installation!.version };
   assert.throws(() => manage.recover({ ...input, decision: 'resume' }), /明确选择/);
@@ -269,9 +279,9 @@ for (const decision of ['retry', 'skip'] as const) test(`review ${decision} of a
 test('skipping an unknown interval keeps its original anchor and advances beyond missed periods', async t => {
   const h = await harness(t), id = h.operations.add(identity, { at, operation: 'summarize', repeat: 'daily' }).scheduleId;
   let calls = 0;
-  t.after(bindInstalledOperationCaller(h.store.db, identity.projectId, { describe: () => descriptor(), async call() { calls++; return { state: 'unknown', value: 'external result lost' }; } }));
+  t.after(h.bind({ describe: () => descriptor(), async call() { calls++; return { state: 'unknown', value: 'external result lost' }; } }));
   await h.schedule.tick(); h.clock.now = new Date(Date.parse(at) + 3 * DAY + 1000);
-  const manage = hostScheduledOperationManagement({ db: h.store.db, projectId: identity.projectId, schedule: h.schedule, now: () => h.clock.now });
+  const manage = h.manage();
   const v = manage.list()[0]!;
   manage.recover({ operation_id: id, decision: 'skip', expected_revision: v.revision, expected_installation_id: identity.installationId, expected_generation: 'first', expected_version: '1.0.0' });
   assert.equal(h.schedule.get(h.get(id).jobId)?.next_due_at, '2026-10-02T00:00:00.000Z');

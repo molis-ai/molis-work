@@ -9,6 +9,7 @@ import type { PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 import type { PluginPlatformEntry } from "./plugin-platform.js";
 import type { MolisWorkLocalHost, MolisWorkLocalHostOptions } from "./project-host.js";
 import { ensureSystemAgentService, releaseSystemAgentService } from "./system-agent-service.js";
+import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
 /**
  * What a plugin platform is given of the Home it runs in. A platform that reaches no Home in this process is given `null`
@@ -32,7 +33,17 @@ type HomeSideOptions = Pick<MolisWorkLocalHostOptions, "completeText" | "pluginF
  * What each Home's Host was built with, by resolved path. A Home has one open Host at a time (its Agent service binds the
  * Home's inference once), so there is one entry per Home, and it leaves with its Host.
  */
-const sides = new Map<string, { host: MolisWorkLocalHost; options: HomeSideOptions }>();
+const sides = new Map<string, { host: MolisWorkLocalHost; options: HomeSideOptions; catalog?: LocalWebCatalogRunner }>();
+
+/** Project activations read the same catalog owner that settings commit to. */
+export function bindPluginCatalog(host: MolisWorkLocalHost, home: string, catalog: LocalWebCatalogRunner): void {
+  const side = sides.get(path.resolve(home));
+  if (side?.host === host) side.catalog = catalog;
+}
+
+export function pluginCatalogFor(home: string): LocalWebCatalogRunner | undefined {
+  return sides.get(path.resolve(home))?.catalog;
+}
 
 /**
  * Binds a Host to its Home when it is built: the Home's Agent service, as before, and what a plugin platform reads of this Host
@@ -54,6 +65,12 @@ export function releaseHomeSide(host: MolisWorkLocalHost): void {
 export function pluginHomeFor(homeDirectory: string): PluginPlatformHome {
   const directory = path.resolve(homeDirectory);
   return { directory, completeText: () => sides.get(directory)?.options.completeText, stores: storesWithFixtures(sides.get(directory)?.options.pluginFixtures) };
+}
+
+/** The existing, single Agent runtime of this Home; never creates a second runtime for a plugin. */
+export function pluginAgentRuntime(home: PluginPlatformHome) {
+  const side = sides.get(home.directory);
+  return side ? ensureSystemAgentService(side.host, home.directory) : undefined;
 }
 
 /**

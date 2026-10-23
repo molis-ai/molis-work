@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { ORDER_SKIP, orderAudit } from "./fixtures/order-audit.js";
 import { walkLayers } from "./fixtures/layer-walk.js";
@@ -20,6 +21,12 @@ const LOADED = "document.readyState === 'complete' && ![...document.querySelecto
 test("VUX-46 to VUX-50: detail views, settings pages and the menus and dialogs they open are in order, light, dark and on a phone", { timeout: 3_600_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded", seedLongChinese); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  const views = Object.fromEntries(await Promise.all([...DETAILS.filter(id=>id!=="goals"), "shelf"].map(async id=>
+    [id,await pluginFrameBrowser(t,browser,id,id === "shelf" ? '[data-side-body="plugin:shelf/side"] iframe' : undefined)])));
+  const content = async (path: string) => {
+    const id = new URL(path,origin).searchParams.get("openPlugin"), child = id ? views[id] : undefined;
+    if (!child) return null; await child.waitFor("document.querySelector('[data-work-surface]')"); return child;
+  };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   // A layer is read where it comes to rest, not while it grows in.
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -48,8 +55,8 @@ test("VUX-46 to VUX-50: detail views, settings pages and the menus and dialogs t
 
   const found: string[] = [];
   let read = 0;
-  const audit = async (where: string) => {
-    const { findings } = await evaluate<{ findings: Array<Record<string, unknown>> }>(orderAudit(ORDER_SKIP));
+  const audit = async (where: string, inspect = evaluate) => {
+    const { findings } = await inspect<{ findings: Array<Record<string, unknown>> }>(orderAudit(ORDER_SKIP));
     read++;
     for (const finding of findings) found.push(`${where}: ${JSON.stringify(finding)}`);
   };
@@ -69,6 +76,7 @@ test("VUX-46 to VUX-50: detail views, settings pages and the menus and dialogs t
       await waitFor(LOADED, 20_000).catch(() => undefined);
       await pause(1200);
       await audit(`${mode.name} ${where}`);
+      const child=await content(path); if(child) await audit(`${mode.name} ${where} content`,child.evaluate);
     }
     // The project's settings, page by page, as the workbench shows them.
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=project-settings` }, sessionId));
@@ -80,8 +88,8 @@ test("VUX-46 to VUX-50: detail views, settings pages and the menus and dialogs t
       await pause(600);
       await audit(`${mode.name} project settings ${section}`);
     }
-    if (mode.layers) await walkLayers(browser, screens.map(([where, path]) => [`${mode.name} ${where}`, path]), TITLES.map((title) => title.slice(0, 10)), new Set(),
-      (where) => audit(where), (line) => t.diagnostic(line));
+    if (mode.layers) await walkLayers({...browser,content}, screens.map(([where, path]) => [`${mode.name} ${where}`, path]), TITLES.map((title) => title.slice(0, 10)), new Set(),
+      (where, inspect) => audit(where,inspect), (line) => t.diagnostic(line));
   }
   t.diagnostic(`screens and layers read: ${read}`);
   for (const line of found) t.diagnostic(line);

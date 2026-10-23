@@ -197,7 +197,7 @@ export const PAGES_EN: Record<string, string> = {
   "块操作": "Block actions",
   "拖动以排序或缩进": "Drag to reorder or nest",
   "转换为": "Turn into",
-  "复制": "Duplicate",
+  "创建副本": "Duplicate",
   "返回": "Back",
   "链接": "Link",
   "移除链接": "Remove link",

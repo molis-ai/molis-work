@@ -1,6 +1,7 @@
 /** Schedule workbench client: create a conversation task, select it, pause or resume. */
 export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, route } = host;
+  const { translate: L } = host;
+  const route = path => host.route("/api/plugins/io.molis.work.schedule" + path);
   const workbench = document.querySelector("[data-schedule-workbench]");
   const list = document.querySelector("[data-schedule-list]");
   if (!workbench || !list) return;
@@ -64,7 +65,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     expand(true);
     publishContext(kind === "task" ? id : null);
     if (kind === "task") {
-      void fetch(route("/api/schedule/tasks/" + encodeURIComponent(id) + "/open"), {
+      void fetch(route("/tasks/" + encodeURIComponent(id) + "/open"), {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({}),
@@ -74,10 +75,8 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
   const refreshStage = async (openId, kind = "task", preserveConfirmation = false) => {
     try {
       const scrollTop = list.scrollTop;
-      const response = await fetch(route("/api/schedule/workbench"), { cache: "no-store" });
-      if (!response.ok) throw new Error(L("无法更新定时任务列表"));
       const template = document.createElement("template");
-      template.innerHTML = (await response.text()).trim();
+      template.innerHTML = (await host.view.readDocument()).trim();
       const nextList = template.content.querySelector("[data-schedule-list]");
       const nextWorkspace = template.content.querySelector("[data-schedule-stage-workspace]");
       const workspace = workbench.querySelector("[data-schedule-stage-workspace]");
@@ -97,8 +96,8 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
       else collapse();
       return true;
     } catch (error) {
-      if (preserveConfirmation) throw error;
-      location.reload();
+      if (preserveConfirmation) throw new Error(L("无法更新定时任务列表"));
+      host.showToast(L("无法更新定时任务列表"), true);
       return false;
     }
   };
@@ -144,7 +143,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     const { jobId, input } = recovery;
     setRecovering(true); recoveryMessage("");
     try {
-      await post("/api/schedule/jobs/" + encodeURIComponent(jobId) + "/recover-reminder", input, L("无法恢复提醒"));
+      await post("/jobs/" + encodeURIComponent(jobId) + "/recover-reminder", input, L("无法恢复提醒"));
       // If refreshing fails, keep the review visible but never submit the old confirmation again.
       recovery.input = null;
       await refreshStage(jobId, "job", true);
@@ -190,7 +189,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     event.preventDefault(); if (operationBusy || !operationReview?.input) return;
     const { id, input } = operationReview; operationLock(true); operationMessage("");
     try {
-      await post("/api/schedule/operations/" + encodeURIComponent(id) + "/recover", input, L("无法恢复定时操作"));
+      await post("/operations/" + encodeURIComponent(id) + "/recover", input, L("无法恢复定时操作"));
       operationReview.input = null;
       await refreshStage("operation:" + id, "job", true); operationDialog.close();
     } catch (error) { operationMessage(error.message || L("无法恢复定时操作")); }
@@ -212,7 +211,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
   // answer still on its way from an earlier one is not shown in this one.
   let hinting = 0;
   const hint = () => { showHints(); return ++hinting; };
-  const readHints = (opening) => fetch(route("/api/schedule/readiness"), { cache: "no-store" }).then((response) => response.json()).then((ready) => { if (opening === hinting) showHints(ready); }).catch(() => undefined);
+  const readHints = (opening) => fetch(route("/readiness"), { cache: "no-store" }).then((response) => response.json()).then((ready) => { if (opening === hinting) showHints(ready); }).catch(() => undefined);
   // A model set up meanwhile (another pane or tab) takes its hint away from a new-task dialog that is open; the answer is numbered like an opening.
   document.addEventListener("molis-work:model-ready", () => { if (dialog?.open && !editingTaskId) readHints(++hinting); });
   // The settings cover the page, and a modal dialog would sit over them: the links in the hints leave it first.
@@ -240,7 +239,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     setCreating(true);
     showError("");
     try {
-      const result = await post(editingTaskId ? "/api/schedule/tasks/" + encodeURIComponent(editingTaskId) + "/update" : "/api/schedule/tasks", {
+      const result = await post(editingTaskId ? "/tasks/" + encodeURIComponent(editingTaskId) + "/update" : "/tasks", {
         title: String(data.get("title") || ""),
         instructions: String(data.get("instructions") || ""),
         time: String(data.get("time") || ""),
@@ -314,10 +313,10 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     const archive = event.target.closest("[data-schedule-task-archive]");
     if (archive) {
-      if (!confirm(L("归档这条定时任务？归档后不会再自动运行。"))) return;
+      if (!await host.confirm(L("归档这条定时任务？归档后不会再自动运行。"))) return;
       archive.disabled = true;
       try {
-        await post("/api/schedule/tasks/" + encodeURIComponent(archive.dataset.scheduleTaskArchive) + "/archive", {}, L("无法归档定时任务"));
+        await post("/tasks/" + encodeURIComponent(archive.dataset.scheduleTaskArchive) + "/archive", {}, L("无法归档定时任务"));
         await refreshStage();
       } catch (error) {
         const status = archive.closest("[data-schedule-detail]")?.querySelector("[data-schedule-action-status]");
@@ -333,7 +332,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
       const status = taskAction.closest("[data-schedule-detail]")?.querySelector("[data-schedule-action-status]");
       taskAction.disabled = true;
       try {
-        await post("/api/schedule/tasks/" + encodeURIComponent(taskId) + "/enabled", { enabled }, L("无法更新定时任务"));
+        await post("/tasks/" + encodeURIComponent(taskId) + "/enabled", { enabled }, L("无法更新定时任务"));
         await refreshStage(taskId, "task");
       } catch (error) {
         if (status) {
@@ -351,7 +350,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     const status = action.closest("[data-schedule-detail]")?.querySelector("[data-schedule-action-status]");
     action.disabled = true;
     try {
-      await post("/api/schedule/jobs/" + encodeURIComponent(jobId) + "/enabled", { enabled }, L("无法更新定时任务"));
+      await post("/jobs/" + encodeURIComponent(jobId) + "/enabled", { enabled }, L("无法更新定时任务"));
       await refreshStage(action.dataset.scheduleDetailId || jobId, "job");
     } catch (error) {
       if (status) {

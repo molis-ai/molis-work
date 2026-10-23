@@ -234,7 +234,7 @@ for (const cancelled of [false, true]) {
   });
 }
 
-test("S-18 PG-038 deleting a project stops the background work a Home plugin accepted there, though it keeps no data of the project", async t => {
+test("SYS-22 S-18 PG-038 deleting a project stops the background work a Home plugin accepted there, though it keeps no data of the project", async t => {
   const probe = backgroundProbe("backgroundprojects", "project"), entered = deferred(), release = deferred();
   probe.definition.stop = async context => { await probe.lifecycle.stop(context); };
   let running = 0;
@@ -249,8 +249,8 @@ test("S-18 PG-038 deleting a project stops the background work a Home plugin acc
   for (const project of ["p1", "p2"]) await actions.invoke(person(probe.permissions, project), probe.start, { id: project });
   await entered.promise;
   const hooks = projectDeletedHooksFor(home), owner = `plugin-background:${probe.id}`;
-  assert.deepEqual(hooks.owners().filter(item => item.id === owner).map(item => ({ id: item.id, label: item.label })), [{ id: owner, label: null }],
-    "a step of its own, which the confirmation dialog does not list");
+  assert.deepEqual(hooks.owners().filter(item => item.id === owner).map(item => ({ id: item.id, label: item.label })), [{ id: owner, label: "{name} 的后台工作（将停止）" }],
+    "the confirmation lists the work that stops even without project data");
   const accepted = (projectId: string) => probe.controls.find(control => control.project_id === projectId)!;
   const stopped = assert.rejects(probe.handles[0]!.result, { code: "actions.cancelled" });
   assert.equal(await hooks.clear(owner, "p1"), true);
@@ -293,4 +293,20 @@ test("S-18 PG-038 deleting a project also stops a background execution still bei
   assert.deepEqual(probe.controls.map(control => control.project_id), ["p2"], "the work accepted in the deleted project never began");
   assert.equal(probe.stored("result.p1"), null); assert.equal(probe.stored("failure.p1"), null);
   assert.equal(probe.stored("result.p2"), "after");
+});
+
+
+// SYS-22: the real deletion preview translates the stopping notice and names the declaring plugin.
+test("SYS-22 deletion preview lists background-only plugins in both languages", async t => {
+  const probe = backgroundProbe("previewbackground", "project");
+  probe.definition.stop = async context => { await probe.lifecycle.stop(context); };
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  await grantHomeProbe(f.host, probe);
+  const project = await f.project("Background preview");
+  for (const [language, expected] of [["zh", `${probe.definition.manifest.name} 的后台工作（将停止）`], ["en", `Background work for ${probe.definition.manifest.name} (will stop)`]]) {
+    const response = await f.request(`/api/settings/projects/${project.project_id}/delete-scope`, { headers: { "accept-language": language! } });
+    assert.equal(response.status, 200);
+    const body = await response.json() as { owners: Array<{ owner_id: string; label: string }> };
+    assert.equal(body.owners.find(owner => owner.owner_id === `plugin-background:${probe.id}`)?.label, expected);
+  }
 });

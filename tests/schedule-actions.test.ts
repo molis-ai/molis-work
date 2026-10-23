@@ -1,3 +1,4 @@
+import { SchedulePluginRouteTable } from "./schedule-direct-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -9,7 +10,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import {
-  SCHEDULE_ACTIONS, SCHEDULE_ACTION_PERMISSIONS, SchedulePluginRouteTable, createScheduleRouteHandlers, scheduleActions as s,
+  SCHEDULE_ACTIONS, SCHEDULE_ACTION_PERMISSIONS, createScheduleRouteHandlers, scheduleActions as s,
   type ScheduleConversationTaskView,
 } from "@molis-ai/molis-work-plugin-schedule";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -47,19 +48,19 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
       try { return await routes.handle({ method: "POST", pathname, query: new URLSearchParams(), body }); }
       catch (error) { return actionErrorResponse(error); }
     };
-    const created = await post("/api/schedule/tasks", { title: "晨报", instructions: "把未读收成三条", time: "08:30" });
+    const created = await post("/api/plugins/io.molis.work.schedule/tasks", { title: "晨报", instructions: "把未读收成三条", time: "08:30" });
     assert.equal(created?.status, 201);
     const task = (created?.body as { task: ScheduleConversationTaskView }).task;
     assert.equal(task.clock_label, "08:30");
     assert.equal(task.notify_important, true);
     assert.equal(changed, 1);
-    const blank = await post("/api/schedule/tasks", { title: "  ", instructions: "x", time: "09:00" });
+    const blank = await post("/api/plugins/io.molis.work.schedule/tasks", { title: "  ", instructions: "x", time: "09:00" });
     assert.deepEqual([blank?.status, (blank?.body as { code: string }).code], [400, "schedule.task_invalid"]);
     assert.match(String((blank?.body as { error: string }).error), /1 到 80 字的标题/);
-    const conversationJob = await post(`/api/schedule/jobs/${encodeURIComponent(task.job_id!)}/enabled`, { enabled: false });
+    const conversationJob = await post(`/api/plugins/io.molis.work.schedule/jobs/${encodeURIComponent(task.job_id!)}/enabled`, { enabled: false });
     assert.deepEqual([conversationJob?.status, (conversationJob?.body as { code: string }).code], [400, "schedule.task_invalid"]);
     assert.match(String((conversationJob?.body as { error: string }).error), /任务自己的开关/);
-    const absent = await post("/api/schedule/tasks/missing/open", {});
+    const absent = await post("/api/plugins/io.molis.work.schedule/tasks/missing/open", {});
     assert.deepEqual([absent?.status, (absent?.body as { code: string }).code], [404, "schedule.task_not_found"]);
 
     // Callers, not arguments, carry project and authority.
@@ -76,12 +77,10 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
 
     // Disabling the plugin in the project removes access without deleting tasks; re-enabling restores them.
     catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" });
-    const disabled = (await client.discover(caller)).find(row => row.capability_id === s.list.capability_id)!;
-    assert.equal(disabled.availability.available, false);
-    await assert.rejects(bound.invoke(s.list, {}), { code: "actions.plugin_disabled" });
+    assert.ok(!(await client.discover(caller)).some(row => row.capability_id === s.list.capability_id), "the stopped Runtime withdraws its actions");
+    await assert.rejects(bound.invoke(s.list, {}), { code: "actions.missing" });
     const reminders = (await client.discover(plugin)).filter(row => row.capability_id.startsWith("reminders."));
-    assert.deepEqual(reminders.map(row => row.capability_id).sort(), ["reminders.add", "reminders.cancel"]);
-    assert.ok(reminders.every(row => row.availability.available && row.provider.kind === "system"), "common reminders do not acquire the optional conversation UI's enablement requirement");
+    assert.deepEqual(reminders, [], "SYS-15-S2: reminders share Schedule's explicitly chosen enablement and are withdrawn with its Runtime");
     catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" });
     await host.closeProject(ref);
     assert.deepEqual((await bound.invoke(s.list, {})).tasks.map(row => row.task_id), [task.task_id], "reopening the Runtime keeps the task");

@@ -3432,3 +3432,7 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - **SC-4 的 D6 保留机制**：用户 10-23 在统筹会话弹窗里选「确认方案 A（推荐）」：`<home>/sessions/` 只在 `home-stores.ts` 留一条退役登记（owner 改 `apps/local-host`），只供备份和 `uninstall --purge-user-data` 用；不写读取、迁移、兼容代码；真实 Home 做完 SC-5 维护后删这条登记。已转告 `ac-sc3`（SC-4 分支 `migrate/sessions-sc4-offline`，叠在 #1113 上，第 1 个提交 `06d04ee68`）。
 - **清理**（用户 10-23：及时清理处理完的工作树与会话）：删了 6 个干净、提交已在 main 或远端的旧工作树（`/private/tmp/pr-review-1023/main`、`review-1014`、`docs-review-1014-drift`、`line-adoption-w406`、`line-interaction`、`line-interaction-ac08`）和两个已合入的本地分支（`docs/review-1014-drift`、`refactor/w4-06-prologue-node`）。别的线（VUX、采用、情境、回执）、Codex 的 `.codex/worktrees`、`/private/tmp/handoff/` 一律没动。
 - 以后每个开发片合入后，统筹删它的工作树、归档它的会话（会话还要接下一片的除外）。
+
+### 10-23 19:30 UTC　取号
+
+- **S-58** 给 `ac-kernel` 的 R7：「user_action 只由入口给：执行中的处理器发起的嵌套调用只能带它收到的那份或不带，自写或改的一律拒（`actions.forbidden`）；页面路由入口给 `source=web`」。下一个空号 S-59。

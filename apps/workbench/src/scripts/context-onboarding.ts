@@ -532,10 +532,9 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
         s.files=[];let drawn=0;
         try{for(const [index,item] of chosen.entries()) {
           uploading={k:index+1,n:chosen.length};if(Date.now()-drawn>=250){drawn=Date.now();render();}
-          const file=directory(s)?(await invoke('context_directory_read',{id:s.kind,files:[item]})).files[0]:{path:item.webkitRelativePath||item.name,blob:item};
-          if(!file.blob&&!file.data){s.files.push({path:file.path,reason:file.reason||L('无法读取文件')});continue;}
-          const blob=file.blob||new Blob([Uint8Array.from(atob(file.data),c=>c.charCodeAt(0))]);
-          const staged=await molisWorkRequest(endpoint('files')+'?path='+encodeURIComponent(file.path),{file:blob,fallback:L('上传失败，请重试')});
+          // A folder's file goes from the desktop shell straight to the Host, in pieces; the page only gets its digest back.
+          if(directory(s)){const file=await invoke('context_directory_stage',{id:s.kind,journey:journey.id,file:item});s.files.push(file.staged?{path:file.path,staged:file.staged}:{path:file.path,reason:file.reason||L('无法读取文件')});continue;}
+          const staged=await molisWorkRequest(endpoint('files')+'?path='+encodeURIComponent(item.webkitRelativePath||item.name),{file:item,fallback:L('上传失败，请重试')});
           s.files.push({path:staged.path,staged:staged.staged});
         }}finally{uploading=null;}
       }

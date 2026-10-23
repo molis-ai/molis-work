@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -86,6 +86,13 @@ export async function stageNote(home: string, id: string, key: string, note: str
 }
 export async function dropStagedNotes(home: string, id: string, keys: readonly string[]): Promise<void> {
   await Promise.all(keys.map(key => rm(staged(home, id, "notes", key), { force: true })));
+}
+
+/** The rounds that have staging on disk, by journey id. */
+export async function stagedJourneyIds(home: string): Promise<{ id: string; modified_ms: number }[]> {
+  const root = join(home, CONTEXT_ONBOARDING_HOME_STORE.path, "journeys");
+  const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
+  return Promise.all(entries.filter(entry => entry.isDirectory()).map(async entry => ({ id: entry.name, modified_ms: (await stat(join(root, entry.name))).mtimeMs })));
 }
 
 /** The round is adopted: what it staged goes. */

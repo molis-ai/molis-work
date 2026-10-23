@@ -1,11 +1,9 @@
 //! Metadata and bytes stay beneath an open authorized directory descriptor.
 //! openat/O_NOFOLLOW prevents a changed directory or symlink from redirecting access.
-use crate::context_directories::{DirectoryPreview, DirectoryRead, FilePreview, FileRead};
-use base64::{engine::general_purpose::STANDARD, Engine};
-use std::collections::HashSet;
+use crate::context_directories::{DirectoryPreview, FilePreview};
 use std::ffi::{CStr, CString};
-use std::fs::{File, OpenOptions};
-use std::io::Read;
+use std::fs::{File, Metadata, OpenOptions};
+use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::macos::fs::MetadataExt as _;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
@@ -273,7 +271,14 @@ fn relative_components(path: &str) -> Result<Vec<&str>, String> {
     Ok(components)
 }
 
-fn read_one(directory: &File, expected: &FilePreview) -> Result<String, String> {
+/// Why one chosen file did not go on: the file itself (a reason the page shows beside it), or the place it was being sent.
+#[derive(Debug)]
+pub(crate) enum StreamFailure {
+    File(String),
+    Sink,
+}
+
+fn open_checked(directory: &File, expected: &FilePreview) -> Result<(File, Metadata), String> {
     let components = relative_components(&expected.path)?;
     let mut parent = directory.try_clone().map_err(|_| "目录访问已中断")?;
     for component in &components[..components.len() - 1] {
@@ -288,7 +293,7 @@ fn read_one(directory: &File, expected: &FilePreview) -> Result<String, String> 
             return Err("隐藏目录不参与整理".into());
         }
     }
-    let mut file = open_child(&parent, components[components.len() - 1], false)?;
+    let file = open_child(&parent, components[components.len() - 1], false)?;
     let before = file.metadata().map_err(|_| "无法确认文件状态")?;
     if !before.is_file() || before.st_flags() & libc::UF_HIDDEN != 0 {
         return Err("只读取普通、非隐藏文件".into());
@@ -308,54 +313,78 @@ fn read_one(directory: &File, expected: &FilePreview) -> Result<String, String> 
     {
         return Err("文件自预览后已改变，请刷新后重新选择".into());
     }
-    let mut bytes = Vec::with_capacity(before.len() as usize);
-    (&mut file)
-        .take(before.len() + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|_| "无法读取文件正文")?;
-    let after = file.metadata().map_err(|_| "无法确认读取后的文件状态")?;
-    if bytes.len() as u64 != before.len()
+    Ok((file, before))
+}
+
+/// One chosen file, checked against its preview, written to `sink` piece by piece as it is read (any size, never whole in memory;
+/// user 2026-10-22), and checked again afterwards: a file that changed while it was read is refused, and what was sent is not named.
+pub(crate) fn stream_one(
+    directory: &File,
+    expected: &FilePreview,
+    sink: &mut dyn Write,
+) -> Result<(), StreamFailure> {
+    let (file, before) = open_checked(directory, expected).map_err(StreamFailure::File)?;
+    let mut reader = (&file).take(before.len());
+    let mut buffer = vec![0_u8; 256 * 1024];
+    let mut copied = 0_u64;
+    loop {
+        let read = reader
+            .read(&mut buffer)
+            .map_err(|_| StreamFailure::File("无法读取文件正文".into()))?;
+        if read == 0 {
+            break;
+        }
+        sink.write_all(&buffer[..read])
+            .map_err(|_| StreamFailure::Sink)?;
+        copied += read as u64;
+    }
+    let after = file
+        .metadata()
+        .map_err(|_| StreamFailure::File("无法确认读取后的文件状态".into()))?;
+    if copied != before.len()
         || before.len() != after.len()
         || before.mtime() != after.mtime()
         || before.mtime_nsec() != after.mtime_nsec()
         || before.ctime() != after.ctime()
         || before.ctime_nsec() != after.ctime_nsec()
     {
-        return Err("文件在读取时改变，请刷新后重新选择".into());
+        return Err(StreamFailure::File(
+            "文件在读取时改变，请刷新后重新选择".into(),
+        ));
     }
-    Ok(STANDARD.encode(bytes))
-}
-
-pub(crate) fn read(directory: &File, files: Vec<FilePreview>) -> Result<DirectoryRead, String> {
-    let mut seen = HashSet::new();
-    if files.iter().any(|file| !seen.insert(&file.path)) {
-        return Err("同一文件不能重复选择".into());
-    }
-    Ok(DirectoryRead {
-        files: files
-            .into_iter()
-            .map(|expected| {
-                let result = read_one(directory, &expected);
-                match result {
-                    Ok(data) => FileRead {
-                        path: expected.path,
-                        data: Some(data),
-                        reason: None,
-                    },
-                    Err(reason) => FileRead {
-                        path: expected.path,
-                        data: None,
-                        reason: Some(reason),
-                    },
-                }
-            })
-            .collect(),
-    })
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    struct Read {
+        path: String,
+        data: Option<Vec<u8>>,
+        reason: Option<String>,
+    }
+    /// Each file streamed into memory, as the Host would receive it.
+    fn read(directory: &File, files: Vec<FilePreview>) -> Vec<Read> {
+        files
+            .into_iter()
+            .map(|expected| {
+                let mut sink = Vec::new();
+                match stream_one(directory, &expected, &mut sink) {
+                    Ok(()) => Read {
+                        path: expected.path,
+                        data: Some(sink),
+                        reason: None,
+                    },
+                    Err(StreamFailure::File(reason)) => Read {
+                        path: expected.path,
+                        data: None,
+                        reason: Some(reason),
+                    },
+                    Err(StreamFailure::Sink) => unreachable!("a Vec takes every write"),
+                }
+            })
+            .collect()
+    }
     struct Fixture(std::path::PathBuf);
     impl Fixture {
         fn new() -> Self {
@@ -396,13 +425,8 @@ mod tests {
             .into_iter()
             .find(|file| file.path == "report.pdf")
             .unwrap();
-        let result = read(&fixture.root(), vec![report]).unwrap();
-        assert_eq!(
-            STANDARD
-                .decode(result.files[0].data.as_ref().unwrap())
-                .unwrap(),
-            [0, 1, 2, 255]
-        );
+        let result = read(&fixture.root(), vec![report]);
+        assert_eq!(result[0].data.as_deref().unwrap(), [0, 1, 2, 255]);
     }
     #[test]
     fn previews_and_reads_any_number_of_files_of_any_size() {
@@ -415,20 +439,10 @@ mod tests {
         let preview = preview(&fixture.root(), 0).unwrap();
         assert_eq!(preview.files.len(), 261);
         assert!(!preview.truncated);
-        let result = read(&fixture.root(), preview.files).unwrap();
-        assert!(result.files.iter().all(|file| file.data.is_some()));
-        let read_large = result
-            .files
-            .iter()
-            .find(|file| file.path == "large.txt")
-            .unwrap();
-        assert_eq!(
-            STANDARD
-                .decode(read_large.data.as_ref().unwrap())
-                .unwrap()
-                .len(),
-            large.len()
-        );
+        let result = read(&fixture.root(), preview.files);
+        assert!(result.iter().all(|file| file.data.is_some()));
+        let read_large = result.iter().find(|file| file.path == "large.txt").unwrap();
+        assert_eq!(read_large.data.as_deref().unwrap(), large.as_slice());
     }
     #[test]
     fn rejects_links_traversal_hidden_paths_and_changed_files_with_partial_success() {
@@ -460,24 +474,15 @@ mod tests {
                 identity: String::new(),
             });
         }
-        let result = read(&fixture.root(), files).unwrap();
-        assert_eq!(
-            result
-                .files
-                .iter()
-                .filter(|file| file.data.is_some())
-                .count(),
-            1
-        );
+        let result = read(&fixture.root(), files);
+        assert_eq!(result.iter().filter(|file| file.data.is_some()).count(), 1);
         assert!(result
-            .files
             .iter()
             .find(|file| file.path == "keep.txt")
             .unwrap()
             .data
             .is_some());
         assert!(result
-            .files
             .iter()
             .find(|file| file.path == "change.txt")
             .unwrap()
@@ -497,9 +502,7 @@ mod tests {
         let files = preview(&fixture.root(), 0).unwrap().files;
         std::fs::rename(fixture.0.join("docs"), fixture.0.join("old-docs")).unwrap();
         symlink(&outside.0, fixture.0.join("docs")).unwrap();
-        assert!(read(&fixture.root(), files).unwrap().files[0]
-            .reason
-            .is_some());
+        assert!(read(&fixture.root(), files)[0].reason.is_some());
     }
     #[test]
     fn replacement_with_same_size_and_mtime_is_rejected() {
@@ -520,20 +523,18 @@ mod tests {
             0
         );
         std::fs::rename(replacement, &path).unwrap();
-        let result = read(&fixture.root(), files).unwrap();
-        assert!(result.files[0].data.is_none());
-        assert!(result.files[0].reason.as_ref().unwrap().contains("改变"));
+        let result = read(&fixture.root(), files);
+        assert!(result[0].data.is_none());
+        assert!(result[0].reason.as_ref().unwrap().contains("改变"));
     }
     #[test]
-    fn previews_by_date_range_and_refuses_a_file_chosen_twice() {
+    fn previews_by_date_range() {
         let fixture = Fixture::new();
         for number in 0..3 {
             std::fs::write(fixture.0.join(format!("{number}.txt")), "a").unwrap();
         }
         let result = preview(&fixture.root(), 7).unwrap();
         assert_eq!(result.files.len(), 3);
-        let twice = vec![result.files[0].clone(), result.files[0].clone()];
-        assert!(read(&fixture.root(), twice).is_err());
         let old_path = CString::new(fixture.0.join("0.txt").to_str().unwrap()).unwrap();
         let old = libc::timespec {
             tv_sec: 1,

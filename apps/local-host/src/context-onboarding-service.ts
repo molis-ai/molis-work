@@ -8,7 +8,8 @@ import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
 import { withContextJourneys, type ContextJourney, type ContextReference } from "./context-onboarding-store.js";
 import { contextFilePath, contextSources, readContextSource } from "./context-onboarding-sources.js";
-import { diskFull, dropStagedNotes, readStagedNote, readStagedText, removeJourneyStaging, stageContextUpload, stageNote, stagedFilePath, isStagedDigest } from "./context-onboarding-staging.js";
+import { diskFull, dropStagedNotes, readStagedNote, readStagedText, removeJourneyStaging, stageContextUpload, stageNote, stagedFilePath, stagedJourneyIds, isStagedDigest } from "./context-onboarding-staging.js";
+import type { PeriodicTasks } from "./periodic-tasks.js";
 import { configuredTextPort, type TextModelPort } from "./configured-text-port.js";
 import { prepareContextDocument } from "./context-onboarding-documents.js";
 import { ARTIFACTS_PLUGIN_ID, artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
@@ -35,6 +36,11 @@ const running = new Map<string, Promise<void>>();
 const key = (home: string, id: string) => home + ":" + id;
 export function readContextJourney(home: string, id: string): ContextJourney {
   const journey = withContextJourneys(home, store => store.get(id));
+  if (journey.staging_removed && journey.phase !== "complete") {
+    journey.requires_reselection = true;
+    journey.error = "这轮整理超过 30 天没有继续，暂存的文件已清理以腾出空间。原记录已保留，请重新选择资料开始一轮整理。";
+    return journey;
+  }
   // Do not reinterpret old Cognia identities as Artifact identities, nor a material whose text sat in the row before staging
   // (2026-10-22). Keep the historical journey intact and offer a fresh selection without reading its old store.
   if (journey.phase !== "complete" && [...journey.sources.flatMap(s => s.references ?? []), ...(journey.summary?.references ?? [])]
@@ -54,6 +60,32 @@ export function readContextJourney(home: string, id: string): ContextJourney {
     withContextJourneys(home, store => store.save(journey));
   }
   return journey;
+}
+const IDLE_STAGING_MS = 30 * 24 * 60 * 60_000;
+/**
+ * What onboarding keeps on disk for rounds that will not use it (user 2026-10-22): the staging of a round left unfinished for 30
+ * days (its files can be gigabytes), of a finished round whose cleanup did not go through, and of one whose record is gone. A
+ * round's record stays; opened again, it asks for its files to be chosen anew. Rounds running in this process are left alone.
+ */
+export async function removeIdleJourneyStaging(home: string, now = Date.now()): Promise<number> {
+  let removed = 0;
+  for (const { id, modified_ms } of await stagedJourneyIds(home)) {
+    if (running.has(key(home, id))) continue;
+    const journey = withContextJourneys(home, store => { try { return store.find(id); } catch { return undefined; } });
+    if (journey === undefined) continue; // not a round's id: not this store's directory to remove
+    const idle = now - (journey ? Date.parse(journey.updated_at) : modified_ms) >= IDLE_STAGING_MS;
+    if (journey?.phase !== "complete" && !idle) continue;
+    await removeJourneyStaging(home, id); removed++;
+    if (journey && journey.phase !== "complete") { journey.staging_removed = true; withContextJourneys(home, store => store.save(journey)); }
+  }
+  return removed;
+}
+/** The cleanup above, when the Host starts and every six hours. */
+export function registerOnboardingStagingCleanup(home: string, periodic: PeriodicTasks): void {
+  const run = () => removeIdleJourneyStaging(home);
+  periodic.every({ id: "onboarding-staging-cleanup", title: "清理超过 30 天未继续的开始使用暂存", owner: "onboarding", intervalMs: 6 * 60 * 60_000, run,
+    onError: error => hostLog.warn("onboarding", "staging_cleanup_failed", error) });
+  void run().catch(error => hostLog.warn("onboarding", "staging_cleanup_failed", error));
 }
 export function selectContextSources(home: string, id: string, input: Record<string, unknown>): ContextJourney {
   const journey = readContextJourney(home, id);

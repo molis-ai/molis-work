@@ -41,6 +41,8 @@ export interface ContextJourney {
   previewed?: boolean;
   artifact_references?: ArtifactReference[];
   requires_reselection?: boolean;
+  /** The round sat unfinished for 30 days and its staged files were removed (user 2026-10-22); its files must be chosen again. */
+  staging_removed?: boolean;
   needs_model?: boolean;
   oauth_status?: "pending" | "connected" | "cancelled" | "failed";
   oauth_state?: string;
@@ -64,9 +66,13 @@ class ContextJourneyStore {
     applySqliteBaseline(db, CONTEXT_ONBOARDING_HOME_STORE.path, CONTEXT_ONBOARDING_BASELINE);
   }
   get(id: string): ContextJourney {
+    const journey = this.find(id);
+    if (!journey) throw new Error("这轮整理不存在，请重新开始");
+    return journey;
+  }
+  find(id: string): ContextJourney | null {
     const row = this.db.prepare("SELECT body FROM journeys WHERE id=?").get(contextJourneyId(id)) as { body: string } | undefined;
-    if (!row) throw new Error("这轮整理不存在，请重新开始");
-    return JSON.parse(row.body) as ContextJourney;
+    return row ? JSON.parse(row.body) as ContextJourney : null;
   }
   latestIncomplete(): Pick<ContextJourney, "id" | "phase" | "updated_at"> & { title: string } | null {
     const row = this.db.prepare(`SELECT body FROM journeys

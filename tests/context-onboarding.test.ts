@@ -16,7 +16,7 @@ import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { TODO_ORGANIZE_BASIC } from "@molis-ai/molis-work-plugin-todo";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
 import { readProjectArrival } from "../apps/local-host/dist/project-arrival.js";
-import { contextReferenceText, selectContextSources, stageContextFile, startContextJourney, waitContextJourney, adoptContextJourney, parseContextSummary, readContextJourney, reopenContextJourney, updateContextDraft } from "../apps/local-host/dist/context-onboarding-service.js";
+import { contextReferenceText, selectContextSources, stageContextFile, startContextJourney, waitContextJourney, adoptContextJourney, parseContextSummary, readContextJourney, removeIdleJourneyStaging, reopenContextJourney, updateContextDraft } from "../apps/local-host/dist/context-onboarding-service.js";
 import { contextSources, readContextSource, readOnboardingGmail } from "../apps/local-host/dist/context-onboarding-sources.js";
 import { createContextOnboardingHttp } from "../apps/local-host/dist/web-context-onboarding.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -495,4 +495,23 @@ test('ONB-LIM-07 a full disk stops the round at the file it hit, and continuing 
   assert.equal(done.phase, 'review', done.error ?? '');
   assert.deepEqual(done.sources[0]!.references!.map(ref => ref.path), ['a.md', 'b.md', 'c.md']);
   assert.deepEqual(done.sources[0]!.issues, []);
+});
+
+// Staging of rounds that will not use it goes (user 2026-10-22): a round left unfinished for 30 days, a finished one whose cleanup did
+// not go through; a round still within 30 days and a directory that is no round's are left alone, and the idle round asks to choose again.
+test('ONB-LIM-09 staging of a round left for 30 days or already finished is removed; a recent round keeps it and an idle one asks to choose again', async t => {
+  const dir = await home(t), idle = randomUUID(), done = randomUUID();
+  const roundDir = (id: string) => join(dir, 'context-onboarding', 'journeys', id);
+  for (const id of [idle, done]) { withContextJourneys(dir, s => s.create(id)); await stageContextFile(dir, id, 'a.md', Buffer.from('# A\n\nFact.')); }
+  withContextJourneys(dir, s => s.save({ ...s.get(done), phase: 'complete' }));
+  const stranger = join(dir, 'context-onboarding', 'journeys', 'not-a-round'); await mkdir(stranger);
+  assert.equal(await removeIdleJourneyStaging(dir), 1, 'only the finished round today');
+  await assert.rejects(stat(roundDir(done)), { code: 'ENOENT' });
+  assert.ok((await stat(roundDir(idle))).isDirectory(), 'a round within 30 days keeps its files');
+  assert.equal(readContextJourney(dir, idle).requires_reselection, undefined);
+  assert.equal(await removeIdleJourneyStaging(dir, Date.now() + 31 * 24 * 60 * 60_000), 1);
+  await assert.rejects(stat(roundDir(idle)), { code: 'ENOENT' });
+  const reopened = readContextJourney(dir, idle);
+  assert.equal(reopened.requires_reselection, true); assert.match(reopened.error!, /30 天/);
+  assert.ok((await stat(stranger)).isDirectory(), 'a directory that is no round is not this cleanup\'s');
 });

@@ -13,7 +13,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
   const q=selector=>result.querySelector(selector),list=directory.querySelector('[data-git-list]'),notice=directory.querySelector('[data-git-status]'),reopen=directory.querySelector('[data-git-reopen]'),history=directory.querySelector('[data-git-history]');
   const refreshButton=directory.querySelector('[data-git-refresh]');let opener=null;
   let workspace='',generation=0,ticket=0,selected=null,displayed=null,preparing=false;
-  const action=q('[data-git-index-action]'),reviews=q('[data-git-reviews]');
+  const action=q('[data-git-index-action]'),reviews=q('[data-git-reviews]'),diffNotice=q('[data-git-notice]');
   const reveal=(source)=>{opener=source;host.openResult();result.hidden=false;result.classList.add('is-arriving');result.setAttribute('aria-busy','false');q('[data-git-close]').focus({preventScroll:true});};
   const showReviews=()=>host.showReviews?.(reviews,[],null,workspace,undefined,{lifetime,signal:viewSignal});
   let resultRows=[],resultsTicket=0,resultSaving=false;
@@ -63,18 +63,18 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
   async function fixed(item,serial,epoch){
     const value=await requestPlugin('diff','/state?artifact_id='+encodeURIComponent(item.reference.artifact_id)+'&version='+item.reference.version);
     if(serial!==ticket || !active(epoch))return;
-    title(item);q('[data-git-diff]').innerHTML=value.html || '';q('[data-git-notice]').textContent=L('git.diff.as-read',{version:item.reference.version});
+    title(item);q('[data-git-diff]').innerHTML=value.html || '';diffNotice.textContent=L('git.diff.as-read',{version:item.reference.version});
     resultPanel.hidden=true;displayed=item;action.hidden=false;action.textContent=L(item.side==='index'?'git.diff.unstage':'git.diff.stage');await showReviews();
   }
   async function open(path,side,button){
     opener=button || opener;list.querySelectorAll('[data-git-path]').forEach(row=>row.classList.toggle('is-selected',row.dataset.gitPath===JSON.stringify([path,side])));
-    const serial=++ticket,epoch=generation,id=workspace;displayed=null;action.hidden=true;reveal(button || opener);result.setAttribute('aria-busy','true');q('[data-git-title]').textContent=path.join('/');q('[data-git-scope]').textContent='';q('[data-git-diff]').replaceChildren();q('[data-git-notice]').textContent=L('git.diff.reading');
+    const serial=++ticket,epoch=generation,id=workspace;displayed=null;action.hidden=true;reveal(button || opener);result.setAttribute('aria-busy','true');q('[data-git-title]').textContent=path.join('/');q('[data-git-scope]').textContent='';q('[data-git-diff]').replaceChildren();diffNotice.textContent=L('git.diff.reading');
     try{
       const value=await request('/diff','POST',{workspace_id:id,path,side});
       if(serial!==ticket || !active(epoch))return;
-      if(value.result.outcome!=='diff'){q('[data-git-notice]').textContent=S(value.result.message);return;}
+      if(value.result.outcome!=='diff'){diffNotice.textContent=S(value.result.message);return;}
       selected=value.selected;reopen.hidden=false;await fixed(selected,serial,epoch);
-    }catch(error){if(serial===ticket && active(epoch))q('[data-git-notice]').textContent=S(error.message);}
+    }catch(error){if(serial===ticket && active(epoch))diffNotice.textContent=S(error.message);}
     finally{if(serial===ticket && active(epoch))result.setAttribute('aria-busy','false');}
   }
   async function refresh(){
@@ -93,7 +93,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
         list.append(group);
       }
       history.disabled=false;
-    }catch(error){if(active(epoch)){workspace='';selected=null;resultsTicket++;resultRows=[];resultChoice.replaceChildren();renderResult();history.disabled=true;notice.textContent=S(error.message);if(!result.hidden){q('[data-git-diff]').replaceChildren();q('[data-git-notice]').textContent=S(error.message);}}}
+    }catch(error){if(active(epoch)){workspace='';selected=null;resultsTicket++;resultRows=[];resultChoice.replaceChildren();renderResult();history.disabled=true;notice.textContent=S(error.message);if(!result.hidden){q('[data-git-diff]').replaceChildren();diffNotice.textContent=S(error.message);}}}
     finally{if(active(epoch)){refreshButton.disabled=false;refreshButton.removeAttribute('data-loading');refreshButton.querySelector('.mw-spinner').hidden=true;list.setAttribute('aria-busy','false');}}
   }
   async function afterDecision(outcome){
@@ -112,25 +112,25 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
       const done=state==='settled',label=OPERATION[lastPrepared] || L('git.op.other');
       if(lastPrepared==='commit' && done){message.value='';try{sessionStorage.removeItem('molis-commit-draft:'+scWorkspace);}catch{}}
       scStatus.textContent=state==='unavailable'?L('git.op.no-receipt',{reason}):state==='rejected'?L('git.op.rejected',{op:label}):state==='failed'?L('git.op.failed',{op:label,reason}):done?L('git.op.done',{op:label}):L('git.op.recorded');
-      lastPrepared='';q('[data-git-notice]').textContent=scStatus.textContent;await refresh();return;
+      lastPrepared='';diffNotice.textContent=scStatus.textContent;await refresh();return;
     }
     displayed=null;action.hidden=true;
-    q('[data-git-notice]').textContent=notice+' '+L('git.decision.reopen');
+    diffNotice.textContent=notice+' '+L('git.decision.reopen');
     const signal=viewSignal;await refresh();if(!signal.aborted && !resultPanel.hidden)await loadResults();
   }
   lifetime.listen(directory.querySelector('[data-git-refresh]'),'click',()=>void (host.refreshWorkspace ? host.refreshWorkspace() : refresh()));
   lifetime.listen(action,'click',async()=>{
     if(!displayed || preparing)return;
-    const item=displayed,epoch=generation;preparing=true;action.disabled=true;q('[data-git-notice]').textContent=L('git.index.preparing');
+    const item=displayed,epoch=generation;preparing=true;action.disabled=true;diffNotice.textContent=L('git.index.preparing');
     try{
       await request('/prepare-index','POST',{workspace_id:item.workspace_id,path:item.path,revision:item.revision,action:item.side==='index'?'unstage':'stage',operation_id:crypto.randomUUID()});
       if(!active(epoch))return;
-      q('[data-git-notice]').textContent=L('git.index.review');await showReviews();
-    }catch(error){if(active(epoch))q('[data-git-notice]').textContent=S(error.message);}
+      diffNotice.textContent=L('git.index.review');await showReviews();
+    }catch(error){if(active(epoch))diffNotice.textContent=S(error.message);}
     finally{preparing=false;if(lifetime.alive)action.disabled=false;}
   });
-  lifetime.listen(history,'click',async()=>{if(!workspace || history.disabled)return;const epoch=generation;ticket++;displayed=null;action.hidden=true;reveal(history);q('[data-git-title]').textContent=L('git.history.title');q('[data-git-scope]').textContent=L('git.history.scope');q('[data-git-diff]').replaceChildren();q('[data-git-notice]').textContent='';resultPanel.hidden=false;await showReviews();if(active(epoch))await loadResults();});
-  lifetime.listen(reopen,'click',async()=>{if(!selected)return;reveal(reopen);const serial=++ticket,epoch=generation;try{await fixed(selected,serial,epoch);}catch(error){if(serial===ticket && active(epoch))q('[data-git-notice]').textContent=S(error.message);}});
+  lifetime.listen(history,'click',async()=>{if(!workspace || history.disabled)return;const epoch=generation;ticket++;displayed=null;action.hidden=true;reveal(history);q('[data-git-title]').textContent=L('git.history.title');q('[data-git-scope]').textContent=L('git.history.scope');q('[data-git-diff]').replaceChildren();diffNotice.textContent='';resultPanel.hidden=false;await showReviews();if(active(epoch))await loadResults();});
+  lifetime.listen(reopen,'click',async()=>{if(!selected)return;reveal(reopen);const serial=++ticket,epoch=generation;try{await fixed(selected,serial,epoch);}catch(error){if(serial===ticket && active(epoch))diffNotice.textContent=S(error.message);}});
   lifetime.listen(q('[data-git-close]'),'click',()=>{ticket++;result.setAttribute('aria-busy','false');result.hidden=true;result.classList.remove('is-arriving');host.closeResult();if(opener?.isConnected)opener.focus({preventScroll:true});else (list.querySelector('.is-selected') || refreshButton).focus({preventScroll:true});});
   // Source control: branch, commit, push and PR. Each is prepared for Host review against the repository as shown here,
   // and runs only if approved and the repository has not moved since.
@@ -186,7 +186,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
       await request('/operations','POST',{workspace_id:scWorkspace,operation_id:crypto.randomUUID(),revision:summary.revision,operation});if(!active(epoch))return;
       scStatus.textContent=L('git.op.review',{op:label});
       ticket++;displayed=null;action.hidden=true;resultPanel.hidden=true;reveal(source);
-      q('[data-git-title]').textContent=label;q('[data-git-kind]').textContent=L('git.op.review-kind');q('[data-git-scope]').textContent='';q('[data-git-diff]').replaceChildren();q('[data-git-notice]').textContent=L('git.op.review-note');
+      q('[data-git-title]').textContent=label;q('[data-git-kind]').textContent=L('git.op.review-kind');q('[data-git-scope]').textContent='';q('[data-git-diff]').replaceChildren();diffNotice.textContent=L('git.op.review-note');
       await showReviews();if(active(epoch))await loadOperations();
     }catch(error){if(active(epoch)){scStatus.textContent=S(error.message);await loadSource();}}
     finally{busy=false;}
@@ -253,7 +253,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
     return ()=>{generation++;ticket++;resultsTicket++;conflictTicket++;result.setAttribute('aria-busy','false');refreshButton.disabled=false;refreshButton.removeAttribute('data-loading');refreshButton.querySelector('.mw-spinner').hidden=true;list.setAttribute('aria-busy','false');};
   });
   lifetime.watchRevision(signal=>host.request('git','/view-revision','GET',undefined,signal),async()=>{
-    if(preparing || refreshButton.disabled && !initialRead)return false;
+    if(preparing || result.getAttribute('aria-busy')==='true' || refreshButton.disabled && !initialRead)return false;
     initialRead=false;await refresh();
   });
   return {refresh,afterDecision,show(face){directory.hidden=face!=='files';if(face!=='files'){ticket++;result.hidden=true;}}};

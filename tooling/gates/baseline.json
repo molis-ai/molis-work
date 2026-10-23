@@ -777,7 +777,7 @@
   },
   "rootStrayTotal": 0,
   "rootStrays": {},
-  "translationConflictTotal": 192,
+  "translationConflictTotal": 191,
   "translationConflicts": {
     "{agent} 的执行能力将在运行时检查，登录与隔离范围尚未确认。": 2,
     "{count} 次": 2,
@@ -823,7 +823,6 @@
     "方式": 2,
     "放在": 2,
     "风险": 2,
-    "复制": 2,
     "根据工具说明确认作用范围；点击后会执行该工具，包括它声明的写入操作。": 2,
     "更多操作": 2,
     "更新": 2,

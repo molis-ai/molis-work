@@ -38,19 +38,22 @@ test("VUX-36: putting a large coloured block into a product page costs in step w
   await writeFile(new URL("code-scale-cost.json", evidence), JSON.stringify({ small, large }, null, 2));
 });
 
-test("VUX-33: a large block reads at once and is coloured a slice a frame, to exactly the whole colouring", { timeout: 120_000 }, async (t) => {
+test("SYS-49/VUX-33: a large block reads at once and is coloured a slice a frame, to exactly the whole colouring", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
   await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
   await waitFor("document.readyState === 'complete'");
+  // SYS-49: scope the timer to the painter's callbacks; catalog animations keep the native scheduler.
+  // Each timed slice still includes its forced layout, in the original product page and with the same text.
   await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.colourParts = ${codeColouringProjection};
     const expected = new Map(); window.matchesColour = (code, text) => {
       if (!expected.has(text)) expected.set(text, JSON.stringify(tokensOf(text, "ts")));
       return JSON.stringify(colourParts(code)) === expected.get(text); };
     window.steps = []; const frame = window.requestAnimationFrame.bind(window);
-    window.requestAnimationFrame = (step) => frame((stamp) => { const start = performance.now(); step(stamp); window.code?.getBoundingClientRect(); window.steps.push(performance.now() - start); });
     window.grown = 0; const grow = ${growCodeTokens.toString()};
-    window.paint = (${createCodingCodePaint.toString()})(tokensOf, (last, text, language, tokens) => { const next = grow(last, text, language, tokens); window.grown += text.length - (next.starts[next.from] ?? text.length); return next; }, (hint) => hint);
+    window.paint = (() => {
+      const requestAnimationFrame = (step) => frame((stamp) => { const start = performance.now(); step(stamp); window.code?.getBoundingClientRect(); window.steps.push(performance.now() - start); });
+      return (${createCodingCodePaint.toString()})(tokensOf, (last, text, language, tokens) => { const next = grow(last, text, language, tokens); window.grown += text.length - (next.starts[next.from] ?? text.length); return next; }, (hint) => hint); })();
     window.block = () => { document.querySelector('#scale')?.remove(); const pre = document.body.appendChild(document.createElement('pre')); pre.id = 'scale'; return pre.appendChild(document.createElement('code')); };`);
   const text = textOf(300_000);
   const first = await evaluate<{ coloured: boolean; reads: boolean; ms: number }>(`(() => { window.text = ${JSON.stringify(text)}; window.code = block(); steps.length = 0;

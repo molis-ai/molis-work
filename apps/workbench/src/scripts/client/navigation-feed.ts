@@ -481,10 +481,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         [...nextWorkspace.querySelectorAll("[data-feed-entry-detail]")].forEach((node) => {
           workspace.insertBefore(node, empty);
         });
-        if (feedWorkbench) {
-          feedWorkbench.dataset.loaded = "true";
-          feedWorkbench.dataset.loadedPreset = activeFeedPreset;
-        }
+        if (feedWorkbench) Object.assign(feedWorkbench.dataset, { loaded: "true", loadedPreset: activeFeedPreset });
         setFeedTask(selectedFeedTask, false);
         feedSourcesDialog?.querySelectorAll("[data-feed-config-section]").forEach(section => section.hidden = section.dataset.feedConfigSection !== feedConfigView);
         if (feedSourcesDialog?.hidden === false) {

@@ -7,7 +7,7 @@ import { renderDiff } from "./ui.js";
  * path long enough to run past a narrow column, one new, one deleted — through the projection and the page's renderer, so the
  * file rows with their counts and the first file's rows are what the page shows. Sample content, never a real change.
  */
-const LONG = "packages/authentication/src/session/cookies/legacy-format/read-session-with-old-and-new-cookie-names.ts";
+const LONG = "packages/authentication/src/session/cookies/previous-format/read-session-with-old-and-new-cookie-names.ts";
 const DIFF = [
   `--- a/${LONG}`, `+++ b/${LONG}`, "@@ -10,3 +10,5 @@ export function readSession(header: string) {",
   "-  const raw = readCookie(header, \"sid\");", "+  const raw = readCookie(header, \"sid\") ?? readCookie(header, \"session\");", "   if (!raw) return null;",
@@ -22,5 +22,5 @@ export function diffBoardSpecimens(p: PluginBoardSpecimenPorts): readonly Plugin
       { path: "docs/auth.md", kind: "added", added_lines: 128, removed_lines: 0, diff: "" },
       { path: "auth/cookie-v1.ts", kind: "deleted", added_lines: 0, removed_lines: 1042, diff: "" },
     ] } });
-  return [{ id: "diff-files", place: "page", title: p.text("diff.board.files"), html: renderDiff({ route_prefix: "#", view, primitives: p }) }];
+  return [{ id: "diff-files", place: "page", title: p.text("diff.board.files"), html: renderDiff({ view, primitives: p }) }];
 }

@@ -16,7 +16,8 @@ const GOALS_EVENT_WRITES = ["event-configure", "event-report", "event-progress",
 
 /**
  * The page's Goals operations, one handler each in `goalsRoutes` (PG094-09). Until Goals runs on the Plugin Runtime supervisor (PG-094 S9)
- * the Host serves them at their old address, `/api` and the path, instead of under `/api/plugins/<plugin_id>`.
+ * the Host serves them at their old address, `/api` and the path, instead of under `/api/plugins/<plugin_id>`. Goals has no installation
+ * grants for the Host to read until then, so a route here that declares a `permission` is refused, whoever calls (S-15).
  */
 const GOALS_ROUTES: PluginRouteDeclaration[] = [
   { route_id: "goals.create", method: "POST", path: "/goals" },

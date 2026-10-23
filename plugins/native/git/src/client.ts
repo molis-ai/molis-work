@@ -99,14 +99,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
   async function afterDecision(outcome){
     if(!lifetime.visible || !outcome.workspaceId || outcome.workspaceId!==workspace)return;
     const state=outcome.state,reason=L('git.decision.details');
-    let notice;
-    if(state==='unavailable')notice=L('git.decision.no-receipt',{reason});
-    else if(state==='uncertain')notice=L('git.decision.uncertain',{reason});
-    else if(state==='rejected')notice=L('git.decision.rejected');
-    else if(state==='reconciled')notice=L('git.decision.reconciled');
-    else if(state==='failed')notice=L('git.decision.failed',{reason});
-    else if(state==='settled')notice=L('git.decision.settled');
-    else notice=L('git.decision.pending');
+    const notice=L({unavailable:'git.decision.no-receipt',uncertain:'git.decision.uncertain',rejected:'git.decision.rejected',reconciled:'git.decision.reconciled',failed:'git.decision.failed',settled:'git.decision.settled'}[state] || 'git.decision.pending',{reason});
     // A commit, branch, push or PR decided here reads as that operation, never as an index change.
     if(lastPrepared){
       const done=state==='settled',label=OPERATION[lastPrepared] || L('git.op.other');
@@ -114,18 +107,18 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
       scStatus.textContent=state==='unavailable'?L('git.op.no-receipt',{reason}):state==='rejected'?L('git.op.rejected',{op:label}):state==='failed'?L('git.op.failed',{op:label,reason}):done?L('git.op.done',{op:label}):L('git.op.recorded');
       lastPrepared='';diffNotice.textContent=scStatus.textContent;await refresh();return;
     }
-    displayed=null;action.hidden=true;
-    diffNotice.textContent=notice+' '+L('git.decision.reopen');
+    if(result.getAttribute('aria-busy')==='true')return;
+    if(action.hidden){displayed=null;diffNotice.textContent=notice+' '+L('git.decision.reopen');}
     const signal=viewSignal;await refresh();if(!signal.aborted && !resultPanel.hidden)await loadResults();
   }
-  lifetime.listen(directory.querySelector('[data-git-refresh]'),'click',()=>void (host.refreshWorkspace ? host.refreshWorkspace() : refresh()));
+  lifetime.listen(refreshButton,'click',()=>void (host.refreshWorkspace ? host.refreshWorkspace() : refresh()));
   lifetime.listen(action,'click',async()=>{
     if(!displayed || preparing)return;
     const item=displayed,epoch=generation;preparing=true;action.disabled=true;diffNotice.textContent=L('git.index.preparing');
     try{
       await request('/prepare-index','POST',{workspace_id:item.workspace_id,path:item.path,revision:item.revision,action:item.side==='index'?'unstage':'stage',operation_id:crypto.randomUUID()});
       if(!active(epoch))return;
-      diffNotice.textContent=L('git.index.review');await showReviews();
+      action.hidden=true;diffNotice.textContent=L('git.index.review');await showReviews();
     }catch(error){if(active(epoch))diffNotice.textContent=S(error.message);}
     finally{preparing=false;if(lifetime.alive)action.disabled=false;}
   });

@@ -3366,3 +3366,11 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - **合并顺序改走「#1099 先合」那条路**：Codex 已把 #1099 合 main 并按实测刷新 `workbench.js`（`1420bd8ba`，1190716 字节），又组了 `integration/batch-1023-12`（`65adb02ae` = main `8f49a77ff` + #1099 + #1100 + #1087 `502ffa9c6` + #1084 按 squash 感知合入），[全量 39990751603](https://github.com/molis-ai/molis-work/actions/runs/39990751603) 16:55 UTC 起在跑。#1076 的放行键由 Codex 在 #1099 合入后的 main 上重算。
 - **已合入**：#1096（`01a875af0`）、#1093（`8b8ee3131`）。R-12、R-15 随 #1096 关；`known-red-main.md` 里 `health-gates-api-snapshot`、`goal-event-http` 两行随之失效，下一次更新已知红时删。
 - 本机路径：本机的 Codex 工作树在 `/private/tmp/handoff/`，协调分支工作树在主检出的 `.claude/worktrees/coord-handoff-1014`。
+
+### 10-23 17:50 UTC　子会话与合并
+
+- **子会话**（本机统筹派，规矩见同目录 `SLICE-RULES.md`）：
+  - `ac-sc3`（Sonnet xhigh）：SC-3 合 main、开 PR。
+  - `ac-review`（Sonnet xhigh）：用户 10-23 要的专职 PR 评审，接替原 ⑩。每个防腐 PR 合入前由它审代码质量与规范，评审写在 PR 评论里，开头一行写「可合 / 修后可合 / 不可合」。先审 #1112、#1107。
+- **#1099** 进合并队列（队列第 1 位）。diff 只有 R-25 两处判断和 `workbench.js` 的字节数（1190721 → 1190716）。
+- **取号**：开发片的验收编号从 RAC-100 起按片分段（RAC-80～99 留给在途 PR），BL 从 BL-440 起按片分段，S 号由统筹给（main 现在最大 S-57）。每片的号段记在下面的「派单」里。

@@ -29,11 +29,15 @@
 
 PR 跟进补充（2026-10-23）：复核关闭时序时，用真实 Home 插件启动门制造“查询等待启动 → Host 关闭并释放 Functions → 启动等待返回”的交错。修复前查询最终虽以 `host.closed` 拒绝，但关闭后仍调用一次 Functions list，新开的连接未被关闭。`prepareHomeActions` 在等待 Home ready 返回后再次检查宿主生命周期，再刷新 Functions；AAP-06 增加这一真实交错的回归，避免关闭后重新打开连接。负对照在旧产物上准确失败（1 次晚到读取，预期 0）；修复后整体构建、8 个相关文件的 57 项测试、健康门禁和包边界检查通过。
 
+CI 跟进发现：首轮 Full suite 停在主线 #1057 新增的 `assistant-repeat-no-accumulation.e2e.test.ts`（数组 480 → 724）。干净 `f8c9b4246` 与合并该主线的本分支在 Chrome 153/155 的原速用例均为 480 → 480；延长切换以跨过轮询后，干净主线也能出现 480 → 602。数组来源诊断指向状态环的点坐标：每个新增未读标记占 122 个数组和 15 个节点，且闲置后数量不继续增长。完成通知在测量中首次到达，导致前后页面内容不同。测试修复仅在测量前通过真实通知接口将种入工作的完成通知标为已读，并主动经过真实 attention 刷新；重复切换、GC、节点/监听器/数组阈值保持原样，测量期间也强制刷新 attention，不能靠快于轮询而避开原失败。
+
+这一修正的负对照在干净主线中主动刷新 attention，观察到图标从 3 个变为 4 个（新增 `unread`），节点 3804 → 3819、数组 480 → 602，原断言失败。相同刷新条件下，修正后的干净主线慢速场景（每次间隔 450 ms）与本分支场景均保持节点 3804、监听器 402、数组 480。该测试修正的健康门禁通过；Linux Full suite 仍须在推送后的 head 重新完成。
+
 ## 验证与交付
 
 先整体 `pnpm build`，用独立子进程运行真实 Web Host 与 HTTP 负载客户端，Home、端口与凭据均为临时测试数据，模型关闭。每项目启用 Coding/Goals，准备等待中的会话及已完成会话；查询必须返回应见任务且排除已完成项。基线和修复使用相同种子副本，保留测量与代表性完整回答，每次回答逐项校验，结束关闭自己的进程和数据目录。
 
-定向用例包含 local-host、local-host-close、local-host-actions、security-invariants-home-aggregate、coding-background-tasks、attention-route、插件原调用者/beforeEffect 及受影响调用点。运行 `node scripts/affected-tests.mjs` 与包 README 的必跑集合；`pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm secrets:check` 和 spec 编号检查。共享装配改动的全量按仓库规则由集成/CI 执行；本任务未获远端写入授权，交付时明确未跑项。基线已有失败单独记录，不放宽门禁。
+定向用例包含 local-host、local-host-close、local-host-actions、security-invariants-home-aggregate、coding-background-tasks、attention-route、插件原调用者/beforeEffect 及受影响调用点。运行 `node scripts/affected-tests.mjs` 与包 README 的必跑集合；`pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm secrets:check` 和 spec 编号检查。共享装配改动的全量按仓库规则由集成/CI 执行；2026-10-23 已获推送、PR 与 CI/评审修复授权，交付时明确未跑项。基线已有失败单独记录，不放宽门禁。
 
 ## 实际结果
 
@@ -55,7 +59,7 @@ PR 跟进补充（2026-10-23）：复核关闭时序时，用真实 Home 插件�
 
 测量限制：最终 HTTP 负载持有构建槽位，本机仍有其他工作树的浏览器测试，绝对延迟包含环境负载影响。数据、Node、请求计划及 14 项目三标签 profile 采样方式与基线相同，以进程 CPU 和实际调用次数交叉验证根因消失。1 项目单标签的负载延迟、7 项目三标签 Home 的最大延迟没有改善，不能宣称所有分位数都变快。每格只有 4/8 个 attention 样本，所以 p90 等于 max；此矩阵证明目标开销与多项目阻塞改善，不作为稳定容量或尾延迟承诺。ELD 表中的 p50/p90/max 是每秒采样窗口最大值的分布，按表顺序窗口数前→后为 60→60、59→60、58→60、59→60、50→59、37→60；阻塞时采样计时器也会延迟。
 
-集成边界：本地代码与测量基线为 `91c24d8f5`。推送前核对的远端为 `f8c9b4246`，期间合入了 #1048 的 Goals 运行时装配、#1069 的 Coding/Git 文字、#1049 的页面动作及 #1070 的 Prologue 换包。#1048 与本分支共同修改 project-host 的不同代码段，文本合并预检通过；此前还排查到 #1051 涉及 project-host、#1064 涉及 plugin-actions-client。性能矩阵保持原基线，合入前由 PR 合并结果的 CI 验证组合。2026-10-23 一骏授权推送、创建 PR、持续跟进 CI 与评审并直接修复问题，已创建 #1073 并触发 Full suite；尚未合入、安装到真实 Home 或进行一骏本人验收。
+集成边界：性能测量基线为 `91c24d8f5`。CI 跟进期间已将 `f8c9b4246` 合入本分支，包含 #1048 的 Goals 运行时装配、#1069 的 Coding/Git 文字、#1049 的页面动作及 #1070 的 Prologue 换包，整体构建、8 个服务端文件的 57 项测试、健康门禁和包边界通过；上述 Assistant 浏览器对比也在这个组合上进行。性能矩阵保持原基线，不宣称是后续主线新版本的性能测量。之后主线又合入 #1041 至 `a259350ac`，未与本分支修改同一文件，最终组合由 PR CI 验证。此前排查到 #1051 涉及 project-host、#1064 涉及 plugin-actions-client，继续以最终远端 head 核对。2026-10-23 一骏授权推送、创建 PR、持续跟进 CI 与评审并直接修复问题，已创建 #1073 并触发 Full suite；尚未合入、安装到真实 Home 或进行一骏本人验收。
 
 | 验收 | 结果与证据 |
 | --- | --- |

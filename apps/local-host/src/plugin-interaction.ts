@@ -7,7 +7,7 @@ import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import { agentQuestionHtml } from "./agent-question-card.js";
 import { CARD_RESULT_OPEN, cardOutcomeSteps, interactionNextSteps } from "./agent-next-steps.js";
 import { assistantCardHtml } from "./assistant/assistant-card-view.js";
-import { isWebLocale, L, runWithLocale } from "./web-locale.js";
+import { isWebLocale, L, pageLocale, runWithLocale } from "./web-locale.js";
 
 const interactionErrors = defineErrorCodes("host", { plugin_interaction_invalid: "invalid" });
 
@@ -41,9 +41,12 @@ function steps(value: unknown): PluginInteractionNextSteps {
     ...(Array.isArray(followUps) ? { follow_ups: followUps as PluginInteractionStep[] } : {}) };
 }
 
-/** Drawn in the language of the plugin's call (its page's), or Chinese outside one. */
+/**
+ * Drawn in the language of the plugin's call (its page's). A route runs in no action, so it draws in the language of the page
+ * request it answers, which is also the one its execution carries; Chinese outside both (a call no page made).
+ */
 function inCallLanguage<T>(draw: () => T): Promise<T> {
-  const locale = currentPluginInvocation()?.caller.locale;
+  const scope = currentPluginInvocation(), locale = scope ? scope.caller.locale : pageLocale();
   return Promise.resolve().then(() => runWithLocale(locale !== undefined && isWebLocale(locale) ? locale : "zh", draw));
 }
 

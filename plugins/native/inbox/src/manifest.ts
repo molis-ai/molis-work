@@ -34,7 +34,7 @@ export const inboxManifest: PluginManifest = {
   ui: {
     contributions: [INBOX_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Inbox", contribution_id: INBOX_UI_CONTRIBUTION_ID, icon: "inbox", order: 30 },
+      { view_id: "directory", slot: "navigator", title: "Inbox", contribution_id: INBOX_UI_CONTRIBUTION_ID, icon: "inbox", order: 30, accepts_objects: true },
     ],
   },
 };

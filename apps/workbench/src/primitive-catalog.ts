@@ -14,8 +14,12 @@ import { CONDITIONS_SECTION_STYLES, renderConditionsSection } from "./condition-
 import { ASSISTANT_SECTION_STYLES, renderAssistantBoardSection } from "./assistant-board-specimens.js";
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
+import { BUILTIN_PLUGIN_CATALOG } from "./plugin-catalog.js";
 
-const CATALOG_PLUGINS = ["goals", "inbox", "feed", "sessions", "schedule", "workflows", "pages", "lingguang", "plugin-builder"] as const;
+/** The specimen project has every built-in plugin the bar shows (a navigator or island view), in catalog order. */
+const CATALOG_PLUGINS = BUILTIN_PLUGIN_CATALOG
+  .filter((entry) => entry.manifest.ui.views?.some((view) => view.slot === "navigator" || view.slot === "island"))
+  .map((entry) => entry.project_plugin_id);
 
 /**
  * The resident bar exactly as the workbench composes it, on a strip of desk: Dock menu, pinned plugins,

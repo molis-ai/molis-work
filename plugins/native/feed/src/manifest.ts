@@ -45,7 +45,7 @@ export const feedManifest: PluginManifest = {
   ui: {
     contributions: [FEED_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Feed", contribution_id: FEED_UI_CONTRIBUTION_ID, icon: "rss", order: 40 },
+      { view_id: "directory", slot: "navigator", title: "Feed", contribution_id: FEED_UI_CONTRIBUTION_ID, icon: "rss", order: 40, accepts_objects: true },
     ],
   },
 };

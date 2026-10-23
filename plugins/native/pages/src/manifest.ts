@@ -63,7 +63,7 @@ export const pagesManifest: PluginManifest = {
     contributions: [PAGES_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "comments", slot: "side", context_binding: "focused-object", title: "评论与备注", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "message" },
-      { view_id: "directory", slot: "navigator", title: "Pages", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "note", order: 56 },
+      { view_id: "directory", slot: "navigator", title: "Pages", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "note", order: 56, accepts_objects: true },
     ],
   },
 };

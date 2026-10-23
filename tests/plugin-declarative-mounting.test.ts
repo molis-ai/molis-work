@@ -392,3 +392,15 @@ test("OPEN-PLACE-01 a plugin opens where its declarations put it: the work area 
   // The shipped plugins: Shelf is the only one with nothing but a side view.
   assert.deepEqual(sideOpenedPlugins(), { shelf: "plugin:shelf/side" });
 });
+
+test("PG-060 a plugin's tab opens one object when a Manifest view of it accepts objects, and is named by its views", async () => {
+  const { objectTabPlugins, pluginTabTitles } = await import("@molis-ai/molis-work-app-workbench");
+  const entry = (id: string, views: Array<{ accepts_objects?: boolean }>) => ({ project_plugin_id: id, manifest: { ui: { views } } });
+  assert.deepEqual(objectTabPlugins([entry("notes", [{}, { accepts_objects: true }]), entry("plain", [{}]), entry("bare", [])]), ["notes"]);
+  // The shipped plugins: search, placement and side files open these as an object's tab (Sessions, Coding and Artifacts are the platform's own).
+  assert.deepEqual(new Set(objectTabPlugins()), new Set(["goals", "inbox", "feed", "pages", "lingguang", "workflows", "files", "git", "diff"]));
+  // The workbench writes no plugin's tab title: each is its navigator or island view's, in the page's language.
+  const zh = pluginTabTitles(), en = pluginTabTitles(true);
+  assert.deepEqual([zh.feed, zh.lingguang, zh.ppt, zh.workflows], ["Feed", "灵光", "PPT", "工作流程"]);
+  assert.deepEqual([en.lingguang, en.workflows], ["Lingguang", "Workflows"]);
+});

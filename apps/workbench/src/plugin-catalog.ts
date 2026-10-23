@@ -254,6 +254,13 @@ export function sideOpenedPlugins(entries: readonly PlacedPluginDeclarations[] =
   return placed;
 }
 
+/** Plugins whose tab opens one object by id: a view of theirs declares `accepts_objects` (search, placement, side files). */
+export function objectTabPlugins(entries: readonly {
+  readonly project_plugin_id: string; readonly manifest: { readonly ui: { readonly views?: readonly { readonly accepts_objects?: boolean }[] } };
+}[] = BUILTIN_PLUGIN_CATALOG): string[] {
+  return entries.filter((entry) => entry.manifest.ui.views?.some((view) => view.accepts_objects === true)).map((entry) => entry.project_plugin_id);
+}
+
 /** Side panel tabs the enabled plugins declare (`slot: "side"`), in Manifest order; the Host serves each one's document. */
 export function sideEntries(enabled: readonly ProjectPluginId[]): Array<UiPlacedView & { project_plugin_id: string }> {
   const registry = new UiViewRegistry(BUILTIN_PLUGIN_CATALOG.map((entry) => ({

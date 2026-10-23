@@ -8,11 +8,12 @@
 
 2026-10-23 20:40 UTC：batch-1023-13（run40013259093，6cff3977e）16片1341/1341文件最终通过；3份重试通过记入偶发。Linux跳过的macOS C0仍未验证，保留当前已知红。
 
-## 当前已知红（1 个文件）
+## 当前已知红（2 个文件，同一 C0 根因）
 
 | 文件 | 失败的用例 | 原因类别 | 依据 |
 | --- | --- | --- | --- |
 | `agent-built-plugins-checks.test.ts`（macOS） | G2：生成的 `developer/sdk.d.ts` 找不到 `./plugin-interaction.js` | 产品回归：声明依赖漏交付 | 统筹20:45派C0；#1119一轮6373464651报告相同失败。Codex已静态核main38111：#1079增加相对类型引用，创建目录/G1/G2快照仍只交付一个文件；尚待C0在main基线复现及修复。现有整文件标macOS，Linux全量跳过；不是Linux已验证通过。 |
+| `agent-built-plugins-workflow.test.ts`（macOS） | W2-18-BUILDER-LATE-01：同一份生成 SDK 缺少相对声明依赖 | 产品回归：声明依赖漏交付 | #1147作者报告并由统筹039b2b02a追加到C0；Codex尚未对该用例跑基线，将与checks一起验证，不把作者报告说成自己的实测。 |
 
 #1041 那 4 份（`host-pages-error-model`、`fill-message`、`personal-plugins-review-fixes`、`plugin-project-database`）在 batch-1023-8（基底含 #1082 `1ded3c218`）都过了，22:50 删行。`coding-rich-html` 已由 #1089（`62f76db72`）修好，22:20 删行。
 
@@ -84,6 +85,7 @@
 
 ```
 tests/agent-built-plugins-checks.test.ts
+tests/agent-built-plugins-workflow.test.ts
 tests/workbench-deferred-clients.e2e.test.ts
 ```
 

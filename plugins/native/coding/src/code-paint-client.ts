@@ -56,7 +56,7 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
     if (!kind) return document.createTextNode(value);
     const span = document.createElement("span"); span.className = "tok-" + kind; span.textContent = value; return span;
   };
-  const SLICE = 16000, BLOCK_SLICE = 8000, CAP = 400000, slicing = new WeakMap<PaintElement, Job>();
+  const SLICE = 16000, BLOCK_SLICE = 4000, CAP = 400000, slicing = new WeakMap<PaintElement, Job>();
   const throughLine = (text: string, at: number) => { const next = Math.min(text.length, at + BLOCK_SLICE), end = text.indexOf("\n", next); return end < 0 ? text.length : end + 1; };
   const piecesIn = (state: CodeColouring, start: number, end: number): Piece[] => {
     const pieces: Piece[] = []; let low = 0, high = state.starts.length - 1;

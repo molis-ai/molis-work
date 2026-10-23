@@ -23,13 +23,13 @@ const ADDED = /\n\n【(?:发送时的选区，数据】|附带材料「)/;
 
 /**
  * What the person typed, in order (memory's 「你说过」, specs/ai-input-receipts G13): each round they wrote, then the
- * supplements they sent it while it ran. The supplements are read from the runtime's own input record (the run view),
+ * supplements they sent it while it ran and have not withdrawn. The supplements are read from the runtime's own input record (the run view),
  * never stored again here; a supplement the Host or a page wrote reads as a notice there, so it is not among them.
  */
 export function typedWords(rounds: ReadonlyArray<{ run_id: string; text: string; written_by?: string }>, views: ReadonlyArray<{ run_id: string; turns: readonly AgentTurnView[] }>): string[] {
   const turns = new Map(views.map(view => [view.run_id, view.turns]));
   return rounds.flatMap(round => [...(round.written_by ? [] : [round.text]),
-    ...(turns.get(round.run_id) ?? []).filter(turn => turn.kind === "user" && turn.steer).map(turn => turn.text.split(ADDED)[0]!)]);
+    ...(turns.get(round.run_id) ?? []).filter(turn => turn.kind === "user" && turn.steer && turn.steer.state !== "withdrawn").map(turn => turn.text.split(ADDED)[0]!)]);
 }
 
 /** The round a Send reaches, whichever executor carries it (the Assistant's own runtime or a Coding session). */

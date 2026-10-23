@@ -16,6 +16,7 @@ import { codingGoalTitles } from "./goal-titles.js";
 import { codingArtifactPreviewHandler } from "./artifact-preview.js";
 import { codingResultDocumentHandler } from "./results-document.js";
 import { codingHomeBackgroundTasksHandler } from "./home-background.js";
+import { CODING_INSTRUCTIONS } from "./prompts.js";
 
 /**
  * Coding as something Plugin Runtime starts, isolated, rather than something
@@ -64,6 +65,7 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
     event_types: codingEventTypes,
     agent_prompts: codingPrompts,
     agent_skills: codingMethods,
+    instructions: CODING_INSTRUCTIONS,
     async start(context: PluginStartContext): Promise<PluginAppContribution> {
       for (const permission of codingManifest.permissions) {
         if (permission.required) context.requireGrant(permission.permission);

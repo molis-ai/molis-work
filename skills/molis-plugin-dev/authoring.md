@@ -32,7 +32,7 @@ import { definePlugin, definePollingIntegrationPlugin } from "@molis-ai/molis-wo
 
 作者不碰 Store、SQL、数据库路径。缺权限、停用的旧上下文、未声明的类型/界面都会被 owner 拒绝。
 
-`PluginDefinition` 还可带 `event_types`、`agent_prompts`、`agent_skills`。可选 `stop` / `health`。
+`PluginDefinition` 还可带 `event_types`、`agent_prompts`、`agent_skills`、`instructions`、`methods`：Agent 块声明的每段 Prompt 都要在 `agent_prompts` 里有正文，模型指令与给别的 Agent 的方法正文也都随定义走，插件运行时 Host 登记它们（PG-051）。可选 `stop` / `health`。
 
 ## CLI（第三方 / 本地样例）
 

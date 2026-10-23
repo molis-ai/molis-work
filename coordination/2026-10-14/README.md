@@ -3094,3 +3094,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 不改代码：改代码只是去迁就误报，S9 还得再改回来。
 - 怎么改、怎么验：门禁改动单独一个提交，PR 里加「门禁改动」一节；反例用 `node -e` 对样例文本验，本机不跑 `boundary:check`，交给 CI；⑤ 合并前看过这个提交。
 - S9 删改写以后，这条规则还要再对一次形状。条件全文见登记册 §3 的 #1093 行。
+
+### 10-23 20:48（12:48 UTC） ② 开 #1096（BL-403、BL-404），转做 W5-06 第 2b 片
+
+- [#1096](https://github.com/molis-ai/molis-work/pull/1096)：路由派发记成一次调用，停用时答 403，不再挂住（R-12 随它关）。路由抛出的带码错误由 Plugin Runtime 按 kind 统一答。R-13 评估完，① 认可：只在所有调用之外才吞掉拒绝。
+- SDK 只多一个可选导出 `isCodedFailure`；`full` 命中 shared-core，要进集成批次。和 #1076 交叠在 Shelf 那段 catch，谁后合谁删。
+- ② 接着做 2b：分组、设置图标，加上 BL-387 的三处入口；手写行留给 ③ 在 2b 之后删。

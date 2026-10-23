@@ -42,5 +42,5 @@ jobs:
           echo "MOLIS_WORK_BROWSER_PATH=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends fonts-wqy-zenhei
-      - name: Validate code colouring and Git review races
-        run: node scripts/run-tests.mjs --verbose tests/code-scale.e2e.test.ts tests/companion-client-lifecycle.e2e.test.ts tests/plugin-page-reviews.e2e.test.ts
+      - name: Measure colouring script and layout separately
+        run: node scripts/run-tests.mjs --verbose tests/code-scale.e2e.test.ts

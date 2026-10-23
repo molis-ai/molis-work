@@ -1,0 +1,29 @@
+# Shelf S4 交接（2026-10-23）
+
+- PR #1083 `migrate/shelf-s4-project`，叠在 #1051（S2）、#1076（S3）上，base main，已交 ⑩。只看 S4：`git diff 2def9bbd8...origin/migrate/shelf-s4-project`。
+- 做了：
+  - 演示种子由常驻宿主调 `shelf.sample.seed`（`seedDemoHomeSamples`，放过 not_found/unavailable/forbidden）；
+  - 删 `apps/local-host/src/shelf-actions.ts`，用例改用 `tests/shelf-direct-actions.ts` 的 `openTestShelfFiles/openTestShelfStore`；
+  - `HYBRID_RUNTIME_PLUGINS` 去掉 shelf；
+  - PG-026-S1、PG-090 标已做；文档跟上。
+- 退役用例：shelf-owner-files 的 PG-026-S1-2 至 S1-6（宿主客户端），由 SHF-IO-S02 至 S06 覆盖。
+- 没做，归 ②：Manifest `kind:"native"`（PG-007 阶段 4）、`always_on`（PG-004）；宿主按贡献 id 拼 Shelf 设置节（PG-072）。
+- #1076 另加 `2def9bbd8`（① 10-23 裁决：放行表说明、CHECKLIST 4.3 Shelf 目录 1→2 子项）。
+- 本机只跑 secrets:check；完整的「本机延后验证」写在 PR 正文。`tooling/gates/baseline.json`（本地快查）没更新。
+- ① 10-23 对 #1083 第三层叠放按例外认可（R-09），条件：
+  - #1051、#1076 合进 main 之前，#1083 不再推新提交；
+  - 两层都合了以后，在 #1083 上 `git merge origin/main`（不 force，不用 sync 工具，R-14），让 diff 只剩 S4，再告诉 ⑤ 组批。
+- Shelf S2～S4 收口，之后不再派新片；评审意见由 ⑩/⑤ 处理，需要改时找本会话。
+- ⑩ 审完 #1083，可合，已交 ⑤，并推了 42aebcbfd（测试夹具守住声明目录与写入作用域）。按 ⑩ 的要求：
+  - #1051 的新提交已合进 S3 并推送（af7544506，RUNTIME-MIGRATION 取 S3 写法）；
+  - S3 合进 S4 只在本地（`migrate/shelf-s4-project` 67d1dd96b，没推），等 ① 定：条件 1 说下两层合并前不推。
+- 之后 ⑩ 收回同步请求，叫 42aebcbfd 之后别再推这个分支。⑤ 核过 af7544506，和 batch-1023-7 只差两处文档，批次结果照用。⑤ 要求 #1083 不推、67d1dd96b 留在本地：#1076 合进 main 后，由 ⑤ 在 #1083 上合 S3 的最终头和 main（冲突照 ⑩ 的评审解），再组批。#1051、#1076 合完之前，S3、S4 都不推。
+- ① 稍后说可以推 67d1dd96b，但当时没看到 ⑤ 和 ⑩ 的话。已把两边的原话转给 ①，等 ① 和 ⑤ 定。没定之前不推，本地 67d1dd96b 也不动。
+- ① 改定（10-23）：照 ⑤ 的分工，#1083 不推，67d1dd96b 留在本地不动。#1051、#1076 合进 main 之前，S3、S4 都不再推。之后由 ⑤ 在 #1083 上合 #1076 的最终 head 和 main，再组批。本会话不用再做什么，等 ⑤ 的消息。
+- ⑩ 的建议（不挡合并）：shelf-owner-files.test.ts 开头补半句「S1-6 的并发追加靠同步回调这条规则保证」。等 #1083 下一次能推时（合 main 那次）一起加。
+- 同事的 #1090（VUX-12，`feature/vux-permission-partial`，头 eabda93ed）和 Shelf 线的关系（10-23 用 `git merge-tree` 试合，没动工作区）：
+  - **不在 `/api/shelf` 上。** 它的 Shelf 改动都走插件路由：`/api/plugins/io.molis.work.shelf/items`（`shelf.admit`）和 `/clipboard/:id/material`（`shelf.clipboard.join`），S3 里这两条都在 `routes.ts`。diff 里没有 `/api/shelf`，新用例 `shelf-partial-admission.e2e` 也不 import 宿主的 Shelf 客户端。
+  - **`client.ts`、`en.ts`、`host.md` 自动合。** 合出来的 client 两边都留着：S3 的 32 MB 文件夹上限，和 #1090 的部分加入加重试。
+  - **它自己只加两处冲突：`page-assets.json`、`page-assets.mjs`。** privileges.md、assembly-gate 测试、baseline.json（现 main 还多一个 BACKLOG.md）是 S4 合 main 本来就有的冲突。
+  - **#1090 先合时 page-assets 的解法：** 重新 `pnpm workspace:build`（heavy.sh，`HEAVY_CLASS=dev`），再量 `shelf.js`。#1090 的数是 76264，S3 本来 +174，合起来约 76438，以实测为准。`APPROVED_CEILINGS` 删掉 #1090 的十条（已用完）。S3 的 shelf.js 一条改成 `[76264, 实测]`，注释里的数字跟着改。`workbench.js` 那条 `[1186715, 1186746]` 照留：#1090 没改它，也以实测为准。
+- 10-24 ③ 通知：防腐线交给同事 yijunw0212，本会话收尾，不再推送、不开新片。#1076、#1083 的交接说明写在 PR 上（⑤ 01:21、③ 10-24 各一条）。本地 67d1dd96b 已过时，不再管。有人来找改这两个 PR，就回「已交接给 yijunw0212」，分支不动。

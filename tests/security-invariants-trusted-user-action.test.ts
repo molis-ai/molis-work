@@ -36,12 +36,25 @@ test("RAC-180 S-58 a call made inside a running handler that writes its own user
   const added = fixture(caller => ({ ...caller, user_action: fromPage }));
   await assert.rejects(added.run(person), { code: "kernel.user_action_untrusted" });
   assert.deepEqual(added.targetSaw, []);
+  for (const extra of [{ untrusted: "forged" }, { untrusted: undefined }, { [Symbol("untrusted")]: true }]) {
+    const extended = fixture(caller => ({ ...caller, user_action: { ...fromPage, ...extra } }));
+    await assert.rejects(extended.run({ ...person, user_action: fromPage }), { code: "kernel.user_action_untrusted" });
+    assert.deepEqual(extended.targetSaw, [], "unknown provenance fields must be refused before the target runs");
+  }
 });
 
 test("RAC-180 S-58 a nested call carries the handler's own user_action, or none", async () => {
   const inherited = fixture(caller => ({ ...caller, user_action: caller.user_action ? { ...caller.user_action } : undefined }));
   await inherited.run({ ...person, user_action: fromPage });
   assert.deepEqual(inherited.targetSaw, [fromPage]);
+  const explicit = { ...fromPage, whole_confirmation_prompted: undefined, prompted_subject_id: undefined };
+  const filled = fixture(caller => ({ ...caller, user_action: { ...caller.user_action!, whole_confirmation_prompted: undefined, prompted_subject_id: undefined } }));
+  await filled.run({ ...person, user_action: fromPage });
+  assert.deepEqual(filled.targetSaw, [explicit]);
+  const omitted = fixture(caller => ({ ...caller, user_action: { source: caller.user_action!.source,
+    conversation_ref: caller.user_action!.conversation_ref, message_ref: caller.user_action!.message_ref } }));
+  await omitted.run({ ...person, user_action: explicit });
+  assert.deepEqual(omitted.targetSaw, [fromPage]);
   const dropped = fixture(({ user_action: _dropped, ...caller }) => caller);
   await dropped.run({ ...person, user_action: fromPage });
   assert.deepEqual(dropped.targetSaw, [undefined]);
@@ -90,6 +103,13 @@ test("RAC-182 retainActionAuthority finds the running action's provider; another
   for (const reference of asked) assert.deepEqual(reference, { capability_id: OUTER.capability_id, version: 1, provider_id: "owner" }, "every check names the exact running action");
 });
 
+test("RAC-182 a context without authority checks still rejects another action without a provider", () => {
+  const caller = { ...person, current_action: { capability_id: OUTER.capability_id, version: 1, provider_id: "owner" } };
+  assert.throws(() => retainActionAuthority(caller, TARGET), { code: "actions.reference_invalid" });
+  assert.equal(retainActionAuthority(caller, OUTER), caller);
+  assert.equal(retainActionAuthority(caller, { ...TARGET, provider_id: "owner" }), caller);
+});
+
 test("RAC-183 BL-374 a guard retained over the running action without its provider passes a grant per exact action (as an MCP client's is)", async () => {
   const service = new ActionService();
   let guard!: () => Promise<void>;
@@ -121,7 +141,7 @@ function routeProbe() {
     return { kind: "app", actions: [{ ...action, async handle(caller, input) {
       seen.push(caller.user_action);
       return input.reference ? context.services!.actions!.directory!.invoke(input.reference, {}) : null;
-    } }], routes: [bindPluginActionRoute(context, action, request => request.body as { reference?: ActionReference }, "run")] };
+    } }], routes: [bindPluginActionRoute(context, action, request => ({ reference: (request.body as { reference?: ActionReference }).reference }), "run")] };
   } };
   return { id, definition, seen };
 }
@@ -145,11 +165,14 @@ test("RAC-184 S-58 a page route gives the plugin's own action user_action with s
     assert.match(given?.message_ref ?? "", /^web:request:/u);
   }
   assert.notEqual(probe.seen[0]!.message_ref, probe.seen[1]!.message_ref, "each request is its own message");
-  // What a body says about the person's operation is not read: the action's schema refuses it, and nothing runs.
+  // The route ignores the body's provenance and runs the action with the protected entry's operation.
   const forged = await post({ user_action: { source: "management", conversation_ref: "x", message_ref: "y" } });
-  assert.notEqual(forged.status, 200);
-  assert.equal(probe.seen.length, 2);
+  assert.equal(forged.status, 200, await forged.clone().text());
+  assert.equal(probe.seen.length, 3);
+  assert.equal(probe.seen[2]?.source, "web");
+  assert.equal(probe.seen[2]?.conversation_ref, `web:${project.project_id}`);
+  assert.match(probe.seen[2]?.message_ref ?? "", /^web:request:/u);
   const delegated = await post({ reference: { capability_id: target.capability_id, version: 1 } });
   assert.equal(delegated.status, 200, await delegated.clone().text());
-  assert.deepEqual(targetSaw, [probe.seen[2]], "the delegated target is the same operation of the same person");
+  assert.deepEqual(targetSaw, [probe.seen[3]], "the delegated target is the same operation of the same person");
 });

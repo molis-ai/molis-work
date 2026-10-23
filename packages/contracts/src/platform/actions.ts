@@ -549,8 +549,8 @@ function boundBackgroundAuthority(caller: ActionCallContext, definition: ActionD
 export function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference, beforeEffect?: () => Promise<void>): Context {
   const validate = context.validate_authority;
   const assertCurrent = context.assert_authority_current;
-  if (!validate && !beforeEffect && !assertCurrent) return context;
   const pinned = pinnedOrigin(context, origin);
+  if (!validate && !beforeEffect && !assertCurrent) return context;
   return { ...context, validate_authority: async (reference: ActionReference) => {
     await validate?.(pinned);
     if (reference.capability_id !== pinned.capability_id || reference.version !== pinned.version || reference.provider_id !== pinned.provider_id) await validate?.(reference);

@@ -21,7 +21,8 @@ function assertUserActionFromEntry(context: ActionCallContext): void {
 }
 
 function sameUserAction(left: ActionUserAction, right: ActionUserAction | undefined): boolean {
-  return !!right && left.source === right.source && left.conversation_ref === right.conversation_ref && left.message_ref === right.message_ref
+  const fields = ["source", "conversation_ref", "message_ref", "whole_confirmation_prompted", "prompted_subject_id"];
+  return !!right && Reflect.ownKeys(left).every(key => fields.some(field => field === key)) && left.source === right.source && left.conversation_ref === right.conversation_ref && left.message_ref === right.message_ref
     && left.whole_confirmation_prompted === right.whole_confirmation_prompted && left.prompted_subject_id === right.prompted_subject_id;
 }
 

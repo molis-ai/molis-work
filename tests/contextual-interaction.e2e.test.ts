@@ -162,7 +162,7 @@ test("contextual actions: a result the person did not accept writes nothing; an 
   await child.waitFor("!document.querySelector('.pages-pop:not([hidden])')");
 });
 
-test("P2: a word is looked up in the search palette; a write goes to the Assistant as a card; a Goal's own text offers Goals actions", { timeout: 150_000 }, async t => {
+test("SYS-52 P2: a word is looked up in the search palette; a write goes to the Assistant as a card; a Goal's own text offers Goals actions", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, async () => "候选文字");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
@@ -173,9 +173,14 @@ test("P2: a word is looked up in the search palette; a write goes to the Assista
   const page = (() => { try { return setup.create({ project_id: projectId!, title: "术语表", body: { type: "doc", content: [paragraph("“激活”指新用户在第一周内完成至少一次有价值的操作。"), paragraph(SECOND)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
-  const select = (index: number, from: number, to?: number) => child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
+  await child.evaluate("document.addEventListener('molis:surface-focus', event => window.contextualFocus = event.detail)");
+  const select = async (index: number, from: number, to?: number) => {
+    await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[${index}].firstChild; const range = document.createRange(); range.setStart(text, ${from}); range.setEnd(text, ${to === undefined ? "text.length" : to});
-    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
+    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); window.expectedContextText = selection.toString(); document.dispatchEvent(new Event('selectionchange')); })()`);
+    await child.waitFor("window.contextualFocus?.targets.map(part => part.text).join('\\n\\n') === window.expectedContextText");
+    return child.evaluate<string>("contextualFocus.context_id");
+  };
 
   // A word: looked up across the project, in the workbench's own search palette.
   await select(0, 1, 3);
@@ -185,8 +190,8 @@ test("P2: a word is looked up in the search palette; a write goes to the Assista
   await evaluate(`document.querySelector('[data-global-search-close]')?.click()`);
 
   // A write: prepared as a card in an Assistant work, which opens; nothing is written before the person runs it.
-  await select(1, 0);
-  await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length > 0`, 8000);
+  const passageContext = await select(1, 0);
+  await waitFor(`window.__contextPlan?.context_id === ${JSON.stringify(passageContext)} && document.querySelector(${JSON.stringify(MORE)})`, 8000);
   await click(MORE);
   // On the bar or under 更多, wherever the rules put it.
   await waitFor(`[...document.querySelectorAll(${JSON.stringify(ACTION + ", .mw-ctx-menu button")})].some(button => button.textContent.startsWith('拆成目标步骤'))`);

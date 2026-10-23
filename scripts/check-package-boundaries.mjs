@@ -608,8 +608,12 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   }
   const webGoals = read("apps/local-host/src/web-request.ts");
   const httpContext = read("plugins/native/goals/src/http/types.ts");
-  if (!webGoals.includes("actions: goalActions") || !httpContext.includes("actions: BoundActionClient")
-    || /\b(?:commands|query|lifecycle|planning):/u.test(httpContext)) {
+  // Goals' declared routes (PG094-09) are handed the person's BoundActionClient per request by whoever mounts them, and see it as
+  // `actions` in their context; no port, as a field or as a method, is a domain one. A route context's `query` is the request's
+  // query string (a string map), not the Goals query port. When S9 drops the Host rewrite this rule follows the new mount (BL-386).
+  if (!webGoals.includes("actions: () => goalActions")
+    || !httpContext.includes("actions(request: PluginRouteRequest): BoundActionClient") || !httpContext.includes("actions: BoundActionClient")
+    || /\b(?:commands|query|lifecycle|planning)\s*\(|\b(?:commands|lifecycle|planning)\??:|\bquery\??:(?!\s*Readonly<Record<string, string>>)/u.test(httpContext)) {
     errors.push("Goals HTTP business operations must consume BoundActionClient without direct domain ports");
   }
   // `relations` left the retired list when the workbench redesign brought Goal
@@ -1437,7 +1441,10 @@ export function checkProposalUiOwnership(renderer, workbench, proposalMount, leg
   if (hasWorkbenchUiContribution(workbench, registry, "goalsLegacyProposalUiContribution", descriptors)) {
     errors.push("apps/workbench: retired goalsLegacyProposalUiContribution must stay unregistered");
   }
-  if (!proposalMount.includes("host.mount(")) errors.push("apps/workbench: proposal renderers must mount the native contributions");
+  // W5-06: the shell builds the proposal renderer from the plugin's own surface map; each method mounts a declared surface.
+  if (!/createSurfaceRenderers<[^>]+>\(workbenchUiHost, GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES\)/u.test(proposalMount)) {
+    errors.push("apps/workbench: proposal renderers must mount the native contributions");
+  }
   void legacyMount;
   if (/const (?:goalTreeDecisionForm|contractDecisionForm|candidateDecisionForm|rewireDecisionForm) =/u.test(clientDispatch)
       || !clientDispatch.includes("handleGoalProposalSubmit(submittedForm, event)")) errors.push("apps/workbench: proposal submission behavior belongs to the Goals client factory");
@@ -1473,7 +1480,7 @@ export function checkPackageBoundaries(repositoryRoot) {
       const [renderer, workbench, proposalMount, clientDispatch] = [
         "apps/workbench/src/renderer.ts",
         "apps/workbench/src/index.ts",
-        "apps/workbench/src/goals-proposal-ui.ts",
+        "apps/workbench/src/ui-composition.ts",
         "apps/workbench/src/scripts/client/events-accessibility.ts",
       ].map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8")
         + (file === "apps/workbench/src/index.ts" ? fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/ui-composition.ts"), "utf8") : ""));

@@ -101,6 +101,7 @@ function renderPolicyEditor(
   return { renderPolicyForm, renderPolicyEditor, renderProgressCheckSummary, renderProjectPolicyDocument };
 }
 
+export type GoalsPolicyRenderer = ReturnType<typeof createPolicyRenderer>;
 export type GoalsPolicyFormArguments = Parameters<ReturnType<typeof createPolicyRenderer>["renderPolicyForm"]>;
 export type GoalsPolicyEditorArguments = Parameters<ReturnType<typeof createPolicyRenderer>["renderPolicyEditor"]>;
 export type GoalsPolicyCheckSummaryArguments = Parameters<ReturnType<typeof createPolicyRenderer>["renderProgressCheckSummary"]>;
@@ -109,13 +110,15 @@ export type GoalsPolicyUiModel = {
   primitives: GoalsPolicyUiPrimitives;
 } & ({ kind: "form"; args: GoalsPolicyFormArguments } | { kind: "editor"; args: GoalsPolicyEditorArguments } | { kind: "check-summary"; args: GoalsPolicyCheckSummaryArguments } | { kind: "project"; args: GoalsProjectPolicyArguments });
 
+/** Which surface each renderer method mounts (W5-06): the shell builds its renderer from this, and the descriptor lists these. */
+export const GOALS_POLICY_UI_SURFACES = { renderPolicyForm: "form", renderPolicyEditor: "editor", renderProgressCheckSummary: "check-summary", renderProjectPolicyDocument: "project" } as const satisfies Record<keyof GoalsPolicyRenderer, GoalsPolicyUiModel["kind"]>;
 export const goalsPolicyUiContribution: UiContribution<GoalsPolicyUiModel> = {
   descriptor: {
     contribution_id: GOALS_POLICY_UI_CONTRIBUTION_ID,
     plugin_id: "io.molis.work.native.goals",
     kind: "embedded",
     label: "Goal work rules",
-    surfaces: ["form", "editor", "check-summary", "project"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })),
+    surfaces: Object.values(GOALS_POLICY_UI_SURFACES).map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })),
     slots: [],
   },
   render({ surface, model }) {

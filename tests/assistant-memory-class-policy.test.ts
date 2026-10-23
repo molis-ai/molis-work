@@ -9,11 +9,19 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 import { scriptedModelServer } from "./fixtures/connector-assistant-model.js";
 import { platformMemory, sendAsPerson, until } from "./fixtures/assistant-memory.js";
 
+const memoryToolControl = () => ({ operation_id: crypto.randomUUID(), signal: new AbortController().signal });
+
 test("Assistant list and suggest tools keep their own Run's class policy when settings reopen and a later Run starts", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-frozen-tools-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store } = platformMemory(host, home, t);
+  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  let observeControlled: ((controlled: ReturnType<typeof memoryForCall>) => void) | undefined;
+  const observedMemoryForCall: typeof memoryForCall = (...execution) => {
+    const controlled = memoryForCall(...execution);
+    if (execution.length) observeControlled?.(controlled);
+    return controlled;
+  };
   const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui" as const, person: true };
   const restriction = { selector: { consumer: "assistant" as const, current_scene: "assistant" as const, kind: "convention" as const }, read: "off" as const, form: "off" as const };
   const keptText = "项目报告必须带上核验日期";
@@ -45,7 +53,7 @@ test("Assistant list and suggest tools keep their own Run's class policy when se
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, () => {
       const tools = service.memoryTools(work); if (tools) captured.push(tools); return tools;
     }), memory: task => service.memoryForRound(work, task) }),
-    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, LOCAL_PERSON_ACTOR_ID);
+    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: observedMemoryForCall, memorySources: memoryPolicy.sources }, LOCAL_PERSON_ACTOR_ID);
   try {
     const seed = await memory.write(person, { scope: "project", text: keptText, kind: "convention" });
     assert.equal(seed.outcome, "written");
@@ -67,8 +75,8 @@ test("Assistant list and suggest tools keep their own Run's class policy when se
     assert.match(results[2]!, new RegExp(keptText));
     assert.doesNotMatch(results[3]!, /MEMORY_SCOPE_DENIED/);
     assert.deepEqual((await memory.candidates(person)).map(candidate => candidate.text), [suggestion.text]);
-    assert.deepEqual(await oldTools.list(), [], "an old bound tool cannot borrow the later Run's unrestricted snapshot");
-    await assert.rejects(oldTools.propose!({ ...suggestion, scope: "project", text: "项目周报改为先列进度" }));
+    assert.deepEqual(await oldTools.list(memoryToolControl()), [], "an old bound tool cannot borrow the later Run's unrestricted snapshot");
+    await assert.rejects(oldTools.propose!({ ...suggestion, scope: "project", text: "项目周报改为先列进度" }, memoryToolControl()));
     assert.deepEqual((await memory.candidates(person)).map(candidate => candidate.text), [suggestion.text]);
 
     // Both real proposals commit before either tool returns: selecting the latest candidate would give both tools one ID.
@@ -77,29 +85,34 @@ test("Assistant list and suggest tools keep their own Run's class policy when se
       selector: { ...restriction.selector, kind: "preference" }, form: "inherit" }] });
     const inputs = [{ ...suggestion, scope: "personal" as const, text: "旅行时偏好靠窗座位" },
       { ...suggestion, scope: "personal" as const, text: "技术说明请附完整示例" }];
-    const propose = memory.propose.bind(memory), committed = new Map<string, string>();
+    const committed = new Map<string, string>();
+    const restoreObserved: Array<() => void> = [];
     let release!: () => void;
     const bothCommitted = new Promise<void>(resolve => { release = resolve; });
-    const observed = t.mock.method(memory, "propose", async (...args: Parameters<typeof memory.propose>) => {
-      const candidate = await propose(...args);
-      committed.set(candidate.text, candidate.candidate_id);
-      if (committed.size === 2) release();
-      await bothCommitted;
-      return candidate;
-    });
+    observeControlled = controlled => {
+      const propose = controlled.propose.bind(controlled);
+      const observed = t.mock.method(controlled, "propose", async (...args: Parameters<typeof controlled.propose>) => {
+        const candidate = await propose(...args);
+        committed.set(candidate.text, candidate.candidate_id);
+        if (committed.size === 2) release();
+        await bothCommitted;
+        return candidate;
+      });
+      restoreObserved.push(() => observed.mock.restore());
+    };
     try {
-      const returned = await Promise.all(inputs.map(input => currentTools.propose!(input)));
+      const returned = await Promise.all(inputs.map(input => currentTools.propose!(input, memoryToolControl())));
       assert.equal(committed.size, 2);
       assert.deepEqual(returned.map(item => item.candidate_id), inputs.map(input => committed.get(input.text)));
       assert.equal(new Set(returned.map(item => item.candidate_id)).size, 2);
-    } finally { release(); observed.mock.restore(); }
+    } finally { observeControlled = undefined; release(); for (const restore of restoreObserved) restore(); }
     const persisted = await memory.candidates(person);
     for (const input of inputs) assert.equal(persisted.find(candidate => candidate.text === input.text)?.candidate_id, committed.get(input.text));
-    assert.deepEqual(await currentTools.list(), [{ memory_id: seed.memory!.memory_id, scope: "project", text: keptText,
+    assert.deepEqual(await currentTools.list(memoryToolControl()), [{ memory_id: seed.memory!.memory_id, scope: "project", text: keptText,
       origin: seed.memory!.origin }], "the read-off personal class stays hidden after its proposals commit");
     memory.savePrefs(person, "personal", { class_restrictions: [{ ...restriction,
       selector: { ...restriction.selector, kind: "preference" } }] });
-    await assert.rejects(currentTools.propose!({ ...suggestion, scope: "personal", text: "账单按月份汇总" }));
+    await assert.rejects(currentTools.propose!({ ...suggestion, scope: "personal", text: "账单按月份汇总" }, memoryToolControl()));
     assert.deepEqual(await memory.candidates(person), persisted, "closing formation leaves all committed candidates unchanged");
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

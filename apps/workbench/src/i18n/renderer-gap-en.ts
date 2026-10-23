@@ -198,11 +198,6 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   // apps/local-host/src/artifact-native-plugin-http.ts
   "这一版不能在这个插件里继续": "This version can't be continued in this plugin",
   "这个版本没有可取回的文件": "This version has no file to retrieve",
-  // plugins/native/coding/src/next-steps.ts (H4)
-  "核对并继续": "Check and continue",
-  "这一轮需要核对结果": "This round's result needs checking",
-  "查看变更": "View changes",
-  "这一轮改过的文件": "Files this round changed",
   // apps/local-host/src/web-request.ts
   "这个侧栏内容已经不在了（插件可能已停用）": "This side panel content is gone (the plugin may have been turned off)",
   "还没有配置可用的模型，助理无法开始工作": "No usable model is configured yet, so the assistant can't start",
@@ -521,6 +516,9 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "还没有记录。遇到问题时按 ": "Nothing recorded yet. When something goes wrong, press ",
   " 随手记一笔。": " and jot it down.",
   "列表没读出来。": "The list could not be read.",
+  "没有权限读取这里的内容，所以显示不了。授权在设置里管理。": "You don't have permission to read this, so it can't be shown. Permissions are managed in Settings.",
+  "这个项目停用了这个插件，所以显示不了。到插件市场重新添加后就能打开。": "This project has turned this plugin off, so this can't be shown. Add it again from the plugin market to open it.",
+  "这条问题不存在或已删除": "This issue does not exist or was deleted",
   "记录于 ": "Recorded on ",
   "助理整理": "Named by the Assistant",
   "手动记录": "Recorded by hand",

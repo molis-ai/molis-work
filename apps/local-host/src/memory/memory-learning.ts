@@ -1,6 +1,6 @@
 import { memoryErrors, type MemoryBackendPort, type MemoryCaller, type MemoryLearned, type MemoryService } from "@molis-ai/molis-work-service-memory";
 import type { AgentMemoryExecutionControl, AgentMemoryFormationResult, AgentMemorySourceSnapshot, AgentRuntimeAdapter, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { assistantMemorySources } from "../assistant/assistant-memory-sources.js";
+import { assistantMemorySources, assistantMemorySourceWork } from "../assistant/assistant-memory-sources.js";
 import { controlledMemoryService } from "./memory-effect.js";
 
 export interface MemoryLearningRequest {
@@ -41,7 +41,9 @@ export async function learnFromQueuedWork(home: string, task: Pick<AgentSchedule
   if (!originals) return { ran: false, reason: "原始输入已失效或无法核验，没有提炼", learned: [] };
   const { caller, said } = originals.request;
   const assertCurrent = () => {
-    if (!input.alive() || !input.service.worthLearning(caller, said)) throw memoryErrors.forbidden("原工作或学习权限已失效");
+    if (!input.alive() || !input.service.worthLearning(caller, said) || !caller.session_id
+      || assistantMemorySourceWork(home, caller.actor_id, caller.session_id)?.project_id !== caller.project_id)
+      throw memoryErrors.forbidden("原工作或学习权限已失效");
   };
   const stillWanted = async () => {
     if (!input.alive() || !input.service.worthLearning(caller, said)) return false;

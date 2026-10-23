@@ -50,5 +50,5 @@ export function memoryCallService(context: ActionExecutionContext, ports: Constr
 /** A trusted background invocation restores its own source checks, never an expired HTTP call's authority. */
 export function controlledMemoryService(ports: ConstructorParameters<typeof MemoryService>[0],
   backend: (control: AgentMemoryExecutionControl) => MemoryBackendPort, control: AgentMemoryExecutionControl): MemoryService {
-  return new MemoryService({ ...ports, backend: backend(control), ledger: controlledMemoryLedger(ports.ledger, control) });
+  return new MemoryService({ ...ports, beforeEffect: () => control.beforeEffect(), backend: backend(control), ledger: controlledMemoryLedger(ports.ledger, control) });
 }

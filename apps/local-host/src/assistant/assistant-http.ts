@@ -117,7 +117,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     host: async () => { await ports.agentReady(); return ports.agentHost; },
     pages: () => ports.pages(),
     // The platform memory, registered with this Home's Agent service (the Assistant is one of its consumers).
-    memory: () => memoryHostFor(ports.localHost)?.service,
+    memory: (...execution) => { const memory = memoryHostFor(ports.localHost); return execution.length ? memory?.withExecution(...execution) : memory?.service; },
+    memorySources: { check: (caller, request) => memoryHostFor(ports.localHost)?.checkAssistantSources(caller, request) ?? Promise.resolve(false) },
     learnFromRound: ({ work, sources, run_id }) => {
       if (!work.session_id) return;
       void memoryHostFor(ports.localHost)?.learnLater({ actor_id: WEB_ACTOR, work_id: work.work_id, run_id, session_id: work.session_id, sources })

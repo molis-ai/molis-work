@@ -63,7 +63,8 @@ async function readSource(home: string, owner: MemorySourceOwner, caller: AgentM
   }
   const scope = sourceScope(caller, request.target, projectId);
   if (!scope || projectId && await owner.policy.projectExists(projectId) !== true || !await owner.sessionAllowed(session.owner)) return undefined;
-  const work = () => !assistant || assistantMemorySourceWork(home, identity.actor_id, identity.session_id)?.project_id === projectId;
+  const work = () => !assistant || assistantMemorySourceWork(home, identity.actor_id, identity.session_id,
+    caller.source_use === "explicit" && caller.session_id === identity.session_id)?.project_id === projectId;
   if (!work() || !formationAllowed(owner, caller, scope, projectId, assistant, ref, request.target.owner)) return undefined;
 
   let text: string, at: number, runRef;

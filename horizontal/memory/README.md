@@ -79,6 +79,10 @@ Molis 在配置中声明分类、读写矩阵、保留策略、候选限额、�
 
 SDK 已提交而 ledger 失败时不做删除补偿。现有 marker 只留动作、目标、原版本、时刻和无正文回执；重试必须带原完整请求，不从 marker 恢复正文，也不把后来版本改成原期望。历史、最近变动与完成回执在同一 ledger 事务落盘；后继修改使原提交不可证明时明确冲突，不能猜成功。清空预览将固定 refs、versions 和 SDK purge decision 存在同一 marker 中；部分失败保留逐项结果，重试不重新列出新目标。离线采用与真实 Host 授权由各自主人接线，本模块局部验证不代表 M2 或 P0 已完成。
 
+正式删除在任何异步来源或候选清理之前固定原确认版本，清理前后及原操作重试始终使用同一 purge 条件，不能改用后继版本。若旧版已留下与原确认版本不一致的 purge marker，升级后必须拒绝消费，保留原 marker 和待核对条目，不静默改写条件。来源抑制和关联候选可能已经清理，未知结果或中途失败不代表零副作用；候选 SDK 删除已提交但回应或 ledger 投影失败时，按现有候选删除 marker 重放并补齐投影，不能把当前列表中缺失当作清理已全部完成。未发生外部修改时原操作可继续完成；原确认之后有人编辑则拒绝删除其新版本，保留新正文、版本和历史。
+
+删除、撤销自动写入和跨范围移动在 SDK 已清除源条目而 ledger 清理失败时，按原操作继续清理历史、使用记录和变动正文。恢复先核对原决定与 purge 条件的动作、范围、版本和状态，原范围必须仍属于当前 caller；undo 在原记录仍存在及已完成返回时也检查原 caller 范围。Service 的 `beforeEffect` 沿现 Action control 接入，在候选列举后抑制来源、候选删除后清投影、正式删除后清账这三个边界重新检查 App 授权，实际 SQL 仍受同步的存活、取消和当前 authority 检查保护。SDK 的 `already-absent` 只证明当前不存在，不证明是原操作删掉的，也不提供 App 删除授权。undo 的 SDK 删除在事务外，ledger 的 forget 与 undone 回执在同一现有事务内提交；任一失败后都能用原操作重试。已完成操作保留原结果的幂等返回。`src/moves.ts` 拥有跨范围移动的完整生命周期，目标只来自原创建身份；已保存目标结果后的清理和完成重放不受 enabled 阻挡，保存或创建目标仍检查开关。旧 marker 没有结果时，必须以原版本完整快照重放原 SDK 创建并核对已有创建历史。目标已被后来编辑或无法核对时明确冲突，不创建第二副本、不把后来版本记成原创建。
+
 ### M2 维护提交后的补账
 
 沿 spec §9.4，维护先用同一 SDK 对固定的真实命令预检，再在现 revision history 准备原版本。现 operation marker 只保留步骤身份、原版本、历史指针和提交状态；原操作重试先恢复未完成步骤，再扫描当前条目，不把停用或缺失当成已记账。SDK 确认原 CAS 提交后，唯一 change、实际版本、历史与完成标记在同一 ledger 事务提交。后继编辑、未知回执、撤权、取消及遗忘屏障都不能被补账绕过。
@@ -131,6 +135,8 @@ recreate 撤销按原 changeId 在现 operation marker 中保留短创建号；�
 
 合同在 `@molis-ai/molis-work-contracts/services/memory`（`memory.*` 动作、旁表端口）。旁表由 `@molis-ai/molis-work-storage` 的 `openMemoryLedger` 实现；Host 装配（Prologue 后端、动作注册、`/api/memory/*`）在 [apps/local-host/src/memory/memory-host.ts](../../apps/local-host/src/memory/memory-host.ts)。
 
+`MemoryServicePorts.bindChangeTarget` 将 `change` 已授权定位的 scope、owner、project 同步交给当前 Host 控制，发生在变更记账和正式提交前；不返回正文，也不另查目标。助理受控工厂必传此口，用同一调用的最终检查覆盖实际目标撤权后的 SDK 提交与 ledger 写入；普通管理装配继续使用其现有 Action 控制。
+
 ## 接入与边界
 
 使用方只经 `memory.*` 动作或 Host 进程内的服务调用；使用方身份来自可信调用上下文（受众），不从输入读。插件只能读到被允许的类别（服务里的规则；动作目录今天不向插件提供记忆，见 [CALL-CHAINS §8](../../docs/system/CALL-CHAINS.md)）；外部 AI 客户端只能召回，要本人授权，默认读不到个人记忆。
@@ -161,6 +167,8 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 显式提议的候选去重、限额与来源合并查询使用内部 management 副本，保留原 actor、项目、Session、插件、场景、Run 分类快照与取消信号；学习来源保留 learning，其余标为本次 explicit 提议。只有候选上下文按形成权限读取，要求当前与原 Run 共同允许；learn_from_work 仅约束 learning。正式读取与最终候选提议继续使用原 caller，Agent 不因此取得候选管理、接受或删除入口。验收覆盖 read off/form on 的真实 Action 提议、去重与本人接受，以及形成关闭、原快照缺失和 Agent 管理拒绝。
 
 `memory.list@4` 的非本人调用只读取当前合法可见的正式项，personal/project 计数也来自这些正式项；pending 与 auto_this_week 返回 null，表示本次未查询管理计数，不表示零。本人管理仍查询并返回原实际计数。正式列表不因旁账中不可见的候选而失败，也不借内部 management 副本扩大权限。助理提议工具直接返回本次 Service.propose 的候选 ID，不再通过全范围候选回读或最后一条猜测结果；并发提议各自保留自己的回执。
+
+跨范围读取返回前同步复核所有已计入正式计数的 canonical 分类目标，使用当前规则与原 Run 快照交集；不只检查筛选后显示项。中途类别禁读整体拒绝，避免返回先前范围的正文或计数；只关闭形成不影响读取。复用现分类判定，不重扫 SDK 或新增元数据存储。
 
 内部非本人提议仅在本轮获准使用的 canonical 候选集合上做同文/相似去重与每工作三条上限，不借不可见项的 App 账注正文或计数推断。列表未返回的账注引用由固定 scope/owner/id 的 SDK get 复核：仅明确 MEMORY_SCOPE_DENIED 可排除；真实缺失、损坏及其它存储错误继续拒绝，不修账、不重建正文。查询保持取消信号与当前∩冻结权限，本人管理仍采用严格完整性检查。重启重放不能绕过获准集合的去重或使缺失原件复活；本片不增加 store/cache。
 

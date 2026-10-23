@@ -49,7 +49,8 @@ import {
 import { consumerAccess, CONSUMER_LABELS } from "./prefs.js";
 import { memoryRunRecipe, type MemoryRunRecipe } from "./run-recipe.js";
 import { MemoryPreferences } from "./preferences.js";
-import { MemoryOperations } from "./operations.js";
+import { MemoryOperations, type MemoryPurgeTarget } from "./operations.js";
+import { MemoryMoves } from "./moves.js";
 import { MemoryUpkeep } from "./upkeep.js";
 import { memoryUses } from "./usage.js";
 import { assertFormationFacts, automaticMemoryHold, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
@@ -101,6 +102,10 @@ import { MemoryPromotion } from "./promotion.js";
 export interface MemoryServicePorts {
   backend: MemoryBackendPort;
   ledger: MemoryLedgerPort;
+  /** Bind the already-authorized change target to its Host invocation before any mutation or ledger write. */
+  bindChangeTarget?(target: { scope: MemoryScope; owner: string; project: string | null }): void;
+  /** Current App authority for ledger side effects; SDK absence is not a delete grant. */
+  beforeEffect?(): void | Promise<void>;
   now?: () => Date;
   newId?: () => string;
   timeZone?: string;
@@ -150,6 +155,7 @@ export class MemoryService {
   private readonly maintenance: MemoryUpkeep;
   private readonly queries: MemoryQueries;
   private readonly edits: MemoryEdits;
+  private readonly moves: MemoryMoves;
 
   constructor(private readonly ports: MemoryServicePorts) {
     this.preferences = new MemoryPreferences(ports.ledger);
@@ -173,6 +179,12 @@ export class MemoryService {
       record: (caller, input) => this.recordChange(caller, input) });
     this.queries = new MemoryQueries({ backend: ports.backend, ledger: ports.ledger, scopes: this.scopeCommands, now: this.now,
       limits: ports.managementPages, candidates: (caller, request) => this.candidates(caller, request) });
+    this.moves = new MemoryMoves({ backend: ports.backend, ledger: ports.ledger, operations: this.operations, scopes: this.scopeCommands,
+      preferences: this.preferences, date: at => this.date(at), bindTarget: ports.bindChangeTarget,
+      purge: (caller, target, version) => this.purge(caller, target, version),
+      record: (caller, target) => this.recordChange(caller, { kind: "moved", scope: target.scope, owner: target.owner,
+        memory_id: target.entry.memory_id, text: target.entry.text, by: "person", rule: null,
+        reason: target.scope === "personal" ? "改为个人记忆" : "改为项目记忆", undo: null }) });
     this.learning = new MemoryLearning({ backend: ports.backend, ledger: ports.ledger, scopes: this.scopeCommands, operations: this.operations,
       offer: (caller, input) => this.offer(caller, input) });
   }
@@ -500,14 +512,14 @@ export class MemoryService {
     caller = this.operations.caller(caller);
     if (!caller.person && request.action !== "disable") throw memoryErrors.forbidden("助理只能停用记忆；修改和彻底删除只有本人能在记忆设置里做");
     this.operations.changeRequest(caller, request);
+    if (request.action === "move") return this.moves.change(caller, request);
     const located = await this.scopeCommands.find(caller, String(request.memory_id ?? "")).catch(async error => {
       const old = this.operations.find(caller, `purge:${request.memory_id}`);
       if (request.action !== "remove" || !old || (error as { code?: string }).code !== "memory.not_found") throw error;
-      this.operations.changeRequest(caller, request, { scope: old.scope, owner: old.owner, version: old.expected_version! });
-      this.promotions.suppress(caller.actor_id, old.scope, old.owner, [request.memory_id]);
-      await this.ports.backend.withCaller(caller).remove({ scope: old.scope, owner: old.owner, memory_id: request.memory_id,
-        expected_version: old.expected_version!, operation_id: old.operation_id, ...(caller.signal ? { signal: caller.signal } : {}) });
-      this.ports.ledger.forget(request.memory_id);
+      const target = this.operations.purgeRecovery(caller, request.memory_id, `change:${request.memory_id}`, "remove",
+        this.scopeCommands.scopesFor(caller, undefined, true), request.expected_version);
+      this.operations.changeRequest(caller, request, { scope: target.scope, owner: target.owner, version: target.entry.version });
+      await this.purge(caller, target, target.entry.version);
       return undefined;
     });
     if (!located) {
@@ -517,7 +529,8 @@ export class MemoryService {
       return { memory: null, change: changeView(change) };
     }
     if (request.expected_version !== undefined && request.expected_version !== located.entry.version && !this.operations.find(caller, `change:${located.entry.memory_id}`)) throw memoryErrors.conflict("记忆已变化，请重新查看后再决定");
-    const { scope, owner } = located;
+    const { scope, owner, project } = located;
+    this.ports.bindChangeTarget?.({ scope, owner, project: project ?? null });
     if (request.action !== "remove") this.preferences.assertEnabled(caller.actor_id, located);
     if (request.action === "reclassify" && (!Number.isSafeInteger(request.expected_version) || request.expected_version! < 1)) throw memoryErrors.invalid("分类纠正需要页面所见的版本");
     this.operations.changeRequest(caller, request, { scope, owner, version: located.entry.version });
@@ -539,36 +552,9 @@ export class MemoryService {
         return { memory: this.scopeCommands.item({ ...located, entry, meta }), change: changeView(change) };
       }
       case "remove": {
-        await this.purge(caller,located);
+        await this.purge(caller, located, stamp.expected_version!);
         const change = this.recordChange(caller, { kind: "removed", scope, owner, memory_id: located.entry.memory_id, text: "", by, rule: null, reason: null, undo: null });
         return { memory: null, change: changeView(change) };
-      }
-      case "move": {
-        const to = request.to;
-        if (to !== "personal" && to !== "project") throw memoryErrors.invalid("只能改为个人记忆或项目记忆");
-        if (to === scope) throw memoryErrors.invalid(to === "project" ? "它已经是项目记忆" : "它已经是个人记忆");
-        const target = placeOf(caller, to);
-        this.preferences.assertEnabled(caller.actor_id, target);
-        const date = this.date(at);
-        // A personal memory travels to every project: it keeps no project's objects or work names.
-        const origin = to === "personal" ? `${date} · 由项目记忆改为个人记忆` : `${date} · 由个人记忆改为项目记忆`;
-        const moved = { ...located.meta, evidence: to === "personal" ? located.meta.evidence.filter(item => item.kind === "said") : located.meta.evidence };
-        const move = this.operations.begin(caller, "move-create", { kind: "append", scope: to, owner: target.owner });
-        let entry = await this.ports.backend.withCaller(caller).write({ scope: to, owner: target.owner, text: located.entry.text, origin, tags: [located.meta.source, located.meta.kind],
-          meta: toEntryMeta(moved, located.entry.meta), operation_id: move.operation_id, ...(caller.signal ? { signal: caller.signal } : {}) });
-        const meta: MemoryMetaRecord = { ...moved, memory_id: entry.memory_id, scope: to, owner: target.owner, updated_at: at };
-        // Switched off stays switched off where it moves to.
-        if (meta.state !== "active") {
-          const request = { scope: to, owner: target.owner, memory_id: entry.memory_id,
-            ...this.operations.formal(caller, { scope: to, owner: target.owner, entry }, `move-${meta.state}`), reason: meta.state_reason ?? "保留原停用状态" };
-          entry = meta.state === "disabled" ? await this.ports.backend.withCaller(caller).disable(request) : await this.ports.backend.withCaller(caller).pause(request);
-        }
-        this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: meta.kind, applies: meta.applies,
-          snapshot: { origin: entry.origin, meta: entry.meta }, change: "created", by, at });
-        await this.purge(caller,located);
-        const change = this.recordChange(caller, { kind: "moved", scope: to, owner: target.owner, memory_id: entry.memory_id, text: entry.text, by, rule: null,
-          reason: to === "personal" ? "改为个人记忆" : "改为项目记忆", undo: null });
-        return { memory: this.scopeCommands.item({ scope: to, owner: target.owner, entry, meta }), change: changeView(change) };
       }
       default: throw memoryErrors.invalid("不支持的操作");
     }
@@ -766,6 +752,8 @@ export class MemoryService {
     personOnly(caller, "只有本人能撤销记忆变动");
     const record = this.ports.ledger.change(changeId);
     if (!record || record.actor_id !== caller.actor_id) throw memoryErrors.not_found("没有这次变动");
+    if (!this.scopeCommands.scopesFor(caller, undefined, true).some(scope => scope.scope === record.scope && scope.owner === record.owner))
+      throw memoryErrors.scope("原变动不在本次调用的记忆范围内");
     if (record.state === "undone") return { change: changeView(record) };
     if (!record.undoable || !record.undo || (!record.memory_id && record.undo.action !== "recreate")) throw memoryErrors.invalid("这次变动不能撤销");
     const holder: MemoryCaller = { ...caller, project_id: record.scope === "project" ? record.owner : caller.project_id };
@@ -774,6 +762,11 @@ export class MemoryService {
       return null;
     }) : null;
     const plan: MemoryUndoPlan = record.undo;
+    const finish = () => {
+      const undone: MemoryChangeRecord = { ...(this.ports.ledger.change(changeId) ?? record), state: "undone", undoable: false, ...(plan.action === "remove" ? { text: "" } : {}) };
+      this.ports.ledger.saveChange(undone);
+      return { change: changeView(undone) };
+    };
     if (plan.action === "enable" && (plan.clear_expiry || located?.meta.expires_at && Date.parse(located.meta.expires_at) <= this.now().getTime()))
       throw memoryErrors.invalid("记忆已到期，请先明确新的期限；撤销不会清除或延长原期限");
     const priorUndo = this.operations.find(holder, `undo:${changeId}`);
@@ -786,14 +779,17 @@ export class MemoryService {
       this.ports.ledger.saveChange({ ...record, undoable: false, undo: null });
       throw memoryErrors.invalid("这条现在是你自己的记忆（你说过、认可过或改过），不能再按自动记住撤销；要删除请到记忆设置里删");
     }
-    if (plan.action === "recreate") {
+    if (plan.action === "remove") {
+      const target = located ?? this.operations.purgeRecovery(holder, record.memory_id!, `undo:${changeId}`, "undo",
+        this.scopeCommands.scopesFor(caller, undefined, true), record.applied_version);
+      return (await this.purge(holder, target, undoMark?.expected_version ?? target.entry.version, finish))!;
+    } else if (plan.action === "recreate") {
       // Undoing a merge brings back the one merged away, as it was.
       await this.commit(this.operations.recreate({ ...holder, person: true }, record), { scope: record.scope, text: plan.text, kind: plan.kind, applies: plan.applies,
         source: plan.source === "auto" ? "manual" : plan.source, ...restoredEntryFacts(plan.snapshot), sources: plan.source_refs ?? [] });
     } else if (located) {
       const memoryId = located.entry.memory_id;
-      if (plan.action === "remove") await this.purge(caller,located);
-      else if (plan.action === "restore") await this.change({ ...holder, person: true }, { memory_id: memoryId, action: "restore", version: plan.version, expected_version: undoMark!.expected_version }, true);
+      if (plan.action === "restore") await this.change({ ...holder, person: true }, { memory_id: memoryId, action: "restore", version: plan.version, expected_version: undoMark!.expected_version }, true);
       else if (plan.action === "pause") {
         const prior = this.ports.ledger.change(plan.change_id);
         if (!prior || prior.actor_id !== caller.actor_id || prior.memory_id !== memoryId || prior.kind !== "paused" || !prior.reason)
@@ -809,9 +805,7 @@ export class MemoryService {
       }
       else await this.change({ ...holder, person: true }, { memory_id: memoryId, action: plan.action, expected_version: undoMark!.expected_version }, true);
     }
-    const undone: MemoryChangeRecord = { ...(this.ports.ledger.change(changeId) ?? record), state: "undone", undoable: false, ...(plan.action === "remove" ? { text: "" } : {}) };
-    this.ports.ledger.saveChange(undone);
-    return { change: changeView(undone) };
+    return finish();
   }
 
   /* ---- learning from work ---- */
@@ -1034,20 +1028,29 @@ export class MemoryService {
     const related = (await backend.candidates.list(where.scope, where.owner)).filter(item => item.memory_id && ids.includes(item.memory_id)
       || item.sources?.some(source => sources.some(ref => ref.event_id === source.event_id))
       || notes.some(note => note.candidate_id === item.candidate_id && note.supersedes && ids.includes(note.supersedes)));
+    await this.ports.beforeEffect?.();
+    caller.signal?.throwIfAborted();
     this.promotions.suppress(caller.actor_id, where.scope, where.owner, ids, related.flatMap(item => item.sources ?? []));
-    for (const item of related) {
-      await backend.candidates.purge({ ...where, candidate_id: item.candidate_id,
-        ...this.operations.condition(caller, `candidate-purge:${item.candidate_id}`, { kind: "purge", ...where, candidate_id: item.candidate_id, expected_version: item.version }) });
+    for (const item of this.operations.candidatePurges(caller, where, related, notes)) {
+      await backend.candidates.purge({ ...where, ...item });
+      await this.ports.beforeEffect?.();
+      caller.signal?.throwIfAborted();
       this.ports.ledger.dropCandidate(item.candidate_id);
     }
   }
 
-  private async purge(caller: MemoryCaller, located: Located, purpose: "forget" | "merge" = "forget"): Promise<void> {
+  private async purge<T = void>(caller: MemoryCaller, located: MemoryPurgeTarget, expectedVersion: number, afterForget?: () => T): Promise<T | undefined> {
     caller = this.operations.caller(caller);
     const where = { scope: located.scope, owner: located.owner };
-    if (purpose === "forget") await this.forgetSources(caller, where, [located.entry.memory_id]);
-    await this.ports.backend.withCaller(caller).remove({ ...where, memory_id: located.entry.memory_id, ...this.operations.formal(caller, located, "purge") });
-    this.ports.ledger.forget(located.entry.memory_id);
+    const condition = located.condition ?? this.operations.formal(caller, located, "purge", expectedVersion);
+    this.ports.bindChangeTarget?.({ ...where, project: where.scope === "project" ? where.owner : where.scope === "character" ? caller.project_id : null });
+    await this.forgetSources(caller, where, [located.entry.memory_id]);
+    await this.ports.backend.withCaller(caller).remove({ ...where, memory_id: located.entry.memory_id, ...condition });
+    await this.ports.beforeEffect?.();
+    caller.signal?.throwIfAborted();
+    return this.ports.ledger.transaction(() => {
+      this.ports.ledger.forget(located.entry.memory_id); return afterForget?.();
+    });
   }
 
   private recordChange(caller: MemoryCaller, input: { kind: MemoryChangeKind; scope: MemoryScope; owner: string; memory_id: string | null; text: string;

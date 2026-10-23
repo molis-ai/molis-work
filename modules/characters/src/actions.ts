@@ -2,6 +2,7 @@ import { defineActionUsagesAction, defineSearchEntriesAction, defineSubjectConte
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { characterArtifactPreviewAction, characterPluginActions, type CharacterDraft, type CharacterState } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { CharacterLaunchInput, CharacterUpdateInput } from "./action-handlers.js";
+import type { CharacterNativeRun } from "./runs.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1, maxLength: 200 };
@@ -13,9 +14,12 @@ const object = (properties: Record<string, unknown>, required = Object.keys(prop
 const LOCAL: readonly ActionAudience[] = ["user"];
 const SHARED: readonly ActionAudience[] = ["user", "agent", "workflow", "mcp"];
 const draft = { type: "object", required: ["character_id", "revision", "state", "title"] };
+/** A native run as Characters records it (`CharacterNativeRun`); the terminal's output is not part of it. */
+const run = object({ run_id: id, panel_id: id, title: text, created_at: text, reference, workspace_path: text,
+  status: { enum: ["starting", "dispatched", "failed"] }, status_message: { anyOf: [text, { type: "null" }] } });
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
-  permissions: readonly string[], audiences: readonly ActionAudience[] = SHARED): ActionDefinition<I, O> {
-  return { capability_id: `characters.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
+  permissions: readonly string[], audiences: readonly ActionAudience[] = SHARED, version = 1): ActionDefinition<I, O> {
+  return { capability_id: `characters.${name}`, version, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
     scope: "project", audiences, permissions, subject_kinds: ["character"], input_schema: input, output_schema: output } };
 }
 
@@ -36,7 +40,9 @@ export const charactersActions = {
   publish: define<{ id: string; expected_revision: number }, { reference: ArtifactReference; publication: unknown; replayed: boolean }>("publish", "发布角色",
     "把当前草稿发布为本项目的固定版本；内容未变时返回原版本", "command", object({ id, expected_revision: revision }),
     object({ reference, publication: { type: "object" }, replayed: { type: "boolean" } }), ["artifact:read", "artifact:write"]),
-  runs: define<{ id: string }, { runs: unknown[] }>("runs", "角色运行记录", "读取用本机 Agent 运行此角色的记录", "query", object({ id }), object({ runs: { type: "array" } }), [], LOCAL),
+  /** v2 (Sessions cleanup SC-2): Characters' own records, without the terminal output v1 returned. */
+  runs: define<{ id: string }, { runs: CharacterNativeRun[] }>("runs", "角色运行记录", "读取用本机 Agent 运行此角色的记录：何时、哪个版本、在哪个目录、是否派发成功；不含终端输出",
+    "query", object({ id }), object({ runs: { type: "array", items: run } }), [], LOCAL, 2),
   discover: define<Record<string, unknown>, { candidates: unknown[] }>("imports.discover", "查找可导入的 Agent", "在本机 Agent 配置目录中查找可导入为角色的设定",
     "query", { type: "object" }, object({ candidates: { type: "array" } }), [], LOCAL),
   importFile: define<Record<string, unknown>, unknown>("imports.file", "预览导入文件", "预览一个可导入设定中的文件", "query",
@@ -52,9 +58,10 @@ export const charactersActions = {
   runnable: characterPluginActions.runnable,
   /** Where a capability sits in this person's Character scopes; the capability library reads it next to other owners' references. */
   usages: defineActionUsagesAction("characters.usages", "角色里的使用位置", []),
-  launch: define<CharacterLaunchInput, unknown>("launch", "用本机 Agent 运行角色", "在所选工作目录启动本机 Agent 执行任务", "command",
+  /** v2 (Sessions cleanup SC-2): the run is Characters' own record and the terminal is reached by its panel alone, without a Session. */
+  launch: define<CharacterLaunchInput, { run: CharacterNativeRun; spawn: { panelId: string; attachOnly: boolean } }>("launch", "用本机 Agent 运行角色", "在所选工作目录启动本机 Agent 执行任务", "command",
     { type: "object", properties: { reference, workspace_id: { type: "string" }, task: { type: "string" }, request_id: { type: "string" } },
-      required: ["reference", "workspace_id", "task", "request_id"] }, { type: "object" }, ["artifact:read"], LOCAL),
+      required: ["reference", "workspace_id", "task", "request_id"] }, object({ run, spawn: object({ panelId: id, attachOnly: { type: "boolean" } }) }), ["artifact:read"], LOCAL, 2),
   /** System search: the person's Characters (not deleted) by title and how they work. */
   searchEntries: defineSearchEntriesAction("characters.search.entries", [{ kind: "character", title: "角色", surface: "characters" }], "角色", []),
   subject: defineSubjectContextAction("characters.subject.read", "character", "角色", []),

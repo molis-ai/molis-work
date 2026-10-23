@@ -14,7 +14,8 @@ import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBo
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
-import { createDiffPlugin, renderDiff, type DiffView } from "@molis-ai/molis-work-plugin-diff";
+import { createDiffPlugin, DIFF_LABELS, DIFF_MESSAGES, DIFF_TEMPLATES, type DiffView } from "@molis-ai/molis-work-plugin-diff";
+import { diffViewText, renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { icon } from "@molis-ai/molis-work-design-system";
 import { UiHost, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -126,10 +127,10 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
   const fixedState = async (index: number) => {
     const state = await dispatch("/api/plugins/io.molis.work.diff/state", "GET", undefined, { change_index: String(index) }) as { view: DiffView };
     // The Host's presentation seam: the owner's genuine view is rendered by the public Diff renderer.
-    return { ...state, html: renderDiff({ view: state.view, primitives: {
+    return { ...state, html: renderDiff({ labels: DIFF_LABELS, view: state.view, primitives: {
       escape: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;"),
       icon: name => icon(name as Parameters<typeof icon>[0]),
-      text: L,
+      text: diffViewText(DIFF_MESSAGES, "zh", DIFF_TEMPLATES, L),
     } }) };
   };
   const previous = await fixedState(1);

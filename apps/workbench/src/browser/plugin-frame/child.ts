@@ -75,6 +75,8 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     messages: childMessages(port),
     invokeAction: (reference, input) => call(route("/api/host/plugin-page-actions"), { body: { reference, input }, scope }),
     projectId: () => config.projectId, projectTitle: () => config.projectTitle, route, headers: call.headers,
+    // What a page says when the Host's router refused its read for who-may-read reasons (403 `actions.*`); empty for any other failure.
+    readRefusal: (status: number, code: unknown) => status === 403 && String(code).startsWith("actions.") ? L(code === "actions.plugin_disabled" ? "这个项目停用了这个插件，所以显示不了。到插件市场重新添加后就能打开。" : "没有权限读取这里的内容，所以显示不了。授权在设置里管理。") : "",
     api: (path: string, method: "GET" | "POST", body: unknown, fallback = L("来源操作失败")) => call(route(path), { method, body, fallback }),
     openItem: (...args) => intent("openItem", args), openBeside: (...args) => intent("openBeside", args), openPlugin: (...args) => intent("openPlugin", args),
     hideDirectory: () => intent("hideDirectory", []), showToast: (...args) => intent("showToast", args), page: () => config.page,

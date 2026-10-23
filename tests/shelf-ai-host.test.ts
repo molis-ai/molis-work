@@ -8,12 +8,13 @@ import { join } from "node:path";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { shelfActions as a, SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PLUGIN_ID, SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
+import { composeInstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { shelfActions as a, shelfAiPorts, SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PLUGIN_ID, SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { createExtractablePdf, SHELF_RECIPES } from "@molis-ai/molis-work-module-shelf";
 import { MolisWorkLocalHost, openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
-import { shelfAiPorts } from "../apps/local-host/dist/shelf-ai.js";
 import { extractMaterial } from "../apps/local-host/dist/material-extraction.js";
 import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-registrations.js";
 
@@ -68,7 +69,7 @@ test("Shelf Action -> registered prompt override -> shared Prologue -> result an
   const key = `${SHELF_PLUGIN_ID}/${prompt.prompt_id}`;
   const registered = definitions.prompt(key);
   definitions.save(registered.key, "OVERRIDDEN_SHELF: summarize the supplied material.", null, "owner");
-  const { item } = await f.actions.invoke(a.admit, { text: "周五交付，预算 12 万元。", title: "计划", capture_pages: false });
+  const { item } = await f.actions.invoke(a.admit, { text: "周五交付，预算 12 万元。", title: "计划"});
   const outcome = await f.actions.invoke(a.generate, { recipe: "summarize", item_id: item.item_id, option_id: "short" });
   assert.equal(outcome.job.runtime, "prologue"); assert.equal(outcome.job.execution?.state, "completed");
   assert.equal(outcome.job.execution?.configuredModel, "text"); assert.deepEqual(outcome.job.execution?.reportedModels, ["actual-fixture-model"]);
@@ -83,8 +84,8 @@ test("Shelf Action -> registered prompt override -> shared Prologue -> result an
 }));
 
 test("every recipe reaches its registered instruction; JSON alone uses JSON files and malformed output retains execution facts", async () => fixture(async f => {
-  const { item } = await f.actions.invoke(a.admit, { text: "A source document", title: "source", capture_pages: false });
-  const second = (await f.actions.invoke(a.admit, { text: "Another source", title: "second", capture_pages: false })).item;
+  const { item } = await f.actions.invoke(a.admit, { text: "A source document", title: "source"});
+  const second = (await f.actions.invoke(a.admit, { text: "Another source", title: "second"})).item;
   for (const spec of SHELF_RECIPES.filter(spec => spec.requires_agent)) for (const choice of spec.choices) {
     const recipe = spec.recipe, option = choice.id;
     f.answer(() => option === "json" ? '```json\n{"amount":120000}\n```' : "# 交付正文\n\n材料来自 source。");
@@ -142,7 +143,8 @@ test("discovery has separate model cost/permissions, AI cannot borrow local extr
   assert.equal(a.extract.action.execution?.cost, "none");
   assert.equal("runJob" in a, false, "the compatibility entry shelf.jobs.run is gone"); assert.equal(SHELF_ACTIONS.some(definition => definition.capability_id === "shelf.jobs.run"), false);
   assert.equal((await f.host.homeActionClient().discover({ actor_id: "reader", project_id: null, audience: "mcp", permissions: SHELF_ACTION_PERMISSIONS })).some(row => row.capability_id === "shelf.jobs.run"), false);
-  const local = bindActionClient(f.host.homeActionClient(), () => ({ actor_id: "local", project_id: null, audience: "user", permissions: ["shelf:write", "shelf:read", "materials:read", "materials:fetch"] }));
+  const withoutModel = SHELF_ACTION_PERMISSIONS.filter(permission => permission !== "model:invoke");
+  const local = bindActionClient(f.host.homeActionClient(), () => ({ actor_id: "local", project_id: null, audience: "user", permissions: withoutModel }));
   const item = (await local.invoke(a.admit, { filename: "sample.pdf", mime: "application/pdf", bytes_base64: createExtractablePdf("Local PDF").toString("base64") })).item;
   await assert.rejects(local.invoke(a.generate, { recipe: "summarize", item_id: item.item_id }), { code: "actions.forbidden" });
   assert.equal(f.requests.length, 0); assert.equal((await f.actions.invoke(a.snapshot, {})).running_jobs.length, 0);
@@ -152,24 +154,41 @@ test("discovery has separate model cost/permissions, AI cannot borrow local extr
 
 
 test("Shelf rechecks the exact model binding after the final business authority wait", async () => fixture(async f => {
-  const materials = { extract: extractMaterial }, port = shelfAiPorts(f.home, materials);
-  const store = openHostShelfStore(f.home, { disabled: true }, materials, { ...port, generate: async (input, control) => {
-    const result = await port.generate(input, control);
+  const { item } = await f.actions.invoke(a.admit, { text: "Original facts", title: "fact"});
+  const unchanged = () => JSON.parse(readFileSync(join(f.home, "shelf", "catalog.json"), "utf8")).jobs.every((job: { status: string }) => job.status === "running");
+  const switchOff = (off: (modelId: string, request: Request) => boolean) => f.answer(request => {
     const provider = f.catalog.models.list()[0]!;
-    f.catalog.models.upsert({ ...provider, models: provider.models.map(model => ({ ...model, enabled: false })) });
-    return result;
-  } });
-  const item = await store.admit({ filename: "fact.md", bytes: Buffer.from("Original facts") });
-  await assert.rejects(store.runJob({ recipe: "summarize", item_id: item.item_id }), { code: "shelf.configuration_changed" });
-  assert.equal(f.requests.length, 1); assert.equal((await store.snapshot()).results.length, 0);
-  assert.equal(JSON.parse(readFileSync(join(store.root, "catalog.json"), "utf8")).jobs[0].status, "running");
+    f.catalog.models.upsert({ ...provider, models: provider.models.map(model => off(model.model_id, request) ? { ...model, enabled: false } : model) });
+    return "# 摘要\n\nOriginal facts.";
+  });
+  // Only the model this call used goes away while it answers: another stays connected, so the action is still available and Shelf's
+  // own recheck of the exact binding refuses the result.
+  switchOff((modelId, request) => modelId === request.model);
+  await assert.rejects(f.actions.invoke(a.generate, { recipe: "summarize", item_id: item.item_id }), { code: "shelf.configuration_changed" });
+  assert.equal(f.requests.length, 1); assert.equal((await f.actions.invoke(a.snapshot, {})).results.length, 0); assert.ok(unchanged());
+  // With no model left at all, the platform's recheck of the action's availability before the effect refuses first; nothing is kept either.
+  const provider = f.catalog.models.list()[0]!;
+  f.catalog.models.upsert({ ...provider, models: provider.models.map(model => ({ ...model, enabled: true })) });
+  switchOff(() => true);
+  await assert.rejects(f.actions.invoke(a.generate, { recipe: "summarize", item_id: item.item_id }), { code: "actions.connection_required" });
+  assert.equal(f.requests.length, 2); assert.equal((await f.actions.invoke(a.snapshot, {})).results.length, 0); assert.ok(unchanged());
 }));
+
+/** The Home instance's model service as the plugin sees it, answered by the fixture's model; only the extraction limit differs. */
+function fixtureModel(f: { requests: Request[] }, answer: () => string): PluginModelClient {
+  return { choices: () => [{ provider_id: "fixture", model_id: "text", label: "Fixture", vision: false }],
+    availability: () => ({ available: true }),
+    async complete(prompt, request) {
+      f.requests.push({ model: "text", messages: [{ role: "user", content: composeInstructedPrompt(prompt.instruction.body, prompt.data) }] });
+      const text = answer();
+      return { text, ...(request?.output === "json" ? { value: JSON.parse(text) } : {}), validateResult: () => {} };
+    } };
+}
 
 test("partial extraction remains visible on JSON results, and unsupported folder contents never silently disappear", async () => fixture(async f => {
   const materials = { extract: (source: Parameters<typeof extractMaterial>[0], options: Parameters<typeof extractMaterial>[1]) => extractMaterial(source, { ...options, limits: { ...options?.limits, maxCharacters: 5 } }) };
-  const store = openHostShelfStore(f.home, { disabled: true }, materials, shelfAiPorts(f.home, materials));
+  const store = openHostShelfStore(f.home, { disabled: true }, materials, shelfAiPorts(fixtureModel(f, () => '{"facts":true}'), materials));
   const pdf = await store.admit({ filename: "partial.pdf", bytes: createExtractablePdf("A long PDF document with important facts.") });
-  f.answer(() => '{"facts":true}');
   const out = await store.runJob({ recipe: "extract_structure", item_id: pdf.item_id, option_id: "json" });
   assert.deepEqual(JSON.parse(store.readFile(out.result!.item_id).bytes.toString()), { facts: true });
   assert.ok(out.result!.material_coverage?.some(note => note.includes("partial.pdf")));
@@ -189,7 +208,7 @@ for (const mode of ["cancel", "revoke"] as const) test(`Shelf ${mode} during a r
   f.answer(async () => { started.resolve(); await release.promise; return "Late model answer"; });
   const caller = bindActionClient(f.host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS,
     signal: controller.signal, validate_permissions: async () => { if (!valid) throw new Error("revoked"); } }));
-  const item = (await f.actions.invoke(a.admit, { text: "Original", title: "fact", capture_pages: false })).item;
+  const item = (await f.actions.invoke(a.admit, { text: "Original", title: "fact"})).item;
   const pending = caller.invoke(a.generate, { recipe: "summarize", item_id: item.item_id });
   const rejected = assert.rejects(pending);
   await started.promise;

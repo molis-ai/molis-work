@@ -37,6 +37,9 @@
 | PG-026-S4-01 | 真实 HTTP 首次激活 Shelf、删除示例后，分别 create/reset 能恢复示例，不能被吞掉的 forbidden 伪造通过 | `tests/shelf-plugin.test.ts` |
 | PG-026-S4-02 | 临时 Home 的 Shelf 目录 JSON 损坏时，两个操作仍报告已成功的项目和固定 warning，项目真实存在；恢复文件后再操作不再警告；未确认的项目操作仍失败 | `tests/shelf-plugin.test.ts` |
 | PG-026-S4-03 | 独立测试浏览器里 warning 超过 450 ms 仍存在、操作按钮禁用、手动刷新后项目存在；正常成功自动刷新 | `tests/project-settings-navigation.e2e.test.ts` |
+| PG-026-S4-04 | 项目新库已提升到正式目录、但目录提交前的后初始化失败，恢复旧项目身份、正文和插件选择，不留 `project.demo_reset` 回执；不能用缺失的 Shelf 目录或提升前拒绝代替这条回滚路径 | `tests/project-catalog-preservation.test.ts` |
+
+2026-10-23 集成回归补修：S4 删除目录层的 Shelf 初始化后，旧回滚夹具在 `rename(home/shelf)` 就报 ENOENT，尚未调用 reset。只修夹具：观察真实 `.resetting-*` 到正式项目目录的 rename 完成后，才对后初始化的 `sessions` mkdir 注入一次 EACCES；故障当下同时核新库、旧备份、未提交的目录状态，返回后保留原回滚断言。Sessions 在 rebuild 的 owner 清理中被 `survivesRebuild` 排除，调用阶段由生产顺序与运行时提升证据共同证明；不改生产、门禁或正式错误合同。源提交 `7f53441349d88b98da3a715913ced00231622deb` 整体构建后，原文件 6 条中 5 条通过、这条 ENOENT；补修后原 6 条全部通过（PG-026-S4-04 覆盖故障时与回滚后状态），未再改变生产源码或重复浏览器验证。
 
 ownerFiles 拒绝继续由既有 SHF-IO 测试证明；测试替身收敛留 PG-026 后续，不新增绕过作用域的公开测试端口。
 

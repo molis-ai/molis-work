@@ -15,7 +15,7 @@ type Role = (typeof GROUPS)[number];
 const GROUP = GROUPS.map((role) => `[role=${role}]`).join(",");
 const ITEMS: Record<Role, string> = {
   tablist: "[role=tab]", radiogroup: "[role=radio]", menu: "[role^=menuitem]", menubar: "[role^=menuitem]", listbox: "[role=option]",
-  toolbar: "button, [role=button], [role=checkbox], [role=radio], [role=switch], a[href], select, input, [tabindex]:not([tabindex='-1'])",
+  toolbar: "button, [role=button], [role=checkbox], [role=radio], [role=switch], a[href], select, input, [tabindex]",
 };
 const CHOSEN = "[aria-selected=true], [aria-checked=true], [aria-current]:not([aria-current=false]), [aria-pressed=true]";
 const TYPING = "input:not([type=button], [type=checkbox], [type=radio], [type=reset], [type=submit]), textarea, select, [contenteditable=true]";
@@ -98,14 +98,14 @@ addEventListener("focusin", (event) => {
 let queued = false;
 const dirty = new Set<Element>();
 const settleAll = () => { queued = false; const groups = dirty.size ? [...dirty] : [...document.querySelectorAll(GROUP)]; dirty.clear(); groups.forEach(settle); };
-// Only an element can hold groups of its own: a text node looks no further than its own group, or a block of many text
-// pieces put in at once (a coloured code block) would search its parent once per piece.
-const touched = (node: Node) => { const el = node instanceof Element ? node : node.parentElement; const group = el?.closest(GROUP); if (group) dirty.add(group);
-  else if (node instanceof Element) node.querySelectorAll(GROUP).forEach((inner) => dirty.add(inner)); };
+// A child-list's parent affects its own group, not every group below it (appending ordinary text to body is not a page audit).
+// New subtrees and attribute changes can affect descendant groups; text pieces never search their parent once per piece.
+const touched = (node: Node, descendants: boolean) => { const el = node instanceof Element ? node : node.parentElement; const group = el?.closest(GROUP); if (group) dirty.add(group);
+  if (descendants && node instanceof Element) node.querySelectorAll(GROUP).forEach((inner) => dirty.add(inner)); };
 // Items come, go, are disabled or reordered by the pages: the groups they belong to get their tab stop put right before
 // the next frame. Text streaming elsewhere is not looked at.
 new MutationObserver((records) => {
-  for (const record of records) { touched(record.target); record.addedNodes.forEach(touched); }
+  for (const record of records) { touched(record.target, record.type === "attributes"); record.addedNodes.forEach((node) => touched(node, true)); }
   if (dirty.size && !queued) { queued = true; requestAnimationFrame(settleAll); }
 })
   .observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "aria-disabled", "hidden", "aria-selected", "aria-checked", "role"] });

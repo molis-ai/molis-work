@@ -238,18 +238,19 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Onboarding without limits (slice 91, user 2026-10-22): the 资料导入 sends a non-text file over 6 MB as the raw body of the 成果库's
+  // Onboarding without limits (slice 99, user 2026-10-22): the 资料导入 sends a non-text file over 6 MB as the raw body of the 成果库's
   // original route, its name in a header. 26305 → 26689 (+384).
   "/assets/molis-work-knowledge.js": [26305, 26689],
-  // Onboarding without limits (slice 91): the shared request client sends a Blob as a raw body. 1182907 → 1183045 (+138).
+  // Onboarding without limits (slice 99): the shared request client sends a Blob as a raw body. 1182907 → 1183045 (+138).
   "/assets/molis-work-workbench.js": [1182907, 1183045],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.
-// User approved 2026-10-19 (specs/project-knowledge §2): the 项目资料 browser code is its own asset, loaded only where it is used (+1.5 KB from the 10-19 review fixes, +232 B for the import status of files it recognizes or transcribes).
+// User approved 2026-10-21 (specs/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
+// shared bridge (including the common UI helpers) once; the original 90325-byte estimate was not a ceiling.
 const APPROVED_NEW_ASSETS = {
-  "/assets/molis-work-knowledge.js": 26361,
+  "/assets/molis-work-plugin-frame.js": 187120,
 };
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {

@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
@@ -15,6 +16,7 @@ const WORD = "VeryLongIdentifierWithoutAnySpacesThatAModelMightNameAFunctionLike
 test("VUX-04: the board, the project page, a Pages document with long paths, links and identifiers, and Coding wrap cleanly at 1280 and 390 px", { timeout: 300_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const children = { pages: await pluginFrameBrowser(t,browser,"pages"), coding: await pluginFrameBrowser(t,browser,"coding") };
   const pages = openPagesStore(homeDirectory);
   const page = (() => { try { return pages.create({ project_id: projectId!, title: "第四季度视觉细节与 UI 性能的完整验收记录（含真实场景与本人验收的逐项对照）", body: { type: "doc", content: [
     { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "为什么这次要把项目页准备路径上的动作目录只算一次" }] },
@@ -34,10 +36,12 @@ test("VUX-04: the board, the project page, a Pages document with long paths, lin
     for (const [name, path] of surfaces) {
       await navigate(() => command("Page.navigate", { url: origin + path }, sessionId));
       await waitFor("document.readyState === 'complete' && document.fonts.status === 'loaded'", 20_000);
-      if (name === "Pages 长文档") await waitFor(`document.body.innerText.includes(${JSON.stringify(WORD)})`, 20_000);
+      if (name === "Pages 长文档") await children.pages.waitFor(`document.body.innerText.includes(${JSON.stringify(WORD)})`, 20_000);
       // Late parts (the dock, plugin bodies) settle in a moment; the audit reads what is drawn after it.
       await new Promise((resolve) => setTimeout(resolve, 1500));
-      for (const issue of await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)) found.push(`${width} ${name}: ${JSON.stringify(issue)}`);
+      const child = name === "Pages 长文档" ? children.pages : name === "Coding" ? children.coding : null;
+      if (child) await child.waitFor("document.fonts.status === 'loaded'");
+      for (const issue of [...await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT), ...child ? await child.evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT) : []]) found.push(`${width} ${name}: ${JSON.stringify(issue)}`);
     }
   }
   assert.deepEqual(found, [], "no heading ends on a stub, no paragraph on a lone character, no text cut at its box");

@@ -119,6 +119,7 @@ export const CODING_TIMELINE_MESSAGES = {
   "coding.timeline.not-succeeded": { zh: "{count} 项未成功", en: "{count} did not succeed" },
   "coding.timeline.seconds": { zh: "{seconds} 秒", en: "{seconds}s" },
   "coding.timeline.minutes": { zh: "{minutes} 分 {seconds} 秒", en: "{minutes}m {seconds}s" },
+  "coding.timeline.hours": { zh: "{hours} 小时 {minutes} 分", en: "{hours}h {minutes}m" },
   "coding.timeline.colon": { zh: "：", en: ": " },
   "coding.live.running": { zh: "正在工作", en: "Working" },
   "coding.live.pausing": { zh: "正在暂停：这一步做完后停下", en: "Pausing: it stops once this step is done" },

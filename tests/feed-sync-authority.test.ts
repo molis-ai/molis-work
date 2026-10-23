@@ -27,6 +27,7 @@ const enteredOrFailure = (entered: Promise<void>, pending: Promise<unknown>) => 
 
 test("the real Web scheduler uses the registered Feed action, records refusal, and cannot commit an old response after plugin disablement", { timeout: 20_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "feed-web-schedule-")), database = join(home, "project.sqlite");
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   seedDemoBoard(database);
   const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => new Date(Date.now() - 360_000));
   const source = sources.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
@@ -65,6 +66,7 @@ test("the real Web scheduler uses the registered Feed action, records refusal, a
 
 test("W3-01 C the pull a page request starts, and every tick of the timer, is an operation of its own, not part of the page's", { timeout: 20_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "feed-web-call-ids-")), database = join(home, "project.sqlite");
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   seedDemoBoard(database);
   const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => new Date(Date.now() - 360_000));
   const source = sources.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
@@ -162,6 +164,7 @@ for (const mode of ["grant-revoked", "disabled", "paused", "reconfigured", "dele
 for (const mode of ["disabled", "paused", "reconfigured"] as const) {
   test(`scheduled RSS ${mode}: the registered tick action preserves the old schedule and all downstream state after refusal`, { timeout: 15_000 }, async t => {
     const home = await mkdtemp(join(tmpdir(), "feed-schedule-authority-")), database = join(home, "project.sqlite");
+    await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
     seedDemoBoard(database);
     const store = new LocalProjectDatabase(database), then = new Date(Date.now() - 360_000);
     const sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => then);

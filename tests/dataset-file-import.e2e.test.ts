@@ -4,12 +4,15 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 const csv = '名称,说明\n导入行,来自真实文件';
 async function openImport(t: TestContext) {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return null;
-  const { homeDirectory, projectId, command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
+  const { homeDirectory, projectId, command, sessionId, navigate, origin } = browser;
+  const child = await pluginFrameBrowser(t, browser, "dataset");
+  const { evaluate, waitFor, click } = child;
   const store = openDatasetStore(homeDirectory);
   const a = store.importCsv(store.create({ project_id: projectId!, title: '表 A' }).id, '名称\nA 原内容', projectId!);
   const b = store.importCsv(store.create({ project_id: projectId!, title: '表 B' }).id, '名称\nB 原内容', projectId!);
@@ -22,12 +25,12 @@ async function openImport(t: TestContext) {
   await writeFile(path, csv);
   await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/?openPlugin=dataset` }, sessionId));
-  await waitFor("document.querySelector('[data-plugin-id=dataset]')");
-  if (await evaluate('document.body.dataset.desktopSurface') !== 'dataset') await click('[data-plugin-strip] [data-plugin-id=dataset]');
+  await browser.waitFor("document.querySelector('[data-plugin-id=dataset]')");
+  if (await browser.evaluate('document.body.dataset.desktopSurface') !== 'dataset') await browser.click('[data-plugin-strip] [data-plugin-id=dataset]');
   await click(`[data-dataset-id="${a.id}"]`);
   const idle = () => waitFor("document.querySelector('[data-dataset=workbench]').getAttribute('aria-busy') === 'false'");
   await idle();
-  await command('Page.setInterceptFileChooserDialog', { enabled: true }, sessionId);
+  await child.frameCommand('Page.setInterceptFileChooserDialog', { enabled: true });
   await evaluate(`(() => {
     const text = File.prototype.text, fetch = window.fetch;
     window.importRequests = []; window.readCount = 0;
@@ -37,7 +40,7 @@ async function openImport(t: TestContext) {
       return text.call(this);
     };
     window.fetch = async (url, init) => {
-      const path = new URL(url, location.href).pathname;
+      const path = new URL(url, ${JSON.stringify(origin)}).pathname;
       const importing = init?.method === 'POST' && path.endsWith('/import-csv');
       const entry = importing ? { path, body: JSON.parse(init.body) } : null;
       if (entry) window.importRequests.push(entry);
@@ -52,9 +55,7 @@ async function openImport(t: TestContext) {
   const choose = async (confirm = true) => {
     await evaluate("delete window.releaseRead; delete window.failRead; delete window.releaseResponse");
     await click('[data-dataset-stage-workspace] .dataset-panel [data-dataset-import-file]');
-    const { root } = await command<{ root: { nodeId: number } }>('DOM.getDocument', {}, sessionId);
-    const { nodeId } = await command<{ nodeId: number }>('DOM.querySelector', { nodeId: root.nodeId, selector: '[data-dataset-import-input]' }, sessionId);
-    await command('DOM.setFileInputFiles', { nodeId, files: [path] }, sessionId);
+    await child.setFiles('[data-dataset-import-input]', [path]);
     await waitFor("document.querySelector('[data-dataset-confirm]').open");
     await click(confirm ? '[data-dataset-confirm] [data-confirm-ok]' : '[data-dataset-confirm] button[value=cancel]');
   };
@@ -81,6 +82,8 @@ async function openImport(t: TestContext) {
       const r = document.querySelector('[data-dataset-back]').getBoundingClientRect();
       return {x:r.x+r.width/2,y:r.y+r.height/2};
     })()`);
+    const offset = await browser.evaluate<{ x: number; y: number }>("(() => { const r=document.querySelector('iframe[data-plugin-frame=dataset]').getBoundingClientRect();return{x:r.x,y:r.y};})()");
+    point.x += offset.x; point.y += offset.y;
     for (const type of ['mousePressed', 'mouseReleased']) await command('Input.dispatchMouseEvent', { type, ...point, button:'left', clickCount:1 }, sessionId);
     await waitFor("document.querySelector('[data-dataset-stage-workspace]').hidden || document.querySelector('[data-dataset-stage-workspace]').inert");
     if (await evaluate("document.querySelector('[data-dataset-stage-workspace]').hidden")) {
@@ -88,7 +91,7 @@ async function openImport(t: TestContext) {
     }
   };
   const values = (id: string) => read(id).rows.map(row => Object.values(row.cells));
-  return { ...browser, a, b, read, idle, choose, hold, trySwitch, attemptSwitch, values };
+  return { ...browser, evaluate, waitFor, click, a, b, read, idle, choose, hold, trySwitch, attemptSwitch, values };
 }
 
 for (const phase of ['Read', 'Response']) {

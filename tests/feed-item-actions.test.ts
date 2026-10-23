@@ -18,6 +18,7 @@ const PROJECT = "project-feed-items";
 test("Feed item commands are directory actions: Home prepares and runs them, stale revisions are refused, and the old route forwards", { timeout: 120_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "feed-item-actions-"));
   const dbPath = join(home, "project.db");
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   seedDemoBoard(dbPath, PROJECT);
   const seed = new LocalProjectDatabase(dbPath);
   const source = createLocalFeedSourceService(seed.db, PROJECT).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
@@ -25,7 +26,6 @@ test("Feed item commands are directory actions: Home prepares and runs them, sta
   const ingest = (externalId: string, title: string) => feedApp.ingestItem({ source, externalId, title, summary: title, body: title + " 的正文", occurredAt: new Date().toISOString(), attention: false }).item;
   const first = ingest("one", "客户反馈导出失败"), second = ingest("two", "周报已生成"), third = ingest("three", "需要跟进的合同");
   seed.close();
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: [...HOME_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS] };
   const client = host.actionClient(reference);

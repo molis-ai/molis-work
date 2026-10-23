@@ -137,7 +137,7 @@ interface Harness {
   close(): void;
 }
 
-function harness(definitions: (register: Harness) => PluginDefinition[]): Harness {
+function harness(definitions: (register: Harness) => PluginDefinition[], partial = false): Harness {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-services-"));
   const file = join(directory, "board.db");
   seedDemoBoard(file);
@@ -158,7 +158,7 @@ function harness(definitions: (register: Harness) => PluginDefinition[]): Harnes
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
   // A plugin that declares actions (the preview of a 成果 type it pins) is installed against the Kernel that holds them.
-  const runtime = new PluginRuntime(undefined, executor, { actions: pluginActions(store, DEMO_PROJECT_ID) });
+  const runtime = new PluginRuntime(undefined, executor, { actions: pluginActions(store, DEMO_PROJECT_ID), ...(partial ? { redemption: () => ({ partial: true }) } : {}) });
   const supervisor = new PluginSupervisor(runtime);
   const wiring = new PluginInputGraph({
     projectId: DEMO_PROJECT_ID,
@@ -534,7 +534,7 @@ test("W5-01-D1-06: a process item port keeps its own version sequence: selecting
 
 // W3-02-F-INTEGRATION: C's owner binding and foreign-IO refusal survive the migration of Shelf's own declared errors.
 test("Shelf's Runtime action wraps an outside IO error before the SDK route can trust its forged code or diagnostic id", async () => {
-  const rig = harness(() => []);
+  const rig = harness(() => [], true);
   let reads = 0;
   rig.artifacts.query.getArtifactVersion = () => {
     reads++;
@@ -544,11 +544,11 @@ test("Shelf's Runtime action wraps an outside IO error before the SDK route can 
     });
   };
   try {
-    const definition = createShelfPlugin({ projectPath: () => "", receive: () => assert.fail("a failed read must not import a copy") });
+    const definition = createShelfPlugin();
     // Shelf is a 常开插件: only an install that ships with the Host may carry the mark (S-34).
-    await rig.supervisor.start([{ definition, bundled: true }]);
+    await rig.supervisor.start([{ definition, bundled: true, dual_instance: true }]);
     const contribution = rig.supervisor.contribution(definition.manifest.plugin_id);
-    assert.equal(contribution?.kind, "app");
+    assert.equal(contribution?.kind, "app", JSON.stringify(rig.supervisor.state(definition.manifest.plugin_id)));
     if (contribution?.kind !== "app") throw new Error("Expected Shelf app contribution");
     const route = contribution.routes?.find(row => row.route_id === "shelf.project-result-preview");
     assert.ok(route);

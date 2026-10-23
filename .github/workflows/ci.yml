@@ -447,9 +447,9 @@ jobs:
           key: test-durations-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
           restore-keys: test-durations-${{ github.job }}-${{ strategy.job-index }}-
 
-      # The same packages the step had when it ran after `pnpm workspace:verify`.
+      # SYS-15-F3 exercises real desktop terminals; workspace:build alone omits dist/web/pty-client.js.
       - name: Build
-        run: pnpm workspace:build
+        run: pnpm build
 
       - name: Security invariants
         run: pnpm test:security --shard ${{ matrix.shard }}/2

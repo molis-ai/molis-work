@@ -30,8 +30,6 @@ import type { SessionRuntimeResources } from "./web-session.js";
 import { cachedMolisWorkWebView, lookingForArea, type MolisWorkWebViewCache } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
-import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
-import { SCHEDULE_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-schedule";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
 import { SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
@@ -48,7 +46,7 @@ import { projectFeedOptions } from "./workflow-feed-options.js";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
 import {
-  agentReviewsRoute, boardRoute, desktopPanelRoute, directoryGrantRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
+  agentReviewsRoute, boardRoute, desktopPanelRoute, directoryGrantRoute, pluginPageRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
   projectProbeRoutes, projectWorkspacesRoute, projectWriteCheckersRoute, runtimePluginsRoute, sessionsAddressRoute, sideFilesRoute, sideViewRoute,
 } from "./web-project-platform-routes.js";
 
@@ -133,7 +131,7 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
     return true;
   } },
   homePluginsRoute,
-  directoryGrantRoute,
+  pluginPageRoute, directoryGrantRoute,
   sideViewRoute,
   sideFilesRoute,
   { id: "project-runtime", handle: async context => {
@@ -158,7 +156,8 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
-function projectWebView({ coordinator, options, webViewCache, store, homeActions, localHost, hostReference }: Omit<ProjectRuntimeContext, "readWebView">) {
+function projectWebView({ coordinator, options, webViewCache, store, homeActions, localHost, hostReference }: Omit<ProjectRuntimeContext, "readWebView">,
+  { includeStageIds = false }: { includeStageIds?: boolean } = {}) {
   const optional = (error: unknown) => {
     if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(String(error.code)))) throw error;
   };
@@ -179,7 +178,8 @@ function projectWebView({ coordinator, options, webViewCache, store, homeActions
         inbox_entries: view.feed.inbox_entries.map(entry => { const judgment = byEntry.get(entry.entry_id) ?? null;
           return { ...entry, next_judgment: judgment, suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [] }; }) } };
     } catch (error) { optional(error); }
-    return { ...view, plugin_stages: await renderHomePluginStages(localHost.homePlugins) };
+    const homeStages = await renderHomePluginStages(localHost.homePlugins);
+    return { ...view, plugin_stages: homeStages.html, ...(includeStageIds ? { plugin_stage_ids: homeStages.ids } : {}) };
   };
 }
 
@@ -230,9 +230,7 @@ const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     handleInboxNativePluginHttp(request, response, url, { actions: bindLocalWebActions(localHost, hostReference, INBOX_ACTION_PERMISSIONS),
       invalidateWebView: () => webViewCache.delete(options.databasePath), renderer: composition.workbenchRenderer, readWebView }) },
   homeDockRoute,
-  { id: "schedule", handle: ({ request, response, url, localHost, hostReference, webViewCache, options, composition, readWebView }) =>
-    handleScheduleNativePluginHttp(request, response, url, { actions: bindLocalWebActions(localHost, hostReference, SCHEDULE_ACTION_PERMISSIONS),
-      invalidateWebView: () => webViewCache.delete(options.databasePath), renderer: composition.workbenchRenderer, readWebView }) },
+
 ];
 
 const feedRoute: WebRoute<ProjectRuntimeContext> = { id: "feed", handle: ({ request, response, url, localHost, hostReference, feedOptions, composition, options, store, readWebView, webViewCache, serverOptions }) =>
@@ -280,7 +278,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
-    context.readWebView, asPerson(context, WORK_ACTION_PERMISSIONS), context.controlToken, context.goalActions,
+    projectWebView(context, { includeStageIds: true }), asPerson(context, WORK_ACTION_PERMISSIONS), context.controlToken, context.goalActions,
     asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.coordinator, context.store, context.pluginServices) },
 ];
 

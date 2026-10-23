@@ -12,7 +12,7 @@ import { filesErrors } from "./errors.js";
 
 const define = <Input, Output>(capability_id: string, title: string, description: string, input_schema: Record<string, unknown>, output_schema: Record<string, unknown>): ActionDefinition<Input, Output> => ({
   capability_id, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project",
-    audiences: ["user", "agent", "workflow", "mcp"], permissions: ["artifact:read", "artifact:write", "storage:private"], subject_kinds: ["workspace", "file"], input_schema, output_schema },
+    audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions: ["artifact:read", "artifact:write", "storage:private"], subject_kinds: ["workspace", "file"], input_schema, output_schema },
 });
 /**
  * An action that cannot work without reading the linked folder says so: it needs the one workspace read action, and the
@@ -51,10 +51,10 @@ export function filesActionHandlers(context: PluginStartContext): ActionHandlerB
   const browsing = [projectSettingsCapabilities.browsingWorkspace];
   let openSequence = 0;
   let previousWorkspace = services?.storage?.get("last-workspace") ?? null;
-  const workspace = async (beforeWrite: () => Promise<void>) => {
+  const workspace = async (beforeWrite?: () => Promise<void>) => {
     const selected = await services?.capabilities?.invoke(projectSettingsCapabilities.browsingWorkspace, []);
     const id = selected?.workspace_id ?? null;
-    if (id !== previousWorkspace) {
+    if (beforeWrite && id !== previousWorkspace) {
       await beforeWrite();
       if (id) services?.storage?.set("last-workspace", id);
       else services?.storage?.delete("last-workspace");
@@ -64,7 +64,7 @@ export function filesActionHandlers(context: PluginStartContext): ActionHandlerB
     if (!selected) throw filesErrors.invalid("请在项目设置的工作目录中选择可用浏览目录");
     return { workspace_id: selected.workspace_id, name: selected.display_name, handle: selected.workspace_id };
   };
-  async function read(id: unknown, path: readonly string[], kind: "directory" | "text" | "bytes", beforeWrite: () => Promise<void>) {
+  async function read(id: unknown, path: readonly string[], kind: "directory" | "text" | "bytes", beforeWrite?: () => Promise<void>) {
     const current = await workspace(beforeWrite);
     if (id !== current.workspace_id || !services?.actions) throw filesErrors.invalid("工作目录已经变化，请重新选择文件");
     const result = await services.actions.invoke(workspaceReadActions.file, { workspace_id: current.workspace_id, path, kind });
@@ -75,12 +75,12 @@ export function filesActionHandlers(context: PluginStartContext): ActionHandlerB
     if (result.outcome !== "text") throw filesErrors.invalid(result.outcome === "changed" ? "文件在读取时变化，请刷新" : "文件当前不可读取，无法固定快照");
   }
   return [
-    bindOwnerPluginAction(context, filesSideActions.entries, async (input: FileEntriesInput, beforeWrite) => {
-      const current = await workspace(beforeWrite);
+    bindOwnerPluginAction(context, filesSideActions.entries, async (input: FileEntriesInput) => {
+      const current = await workspace();
       const files: FileEntry[] = [];
       const walk = async (dir: readonly string[], depth: number): Promise<void> => {
         if (files.length >= SIDE_MAX_FILES) return;
-        const { result } = await read(current.workspace_id, dir, "directory", beforeWrite);
+        const { result } = await read(current.workspace_id, dir, "directory");
         if (result.outcome !== "directory") return;
         for (const entry of result.entries) {
           if (files.length >= SIDE_MAX_FILES) return;
@@ -94,15 +94,15 @@ export function filesActionHandlers(context: PluginStartContext): ActionHandlerB
       await walk([], 0);
       return fileEntriesPage(files, input);
     }, browsing),
-    bindOwnerPluginAction(context, filesSideActions.content, async (input, beforeWrite) => {
-      const current = await workspace(beforeWrite);
+    bindOwnerPluginAction(context, filesSideActions.content, async input => {
+      const current = await workspace();
       const named = parseWorkspaceFileSubjectId(String(input.subject?.id ?? ""));
       if (named?.workspace_id !== current.workspace_id) throw Object.assign(new Error("这个文件不在当前浏览目录里"), { code: "files.not_found" });
       const path = named.path;
       const title = path.at(-1) ?? "文件", media = mediaOf(title);
       // Pictures and PDFs are shown as they are; everything else, SVG included, as text.
       const whole = (media.startsWith("image/") && media !== "image/svg+xml") || media === "application/pdf";
-      const { result } = await read(current.workspace_id, path, whole ? "bytes" : "text", beforeWrite);
+      const { result } = await read(current.workspace_id, path, whole ? "bytes" : "text");
       if (result.outcome === "bytes") return fileContentOf({ subject: input.subject, revision: result.fingerprint, title, media_type: media, bytes: Uint8Array.from(atob(result.data), char => char.charCodeAt(0)) });
       if (result.outcome === "text") return fileContentOf({ subject: input.subject, revision: result.fingerprint, title, media_type: media, text: result.text });
       if (result.outcome === "missing") throw Object.assign(new Error("文件已不存在"), { code: "files.not_found" });

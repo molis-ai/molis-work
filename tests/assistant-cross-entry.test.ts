@@ -116,12 +116,13 @@ for (const failure of ["disabled", "invalid"] as const) test(`W3-09-2-01 assista
   const done = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" ? view : undefined; }, "preflight refusal completed");
   assert.equal(done.reviews.length, 0); assert.deepEqual(home.host.callLog!.find(roundId), []);
   assert.equal(requests.length, 2);
-  const code = failure === "disabled" ? "actions.plugin_disabled" : "actions.input_invalid";
-  assert.ok(JSON.stringify(requests[1]).includes(code), "the actual next SDK model turn receives the stable owner code");
+  const modelReply = JSON.stringify(requests[1]);
+  if (failure === "invalid") assert.ok(modelReply.includes("actions.input_invalid"), "an offered action's input refusal keeps the owner code");
+  else assert.match(modelReply, /EFFECT_NOT_AUTHORIZED.*No capability with that exact identity is offered here/,
+    "SYS-15-S7: stopping the Runtime removes its actions before this round discovers them; no owner action is dispatched");
   if (failure === "disabled") {
     const now = await home.host.inspectActions({ actor_id: "web-user", audience: "agent", project_id: project.project_id, permissions: ["schedule:write"] }, project.reference);
-    const view = now.find(row => row.capability_id === subject.create.capability_id); assert.ok(view && !view.availability.available);
-    assert.ok(JSON.stringify(requests[1]).includes(view.availability.reason));
+    assert.equal(now.some(row => row.capability_id === subject.create.capability_id), false, "a disabled Runtime no longer registers actions");
     await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
   }
   assert.deepEqual(await home.web.get(subject.path(project.project_id)), before, "both preflight refusals leave all owner tasks unchanged");

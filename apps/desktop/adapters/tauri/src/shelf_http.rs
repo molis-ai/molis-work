@@ -1,9 +1,10 @@
+use crate::web_identity::control_token;
 use crate::web_service::molis_work_home;
 use serde::Deserialize;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -294,6 +295,7 @@ fn exchange_http(request: &str, connect: Duration, read: Duration) -> Result<Str
     let addr = SocketAddr::from(([127, 0, 0, 1], 4173));
     let mut stream = TcpStream::connect_timeout(&addr, connect)
         .map_err(|error| format!("置物架服务连不上：{error}"))?;
+    crate::web_identity::authenticate(&mut stream, &control_token()?)?;
     let _ = stream.set_read_timeout(Some(read));
     let _ = stream.set_write_timeout(Some(read));
     stream
@@ -366,18 +368,6 @@ fn decode_chunked(body: &[u8]) -> Result<String, String> {
         }
     }
     String::from_utf8(out).map_err(|_| "置物架响应不是文本".into())
-}
-
-fn control_token() -> Result<String, String> {
-    let path: PathBuf = molis_work_home().join("config").join("web-control-token");
-    let token = fs::read_to_string(path)
-        .map_err(|_| "找不到本地控制令牌".to_string())?
-        .trim()
-        .to_string();
-    if token.len() < 32 {
-        return Err("本地控制令牌无效".into());
-    }
-    Ok(token)
 }
 
 fn idempotency_key() -> String {

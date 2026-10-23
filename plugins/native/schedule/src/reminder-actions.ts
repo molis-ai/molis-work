@@ -1,8 +1,9 @@
 import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { scheduleFailure } from "./error.js";
 import type { ReminderIdentity, ReminderInput } from "./reminders.js";
+import type { ScheduleActionWrite } from "./actions.js";
 
-/** Host-composed common reminder service, independent of enabling the Schedule conversation UI. */
+/** Schedule owns the declared reminder action provider. */
 export const SCHEDULE_REMINDER_PROVIDER_ID = "schedule.reminders";
 
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: "object", properties, required, additionalProperties: false });
@@ -20,17 +21,21 @@ export const reminderActions = {
 };
 export const REMINDER_ACTIONS = Object.values(reminderActions);
 export interface ReminderActionPorts {
+  pluginId(installationId: string): string | null;
   add(identity: ReminderIdentity, input: ReminderInput): { reminderId: string };
   cancel(identity: ReminderIdentity, input: { reminderId: string }): { cancelled: boolean };
 }
-export function createReminderActionHandlers(projectId: string, ports: ReminderActionPorts): ActionHandlerBinding[] {
+export function createReminderActionHandlers(projectId: string, ports: ReminderActionPorts,
+  write: ScheduleActionWrite = async (caller, operation) => { await caller.beforeEffect(); return operation(); }): ActionHandlerBinding[] {
   const identity = (context: ActionExecutionContext): ReminderIdentity => {
     if (context.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "提醒不属于这个项目");
-    if (context.audience !== "plugin" || !context.actor_id.startsWith("plugin:") || !context.plugin_install_id) throw new ActionError("actions.forbidden", "提醒需要真实的插件安装身份");
-    return { projectId, pluginId: context.actor_id.slice("plugin:".length), installationId: context.plugin_install_id };
+    if (context.audience !== "plugin" || !context.plugin_install_id) throw new ActionError("actions.forbidden", "提醒需要真实的插件安装身份");
+    const pluginId = ports.pluginId(context.plugin_install_id);
+    if (!pluginId) throw new ActionError("actions.forbidden", "调用的插件安装不存在");
+    return { projectId, pluginId, installationId: context.plugin_install_id };
   };
   return [
-    { ...reminderActions.add, handle: async (context, input) => { await context.beforeEffect(); try { return ports.add(identity(context), input as ReminderInput); } catch (error) { throw scheduleFailure(error); } } },
-    { ...reminderActions.cancel, handle: async (context, input) => { await context.beforeEffect(); try { return ports.cancel(identity(context), input as { reminderId: string }); } catch (error) { throw scheduleFailure(error); } } },
+    { ...reminderActions.add, handle: async (context, input) => { try { return await write(context, () => ports.add(identity(context), input as ReminderInput)); } catch (error) { throw scheduleFailure(error); } } },
+    { ...reminderActions.cancel, handle: async (context, input) => { try { return await write(context, () => ports.cancel(identity(context), input as { reminderId: string })); } catch (error) { throw scheduleFailure(error); } } },
   ];
 }

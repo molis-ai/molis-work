@@ -1,6 +1,11 @@
+import { GIT_SENTENCE_TABLE, sayHostSentence } from "./sentences.js";
+
 /** Reads through declared plugin routes; no Git process or approval lives in the browser. */
 export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
   const scope=host.root || document,L=host.translate;
+  // A sentence the Host or an action wrote (a refusal, a result, a summary) in the page's language; the times the page shows are the page's too.
+  const say=${sayHostSentence.toString()},sentences=${JSON.stringify(GIT_SENTENCE_TABLE)},S=sentence=>say(L,sentences,sentence);
+  const when=value=>new Date(value).toLocaleString(document.documentElement.lang||'zh-CN');
   const directory=scope.querySelector('[data-git-browser]'),result=scope.querySelector('[data-git-results]');
   if(!directory || !result)return null;
   const lifetime=host.mountPluginClient(directory);if(!lifetime)return null;
@@ -25,11 +30,11 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
   function renderResult(){
     const row=resultRows.find(item=>item.result.review.review_id===resultChoice.value),item=row?.saved?.result || row?.result;
     resultSave.disabled=resultSaving || !row || Boolean(row.saved || row.unavailable);
-    q('[data-git-result-summary]').textContent=item?.summary || '';
+    q('[data-git-result-summary]').textContent=S(item?.summary || '');
     q('[data-git-result-paths]').textContent=item?.review.paths.join(L('git.list.joiner')) || '';
     const reconciliation=item?.review.reconciliation;
-    q('[data-git-result-provenance]').textContent=item ? L('git.result.decided',{who:item.review.decided_by || L('git.result.no-decider'),when:item.review.decided_at ? new Date(item.review.decided_at).toLocaleString() : L('git.result.no-time')})+(reconciliation?L('git.result.checked',{who:reconciliation.actor_id,when:new Date(reconciliation.at).toLocaleString(),why:reconciliation.reason}):item.review.reconciliation_reason?L('git.result.checked-old',{why:item.review.reconciliation_reason}):item.review.failure_reason?L('git.result.original',{why:L(item.review.failure_reason)}):'') : '';
-    resultStatus.textContent=row?.unavailable ? L(row.unavailable) : row?.saved ? L('git.result.saved',{version:row.saved.reference.version}) : row ? L('git.result.unsaved') : L('git.result.none');
+    q('[data-git-result-provenance]').textContent=item ? L('git.result.decided',{who:item.review.decided_by || L('git.result.no-decider'),when:item.review.decided_at ? when(item.review.decided_at) : L('git.result.no-time')})+(reconciliation?L('git.result.checked',{who:reconciliation.actor_id,when:when(reconciliation.at),why:reconciliation.reason}):item.review.reconciliation_reason?L('git.result.checked-old',{why:item.review.reconciliation_reason}):item.review.failure_reason?L('git.result.original',{why:S(item.review.failure_reason)}):'') : '';
+    resultStatus.textContent=row?.unavailable ? S(row.unavailable) : row?.saved ? L('git.result.saved',{version:row.saved.reference.version}) : row ? L('git.result.unsaved') : L('git.result.none');
   }
   async function loadResults(){
     const epoch=generation,serial=++resultsTicket,id=workspace,selectedId=resultChoice.value;
@@ -37,10 +42,10 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
     try{
       const data=await request('/results');if(!active(epoch) || serial!==resultsTicket || id!==workspace)return;
       resultRows=data.results;resultChoice.replaceChildren();
-      for(const row of resultRows){const item=row.result,option=document.createElement('option');option.value=item.review.review_id;option.textContent=L(item.review.action==='stage'?'git.action.stage':'git.action.unstage')+' · '+((item.review.reconciliation || item.review.reconciliation_reason)?L('git.result.checked-none'):outcomeLabel[item.outcome])+' · '+item.review.paths.join(L('git.list.joiner'))+' · '+new Date(item.review.requested_at).toLocaleString();resultChoice.append(option);}
+      for(const row of resultRows){const item=row.result,option=document.createElement('option');option.value=item.review.review_id;option.textContent=L(item.review.action==='stage'?'git.action.stage':'git.action.unstage')+' · '+((item.review.reconciliation || item.review.reconciliation_reason)?L('git.result.checked-none'):outcomeLabel[item.outcome])+' · '+item.review.paths.join(L('git.list.joiner'))+' · '+when(item.review.requested_at);resultChoice.append(option);}
       if(resultRows.some(row=>row.result.review.review_id===selectedId))resultChoice.value=selectedId;
       resultChoice.disabled=!resultRows.length;renderResult();
-    }catch(error){if(active(epoch) && serial===resultsTicket && id===workspace){resultRows=[];resultChoice.replaceChildren();resultChoice.disabled=true;renderResult();resultStatus.textContent=L(error.message);}}
+    }catch(error){if(active(epoch) && serial===resultsTicket && id===workspace){resultRows=[];resultChoice.replaceChildren();resultChoice.disabled=true;renderResult();resultStatus.textContent=S(error.message);}}
   }
   lifetime.listen(resultChoice,'change',renderResult);
   lifetime.listen(resultSave,'click',async()=>{
@@ -51,7 +56,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(!active(epoch) || id!==workspace)return;
       const current=resultRows.find(item=>item.result.review.review_id===reviewId);if(current)current.saved=saved;
       renderResult();
-    }catch(error){if(active(epoch) && id===workspace)resultStatus.textContent=L('git.result.save-failed',{reason:L(error.message)});}
+    }catch(error){if(active(epoch) && id===workspace)resultStatus.textContent=L('git.result.save-failed',{reason:S(error.message)});}
     finally{resultSaving=false;if(active(epoch) && id===workspace)resultSave.disabled=Boolean(resultRows.find(item=>item.result.review.review_id===resultChoice.value)?.saved);}
   });
   function title(item){q('[data-git-scope]').dataset.mwState=item.side==='index'?'staged':'unstaged';q('[data-git-kind]').textContent=L('git.diff.kind');q('[data-git-title]').textContent=item.path.join('/');q('[data-git-scope]').textContent=L(item.side==='index'?'git.diff.staged-scope':'git.diff.unstaged-scope')+(item.previous_path?' · '+L('git.diff.renamed-from',{path:item.previous_path.join('/')}):'');}
@@ -67,9 +72,9 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
     try{
       const value=await request('/diff','POST',{workspace_id:id,path,side});
       if(serial!==ticket || !active(epoch))return;
-      if(value.result.outcome!=='diff'){q('[data-git-notice]').textContent=L(value.result.message);return;}
+      if(value.result.outcome!=='diff'){q('[data-git-notice]').textContent=S(value.result.message);return;}
       selected=value.selected;reopen.hidden=false;await fixed(selected,serial,epoch);
-    }catch(error){if(serial===ticket && active(epoch))q('[data-git-notice]').textContent=L(error.message);}
+    }catch(error){if(serial===ticket && active(epoch))q('[data-git-notice]').textContent=S(error.message);}
     finally{if(serial===ticket && active(epoch))result.setAttribute('aria-busy','false');}
   }
   async function refresh(){
@@ -80,7 +85,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
       workspace=value.workspace.workspace_id;selected=value.selected;reopen.hidden=!selected;
       await showReviews();if(!active(epoch))return;
       await loadSource();if(!active(epoch))return;
-      const view=value.view;notice.textContent=view.phase==='ready'?[view.head,view.tracking,view.message&&L(view.message)].filter(Boolean).join(' · '):L(view.message);
+      const view=value.view;notice.textContent=view.phase==='ready'?[view.head,view.tracking,view.message&&S(view.message)].filter(Boolean).join(' · '):S(view.message);
       for(const [label,items,side,state] of [[L('git.group.conflicts'),view.conflicts,'worktree','conflict'],[L('git.group.staged'),view.staged,'index','staged'],[L('git.group.unstaged'),view.changes,'worktree','unstaged']]){
         if(!items.length)continue;
         const group=document.createElement('section'),heading=document.createElement('h4');heading.textContent=label+' · '+items.length;heading.dataset.mwState=state;group.append(heading);
@@ -88,25 +93,25 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
         list.append(group);
       }
       history.disabled=false;
-    }catch(error){if(active(epoch)){workspace='';selected=null;resultsTicket++;resultRows=[];resultChoice.replaceChildren();renderResult();history.disabled=true;notice.textContent=L(error.message);if(!result.hidden){q('[data-git-diff]').replaceChildren();q('[data-git-notice]').textContent=L(error.message);}}}
+    }catch(error){if(active(epoch)){workspace='';selected=null;resultsTicket++;resultRows=[];resultChoice.replaceChildren();renderResult();history.disabled=true;notice.textContent=S(error.message);if(!result.hidden){q('[data-git-diff]').replaceChildren();q('[data-git-notice]').textContent=S(error.message);}}}
     finally{if(active(epoch)){refreshButton.disabled=false;refreshButton.removeAttribute('data-loading');refreshButton.querySelector('.mw-spinner').hidden=true;list.setAttribute('aria-busy','false');}}
   }
   async function afterDecision(outcome){
     if(!lifetime.visible || !outcome.workspaceId || outcome.workspaceId!==workspace)return;
-    const receipt=outcome.receipt;
+    const state=outcome.state,reason=L('git.decision.details');
     let notice;
-    if(outcome.error)notice=L('git.decision.no-receipt',{reason:L(outcome.error)});
-    else if(receipt?.effect_uncertain)notice=L('git.decision.uncertain',{reason:L(receipt.effect_uncertain)});
-    else if(receipt?.status==='rejected')notice=L('git.decision.rejected');
-    else if(receipt?.reconciliation)notice=L('git.decision.reconciled');
-    else if(receipt?.effect_error)notice=L('git.decision.failed',{reason:L(receipt.effect_error)});
-    else if(receipt?.effect_settled)notice=L('git.decision.settled');
+    if(state==='unavailable')notice=L('git.decision.no-receipt',{reason});
+    else if(state==='uncertain')notice=L('git.decision.uncertain',{reason});
+    else if(state==='rejected')notice=L('git.decision.rejected');
+    else if(state==='reconciled')notice=L('git.decision.reconciled');
+    else if(state==='failed')notice=L('git.decision.failed',{reason});
+    else if(state==='settled')notice=L('git.decision.settled');
     else notice=L('git.decision.pending');
     // A commit, branch, push or PR decided here reads as that operation, never as an index change.
     if(lastPrepared){
-      const done=receipt?.effect_settled,label=OPERATION[lastPrepared] || L('git.op.other');
+      const done=state==='settled',label=OPERATION[lastPrepared] || L('git.op.other');
       if(lastPrepared==='commit' && done){message.value='';try{sessionStorage.removeItem('molis-commit-draft:'+scWorkspace);}catch{}}
-      scStatus.textContent=outcome.error?L('git.op.no-receipt',{reason:L(outcome.error)}):receipt?.status==='rejected'?L('git.op.rejected',{op:label}):receipt?.effect_error?L('git.op.failed',{op:label,reason:L(receipt.effect_error)}):done?L('git.op.done',{op:label}):L('git.op.recorded');
+      scStatus.textContent=state==='unavailable'?L('git.op.no-receipt',{reason}):state==='rejected'?L('git.op.rejected',{op:label}):state==='failed'?L('git.op.failed',{op:label,reason}):done?L('git.op.done',{op:label}):L('git.op.recorded');
       lastPrepared='';q('[data-git-notice]').textContent=scStatus.textContent;await refresh();return;
     }
     displayed=null;action.hidden=true;
@@ -121,11 +126,11 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
       await request('/prepare-index','POST',{workspace_id:item.workspace_id,path:item.path,revision:item.revision,action:item.side==='index'?'unstage':'stage',operation_id:crypto.randomUUID()});
       if(!active(epoch))return;
       q('[data-git-notice]').textContent=L('git.index.review');await showReviews();
-    }catch(error){if(active(epoch))q('[data-git-notice]').textContent=L(error.message);}
+    }catch(error){if(active(epoch))q('[data-git-notice]').textContent=S(error.message);}
     finally{preparing=false;if(lifetime.alive)action.disabled=false;}
   });
   lifetime.listen(history,'click',async()=>{if(!workspace || history.disabled)return;const epoch=generation;ticket++;displayed=null;action.hidden=true;reveal(history);q('[data-git-title]').textContent=L('git.history.title');q('[data-git-scope]').textContent=L('git.history.scope');q('[data-git-diff]').replaceChildren();q('[data-git-notice]').textContent='';resultPanel.hidden=false;await showReviews();if(active(epoch))await loadResults();});
-  lifetime.listen(reopen,'click',async()=>{if(!selected)return;reveal(reopen);const serial=++ticket,epoch=generation;try{await fixed(selected,serial,epoch);}catch(error){if(serial===ticket && active(epoch))q('[data-git-notice]').textContent=L(error.message);}});
+  lifetime.listen(reopen,'click',async()=>{if(!selected)return;reveal(reopen);const serial=++ticket,epoch=generation;try{await fixed(selected,serial,epoch);}catch(error){if(serial===ticket && active(epoch))q('[data-git-notice]').textContent=S(error.message);}});
   lifetime.listen(q('[data-git-close]'),'click',()=>{ticket++;result.setAttribute('aria-busy','false');result.hidden=true;result.classList.remove('is-arriving');host.closeResult();if(opener?.isConnected)opener.focus({preventScroll:true});else (list.querySelector('.is-selected') || refreshButton).focus({preventScroll:true});});
   // Source control: branch, commit, push and PR. Each is prepared for Host review against the repository as shown here,
   // and runs only if approved and the repository has not moved since.
@@ -136,7 +141,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
   // The operations by what they are called, here and in the record (whose tools carry a git- prefix).
   const OPERATION={commit:L('git.op.commit'),'branch-create':L('git.op.branch-create'),'branch-switch':L('git.op.branch-switch'),push:L('git.op.push'),'pr-create':L('git.op.pr-create'),merge:L('git.op.merge'),pull:L('git.op.pull'),resolve:L('git.op.resolve'),'merge-abort':L('git.op.merge-abort')};
   const options=(select,values,keep)=>{select.replaceChildren(...values.map(value=>{const option=document.createElement('option');option.value=value;option.textContent=value;return option;}));if(keep && values.includes(keep))select.value=keep;};
-  async function loadOperations(){const epoch=generation;try{const value=await request('/operations');if(!active(epoch))return;operations.replaceChildren(...value.operations.slice(0,6).map(op=>{const item=document.createElement('li');item.dataset.outcome=op.outcome;const text=(OPERATION[String(op.tool).replace(/^git-/,'')]||op.tool)+' · '+(OUTCOME[op.outcome]||op.outcome)+' · '+L(op.detail||op.failure_reason||op.summary||'');
+  async function loadOperations(){const epoch=generation;try{const value=await request('/operations');if(!active(epoch))return;operations.replaceChildren(...value.operations.slice(0,6).map(op=>{const item=document.createElement('li');item.dataset.outcome=op.outcome;const text=(OPERATION[String(op.tool).replace(/^git-/,'')]||op.tool)+' · '+(OUTCOME[op.outcome]||op.outcome)+' · '+S(op.detail||op.failure_reason||op.summary||'');
       // An address in the result (the PR that was opened) is a link; in the desktop app it opens in the system browser.
       for(const [index,part] of text.split(/(https:\\/\\/[^\\s，。）)]+)/).entries()){
         if(index%2===0){item.append(part);continue;}
@@ -148,7 +153,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
   async function loadSource(){
     const epoch=generation;try{
       const value=await request('/summary');if(!active(epoch))return;summary=value.summary;scWorkspace=value.workspace.workspace_id;sc.hidden=!summary;
-      if(!summary){scStatus.textContent=L(value.message||'');return;}
+      if(!summary){scStatus.textContent=S(value.message||'');return;}
       draft=value.draft||'';
       // A commit message handed over from a Coding round arrives once, to be edited before anything runs.
       // It stays until that commit is made, so a reload keeps it, and it never replaces what the person has typed.
@@ -183,7 +188,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
       ticket++;displayed=null;action.hidden=true;resultPanel.hidden=true;reveal(source);
       q('[data-git-title]').textContent=label;q('[data-git-kind]').textContent=L('git.op.review-kind');q('[data-git-scope]').textContent='';q('[data-git-diff]').replaceChildren();q('[data-git-notice]').textContent=L('git.op.review-note');
       await showReviews();if(active(epoch))await loadOperations();
-    }catch(error){if(active(epoch)){scStatus.textContent=L(error.message);await loadSource();}}
+    }catch(error){if(active(epoch)){scStatus.textContent=S(error.message);await loadSource();}}
     finally{busy=false;}
   }
   // Merge conflicts: each conflicted file opens with its markers; pick a side per conflict or edit it, then resolve it
@@ -214,11 +219,11 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
     sc.querySelector('[data-git-conflict-resolve]').disabled=left;};
   lifetime.listen(conflictText,'input',syncConflict);
   const openConflict=async(path)=>{const epoch=generation,serial=++conflictTicket;conflictEditor.hidden=false;sc.querySelector('[data-git-conflict-state]').textContent=L('git.conflict.reading',{path});
-    try{const file=await request('/conflict?path='+encodeURIComponent(path));if(!active(epoch) || serial!==conflictTicket)return;if(file.outcome!=='conflict-file')throw new Error(file.message ? L(file.message) : L('git.conflict.unreadable'));
-      conflictPath=path;conflictSides={ours:file.ours,theirs:file.theirs};
-      sc.querySelector('[data-git-conflict-file]').textContent=L('git.conflict.file',{path,count:file.conflicts,ours:file.ours,theirs:file.theirs});
+    try{const file=await request('/conflict?path='+encodeURIComponent(path));if(!active(epoch) || serial!==conflictTicket)return;if(file.outcome!=='conflict-file')throw new Error(file.message ? S(file.message) : L('git.conflict.unreadable'));
+      conflictPath=path;conflictSides={ours:file.ours==='当前'?L('git.conflict.ours'):file.ours,theirs:file.theirs==='合并进来的一方'?L('git.conflict.theirs'):file.theirs};
+      sc.querySelector('[data-git-conflict-file]').textContent=L('git.conflict.file',{path,count:file.conflicts,ours:conflictSides.ours,theirs:conflictSides.theirs});
       conflictText.value=file.text;syncConflict();conflictText.focus();}
-    catch(error){if(active(epoch) && serial===conflictTicket)sc.querySelector('[data-git-conflict-state]').textContent=L(error.message);}};
+    catch(error){if(active(epoch) && serial===conflictTicket)sc.querySelector('[data-git-conflict-state]').textContent=S(error.message);}};
   function renderConflicts(){const merging=Boolean(summary && (summary.merging || summary.conflicted.length));conflicts.hidden=!merging;
     if(!merging){conflictEditor.hidden=true;conflictPath='';return;}
     sc.querySelector('[data-git-conflict-note]').textContent=summary.conflicted.length?L('git.conflict.merging',{count:summary.conflicted.length}):L('git.conflict.all-resolved');
@@ -235,7 +240,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(prForm.hidden)return;const epoch=generation,note=sc.querySelector('[data-git-pr-support]'),create=sc.querySelector('[data-git-pr-create]');note.textContent=L('git.pr.checking');create.disabled=true;
     const lines=message.value.trim().split('\\n'),title=sc.querySelector('[data-git-pr-title]'),body=sc.querySelector('[data-git-pr-body]');
     if(!title.value)title.value=lines[0] || summary?.branch || '';if(!body.value)body.value=lines.slice(1).join('\\n').trim();
-    try{const support=await request('/pr-support');if(!active(epoch))return;note.textContent=L(support.message);create.disabled=support.tool!=='ready';}catch(error){if(active(epoch))note.textContent=L(error.message);}
+    try{const support=await request('/pr-support');if(!active(epoch))return;note.textContent=S(support.message);create.disabled=support.tool!=='ready';}catch(error){if(active(epoch))note.textContent=S(error.message);}
   });
   lifetime.listen(sc.querySelector('[data-git-commit-draft]'),'click',()=>{message.value=draft;message.focus();if(!draft)scStatus.textContent=L('git.commit.empty-index');});
   lifetime.listen(sc.querySelector('[data-git-commit]'),'click',event=>{if(!message.value.trim()){scStatus.textContent=L('git.commit.need-message');message.focus();return;}void prepare({action:'commit',message:message.value},OPERATION.commit,event.currentTarget);});

@@ -15,6 +15,7 @@ const PROJECT = "project-judgment-link";
 
 test("a judgment link hands content on only for the ticked results and records why a run stopped", { timeout: 120_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "workflows-judgment-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const dbPath = join(home, "project.db");
   seedDemoBoard(dbPath, PROJECT);
   const db = new LocalProjectDatabase(dbPath);

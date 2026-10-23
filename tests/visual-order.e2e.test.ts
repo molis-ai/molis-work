@@ -1,7 +1,8 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { orderAudit } from "./fixtures/order-audit.js";
+import { ORDER_SKIP as SKIP, orderAudit } from "./fixtures/order-audit.js";
 
 // DESIGN「Order」(VUX-46 to VUX-50): on the project page, the common plugin pages, settings and the component board, a
 // state mark stands as tall as its words and on their line, an icon beside words is the words' size or one step up, the
@@ -18,14 +19,6 @@ const OPENS = [
   ["templates", "[data-pages-templates]", "pages"],
 ];
 const MODE_PAGES = ["goals", "pages", "lingguang", "inbox", "sessions", "feed", "jelly", "coding"];
-// Left out, each with why it is not one row of peers or one line of words.
-const SKIP = [
-  ".dock-pins > :first-child",          // 项目首页 stands apart from the pinned plugins: the wider gap is the divider between them
-  ".bar-composer [type=submit]",        // the bar's send is its one large target, a step above the bar's other buttons
-  ".mw-catalog__sizes",                 // the board's size specimen shows sm, md and lg side by side
-  ".mw-icon-inventory",                 // the board's icon list: an icon beside its name and code, centred on both lines
-  ".mw-catalog__specimens .mw-empty",   // the board's empty block on its own: centring and the header's create are the stage's
-].join(", ");
 const MODES = [
   { name: "light", width: 1440, height: 900, dark: false, compact: false, touch: false, pages: PAGES },
   { name: "dark", width: 1440, height: 900, dark: true, compact: false, touch: false, pages: MODE_PAGES },
@@ -38,6 +31,7 @@ test("VUX-46 to VUX-50: marks, words and button rows are in order on the common 
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  const child = await pluginFrameBrowser(t,browser);
   const found: string[] = [];
   for (const mode of MODES) {
     await command("Emulation.setDeviceMetricsOverride", { width: mode.width, height: mode.height, deviceScaleFactor: 1, mobile: mode.touch }, sessionId);
@@ -50,16 +44,24 @@ test("VUX-46 to VUX-50: marks, words and button rows are in order on the common 
       await waitFor("document.readyState === 'complete'", 20_000);
       if (mode.compact) await evaluate("document.documentElement.dataset.density = 'compact'");
       await pause(800);
-      const { findings } = await evaluate(orderAudit(SKIP)) as { findings: Array<Record<string, unknown>> };
-      for (const finding of findings) found.push(`${mode.name} ${id}: ${JSON.stringify(finding)}`);
+      const isolated = await evaluate<boolean>("Boolean(document.querySelector('iframe[data-plugin-frame]'))");
+      const audit = async () => {
+        const owner = await evaluate<{findings: Array<Record<string, unknown>>}>(orderAudit(SKIP));
+        if (isolated) {
+          await child.waitFor("document.querySelector('[data-work-surface]') && document.fonts.status === 'loaded'");
+          const inside = await child.evaluate<{findings: Array<Record<string, unknown>>}>(orderAudit(SKIP));
+          owner.findings.push(...inside.findings);
+        }
+        return owner.findings;
+      };
+      for (const finding of await audit()) found.push(`${mode.name} ${id}: ${JSON.stringify(finding)}`);
       if (mode.name !== "light") continue;
       for (const [what, opener, page] of OPENS) {
         if (page !== id) continue;
         await waitFor(`document.body.dataset.desktopSurface === ${JSON.stringify(id)}`, 20_000);
-        await evaluate(`document.querySelector(${JSON.stringify(opener)}).click()`);
+        await (isolated ? child : browser).evaluate(`document.querySelector(${JSON.stringify(opener)}).click()`);
         await pause(1500);
-        const opened = await evaluate(orderAudit(SKIP)) as { findings: Array<Record<string, unknown>> };
-        for (const finding of opened.findings) found.push(`${mode.name} ${id} ${what}: ${JSON.stringify(finding)}`);
+        for (const finding of await audit()) found.push(`${mode.name} ${id} ${what}: ${JSON.stringify(finding)}`);
       }
       if (id !== "settings") continue;
       // Settings: every section, each read once it has loaded.

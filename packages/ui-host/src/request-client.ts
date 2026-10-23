@@ -22,6 +22,7 @@ export interface UiFetchInit {
   readonly cache: "no-store";
   body?: string | Blob;
   signal?: AbortSignal;
+  keepalive?: boolean;
 }
 
 export interface UiRequestPorts {
@@ -91,6 +92,7 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
     if (!read) Object.assign(headers, writeHeaders(init.key));
     const options: UiFetchInit = { method, headers, cache: "no-store" };
     if (init.signal) options.signal = init.signal;
+    if (init.keepalive) options.keepalive = true;
     if (!read && init.file !== undefined) { options.body = init.file; headers["content-type"] = init.file.type || "application/octet-stream"; }
     else if (!read && init.body !== undefined) options.body = JSON.stringify(init.body);
 

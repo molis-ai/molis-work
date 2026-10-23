@@ -1,3 +1,4 @@
+import { handleScheduleTestHttp } from "./fixtures/schedule-http.js";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -11,7 +12,6 @@ import Database from "better-sqlite3";
 import {
   handleFeedNativePluginHttp,
   handleInboxNativePluginHttp,
-  handleScheduleNativePluginHttp,
   type FeedNativePluginHttpOptions,
   type LocalProjectDatabase,
 } from "@molis-ai/molis-work-app-local-host";
@@ -90,9 +90,9 @@ async function failingEdge(owner: "feed" | "inbox" | "schedule") {
     renderer: { renderFeedWorkbenchFragment: () => "", renderPersistedFeedItemDetail: () => "" }, readWebView: async () => ({} as MolisWorkWebView), store: {} as LocalProjectDatabase };
   const handle = (request: IncomingMessage, response: ServerResponse, url: URL): Promise<boolean> => owner === "feed" ? handleFeedNativePluginHttp(request, response, url, feedOptions)
     : owner === "inbox" ? handleInboxNativePluginHttp(request, response, url, { actions, invalidateWebView: () => undefined })
-      : handleScheduleNativePluginHttp(request, response, url, { actions, invalidateWebView: () => undefined });
+      : handleScheduleTestHttp(request, response, url, actions);
   // A route of the plugin whose handler calls one action, so the failure comes out of the action and goes through the edge.
-  const route = { feed: ["POST", "/api/feed/items/item-1/read"], inbox: ["POST", "/api/inbox/entries/entry-1/status"], schedule: ["POST", "/api/schedule/tasks"] }[owner] as [string, string];
+  const route = { feed: ["POST", "/api/feed/items/item-1/read"], inbox: ["POST", "/api/inbox/entries/entry-1/status"], schedule: ["POST", "/api/plugins/io.molis.work.schedule/tasks"] }[owner] as [string, string];
   const server = createServer((request, response) => {
     handle(request, response, new URL(request.url ?? "/", "http://127.0.0.1")).then(handled => {
       if (!handled) { response.statusCode = 404; response.end("{}"); }
@@ -165,12 +165,13 @@ test("a platform code answers one status at Feed, Inbox and Schedule, with the o
 test("a failure with no code of ours is a bug or an outage: 500 actions.execution_failed, with its message and nothing of its own code", async () => {
   for (const owner of ["feed", "inbox", "schedule"] as const) {
     const edge = await failingEdge(owner);
+    const message = (text: string) => owner === "schedule" ? "请求未能完成，请重试。" : text;
     try {
-      assert.deepEqual(await edge.fail(new Error("boom")), { status: 500, body: { error: "boom", code: "actions.execution_failed" } }, `${owner}: a plain Error`);
-      assert.deepEqual(await edge.fail(Object.assign(new Error("没有这个文件"), { code: "ENOENT" })), { status: 500, body: { error: "没有这个文件", code: "actions.execution_failed" } }, `${owner}: a system error code`);
+      assert.deepEqual(await edge.fail(new Error("boom")), { status: 500, body: { error: message("boom"), code: "actions.execution_failed" } }, `${owner}: a plain Error`);
+      assert.deepEqual(await edge.fail(Object.assign(new Error("没有这个文件"), { code: "ENOENT" })), { status: 500, body: { error: message("没有这个文件"), code: "actions.execution_failed" } }, `${owner}: a system error code`);
       // The names the three owners used before are not codes of ours any more: a stray one is a bug, not a caller's mistake.
-      assert.deepEqual(await edge.fail(Object.assign(new Error("找不到"), { code: "feed_item_not_found" })), { status: 500, body: { error: "找不到", code: "actions.execution_failed" } }, `${owner}: an old snake code`);
-      assert.deepEqual(await edge.fail("a thrown string"), { status: 500, body: { error: "能力执行失败", code: "actions.execution_failed" } }, `${owner}: not an Error`);
+      assert.deepEqual(await edge.fail(Object.assign(new Error("找不到"), { code: "feed_item_not_found" })), { status: 500, body: { error: message("找不到"), code: "actions.execution_failed" } }, `${owner}: an old snake code`);
+      assert.deepEqual(await edge.fail("a thrown string"), { status: 500, body: { error: message("能力执行失败"), code: "actions.execution_failed" } }, `${owner}: not an Error`);
     } finally { await edge.close(); }
   }
 });
@@ -350,8 +351,8 @@ test("the scheduler's refusals leave the Schedule, reminder and timed-operation 
   for (const [schedulerCode, message, code, status] of SCHEDULER_REFUSALS) {
     const refuse = (): never => { throw schedulerErrors[schedulerCode.slice("scheduler.".length) as keyof typeof schedulerErrors](message); };
     const jobs = schedulePlugin.createScheduleActionHandlers(SCHEDULE_PROJECT, schedulePorts({ setEnabled: refuse }));
-    const reminders = schedulePlugin.createReminderActionHandlers(SCHEDULE_PROJECT, { add: refuse, cancel: refuse });
-    const operations = schedulePlugin.createScheduledOperationActionHandlers(SCHEDULE_PROJECT, { add: refuse, cancel: refuse });
+    const reminders = schedulePlugin.createReminderActionHandlers(SCHEDULE_PROJECT, { pluginId: id => id === "install-1" ? SCHEDULE_PLUGIN : null, add: refuse, cancel: refuse });
+    const operations = schedulePlugin.createScheduledOperationActionHandlers(SCHEDULE_PROJECT, { pluginId: id => id === "install-1" ? SCHEDULE_PLUGIN : null, add: refuse, cancel: refuse });
     const sites: ReadonlyArray<readonly [string, ActionHandlerBinding, ActionExecutionContext, unknown]> = [
       ["bind (the Schedule actions)", bindingOf(jobs, schedulePlugin.scheduleActions.setJobEnabled), userContext(), { job_id: "job-1", enabled: false }],
       ["reminders.add", bindingOf(reminders, schedulePlugin.reminderActions.add), pluginContext(), { at: "2026-10-12T08:00:00+08:00", text: "复习" }],
@@ -433,9 +434,9 @@ test("with the real reminder and timed-operation services: the caller's mistakes
     describe: identity => identity.installationId !== "install-1" ? null
       : { installationId: "install-1", generation: "install-1@2026", title: "论语日课", version: "1.0.0", operations: [{ id: "daily", description: "每日一章" }] } });
   try {
-    const reminderHandlers = schedulePlugin.createReminderActionHandlers(SCHEDULE_PROJECT, {
+    const reminderHandlers = schedulePlugin.createReminderActionHandlers(SCHEDULE_PROJECT, { pluginId: id => id === "install-1" ? SCHEDULE_PLUGIN : null,
       add: (identity, input) => reminders.add(identity, input), cancel: (identity, input) => reminders.cancel(identity, input) });
-    const operationHandlers = schedulePlugin.createScheduledOperationActionHandlers(SCHEDULE_PROJECT, {
+    const operationHandlers = schedulePlugin.createScheduledOperationActionHandlers(SCHEDULE_PROJECT, { pluginId: id => id === "install-1" ? SCHEDULE_PLUGIN : null,
       add: (identity, input) => operations.add(identity, input), cancel: (identity, input) => operations.cancel(identity, input) });
     const addReminder = bindingOf(reminderHandlers, schedulePlugin.reminderActions.add), cancelReminder = bindingOf(reminderHandlers, schedulePlugin.reminderActions.cancel);
     const addOperation = bindingOf(operationHandlers, schedulePlugin.scheduledOperationActions.add), cancelOperation = bindingOf(operationHandlers, schedulePlugin.scheduledOperationActions.cancel);
@@ -453,7 +454,7 @@ test("with the real reminder and timed-operation services: the caller's mistakes
     // Timed operations: the same, plus an operation the plugin does not have and a plugin that is not installed.
     assert.deepEqual(invalid(await refusalOf(() => addOperation.handle(pluginContext(), { operation: "daily", at: "2026-10-10T00:00:00Z" }))), [400, "schedule.job_invalid"]);
     assert.deepEqual(invalid(await refusalOf(() => addOperation.handle(pluginContext(), { operation: "nope", at: future }))), [400, "schedule.job_invalid"]);
-    assert.deepEqual(invalid(await refusalOf(() => addOperation.handle(pluginContext({ plugin_install_id: "install-gone" }), { operation: "daily", at: future }))), [400, "schedule.job_invalid"]);
+    assert.deepEqual(invalid(await refusalOf(() => addOperation.handle(pluginContext({ plugin_install_id: "install-gone" }), { operation: "daily", at: future }))), [403, "actions.forbidden"]);
     const operation = await addOperation.handle(pluginContext(), { operation: "daily", at: future }) as { scheduleId: string };
     assert.deepEqual(await cancelOperation.handle(pluginContext(), { scheduleId: operation.scheduleId }), { cancelled: true });
 
@@ -465,8 +466,8 @@ test("with the real reminder and timed-operation services: the caller's mistakes
       }
       assert.deepEqual(invalid(await refusalOf(() => binding.handle(pluginContext({ project_id: "another-project" }), input))), [403, "actions.scope_mismatch"], `${site} in another project`);
     }
-    assert.deepEqual(invalid(await refusalOf(() => addReminder.handle(pluginContext({ actor_id: "plugin:" }), { at: future, text: "复习" }))), [403, "actions.forbidden"],
-      "a plugin id the service cannot take is refused by the service itself, and the wrapper leaves it a platform code");
-    assert.deepEqual(invalid(await refusalOf(() => addOperation.handle(pluginContext({ actor_id: "plugin:" }), { operation: "daily", at: future }))), [403, "actions.forbidden"]);
+    assert.deepEqual(invalid(await refusalOf(() => addReminder.handle(pluginContext({ plugin_install_id: "missing" }), { at: future, text: "复习" }))), [403, "actions.forbidden"],
+      "an installation absent from the trusted directory is refused, and the wrapper leaves it a platform code");
+    assert.deepEqual(invalid(await refusalOf(() => addOperation.handle(pluginContext({ plugin_install_id: "missing" }), { operation: "daily", at: future }))), [403, "actions.forbidden"]);
   } finally { db.close(); }
 });

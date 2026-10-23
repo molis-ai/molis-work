@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
-import { rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { materializeGoalEventHistory } from "./goal-event-history-fixture.js";
 
@@ -22,8 +24,9 @@ function listen(server: Server): Promise<string> {
 }
 
 test("public document timeline is bounded and keeps the journal", async () => {
-  const fixture = materializeGoalEventHistory("legacy");
-  const directory = fixture.directory;
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-goal-event-history-http-"));
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
+  const fixture = materializeGoalEventHistory("legacy", directory);
   const databasePath = fixture.path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);

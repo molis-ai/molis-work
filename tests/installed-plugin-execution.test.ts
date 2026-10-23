@@ -69,7 +69,7 @@ for (const mode of ['cancelled', 'revoked', 'withdrawn'] as const) test(`install
         firstRouteBody ??= response.body;
         return response;
       } finally { firstRouteFinished.resolve(); }
-    }).dispose;
+    }, undefined, installId).dispose;
     withdraw = register();
     const caller: ActionCallContext = { actor_id: 'owner', project_id: 'p', audience: 'user', permissions: [], signal: controller.signal,
       validate_authority: () => { if (!allowed) throw new Error('Authority revoked'); } };
@@ -102,6 +102,7 @@ for (const mode of ['cancelled', 'revoked', 'withdrawn'] as const) test(`install
 
 test('W3-07-8-02 PG-006 a real sandbox reaches the Goal actions through the production broker only as itself: an identity in its input is refused, and its progress is its own', { skip: process.platform !== 'darwin', timeout: 30_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'goal-sandbox-authority-')), databasePath = join(directory, 'project.db');
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   seedDemoBoard(databasePath);
   const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }), ref = molisWorkHostProjectReference({ projectId: DEMO_PROJECT_ID, databasePath });
   const goal_id = 'SANDBOX-GOAL', ids = [goalPluginActions.contract, goalPluginActions.state, goalPluginActions.progress, goalPluginActions.receipt].map(item => item.capability_id);
@@ -148,6 +149,7 @@ test('W3-07-8-02 PG-006 a real sandbox reaches the Goal actions through the prod
 
 test('PG006-01 PG006-02 PG006-03 PG006-04 PG006-05 S-15 a sandbox reaches a Goal action only when it declared it and the person approved it; a withdrawn approval, another installation or another project is refused, and no refusal writes', { skip: process.platform !== 'darwin', timeout: 30_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'goal-sandbox-grants-')), databasePath = join(directory, 'project.db'), otherPath = join(directory, 'other.db');
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   seedDemoBoard(databasePath); seedDemoBoard(otherPath, 'other-project');
   const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
   const ref = molisWorkHostProjectReference({ projectId: DEMO_PROJECT_ID, databasePath }), otherRef = molisWorkHostProjectReference({ projectId: 'other-project', databasePath: otherPath });
@@ -287,8 +289,9 @@ for (const mode of ['cancelled', 'revoked'] as const) test(`PLIB-10 S-18 an inst
     const report = await platform.start([{ definition, grants: ['storage:private', tables.read_permission, tables.write_permission] }]);
     assert.ok(report.running.includes(contract.pluginId), JSON.stringify(report));
     assert.equal(count(), 0, 'its tables are made when it starts');
+    const installId = platform.runtime.list().find(item => item.plugin_id === contract.pluginId)!.install_id;
     withdraw = exposeInstalledPlugin(actions, release, async (pluginId, operation, input, context) => await platform.router().dispatch({ method: 'POST',
-      pathname: '/api/plugins/' + pluginId + '/call', actor_id: context.actor_id, execution: context, body: { operation, input } }) ?? { status: 409 }).dispose;
+      pathname: '/api/plugins/' + pluginId + '/call', actor_id: context.actor_id, execution: context, body: { operation, input } }) ?? { status: 409 }, undefined, installId).dispose;
     const caller: ActionCallContext = { actor_id: 'owner', project_id: DEMO_PROJECT_ID, audience: 'user', permissions: [], signal: controller.signal,
       validate_authority: () => { if (!allowed) throw new Error('Authority revoked'); } };
     const action = { capability_id: exposedActionId(release, 'save'), version: 1 };

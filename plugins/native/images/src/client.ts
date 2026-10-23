@@ -8,7 +8,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   let viewSignal;
   const $ = (selector) => root.querySelector(selector);
   const field = (name) => $('[data-images-' + name + ']');
-  const projectId = () => String((typeof host.projectId === 'function' ? host.projectId() : host.projectId) || '');
+  const projectId = () => String(host.projectId() || '');
   const compose = field('compose');
   const prompt = field('prompt');
   const size = field('size');
@@ -145,7 +145,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       node.setAttribute('aria-pressed', String(jobId === job.id));
       if (job.images?.length) {
         const img = document.createElement('img'); img.className = 'images-history-thumb';
-        img.src = imageUrl(job, job.images[0]); img.alt = ''; img.loading = 'lazy'; node.append(img);
+        host.loadMedia(img, imageUrl(job, job.images[0])); img.alt = ''; img.loading = 'lazy'; node.append(img);
       } else {
         const mark = document.createElement('span'); mark.className = 'images-history-thumb images-history-thumb-placeholder';
         mark.innerHTML = '<svg aria-hidden="true"><use href="#icon-image"></use></svg>'; node.append(mark);
@@ -204,7 +204,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     for (const item of job.images || []) {
       const figure = document.createElement('figure');
       const img = document.createElement('img'); img.className = 'images-result-image';
-      img.src = imageUrl(job, item); img.alt = job.prompt;
+      host.loadMedia(img, imageUrl(job, item)); img.alt = job.prompt;
       img.addEventListener('error', () => {
         if (resultSignature === signature) resultSignature = '';
         const failure = text('p', L('images.error.image-read'), 'images-note is-error');
@@ -382,7 +382,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       if (target.dataset.imagesEditConnection) { if (!saving) editConnection(target.dataset.imagesEditConnection); return; }
       if (target.dataset.imagesDeleteConnection) {
         const id = target.dataset.imagesDeleteConnection;
-        if (!confirm(L('images.service.delete-confirm'))) return;
+        if (!await host.confirm(L('images.service.delete-confirm'))) return;
         target.disabled = true;
         const enable = life.own(() => { target.disabled = false; });
         try {
@@ -421,7 +421,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       }
       if (target.dataset.imagesDeleteJob) {
         const id = target.dataset.imagesDeleteJob, currentContext = context;
-        if (!confirm(L('images.result.delete-confirm'))) return;
+        if (!await host.confirm(L('images.result.delete-confirm'))) return;
         target.disabled = true;
         const enable = life.own(() => { target.disabled = false; });
         try {

@@ -5,7 +5,7 @@ import { object, id, text, path, workspace, reference, nullable, boolean, fileMo
 import type { GitView } from "./projection.js";
 const define = <Input, Output>(capability_id: string, title: string, description: string, kind: "query" | "operation", permissions: string[], input_schema: Record<string, unknown>, output_schema: Record<string, unknown>): ActionDefinition<Input, Output> => ({
   capability_id, version: 1, operation: kind === "query" ? "query" : "command", action: { title, description, kind, scope: "project",
-    audiences: ["user", "agent", "workflow", "mcp"], permissions, subject_kinds: ["workspace", "git"], input_schema, output_schema },
+    audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: ["workspace", "git"], input_schema, output_schema },
 });
 const read = ["artifact:read", "storage:private"], write = [...read, "artifact:write"];
 /**

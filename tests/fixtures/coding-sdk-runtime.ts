@@ -22,9 +22,9 @@ export async function codingSdkRuntime(t: TestContext, options: { extraPlugins?:
   /** Stands between Coding and the Host's capability client, to count or refuse a call. */
   wrapCapabilities?: <Client extends object>(client: Client) => Client } = {}) {
   const home = await mkdtemp(join(tmpdir(), "coding-sdk-regression-")), file = join(home, "project.db");
-  seedDemoBoard(file);
   // The model Coding lists comes from the Home's provider catalog through `services.model` (PG-047), as it does in the Host.
   await seedConfiguredModels(home, [{ provider_id: "fixture", model_id: "fixture" }]);
+  seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), sessions = codingSessions(store), service = new ActionService(), reviews = new AgentReviewQueue();
   const makeAdapter = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.coding-regression-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: reviews,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
@@ -49,7 +49,7 @@ export async function codingSdkRuntime(t: TestContext, options: { extraPlugins?:
     } }] });
   const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", db: store.db, artifacts, processItems, ui: new UiHost(), home: { directory: home, completeText: () => undefined, stores: homeStores() },
     actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID }, capabilities: (options.wrapCapabilities ?? (client => client))(local.client(reference)), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
-  await platform.start([{ definition: (options.wrapCoding ?? (definition => definition))(createCodingPlugin()), grants: ["goals:read", "goals:write", "artifact:read", "artifact:write", "knowledge:read", "model:read", "storage:private", "workspace:read", "review:git-worktree", "review:git-integration"] }, ...(options.extraPlugins ?? [])]);
+  await platform.start([{ definition: (options.wrapCoding ?? (definition => definition))(createCodingPlugin()), grants: ["search:read", "goals:read", "goals:write", "artifact:read", "artifact:write", "knowledge:read", "model:read", "storage:private", "workspace:read", "review:git-worktree", "review:git-integration"] }, ...(options.extraPlugins ?? [])]);
   t.after(async () => { await platform.closeCoordination(); for (const id of platform.supervisor.enabledPluginIds()) { const active = platform.supervisor.state(id); platform.supervisor.revoke(id); if (active?.install_id) await platform.runtime.stop(active.install_id); }
     await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
   const router = platform.router(), prefix = "/api/plugins/io.molis.work.coding";

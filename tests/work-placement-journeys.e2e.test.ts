@@ -4,6 +4,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { formFillPageHtml, openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
@@ -12,6 +13,7 @@ async function journey(t: TestContext, mode: "empty" | "seeded", name: string) {
   const browser = await openGoalBrowser(t, mode);
   if (!browser) return null;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
+  const pages = await pluginFrameBrowser(t, browser, "pages");
   const text = JSON.stringify;
   const output = new URL(`../${specEvidenceDirectory("specs/archive/work-placement/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
@@ -23,6 +25,7 @@ async function journey(t: TestContext, mode: "empty" | "seeded", name: string) {
   const visible = (selector: string, label?: string) => `[...document.querySelectorAll(${text(selector)})].find(node => node.getClientRects().length${label ? ` && node.textContent.trim() === ${text(label)}` : ""})`;
   // A bar or list may repaint between marking the target and clicking it; mark the fresh one and click again.
   const press = async (selector: string, label?: string) => {
+    const { evaluate, waitFor, click } = /data-pages-|data-page-id/.test(selector) ? pages : browser;
     for (let attempt = 0; ; attempt++) {
       await waitFor(`Boolean(${visible(selector, label)})`, 15_000);
       await evaluate(`(() => { document.querySelectorAll('[data-e2e-target]').forEach(node => node.removeAttribute('data-e2e-target')); ${visible(selector, label)}.setAttribute('data-e2e-target', ''); })()`);
@@ -58,18 +61,18 @@ async function journey(t: TestContext, mode: "empty" | "seeded", name: string) {
   // The bar repaints as descriptions arrive; if the click landed on a node that was just replaced, click the new one.
   const panel = async (action: string) => {
     for (let attempt = 0; ; attempt++) {
-      await press(".placement-bar");
+      await pages.click(".placement-bar");
       try { await waitFor(`document.querySelector('.placement-panel [data-placement-action="${action}"]')`, 5_000); return; }
       catch (error) { if (attempt >= 2) throw error; }
     }
   };
   const title = async (value: string) => {
-    await evaluate(`(() => { const input = ${visible("[data-pages-title]")}; input.focus(); input.value = ${text(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
-    await waitFor(`${visible("[data-pages-editor-status]")}?.textContent === '已保存'`, 15_000);
+    await pages.evaluate(`(() => { const input = ${visible("[data-pages-title]")}; input.focus(); input.value = ${text(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    await pages.waitFor(`${visible("[data-pages-editor-status]")}?.textContent === '已保存'`, 15_000);
   };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  return { ...browser, text, screenshot, go, visible, press, card, cardButton, current, describe, openPlugin, projectHome, panel, title };
+  return { ...browser, pages, text, screenshot, go, visible, press, card, cardButton, current, describe, openPlugin, projectHome, panel, title };
 }
 
 // AC3: a brand-new Home, no project at all. The work gets done in the personal space; what needs a project says so plainly;
@@ -91,10 +94,10 @@ test("placement journey: no project yet — start in the personal space, finish 
   const doc = (await current())!;
   const personal = { kind: doc.kind, id: doc.id, project_id: "personal" };
   // The work itself: what Pages promises is a document you can take away, as Markdown and as a web page, with what you wrote.
-  await evaluate("document.querySelector('[data-pages-editor] [contenteditable=\"true\"]').focus()");
+  await j.pages.evaluate("document.querySelector('[data-pages-editor] [contenteditable=\"true\"]').focus()");
   await command("Input.insertText", { text: "复利来自长期坚持。" }, sessionId);
   await evaluate("new Promise(resolve => setTimeout(resolve, 1200))");
-  await waitFor(`${j.visible("[data-pages-editor-status]")}?.textContent === '已保存'`, 15_000);
+  await j.pages.waitFor(`${j.visible("[data-pages-editor-status]")}?.textContent === '已保存'`, 15_000);
   const downloads = join(homeDirectory, "exports");
   await mkdir(downloads);
   await command("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloads }, sessionId);
@@ -126,14 +129,15 @@ test("placement journey: no project yet — start in the personal space, finish 
   // After a reload Pages is back on its list, the document first; one click continues it.
   await reloadPage();
   await press(`[data-page-id="${doc.id}"]`);
-  await waitFor(`${j.visible("[data-pages-title]")}?.value === '读书笔记：长期主义'`, 15_000);
+  await j.pages.waitFor(`${j.visible("[data-pages-title]")}?.value === '读书笔记：长期主义'`, 15_000);
   await panel("move");
   await click('.placement-panel [data-placement-action="move"]');
   await waitFor("document.querySelector('dialog.placement-dialog')?.open", 12_000);
   await click(`dialog.placement-dialog input[name="to"][value="${club.project_id}"]`);
   await click("dialog.placement-dialog [data-placement-confirm]");
   await cardButton("已移到 项目「读书会」", "在新位置打开");
-  await waitFor(`location.pathname === '/projects/${club.project_id}/' && ${j.visible("[data-pages-title]")}?.value === '读书笔记：长期主义'`, 15_000);
+  await waitFor(`location.pathname === '/projects/${club.project_id}/'`, 15_000);
+  await j.pages.waitFor(`${j.visible("[data-pages-title]")}?.value === '读书笔记：长期主义'`, 15_000);
   assert.equal((await current())?.id, doc.id, "the same document, now in the project");
   const moved = await describe(personal);
   assert.deepEqual([moved.location?.title, moved.moved_from?.title], ["项目「读书会」", "个人空间"]);
@@ -193,7 +197,8 @@ test("placement journey: one document used by two projects and a Goal — edit, 
   // A move that fails (the chosen project is deleted while the dialog is open) says why, keeps the dialog for another
   // choice, and leaves the document where it was, still editable.
   await press(`[data-placement-related] [data-placement-open="${doc.id}"]`);
-  await waitFor(`location.pathname === '/projects/personal/' && ${j.visible("[data-pages-title]")}?.value === '竞品调研（含定价）'`, 15_000);
+  await waitFor(`location.pathname === '/projects/personal/'`, 15_000);
+  await j.pages.waitFor(`${j.visible("[data-pages-title]")}?.value === '竞品调研（含定价）'`, 15_000);
   await panel("move");
   await click('.placement-panel [data-placement-action="move"]');
   await waitFor(`document.querySelector('dialog.placement-dialog input[name="to"][value="${doomed.project_id}"]')`, 12_000);
@@ -215,7 +220,7 @@ test("placement journey: one document used by two projects and a Goal — edit, 
 
   // Deleted in its new place: the Goal's materials say the original is gone and offer to clean up.
   await go(`/projects/${projectId}/?openPlugin=pages&openItem=${doc.id}`);
-  await waitFor(`${j.visible("[data-pages-title]")}?.value === '竞品调研（含定价）'`, 15_000);
+  await j.pages.waitFor(`${j.visible("[data-pages-title]")}?.value === '竞品调研（含定价）'`, 15_000);
   await press("[data-pages-more]");
   await press("[data-pages-delete]");
   await press("[data-pages-confirm] [data-confirm-ok]");

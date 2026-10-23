@@ -3,12 +3,15 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { LocalHost, LocalProjectDatabase, PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
+import { HOST_SERVICE_PERMISSIONS, HomePluginHost, LocalHost, LocalProjectDatabase, PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginManifest, PluginPrivateStorage, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import { assertSandboxDeclarations, sandboxServicesFor, type SandboxDeclarations } from "@molis-ai/molis-work-plugin-sandbox";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { assertSandboxDeclarations, sandboxServicesFor, SANDBOX_NOT_GIVEN, SANDBOX_SERVICE_FATE, type NotGiven, type SandboxDeclarations, type SandboxServiceFate } from "@molis-ai/molis-work-plugin-sandbox";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { homeProbe } from "./fixtures/home-runtime.js";
 
 // S-60 (PG-017, specs/repository-anti-corruption/slices/pg017-sandbox-services.md): a sandboxed plugin is an install trust, not a second set
 // of permissions. The services it reaches are the ones the Host built for the activation from its Manifest and the person's grants, forwarded
@@ -42,6 +45,22 @@ test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not gi
     ["agent", declaring({ agent_prompts: [{ prompt_id: "probe", version: 1, body: "probe", layer: "role" }] }), []],
     ["agent", declaring({ methods: [{ method_id: "probe", version: 1 } as never] }), []],
     ["agent", declaring({}, { agent: { roles: [], prompts: [] } }), []],
+    ["directory", declaring({}, {}, [permission("directory:read", true)]), []],
+    ["scheduler", declaring({}, {}, [permission("schedule:read", true)]), []],
+    ["scheduler", declaring({}, {}, [permission("schedule:write", false)]), ["schedule:write"]],
+    ["agents", declaring({}, {}, [permission("agent:run", true)]), []],
+    ["notifications", declaring({}, {}, [permission("notifications:write", true)]), []],
+    ["installations", declaring({}, {}, [permission("plugins:read", true)]), []],
+    ["actions", declaring({}, {}, [permission("actions:delegate", true)]), []],
+    // Project artifacts, process items, ports and events: each declaration, and the artifact permissions, ask for the services the sandbox is not given.
+    ["artifacts", declaring({}, { artifacts: { produces: [{ type: "probe" } as never], consumes: [] } }), []],
+    ["artifacts", declaring({}, { artifacts: { produces: [], consumes: [{ type: "probe" } as never] } }), []],
+    ["artifacts", declaring({}, { process_items: { produces: [{ type: "probe" } as never], consumes: [] } }), []],
+    ["artifacts", declaring({}, { ports: { inputs: [{ port_id: "probe" } as never], outputs: [] } }), []],
+    ["artifacts", declaring({}, { ports: { inputs: [], outputs: [{ port_id: "probe" } as never] } }), []],
+    ["artifacts", declaring({}, { events: { publishes: [{ event: "probe" } as never], subscribes: [] } }), []],
+    ["artifacts", declaring({}, { events: { publishes: [], subscribes: [{ event: "probe" } as never] } }), []],
+    ["artifacts", declaring({}, {}, [permission("artifact:write", true)]), []],
   ];
   for (const [service, definition, held] of asks) {
     assert.throws(() => assertSandboxDeclarations(definition, held), error => (error as { code?: string }).code === NOT_GIVEN.code
@@ -75,6 +94,29 @@ test("S-60 the broker's services are the ones the Host built for the activation,
   assert.throws(() => sandboxServicesFor(undefined), /尚未装配/);
 });
 
+/** Whether a package that asks for `name` is refused with the code. */
+function refuses(name: string): boolean {
+  try { assertSandboxDeclarations({ manifest: manifest({}, [permission(name, true)]) }, []); return false; } catch (error) { return (error as { code?: string }).code === NOT_GIVEN.code; }
+}
+
+/** What nobody decided: a permission of `table` whose service the sandbox neither gives nor refuses by a row, and a row for a service it does not refuse. */
+function unclassified(table: Readonly<Record<string, readonly string[] | undefined>>, fates: Readonly<Record<string, SandboxServiceFate>>, rows: readonly NotGiven[]): string[] {
+  const permissions = Object.entries(table).flatMap(([service, names]) => (names ?? []).filter(name => fates[service] === "given" ? false : fates[service] !== "refused" || !refuses(name)).map(name => `${service}/${name}`));
+  return [...permissions, ...rows.filter(row => row.services.some(service => fates[service] !== "refused")).map(row => `row ${row.service}`)];
+}
+
+test("S-60 RAC-238 every permission the Host builds a service for is given to the sandbox or refused by a row; an unclassified one fails here", () => {
+  assert.deepEqual(unclassified(HOST_SERVICE_PERMISSIONS, SANDBOX_SERVICE_FATE, SANDBOX_NOT_GIVEN), []);
+  // The check can fail: a permission added to a service without a decision for the sandbox, a service decided as refused that no row refuses, a row for a service the sandbox gives.
+  assert.deepEqual(unclassified({ ...HOST_SERVICE_PERMISSIONS, model: [...HOST_SERVICE_PERMISSIONS.model!, "model:probe"], scheduler: ["schedule:probe"] }, SANDBOX_SERVICE_FATE, SANDBOX_NOT_GIVEN),
+    ["model/model:probe", "scheduler/schedule:probe"]);
+  assert.deepEqual(unclassified({ probe: ["probe:use"] }, { ...SANDBOX_SERVICE_FATE, probe: "entry" }, []), ["probe/probe:use"]);
+  assert.deepEqual(unclassified({}, { ...SANDBOX_SERVICE_FATE, model: "given" }, SANDBOX_NOT_GIVEN), ["row model"]);
+  // Every service of the Host is decided (the type makes a new one fail to compile), and each row's services are the ones decided as refused.
+  const refused = Object.entries(SANDBOX_SERVICE_FATE).filter(([, fate]) => fate === "refused").map(([service]) => service).sort();
+  assert.deepEqual(SANDBOX_NOT_GIVEN.flatMap(row => row.services).sort(), refused, "every refused service is named by exactly one row");
+});
+
 test("S-60 RAC-238 the Host stops a sandboxed installation that asks for a service the sandbox is not given before its code starts; a plugin the Host runs itself is not stopped", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "sandbox-services-"));
   const project = { project_id: "board", storage_key: join(home, "project.sqlite") };
@@ -102,4 +144,20 @@ test("S-60 RAC-238 the Host stops a sandboxed installation that asks for a servi
   await runtime.start(hosted.install_id);
   assert.deepEqual(started, [`${PLUGIN_ID}.hosted`]);
   await runtime.stop(hosted.install_id);
+});
+
+test("S-60 RAC-238 the Home Runtime stops a sandboxed installation that asks for a service the sandbox is not given before its code starts", { timeout: 30_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "sandbox-services-home-"));
+  const actions = new ActionService();
+  const boxed = homeProbe("sbxboxed"), hosted = homeProbe("sbxhosted");
+  const host = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [hosted.definition] });
+  t.after(async () => { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } });
+  const { runtime } = await host.ready();
+  // A sandboxed package is installed with the person's grants; it is never a start-list entry or a fixture.
+  const { install } = runtime.install({ definition: { ...boxed.definition, execution: "sandbox" }, deployment: "local", grants: ["storage:private", "model:invoke"] });
+  await assert.rejects(runtime.start(install.install_id), { code: "plugin.executor_failed" });
+  assert.deepEqual({ state: runtime.get(install.install_id).state, code: runtime.get(install.install_id).last_error_code }, { state: "crashed", code: NOT_GIVEN.code });
+  assert.equal(boxed.contexts.length, 0, "the sandboxed plugin's start never ran");
+  assert.equal(host.installation(hosted.id)?.state, "running");
+  assert.equal(hosted.contexts.length, 1, "a plugin the Host runs itself is not stopped");
 });

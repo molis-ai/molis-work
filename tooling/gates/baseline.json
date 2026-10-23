@@ -78,7 +78,7 @@
       "lines": 399,
       "methods": 28
     },
-    "function horizontal/scheduler/src/index.ts#createScheduleService": 219,
+    "function horizontal/scheduler/src/index.ts#createScheduleService": 215,
     "class horizontal/search/src/index.ts#SearchService": {
       "lines": 403,
       "methods": 26

@@ -32,15 +32,15 @@ await mkdir(directory, { recursive: true, mode: 0o700 });
 process.env.MOLIS_WORK_HOME = directory;
 process.env.MOLIS_WORK_SECRET_BACKEND = "file";
 delete process.env.MOLIS_WORK_ENCRYPTION_KEY;
-const { MolisWorkLocalHost, molisWorkHostProjectReference, LocalProjectDatabase, GoalProjectApplication } = await import("@molis-ai/molis-work-app-local-host");
+const { MolisWorkLocalHost, molisWorkHostProjectReference, LocalProjectDatabase, GoalProjectApplication, openProjectVersionStores } = await import("@molis-ai/molis-work-app-local-host");
 
 const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
 const databasePath = join(directory, "project.sqlite"), projectId = "continuity-qa", goalId = "mobile-handoff";
-const db = new LocalProjectDatabase(databasePath), app = new GoalProjectApplication(db);
+const db = new LocalProjectDatabase(databasePath), app = new GoalProjectApplication(db), library = openProjectVersionStores(db);
 try {
   app.initializeBoard({ project_id: projectId, actor_id: "desktop", idempotency_key: "init" });
   app.goalEvents.createIntent({ project_id: projectId, goal_id: goalId, title: "让工作在手机上继续", outcome: "查看桌面成果，记录下一步，再回桌面接续。", actor_id: "desktop", idempotency_key: "goal" });
-  app.artifacts.commands.registerVersion({
+  library.artifacts.commands.registerVersion({
     project_id: projectId, artifact_id: "handoff-guide", version: 2, actor_id: "desktop", artifact_type_id: "io.test.document", schema_version: 1,
     origin: { kind: "pinned", subject: { kind: "document", id: "handoff-guide" }, revision: "2" }, title: "跨设备接续 · 操作说明", media_type: "text/markdown",
     producer: { plugin_id: "io.test.writer", plugin_version: "1.0.0", binding_signature: "qa-writer" },

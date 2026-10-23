@@ -238,10 +238,6 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // VUX-40: the Git surface's branch, upstream and status lines are said in the page's language — six host sentence templates
-  // (detached, no commits yet, up to date, ahead, behind, both) with their English, and the notice line passing head and upstream
-  // through the recognizer. The templates are the shortest that keep English word order; 374235 → 374745 (+510).
-  "/assets/molis-work-plugins/coding.js": [374235, 374745],
   // VUX-20/43 (slice 101): a rate-limited round counts down to the runtime's retry time — the countdown factory and its four
   // sentences, and one tabular-digits rule carried by the three stylesheets. 1186577 → 1187755 (+1178); CSS +133 each.
   "/assets/molis-work-workbench.js": [1186577, 1187755],
@@ -252,7 +248,7 @@ const APPROVED_CEILINGS = {
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.
-// User approved 2026-10-21 (specs/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
+// User approved 2026-10-21 (specs/archive/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
 // shared bridge (including the common UI helpers) once; the original 90325-byte estimate was not a ceiling.
 const APPROVED_NEW_ASSETS = {
   "/assets/molis-work-plugin-frame.js": 187120,

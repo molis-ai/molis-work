@@ -26,7 +26,7 @@ async function withConnectionActions<T>(home: string, localHost: MolisWorkLocalH
     if (work.character) {
       if (!work.project_ref) throw new ActionError("actions.forbidden", "原角色不属于这项工作");
       await localHost.withProject(work.project_ref, async runtime => {
-        freezeProjectCharacter(home, scope.actor_id, scope.project_id, runtime.coordinator.artifacts.query, work.character!);
+        freezeProjectCharacter(home, scope.actor_id, scope.project_id, runtime.artifacts.query, work.character!);
       });
     }
     const authority = assistantAuthority(localHost, work, () => store.disabledActions(scope.actor_id));

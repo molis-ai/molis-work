@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalHost, LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost, LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { HISTORY_DIGEST_MARKER, digestTask } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentDraftTextRequest, type AgentRunView, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -40,7 +40,7 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
       if (draftFails) throw new ActionError("actions.timeout", "模型两分钟内没有写完，已停止");
       return { text: "```\n1. 目标与要求：给习惯加归档并让周报跳过已归档的习惯。\n```", usage: { input: 5000, output: 400 } };
     } }] });
-  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
+  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
@@ -130,7 +130,7 @@ test("a round whose digest the model is still writing runs beside the project's 
   let cancel = new AbortController();
   const actions = { registry: localHost.actionRegistry(reference), project_id: DEMO_PROJECT_ID, client: { ...localHost.actionClient(reference),
     invoke: (caller: ActionCallContext, capability: ActionReference, input: unknown) => localHost.actionClient(reference).invoke({ ...caller, signal: cancel.signal }, capability, input) } };
-  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
+  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
@@ -216,7 +216,7 @@ test("PG035-07 with model:invoke switched off Coding's two drafts are refused wi
   const applied = (view: AgentRunView) => [{ request: { review_id: `review-${view.ref.run_id}`, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: view.ref, kind: "text-edit",
     document: { kind: "text-edit", target_path: `src/f-${view.ref.run_id}.ts`, exists: true, before_text: "a\n", after_text: "b\n" }, requested_at: "2026-09-26T00:00:00.000Z", expires_at: null },
     receipt: { review_id: `review-${view.ref.run_id}`, status: "approved", decided_by: "web-user", decided_at: "2026-09-26T00:00:30.000Z", note: null, effect_settled: true, effect_error: null } }];
-  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
+  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;

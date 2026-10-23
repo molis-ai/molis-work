@@ -8,7 +8,7 @@ import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger"
 import { FeedModule } from "@molis-ai/molis-work-module-feed";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
@@ -17,12 +17,12 @@ test("losing the Ledger does not delete Goal, Artifact or Feed content or recrea
   const databasePath = join(directory, "fixture.db");
   let store = new LocalProjectDatabase(databasePath);
   const compose = () => {
-    const coordinator = new GoalProjectApplication(store);
+    const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);
     const ledger = createContextLedger(store.db, { authorize: () => true });
     let feed: FeedModule;
     const attention = new AttentionModule(store.db, { exists: (projectId, _type, id) => feed.query.exists(projectId, id) });
     feed = new FeedModule(store.db, attention, { ledger });
-    return { coordinator, ledger, feed, attention };
+    return { coordinator, library, ledger, feed, attention };
   };
   try {
     const first = compose();
@@ -30,7 +30,7 @@ test("losing the Ledger does not delete Goal, Artifact or Feed content or recrea
     first.coordinator.goals.commands.createGoal("project", { goal_id: "goal", title: "Original goal", outcome: "Report",
       why: "User requirement", business_logic: "Preserve content", acceptance_criteria: [] }, { actor_id: "user", idempotency_key: "goal" });
     const goal = first.coordinator.goalQueries.readGoalContract("project", "goal").goal;
-    const artifact = first.coordinator.artifacts.commands.registerVersion({ ...pinnedArtifact("Original report"), project_id: "project", artifact_id: "report", version: 1,
+    const artifact = first.library.artifacts.commands.registerVersion({ ...pinnedArtifact("Original report"), project_id: "project", artifact_id: "report", version: 1,
       actor_id: "user", artifact_type_id: "io.example.report", schema_version: 1,
       producer: { plugin_id: "io.example.writer", plugin_version: "1.0.0", binding_signature: "official-writer" },
       content: { kind: "inline", payload: { text: "Original report", custom: [1, 2] } }, metadata: {} }).artifact;
@@ -50,7 +50,7 @@ test("losing the Ledger does not delete Goal, Artifact or Feed content or recrea
     store = new LocalProjectDatabase(databasePath);
     const reopened = compose();
     assert.deepEqual(reopened.coordinator.goalQueries.readGoalContract("project", "goal").goal, goal);
-    assert.deepEqual(reopened.coordinator.artifacts.query.getArtifactVersion("project", { artifact_id: "report", version: 1 }), artifact);
+    assert.deepEqual(reopened.library.artifacts.query.getArtifactVersion("project", { artifact_id: "report", version: 1 }), artifact);
     assert.deepEqual(reopened.feed.query.get("project", item.item_id), { ...linked, linked_goal_id: null });
     assert.deepEqual(reopened.attention.query.list("project"), attention);
     assert.deepEqual(reopened.feed.events.list("project"), events);

@@ -236,7 +236,7 @@ async function startAuthority(
         check: async (action, input) => checkActionInput(await current(), action, input),
       };
     },
-    ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.project_id, runtime.coordinator.artifacts.query, reference) } : {}),
+    ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.project_id, runtime.artifacts.query, reference) } : {}),
     project_prompts: await projectPrompts(runtime, localHost),
     // The platform memory under the Agent work switch: the person's and this project's, where they apply.
     memory: (task, context) => memoryForAgentRun(localHost, { project_id: runtime.project_id, task, plugin_id: pluginId, ...(context?.character ? { character: context.character } : {}),

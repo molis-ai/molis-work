@@ -3539,3 +3539,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-23 23:25：#1131 二轮可合。`ac-sc3` 推送 BL-384（RAC-260）与 S8b/S9 草稿，统筹裁九问：S8b 单做；T1 只解冻 Goals 条目；事件日志与幂等记录做成事务句柄上的方法（表仍归 storage），作为 S9-0、带 S-63；存储迁移按表组三片；不等 BL-501，但绑定管理动作的宿主文件不点名 Goals；个人规划进 S9、照 Shelf 双实例；S9 不动页面装配、S11 在 #1107 后；PG-087 平台服务改派 `ac-sc3` 作 S9-0b。号段 RAC-260～299、BL-505～519、S-62、S-63。
 
 - 10-23 23:35：#1131 已合（BL-481，PG-039 全做完），本地分支 `claude/ac-sched-wakeups` 已删（头在 #1123 里）。#1150（Codex，Shelf S3 原件登记部分成功提示）进队第 35 行、交 `ac-review`。BL-492 在分支 `claude/ac-bl492-material-domains`（`c6e26f8ee`，未开 PR）；统筹裁 198.18/15：只对带名单的读取、域名过名单后按正常地址，IP 字面量仍拒，无名单读取不变，S-10 表写明用户 09-27 的决定并补双向测试。
+
+- 10-23 23:50：#1150 一轮修后可合（1 条，Codex 修）。本地推送未开 PR：`ac-sc3` S8b（`migrate/goals-s8b-library-identity`，`4c1ac510f`，新项目只建根行、Goals 首次打开时建看板）；`ac-kernel` R8 第 3 批第二段（`841850541`，等 #1121）。

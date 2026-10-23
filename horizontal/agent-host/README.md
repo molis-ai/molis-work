@@ -82,6 +82,7 @@ Run 的启动/读取/控制、审查队列读取。调用前宿主会检查插�
 - 不变量：
   - 目录 Action 的工具时限取提供方 `execution.timeout_ms` 与 Agent 入口上限中的较小者；完整声明参与冻结合同，不按能力名称猜测成本。
   - 仓库里唯一依赖 `@prologue/sdk` 的包。
+  - Memory Adapter 将 SDK 的 `STORAGE_CONFLICT` 翻译为公开的 `agent.memory_conflict`（conflict 类别），适用于正式记忆与候选的同一访问出口；HTTP 状态继续由统一 Action 错误模型决定。不会把未知错误或回执丢失解释成可重放。
   - 前台 SDK 写入保留原调用控制到实际 Node storage commit；最终 checker 必须同步。只有初始 Run 持久记录提交后，drive 才脱离前台信号，派出仍核独立安装授权。Session 以 SDK 记录和 owner 索引都已提交为接受点；索引前拒绝时由 SDK 清理本次未接受 Session，清理失败明确报出。尚未接受的排队效果不会因包装函数返回而丢失原 checker。
   - thinking 与显式输出预算合成同一个 params；文档文本提取 finally 回收本次原件和派生资源，保留其他消费者持有的附件。
   - 每一轮的冻结记录带宿主给的调用编号（`frozen.call_id`）：来自启动权限 `AgentStartAuthority.call_id`，经 `AgentHost.start` 交给适配器；适配器不读请求体里的同名字段，所以插件塞的值不会成为一轮的编号。编号只写在这份冻结记录里，不交给 Prologue（用户 2026-10-10 决定）；它不是工具调用的 `call_id`。回归：`tests/agent-start-authority.test.ts`。
@@ -171,3 +172,8 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 `inputs.read(ref)` 先由 SDK 同 Session 的有界 InputBook 定位，再读该 Run 的原输入回执。当前 queued/withdrawn 优先于旧回执；未落定的直接补充仅可检查该 Session 唯一当前活跃 Run，记录缺失或已裁剪保持未知，不扫描历史。该定位不赋予读取或形成许可，产品 SourcePort 仍逐次核当前来源主人和用途。
 
 通用 Agent Memory Action 和 SDK 内置工具共用同轮 recipe。AgentHost 在创建 action tools / gateway 前捕获快照，经现 actions Port 交 Host 绑定原插件与 Session；缺快照时 Memory 拒绝，不从 Session 最新 attempt 补权。真实生产组合回归见 `tests/agent-memory-action-class-policy.test.ts`。
+
+
+### 明确续期（2026-10-24，实现中）
+
+Memory renew 经现可信 caller、ExecutionControl 和 formal ref 解析直接调用公开 SDK memory.renew；Adapter 只映射 expires_at_ms，不修改状态、分类或来源，不补 Session 绑定。依赖 SDK #96 交付包；干净包与真实测试未运行前不称已采用。

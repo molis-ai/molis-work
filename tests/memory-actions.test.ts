@@ -1,13 +1,14 @@
 import { AgentHost, createPrologueNodeAdapter, type PrologueNodeAdapterOptions } from "@molis-ai/molis-work-service-agent-host";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import type { AgentMemoryCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ASSISTANT_STORE_NAME, AssistantStore, MolisWorkLocalHost, memoryRuntimePolicy, memorySources } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_STORE_NAME, AssistantStore, MolisWorkLocalHost, composeAgentHost, memoryRuntimePolicy, memorySources } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_PLUGIN_ID, ASSISTANT_INSTALL_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openHomeSqliteDatabase, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { MEMORY_GATE_POLICY, MEMORY_GATE_VERSION } from "@molis-ai/molis-work-service-memory";
@@ -372,4 +373,146 @@ for (const stop of ["cancel", "revoke"] as const)
     await client.invoke(original, memoryActions.change, request);
     assert.deepEqual(ledger.revisions(id), []); assert.deepEqual(ledger.uses({ memory_id: id }), []);
     assert.ok(ledger.changesOf(id).every(change => change.text === ""));
+  });
+
+// MEM-17/28/34: keep the production Action provider, live authority, Node storage and SQLite ledger.
+// The pre-commit barrier is the second exact save authorization: MemoryMutations' first guard has
+// prepared v+1; RegistryStore.put's beforeCommit now awaits the second guard, before its final
+// synchronous authority/cancellation fence. Never insert an await between that fence and Host I/O.
+for (const boundary of ["before-sdk-commit", "after-sdk-commit"] as const) for (const stop of ["cancel", "revoke", "host-close"] as const)
+  test(`renewal ${stop} at ${boundary} preserves facts and recovers only the original operation`, { timeout: 30_000 }, async t => {
+    const start = Date.parse("2026-10-24T08:00:00Z"), expiry = start + 86_400_000;
+    t.mock.timers.enable({ apis: ["Date"], now: start });
+    const home = await mkdtemp(join(tmpdir(), "memory-renewal-effects-"));
+    const operation = randomUUID(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), finished = Promise.withResolvers<void>();
+    let armed = false, held = false, revoked = false, saveChecks = 0;
+    let target: { id: string; version: number } | undefined;
+    const barrier = async () => { held = true; entered.resolve(); await release.promise; };
+    const open = () => {
+      const host = new MolisWorkLocalHost({ completeText: null }), originalRegistry = host.actionRegistry.bind(host);
+      t.mock.method(host, "actionRegistry", (...args: Parameters<typeof originalRegistry>) => {
+        const registry = originalRegistry(...args);
+        return { ...registry, registerProvider: (registration: ActionProviderRegistration) => registry.registerProvider({ ...registration,
+          handlers: registration.handlers?.map(binding => binding.capability_id !== memoryActions.change.capability_id ? binding : { ...binding,
+            handle: async (context: ActionExecutionContext, input: unknown) => {
+              try { return await binding.handle(context, input); }
+              finally { if (context.memory_operation_id === operation) finished.resolve(); }
+            } }) }) };
+      });
+      const policy = currentMemory(host);
+      // As in system-agent-service, the Local Host owns disposal of both the real SDK and memory provider.
+      const system = host.ensureAgentService(home, () => {
+        const service = composeAgentHost({ localHost: host, homeDirectory: home, workspaceFor: () => null,
+          prologue: { storageRoot: join(home, "sdk"), memory: { ...policy, async authorize(caller, requests) {
+            const allowed = await policy.authorize(caller, requests);
+            const renewalSave = target && requests.length === 1 && requests[0]!.action === "save"
+              && requests[0]!.target.ref.id === target.id && requests[0]!.target.version === target.version + 1
+              && requests[0]!.before?.version === target.version && requests[0]!.target.expiresAtMs === expiry;
+            if (armed && renewalSave) {
+              assert.equal(allowed, true, "the real Memory authority granted this exact renewal before the barrier");
+              saveChecks++;
+              if (boundary === "before-sdk-commit" && saveChecks === 2 && !held) await barrier();
+            }
+            return allowed;
+          } }, modelConfiguration: async () => { throw new Error("No model in renewal effect test"); },
+          resolveCredential: () => { throw new Error("No credentials in renewal effect test"); } } });
+        const memory = registerMemoryHost({ localHost: host, homeDirectory: home, agentHost: service.agentHost,
+          ready: () => service.ready, started: () => service.started, executes: () => true });
+        const dispose = service.dispose.bind(service);
+        service.dispose = async () => { try { await dispose(); } finally { memory.close(); } };
+        return service;
+      });
+      return { host, system, client: bindActionClient(host.homeActionClient(), () => person) };
+    };
+    let env = open();
+    t.after(async () => { release.resolve(); await env.host.close(); await rm(home, { recursive: true, force: true }); });
+    await env.system.ready;
+    const saved = (await env.client.invoke(memoryActions.write, { scope: "personal", text: "Keep the original identity and disabled state",
+      expires_at: new Date(start + 1000).toISOString() })).memory!;
+    const disabled = (await env.client.invoke(memoryActions.change, { action: "disable", memory_id: saved.memory_id, expected_version: saved.version })).memory!;
+    target = { id: disabled.memory_id, version: disabled.version };
+    const request = { action: "renew" as const, memory_id: target.id, expected_version: target.version, expires_at: new Date(expiry).toISOString() };
+    const original: ActionCallContext = { ...person, memory_operation_id: operation };
+    const raw = () => env.system.agentHost.adapter("prologue").memory!.withCaller({ actor_id: LOCAL_PERSON_ACTOR_ID,
+      project_id: null, person: true, consumer: "ui", current_scene: "common", purpose: "management" }).list("user", LOCAL_PERSON_ACTOR_ID);
+    const ledgerSnapshot = () => {
+      const ledger = openMemoryLedger({ homeDirectory: home });
+      try { return { revisions: ledger.revisions(target!.id), changes: ledger.changesOf(target!.id) }; } finally { ledger.close(); }
+    };
+    const before = (await raw())[0]!, beforeLedger = ledgerSnapshot();
+    if (boundary === "after-sdk-commit") {
+      const capability = env.system.agentHost.adapter("prologue").memory!, withCaller = capability.withCaller.bind(capability);
+      t.mock.method(capability, "withCaller", (caller: Parameters<AgentMemoryCapability["withCaller"]>[0]) => {
+        const bound = withCaller(caller), withExecution = bound.withExecution!;
+        bound.withExecution = control => {
+          const controlled = withExecution(control), renew = controlled.renew.bind(controlled);
+          controlled.renew = async input => {
+            const committed = await renew(input); // The real SDK has persisted and returned its canonical v+1.
+            if (armed && !held && input.memory_id === target!.id) await barrier();
+            return committed;
+          };
+          return controlled;
+        };
+        return bound;
+      });
+    }
+    t.mock.timers.setTime(start + 2000); armed = true;
+    const controller = new AbortController(), caller: ActionCallContext = { ...original, signal: controller.signal,
+      validate_authority: reference => {
+        if (revoked && reference.capability_id === memoryActions.change.capability_id)
+          throw new ActionError("actions.permission_revoked", "The original Action authority was revoked while waiting");
+      },
+      // This barrier returns an already-decided async grant. MCP/plugin current-grant controls
+      // provide this synchronous port; async-only calls keep their grant's decision point.
+      // The after-SDK case deliberately omits it, exercising the Service's async recheck.
+      ...(boundary === "before-sdk-commit" ? { assert_authority_current: () => {
+        if (revoked) throw new ActionError("actions.permission_revoked", "The current Action authority was revoked before dispatch");
+      } } : {}),
+    };
+    const pending = env.host.homeActionClient().invoke(caller, memoryActions.change, request), rejected = assert.rejects(pending);
+    await entered.promise;
+    assert.equal(saveChecks, 2, "both preparation and RegistryStore's final async save grant were exercised");
+    const atBarrier = (await raw())[0]!;
+    assert.deepEqual(atBarrier, boundary === "before-sdk-commit" ? before : { ...before, version: before.version + 1,
+      updated_at_ms: start + 2000, meta: { ...before.meta, expires_at_ms: expiry } });
+    assert.deepEqual(ledgerSnapshot(), beforeLedger, "SDK completion alone cannot add the App history revision");
+    let closing: Promise<void> | undefined;
+    if (stop === "cancel") controller.abort();
+    else if (stop === "revoke") revoked = true;
+    else {
+      closing = env.host.close(); // close starts draining; it cannot finish while this handler is blocked.
+      assert.equal(env.host.lifecycle(), "closing");
+    }
+    armed = false; release.resolve();
+    // The Action promise can reject before its handler finishes: wait for the actual writer to settle too.
+    await Promise.all([rejected, finished.promise, closing]);
+    assert.deepEqual(ledgerSnapshot(), beforeLedger, "no cancelled/revoked/closed invocation writes late SQLite history");
+    await env.host.close(); env = open(); await env.system.ready;
+    assert.deepEqual((await raw())[0], atBarrier, "restart proves which SDK state actually persisted");
+    const replay = bindActionClient(env.host.homeActionClient(), () => original);
+    if (boundary === "after-sdk-commit" && stop === "revoke") {
+      const successor = (await env.client.invoke(memoryActions.change, { action: "update", memory_id: target.id,
+        expected_version: atBarrier.version, text: "A newer decision before the cancelled operation can repair history" })).memory!;
+      const successorLedger = ledgerSnapshot(), successorRaw = (await raw())[0]!;
+      await assert.rejects(replay.invoke(memoryActions.change, request));
+      assert.deepEqual(ledgerSnapshot(), successorLedger); assert.deepEqual((await raw())[0], successorRaw);
+      assert.deepEqual(successorLedger.revisions.map(row => row.version), [...beforeLedger.revisions.map(row => row.version), successor.version],
+        "the missing renewal revision must never be filled with the successor body");
+      return;
+    }
+    const recovered = await replay.invoke(memoryActions.change, request);
+    assert.equal(recovered.memory!.version, before.version + 1); assert.equal(recovered.memory!.state, "disabled");
+    assert.deepEqual((await raw())[0], { ...before, version: before.version + 1, updated_at_ms: start + 2000,
+      meta: { ...before.meta, expires_at_ms: expiry } });
+    const repaired = ledgerSnapshot();
+    assert.equal(repaired.revisions.length, beforeLedger.revisions.length + 1);
+    assert.equal(repaired.changes.length, beforeLedger.changes.length + 1);
+    await replay.invoke(memoryActions.change, request);
+    assert.deepEqual(ledgerSnapshot(), repaired, "the original operation repairs at most once");
+    const later = (await env.client.invoke(memoryActions.change, { action: "update", memory_id: target.id,
+      expected_version: recovered.memory!.version, text: "A successor decision must survive old operation replay" })).memory!;
+    const laterLedger = ledgerSnapshot(), laterRaw = (await raw())[0]!;
+    await assert.rejects(replay.invoke(memoryActions.change, request));
+    assert.deepEqual(ledgerSnapshot(), laterLedger); assert.deepEqual((await raw())[0], laterRaw);
+    assert.equal(laterRaw.version, later.version); assert.equal(laterRaw.text, later.text);
   });

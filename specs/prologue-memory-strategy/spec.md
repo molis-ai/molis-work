@@ -967,3 +967,26 @@ App authority 新增同步 `assertCurrent` 窄口，复用同一 `permitted` 规
 6. **I0 最终产物与收益验收。** 上述行为及共同 SDK 包稳定后，Coding/助理分别完成非空的形成、接受、最终 Context、查看、纠正/改类/关闭、撤销、遗忘与重启旅程，并覆盖候选/历史/使用/配对的清理和旧来源不复活。B2 先固定干净生产/工具/包并预检，再在明确付费预算内按 §9.2、§9.5 运行；保留失败及全部成本，提交人工质量复核和用户实操，不用离线显式召回或脚本模型代替收益及用户验收。
 
 分类批量、可信 Session 管理和 Coding 形成可在各自依赖具备后分工推进；共享 DTO、SDK 包/锁文件和集成仍由统筹单一接线。所有 P0 继续保留，不因当前切片通过而删除后续能力；未操作真实 Home，未发布，未新增付费调用。
+
+
+### M3 到期正式记忆的明确续期（2026-10-24，本地验证中）
+
+本片落实 §9.4 / MEM-08、17、28、29、34 的原 ref / 所见版本续期。本人在现管理页为已到期的正式记忆明确选择新的绝对截止时间，经现 `memory.change@4` → MemoryService / MemoryEdits → Agent Host → SDK `memory.renew` 提交。只改变期限、领域版本和更新时间，保留原身份、正文、来源、分类、namespace/key、创建时间及 paused/disabled；续期不等于启用。
+
+复用现 change-request/子操作 marker 固定目标、动作、所见版本和规范化绝对期限；原操作重试不重新计算期限、不换新版本。首次已到期检查由 SDK 原写主人执行，不能因提交后已不再到期而挡住原操作补账。SDK 返回可确认原版本后、原 ledger 事务前，先重跑本次 Service `beforeEffect` 的异步授权，再同步检查公开 `caller.signal`（不依赖 Action ledger 代理），实际 SQL 保留同步的存活/取消/当前授权门；随后在原 ledger 事务中记 committed、revision、人工决定及旧自动撤销失效；后继版本或删除后旧操作冲突，不拿当前正文补原历史。无新表、路由、缓存、批量框架或第二份正文。 SDK `STORAGE_CONFLICT` 在既有 Agent Host Memory Adapter 出口统一翻译为 `agent.memory_conflict`，覆盖保存、编辑、候选和续期；不让原大写 SDK 码在 HTTP 出口变成通用 500。
+
+公开输入只收 memory_id、expected_version、action=renew 和明确 expires_at；拒绝 null、缺省、无时区/无效或非未来期限及夹带正文、分类、范围等修改。首次无原期限/未到期、候选、非本人、当前撤权与取消由同一条链拒绝；管理页不接 Session 绑定，canonical session_ref 或 session 生命周期明确拒绝，不接受业务输入自报会话。新期限在等待或重试时已到期仍失败，不自动延期。已提交但账本/回执失败明确保留原操作重试，不宣称零写。
+
+硬边界为单一 SDK 写主人、当前授权/取消、原版本/操作身份、Session 归属及状态不恢复；沿既有 Host/authority/ledger 口，不增加插件槽。App 传入本人决定的绝对期限，SDK 仍执行当前保留策略；用户在 App 选择本地时间并确认，没有默认时长。旧 v1/缺分类导入、缺快照恢复、Session 管理、批量续期不在本片，仍属原 P0 后续。
+
+允许路径：contracts 的 memory/agent-host-memory；horizontal/memory 的 backend/service/edits/operations；Agent Host 的 prologue-memory adapter 与现错误码表；local-host 的 memory-backend；workbench 的 settings-memory 与 memory-en；相关 README、本 spec、续期 Service/HTTP/页面及受影响的既有错误归属测试。SDK 包、锁、provenance 与 API/Action 生成快照仅由统筹整合。复用旧 Service 的 scope lookup，不把本片说成变更定位有界。
+
+验收：真实 Node/SQLite/公开 Service 与生产 HTTP 覆盖三个 raw state、版本/来源/分类保留、重启、原操作重放/换期限拒绝、同版本竞争、SDK 已提交账本失败后补账及后继编辑/删除冲突、撤权/取消/非法期限/Session 拒绝；页面用真实键鼠选择本地截止时间，检查 HTTP→SDK→完整关闭重开同 Home 后同一绝对时间，覆盖冲突和失败重试。保留现分类、CAS、期限往返、Action/MCP 与客户端未声明名称回归。实际构建、API/Action、定向回归与浏览器结果见本节后续记录；其余未运行项仍未验证。最终产品实操与用户验收尚未完成。
+
+本片本地静态记录：以各包真实公开 exports 对应源码执行无 emit 类型检查（含新增三份测试），3215 个依赖文件仅剩 SDK #95 `MemoryStore.renew` 不存在这一项待升级诊断，其余无诊断；这不是当前树完整 typecheck 通过。真实展开 memory 设置客户端字符串语法通过，按现页面全局白名单检查未声明名称为零；git diff --check 通过。依赖安装使用固定 Node 24.14 / pnpm 11.9.0、offline/frozen-lockfile/ignore-scripts，因本机默认 store 缺 better-sqlite3 12.8.0 停止，未下载或运行安装脚本。新增 `tests/memory-renewal.test.ts`、`tests/memory-renewal-http.test.ts`、`tests/memory-settings-renewal.e2e.test.ts` 尚未运行；SDK #96 与构建/真实回归/资源计量均待统筹机器槽，未提交或推送。
+
+续期本地采用与实测（2026-10-24）：统筹已采用 Prologue #96 干净 head `15c38aed` 的实际包（SHA256 `bb0b6b79c3f744a2bb64c214472a53b74b0a50d5c61d5f0b026c1f02b5a086c5`），上游已合 main `d46e76c61`；离线冻结安装、整体 build、types 与 API/Action 生成通过。上段为保留的早期未完成记录。首轮续期 Service 13/13，但 HTTP 1/2、Action 17/21；真实反例暴露 SDK 返回后缺异步授权门与冲突被映射成 500，另 before-SDK 人工屏障未配置生产同步授权口、Host-close 夹具等待顺序死锁。补原 beforeEffect 与统一 Agent conflict 翻译，修正夹具时序并明确同步/异步授权证据边界后，六文件 80/80、零重试通过。
+
+根会话继续补查直接公开 Service 的取消边界：真实 SDK 已提交 v+1 后取消而原 ledger 仍补写，外置红例保留。增加 await 后的同步 signal 检查，永久回归保留 SDK 已发生事实、账本及 pending markers 不变；重开同 Home 后原操作补账一次且重试不重复。受影响 Memory 包重建通过，续期 14/14 与生产 Action 21/21 通过；前一轮真实原生日期输入、丢回应、同操作重试及完整重启的非空浏览器 1/1 通过。源码修复不改变 UI，未机械重复该浏览器证据。最终独立窄评审无剩余确定 P1/P2。
+
+当前仍非可合并状态：整体 health 对新 main 的唯一失败是旧父 `0072640fd` 中 assistant-memory fixture 的 deep import，既有修复已在 #1064 父线，待父集成后按同门复验；不加例外。当前生成的 memory.list@4 快照属于父矩阵片已实现但未生成的合同，不是续期新增行为。续期页面版本冲突可见反馈、父整合后的资源精确增量、其余必跑与最终全套尚待验证；资源未申请或登记额外额度。未访问真实 Home、未调用付费模型、未发布。

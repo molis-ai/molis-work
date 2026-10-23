@@ -4,13 +4,13 @@
 
 目录里现在有这些东西：
 
-- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,357,865 字节），SHA-256 `01366516fc80127028d6faeeec0f081fa947e896da74bdcd89d723504e5bd225`。来源为 Prologue [#95](https://github.com/molis-ai/molis-prologue/pull/95) 的干净提交 `a875be89c2186e79ecf35bf0867a8bac20da1887`，已合 main `00e424b401b97aa16ae3151b146b0eadafef2ecb`，整树一致，无补丁。包含此前 Memory P0 能力，并在最后提交与实际 Node 网络派发前复核同次精确请求的当前许可；候选替换同时核 canonical-before。Molis 动态分类需装配同步检查口；Tauri 尚无最终原生桥，带此附加约束时在 IPC 前明确不可用。存储 shape 和已提交恢复语义不变。
+- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,359,578 字节），SHA-256 `bb0b6b79c3f744a2bb64c214472a53b74b0a50d5c61d5f0b026c1f02b5a086c5`。来源为 Prologue [#96](https://github.com/molis-ai/molis-prologue/pull/96) 的干净提交 `15c38aed0bde2f8f0540a3e390f2e03033cdb717`，已合 main `d46e76c61d06dbb9bcd6ca6a2f7fcb1b5acc1e11`，整树一致，无补丁。保留 #95 最终权限保护，新增本人明确续期与同 Runtime Session 转换的提交失效保护；正式记录 shape 8，旧 shape 7 包对新记录拒写。Molis 续期入口及分类接线按对应切片验收。
 - 保留主干在途包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz` 及来源记录；当前依赖为上述 memory-p0。已核对 `2c7feba5` 是 `f4bbbd88` 的祖先，主干采用的 #53、#58、#59、#60 全部包含。
 - 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
 - `patch-history.json`：已删除的 26 份历史补丁和 32 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
 - 本文件。
 
-该 head 的完整 `pnpm quality`、干净安装真实 Node/本机 HTTP 消费者通过。补充回归的一份来源夹具先在原 main 复现 5 项失败，修复后 10/10；原失败记录保留，其余 46 文件证据对应未变生产源码。制包环境为 macOS arm64、Node 24.14.0、pnpm 11.9.0，匹配上游声明；本次实际 tgz 已独立离线安装并运行公开消费者，773 个非 manifest 文件与构建树逐字节一致，package.json 仅末尾换行不同。未作独立重复构建，不宣称完成 Molis 采用、模型收益或用户验收。Molis 集成与严格 baseline 切换状态以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) §13 为准。
+该 head 的完整 `pnpm quality`（68 文件 684 项）、Memory 专项（41 文件 680 项）及干净安装真实 Node/本机 HTTP 消费者通过；原归档反例与首次粒度门失败保留。制包环境 macOS arm64、Node 24.14.0、pnpm 11.9.0；实际 tgz 独立离线安装后，上一版 #95 实包读取/更新续期记录被拒，正式写入为零、磁盘不变，新包重开结果保持。干净提交重打包与已测试产物逐字节一致，775 个非 manifest 文件与构建树一致；未作独立重复构建。不宣称 Molis 采用、模型收益或用户验收通过，集成状态以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) §13 为准。
 
 ## 上一份主线依赖：retry-waiting（2026-10-23）
 

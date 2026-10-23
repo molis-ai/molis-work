@@ -28,6 +28,7 @@ export interface MemoryBackendPort {
   pause(input: Formal & { reason: string }): Promise<MemoryBackendEntry>;
   disable(input: Formal & { reason: string }): Promise<MemoryBackendEntry>;
   resume(input: Formal): Promise<MemoryBackendEntry>;
+  renew(input: Formal & { expires_at_ms: number }): Promise<MemoryBackendEntry>;
   previewMutation(input: Scoped<Parameters<AgentMemoryCapability["previewMutation"]>[0]>): Promise<void>;
   tombstone(input: Formal): Promise<MemoryBackendEntry>;
   remove(input: Formal): Promise<void>;

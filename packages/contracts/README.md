@@ -100,3 +100,8 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 `services/memory` 的正式 `MemoryFormalKind` 含六类，自动形成、工具写入与插件默认许可沿原四类 `MemoryKind`。`memory.change@3` 的 `reclassify` 需要所见版本、明确 kind 和 scenes/lifecycle；可与原正文、适用情境同次修改，期限省略/null/时间分别保留/移除/设置。`memory.history@2` 仅输出原 canonical snapshot 的分类、期限及完整性事实，不暴露内部 snapshot，也不表示当前授权恢复必定成功。正式条目输出同步升 `memory.recall@2`、`memory.list@3`、`memory.write@3`、`memory.candidates.accept@3`，输入形成类别仍四类；已有六类管理页和 v2 记忆包信封保持原版本。验证入口为 `tests/memory-classification-edit-http.test.ts`、`tests/memory-actions.test.ts` 与 `tests/memory-mcp.test.ts`。
 
 `ActionCallContext.runtime_memory` 只由 Host 绑定原 Run 的插件、场景与分类限制，和 `runtime_session_id` 一起传递；不接受业务输入，不授予 Action 权限，不持久化第二份策略。
+
+
+### 明确续期（2026-10-24，实现中）
+
+`memory.change@4` 增加本人 renew 决定，输入为原 memory_id、所见 expected_version 和 UTC ISO expires_at；仅改期限，拒绝附带其他变更。AgentMemoryCapability 增加 renew 窄口，保留原 mutation/执行控制合同。历史/变更沿 edited，不新增历史 schema；SDK 包及公开 API/Action 快照由统筹统一更新。

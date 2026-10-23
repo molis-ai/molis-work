@@ -21,6 +21,19 @@ interface OperationMark extends OperationIdentity {
   result?: { memory_id?: string; candidate_id?: string; version?: number };
 }
 const PREFIX = "memory-operation:";
+
+/** The UI freezes a canonical UTC instant, never a duration to recalculate on retry. */
+function renewalDeadline(request: MemoryChangeRequest): string {
+  if (!Number.isSafeInteger(request.expected_version) || request.expected_version! < 1)
+    throw memoryErrors.invalid("续期需要页面所见的版本");
+  if ([request.text, request.kind, request.classification, request.applies, request.to, request.version].some(value => value !== undefined))
+    throw memoryErrors.invalid("续期只能修改截止时间，请单独提交其它修改");
+  const value = request.expires_at, millis = typeof value === "string" ? Date.parse(value) : NaN;
+  if (!Number.isSafeInteger(millis) || millis < 0 || new Date(millis).toISOString() !== value)
+    throw memoryErrors.invalid("续期需要明确且有效的 UTC ISO 截止时间");
+  return new Date(millis).toISOString();
+}
+
 export interface MemoryPurgeTarget {
   scope: MemoryScope;
   owner: string;
@@ -65,21 +78,23 @@ export class MemoryOperations {
   }
 
   /** Claim a whole change before its first SDK step; an existing claim only checks identity, including after deletion. */
-  changeRequest(caller: MemoryCaller, request: Pick<MemoryChangeRequest, "action" | "memory_id" | "expected_version">,
+  changeRequest(caller: MemoryCaller, request: MemoryChangeRequest,
     located?: { scope: MemoryScope; owner: string; version: number }): void {
+    const expiry = request.action === "renew" ? renewalDeadline(request) : undefined;
     const existing = this.find(caller, "change-request");
     if (existing) {
-      if (existing.kind !== request.action || existing.memory_id !== request.memory_id
+      if (existing.kind !== request.action || existing.memory_id !== request.memory_id || existing.formal_expires_at !== expiry
         || request.expected_version !== undefined && existing.expected_version !== request.expected_version
         || located && (existing.scope !== located.scope || existing.owner !== located.owner))
-        throw memoryErrors.conflict("同一记忆操作号不能改变目标、动作或确认版本");
+        throw memoryErrors.conflict("同一记忆操作号不能改变目标、动作、确认版本或续期期限");
       // Closed child operations still refuse writes; the original purge receipt may finish its deletion projection.
       return;
     }
     if (!located) return;
     const original = this.find(caller, `change:${request.memory_id}`);
     this.begin(caller, "change-request", { kind: request.action, scope: located.scope, owner: located.owner,
-      memory_id: request.memory_id, expected_version: request.expected_version ?? original?.expected_version ?? located.version });
+      memory_id: request.memory_id, expected_version: request.expected_version ?? original?.expected_version ?? located.version,
+      ...(expiry === undefined ? {} : { formal_expires_at: expiry }) });
   }
 
   begin(caller: MemoryCaller, key: string, identity: OperationIdentity): OperationMark {

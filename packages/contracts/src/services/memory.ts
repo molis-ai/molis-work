@@ -325,11 +325,12 @@ export interface MemoryChangeRequest {
   memory_id: string;
   /** Observed current version; distinct from the historical version selected by restore. */
   expected_version?: number;
-  action: "reclassify" | "update" | "disable" | "enable" | "remove" | "restore" | "move";
+  action: "renew" | "reclassify" | "update" | "disable" | "enable" | "remove" | "restore" | "move";
   text?: string;
   kind?: MemoryFormalKind;
   classification?: MemoryClassificationCorrection;
   applies?: MemoryApplies;
+  /** renew requires the explicit canonical UTC ISO instant produced by Date.toISOString(); never null. */
   expires_at?: string | null;
   /** restore: the version to go back to. */
   version?: number;
@@ -564,9 +565,9 @@ export const memoryActions = {
     output_schema: { type: "object", properties: { outcome: { enum: ["written", "replaced", "duplicate", "candidate", "refused"] }, reason: text, applies_text: text,
       memory: { anyOf: [{ type: "null" }, itemSchema] }, candidate: { anyOf: [{ type: "null" }, candidateSchema] }, change_id: nullableText },
       required: ["outcome", "reason", "applies_text", "memory", "candidate", "change_id"], additionalProperties: false } } } as ActionDefinition<MemoryWriteRequest, MemoryWriteResult>,
-  change: { capability_id: "memory.change", version: 3, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_WRITE_PERMISSION],
-    title: "修改、停用或删除一条记忆", description: "改正文、类别或适用情境；停用（保留但不再使用）或重新启用；回到某个历史版本；在个人与项目之间移动；或删除（从存储里清除，任何路径都不再带出）。",
-    input_schema: { type: "object", properties: { memory_id: memoryId, action: { enum: ["reclassify", "update", "disable", "enable", "remove", "restore", "move"] }, text: memoryText, kind: formalKindSchema, classification: classificationSchema,
+  change: { capability_id: "memory.change", version: 4, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_WRITE_PERMISSION],
+    title: "修改、续期、停用或删除一条记忆", description: "明确续期已到期正式记忆（UTC ISO 截止时间，原状态保持）；改正文、类别或适用情境；停用（保留但不再使用）或重新启用；回到某个历史版本；在个人与项目之间移动；或删除（从存储里清除，任何路径都不再带出）。",
+    input_schema: { type: "object", properties: { memory_id: memoryId, action: { enum: ["renew", "reclassify", "update", "disable", "enable", "remove", "restore", "move"] }, text: memoryText, kind: formalKindSchema, classification: classificationSchema,
       applies: appliesSchema, expires_at: nullableText, version: { type: "integer", minimum: 1 }, expected_version: { type: "integer", minimum: 1 }, to: scopeSchema }, required: ["memory_id", "action", "expected_version"], additionalProperties: false },
     output_schema: { type: "object", properties: { memory: { anyOf: [{ type: "null" }, itemSchema] }, change: changeSchema }, required: ["memory", "change"], additionalProperties: false } } } as ActionDefinition<MemoryChangeRequest, MemoryChangeResult>,
   history: { capability_id: "memory.history", version: 2, operation: "query", action: { ...reads, audiences: person, permissions: [MEMORY_READ_PERMISSION],

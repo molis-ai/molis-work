@@ -141,7 +141,7 @@ test("append retries retain their operation identity after restart and stale upd
   const next = await f.bound().update(update);
   assert.equal(next.version, original.version + 1); assert.deepEqual(next.meta, update.change.meta);
   assert.equal((await f.bound().update(update)).version, next.version);
-  await assert.rejects(f.bound().update({ ...update, operation_id: "stale-update", change: { text: "stale" } }), { code: "STORAGE_CONFLICT" });
+  await assert.rejects(f.bound().update({ ...update, operation_id: "stale-update", change: { text: "stale" } }), { code: "agent.memory_conflict" });
   await f.reopen(); const kept = (await f.bound().list(where.scope, where.owner))[0]!;
   assert.equal(kept.text, next.text); assert.equal(kept.version, next.version);
 });

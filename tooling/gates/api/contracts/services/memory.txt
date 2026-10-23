@@ -114,7 +114,7 @@ export interface MemoryChangeRecord extends MemoryChange {
 export interface MemoryChangeRequest {
     memory_id: string;
     expected_version?: number;
-    action: "reclassify" | "update" | "disable" | "enable" | "remove" | "restore" | "move";
+    action: "renew" | "reclassify" | "update" | "disable" | "enable" | "remove" | "restore" | "move";
     text?: string;
     kind?: MemoryFormalKind;
     classification?: MemoryClassificationCorrection;
@@ -328,8 +328,8 @@ export interface MemoryListResponse {
     counts: {
         personal: number;
         project: number;
-        auto_this_week: number;
-        pending: number;
+        auto_this_week: number | null;
+        pending: number | null;
     };
 }
 

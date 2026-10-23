@@ -294,6 +294,8 @@ export interface AgentMemoryCapability {
   pause(input: AgentMemoryLocation & AgentMemoryMutation & { reason: string }): Promise<AgentMemoryEntry>;
   disable(input: AgentMemoryLocation & AgentMemoryMutation & { reason: string }): Promise<AgentMemoryEntry>;
   resume(input: AgentMemoryLocation & AgentMemoryMutation): Promise<AgentMemoryEntry>;
+  /** Explicit expiry renewal preserves the canonical identity, metadata and raw state. */
+  renew(input: AgentMemoryLocation & AgentMemoryMutation & { expires_at_ms: number }): Promise<AgentMemoryEntry>;
   previewMutation(input: AgentMemoryLocation & AgentMemoryMutation & { mutation: AgentMemoryPreviewMutation }): Promise<void>;
   /** Logical removal preserves the original SDK operation receipt for maintenance reconciliation. */
   tombstone(input: AgentMemoryLocation & AgentMemoryMutation): Promise<AgentMemoryEntry>;

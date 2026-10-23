@@ -467,6 +467,9 @@ export interface AgentMemoryCandidateCapability {
         signal?: AbortSignal;
     }): Promise<AgentMemoryCandidateEntry>;
     list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryCandidateEntry[]>;
+    get(input: AgentCandidateLocation & {
+        signal?: AbortSignal;
+    }): Promise<AgentMemoryCandidateEntry | undefined>;
     accept(input: AgentCandidateLocation & AgentMemoryMutation & {
         text?: string;
         origin?: string;
@@ -550,6 +553,9 @@ export interface AgentMemoryCapability {
         reason: string;
     }): Promise<AgentMemoryEntry>;
     resume(input: AgentMemoryLocation & AgentMemoryMutation): Promise<AgentMemoryEntry>;
+    renew(input: AgentMemoryLocation & AgentMemoryMutation & {
+        expires_at_ms: number;
+    }): Promise<AgentMemoryEntry>;
     previewMutation(input: AgentMemoryLocation & AgentMemoryMutation & {
         mutation: AgentMemoryPreviewMutation;
     }): Promise<void>;

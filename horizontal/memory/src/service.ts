@@ -177,6 +177,7 @@ export class MemoryService {
         text: "", by: "person", rule: null, reason: `${complete ? "清空" : "部分清空"}了 ${removed} 条`, undo: null }); },
     });
     this.edits = new MemoryEdits({ backend: ports.backend, ledger: ports.ledger, operations: this.operations, scopes: this.scopeCommands, now: this.now,
+      beforeEffect: () => ports.beforeEffect?.(),
       record: (caller, input) => this.recordChange(caller, input) });
     this.queries = new MemoryQueries({ backend: ports.backend, ledger: ports.ledger, scopes: this.scopeCommands, now: this.now,
       limits: ports.managementPages, candidates: (caller, request) => this.candidates(caller, request) });
@@ -540,7 +541,7 @@ export class MemoryService {
     const at = stamp.at;
     const by = "person" as const;
     switch (request.action) {
-      case "update": case "reclassify": case "restore": return this.edits.apply(caller, located, request, at, undoing);
+      case "renew": case "update": case "reclassify": case "restore": return this.edits.apply(caller, located, request, at, undoing);
       case "disable": case "enable": {
         // Asked by the person through the Assistant: switched off in the Assistant's name, and the person can switch it back on.
         const assistant = !caller.person;

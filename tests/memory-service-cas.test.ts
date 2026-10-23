@@ -260,7 +260,7 @@ for (const interrupted of ["candidate-response", "candidate-projection"] as cons
       assert.deepEqual(await env.raw.candidates.list("personal", who.actor_id), []);
       assert.ok(env.ledger.candidates(who.actor_id).some(item => item.candidate_id === proposal.candidate_id), "the incomplete projection survives restart");
       if (edited) {
-        await assert.rejects(env.service.change(who, request), { code: "STORAGE_CONFLICT" });
+        await assert.rejects(env.service.change(who, request), { code: "agent.memory_conflict" });
         assert.deepEqual(await env.raw.list("personal", who.actor_id), before.formal);
         assert.deepEqual(env.ledger.revisions(id), before.revisions);
         assert.deepEqual(env.ledger.changesOf(id), before.changes);

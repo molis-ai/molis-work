@@ -33,6 +33,7 @@ export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapabilit
     pause: async input => view(await (await store()).pause({ ...input, scope: prologueScope(input.scope) })),
     disable: async input => view(await (await store()).disable({ ...input, scope: prologueScope(input.scope) })),
     resume: async input => view(await (await store()).resume({ ...input, scope: prologueScope(input.scope) })),
+    renew: async input => view(await (await store()).renew({ ...input, scope: prologueScope(input.scope) })),
     previewMutation: async input => (await store()).previewMutation({ ...input, scope: prologueScope(input.scope) }),
     tombstone: async input => view(await (await store()).tombstone({ ...input, scope: prologueScope(input.scope) })),
     remove: async input => (await store()).remove({ ...input, scope: prologueScope(input.scope) }),

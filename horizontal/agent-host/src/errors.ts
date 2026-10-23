@@ -14,6 +14,7 @@ export const agentErrors = defineErrorCodes("agent", {
   input_not_queued: "conflict",
   input_not_origin: "invalid",
   model_not_configured: "invalid",
+  memory_conflict: "conflict",
   memory_promotion_record_pending: "conflict",
   offer_mismatch: "forbidden",
   offer_unknown: "not_found",

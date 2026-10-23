@@ -13,6 +13,7 @@ import { memoryErrors } from "./errors.js";
 
 interface EditPorts {
   backend: MemoryBackendPort; ledger: MemoryLedgerPort; operations: MemoryOperations; scopes: MemoryScopeCommands; now: () => Date;
+  beforeEffect?(): void | Promise<void>;
   record(caller: MemoryCaller, input: Omit<MemoryChangeRecord, "change_id" | "actor_id" | "at" | "state" | "undoable" | "project_id" | "work">): MemoryChangeRecord;
 }
 
@@ -21,10 +22,17 @@ export class MemoryEdits {
   constructor(private readonly ports: EditPorts) {}
 
   async apply(caller: MemoryCaller, located: Located, request: MemoryChangeRequest, at: string, undoing: boolean): Promise<MemoryChangeResult> {
-    const restoring = request.action === "restore", correcting = request.action === "reclassify";
+    const restoring = request.action === "restore", correcting = request.action === "reclassify", renewing = request.action === "renew";
+    const expiry = renewing ? this.ports.operations.find(caller, "change-request")!.formal_expires_at! : undefined;
     if (request.classification !== undefined && !correcting) throw memoryErrors.invalid("分类变更需要明确的分类纠正操作");
     let text = located.entry.text, meta: AgentMemoryMeta, origin: string | undefined;
-    if (restoring) {
+    if (renewing) {
+      if (located.entry.meta.session_ref || located.entry.meta.classification?.lifecycle === "session")
+        throw memoryErrors.invalid("会话记忆需要可信会话管理入口，本次没有续期");
+      if (Date.parse(expiry!) <= this.ports.now().getTime()) throw memoryErrors.invalid("续期截止时间必须晚于现在");
+      // SDK checks first-time expiry; a committed original operation may already have a live deadline.
+      meta = located.entry.meta;
+    } else if (restoring) {
       const revision = this.ports.ledger.revisions(located.entry.memory_id).find(one => one.version === request.version);
       if (!revision) throw memoryErrors.not_found("没有这个历史版本");
       if (!completeRevisionSnapshot(revision)) throw memoryErrors.invalid("这个历史版本缺少完整分类快照，不能完整恢复");
@@ -50,22 +58,28 @@ export class MemoryEdits {
         meta = toEntryMeta(facts, located.entry.meta);
       }
     }
-    const operation = restoring ? "restore" : correcting ? "reclassify" : "update";
+    const operation = renewing ? "renew" : restoring ? "restore" : correcting ? "reclassify" : "update";
     const where = { scope: located.scope, owner: located.owner, memory_id: located.entry.memory_id,
       ...this.ports.operations.condition(caller, `${operation}:${located.entry.memory_id}`, { kind: operation, scope: located.scope, owner: located.owner,
-        memory_id: located.entry.memory_id, expected_version: this.ports.operations.find(caller, `change:${located.entry.memory_id}`)!.expected_version! }) };
+        memory_id: located.entry.memory_id, expected_version: this.ports.operations.find(caller, `change:${located.entry.memory_id}`)!.expected_version!,
+        ...(renewing ? { formal_expires_at: expiry } : {}) }) };
     const backend = this.ports.backend.withCaller(caller);
-    const entry = correcting && request.text === undefined && request.applies === undefined ? await backend.setMeta({ ...where, meta })
+    const entry = renewing ? await backend.renew({ ...where, expires_at_ms: Date.parse(expiry!) })
+      : correcting && request.text === undefined && request.applies === undefined ? await backend.setMeta({ ...where, meta })
       : await backend.update({ ...where, change: { text, meta, ...(origin === undefined ? {} : { origin }) } });
+    if (renewing && (entry.memory_id !== located.entry.memory_id || entry.version !== where.expected_version + 1))
+      throw memoryErrors.conflict("原续期结果不可确认，不能用后来版本补历史");
     const mark = this.ports.operations.find(caller, `${operation}:${entry.memory_id}`)!;
     const facts = fromEntryMeta({ ...entry, scope: located.scope, owner: located.owner })!;
+    await this.ports.beforeEffect?.();
+    caller.signal?.throwIfAborted();
     const change = this.ports.ledger.transaction(() => {
       this.ports.operations.committed(caller, mark, { memory_id: entry.memory_id, version: entry.version });
       this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: facts.kind, applies: facts.applies,
         snapshot: { origin: entry.origin, meta: entry.meta }, change: restoring ? "restored" : "edited", by: "person", at });
       if (!undoing) disownAutomatic(this.ports.ledger, entry.memory_id);
       return this.ports.record(caller, { kind: restoring ? "restored" : "edited", scope: located.scope, owner: located.owner, memory_id: entry.memory_id,
-        text: entry.text, by: "person", rule: null, reason: restoring ? `回到第 ${request.version} 版` : null, undo: null });
+        text: entry.text, by: "person", rule: null, reason: renewing ? `续期至 ${expiry}` : restoring ? `回到第 ${request.version} 版` : null, undo: null });
     });
     return { memory: this.ports.scopes.item({ ...located, entry, meta: facts }), change: changeView(change) };
   }

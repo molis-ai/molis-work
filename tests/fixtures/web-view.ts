@@ -14,7 +14,6 @@ export function readTestGoalCollection(store: LocalProjectDatabase, app: GoalPro
 }
 export function buildMolisWorkWebView(store: LocalProjectDatabase, app: GoalProjectApplication,
   options: Omit<WebViewOptions, "databasePath"> & { databasePath?: string }) {
-  app.goalDecisionAttention.reconcile(options.projectId);
   const snapshot = createLocalFeedApplication(store.db).snapshot(options.projectId);
   const schedule = createScheduleActionPorts({ db: store.db, schedule: scheduleServiceFor(store.db) });
   return composeWebView(store, readTestGoalCollection(store, app, options.projectId), { databasePath: ":memory:", ...options }, {
@@ -24,7 +23,6 @@ export function buildMolisWorkWebView(store: LocalProjectDatabase, app: GoalProj
   });
 }
 export function cachedMolisWorkWebView(cache: MolisWorkWebViewCache, store: LocalProjectDatabase, app: GoalProjectApplication, options: WebViewOptions) {
-  app.goalDecisionAttention.reconcile(options.projectId);
   const actions: BoundActionClient = { discover: async () => [], invoke: async definition => {
     const view = buildMolisWorkWebView(store, app, options);
     if (definition.capability_id === feedQueryActions.snapshot.capability_id) { const { inbox_entries, ...snapshot } = view.feed; return snapshot as never; }

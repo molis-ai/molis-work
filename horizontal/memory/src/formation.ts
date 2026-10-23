@@ -36,7 +36,7 @@ export function formationSlots(caller: MemoryCaller, snapshot: FormationSnapshot
       meta: { ...newMemoryClassification(caller, null), kind, source: "accepted", expires_at_ms: Date.parse(at) + WAITING_MS } });
   }
   for (const located of snapshot.existing) {
-    // Unclassified legacy memories remain readable, but are not silently assigned a new class by an automatic correction.
+    // Unclassified memories remain readable, but are not silently assigned a new class by an automatic correction.
     if (!located.entry.meta.classification) continue;
     const place = snapshot.places.find(where => where.scope === located.scope && where.owner === located.owner)!;
     for (const kind of place.kinds) {

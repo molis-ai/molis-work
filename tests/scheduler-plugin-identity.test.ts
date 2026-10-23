@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { pluginSchedulerFixture } from "./fixtures/plugin-scheduler.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 // SYS-15-S2: replaces the removed typed schedule.* transport's owner checks with the real public Runtime service.
 test("public Runtime scheduler ignores forged owner fields, isolates every input shape and invalidates stopped installations", async t => {
@@ -24,7 +25,8 @@ test("public Runtime scheduler ignores forged owner fields, isolates every input
   assert.equal(a.schedule.get(mine.job_id)?.enabled, false);
   assert.deepEqual(await a.database.transaction(async () => {}, tx => a.schedule.join(tx, writer => writer.cancel(mine.job_id))), { cancelled: true });
   await b.stop();
-  assert.throws(() => b.schedule.list(), { code: "actions.forbidden" });
-  await assert.rejects(b.database.transaction(async () => {}, tx => b.schedule.join(tx, writer => writer.cancel(theirs.job_id))));
+  // BL-411: outside every call the stopped installation's handles are refused and do nothing: no list, no settlement, no cancel.
+  assert.equal(b.schedule.list(), undefined);
+  assert.equal(await within(b.database.transaction(async () => {}, tx => b.schedule.join(tx, writer => writer.cancel(theirs.job_id)))), PENDING);
   assert.deepEqual(f.scheduler.list().map(job => job.job_id), [theirs.job_id]);
 });

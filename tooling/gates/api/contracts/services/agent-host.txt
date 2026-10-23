@@ -542,6 +542,10 @@ export interface AgentMemoryCapability {
         reason: string;
     }): Promise<AgentMemoryEntry>;
     resume(input: AgentMemoryLocation & AgentMemoryMutation): Promise<AgentMemoryEntry>;
+    previewMutation(input: AgentMemoryLocation & AgentMemoryMutation & {
+        mutation: AgentMemoryPreviewMutation;
+    }): Promise<void>;
+    tombstone(input: AgentMemoryLocation & AgentMemoryMutation): Promise<AgentMemoryEntry>;
     remove(input: AgentMemoryLocation & AgentMemoryMutation): Promise<void>;
     recall(input: {
         scope: AgentMemoryEntry["scope"];
@@ -676,6 +680,16 @@ export interface AgentMemoryMutation {
     operation_id: string;
     signal?: AbortSignal;
 }
+
+export type AgentMemoryPreviewMutation = {
+    kind: "update";
+    change: AgentMemoryChange;
+} | {
+    kind: "pause" | "disable";
+    reason: string;
+} | {
+    kind: "resume" | "remove";
+};
 
 export interface AgentMemoryPromotion {
     policy: string;

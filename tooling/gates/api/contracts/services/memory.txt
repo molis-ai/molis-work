@@ -479,6 +479,9 @@ export type MemoryUndoPlan = {
 } | {
     action: "disable";
 } | {
+    action: "pause";
+    change_id: string;
+} | {
     action: "recreate";
     text: string;
     kind: MemoryKind;
@@ -486,6 +489,10 @@ export type MemoryUndoPlan = {
     basis: MemoryBasis | null;
     applies: MemoryApplies;
     snapshot?: MemoryRevision["snapshot"];
+    source_refs?: readonly {
+        event_id: string;
+        version: string;
+    }[];
 };
 
 export interface MemoryUpkeepReport {

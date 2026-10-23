@@ -78,7 +78,7 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
       const storage = context.services?.storage;
       if (!storage) throw new Error('插件存储尚未装配');
       // The project's library only when the Manifest declares the plugin's tables there (`databases.project`).
-      const database = context.services?.project_database;
+      const database = context.services?.project_statements;
       const services: SandboxServices = { storage: storageTransactions(storage), ...(database ? { projectDatabase: sandboxDatabase(database) } : {}),
         ...(host.capability ? { capability: host.capability } : {}), ...(host.network ? { network: host.network } : {}),
         // The activation's drawing of questions, cards and next steps, reached through the broker like every other service.

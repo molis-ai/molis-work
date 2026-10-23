@@ -75,16 +75,15 @@ checks every statement against the plugin's tables. A transaction is one Host wr
 statement writes none of it. BLOBs, infinities and integers past 2^53 do not cross back. The Host's refusal
 codes (`plugin.project_database.*`) reach the plugin; other failures become `sandbox.database_error`.
 
-A statement runs on the Host's thread, and neither SQLite driver the Host has can interrupt one that is running, so the
-bounds are in the statement and not after it (S-46). `all` runs the read as a subquery with `LIMIT 1001`, so the
-Host builds at most 1001 rows however many the statement would give; more than 1000 rows, or more than 512 KiB of text
-and numbers, is `sandbox.database_result_too_large` (page with `LIMIT` and `OFFSET`). A repeated column name comes back
-as `name:1`. A read carries no `/* */` comment (`sandbox.invalid_request`): it could swallow the bracket and the limit.
-A statement that does not begin as a read is not wrapped and the Host's client refuses it on its keywords, as before.
-The Host's check refuses a recursive query (a CTE that reads itself, with or without `RECURSIVE`) with
-`plugin.project_database.statement_refused`, since nothing bounds how long it runs. What stays open is the time and
-memory of a statement that is not recursive (a join of large tables, a function that makes a large value); bounding those
-needs the statement to run where it can be stopped, which is BL-480.
+A statement does not run on the Host's thread (S-59). Neither SQLite driver the Host has can interrupt a statement that is
+running and `Worker.terminate()` cannot stop a native call, so the Host gives a sandboxed plugin `services.project_statements`
+in place of `services.project_database`: the statements run in a process of their own that the Host kills with SIGKILL when
+one runs past its time (`plugin.project_database.statement_timeout`) or takes the process past its memory
+(`statement_memory`); the next statement starts a fresh process. `all` is read row by row and stops at the first row past
+1000 rows or 512 KiB of text and numbers: `sandbox.database_result_too_large` (page with `LIMIT` and `OFFSET`). The Host's
+check refuses a recursive query (a CTE that reads itself, with or without `RECURSIVE`) with
+`plugin.project_database.statement_refused`. A write transaction is all of its statements or none: a killed, cancelled or
+revoked one commits nothing.
 
 `interaction.questionHtml/cardHtml/nextStepsHtml` reach the Host's `services.interaction`, which only draws html
 from what the plugin passes and writes nothing, so no effect is declared or granted for it (S-56). The broker
@@ -156,7 +155,7 @@ answers and validates every resulting address; it does not change production def
 - 不变量：
   - 沙箱不自带能力：宿主必须显式提供授予与已连接的服务，异步中介调用必须被等待。
   - 查询操作不能声明存储、成果或项目库的写入，也不能发事件。
-  - 项目库（`projectDatabase`）：跨通道的语句先有界再交给宿主，宿主的客户端逐句对照本插件的表；一个事务在宿主一侧整个提交或整个不写；操作声明了、人也批准了才放行。语句在宿主主线程上同步执行，不受沙箱进程的 CPU 与内存上限；宿主一侧只限了行数、字节与递归，耗时与单个值的内存还没有上限（BL-480）。
+  - 项目库（`projectDatabase`）：跨通道的语句先有界再交给宿主，宿主的客户端逐句对照本插件的表；一个事务在宿主一侧整个提交或整个不写；操作声明了、人也批准了才放行。语句不在宿主的线程上执行：宿主把它们交给一个自己能杀的子进程（`services.project_statements`），超时或超内存就杀进程、答带码的错误，行数与字节在读的时候就停，递归查询不开始（S-59）。
   - 读权限只覆盖暂存的 bundle/worker、Node 可执行文件与必要系统路径；CPU 是整个进程的预算。
   - 私有存储按完整身份串行，回调拿到快照，只在成功且信号仍有效时原子落盘；适配器在提交副作用前遵守取消。
   - 一次操作发起的 SDK 服务调用，在调起这次 `call()` 当时的异步上下文里运行（`AsyncResource`），不在进程启动时的上下文里，所以宿主按调用上下文给出的东西（调用编号）跟着这次操作走；沙箱不读、不传这些值，也不依赖提供它们的包。

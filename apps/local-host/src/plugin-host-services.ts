@@ -103,7 +103,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     agents = pluginAgentsFor(options.home, manifest, context, pluginCaller, () => options.record?.(context.install_id) ?? null);
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
       scheduler: scheduler?.client, agents: agents?.client,
-      database: library?.client, project_database: projectLibrary?.client, files: files?.client, model: pluginModelFor(options.home, definition, context, assertActive),
+      database: library?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, files: files?.client, model: pluginModelFor(options.home, definition, context, assertActive),
       materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), connections: pluginConnectionsFor(options.home, definition, context, assertActive),
       background: background?.client, directory: directory?.client });
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, project_id: options.project_id, actor_id: options.actor_id,
@@ -166,6 +166,8 @@ interface SessionParts {
   readonly database: PluginDatabase | undefined;
   /** The plugin's own tables in the project's library, if its Manifest declares them (`openProjectTables`). */
   readonly project_database: PluginDatabase | undefined;
+  /** The same tables for a plugin the Host runs outside its own process: its statements run in a process the Host can kill (`openProjectTables`). It gets this in place of `project_database`. */
+  readonly project_statements: import("@molis-ai/molis-work-contracts/platform/plugin").PluginProjectStatements | undefined;
   readonly agents: import("@molis-ai/molis-work-contracts/platform/plugin").PluginAgentClient | undefined;
   readonly scheduler: import("@molis-ai/molis-work-contracts/platform/plugin").PluginScheduleClient | undefined;
   readonly files: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesClient | undefined;
@@ -199,7 +201,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ui: ui.client,
       interaction: pluginInteraction,
       ...(parts.database === undefined ? {} : { database: parts.database }),
-      ...(parts.project_database === undefined ? {} : { project_database: parts.project_database }),
+      ...(parts.project_statements !== undefined ? { project_statements: parts.project_statements } : parts.project_database === undefined ? {} : { project_database: parts.project_database }),
       ...(parts.scheduler === undefined ? {} : { scheduler: parts.scheduler }),
       ...(parts.agents === undefined ? {} : { agents: parts.agents }),
       ...(parts.files === undefined ? {} : { files: parts.files }),

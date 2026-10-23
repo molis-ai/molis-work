@@ -5,6 +5,7 @@ import type { AgentCreateSessionInput, AgentStartExecution, AgentStartRequest } 
 import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput } from "./agent-host-run-view.js";
 import type { AgentProjectWorkCapability, AgentSessionMessagesCapability, AgentBackgroundCapability } from "./agent-host-session.js";
 import type { AgentCollaborationPort } from "./agent-collaboration.js";
+import type { AgentOriginalInput, AgentOriginalInputRef } from "./agent-inputs.js";
 
 export const AGENT_RUNTIME_CAPABILITIES = [
   "session.create",
@@ -130,6 +131,8 @@ export interface AgentRuntimeAdapter {
   health(): Promise<AgentRuntimeHealth>;
   createSession(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<AgentSessionRef>;
   readSession(session: AgentSessionRef): Promise<AgentSessionView>;
+  /** First immutable original plus its latest accepted direct attempt (not a derived continuation); absence never falls back to a composed task. */
+  readOriginalInput?(ref: AgentOriginalInputRef): Promise<{ original: AgentOriginalInput; accepted_run: AgentRunRef } | undefined>;
   /** The session's standing without copying its rounds; a Runtime without it is read through readSession. */
   readSessionStatus?(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }>;
   /** The project's work under way, when this Runtime keeps it. */

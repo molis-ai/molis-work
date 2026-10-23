@@ -26,7 +26,8 @@ const unclaimedWork = (index: SessionIndex, terminal: readonly { id: string }[],
   || open.items.some(item => item.origin.session === index.ref.id && !index.attempts.some(attempt => attempt.run_id === item.origin.run || attempt.run_id === item.id));
 
 /** A supplement still waiting in the session, in the Host's words; the runtime's record stays its only owner. */
-const queuedInput = (input: QueuedInput): AgentQueuedInput => ({ input_id: input.inputId, text: input.text,
+export const queuedInput = (input: QueuedInput): AgentQueuedInput => ({ input_id: input.inputId, text: input.text,
+  ...(input.acceptedAtMs === undefined ? {} : { accepted_at_ms: input.acceptedAtMs }),
   source: input.source === "app" ? "host" : input.source, ...(input.key ? { key: input.key } : {}), ...(input.about ? { about: input.about } : {}),
   ...(input.from ? { left_by: { run_id: input.from.run, applied: input.from.applied } } : {}) });
 

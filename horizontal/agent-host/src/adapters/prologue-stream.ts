@@ -40,7 +40,7 @@ export type PrologueControlState =
 
 /** The event shapes this projection reads. Anything else is left alone. */
 export type PrologueEvent =
-  | { type: "prompt"; role: "system" | "user"; text: string; steerId?: string; source?: "person" | "app" | "peer" }
+  | { type: "prompt"; role: "system" | "user"; text: string; steerId?: string; source?: "person" | "app" | "peer"; acceptedAtMs?: number }
   | { type: "text-delta"; text: string }
   | { type: "reasoning-delta"; text: string }
   | { type: "tool-call"; call: { id: string; name: string; input?: Record<string, unknown> } }

@@ -120,7 +120,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   let surfaceHost: PrologueSurfaces | undefined;
   const state = createRoundState();
   const index = createSessionIndexStore(effects.host, options.app.appId);
-  const memoryAuthority = createPrologueMemoryAuthority(options.memory, index);
+  const memoryAuthority = createPrologueMemoryAuthority(options.memory, index, effects);
   // Bound to the runtime once it exists; nothing is looked at before a wait is registered.
   const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id,
     owner: async id => (await index.read(id).catch(() => undefined))?.owner });

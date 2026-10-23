@@ -37,15 +37,16 @@ async function runtime(t: test.TestContext, reply: (request: number) => { tool?:
     await gate(request).promise;
     return sse(reply(request), request);
   });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "molis.input-withdraw.test", appVersion: "1.0.0" }, storageRoot: join(root, "sdk"),
+  const open = () => createPrologueNodeAdapter({ app: { appId: "molis.input-withdraw.test", appVersion: "1.0.0" }, storageRoot: join(root, "sdk"),
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "test" }), resolveCredential: () => "test-only" });
+  let adapter = await open();
   t.after(async () => { await adapter.close?.(); await rm(root, { recursive: true, force: true }); });
   const owner = { project_id: "board", plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
   const session = await adapter.createSession({ ...owner, directory, title: "withdraw" });
   const start = (task: string) => adapter.start({ ...owner, directory, session, task, role_id: "reader", queued: "carry",
     role: { role_id: "reader", version: 1, execution: "read-only", prompts: [], host_tools: ["read-file"] } });
-  const ended = (ref: AgentRunRef) => until(async () => { const view = await adapter.read(ref); return ["completed", "failed", "cancelled"].includes(view.phase) && view; }, "the round's end");
-  return { adapter, session, start, ended, bodies, release: (request: number) => gate(request).resolve(), asked: (request: number) => until(() => bodies.length >= request, `model request ${request}`) };
+  const ended = (ref: AgentRunRef) => until(async () => { const view = await adapter.read(ref); return ["completed", "failed", "cancelled"].includes(view.phase) ? view : undefined; }, "the round's end");
+  return { get adapter() { return adapter; }, session, start, ended, bodies, reopen: async () => { await adapter.close(); adapter = await open(); }, release: (request: number) => gate(request).resolve(), asked: (request: number) => until(() => bodies.length >= request, `model request ${request}`) };
 }
 
 test("RCPT-311/312/314: a round gives back a supplement it has not put in the context, refuses one it has, and a correction names what it corrects", { timeout: 60_000 }, async t => {
@@ -56,6 +57,7 @@ test("RCPT-311/312/314: a round gives back a supplement it has not put in the co
   const kept = await item.adapter.inputs!.send(handle.ref, { text: "顺便看日志", key: "send.w2" });
   assert.deepEqual(await item.adapter.inputs!.withdraw!(handle.ref, dropped.input_id), { input_id: dropped.input_id, from: "run" }, "RCPT-311 not yet in the context: the round gives it back");
   assert.deepEqual(await item.adapter.inputs!.withdraw!(handle.ref, dropped.input_id), { input_id: dropped.input_id, from: "run" }, "RCPT-311 taking it back again answers the same");
+  const beforeCorrection = Date.now();
   const correction = await item.adapter.inputs!.send(handle.ref, { text: "日志只看错误级别", key: "send.w3", about: kept.input_id });
   assert.ok(await until(async () => steerOf((await item.adapter.read(handle.ref)).turns, "不要改测试")?.state === "withdrawn", "RCPT-311 the receipt says it was taken back"));
 
@@ -70,7 +72,10 @@ test("RCPT-311/312/314: a round gives back a supplement it has not put in the co
   assert.equal(view.phase, "completed");
   assert.equal(steerOf(view.turns, "不要改测试")?.state, "withdrawn");
   assert.equal(steerOf(view.turns, "顺便看日志")?.state, "read", "RCPT-312 the refused withdrawal changed nothing");
-  assert.deepEqual(steerOf(view.turns, "日志只看错误级别"), { id: correction.input_id, state: "read", key: "send.w3", about: kept.input_id }, "RCPT-314 the correction's receipt names the input it is about");
+  const corrected = steerOf(view.turns, "日志只看错误级别");
+  assert.ok(corrected);
+  assert.ok(corrected.accepted_at_ms! >= beforeCorrection && corrected.accepted_at_ms! <= Date.now());
+  assert.deepEqual(corrected, { id: correction.input_id, state: "read", key: "send.w3", about: kept.input_id, source: "person", accepted_at_ms: corrected.accepted_at_ms }, "RCPT-314 the correction's receipt names the input it is about");
   assert.ok(item.bodies[0]!.includes("看看 a.ts"), "the kept bodies are the requests as sent");
   assert.ok(item.bodies.every(body => !body.includes("不要改测试")), "RCPT-311 what was taken back never reached the model");
   assert.ok(item.bodies[1]!.includes("顺便看日志") && item.bodies[1]!.includes("日志只看错误级别"));
@@ -90,10 +95,16 @@ test("RCPT-313/314: a supplement waiting in the session can be taken back until 
   assert.deepEqual((await item.adapter.readSession(item.session)).queued_inputs?.map(input => input.text), ["注册接口只看失败路径"]);
   await assert.rejects(item.adapter.inputs!.withdraw!(first.ref, "no-such-input"), code("agent.input_not_queued"), "RCPT-313 an id the session does not hold is refused");
 
+  const original = (await item.adapter.readSession(item.session)).queued_inputs![0]!;
+  assert.equal(original.source, "person"); assert.equal(typeof original.accepted_at_ms, "number");
+  await item.reopen();
+  assert.deepEqual((await item.adapter.readSession(item.session)).queued_inputs, [original], "restart preserves the SDK original identity/time");
   item.release(2);
   const second = await item.start("继续");
   const view = await item.ended(second.ref);
   assert.deepEqual(view.turns.filter(turn => turn.steer).map(turn => turn.text), ["注册接口只看失败路径"], "RCPT-313 the next round takes only what still waited");
+  assert.equal(steerOf(view.turns, "注册接口只看失败路径")?.accepted_at_ms, original.accepted_at_ms, "carry does not adopt the new Run start time");
+  assert.equal(steerOf(view.turns, "注册接口只看失败路径")?.id, original.input_id);
   assert.ok(item.bodies[1]!.includes("注册接口只看失败路径"), "the kept bodies are the requests as sent");
   assert.ok(item.bodies.every(body => !body.includes("下一轮顺便看注册接口")), "RCPT-313 what was taken back never reached the model");
   await assert.rejects(item.adapter.inputs!.withdraw!(first.ref, about.input_id), code("agent.input_not_queued"), "RCPT-313 a round took it: the session no longer holds it");

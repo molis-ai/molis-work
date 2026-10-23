@@ -36,6 +36,7 @@ import { controlFailure } from "./prologue-control-errors.js";
 import { PrologueMemoryUsage } from "./prologue-memory-usage.js";
 import { restoredSessionRecords, restorePrologueRun } from "./prologue-restored-session.js";
 import { inputsPort, type RoundInputs, type SessionQueue } from "./prologue-inputs.js";
+import { readSupplementaryInput, type SupplementaryLocation } from "./prologue-original-inputs.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
   applyRunEvent,
@@ -207,6 +208,8 @@ export interface PrologueRuntimePort {
   sessions: {
     create(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<{ ref: { id: string } }>;
     originalInput?(sessionId: string, input: Pick<AgentStartRequest, "original_input" | "continued_from">): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput | undefined>;
+    readOriginalInput?: AgentRuntimeAdapter["readOriginalInput"];
+    locateInput?(sessionId: string, inputId: string): Promise<SupplementaryLocation | undefined>;
     restore?(sessionId: string): Promise<PrologueRestoredSession | undefined>;
     /** Same owner/recovery checks as restore, without restoring historical controls or retaining transcripts. */
     readStatus?(sessionId: string): Promise<{
@@ -353,7 +356,14 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   readonly collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
   readonly background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
-  readonly inputs = inputsPort(async run => { await this.read(run); const record = this.#requireRun(run.run_id); return { ended: isEnded(record.view.phase), control: record.control, turns: record.view.turns }; }, () => this.#runtime.queue, runId => this.#publish(runId));
+  readonly inputs = {
+    ...inputsPort(async run => { await this.read(run); const record = this.#requireRun(run.run_id); return { ended: isEnded(record.view.phase), control: record.control, turns: record.view.turns }; }, () => this.#runtime.queue, runId => this.#publish(runId)),
+    read: (ref: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputRef) => readSupplementaryInput(ref, {
+      locate: async input => this.#runtime.sessions.locateInput?.(input.session_id, input.input_id),
+      latest: async id => this.#sessions.get(id)?.runs.at(-1) ?? (await this.#runtime.sessions.readStatus?.(id))?.latest?.ref,
+      read: run => this.read(run),
+    }),
+  };
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
   readonly mcpLibrary?: AgentMcpLibrary;
@@ -491,6 +501,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       latest_run: view,
       ...(record.recovery ? { recovery: { ...record.recovery } } : {}), ...(queued ? { queued_inputs: queued } : {}),
     };
+  }
+
+  async readOriginalInput(ref: Parameters<NonNullable<AgentRuntimeAdapter["readOriginalInput"]>>[0]) {
+    return this.#runtime.sessions.readOriginalInput?.({ ...ref });
   }
 
   async readSessionStatus(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }> {

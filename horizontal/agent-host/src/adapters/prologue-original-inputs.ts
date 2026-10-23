@@ -1,4 +1,6 @@
 import type { AgentOriginalInput, AgentOriginalInputDraft, AgentOriginalInputRef, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentInputOriginal, AgentInputRef } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { SessionIndex, SessionIndexStore } from "./prologue-session-index.js";
 import { agentErrors } from "../errors.js";
 
@@ -17,6 +19,55 @@ export function originalInputOf(index: SessionIndex, reference: AgentOriginalInp
   if (!stored || stored.ref.session_id !== reference.session_id || stored.ref.version !== reference.version) throw invalid();
   validate({ ...stored, input_id: stored.ref.input_id });
   return structuredClone(stored);
+}
+
+/** The first original owns text/time; its latest accepted direct attempt is only a current-status locator. */
+export async function readOriginalInput(store: SessionIndexStore, reference: AgentOriginalInputRef): Promise<{
+  original: AgentOriginalInput; accepted_run: AgentRunRef;
+} | undefined> {
+  const ref = { ...reference };
+  if (ref.version !== 1 || typeof ref.session_id !== "string" || typeof ref.input_id !== "string") return undefined;
+  const index = await store.read(ref.session_id);
+  if (!index) return undefined;
+  for (let position = index.attempts.length - 1; position >= 0; position--) {
+    const attempt = index.attempts[position]!, linked = attempt.original_input?.ref ?? attempt.original_input_ref;
+    if (!attempt.run_id || attempt.refused || attempt.frozen.continued_from
+      || linked?.session_id !== ref.session_id || linked.input_id !== ref.input_id || linked.version !== ref.version) continue;
+    const original = originalInputOf(index, ref);
+    return original ? { original, accepted_run: { session_id: ref.session_id, run_id: attempt.run_id } } : undefined;
+  }
+  return undefined;
+}
+
+/** An exact InputBook location; only its owning Run supplies the receipt/body. */
+export type SupplementaryLocation = { state: "withdrawn" }
+  | { state: "queued"; input: Extract<AgentInputOriginal, { state: "queued" }>["input"] }
+  | { state: "run"; run: AgentRunRef };
+
+/** No history scan: an unsettled direct input can only be found in the single current live Run. */
+export async function readSupplementaryInput(reference: AgentInputRef, owner: {
+  locate(ref: AgentInputRef): Promise<SupplementaryLocation | undefined>;
+  latest(sessionId: string): Promise<AgentRunRef | undefined>;
+  read(run: AgentRunRef): Promise<AgentRunView>;
+}): Promise<AgentInputOriginal | undefined> {
+  const ref = { ...reference };
+  if (!ref.session_id || !ref.input_id) return undefined;
+  const location = await owner.locate(ref);
+  if (location?.state === "withdrawn") return { state: "withdrawn", ref };
+  if (location?.state === "queued") return { state: "queued", ref, input: structuredClone(location.input) };
+  const run = location?.run ?? await owner.latest(ref.session_id);
+  if (!run || run.session_id !== ref.session_id) return undefined;
+  const view = await owner.read(run);
+  if (!location && !["running", "awaiting-input", "awaiting-review", "compacting"].includes(view.phase)) return undefined;
+  const input = view.turns.find(turn => turn.kind === "user" && turn.steer?.id === ref.input_id);
+  if (!input?.steer) return undefined;
+  if (input.steer.state === "withdrawn") return { state: "withdrawn", ref };
+  const current = await owner.locate(ref);
+  if (current?.state === "withdrawn") return { state: "withdrawn", ref };
+  if (current?.state === "queued") return { state: "queued", ref, input: structuredClone(current.input) };
+  if (current?.state === "run" && (current.run.session_id !== ref.session_id || current.run.run_id !== run.run_id)
+    || location?.state === "run" && !current) return undefined;
+  return { state: "run", ref, run: { ...run }, text: input.text, receipt: structuredClone(input.steer) };
 }
 
 /** Resolves one start's original in the Session owner before execution; this read does not create a source. */

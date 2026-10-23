@@ -23,6 +23,21 @@ export interface AgentInputModelClaim {
     revisions: number;
 }
 
+export type AgentInputOriginal = {
+    state: "withdrawn";
+    ref: AgentInputRef;
+} | {
+    state: "queued";
+    ref: AgentInputRef;
+    input: AgentQueuedInput;
+} | {
+    state: "run";
+    ref: AgentInputRef;
+    run: AgentRunRef;
+    text: string;
+    receipt: AgentTurnSteer;
+};
+
 export interface AgentInputQuestion {
     pending_id: string;
     state: "open" | "settled" | "expired" | "cancelled" | "unresolved";
@@ -73,6 +88,7 @@ export interface AgentInputWithdrawal {
 }
 
 export interface AgentInputsPort {
+    read?(ref: AgentInputRef): Promise<AgentInputOriginal | undefined>;
     send(run: AgentRunRef, input: AgentInputSend, beforeQueue?: () => void): Promise<AgentSteerReceipt>;
     withdraw?(run: AgentRunRef, inputId: string, beforeWithdraw?: () => void): Promise<AgentInputWithdrawal>;
 }
@@ -96,6 +112,7 @@ export interface AgentOriginalInputRef {
 
 export interface AgentQueuedInput {
     input_id: string;
+    accepted_at_ms?: number;
     text: string;
     source: AgentInputSource | "peer";
     key?: string;
@@ -118,6 +135,8 @@ export interface AgentSteerReceipt {
 
 export interface AgentTurnSteer {
     id: string;
+    source?: AgentInputSource | "peer";
+    accepted_at_ms?: number;
     state: "received" | "applied" | "read" | "unread" | "withdrawn";
     key?: string;
     about?: string;

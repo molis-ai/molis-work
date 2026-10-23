@@ -4,7 +4,7 @@ Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副
 
 显式 `storageRoot` 的 Node 适配器持有 SQLite 独占锁，直到 SDK 正常关闭或进程退出，防止另一执行器把活动审阅误判为重启遗留。获取失败报告 `agent.storage_busy`，不读取恢复记录。该锁保护当前单执行方假设；跨进程调用转发仍由 LocalHost 接通，不能用多个 runtime 直接共享这个目录。
 
-离线记忆采用的 `openPrologueMemoryAdoption` 使用同一存储 owner 锁，只向显式范围开放 SDK 的 `adoptLegacy` 与整 App `verifyAdoption`，不装 Agent、模型或普通记忆写入口。调用方必须先停所有 owner 并备份，在关闭维护 Runtime 后重新打开正常 Runtime；关闭等待在途页结束，SDK 关闭失败不释放写锁。旧 metadata 无法证明自然场景时保持未分类，不从 kind/namespace 猜测；原引用、版本、期限、来源与已完成候选关联由 SDK 保持。页中的 issues、未决决定、未知归属、取消与未知提交均不是完成；LocalHost 累计整次结果后才提交 ledger4。维护入口不改变正常 Runtime 的授权。真实隔离 Node 回归：`tests/prologue-memory-adoption.test.ts`；SQLite 编排故障回归：`tests/memory-adoption-maintenance.test.ts`。
+离线记忆采用的 `openPrologueMemoryAdoption` 使用同一存储 owner 锁，只向显式范围开放 SDK 的 `adoptLegacy` 与整 App `verifyAdoption`，不装 Agent、模型或普通记忆写入口。维护 Runtime 保留 App taxonomy、版本与限额，但只装只读维护配方；不要求安装普通 Runtime 的提炼、召回或晋升实例，也不把维护配方写回正常配置。调用方必须先停所有 owner 并备份，在关闭维护 Runtime 后重新打开正常 Runtime；关闭等待在途页结束，SDK 关闭失败不释放写锁。旧 metadata 无法证明自然场景时保持未分类，不从 kind/namespace 猜测；原引用、版本、期限、来源与已完成候选关联由 SDK 保持。页中的 issues、未决决定、未知归属、取消与未知提交均不是完成；LocalHost 累计整次结果后才提交 ledger4。维护入口不改变正常 Runtime 的授权。真实隔离 Node 回归：`tests/prologue-memory-adoption.test.ts`；SQLite 编排故障回归：`tests/memory-adoption-maintenance.test.ts`。
 
 包名：`@molis-ai/molis-work-service-agent-host`。工作区内部包，由 Host 装配使用。
 
@@ -21,6 +21,18 @@ Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副
 adapter 只报告事实并执行已批准的工作。
 
 记忆使用投影由可选 `memoryUsage` Host 回调接收真实 SDK Context 回执，保留原 Session/Run、条目版本、retrieval receipt 与模型 call。`prepared` 不算派发；`dispatched-or-unknown` 与 `response-observed` 分开，后者也不证明模型采用。回调失败只报告 `memory.receipt_unrecorded`，不重发模型；读取原 Run 可再交同一事实，关闭 Runtime 时等待在途投影。历史事件到只读视图由 `prologue-restored-session.ts` 持有，SDK 存储读取与原不可恢复控制不变。验证：`tests/prologue-memory-run-context.test.ts` 使用真实 Node/SQLite/本机 HTTP 覆盖 ledger 故障、原 Run 重读和零网络补账；`tests/memory-use-receipts.test.ts` 覆盖单调摘要与遗忘屏障。
+
+## 记忆晋升与可信原件桥
+
+已经接受的 Run 停止时，当前控制调用先通过原权限检查并持久化停止意图；随后取消和 SDK 终态收尾经现有 effects.detach 脱离该短调用。终态仍由 SDK 保存并发布，界面不提前伪报停止；普通迟到业务写仍受原调用检查。
+
+Host 可注入版本化 `memory.promotion`，Adapter 将候选、来源、正式变更与 App 历史回执转换为纯 AgentHost DTO，只有这里依赖 SDK 类型。`decide` 只读返回 promote/hold；`undo.prepare` 保存当前操作的准备，`undo.record` 以 SDK 已提交的 canonical entry 补历史及撤销身份。回调首参只能来自当前 `withCaller` 的独立调用上下文，或 SDK 请求对应的可信 Session owner；prepare/record 没有来源上下文时要求原调用绑定仍在，缺失即拒绝，不从模型参数恢复身份，不新建操作账。 App 的 prepare/record 写账也复用原调用的 `PrologueEffects`：异步身份解析和 `beforeEffect` 后紧邻写入核 `assertCurrent` 及本次 `signal`，任一等待中取消不再调用 App 写账；撤权后不能留下准备历史，正式已提交而补账被拒时沿原操作恢复。
+
+SDK 仍拥有来源、权限、期限、取消与正式 CAS 门。App 的回执必须保持原 operation、候选原版本、policy/version 和实际 memory/version；Adapter 不伪造成功，也不证明 App 的历史事务已实际可撤销。已提交而 record 未完成时，SDK 的 `MEMORY_PROMOTION_RECORD_PENDING` 映为 `agent.memory_promotion_record_pending`（conflict），保留`operation_id` 与无正文 `committed: { memory_id, version }`，可用完整原请求重试，不能报成零写入。未装完整晋升实例仍不可用。
+
+`AgentTurnSteer` 和 `AgentQueuedInput` 仅复制 SDK 可证明的 `acceptedAtMs` 为可选 `accepted_at_ms`，不把新 Run 或读取时刻当作原件时间；旧记录未知就省略。steer 的 `source` 同样从 SDK 原件投影，app 映为 host，peer 保持 peer，不凭 user-role 判断本人。carry、取消与重启不另造输入身份。
+
+SourcePort 也只接 AgentHost 的 snake_case 引用、身份与短期正文快照，调用方来自同一可信绑定；来源内容不由模型自报。当前产品保留唯一 HostTextGeneration 提炼，SDK form/extractor 的产品装配仍未完成。此桥不接第二模型循环或第二来源/历史表。回归使用公开 Node Adapter 与隔离真实存储，覆盖创建、替换、hold、故障补账、撤权及取消。
 
 ## 插件怎么够到它
 
@@ -136,3 +148,7 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 信的规则：agents 受众的信只在同一张板相邻的步骤之间走，宿主负责把信交给收件人正在跑的那一轮。同一项目的会话可以互相请求、答复、通知、交接计划步骤；跨项目的会话不在同一张板上，照旧拒绝。几个会话同写一张板靠 SDK 按节点判冲突（P2k）：只有要改的那一步在模型读过之后被人改过，才报冲突。
 
 可信初始输入由受保护 Host 入口交给现 Session attempt 保存原件，后续同 Session 接续只带引用；业务 DTO 不能自证本人身份。`tests/coding-original-inputs.test.ts` 走真实 HTTP/Node 验证原文、首个时间、重启、失败重试同身份、并发拒绝及跨 Session/派生输入拒绝；这只证明原件桥，不代表学习形成已接通。
+
+`readOriginalInput(ref)` 从该 Session attempt 读取首原件的精确正文、作者、身份和首次时间；`accepted_run` 则指向同原件最近一次已接受且未 refused 的直接尝试（排除 `frozen.continued_from`）。拒绝且未建立 Run 的尝试不阻挡后续真实重试，派生继续不能让失败原件取得学习资格。来源消费方仍检查定位 Run 的当前状态、Session owner、工作和权限；缺失或未接受不从拼接任务恢复。原时间和身份不因读取、继续或重试变化，不扫描 SDK 历史，不增加正文存储；Source Port 的 App 规则见记忆策略 §9.4。
+
+`inputs.read(ref)` 先由 SDK 同 Session 的有界 InputBook 定位，再读该 Run 的原输入回执。当前 queued/withdrawn 优先于旧回执；未落定的直接补充仅可检查该 Session 唯一当前活跃 Run，记录缺失或已裁剪保持未知，不扫描历史。该定位不赋予读取或形成许可，产品 SourcePort 仍逐次核当前来源主人和用途。

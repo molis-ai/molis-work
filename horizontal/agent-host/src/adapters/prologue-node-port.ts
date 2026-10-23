@@ -1,4 +1,4 @@
-import { resolveOriginalInput } from "./prologue-original-inputs.js";
+import { readOriginalInput, resolveOriginalInput } from "./prologue-original-inputs.js";
 import { createHash } from "node:crypto";
 import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type PendingAnswer, type QueuedTask, type Runtime } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -11,7 +11,7 @@ import { MAX_BROADCAST } from "./prologue-messages.js";
 import { createPrologueSkillLibrary } from "./prologue-methods.js";
 import { workPaths } from "./prologue-project-work.js";
 import { answerProblems, ownedReferences, projectQuestion, questionUnavailable } from "./prologue-questions.js";
-import type { createPrologueRecovery } from "./prologue-recovery.js";
+import { queuedInput, type createPrologueRecovery } from "./prologue-recovery.js";
 import { startPrologueRun, type RunDeps } from "./prologue-run.js";
 import type { createPrologueSchedule } from "./prologue-schedule.js";
 import { createPrologueSubagents } from "./prologue-subagents.js";
@@ -37,6 +37,7 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
     app: options.app,
     host,
     memoryAuthority: memoryAccess.authority,
+    ...(memoryAccess.promotion ? { memoryPromotion: memoryAccess.promotion } : {}),
     ...(memoryAccess.sources ? { memorySources: memoryAccess.sources } : {}),
     // Before each child a round dispatches, the Host asks that round's own check again (specs/prologue-adoption §4.6.10).
     collaborationHost: createCollaborationHost(dispatchChecks),
@@ -230,6 +231,17 @@ function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
     }),
     restore: id => deps.recovery.restore(id),
     originalInput: (id, input) => resolveOriginalInput(deps.index, id, input),
+    readOriginalInput: ref => readOriginalInput(deps.index, ref),
+    async locateInput(sessionId, inputId) {
+      const index = await deps.index.read(sessionId);
+      if (!index) return undefined;
+      const session = await deps.runtime.sessions.open(index.ref);
+      const found = await session?.locateInput(inputId);
+      if (!found) return undefined;
+      if (found.state === "queued") return { state: "queued", input: queuedInput(found.input) };
+      return found.state === "withdrawn" ? { state: "withdrawn" }
+        : { state: "run", run: { session_id: sessionId, run_id: found.run.id } };
+    },
     queued: id => deps.recovery.queued(id),
     async readStatus(id) {
       const saved = await deps.recovery.restore(id, true);

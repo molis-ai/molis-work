@@ -28,7 +28,10 @@ export async function openPrologueMemoryAdoption(input: PrologueMemoryAdoptionIn
     throw agentErrors.capability_unavailable("离线记忆采用需要明确的存储目录和既有归属");
   }
   const scopes = input.scopes.map(scope => Object.freeze({ scope: scope.scope, owner: scope.owner }));
-  const policy = structuredClone(input.policy);
+  // Offline adoption needs the App taxonomy and limits, not its live extractor/recaller/promotion instances.
+  // The bridge exposes only adoption/verification and the authority below binds every scope explicitly.
+  const policy: PrologueMemoryOptions["policy"] = { ...structuredClone(input.policy), preset: "manual",
+    matrix: { default: { actions: ["manage-read"], formation: [] } } };
   const app = { appId: "io.molis.work", appVersion: input.appVersion };
   const context = Object.freeze({ consumer: "memory-maintenance", currentScene: "common", purpose: "management" as const });
   const stop = new AbortController(), pending = new Set<Promise<unknown>>();

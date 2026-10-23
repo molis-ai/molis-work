@@ -92,6 +92,8 @@ export type AgentQueuedInputs = "carry" | "leave" | readonly string[];
  */
 export interface AgentQueuedInput {
   input_id: string;
+  /** Original Host acceptance time, if the runtime can prove it; carry/restart never replace it. */
+  accepted_at_ms?: number;
   text: string;
   /** `peer`: another session's Agent said it. */
   source: AgentInputSource | "peer";
@@ -108,6 +110,8 @@ export interface AgentQueuedInput {
  * there that it may still write.
  */
 export interface AgentInputsPort {
+  /** Exact owner lookup. Current withdrawal wins over any old Run receipt; missing history remains unknown. */
+  read?(ref: AgentInputRef): Promise<AgentInputOriginal | undefined>;
   send(run: AgentRunRef, input: AgentInputSend, beforeQueue?: () => void): Promise<AgentSteerReceipt>;
   /** Takes a supplement back before the model saw it; absent where the runtime cannot. */
   withdraw?(run: AgentRunRef, inputId: string, beforeWithdraw?: () => void): Promise<AgentInputWithdrawal>;
@@ -122,6 +126,11 @@ export interface AgentInputWithdrawal { input_id: string; from: "run" | "queued"
 
 /** One input as the runtime's ledger knows it: whose session it belongs to and its id there. */
 export interface AgentInputRef { session_id: string; input_id: string }
+
+/** Data from the existing input owner, not proof of permission to form memory. */
+export type AgentInputOriginal = { state: "withdrawn"; ref: AgentInputRef }
+  | { state: "queued"; ref: AgentInputRef; input: AgentQueuedInput }
+  | { state: "run"; ref: AgentInputRef; run: AgentRunRef; text: string; receipt: AgentTurnSteer };
 
 /** How the model says it will treat an input it read (closed set, the runtime's S3 vocabulary). */
 export type AgentInputTreatment = "apply-now" | "later-step" | "new-task" | "needs-clarification" | "not-adopted" | "answered" | "noted" | "merged";
@@ -159,6 +168,10 @@ export interface AgentInputQuestion { pending_id: string; state: "open" | "settl
  */
 export interface AgentTurnSteer {
   id: string;
+  /** Original speaker from the runtime, independently of the user-role transport wrapper. */
+  source?: AgentInputSource | "peer";
+  /** Original Host acceptance time; absent on older input records whose origin time is unknown. */
+  accepted_at_ms?: number;
   /** received: taken, not yet in the context; applied: in the context; read: a kept reply was made with it (not compliance); unread: the round ended before that. */
   state: "received" | "applied" | "read" | "unread" | "withdrawn";
   /** The key it was sent under (`AGENT_INPUT_KEY_PATTERN`), so the page that sent it knows it here even when its answer was lost. */

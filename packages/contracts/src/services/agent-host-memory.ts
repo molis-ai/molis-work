@@ -142,6 +142,57 @@ export interface AgentMemorySourceIdentity extends AgentMemorySourceRef {
   about?: AgentMemorySourceRef;
 }
 
+/** Ephemeral canonical source text supplied by its trusted owner, never a model claim. */
+export interface AgentMemorySourceSnapshot extends AgentMemorySourceIdentity { text: string }
+export interface AgentMemorySourceRequest {
+  app_id: string;
+  target: { scope: AgentMemoryEntry["scope"]; owner: string; namespace?: string };
+  signal?: AbortSignal;
+}
+
+/** One original candidate decision. Policy version and candidate version are distinct. */
+export interface AgentMemoryPromotionIdentity {
+  operation_id: string;
+  candidate: { candidate_id: string; version: number };
+  policy: string;
+  version: number;
+}
+export interface AgentMemoryPromotionRequest extends AgentMemoryPromotionIdentity {
+  proposed: AgentMemoryCandidateEntry;
+  sources: readonly AgentMemorySourceSnapshot[];
+  desired: { kind: "create" | "replace"; change: AgentMemoryChange; target?: { memory_id: string; expected_version: number } };
+  signal?: AbortSignal;
+}
+export interface AgentMemoryPromotionPreparation extends AgentMemoryPromotionIdentity {
+  before?: AgentMemoryEntry;
+  after: AgentMemoryEntry;
+  signal?: AbortSignal;
+}
+export interface AgentMemoryPromotionApplied extends AgentMemoryPromotionIdentity {
+  entry: AgentMemoryEntry;
+  signal?: AbortSignal;
+}
+export interface AgentMemoryPromotionReceipt extends AgentMemoryPromotionIdentity {
+  entry: { memory_id: string; version: number };
+  change_id: string;
+}
+/** Current App policy plus its existing durable history/undo owner; no SDK-side journal. */
+export interface AgentMemoryPromotion {
+  policy: string;
+  version: number;
+  decide(caller: AgentMemoryCaller, request: AgentMemoryPromotionRequest): "promote" | "hold" | Promise<"promote" | "hold">;
+  undo: {
+    prepare(caller: AgentMemoryCaller, request: AgentMemoryPromotionPreparation): Promise<void>;
+    record(caller: AgentMemoryCaller, request: AgentMemoryPromotionApplied): Promise<AgentMemoryPromotionReceipt>;
+  };
+}
+/** Formal storage has committed; complete the original operation instead of starting another one. */
+export interface AgentMemoryPromotionPendingError extends Error {
+  readonly code: "agent.memory_promotion_record_pending";
+  readonly operation_id: string;
+  readonly committed: { memory_id: string; version: number };
+}
+
 /** Version and operation identity are conditions, never authority. Retry keeps the complete original command. */
 export interface AgentMemoryMutation {
   expected_version: number;
@@ -159,6 +210,8 @@ export interface AgentMemoryCaller {
   person?: boolean;
   session_id?: string;
   current_scene?: string;
+  /** Host-owned source use, never model input or an authorization grant. Absent requires completed inputs. */
+  source_use?: "explicit" | "learning";
   /** Host-frozen applicability identifiers; never taken from a recall query. */
   facts?: AgentRecalledMemory["facts"];
   purpose: "management" | "task";

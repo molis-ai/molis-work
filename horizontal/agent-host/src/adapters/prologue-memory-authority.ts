@@ -1,17 +1,21 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { isDeepStrictEqual } from "node:util";
-import type { AgentMemoryCaller, AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { MemoryAuthority, MemoryCallerContext, MemoryPolicyConfig, MemorySourcePort } from "@prologue/sdk";
+import type { AgentMemoryCaller, AgentMemoryPromotion, AgentMemorySourceRequest, AgentMemorySourceRef, AgentMemorySourceIdentity, AgentMemorySourceSnapshot, AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { MemoryAuthority, MemoryCallerContext, MemoryPolicyConfig, MemorySourcePort, MemoryPromotionLatch } from "@prologue/sdk";
+import { prologueMemoryPromotion } from "./prologue-memory-promotion.js";
+import { sourceIdentityToSdk, sourceIdentityView } from "./prologue-memory-values.js";
 import { agentErrors } from "../errors.js";
 import type { PrologueMemoryBinding } from "./prologue-memory.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
+import type { PrologueEffects } from "./prologue-effects.js";
 
 /** App policy and live grants; SDK types occur only at this SDK adapter boundary. */
 export interface PrologueMemoryOptions {
   policy: MemoryPolicyConfig;
+  promotion?: AgentMemoryPromotion;
   sources?: {
-    resolve(caller: AgentMemoryCaller, request: Parameters<MemorySourcePort["resolve"]>[0]): ReturnType<MemorySourcePort["resolve"]>;
-    check(caller: AgentMemoryCaller, request: Parameters<MemorySourcePort["check"]>[0]): ReturnType<MemorySourcePort["check"]>;
+    resolve(caller: AgentMemoryCaller, request: AgentMemorySourceRequest & { refs: readonly AgentMemorySourceRef[] }): Promise<readonly AgentMemorySourceSnapshot[]>;
+    check(caller: AgentMemoryCaller, request: AgentMemorySourceRequest & { identities: readonly AgentMemorySourceIdentity[] }): Promise<boolean>;
   };
   authorize(caller: AgentMemoryCaller, requests: Parameters<MemoryAuthority["authorize"]>[0]): Promise<boolean>;
   authorizeRecall(caller: AgentMemoryCaller, request: Parameters<NonNullable<MemoryAuthority["authorizeRecall"]>>[0]): ReturnType<NonNullable<MemoryAuthority["authorizeRecall"]>>;
@@ -20,8 +24,8 @@ export interface PrologueMemoryOptions {
   callerForSession(owner: AgentSessionView["owner"], sessionId: string): Promise<AgentMemoryCaller | undefined>;
 }
 
-export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | undefined, index: SessionIndexStore): {
-  authority: MemoryAuthority; binding: PrologueMemoryBinding; sources?: MemorySourcePort;
+export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | undefined, index: SessionIndexStore, effects: Pick<PrologueEffects, "beforeEffect" | "assertCurrent">): {
+  authority: MemoryAuthority; binding: PrologueMemoryBinding; sources?: MemorySourcePort; promotion?: MemoryPromotionLatch;
 } {
   const calls = new AsyncLocalStorage<AgentMemoryCaller>();
   const sourcePort = options?.sources;
@@ -50,16 +54,26 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
       || !isDeepStrictEqual(context(caller), requested)) return undefined;
     return caller;
   };
+  const sourceRequest = (request: Parameters<MemorySourcePort["resolve"]>[0] | Parameters<MemorySourcePort["check"]>[0]): AgentMemorySourceRequest => ({
+    app_id: request.appId, target: { scope: request.target.scope as AgentMemorySourceRequest["target"]["scope"], owner: request.target.owner,
+      ...(request.target.namespace === undefined ? {} : { namespace: request.target.namespace }) }, ...(request.signal ? { signal: request.signal } : {}),
+  });
   return {
+    ...(options?.promotion ? { promotion: prologueMemoryPromotion(options.promotion, requested => {
+      const bound = calls.getStore();
+      return requested ? callerFor(requested) : Promise.resolve(bound);
+    }, effects) } : {}),
     binding: { context, run: (caller, work) => calls.run(Object.freeze(structuredClone(caller)), work) },
     ...(sourcePort ? { sources: {
       async resolve(request: Parameters<MemorySourcePort["resolve"]>[0]) {
         const caller = await callerFor(request.context);
-        return caller ? sourcePort.resolve(caller, request) : [];
+        if (!caller) return [];
+        const values = await sourcePort.resolve(structuredClone(caller), { ...sourceRequest(request), refs: request.refs.map(ref => ({ event_id: ref.eventId, version: ref.version })) });
+        return values.map(source => ({ ...sourceIdentityToSdk(source), text: source.text }));
       },
       async check(request: Parameters<MemorySourcePort["check"]>[0]) {
         const caller = await callerFor(request.context);
-        return caller ? sourcePort.check(caller, request) : false;
+        return caller ? sourcePort.check(structuredClone(caller), { ...sourceRequest(request), identities: request.identities.map(sourceIdentityView) }) : false;
       },
     } } : {}),
     authority: {

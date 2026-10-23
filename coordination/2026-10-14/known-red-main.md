@@ -6,6 +6,8 @@
 
 原因类别只用四种：断言过期、产品回归、测试缺陷、环境与时序。
 
+2026-10-23 20:40 UTC：batch-1023-13（run40013259093，6cff3977e）16片1341/1341文件最终通过；3份重试通过记入偶发。Linux跳过的macOS C0仍未验证，保留当前已知红。
+
 ## 当前已知红（1 个文件）
 
 | 文件 | 失败的用例 | 原因类别 | 依据 |
@@ -36,7 +38,7 @@
 规则（① 10-23）：这里的文件以后再红一次（最终失败），就写进 `tests/quarantine.json`，带 owner 和到期日（最多 30 天、最多 10 条），不从清单里删行。
 
 - `project-settings-navigation.e2e:138`（R-26，① 10-23 登记，登记册 `117ec154e`）：Codex 的 R-25 二分里红过一次。删除项目后读设置页，应该是 404，拿到 500，日志里有 `SQLITE_CANTOPEN`；另外两轮都过。Codex 在 main 上多跑几轮归因；⑤ 在 batch-1023-10（必看）和 batch-1023-9 里看这份文件有没有在 `:138` 红。和 R-25 的 `:83` 不是一处。batch-1023-9、batch-1023-10 都是第一次就过（4/4）。测试一半由 Codex 的 #1103 收严（在合并队列里），产品窗口照旧延后。
-- `page-interaction-flow.e2e`：batch-1023-6 重试才过（第一次 1/2）。
+- `page-interaction-flow.e2e`：batch-1023-6 重试才过（第一次 1/2）；batch-1023-13第一次1/2，灵光展开断言失败，重试通过。
 - `work-placement-journeys.e2e`：batch-1023-6、batch-1023-8 都是重试才过（第一次都是 2/3）。#1065 修过一次 `title()` 的等待，这次是另一处还是同一处没查。
 - `cross-plugin-recovery.e2e`：batch-1023-10 重试才过（第一次 2/3）。
 - `cognia-actions.e2e`：batch-1023-10 重试才过（第一次 3/4）。
@@ -44,7 +46,8 @@
 - `code-scale.e2e`：batch-1023-6、batch-1023-7、batch-1023-10 都是重试才过（batch-1023-10 第一次 4/5；batch-1023-6 第一次 3/5，「SYS-49/VUX-33: a large block reads at once and is coloured a slice a frame」）。按 BL-412 查。
 - `visual-review-consumers.e2e`：batch-1023-7 重试才过。
 - `busy-feedback.e2e`：batch-1023-4 重试才过（第一次 1/2）。
-- `product-experience-polish.e2e`：batch-1023-3 重试才过（第一次 2/3）。
+- `product-experience-polish.e2e`：batch-1023-3 重试才过（第一次 2/3）；batch-1023-13第一次2/3，搜索框打开等待超时，重试通过。
+- `work-placement.e2e`：batch-1023-13第一次1/2，390px场景CDP目标导航或关闭，重试通过；与work-placement-journeys是不同文件。
 - `work-placement-plugins.e2e`：batch-1023-3 重试才过（第一次 0/1）。
 - `scroll-follow.e2e`：batch-1023-3、batch-1023-9 都是重试才过（第一次都是 0/1）。
 - `project-home-start.e2e`：batch-1023-1 重试才过；batch-1023-2、batch-1023-3 通过。

@@ -52,6 +52,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 26 | [#1138](https://github.com/molis-ai/molis-work/pull/1138) | PG-051 P2a：Agent 声明停用后按「未运行」保留、重启恢复、卸载才删（新 Home 库 `agent-declarations`） | #1124 已合 | `full` 非空（contracts），进下一批 | 头 `36c0771cb`；`ac-review` 排队审 |
 | 27 | [#1139](https://github.com/molis-ai/molis-work/pull/1139) | PG-017 P0：`sandboxServicesFor` 一张映射；不给的服务一声明就以 `sandbox.service_not_given` 拒绝；S-60 一行 | **叠在 #1119 上**；S 号连续要 #1117、#1119 先合 | `full` 为空 | `ac-review` 排队审；改了安全不变量，合前看 Security invariants |
 | 28 | [#1140](https://github.com/molis-ai/molis-work/pull/1140) | SC-4 残留：BL-485/486/488（Codex 会话适配器、合同里的 `session_id`、模块描述） | 叠在 #1130（第三层）；**草稿**，#1113 合入且 #1130 改投 main 后再转 ready | 待重算 | 统筹转了草稿，先不审 |
+| 29 | [#1141](https://github.com/molis-ai/molis-work/pull/1141) | 评审修复线（合并 Agent 派）：#902 Home 待办批量「移到」菜单补 menu 语义与单一 Tab 停点（只改 todo 插件 UI + 新 e2e） | — | `full` 为空 | 草稿；头 `ab8a43768`；等 `ac-review` 一轮；负责人 review-fix-owner |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 收尾时合 main、转 ready |
 
 新开的开发片 PR 由统筹按依赖插进本表。

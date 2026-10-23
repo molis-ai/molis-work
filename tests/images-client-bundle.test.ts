@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
+import { isProductSource, scanTree, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
 import { IMAGES_CLIENT_FACTORY_SCRIPT, IMAGES_MESSAGES, renderImagesWorkbench } from "@molis-ai/molis-work-plugin-images";
 
@@ -12,13 +13,14 @@ const browserFiles = () => readdirSync(BROWSER).map(file => join(BROWSER, file))
 const SHARED_PHRASES = ["来自 {source}", "可以在 Shelf 里用于项目"];
 
 test("RAC-142 every word the Images page says has a stable key with both languages; only the shared placement phrases keep their Chinese", () => {
-  const used = new Set<string>();
-  for (const file of [join(SRC, "ui.ts"), ...browserFiles()]) {
-    const source = readFileSync(file, "utf8");
-    for (const match of source.matchAll(/"(images(?:\.[a-z0-9_-]+)+)"/gu)) used.add(match[1]!);
-    const chinese = [...source.matchAll(/\bL\("([^"]*[一-鿿][^"]*)"/gu)].map(match => match[1]!);
-    assert.deepEqual(chinese.filter(key => !SHARED_PHRASES.includes(key)), [], `${file} calls the translator with a Chinese key`);
-  }
+  const scan = scanTree(workingTreeSnapshot(process.cwd()), isProductSource);
+  const owns = (file: string) => file === join(SRC, "ui.ts") || file.startsWith(BROWSER + "/");
+  const calls = scan.calls.filter(call => owns(call.file));
+  assert.ok(calls.some(call => call.file === join(SRC, "ui.ts")), "the actual scanner sees server-drawn words");
+  assert.ok(calls.some(call => call.file.startsWith(BROWSER + "/")), "the actual scanner sees browser words");
+  assert.deepEqual(calls.filter(call => /\p{Script=Han}/u.test(call.key) && !SHARED_PHRASES.includes(call.key)), [], "only shared placement phrases use Chinese keys");
+  assert.deepEqual(scan.dynamicCalls.filter(call => owns(call.file)), [], "all dynamic stable-key choices are enumerated by the real scanner");
+  const used = new Set<string>(calls.map(call => call.key).filter(key => !SHARED_PHRASES.includes(key)));
   assert.deepEqual([...used].filter(key => !(key in IMAGES_MESSAGES)), [], "every key the page asks for is defined");
   assert.deepEqual(Object.keys(IMAGES_MESSAGES).filter(key => !used.has(key)), [], "every defined key is asked for");
   const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();

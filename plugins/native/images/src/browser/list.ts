@@ -3,7 +3,7 @@ import type { ImageJob, ImagesPage } from "./types.js";
 
 /** The URL of one generated image, or its download form. */
 export const imageUrl = (page: ImagesPage, job: ImageJob, imageId: string, download = false): string =>
-  page.host.route(`/api/plugins/io.molis.work.images/jobs/${encodeURIComponent(job.id)}/images/${encodeURIComponent(imageId)}`) + (download ? "?download=1" : "");
+  page.host.pluginRoute(`/jobs/${encodeURIComponent(job.id)}/images/${encodeURIComponent(imageId)}`) + (download ? "?download=1" : "");
 
 export const stateOf = (status: string): string => (status === "succeeded" ? "done" : status === "running" ? "generating" : status);
 

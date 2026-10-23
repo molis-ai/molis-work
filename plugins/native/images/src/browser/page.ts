@@ -64,7 +64,7 @@ export function createPage(host: ImagesHost, life: Scope, root: HTMLElement): Im
     },
     /** The generation record on screen, for the placement bar and the Assistant. */
     publishContext(job) {
-      const value: Record<string, unknown> = { plugin_id: "io.molis.work.images", surface_title: L("images.page.title") };
+      const value: Record<string, unknown> = { plugin_id: host.pluginId, surface_title: L("images.page.title") };
       if (job) value.object = { kind: "image_job", id: job.id, version: `${job.status}:${(job.images || []).length}`, title: job.prompt.slice(0, 80) };
       root.setAttribute("data-assistant-context", JSON.stringify(value));
     },

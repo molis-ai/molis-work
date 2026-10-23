@@ -4,30 +4,20 @@ import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/ser
 export type { GeneratedImage, ImageApiFormat, ImageConnection, ImageJob };
 /** The service connection that holds a key (managed in Connectors); the page lists the ones it may point a service at. */
 export type AuthConnection = ConnectorConnectionView;
-export type Translate = (key: string, values?: Record<string, string | number>) => string;
+export type { UiClientTranslate as Translate } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiClientScope, UiClientTranslate as Translate, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 
 /** The view's lifetime, from the browser Host's mount scope: what is started with it ends with it. */
-export interface Scope {
-  readonly alive: boolean;
-  readonly visible: boolean;
-  readonly signal: AbortSignal;
-  readonly fetch: (input: string, init: object) => Promise<Response>;
-  assertCurrent(signal?: AbortSignal): void;
-  own(cleanup: () => void): () => void;
+export interface Scope extends UiClientScope {
   listen(target: EventTarget, name: string, callback: (event: Event) => void, capture?: boolean): () => void;
   timeout(callback: () => void, delay: number): number;
   clearTimeout(id: number | undefined): void;
-  whenVisible(start: (signal: AbortSignal) => (() => void) | void): () => void;
 }
 
 /** What the workbench hands the Images page's client. */
-export interface ImagesHost {
-  readonly translate: Translate;
-  route(path: string): string;
-  projectId(): string | null | undefined;
+export interface ImagesHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement, Element>,
+  "translate" | "route" | "pluginRoute" | "pluginId" | "projectId" | "loadMedia" | "confirm"> {
   mountPluginClient(root: HTMLElement): Scope | null;
-  loadMedia(element: Element, path: string): void;
-  confirm(message: string): Promise<boolean>;
 }
 
 /** A failed request: the Host's plain Error with its `code` and HTTP `status` (0 when there was no answer). */

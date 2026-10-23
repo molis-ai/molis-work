@@ -3,7 +3,7 @@ import { loadJobs, ensureContext, rememberJob, schedulePoll } from "./jobs.js";
 import type { ImageJob, ImagesPage } from "./types.js";
 
 // A submission with no answer may still have reached the Host: the person is told so, and the same words reuse the same key.
-const unconfirmed = (error: unknown): boolean => statusOf(error) === 0 || (error as { code?: string } | null)?.code === "ui_host.outcome_unknown";
+const unconfirmed = (error: unknown): boolean => statusOf(error) === 0 || ["ui_host.outcome_unknown", "ui_host.invalid_response"].includes((error as { code?: string } | null)?.code || "");
 
 async function submit(page: ImagesPage): Promise<void> {
   const { s, el, L } = page;

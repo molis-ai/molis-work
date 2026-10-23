@@ -34,7 +34,7 @@ Work 扫描全部 72 个 workspace 包、开始基线的 2405 份产品 TypeScri
 | `modules/goals/src/event-state-authorization.ts` | `decisionCoversScope` |
 | `modules/goals/src/goal-contract-records.ts` | `contractInputFromGoal` |
 | `apps/local-host/src/agent-definitions/instructions.ts` | `withRegisteredPrompts` |
-| `apps/local-host/src/git-operations.ts` | `GIT_OPERATION_TOOLS` |
+| `apps/local-host/src/workspace-git-operations.ts` | `GIT_OPERATION_TOOLS` |
 | `apps/local-host/src/project-file-paths.ts` | `isWithin` |
 | `plugins/native/coding/src/route-activation.ts` | `sessionTitle` |
 | `server/src/database.ts` | `ImDatabase` |

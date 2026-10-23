@@ -31,3 +31,8 @@
 ## 4. 对调用方的影响
 
 没有：类型、值、子路径都不变，只是声明换了文件。文档里指向 Manifest 定义的地方改成 `plugin-manifest.ts`（`packages/contracts/README.md`、`docs/system/CONTRACT-CHANGES.md`、`docs/system/PARALLEL-DEVELOPMENT.md` 的枢纽表、`skills/molis-plugin-dev/elements.md` 与 `docs/platform/PLUGIN-PLATFORM.md`）；外部作者仍从公开的 `platform/plugin` 子路径导入，不新增深层入口。两处测试注释写全 `apps/local-host/src/plugin-host-services.ts`，明确说的是宿主实现，不是本片新拆出的同名合同文件。
+
+
+## 5. 本轮 CI 夹具修复
+
+CI run 40009381609 的 Rust 检查在 `context_directory_files.rs` 测试夹具建目录时返回 `AlreadyExists`，文件替换拒绝断言尚未执行。该文件与 main 相同：进程号加系统时钟不能保证同一进程并行测试拿到不同目录名。本片只为 `#[cfg(test)]` 的 `Fixture::new` 添加原子序号，继续独占 `create_dir`，每份夹具只删除自己的目录；不改生产文件访问行为、依赖或已有断言。用该模块的并行 Rust 测试与最终 CI 验证，RAC-185～187 仍只约束合同拆分。

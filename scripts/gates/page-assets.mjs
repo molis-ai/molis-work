@@ -240,6 +240,9 @@ const headErrors = (measured, budget, base) => {
 const APPROVED_CEILINGS = {
   // Issues typed client growth approved in PR #1132; rebased measurement follows review fixes.
   "/assets/molis-work-plugins/issues.js": [24145, 27750],
+  // RAC-132: carry the Manifest id into the opaque frame and supply its own plugin route (+88 bytes).
+  // Reviewed 2026-10-23: direct fields/path construction; no smaller equivalent without changing surrounding behavior.
+  "/assets/molis-work-plugin-frame.js": [191104, 191192],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

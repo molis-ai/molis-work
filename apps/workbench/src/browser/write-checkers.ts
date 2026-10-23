@@ -1,9 +1,8 @@
-import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { AgentWriteChecker, AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { writeCheckerFieldsOf, writeCheckerFromFields, writeCheckersAfter, type WriteCheckerFields } from "../scripts/write-checkers.js";
 
 /** The page's one request helper (packages/ui-host request-client): control headers, one origin, plain Errors with `code`. */
-declare const molisWorkRequest: UiRequest;
 
 type Folder = { readonly workspace_id: string; readonly display_name: string };
 type Kept = AgentWriteCheckerList;

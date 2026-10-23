@@ -42,6 +42,11 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     const registry = await openWorkSessionRegistry({ homeDirectory: home });
     const sessionId = registry.explicitlyLinkSession({ runtime_id: context.runtime_id, native_runtime_session_id: session,
       actor_id: "user", user_confirmed: true, project_id: project.project_id }).session_id;
+    registry.appendEvent({ session_id: sessionId, source: "molis_work", kind: "status",
+      source_id: "before-goals-mcp", content: "Existing Session history" });
+    // SC-1 / PG-081: Goals retain the Session author without changing its record or existing history.
+    const sessionBefore = registry.get(sessionId);
+    const eventsBefore = registry.events(sessionId);
     registry.close();
     // The Session history MCP must replay is written through the action client. The typed door is the local person.
     const input = { goal_id: "HISTORICAL-GOAL", title: "迁移前目标", outcome: "保留回执", idempotency_key: "historical-create" };
@@ -128,11 +133,6 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     const reported = await call<{ events: Array<{ actor_id: string; payload: { body: string } }>; replayed: boolean }>("molis_work_v1_action_goals.events.report__v1", reportInput);
     assert.equal(reported.events[0]?.actor_id, auditActor); assert.equal(reported.events[0]?.payload.body, "Session 作者保持");
     assert.deepEqual(await call("molis_work_v1_action_goals.events.report__v1", reportInput), { ...reported, replayed: true });
-    const inspect = await openWorkSessionRegistry({ homeDirectory: home });
-    try {
-      assert.equal(inspect.get(sessionId).current_goal_id, input.goal_id);
-      assert.equal(inspect.events(sessionId).filter(event => event.source_id === `${aliases.note}:after-migration`).length, 1);
-    } finally { inspect.close(); }
     for (const field of ["actor_id", "audit_actor_id", "runtime_session_id", "database_path", "project_id"]) {
       assert.equal((await sdk.callTool({ name: aliases.note, arguments: { ...newInput, [field]: "forged" } })).isError, true);
     }
@@ -166,6 +166,11 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
       assert.ok(JSON.parse(await management.callTool(aliases.list, {})).goals.some((goal: { goal_id: string }) => goal.goal_id === input.goal_id));
       await assert.rejects(management.callTool(aliases.create, { ...input, database_path: project.database_path, actor_id: "user" }), { code: "actions.input_invalid" });
     } finally { await management.close(); }
+    const inspect = await openWorkSessionRegistry({ homeDirectory: home });
+    try {
+      assert.deepEqual(inspect.get(sessionId), sessionBefore, "MCP calls leave the complete Session record unchanged");
+      assert.deepEqual(inspect.events(sessionId), eventsBefore, "MCP calls preserve existing Session events without adding any");
+    } finally { inspect.close(); }
   } finally {
     release?.(); await pending?.catch(() => undefined); await sdk.close();
     await served.close(); await host.close(); await rm(home, { recursive: true, force: true });

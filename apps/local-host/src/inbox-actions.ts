@@ -20,7 +20,7 @@ export function inboxActionProvider(runtime: MolisWorkProjectRuntime, home: stri
     scenes: scene ? inboxManifest.action_scenes : [], scene_handlers: scene ? [scene.handler] : [],
     handlers: [...createInboxActionHandlers({
       ...scene?.ports,
-      listEntries: () => { runtime.coordinator.goalDecisionAttention.reconcile(runtime.project_id); return feed.listInboxEntries(runtime.project_id).map(scoped); },
+      listEntries: () => feed.listInboxEntries(runtime.project_id).map(scoped),
       setStatus: (id, status, revision) => scoped(feed.setInboxEntryStatus(runtime.project_id, id, status, revision)),
       ...(home ? {
         ...createInboxPagesHandlers({
@@ -56,7 +56,7 @@ export function inboxActionProvider(runtime: MolisWorkProjectRuntime, home: stri
         }),
       } : {}),
     }), ...createInboxContentHandlers({
-      entries: () => { runtime.coordinator.goalDecisionAttention.reconcile(runtime.project_id); return feed.listInboxEntries(runtime.project_id); },
+      entries: () => feed.listInboxEntries(runtime.project_id),
       entry: id => feed.getInboxEntry(runtime.project_id, id),
       items: () => feed.snapshot(runtime.project_id).feed_items,
       sources: () => feed.snapshot(runtime.project_id).sources,

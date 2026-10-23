@@ -54,6 +54,7 @@ export {
   missingJobReason,
   readCliHelp,
   shelfRuntimeCandidates,
+  shelfRuntimeProbe,
   shelfSearchDirectories,
   supportsWorkspaceSandbox,
 } from "./runtimes.js";

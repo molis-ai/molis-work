@@ -628,6 +628,16 @@ W5-01-WORKFLOWS（Runtime 迁移，2026-10-20，分支 `migrate/workflows-runtim
 - CI 子集：`workflows-delegation.test.ts` 与 `workflows-project-deletion.test.ts` 已加入产品子集；最新必要复跑分别 11.4 s、5.1 s，Linux 静态分类无 `darwin`/`live`/`browser` 标记，清单检查通过。Linux 实跑与耗时由本次 CI 核验。
 - 真实浏览器（临时 Home、本机 Chrome）：四文件 21/21 通过——`workflows-action-steps.e2e` 2/2（真实创建 Feed → Shelf 流程、字段映射、材料写入与窄屏安全结果）、`workflows-open-object.e2e` 2/2（搜索与对象页签重新打开）、`workflows-save-ownership.e2e` 5/5（跨页面保存、CAS 冲突与显式重试）、`model-ready-surfaces.e2e` 12/12（包括 Workflows 首个文字模型就绪后的界面恢复）。整批全量、真实 Home 与用户本人验收尚未完成，由统筹保留独立状态。
 
+W5-01-GIT Git 离开 HYBRID 名单（G5，2026-10-23，③；分支 `migrate/git-g5-closeout`；前面几片是 G0 #993、GS、G1 #1025、G2a #1015、G2b #1023、G3 #1014、G4 #1019）：
+- 范围：宿主里最后三个以 Git 命名的文件改名成平台的工作区 Git 服务，和 `workspace-git.ts`、`workspace-git-index.ts`、`workspace-git-actions.ts`、`workspace-git-writers.ts` 放在一起：`git-operations.ts` → `workspace-git-operations.ts`，`git-worktrees.ts` → `workspace-git-worktrees.ts`，`git-writer-integration.ts` → `workspace-git-integration.ts`。内容不变，只改 import 路径。
+- 错误主人（T5）：写者工作树的五个码从 `git.*` 改成 `workspace_git.worktree.*`（`unavailable`、`not_a_repository`、`failed`、`not_owned`、`dirty`）；没有别的代码、测试或库按旧码分支，调用记录里的错误码只是诊断行。`tooling/gates/error-owners.json` 的 `git` 主人只留 SDK 的 `git-porcelain.ts`，三个改名的文件归 `workspace_git`。`workspace-git.ts` 与 `workspace-git-index.ts` 在 merge-base 是 `host` 的，主人表只许变严，所以留在 `host`；`workspace-git.ts` 的 `GitReadError` 只在本文件里抛、本文件里转成读取结果，不是线上的错误，不改。
+- 名单：`tests/builtin-plugin-assembly-gate.test.ts` 的 `HYBRID_RUNTIME_PLUGINS` 去掉 `git`，剩 `coding`、`shelf`。
+- 验收：
+  - `W5-01-GIT-01`：宿主里 import Git 包的文件正好是 `project-plugins.ts` 和 `coding-surface.ts`（后者是 Coding 的 Git 伙伴页，① 10-21 裁 T1 放行，C9 删它时收紧，见 privileges PG-091）；监督器不带参数调 `createGitPlugin()`；宿主没有 `gitPorts` 或 `observeGitOperations`。
+  - `W5-01-GIT-02`：`workspace-git*.ts` 不 import 任何 `@molis-ai/molis-work-plugin-*`。
+  - `W5-01-GIT-03`：真实宿主里 `projects.workspace.git.*`、`projects.workspace.writers.*` 都没有 typed 条目，Git 的四项与 writer 的四项都是只给插件调的动作。
+  - `W5-01-GIT-04`：没有以 Git 命名的宿主文件，Git 不在 HYBRID 名单里（同一测试文件的 hybrid 用例）。
+
 ### W5-03 第一片：Images 稳定翻译键与共同运行时（2026-10-17，本地验证通过，待按队列集成）
 
 收尾整合（2026-10-18，本地通过）：合入当前 Runtime、PPT/Dataset 与 Workflows Store 候选 `e55aa3545`，保留当前 Images 放入 Shelf 的 placement 路径和稳定翻译键。整体构建、API、boundary、merge-base health 与资源更新通过；5 个非浏览器文件 164 条及 2 个真实 Chrome 文件 6 条通过。资源为 25 项 7,478,980 B，较上游减少 537 B；当前中文内联 936→5,904 B（+4,968），英文 692,183→691,038 B（−1,145），仍在已批准的同一增量内。日志 `/tmp/molis-images-i18n-closeout-*.log`；最终共享全量和 PR/CI 合并仍待，不据此宣称整条 W5-03 完成。

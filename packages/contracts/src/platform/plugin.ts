@@ -1,6 +1,7 @@
 import type { BoundActionClient } from "./actions.js";
 import type { ArtifactReference } from "../modules/artifacts.js";
 export type { PluginBackgroundClient, PluginBackgroundExecution, PluginJobControl, PluginJobDeclaration, PluginKeptJob } from "./plugin-background.js";
+export type { PluginInteractionClient, PluginInteractionNextSteps, PluginInteractionStep } from "./plugin-interaction.js";
 import type { ConnectorDriver } from "../services/connector-host.js";
 import type { RawEventAdapter } from "../services/listener-host.js";
 import type { HostCapabilityDefinition } from "./app-host.js";
@@ -157,6 +158,11 @@ export interface PluginHostServices {
   /** Present when the Manifest declares `process_items.produces`. */
   readonly processItems?: PluginProcessItemClient;
   readonly ui: PluginUiClient;
+  /**
+   * The platform's question card, action card and next-step row as html, in the call's language (PG-062): what a plugin that runs
+   * an Agent's round on its own page shows the way the Assistant does. The Host gives it to every activation; no permission.
+   */
+  readonly interaction?: import("./plugin-interaction.js").PluginInteractionClient;
   /** Present when the Manifest declares published events. */
   readonly events?: PluginEventsClient;
   /** Present when the Manifest declares input ports. */
@@ -498,7 +504,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

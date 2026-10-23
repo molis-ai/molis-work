@@ -147,8 +147,8 @@ projects.workspace.writers.integration.read.v1	1	platform	query	query	project	re
 projects.workspace.writers.list.v1	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	9a87b521b034	-
 projects.workspace.writers.prepare.v1	1	platform	command	operation	project	write	-	plugin	review:git-worktree	workspace	-	-	0a2e064efc3f	3c61170ddb6e	-
 projects.workspaces.add	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	-	950c0f3c0eb8	3b9e6ac25f38	-
-projects.workspaces.repair	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	-	2bdd0f77dff7	71f9d6e31713	-
-projects.workspaces.unlink	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	-	f0b30453a779	03e95e30172e	-
+projects.workspaces.repair	2	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	-	2bdd0f77dff7	3b9e6ac25f38	-
+projects.workspaces.unlink	2	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	-	f0b30453a779	2e79bb8ddbea	-
 scenes.disable:feed.capture	1	io.molis.work.feed	command	operation	project	write	-	agent,mcp,plugin,user,workflow	feed:write	-	-	-	440ceca300ea	7606656fb550	-
 scenes.disable:home.dock	1	system.home	command	operation	project	write	-	agent,mcp,plugin,user,workflow	home:write	-	-	-	440ceca300ea	7606656fb550	-
 scenes.disable:inbox.next	1	io.molis.work.inbox	command	operation	project	write	-	agent,mcp,plugin,user,workflow	inbox:write	-	-	-	440ceca300ea	7606656fb550	-

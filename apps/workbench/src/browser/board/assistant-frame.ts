@@ -21,13 +21,15 @@ import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 type Json = Record<string, unknown>;
 type View = { work: Json & { work_id: string }; [key: string]: unknown };
 type Samples = { project: { id: string; title: string }; works: Array<Json & { work_id: string; delegated_by?: unknown }>; views: Record<string, View>; surroundings: Record<string, Json>;
-  next: Record<string, View[]>; answered: Record<string, View>; closed: Record<string, View>; recovery: Record<string, Json>; notices: Array<Json & { notice_id: string; work_id: string }> };
+  next: Record<string, View[]>; answered: Record<string, View>; closed: Record<string, View>; recovery: Record<string, Json>; notices: Array<Json & { notice_id: string; work_id: string }>;
+  /** The lines beside each field for a questionnaire answer the Runtime refuses, by question, as the Host drew them. */
+  refused: Record<string, Record<string, string>> };
 type Page = Window & { L?: (text: string, values?: Record<string, string | number>) => string; molisWorkRequest?: Pick<UiRequest, "toast"> };
 
 const page = window as Page;
 const L = (text: string, values?: Record<string, string | number>) => page.L ? page.L(text, values) : text;
 const one = <T extends Element = HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
-const data = JSON.parse(one("#mw-asst-data").textContent ?? "{}") as { samples: Samples; current: string | null };
+const data = JSON.parse(one("#mw-asst-data").textContent ?? "{}") as { samples: Samples; current: string | null; answer: "ok" | "refused" };
 const S = data.samples;
 const PREFIX = "/__ui/catalog/assistant/sample";
 
@@ -72,6 +74,17 @@ const moveOn = (id: string, next: View) => {
   return json(copy(next));
 };
 
+/**
+ * An answer takes a moment to reach the Host (simulated, so the card's busy state is seen), then the Host takes it and the round
+ * goes on, or — with 回答问卷 · 被拒 — refuses it the way the Runtime refuses a questionnaire, with a line beside the field.
+ */
+const ANSWER_MS = 900;
+const answerQuestion = (id: string, body: string | null) => new Promise<Response>((resolve) => setTimeout(() => {
+  const pending = String((JSON.parse(body ?? "{}") as { pending_id?: unknown }).pending_id ?? ""), errors = S.refused[pending];
+  if (data.answer === "refused" && errors) resolve(json({ error: L("回答没有交回（模拟）"), code: "assistant.invalid", details: { errors } }, 400));
+  else resolve(S.answered[id] ? moveOn(id, S.answered[id]!) : refuse());
+}, ANSWER_MS));
+
 const READS: Record<string, () => unknown> = {
   works: () => ({ works: copy(S.works) }), notices: () => ({ notices: copy(S.notices) }), characters: () => ({ characters: [] }),
   capabilities: () => ({ capabilities: [] }), methods: () => ({ methods: [] }), "surface-kinds": () => ({ kinds: [] }),
@@ -85,7 +98,7 @@ function answer(url: URL, method: string, body: string | null, signal?: AbortSig
   if (method === "GET" && view && parts[2] === "surroundings" && S.surroundings[id]) return json(copy(S.surroundings[id]));
   if (method === "GET" && view && parts[2] === "recovery") return json(copy(S.recovery[id] ?? { blockers: [], rounds: [] }));
   if (method === "POST" && view && parts[2] === "recovery" && S.closed[id]) return moveOn(id, S.closed[id]!);
-  if (method === "POST" && view && parts[2] === "answer" && S.answered[id]) return moveOn(id, S.answered[id]!);
+  if (method === "POST" && view && parts[2] === "answer") return answerQuestion(id, body);
   if (method === "POST" && view && parts[2] === "question-draft") return json({});
   if (method === "POST" && parts.length === 1 && parts[0] === "notices") {
     const target = JSON.parse(body ?? "{}") as { notice_id?: string; work_id?: string };

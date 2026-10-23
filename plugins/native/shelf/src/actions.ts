@@ -1,7 +1,7 @@
-import { ActionError, type ActionResultView, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionAvailability, type ActionResultView, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobOutcome, ShelfJobRecord, ShelfRecipeId, ShelfSettingsPatch, ShelfSnapshot,
-  ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput, ShelfExecutionControl, ShelfAiStatus, ShelfAdmitActionInput,
+  ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput, ShelfExecutionControl, ShelfAdmitActionInput,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { parseSettingsWriteBody, shelfErrors, SHELF_RECIPES, SHELF_SHORTCUT_RECIPE, SHELF_JOB_TIMEOUT_MS } from "@molis-ai/molis-work-module-shelf";
@@ -17,8 +17,9 @@ const record = (required: readonly string[]) => ({ type: "object", required });
 const item = record(["item_id", "group", "kind", "name", "mime", "size_bytes", "hidden", "status", "created_at"]);
 const job = record(["job_id", "recipe", "status", "item_ids", "created_at"]);
 const itemId = object({ item_id: id });
+// A write reads the shelf it changes; the files service asks each action for the permission of what it does.
 const read = ["shelf:read"], write = [...read, "shelf:write"];
-// The Home Runtime instance owns the personal store and redeems these actions.
+// The personal store belongs to the Home: Shelf's Home instance offers these, each project's instance the project ones.
 /** Clipboard history, device settings and the local folder path stay with the person at this computer. */
 const LOCAL: readonly ActionAudience[] = ["user"];
 const SHARED: readonly ActionAudience[] = ["user", "workflow", "agent", "mcp"];
@@ -77,7 +78,8 @@ export const shelfActions = {
     object({ text: { type: "string", maxLength: 2_000_000 }, concealed: { type: "boolean" }, types: { type: "array", maxItems: 50, items: { type: "string", maxLength: 200 } } }, ["text"]),
     object({ clip: { anyOf: [record(["clip_id", "kind", "title", "body"]), { type: "null" }] } }), write, LOCAL),
   deleteClip: define<{ clip_id: string }, { deleted: true }>("clipboard.delete", "删除剪贴板记录", "删除一条剪贴板历史", "command", object({ clip_id: id }), object({ deleted: { const: true } }), write, LOCAL),
-  clipToMaterial: define<{ clip_id: string }, { item: ShelfItemRecord }>("clipboard.material", "剪贴板放进 Shelf", "把一条剪贴板历史放进置物架", "command", object({ clip_id: id }), object({ item }), [...write, "materials:read", "materials:fetch"], LOCAL),
+  clipToMaterial: define<{ clip_id: string }, { item: ShelfItemRecord }>("clipboard.material", "剪贴板放进 Shelf", "把一条剪贴板历史放进置物架", "command", object({ clip_id: id }), object({ item }),
+    [...write, "materials:read", "materials:fetch", "materials:fetch_local"], LOCAL),
   searchEntries: shelfSearchEntriesAction,
   subject: shelfSubjectAction,
   files: shelfFileEntriesAction,
@@ -89,7 +91,8 @@ export const SHELF_ACTION_PERMISSIONS = [...new Set(SHELF_ACTIONS.flatMap(defini
 
 /** The personal Shelf store, bound by the Host to this Home. */
 export interface ShelfActionPorts {
-  aiStatus?(): ShelfAiStatus;
+  /** Whether a recipe can reach a model now; asked outside any action, so it reads no Shelf file and no other plugin's model list. */
+  aiAvailability?(): ActionAvailability;
   snapshot(): ShelfSnapshot | Promise<ShelfSnapshot>;
   settings(): ShelfDeviceSettings;
   saveSettings(patch: ShelfSettingsPatch): ShelfDeviceSettings | Promise<ShelfDeviceSettings>;
@@ -113,10 +116,7 @@ export interface ShelfActionPorts {
 export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandlerBinding[] {
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller),
-    ...(definition.capability_id === shelfActions.generate.capability_id && ports.aiStatus ? { availability: () => {
-      const state = ports.aiStatus!();
-      return state.available ? { available: true } : { available: false, code: "actions.connection_required", reason: state.reason ?? "请先配置 AI 模型" };
-    } } : {}),
+    ...(definition.capability_id === shelfActions.generate.capability_id && ports.aiAvailability ? { availability: () => ports.aiAvailability!() } : {}),
   });
   const bytes = (encoded: string) => {
     const decoded = Buffer.from(encoded, "base64");

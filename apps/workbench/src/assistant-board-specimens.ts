@@ -11,15 +11,17 @@ type Say = (text: string, values?: Record<string, string | number>) => string;
 
 const PARAMS: readonly BoardFrameParam[] = [
   ["lang", "界面语言", [["zh", "中文"], ["en", "English"]]],
-  ["work", "打开的工作", [["plan", "非编程 · 等你确认"], ["coding", "编程 · 进行中"], ["check", "中断 · 要核对"], ["new", "新工作"]]],
+  ["text", "正文语言", [["zh", "中文"], ["en", "English"], ["mixed", "混排"]]],
+  ["work", "打开的工作", [["plan", "非编程 · 等你确认"], ["coding", "编程 · 进行中"], ["check", "中断 · 要核对"], ["limited", "限流 · 等待重试"], ["new", "新工作"]]],
+  ["answer", "回答问卷", [["ok", "交回"], ["refused", "被拒（模拟）"]]],
   ["width", "容器", [["1280", "宽窗口"], ["760", "分屏一格"], ["390", "手机"]]],
 ];
 
-export function renderAssistantBoardSection(say: Say): string {
+export function renderAssistantBoardSection(say: Say, lang: "zh" | "en" = "zh"): string {
   return `<section class="mw-catalog__section" id="assistant" data-primitive="assistant"><h2>${escapeHtml(say("助理信息与任务"))}</h2>
-    <p class="mw-catalog__hint">${escapeHtml(say("常驻助理的生产程序放在它自己的底栏里：多项工作的标签与列表、侧栏六组（工作环境、上下文、连接与工具、产出、变更、后台任务）、一轮的过程、输入框、上下文条与附件。读到的工作是固定样例（模拟），由宿主照常画好；回答问题、核对中断的一轮与处理提醒只在这一页里生效，别的写入一律被拒绝，不碰真实的工作，也不改这台电脑上工作台记住的东西。"))}</p>
-    <div class="mw-cond-params" data-asst-params>${PARAMS.map((one) => boardFrameParam(say, one)).join("")}</div>
-    <div class="mw-asst-stage"><iframe class="mw-asst-frame" data-asst-frame src="/__ui/catalog/assistant?lang=zh&amp;work=plan" title="${escapeHtml(say("助理样例"))}" style="width:1280px" loading="lazy"></iframe></div>
+    <p class="mw-catalog__hint">${escapeHtml(say("常驻助理的生产程序放在它自己的底栏里：多项工作的标签与列表、侧栏六组（工作环境、上下文、连接与工具、产出、变更、后台任务）、一轮的过程、输入框、上下文条与附件。读到的工作是固定样例（模拟），由宿主照常画好；回答问题、核对中断的一轮与处理提醒只在这一页里生效，别的写入一律被拒绝，不碰真实的工作，也不改这台电脑上工作台记住的东西。侧栏的「用量」照这一轮的报告写：进行中、已报告、暂不可用各有一项工作；「给王一骏回邮件」的问卷可以单选、多选、写「其他」和补充，交回时按钮转圈，被拒（模拟）时说明落在那一题下面。正文语言换的是工作里的话，界面语言换的是产品的字。"))}</p>
+    <div class="mw-cond-params" data-asst-params>${PARAMS.map((one) => boardFrameParam(say, one, one[0] === "lang" ? lang : undefined)).join("")}</div>
+    <div class="mw-asst-stage"><iframe class="mw-asst-frame" data-asst-frame src="/__ui/catalog/assistant?lang=${lang}&amp;text=zh&amp;work=plan&amp;answer=ok" title="${escapeHtml(say("助理样例"))}" style="width:1280px" loading="lazy"></iframe></div>
   </section>`;
 }
 

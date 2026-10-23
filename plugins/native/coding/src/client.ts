@@ -26,6 +26,7 @@ import { createCodingCodePaint } from "./code-paint-client.js";
 import { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "./input-receipts-client.js";
 import { CODING_DRAFT_CLIENT_FACTORY_SCRIPT } from "./draft-client.js";
 import { codingQuestionAnswered } from "./question-answered-client.js";
+import { CODING_SESSION_MARKS } from "./session-marks.js";
 
 /** Host supplies navigation; this client only handles Coding's own surface. */
 export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
@@ -110,14 +111,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   let goalRows=[],goalCursor=null,goalChoice=null,goalTicket=0,goalReading=0,goalSaving=false;
   /** The header names the folder; the full path stays one hover away. */
   const showWorkspace=(path,fallback)=>{const label=q('[data-coding-workspace-label]'),name=path?path.split('/').filter(Boolean).at(-1):fallback;label.innerHTML=(path?'<svg aria-hidden="true"><use href="#icon-folder"></use></svg>':'')+'<span></span>';label.lastChild.textContent=name;label.title=path||'';label.dataset.empty=String(!path);root.dataset.codingWorkspaceName=path?name:'';turns.querySelectorAll('[data-coding-welcome-workspace]').forEach(node=>{node.textContent=path?name:L('coding.welcome.workspace');node.parentElement.title=path||'';});};
-  const SESSION_STATE={idle:L('coding.state.idle'),running:L('coding.state.running'),paused:L('coding.state.paused'),'waiting-answer':L('coding.state.waiting-answer'),'waiting-approval':L('coding.state.waiting-approval'),failed:L('coding.state.failed'),stopped:L('coding.phase.stopped'),cancelled:L('coding.state.cancelled'),'reconcile-required':L('coding.session.reconcile'),queued:L('coding.state.queued'),done:L('coding.state.done')};
-  const status=(message,error=false)=>{if(!lifetime.alive)return;const node=q('[data-coding-status]');node.textContent=message;node.dataset.error=String(error);},sessionPath=(id,run)=>'/sessions/'+encodeURIComponent(id)+(run===undefined?'':'/runs/'+encodeURIComponent(run));
+  const SESSION_MARKS=${JSON.stringify(Object.fromEntries(Object.entries(CODING_SESSION_MARKS).map(([state, mark]) => [state, [mark.label, mark.ring]])))},SESSION_STATE=Object.fromEntries(Object.entries(SESSION_MARKS).map(([state,[label]])=>[state,L(label)])),status=(message,error=false)=>{if(!lifetime.alive)return;const node=q('[data-coding-status]');node.textContent=message;node.dataset.error=String(error);},sessionPath=(id,run)=>'/sessions/'+encodeURIComponent(id)+(run===undefined?'':'/runs/'+encodeURIComponent(run));
   const api = async (path, method = 'GET', body, requestSignal) => {
     const signal=requestSignal || (method==='GET' && lifetime.visible && !viewSignal?.aborted ? viewSignal : undefined);
     const response = await lifetime.fetch(prefix + path, { method, cache:'no-store', signal,
       ...(method === 'GET' ? {} : { headers:molisWorkControlHeaders(), body:JSON.stringify(body ?? {}) }) });
     const result = await response.json();lifetime.assertCurrent(signal);
-    if (!response.ok) throw Object.assign(new Error(result.error || L('coding.error.request')),{code:result.code,details:result.details});
+    if (!response.ok) throw Object.assign(new Error((method === 'GET' && host.readRefusal?.(response.status, result.code)) || result.error || L('coding.error.request')),{code:result.code,details:result.details,status:response.status});
     return result;
   },ports={lifetime,q,api,current:()=>current,status,refresh:()=>readCurrent()};
   const ROLE_NAMES=Object.fromEntries(Object.entries({planner:'规划者',reader:'阅读者',reviewer:'评审者',coordinator:'协作',writers:'并行写入',builder:'构建者',writer:'改写者','coding-reader':'代码调查','coding-reviewer':'独立评审','coding-builder':'独立实现'}).map(([role,name])=>[role,L(name)]));
@@ -420,7 +420,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       // Two sessions under way on the same Goal may be doing the same thing twice.
       const busyStates=['running','paused','waiting-answer','waiting-approval','queued'],twin=session.goal_id&&busyStates.includes(session.state)?visible.find(other=>other!==session&&other.goal_id===session.goal_id&&busyStates.includes(other.state)):null;
       const label=(session.priority?L('coding.session.priority')+' · ':'')+(session.checkpoint_busy ? L('coding.session.rewind-pending') : SESSION_STATE[session.state] || session.state)+(session.background_unreadable?' · '+L('coding.session.background-unreadable'):'')+(holders?' · '+holders:'')+(twin?' · '+L('coding.session.twin',{title:twin.title.slice(0,16)}):'');if(mark.textContent!==label) mark.textContent=label;
-      mark.dataset.state=session.checkpoint_busy ? 'waiting-approval' : session.state; mark.dataset.mwState=session.checkpoint_busy?'verify':({running:'running',ready:'ready','waiting-answer':'answer','waiting-approval':'approval',paused:'paused',failed:'failed','reconcile-required':'verify',completed:'round-ended',stopped:'stopped',cancelled:'cancelled'})[session.state]||'idle';
+      mark.dataset.state=session.checkpoint_busy ? 'waiting-approval' : session.state; mark.dataset.mwState=session.checkpoint_busy?'verify':SESSION_MARKS[session.state]?.[1]||'idle';
       const goalKey=session.goal_id || '';let group=directoryGroups.get(goalKey);
       if(!group) {group=make('section');group.className='coding-session-group';const heading=make('h2');heading.className='mw-dir__heading';group.append(heading);directoryGroups.set(goalKey,group);}
       const groupTitle=session.goal_title || (session.goal_id ? L('coding.directory.goal-unavailable') : L('coding.directory.no-goal'));
@@ -1104,7 +1104,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(data.error) status(data.error,true);
       if(fresh && offsets.has(id)) follow.restore(offsets.get(id));
       renderDirectory(); controls();
-    } catch(error) {if(!lifetime.alive)return; if(error.name!=='AbortError'&&current===id && ticket===generation){if(error.code==='coding.session_unknown')root.dispatchEvent(new CustomEvent('molis-work:item-unreadable',{bubbles:true,detail:{itemId:id}}));status(error.message,true);taskboard.fail(id,error.message);} }
+    } catch(error) {if(!lifetime.alive)return; if(error.name!=='AbortError'&&current===id && ticket===generation){if(error.code==='coding.session_unknown' || error.status===403)root.dispatchEvent(new CustomEvent('molis-work:item-unreadable',{bubbles:true,detail:{itemId:id}}));status(error.message,true);taskboard.fail(id,error.message);} }
     finally { if(ticket===generation) loading=false; }
   };
   const select = async(id) => {

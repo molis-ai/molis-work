@@ -31,8 +31,10 @@ test("automatic recipes require a configured model; local extraction works witho
 test("every AI recipe preserves source identity, uses frozen copies, and stores the complete execution receipt", async () => fixture(async home => {
   const ai = shelfTestAi(async (input, control) => {
     await control.beforeEffect?.();
-    assert.equal(statSync(join(input.root, input.sources[0]!.relative_path)).mode & 0o222, 0);
-    assert.match(readFileSync(join(input.root, input.sources[0]!.relative_path), "utf8"), /12 万元/);
+    // The model reads the frozen copy through Shelf's own files; on disk that copy is read-only.
+    const copy = `${input.root}/${input.sources[0]!.relative_path}`;
+    assert.equal(statSync(join(home, "shelf", copy)).mode & 0o222, 0);
+    assert.match(Buffer.from(input.files.read(copy)!).toString("utf8"), /12 万元/);
     return { text: input.recipe === "extract_structure" && input.option_id === "json" ? '{"amount":120000}' : "# 摘要\n\n总价 12 万元。", execution: shelfTestReceipt };
   });
   const store = openHostShelfStore(home, { disabled: true }, materials, ai);

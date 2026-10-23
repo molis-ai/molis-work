@@ -54,7 +54,7 @@ const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
 /** `apps/local-host/src/<name>-native-plugin-http.ts` files that exist today. */
 const NATIVE_PLUGIN_HTTP_FILES: ReadonlySet<string> = new Set([
   "alchemist", "artifact", "feed", "inbox",
-  "personal", "shelf",
+  "personal",
 ]);
 
 test("every built-in catalog entry is either Runtime-assembled or on the frozen build-time list", () => {
@@ -121,8 +121,8 @@ test("the frozen lists name exactly what exists: no id, route file or Runtime pl
  * `<plugin>…ActionProvider` registered in project-host.ts, or Host files named after the plugin. A hybrid is neither the
  * Runtime shape (declarations only) nor the frozen build-time shape, and the name list above cannot see it. Frozen on
  * 2026-10-08; a plugin leaves this list when its Host code is gone, and none joins.
- *  - shelf: shelf-native-plugin-http.ts and shelf-actions.ts (its actions, Home and project alike, and its model calls are the
- *    plugin's Runtime instance since S2)
+ *  - shelf: shelf-actions.ts, the demo seed's shelf outside a Runtime action scope (its actions, Home and project alike, and its
+ *    model calls are the plugin's Runtime instance since S2, its routes the plugin's own since S3)
  *  - coding: the workspace surface adapters in the Host (coding-*.ts), the part R-03 asks to move behind declarations
  * W5-01-GIT-04: Git left with G5. What ran git for it in the Host is the platform's workspace Git service (workspace-git*.ts,
  * the projects.workspace.git.* and projects.workspace.writers.* actions only plugins call); the next test pins what is left.

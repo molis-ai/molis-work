@@ -32,36 +32,6 @@ import {
   SHELF_SETTINGS_UI_CONTRIBUTION_ID,
   type ShelfSettingsUiModel,
 } from "@molis-ai/molis-work-plugin-shelf";
-import {
-  PAGES_UI_CONTRIBUTION_ID,
-  type PagesUiModel,
-  type PagesUiSurface,
-} from "@molis-ai/molis-work-plugin-pages";
-import {
-  FORM_UI_CONTRIBUTION_ID,
-  type FormUiModel,
-  type FormUiSurface,
-} from "@molis-ai/molis-work-plugin-form";
-import {
-  DATASET_UI_CONTRIBUTION_ID,
-  type DatasetUiModel,
-  type DatasetUiSurface,
-} from "@molis-ai/molis-work-plugin-dataset";
-import {
-  PPT_UI_CONTRIBUTION_ID,
-  type PptUiModel,
-  type PptUiSurface,
-} from "@molis-ai/molis-work-plugin-ppt";
-import {
-  ALCHEMIST_UI_CONTRIBUTION_ID,
-  type AlchemistUiModel,
-  type AlchemistUiSurface,
-} from "@molis-ai/molis-work-plugin-alchemist";
-import {
-  WORKFLOWS_UI_CONTRIBUTION_ID,
-  type WorkflowsUiModel,
-  type WorkflowsUiSurface,
-} from "@molis-ai/molis-work-plugin-workflows";
 import { WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
 import { UiHost, createSurfaceRenderer, createSurfaceRenderers } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
@@ -130,30 +100,6 @@ export function renderInboxContribution(surface: InboxUiSurface, model: InboxUiM
 
 export function renderScheduleContribution(surface: ScheduleUiSurface, model: ScheduleUiModel): string {
   return renderWorkbenchContribution(SCHEDULE_UI_CONTRIBUTION_ID, surface, model);
-}
-
-export function renderPagesContribution(surface: PagesUiSurface, model: PagesUiModel): string {
-  return renderWorkbenchContribution(PAGES_UI_CONTRIBUTION_ID, surface, model);
-}
-
-export function renderFormContribution(surface: FormUiSurface, model: FormUiModel): string {
-  return renderWorkbenchContribution(FORM_UI_CONTRIBUTION_ID, surface, model);
-}
-
-export function renderDatasetContribution(surface: DatasetUiSurface, model: DatasetUiModel): string {
-  return renderWorkbenchContribution(DATASET_UI_CONTRIBUTION_ID, surface, model);
-}
-
-export function renderPptContribution(surface: PptUiSurface, model: PptUiModel): string {
-  return renderWorkbenchContribution(PPT_UI_CONTRIBUTION_ID, surface, model);
-}
-
-export function renderAlchemistContribution(surface: AlchemistUiSurface, model: AlchemistUiModel): string {
-  return renderWorkbenchContribution(ALCHEMIST_UI_CONTRIBUTION_ID, surface, model);
-}
-
-export function renderWorkflowsContribution(surface: WorkflowsUiSurface, model: WorkflowsUiModel): string {
-  return renderWorkbenchContribution(WORKFLOWS_UI_CONTRIBUTION_ID, surface, model);
 }
 
 /** The settings page asks for the settings slot itself: a contribution whose `settings` surface targets another slot is refused. */

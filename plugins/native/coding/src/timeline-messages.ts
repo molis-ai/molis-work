@@ -144,6 +144,7 @@ export const CODING_TIMELINE_MESSAGES = {
   "coding.round.more-files": { zh: "另有 {count} 个文件", en: "{count} more files" },
   "coding.round.stalled-why": { zh: "模型说了要做什么，但没有调用任何工具就结束了，所以什么都还没做。", en: "The model said what it would do, then ended without calling any tool, so nothing has been done yet." },
   "coding.round.changes": { zh: "查看变更", en: "View changes" },
+  "coding.round.changed-files": { zh: "这一轮改过的文件", en: "Files this turn changed" },
   "coding.round.commit": { zh: "提交这些改动…", en: "Commit these changes…" },
   "coding.usage-line.input": { zh: "输入", en: "Input" },
   "coding.usage-line.output": { zh: "输出", en: "Output" },

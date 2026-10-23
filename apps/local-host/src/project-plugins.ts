@@ -64,13 +64,6 @@ export function projectPluginProblem(state: ProjectPluginState, store: LocalProj
 
 const started = new WeakMap<LocalProjectDatabase, Map<string, { ports: ProjectPluginPorts; ready: Promise<ProjectPluginState> }>>();
 
-export interface ProjectStageView { readonly surface: string; readonly label: string; readonly stage: string }
-
-/**
- * Runtime stage views of the project's running plugins: the Manifest says a view sits in `stage`, and its contribution
- * renders it with the page's primitives. A plugin with no such view contributes nothing; the host keeps no per-plugin
- * renderer for the stage (PRR-12, S-20's declarative surface rule).
- */
 /** A project's plugin platform when it is already running; never starts one. */
 export async function runningProjectPlatform(store: LocalProjectDatabase, projectId: string): Promise<PluginPlatform | null> {
   const opening = started.get(store)?.get(projectId);

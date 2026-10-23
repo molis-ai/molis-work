@@ -2,6 +2,7 @@ import type { BoardSnapshot, GoalPresentationState as WebGoalStatus, GoalsDocume
 import type { FeedSnapshot, FeedSourceCatalogView, FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
 import type { ScheduleConversationTaskView, ScheduleJobView } from "@molis-ai/molis-work-plugin-schedule";
 import type { WebProjectNavigation } from "./settings-navigation.js";
+import type { UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 export interface MolisWorkWebView {
   /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
   pane_plugin?: string;
@@ -14,6 +15,8 @@ export interface MolisWorkWebView {
    */
   plugin_panels?: Readonly<Record<string, string>>;
   plugin_stages?: readonly string[];
+  /** Host-owned failures render as static text, without activating a plugin page. */
+  unavailable_plugin_stages?: readonly UnavailablePluginStage[];
   /** Contribution ids already rendered by a host stage path; the Manifest fallback skips them. */
   plugin_stage_ids?: readonly string[];
   /** Rail entries for plugins installed at run time; each has a stage in plugin_stages. */

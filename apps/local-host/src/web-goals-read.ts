@@ -38,13 +38,13 @@ const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "ins
  */
 async function projectPluginStages(ports: CodingSurfacePorts, view: MolisWorkWebView,
   configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[] },
-  model: (projectPluginId: string, view: MolisWorkWebView) => unknown): Promise<{ html: string[]; ids: string[] }> {
+  model: (projectPluginId: string, view: MolisWorkWebView) => unknown) {
   const record = await ensureProjectPlugins(ports);
   const builtin = await builtinStagePanels(ports, configuration.plugins);
   const runtime = renderProjectRuntimeStages(record, ports.store, { shown: shownProjectPlugins(configuration.plugins, configuration.hidden),
     drawn: [...view.plugin_stage_ids ?? [], ...builtin.ids], model: projectPluginId => model(projectPluginId, view) });
   const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) } });
-  return { html: [characters, ...builtin.html, ...runtime.html], ids: [...builtin.ids, ...runtime.ids] };
+  return { html: [characters, ...builtin.html, ...runtime.html], ids: [...builtin.ids, ...runtime.ids], unavailable: runtime.unavailable };
 }
 export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
@@ -153,7 +153,7 @@ export function createLocalGoalsReadHttp(ports: {
             routePrefix: view.route_prefix,
           };
           const builtinStages = await projectPluginStages(surfacePorts, view, projectConfiguration, declaredStageModel);
-          view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtinStages.html], plugin_stage_ids: [...(view.plugin_stage_ids ?? []), ...builtinStages.ids] };
+          view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtinStages.html], plugin_stage_ids: [...(view.plugin_stage_ids ?? []), ...builtinStages.ids], unavailable_plugin_stages: [...(view.unavailable_plugin_stages ?? []), ...builtinStages.unavailable] };
           // Installed execution supplies rail entries and stages independently of opening the authoring studio.
           const installed = await installedPluginStages({ store, projectId: options.projectId, homeDirectory, routePrefix: view.route_prefix,
             models: async () => homeDirectory ? configuredModelChoices(homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID, actions: pluginServices.actions,

@@ -238,14 +238,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // A refused step in plain words (user 2026-10-23 ⑤, slice 110): the Assistant's step detail says the sort of failure and
-  // each field with the rule it broke, from the Host's classification, and folds the runtime's own text under 原始说明. The
-  // eleven sorts and four rules are words the page must hold: 1189644 → 1190721 (+1077). The fold's two rules ship in each
-  // sheet that carries the Assistant's process styles: +232 each.
-  "/assets/molis-work-workbench.js": [1189644, 1190721],
-  "/assets/molis-work-workbench.css": [1614322, 1614554],
-  "/assets/molis-work-settings.css": [995885, 996117],
-  "/assets/molis-work-arrival.css": [705437, 705669],
+  // Importing one directory twice must keep one source id (PR #901's review): the page sends the granted directory's
+  // canonical root as the source locator; the grant id changes on every pick, so the locator string (22 bytes) and the
+  // passing argument (6 bytes) are the growth. There is no shorter spelling that still tells Host's roots apart:
+  // 24090 → 24118 (+28).
+  "/assets/molis-work-plugins/cognia.js": [24090, 24118],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

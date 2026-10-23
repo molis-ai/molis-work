@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, runWithLocale, L, NEXT_STEP, agentQuestionHtml, assistantCardHtml } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, runWithLocale, L, NEXT_STEP, agentQuestionHtml, assistantCardHtml, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { CODING_NEXT_STEP, codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
 import { actionCardView, type ActionCard } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionLocale, ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -49,7 +49,7 @@ test("PG062-11, PG062-12: Coding's routes answer its page with its questions, ca
     run("ask", "awaiting-input", { awaiting_input: [question], offers: [offer] }),
     run("fixed", "reconcile-required", { activity: [{ call_id: "w1", name: "edit", target: "src/a.ts", state: "completed", summary: "", at: null }] } as Partial<AgentRunView>),
   ];
-  const host = () => ({ store, homeDirectory: home, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
+  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: home, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const values = args as ReadonlyArray<{ session_id?: string; run_id?: string }>;

@@ -9,6 +9,7 @@ import { pluginManifestDigest } from "./identity.js";
 import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow, validateInstalledManifest } from "./install-rules.js";
 import { pluginActionProvider } from "./action-provider.js";
 import { outsidePluginAction } from "./action-scope.js";
+import { OfferedContributions } from "./offered-contributions.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
 import { assertRecoverableState, assertRequiredGrants, cloneRecord, definitionKey, installIdentity, normalizeErrorCode, safeErrorCode, safeErrorMessage, sameStrings, validateManifest } from "./runtime-rules.js";
@@ -110,7 +111,7 @@ export const packageDescriptor = {
 
 export class PluginRuntime implements PluginRuntimeApi {
   private readonly definitions = new Map<string, PluginDefinition>();
-  private readonly contributions = new Map<string, PluginContribution>();
+  private readonly contributions = new OfferedContributions();
   private readonly contexts = new Map<string, { context: PluginStartContext; revoke(): void }>();
   /** Serializes lifecycle mutations for one install so start cannot overlap stop. */
   private readonly operations = new Map<string, Promise<void>>();
@@ -440,7 +441,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         updated_at: this.now(),
       };
       this.repository.save(updated);
-      this.contributions.set(installId, handle.contribution);
+      this.contributions.set(installId, handle.contribution, definition.manifest);
       return this.receipt("start", updated, false);
     } catch (error) {
       this.revokeContext(installId);
@@ -565,7 +566,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         updated_at: this.now(),
       };
       this.repository.save(updated);
-      this.contributions.set(installId, handle.contribution);
+      this.contributions.set(installId, handle.contribution, definition.manifest);
       return this.receipt("recover", updated, false);
     } catch (error) {
       this.revokeContext(installId);

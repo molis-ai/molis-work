@@ -434,6 +434,8 @@ export declare function instantIn(day: string, time: string, zone: string | unde
 
 export { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
+export declare function isCodedFailure(error: unknown): boolean;
+
 export declare function isHomeAggregateQuery(definition: {
     readonly operation: string;
     readonly action: object;

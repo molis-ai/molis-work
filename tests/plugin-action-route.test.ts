@@ -69,9 +69,9 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
     assert.equal(contexts[1]!.services!.capabilities!.availability(backend).available, true);
     assert.equal(await within(old.invoke(action, { value: 7 })), PENDING);
     assert.equal(await within(old.discover()), PENDING);
-    // The Host routes requests to the running activation only. Held directly, the crashed activation's route calls through its
-    // refused client, outside every call, so it never answers either; the action does not run (`calls` below).
-    assert.equal(await within(route.handle(request("owner", { value: 7 }))), PENDING);
+    // BL-403: the Host routes requests to the running activation only. Held directly, the crashed activation's route is refused by
+    // the Runtime with 403 before its handler runs; the action does not run (`calls` below).
+    assert.equal((await route.handle(request("owner", { value: 7 }))).status, 403);
     assert.deepEqual(await contexts[1]!.services!.actions!.invoke(action, { value: 3 }), { doubled: 6 });
     assert.equal(calls, 2);
     await runtime.stop(installed.install_id);

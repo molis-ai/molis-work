@@ -26,6 +26,20 @@ function staged(home: string, id: string, kind: "files" | "texts" | "notes", sha
   return join(journeyDirectory(home, id), kind, sha256);
 }
 
+/** No room left on the disk: a failure of the machine, not of the file, so reading stops there and goes on at that file later. */
+export function diskFull(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  return code === "ENOSPC" || code === "EDQUOT";
+}
+
+/** Why a file the Host could not hold whole was not read, in the person's words rather than Node's; null for any other failure. */
+export function unreadableReason(error: unknown): string | null {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === "ERR_FS_FILE_TOO_LARGE") return "文件超过 2 GB，暂时读不出正文；请拆分后再选";
+  if (code === "ERR_STRING_TOO_LONG") return "正文太长，一次读不出来；请拆分后再选";
+  return null;
+}
+
 /** Streams one file into the journey's staging under its digest; the same bytes twice are one file. No size limit. */
 export async function stageContextUpload(home: string, id: string, body: Readable | Buffer): Promise<{ sha256: string; size_bytes: number }> {
   const directory = join(journeyDirectory(home, id), "files");

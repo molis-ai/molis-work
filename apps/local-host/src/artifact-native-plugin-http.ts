@@ -10,7 +10,7 @@ import { PAGES_READABLE_FILE } from "@molis-ai/molis-work-plugin-pages";
 import type { BoundActionClient, HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import {
-  ARTIFACTS_PLUGIN_ID, artifactsErrors, documentErrors, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf, readArtifactOriginal,
+  ARTIFACTS_PLUGIN_ID, artifactsErrors, documentErrors, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf, openArtifactOriginal,
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { artifactWorkbench, artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, type ArtifactTypeDeclaration } from "@molis-ai/molis-work-app-workbench";
@@ -184,12 +184,12 @@ export function createLocalArtifactHttp() {
         const view = await context.actions.invoke(artifactsActions.browser, { reference: route.reference,
           supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1 }] });
         const file = importedFileOf(view.selected);
-        const bytes = !file ? null : file.stored ? await readArtifactOriginal(context.homeDirectory, context.projectId, file.stored) : file.bytes;
-        if (!file || !bytes) throw artifactsErrors.file_missing("这个版本没有可取回的文件");
+        const stream = file?.stored ? await openArtifactOriginal(context.homeDirectory, context.projectId, file.stored) : null;
+        if (!file || (file.stored && !stream)) throw artifactsErrors.file_missing("这个版本没有可取回的文件");
         response.writeHead(200, { "content-type": file.mime, "cache-control": "no-store", "x-content-type-options": "nosniff",
           "content-security-policy": "default-src 'none'; sandbox",
           "content-disposition": `${file.inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.filename)}` });
-        response.end(bytes);
+        if (file.stored) await pipeline(stream!, response); else response.end(file.bytes);
         return true;
       }
       if (route.kind === "export") {

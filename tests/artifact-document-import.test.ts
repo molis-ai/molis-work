@@ -539,3 +539,24 @@ test("S-55 an import reads no file the request names: a path header, a body fiel
   assert.equal(field.status, 400, "a path in the input is not a field the import takes");
   assert.throws(() => artifactOriginalPath(directory, DEMO_PROJECT_ID, "../../secret.txt"), /invalid original digest/);
 });
+
+// A file too big to hold in memory (review 2026-10-22): the original is still kept whole in the store and the import says its text was
+// not read, instead of failing on Node's 2 GiB read limit.
+test("ONB-LIM-08 an original over 2 GB is kept whole without its text, and the import says so instead of failing", async t => {
+  const { coordinator } = await fixture(t);
+  const stored = { sha256: "a".repeat(64), size_bytes: 3_000_000_000 };
+  let readText = 0;
+  const ports: ArtifactDocumentImportPorts = {
+    projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: "/projects/current", artifacts: coordinator.artifacts,
+    readExternal: async () => { throw new Error("a file import reads no external document"); },
+    readHtml: () => { throw new Error("a file import of a video reads no HTML"); },
+    readFileText: async () => { readText++; return { text: "never", warnings: [] }; },
+    offered: { size_bytes: stored.size_bytes, store: async () => stored,
+      read: async () => { throw Object.assign(new RangeError("File size (3000000000) is greater than 2 GiB"), { code: "ERR_FS_FILE_TOO_LARGE" }); } },
+  };
+  const result = await importArtifactDocument({ source: "file", filename: "录像.mov", original_file: { filename: "录像.mov", mime: "video/quicktime" } }, ports);
+  assert.equal(readText, 0, "no text is read from bytes the Host could not hold");
+  assert.deepEqual(result.warnings, ["文件超过 2 GB，没有读取正文；原件完整保存。"]);
+  const original = (coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)!.payload as { original_file: Record<string, unknown> }).original_file;
+  assert.deepEqual([original.sha256, original.size_bytes], [stored.sha256, stored.size_bytes]);
+});

@@ -11,7 +11,7 @@ export type { ArtifactBrowserUiModel } from "./browser-ui.js";
 export { ARTIFACT_EN } from "./en.js";
 export { importArtifactDocument, documentErrors, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, EXTERNAL_DOCUMENT_SOURCES } from "./document-import.js";
 export type { ArtifactDocumentImportPorts, ArtifactOriginalFile, ImportedArtifactDocument, ExternalDocumentSource, ModelRequired, OfferedOriginal } from "./document-import.js";
-export { ARTIFACT_ORIGINAL_INLINE_MAX_BYTES, ARTIFACTS_HOME_STORE, artifactOriginalPath, artifactsProjectData, purgeArtifactOriginals, readArtifactOriginal, storeArtifactOriginal } from "./original-store.js";
+export { ARTIFACT_ORIGINAL_INLINE_MAX_BYTES, ARTIFACTS_HOME_STORE, artifactOriginalPath, artifactsProjectData, openArtifactOriginal, purgeArtifactOriginals, storeArtifactOriginal } from "./original-store.js";
 export type { StoredArtifactOriginal } from "./original-store.js";
 export { ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT } from "./goal-input-client.js";
 export { ARTIFACT_WORKS_CLIENT_SCRIPT } from "./works-client.js";

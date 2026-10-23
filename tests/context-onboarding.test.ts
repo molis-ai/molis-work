@@ -472,3 +472,27 @@ test('ONB-LIM-04 a file over 6 MB with over 2 MB of text reaches adoption whole:
   assert.equal(payload.original_file.data_base64,undefined,'over 6 MB, the original is kept by reference');
   assert.equal(payload.original_file.size_bytes,Buffer.byteLength(big));assert.equal(payload.original_file.sha256,createHash('sha256').update(big).digest('hex'));
 });
+
+// A full disk is the machine's failure, not a file's (review 2026-10-22): the round stops at that file with a plain reason instead of
+// marking it and every later file skipped, and 继续整理 goes on from it once there is room.
+test('ONB-LIM-07 a full disk stops the round at the file it hit, and continuing reads on from that file with nothing skipped', async t => {
+  const dir = await home(t), id = randomUUID();
+  withContextJourneys(dir, s => s.create(id));
+  selectContextSources(dir, id, { sources: [{ kind: 'browser', selected: true, text: 'unused: readSource answers' }] });
+  let full = true;
+  const files = () => [{ path: 'a.md', bytes: Buffer.from('# A\n\nFirst fact.') },
+    { path: 'b.md', get bytes() { if (full) throw Object.assign(new Error('ENOSPC: no space left on device, write'), { code: 'ENOSPC' }); return Buffer.from('# B\n\nSecond fact.'); } },
+    { path: 'c.md', bytes: Buffer.from('# C\n\nThird fact.') }];
+  const ports = { ...pagesPorts(dir), readSource: async () => ({ name: 'test', locator: 'upload', files: files() }), model: async () => ({ completeText: async () => '# Work\nFirst fact. [S1]' }) };
+  startContextJourney(dir, id, ports);
+  const stopped = await waitContextJourney(dir, id);
+  assert.equal(stopped.phase, 'failed'); assert.match(stopped.error!, /磁盘空间不足/);
+  assert.equal(stopped.sources[0]!.reading?.done, 1, 'the checkpoint stands at the file the disk stopped');
+  assert.equal(stopped.sources[0]!.issues, undefined, 'no file is marked skipped for the disk');
+  full = false;
+  startContextJourney(dir, id, ports);
+  const done = await waitContextJourney(dir, id);
+  assert.equal(done.phase, 'review', done.error ?? '');
+  assert.deepEqual(done.sources[0]!.references!.map(ref => ref.path), ['a.md', 'b.md', 'c.md']);
+  assert.deepEqual(done.sources[0]!.issues, []);
+});

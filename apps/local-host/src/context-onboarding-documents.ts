@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readWholeMaterial } from "./material-extraction.js";
 import type { ContextReference, ContextSourceKind, ImportFile } from "./context-onboarding-store.js";
-import { readStagedFile, stageContextText, stageContextUpload } from "./context-onboarding-staging.js";
+import { diskFull, readStagedFile, stageContextText, stageContextUpload, unreadableReason } from "./context-onboarding-staging.js";
 
 const MIME: Record<string, string> = { pdf: "application/pdf", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   html: "text/html", htm: "text/html", md: "text/markdown", markdown: "text/markdown" };
@@ -31,7 +31,9 @@ export async function prepareContextDocument(home: string, journeyId: string, ki
       original: { filename, mime: MIME[extension] ?? "text/plain", sha256, size_bytes: bytes.length } } };
   } catch (error) {
     signal?.throwIfAborted();
+    // A full disk is not this file's fault: the round stops and goes on at this file once there is room.
+    if (diskFull(error)) throw error;
     const message = error instanceof Error ? error.message : "无法读取文件";
-    return { issue: { path: file.path, reason: /password/iu.test(message) ? "PDF 已加密，请解密后导入" : message.slice(0, 600) } };
+    return { issue: { path: file.path, reason: unreadableReason(error) ?? (/password/iu.test(message) ? "PDF 已加密，请解密后导入" : message.slice(0, 600)) } };
   }
 }

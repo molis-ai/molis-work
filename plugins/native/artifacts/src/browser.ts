@@ -107,7 +107,7 @@ const INLINE_IMAGE = /^image\/(?:png|jpeg|gif|webp|avif)$/u;
 /**
  * An imported version's file (specs/artifact-positioning A3): the original bytes when one was kept inline, else the text it was
  * read into; an original kept in the 成果库's store (`stored`, over 6 MB) has no bytes here, its reader is the Host's
- * (`readArtifactOriginal`), and `text` is what was read out of it. Null when the version is not an available imported document.
+ * (`openArtifactOriginal`), and `text` is what was read out of it. Null when the version is not an available imported document.
  */
 export function importedFileOf(artifact: ArtifactVersionRecord | null): { filename: string; mime: string; inline: boolean } & (
   { bytes: Buffer; stored?: undefined } | { stored: { sha256: string; size_bytes: number }; text: string }) | null {

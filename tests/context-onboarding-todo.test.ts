@@ -9,7 +9,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
-import { adoptContextJourney, selectContextSources, stageContextFile, startContextJourney, waitContextJourney } from "../apps/local-host/dist/context-onboarding-service.js";
+import { adoptContextJourney, reopenContextJourney, selectContextSources, stageContextFile, startContextJourney, waitContextJourney } from "../apps/local-host/dist/context-onboarding-service.js";
 import { modelPromptText, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
 const MAIL = "小王你好，请周五前发新版方案，预算等小李确认。另外，下周的团建改到周四，大家知悉。";
@@ -112,4 +112,23 @@ test("ONB-LIM-05 todo drafts come in batches of 50 materials, a long one in part
   assert.equal(adopted.phase, "complete", adopted.error ?? "");
   assert.equal(adopted.todo?.added?.length, kept.length, "the kept drafts of every batch are added");
   assert.deepEqual(adopted.adoption!.todo_selected, kept, "only this round's drafts can be kept");
+});
+
+// Drafts belong to the materials they came from (review 2026-10-22): after the person goes back and chooses other materials, the
+// drafts are made again from those, not kept from the first choice nor mixed with its batches.
+test("ONB-LIM-06 after the person chooses other materials, the todo drafts are made again from them", async t => {
+  const prompts: string[] = [];
+  const { dir, id, ports } = await fixture(t, async input => { prompts.push(modelPromptText(input)); return TODOS; });
+  startContextJourney(dir, id, ports);
+  const first = await waitContextJourney(dir, id);
+  assert.equal(first.todo?.status, "ready", first.todo?.error ?? "");
+  reopenContextJourney(dir, id);
+  selectContextSources(dir, id, { sources: [{ kind: "browser", selected: true, text: "第二封：请周一前交预算表。" }] });
+  startContextJourney(dir, id, ports);
+  const second = await waitContextJourney(dir, id);
+  assert.equal(second.todo?.status, "ready", second.todo?.error ?? "");
+  assert.equal(prompts.length, 2, "the new materials are organized");
+  assert.ok(prompts[1]!.includes("请周一前交预算表"), "from the materials chosen now");
+  assert.equal(second.todo!.batches.length, 1);
+  assert.notEqual(second.todo!.batches[0]!.batch_id, first.todo!.batches[0]!.batch_id, "not the first choice's drafts");
 });

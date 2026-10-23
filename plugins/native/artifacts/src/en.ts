@@ -126,6 +126,7 @@ export const ARTIFACT_EN: Record<string, string> = {
   "文件包含二进制内容，请使用 UTF-8 文本导出": "The file contains binary content. Export it as UTF-8 text",
   "文档标题无效": "Invalid document title",
   "正文超过 2 MB，只保留了开头部分；原件完整保存。": "The text is over 2 MB, so only its beginning is kept; the original file is saved whole.",
+  "文件超过 2 GB，没有读取正文；原件完整保存。": "The file is over 2 GB, so its text was not read; the original file is saved whole.",
   "PDF 里只读出了部分文字（扫描页没有文字层）；原件完整保存。": "Only part of the PDF's text could be read (scanned pages have no text layer); the original file is saved whole.",
   "这份 PDF 没有可读的文字层，只保存了原件。": "This PDF has no readable text layer; only the original file is saved.",
   "没能读出这个文件的正文，只保存了原件。": "The text of this file could not be read; only the original file is saved.",

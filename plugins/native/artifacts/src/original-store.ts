@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, readFile, rename, rm, stat } from "node:fs/promises";
+import { createReadStream, createWriteStream, type ReadStream } from "node:fs";
+import { mkdir, open, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
@@ -53,13 +53,15 @@ export async function storeArtifactOriginal(home: string, projectId: string, sou
   } finally { await rm(temporary, { force: true }); }
 }
 
-/** The bytes of a stored original, or null when the store no longer has it (the version then says its file is missing). */
-export async function readArtifactOriginal(home: string, projectId: string, original: StoredArtifactOriginal): Promise<Buffer | null> {
-  const path = artifactOriginalPath(home, projectId, original.sha256);
-  try {
-    if ((await stat(path)).size !== original.size_bytes) return null;
-    return await readFile(path);
-  } catch { return null; }
+/**
+ * A stored original to send on, as a stream (any size, never whole in memory), or null when the store no longer has it as the version
+ * names it (the version then says its file is missing).
+ */
+export async function openArtifactOriginal(home: string, projectId: string, original: StoredArtifactOriginal): Promise<ReadStream | null> {
+  const handle = await open(artifactOriginalPath(home, projectId, original.sha256), "r").catch(() => null);
+  if (!handle) return null;
+  if ((await handle.stat()).size !== original.size_bytes) { await handle.close(); return null; }
+  return handle.createReadStream();
 }
 
 /** The project is deleted: its stored originals go. Idempotent; works on the files, so any process on the Home can run it. */

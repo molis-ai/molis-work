@@ -89,6 +89,7 @@ export const ARRIVAL_EN: Record<string, string> = {
   "读取规则": "How reading works",
   "不限份数和大小：文件逐份上传、排队读取，长文全文读入。PDF 读取文本层，Word 读取正文；单个文件失败会保留原因，不影响其他文件。只做本次整理，不自动持续同步。": "No limit on how many files or how big: each file is uploaded on its own and read in turn, long ones in full. PDFs are read from their text layer, Word files from their body; a file that fails keeps its reason and doesn't stop the others. This reads once and doesn't keep syncing.",
   "读取所选时间内最近的 20 封邮件。": "The 20 most recent emails in the chosen time are read.",
+  "正在上传文件；上传完成前请留在此页，之后就可以离开。": "Uploading files. Stay on this page until the upload finishes; after that you can leave.",
   "材料较多，开始后排队逐份读取；可以离开此页，回来时从断点继续。": "That's a lot of material: once you start, the files are read one at a time. You can leave this page and pick up where it left off.",
   "材料较多，排队逐份读取；可以离开此页，回来时从断点继续。": "That's a lot of material, read one file at a time. You can leave this page and pick up where it left off.",
   "可以离开此页，回来时从断点继续。": "You can leave this page and pick up where it left off.",

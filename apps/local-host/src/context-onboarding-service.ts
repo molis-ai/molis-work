@@ -8,7 +8,7 @@ import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
 import { withContextJourneys, type ContextJourney, type ContextReference } from "./context-onboarding-store.js";
 import { contextFilePath, contextSources, readContextSource } from "./context-onboarding-sources.js";
-import { dropStagedNotes, readStagedNote, readStagedText, removeJourneyStaging, stageContextUpload, stageNote, stagedFilePath, isStagedDigest } from "./context-onboarding-staging.js";
+import { diskFull, dropStagedNotes, readStagedNote, readStagedText, removeJourneyStaging, stageContextUpload, stageNote, stagedFilePath, isStagedDigest } from "./context-onboarding-staging.js";
 import { configuredTextPort, type TextModelPort } from "./configured-text-port.js";
 import { prepareContextDocument } from "./context-onboarding-documents.js";
 import { ARTIFACTS_PLUGIN_ID, artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
@@ -18,6 +18,7 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { TODO_ORGANIZE_MATERIAL_CHARS, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { L } from "./web-locale.js";
+import { hostLog } from "./host-log.js";
 
 export interface ContextOnboardingPorts {
   withCatalog: LocalWebCatalogRunner;
@@ -80,7 +81,9 @@ export async function stageContextFile(home: string, id: string, path: unknown, 
   if (journey.requires_reselection) throw new Error(journey.error!);
   if (journey.phase !== "selecting" || journey.adoption) throw new Error("整理已经开始；请返回清单调整范围");
   const name = contextFilePath(path);
-  const staged = await stageContextUpload(home, id, body);
+  const staged = await stageContextUpload(home, id, body).catch(error => {
+    throw diskFull(error) ? new Error("磁盘空间不足，这份文件没有存下。腾出空间后再上传。") : error;
+  });
   return { path: name, staged: staged.sha256, size_bytes: staged.size_bytes };
 }
 /** The whole text read out of one of this round's materials (the cite dialog shows it); only a material of this journey. */
@@ -129,14 +132,20 @@ async function organize(home: string, journey: ContextJourney, ports: ContextOnb
         const input = await (ports.readSource ?? readContextSource)(home, source);
         const reading = source.reading?.total === input.files.length ? source.reading : { done: 0, total: input.files.length, references: [], issues: [] };
         source.reading = reading; save();
+        // The checkpoint is written every 100 files or every second, whichever comes first: the row holds every reference so far, so a
+        // write per file would cost the square of the file count. A restart reads those few files again, which staging makes cheap.
+        let saved = Date.now();
         for (const file of input.files.slice(reading.done)) {
           const read = await prepareContextDocument(home, journey.id, source.kind, file);
           if ("reference" in read) reading.references.push(read.reference); else reading.issues.push(read.issue);
-          reading.done++; save();
+          reading.done++;
+          if (reading.done % 100 === 0 || Date.now() - saved >= 1000) { save(); saved = Date.now(); }
         }
         source.references = reading.references; source.issues = reading.issues; source.skipped = reading.issues.length;
         source.reading = undefined; source.files = undefined; source.text = undefined;
       } catch (error) {
+        // The disk is full: the whole round stops at this file, and 继续整理 goes on from it.
+        if (diskFull(error)) throw new Error("磁盘空间不足，已读取的材料仍在。腾出空间后点「继续整理」，会从这份文件接着读。");
         source.error = error instanceof Error ? error.message : "读取失败，请重试";
       }
       save();
@@ -285,17 +294,20 @@ async function* todoBatches(home: string, id: string, references: ContextReferen
  * overview.
  */
 async function draftTodos(home: string, journey: ContextJourney, references: ContextReference[], ports: ContextOnboardingPorts, save: () => unknown): Promise<void> {
-  if (!ports.homeActions || journey.todo?.status === "ready") return;
+  if (!ports.homeActions) return;
+  // Batches belong to the materials they came from; after the person chose again, the drafts start over.
+  const key = createHash("sha256").update(JSON.stringify(references.map(r => [r.source_id, r.version]))).digest("hex").slice(0, 16);
+  if (journey.todo?.key === key && journey.todo.status === "ready") return;
   let total = 0;
   for await (const _ of todoBatches(home, journey.id, references)) total++;
-  const todo: NonNullable<ContextJourney["todo"]> = journey.todo = { status: "pending", batches: journey.todo?.batches ?? [], total, error: null }; save();
+  const todo: NonNullable<ContextJourney["todo"]> = journey.todo = { status: "pending", key, batches: journey.todo?.key === key ? journey.todo.batches : [], total, error: null }; save();
   try {
     let index = 0;
     for await (const materials of todoBatches(home, journey.id, references)) {
       if (++index <= todo.batches.length) continue;
       // The journey id and the batch number make a retried pass return the same drafts instead of organizing twice.
       const { batch } = await ports.homeActions(home, AbortSignal.timeout(20 * 60_000)).invoke(todoOrganizeActions.extract, { origin: "onboarding",
-        title: total > 1 ? L("开始使用时整理的待办（第 {k} / {n} 批）", { k: index, n: total }) : L("开始使用时整理的待办"), request_id: `onboarding:${journey.id}:${index}`, materials });
+        title: total > 1 ? L("开始使用时整理的待办（第 {k} / {n} 批）", { k: index, n: total }) : L("开始使用时整理的待办"), request_id: `onboarding:${journey.id}:${key}:${index}`, materials });
       todo.batches.push(batch); save();
     }
     todo.status = "ready";
@@ -391,9 +403,13 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
       }
       await adoptTodoDrafts(journey, actions);
       completeMolisWorkOnboarding(home, journey.project_id); journey.phase = "complete"; journey.error = null;
-      // The project now holds the materials; what the round staged goes.
-      await removeJourneyStaging(home, id);
-    } catch (error) { journey.phase = "failed"; journey.error = error instanceof Error ? error.message : "项目保存未完成，请重试"; }
+      // The project now holds the materials; what the round staged goes. The project is made either way: a staging that cannot be
+      // removed now is only space, and must not turn a finished project back into a failure.
+      await removeJourneyStaging(home, id).catch(error => hostLog.warn("onboarding", "staging_not_removed", error));
+    } catch (error) {
+      journey.phase = "failed";
+      journey.error = diskFull(error) ? "磁盘空间不足，项目没有保存完；确认的内容仍在。腾出空间后可以继续保存。" : error instanceof Error ? error.message : "项目保存未完成，请重试";
+    }
     withContextJourneys(home, store => store.save(journey));
   }).finally(() => running.delete(key(home, id)));
   running.set(key(home, id), job); await job;

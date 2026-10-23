@@ -231,7 +231,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function scopeView() {
     const total = selectionTotal(), missing = picked().some(s => !previewReady(s)), queued = total.count > QUEUED.count || total.bytes > QUEUED.bytes;
     const left = question(L('确认这次读取的范围'), L(picked().some(s => s.references?.length) ? '沿用已暂存正文，新选文件只显示信息。' : '取消不需要的文件；开始后才读取正文。')) + errorLine(error)
-      + (queued ? note(L('材料较多，开始后排队逐份读取；可以离开此页，回来时从断点继续。'), 'clock') : '')
+      + (uploading ? note(L('正在上传文件；上传完成前请留在此页，之后就可以离开。'), 'clock') : queued ? note(L('材料较多，开始后排队逐份读取；可以离开此页，回来时从断点继续。'), 'clock') : '')
       + modelLine() + note(L(config.ai_available ? '开始后读取选中正文并发给所选模型；原文件保持原样。' : '开始后读取选中正文，暂存在本机；原文件保持原样。'), 'shield')
       + (picked().some(s => s.kind === 'gmail') ? note(L('读取所选时间内最近的 20 封邮件。'), 'mail') : '')
       + collapsible(L('读取规则'), '<p>' + L('不限份数和大小：文件逐份上传、排队读取，长文全文读入。PDF 读取文本层，Word 读取正文；单个文件失败会保留原因，不影响其他文件。只做本次整理，不自动持续同步。') + '</p>');
@@ -528,9 +528,10 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
         // No limits (2026-10-22): each chosen file goes up on its own into the round's staging, and the selection names it by digest.
         const chosen=directory(s)?included(s):uploads.has(s.kind)?uploads.get(s.kind).filter(file=>included(s).some(f=>f.path===(file.webkitRelativePath||file.name))):[];
         if(!chosen.length)continue;
-        s.files=[];
+        // The whole page is drawn again for a new count at most four times a second, so thousands of files do not redraw thousands of times.
+        s.files=[];let drawn=0;
         try{for(const [index,item] of chosen.entries()) {
-          uploading={k:index+1,n:chosen.length};render();
+          uploading={k:index+1,n:chosen.length};if(Date.now()-drawn>=250){drawn=Date.now();render();}
           const file=directory(s)?(await invoke('context_directory_read',{id:s.kind,files:[item]})).files[0]:{path:item.webkitRelativePath||item.name,blob:item};
           if(!file.blob&&!file.data){s.files.push({path:file.path,reason:file.reason||L('无法读取文件')});continue;}
           const blob=file.blob||new Blob([Uint8Array.from(atob(file.data),c=>c.charCodeAt(0))]);

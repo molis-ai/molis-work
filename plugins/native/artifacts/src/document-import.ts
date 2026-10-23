@@ -158,11 +158,17 @@ async function readFileDocument(input: Record<string, unknown>, ports: Pick<Arti
   if (!extension) {
     const { original, bytes } = await originalFileOf(input.original_file, ports.offered);
     // The Host reads the text of what it can (PDF, DOCX); the original stays the snapshot, and its text is what agents find and read.
-    const read = await ports.readFileText?.({ filename, bytes: await bytes() }) ?? null;
+    // A file too big to hold in memory (over 2 GB) is still kept whole in the store; only its text is not read.
+    const held = ports.readFileText ? await bytes().catch(error => {
+      if ((error as { code?: unknown } | null)?.code === "ERR_FS_FILE_TOO_LARGE") return null;
+      throw error;
+    }) : null;
+    const read = held ? await ports.readFileText!({ filename, bytes: held }) ?? null : null;
+    const unread = ports.readFileText !== undefined && held === null;
     const text = read ? withinImportSize(read.text.trim()) : null;
     return { source: "file", source_id: input.source_id === undefined ? `${filename}:${"sha256" in original ? original.sha256 : digest(original.data_base64)}` : requiredString(input.source_id, "文档来源标识无效", 512),
       source_url: null, title: input.title == null || input.title === "" ? filename.replace(/\.[^.]+$/u, "") || filename : requiredString(input.title, "文档标题无效", 500),
-      content: text?.text ?? "", format: "file", warnings: [...read?.warnings ?? [], ...text?.cut ? ["正文超过 2 MB，只保留了开头部分；原件完整保存。"] : []], original_file: original };
+      content: text?.text ?? "", format: "file", warnings: [...unread ? ["文件超过 2 GB，没有读取正文；原件完整保存。"] : [], ...read?.warnings ?? [], ...text?.cut ? ["正文超过 2 MB，只保留了开头部分；原件完整保存。"] : []], original_file: original };
   }
   if (typeof input.content !== "string") throw documentErrors.content_invalid("文件必须是 UTF-8 文本");
   const whole = input.content.replace(/^\uFEFF/u, "");

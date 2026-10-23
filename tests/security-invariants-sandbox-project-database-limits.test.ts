@@ -17,8 +17,9 @@ import { sandboxDatabase } from "@molis-ai/molis-work-plugin-sandbox";
 // S-59 (BL-395; specs/repository-anti-corruption/slices/sandbox-project-database-limits.md): a sandboxed plugin's statements run in
 // a process the Host can kill, not on the Host's thread, because neither SQLite driver the Host has can interrupt a statement and
 // `Worker.terminate()` cannot stop a native call. What this file asserts is the refusal: a statement past its time or its memory is
-// killed and answered with a code, a result past the rows or bytes is refused and never built, a recursive query never starts, a
-// killed or cancelled or revoked write commits nothing, and after any of them the next statement runs on a clean connection. The
+// killed and answered with a code, a result past the rows or bytes is refused before crossing to the Host, a recursive query never starts,
+// a write interrupted before COMMIT leaves nothing, and a COMMIT interrupted in flight has an unknown outcome. The next independent
+// statement after a killed process runs on a clean connection. The
 // library is a real file under a temporary directory and the processes are real; nothing here opens a Home.
 
 const REFUSED = { code: "plugin.project_database.statement_refused" } as const;

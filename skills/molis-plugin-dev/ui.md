@@ -38,7 +38,7 @@
 
 全局只有一处导航与对话入口：底部常驻栏（左侧 Dock 菜单与常驻插件，中间插件切换 + Assistant 输入，右侧 Shelf、灵光、侧栏按钮与项目）。侧栏在工作右边打开，放讨论、浏览器、文件和插件声明的 `side` 标签。插件不要再做全局侧栏、第二个对话入口或自己的顶栏导航；插件内部的目录、树、列表与详情可以分栏。
 
-Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory`、`workbench.main`、`workbench.overlay`、`workbench.settings`、`workbench.side`。不能往未声明 Slot 塞 HTML。不要把内部组件实例或 Store handle 传过边界。详情里嵌别人的内容，对方必须显式开放 Slot。
+Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory`、`workbench.main`、`workbench.overlay`、`workbench.settings`、`workbench.side`。不能往未声明 Slot 塞 HTML。舞台页照 Manifest 挂：打开舞台的那个视图（有 `stage` 视图就是它，否则是 `navigator` 入口）用 `contribution_id` 指向一个贡献，工作台把这个贡献的 `workbench` surface 挂到它声明的 `workbench.main`（`apps/workbench/src/declared-stages.ts`），model 是 `{ primitives: { escape, text } }`；没有这个 surface 就没有舞台，宿主和工作台里不另写按插件名的行。不要把内部组件实例或 Store handle 传过边界。详情里嵌别人的内容，对方必须显式开放 Slot。
 
 ### 侧栏标签（`side`）
 

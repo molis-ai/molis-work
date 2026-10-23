@@ -30,7 +30,7 @@
       "lines": 273,
       "methods": 41
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 225,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 228,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 167,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 191,
@@ -39,13 +39,13 @@
     "file apps/workbench/src/functions/client.ts": 1274,
     "file apps/workbench/src/i18n/en.ts": 3323,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
-    "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 313,
+    "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 285,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2047,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1966,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
-    "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 211,
-    "function apps/workbench/src/shell-page-renderer.ts#renderMolisWorkWeb": 175,
+    "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 191,
+    "function apps/workbench/src/shell-page-renderer.ts#renderMolisWorkWeb": 155,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
@@ -135,12 +135,12 @@
       "lines": 287,
       "methods": 29
     },
-    "file modules/shelf/src/store.ts": 1067,
+    "file modules/shelf/src/store.ts": 1081,
     "class modules/shelf/src/store.ts#ShelfStore": {
-      "lines": 666,
-      "methods": 31
+      "lines": 678,
+      "methods": 32
     },
-    "function modules/shelf/src/store.ts#runJob": 183,
+    "function modules/shelf/src/store.ts#runJob": 184,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 753,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
@@ -713,7 +713,7 @@
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 9,
+  "hostPluginFilesTotal": 10,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
@@ -723,6 +723,7 @@
     "apps/local-host/src/inbox-actions.ts#actions": 1,
     "apps/local-host/src/inbox-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/shelf-actions.ts#actions": 1,
+    "apps/local-host/src/shelf-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/work-actions.ts#actions": 1
   },
   "registerProviderSitesTotal": 17,
@@ -740,22 +741,22 @@
     "apps/local-host/src/project-host.ts#register-provider": 4,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 2,
+  "hybridPluginsTotal": 3,
   "hybridPlugins": {
     "coding#host-files": 1,
-    "shelf#host-files": 1
+    "shelf#host-files": 2
   },
-  "pluginOutsideMentionsTotal": 319,
+  "pluginOutsideMentionsTotal": 315,
   "pluginOutsideMentions": {
-    "alchemist#outside-files": 12,
+    "alchemist#outside-files": 11,
     "artifacts#outside-files": 20,
     "coding#outside-files": 12,
     "cognia#outside-files": 6,
-    "dataset#outside-files": 8,
+    "dataset#outside-files": 7,
     "diff#outside-files": 8,
     "feed#outside-files": 35,
     "files#outside-files": 8,
-    "form#outside-files": 8,
+    "form#outside-files": 7,
     "git#outside-files": 8,
     "goals#outside-files": 47,
     "images#outside-files": 6,
@@ -763,15 +764,15 @@
     "issues#outside-files": 4,
     "jelly#outside-files": 6,
     "lingguang#outside-files": 8,
-    "pages#outside-files": 13,
+    "pages#outside-files": 12,
     "plugin-builder#outside-files": 18,
-    "ppt#outside-files": 8,
+    "ppt#outside-files": 7,
     "schedule#outside-files": 11,
-    "shelf#outside-files": 12,
+    "shelf#outside-files": 14,
     "text-stats#outside-files": 7,
     "todo#outside-files": 7,
     "work#outside-files": 22,
-    "workflows#outside-files": 8
+    "workflows#outside-files": 7
   },
   "rootStrayTotal": 0,
   "rootStrays": {},

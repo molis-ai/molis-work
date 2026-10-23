@@ -1,18 +1,11 @@
-import { isTerminalAgentPhase, type AgentRunPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ensureProjectPlugins, projectPluginProblem } from "./project-plugins.js";
 import type { ProjectPluginHttpPorts, ProjectPluginRouteHooks } from "./project-plugin-http.js";
-import { agentQuestionHtml } from "./agent-question-card.js";
-import { CARD_RESULT_OPEN, cardOutcomeSteps, interactionNextSteps } from "./agent-next-steps.js";
-import { assistantCardHtml, cardView } from "./assistant/assistant-card-view.js";
-import type { StoredCard } from "./assistant/assistant-store.js";
 import { L } from "./web-locale.js";
-import { icon, escapeHtml, renderPluginStageShell, renderEmpty, renderSidebar, renderInteractionNextSteps, type InteractionNextStep } from "@molis-ai/molis-work-design-system";
+import { icon, escapeHtml, renderPluginStageShell, renderEmpty, renderSidebar } from "@molis-ai/molis-work-design-system";
 import {
   CODING_PLUGIN_ID,
   CODING_PROJECT_PLUGIN_ID,
   CODING_UI_CONTRIBUTION_ID,
-  codingFollowUps,
-  type CodingFollowUpRun,
   type CodingUiHostModel,
 } from "@molis-ai/molis-work-plugin-coding";
 import { DIFF_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-diff";
@@ -26,11 +19,6 @@ import {
   renderGitBrowserResult,
 } from "@molis-ai/molis-work-plugin-git";
 import { TEXT_STATS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-text-stats";
-
-import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
-import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
-
-import type { PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
  * Coding's directory panel, rendered by the Plugin the Host is running.
@@ -111,9 +99,8 @@ function readsFilesOutputs(platform: { supervisor: { manifest(pluginId: string):
 
 /**
  * What the Coding family still adds around a project's plugin route (project-plugin-http.ts): a consumer of Files' outputs reads
- * them fresh first, and Coding's answers carry the cards the Host renders for it. Diff and Text Stats draw their own, Coding its words
- * and its change reader (PG-062); the cards go with the rest of the result decoration's move to Coding (C7), the Files refresh once
- * the workspace has a platform notice (N-14); then the hooks go too.
+ * them fresh first. Diff and Text Stats draw their own, Coding its words, its change reader, its cards and its next-step row
+ * (PG-062); the Files refresh goes once the workspace has a platform notice (N-14), and the hooks with it.
  */
 export const codingRouteHooks: ProjectPluginRouteHooks = ({ platform, pluginId, ports }) => ({
   async beforeDispatch(router) {
@@ -123,41 +110,7 @@ export const codingRouteHooks: ProjectPluginRouteHooks = ({ platform, pluginId, 
     await router.dispatch({ method: "GET", pathname: `/api/plugins/${FILES_PLUGIN_ID}/state`, actor_id: ports.actorId, query: {} });
     await platform.wiring.drain();
   },
-  async afterDispatch(result) { if (pluginId === CODING_PLUGIN_ID) decorateCodingResult(result); },
 });
-
-/**
- * The row beside Coding's composer (AC-25; AC-06, H4): the round's questions and cards as the Assistant's are, then, once
- * the round is over, the result of its card that ran last, then the round card's own follow-ups. Every step presses a
- * control already on screen; a card result's 「打开」 is named by its selector, as Coding's follow-ups are.
- */
-export function codingNextSteps(run: CodingFollowUpRun & { awaiting_input: readonly AgentPendingQuestion[] }, cards: readonly AssistantCard[],
-  say: (text: string, values?: Record<string, string | number>) => string): InteractionNextStep[] {
-  const ran = isTerminalAgentPhase(run.phase as AgentRunPhase)
-    ? cardOutcomeSteps(cards, "", say, card => `[data-card=${JSON.stringify(card.card_id)}] [data-ix-press=${JSON.stringify(CARD_RESULT_OPEN)}]`) : [];
-  return interactionNextSteps(run.awaiting_input, cards, [], [...ran, ...codingFollowUps(run, say)], say);
-}
-
-/** A card of a Coding session as Coding keeps it: the SDK's card, with no work of the Assistant's around it. */
-type CodingCard = Omit<StoredCard, "work_id">;
-
-function decorateCodingResult(result: PluginRouteResponse): void {
-  // Coding draws the model's words and its change reader itself (its `rich-html.ts`); the Host adds the question and suggestion cards and the next-step row.
-  const body = result.body as { runs?: Array<CodingFollowUpRun & { turns: unknown; awaiting_input: AgentPendingQuestion[]; cards?: CodingCard[] }> } | undefined;
-  if (body?.runs) for (const run of body.runs) {
-    // Recovery reports also list runs, but carry receipt facts rather than turns.
-    if (!Array.isArray(run.turns) || !Array.isArray(run.awaiting_input)) continue;
-    // The same question card the Assistant shows, in the person's language; Coding's page restores its own drafts into it.
-    for (const question of run.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, L, undefined, undefined, true) });
-    // The row beside the composer: the round's questions as the Assistant's are, then what its card offers next (AC-25).
-    // Drawn on every round the page receives in full, so a round it keeps unchanged keeps its row; it shows the latest one's.
-    // The round's suggestions as the Assistant's cards are drawn; Coding keeps them and runs them (D25).
-    const cards = (run.cards ?? []).map(card => cardView({ ...card, work_id: "" }));
-    run.cards?.forEach((card, index) => Object.assign(card, { html: assistantCardHtml(cards[index]!, L, undefined, false) }));
-    const steps = codingNextSteps(run, cards, L);
-    Object.assign(run, { next_html: steps.length ? renderInteractionNextSteps(steps, L("下一步"), { max: steps.length }) : "" });
-  }
-}
 
 function failedStage(plugin: string, message: string): string {
   return renderPluginStageShell({ surface: plugin, label: plugin, dataset: plugin + "-error",

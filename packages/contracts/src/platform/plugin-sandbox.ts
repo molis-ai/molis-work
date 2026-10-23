@@ -33,6 +33,8 @@ export interface SandboxEffects {
   projectDatabase?: Array<'read' | 'write'>;
   /** Slots of the Manifest's `connections.slots` the operation sends requests through (`sdk.connections`); the plugin's package also declares `connections:use`. */
   connections?: string[];
+  /** `read`: the Host's document and file readers (`sdk.materials`); the plugin's package also declares `materials:read`. */
+  materials?: Array<'read'>;
 }
 
 export interface SandboxOperationExample {
@@ -108,6 +110,16 @@ export interface SandboxConnectionResponse {
   authenticated: boolean;
 }
 
+/** A file as it crosses the channel: its name and its bytes in base64 (the Host decodes and checks it before it reads any of it). */
+export interface SandboxMaterialFile { file_name: string; data_base64: string }
+/** What a plugin chooses for one read; the Host's own limits, its model downloads and its progress reports are not the plugin's to set. */
+export interface SandboxMaterialRequest {
+  timeoutMs?: number;
+  textFormat?: 'text' | 'markdown';
+  pdfMode?: 'text' | 'ocr';
+  ocrLanguages?: Array<'zh-Hans' | 'zh-Hant' | 'en-US'>;
+}
+
 /** What a statement in the project's library takes and gives back across the channel: no BLOBs, no integers past 2^53. */
 export type SandboxSqlValue = null | number | string;
 export type SandboxSqlRow = { [column: string]: SandboxSqlValue };
@@ -143,6 +155,17 @@ export interface SandboxSdk {
    * only the slot's service can be reached; a query may only send `GET` and `HEAD`. Declare the slot in the operation's `effects.connections`.
    */
   connections: { request(slot_id: string, request: SandboxConnectionRequest): Promise<SandboxConnectionResponse> };
+  /**
+   * The Host's readers of files the plugin already holds (`services.materials`): `readDocuments` reads Markdown, HTML, text, CSV, DOCX or
+   * a ZIP of those, `extract` reads one file (PDF, image, office document) as text, `imageTextAvailable` says whether an image's text can
+   * be read on this machine now. Declare `effects.materials: ['read']` on the operation. A file and a result cross as JSON, so a read
+   * is bounded by the channel (half of 1 MiB for the result); pages and the Host's helpers are not the plugin's to choose.
+   */
+  materials: {
+    imageTextAvailable(): Promise<boolean>;
+    readDocuments(files: SandboxMaterialFile[], request?: Pick<SandboxMaterialRequest, 'timeoutMs'>): Promise<import('../services/materials.js').MaterialDocumentBatch>;
+    extract(file: SandboxMaterialFile, request?: SandboxMaterialRequest): Promise<import('../services/materials.js').MaterialExtraction>;
+  };
   /** The platform's question card, action card and next-step row as html, in the call's language (`services.interaction`); nothing to declare. */
   interaction: import('./plugin-interaction.js').PluginInteractionClient;
 }
@@ -151,6 +174,7 @@ export type SandboxOperations = Record<string, (input: SandboxJson, sdk: Sandbox
 export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list'
   | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
   | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request'
+  | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract'
   | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
 /** Only one active operation per channel. Every host request belongs to that invocation. */

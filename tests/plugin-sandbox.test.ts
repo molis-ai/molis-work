@@ -80,6 +80,26 @@ test('SDK async capability and resource services preserve result and bound ident
   try { assert.equal(await f.runner.call('run', 'hello'), 'HELLO/guide'); } finally { await f.close(); }
 });
 
+test('SDK reads files and sends requests through the Host services of the activation, and the answers arrive as plain JSON (S-60)', mac, async () => {
+  const effects: SandboxEffects = { materials: ['read'], connections: ['github'] };
+  const seen: string[] = [];
+  const f = await fixture(`export const operations={run:async(input,sdk)=>{
+    const file={file_name:'note.md',data_base64:Buffer.from('# 标题').toString('base64')};
+    const read=await sdk.materials.extract(file,{textFormat:'markdown'});
+    const docs=await sdk.materials.readDocuments([file]);
+    const sent=await sdk.connections.request('github',{url:'https://api.github.com/user'});
+    return JSON.stringify([read.text,Object.hasOwn(read,'title'),docs.documents.length,await sdk.materials.imageTextAvailable(),sent.status,sent.authenticated]);
+  }};`, { effects, grants: effects, services: { materials: {
+    async extract(source, request) { seen.push(`${source.file_name}:${Buffer.from(source.bytes).toString('utf8')}:${request?.textFormat}`); return { text: 'read', title: undefined, extractor: 'probe', pages: [], coverage: { status: 'sufficient', processed_pages: 1, total_pages: 1, issues: [] } }; },
+    async readDocuments() { return { documents: [{ name: 'note.md', format: 'markdown', content: '标题', coverage: { status: 'sufficient', issues: [] } }], warnings: [] }; },
+    imageTextAvailable: () => true,
+  }, connections: { async request(slot) { seen.push(`connection:${slot}`); return { status: 200, headers: {}, body: '{}', authenticated: true }; } } } });
+  try {
+    assert.equal(await f.runner.call('run', ''), JSON.stringify(['read', false, 1, true, 200, true]));
+    assert.deepEqual(seen, ['note.md:# 标题:markdown', 'connection:github']);
+  } finally { await f.close(); }
+});
+
 test('SDK requests run in the operation that made the call, not in the one that started the process', mac, async () => {
   const effects = { capabilities: ['who'] };
   const seen: string[] = [];

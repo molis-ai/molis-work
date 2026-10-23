@@ -40,6 +40,11 @@ function sdk(callId: string): SandboxSdk {
       transaction: statements => invoke('projectDatabase.transaction', [statements.map(item => ({ sql: item.sql, parameters: item.parameters ?? [] }))]) as Promise<Array<{ changes: number }>>,
     },
     connections: { request: (slot, request) => answer<SandboxConnectionResponse>(invoke('connections.request', [slot, json(request)])) },
+    materials: {
+      imageTextAvailable: () => answer<boolean>(invoke('materials.imageTextAvailable', [])),
+      readDocuments: (files, request) => answer<Awaited<ReturnType<SandboxSdk['materials']['readDocuments']>>>(invoke('materials.readDocuments', [json(files), json(request ?? {})])),
+      extract: (file, request) => answer<Awaited<ReturnType<SandboxSdk['materials']['extract']>>>(invoke('materials.extract', [json(file), json(request ?? {})])),
+    },
     interaction: {
       questionHtml: (question, options) => invoke('interaction.questionHtml', [json(question), json(options ?? {})]) as Promise<string>,
       cardHtml: (card, options) => invoke('interaction.cardHtml', [json(card), json(options ?? {})]) as Promise<string>,

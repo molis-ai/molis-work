@@ -1,8 +1,9 @@
-import type { PluginInteractionClient } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginInteractionClient, PluginMaterialsClient } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { PluginConnectionMethod, PluginConnectionsClient } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkRequest, SandboxNetworkResponse, SandboxOperationContract, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
+import { materialRequest, materialSource, materialUploads, plainJson } from './materials.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
 
@@ -25,6 +26,8 @@ export interface SandboxServices {
   interaction?: PluginInteractionClient;
   /** The activation's `services.connections`: requests through the account the person bound to a slot (S-57, S-60). */
   connections?: PluginConnectionsClient;
+  /** The activation's `services.materials`, the readers of files the plugin already holds: the Host decides which of them exist (S-60). */
+  materials?: PluginMaterialsClient;
 }
 interface BrokerLimits { sdkQueue: number; sdkPerMinute: number; eventsPerMinute: number; serviceTimeoutMs: number; storageBytes: number; messageBytes: number }
 
@@ -110,6 +113,21 @@ export class SandboxBroker {
       // Only the four fields cross: the answer is rebuilt as plain JSON, so nothing the Host's client carries besides them reaches the plugin.
       const { status, headers, body, authenticated } = await this.services.connections.request(slot, { ...request, signal: context.signal });
       return { status, headers: { ...headers }, body, authenticated };
+    }
+    if (method.startsWith('materials.')) {
+      // Reading is the one effect (`materials: ['read']`), and it reads bytes the plugin sent, never a path or an address: what reaches out
+      // to a network, a machine's own pages or the Host's saved originals has no method here. The Host's client checks the rest.
+      const materials = this.services.materials;
+      permit('materials', 'read');
+      if (method === 'materials.imageTextAvailable') { count(0); return materials?.imageTextAvailable ? materials.imageTextAvailable() : missing(); }
+      if (method !== 'materials.readDocuments' && method !== 'materials.extract') throw new SandboxError('sandbox.invalid_request', 'Unknown materials method');
+      count(2);
+      if (method === 'materials.readDocuments') {
+        const files = materialUploads(args[0]), { timeoutMs } = materialRequest(args[1], ['timeoutMs']);
+        return materials?.readDocuments ? plainJson(await materials.readDocuments(files, { signal: context.signal, ...(timeoutMs !== undefined ? { timeoutMs } : {}) })) : missing();
+      }
+      const source = materialSource(args[0]), request = materialRequest(args[1]);
+      return materials?.extract ? plainJson(await materials.extract(source, { ...request, signal: context.signal })) : missing();
     }
     if (method.startsWith('interaction.')) {
       // Drawing reads only what the plugin passes and writes nothing; the Host checks each drawing's shape, the channel that it is an object.

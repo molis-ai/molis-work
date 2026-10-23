@@ -4,20 +4,20 @@ import { boardFrameParam, type BoardFrameParam } from "./condition-specimens.js"
 /**
  * The component board's 助理信息与任务 section (specs/visual-ui-experience VUX-39): the shipped Assistant in its own frame
  * (`assistant-board-frame.ts`) on fixed works, one parameter at a time — the interface language, the work open (not about
- * code, about code, or a new one) and the container (a wide window shows the side pane beside the conversation, a narrower
+ * code, about code, one cut off to be checked, or a new one) and the container (a wide window shows the side pane beside the conversation, a narrower
  * one as a drawer). The strip is read by the board's one strip program, which the 条件与状态 section carries.
  */
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
 const PARAMS: readonly BoardFrameParam[] = [
   ["lang", "界面语言", [["zh", "中文"], ["en", "English"]]],
-  ["work", "打开的工作", [["plan", "非编程 · 等你确认"], ["coding", "编程 · 进行中"], ["new", "新工作"]]],
+  ["work", "打开的工作", [["plan", "非编程 · 等你确认"], ["coding", "编程 · 进行中"], ["check", "中断 · 要核对"], ["new", "新工作"]]],
   ["width", "容器", [["1280", "宽窗口"], ["760", "分屏一格"], ["390", "手机"]]],
 ];
 
 export function renderAssistantBoardSection(say: Say): string {
   return `<section class="mw-catalog__section" id="assistant" data-primitive="assistant"><h2>${escapeHtml(say("助理信息与任务"))}</h2>
-    <p class="mw-catalog__hint">${escapeHtml(say("常驻助理的生产程序放在它自己的底栏里：多项工作的标签与列表、侧栏六组（工作环境、上下文、连接与工具、产出、变更、后台任务）、一轮的过程、输入框、上下文条与附件。读到的工作是固定样例（模拟），由宿主照常画好；写入一律被拒绝，不碰真实的工作，也不改这台电脑上工作台记住的东西。"))}</p>
+    <p class="mw-catalog__hint">${escapeHtml(say("常驻助理的生产程序放在它自己的底栏里：多项工作的标签与列表、侧栏六组（工作环境、上下文、连接与工具、产出、变更、后台任务）、一轮的过程、输入框、上下文条与附件。读到的工作是固定样例（模拟），由宿主照常画好；回答问题、核对中断的一轮与处理提醒只在这一页里生效，别的写入一律被拒绝，不碰真实的工作，也不改这台电脑上工作台记住的东西。"))}</p>
     <div class="mw-cond-params" data-asst-params>${PARAMS.map((one) => boardFrameParam(say, one)).join("")}</div>
     <div class="mw-asst-stage"><iframe class="mw-asst-frame" data-asst-frame src="/__ui/catalog/assistant?lang=zh&amp;work=plan" title="${escapeHtml(say("助理样例"))}" style="width:1280px" loading="lazy"></iframe></div>
   </section>`;

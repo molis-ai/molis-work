@@ -275,7 +275,7 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-coop-related li { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; min-width:0; }
 .coding-coop-related .mw-btn { min-height:24px; height:auto; padding:4px; max-width:100%; white-space:normal; text-align:left; overflow-wrap:anywhere; }
 .coding-coop-mail { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
-.coding-coop-mail li { display:grid; gap:4px; min-width:0; padding:8px 0; border-top:1px solid var(--mw-border-subtle, var(--mw-border)); }
+.coding-coop-mail li { display:grid; gap:4px; min-width:0; padding:8px 0; border-top:1px solid var(--line); }
 .coding-coop-mail li:first-child { border-top:0; }
 .coding-coop-mail li[data-state="cancelled"], .coding-coop-mail li[data-state="expired"] { opacity:.7; }
 .coding-coop-mail .coding-coop-line { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; }
@@ -426,8 +426,8 @@ ${CODING_COMPOSER_BAR_STYLES}
   [data-coding-results=true] .coding-tools { animation:craft-rise var(--dur-move) var(--ease-quint) both; }
 }
 
-  .coding-method-heading { display:flex; align-items:center; justify-content:space-between; gap:var(--space-2); }
-  [data-coding-method-list] { display:grid; gap:var(--space-4); }
+  .coding-method-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  [data-coding-method-list] { display:grid; gap:16px; }
   .coding-stage > [data-coding-tools][data-coding-reading] > :not([data-coding-change-reader]):not(.coding-tool-tabs) { display:none; }
 
 /* Timeline: tool calls read as rows, a round closes with what happened. */

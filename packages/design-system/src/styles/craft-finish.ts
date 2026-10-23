@@ -858,7 +858,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-activity { display: flex; align-items: center; gap: 6px; }
   ${ASSIST} .assistant-activity .assistant-glyph-icon svg { width: 13px; height: 13px; }
   ${ASSIST} .assistant-activity .assistant-state-ring { width: 20px; height: 20px; }
-  ${ASSIST} .assistant-activity[data-state="unknown"] { color: var(--tone-attention, #b7791f); }
+  ${ASSIST} :is(.assistant-activity, .assistant-recovery > li)[data-state="unknown"] { color: var(--tone-attention, #b7791f); }
   /* Pressing gives a little everywhere in the panel, the same 130ms spring as the bar. */
   ${ASSIST} :is(.assistant-side-action, .assistant-segment, .assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-control, .assistant-start, .assistant-copy, .assistant-tab-close):active:not(:disabled) { transform: scale(.94); }
   ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-tab-close, .assistant-tab-main) { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
@@ -927,7 +927,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-rich code { padding: 0 4px; border-radius: 4px; background: var(--wash); font-size: 12px; }
   ${ASSIST} .assistant-rich pre code { padding: 0; background: none; }
   ${ASSIST} :is(.assistant-activity, .assistant-round-status, .assistant-muted) { margin: 0; font-size: 12px; color: var(--muted); } ${ASSIST} .assistant-round > .mw-receipt { align-self: flex-end; max-width: 88%; margin-top: -8px; }
-  ${ASSIST} .assistant-activity[data-state="failed"] { color: var(--danger); }
+  ${ASSIST} :is(.assistant-activity, .assistant-recovery > li)[data-state="failed"] { color: var(--danger); }
   ${ASSIST} .assistant-round-status[hidden] { display: none; }
   ${ASSIST} .assistant-round-status[data-phase="failed"] { color: var(--danger); }
   /* What needs the person: a question to answer, or an exact effect to allow. */
@@ -1239,9 +1239,9 @@ const CRAFT_BASE_STYLES = `
   .prompt-roles-label { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
   .prompt-roles { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
   .prompt-role { display: inline-flex; flex-direction: column; align-items: flex-start; padding: 4px 8px; border: 0; border-radius: 8px; background: transparent; color: inherit; box-shadow: 0 0 0 1px var(--line); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
-  .prompt-role:hover { background: var(--hover); }
+  .prompt-role:hover { background: var(--nav-hover); }
   .prompt-role[aria-pressed="true"] { box-shadow: 0 0 0 1.5px var(--accent); }
-  .prompt-role-focus { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; padding: 12px 12px; border-radius: 8px; background: var(--hover); font-size: 13px; }
+  .prompt-role-focus { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; padding: 12px 12px; border-radius: 8px; background: var(--nav-hover); font-size: 13px; }
   .prompt-role-focus p { margin: 4px 0 0; color: var(--muted); }
   .prompt-diagnostics { margin-top: 24px; }
   .prompt-diagnostics > summary { display: flex; flex-direction: column; gap: 4px; cursor: pointer; }

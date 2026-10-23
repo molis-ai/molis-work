@@ -1,9 +1,9 @@
 {
   "giantUnits": 120,
   "giant": {
-    "file apps/local-host/src/assistant/assistant-service.ts": 1858,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1863,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1501,
+      "lines": 1504,
       "methods": 91
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
@@ -69,9 +69,9 @@
       "lines": 361,
       "methods": 18
     },
-    "file horizontal/memory/src/service.ts": 1153,
+    "file horizontal/memory/src/service.ts": 1160,
     "class horizontal/memory/src/service.ts#MemoryService": {
-      "lines": 1022,
+      "lines": 1027,
       "methods": 48
     },
     "class horizontal/placement/src/index.ts#PlacementService": {
@@ -213,14 +213,14 @@
       "lines": 654,
       "methods": 40
     },
-    "file plugins/native/shelf/src/client.ts": 1642,
+    "file plugins/native/shelf/src/client.ts": 1641,
     "file plugins/native/todo/src/client.ts": 1232,
     "class plugins/native/todo/src/store.ts#TodoStore": {
       "lines": 378,
       "methods": 28
     },
     "function plugins/native/work/src/actions.ts#createWorkActionHandlers": 169,
-    "function plugins/native/work/src/http/panels.ts#handleWorkPanelHttp": 163,
+    "function plugins/native/work/src/http/panels.ts#handleWorkPanelHttp": 158,
     "function plugins/native/work/src/terminal/client.ts#startWorkTerminalClient": 431,
     "function plugins/native/work/src/terminal/panels.ts#createTerminalPanels": 365,
     "function plugins/native/work/src/ui/render.ts#renderWorkSessionSurface": 342,
@@ -746,7 +746,7 @@
     "coding#host-files": 1,
     "shelf#host-files": 2
   },
-  "pluginOutsideMentionsTotal": 333,
+  "pluginOutsideMentionsTotal": 331,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
@@ -758,7 +758,7 @@
     "files#outside-files": 8,
     "form#outside-files": 8,
     "git#outside-files": 8,
-    "goals#outside-files": 58,
+    "goals#outside-files": 57,
     "images#outside-files": 6,
     "inbox#outside-files": 17,
     "issues#outside-files": 4,
@@ -771,7 +771,7 @@
     "shelf#outside-files": 14,
     "text-stats#outside-files": 7,
     "todo#outside-files": 7,
-    "work#outside-files": 23,
+    "work#outside-files": 22,
     "workflows#outside-files": 8
   },
   "rootStrayTotal": 0,

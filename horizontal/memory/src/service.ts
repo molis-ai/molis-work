@@ -91,6 +91,8 @@ import { MemoryPromotion } from "./promotion.js";
 export interface MemoryServicePorts {
   backend: MemoryBackendPort;
   ledger: MemoryLedgerPort;
+  /** Bind the already-authorized change target to its Host invocation before any mutation or ledger write. */
+  bindChangeTarget?(target: { scope: MemoryScope; owner: string; project: string | null }): void;
   now?: () => Date;
   newId?: () => string;
   timeZone?: string;
@@ -179,13 +181,14 @@ export class MemoryService {
 
   async list(caller: MemoryCaller, request: MemoryListRequest = {}): Promise<MemoryListResponse> {
     const scopes = this.scopeCommands.scopesFor(caller, request.scope === "all" || !request.scope ? undefined : [request.scope]);
-    const items: MemoryItem[] = [];
+    const items: MemoryItem[] = [], readScopes: typeof scopes = [];
     let personal = 0, project = 0;
     for (const where of scopes) {
       if (!caller.person) {
         const access = consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id);
         if (!access.allowed) continue;
       }
+      readScopes.push(where);
       for (const located of await this.scopeCommands.located(caller, where.scope, where.owner)) {
         if (!visibleTo(caller, located.meta)) continue;
         if (where.scope === "personal") personal += 1; else project += 1;
@@ -203,6 +206,9 @@ export class MemoryService {
     const auto_this_week = this.ports.ledger.changes(caller.actor_id, 500).filter(change => change.kind === "auto_kept" && change.state === "active"
       && owners.has(`${change.scope}:${change.owner}`) && Date.parse(change.at) >= weekAgo).length;
     const pending = (await this.candidates(caller, { scope: request.scope ?? "all" })).length;
+    caller.signal?.throwIfAborted();
+    if (!caller.person && readScopes.some(where => !consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id).allowed))
+      throw memoryErrors.forbidden("记忆读取权限已变化，请重新查看");
     return { items, counts: { personal, project, auto_this_week, pending } };
   }
 
@@ -535,6 +541,7 @@ export class MemoryService {
     }
     if (request.expected_version !== undefined && request.expected_version !== located.entry.version && !this.operations.find(caller, `change:${located.entry.memory_id}`)) throw memoryErrors.conflict("记忆已变化，请重新查看后再决定");
     const { scope, owner, project } = located;
+    this.ports.bindChangeTarget?.({ scope, owner, project: project ?? null });
     if (request.action !== "remove") this.preferences.assertEnabled(caller.actor_id, located);
     const stamp = this.operations.begin(caller, `change:${request.memory_id}`, { kind: request.action, scope, owner, memory_id: located.entry.memory_id, expected_version: request.expected_version ?? located.entry.version, original_state: located.meta.state });
     if (request.expected_version !== undefined && request.expected_version !== stamp.expected_version) throw memoryErrors.conflict("重试不能改变原先确认的记忆版本");

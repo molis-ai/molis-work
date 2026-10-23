@@ -21,7 +21,7 @@ const scenarios = [
   { boundary: "commit", action: "withdraw-unrelated" },
 ] as const;
 for (const { boundary, action } of scenarios) {
-  test(`remember ${boundary}: ${action === "none" ? "normal save" : action === "withdraw-unrelated" ? "unrelated withdrawal preserves save" : `${action} prevents later writes`}`, { timeout: 60_000 }, async t => {
+  test(`remember ${boundary}: ${action === "none" ? "normal save" : action === "withdraw-unrelated" ? "unrelated withdrawal request preserves save" : `${action === "withdraw" ? "withdrawal request for an adopted input" : action} prevents later writes`}`, { timeout: 60_000 }, async t => {
     const gate = Promise.withResolvers<void>(), modelGate = Promise.withResolvers<void>(), modelReached = Promise.withResolvers<void>();
     t.after(() => { gate.resolve(); modelGate.resolve(); });
     const home = await openTestHome(t), text = "回答用要点列表";
@@ -44,8 +44,9 @@ for (const { boundary, action } of scenarios) {
       catch (error) { completedWrite.resolve({ error: String(error) }); throw error; }
     });
     if (boundary === "screen") {
-      const screen = capability.screen!.bind(capability);
-      t.mock.method(capability, "screen", async (value: string) => {
+      assert.ok(capability.screen);
+      const screening = capability as typeof capability & Required<Pick<typeof capability, "screen">>, screen = screening.screen.bind(capability);
+      t.mock.method(screening, "screen", async (value: string) => {
         if (value === text && !reached) { reached = true; await gate.promise; }
         return screen(value);
       });
@@ -74,8 +75,9 @@ for (const { boundary, action } of scenarios) {
         return response;
       });
     }
-    await connectorAssistantModel(t, home.home, (_body, turn) => turn === 1
-      ? { name: "remember", input: { text, said: text, scope: "personal" } } : "已处理。");
+    await connectorAssistantModel(t, home.home, (_body, turn) => hasSupplement && turn === 1
+      ? { name: "list-memories", input: {} } : turn === (hasSupplement ? 2 : 1)
+        ? { name: "remember", input: { text, said: text, scope: "personal" } } : "已处理。");
     const sent = await home.web.post<AssistantSendResult>("/api/assistant/send", { text: hasSupplement ? "整理本周安排" : text, request_id: randomUUID() });
     let inputId: string | undefined, unrelatedId: string | undefined;
     if (hasSupplement) {
@@ -93,6 +95,11 @@ for (const { boundary, action } of scenarios) {
       modelGate.resolve();
     }
     await untilSetup(async () => reached ? true : undefined, `real remember reached ${boundary}`);
+    if (hasSupplement) {
+      const original = await adapter.inputs!.read!({ session_id: sent.work.session_id!, input_id: inputId! });
+      assert.equal(original?.state, "run");
+      assert.ok(original?.state === "run" && ["applied", "read"].includes(original.receipt.state), "the real loop has adopted the person's supplement");
+    }
     assert.equal(captured?.[2]?.originals?.includes(text), true);
     assert.equal(captured?.[2]?.sources?.length, 1, "only the actual selected original is bound");
     assert.equal((await formal()).length, 0);
@@ -103,8 +110,12 @@ for (const { boundary, action } of scenarios) {
       assert.equal(current.store.get(LOCAL_PERSON_ACTOR_ID, sent.work.work_id).continuation_hold, action === "stop" ? "stopped" : "paused");
     } else if (action === "withdraw" || action === "withdraw-unrelated") {
       const withdrawnId = action === "withdraw" ? inputId! : unrelatedId!;
-      const controlled = await home.web.post<AssistantWorkView>(`/api/assistant/works/${sent.work.work_id}/control`, { kind: "withdraw", run_id: sent.run_id!, input_id: withdrawnId });
-      assert.equal(controlled.rounds.flatMap(round => round.turns).find(turn => turn.steer?.id === withdrawnId)?.steer?.state, "withdrawn");
+      // The SDK cannot retract text already sent to the model. The validated
+      // withdrawal request still cancels an in-flight use before its commit.
+      await assert.rejects(home.web.post<AssistantWorkView>(`/api/assistant/works/${sent.work.work_id}/control`, { kind: "withdraw", run_id: sent.run_id!, input_id: withdrawnId }), /这条补充已经放进上下文，撤不回了/);
+      const afterRequest = await adapter.inputs!.read!({ session_id: sent.work.session_id!, input_id: withdrawnId });
+      assert.ok(afterRequest?.state === "run" && ["applied", "read"].includes(afterRequest.receipt.state));
+      assert.equal(captured?.[0].signal?.aborted, action === "withdraw");
     } else if (action === "revoke" || action === "form-off") {
       await home.web.post("/api/memory/prefs", { scope: "personal", prefs: action === "form-off" ? { form: false } : { consumers: { assistant: false } } });
     }
@@ -147,3 +158,39 @@ for (const { boundary, action } of scenarios) {
       restored: expected, restoredChanges: expected, restoredCandidates: 0 });
   });
 }
+
+test("MEM-35: a fresh explicit original in the same work can be remembered after the old source was forgotten", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), text = "回答用要点列表";
+  const system = ensureSystemAgentService(home.host, home.home); await system.ready;
+  const adapter = system.agentHost.adapter("prologue"), capability = adapter.memory!;
+  const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, consumer: "ui" as const, person: true,
+    current_scene: "common", purpose: "management" as const };
+  const formal = () => capability.withCaller(caller).list("user", LOCAL_PERSON_ACTOR_ID);
+  const writes: Array<Parameters<MemoryService["write"]>> = [], write = MemoryService.prototype.write;
+  t.mock.method(MemoryService.prototype, "write", function(this: MemoryService, ...args: Parameters<MemoryService["write"]>) {
+    if (args[0].consumer === "assistant") writes.push(args);
+    return write.apply(this, args);
+  });
+  await connectorAssistantModel(t, home.home, (_body, turn) => turn === 1 || turn === 3
+    ? { name: "remember", input: { text, said: text, scope: "personal" } } : "已处理。");
+  const send = (workId?: string) => home.web.post<AssistantSendResult>("/api/assistant/send", { text, request_id: randomUUID(), ...(workId ? { work_id: workId } : {}) });
+  const settle = async (sent: AssistantSendResult) => untilSetup(async () => {
+    const run = await adapter.read({ session_id: sent.work.session_id!, run_id: sent.run_id! });
+    return run.phase === "completed" ? true : undefined;
+  }, "remember round completed");
+  const first = await send(); await settle(first);
+  const initial = (await formal())[0]!; assert.equal(initial.text, text); assert.equal(writes.length, 1);
+  await home.web.post("/api/memory/change", { operation_id: randomUUID(), memory_id: initial.memory_id, expected_version: initial.version, action: "remove" });
+  assert.deepEqual(await formal(), [], "the old entry was really forgotten through settings");
+  const next = await send(first.work.work_id); await settle(next);
+  const entries = await formal(); assert.equal(entries.length, 1); assert.equal(entries[0]!.text, text);
+  assert.notEqual(entries[0]!.memory_id, initial.memory_id); assert.equal(writes.length, 2);
+  assert.equal(writes[0]![2]?.sources?.length, 1); assert.equal(writes[1]![2]?.sources?.length, 1);
+  assert.notEqual(writes[1]![2]!.sources![0]!.event_id, writes[0]![2]!.sources![0]!.event_id, "only the new canonical original authorizes this save");
+  await home.close(); await home.host.close();
+  const reopened = new MolisWorkLocalHost({ homeDirectory: home.home, completeText: null });
+  try {
+    const again = ensureSystemAgentService(reopened, home.home); await again.ready;
+    assert.deepEqual(await again.agentHost.adapter("prologue").memory!.withCaller(caller).list("user", LOCAL_PERSON_ACTOR_ID), entries);
+  } finally { await reopened.close(); }
+});

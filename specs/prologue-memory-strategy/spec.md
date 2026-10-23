@@ -671,9 +671,13 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 
 复用现 controlledMemoryService、backend.withExecution 和 Host storage 提交前检查；同一控制约束 ledger 同步最终写入。助理在每次 effect 前向现原件主人重读本次确切采用的 canonical 原件，核身份、完整文本和当前可用性；最终同步核 signal、当前工作/会话、当前权限与遗忘屏障。绑定本次实际采用来源，不让无关旧来源连带拒绝新授权。停止、暂停、撤回或撤权发生在真实提交前时，不新增正式记忆、候选或历史；已发生的提交不得伪称未发生或自动重放，未知/部分结果保留。当前调用固定操作号不等于新增跨重启工具重试合同。
 
-异步来源重读与最终提交之间的撤回，由 AssistantService 对本次实际采用的原件登记临时取消通知；现 assistant-inputs 在核过工作与 Run 归属后、发起 SDK 撤回前同步通知对应活跃调用。通知只活到本次调用结束，不新增持久撤回表或第二套来源状态；原件撤回是否成功仍由 SDK 回执决定，不相关原件不连带取消，已经提交的结果不得回滚或伪称未发生。
+临时撤回通知在读取来源快照的第一个 await 前登记；来源尚未确定时只暂存本次调用期间的 event_id，选定实际原件后求交，命中则取消，无关撤回不取消。异步来源重读与最终提交之间继续使用同一订阅，由 AssistantService 对本次实际采用的原件登记临时取消通知；现 assistant-inputs 在核过工作与 Run 归属后、发起 SDK 撤回前同步通知对应活跃调用。通知只活到本次调用结束，不新增持久撤回表或第二套来源状态；原件撤回是否成功仍由 SDK 回执决定，不相关原件不连带取消，已经提交的结果不得回滚或伪称未发生。
 
-允许路径为现 AgentMemoryTools 合同及 gateway、Assistant memory tools/service/inputs/HTTP 组装、Memory Host 现受控 Service 工厂、对应 README 和定向回归；统筹维护本文及公开快照。不改 SDK 或 MemoryService 公共合同，不新增配置开关。先验正常保存对照，再分别在原件读取后和真实提交边界制造 stop/撤回/撤权交错，检查正式库、候选、ledger、界面读取与关闭重开结果；真实本机 HTTP/Node/SQLite 是必要证据，只有工具报取消不算通过。
+实际 SDK 只允许成功撤回尚未采用的输入；已经采用的 canonical 原件会拒绝撤回。本片的临时通知对“撤回请求”取消尚未提交的记忆调用，不能把已采用回执改成 withdrawn，也不能声称模型没有读过。分别保留已撤回原件不参与形成、已采用原件的撤回请求阻止后来写入，以及无关撤回不影响本次保存的证据。
+
+列表跨多个异步范围读取后，返回前再次检查本次实际读取范围的当前读取权限与取消；任一范围撤权即拒绝整次结果，不返回已累积正文或计数。关闭形成不能误当成关闭读取。遗忘的真实目标只由 Service 的既有定位产生：MemoryServicePorts 增加同步变更目标绑定窄口，在定位完成后、operation ledger 开始前把 scope/owner 交给本次受控工厂；助理的同一最终检查据此核当前目标权限，SDK 提交与 ledger 复用该检查。读扫描不绑定无关范围，遗忘不要求开启形成，不新增扫描、缓存、权限表或第二个操作号。这是为真实撤权反例增加的 App Service 构造 Port，不改变 SDK 或 AgentMemoryExecutionControl 合同。
+
+允许路径为现 AgentMemoryTools 合同及 gateway/Run adapter、Assistant memory tools/service/inputs/HTTP 组装、Memory Host 现受控 Service 工厂、MemoryService 上述目标窄口和列表最终检查、对应 README 和定向回归；统筹维护本文及公开快照，不新增配置开关。先验正常保存对照，再分别在原件读取后和真实提交边界制造 stop/撤回/撤权交错，检查正式库、候选、ledger、界面读取与关闭重开结果；真实本机 HTTP/Node/SQLite 是必要证据，只有工具报取消不算通过。遗忘另核目标版本、meta 与历史未变化，列表另核形成关闭仍能读取的对照。
 
 #### M3 第一片：正式记忆有界管理页
 
@@ -699,11 +703,11 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 
 本片是 §4.4 / MEM-04、08、15、17、28、29、34 的独立子片：本人从现设置页纠正未到期、非会话绑定正式记忆的已声明场景、类型、生命周期与明确期限，随后分页过滤、任务读取与重启反映新分类。复用现 memory.change、可信范围解析、SDK 条件 update/setMeta、操作回执及 ledger revision；不建表、索引、分类 registry 或第二条写入链。Session 管理绑定、已到期原 ref 的本人续期、按类 read/form 开关、固定批量、旧 v1/缺快照恢复继续作为同一 P0 的后续依赖，本片不得代称完整 M3。
 
-正式管理数据支持六种已声明 kind，并贯通条目、变更回执、历史与 v2 导入导出；自动形成及工具默认许可仍为原四类，不能因扩展正式类型集合而扩大形成。沿现 change 增加明确分类纠正分支并按公共合同规则升版本，页面不提供 owner、namespace 或可信 Session 身份。分类合成归现 classification 职责，Service 编排保留单一写主人；纯改类使用 setMeta，正文与分类同时改变时一次 update，不分两次提交。
+正式管理数据支持六种已声明 kind，并贯通条目、变更回执、历史与 v2 导入导出；自动形成及工具默认许可仍为原四类，不能因扩展正式类型集合而扩大形成。沿现 change 增加明确分类纠正分支并按公共合同规则升版本，页面不提供 owner、namespace 或可信 Session 身份。分类合成归现 classification 职责，Service 编排保留单一写主人；纯改类使用 setMeta，正文或原有适用条件与分类同时改变时一次 update，不分两次提交。页面复用现编辑器：以用户实际改变分类控件作为纠正意图，分类和期限未变时沿原 update 保留未知分类；明确改类时才发送 reclassify 及完整目标分类。旧未知场景或生命周期在编辑器内仍展示；显式纠正若移除旧未知值须在确认中点明。
 
 目标分类必须明确；未提供期限表示保留原绝对时间，时间表示本人选择，null 表示明确移除。short-term 必须有有效截止时间；改 long-term 不自动清期限，扩大场景或延长期限在确认前显示具体变化。仅改 kind/scenes 时保留正文、ref、owner、namespace、业务 key、session_ref、classification.extra、来源、basis、证据和真实 state；不恢复 paused/disabled。当前没有可信 Session 绑定或旧条目已到期时明确拒绝且零版本/历史改写，不以重建 ref、清期限或借页面 ID 绕过 SDK；后续须先补可信 Session 管理及明确续期合同。
 
-历史增加安全的分类与期限投影，让同文改类前后可区分；恢复仍读原 canonical snapshot、当前所见版本及当前权限，缺快照或非法旧分类不伪称完整恢复。人工纠正仍使原自动替换撤销失效。取消、撤权、off、跨项目/角色或 namespace 注入均经原提交门；同版本并发仅一个成功，冲突不自动改用新版本重做；同操作重试不添版本或历史，换目标拒绝。SDK 已写而 ledger 失败保留明确部分结果，原操作重启补账，后继修改或删除不能被迟到补账覆盖或复活。
+历史增加安全的分类与期限投影，让同文改类前后可区分；恢复仍读原 canonical snapshot、当前所见版本及当前权限，缺快照或非法旧分类不伪称完整恢复。人工纠正仍使原自动替换撤销失效。取消、撤权、off、跨项目/角色或 namespace 注入均经原提交门；同版本并发仅一个成功，冲突不自动改用新版本重做；同操作重试不添版本或历史，换目标拒绝。change 命令在可信范围定位、当前权限和版本预检完成后、任何 SDK 子操作之前，同步在既有 ledger 中以不含目标的固定请求标记绑定动作、scope/owner、memory_id 与所见版本；首先完成此登记的请求拥有该操作号。入口拒绝已有绑定的不同目标/动作/版本，异步定位后在同一登记处再核，不能在 SDK 提交等待期间由另一目标抢占。这个共同命令绑定同时覆盖 reclassify 和原 change 动作，是两种真实交错反例所需的最小范围；不迁移既有 SDK 子步骤或 batch/child 操作键。删除后旧标记 closed 仍只用于核身份，已提交 purge 的补账继续由原回执与当前权限决定；不新增正文副本、新账本或锁。SDK 已写而 ledger 失败保留明确部分结果，原操作重启补账，后继修改或删除不能被迟到补账覆盖或复活。
 
 允许路径为 contracts 正式管理类型/change/历史 DTO 及现 action/HTTP 调用版本，horizontal/memory 的 classification/service/facts/shapes/history/operations 等当前职责、现设置页及词典、对应 README 和定向测试；公共快照、资源清单与本 spec 由统筹维护。SDK 包、锁文件、偏好矩阵和原件/取消实现不在本片。先用真实 Node/SQLite/HTTP 验六类、旧未分类、期限三态、CAS/原操作重试/补账重启/当前授权及六类往返，再实操非空设置页的修改、过滤、历史和失败恢复。构建/浏览器排单槽；资源增长另行实测审批，不沿用上一片额度。
 
@@ -909,6 +913,7 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 | M2 助理停止边界反例 | 独立真实 HTTP→Assistant remember→Node/SQLite 的正常对照保存 1 条；停止交错中公开 stop 已返回 stopped，再放行 screen 后仍写正式记忆、ledger 及可见结果各 1，关闭重开仍保留。新增定向回归按零写断言失败，完整日志 `/private/tmp/molis-memory-review-remember-cancellation-final-20261023.log` | 确认产品 P1，阻断 #1064；按上方短合同接回已有受控 Service/Host 提交检查，尚未修复通过。此前沙箱不允许 localhost 导致 Node 原生退出，不计产品断言证据；授权本机执行后取得本反例 |
 | M3 正式管理首片验证 | 独立树本地 `4494b05ec`、整合父 `11d3ae19f` 后为 `0140a2614`；整体 build、health 对父及 main `d7077301f`、边界、API 与 Action 快照通过。真实 Service/HTTP 分页和授权通过；实际非空页面完成 43 条个人记忆跨页、4 条项目记忆、暂停角色、到期/未分类、配对显式加载及两次处理/编辑，正式全量 list 调用 0；六组中英/尺寸/主题和 20/20 CAS/读取失败恢复通过 | 页面夹具最初错误等待重定向 query、把隐藏缓存当当前页及使用不存在的项目助理路由，均按真实入口修正，保留失败日志；仅证明覆盖路径，不代表用户验收或完整 M3。资源实测 workbench 1,196,274 B，相对父 +3,437 B，已做选择器复用等精简，尚未获一次性增长批准，资源门仍失败；其它 26 份资源未变。改类/矩阵/固定批量及最终首期验收仍继续 |
 | I0 浏览器输入根因收束 | 原生窗口 756×556 与仿真视口不一致时，视口内指针落不到原生窗口外的插件帧；只调整原生窗口的 ABA 对照复现。另确认 macOS 的 nativeVirtualKeyCode=27 会打开 Chrome 关于页，使工作台进入后台；只移除该平台错误键码后，同一确认框及错误反馈恢复。最小测试修复已提交 `0f553edaf`，原 Chinese 2/2、dialog 6/6 零重试通过；中文实际读取 115 层，原门槛 90 未变，异常与原生弹窗均为零，日志 `/private/tmp/molis-memory-window-keycode-browser-20261023.log` | 不改产品、等待时长、遍历入口或断言。fixture 与 Chinese 严格类型通过；四文件额外类型检查仍有 dialog 原有两处 tuple 类型错误，未隐去。最新主干 `cdb47255d` 的合并预览仅资源脚本和清单两处冲突；尚未完成整合、正常 CI、最终全量与取消修复，#1064 仍不可合并 |
+| M2 助理工具取消与当前权限收束 | `d58b5c10a` 后补齐实际 Run adapter 控制透传、可信变更目标绑定与列表返回前权限复核；合并 main `cdb47255d` 为 `28f9f07ec`。整体构建、API/Action 快照、包边界、health 对 main 及资源门通过；真实 HTTP/SDK/Node/SQLite 的 12 个 remember、8 个 forget、3 个 list、22 个既有助理用例及 3 个来源快照窗口，共 48 个唯一场景通过。来源读取前即监听撤回，缓冲事件只与实际采用来源求交；正文与来源均采用最新原件。遗忘同时检查版本、meta、历史、界面和重启；目标撤权零业务变更，无关范围撤权及仅关闭形成不误拒绝。最终来源与 remember 复验日志 `/private/tmp/molis-memory-source-order-final-20261024.log`；独立深度评审未发现这两项的剩余阻塞 | 保留首轮 forget 重启失败：裸 Host 未装配项目目录，改用现 Web Home 入口后原断言全部通过；来源 propose 夹具空 applies 被既有网关拒绝，改为有效原输入后复验，未改生产校验。已采用输入的撤回请求会取消在途写入，但 SDK 回执仍拒绝撤回。上述属于工程证据；最新主干整合、最终全量、正常 CI 与整体产品/用户验收未完成，#1064 仍为 Draft |
 | S2 / S3 / M2 / M3 / I0 | 按 §9.3 核对可信来源/候选门、异步召回/Context、产品管理与真实 SDK 接入的可并行边界；统筹负责共享装配、包及最终集成 | P0 全部行为、干净包/真实 Host、成对 B2 质量与成本、最终 App 实操及用户验收仍待完成 |
 
 交付按可独立验收部分拆 PR：C0/Q0 合同、工具与冻结结果先行；S1 第一片单独交付版本检查、并发写入与恢复；M1 第一片单独交付有效配置采用与启动保护。两仓实现 PR 分别依赖各自 C0/Q0 父 PR，后续分类、形成、召回和界面按 §9.3 依赖继续拆分；父 PR 进入 main 后再合并子 PR，不将 stacked 分支合并视为进入 main。此处持续补充 PR 和最终 head 的验证结果；未操作真实 Home，也未发布。

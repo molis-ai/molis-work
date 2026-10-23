@@ -4,16 +4,15 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost, MolisWorkLocalHost, AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
-import { AssistantService, recallKeywords } from "../apps/local-host/dist/assistant/assistant-service.js";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
-import { ASSISTANT_STORE_NAME, memoryRuntimePolicy, memorySources, prologueMemoryBackend, type MemorySourceOwner } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_STORE_NAME, memoryRuntimePolicy, memorySources } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { controlledMemoryService } from "../apps/local-host/dist/memory/memory-effect.js";
+import { registerMemoryHost } from "../apps/local-host/dist/memory/memory-host.js";
 import type { AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { MemoryService } from "@molis-ai/molis-work-service-memory";
-import { openHomeSqliteDatabase, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { MemoryService, recallKeywords, type MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
+import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { NOT_THEIRS, THEIRS } from "./fixtures/memory-said-cases.js";
 import { scriptedModelServer } from "./fixtures/connector-assistant-model.js";
@@ -73,26 +72,21 @@ async function heldAsNotTheirs(memory: MemoryService, person: Parameters<MemoryS
 }
 
 function platformMemory(host: AgentHost, home: string, t: { after(fn: () => void): void }) {
-  const ledger = openMemoryLedger({ homeDirectory: home }), db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME);
+  const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME);
   const store = new AssistantStore(db);
-  let alive = true;
-  t.after(() => { alive = false; db.close(); ledger.close(); });
-  const memory = new MemoryService({ backend: prologueMemoryBackend(async () => host.adapter("prologue").memory!), ledger, timeZone: "Asia/Shanghai", projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙" });
-  const policy: MemorySourceOwner["policy"] = {
-    alive: () => alive,
-    prefsFor: (scope, projectId) => memory.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, projectId),
-    owners: projectId => ledger.owners(projectId), candidateOwners: projectId => ledger.candidateOwners(projectId),
+  const localHost = new MolisWorkLocalHost({ completeText: null });
+  const registered = registerMemoryHost({ localHost, homeDirectory: home, agentHost: host, ready: async () => {}, executes: () => true,
     projectExists: async projectId => projectId === "project-a" || projectId === "project-b",
-    deletingProject: () => undefined,
-  };
+    projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙" });
+  t.after(async () => { registered.close(); db.close(); await localHost.close(); });
+  const memory = registered.service, policy = registered.policy;
   const memoryPolicy = { ...memoryRuntimePolicy(() => policy), sources: memorySources(home, () => ({
     adapter: host.adapter("prologue"), policy, sourceAllowed: (actor, scope, owner, refs) => memory.sourceAllowed(actor, scope, owner, refs),
     sessionAllowed: async owner => owner.actor_id === LOCAL_PERSON_ACTOR_ID
       && ["project-a", "project-b", ASSISTANT_PERSONAL_OWNER].includes(owner.project_id)
       && owner.plugin_id === ASSISTANT_PLUGIN_ID && owner.install_id === ASSISTANT_INSTALL_ID,
   })), promotion: memory.promotion };
-  const memoryForCall = (control?: AgentMemoryExecutionControl) => control ? controlledMemoryService({ backend: prologueMemoryBackend(async () => host.adapter("prologue").memory!), ledger,
-    timeZone: "Asia/Shanghai", projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙" }, current => prologueMemoryBackend(async () => host.adapter("prologue").memory!, current), control) : memory;
+  const memoryForCall = (...execution: [] | [AgentMemoryExecutionControl, NonNullable<MemoryServicePorts["bindChangeTarget"]>]) => execution.length ? registered.withExecution(...execution) : memory;
   return { memory, memoryPolicy, store, memoryForCall };
 }
 
@@ -267,7 +261,7 @@ test("a work suggests keeping a lesson only where the person allows it; nothing 
     return (script.shift() ?? (() => reply()))(body);
   }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const { memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
   const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
@@ -333,7 +327,7 @@ test("memory switches hold the same when a Character carries the round; turning 
     return (script.shift() ?? (() => reply()))(body);
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const { memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
   const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
@@ -429,7 +423,7 @@ test("a claim of keeping made before the call that then failed is held at the en
     return (script.shift() ?? (() => reply()))(body);
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const { memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
   const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
@@ -719,7 +713,7 @@ test("a delegated sub-task is given neither remember nor forget: its words are t
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))();
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const { memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
   const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
@@ -938,7 +932,7 @@ test("a full round: the model asks to remember a text with a superscript where t
     return (script.shift() ?? (() => reply()))(body);
   }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const { memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
   const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);

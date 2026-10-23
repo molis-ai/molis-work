@@ -17,7 +17,7 @@ import {
   type MemorySignalReport,
   type MemoryWriteRequest,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { memoryErrors, MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { memoryErrors, MemoryService, type MemoryCaller, type MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
@@ -46,7 +46,7 @@ const RUNTIME = "prologue";
 interface MemoryHost {
   readonly service: MemoryService;
   readonly policy: MemoryRuntimePolicyOwner;
-  withExecution(control: AgentMemoryExecutionControl): MemoryService;
+  withExecution(control: AgentMemoryExecutionControl, bindChangeTarget: NonNullable<MemoryServicePorts["bindChangeTarget"]>): MemoryService;
   /** The same SourcePort, restricted to the Assistant's fixed Host installation. */
   readonly checkAssistantSources: ReturnType<typeof memorySources>["check"];
   /** Who the call is for, from its trusted context: the consumer from the audience, never from input. */
@@ -220,7 +220,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const deletion = registerMemoryProjectDeletion({ ...ports, backend, ledger, alive: () => !closed });
   const host: MemoryHost = {
     service,
-    withExecution: control => controlledMemoryService(servicePorts,
+    withExecution: (control, bindChangeTarget) => controlledMemoryService({ ...servicePorts, bindChangeTarget },
       current => prologueMemoryBackend(store, current), {
         beforeEffect: () => control.beforeEffect(),
         assert_current: () => { if (closed || ports.localHost.lifecycle() !== "running") throw memoryErrors.unavailable("原记忆服务已关闭"); control.assert_current(); },

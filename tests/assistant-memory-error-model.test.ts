@@ -4,10 +4,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { AssistantService, AssistantStore, assistantAuthority, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
+import { AssistantService, AssistantStore, assistantAuthority, assistantServiceFor, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { controlledMemoryService } from "../apps/local-host/dist/memory/memory-effect.js";
-import type { AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { MemoryService, memoryErrors } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { openTestHome, type TestHome } from "./fixtures/test-home.js";
@@ -126,14 +124,11 @@ test("Assistant memory tools keep Memory's forbidden and pending-limit kinds wit
   const home = await openTestHome(t);
   const agent = home.host.ensureAgentService(home.home, () => { throw new Error("the served Host already owns its Agent service"); });
   await agent.ready;
-  const ledger = openMemoryLedger({ homeDirectory: join(home.home, "tool-ledger") });
-  const db = new DatabaseSync(":memory:");
-  let service: AssistantService | undefined;
+  const ledger = openMemoryLedger({ homeDirectory: home.home });
   try {
     const memory = new MemoryService({ backend: prologueMemoryBackend(async () => agent.agentHost.adapter("prologue").memory!), ledger });
-    const store = new AssistantStore(db);
-    service = new AssistantService(store, { pages: async () => ["home"], host: async () => agent.agentHost,
-      authority: async work => assistantAuthority(home.host, work, () => new Set()), memory: (control?: AgentMemoryExecutionControl) => control ? controlledMemoryService({ backend: prologueMemoryBackend(async () => agent.agentHost.adapter("prologue").memory!), ledger }, current => prologueMemoryBackend(async () => agent.agentHost.adapter("prologue").memory!, current), control) : memory }, LOCAL_PERSON_ACTOR_ID);
+    const { service, store } = assistantServiceFor({ localHost: home.host, homeDirectory: home.home, agentHost: agent.agentHost,
+      agentReady: () => agent.ready, projectTitle: async () => null, pages: async () => ["home"] });
     const project = await home.createProject("记忆错误分类");
     const work = store.create({ actor_id: LOCAL_PERSON_ACTOR_ID, title: "写周报", scope: { kind: "project", project_id: project.project_id }, origin: null, project_ref: project.reference });
     const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, consumer: "ui" as const, person: true };
@@ -150,5 +145,5 @@ test("Assistant memory tools keep Memory's forbidden and pending-limit kinds wit
     assert.deepEqual(await memory.candidates(person), before);
     assert.deepEqual((await memory.list(person)).items, [], "candidates remain proposals, never remembered facts");
     assert.deepEqual(await tools.forget!("not-kept", memoryToolControl()), { forgotten: false }, "a missing memory is still harmless to forget");
-  } finally { service?.continuations.close(); try { db.close(); } finally { ledger.close(); } }
+  } finally { ledger.close(); }
 });

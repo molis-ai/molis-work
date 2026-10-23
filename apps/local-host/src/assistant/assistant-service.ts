@@ -37,7 +37,7 @@ import { assistantCandidate, assistantMemoryTools } from "./assistant-memory-too
 import { assistantMemoryTrail } from "./assistant-memory-trail.js";
 import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
-import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
+import type { MemoryCaller, MemoryService, MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import { CodingExecutor, dispatchControl, type CodingControl, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
 import { AssistantInputs, exactRevision, inputsOf, queuedInputs, readAssistantInputs, memoryLearningSources, withdrawInput, type AssistantMemorySourceRef, type SendIntent } from "./assistant-inputs.js";
 import { memoryInputSnapshots, memoryInputSource } from "../memory/memory-source-identity.js";
@@ -81,7 +81,7 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   /** Methods Plugins offer for business work, as registered with the Host; bodies only by id and version. */
   methods?: { list(): AgentMethodView[]; read(ownerId: string, skillId: string, version?: number): AgentMethodRegistration };
   /** The platform memory of this Home (specs/archive/memory-system). Absent: the Assistant keeps and recalls nothing. */
-  memory?(control?: AgentMemoryExecutionControl): MemoryService | undefined;
+  memory?(...execution: [] | [control: AgentMemoryExecutionControl, bindChangeTarget: NonNullable<MemoryServicePorts["bindChangeTarget"]>]): MemoryService | undefined;
   memorySources?: Pick<ReturnType<typeof memorySources>, "check">;
   /** A round of a work finished: the platform memory may draw out what is worth keeping from the person's own words. */
   learnFromRound?(input: { work: StoredWork; said: string[]; run_id: string; sources: AssistantMemorySourceRef[] }): void;
@@ -1724,7 +1724,7 @@ export class AssistantService {
     const memory = this.ports.memory?.();
     if (!memory) return undefined;
     const projectId = work.project_ref?.project_id ?? null;
-    return assistantMemoryTools({ memory, controlled: control => this.ports.memory?.(control), sources: this.ports.memorySources, currentWork: () => this.store.get(this.actorId, work.work_id), actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId),
+    return assistantMemoryTools({ memory, controlled: (control, bindChangeTarget) => this.ports.memory?.(control, bindChangeTarget), sources: this.ports.memorySources, currentWork: () => this.store.get(this.actorId, work.work_id), actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId),
       onSourceWithdrawal: listener => { this.memorySourceWithdrawals.add(listener); return () => { this.memorySourceWithdrawals.delete(listener); }; },
       spoken: async () => memoryInputSnapshots(this.actorId, (await Promise.resolve().then(() => this.assistantPart(this.store.get(this.actorId, work.work_id))).catch(() => null))?.sourceViews ?? []) });
   }

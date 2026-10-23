@@ -107,6 +107,8 @@ recreate 撤销按原 changeId 在现 operation marker 中保留短创建号；�
 
 合同在 `@molis-ai/molis-work-contracts/services/memory`（`memory.*` 动作、旁表端口）。旁表由 `@molis-ai/molis-work-storage` 的 `openMemoryLedger` 实现；Host 装配（Prologue 后端、动作注册、`/api/memory/*`）在 [apps/local-host/src/memory/memory-host.ts](../../apps/local-host/src/memory/memory-host.ts)。
 
+`MemoryServicePorts.bindChangeTarget` 将 `change` 已授权定位的 scope、owner、project 同步交给当前 Host 控制，发生在变更记账和正式提交前；不返回正文，也不另查目标。助理受控工厂必传此口，用同一调用的最终检查覆盖实际目标撤权后的 SDK 提交与 ledger 写入；普通管理装配继续使用其现有 Action 控制。
+
 ## 接入与边界
 
 使用方只经 `memory.*` 动作或 Host 进程内的服务调用；使用方身份来自可信调用上下文（受众），不从输入读。插件只能读到被允许的类别（服务里的规则；动作目录今天不向插件提供记忆，见 [CALL-CHAINS §8](../../docs/system/CALL-CHAINS.md)）；外部 AI 客户端只能召回，要本人授权，默认读不到个人记忆。

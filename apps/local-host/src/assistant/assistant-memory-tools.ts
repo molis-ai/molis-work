@@ -3,14 +3,14 @@ import type { AssistantMemoryCandidate } from "@molis-ai/molis-work-contracts/se
 import type { AgentMemoryExecutionControl, AgentMemorySourceSnapshot, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isDeepStrictEqual } from "node:util";
-import { characterOwner, consumerAccess, memoryErrors, theirWords, type MemoryCaller, type MemoryService } from "@molis-ai/molis-work-service-memory";
+import { characterOwner, consumerAccess, memoryErrors, theirWords, type MemoryCaller, type MemoryService, type MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import type { memorySources } from "../memory/memory-sources.js";
 import { assistantErrors } from "./assistant-errors.js";
 import type { StoredWork } from "./assistant-store.js";
 
 interface AssistantMemoryToolsInput {
   memory: MemoryService;
-  controlled(control: AgentMemoryExecutionControl): MemoryService | undefined;
+  controlled(control: AgentMemoryExecutionControl, bindChangeTarget: NonNullable<MemoryServicePorts["bindChangeTarget"]>): MemoryService | undefined;
   sources?: Pick<ReturnType<typeof memorySources>, "check">;
   currentWork(): StoredWork;
   onSourceWithdrawal(listener: (eventId: string) => void): () => void;
@@ -26,12 +26,18 @@ interface AssistantMemoryToolsInput {
 type ToolControl = Parameters<NonNullable<AgentMemoryTools["remember"]>>[1];
 
 /** One tool invocation retains its authority through every SDK commit and synchronous ledger operation. */
-async function memoryInvocation(input: AssistantMemoryToolsInput, call: ToolControl, scope?: MemoryScope, sources: readonly AgentMemorySourceSnapshot[] = [], suggesting = false) {
+async function memoryInvocation(input: AssistantMemoryToolsInput, call: ToolControl, scope?: MemoryScope,
+  selectSources?: (available: readonly AgentMemorySourceSnapshot[]) => readonly AgentMemorySourceSnapshot[], suggesting = false) {
   if (!call?.signal || !call.operation_id) throw memoryErrors.forbidden("记忆工具缺少本次执行控制");
   const withdrawn = new AbortController(), signal = AbortSignal.any([call.signal, withdrawn.signal]);
-  const sourceIds = new Set(sources.map(source => source.event_id));
-  const dispose = sourceIds.size ? input.onSourceWithdrawal(eventId => { if (sourceIds.has(eventId)) withdrawn.abort(memoryErrors.forbidden("原始输入正在撤回，停止记忆写入")); }) : () => {};
+  const sourceIds = new Set<string>(), withdrawals = new Set<string>();
+  let bound = false, sources: readonly AgentMemorySourceSnapshot[] = [], originals: string[] = [];
+  const cancelSource = () => withdrawn.abort(memoryErrors.forbidden("原始输入正在撤回，停止记忆写入"));
+  const dispose = selectSources ? input.onSourceWithdrawal(eventId => {
+    if (!bound) withdrawals.add(eventId); else if (sourceIds.has(eventId)) cancelSource();
+  }) : () => {};
   const work = input.work, projectId = input.projectId;
+  let changeTarget: Parameters<NonNullable<MemoryServicePorts["bindChangeTarget"]>>[0] | undefined;
   const owner = scope === "personal" ? input.actorId : scope === "character" && input.caller.character && projectId
     ? characterOwner(projectId, input.caller.character.id) : projectId;
   const assertCurrent = () => {
@@ -44,14 +50,30 @@ async function memoryInvocation(input: AssistantMemoryToolsInput, call: ToolCont
     if (scope) {
       const permitted = (target: "personal" | "project") => {
         const prefs = input.memory.prefsFor(input.actorId, target, target === "personal" ? null : projectId);
-        return prefs.form && consumerAccess(prefs, "assistant", undefined, "explicit").allowed;
+        if (!prefs.enabled) throw memoryErrors.off("这个范围的记忆已关闭；仍可查看和删除，启用后才能保存或恢复");
+        if (!prefs.form) {
+          if (suggesting) throw memoryErrors.off("用户关掉了“允许记住”，不要提出记忆建议");
+          throw assistantErrors.invalid("没有记住：你关掉了“允许记住”，这条没有记住，也没有留作建议");
+        }
+        return consumerAccess(prefs, "assistant", undefined, "explicit").allowed;
       };
-      if (!permitted(scope === "personal" ? "personal" : "project") || projectId && !permitted("project")
-        || suggesting && !input.memory.prefsFor(input.actorId, scope === "personal" ? "personal" : "project", scope === "personal" ? null : projectId).learn_from_work)
+      if (!permitted(scope === "personal" ? "personal" : "project") || projectId && !permitted("project"))
         throw memoryErrors.forbidden("用户没有允许本次记忆写入");
+      if (suggesting && !input.memory.prefsFor(input.actorId, scope === "personal" ? "personal" : "project", scope === "personal" ? null : projectId).learn_from_work)
+        throw memoryErrors.forbidden(scope === "project" ? "用户没有允许从项目工作里提出项目约定" : "用户没有允许从工作里提出个人偏好");
     }
     if (scope && owner && !input.memory.sourceAllowed(input.actorId, scope, owner, sources))
       throw memoryErrors.forbidden("这份来源已遗忘，停止记忆写入");
+    if (changeTarget && !consumerAccess(input.memory.prefsFor(input.actorId, changeTarget.scope, changeTarget.project), "assistant", undefined, "explicit").allowed)
+      throw memoryErrors.forbidden("用户没有允许助理变更这条记忆");
+  };
+  const bindChangeTarget: NonNullable<MemoryServicePorts["bindChangeTarget"]> = target => {
+    const expectedOwner = target.scope === "personal" ? input.actorId : target.scope === "character" && input.caller.character && projectId
+      ? characterOwner(projectId, input.caller.character.id) : target.scope === "project" ? projectId : null;
+    if (!expectedOwner || target.owner !== expectedOwner || target.project !== (target.scope === "personal" ? null : projectId)
+      || changeTarget && !isDeepStrictEqual(changeTarget, target)) throw memoryErrors.forbidden("记忆变更目标不属于本次工作");
+    changeTarget = { ...target };
+    assertCurrent();
   };
   const beforeEffect = async () => {
     assertCurrent();
@@ -63,10 +85,20 @@ async function memoryInvocation(input: AssistantMemoryToolsInput, call: ToolCont
     assertCurrent();
   };
   try {
+    signal.throwIfAborted();
+    if (selectSources) {
+      const available = await input.spoken();
+      originals = [...available].reverse().map(source => source.text);
+      sources = selectSources(available);
+      for (const source of sources) sourceIds.add(source.event_id);
+      bound = true;
+      if ([...withdrawals].some(eventId => sourceIds.has(eventId))) cancelSource();
+      withdrawals.clear();
+    }
     await beforeEffect();
-    const memory = input.controlled({ beforeEffect, assert_current: assertCurrent });
+    const memory = input.controlled({ beforeEffect, assert_current: assertCurrent }, bindChangeTarget);
     if (!memory) throw memoryErrors.unavailable("当前没有受控记忆服务");
-    return { memory, dispose, caller: { ...input.caller, operation_id: call.operation_id, signal,
+    return { memory, dispose, sources, originals, caller: { ...input.caller, operation_id: call.operation_id, signal,
       ...(work.session_id ? { session_id: work.session_id } : {}) } };
   } catch (error) { dispose(); throw error; }
 }
@@ -84,8 +116,7 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
   // Suggesting is its own switch per scope: a project's work suggests for that project only where the person allows it.
   const mayPropose = (personal.enabled && personal.form && personal.learn_from_work) || (!!project?.enabled && project.form && project.learn_from_work);
   const propose: AgentMemoryTools["propose"] = async (request, call) => {
-    const sources = await input.spoken();
-    const invocation = await memoryInvocation(input, call, request.scope, sources, true);
+    const invocation = await memoryInvocation(input, call, request.scope, sources => sources, true), { sources } = invocation;
     try {
       const candidate = await invocation.memory.propose({ ...invocation.caller, source_use: "explicit" }, { scope: request.scope, text: request.text, kind: request.scope === "project" ? "convention" : "preference", applies: request.applies.trim() ? { task: request.applies.trim().slice(0, 200) } : {},
         basis: "inferred", why: request.why, from: "work" }, sources.length ? { sources: sources.map(({ event_id, version }) => ({ event_id, version })) } : {});
@@ -99,11 +130,11 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
       if (request.scope === "character" && !caller.character) throw assistantErrors.scope("这一轮不是由某个角色承担的，不能记为角色记忆");
       // “You said” is the person's only when the text is the whole of a message they typed in this work: the gate judges it against these saved messages (not against the quote the model gives), and what is kept
       // is that message as they wrote it. A paraphrase, a part of a message or anything else is the Assistant's own suggestion, which waits for the person.
-      const sources = await input.spoken();
-      const latest = [...sources].reverse(), originals = latest.map(source => source.text), said = theirWords(request.text, originals);
-      // A later explicit request is a new authorization: unrelated historical inputs do not become this memory's sources.
-      const selected = said === null ? sources : latest.filter(source => theirWords(request.text, [source.text]) !== null).slice(0, 1);
-      const invocation = await memoryInvocation(input, call, request.scope, selected);
+      const invocation = await memoryInvocation(input, call, request.scope, sources => {
+        const latest = [...sources].reverse(), said = theirWords(request.text, latest.map(source => source.text));
+        // A later explicit request is a new authorization: unrelated historical inputs do not become this memory's sources.
+        return said === null ? sources : latest.filter(source => theirWords(request.text, [source.text]) !== null).slice(0, 1);
+      }), { sources: selected, originals } = invocation;
       try {
         const result = await invocation.memory.write(invocation.caller, { scope: request.scope, text: request.text, said: request.said, ...(request.kind ? { kind: request.kind } : {}), ...(request.replaces ? { replaces: request.replaces } : {}) },
           { originals, ...(selected.length ? { sources: selected.map(({ event_id, version }) => ({ event_id, version })) } : {}) });

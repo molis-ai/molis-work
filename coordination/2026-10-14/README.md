@@ -3213,3 +3213,12 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 已合入 main：#1079（`6d0f46b39`）、#1097（`dd9ac5b6f`）、#1051（`cdb47255d`）。R-19、R-08 都不关。
 - R-27：CLT 16.2 的 `SwiftBridging` 重复定义，本机整体构建停在 local-host 的 Swift 步骤。不挡开发，修不修由用户定，§4 已加一行。
 
+### 10-23 22:48（14:48 UTC） batch-1023-9 跑完；R-22、R-23 关；batch-1023-10 开跑；#1084 的夹具修复给 Codex
+- ⑤ 报 batch-1023-9（run 39964995417）跑完，最终红 3 份：
+  - #1096 带进的 `health-gates-api-snapshot` 和 #1093 带进的 `goal-event-http`：和 ① 22:42 的裁定一致，交 Codex 叠加修，修好前两个 PR 都不排队。
+  - `workbench-deferred-clients.e2e`：间歇红（CDP 超时），由 BL-412 跟，它不在产品子集里，不进隔离。
+  - `scroll-follow.e2e` 重试才过，记为偶发。
+- R-22（VUX-36）、R-23（`issue-capture-page`）在这批的 Linux 上都过了，⑤ 已从间歇红删掉，两行都关。
+- batch-1023-10 已推：run 39972250383，`5013b77b6` = main `cdb47255d` + #1099 + #1100 + #1085 + #1087。#1085 同时在合并队列里。#1076 同步 main（`f2ac4be6d`），在等 CI。
+- #1084：作者合好 main 和 S3，推到 `48b34d153`。⑩ 问 `coding-interaction-html` 那处由谁推，① 定给 Codex：它 10:49Z 已认领，⑩ 丢掉本地提交。Codex 的前置条件放宽为现在就能开，排在 #1096、#1093 之后。
+

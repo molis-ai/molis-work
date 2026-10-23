@@ -452,6 +452,33 @@ Integration 的 `health()` 可返回非敏感的 `account: { login, account_id? 
 连接的业务使用位置由消费方通过 `defineConnectorUsagesAction` 报告（contracts 的 `services/connector-host`）。输入是连接 id，输出是 owner 当前保存的使用位置、启用状态和已有业务动作引用及非敏感对象参数。共同目录按 `molis.connector-usages.input.v1` / `output.v1` 发现查询，由 `connectors.usages.read` 以原调用者权限汇总；没有宿主插件白名单和第二份绑定库。Feed 只返回当前项目来源，Images 返回原生图配置，Functions 返回使用当前绑定账号的已发布规则；模型配置不伪称所有文本动作都固定使用该账号。查询不调用业务操作，展示的操作仍按当前目录权限、作用域与可用性决定是否可用。
 
 
+## 用本人的服务账号发请求（`services.connections`）
+
+插件要以用户本人的身份读写某个服务（例如读 GitHub 通知），不自己存令牌，也不让人把令牌填进插件：Manifest 声明权限 `connections:use`，并在 `connections.slots` 里列出连接槽：
+
+```json
+"connections": { "slots": [{ "slot_id": "github", "service_id": "github", "reason": "读取本人的 GitHub 通知" }] }
+```
+
+`service_id` 只能是平台登记了固定地址的服务（`CONNECTOR_REQUEST_SERVICES`，现在只有 `github` → `https://api.github.com`）；没有权限的槽、未登记的服务、多写的字段、重复的槽，解析 Manifest 时就拒（`plugin.declaration_invalid`）。槽绑哪个账号由人选（`connectors.plugin_slot.bind@1`，只对 `user` 开放；插件设置里的选择界面是 S0b-2b）；没绑时请求照发，不带凭据。
+
+在本插件自己声明了 `connections:use` 的并发动作（`scheduling: "concurrent"`）里调：
+
+```ts
+const response = await context.services.connections!.request("github", { url: "https://api.github.com/notifications" });
+// { status, headers, body, authenticated }
+await caller.beforeEffect(); // 写业务记录之前
+```
+
+- 地址必须是该服务的固定来源；别的地址（没绑账号也一样）都是 `connector.plugin_requests.origin_refused`。
+- 不能自己写 `Authorization`、`Cookie`、`Proxy-Authorization`、`Host` 与连接类的头，不带账号密码与片段；GET/HEAD 不带内容，内容不超过 256 KB；只读动作只能发 GET/HEAD。
+- 绑了账号时宿主加 `Bearer`，插件看不到凭据，`authenticated` 说这次带没带；绑的账号断开或不能用时拒绝（`connector.plugin_requests.connection_unavailable`），不改成匿名发。
+- 不跟随跳转（3xx 原样交回，`location` 在头里）；返回的头只留内容类型、缓存、`link`、`x-ratelimit-*` 等固定的一组；15 秒超时，1 MB 上限；令牌过期的 401 原样交回。
+- 只能在本实例自己的动作或保留的后台作业里用；`start`、路由、场景回调、别的安装的调用都拒（`plugin.connections_call_required`）。授权每次都重查，取消、撤权、停用后不发也不交回。
+- 沙箱插件没有这项服务。
+
+规则与拒绝测试见 `docs/system/SECURITY-INVARIANTS.md` S-57。
+
 ## Home 主人的私有文件树
 
 可信 Home 条目可声明 `owner_files` 与可选的 `initialize_owner_files`，根目录沿唯一 HomeStoreRegistry 验证 owner；同一根不能同时被 database、旧 files 或第二份 owner_files 占用，完整声明校验在受管开库和初始化之前完成。声明绑定实际 definition 并深复制冻结。项目、沙箱、升级预检以及 Manifest 自报字段均不能获得服务。它是平台前置，现 Shelf owner 和正式装配保持现状。

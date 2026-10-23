@@ -47,6 +47,8 @@ connectors.local.cleanup	1	system.connectors	command	operation	home	write	-	agen
 connectors.local.execute	1	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	eba6e6fcae54
 connectors.local.prepare	1	system.connectors	command	operation	home	write	-	agent,mcp,user	connectors:management:write	connector	-	-	8eb4ae782abf	a2c799262a3c	-
 connectors.methods.read	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	-	-	df77d647cdc2	a2c799262a3c	-
+connectors.plugin_slot.bind	1	system.connectors	command	operation	home	write	-	user	connectors:management:write	connector	-	-	df15e29c3bfa	270f9a44cee9	-
+connectors.plugin_slot.read	1	system.connectors	query	query	home	read	-	user	connectors:management:read	connector	-	-	da799e291b7b	270f9a44cee9	-
 connectors.records.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:records:read	connector	-	-	7d42269d0825	d8b948bd0af2	-
 connectors.setup.execute	1	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	-
 connectors.setup.prepare	1	system.connectors	command	operation	home	write	-	agent,mcp,user	connectors:management:write	connector	-	-	61775206790e	01c9e0b85ebb	-

@@ -11,6 +11,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const SHELF_ORIGIN: &str = "http://127.0.0.1:4173";
 const SHELF_HOST: &str = "127.0.0.1:4173";
+/// Shelf's routes on its Home instance, outside any project.
+const SHELF_API: &str = "/api/plugins/io.molis.work.shelf";
+/// The header that tells the Host the person chose this file here; the Host reads it, page script cannot send it.
+const ORIGINAL_PATH_HEADER: &str = "sec-molis-work-original-path";
+const FOLDER_MAX_BYTES: u64 = 32 * 1024 * 1024;
 
 #[derive(Debug, Deserialize)]
 struct AdmitResponse {
@@ -35,14 +40,21 @@ pub fn admit_file(path: &Path) -> Result<String, String> {
     admit_bytes(filename, &bytes, Some(path))
 }
 
+/// With `origin`, the file it came from is offered to Shelf so a later recipe can check it has not changed.
 pub fn admit_bytes(filename: &str, bytes: &[u8], origin: Option<&Path>) -> Result<String, String> {
-    let body = serde_json::json!({
+    let original = origin
+        .and_then(|path| fs::canonicalize(path).ok())
+        .and_then(|path| path.to_str().map(str::to_owned));
+    let mut body = serde_json::json!({
         "filename": filename,
         "bytes_base64": encode_base64(bytes),
         "mime": mime_for(filename),
-        "origin_realpath": origin.and_then(|path| path.to_str()),
     });
-    post_json("/api/shelf/items", &body).and_then(parse_item_id)
+    if original.is_some() {
+        body["original"] = serde_json::Value::Bool(true);
+    }
+    post_json_offering(&format!("{SHELF_API}/items"), &body, original.as_deref())
+        .and_then(parse_item_id)
 }
 
 fn folder_entries(root: &Path) -> Result<Vec<serde_json::Value>, String> {
@@ -68,8 +80,8 @@ fn folder_entries(root: &Path) -> Result<Vec<serde_json::Value>, String> {
                 walk(root, &file, entries, size)?;
             } else if kind.is_file() {
                 *size += entry.metadata().map_err(|error| error.to_string())?.len();
-                if *size > 64 * 1024 * 1024 {
-                    return Err("这个文件夹超过 64 MB".into());
+                if *size > FOLDER_MAX_BYTES {
+                    return Err("这个文件夹超过 32 MB，请把它拆成几个小一点的文件夹再放进来".into());
                 }
                 let bytes = fs::read(&file).map_err(|error| format!("读不了这份文件：{error}"))?;
                 let relative = file
@@ -91,14 +103,14 @@ fn admit_folder(path: &Path) -> Result<String, String> {
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or("文件夹名称无效")?;
-    let body = serde_json::json!({"name": name, "entries": folder_entries(path)?, "origin_realpath": path});
-    post_json("/api/shelf/folders", &body).and_then(parse_item_id)
+    let body = serde_json::json!({"name": name, "entries": folder_entries(path)?});
+    post_json(&format!("{SHELF_API}/folders"), &body).and_then(parse_item_id)
 }
 
 /// The wheel's 发给终端 hands the link itself over; it does not fetch the page.
 pub fn admit_text_capturing(text: &str, capture_pages: bool) -> Result<String, String> {
     let body = serde_json::json!({ "text": text, "capture_pages": capture_pages });
-    post_json("/api/shelf/items", &body).and_then(parse_item_id)
+    post_json(&format!("{SHELF_API}/items"), &body).and_then(parse_item_id)
 }
 
 pub fn admit_website(title: &str, url: &str, markdown: &str) -> Result<String, String> {
@@ -108,13 +120,13 @@ pub fn admit_website(title: &str, url: &str, markdown: &str) -> Result<String, S
         "bytes_base64": encode_base64(markdown.as_bytes()),
         "mime": "text/x-shelf-website",
     });
-    post_json("/api/shelf/items", &body).and_then(parse_item_id)
+    post_json(&format!("{SHELF_API}/items"), &body).and_then(parse_item_id)
 }
 
 /// Record a system clipboard entry. Concealed types never get this far.
 pub fn record_clip(text: &str, types: &[String]) -> Result<(), String> {
     let body = serde_json::json!({ "text": text, "types": types });
-    post_json("/api/shelf/clipboard", &body).map(|_| ())
+    post_json(&format!("{SHELF_API}/clipboard"), &body).map(|_| ())
 }
 
 /// Appearance can turn the wheel off. Read straight from the catalog so the
@@ -164,7 +176,7 @@ pub fn refresh_wheel_gates() {
         return;
     }
     thread::spawn(|| {
-        let parsed = get_json("/api/shelf")
+        let parsed = get_json(&format!("{SHELF_API}/"))
             .ok()
             .and_then(|payload| parse_wheel_gates(&payload));
         // A temporarily unavailable host should not grey out a working agent.
@@ -229,7 +241,7 @@ pub fn run_recipe(recipe: &str, item_ids: &[String]) -> Result<(), String> {
         "recipe": recipe,
         "item_ids": item_ids,
     });
-    let payload = post_json("/api/shelf/jobs", &body)?;
+    let payload = post_json(&format!("{SHELF_API}/jobs"), &body)?;
     if payload.contains("\"error\"") {
         return Err(json_error(&payload).unwrap_or_else(|| "这次动作没跑成".into()));
     }
@@ -255,9 +267,20 @@ fn json_error(payload: &str) -> Option<String> {
 }
 
 fn post_json(path: &str, body: &serde_json::Value) -> Result<String, String> {
+    post_json_offering(path, body, None)
+}
+
+fn post_json_offering(
+    path: &str,
+    body: &serde_json::Value,
+    original: Option<&str>,
+) -> Result<String, String> {
     let token = control_token()?;
     let encoded = body.to_string();
     let key = idempotency_key();
+    let offered = original
+        .map(|file| format!("{ORIGINAL_PATH_HEADER}: {}\r\n", percent_encode_path(file)))
+        .unwrap_or_default();
     let request = format!(
         "POST {path} HTTP/1.1\r\n\
          Host: {SHELF_HOST}\r\n\
@@ -267,6 +290,7 @@ fn post_json(path: &str, body: &serde_json::Value) -> Result<String, String> {
          Connection: close\r\n\
          x-molis-work-control-token: {token}\r\n\
          x-molis-work-idempotency-key: {key}\r\n\
+         {offered}\
          \r\n\
          {encoded}",
         encoded.len()
@@ -274,8 +298,21 @@ fn post_json(path: &str, body: &serde_json::Value) -> Result<String, String> {
     exchange_http(
         &request,
         Duration::from_millis(800),
-        Duration::from_secs(if path == "/api/shelf/jobs" { 620 } else { 30 }),
+        Duration::from_secs(if path.ends_with("/jobs") { 620 } else { 30 }),
     )
+}
+
+/// The Host decodes the header with `decodeURIComponent`; everything but a path's plain characters is escaped.
+fn percent_encode_path(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for byte in path.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'-' | b'_' | b'.' | b'~') {
+            out.push(byte as char);
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
 }
 
 fn get_json(path: &str) -> Result<String, String> {
@@ -423,7 +460,9 @@ fn encode_base64(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{encode_base64, folder_entries, http_payload, parse_wheel_gates};
+    use super::{
+        encode_base64, folder_entries, http_payload, parse_wheel_gates, percent_encode_path,
+    };
     use std::fs;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -499,17 +538,28 @@ mod tests {
     }
 
     #[test]
-    fn shelf_folder_rejects_a_total_over_64_mib_before_reading_the_large_file() {
+    fn shelf_folder_rejects_a_total_over_32_mib_before_reading_the_large_file() {
         let temp = TestDirectory::new();
         fs::write(temp.0.join("a.txt"), b"x").unwrap();
-        // A sparse file exercises the actual metadata limit without allocating 64 MiB.
+        // A sparse file exercises the actual metadata limit without allocating 32 MiB.
         fs::File::create(temp.0.join("z-large.bin"))
             .unwrap()
-            .set_len(64 * 1024 * 1024)
+            .set_len(32 * 1024 * 1024)
             .unwrap();
         let error =
             folder_entries(&temp.0).expect_err("the limit applies to the combined folder size");
-        assert_eq!(error, "这个文件夹超过 64 MB");
+        assert_eq!(
+            error,
+            "这个文件夹超过 32 MB，请把它拆成几个小一点的文件夹再放进来"
+        );
+    }
+
+    #[test]
+    fn original_path_header_survives_spaces_and_non_ascii_names() {
+        assert_eq!(
+            percent_encode_path("/Users/me/中文 资料/a&b.pdf"),
+            "/Users/me/%E4%B8%AD%E6%96%87%20%E8%B5%84%E6%96%99/a%26b.pdf"
+        );
     }
 
     #[test]

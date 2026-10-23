@@ -1,5 +1,5 @@
 {
-  "giantUnits": 117,
+  "giantUnits": 114,
   "giant": {
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
@@ -30,14 +30,14 @@
       "lines": 273,
       "methods": 41
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 228,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 225,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 167,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 191,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/functions/client.ts": 1274,
-    "file apps/workbench/src/i18n/en.ts": 3323,
+    "file apps/workbench/src/i18n/en.ts": 3316,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 285,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2047,
@@ -78,7 +78,7 @@
       "lines": 399,
       "methods": 28
     },
-    "function horizontal/scheduler/src/index.ts#createScheduleService": 223,
+    "function horizontal/scheduler/src/index.ts#createScheduleService": 219,
     "class horizontal/search/src/index.ts#SearchService": {
       "lines": 403,
       "methods": 26
@@ -126,12 +126,12 @@
       "lines": 287,
       "methods": 29
     },
-    "file modules/shelf/src/store.ts": 1081,
+    "file modules/shelf/src/store.ts": 1067,
     "class modules/shelf/src/store.ts#ShelfStore": {
-      "lines": 678,
-      "methods": 32
+      "lines": 666,
+      "methods": 31
     },
-    "function modules/shelf/src/store.ts#runJob": 184,
+    "function modules/shelf/src/store.ts#runJob": 183,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 753,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
@@ -211,9 +211,6 @@
       "methods": 28
     },
     "function plugins/native/work/src/actions.ts#createWorkActionHandlers": 169,
-    "function plugins/native/work/src/http/panels.ts#handleWorkPanelHttp": 158,
-    "function plugins/native/work/src/terminal/client.ts#startWorkTerminalClient": 431,
-    "function plugins/native/work/src/terminal/panels.ts#createTerminalPanels": 365,
     "function plugins/native/work/src/ui/render.ts#renderWorkSessionSurface": 342,
     "function plugins/native/workflows/src/actions.ts#createWorkflowsActionHandlers": 233,
     "file plugins/native/workflows/src/client.ts": 1329,
@@ -611,7 +608,7 @@
     "plugins/native/todo/src/client.ts": 1,
     "plugins/native/work/src/ui/browser.ts": 1
   },
-  "rawFetchInScriptsTotal": 58,
+  "rawFetchInScriptsTotal": 50,
   "rawFetchInScripts": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "plugins/native/artifacts/src/goal-input-client.ts": 2,
@@ -642,9 +639,7 @@
     "plugins/native/work/src/ui/content-client.ts": 2,
     "plugins/native/work/src/ui/session-add-client.ts": 2,
     "plugins/native/work/src/ui/associations-client.ts": 2,
-    "plugins/native/work/src/ui/handoff-client.ts": 4,
-    "plugins/native/work/src/terminal/panels.ts": 6,
-    "plugins/native/work/src/terminal/client.ts": 2
+    "plugins/native/work/src/ui/handoff-client.ts": 4
   },
   "contractsPurityEntries": 6,
   "contractsPurity": {
@@ -700,7 +695,7 @@
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 10,
+  "hostPluginFilesTotal": 9,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
@@ -710,7 +705,6 @@
     "apps/local-host/src/inbox-actions.ts#actions": 1,
     "apps/local-host/src/inbox-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/shelf-actions.ts#actions": 1,
-    "apps/local-host/src/shelf-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/work-actions.ts#actions": 1
   },
   "registerProviderSitesTotal": 17,
@@ -728,12 +722,12 @@
     "apps/local-host/src/project-host.ts#register-provider": 4,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 3,
+  "hybridPluginsTotal": 2,
   "hybridPlugins": {
     "coding#host-files": 1,
-    "shelf#host-files": 2
+    "shelf#host-files": 1
   },
-  "pluginOutsideMentionsTotal": 315,
+  "pluginOutsideMentionsTotal": 309,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 11,
     "artifacts#outside-files": 20,
@@ -755,10 +749,10 @@
     "plugin-builder#outside-files": 18,
     "ppt#outside-files": 7,
     "schedule#outside-files": 11,
-    "shelf#outside-files": 14,
+    "shelf#outside-files": 12,
     "text-stats#outside-files": 7,
     "todo#outside-files": 7,
-    "work#outside-files": 22,
+    "work#outside-files": 18,
     "workflows#outside-files": 7
   },
   "rootStrayTotal": 0,
@@ -1369,7 +1363,7 @@
   },
   "errorCodeShapeTotal": 0,
   "errorCodeShape": {},
-  "errorStatusDecisionTotal": 83,
+  "errorStatusDecisionTotal": 79,
   "errorStatusDecisions": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/alchemist-native-plugin-http.ts": 3,
@@ -1389,8 +1383,7 @@
     "plugins/native/work/src/http/create.ts": 4,
     "plugins/native/work/src/http/handoff.ts": 8,
     "plugins/native/work/src/http/messages.ts": 6,
-    "plugins/native/work/src/http/panels.ts": 1,
-    "plugins/native/work/src/http/workspaces.ts": 5,
+    "plugins/native/work/src/http/workspaces.ts": 2,
     "server/src/continuity/service.ts": 1,
     "server/src/http.ts": 2,
     "server/src/identity.ts": 3

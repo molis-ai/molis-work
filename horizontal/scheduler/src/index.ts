@@ -98,7 +98,11 @@ export class PluginWakeupIndex {
 type ScheduleWakeupDispatcher = Pick<PluginWakeupIndex, "has" | "prepare" | "invoke">;
 
 interface ScheduleServiceOptions {
-  wakeupIndex: PluginWakeupIndex;
+  /**
+   * In-process handlers for jobs registered without an installation (`register`). The Host gives none: every wakeup it
+   * delivers is an action of a plugin's installation, through that installation's gateway (`registerAction`, PG-039).
+   */
+  wakeupIndex?: PluginWakeupIndex;
   now?: () => Date;
   leaseMs?: number;
 }
@@ -181,6 +185,19 @@ function abortExecutionAfterCommit(execution: { controller: AbortController } | 
   afterCommit(() => execution?.controller.abort(new Error(reason)));
 }
 
+/** An installation's bound jobs go through its gateway; the rest, only to an in-process handler, and with none given, to nothing. */
+function dispatcher(actionWakeups: ReturnType<typeof createActionWakeups>, inProcess?: PluginWakeupIndex): ScheduleWakeupDispatcher {
+  return {
+    has: (pluginId, capabilityId) => inProcess?.has(pluginId, capabilityId) ?? false,
+    prepare: input => { if (!actionWakeups.bindingFor(input.job_id)) inProcess?.prepare(input); },
+    invoke: async (input, control) => {
+      if (actionWakeups.bindingFor(input.job_id)) return actionWakeups.invoke(input, control);
+      if (!inProcess) throw schedulerErrors.handler_missing("叫醒对象还没有提供执行接口");
+      return inProcess.invoke(input, control);
+    },
+  };
+}
+
 export function createScheduleService(db: ScheduleSqliteDatabase, options: ScheduleServiceOptions) {
   db.exec(SCHEDULER_SCHEMA_SQL);
   const now = options.now ?? (() => new Date());
@@ -190,11 +207,7 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
   // be taken over once it expires. This map is not the lock.
   const executions = new Map<string, { token: string; controller: AbortController; job: JobRow }>();
   const actionWakeups = createActionWakeups(db, executions);
-  const wakeupIndex: ScheduleWakeupDispatcher = {
-    has: (pluginId, capabilityId) => options.wakeupIndex.has(pluginId, capabilityId),
-    prepare: input => { if (!actionWakeups.bindingFor(input.job_id)) options.wakeupIndex.prepare(input); },
-    invoke: (input, control) => actionWakeups.bindingFor(input.job_id) ? actionWakeups.invoke(input, control) : options.wakeupIndex.invoke(input, control),
-  };
+  const wakeupIndex = dispatcher(actionWakeups, options.wakeupIndex);
   const ticks = new Set<Promise<ScheduleTickResult>>();
   let closed = false;
   const requireOpen = () => { if (closed) throw new DOMException("Schedule stopped", "AbortError"); };

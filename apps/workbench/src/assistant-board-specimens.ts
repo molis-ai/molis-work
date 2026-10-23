@@ -12,7 +12,7 @@ type Say = (text: string, values?: Record<string, string | number>) => string;
 const PARAMS: readonly BoardFrameParam[] = [
   ["lang", "界面语言", [["zh", "中文"], ["en", "English"]]],
   ["text", "正文语言", [["zh", "中文"], ["en", "English"], ["mixed", "混排"]]],
-  ["work", "打开的工作", [["plan", "非编程 · 等你确认"], ["coding", "编程 · 进行中"], ["check", "中断 · 要核对"], ["new", "新工作"]]],
+  ["work", "打开的工作", [["plan", "非编程 · 等你确认"], ["coding", "编程 · 进行中"], ["check", "中断 · 要核对"], ["limited", "限流 · 等待重试"], ["new", "新工作"]]],
   ["answer", "回答问卷", [["ok", "交回"], ["refused", "被拒（模拟）"]]],
   ["width", "容器", [["1280", "宽窗口"], ["760", "分屏一格"], ["390", "手机"]]],
 ];

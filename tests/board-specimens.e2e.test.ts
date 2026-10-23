@@ -217,3 +217,31 @@ test("VUX-39 the board's Assistant questionnaire: one choice, several and other 
   await waitFor(inside("!d.querySelector('[data-question]') && d.querySelector('[data-assistant-thread]').textContent.includes('回复草稿写好了')"), 10_000);
   t.diagnostic("questionnaire answered");
 });
+
+test("VUX-39/VUX-43 the board's Assistant shows a rate-limited round counting down to its retry time in fixed-width digits, in both languages", { timeout: 180_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, evaluate, navigate, waitFor, origin } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#assistant` }, sessionId));
+  await evaluate("document.querySelector('#assistant').scrollIntoView()");
+  const frame = "document.querySelector('[data-asst-frame]')";
+  const status = `${frame}.contentDocument?.querySelector('[data-assistant-thread] .assistant-round-status[data-retry-until]')`;
+  const read = () => evaluate<{ text: string; numeric: string } | null>(`(() => { const s = ${status}; return s ? { text: s.textContent, numeric: getComputedStyle(s).fontVariantNumeric } : null; })()`);
+  const pick = async (name: string, value: string) => {
+    await evaluate(`document.querySelector('[data-asst-params] [data-cond-param="${name}"][data-cond-value="${value}"]').click()`);
+    await waitFor(`${frame}.contentWindow.location.search.includes('${name}=${value}')`, 20_000);
+  };
+  // The sample's runtime waits ten minutes, so the board shows the countdown, not 正在重试….
+  await pick("work", "limited");
+  await waitFor(`${status}?.textContent.startsWith('被限流，')`, 20_000);
+  const first = await read();
+  t.diagnostic("zh: " + JSON.stringify(first));
+  assert.match(first!.text, /^被限流，(09:[0-5]\d|10:00) 后自动重试$/);
+  assert.equal(first!.numeric, "tabular-nums", "the digits keep their width while they count");
+  await new Promise((resolve) => setTimeout(resolve, 1_200));
+  assert.notEqual((await read())!.text, first!.text, "it counts down");
+  await pick("lang", "en");
+  await waitFor(`${status}?.textContent.startsWith('Rate limited.')`, 20_000);
+  assert.match((await read())!.text, /^Rate limited\. Retrying in (09:[0-5]\d|10:00)$/);
+});

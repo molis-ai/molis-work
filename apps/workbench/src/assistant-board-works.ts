@@ -72,11 +72,11 @@ export function boardAnswered(at: Iso, asking: AssistantWorkView): AssistantWork
     turns: [...latest!.turns, said(at, "t-reply-2", 0, "回复草稿写好了，放在 Mail 的草稿箱里：同意延到下周三，时间沿用上午 10:00。", 5)] }]);
 }
 
-/** Two sub-tasks the plan handed to works of their own: one still running, one done. */
+/** Two sub-tasks the plan handed to works of their own: one still running (its model call rate-limited, the runtime waiting ten minutes to retry), one done. */
 export function boardDelegatedWorks(at: Iso, parent: AssistantWork): AssistantWorkView[] {
   const by = { work_id: parent.work_id, title: parent.title, acceptance: "列出首次导入卡住最久的三处，每处带一句试用者的原话" };
   const running = boardView(boardWork(at, "board-sub-interviews", "汇总试用访谈", "running", 3, { delegated_by: by }), [round(at, "run-sub-1", 5, {
-    text: by.acceptance, written_by: "host", phase: "running", ended_at: null,
+    text: by.acceptance, written_by: "host", phase: "running", ended_at: null, retry_wait: { until: at(-10), reason: "rate-limited", attempt: 1 },
     activity: [act("c-i1", "read", "Research · 读取访谈记录", "completed", { capability_id: "research.notes.read", sequence: 1 }), act("c-i2", "read", "Research · 读取访谈录音转写", "started", { sequence: 2 })],
   })]);
   const done = boardView(boardWork(at, "board-sub-survey", "整理问卷里的首次导入问题", "completed", 8, { delegated_by: by }), [round(at, "run-sub-2", 12, {

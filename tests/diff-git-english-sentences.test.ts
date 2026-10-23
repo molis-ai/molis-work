@@ -103,7 +103,7 @@ test("VUX-40: every sentence the Host's Git code sends to the Git page has an En
   const en = pageText("en");
   const base = new URL("../apps/local-host/src/", import.meta.url);
   const left: string[] = [];
-  for (const file of ["git-operations.ts", "workspace-git.ts", "workspace-git-index.ts", "workspace-git-actions.ts"]) {
+  for (const file of ["workspace-git-operations.ts", "workspace-git.ts", "workspace-git-index.ts", "workspace-git-actions.ts"]) {
     const source = readFileSync(new URL(file, base), "utf8");
     for (const [, , body] of source.matchAll(/(["`])((?:\\.|(?!\1)[^\\\n])*)\1/g)) {
       if (!HAN.test(body!)) continue;

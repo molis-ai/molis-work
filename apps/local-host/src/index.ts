@@ -211,8 +211,8 @@ export {
 export { handleProjectPluginHttp, type ProjectPluginHttpPorts, type ProjectPluginRouteHooks } from "./project-plugin-http.js";
 export { releaseProjectPlugins } from "./project-plugins.js";
 export { observeReviewSettlements, reviewSettlementForwarder, type ObserveReviewSettlements, type ReviewSettlement } from "./review-settlement-events.js";
-export { createGitWorktreePort, type GitWorktreePort } from "./git-worktrees.js";
-export { readWriterIntegration, prepareWriterIntegration } from "./git-writer-integration.js";
+export { createGitWorktreePort, type GitWorktreePort } from "./workspace-git-worktrees.js";
+export { readWriterIntegration, prepareWriterIntegration } from "./workspace-git-integration.js";
 export { draftText } from "./model-draft.js";
 
 export { ensureSystemAgentService } from "./system-agent-service.js";

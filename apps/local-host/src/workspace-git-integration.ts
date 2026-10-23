@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { parseFilePath, type GitFileMode, type WriterIntegrationFile, type WriterIntegrationView } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { createGitWorktreePort } from "./git-worktrees.js";
+import { createGitWorktreePort } from "./workspace-git-worktrees.js";
 import { readWorkspaceFile } from "./workspace-files.js";
 import { runWorkspaceGit as git } from "./workspace-git.js";
 

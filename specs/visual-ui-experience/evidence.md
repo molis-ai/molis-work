@@ -29,7 +29,7 @@
 | VUX-17 | 工程 | `assistant-mention.e2e` | 未走 | 未做 | 「/」菜单与情境选择的候选归统一输入 |
 | VUX-18 | 工程 | `assistant-attachment-chips.e2e`、`board-assistant.e2e`、`drop-zone.e2e` | 未走 | 未做 | 不支持的拖入的样子 |
 | VUX-19 | 工程 | `artifact-clipboard.e2e`、`im-follow-copy.e2e`、`product-experience-polish.e2e`、`shelf-client-boundaries.e2e`、`visual-mechanisms.e2e`、`visual-review-consumers.e2e` | 未走 | 未做 | — |
-| VUX-20 | 工程 | — | 未走 | 未做 | 行为归 UIV/RCPT，它们的用例（如 `assistant-input-receipts.e2e`、`agent-input-delivery`）守着送达、失败与草稿；本书没有单列；限流倒计时等上游 Prologue 事件（用户 10-21 定） |
+| VUX-20 | 工程 | `assistant-retry-countdown.e2e`、`prologue-stream` | 未走 | 未做 | 行为归 UIV/RCPT，它们的用例（如 `assistant-input-receipts.e2e`、`agent-input-delivery`）守着送达、失败与草稿；限流倒计时按运行时的时刻（第一百零一片）；真实服务的限流没有遇到 |
 | VUX-21 | 人工 | `form-question-reflow.e2e` | 未走 | 未做 | 咬合与回弹的观感 |
 | VUX-22 | 工程 | `assistant-side-groups.e2e`、`visual-mechanisms.e2e` | 未走 | 未做 | — |
 | VUX-23 | 工程 | `pages-size-keys.e2e`、`split-divider.e2e`、`tab-reorder-preview.e2e` | 未走 | 未做 | — |
@@ -52,7 +52,7 @@
 | VUX-40 | 工程 | `chinese-layers.e2e`、`chinese-walkthrough.e2e`、`coding-board-origins.e2e`、`coding-mcp-settings-client`、`coding-route-locale`、`coding-run-control-contract`、`coding-state-rings.e2e`、`coding-timeline.e2e`、`coding-commit-draft`、`diff-git-english-sentences`、`english-surfaces.e2e`、`english-walkthrough.e2e`、`fill-message`、`local-web-actions`、`narrow-surfaces.e2e`、`translation-check` | 未走 | 未做 | 提交草稿是否按指定语言写要在真实场景里看；Agent 审阅卡片归字体皮肤语言书 §6.1 |
 | VUX-41 | 工程 | — | 未走 | 未做 | 本表即证据；真实场景两轮与本人验收未做 |
 | VUX-42 | 工程 | `visual-mechanisms.e2e` | 未走 | 未做 | — |
-| VUX-43 | 工程 | `coding-timeline.e2e` | 未走 | 未做 | 限流倒计时（等上游） |
+| VUX-43 | 工程 | `assistant-retry-countdown.e2e`、`coding-timeline.e2e` | 未走 | 未做 | 倒数的观感（固定宽度 `MM:SS` 已测） |
 | VUX-44 | 工程 | `visual-mechanisms.e2e` | 未走 | 未做 | — |
 | VUX-45 | 工程 | `visual-mechanisms.e2e` | 未走 | 未做 | 真机字体切换 |
 | VUX-46 | 工程 | `status-ring`、`visual-order-details.e2e`、`visual-order.e2e` | 第一次（第八十九片：选择页与引导进了秩序审计） | 未做 | — |

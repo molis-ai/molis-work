@@ -242,6 +242,12 @@ const APPROVED_CEILINGS = {
   // (detached, no commits yet, up to date, ahead, behind, both) with their English, and the notice line passing head and upstream
   // through the recognizer. The templates are the shortest that keep English word order; 374235 → 374745 (+510).
   "/assets/molis-work-plugins/coding.js": [374235, 374745],
+  // VUX-20/43 (slice 101): a rate-limited round counts down to the runtime's retry time — the countdown factory and its four
+  // sentences, and one tabular-digits rule carried by the three stylesheets. 1186577 → 1187755 (+1178); CSS +133 each.
+  "/assets/molis-work-workbench.js": [1186577, 1187755],
+  "/assets/molis-work-workbench.css": [1614004, 1614137],
+  "/assets/molis-work-settings.css": [995567, 995700],
+  "/assets/molis-work-arrival.css": [705708, 705841],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -122,8 +122,8 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   await waitFor("document.querySelector('[data-market-add=feed]').textContent === '移除'");
   assert.equal(await evaluate("document.querySelector('[data-market-add=inbox]').textContent"), "移除");
   const list = await evaluate<{ project_id: string; plugins: string[] }[]>("fetch('/api/settings/project-plugins').then(r=>r.json()).then(r=>r.projects)");
-  assert.deepEqual(list.find(item => item.project_id === projectId)!.plugins, ["goals"]);
-  assert.deepEqual(list.find(item => item.project_id === otherId)!.plugins, ["feed", "goals", "inbox"]);
+  assert.deepEqual(list.find(item => item.project_id === projectId)!.plugins, ["goals", "schedule"]);
+  assert.deepEqual(list.find(item => item.project_id === otherId)!.plugins, ["feed", "goals", "inbox", "schedule"]);
   await evaluate(`(()=>{const s=document.querySelector('[data-market-project]');s.value=${JSON.stringify(projectId)};s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   // This project: the page changes in place (the switcher's entry wakes, nothing is loaded again).
   await evaluate("window.__stayedOnPage = true");

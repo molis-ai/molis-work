@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
@@ -22,78 +23,82 @@ const WATCH_TOASTS = `window.toasts = []; new MutationObserver(() => window.toas
 
 test("Schedule's new-task dialog says what a due task still needs, and creating is still possible", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
+  const schedule = await pluginFrameBrowser(t,b,"schedule");
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click("[data-plugin-strip] [data-plugin-id=schedule]");
+  await b.surfaceReady("schedule");
   const shown = (kind: string) => `(() => { const hint = document.querySelector('[data-schedule-hint="${kind}"]'); return Boolean(hint) && !hint.hidden && hint.getClientRects().length > 0; })()`;
-  assert.equal(await evaluate("document.querySelector('[data-schedule-hint=model]').hidden && document.querySelector('[data-schedule-hint=workspace]').hidden"), true,
+  assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').hidden && document.querySelector('[data-schedule-hint=workspace]').hidden"), true,
     "nothing is claimed before the Host has answered");
-  await click("[data-schedule-new]");
-  await waitFor(`${shown("model")} && ${shown("workspace")}`, 20_000);
-  assert.match(await evaluate("document.querySelector('[data-schedule-hint=model]').textContent"), /还没有配置文字模型/);
-  assert.match(await evaluate("document.querySelector('[data-schedule-hint=workspace]').textContent"), /还没有绑定工作区/);
-  assert.equal(await evaluate("document.querySelector('[data-schedule-create-form] [type=submit]').disabled"), false, "the hint does not block");
-  await evaluate(`{ const form = document.querySelector('[data-schedule-create-form]');
+  await schedule.click("[data-schedule-new]");
+  await schedule.waitFor(`${shown("model")} && ${shown("workspace")}`, 20_000);
+  assert.match(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').textContent"), /还没有配置文字模型/);
+  assert.match(await schedule.evaluate("document.querySelector('[data-schedule-hint=workspace]').textContent"), /还没有绑定工作区/);
+  assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-create-form] [type=submit]').disabled"), false, "the hint does not block");
+  await schedule.evaluate(`{ const form = document.querySelector('[data-schedule-create-form]');
     form.elements.title.value = '提示不拦创建'; form.elements.instructions.value = '只读汇总'; form.elements.time.value = '07:45'; }`);
-  await click("[data-schedule-create-form] [type=submit]");
-  await waitFor("!document.querySelector('[data-schedule-create-dialog]').open && document.querySelector('[data-schedule-detail]:not([hidden]) h1')?.textContent === '提示不拦创建'", 20_000);
-  assert.equal(await evaluate("document.querySelector('[data-schedule-detail]:not([hidden]) [data-schedule-detail-status]').textContent"), "已启用", "created and enabled, as before");
+  await schedule.click("[data-schedule-create-form] [type=submit]");
+  await schedule.waitFor("!document.querySelector('[data-schedule-create-dialog]').open && document.querySelector('[data-schedule-detail]:not([hidden]) h1')?.textContent === '提示不拦创建'", 20_000);
+  assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-detail]:not([hidden]) [data-schedule-detail-status]').textContent"), "已启用", "created and enabled, as before");
   // Editing is not creating: the same dialog opens without the hint.
-  await click("[data-schedule-task-edit]");
-  assert.equal(await evaluate("document.querySelector('[data-schedule-hint=model]').hidden && document.querySelector('[data-schedule-hint=workspace]').hidden"), true);
-  await click("[data-schedule-create-form] footer [data-schedule-create-close]");
+  await schedule.click("[data-schedule-task-edit]");
+  assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').hidden && document.querySelector('[data-schedule-hint=workspace]').hidden"), true);
+  await schedule.click("[data-schedule-create-form] footer [data-schedule-create-close]");
   // Each opening asks again, so a model or a folder added meanwhile is not claimed missing.
   await evaluate(`window.realFetch = window.fetch; window.readinessAnswer = { model: true, workspace: false };
-    window.fetch = (url, options) => String(url).endsWith('/api/schedule/readiness')
+    window.fetch = (url, options) => String(url).endsWith('/api/plugins/io.molis.work.schedule/readiness')
       ? (window.readinessAnswer ? Promise.resolve(new Response(JSON.stringify(window.readinessAnswer), { status: 200, headers: { 'content-type': 'application/json' } })) : Promise.reject(new Error('offline')))
       : window.realFetch(url, options);`);
-  await click("[data-schedule-collapse]");
-  await click("[data-schedule-new]");
-  await waitFor(shown("workspace"), 20_000);
-  assert.equal(await evaluate("document.querySelector('[data-schedule-hint=model]').hidden"), true, "the model is there now");
-  await click("[data-schedule-create-form] footer [data-schedule-create-close]");
+  await schedule.click("[data-schedule-collapse]");
+  await schedule.click("[data-schedule-new]");
+  await schedule.waitFor(shown("workspace"), 20_000);
+  assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').hidden"), true, "the model is there now");
+  await schedule.click("[data-schedule-create-form] footer [data-schedule-create-close]");
   // A readiness read that fails says nothing, and the dialog still works.
   await evaluate("window.readinessAnswer = null");
-  await click("[data-schedule-new]");
+  await schedule.click("[data-schedule-new]");
   await new Promise(resolve => setTimeout(resolve, 300));
-  assert.equal(await evaluate("document.querySelector('[data-schedule-hint=model]').hidden && document.querySelector('[data-schedule-hint=workspace]').hidden"), true);
-  assert.equal(await evaluate("document.querySelector('[data-schedule-create-dialog]').open && !document.querySelector('[data-schedule-create-form] [type=submit]').disabled"), true);
+  assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').hidden && document.querySelector('[data-schedule-hint=workspace]').hidden"), true);
+  assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-create-dialog]').open && !document.querySelector('[data-schedule-create-form] [type=submit]').disabled"), true);
 });
 
 test("Pages: 「新建文档」 left empty is gone when the person goes back, and one that was written in stays", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
+  const pages = await pluginFrameBrowser(t,b,"pages");
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
   await click("[data-plugin-strip] [data-plugin-id=pages]");
-  await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')", 20_000);
+  await pages.waitFor("document.querySelector('[data-pages-new]')", 20_000);
   const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title); } finally { store.close(); } };
   const before = titles();
-  await click("[data-pages-new]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+  await pages.click("[data-pages-new]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
   assert.equal(titles().length, before.length + 1, "made at once, as before");
-  await click("[data-pages-back]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
+  await pages.click("[data-pages-back]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
   await until(() => titles().length === before.length);
   assert.deepEqual(titles(), before, "nothing was left behind");
   // The list drops the row when the discard is answered, which is after the store has already changed.
-  await waitFor("![...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')", 20_000);
-  assert.equal(await evaluate("[...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')"), false, "and not in the list either");
+  await pages.waitFor("![...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')", 20_000);
+  assert.equal(await pages.evaluate("[...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')"), false, "and not in the list either");
 
-  await click("[data-pages-new]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
-  await click("[data-pages-editor] .ProseMirror");
+  await pages.click("[data-pages-new]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+  await pages.click("[data-pages-editor] .ProseMirror");
   await command("Input.insertText", { text: "写了一句" }, sessionId);
-  await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 20_000);
-  await click("[data-pages-back]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
+  await pages.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 20_000);
+  await pages.click("[data-pages-back]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
   assert.equal(titles().length, before.length + 1, "kept");
 });
 
 test("Pages and 灵光: a blank item is gone when the person switches to another plugin, and the page comes back as its list", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
+  const pages = await pluginFrameBrowser(t,b,"pages"), lingguang = await pluginFrameBrowser(t,b,"lingguang");
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
@@ -101,47 +106,48 @@ test("Pages and 灵光: a blank item is gone when the person switches to another
   const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title); } finally { store.close(); } };
   const sparks = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
   await click("[data-plugin-strip] [data-plugin-id=pages]");
-  await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')", 20_000);
+  await pages.waitFor("document.querySelector('[data-pages-new]')", 20_000);
   const before = titles();
-  await click("[data-pages-new]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+  await pages.click("[data-pages-new]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
   assert.equal(titles().length, before.length + 1, "made at once, as before");
   await click("[data-plugin-strip] [data-plugin-id=schedule]");
   await waitFor("document.body.dataset.desktopSurface === 'schedule'", 20_000);
   await until(() => titles().length === before.length);
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await waitFor("document.body.dataset.desktopSurface === 'pages'", 20_000);
-  assert.equal(await evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "false", "the list, not an editor on a document that is gone");
-  assert.equal(await evaluate("[...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')"), false);
+  assert.equal(await pages.evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "false", "the list, not an editor on a document that is gone");
+  assert.equal(await pages.evaluate("[...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')"), false);
   // One that was written in is still there after the same switch, editor and all.
-  await click("[data-pages-new]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
-  await click("[data-pages-editor] .ProseMirror");
+  await pages.click("[data-pages-new]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+  await pages.click("[data-pages-editor] .ProseMirror");
   await command("Input.insertText", { text: "切走前写的" }, sessionId);
-  await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 20_000);
+  await pages.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 20_000);
   await click("[data-plugin-strip] [data-plugin-id=schedule]");
   await waitFor("document.body.dataset.desktopSurface === 'schedule'", 20_000);
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await waitFor("document.body.dataset.desktopSurface === 'pages'", 20_000);
   assert.equal(titles().length, before.length + 1, "kept");
-  assert.equal(await evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "true", "and still open");
+  assert.equal(await pages.evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "true", "and still open");
 
   await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
-  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
+  await lingguang.waitFor(`document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const keptSparks = sparks().length;
-  await evaluate("document.querySelector('[data-lingguang-capture]').click()");
-  await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
+  await lingguang.click("[data-lingguang-capture]");
+  await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
   assert.equal(sparks().length, keptSparks + 1, "made at once, as before");
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await waitFor("document.body.dataset.desktopSurface === 'pages'", 20_000);
   await until(() => sparks().length === keptSparks);
   await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await waitFor("document.body.dataset.desktopSurface === 'lingguang'", 20_000);
-  assert.equal(await evaluate("document.querySelector('[data-lingguang=workbench]').dataset.expanded"), "false");
+  assert.equal(await lingguang.evaluate("document.querySelector('[data-lingguang=workbench]').dataset.expanded"), "false");
 });
 
 test("Pages and 灵光: reloading with a blank item open takes it back, and the page comes up as its list, with nothing said about it", { timeout: 150_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
+  const pages = await pluginFrameBrowser(t,b,"pages"), lingguang = await pluginFrameBrowser(t,b,"lingguang");
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory, reloadPage } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
@@ -159,21 +165,22 @@ test("Pages and 灵光: reloading with a blank item open takes it back, and the 
   // The workbench asks a plugin for a remembered record that is not among its rows 1.5 s after the page comes up; a plugin that
   // cannot find it says so in its note. Past that point there must be no note.
   const quietAfterTheReopen = async (noteSelector: string, surface: string) => {
+    const child = surface.includes("pages") ? pages : lingguang;
     await new Promise(resolve => setTimeout(resolve, 3_500));
-    assert.deepEqual(await evaluate(`[document.querySelector('${noteSelector}').hidden, document.querySelector('${noteSelector}').textContent, document.querySelector('${surface}').dataset.expanded]`),
+    assert.deepEqual(await child.evaluate(`[document.querySelector('${noteSelector}').hidden, document.querySelector('${noteSelector}').textContent, document.querySelector('${surface}').dataset.expanded]`),
       [true, "", "false"], "no 「找不到」 note, and still the list");
   };
   await click("[data-plugin-strip] [data-plugin-id=pages]");
-  await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')", 20_000);
+  await pages.waitFor("document.querySelector('[data-pages-new]')", 20_000);
   const before = titles();
-  await click("[data-pages-new]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+  await pages.click("[data-pages-new]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
   assert.equal(titles().length, before.length + 1, "made at once, as before");
   await waitRemembered("pages");
   await reloadPage();
   await until(() => titles().length === before.length);
-  await waitFor("document.querySelector('[data-pages=workbench]')", 20_000);
-  assert.equal(await evaluate("[...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')"), false);
+  await pages.waitFor("document.querySelector('[data-pages=workbench]')", 20_000);
+  assert.equal(await pages.evaluate("[...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')"), false);
   assert.deepEqual(await remembered("pages"), [], "the document is gone, so the workbench does not remember it to reopen");
   await quietAfterTheReopen("[data-pages-note]", "[data-pages=workbench]");
 
@@ -181,15 +188,15 @@ test("Pages and 灵光: reloading with a blank item open takes it back, and the 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
   await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
-  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
+  await lingguang.waitFor(`document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const keptSparks = sparks().length;
-  await evaluate("document.querySelector('[data-lingguang-capture]').click()");
-  await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
+  await lingguang.click("[data-lingguang-capture]");
+  await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
   assert.equal(sparks().length, keptSparks + 1, "made at once, as before");
   await waitRemembered("lingguang");
   await reloadPage();
   await until(() => sparks().length === keptSparks);
-  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
+  await lingguang.waitFor(`document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   assert.deepEqual(await remembered("lingguang"), [], "the spark is gone, so the workbench does not remember it to reopen");
   await quietAfterTheReopen("[data-lingguang-note]", "[data-lingguang=workbench]");
 });
@@ -197,30 +204,31 @@ test("Pages and 灵光: reloading with a blank item open takes it back, and the 
 test("Pages and 灵光: once a blank item is taken back on 「返回」 the surface stops naming it as the current object", { timeout: 120_000 }, async t => {
   // The Assistant and the placement bar read this attribute, and so does the workbench when it decides whether a record is open.
   const b = await openGoalBrowser(t, true); if (!b) return;
+  const pages = await pluginFrameBrowser(t,b,"pages"), lingguang = await pluginFrameBrowser(t,b,"lingguang");
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
-  const object = (surface: string) => evaluate(`JSON.parse(document.querySelector('${surface}').getAttribute('data-assistant-context') || 'null')?.object ?? null`);
+  const object = (surface: string) => (surface.includes("pages") ? pages : lingguang).evaluate(`JSON.parse(document.querySelector('${surface}').getAttribute('data-assistant-context') || 'null')?.object ?? null`);
   await click("[data-plugin-strip] [data-plugin-id=pages]");
-  await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')", 20_000);
-  await click("[data-pages-new]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+  await pages.waitFor("document.querySelector('[data-pages-new]')", 20_000);
+  await pages.click("[data-pages-new]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
   assert.ok(await object("[data-pages=workbench]"), "named while it is open");
-  await click("[data-pages-back]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
-  await waitFor("![...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')", 20_000);
+  await pages.click("[data-pages-back]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
+  await pages.waitFor("![...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')", 20_000);
   assert.equal(await object("[data-pages=workbench]"), null, "the document taken back is not the object in hand");
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
   await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
-  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
-  await evaluate("document.querySelector('[data-lingguang-capture]').click()");
-  await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
+  await lingguang.waitFor(`document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
+  await lingguang.click("[data-lingguang-capture]");
+  await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
   assert.ok(await object("[data-lingguang=workbench]"), "named while it is open");
-  await click("[data-lingguang-back]");
-  await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'false' && document.querySelectorAll('[data-lingguang-id]').length === 0", 20_000);
+  await lingguang.click("[data-lingguang-back]");
+  await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'false' && document.querySelectorAll('[data-lingguang-id]').length === 0", 20_000);
   assert.equal(await object("[data-lingguang=workbench]"), null);
 });
 
@@ -228,64 +236,65 @@ test("Pages and 灵光: going back with the workbench's own Back button or the p
   // The workbench says "no item" and folds the page itself, without the plugin's own 「返回」: the plugin used to be left with the
   // blank item selected behind the list, and it was only taken back at the next leave.
   const b = await openGoalBrowser(t, true); if (!b) return;
+  const pages = await pluginFrameBrowser(t,b,"pages"), lingguang = await pluginFrameBrowser(t,b,"lingguang");
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
   const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title); } finally { store.close(); } };
   const sparks = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
-  const object = (surface: string) => evaluate(`JSON.parse(document.querySelector('${surface}').getAttribute('data-assistant-context') || 'null')?.object ?? null`);
+  const object = (surface: string) => (surface.includes("pages") ? pages : lingguang).evaluate(`JSON.parse(document.querySelector('${surface}').getAttribute('data-assistant-context') || 'null')?.object ?? null`);
   const openBlankPage = async () => {
-    await click("[data-pages-new]");
-    await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+    await pages.click("[data-pages-new]");
+    await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
   };
   const openBlankSpark = async () => {
-    await evaluate("document.querySelector('[data-lingguang-capture]').click()");
-    await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
+    await lingguang.click("[data-lingguang-capture]");
+    await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
   };
   await click("[data-plugin-strip] [data-plugin-id=pages]");
-  await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')", 20_000);
+  await pages.waitFor("document.querySelector('[data-pages-new]')", 20_000);
   const before = titles();
   for (const [how, leave] of [["the titlebar Back button", () => click("[data-workspace-history=back]")], ["the plugin's tab on the tab strip", () => click('[data-tab-kind="plugin"][data-plugin="pages"] .tab-item-trigger')]] as const) {
     await openBlankPage();
     assert.equal(titles().length, before.length + 1, `made at once, as before (${how})`);
     assert.ok(await object("[data-pages=workbench]"), "named while it is open");
     await leave();
-    await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
+    await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
     await until(() => titles().length === before.length);
     assert.deepEqual(titles(), before, `nothing was left behind (${how})`);
-    await waitFor("![...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')", 20_000);
+    await pages.waitFor("![...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')", 20_000);
     assert.equal(await object("[data-pages=workbench]"), null, "and the document taken back is not the object in hand");
   }
   // One that was written in stays through the same Back.
   await openBlankPage();
-  await click("[data-pages-editor] .ProseMirror");
+  await pages.click("[data-pages-editor] .ProseMirror");
   await command("Input.insertText", { text: "写了一句" }, sessionId);
-  await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 20_000);
+  await pages.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 20_000);
   await click("[data-workspace-history=back]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
   await new Promise(resolve => setTimeout(resolve, 600));
   assert.equal(titles().length, before.length + 1, "kept");
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
   await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
-  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
+  await lingguang.waitFor(`document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const keptSparks = sparks().length;
   for (const [how, leave] of [["the titlebar Back button", () => click("[data-workspace-history=back]")], ["the plugin's tab on the tab strip", () => click('[data-tab-kind="plugin"][data-plugin="lingguang"] .tab-item-trigger')]] as const) {
     await openBlankSpark();
     assert.equal(sparks().length, keptSparks + 1, `made at once, as before (${how})`);
     assert.ok(await object("[data-lingguang=workbench]"), "named while it is open");
     await leave();
-    await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'false'", 20_000);
+    await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'false'", 20_000);
     await until(() => sparks().length === keptSparks);
-    await waitFor("document.querySelectorAll('[data-lingguang-id]').length === " + keptSparks, 20_000);
+    await lingguang.waitFor("document.querySelectorAll('[data-lingguang-id]').length === " + keptSparks, 20_000);
     assert.equal(await object("[data-lingguang=workbench]"), null);
   }
   await openBlankSpark();
-  await evaluate(`(() => { const body = document.querySelector('[data-lingguang-body]'); body.value = '一句话'; body.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
+  await lingguang.evaluate(`(() => { const body = document.querySelector('[data-lingguang-body]'); body.value = '一句话'; body.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
   await click("[data-workspace-history=back]");
-  await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'false'", 20_000);
+  await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'false'", 20_000);
   await new Promise(resolve => setTimeout(resolve, 1_200));
   assert.equal(sparks().length, keptSparks + 1, "kept");
 });
@@ -295,6 +304,7 @@ test("Pages and 灵光: the workbench's Back and Forward do not bring back a bla
   // that names it. Stepping to that step makes the workbench ask the page for the item; the page does not have it, and the workbench's own
   // name for it on a page that is still at its list is not "shown", so the quiet reopen forgets the record: nothing keeps asking for it.
   const b = await openGoalBrowser(t, true); if (!b) return;
+  const pages = await pluginFrameBrowser(t,b,"pages"), lingguang = await pluginFrameBrowser(t,b,"lingguang");
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory, reloadPage } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
@@ -308,12 +318,13 @@ test("Pages and 灵光: the workbench's Back and Forward do not bring back a bla
     const end = Date.now() + ms;
     while (!(await check())) { if (Date.now() > end) assert.fail(what); await new Promise(resolve => setTimeout(resolve, 100)); }
   };
-  const expanded = (surface: string) => evaluate<string>(`document.querySelector('${surface}').dataset.expanded`);
+  const expanded = (surface: string) => (surface.includes("pages") ? pages : lingguang).evaluate<string>(`document.querySelector('${surface}').dataset.expanded`);
   const noToast = async (what: string) => assert.deepEqual(await evaluate("window.toasts"), [], `${what}: the quiet reopen never toasts 「未能打开这条内容」`);
   // A page that is asked (1.5 s after it comes up) for a record it does not have says so in its note; past that, there is none.
   const quietAfterTheReopen = async (noteSelector: string, surface: string) => {
+    const child = surface.includes("pages") ? pages : lingguang;
     await new Promise(resolve => setTimeout(resolve, 3_500));
-    assert.deepEqual(await evaluate(`[document.querySelector('${noteSelector}').hidden, document.querySelector('${noteSelector}').textContent, document.querySelector('${surface}').dataset.expanded]`),
+    assert.deepEqual(await child.evaluate(`[document.querySelector('${noteSelector}').hidden, document.querySelector('${noteSelector}').textContent, document.querySelector('${surface}').dataset.expanded]`),
       [true, "", "false"], "no 「找不到」 note, and still the list");
   };
   // The record is written once the page is open on it; before the step to it, it must have been there to be forgotten.
@@ -326,12 +337,13 @@ test("Pages and 灵光: the workbench's Back and Forward do not bring back a bla
     assert.equal(await expanded(surface), "false", `${direction}: and the page stays at its list`);
   };
   const walk = async (plugin: string, surface: string, openBlank: () => Promise<void>, pageBack: string, count: () => number, kept: number) => {
-    const folded = () => waitFor(`document.querySelector('${surface}').dataset.expanded === 'false'`, 20_000);
+    const child = plugin === "pages" ? pages : lingguang;
+    const folded = () => child.waitFor(`document.querySelector('${surface}').dataset.expanded === 'false'`, 20_000);
     // Taken back on the page's own 「返回」: the workbench's Back goes to the step that names it, and Forward is the list.
     await openBlank();
     assert.equal(count(), kept + 1, `${plugin}: made at once, as before`);
     await waitRemembered(plugin);
-    await click(pageBack);
+    await child.click(pageBack);
     await folded();
     await until(() => count() === kept);
     await stepToIt(plugin, surface, "back");
@@ -352,16 +364,16 @@ test("Pages and 灵光: the workbench's Back and Forward do not bring back a bla
   };
 
   await click("[data-plugin-strip] [data-plugin-id=pages]");
-  await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]') && document.querySelector('[data-toast]')", 20_000);
+  await pages.waitFor("document.querySelector('[data-pages-new]')", 20_000);
   await evaluate(WATCH_TOASTS);
   const before = titles();
   await walk("pages", "[data-pages=workbench]", async () => {
-    await click("[data-pages-new]");
-    await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+    await pages.click("[data-pages-new]");
+    await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
   }, "[data-pages-back]", () => titles().length, before.length);
   await noToast("pages");
   await reloadPage();
-  await waitFor("document.querySelector('[data-pages=workbench]')", 20_000);
+  await pages.waitFor("document.querySelector('[data-pages=workbench]')", 20_000);
   assert.deepEqual(await remembered("pages"), [], "a reload has nothing to reopen");
   await quietAfterTheReopen("[data-pages-note]", "[data-pages=workbench]");
   assert.deepEqual(titles(), before);
@@ -370,16 +382,16 @@ test("Pages and 灵光: the workbench's Back and Forward do not bring back a bla
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
   await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
-  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
+  await lingguang.waitFor(`document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const keptSparks = sparks().length;
   await evaluate(WATCH_TOASTS);
   await walk("lingguang", "[data-lingguang=workbench]", async () => {
-    await evaluate("document.querySelector('[data-lingguang-capture]').click()");
-    await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
+    await lingguang.click("[data-lingguang-capture]");
+    await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
   }, "[data-lingguang-back]", () => sparks().length, keptSparks);
   await noToast("lingguang");
   await reloadPage();
-  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
+  await lingguang.waitFor(`document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   assert.deepEqual(await remembered("lingguang"), [], "a reload has nothing to reopen");
   await quietAfterTheReopen("[data-lingguang-note]", "[data-lingguang=workbench]");
   assert.equal(sparks().length, keptSparks);
@@ -389,12 +401,13 @@ test("Pages: a document opened while the workbench is still looking for a taken-
   // After the workbench's Back to the step that names a taken-back document, the quiet reopen stays alive for 8 s. It forgets only the record
   // it was looking for: a document the person opens meanwhile is remembered all the same.
   const b = await openGoalBrowser(t, true); if (!b) return;
+  const pages = await pluginFrameBrowser(t,b,"pages");
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory, reloadPage } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
   await click("[data-plugin-strip] [data-plugin-id=pages]");
-  await waitFor(`document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]') && document.querySelector('[data-toast]') && ${CLIENTS_READY}`, 20_000);
+  await pages.waitFor(`document.querySelector('[data-pages-new]') && ${CLIENTS_READY}`, 20_000);
   const ids = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.id); } finally { store.close(); } };
   const remembered = () => evaluate<string[]>(`Object.keys(localStorage).filter(key => key.startsWith('molis-work-plugin-records:'))
     .map(key => JSON.parse(localStorage.getItem(key) || '{}').pages).filter(Boolean)`);
@@ -404,12 +417,12 @@ test("Pages: a document opened while the workbench is still looking for a taken-
   };
   const before = ids();
   const open = "document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')";
-  await click("[data-pages-new]");
-  await waitFor(open, 20_000);
+  await pages.click("[data-pages-new]");
+  await pages.waitFor(open, 20_000);
   await untilRemembered(1, "the workbench never remembered the open document");
   const [takenBack] = await remembered();
-  await click("[data-pages-back]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
+  await pages.click("[data-pages-back]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
   await until(() => ids().length === before.length);
   // The workbench's Back names the taken-back document again, and its quiet reopen starts looking for it.
   await evaluate(WATCH_TOASTS);
@@ -417,11 +430,11 @@ test("Pages: a document opened while the workbench is still looking for a taken-
   const stepped = Date.now();
   assert.deepEqual(await remembered(), [takenBack], "the step names the taken-back document");
   // A document is opened and written in meanwhile.
-  await click("[data-pages-new]");
-  await waitFor(open, 20_000);
-  await click("[data-pages-editor] .ProseMirror");
+  await pages.click("[data-pages-new]");
+  await pages.waitFor(open, 20_000);
+  await pages.click("[data-pages-editor] .ProseMirror");
   await command("Input.insertText", { text: "找的时候新写的" }, sessionId);
-  await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 20_000);
+  await pages.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 20_000);
   const written = ids().find(id => !before.includes(id))!;
   assert.ok(written && written !== takenBack, "a new document, kept because it was written in");
   await untilRemembered(1, "the new document was not remembered");
@@ -429,32 +442,33 @@ test("Pages: a document opened while the workbench is still looking for a taken-
   // Past the quiet reopen's 8 s (and its margin), the search for the other document ends, and it must not end this one.
   while (Date.now() - stepped < 11_000) await new Promise(resolve => setTimeout(resolve, 100));
   assert.deepEqual(await remembered(), [written], "the quiet reopen forgot the taken-back record, not this one");
-  assert.equal(await evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "true", "and the editor is still open");
+  assert.equal(await pages.evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "true", "and the editor is still open");
   assert.deepEqual(await evaluate("window.toasts"), [], "the search for the other document ended without 「未能打开这条内容」");
   await reloadPage();
-  await waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes('找的时候新写的')`, 30_000);
+  await pages.waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes('找的时候新写的')`, 30_000);
 });
 
 test("Pages: Back and then Forward at once, while the workbench is still looking for a taken-back document, ends at the list without an error", { timeout: 120_000 }, async t => {
   // Forward is the list: it drops the record the quiet reopen was looking for, but its 8 s still run out. They end without forgetting
   // anything else and without saying that the document could not be opened.
   const b = await openGoalBrowser(t, true); if (!b) return;
+  const pages = await pluginFrameBrowser(t,b,"pages");
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
   await click("[data-plugin-strip] [data-plugin-id=pages]");
-  await waitFor(`document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]') && document.querySelector('[data-toast]') && ${CLIENTS_READY}`, 20_000);
+  await pages.waitFor(`document.querySelector('[data-pages-new]') && ${CLIENTS_READY}`, 20_000);
   const count = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).length; } finally { store.close(); } };
   const remembered = () => evaluate<string[]>(`Object.keys(localStorage).filter(key => key.startsWith('molis-work-plugin-records:'))
     .map(key => JSON.parse(localStorage.getItem(key) || '{}').pages).filter(Boolean)`);
   const before = count();
-  await click("[data-pages-new]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+  await pages.click("[data-pages-new]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
   const end = Date.now() + 8_000;
   while ((await remembered()).length !== 1) { if (Date.now() > end) assert.fail("the workbench never remembered the open document"); await new Promise(resolve => setTimeout(resolve, 100)); }
-  await click("[data-pages-back]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
+  await pages.click("[data-pages-back]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
   await until(() => count() === before);
   await evaluate(WATCH_TOASTS);
   await click("[data-workspace-history=back]");
@@ -465,7 +479,7 @@ test("Pages: Back and then Forward at once, while the workbench is still looking
   while (Date.now() - stepped < 11_000) await new Promise(resolve => setTimeout(resolve, 100));
   assert.deepEqual(await remembered(), [], "nothing is left to reopen");
   assert.deepEqual(await evaluate("window.toasts"), [], "and no 「未能打开这条内容」");
-  assert.equal(await evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "false", "the page is at its list");
+  assert.equal(await pages.evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "false", "the page is at its list");
   assert.equal(count(), before, "nothing came back");
 });
 
@@ -473,6 +487,7 @@ test("a link to a record that opens inside a plugin's own list (Todo's batch rev
   // The review opens in the list page and leaves it at data-expanded=false; the workbench names the object for the Assistant. For a link,
   // that name says the plugin has it open. Only the quiet reopen after a reload holds a workbench name to an expanded page.
   const b = await openGoalBrowser(t, true); if (!b) return;
+
   const { navigate, command, sessionId, origin, projectId, evaluate, waitFor } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo&openRecord=batch:x` }, sessionId));
@@ -489,34 +504,35 @@ test("a link to a record that opens inside a plugin's own list (Todo's batch rev
 
 test("Pages: opening an imported document leaves the blank new document next to it, and the other documents stay", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
+  const pages = await pluginFrameBrowser(t,b,"pages");
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
   const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title).sort(); } finally { store.close(); } };
   await click("[data-plugin-strip] [data-plugin-id=pages]");
-  await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')", 20_000);
+  await pages.waitFor("document.querySelector('[data-pages-new]')", 20_000);
   const before = titles();
-  await click("[data-pages-new]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+  await pages.click("[data-pages-new]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
   assert.equal(titles().length, before.length + 1, "made at once, as before");
   // The import button stays in the list header while the editor is open.
-  await click("[data-pages-import]");
-  await waitFor("document.querySelector('[data-pages-import-dialog]').open", 20_000);
-  await evaluate(`(() => { const input = document.querySelector('[data-pages-import-files]'); const transfer = new DataTransfer();
+  await pages.click("[data-pages-import]");
+  await pages.waitFor("document.querySelector('[data-pages-import-dialog]').open", 20_000);
+  await pages.evaluate(`(() => { const input = document.querySelector('[data-pages-import-files]'); const transfer = new DataTransfer();
     transfer.items.add(new File(['# 导入的笔记\\n\\n导入的正文'], 'note.md', { type: 'text/markdown' })); input.files = transfer.files;
     input.dispatchEvent(new Event('change', { bubbles: true })); })()`);
-  await waitFor("!document.querySelector('[data-pages-import-submit]').disabled", 20_000);
-  await click("[data-pages-import-submit]");
-  await waitFor("!document.querySelector('[data-pages-import-open]').hidden", 20_000);
-  await click("[data-pages-import-open]");
-  await waitFor("document.querySelector('[data-pages-title]').value === '导入的笔记'", 20_000);
+  await pages.waitFor("!document.querySelector('[data-pages-import-submit]').disabled", 20_000);
+  await pages.click("[data-pages-import-submit]");
+  await pages.waitFor("!document.querySelector('[data-pages-import-open]').hidden", 20_000);
+  await pages.click("[data-pages-import-open]");
+  await pages.waitFor("document.querySelector('[data-pages-title]').value === '导入的笔记'", 20_000);
   await until(() => !titles().includes("未命名文档"));
   assert.deepEqual(titles(), [...before, "导入的笔记"].sort(), "the blank document is gone and the imported one is there");
-  await waitFor("![...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')", 20_000);
+  await pages.waitFor("![...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')", 20_000);
   // Going back from the imported document takes nothing: it was not made blank here.
-  await click("[data-pages-back]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
+  await pages.click("[data-pages-back]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
   await new Promise(resolve => setTimeout(resolve, 600));
   assert.deepEqual(titles(), [...before, "导入的笔记"].sort());
 });
@@ -525,12 +541,13 @@ test("Pages: opening an imported document leaves the blank new document next to 
 // looks: pages.discard is the undo of a create and the Host refuses it once the document is past the version its own saves left it at.
 async function blankDocumentGivenSomethingStays(t: TestContext, change: "star" | "goal" | "version") {
   const b = await openGoalBrowser(t, true); if (!b) return;
+  const pages = await pluginFrameBrowser(t,b,"pages");
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
   await click("[data-plugin-strip] [data-plugin-id=pages]");
-  await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')", 20_000);
+  await pages.waitFor("document.querySelector('[data-pages-new]')", 20_000);
   const documents = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!); } finally { store.close(); } };
   const known = new Set(documents().map(page => page.id));
   // How the Host answered the page's discard: the page says nothing about a refused tidy-up, so this is where it shows.
@@ -538,30 +555,31 @@ async function blankDocumentGivenSomethingStays(t: TestContext, change: "star" |
     window.fetch = (url, options) => { const answer = realFetch(url, options);
       if (String(url).includes('/discard')) answer.then(response => window.discardAnswers.push(response.status), () => window.discardAnswers.push(0));
       return answer; }; } true`);
-  await click("[data-pages-new]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
+  await pages.click("[data-pages-new]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
   const made = () => documents().find(page => !known.has(page.id));
   assert.ok(made(), "made at once, as before");
   if (change === "star") {
-    await click("[data-pages-star-editor]");
+    await pages.click("[data-pages-star-editor]");
     await until(() => made()?.starred === true);
   } else if (change === "goal") {
-    await click("[data-pages-more]");
-    await waitFor("document.querySelector('[data-pages-goal]').options.length > 1", 20_000);
-    await evaluate(`{ const select = document.querySelector('[data-pages-goal]'); select.value = [...select.options].find(option => option.value).value;
+    await pages.click("[data-pages-more]");
+    await pages.waitFor("document.querySelector('[data-pages-goal]').options.length > 1", 20_000);
+    await pages.evaluate(`{ const select = document.querySelector('[data-pages-goal]'); select.value = [...select.options].find(option => option.value).value;
       select.dispatchEvent(new Event('change', { bubbles: true })); }`);
     await until(() => Boolean(made()?.goal_id));
   } else {
-    await click("[data-pages-promote][data-pages-artifact-bar]");
+    await pages.click("[data-pages-promote][data-pages-artifact-bar]");
     await until(() => (made()?.artifact_version ?? 0) > 0);
   }
   const id = made()!.id;
-  await click("[data-pages-back]");
-  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false' && window.discardAnswers.length === 1", 20_000);
+  await pages.click("[data-pages-back]");
+  await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'", 20_000);
+  await waitFor("window.discardAnswers.length === 1", 20_000);
   assert.equal(await evaluate("window.discardAnswers[0]"), 409, "the page asked and the Host refused");
   assert.ok(documents().some(page => page.id === id), "the document is still there");
-  await waitFor("[...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')", 20_000);
-  assert.equal(await evaluate("document.querySelector('[data-pages-note]')?.hidden !== false"), true, "and nothing was said about it");
+  await pages.waitFor("[...document.querySelectorAll('[data-pages-rows] strong')].some(node => node.textContent === '未命名文档')", 20_000);
+  assert.equal(await pages.evaluate("document.querySelector('[data-pages-note]')?.hidden !== false"), true, "and nothing was said about it");
 }
 
 test("Pages: a blank 「新建文档」 the person starred stays when they go back", { timeout: 90_000 }, t => blankDocumentGivenSomethingStays(t, "star"));
@@ -570,32 +588,34 @@ test("Pages: a blank 「新建文档」 the person saved as a fixed version stay
 
 test("灵光: 「记下第一条灵光」 left empty is thrown away when the person goes back, and one with words stays", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
+  const lingguang = await pluginFrameBrowser(t,b,"lingguang");
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor, homeDirectory } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
   await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
-  await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
+  await lingguang.waitFor(`document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const kept = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
   assert.deepEqual(kept(), []);
-  await evaluate("document.querySelector('[data-lingguang-capture]').click()");
-  await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true' && document.querySelectorAll('[data-lingguang-id]').length === 1", 20_000);
+  await lingguang.click("[data-lingguang-capture]");
+  await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true' && document.querySelectorAll('[data-lingguang-id]').length === 1", 20_000);
   assert.deepEqual(kept(), ["未命名灵光"], "made at once, as before");
-  await click("[data-lingguang-back]");
-  await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'false' && document.querySelectorAll('[data-lingguang-id]').length === 0", 20_000);
+  await lingguang.click("[data-lingguang-back]");
+  await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'false' && document.querySelectorAll('[data-lingguang-id]').length === 0", 20_000);
   await until(() => kept().length === 0);
   assert.deepEqual(kept(), [], "nothing is left behind, and no 「丢掉这条？」 question was asked");
 
-  await evaluate("document.querySelector('[data-lingguang-capture]').click()");
-  await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
-  await evaluate(`(() => { const body = document.querySelector('[data-lingguang-body]'); body.value = '一句话'; body.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
-  await click("[data-lingguang-back]");
-  await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'false' && document.querySelectorAll('[data-lingguang-id]').length === 1", 20_000);
+  await lingguang.click("[data-lingguang-capture]");
+  await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
+  await lingguang.evaluate(`(() => { const body = document.querySelector('[data-lingguang-body]'); body.value = '一句话'; body.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
+  await lingguang.click("[data-lingguang-back]");
+  await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'false' && document.querySelectorAll('[data-lingguang-id]').length === 1", 20_000);
   assert.equal(kept().length, 1);
 });
 
 test("Text Stats is not in the plugin list unless developer mode is on, and is when it is", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
+
   const { navigate, command, sessionId, origin, projectId, evaluate, waitFor } = b;
   const previous = process.env.MOLIS_WORK_DEVELOPER_MODE;
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_DEVELOPER_MODE; else process.env.MOLIS_WORK_DEVELOPER_MODE = previous; });

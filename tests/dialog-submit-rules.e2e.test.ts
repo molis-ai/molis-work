@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import { pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { walkLayers } from "./fixtures/layer-walk.js";
 import { OVERLAY_BEFORE, OVERLAY_OPEN } from "./fixtures/overlay-audit.js";
 import { TITLES, seedLongChinese, writeLongChinese } from "./fixtures/chinese-walk.js";
@@ -25,6 +27,10 @@ const MORE_VERBS = ["生成", "开始"];
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
+type Evaluate = <T = unknown>(expression: string) => Promise<T>;
+type View = Awaited<ReturnType<typeof pluginFrameBrowser>>;
+/** Reads the open dialog; in a plugin's frame with that frame's `evaluate` and `point` (the page's coordinates of a selector in it). */
+type Read = (where: string, evaluate?: Evaluate, point?: View["point"]) => Promise<void>;
 
 /** The tab stops of the open layer: what Tab reaches in it. */
 const TABBABLE = String.raw`const tabbables = (layer) => [...layer.querySelectorAll('a[href], button, input, select, textarea, summary, [tabindex], [contenteditable=true]')]
@@ -84,6 +90,19 @@ const PRIMARY_POINT = String.raw`(() => { const el = document.querySelector('[da
 async function setUp(t: TestContext) {
   const browser = await openGoalBrowser(t, "seeded", seedLongChinese); if (!browser) return null;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  // A refused save leaves unsaved work, so leaving the screen may ask first: the walk answers Leave and says so.
+  t.after(browser.on("Page.javascriptDialogOpening", (event, session) => {
+    t.diagnostic(`browser dialog (${String(event.type)}) on ${String(event.url)}: answered ${event.type === "beforeunload" ? "Leave" : "No"}`);
+    void command("Page.handleJavaScriptDialog", { accept: event.type === "beforeunload" }, session).catch(() => undefined);
+  }));
+  // Each plugin runs in its own isolated frame: its dialogs are read and pressed there (the walk reads the shell and the frame).
+  const views: Record<string, View> = Object.fromEntries(await Promise.all(SCREENS.filter((id) => pluginSurfaceClients().some((client) => client.id === id))
+    .map(async (id) => [id, await pluginFrameBrowser(t, browser, id)])));
+  const content = async (path: string) => {
+    const id = new URL(path, origin).searchParams.get("openPlugin");
+    const child = id ? views[id] : undefined; if (!child) return null;
+    await child.waitFor("document.querySelector('[data-work-surface]')"); return child;
+  };
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=zh&next=%2F` }, sessionId));
@@ -99,26 +118,26 @@ async function setUp(t: TestContext) {
     ["ppt deck 「删除」", `/projects/${projectId}/?openPlugin=ppt`, ["[data-ppt-id]", "details:has([data-ppt-delete]) > summary", "[data-ppt-delete]"]],
     ["form 「删除」", `/projects/${projectId}/?openPlugin=form`, ["[data-form-id]", "details:has([data-form-delete]) > summary", "[data-form-delete]"]],
   ];
-  return { browser, screens, direct, names: TITLES.map((title) => title.slice(0, 10)) };
+  return { browser: { ...browser, content }, views, screens, direct, names: TITLES.map((title) => title.slice(0, 10)) };
 }
 
 /** Opens a dialog by pressing the selectors in turn (each once it is shown), as a person would, and reads it while it is open. */
-async function readDirect({ evaluate, waitFor, command, sessionId, navigate, origin }: Browser, [where, path, steps]: [string, string, string[]], read: (where: string) => Promise<void>) {
+async function readDirect({ command, sessionId, navigate, origin }: Browser, view: View, [where, path, steps]: [string, string, string[]], read: Read) {
+  const { evaluate, waitFor } = view;
   await navigate(() => command("Page.navigate", { url: origin + path }, sessionId));
   await command("Page.bringToFront", {}, sessionId);
-  await waitFor("document.readyState === 'complete'", 20_000);
+  await waitFor("document.readyState === 'complete' && !!document.querySelector('[data-work-surface]')", 20_000);
   await pause(1500);
   for (const [index, selector] of steps.entries()) {
     if (index === steps.length - 1) await evaluate(OVERLAY_BEFORE);
     await waitFor(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility() === true`, 15_000);
-    const point = await evaluate<{ x: number; y: number } | null>(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); el.scrollIntoView({ block: 'nearest', behavior: 'instant' });
-      const box = el.getBoundingClientRect(); const x = box.x + box.width / 2, y = box.y + box.height / 2; return el.contains(document.elementFromPoint(x, y)) ? { x, y } : null; })()`);
+    const point = await view.point(selector).catch(() => null);
     assert.ok(point, `${where}: ${selector} can be pressed`);
     for (const type of ["mousePressed", "mouseReleased"] as const) await command("Input.dispatchMouseEvent", { type, ...point, button: "left", clickCount: 1 }, sessionId);
     await pause(index === steps.length - 1 ? 700 : 1200);
   }
   assert.ok(await evaluate(OVERLAY_OPEN), `${where}: the dialog opened`);
-  await read(where);
+  await read(where, evaluate, view.point);
   for (const type of ["rawKeyDown", "keyUp"] as const) await command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 }, sessionId);
   await pause(300);
 }
@@ -128,25 +147,40 @@ async function readDirect({ evaluate, waitFor, command, sessionId, navigate, ori
  * controls may take focus, which the page sees as the document; the next press must bring it back inside. The page behind the
  * dialog never takes it. Reports what it read in `seen` and what is wrong in `leaks`.
  */
+/** What can still be pressed or focused in the page around the plugin frame shown now (the frame and its ancestors aside). */
+const AROUND_FRAME = String.raw`(() => { const frame = [...document.querySelectorAll('iframe[data-plugin-frame]')].find((f) => f.checkVisibility()); if (!frame) return ['no frame'];
+  return [...document.querySelectorAll('a[href], button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"]), [contenteditable=true]')]
+    .filter((el) => el !== frame && !el.contains(frame) && !el.closest('[inert]') && el.checkVisibility() && !el.disabled)
+    .slice(0, 4).map((el) => el.tagName.toLowerCase() + (el.getAttribute('aria-label') ? '「' + el.getAttribute('aria-label') + '」' : '')); })()`;
+
 function focusLoop({ evaluate, command, sessionId }: Browser, seen: { dialogs: string[]; presses: number }, leaks: string[]) {
   const tab = async (shift: boolean) => {
     for (const type of ["keyDown", "keyUp"] as const) await command("Input.dispatchKeyEvent", { type, key: "Tab", code: "Tab", windowsVirtualKeyCode: 9, ...(shift ? { modifiers: 8 } : {}) }, sessionId);
     await pause(50);
   };
-  return async (where: string) => {
-    const dialog = await evaluate<{ tag: string; modal: boolean; stops: number; inside: boolean } | null>(DIALOG);
+  return async (where: string, inspect: Evaluate = evaluate, point?: View["point"]) => {
+    const framed = point !== undefined;
+    const dialog = await inspect<{ tag: string; modal: boolean; stops: number; inside: boolean } | null>(DIALOG);
     if (!dialog) return;
     seen.dialogs.push(`${where}: ${dialog.tag} (${dialog.stops} stops)`);
     if (!dialog.modal) leaks.push(`${where}: ${dialog.tag} is shown without showModal(), so the page behind it still takes focus`);
     if (!dialog.inside) leaks.push(`${where}: focus did not move into ${dialog.tag} when it opened`);
+    // A modal in a plugin's frame sets aside the workbench around the frame too, as showModal() does in one document.
+    if (framed) {
+      const open = await evaluate<string[]>(AROUND_FRAME);
+      if (open.length) leaks.push(`${where}: ${dialog.tag} is modal in its frame, but around the frame ${open.join(", ")} can still be used`);
+    }
     for (const shift of [false, true]) {
       let outside = 0;
       for (let step = 0; step < dialog.stops + 3; step++) {
         await tab(shift);
         seen.presses++;
-        const focus = await evaluate<{ place: string; on: string }>(FOCUS);
+        const focus = await inspect<{ place: string; on: string }>(FOCUS);
         outside = focus.place === "inside" ? 0 : outside + 1;
-        if (focus.place === "behind" || outside > 1) { leaks.push(`${where}: ${shift ? "Shift+Tab" : "Tab"} step ${step + 1} left ${dialog.tag} for ${focus.on} (${focus.place})`); break; }
+        // In a plugin's frame the page around it is checked too: nothing behind the frame takes focus. Leaving the frame's last
+        // stop passes through the frame's edge and then the browser's own controls, one stop more than in one document.
+        const behind = !framed ? null : await evaluate<string | null>("(() => { const a = document.activeElement; return !a || a === document.body || a.tagName === 'IFRAME' ? null : a.tagName.toLowerCase() + (a.className ? '.' + String(a.className).split(' ')[0] : ''); })()");
+        if (focus.place === "behind" || behind || outside > (framed ? 2 : 1)) { leaks.push(`${where}: ${shift ? "Shift+Tab" : "Tab"} step ${step + 1} left ${dialog.tag} for ${behind ? behind + " (the page around the frame)" : `${focus.on} (${focus.place})`}`); break; }
       }
     }
   };
@@ -167,7 +201,9 @@ async function refusingChanges({ command, sessionId, on, origin }: Browser) {
   const off = on("Fetch.requestPaused", (event, session) => {
     if (session !== sessionId) return;
     const request = event.request as { method: string; url: string };
-    if (/^(GET|HEAD|OPTIONS)$/.test(request.method)) { void command("Fetch.continueRequest", { requestId: event.requestId }, sessionId).catch(() => undefined); return; }
+    // Reads, and the page's own lifecycle (an isolated plugin page registers and leaves; the page subscribes to Home events),
+    // go through: they change nothing a dialog asks for.
+    if (/^(GET|HEAD|OPTIONS)$/.test(request.method) || /\/api\/(host\/plugin-pages|home\/events)(\/|$)/.test(new URL(request.url).pathname)) { void command("Fetch.continueRequest", { requestId: event.requestId }, sessionId).catch(() => undefined); return; }
     if (holding) held.push({ requestId: String(event.requestId), line: `${request.method} ${new URL(request.url).pathname}` });
     else void answer(String(event.requestId));
   });
@@ -189,24 +225,24 @@ async function submitAudit(browser: Browser) {
   const enter = (type: "keyDown" | "keyUp") => command("Input.dispatchKeyEvent", { type, key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, ...(type === "keyDown" ? { text: "\r" } : {}) }, sessionId);
   const result: Submitted = { lines: [], twice: [], lost: [], submitted: 0, refusedWithInput: 0 };
 
-  const read = async (where: string) => {
-    const form = await evaluate<{ fields: number; primary: string | null; firstIsInput: boolean } | null>(FORM);
+  const read: Read = async (where, inspect = evaluate, point) => {
+    const form = await inspect<{ fields: number; primary: string | null; firstIsInput: boolean } | null>(FORM);
     if (!form || !form.primary) return;
-    const typed = await evaluate<string[]>(TYPE);
+    const typed = await inspect<string[]>(TYPE);
     await pause(150);
     try {
-      if (await evaluate<boolean>("!!document.querySelector('[data-ov-layer] [data-vux-primary]')?.disabled")) { result.lines.push(`${where}: 「${form.primary}」 stays disabled after typing in ${form.fields} field(s): not sent`); return; }
-      await evaluate("window.__vuxKept = true");
+      if (await inspect<boolean>("!!document.querySelector('[data-ov-layer] [data-vux-primary]')?.disabled")) { result.lines.push(`${where}: 「${form.primary}」 stays disabled after typing in ${form.fields} field(s): not sent`); return; }
+      await inspect("window.__vuxKept = true");
       for (const how of typed.length && form.firstIsInput ? ["click", "enter"] as const : ["click"] as const) {
-        if (!(await evaluate<{ open: boolean }>(AFTER)).open) break;
+        if (!(await inspect<{ open: boolean }>(AFTER)).open) break;
         requests.hold();
         if (how === "click") {
-          const point = await evaluate<{ x: number; y: number } | null>(PRIMARY_POINT);
-          if (!point) { result.lines.push(`${where}: 「${form.primary}」 is covered`); break; }
+          const at = point ? await point("[data-ov-layer] [data-vux-primary]").catch(() => null) : await inspect<{ x: number; y: number } | null>(PRIMARY_POINT);
+          if (!at) { result.lines.push(`${where}: 「${form.primary}」 is covered`); break; }
           // Two presses one straight after the other, as a hand that does not wait for the first to show anything.
-          await Promise.all([press("mousePressed", point), press("mouseReleased", point), press("mousePressed", point), press("mouseReleased", point)]);
+          await Promise.all([press("mousePressed", at), press("mouseReleased", at), press("mousePressed", at), press("mouseReleased", at)]);
         } else {
-          await evaluate("document.querySelector('[data-ov-layer] [data-vux-field]').focus()");
+          await inspect("document.querySelector('[data-ov-layer] [data-vux-field]').focus()");
           await Promise.all([enter("keyDown"), enter("keyUp"), enter("keyDown"), enter("keyUp")]);
         }
         await pause(500);
@@ -216,7 +252,7 @@ async function submitAudit(browser: Browser) {
         for (const [line, count] of counts) if (count > 1) result.twice.push(`${where} (${how}): 「${form.primary}」 sent ${line} ${count} times`);
         await requests.refuse();
         await pause(700);
-        const after = await evaluate<{ open: boolean; values: string[]; said: string[]; busy: boolean; samePage: boolean }>(AFTER);
+        const after = await inspect<{ open: boolean; values: string[]; said: string[]; busy: boolean; samePage: boolean }>(AFTER);
         result.lines.push(`${where} (${how}): 「${form.primary}」 → ${sent.length ? sent.join(", ") : "nothing sent"}; open ${after.open}; said ${JSON.stringify(after.said)}`);
         // Enter in a field sends what is in it: it does not take the dialog away (a Cancel button that comes first would).
         if (how === "enter" && !sent.length && !after.open && form.firstIsInput) result.lost.push(`${where} (enter): Enter in a field closed the dialog and sent nothing`);
@@ -233,7 +269,7 @@ async function submitAudit(browser: Browser) {
     } finally {
       await requests.refuse();
       // The walk presses what it finds in a dialog it opens again: nothing is left in the fields for it to send.
-      await evaluate(CLEAR);
+      await inspect(CLEAR);
     }
   };
   return { read, result, stop: requests.stop };
@@ -263,14 +299,14 @@ const SYNTHETIC = (how: "good" | "twice" | "closes" | "silent" | "cancelFirst", 
 
 test("VUX-29: Tab and Shift+Tab go round inside every modal dialog of the project page and the plugins", { timeout: 3_600_000 }, async (t) => {
   const set = await setUp(t); if (!set) return;
-  const { browser, screens, direct, names } = set;
+  const { browser, views, screens, direct, names } = set;
   const seen = { dialogs: [] as string[], presses: 0 };
   const leaks: string[] = [];
   const requests = await refusingChanges(browser);
   const read = focusLoop(browser, seen, leaks);
   try {
     await walkLayers(browser, screens, names, new Set(), read, (line) => t.diagnostic(line), MORE_VERBS);
-    for (const one of direct) await readDirect(browser, one, read);
+    for (const one of direct) await readDirect(browser, views[one[1].match(/openPlugin=(\w+)/)![1]]!, one, read);
   } finally { await requests.stop(); }
   t.diagnostic(`dialogs: ${seen.dialogs.length}; Tab presses: ${seen.presses}`);
   for (const line of seen.dialogs) t.diagnostic(line);
@@ -303,11 +339,11 @@ test("VUX-29: the focus check notices a dialog shown without showModal and passe
 
 test("VUX-29: a dialog's submit sent twice goes out once, and a refused submit keeps the dialog, what was typed and says why", { timeout: 3_600_000 }, async (t) => {
   const set = await setUp(t); if (!set) return;
-  const { browser, screens, direct, names } = set;
+  const { browser, views, screens, direct, names } = set;
   const audit = await submitAudit(browser);
   try {
     await walkLayers(browser, screens, names, new Set(), audit.read, (line) => t.diagnostic(line), MORE_VERBS);
-    for (const one of direct) await readDirect(browser, one, audit.read);
+    for (const one of direct) await readDirect(browser, views[one[1].match(/openPlugin=(\w+)/)![1]]!, one, audit.read);
   } finally { await audit.stop(); }
   const { result } = audit;
   t.diagnostic(`dialogs submitted: ${result.submitted}; refused with something typed: ${result.refusedWithInput}`);

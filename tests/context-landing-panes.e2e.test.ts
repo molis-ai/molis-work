@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -11,13 +12,14 @@ import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 // the preview stands in the pane at the place the person left, and confirming writes it through the Host. A landing posted
 // by any window that is not one of the panes is dropped.
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
-const PANE = "[...document.querySelectorAll('iframe[data-pane-owner]')].find(frame => frame.contentDocument?.querySelector('[data-pages-editor] .ProseMirror'))";
-const paneText = `(${PANE}?.contentDocument.querySelector('[data-pages-editor] .ProseMirror')?.textContent ?? '')`;
+const paneText = "(document.querySelector('[data-pages-editor] .ProseMirror')?.textContent ?? '')";
+const PANE = "document.querySelector('iframe[data-pane-owner]:not([hidden])')";
 
 test("PANE-LAND-01, PANE-LAND-02 (W3-B3, S-30): a passage selected in the right panel is put at the cursor of the Pages document in a split pane, after a preview in that pane", { timeout: 150_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const child=await pluginFrameBrowser(t,browser,"pages"), pane=await pluginFrameBrowser(t,browser,"pages","iframe[data-pane-owner]:not([hidden])");
   const store = openPagesStore(homeDirectory);
   const left = store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
   const right = store.create({ project_id: projectId!, title: "访谈记录", body: { type: "doc", content: [paragraph("用户说：离线也要能记下想法。")] } });
@@ -27,10 +29,10 @@ test("PANE-LAND-01, PANE-LAND-02 (W3-B3, S-30): a passage selected in the right 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "if (window.parent === window) document.addEventListener('molis:surface-landing', (event) => { window.landings = [...(window.landings || []), { detail: event.detail, framed: event.target instanceof HTMLIFrameElement }]; });" }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${left.id}` }, sessionId));
-  await waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
+  await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
   await click("[data-titlebar-tabs] [data-tab-split]");
   await click("[data-layout-split=right]");
-  await waitFor(`${paneText}.includes('先完成核心体验')`, 20_000);
+  await pane.waitFor(`${paneText}.includes('先完成核心体验')`, 20_000);
 
   // PANE-LAND-02: anything that is not one of the panes cannot report a landing, neither this document nor a frame that is not a pane.
   // Both split panes may still report their initial landing. Identify this probe instead of treating a late legitimate
@@ -68,8 +70,8 @@ test("PANE-LAND-01, PANE-LAND-02 (W3-B3, S-30): a passage selected in the right 
   await evaluate("window.__paneLandingProbe.cleanup()");
 
   // PANE-LAND-01: in the pane, the person leaves the cursor after 「先完成」: the pane's frame raises the landing in the top document.
-  await evaluate(`(() => {
-    const doc = ${PANE}.contentDocument, editor = doc.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
+  await pane.evaluate(`(() => {
+    const doc = document, editor = doc.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = [...editor.querySelectorAll('p')].find(node => node.textContent === '先完成核心体验。').firstChild;
     const range = doc.createRange(); range.setStart(text, 3); range.collapse(true);
     const selection = doc.getSelection(); selection.removeAllRanges(); selection.addRange(range);
@@ -96,15 +98,16 @@ test("PANE-LAND-01, PANE-LAND-02 (W3-B3, S-30): a passage selected in the right 
   await waitFor(`document.querySelector(".mw-ctx:not(.mw-ctx--static):not([hidden]) [data-key]") !== null`, 15_000);
   if (!await evaluate<boolean>(`document.querySelector(${JSON.stringify(attach)}) !== null`)) await evaluate(`document.querySelector('.mw-ctx:not(.mw-ctx--static) [data-more]')?.click()`);
   await waitFor(`[...document.querySelectorAll(${JSON.stringify(attach)})].some(node => node.textContent.includes('插入到光标处'))`, 10_000);
-  await evaluate(`[...document.querySelectorAll(${JSON.stringify(attach)})].find(node => node.textContent.includes('插入到光标处')).click()`);
+  await evaluate(`[...document.querySelectorAll(${JSON.stringify(attach)})].find(node => node.textContent.includes('插入到光标处')).dataset.testAttach='true'`);
+  await click('[data-test-attach]');
 
   // The preview stands in the pane, at its landing; the top document shows none and nothing is written yet.
-  await waitFor(`${PANE}.contentDocument.querySelector('.pages-landing-preview')?.textContent === '离线也要能记下想法'`, 10_000);
+  await pane.waitFor(`document.querySelector('.pages-landing-preview')?.textContent === '离线也要能记下想法'`, 10_000);
   assert.equal(await evaluate<boolean>("document.querySelector('.pages-landing-preview') === null"), true, "the top document previews nothing");
-  assert.equal(await evaluate<string>(paneText), "先完成核心体验。再安排发布。", "the document is unchanged under the preview");
+  assert.equal(await pane.evaluate<string>(paneText), "先完成核心体验。再安排发布。", "the document is unchanged under the preview");
   await capture("pane-1-preview-in-pane");
-  await evaluate(`[...${PANE}.contentDocument.querySelectorAll('.pages-pop .mw-btn--primary')].find(node => node.textContent === '放进去').click()`);
-  await waitFor(`${paneText} === '先完成离线也要能记下想法核心体验。再安排发布。'`, 10_000);
+  await pane.click(".pages-pop .mw-btn--primary");
+  await pane.waitFor(`${paneText} === '先完成离线也要能记下想法核心体验。再安排发布。'`, 10_000);
   await capture("pane-2-written");
   const saved = openPagesStore(homeDirectory);
   try { assert.match(JSON.stringify(saved.get(left.id, projectId!).body), /先完成离线也要能记下想法核心体验。/u); } finally { saved.close(); }

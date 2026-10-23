@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -8,12 +9,13 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 test("VUX-21: Forms questions ease into their new places when one moves or goes, and the moved question keeps focus", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
+  const {evaluate, waitFor, click} = await pluginFrameBrowser(t, browser, "form");
+  const { command, sessionId, navigate, origin, projectId } = browser;
   const idle = () => waitFor("document.querySelector('[data-form=workbench]').getAttribute('aria-busy') === 'false'");
   const saved = () => waitFor("['已保存','已发布'].includes(document.querySelector('[data-form-editor-status]').textContent)");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=form` }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'form'");
+  await browser.waitFor("document.body.dataset.desktopSurface === 'form'");
   await click("[data-form-new]"); await idle();
   for (const title of ["第一题", "第二题", "第三题"]) {
     await click("[data-form-add-question]"); await idle();

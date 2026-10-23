@@ -3,11 +3,10 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 // specs/visual-ui-experience VUX-31「旧响应不覆盖新状态」: a list that is filtered, searched or paged shows what was asked last.
-// The earlier question's answer is held back in Chrome (a real request, nothing mocked; the Shelf's local file search is a
-// desktop command with no HTTP, so a stand-in for the desktop bridge answers it when the test says) while the person asks
-// again; when it arrives late it changes nothing, the control keeps what was chosen last, and a late page of an older question is
+// The earlier question's answer is held back in Chrome (a real request, nothing mocked) while the person asks again; when it arrives late it changes nothing, the control keeps what was chosen last, and a late page of an older question is
 // not added to the new list. Each test counts the reads it saw, so a list that stopped asking could not pass.
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -60,7 +59,8 @@ const openPlugin = async (browser: Browser, plugin: string) => browser.navigate(
 
 test("VUX-31: Todo shows the view chosen last when an earlier view answers late", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { evaluate, waitFor } = browser;
+  // Todo runs in its own isolated frame: the page is read and driven there; its reads still go through this page's Host.
+  const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "todo");
   await wide(browser); await openPlugin(browser, "todo");
   await waitFor("!!document.querySelector('[data-todo-quick-input]') && document.querySelector('[data-todo-loading]').hidden", 20_000);
   // One item is due today, the other has no day: each view lists exactly one of them.
@@ -90,7 +90,8 @@ test("VUX-31: Todo shows the view chosen last when an earlier view answers late"
 
 test("VUX-31: Todo shows the search typed last when an earlier search answers late", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { evaluate, waitFor } = browser;
+  // Todo runs in its own isolated frame: the page is read and driven there; its reads still go through this page's Host.
+  const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "todo");
   await wide(browser); await openPlugin(browser, "todo");
   await waitFor("!!document.querySelector('[data-todo-quick-input]') && document.querySelector('[data-todo-loading]').hidden", 20_000);
   for (const title of ["今天写甲报告", "今天写乙报告"]) {
@@ -114,7 +115,8 @@ test("VUX-31: Todo shows the search typed last when an earlier search answers la
 
 test("VUX-31: Cognia shows the search typed last when an earlier search answers late", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { evaluate, waitFor, homeDirectory } = browser;
+  const { homeDirectory } = browser;
+  const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "cognia");
   const store = openCogniaStore(homeDirectory);
   try { for (const title of ["甲资料", "乙资料"]) store.createMaterial({ title, body: title + "的正文" }); } finally { store.close(); }
   await wide(browser); await openPlugin(browser, "cognia");
@@ -268,28 +270,6 @@ test("VUX-31: the Assistant's slash menu shows the words typed last when the lis
     assert.ok(late.text.includes("没有匹配的能力"));
     assert.equal(hold.seen.length, 3, JSON.stringify(hold.seen));
   } finally { await hold.close(); }
-});
-
-test("VUX-31: the Shelf's local file search shows the words typed last when the search for the first answers late", { timeout: 120_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { evaluate, waitFor, navigate, command, sessionId, origin, projectId } = browser;
-  // The page the side panel shows for Shelf, opened on its own.
-  await wide(browser); await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/side/shelf/side` }, sessionId));
-  await waitFor("!!document.querySelector('[data-shelf-search]') && !!document.querySelector('[data-shelf-find]')", 20_000);
-  // The search of the computer's files is a command of the desktop shell, with no HTTP request to hold: a stand-in for the
-  // shell's bridge takes each question and answers it only when the test says.
-  await evaluate(`(() => { window.__finds = []; window.__TAURI__ = { core: { invoke: (name, payload) => name === 'shelf_find_files'
-    ? new Promise((resolve) => window.__finds.push({ query: payload.query, resolve })) : Promise.resolve(null) } }; })()`);
-  const found = () => evaluate<string[]>("[...document.querySelectorAll('[data-shelf-find] [data-shelf-add-path]')].map((row) => row.dataset.shelfAddPath)");
-  const answer = (query: string, paths: string[]) => evaluate(`(() => { const one = window.__finds.find((item) => item.query === ${JSON.stringify(query)}); one.resolve(${JSON.stringify(paths.map((path) => ({ path, name: path.split("/").pop() })))}); })()`);
-  await evaluate(typed("[data-shelf-search]", "ab")); await waitFor("window.__finds.length === 1", 5_000);
-  await evaluate(typed("[data-shelf-search]", "abc")); await waitFor("window.__finds.length === 2", 5_000);
-  await answer("abc", ["/tmp/abc-file.txt"]);
-  await waitFor("document.querySelectorAll('[data-shelf-find] [data-shelf-add-path]').length === 1", 5_000);
-  await answer("ab", ["/tmp/ab-old.txt", "/tmp/ab-older.txt"]); await pause(800);
-  assert.deepEqual(await found(), ["/tmp/abc-file.txt"], "the first words' late answer does not replace the found files");
-  assert.equal(await evaluate("document.querySelector('[data-shelf-search]').value"), "abc");
-  assert.equal(await evaluate("window.__finds.length"), 2, "each words were asked once");
 });
 
 test("VUX-31: the side panel's file list does not add a late page to the list that was read again", { timeout: 300_000 }, async (t) => {

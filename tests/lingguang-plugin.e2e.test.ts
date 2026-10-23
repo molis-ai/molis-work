@@ -2,26 +2,30 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 test("灵光主路径：记下、刷新还在、改字不丢光标、丢掉、带上下文的头脑风暴", { timeout: 90_000 }, async (t) => {
   const prompts: string[] = [];
   const browser = await openGoalBrowser(t, true, undefined, async prompt => { prompts.push(prompt); return "明天下午再观察同一扇窗。"; });
   if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "lingguang");
+  const { evaluate, waitFor, click } = child;
   assert.ok(projectId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId, 20_000));
-  await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')");
+  await browser.waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')");
 
-  await click('[data-global-menu] [data-plugin-id="market"]');
-  await waitFor("[...document.querySelectorAll('[data-market-plugin=lingguang] [data-market-add]')].some((button) => button.textContent.trim() === '移除')", 8_000);
-  assert.equal(await evaluate("document.querySelector('[data-market-plugin=lingguang] h2')?.textContent"), "灵光");
-  assert.match(await evaluate("document.querySelector('[data-market-plugin=lingguang] p')?.textContent || ''"), /先记下想法，再决定留下或丢掉/);
+  await browser.click('[data-global-menu] [data-plugin-id="market"]');
+  await browser.waitFor("[...document.querySelectorAll('[data-market-plugin=lingguang] [data-market-add]')].some((button) => button.textContent.trim() === '移除')", 8_000);
+  assert.equal(await browser.evaluate("document.querySelector('[data-market-plugin=lingguang] h2')?.textContent"), "灵光");
+  assert.match(await browser.evaluate("document.querySelector('[data-market-plugin=lingguang] p')?.textContent || ''"), /先记下想法，再决定留下或丢掉/);
 
-  await click('[data-plugin-picker-popover] [data-plugin-id="lingguang"]');
-  await waitFor("document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang=workbench]:not([hidden]) [data-lingguang-empty]:not([hidden])')", 8_000);
+  await browser.click('[data-plugin-picker-popover] [data-plugin-id="lingguang"]');
+  await browser.waitFor("document.body.dataset.desktopSurface === 'lingguang'");
+  await waitFor("document.querySelector('[data-lingguang=workbench]:not([hidden]) [data-lingguang-empty]:not([hidden])')", 8_000);
   assert.match(await evaluate("document.querySelector('[data-lingguang-empty]')?.textContent || ''"), /还没有灵光/);
   assert.equal(await evaluate("document.querySelector('[data-lingguang-confirm]')?.classList.contains('mw-dialog')"), true);
   assert.equal(await evaluate("document.querySelector('[data-lingguang=directory]')?.classList.contains('feed-stage-list')"), true);
@@ -51,11 +55,12 @@ test("灵光主路径：记下、刷新还在、改字不丢光标、丢掉、�
   ]);
 
   await reloadPage();
-  await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')");
-  if (await evaluate("document.body.dataset.desktopSurface") !== "lingguang") {
-    await click('[data-plugin-picker-popover] [data-plugin-id="lingguang"]');
+  await browser.waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')");
+  if (await browser.evaluate("document.body.dataset.desktopSurface") !== "lingguang") {
+    await browser.click('[data-plugin-picker-popover] [data-plugin-id="lingguang"]');
   }
-  await waitFor("document.body.dataset.desktopSurface === 'lingguang' && document.querySelectorAll('[data-lingguang-id]').length === 3", 8_000);
+  await browser.waitFor("document.body.dataset.desktopSurface === 'lingguang'");
+  await waitFor("document.querySelectorAll('[data-lingguang-id]').length === 3", 8_000);
   assert.equal(await evaluate("document.querySelectorAll('[data-lingguang-id]').length"), 3);
 
   await evaluate(`document.querySelector('[data-lingguang-id]').click()`);
@@ -79,7 +84,7 @@ test("灵光主路径：记下、刷新还在、改字不丢光标、丢掉、�
   await waitFor("document.querySelector('[data-lingguang=workbench]')?.dataset.expanded !== 'true'");
   // D24, QA-024 the list picks several (listbox, aria-multiselectable), so the plugin tab group leaves ⌘-click to it.
   const itemTabs = "document.querySelectorAll('.tab-item[data-tab-kind=item]').length";
-  const tabsBefore = await evaluate<number>(itemTabs);
+  const tabsBefore = await browser.evaluate<number>(itemTabs);
   await evaluate(`(() => {
     const rows = [...document.querySelectorAll("[data-lingguang-id]")];
     rows[0].dispatchEvent(new MouseEvent("click", { bubbles: true, metaKey: true }));
@@ -89,7 +94,7 @@ test("灵光主路径：记下、刷新还在、改字不丢光标、丢掉、�
   assert.deepEqual(await evaluate(`(() => { const list = document.querySelector("[data-lingguang-rows]"); return [list.getAttribute("role"), list.getAttribute("aria-multiselectable"),
     ...[...list.querySelectorAll("[data-lingguang-id]")].map((row) => row.getAttribute("role") + ":" + row.getAttribute("aria-selected"))]; })()`),
     ["listbox", "true", "option:true", "option:true", "option:false"], "D24 both ⌘-clicked sparks are picked, the third is not");
-  assert.equal(await evaluate<number>(itemTabs), tabsBefore, "D24 a ⌘-click in the list opens no tab");
+  assert.equal(await browser.evaluate<number>(itemTabs), tabsBefore, "D24 a ⌘-click in the list opens no tab");
   await evaluate(`document.querySelector("[data-lingguang-discard]").click()`);
   await waitFor("document.querySelector('[data-lingguang-confirm]')?.open");
   await evaluate(`document.querySelector("[data-lingguang-confirm] [data-confirm-ok]").click()`);
@@ -132,13 +137,15 @@ for (const width of [1440, 390]) {
       return "可以把光线变化画成三张小图。";
     });
     if (!browser) return;
-    const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+    const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+    const child = await pluginFrameBrowser(t, browser, "lingguang");
+    const { evaluate, waitFor, click } = child;
     await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-    await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')");
-    await click('[data-plugin-picker-popover] [data-plugin-id="lingguang"]');
-    await waitFor("document.body.dataset.desktopSurface === 'lingguang'");
+    await browser.waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')");
+    await browser.click('[data-plugin-picker-popover] [data-plugin-id="lingguang"]');
+    await browser.waitFor("document.body.dataset.desktopSurface === 'lingguang'");
     await click('[data-lingguang-capture]');
     await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'");
     await evaluate(`(() => { const title = document.querySelector('[data-lingguang-title]'); title.value = '光的笔记'; title.dispatchEvent(new InputEvent('input', {bubbles:true})); const body = document.querySelector('[data-lingguang-body]'); body.value = '下午三点的光从窗边移到桌上。'; body.dispatchEvent(new InputEvent('input', {bubbles:true})); })()`);
@@ -160,7 +167,7 @@ for (const width of [1440, 390]) {
     await waitFor("document.querySelectorAll('.lingguang-message').length === 2");
     assert.equal(await evaluate("document.querySelector('[data-lingguang-chat-input]').value"), "这是下一轮草稿");
     assert.equal(await evaluate("document.querySelector('[data-lingguang-messages]').lastElementChild.querySelector('strong').textContent"), "灵光");
-    assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+    assert.equal((await browser.evaluate("document.documentElement.scrollWidth <= innerWidth") && await evaluate("document.documentElement.scrollWidth <= innerWidth")), true);
     const { mkdir, writeFile } = await import("node:fs/promises");
     const output = reviewEvidenceUrl("action-service/");
     await mkdir(output, { recursive: true });
@@ -210,13 +217,15 @@ test("灵光对话：回复边写边显示，停止后不保存且输入保留�
     return "可以先画三张小图，看光怎么移动。";
   });
   if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
+  const { command, sessionId, navigate, origin, projectId } = browser;
+  const child = await pluginFrameBrowser(t, browser, "lingguang");
+  const { evaluate, waitFor, click } = child;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')");
-  await click('[data-plugin-picker-popover] [data-plugin-id="lingguang"]');
-  await waitFor("document.body.dataset.desktopSurface === 'lingguang'");
+  await browser.waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')");
+  await browser.click('[data-plugin-picker-popover] [data-plugin-id="lingguang"]');
+  await browser.waitFor("document.body.dataset.desktopSurface === 'lingguang'");
   await click('[data-lingguang-capture]');
   await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'");
   await evaluate(`(() => { const title = document.querySelector('[data-lingguang-title]'); title.value = '光的笔记'; title.dispatchEvent(new InputEvent('input', {bubbles:true})); const body = document.querySelector('[data-lingguang-body]'); body.value = '下午三点的光从窗边移到桌上。'; body.dispatchEvent(new InputEvent('input', {bubbles:true})); })()`);

@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -30,6 +31,7 @@ test("VUX-46 to VUX-50: marks, words and button rows are in order on the common 
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  const child = await pluginFrameBrowser(t,browser);
   const found: string[] = [];
   for (const mode of MODES) {
     await command("Emulation.setDeviceMetricsOverride", { width: mode.width, height: mode.height, deviceScaleFactor: 1, mobile: mode.touch }, sessionId);
@@ -42,16 +44,24 @@ test("VUX-46 to VUX-50: marks, words and button rows are in order on the common 
       await waitFor("document.readyState === 'complete'", 20_000);
       if (mode.compact) await evaluate("document.documentElement.dataset.density = 'compact'");
       await pause(800);
-      const { findings } = await evaluate(orderAudit(SKIP)) as { findings: Array<Record<string, unknown>> };
-      for (const finding of findings) found.push(`${mode.name} ${id}: ${JSON.stringify(finding)}`);
+      const isolated = await evaluate<boolean>("Boolean(document.querySelector('iframe[data-plugin-frame]'))");
+      const audit = async () => {
+        const owner = await evaluate<{findings: Array<Record<string, unknown>>}>(orderAudit(SKIP));
+        if (isolated) {
+          await child.waitFor("document.querySelector('[data-work-surface]') && document.fonts.status === 'loaded'");
+          const inside = await child.evaluate<{findings: Array<Record<string, unknown>>}>(orderAudit(SKIP));
+          owner.findings.push(...inside.findings);
+        }
+        return owner.findings;
+      };
+      for (const finding of await audit()) found.push(`${mode.name} ${id}: ${JSON.stringify(finding)}`);
       if (mode.name !== "light") continue;
       for (const [what, opener, page] of OPENS) {
         if (page !== id) continue;
         await waitFor(`document.body.dataset.desktopSurface === ${JSON.stringify(id)}`, 20_000);
-        await evaluate(`document.querySelector(${JSON.stringify(opener)}).click()`);
+        await (isolated ? child : browser).evaluate(`document.querySelector(${JSON.stringify(opener)}).click()`);
         await pause(1500);
-        const opened = await evaluate(orderAudit(SKIP)) as { findings: Array<Record<string, unknown>> };
-        for (const finding of opened.findings) found.push(`${mode.name} ${id} ${what}: ${JSON.stringify(finding)}`);
+        for (const finding of await audit()) found.push(`${mode.name} ${id} ${what}: ${JSON.stringify(finding)}`);
       }
       if (id !== "settings") continue;
       // Settings: every section, each read once it has loaded.

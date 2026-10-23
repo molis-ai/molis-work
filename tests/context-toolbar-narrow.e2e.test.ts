@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 // context-toolbar §6 T06, QA-014: a real Pages page at 390 whose recommended actions have long Chinese or English titles, and
 // another plugin's long name as their badge. Every title and badge stays inside its own button, no two buttons overlap, every
@@ -51,13 +52,14 @@ for (const locale of ["zh", "en"] as const) {
     const browser = await openGoalBrowser(t, true, undefined, null);
     if (!browser) return;
     const { command, sessionId, navigate, evaluate, waitFor, click, origin, projectId, homeDirectory } = browser;
+    const child = await pluginFrameBrowser(t, browser, "pages");
     await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: long.scheme }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
     const pages = openPagesStore(homeDirectory);
     const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
     const next = `/projects/${projectId}/?openPlugin=pages&openItem=${page.id}`;
     await navigate(() => command("Page.navigate", { url: locale === "en" ? `${origin}/locale?lang=en&next=${encodeURIComponent(next)}` : `${origin}${next}` }, sessionId));
-    await waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
+    await child.waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
     assert.equal(await evaluate("document.documentElement.lang.startsWith(" + JSON.stringify(locale) + ")"), true);
 
     // The plan as the Host ranked it, with its first available actions (another plugin's first, so they carry a badge) made the
@@ -85,7 +87,7 @@ for (const locale of ["zh", "en"] as const) {
         const headers = new Headers(response.headers); headers.delete('content-length');
         return new Response(JSON.stringify(out), { status: response.status, headers });
       }; })()`);
-    const select = () => evaluate(`(() => {
+    const select = () => child.evaluate(`(() => {
       const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
       const range = document.createRange(); range.selectNodeContents(editor.querySelector('p').firstChild);
       const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));

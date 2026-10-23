@@ -1,6 +1,7 @@
 import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { scheduleFailure } from "./error.js";
 import type { ScheduledOperationIdentity, ScheduledOperationInput } from "./operations.js";
+import type { ScheduleActionWrite } from "./actions.js";
 
 export const SCHEDULE_OPERATION_PROVIDER_ID = "schedule.operations";
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: "object", properties, required, additionalProperties: false });
@@ -19,17 +20,21 @@ export const scheduledOperationActions = {
 };
 export const SCHEDULE_OPERATION_ACTIONS = Object.values(scheduledOperationActions);
 export interface ScheduledOperationActionPorts {
+  pluginId(installationId: string): string | null;
   add(identity: ScheduledOperationIdentity, input: ScheduledOperationInput): { scheduleId: string };
   cancel(identity: ScheduledOperationIdentity, input: { scheduleId: string }): { cancelled: boolean };
 }
-export function createScheduledOperationActionHandlers(projectId: string, ports: ScheduledOperationActionPorts): ActionHandlerBinding[] {
+export function createScheduledOperationActionHandlers(projectId: string, ports: ScheduledOperationActionPorts,
+  write: ScheduleActionWrite = async (caller, operation) => { await caller.beforeEffect(); return operation(); }): ActionHandlerBinding[] {
   const identity = (context: ActionExecutionContext): ScheduledOperationIdentity => {
     if (context.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "定时操作不属于这个项目");
-    if (context.audience !== "plugin" || !context.actor_id.startsWith("plugin:") || !context.plugin_install_id) throw new ActionError("actions.forbidden", "定时操作需要真实的插件安装身份");
-    return { projectId, pluginId: context.actor_id.slice("plugin:".length), installationId: context.plugin_install_id };
+    if (context.audience !== "plugin" || !context.plugin_install_id) throw new ActionError("actions.forbidden", "定时操作需要真实的插件安装身份");
+    const pluginId = ports.pluginId(context.plugin_install_id);
+    if (!pluginId) throw new ActionError("actions.forbidden", "调用的插件安装不存在");
+    return { projectId, pluginId, installationId: context.plugin_install_id };
   };
   return [
-    { ...scheduledOperationActions.add, handle: async (context, input) => { await context.beforeEffect(); try { return ports.add(identity(context), input as ScheduledOperationInput); } catch (error) { throw scheduleFailure(error); } } },
-    { ...scheduledOperationActions.cancel, handle: async (context, input) => { await context.beforeEffect(); try { return ports.cancel(identity(context), input as { scheduleId: string }); } catch (error) { throw scheduleFailure(error); } } },
+    { ...scheduledOperationActions.add, handle: async (context, input) => { try { return await write(context, () => ports.add(identity(context), input as ScheduledOperationInput)); } catch (error) { throw scheduleFailure(error); } } },
+    { ...scheduledOperationActions.cancel, handle: async (context, input) => { try { return await write(context, () => ports.cancel(identity(context), input as { scheduleId: string })); } catch (error) { throw scheduleFailure(error); } } },
   ];
 }

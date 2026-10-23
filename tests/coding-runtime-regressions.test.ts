@@ -80,6 +80,7 @@ test("a failed SDK background read preserves the last actual command observation
   await until("command approval did not appear", () => fixture.reviews.list(DEMO_PROJECT_ID, "pending").length > 0);
   for (const review of fixture.reviews.list(DEMO_PROJECT_ID, "pending")) await fixture.reviews.respond({ review_id: review.review_id, actor_id: "web-user", decision: "approve" });
   await settle(fixture, started.run.ref); body(await fixture.call("/state"));
+  await until("SYS-15-Q2: the independent observer did not record the command", () => fixture.sessions.backgroundOf(DEMO_PROJECT_ID, "A")?.length === 1);
   const observed = fixture.sessions.backgroundOf(DEMO_PROJECT_ID, "A"); assert.equal(observed?.length, 1);
   const failed = t.mock.method(fixture.adapter.background!, "read", async () => { throw new Error("SDK background observation unavailable"); });
   const unknown = body<{ sessions: Array<{ session_id: string; background_unreadable: boolean }> }>(await fixture.call("/state"));

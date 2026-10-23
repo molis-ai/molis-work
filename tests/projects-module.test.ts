@@ -17,7 +17,7 @@ function createModule(db: Database.Database): ProjectsModule {
   let sequence = 0;
   return new ProjectsModule({
     db,
-    plugins: { has: () => false, companions: () => [] },
+    plugins: { has: id => id === "goals", companions: () => [] },
     now: () => `2026-09-02T00:00:${String(sequence).padStart(2, "0")}.000Z`,
     id: (prefix) => `${prefix}-${++sequence}`,
   });

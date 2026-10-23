@@ -10,8 +10,8 @@ mod drop_wheel;
 #[cfg(target_os = "macos")]
 mod drop_wheel_macos;
 mod external_links;
-mod pty;
 mod runtime_env;
+mod selected_file;
 #[cfg(target_os = "macos")]
 mod shelf_clipboard_macos;
 #[cfg(target_os = "macos")]
@@ -21,11 +21,9 @@ mod shelf_hotkeys;
 mod shelf_hotkeys_macos;
 mod shelf_http;
 mod traffic_lights;
+mod web_identity;
 mod web_service;
 
-#[cfg(test)]
-use pty::pty_collect_output;
-use pty::{drop_all_sessions, pty_kill, pty_resize, pty_spawn, pty_write, PtyState};
 use std::path::PathBuf;
 use std::sync::{atomic::Ordering, Mutex};
 use std::thread;
@@ -833,15 +831,12 @@ fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
 
 fn main() {
     let app = tauri::Builder::default()
-    .manage(PtyState::default())
     .manage(WebServiceState::default())
     .manage(CapsuleStatusState::default())
     .manage(context_directories::ContextDirectoryState::default())
-    .invoke_handler(tauri::generate_handler![
-      pty_spawn,
-      pty_write,
-      pty_resize,
-      pty_kill,
+    .invoke_handler(|invoke| {
+      if !web_healthy() { invoke.resolver.reject("本地服务身份验证失败"); return true; }
+      let handle: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
       capsule_hide,
       capsule_resize,
       capsule_update_menu_bar,
@@ -857,12 +852,15 @@ fn main() {
       shelf_drag_out,
       shelf_copy_files,
       shelf_find_files,
+      selected_file::platform_read_selected_file,
       shelf_admit_paths,
       shelf_open_path,
       shelf_setup_status,
       shelf_hotkey_status,
       shelf_apply_hotkeys
-    ])
+      ];
+      handle(invoke)
+    })
     .setup(|app| {
       install_molis_work_tray(app)?;
       #[cfg(target_os = "macos")]
@@ -956,7 +954,6 @@ fn main() {
     .expect("error while building Molis Work desktop");
     app.run(|app, event| {
         if matches!(event, tauri::RunEvent::Exit) {
-            drop_all_sessions(app.state::<PtyState>().inner());
             let web_service = app.state::<WebServiceState>();
             web_service.shutting_down.store(true, Ordering::Release);
             stop_owned_web_service(web_service.inner());
@@ -968,22 +965,12 @@ fn main() {
 mod tests {
     use super::{
         anchored_capsule_position, capsule_menu_bar_icon, capsule_web_url, desktop_molis_work_url,
-        molis_work_reload_url, normalized_capsule_height, pty_collect_output,
-        should_attempt_web_recovery, should_keep_window_on_close, stop_owned_web_service,
-        validated_molis_work_path, CapsuleLocale, WebServiceState,
+        molis_work_reload_url, normalized_capsule_height, should_attempt_web_recovery,
+        should_keep_window_on_close, stop_owned_web_service, validated_molis_work_path,
+        CapsuleLocale, WebServiceState,
     };
-    use std::{env, process::Command};
+    use std::process::Command;
     use tauri::{PhysicalPosition, PhysicalRect, PhysicalSize, Url};
-
-    #[test]
-    fn echo_through_pty() {
-        let output = pty_collect_output("/bin/echo", &["molis-work-pty"], &env::temp_dir())
-            .expect("pty echo");
-        assert!(
-            output.contains("molis-work-pty"),
-            "unexpected PTY output: {output:?}"
-        );
-    }
 
     #[test]
     fn capsule_position_is_centered_below_the_menu_bar_item() {

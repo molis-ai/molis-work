@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 
@@ -33,6 +34,7 @@ test("a work's starting point names the page it started on, never its id", { tim
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address !== "string");
   const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const child = await pluginFrameBrowser(t, browser, "todo");
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
     const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
@@ -41,7 +43,8 @@ test("a work's starting point names the page it started on, never its id", { tim
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-todo-view=\"all\"]')");
+  await waitFor("document.body.dataset.desktopSurface === 'todo'");
+  await child.waitFor("document.querySelector('[data-todo-view=\"all\"]')");
 
   await click("[data-assistant-input]");
   await command("Input.insertText", { text: "看看今天的待办" }, sessionId);

@@ -579,7 +579,8 @@ test("on this repository the typed capability rule finds the alias and the regis
   }
   assert.ok(!index.typeNames.has("HostCapabilityInput"), "a type that only reads a definition is not an alias");
   assert.ok(!index.typeNames.has("ActionDefinition"), "an interface that extends the definition is the action path, not an alias");
-  for (const registrar of ["LocalHost", "MolisWorkLocalHost", "CapabilityRegistry", "AgentCapabilityRegistrar", "ScheduleCapabilityRegistrar"]) assert.ok(index.registrarTypes.has(registrar), `${registrar} registers typed capabilities`);
+  for (const registrar of ["LocalHost", "MolisWorkLocalHost", "CapabilityRegistry", "AgentCapabilityRegistrar"]) assert.ok(index.registrarTypes.has(registrar), `${registrar} registers typed capabilities`);
+  assert.equal(index.registrarTypes.has("ScheduleCapabilityRegistrar"), false, "Schedule now registers Runtime actions; its removed typed registrar must not remain");
   assert.ok(index.registrarFunctions.has("createMolisWorkLocalHost"), "an exported function that returns the Host is followed (`createMolisWorkLocalHost().register(…)`)");
   // The composition root still hands the typed Git and writer entries to `registerCapability` (PG-035 left them to G3, G4);
   // the Host's own workspace reads went to `registerAction`, the action seam, which is not a typed registration.

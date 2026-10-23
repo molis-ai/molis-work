@@ -1,9 +1,9 @@
 {
   "giantUnits": 120,
   "giant": {
-    "file apps/local-host/src/assistant/assistant-service.ts": 1868,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1858,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1515,
+      "lines": 1501,
       "methods": 91
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
@@ -42,7 +42,7 @@
     "file apps/workbench/src/i18n/en.ts": 3323,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 313,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2047,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2032,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1966,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
@@ -54,10 +54,10 @@
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 217,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 965,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 958,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
-      "lines": 602,
-      "methods": 18
+      "lines": 589,
+      "methods": 19
     },
     "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 363,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
@@ -69,10 +69,10 @@
       "lines": 361,
       "methods": 18
     },
-    "file horizontal/memory/src/service.ts": 1190,
+    "file horizontal/memory/src/service.ts": 1147,
     "class horizontal/memory/src/service.ts#MemoryService": {
-      "lines": 1055,
-      "methods": 44
+      "lines": 1018,
+      "methods": 48
     },
     "class horizontal/placement/src/index.ts#PlacementService": {
       "lines": 399,
@@ -202,7 +202,7 @@
     },
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
-    "file plugins/native/pages/src/client.ts": 1100,
+    "file plugins/native/pages/src/client.ts": 1099,
     "function plugins/native/pages/src/editor-browser.ts#mount": 451,
     "class plugins/native/pages/src/store.ts#PagesStore": {
       "lines": 346,

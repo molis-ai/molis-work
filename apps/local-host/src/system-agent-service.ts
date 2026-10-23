@@ -2,7 +2,7 @@ import path from "node:path";
 import { projectOrNull } from "./catalog-lookup.js";
 import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { composeAgentHost, workspaceRefFor, type AgentHostCompositionOptions } from "./agent-host-composition.js";
+import { composeAgentHost, workspaceRefFor, type AgentHostComposition, type AgentHostCompositionOptions } from "./agent-host-composition.js";
 import { hostQuestionTypes, hostReferenceKinds } from "./agent-question-surfaces.js";
 import { referenceKindsPort } from "./agent-reference-kinds.js";
 import { createAgentConnectorPorts } from "./agent-connector-ports.js";
@@ -13,8 +13,8 @@ import type { ModelProviderStore } from "./model-provider-store.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
-import { memoryHostFor, recordMemoryUsage, registerMemoryHost } from "./memory/memory-host.js";
-import { memoryRuntimePolicy } from "./memory/memory-runtime-policy.js";
+import { recordMemoryUsage, registerMemoryHost } from "./memory/memory-host.js";
+import { memoryRuntime } from "./memory/memory-runtime.js";
 import { browserSurfacesFor } from "./browser/browser-surfaces.js";
 import { computerSurfacesFor } from "./computer/computer-surfaces.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
@@ -37,7 +37,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
   return localHost.ensureAgentService(storageHome, () => {
     prepareMemoryHome(storageHome);
     const connectors = createAgentConnectorPorts(storageHome);
-    const service = composeAgentHost({
+    const service: AgentHostComposition = composeAgentHost({
       localHost, homeDirectory: storageHome,
       projectReference: async projectId => {
         if (!owner.withCatalog) throw new Error("项目连接目录尚未装配");
@@ -59,7 +59,8 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         : workspaces.workspaceFor?.(projectId) ?? null,
       prologue: {
         storageRoot: agentRuntimeDirectory(storageHome),
-        memory: memoryRuntimePolicy(() => memoryHostFor(localHost)?.policy),
+        memory: memoryRuntime(localHost, storageHome, () => service.agentHost.adapter("prologue"), async projectId => owner.withCatalog
+          ? owner.withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.database_path) : undefined),
         memoryUsage: receipt => recordMemoryUsage(localHost, receipt),
         // The question types every surface that shows a run's questions can draw (specs/ai-interaction-experience D8).
         questionTypes: hostQuestionTypes(),

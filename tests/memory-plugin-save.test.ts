@@ -6,7 +6,7 @@ import test, { type TestContext } from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { MemoryService, defaultPrefs, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { MemoryService, defaultPrefs, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryRuntimePolicy, prologueMemoryBackend, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 import { observeMemoryBackend } from "./fixtures/memory-service-home.ts";
@@ -32,7 +32,10 @@ async function fixture(t: TestContext) {
   let models = 0, writes = 0, updates = 0, proposals = 0, promotions = 0, settlements = 0;
   let beforeUpdate: ((request: Parameters<MemoryBackendPort["update"]>[0]) => Promise<void>) | undefined;
   const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
-    memory: memoryRuntimePolicy(() => owner), modelConfiguration: async () => { models++; throw new Error("Plugin saves do not use a model"); } });
+    memory: { ...memoryRuntimePolicy(() => owner),
+      promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION, decide: (caller, request) => service.promotion.decide(caller, request),
+        undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request),
+          record: (caller, request) => service.promotion.undo.record(caller, request) } } }, modelConfiguration: async () => { models++; throw new Error("Plugin saves do not use a model"); } });
   let adapter = await open();
   const raw = prologueMemoryBackend(async () => adapter.memory!);
   const backend = observeMemoryBackend(raw, bound => ({ ...bound,

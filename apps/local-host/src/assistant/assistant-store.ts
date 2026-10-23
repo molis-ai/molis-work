@@ -426,3 +426,10 @@ export class AssistantStore {
 
 /** This store in the Home's store registry (W4-11). */
 export const ASSISTANT_HOME_STORE: HomeStoreDeclaration = { path: ASSISTANT_STORE_NAME, library: { baseline: ASSISTANT_STORE_BASELINE } };
+
+/** Resolve the existing work owner for a Session without a recent-work limit or a second source index. */
+export function assistantWorkForSession(db: DatabaseSync, actorId: string, sessionId: string): StoredWork | undefined {
+  const store = new AssistantStore(db);
+  const rows = db.prepare("SELECT work_id FROM assistant_works WHERE actor_id=? AND json_extract(body,'$.session_id')=? LIMIT 2").all(actorId, sessionId);
+  return rows.length === 1 ? store.get(actorId, String(rows[0]!.work_id)) : undefined;
+}

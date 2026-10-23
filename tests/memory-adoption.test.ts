@@ -6,13 +6,18 @@ import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
-import { openMemoryLedger, homeSqlitePath, MEMORY_LEDGER_STORE } from "@molis-ai/molis-work-storage";
+import { openMemoryLedger, openHomeSqliteDatabase, homeSqlitePath, MEMORY_LEDGER_STORE } from "@molis-ai/molis-work-storage";
 import { MemoryService, isCompletePrefs, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { MolisWorkLocalHost, ensureSystemAgentService, prologueMemoryBackend, hostTextGeneration } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, ensureSystemAgentService, prologueMemoryBackend, hostTextGeneration, ASSISTANT_STORE_NAME, AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopWebHost, MolisWorkServer, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 
-const person: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui", person: true };
-const worker: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "agent" };
+import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AgentMemorySourceSnapshot } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { connectorAssistantModel, untilSetup } from "./fixtures/connector-assistant-model.js";
+
+const PROJECT_A = "project-onboarding-08c01264-6d29-48fb-a16c-4a27c71fac38";
+const person: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: PROJECT_A, consumer: "ui", person: true };
+const worker: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: PROJECT_A, consumer: "agent" };
 const automatic = { scope: "project" as const, text: "周报把风险放在前面", kind: "convention" as const,
   basis: "repeated" as const, why: "两项独立工作中重复提出", from: "extraction" as const };
 const originalPrefs = { enabled: true, task_recall: true, form: true, auto: true, learn_from_work: true, learn_from_ui: true,
@@ -26,18 +31,53 @@ function scratch(t: TestContext) {
 
 async function open(home: string) {
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const agents = ensureSystemAgentService(host, home);
+  const agents = ensureSystemAgentService(host, home, withMolisWorkProjectCatalog);
   await agents.ready;
   const ledger = openMemoryLedger({ homeDirectory: home });
   const service = new MemoryService({ ledger, backend: prologueMemoryBackend(async () => agents.agentHost.adapter("prologue").memory!) });
   const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null,
     audience: "user" as const, permissions: [...MEMORY_PERMISSIONS] }));
-  return { host, service, ledger, actions, close: async () => { ledger.close(); await host.close(); } };
+  return { host, service, ledger, actions, adapter: agents.agentHost.adapter("prologue"), close: async () => { ledger.close(); await host.close(); } };
+}
+
+async function createProject(home: string) {
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({
+    project_id: PROJECT_A, display_name: "采用后项目", actor_id: LOCAL_PERSON_ACTOR_ID,
+  }));
+}
+
+/** Two real, completed Node Runs own the originals; the production SourcePort independently verifies them. */
+async function learnedAutomatic(home: string, env: Awaited<ReturnType<typeof open>>) {
+  const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME), store = new AssistantStore(db);
+  const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: PROJECT_A, plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID };
+  const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.getProject(PROJECT_A));
+  const sources: AgentMemorySourceSnapshot[] = [];
+  try {
+    for (let index = 0; index < 2; index++) {
+      const session = await env.adapter.createSession({ ...owner, workspace: "none", title: "原始约定", role_id: "assistant" });
+      const work = store.create({ actor_id: owner.actor_id, title: "原始约定", scope: { kind: "project", project_id: owner.project_id },
+        project_ref: { project_id: owner.project_id, storage_key: project.database_path }, origin: null });
+      store.update(owner.actor_id, work.work_id, null, { session_id: session.session_id });
+      const original_input = { input_id: crypto.randomUUID(), text: automatic.text, written_by: "person" as const, occurred_at: new Date().toISOString() };
+      const run = await env.adapter.start({ ...owner, session, workspace: "none", task: automatic.text, original_input, role_id: "assistant",
+        role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
+      const view = await untilSetup(async () => { const value = await env.adapter.read(run.ref); return value.phase === "completed" ? value : undefined; }, "adoption original completed");
+      const original = view.original_input; assert.ok(original); assert.equal(original.written_by, "person");
+      sources.push({ event_id: "molis-input:1:" + JSON.stringify([owner.actor_id, original.ref.session_id, "original", original.ref.input_id]), version: "1",
+        text: original.text, speaker: { kind: "person", id: owner.actor_id }, derivation: "original", occurred_at_ms: Date.parse(original.occurred_at) });
+    }
+    const [result] = await env.service.learnFromWork({ ...worker, consumer: "assistant", current_scene: "common", operation_id: crypto.randomUUID() }, {
+      said: sources.map(source => source.text), sources,
+      proposals: [{ text: automatic.text, scope: "project", kind: "convention", basis: "explicit", quote: automatic.text }],
+    });
+    return result!;
+  } finally { db.close(); }
 }
 
 // MEM-24: the existing write gate, public actions and actual SDK persistence consume the initialized choice.
 test("a new Home is reviewed; manual saving and reading work, and a later saved choice survives restart", async t => {
   const home = scratch(t);
+  await createProject(home);
   let env = await open(home);
   try {
     const prefs = await env.actions.invoke(memoryActions.prefs, { scope: "personal" });
@@ -46,7 +86,7 @@ test("a new Home is reviewed; manual saving and reading work, and a later saved 
     const foreignHome = join(home, "unrelated-home");
     assert.throws(() => ensureSystemAgentService(env.host, foreignHome), { code: "actions.home_mismatch" });
     assert.equal(existsSync(foreignHome), false, "a rejected Home binding does not initialize its target");
-    assert.equal(env.service.prefsFor(LOCAL_PERSON_ACTOR_ID, "project", "project-a").auto, false);
+    assert.equal(env.service.prefsFor(LOCAL_PERSON_ACTOR_ID, "project", PROJECT_A).auto, false);
     assert.equal((await env.service.offer(worker, automatic)).outcome, "candidate");
     assert.equal((await env.service.list(person)).items.length, 0);
     const saved = await env.actions.invoke(memoryActions.write, { scope: "personal", text: "周报先写风险", kind: "preference" });
@@ -68,15 +108,17 @@ test("adopted effective defaults retain automatic writing, project overrides and
     adopted.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", { ...originalPrefs, auto: false, consumers: { ...originalPrefs.consumers, assistant: false } });
     adopted.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", { ...originalPrefs, consumers: { ...originalPrefs.consumers, mcp: true, agent: false },
       plugins: { blocked: { allowed: false, kinds: ["convention"] } } });
-    adopted.savePrefs(LOCAL_PERSON_ACTOR_ID, "project:project-a", { ...originalPrefs, consumers: { ...originalPrefs.consumers, mcp: true },
+    adopted.savePrefs(LOCAL_PERSON_ACTOR_ID, `project:${PROJECT_A}`, { ...originalPrefs, consumers: { ...originalPrefs.consumers, mcp: true },
       plugins: { blocked: { allowed: false, kinds: ["convention"] }, limited: { allowed: true, kinds: ["preference"] } } });
     adopted.setMarker(LOCAL_PERSON_ACTOR_ID, "strategy-adoption", { origin: "existing-home" }, "2026-10-22T00:00:00Z");
   });
   adopted.close();
+  await createProject(home);
+  await connectorAssistantModel(t, home, () => "完成。");
   for (let attempt = 0; attempt < 2; attempt++) {
     const env = await open(home);
     try {
-      const kept = await env.service.offer(worker, automatic);
+      const kept = attempt === 0 ? await learnedAutomatic(home, env) : await env.service.offer(worker, automatic);
       assert.equal(kept.outcome, attempt === 0 ? "written" : "duplicate");
       assert.equal((await env.service.recall(worker, { query: "周报风险" })).items.length, 1);
       assert.equal((await env.service.recall({ ...worker, project_id: "project-b" }, { query: "周报风险" })).items.length, 0);

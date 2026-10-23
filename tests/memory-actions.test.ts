@@ -1,4 +1,4 @@
-import { AgentHost, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { AgentHost, createPrologueNodeAdapter, type PrologueNodeAdapterOptions } from "@molis-ai/molis-work-service-agent-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -7,9 +7,10 @@ import { join } from "node:path";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import type { AgentMemoryCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ASSISTANT_STORE_NAME, AssistantStore, MolisWorkLocalHost, memoryRuntimePolicy } from "@molis-ai/molis-work-app-local-host";
-import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_STORE_NAME, AssistantStore, MolisWorkLocalHost, memoryRuntimePolicy, memorySources } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_PLUGIN_ID, ASSISTANT_INSTALL_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openHomeSqliteDatabase, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { MEMORY_GATE_POLICY, MEMORY_GATE_VERSION } from "@molis-ai/molis-work-service-memory";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { memoryHostFor, registerMemoryHost } from "../apps/local-host/dist/memory/memory-host.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
@@ -18,38 +19,62 @@ import { assistantAuthority, ensureSystemAgentService } from "@molis-ai/molis-wo
 const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
 const agent: ActionCallContext = { actor_id: "agent:coding-1", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [...MEMORY_PERMISSIONS] };
 
+// Keep the real policy and journal; the Home owner is registered before any memory command.
+function currentMemory(localHost: MolisWorkLocalHost): NonNullable<PrologueNodeAdapterOptions["memory"]> {
+  const service = () => memoryHostFor(localHost)!.service;
+  return { ...memoryRuntimePolicy(() => memoryHostFor(localHost)?.policy),
+    promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION, decide: (caller, request) => service().promotion.decide(caller, request),
+      undo: { prepare: (caller, request) => service().promotion.undo.prepare(caller, request),
+        record: (caller, request) => service().promotion.undo.record(caller, request) } } };
+}
+
 test("the production learning Host queues original identities only, and respects settings changed after enqueue", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "memory-learning-host-")), localHost = new MolisWorkLocalHost({ completeText: null });
   t.mock.method(globalThis, "fetch", async () => cogniaModelResponse("完成。"));
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
-    memory: memoryRuntimePolicy(() => memoryHostFor(localHost)?.policy),
+  let adapter!: Awaited<ReturnType<typeof createPrologueNodeAdapter>>;
+  adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+    memory: { ...currentMemory(localHost), sources: memorySources(home, () => {
+      const current = memoryHostFor(localHost);
+      return current && { adapter, policy: current.policy,
+        sourceAllowed: (actor, scope, owner, refs) => current.service.sourceAllowed(actor, scope, owner, refs),
+        sessionAllowed: async owner => owner.actor_id === LOCAL_PERSON_ACTOR_ID && owner.project_id === "project-q4"
+          && owner.plugin_id === ASSISTANT_PLUGIN_ID && owner.install_id === ASSISTANT_INSTALL_ID };
+    }) },
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   const agentHost = new AgentHost(); agentHost.register(adapter);
   const memory = registerMemoryHost({ localHost, homeDirectory: home, agentHost, ready: async () => {}, executes: () => true, projectExists: async () => true });
   const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME), store = new AssistantStore(db);
   t.after(async () => { memory.close(); await adapter.close(); db.close(); await localHost.close(); await rm(home, { recursive: true, force: true }); });
-  const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_PLUGIN_ID };
+  const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID };
   const session = await adapter.createSession({ ...owner, workspace: "none", role_id: "assistant", title: "周报" });
   const work = store.create({ actor_id: owner.actor_id, title: "周报", scope: { kind: "project", project_id: owner.project_id }, origin: null,
     project_ref: { project_id: owner.project_id, storage_key: "memory:project-q4" } });
   store.update(owner.actor_id, work.work_id, null, { session_id: session.session_id });
-  const text = "以后周报都把风险放最前面", run = await adapter.start({ ...owner, session, task: text, workspace: "none", role_id: "assistant",
+  const text = "以后周报都把风险放最前面";
+  // This is the trusted Host fixture; the SDK attempt, not the display round, owns the original.
+  const original_input = { input_id: crypto.randomUUID(), text, written_by: "person" as const, occurred_at: new Date().toISOString() };
+  const run = await adapter.start({ ...owner, session, task: text, workspace: "none", role_id: "assistant", original_input,
     role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
   store.addRound(work.work_id, { run_id: run.ref.run_id, text, materials: [], context: null, started_at: new Date().toISOString() });
   const until = async (read: () => boolean | Promise<boolean>) => { for (let i = 0; i < 400; i++) { if (await read()) return; await new Promise(resolve => setTimeout(resolve, 20)); } assert.fail("production learning did not settle"); };
   await until(async () => (await adapter.read(run.ref)).phase === "completed");
+  const original = (await adapter.read(run.ref)).original_input;
+  assert.ok(original); assert.equal(original.text, text); assert.equal(original.written_by, "person");
   const schedule = adapter.schedule!, enqueue = schedule.enqueue.bind(schedule);
+  let learningEnqueues = 0;
   t.mock.method(schedule, "enqueue", async (...args: Parameters<typeof enqueue>) => {
     const queued = await enqueue(...args);
     if (args[0].kind === "memory.learn") {
+      learningEnqueues++;
       memory.service.savePrefs({ ...person, consumer: "ui", person: true }, "personal", { learn_from_work: false });
       memory.service.savePrefs({ ...person, project_id: owner.project_id, consumer: "ui", person: true }, "project", { learn_from_work: false });
     }
     return queued;
   });
   const request = { actor_id: owner.actor_id, work_id: work.work_id, session_id: session.session_id, run_id: run.ref.run_id,
-    sources: [{ run_id: run.ref.run_id, input_id: null, version: "1" as const }] };
+    sources: [{ run_id: run.ref.run_id, input_id: null, version: "1" as const, original: original.ref }] };
   await memory.learnLater(request);
+  assert.equal(learningEnqueues, 1, "the genuine original reached enqueue before learning was disabled");
   const key = `memory-learn:${work.work_id}:${run.ref.run_id}`;
   assert.deepEqual(schedule.find(key)!.payload, request);
   assert.equal(JSON.stringify(schedule.find(key)!.payload).includes(text), false);
@@ -169,7 +194,7 @@ for (const phase of ["startup", "screen", "list", "sdk-commit"] as const) for (c
     // registration under test gets a Host without a Home of its own: only the controlled SDK adapter below provides memory.
     const localHost = new MolisWorkLocalHost({ completeText: null });
     const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
-      memory: memoryRuntimePolicy(() => memoryHostFor(localHost)?.policy),
+      memory: currentMemory(localHost),
       modelConfiguration: async () => { throw new Error("no model in memory regression"); }, resolveCredential: () => { throw new Error("no credentials in memory regression"); } });
     const agentHost = new AgentHost(); agentHost.register(adapter);
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();

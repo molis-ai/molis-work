@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { MemoryService, defaultPrefs, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { MemoryService, defaultPrefs, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
@@ -25,7 +25,10 @@ async function fixture(t: TestContext) {
     projectExists: async id => projectCheck ? projectCheck() : id === "project-a", deletingProject: () => undefined };
   const options = memoryRuntimePolicy(() => owner);
   let calls = 0;
-  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), memory: options,
+  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), memory: { ...options,
+      promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION, decide: (caller, request) => service.promotion.decide(caller, request),
+        undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request),
+          record: (caller, request) => service.promotion.undo.record(caller, request) } } },
     modelConfiguration: async () => { calls++; throw new Error("Classification must not invoke a model"); } });
   let adapter = await open();
   const backend = prologueMemoryBackend(async () => adapter.memory!);

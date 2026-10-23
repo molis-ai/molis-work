@@ -39,7 +39,8 @@ import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { CodingExecutor, dispatchControl, type CodingControl, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
-import { AssistantInputs, exactRevision, inputsOf, queuedInputs, readAssistantInputs, memoryLearningSources, typedWords, withdrawInput, type AssistantMemorySourceRef, type SendIntent } from "./assistant-inputs.js";
+import { AssistantInputs, exactRevision, inputsOf, queuedInputs, readAssistantInputs, memoryLearningSources, withdrawInput, type AssistantMemorySourceRef, type SendIntent } from "./assistant-inputs.js";
+import { memoryInputSnapshots } from "../memory/memory-source-identity.js";
 import { startOfToday } from "./assistant-usage-ledger.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./assistant-landing.js";
@@ -1720,7 +1721,7 @@ export class AssistantService {
     if (!memory) return undefined;
     const projectId = work.project_ref?.project_id ?? null;
     return assistantMemoryTools({ memory, actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId),
-      spoken: async () => typedWords((await Promise.resolve().then(() => this.assistantPart(this.store.get(this.actorId, work.work_id))).catch(() => null))?.sourceViews ?? []) });
+      spoken: async () => memoryInputSnapshots(this.actorId, (await Promise.resolve().then(() => this.assistantPart(this.store.get(this.actorId, work.work_id))).catch(() => null))?.sourceViews ?? []) });
   }
 
   /**

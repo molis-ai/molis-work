@@ -7,7 +7,7 @@ import test from "node:test";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRunHandle, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MemoryService, defaultPrefs } from "@molis-ai/molis-work-service-memory";
+import { MemoryService, defaultPrefs, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
@@ -49,9 +49,15 @@ test("trusted Run goal/object facts select only applicable memory through final 
     projectExists: async id => id === project, deletingProject: () => undefined };
   const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"),
     memoryUsage: receipt => { if (failUsage) throw new Error("isolated ledger fault"); service.settleUses(receipt); },
-    memory: memoryRuntimePolicy(() => owner), modelConfiguration: async () => ({ protocol: "openai-compatible", endpoint: `http://127.0.0.1:${address.port}/v1/chat/completions`,
+    memory: { ...memoryRuntimePolicy(() => owner), promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION,
+      decide: (caller, request) => service.promotion.decide(caller, request),
+      undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request),
+        record: (caller, request) => service.promotion.undo.record(caller, request) } } }, modelConfiguration: async () => ({ protocol: "openai-compatible", endpoint: `http://127.0.0.1:${address.port}/v1/chat/completions`,
       model: "scripted", credential_ref: "fixture" }), resolveCredential: () => "test-only" });
-  let adapter = await open();
+  let adapter = await open().catch(async error => {
+    ledger.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
+    await rm(home, { recursive: true, force: true }); throw error;
+  });
   const backend = prologueMemoryBackend(async () => adapter.memory!);
   service = new MemoryService({ ledger, backend });
   try {

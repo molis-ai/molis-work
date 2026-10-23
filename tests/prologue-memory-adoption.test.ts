@@ -9,7 +9,7 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 import { adoptMemoryHome, memoryRuntimePolicy, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { createPrologueNodeAdapter, openPrologueMemoryAdoption } from "@molis-ai/molis-work-service-agent-host";
 import { homeSqlitePath, MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_STORE, openMemoryLedger } from "@molis-ai/molis-work-storage";
-import { MemoryService } from "@molis-ai/molis-work-service-memory";
+import { MemoryService, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION } from "@molis-ai/molis-work-service-memory";
 import { currentMemoryOptions } from "./fixtures/current-memory.ts";
 
 // Historical row fixtures enter through the SDK's public storage owner, never its private decoder or OS format.
@@ -104,7 +104,11 @@ test("production task reads retain adopted unclassified memory without losing cu
   const policy = memoryRuntimePolicy(() => ({ alive: () => true, prefsFor: (scope, project) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, project),
     owners: project => records.owners(project), candidateOwners: project => records.candidateOwners(project),
     projectExists: async () => false, deletingProject: () => undefined }));
-  const openRuntime = () => createPrologueNodeAdapter({ app, storageRoot: f.storageRoot, memory: policy,
+  const openRuntime = () => createPrologueNodeAdapter({ app, storageRoot: f.storageRoot,
+    memory: { ...policy, promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION,
+      decide: (caller, request) => service.promotion.decide(caller, request),
+      undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request),
+        record: (caller, request) => service.promotion.undo.record(caller, request) } } },
     modelConfiguration: async () => { assert.fail("adopted reads do not use a model"); } });
   let adapter = await openRuntime();
   service = new MemoryService({ ledger: records, backend: prologueMemoryBackend(async () => adapter.memory!) });

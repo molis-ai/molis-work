@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
+import { ASSISTANT_INSTALL_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { DatabaseSync } from "node:sqlite";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -126,8 +127,14 @@ test("RCPT-368: words a page wrote reach a Coding round under way as the Host's,
   (coding.sessions.get(sessionId)!.runs.at(-1) as { phase: string }).phase = "running";
   await service.send({ work_id: first.work.work_id, text: "浏览器已经交还，请继续", request_id: randomUUID(), written_by: "page" }, caller);
   assert.equal(coding.calls.filter(call => call.name === "runs.control").at(-1)!.input.source, "host", "a page's wording is a note in the round, never the person's words");
-  await service.send({ work_id: first.work.work_id, text: "顺便补上测试", request_id: randomUUID() }, caller);
+  const text = "顺便补上测试", request_id = randomUUID();
+  // This unit fixture supplies the protected send owner's stamp; HTTP attestation is exercised in assistant-original-inputs.
+  await service.send({ work_id: first.work.work_id, text, request_id }, { ...caller, original_input: {
+    install_id: ASSISTANT_INSTALL_ID, input_id: request_id, text, written_by: "person", occurred_at: new Date().toISOString(),
+  } });
   assert.equal(coding.calls.filter(call => call.name === "runs.control").at(-1)!.input.source, undefined, "the person's own words go without a source, which Coding reads as theirs");
+  await service.send({ work_id: first.work.work_id, text: "没有入口证明的文字", request_id: randomUUID() }, caller);
+  assert.equal(coding.calls.filter(call => call.name === "runs.control").at(-1)!.input.source, "host", "a direct Service call cannot claim personal authorship without the send owner's stamp");
 });
 
 test("RC-06: words that reach a Coding round as it ends are said to wait for the next round, never to have reached this one", async () => {

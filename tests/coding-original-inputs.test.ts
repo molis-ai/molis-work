@@ -11,6 +11,8 @@ import vm from "node:vm";
 import type { AgentRunRef, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingProductHost } from "./fixtures/coding-product-host.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
+import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 
 const coding = "/api/plugins/io.molis.work.coding";
 type Environment = Awaited<ReturnType<typeof codingProductHost>>;
@@ -59,6 +61,40 @@ test("reusing an input identity retains its first time; changed words are refuse
   const refused = await start(f, id, changed, { original_input: { input_id: inputId, text: changed } });
   assert.notEqual(refused.status, 200, JSON.stringify(refused.body));
   assert.equal(f.requests.length, count, "changed canonical source never dispatches another model request");
+});
+
+test("MEM-35 production source assembly checks the current Coding installation without starting or repairing it", { timeout: 60_000 }, async t => {
+  const f = await codingProductHost(t, () => cogniaModelResponse("已读。")), id = await session(f);
+  const text = "本项目统一用 pnpm", inputId = randomUUID();
+  const view = await completed(f, await start(f, id, text, { original_input: { input_id: inputId, text } }));
+  const adapter = ensureSystemAgentService(f.host, f.home).agentHost.adapter("prologue");
+  const { owner } = await adapter.readSessionStatus!({ session_id: view.ref.session_id, runtime_id: "prologue" });
+  const memory = adapter.memory!.withCaller({ actor_id: owner.actor_id, project_id: owner.project_id, consumer: "agent",
+    plugin_id: owner.plugin_id, session_id: view.ref.session_id, current_scene: "coding", purpose: "management", source_use: "learning" });
+  const sources = [{ event_id: "molis-input:1:" + JSON.stringify([owner.actor_id, view.ref.session_id, "original", inputId]), version: "1" }];
+  const propose = () => memory.candidates.propose({ scope: "project", owner: owner.project_id, text, origin: "source-test", sources,
+    expected_version: 0, operation_id: randomUUID(), meta: { kind: "convention", source: "extraction", basis: "explicit",
+      classification: { scenes: ["coding"], lifecycle: "long-term" } } });
+  const candidate = await propose();
+  assert.deepEqual(candidate.sources, [{ ...sources[0], speaker: { kind: "person", id: owner.actor_id }, derivation: "original",
+    occurred_at_ms: Date.parse(view.original_input!.occurred_at) }]);
+  const storage = new LocalSqliteStorage(f.project.database_path), installs = new SqlitePluginRuntimeRepository(storage.db);
+  try {
+    const original = installs.get(owner.install_id); assert.ok(original); assert.equal(original.state, "running");
+    for (const patch of [{ state: "disabled" as const }, { state: "uninstalled" as const }]) {
+      const stopped = { ...original, ...patch }; installs.save(stopped);
+      await assert.rejects(propose(), { code: "MEMORY_NOT_ACCEPTED" });
+      assert.deepEqual(installs.get(owner.install_id), stopped, "a source read cannot repair grants or restart an installation");
+      assert.equal((await memory.candidates.list("project", owner.project_id)).length, 1);
+    }
+    installs.save(original);
+    const grant = (allowed: boolean) => f.call(owner.project_id, "/api/memory/prefs", { scope: "project",
+      prefs: { plugins: { [owner.plugin_id]: { allowed, kinds: ["convention"] } } } });
+    assert.equal((await grant(false)).status, 200);
+    await assert.rejects(propose(), { code: "MEMORY_SCOPE_DENIED" });
+    assert.equal((await grant(true)).status, 200);
+    assert.deepEqual((await propose()).sources, candidate.sources);
+  } finally { storage.close(); }
 });
 
 test("same-session continuation carries the original reference; another Session's run cannot be used", { timeout: 60_000 }, async t => {

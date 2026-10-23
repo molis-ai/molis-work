@@ -236,6 +236,9 @@ tests/memory-adoption.test.ts
 tests/memory-learning.test.ts
 tests/memory-plugin-save.test.ts
 tests/memory-runtime-policy.test.ts
+tests/memory-source-owner.test.ts
+tests/memory-promotion.test.ts
+tests/prologue-memory-promotion.test.ts
 tests/memory-use-receipts.test.ts
 tests/prologue-memory-run-context.test.ts
 tests/memory-spoken.test.ts

@@ -2,8 +2,9 @@ import { openReadOnlyHomeSqlite } from "@molis-ai/molis-work-storage";
 import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentRuntimeAdapter, AgentRunView, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { MemoryLearningRequest } from "../memory/memory-learning.js";
-import { ASSISTANT_STORE_NAME, AssistantStore } from "./assistant-store.js";
+import { ASSISTANT_STORE_NAME, AssistantStore, assistantWorkForSession } from "./assistant-store.js";
 import { typedMemorySources, memorySourceIdentity, type AssistantMemorySourceRef } from "./assistant-inputs.js";
+import { memoryInputSnapshots, memoryInputSource } from "../memory/memory-source-identity.js";
 
 /** Only references cross the durable learning queue. Their bodies stay with the original owners. */
 export interface AssistantMemoryLearningRequest {
@@ -18,6 +19,16 @@ type LearningTask = Pick<AgentScheduledTask, "key" | "session_id" | "payload">;
 const object = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const nonempty = (value: unknown): value is string => typeof value === "string" && value.length > 0;
 const identity = memorySourceIdentity;
+
+/** Current work owner of a canonical Session; no display round or recent-work scan can stand in for it. */
+export function assistantMemorySourceWork(home: string, actorId: string, sessionId: string): { project_id: string | null } | undefined {
+  const db = openReadOnlyHomeSqlite(home, ASSISTANT_STORE_NAME);
+  try {
+    const work = assistantWorkForSession(db, actorId, sessionId);
+    return work && !work.archived && !work.delegated_by && work.continuation_hold !== "stopped" && work.continuation_hold !== "paused"
+      ? { project_id: work.project_ref?.project_id ?? null } : undefined;
+  } finally { db.close(); }
+}
 
 /** Re-read one work's originals, including current withdrawal receipts; absence never authorizes learning. */
 async function readSources(home: string, adapter: AgentRuntimeAdapter, task: LearningTask): Promise<{ source: AssistantMemoryLearningRequest; request: MemoryLearningRequest } | null> {
@@ -76,19 +87,23 @@ async function readSources(home: string, adapter: AgentRuntimeAdapter, task: Lea
         const { text: _text, ...ref } = source!; refs.push(ref);
       }
     }
-    const said: string[] = [];
+    const said: string[] = [], snapshots = [];
     for (const ref of refs) {
       const run = await readRun(ref.run_id);
       if (!run) return null;
       const source = typedMemorySources([run]).find(one => identity(one) === identity(ref));
       if (!source || !source.text.trim()) return null;
-      said.push(source.text);
+      const event = memoryInputSource({ actor_id: actor, session_id: task.session_id, kind: ref.original ? "original" : "supplement", input_id: ref.original?.input_id ?? ref.input_id! });
+      const snapshot = memoryInputSnapshots(actor, [run]).find(item => item.event_id === event.event_id);
+      if (!snapshot) return null;
+      said.push(source.text); snapshots.push(snapshot);
     }
     const current = store.get(actor, workId);
     if (current.archived || current.delegated_by || current.continuation_hold === "stopped" || current.session_id !== task.session_id
       || (current.project_ref?.project_id ?? null) !== projectId) return null;
     return { source: { actor_id: actor, work_id: workId, session_id: task.session_id, run_id: trigger.run_id, sources: refs },
-      request: { caller: { actor_id: actor, project_id: projectId, consumer: "assistant", work: { work_id: workId, title: current.title } }, said } };
+      request: { caller: { actor_id: actor, project_id: projectId, consumer: "assistant", session_id: task.session_id, operation_id: task.key,
+        work: { work_id: workId, title: current.title } }, said, sources: snapshots } };
   } finally { db.close(); }
 }
 
@@ -102,6 +117,7 @@ export async function assistantMemorySources(home: string, adapter: AgentRuntime
   return { ...first, current: async () => {
     const now = await readSources(home, adapter, fixed).catch(() => null);
     return now !== null && now.request.caller.project_id === first.request.caller.project_id
-      && now.request.said.length === first.request.said.length && now.request.said.every((text, index) => text === first.request.said[index]);
+      && now.request.said.length === first.request.said.length && now.request.said.every((text, index) => text === first.request.said[index])
+      && JSON.stringify(now.request.sources) === JSON.stringify(first.request.sources);
   } };
 }

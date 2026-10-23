@@ -29,8 +29,11 @@ interface ProjectPluginRoute {
   readonly ports: ProjectPluginHttpPorts;
 }
 
-/** What a caller adds around one route; the entry itself only lets the input graph settle after the plugin answered. */
-export type ProjectPluginRouteHooks = (route: ProjectPluginRoute) => Pick<RuntimePluginRouteHooks, "beforeDispatch" | "afterDispatch">;
+/**
+ * What a caller does before one route; the entry itself only lets the input graph settle after the plugin answered. Nothing is
+ * added to a plugin's answer: a plugin draws what its page shows (PG-062).
+ */
+export type ProjectPluginRouteHooks = (route: ProjectPluginRoute) => Pick<RuntimePluginRouteHooks, "beforeDispatch">;
 
 /** How many plugin deliveries wait on the person in this project; the market resolves them (the page's attention read). */
 export async function pluginEventsPending(ports: ProjectPluginHttpPorts): Promise<number> {
@@ -74,10 +77,7 @@ export async function handleProjectPluginHttp(request: IncomingMessage, response
     if (caller) routed = projectRouteControl(plain, ports.projectId, ports.actions.client, async () => { current(); }, caller);
     return await dispatchRuntimePluginRoute(platform, pluginId, pluginRoute![2]!, request, response, url, ports.actorId, {
       ...around.beforeDispatch ? { beforeDispatch: around.beforeDispatch } : {},
-      async afterDispatch(result) {
-        await platform.wiring.drain();
-        await around.afterDispatch?.(result);
-      },
+      async afterDispatch() { await platform.wiring.drain(); },
     }, { execution: routed?.control ?? plain, stop });
   } finally {
     stop(); routed?.end(); request.off("aborted", stop); response.off("close", stop);

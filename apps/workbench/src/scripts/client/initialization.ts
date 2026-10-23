@@ -181,13 +181,11 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       }
       if (handleGoalFactorKeyboard(event)) return;
       if (handleTreeKeyboard(event)) return;
-      if (event.key === "Escape" && !feedFilterPanel?.hidden) {
+      if (event.key === "Escape" && feedFilterPanel?.hidden === false) {
         event.preventDefault();
         setFeedFilterOpen(false);
         feedFilterTrigger?.focus();
-        return;
-      }
-      handleGoalDialogEscape(event);
+      } else handleGoalDialogEscape(event);
     });
     addEventListener("resize", () => {
       const nextCompanionActive = document.body.dataset.desktopShell === "true" && matchMedia("(max-width: 760px)").matches;

@@ -50,3 +50,5 @@ jobs:
             node scripts/run-tests.mjs --verbose --test-name-pattern='AC-08' tests/interaction-no-crosstalk.e2e.test.ts || result=1
           done
           exit "$result"
+      - name: Validate all session and project separation scenarios
+        run: node scripts/run-tests.mjs --verbose tests/interaction-no-crosstalk.e2e.test.ts

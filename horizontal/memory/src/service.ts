@@ -164,7 +164,7 @@ export class MemoryService {
         text: "", by: "person", rule: null, reason: `${complete ? "清空" : "部分清空"}了 ${removed} 条`, undo: null }); },
     });
     this.duplicates = new MemoryDuplicates({ ledger: ports.ledger, operations: this.operations, scopes: this.scopeCommands,
-      promotions: this.promotions, beforeEffect: ports.beforeEffect, now: this.now,
+      promotions: this.promotions, beforeEffect: ports.beforeEffect,
       saveFacts: (caller, located, meta, before) => this.saveFacts(caller, located, meta, before) });
     this.moves = new MemoryMoves({ backend: ports.backend, ledger: ports.ledger, operations: this.operations, scopes: this.scopeCommands,
       preferences: this.preferences, date: at => this.date(at), bindTarget: ports.bindChangeTarget,
@@ -413,18 +413,18 @@ export class MemoryService {
     if (input.replaces && !target) throw memoryErrors.not_found("要替换的那条记忆不在这个范围里（可能已删除，或属于别的范围）");
     const asCandidate = async (why: string, basis: MemoryBasis | null = input.basis): Promise<MemoryWriteResult> => {
       if (basis === null) return refused("原记忆依据未知，不能替它生成新的候选依据");
-      // Already waiting (suggested once before): it keeps waiting, now saying why it was not kept automatically.
-      const waiting = input.candidate_id ? this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === input.candidate_id) : undefined;
-      if (waiting) {
-        const held: MemoryCandidateRecord = { ...waiting, hold_reason: why, ...(input.why ? { why: input.why.slice(0, 300) } : {}) };
-        this.ports.ledger.saveCandidate(held);
-        return { outcome: "candidate", reason: why, applies_text: appliesText, memory: null, candidate: candidateView(held), change_id: null };
+      const waiting = input.candidate_id ? (await this.candidateRecords(caller, input.scope, where.owner)).find(item => item.candidate_id === input.candidate_id) : undefined;
+      await this.ports.beforeEffect?.();
+      if (input.candidate_id || this.operations.find(caller, "candidate-hold")) {
+        const held = this.operations.holdCandidate(caller, waiting, input, why);
+        return { outcome: "candidate", reason: held.hold_reason ?? why, applies_text: appliesText, memory: null, candidate: candidateView(held), change_id: null };
       }
       const candidate = await this.propose(caller, { scope: input.scope, text, kind: input.kind, applies: input.applies, basis, why: input.why ?? why,
         from: input.from ?? "gate", hold_reason: why, supersedes: target?.entry.memory_id ?? null }, { gate: true, classificationMeta: target?.entry.meta ?? input.retainedMeta ?? input.classificationMeta ?? {},
         formal_expires_at: input.expires_at ?? target?.meta.expires_at ?? null, ...(input.sources ? { sources: input.sources } : {}) });
       return { outcome: "candidate", reason: why, applies_text: appliesText, memory: null, candidate, change_id: null };
     };
+    if (this.operations.find(caller, "candidate-hold")) return asCandidate(hold ?? "等你认可");
     if (hold) return asCandidate(hold, hold === unsaid ? "inferred" : input.basis);
     if (target && input.basis === "inferred" && EXPLICIT_SOURCES.includes(target.meta.source)) return asCandidate("推断出来的内容不能覆盖你明确说过的，先请你看一下");
     if (input.source === "auto") {

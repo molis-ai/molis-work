@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { MemoryService, characterOwner, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { MemoryService, memoryErrors, characterOwner, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { currentMemoryOptions } from "./fixtures/current-memory.js";
@@ -28,13 +28,16 @@ test("MEM-20 candidate decisions retain the observed candidate version and repla
   assert.equal((await env.raw.candidates.list("personal", "memory-owner"))[0]!.version, acceptedVersion + 1);
 });
 
-async function fixture(t: TestContext, character?: { project_id: string; owner: string }, plugin?: string) {
+async function fixture(t: TestContext, character?: { project_id: string; owner: string }, plugin?: string, formedKinds = false) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-cas-"));
   const appId = "io.molis.work.memory-cas";
   let denied: string | undefined;
   let afterWrite: (() => Promise<void>) | undefined;
   let afterUpdate: (() => Promise<void>) | undefined;
+  let beforeUpdate: (() => Promise<void>) | undefined;
+  let beforeEffect: (() => Promise<void>) | undefined;
   let afterCandidatePurge: (() => Promise<void>) | undefined;
+  let afterCandidateList: (() => Promise<void>) | undefined;
   let afterRemove: (() => void) | undefined;
   let authorized = true;
   const memory = currentMemoryOptions({ appId, scopesFor: who => [{ scope: "user", owner: who.actor_id },
@@ -42,6 +45,8 @@ async function fixture(t: TestContext, character?: { project_id: string; owner: 
     ...(character && who.project_id === character.project_id ? [{ scope: "character" as const, owner: character.owner }] : [])],
     allowed: () => authorized,
     beforeAuthorize: async (_who, requests) => requests.every(request => request.action !== "delete" || request.target.ref.id !== denied) });
+  if (formedKinds) memory.policy = { ...memory.policy!, taxonomy: { ...memory.policy!.taxonomy,
+    kinds: { ...memory.policy!.taxonomy.kinds, values: [...memory.policy!.taxonomy.kinds.values, { id: "fact", label: "Fact" }, { id: "experience", label: "Experience" }] } } };
   if (plugin) {
     const original = { ...memory };
     const identity = (who: Parameters<NonNullable<typeof memory.authorize>>[0]) => authorized && who.actor_id === "memory-owner"
@@ -76,19 +81,20 @@ async function fixture(t: TestContext, character?: { project_id: string; owner: 
     backend.withCaller = who => {
       const bound = bind(who);
       return { ...bound, write: async input => { const result = await bound.write(input); await afterWrite?.(); return result; },
-        update: async input => { const result = await bound.update(input); await afterUpdate?.(); return result; },
+        update: async input => { await beforeUpdate?.(); const result = await bound.update(input); await afterUpdate?.(); return result; },
         remove: async input => { await bound.remove(input); afterRemove?.(); },
-        candidates: { ...bound.candidates, purge: async input => { await bound.candidates.purge(input); await afterCandidatePurge?.(); } } };
+        candidates: { ...bound.candidates, list: async (...args) => { const result = await bound.candidates.list(...args); await afterCandidateList?.(); return result; }, purge: async input => { await bound.candidates.purge(input); await afterCandidatePurge?.(); } } };
     };
     // SDK grants and App ledger authority are separate boundaries, governed by the same current test grant.
     const service = new MemoryService({ backend, ledger, timeZone: "Asia/Shanghai", beforeEffect: async () => {
+      await beforeEffect?.();
       if (!authorized) throw new Error("fixture App ledger authority revoked");
     } });
     return { service, ledger, backend, raw: backend.withCaller(caller("raw-read")), close };
   };
   t.after(() => rm(home, { recursive: true, force: true }));
-  return { open, afterUpdate: (hook?: () => Promise<void>) => { afterUpdate = hook; }, denyDelete: (id?: string) => { denied = id; }, afterWrite: (hook?: () => Promise<void>) => { afterWrite = hook; },
-    afterCandidatePurge: (hook?: () => Promise<void>) => { afterCandidatePurge = hook; },
+  return { open, beforeUpdate: (hook?: () => Promise<void>) => { beforeUpdate = hook; }, beforeEffect: (hook?: () => Promise<void>) => { beforeEffect = hook; }, afterUpdate: (hook?: () => Promise<void>) => { afterUpdate = hook; }, denyDelete: (id?: string) => { denied = id; }, afterWrite: (hook?: () => Promise<void>) => { afterWrite = hook; },
+    afterCandidatePurge: (hook?: () => Promise<void>) => { afterCandidatePurge = hook; }, afterCandidateList: (hook?: () => Promise<void>) => { afterCandidateList = hook; },
     afterRemove: (hook?: () => void) => { afterRemove = hook; }, authorize: (allowed: boolean) => { authorized = allowed; } };
 }
 
@@ -539,6 +545,319 @@ test("import keeps committed entries after a later ledger failure and original-r
     const exported = await env.service.exportScope(caller("export"), "personal");
     assert.deepEqual(exported.entries.map(item => item.text).sort(), pack.entries.map(item => item.text).sort());
   } finally { await env.close(); }
+});
+
+
+// MEM-03: every actual commit entrypoint keeps its first duplicate decision across restart.
+for (const source of ["manual", "said", "unverified", "plugin", "auto"] as const)
+  test(`${source} duplicate retries retain one target without a new append`, async t => {
+    const plugin = source === "plugin" ? "notes-owner" : undefined;
+    const setup = await fixture(t, undefined, plugin); let env = await setup.open();
+    try {
+      const base = source === "plugin" ? { ...caller("duplicate-seed"), consumer: "plugin" as const, plugin_id: plugin, person: false } : caller("duplicate-seed");
+      const input = { scope: "personal" as const, text: "Prefer short release summaries", kind: "preference" as const };
+      const saved = await env.service.write(base, input), id = saved.memory!.memory_id;
+      const who = { ...base, operation_id: "ordinary-duplicate", ...(source === "said" || source === "unverified" ? { person: false } : {}) };
+      const perform = () => source === "auto"
+        ? env.service.offer(who, { ...input, basis: "inferred", why: "One observation", from: "gate" })
+        : env.service.write(who, { ...input, ...(source === "said" || source === "unverified" ? { said: input.text } : {}) },
+          source === "said" ? { originals: [input.text] } : {});
+      assert.equal((await perform()).outcome, "duplicate");
+      const markerKey = "memory-operation:ordinary-duplicate:duplicate", marker = env.ledger.marker(who.actor_id, markerKey)!;
+      assert.deepEqual((marker.body as { result: unknown }).result, { outcome: "duplicate", memory_id: id, version: 1 });
+      assert.equal(JSON.stringify(marker).includes(input.text), false);
+      const before = await env.raw.list("personal", "memory-owner"), revisions = env.ledger.revisions(id), changes = env.ledger.changesOf(id);
+      let appends = 0; setup.afterWrite(async () => { appends++; });
+      await env.close(); env = await setup.open();
+      assert.equal((await perform()).outcome, "duplicate");
+      assert.equal(appends, 0); assert.deepEqual(await env.raw.list("personal", "memory-owner"), before);
+      assert.deepEqual(env.ledger.revisions(id), revisions); assert.deepEqual(env.ledger.changesOf(id), changes);
+      assert.deepEqual(env.ledger.marker(who.actor_id, markerKey), marker);
+    } finally { await env.close(); }
+  });
+
+for (const state of ["active", "paused", "disabled"] as const) for (const failure of ["sdk-response", "ledger"] as const)
+  test(`ordinary adoption recovers ${failure} with bounded evidence and unchanged ${state}`, async t => {
+    const setup = await fixture(t); let env = await setup.open();
+    try {
+      const text = "Prefer concise release notes";
+      const oldEvidence = Array.from({ length: 6 }, (_, index) => ({ kind: "observation", text: `Original evidence ${index}`, at_ms: 1700000000000 + index }));
+      let original = await env.raw.write({ scope: "personal", owner: "memory-owner", operation_id: "ordinary-auto", text, origin: "Original observation",
+        meta: { kind: "preference", source: "auto", evidence: oldEvidence, classification: { scenes: ["coding"], lifecycle: "long-term" } } });
+      if (state !== "active") original = await env.raw[state === "paused" ? "pause" : "disable"]({ scope: "personal", owner: "memory-owner", memory_id: original.memory_id,
+        expected_version: original.version, operation_id: "ordinary-original-state", reason: "Original state reason" });
+      const who = { ...caller("ordinary-adopt"), person: false };
+      // Long object references exercise the existing bounded evidence serializer on both attempts.
+      const input = { scope: "personal" as const, text, said: text, kind: "preference" as const, rests_on: { kind: "document", id: "reference-".repeat(30) } };
+      let responses = 0;
+      setup.afterUpdate(async () => { responses++; if (failure === "sdk-response") throw new Error("ordinary adoption response lost"); });
+      const setMarker = env.ledger.setMarker.bind(env.ledger);
+      const fail = failure === "ledger" ? t.mock.method(env.ledger, "setMarker", (...args: Parameters<typeof env.ledger.setMarker>) => {
+        if (args[1].endsWith(":duplicate") && (args[2] as { phase?: string }).phase === "committed") throw new Error("ordinary duplicate ledger interrupted");
+        return setMarker(...args);
+      }) : undefined;
+      await assert.rejects(env.service.write(who, input, { originals: [text] }));
+      fail?.mock.restore(); setup.afterUpdate(async () => { responses++; });
+      const applied = (await env.raw.list("personal", "memory-owner"))[0]!;
+      assert.equal(applied.version, original.version + 1); assert.equal(applied.meta.source, "said");
+      assert.equal(applied.meta.evidence!.length, 6);
+      assert.deepEqual(applied.meta.evidence!.slice(0, 4), oldEvidence.slice(2));
+      assert.deepEqual(applied.meta.evidence!.slice(-2).map(item => item.kind), ["said", "object"]);
+      assert.deepEqual(applied.paused, original.paused); assert.deepEqual(applied.disabled, original.disabled);
+      const key = "memory-operation:ordinary-adopt:duplicate", mark = env.ledger.marker(who.actor_id, key)!;
+      assert.equal((mark.body as { evidence_count: number }).evidence_count, 2);
+      assert.equal(JSON.stringify(mark).includes(text), false); assert.equal(JSON.stringify(mark).includes("Original evidence"), false);
+      await env.close(); env = await setup.open();
+      assert.equal((await env.service.write(who, input, { originals: [text] })).outcome, "duplicate");
+      assert.equal(responses, 2, "the SDK validates the original facts input after its response was lost");
+      assert.deepEqual(await env.raw.list("personal", "memory-owner"), [applied], "neither evidence nor state is applied twice");
+      assert.deepEqual(env.ledger.revisions(original.memory_id), []); assert.deepEqual(env.ledger.changesOf(original.memory_id), []);
+      assert.equal((await env.service.write(who, input, { originals: [text] })).outcome, "duplicate");
+      assert.equal(responses, 2);
+    } finally { setup.afterUpdate(); await env.close(); }
+  });
+
+for (const changed of ["replace-evidence", "delete-evidence", "same-text-edit"] as const)
+  test(`ordinary adoption rejects ${changed} after a lost SDK response`, async t => {
+    const setup = await fixture(t); let env = await setup.open();
+    try {
+      const text = "Prefer concise release notes", who = caller("evidence-adopt");
+      const original = await env.raw.write({ scope: "personal", owner: "memory-owner", operation_id: "evidence-auto", text, origin: "Original observation",
+        meta: { kind: "preference", source: "auto", classification: { scenes: ["coding"], lifecycle: "long-term" } } });
+      const input = { scope: "personal" as const, text, said: text, kind: "preference" as const, rests_on: { kind: "document", id: "first-evidence" } };
+      setup.afterUpdate(async () => { throw new Error("adoption response lost"); });
+      await assert.rejects(env.service.write(who, input)); setup.afterUpdate();
+      const applied = (await env.raw.list("personal", "memory-owner"))[0]!;
+      if (changed === "same-text-edit") await env.raw.update({ scope: "personal", owner: "memory-owner", memory_id: original.memory_id,
+        expected_version: applied.version, operation_id: "external-same-text", change: { text: applied.text, meta: applied.meta } });
+      const before = await env.raw.list("personal", "memory-owner"), key = "memory-operation:evidence-adopt:duplicate", marker = env.ledger.marker(who.actor_id, key);
+      const { rests_on: _removed, ...withoutEvidence } = input;
+      const retry = changed === "replace-evidence" ? { ...input, rests_on: { kind: "document", id: "replacement-evidence" } } : changed === "delete-evidence" ? withoutEvidence : input;
+      await env.close(); env = await setup.open();
+      await assert.rejects(env.service.write(who, retry), { code: "memory.conflict" });
+      assert.deepEqual(await env.raw.list("personal", "memory-owner"), before);
+      assert.deepEqual(env.ledger.marker(who.actor_id, key), marker);
+      assert.equal(env.ledger.marker(who.actor_id, "memory-operation:evidence-adopt:append"), null);
+      assert.deepEqual(env.ledger.revisions(original.memory_id), []); assert.deepEqual(env.ledger.changesOf(original.memory_id), []);
+      if (changed !== "same-text-edit") {
+        assert.equal((await env.service.write(who, input)).outcome, "duplicate", "the unchanged original input still repairs its receipt");
+        assert.deepEqual(await env.raw.list("personal", "memory-owner"), before);
+      }
+    } finally { setup.afterUpdate(); await env.close(); }
+  });
+
+for (const after of ["edit", "delete", "revoke", "cancel", "other-project"] as const)
+  test(`ordinary duplicate refuses ${after} without another append or ledger result`, async t => {
+    const setup = await fixture(t); let env = await setup.open();
+    try {
+      const who = caller("ordinary-guard"), input = { scope: "project" as const, text: "Prefer short release summaries", kind: "preference" as const };
+      const saved = await env.service.write(caller("ordinary-guard-seed"), input), id = saved.memory!.memory_id;
+      assert.equal((await env.service.write(who, input)).outcome, "duplicate");
+      if (after === "edit") await env.service.change(caller("ordinary-later-edit"), { memory_id: id, action: "update", text: input.text, expected_version: 1 });
+      if (after === "delete") await env.service.change(caller("ordinary-later-delete"), { memory_id: id, action: "remove", expected_version: 1 });
+      const before = await env.raw.list("project", "project-a"), key = "memory-operation:ordinary-guard:duplicate", mark = env.ledger.marker(who.actor_id, key);
+      const revisions = env.ledger.revisions(id), changes = env.ledger.changesOf(id);
+      let appends = 0; setup.afterWrite(async () => { appends++; });
+      await env.close(); env = await setup.open();
+      const controller = new AbortController(); if (after === "cancel") controller.abort();
+      if (after === "revoke") setup.authorize(false);
+      await assert.rejects(env.service.write({ ...who, signal: controller.signal, ...(after === "other-project" ? { project_id: "project-b" } : {}) }, input));
+      setup.authorize(true);
+      assert.equal(appends, 0); assert.deepEqual(await env.raw.list("project", "project-a"), before);
+      assert.deepEqual(env.ledger.marker(who.actor_id, key), mark);
+      assert.deepEqual(env.ledger.revisions(id), revisions); assert.deepEqual(env.ledger.changesOf(id), changes);
+    } finally { setup.authorize(true); await env.close(); }
+  });
+
+
+for (const revoke of [false, true]) test(`ordinary adoption stops ledger completion after ${revoke ? "revocation" : "cancellation"}`, async t => {
+  const setup = await fixture(t); let env = await setup.open();
+  try {
+    const text = "Prefer concise release notes", who = caller("ordinary-tail"), controller = new AbortController();
+    const original = await env.raw.write({ scope: "personal", owner: "memory-owner", operation_id: "ordinary-tail-seed", text, origin: "Original observation",
+      meta: { kind: "preference", source: "auto", classification: { scenes: ["coding"], lifecycle: "long-term" } } });
+    const input = { scope: "personal" as const, text, said: text, kind: "preference" as const }, key = "memory-operation:ordinary-tail:duplicate";
+    let checkpoint: ReturnType<typeof env.ledger.marker>;
+    setup.afterUpdate(async () => { checkpoint = env.ledger.marker(who.actor_id, key); if (revoke) setup.authorize(false); else controller.abort(); });
+    await assert.rejects(env.service.write({ ...who, signal: controller.signal }, input));
+    setup.authorize(true); setup.afterUpdate();
+    const applied = (await env.raw.list("personal", "memory-owner"))[0]!;
+    assert.equal(applied.version, original.version + 1);
+    assert.equal((checkpoint!.body as { phase: string }).phase, "pending");
+    assert.deepEqual(env.ledger.marker(who.actor_id, key), checkpoint!);
+    assert.deepEqual(env.ledger.revisions(original.memory_id), []); assert.deepEqual(env.ledger.changesOf(original.memory_id), []);
+    await env.close(); env = await setup.open();
+    assert.equal((await env.service.write(who, input)).outcome, "duplicate");
+    assert.deepEqual(await env.raw.list("personal", "memory-owner"), [applied]);
+  } finally { setup.authorize(true); setup.afterUpdate(); await env.close(); }
+});
+
+test("matching adoption metadata at version plus one is not an original SDK receipt", async t => {
+  const setup = await fixture(t); let env = await setup.open();
+  try {
+    const text = "Prefer concise release notes", who = caller("uncommitted-adopt");
+    const original = await env.raw.write({ scope: "personal", owner: "memory-owner", operation_id: "uncommitted-auto", text, origin: "Original observation",
+      meta: { kind: "preference", source: "auto", classification: { scenes: ["coding"], lifecycle: "long-term" } } });
+    const input = { scope: "personal" as const, text, said: text, kind: "preference" as const };
+    const bind = env.backend.withCaller.bind(env.backend);
+    const fail = t.mock.method(env.backend, "withCaller", (actor: MemoryCaller) => {
+      const bound = bind(actor);
+      return { ...bound, update: async () => { throw new Error("stopped before SDK update"); } };
+    });
+    await assert.rejects(env.service.write(who, input), /stopped before SDK update/); fail.mock.restore();
+    const write = env.ledger.marker(who.actor_id, "memory-operation:uncommitted-adopt:write")!;
+    await env.raw.update({ scope: "personal", owner: "memory-owner", memory_id: original.memory_id, expected_version: original.version,
+      operation_id: "unrelated-same-adoption", change: { text, meta: { ...original.meta, source: "manual", basis: "explicit", approved_by: { by: "person" },
+        evidence: [{ kind: "said", text, at_ms: Date.parse(write.at) }] } } });
+    const before = await env.raw.list("personal", "memory-owner"), key = "memory-operation:uncommitted-adopt:duplicate", mark = env.ledger.marker(who.actor_id, key);
+    assert.equal(before[0]!.version, original.version + 1);
+    assert.ok(env.ledger.marker(who.actor_id, `memory-operation:uncommitted-adopt:facts:${original.memory_id}`));
+    await env.close(); env = await setup.open();
+    await assert.rejects(env.service.write(who, input), { code: "STORAGE_CONFLICT" });
+    assert.deepEqual(await env.raw.list("personal", "memory-owner"), before); assert.deepEqual(env.ledger.marker(who.actor_id, key), mark);
+    assert.deepEqual(env.ledger.revisions(original.memory_id), []); assert.deepEqual(env.ledger.changesOf(original.memory_id), []);
+  } finally { await env.close(); }
+});
+
+test("ordinary saving without a durable branch stays unknown after restart", async t => {
+  const setup = await fixture(t); let env = await setup.open();
+  try {
+    const input = { scope: "personal" as const, text: "Prefer short release notes", kind: "preference" as const }, who = caller("ordinary-undecided");
+    await env.service.write(caller("ordinary-undecided-seed"), input);
+    const setMarker = env.ledger.setMarker.bind(env.ledger);
+    const fail = t.mock.method(env.ledger, "setMarker", (...args: Parameters<typeof env.ledger.setMarker>) => {
+      if (args[1].endsWith(":duplicate")) throw new Error("duplicate decision interrupted");
+      return setMarker(...args);
+    });
+    await assert.rejects(env.service.write(who, input), /duplicate decision interrupted/); fail.mock.restore();
+    const before = await env.raw.list("personal", "memory-owner");
+    await env.close(); env = await setup.open();
+    await assert.rejects(env.service.write(who, input), { code: "memory.conflict" });
+    assert.deepEqual(await env.raw.list("personal", "memory-owner"), before);
+    assert.equal(env.ledger.marker(who.actor_id, "memory-operation:ordinary-undecided:append"), null);
+  } finally { await env.close(); }
+});
+
+
+for (const kind of ["fact", "preference"] as const) test(`formed repeated ${kind} keeps its original waiting decision after restart`, async t => {
+  const setup = await fixture(t, undefined, undefined, true); let env = await setup.open();
+  try {
+    env.service.savePrefs(caller("wait-for-person"), "personal", { auto: false });
+    const who = caller("repeat-offer"), draft = { scope: "personal" as const, text: "Release review needs a named owner", kind, basis: "repeated" as const,
+      why: "Two original observations", from: "extraction" as const };
+    const candidate = await env.service.propose(caller("formed-candidate"), draft);
+    const input = { ...draft, candidate_id: candidate.candidate_id, candidate_version: candidate.version };
+    const first = await env.service.offer(who, input);
+    assert.equal(first.outcome, "candidate"); assert.equal(first.candidate!.candidate_id, candidate.candidate_id);
+    const key = "memory-operation:repeat-offer:candidate-hold", mark = env.ledger.marker(who.actor_id, key)!;
+    assert.deepEqual((mark.body as { result: unknown }).result, { outcome: "candidate", candidate_id: candidate.candidate_id, version: candidate.version });
+    assert.equal(JSON.stringify(mark).includes(draft.text), false);
+    env.service.savePrefs(caller("enable-auto-after-hold"), "personal", { auto: true });
+    await env.close(); env = await setup.open();
+    const retry = await env.service.offer(who, input);
+    assert.equal(retry.outcome, "candidate"); assert.equal(retry.reason, first.reason);
+    assert.deepEqual(retry.candidate, first.candidate);
+    assert.deepEqual(await env.raw.list("personal", "memory-owner"), []);
+    assert.deepEqual((await env.raw.candidates.list("personal", "memory-owner")).map(item => [item.candidate_id, item.version, item.state]), [[candidate.candidate_id, candidate.version, "pending"]]);
+    assert.deepEqual(env.ledger.marker(who.actor_id, key), mark);
+    assert.equal(env.ledger.marker(who.actor_id, "memory-operation:repeat-offer:append"), null);
+  } finally { await env.close(); }
+});
+
+for (const change of ["omit-id", "replace-id", "version", "decided", "scope", "revoke", "cancel"] as const)
+  test(`waiting offer rejects ${change} instead of using candidate input as an unknown bypass`, async t => {
+    const setup = await fixture(t, undefined, undefined, true); let env = await setup.open();
+    try {
+      const draft = { scope: "project" as const, text: "Release review needs a named owner", kind: "fact" as const, basis: "repeated" as const,
+        why: "Two original observations", from: "extraction" as const };
+      const candidate = await env.service.propose(caller("hold-guard-seed"), draft), who = caller("hold-guard");
+      const input = { ...draft, candidate_id: candidate.candidate_id, candidate_version: candidate.version };
+      assert.equal((await env.service.offer(who, input)).outcome, "candidate");
+      const other = change === "replace-id" ? await env.service.propose(caller("other-hold"), { ...draft, text: "Use another release reviewer" }) : undefined;
+      if (change === "decided") await env.raw.candidates.discard({ scope: "project", owner: "project-a", candidate_id: candidate.candidate_id,
+        expected_version: candidate.version, operation_id: "external-discard" });
+      const notes = env.ledger.candidates(who.actor_id), key = "memory-operation:hold-guard:candidate-hold", mark = env.ledger.marker(who.actor_id, key);
+      await env.close(); env = await setup.open();
+      const controller = new AbortController(); if (change === "cancel") controller.abort();
+      if (change === "revoke") setup.authorize(false);
+      const { candidate_id: _removed, ...withoutId } = input;
+      const retry = change === "omit-id" ? withoutId : change === "replace-id" ? { ...input, candidate_id: other!.candidate_id }
+        : change === "version" ? { ...input, candidate_version: candidate.version + 1 } : input;
+      await assert.rejects(env.service.offer({ ...who, signal: controller.signal, ...(change === "scope" ? { project_id: "project-b" } : {}) }, retry));
+      setup.authorize(true);
+      assert.deepEqual(env.ledger.candidates(who.actor_id), notes); assert.deepEqual(env.ledger.marker(who.actor_id, key), mark);
+      assert.deepEqual(await env.raw.list("project", "project-a"), []);
+      assert.equal(env.ledger.marker(who.actor_id, "memory-operation:hold-guard:append"), null);
+    } finally { setup.authorize(true); await env.close(); }
+  });
+
+
+test("a source forgotten while the SDK candidate list waits cannot settle its held offer", async t => {
+  const setup = await fixture(t, undefined, undefined, true), env = await setup.open();
+  let entered!: () => void, release!: () => void;
+  const reached = new Promise<void>(resolve => { entered = resolve; }), barrier = new Promise<void>(resolve => { release = resolve; });
+  try {
+    const source = { event_id: "host-original-release-1", version: "1" };
+    const sourceEntry = await env.service.write(caller("source-for-hold"), { scope: "personal", text: "Keep the original release preference", kind: "preference" }, { sources: [source] });
+    const draft = { scope: "personal" as const, text: "Release review needs a named owner", kind: "fact" as const,
+      basis: "repeated" as const, why: "Two original observations", from: "extraction" as const };
+    const candidate = await env.service.propose(caller("source-held-candidate"), draft), who = caller("source-held-offer");
+    // The Host's async source guard uses the actual suppression owner. This is the Service source Port,
+    // not a claim to exercise queued Run/original-input resolution.
+    let sourceChecks = 0;
+    const controlled = new MemoryService({ backend: env.backend, ledger: env.ledger, beforeEffect: async () => {
+      sourceChecks++;
+      const allowed = await Promise.resolve(env.service.sourceAllowed(who.actor_id, "personal", who.actor_id, [source]));
+      if (!allowed) throw memoryErrors.forbidden("原来源已遗忘，停止候选记账");
+    } });
+    assert.equal(env.service.sourceAllowed(who.actor_id, "personal", who.actor_id, [source]), true);
+    let firstList = true;
+    setup.afterCandidateList(async () => { if (firstList) { firstList = false; entered(); await barrier; } });
+    const pending = controlled.offer(who, { ...draft, candidate_id: candidate.candidate_id, candidate_version: candidate.version });
+    const rejected = assert.rejects(pending, { code: "memory.forbidden" });
+    await reached;
+    const before = env.ledger.candidates(who.actor_id), commit = env.ledger.marker(who.actor_id, "memory-operation:source-held-offer:commit");
+    await env.service.change(caller("forget-source-during-candidate-read"), { action: "remove", memory_id: sourceEntry.memory!.memory_id, expected_version: sourceEntry.memory!.version });
+    assert.equal(env.service.sourceAllowed(who.actor_id, "personal", who.actor_id, [source]), false, "public removal actually suppresses the original event/version");
+    release(); await rejected;
+    assert.ok(sourceChecks > 0);
+    assert.deepEqual(env.ledger.candidates(who.actor_id), before);
+    assert.deepEqual(env.ledger.marker(who.actor_id, "memory-operation:source-held-offer:commit"), commit);
+    assert.equal(env.ledger.marker(who.actor_id, "memory-operation:source-held-offer:candidate-hold"), null);
+    assert.equal(env.ledger.marker(who.actor_id, "memory-operation:source-held-offer:append"), null);
+    assert.deepEqual((await env.raw.candidates.list("personal", "memory-owner")).map(item => [item.candidate_id, item.state, item.version]), [[candidate.candidate_id, "pending", candidate.version]]);
+    assert.deepEqual(await env.raw.list("personal", "memory-owner"), []);
+  } finally { release(); setup.afterCandidateList(); await env.close(); }
+});
+
+test("a concurrent same-operation request cannot validate changed evidence against its stale pre-adoption version", async t => {
+  const setup = await fixture(t); const env = await setup.open();
+  let enterFirst!: () => void, releaseFirst!: () => void, enterSecond!: () => void, releaseSecond!: () => void;
+  const firstEntered = new Promise<void>(resolve => { enterFirst = resolve; });
+  const firstRelease = new Promise<void>(resolve => { releaseFirst = resolve; });
+  const secondEntered = new Promise<void>(resolve => { enterSecond = resolve; });
+  const secondRelease = new Promise<void>(resolve => { releaseSecond = resolve; });
+  try {
+    const text = "Prefer concise release notes", who = caller("interleaved-adopt");
+    const original = await env.raw.write({ scope: "personal", owner: "memory-owner", operation_id: "interleaved-auto", text, origin: "Original observation",
+      meta: { kind: "preference", source: "auto", classification: { scenes: ["coding"], lifecycle: "long-term" } } });
+    const input = { scope: "personal" as const, text, said: text, kind: "preference" as const, rests_on: { kind: "document", id: "original-proof" } };
+    setup.beforeUpdate(async () => { enterFirst(); await firstRelease; });
+    const first = env.service.write(who, input);
+    await firstEntered;
+    let waiting = true;
+    setup.beforeEffect(async () => { if (waiting) { waiting = false; enterSecond(); await secondRelease; } });
+    const second = env.service.write(who, { ...input, rests_on: { kind: "document", id: "changed-proof" } });
+    const rejected = assert.rejects(second, { code: "memory.conflict" });
+    await secondEntered;
+    assert.equal((await env.raw.list("personal", "memory-owner"))[0]!.version, original.version, "both callers observed the pre-adoption version");
+    releaseFirst(); assert.equal((await first).outcome, "duplicate");
+    const before = await env.raw.list("personal", "memory-owner"), key = "memory-operation:interleaved-adopt:duplicate", mark = env.ledger.marker(who.actor_id, key);
+    assert.equal(before[0]!.version, original.version + 1); assert.equal((mark!.body as { phase: string }).phase, "committed");
+    releaseSecond(); await rejected;
+    assert.deepEqual(await env.raw.list("personal", "memory-owner"), before); assert.deepEqual(env.ledger.marker(who.actor_id, key), mark);
+    assert.deepEqual(env.ledger.revisions(original.memory_id), []); assert.deepEqual(env.ledger.changesOf(original.memory_id), []);
+  } finally { releaseFirst(); releaseSecond(); setup.beforeUpdate(); setup.beforeEffect(); await env.close(); }
 });
 
 // MEM-03: App duplicate decisions must survive before any SDK creation key has been used.

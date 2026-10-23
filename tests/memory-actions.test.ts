@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import type { AgentMemoryCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ASSISTANT_STORE_NAME, AssistantStore, MolisWorkLocalHost, memoryRuntimePolicy, memorySources } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_STORE_NAME, AssistantStore, MolisWorkLocalHost, memoryRuntimePolicy, memorySources, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_PLUGIN_ID, ASSISTANT_INSTALL_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openHomeSqliteDatabase, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { MEMORY_GATE_POLICY, MEMORY_GATE_VERSION } from "@molis-ai/molis-work-service-memory";
@@ -177,10 +177,11 @@ test("memory.recall cancelled while it waits for the store settles nothing: no r
 });
 
 // Observe the actual bound capability without replacing its caller or final execution guard.
-function observedMemory(memory: AgentMemoryCapability, hooks: { afterList?(): Promise<void>; beforeCommit?(): Promise<void>; afterRemove?(): Promise<void> }): AgentMemoryCapability {
+function observedMemory(memory: AgentMemoryCapability, hooks: { afterList?(): Promise<void>; beforeCommit?(): Promise<void>; afterRemove?(): Promise<void>; afterUpdate?(): Promise<void> }): AgentMemoryCapability {
   return { ...memory,
     list: async (...args) => { const rows = await memory.list(...args); await hooks.afterList?.(); return rows; },
     remove: async (...args) => { await memory.remove(...args); await hooks.afterRemove?.(); },
+    update: async (...args) => { const result = await memory.update(...args); await hooks.afterUpdate?.(); return result; },
     withCaller: caller => observedMemory(memory.withCaller(caller), hooks),
     ...(memory.withExecution ? { withExecution: (control: Parameters<NonNullable<AgentMemoryCapability["withExecution"]>>[0]) =>
       observedMemory(memory.withExecution!({ ...control, beforeEffect: async () => { await hooks.beforeCommit?.(); await control.beforeEffect(); } }), hooks) } : {}),
@@ -291,4 +292,59 @@ for (const stop of ["cancel", "revoke"] as const)
     await client.invoke(original, memoryActions.change, request);
     assert.deepEqual(ledger.revisions(id), []); assert.deepEqual(ledger.uses({ memory_id: id }), []);
     assert.ok(ledger.changesOf(id).every(change => change.text === ""));
+  });
+
+for (const stop of ["cancel", "revoke"] as const)
+  test(`duplicate adoption ${stop} after the SDK return cannot settle the production Action ledger`, { timeout: 30_000 }, async t => {
+    const root = await mkdtemp(join(tmpdir(), "memory-duplicate-effect-")), home = join(root, "controlled");
+    const localHost = new MolisWorkLocalHost({ completeText: null });
+    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+      memory: currentMemory(localHost), modelConfiguration: async () => { throw new Error("no model in duplicate regression"); },
+      resolveCredential: () => { throw new Error("no credentials in duplicate regression"); } });
+    const agentHost = new AgentHost(); agentHost.register(adapter);
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), finished = Promise.withResolvers<void>();
+    const originalRegistry = localHost.actionRegistry.bind(localHost);
+    t.mock.method(localHost, "actionRegistry", (...args: Parameters<typeof originalRegistry>) => {
+      const registry = originalRegistry(...args);
+      return { ...registry, registerProvider: (registration: ActionProviderRegistration) => registry.registerProvider({ ...registration,
+        handlers: registration.handlers?.map(binding => binding.capability_id !== memoryActions.write.capability_id ? binding : {
+          ...binding, handle: async (context: ActionExecutionContext, input: unknown) => {
+            try { return await binding.handle(context, input); } finally { if (context.memory_operation_id === operation) finished.resolve(); }
+          },
+        }) }) };
+    });
+    const operation = "ad7fb477-dfd4-4b46-a852-1d99f43a091d";
+    const memory = registerMemoryHost({ localHost, homeDirectory: home, agentHost, executes: () => true, ready: async () => {} });
+    const ledger = openMemoryLedger({ homeDirectory: home });
+    t.after(async () => { release.resolve(); ledger.close(); memory.close(); await adapter.close(); await localHost.close(); await rm(root, { recursive: true, force: true }); });
+    const client = localHost.homeActionClient(), text = "发布说明先列结论";
+    const seed = await client.invoke(person, memoryActions.write, { scope: "personal", text });
+    const sdk = adapter.memory!, bound = prologueMemoryBackend(async () => sdk).withCaller(memory.caller(person));
+    const original = (await bound.list("personal", LOCAL_PERSON_ACTOR_ID)).find(item => item.memory_id === seed.memory!.memory_id)!;
+    const automatic = await bound.update({ scope: "personal", owner: LOCAL_PERSON_ACTOR_ID, memory_id: original.memory_id,
+      expected_version: original.version, operation_id: "fixture-automatic-source", change: { text, meta: { ...original.meta, source: "auto" } } });
+    const withCaller = sdk.withCaller.bind(sdk);
+    let holding = true, revoked = false, responses = 0;
+    t.mock.method(sdk, "withCaller", (who: Parameters<AgentMemoryCapability["withCaller"]>[0]) => observedMemory(withCaller(who), {
+      afterUpdate: async () => { responses++; if (holding) { entered.resolve(); await release.promise; } },
+    }));
+    const controller = new AbortController(), key = `memory-operation:${operation}:duplicate`;
+    const originalCall: ActionCallContext = { ...person, memory_operation_id: operation };
+    const controlled: ActionCallContext = { ...originalCall, signal: controller.signal, validate_authority: reference => {
+      if (revoked && reference.capability_id === memoryActions.write.capability_id) throw new ActionError("actions.permission_revoked", "fixture authority revoked");
+    } };
+    const request = { scope: "personal" as const, text, said: text };
+    const pending = client.invoke(controlled, memoryActions.write, request), rejected = assert.rejects(pending);
+    await entered.promise;
+    const snapshot = { marker: ledger.marker(LOCAL_PERSON_ACTOR_ID, key), revisions: ledger.revisions(original.memory_id), changes: ledger.changesOf(original.memory_id) };
+    assert.equal((snapshot.marker!.body as { phase: string }).phase, "pending");
+    if (stop === "cancel") controller.abort(); else revoked = true;
+    holding = false; release.resolve(); await Promise.all([rejected, finished.promise]);
+    assert.deepEqual({ marker: ledger.marker(LOCAL_PERSON_ACTOR_ID, key), revisions: ledger.revisions(original.memory_id), changes: ledger.changesOf(original.memory_id) }, snapshot);
+    const applied = (await bound.list("personal", LOCAL_PERSON_ACTOR_ID)).find(item => item.memory_id === original.memory_id)!;
+    assert.equal(applied.version, automatic.version + 1); assert.equal(applied.meta.source, "manual");
+    assert.equal((await client.invoke(originalCall, memoryActions.write, request)).outcome, "duplicate");
+    assert.equal(responses, 2, "the original SDK operation is checked while the resumed Action finishes its ledger");
+    assert.deepEqual((await bound.list("personal", LOCAL_PERSON_ACTOR_ID)).map(item => item.memory_id), [original.memory_id]);
+    assert.deepEqual(ledger.revisions(original.memory_id), snapshot.revisions);
   });

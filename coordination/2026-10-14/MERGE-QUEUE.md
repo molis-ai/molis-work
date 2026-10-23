@@ -25,7 +25,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 | 序 | PR | 内容 | 依赖 | 批 | 现状（统筹最后核对 10-23 18:55 UTC） |
 | --- | --- | --- | --- | --- | --- |
-| 1 | [#1087](https://github.com/molis-ai/molis-work/pull/1087) | W5-06 第 2 片：舞台页按 Manifest views 挂 | #1099、#1100 | batch-1023-12 | 合入后从 `known-red-main.md` 删 R-25 两行（统筹做） |
 | 3 | [#1084](https://github.com/molis-ai/molis-work/pull/1084) | PG-062 S4b：Coding 卡片经 `services.interaction` | — | batch-1023-12 | DIRTY，Codex 在合 main；改了 S-56，看 Security invariants |
 | 4 | [#1098](https://github.com/molis-ai/molis-work/pull/1098) | W5-06 第 2b 片：视图声明分组、新建、首页起点、设置图标 | #1087 | 下一批（和 #1107 同批） | 叠在 #1087 上 |
 | 5 | [#1107](https://github.com/molis-ai/molis-work/pull/1107) | W5-06 第 3 片：项目级 Runtime 实例的舞台 | #1098 | 同 #1098 | 叠在 #1098 上；`ac-review` 一轮：**可合**（[评论](https://github.com/molis-ai/molis-work/pull/1107)） |
@@ -48,3 +47,4 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1099 | `5248af758` | 10-23 17:27 UTC |
 | #1100 | `07a309317` | 10-23 |
 | #1093 | `8b8ee3131` | 10-23 |
+| #1087 | `327c7c201` | 10-23 18:17 UTC |

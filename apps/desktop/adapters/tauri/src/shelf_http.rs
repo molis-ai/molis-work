@@ -548,7 +548,10 @@ mod tests {
             .unwrap();
         let error =
             folder_entries(&temp.0).expect_err("the limit applies to the combined folder size");
-        assert_eq!(error, "这个文件夹超过 32 MB，请把它拆成几个小一点的文件夹再放进来");
+        assert_eq!(
+            error,
+            "这个文件夹超过 32 MB，请把它拆成几个小一点的文件夹再放进来"
+        );
     }
 
     #[test]

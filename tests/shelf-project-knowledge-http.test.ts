@@ -43,8 +43,8 @@ test("Shelf saves the confirmed full text into project knowledge, a new version 
   const id = admitted.body.item.item_id, material = `/items/${id}/project-material`, path = at(project) + material;
   const preview = await request(path);
   assert.equal(preview.status, 200, JSON.stringify(preview.body)); assert.equal(preview.body.payload.text, original);
-  assert.ok(!JSON.stringify(preview.body).includes(home));
-  assert.notEqual((await request(shelf + material)).status, 200, "outside a project there is no project to save into");
+  assert.equal(preview.body.project_title, "测试项目"); assert.ok(!JSON.stringify(preview.body).includes(home));
+  assert.equal((await request(shelf + material)).status, 400, "outside a project there is no project to save into");
 
   // What is saved is the confirmed text, not words the request sends along; the same text again keeps its version.
   const save = await request(path, { expected_fingerprint: preview.body.fingerprint, text: "伪造正文" });

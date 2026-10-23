@@ -18,7 +18,7 @@ interface OperationMark extends OperationIdentity {
   operation_id: string;
   at: string;
   phase: "pending" | "committed" | "closed";
-  result?: { memory_id?: string; candidate_id?: string; version?: number };
+  result?: { memory_id?: string; candidate_id?: string; version?: number; outcome?: "duplicate" };
 }
 const PREFIX = "memory-operation:";
 export interface MemoryPurgeTarget {

@@ -33,6 +33,7 @@ async function fixture(t: TestContext, character?: { project_id: string; owner: 
   const appId = "io.molis.work.memory-cas";
   let denied: string | undefined;
   let afterWrite: (() => Promise<void>) | undefined;
+  let afterUpdate: (() => Promise<void>) | undefined;
   let afterCandidatePurge: (() => Promise<void>) | undefined;
   let afterRemove: (() => void) | undefined;
   let authorized = true;
@@ -75,6 +76,7 @@ async function fixture(t: TestContext, character?: { project_id: string; owner: 
     backend.withCaller = who => {
       const bound = bind(who);
       return { ...bound, write: async input => { const result = await bound.write(input); await afterWrite?.(); return result; },
+        update: async input => { const result = await bound.update(input); await afterUpdate?.(); return result; },
         remove: async input => { await bound.remove(input); afterRemove?.(); },
         candidates: { ...bound.candidates, purge: async input => { await bound.candidates.purge(input); await afterCandidatePurge?.(); } } };
     };
@@ -85,7 +87,7 @@ async function fixture(t: TestContext, character?: { project_id: string; owner: 
     return { service, ledger, backend, raw: backend.withCaller(caller("raw-read")), close };
   };
   t.after(() => rm(home, { recursive: true, force: true }));
-  return { open, denyDelete: (id?: string) => { denied = id; }, afterWrite: (hook?: () => Promise<void>) => { afterWrite = hook; },
+  return { open, afterUpdate: (hook?: () => Promise<void>) => { afterUpdate = hook; }, denyDelete: (id?: string) => { denied = id; }, afterWrite: (hook?: () => Promise<void>) => { afterWrite = hook; },
     afterCandidatePurge: (hook?: () => Promise<void>) => { afterCandidatePurge = hook; },
     afterRemove: (hook?: () => void) => { afterRemove = hook; }, authorize: (allowed: boolean) => { authorized = allowed; } };
 }
@@ -538,6 +540,156 @@ test("import keeps committed entries after a later ledger failure and original-r
     assert.deepEqual(exported.entries.map(item => item.text).sort(), pack.entries.map(item => item.text).sort());
   } finally { await env.close(); }
 });
+
+// MEM-03: App duplicate decisions must survive before any SDK creation key has been used.
+for (const interruptLater of [false, true]) test(`import retains a skipped target across restart${interruptLater ? " after a later entry fails" : " after success"}`, async t => {
+  const setup = await fixture(t); let env = await setup.open();
+  try {
+    const saved = await env.service.write(caller("duplicate-seed"), { scope: "personal", text: "Prefer short release summaries", kind: "preference" });
+    const id = saved.memory!.memory_id, pack = await env.service.exportScope(caller("export-duplicate"), "personal");
+    if (interruptLater) pack.entries.push({ ...pack.entries[0]!, text: "Prefer numbered examples" });
+    const revisions = env.ledger.revisions(id), changes = env.ledger.changesOf(id);
+    const fail = interruptLater ? t.mock.method(env.ledger, "addRevision", () => { throw new Error("later import history interrupted"); }) : undefined;
+    const who = caller("fixed-duplicate-import");
+    if (interruptLater) await assert.rejects(env.service.importScope(who, "personal", pack), { code: "memory.conflict" });
+    else assert.deepEqual(await env.service.importScope(who, "personal", pack), { written: 0, skipped: 1, refused: 0 });
+    fail?.mock.restore();
+    const marker = env.ledger.marker(who.actor_id, "memory-operation:fixed-duplicate-import:import:0:import-duplicate")!;
+    assert.deepEqual((marker.body as { result: unknown }).result, { outcome: "duplicate", memory_id: id, version: 1 });
+    assert.equal(JSON.stringify(marker).includes(pack.entries[0]!.text), false, "the operation has no body copy");
+    await env.close(); env = await setup.open();
+    assert.deepEqual(await env.service.importScope(who, "personal", pack), { written: interruptLater ? 1 : 0, skipped: 1, refused: 0 });
+    const entries = await env.raw.list("personal", "memory-owner");
+    assert.equal(entries.length, interruptLater ? 2 : 1);
+    assert.equal(entries.filter(item => item.text === pack.entries[0]!.text).length, 1);
+    assert.equal(entries.find(item => item.memory_id === id)!.version, 1);
+    assert.deepEqual(env.ledger.revisions(id), revisions); assert.deepEqual(env.ledger.changesOf(id), changes);
+  } finally { await env.close(); }
+});
+
+test("an import interrupted before a reliable duplicate decision stays unknown rather than guessing a new branch", async t => {
+  const setup = await fixture(t); let env = await setup.open();
+  try {
+    await env.service.write(caller("undecided-seed"), { scope: "personal", text: "Prefer short release summaries", kind: "preference" });
+    const pack = await env.service.exportScope(caller("undecided-export"), "personal"), who = caller("undecided-import");
+    const setMarker = env.ledger.setMarker.bind(env.ledger);
+    const fail = t.mock.method(env.ledger, "setMarker", (...args: Parameters<typeof env.ledger.setMarker>) => {
+      if (args[1].endsWith(":import-duplicate")) throw new Error("decision transaction interrupted");
+      return setMarker(...args);
+    });
+    await assert.rejects(env.service.importScope(who, "personal", pack)); fail.mock.restore();
+    const before = await env.raw.list("personal", "memory-owner");
+    await env.close(); env = await setup.open();
+    await assert.rejects(env.service.importScope(who, "personal", pack), error => {
+      const failure = error as { code?: string; details?: Record<string, unknown> };
+      assert.equal(failure.code, "memory.conflict"); assert.equal(failure.details?.failed_outcome, "unknown"); return true;
+    });
+    assert.deepEqual(await env.raw.list("personal", "memory-owner"), before);
+    assert.equal(env.ledger.marker(who.actor_id, "memory-operation:undecided-import:import:0:append"), null);
+  } finally { await env.close(); }
+});
+
+for (const state of ["active", "paused", "disabled"] as const) for (const failure of ["sdk-response", "ledger"] as const)
+  test(`import adoption replays its facts CAS after ${failure} failure while preserving ${state}`, async t => {
+    const setup = await fixture(t); let env = await setup.open();
+    try {
+      let original = await env.raw.write({ scope: "personal", owner: "memory-owner", operation_id: "automatic-seed", text: "Prefer concise release notes", origin: "Original automatic observation",
+        meta: { kind: "preference", source: "auto", classification: { scenes: ["coding"], lifecycle: "long-term" } } });
+      if (state !== "active") original = await env.raw[state === "paused" ? "pause" : "disable"]({ scope: "personal", owner: "memory-owner", memory_id: original.memory_id,
+        expected_version: original.version, operation_id: "original-state", reason: "Original state reason" });
+      const pack = await env.service.exportScope(caller("export-adopt"), "personal"), who = caller("adopt-import");
+      let responses = 0;
+      setup.afterUpdate(async () => { responses++; if (failure === "sdk-response") throw new Error("facts response interrupted"); });
+      const setMarker = env.ledger.setMarker.bind(env.ledger);
+      const fail = failure === "ledger" ? t.mock.method(env.ledger, "setMarker", (...args: Parameters<typeof env.ledger.setMarker>) => {
+        if (args[1].endsWith(":import-duplicate") && (args[2] as { phase?: string }).phase === "committed") throw new Error("duplicate receipt interrupted");
+        return setMarker(...args);
+      }) : undefined;
+      await assert.rejects(env.service.importScope(who, "personal", pack), { code: "memory.conflict" });
+      fail?.mock.restore(); setup.afterUpdate(async () => { responses++; });
+      assert.equal((await env.raw.list("personal", "memory-owner"))[0]!.version, original.version + 1);
+      await env.close(); env = await setup.open();
+      assert.deepEqual(await env.service.importScope(who, "personal", pack), { written: 0, skipped: 1, refused: 0 });
+      assert.equal(responses, 2, "recovery asks the original SDK CAS, not the current source label");
+      const entries = await env.raw.list("personal", "memory-owner"); assert.equal(entries.length, 1);
+      const current = entries[0]!;
+      assert.equal(current.memory_id, original.memory_id); assert.equal(current.version, original.version + 1);
+      assert.deepEqual(current.meta, { ...original.meta, source: "imported" });
+      assert.deepEqual(current.paused, original.paused); assert.deepEqual(current.disabled, original.disabled);
+      assert.equal(current.origin, original.origin); assert.deepEqual(env.ledger.revisions(current.memory_id), []);
+      assert.deepEqual(env.ledger.changesOf(current.memory_id), []);
+      assert.deepEqual(await env.service.importScope(who, "personal", pack), { written: 0, skipped: 1, refused: 0 });
+      assert.equal(responses, 2, "completed duplicate has no new SDK mutation");
+    } finally { setup.afterUpdate(); await env.close(); }
+  });
+
+for (const revoke of [false, true]) test(`import adoption ${revoke ? "revocation" : "cancellation"} after SDK commit leaves completion pending`, async t => {
+  const setup = await fixture(t); let env = await setup.open();
+  try {
+    const original = await env.raw.write({ scope: "personal", owner: "memory-owner", operation_id: "tail-seed", text: "Prefer concise release notes", origin: "Original observation",
+      meta: { kind: "preference", source: "auto", classification: { scenes: ["coding"], lifecycle: "long-term" } } });
+    const pack = await env.service.exportScope(caller("tail-export"), "personal"), who = caller("tail-import"), controller = new AbortController();
+    const key = "memory-operation:tail-import:import:0:import-duplicate";
+    let checkpoint: ReturnType<typeof env.ledger.marker>;
+    setup.afterUpdate(async () => {
+      checkpoint = env.ledger.marker(who.actor_id, key);
+      if (revoke) setup.authorize(false); else controller.abort();
+    });
+    await assert.rejects(env.service.importScope({ ...who, signal: controller.signal }, "personal", pack));
+    setup.authorize(true); setup.afterUpdate();
+    assert.deepEqual(env.ledger.marker(who.actor_id, key), checkpoint!);
+    assert.equal((checkpoint!.body as { phase: string }).phase, "pending");
+    assert.deepEqual(env.ledger.revisions(original.memory_id), []); assert.deepEqual(env.ledger.changesOf(original.memory_id), []);
+    assert.equal((await env.raw.list("personal", "memory-owner"))[0]!.version, 2, "SDK committed before the authority changed");
+    await env.close(); env = await setup.open();
+    assert.deepEqual(await env.service.importScope(who, "personal", pack), { written: 0, skipped: 1, refused: 0 });
+    const entries = await env.raw.list("personal", "memory-owner"); assert.equal(entries.length, 1); assert.equal(entries[0]!.version, 2);
+  } finally { setup.authorize(true); setup.afterUpdate(); await env.close(); }
+});
+
+test("an interrupted import adoption cannot use a later imported label as its SDK receipt", async t => {
+  const setup = await fixture(t); let env = await setup.open();
+  try {
+    const original = await env.raw.write({ scope: "personal", owner: "memory-owner", operation_id: "successor-seed", text: "Prefer concise release notes", origin: "Original observation",
+      meta: { kind: "preference", source: "auto", classification: { scenes: ["coding"], lifecycle: "long-term" } } });
+    const pack = await env.service.exportScope(caller("successor-export"), "personal"), who = caller("successor-import");
+    setup.afterUpdate(async () => { throw new Error("original adoption response lost"); });
+    await assert.rejects(env.service.importScope(who, "personal", pack)); setup.afterUpdate();
+    const adopted = (await env.raw.list("personal", "memory-owner"))[0]!;
+    await env.raw.update({ scope: "personal", owner: "memory-owner", memory_id: original.memory_id, expected_version: adopted.version,
+      operation_id: "external-same-content-edit", change: { text: adopted.text, meta: adopted.meta } });
+    const before = await env.raw.list("personal", "memory-owner"), key = "memory-operation:successor-import:import:0:import-duplicate";
+    const marker = env.ledger.marker(who.actor_id, key);
+    await env.close(); env = await setup.open();
+    await assert.rejects(env.service.importScope(who, "personal", pack), { code: "memory.conflict" });
+    assert.deepEqual(await env.raw.list("personal", "memory-owner"), before);
+    assert.deepEqual(env.ledger.marker(who.actor_id, key), marker);
+    assert.deepEqual(env.ledger.revisions(original.memory_id), []); assert.deepEqual(env.ledger.changesOf(original.memory_id), []);
+  } finally { setup.afterUpdate(); await env.close(); }
+});
+
+for (const after of ["edit", "delete", "revoke", "cancel"] as const)
+  test(`a fixed duplicate refuses ${after} without appending or changing its receipt`, async t => {
+    const setup = await fixture(t); let env = await setup.open();
+    try {
+      const saved = await env.service.write(caller("guard-seed"), { scope: "personal", text: "Prefer short release summaries", kind: "preference" });
+      const id = saved.memory!.memory_id, pack = await env.service.exportScope(caller("export-guard"), "personal"), who = caller("guard-import");
+      await env.service.importScope(who, "personal", pack);
+      if (after === "edit") await env.service.change(caller("later-edit"), { memory_id: id, action: "update", text: "A later human decision", expected_version: 1 });
+      if (after === "delete") await env.service.change(caller("later-delete"), { memory_id: id, action: "remove", expected_version: 1 });
+      const before = await env.raw.list("personal", "memory-owner"), markerKey = "memory-operation:guard-import:import:0:import-duplicate";
+      const marker = env.ledger.marker(who.actor_id, markerKey), revisions = env.ledger.revisions(id), changes = env.ledger.changesOf(id);
+      let appends = 0; setup.afterWrite(async () => { appends++; });
+      await env.close(); env = await setup.open();
+      if (after === "revoke") setup.authorize(false);
+      const controller = new AbortController(); if (after === "cancel") controller.abort();
+      await assert.rejects(env.service.importScope({ ...who, signal: controller.signal }, "personal", pack));
+      setup.authorize(true);
+      assert.equal(appends, 0); assert.deepEqual(await env.raw.list("personal", "memory-owner"), before);
+      assert.deepEqual(env.ledger.marker(who.actor_id, markerKey), marker);
+      assert.deepEqual(env.ledger.revisions(id), revisions); assert.deepEqual(env.ledger.changesOf(id), changes);
+    } finally { setup.authorize(true); await env.close(); }
+  });
 
 test("an append receipt arriving after an observed deletion cannot restore history or recent-change contents", async t => {
   const setup = await fixture(t); let env = await setup.open();

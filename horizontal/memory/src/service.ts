@@ -44,6 +44,7 @@ import {
 import { consumerAccess, CONSUMER_LABELS } from "./prefs.js";
 import { MemoryPreferences } from "./preferences.js";
 import { MemoryOperations, type MemoryPurgeTarget } from "./operations.js";
+import { EXPLICIT_SOURCES, MemoryDuplicates } from "./duplicates.js";
 import { MemoryMoves } from "./moves.js";
 import { MemoryUpkeep } from "./upkeep.js";
 import { memoryUses } from "./usage.js";
@@ -122,7 +123,6 @@ const CANDIDATE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const PENDING_PER_WORK = 3;
 /** What Prologue's `redactText` puts where a credential was. */
 const REDACTED_CREDENTIAL = "[redacted]";
-const EXPLICIT_SOURCES: readonly MemorySource[] = ["said", "manual", "accepted", "imported"];
 /** Written by a policy rather than by the person: what an automatic change may take back. */
 const AUTOMATIC_SOURCES: readonly MemorySource[] = ["auto", "plugin"];
 /** Two memories at least this alike (character pairs) may be about the same thing: upkeep's bar for putting the pair to the person. */
@@ -143,6 +143,7 @@ export class MemoryService {
   private readonly promotions: MemoryPromotion;
   private readonly maintenance: MemoryUpkeep;
   private readonly moves: MemoryMoves;
+  private readonly duplicates: MemoryDuplicates;
 
   constructor(private readonly ports: MemoryServicePorts) {
     this.preferences = new MemoryPreferences(ports.ledger);
@@ -162,6 +163,9 @@ export class MemoryService {
       recordClear: (caller, scope, owner, removed, complete) => { this.recordChange(caller, { kind: "cleared", scope, owner, memory_id: null,
         text: "", by: "person", rule: null, reason: `${complete ? "清空" : "部分清空"}了 ${removed} 条`, undo: null }); },
     });
+    this.duplicates = new MemoryDuplicates({ ledger: ports.ledger, operations: this.operations, scopes: this.scopeCommands,
+      promotions: this.promotions, beforeEffect: ports.beforeEffect, now: this.now,
+      saveFacts: (caller, located, meta, before) => this.saveFacts(caller, located, meta, before) });
     this.moves = new MemoryMoves({ backend: ports.backend, ledger: ports.ledger, operations: this.operations, scopes: this.scopeCommands,
       preferences: this.preferences, date: at => this.date(at), bindTarget: ports.bindChangeTarget,
       purge: (caller, target, version) => this.purge(caller, target, version),
@@ -404,21 +408,8 @@ export class MemoryService {
     const hold = caller.person ? null : screened?.hold || screenedSaid?.hold || looksLikeInstruction(text) || (input.said ? looksLikeInstruction(input.said) : null)
       ? "这段话像是在给 AI 下指令（例如要求忽略规则或跳过确认），不能自动记住，需要你看过再决定"
       : screened && screened.redacted !== text ? "这段话里有本机文件路径之类的内容，先请你看一下再决定记不记" : unsaid;
-    const same = entries.find(located => sameWords(located.entry.text, text) && visibleTo(caller, located.meta)
-      && (!input.retainedMeta || isDeepStrictEqual(
-        [located.entry.meta.classification, located.entry.meta.session_ref, located.entry.meta.namespace, located.meta.expires_at, located.meta.kind, located.meta.applies],
-        [input.retainedMeta.classification, input.retainedMeta.session_ref, input.retainedMeta.namespace, input.expires_at, input.kind, input.applies])));
-    if (same && !retrying) {
-      // Said again: an automatic one becomes the person's own when its text is the same words as theirs (for “they said it”, `text` is their message itself), not merely alike in its marks.
-      if (EXPLICIT_SOURCES.includes(input.source) && same.meta.source === "auto" && !unsaid) {
-        await this.saveFacts(caller,same, { ...same.meta, source: input.source, basis: input.basis,
-          approved_by: input.approved_by, evidence: [...same.meta.evidence, ...input.evidence].slice(-6), updated_at: this.now().toISOString() });
-        disownAutomatic(this.ports.ledger, same.entry.memory_id);
-      }
-      if (!unsaid) this.promotions.link(caller.actor_id, same.entry.memory_id, input.sources ?? []);
-      return { outcome: "duplicate", reason: same.meta.state === "disabled" ? "已经记着这一条（目前停用）" : "已经记着这一条了", applies_text: appliesText,
-        memory: this.scopeCommands.item(await this.scopeCommands.find(caller, same.entry.memory_id)), candidate: null, change_id: null };
-    }
+    const duplicate = await this.duplicates.settle(caller, { ...input, text }, entries, retrying, unsaid, appliesText);
+    if (duplicate) return duplicate;
     if (input.replaces && !target) throw memoryErrors.not_found("要替换的那条记忆不在这个范围里（可能已删除，或属于别的范围）");
     const asCandidate = async (why: string, basis: MemoryBasis | null = input.basis): Promise<MemoryWriteResult> => {
       if (basis === null) return refused("原记忆依据未知，不能替它生成新的候选依据");

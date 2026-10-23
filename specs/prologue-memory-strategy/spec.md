@@ -556,6 +556,16 @@ App 复用已有形成限额配置：当前自动学习仅 personal/project，�
 
 停止收尾补充：Coding stop 的当前授权检查及 `stop_intent` 持久化仍属于这次控制调用；仅在意图成功提交后，用既有 `PrologueEffects.detach` 调度已接受 Run 的取消及终态收尾，使它不借用已结束的 stop 调用权限。SDK 仍拥有终态落盘，App 仍等真实终态事件才显示停止。未授权控制、未提交意图和普通迟到业务写不得脱离原检查；保留真实 Node 输入回执、重启及原调用失效零写反例，不把所有 storage 或 effects.call 关掉检查。
 
+#### M2 导入重复项的固定重试分支
+
+当前首期保存路径在去重前登记 commit，遇到同文同约束条目时返回 duplicate，但未保存该分支的完成结果。同一操作重试会因已有 commit 跳过去重，进入尚未使用过的 SDK append 身份；这可能创建第二条，违背 MEM-03 的固定原操作恢复。先用真实 Node SDK 与 SQLite 复现，再修此入口，不把源码推断写成验证结果。
+
+本片沿现 MemoryOperations、唯一 Service 与 SDK 写主人固定 duplicate 决定：在任何采用原条目的异步修改前保存原目标、范围、观察版本与分支；原操作恢复只继续这个决定，不重新去重选别的目标或落入 append。完成回执只保存无正文的 outcome、ref/version；有 SDK 更新时仍由同一 CAS/操作回执证明结果，不以当前 source 相同猜成功。原目标后来被修改、删除、撤权或遗忘时明确拒绝，不补建替代条目；SDK 已写而 ledger 失败仍可对原决定收尾。所有 ledger 写入保留现 Action 存活、取消与最终权限门，相关完成投影使用现 ledger 事务。
+
+实现边界：`src/duplicates.ts` 承接原重复匹配和采用职责，普通保存来源保持原行为；只有带原 import marker 的 imported 调用冻结 import-skip/import-adopt。原目标条件在 facts 的首次异步更新前固定；SDK 已提交后仍重放原 facts 操作核对，完成后只接受原结果版本，后继同文编辑也冲突。纯重复分支不创建 SDK 条目；采用保持原暂停/停用，不额外发状态更新。旧在途 import 若既没有固定分支也没有 append 身份，因无法判断原副作用而明确待核对，不自动补建。整包输入替换保护仍属下一片。
+
+范围仅 horizontal/memory 的 Service/operations/导入职责、必要类型、README、本节及真实专项；不改 SDK、持久 schema、模型、UI 或资源额度，不引入正文副本、第二账、通用恢复层。旧 v1 显式分类采用和整包输入身份仍按后续独立合同完成，本片不以修复去重冒充那些能力。验收覆盖单个 duplicate 同操作重放、duplicate 后另一条失败的重启恢复、自动条目采用中 SDK/ledger 回应丢失、原目标后继编辑/删除/撤权/取消零 append，以及原全新导入恢复、history/change/version/条目数不重复。先收窄反例，构建和完整回归由统筹排时段集成；未实际执行的测试仍标未验证。
+
 ### 9.5 Q0 基线记录与证据边界
 
 本轮固定的 B1 为 Molis `f6b2ff4bfba4f7ceb5aeaf95495a5e41fe85ea10`，实际使用 `attachment-order` SDK 包，上游来源 `753dbae8359e56a74397d030af4d18abf402d5b5`。Prologue 的实现起点是 `f481d53726b3a896a525386d8e93225f6091e947`，两者不能当作同一版本。B0 在相同初始材料和任务下关闭记忆；B2 只在新生产路径可运行后测量，缺席不是零成本。必要时补“新 SDK + 原 Molis 配方”的归因对照，区分 SDK 既有修复与新记忆策略的收益，不把其差异全部归功于本方案。

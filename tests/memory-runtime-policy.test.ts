@@ -284,22 +284,39 @@ test("learning candidate management stays independent of task recall without gra
   const f = await fixture(t); await f.save("formal-retained");
   const candidate = await f.bound().candidates.propose({ scope: "project", owner: "a", text: "Keep reports concise", origin: "person",
     meta, expected_version: 0, operation_id: "candidate-management" });
+  const privateCandidate = await f.bound().candidates.propose({ scope: "project", owner: "a", text: "Private plugin candidate", origin: "person",
+    meta: { ...meta, namespace: "another.plugin" }, expected_version: 0, operation_id: "private-candidate-management" });
   f.service.savePrefs({ ...person, consumer: "ui" }, "project", { task_recall: false });
   const learner: AgentMemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "a", consumer: "assistant",
     current_scene: "common", purpose: "management", source_use: "learning" };
+  const explicit: AgentMemoryCaller = { ...learner, source_use: "explicit" };
   assert.deepEqual((await f.bound(learner).candidates.list("project", "a")).map(row => row.candidate_id), [candidate.candidate_id]);
+  assert.deepEqual((await f.bound(explicit).candidates.list("project", "a")).map(row => row.candidate_id), [candidate.candidate_id],
+    "explicit proposal context reads the same allowed candidates, never another plugin's namespace");
   assert.deepEqual(await f.bound(learner).list("project", "a"), [], "the candidate grant is not formal memory access");
+  assert.deepEqual(await f.bound(explicit).list("project", "a"), [], "explicit formation is not formal task access");
   await assert.rejects(f.bound({ ...learner, purpose: "task" }).candidates.list("project", "a"), { code: "MEMORY_SCOPE_DENIED" },
     "a task caller cannot turn a candidate query into management");
-  for (const other of [{ ...learner, source_use: undefined }, { ...learner, source_use: "explicit" as const }, { ...learner, project_id: "b" }]) {
+  for (const other of [{ ...learner, source_use: undefined }, { ...learner, project_id: "b" }, { ...explicit, project_id: "b" }]) {
     assert.deepEqual(await f.bound(other).candidates.list("project", "a"), []);
   }
-  for (const override of [{ form: false }, { learn_from_work: false }, { enabled: false },
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { learn_from_work: false });
+  assert.deepEqual(await f.bound(learner).candidates.list("project", "a"), []);
+  assert.deepEqual((await f.bound(explicit).candidates.list("project", "a")).map(row => row.candidate_id), [candidate.candidate_id]);
+  const restricted = { selector: { consumer: "assistant" as const, current_scene: "common" }, read: "inherit" as const, form: "off" as const };
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { class_restrictions: [restricted] });
+  const recipe = await f.service.forRun(explicit, { scopes: ["project"] }); assert.ok(recipe);
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { class_restrictions: [] });
+  assert.deepEqual(await f.bound({ ...explicit, session_id: "original-form-off", class_restrictions: recipe.class_restrictions }).candidates.list("project", "a"), [],
+    "the original Run's form restriction survives a later current preference change");
+  for (const override of [{ form: false }, { enabled: false }, { class_restrictions: [restricted] },
     { consumers: { ...defaultPrefs("project", "reviewed").consumers, assistant: false } }]) {
     f.service.savePrefs({ ...person, consumer: "ui" }, "project", { ...defaultPrefs("project", "reviewed"), task_recall: false, ...override });
     assert.deepEqual(await f.bound(learner).candidates.list("project", "a"), []);
+    assert.deepEqual(await f.bound(explicit).candidates.list("project", "a"), []);
   }
   f.service.savePrefs({ ...person, consumer: "ui" }, "project", "reviewed"); await f.reopen();
-  assert.equal((await f.bound().candidates.list("project", "a"))[0]?.version, candidate.version);
+  assert.deepEqual((await f.bound().candidates.list("project", "a")).map(row => [row.candidate_id, row.version]).sort(),
+    [[candidate.candidate_id, candidate.version], [privateCandidate.candidate_id, privateCandidate.version]].sort());
   assert.equal((await f.bound().list("project", "a")).length, 1, "permission probes never modify persistent values");
 });

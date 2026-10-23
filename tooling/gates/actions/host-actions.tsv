@@ -110,7 +110,7 @@ memory.changes.undo	1	system.memory	command	operation	home	write	-	user	memory:w
 memory.export	2	system.memory	query	query	home	read	-	user	memory:export	-	-	-	fa7432c0eaf4	7ffbdcc0ada2	-
 memory.history	2	system.memory	query	query	home	read	-	user	memory:read	-	-	-	d5966af3318e	baa4e90fb824	-
 memory.import	2	system.memory	command	operation	home	write	-	user	memory:export	-	-	-	7800d94ff697	a0809c153e83	-
-memory.list	3	system.memory	query	query	home	read	-	agent,user	memory:read	-	-	-	1ac220317487	58204731665c	5e0374458cf9
+memory.list	4	system.memory	query	query	home	read	-	agent,user	memory:read	-	-	-	1ac220317487	449edb041d22	5e0374458cf9
 memory.page	1	system.memory	query	query	home	read	concurrent	user	memory:read	-	-	-	618c5b548a9d	1909c4cd7bd4	5e0374458cf9
 memory.pairs.list	1	system.memory	query	query	home	read	-	user	memory:read	-	-	-	8fae6285b822	983c812a2083	-
 memory.pairs.resolve	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	29218ac07da5	8cee623341f8	-

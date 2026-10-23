@@ -328,8 +328,8 @@ export interface MemoryListResponse {
     counts: {
         personal: number;
         project: number;
-        auto_this_week: number;
-        pending: number;
+        auto_this_week: number | null;
+        pending: number | null;
     };
 }
 

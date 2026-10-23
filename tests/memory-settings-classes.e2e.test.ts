@@ -49,11 +49,36 @@ test("classification controls save independent personal/project restrictions, ke
     await page.wait("document.documentElement.dataset.oldMemoryClasses !== '1' && [...document.querySelectorAll('[data-memory-settings]')].some(node => node.checkVisibility())");
     await page.evaluate(`(() => { const node = [...document.querySelectorAll('[data-memory-settings]')].find(node => node.checkVisibility()); node.setAttribute('data-memory-classes-test', ''); })()`);
     await page.wait(`document.querySelector('${root} [data-memory-class-form] fieldset')?.disabled === false`);
+    assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('${root} [data-memory-class]')].filter(node =>
+      node.closest('.mw-select-picker')?.querySelector('button')?.disabled).map(node => node.dataset.memoryClass)`), [],
+    "the loaded form enables its actual picker controls, not only the fieldset");
     assert.equal(await page.evaluate(`document.querySelectorAll('${root} [data-memory-id]').length`), 1, "management stays visible with restrictions");
   };
   const submit = async () => {
-    await page.click(root + " [data-memory-class-form] button[type=submit]");
+    // Hold delivery of the real HTTP response so the pending UI can be observed without faking persistence.
+    await page.evaluate(`(() => {
+      const original = globalThis.fetch;
+      globalThis.memoryClassResponseHeld = false;
+      globalThis.fetch = async (...args) => {
+        const response = await original(...args);
+        if (String(args[0]).endsWith('/api/memory/prefs') && args[1]?.method === 'POST') {
+          globalThis.fetch = original;
+          await new Promise(resolve => { globalThis.releaseMemoryClassResponse = resolve; globalThis.memoryClassResponseHeld = true; });
+        }
+        return response;
+      };
+    })()`);
+    try {
+      await page.click(root + " [data-memory-class-form] button[type=submit]");
+      await page.wait("globalThis.memoryClassResponseHeld === true");
+      assert.equal(await page.evaluate(`document.querySelector('${root} [data-memory-class-form] fieldset').disabled`), true);
+      assert.equal(await page.evaluate(`[...document.querySelectorAll('${root} [data-memory-class]')].every(node =>
+        node.disabled && node.closest('.mw-select-picker')?.querySelector('button')?.disabled)`), true,
+      "the actual picker controls stay disabled while the save response is pending");
+    } finally { await page.evaluate("globalThis.releaseMemoryClassResponse?.()"); }
     await page.wait(`document.querySelector('${root} [data-memory-class-status]').textContent === '分类限制已保存'`);
+    assert.equal(await page.evaluate(`[...document.querySelectorAll('${root} [data-memory-class]')].every(node =>
+      !node.disabled && node.closest('.mw-select-picker')?.querySelector('button')?.disabled === false)`), true);
   };
   const expected = new Map<string, MemoryClassRestriction[]>();
   for (const scope of ["personal", "project"] as const) {

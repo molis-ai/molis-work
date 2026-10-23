@@ -467,6 +467,9 @@ export interface AgentMemoryCandidateCapability {
         signal?: AbortSignal;
     }): Promise<AgentMemoryCandidateEntry>;
     list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryCandidateEntry[]>;
+    get(input: AgentCandidateLocation & {
+        signal?: AbortSignal;
+    }): Promise<AgentMemoryCandidateEntry | undefined>;
     accept(input: AgentCandidateLocation & AgentMemoryMutation & {
         text?: string;
         origin?: string;

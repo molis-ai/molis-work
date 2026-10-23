@@ -44,6 +44,10 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 21 | [#1131](https://github.com/molis-ai/molis-work/pull/1131) | BL-481：删 `PluginWakeupIndex` 与无安装的 `register()`，测试搬到按安装的拥有者 | **叠在 #1123 上**，#1123 先合 | `full` 为空 | `ac-review` 排队审 |
 | 22 | [#1132](https://github.com/molis-ai/molis-work/pull/1132) | W5-03/04 Issues 片：客户端打包成 TS、稳定翻译键；`issues.js` +3,605 B（统筹已放行，`APPROVED_CEILINGS` 一条） | 和 #1129 的 `page-assets.mjs`/`page-assets.json` 会撞相邻行，后合的解 | `full` 非空（assembly、deletes-code，77 文件），进下一批 | 头 `6c5baf809`；`ac-review` 排队审 |
 | 23 | [#1133](https://github.com/molis-ai/molis-work/pull/1133) | privileges.md 状态第 2 批：PG-027、PG-052 标已做，PG-012/022/088/089 写清剩下的（统筹的账） | — | `full` 为空 | 纯文档；Verify 绿就可合，不必等评审 |
+| 24 | [#1126](https://github.com/molis-ai/molis-work/pull/1126) | 评审修复线（合并 Agent 派）：Coding 两条无人认领 P3——#955 首页后台时间界限、#928 英文持有人中文标签 | — | `full` 为空 | 头 `3283c106a`；`ac-review` 待审；Verify 绿；`page-assets` coding.js 375409→376282 一次性放行待评审认可（lead 派 coding-review-fixes） |
+| 25 | [#1127](https://github.com/molis-ai/molis-work/pull/1127) | 评审修复线（合并 Agent 派）：隔离页 link 通道不再导航宿主文档（#1018）、SYS-15-U10 等回执修 flake（#1090） | — | `full` 为空 | 头 `6cdf4a15b`；`ac-review` 待审；Verify 绿；两片 Security invariants 绿（改了 S-47 与安全测试，条件 4 要看）；plugin-frame.js +263B 已按一次性放行 |
+| 26 | [#1125](https://github.com/molis-ai/molis-work/pull/1125) | 评审修复线（合并 Agent 派）：复审报告剩余风险登记进防腐 spec（#1018 Todo 私路） | — | `full` 为空 | 草稿；头 `21d4b3719`；等 `ac-review` 一轮；负责人 review-fix-owner |
+| 27 | [#1128](https://github.com/molis-ai/molis-work/pull/1128) | 评审修复线（合并 Agent 派）：翻译门禁盲区写进文档（#958） | — | `full` 为空 | 草稿；头 `f26d7f8b8`；等 `ac-review` 一轮；负责人 review-fix-owner |
 | 24 | [#1134](https://github.com/molis-ai/molis-work/pull/1134) | PG-017 组设计稿：沙箱插件经 broker 拿宿主服务（只加 slices 文档） | — | `full` 为空 | 统筹已审定（[评论](https://github.com/molis-ai/molis-work/pull/1134)）；纯文档，Verify 绿即可合 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 收尾时合 main、转 ready |
 

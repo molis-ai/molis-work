@@ -214,11 +214,11 @@ describe("the records of this repository", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    // PR #93's tested head has the same tree as its upstream main merge; the package includes #60.
-    assert.equal(provenance.source.commit, "98d4ae69baeab577cd5d03c706e15b21a4eab233");
-    assert.equal(provenance.source.mergedUpstream.pullRequest, 93);
+    // PR #94's tested head has the same tree as its upstream main merge; the package includes #60.
+    assert.equal(provenance.source.commit, "f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512");
+    assert.equal(provenance.source.mergedUpstream.pullRequest, 94);
     assert.equal(provenance.source.mergedUpstream.head, provenance.source.commit);
-    assert.equal(provenance.source.mergedUpstream.merge, "cbf7d7a4490cdeef6ef16f7089f1f878d3c909c2");
+    assert.equal(provenance.source.mergedUpstream.merge, "d94a99fb3d3cd33c95cd97393c4d1949366ffa81");
     assert.equal(provenance.source.inFlight, undefined);
     // The historical ancestry audit remains pinned to the main commit it actually checked.
     assert.equal(json(`${folder}/patch-history.json`).upstream.mainHead, "2c7feba5a6ea85e81e4a263671fb5e68f536d86a");

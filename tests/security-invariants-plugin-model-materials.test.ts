@@ -184,7 +184,8 @@ test("W5-01-SHM-03 choices use live metadata with zero requests/decryption and r
   const revokedModel = f.model();
   assert.throws(() => choices(() => revokedModel.choices()));
   await f.platform.runtime.stop(f.install.install_id);
-  assert.throws(() => choices(() => revokedModel.choices()));
+  // BL-411: once stopped, the refusal throws nothing outside every call; `choices` still checks nothing was decrypted or sent.
+  assert.equal(choices(() => revokedModel.choices()), undefined);
 });
 
 test("W5-01-SHM-01 cancellation releases Host image sources and SDK intake resources on owner close", { timeout: 60_000 }, async t => {

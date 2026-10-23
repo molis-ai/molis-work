@@ -19,6 +19,7 @@ import { HOST_WORKSPACE_CHANGED_EVENT, type PluginDefinition, type PluginManifes
 import { DEMO_PROJECT_ID, HOST_PROVIDER_ID, LocalProjectDatabase, MolisWorkLocalHost, PluginHostExecutor, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 /** The parts of the routes' JSON answers this test reads; a key a route does not send fails the assertion that reads it. */
 interface Reply {
@@ -109,9 +110,9 @@ test("a Runtime plugin reaches an action only when its Manifest consumes it: as 
     assert.deepEqual(await withoutGrant.discover(), [], "its own action needs the read permission it was never granted");
     assert.equal(reads.host, 1);
 
-    // A stopped instance holds nothing.
+    // A stopped instance holds nothing: outside every call (BL-411) the refusal throws nothing, and the call never answers.
     await runtime.stop(reader.install_id);
-    await assert.rejects(client.invoke(readFile, query), { code: "actions.forbidden" });
+    assert.equal(await within(client.invoke(readFile, query)), PENDING);
     assert.equal(reads.host, 1);
 
     // The client does not depend on having an action of one's own: a plugin that only consumes the Host action reaches it,

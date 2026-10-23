@@ -83,9 +83,16 @@
 - **调用方**：四处都用调用点已有的 `beforeWrite` 包一层 `codingActions`（读也一样，取消信号与作业控制随之传下）；`overlapsFor` 与 `coding.scope-check` 因此多传 `beforeWrite`。转完以后 `readCodingSessions` 与 `wake-loop` 的 `cancel` 不再用 typed 客户端，删掉这个参数（第 1 批 §3 说「api 仍用于 releaseProjectRound」，现在不再用）。
 - **测试**：`tests/agent-host-actions.test.ts` 的 RAC-197；三个 Coding 测试（`coding-queued-round`、`coding-message-wait`、`coding-state-coalesce`）已经经 `fakeAgentHostActions` 应答全部带 `action` 的描述符，不用改。
 
-**RAC-197** 这 4 条是只给插件、不要权限的项目动作，在宿主启动插件的那个项目里运行：放下与探查交给 Runtime 的项目来自调用；另一个项目的会话，状态单独回「当前项目找不到这条会话」，排队被拒（`agent.session_unknown`），Runtime 没有被要求排队；自己项目的会话排给插件自己的 actor。没有消费它的插件、人、Agent、工作流、MCP 调不到；schema 拒绝空会话 id、排队里多出的 `actor_id`、少一项的元组，被拒的调用到不了 Runtime。
+- **归属（统筹 10-23 裁，R8 规矩 3、4，这一片一起关，不另记 BL）**：原 typed 路径上 `readProjectWork` 读整个项目的工作、`releaseProjectRound` 只按工作 id 放下，都不核这项工作是不是调用者的会话的。现在两条都只认调用者自己的会话（同一项目、插件、安装、actor，核法同 `readSessionStatuses`；`horizontal/agent-host/src/project-work-scope.ts`）：
+  - `readProjectWork` 只返回调用者自己会话的工作与重叠；探查里点名的会话不是调用者的就拒绝。
+  - `releaseProjectRound` 先在项目的工作里找到这一项，不在、或属于别人的会话，就按「找不到」拒绝（`agent.session_unknown`），Runtime 不被要求放下。放下别人卡住的一轮不是插件该有的能力，以后真需要，做成平台或本人的动作。
+  - 没有调用者需要知道项目里别人的工作：唯一的调用者 Coding 用它找自己各会话之间的重叠、在自己的另一项工作完成后再开始。所以不给摘要，只返回自己的。以后若要不同插件的 Agent 互相避开文件，再按统筹的口径只给不含内容的摘要（id、状态、主人插件的显示名、开始时间），并在这里写明是谁要、为什么。
+  - 排队另核元组里的 Runtime 与会话所在的 Runtime 一致（评审建议 1，同 `startRun`）。
+- **调度**：同 §6，四条都不等模型、不等外部服务，保持默认串行；排队、放下在写之前各过一次 `beforeEffect`。
 
-没改的：第 1 批 §6 建议 1 的归属缺口在这 4 条里同样存在——`readProjectWork` 本来就读整个项目的工作，`releaseProjectRound` 只按工作 id 放下，不核这项工作是不是调用插件的会话的；`readSessionStatuses` 与 `queueProjectRound` 核会话归属。这是原 typed 路径已有的行为，仍等统筹给的 BL 与 owner，本片不改信任设计。剩 26 条：`listActions`、`listRuntimes`、`availableRoles`（谁能调、`pluginId` 从输入读）、两个 `wait`、`listSkills` 等 7 条从输入读 `pluginId` 的、`cancelSubagent`（`actorId` 从输入读）、`listReviews`（`projectId` 从输入读），以及读会话、跑轮次的其余各条。
+**RAC-197** 这 4 条是只给插件、不要权限的项目动作，只作用于调用者自己的会话：放下与探查交给 Runtime 的项目和放下的人来自调用；项目里别的插件会话的工作不出现在读到的工作与重叠里，放下它或不在的工作被拒，探查别人的会话被拒；另一个项目的会话，以及同一项目里别的插件、别的安装、别的人的会话，状态单独回原因，排队被拒（`agent.session_unknown`），它们的工作读不到、放不下，Runtime 没有被要求排队或放下；自己的会话排给插件自己的 actor；排到另一个 Runtime 的被拒。没有消费它的插件、人、Agent、工作流、MCP 调不到；schema 拒绝空会话 id、排队里多出的 `actor_id`、少一项的元组，被拒的调用到不了 Runtime。
+
+剩 26 条：`listActions`、`listRuntimes`、`availableRoles`（谁能调、`pluginId` 从输入读）、两个 `wait`、`listSkills` 等 7 条从输入读 `pluginId` 的、`cancelSubagent`（`actorId` 从输入读）、`listReviews`（`projectId` 从输入读），以及读会话、跑轮次的其余各条。
 
 ## 9. 第 3 批：读会话、跑轮次（计划，待统筹在这里裁定 §9.3）
 

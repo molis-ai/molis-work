@@ -1,7 +1,6 @@
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
 import { ActionError, retainActionAuthority, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { FEED_PLUGIN_ID } from "./identity.js";
 import type { FeedApplication } from "./application.js";
 import type { FeedConnectorSync } from "./connector-sync.js";
 import type { FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
@@ -67,7 +66,7 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
     // Judgments a sync starts keep this call's authority, pinned to the Feed action that started them.
     handle: async (caller, input) => {
       await caller.beforeEffect();
-      return await handle(input as Input, retainActionAuthority(caller, { ...definition, provider_id: FEED_PLUGIN_ID }, caller.beforeEffect));
+      return await handle(input as Input, retainActionAuthority(caller, definition, caller.beforeEffect));
     },
   });
   const a = feedSourceActions;

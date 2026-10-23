@@ -126,7 +126,7 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
   const fixedState = async (index: number) => {
     const state = await dispatch("/api/plugins/io.molis.work.diff/state", "GET", undefined, { change_index: String(index) }) as { view: DiffView };
     // The Host's presentation seam: the owner's genuine view is rendered by the public Diff renderer.
-    return { ...state, html: renderDiff({ view: state.view, route_prefix: "", primitives: {
+    return { ...state, html: renderDiff({ view: state.view, primitives: {
       escape: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;"),
       icon: name => icon(name as Parameters<typeof icon>[0]),
       text: L,

@@ -4,7 +4,6 @@
 
 ## 在做的
 
-- [system-review-fixes](system-review-fixes/spec.md)：系统评审 SYS-01～47 的当前缺陷修复与逐项去向；Codex 执行中（2026-10-22）；先完成并合入 Work #1018，再复核此前 PR 的遗漏。
 - [diff-frame-performance](diff-frame-performance/spec.md)：大型代码变更逐帧高亮性能；负责人 Codex，Work #996 合入后独立修复全量性能失败，执行中。
 
 - [empty-goal-create](empty-goal-create/spec.md)：进入 Goals 且当前列表为空时，自动打开已有的新建弹窗；2026-10-22 实现，待验收。
@@ -96,6 +95,7 @@
 
 ## 梳理记录
 
+- 2026-10-23：[系统评审问题修复](archive/system-review-fixes/spec.md)归档（本轮已实现，负责人 Codex）；#1018、#1058、#1061、#1062 已合入，#1049 收尾衔接随本 PR 合入。按一骏明确的完成边界，三项偶发测试与安装验收分别转 BL-412、BL-413。
 - 2026-10-21：`logic-diagnosis-fixes`、`goal-closure-identity`、`artifact-positioning` 归档（已实现；goal 与 artifact 的用户验收见 BL-401、BL-400）；`project-knowledge` 归档（部分实现，剩余 BL-396～399）。`artifact-positioning` §4 的整页例外清单拆成现行规范 [shell-page-exceptions](shell-page-exceptions/spec.md)。
 - 2026-10-17：[合作源码与商业授权](archive/commercial-source-license/spec.md)归档（已实现，负责人 Codex）；#636 已合入 main，许可、分发材料及安装器许可传递通过定向验证、PR CI 和合并队列检查。
 - 2026-10-01：全量梳理根目录 193 份 spec。7 份确认为现行规范；186 份归档（已实现 104、已被取代 70、部分实现 8、已作废 4），剩余事项抽进 BACKLOG。逐份判定与依据见 [合入后审查 §8](archive/post-merge-review/spec.md#8-spec-梳理)。

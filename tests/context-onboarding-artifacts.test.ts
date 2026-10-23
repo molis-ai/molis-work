@@ -1,13 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication, LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { importArtifactDocument } from "@molis-ai/molis-work-plugin-artifacts";
 
 test("original file snapshots retain bytes in exact project versions, retry is idempotent, invalid originals never persist", async () => {
   const storage = new LocalProjectDatabase(":memory:"), project = new GoalProjectApplication(storage);
   for (const project_id of ["project-a", "project-b"]) project.initializeBoard({ project_id, actor_id: "fixture", idempotency_key: project_id });
-  const artifacts = project.artifacts;
+  const artifacts = openProjectVersionStores(storage).artifacts;
   const ports = { projectId: "project-a", actorId: "fixture", ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: "", artifacts,
     readExternal: async (): Promise<never> => { throw Error("unexpected external request"); }, readHtml: () => ({ title: "", content: "" }) };
   const original = { filename: "brief.pdf", mime: "application/pdf", data_base64: Buffer.from([37, 80, 68, 70, 0, 255]).toString("base64") };

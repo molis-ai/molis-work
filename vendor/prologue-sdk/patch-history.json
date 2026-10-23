@@ -8,10 +8,10 @@
     "command": "git cat-file blob <gitBlob> > <file> && shasum -a 256 <file>"
   },
   "upstream": {
-    "repository": "https://github.com/molis-ai/prologue",
-    "checkedOn": "2026-10-20",
-    "mainHead": "753dbae8359e56a74397d030af4d18abf402d5b5",
-    "statement": "2026-10-20 对上游 main 753dbae8359e56a74397d030af4d18abf402d5b5（Prologue #57，含 #56、#55、#54、#52、#51、#50、#49、#48、#47、#46、#45、#44、#43、#42 与此前各项）逐项用 GitHub 的比较接口（repos/molis-ai/prologue/compare/<提交>...<main 头>，状态为 ahead 或 identical 即是祖先）复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源（状态 diverged）以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。",
+    "repository": "https://github.com/molis-ai/molis-prologue",
+    "checkedOn": "2026-10-23",
+    "mainHead": "2c7feba5a6ea85e81e4a263671fb5e68f536d86a",
+    "statement": "2026-10-23 对上游 main 2c7feba5a6ea85e81e4a263671fb5e68f536d86a（Prologue #60，含 #59、#58、#53、#57、#56、#55、#54、#52、#51、#50、#49、#48、#47、#46、#45、#44、#43、#42 与此前各项）逐项用 GitHub 的比较接口（repos/molis-ai/molis-prologue/compare/<提交>...<main 头>，状态为 ahead 或 identical 即是祖先）复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源（状态 diverged）以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。上游仓库此后改名为 molis-ai/molis-prologue（原 molis-ai/prologue）。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -52,7 +52,8 @@
       "94ee1ea4f48baf529b2ce624b8ee54acefb7bb7f",
       "3adc5e87e81567af59983d1e7ac411a703454167",
       "a51607fbfa11e8f59ac0962906aa1bcbf155d8e6",
-      "753dbae8359e56a74397d030af4d18abf402d5b5"
+      "753dbae8359e56a74397d030af4d18abf402d5b5",
+      "2c7feba5a6ea85e81e4a263671fb5e68f536d86a"
     ]
   },
   "patches": [
@@ -765,6 +766,14 @@
       "gitBlob": "e6050caef73403fde70f952fd9a84a70c59ee8be",
       "commit": "a51607fbfa11e8f59ac0962906aa1bcbf155d8e6",
       "description": "上游 main a51607fb（Prologue #52，含 #51 写后检查是包里标了 afterWriteCheck 的那个工具、#50 acknowledge-inputs 只在这一轮收得下时列 todo 与此前各项）。2026-10-20 被包含 #54、#55（effect 与 awaiting-input 的来源可写明哪次工具调用、哪次模型调用、看板哪一步，BL-162）、#56（附件占位串加 -END 结尾，一次调用带 11 张以上原图不再整次拒发）与 #57（多张图按给出的顺序到模型，不再整组倒序）的统一包替换；旧包及其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-attachment-order.tgz",
+      "bytes": 1235604,
+      "sha256": "f39224701ae52eeeb7251e4486d32ee2c3c93a798c997f5764103e127280ceea",
+      "gitBlob": "2eb0b2d6f108edfb6ce457aa08effd6352a723e1",
+      "commit": "753dbae8359e56a74397d030af4d18abf402d5b5",
+      "description": "上游 main 753dbae8（Prologue #57，含 #54、#55 效果与 awaiting-input 的来源、#56 附件占位串加 -END 结尾、#57 多张图按给出的顺序到模型与此前各项）。2026-10-23 被包含 #53（已答的 ask-user 结果用 answered 带题号）、#58（运行时准入与关机边界）、#59（收窄内部导出）与 #60（retry-waiting 事件）的统一包替换；旧包及其来源记录从 Git 历史取回。"
     }
   ],
   "notes": [

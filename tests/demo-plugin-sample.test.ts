@@ -19,7 +19,8 @@ import { DEMO_PROJECT_ID,
   openWorkSessionRegistry,
   seedDemoBoard,
   seedDemoPluginSurfaces,
-  seedDemoProjectExtras } from "@molis-ai/molis-work-app-local-host";
+  seedDemoProjectExtras,
+  openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { FEED_CAPTURE_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-plugin-feed";
 import { renderFeedWorkbenchFragment } from "./workbench-renderer-fixture.js";
 
@@ -85,7 +86,7 @@ async function assertDemoPluginFacts(input: {
     assert.ok(active.some((entry) => entry.reason === "source_fault"));
     assert.ok(history.some((entry) => entry.status === "done"));
     assert.ok(history.some((entry) => entry.status === "dismissed"));
-    const artifacts = new GoalProjectApplication(store).artifacts.query.listArtifacts(input.projectId);
+    const artifacts = openProjectVersionStores(store).artifacts.query.listArtifacts(input.projectId);
     assert.ok(artifacts.some((artifact) => artifact.artifact_id === DEMO_CORE_ARTIFACT_ID));
     assert.ok(artifacts.some((artifact) => artifact.artifact_type_id === FEED_CAPTURE_ARTIFACT_TYPE_ID));
   } finally {
@@ -116,7 +117,7 @@ test("seedDemoBoard fixtures stay empty of plugin samples", async () => {
       assert.equal(snapshot.feed_items.length, 0);
       assert.equal(snapshot.inbox_entries.length, 0);
       assert.equal(snapshot.sources.length, 0);
-      assert.equal(new GoalProjectApplication(store).artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 0);
+      assert.equal(openProjectVersionStores(store).artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 0);
     } finally {
       store.close();
     }
@@ -158,7 +159,7 @@ test("plugin samples are written under the project id they are given", async () 
       assert.ok(active.some((entry) => entry.reason === "source_fault"));
       assert.ok(history.some((entry) => entry.status === "done"));
       assert.ok(history.some((entry) => entry.status === "dismissed"));
-      const artifacts = new GoalProjectApplication(seeded).artifacts.query.listArtifacts("goalboard-v1-demo");
+      const artifacts = openProjectVersionStores(seeded).artifacts.query.listArtifacts("goalboard-v1-demo");
       assert.ok(artifacts.some((artifact) => artifact.artifact_id === DEMO_CORE_ARTIFACT_ID));
       assert.ok(artifacts.some((artifact) => artifact.artifact_type_id === FEED_CAPTURE_ARTIFACT_TYPE_ID));
     } finally {

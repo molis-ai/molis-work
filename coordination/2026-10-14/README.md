@@ -3436,3 +3436,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 ### 10-23 19:30 UTC　取号
 
 - **S-58** 给 `ac-kernel` 的 R7：「user_action 只由入口给：执行中的处理器发起的嵌套调用只能带它收到的那份或不带，自写或改的一律拒（`actions.forbidden`）；页面路由入口给 `source=web`」。下一个空号 S-59。
+
+### 10-23 19:40 UTC　加两条开发线（用户 10-23：可以再加 1～2 个执行会话）
+
+- 给 `ac-feed-fn`（R5）、`ac-sandbox-sched`（BL-395 → PG-039～042）发了派单。现在同时四条：`ac-sc3`（SC-4）、`ac-kernel`（R7 已开 #1117，在做 W5-09）、`ac-feed-fn`、`ac-sandbox-sched`。排队：`ac-clients-1` → `ac-errors` → `ac-giants`（R4c 去掉 memory）→ `ac-snapshot`。
+- #1117（R7）开了，`full` 非空，交 `ac-review`；S-58 已给（PR 里的占位 S-XX 由作者回填）。

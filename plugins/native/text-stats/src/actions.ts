@@ -13,7 +13,7 @@ const counts = { characters: number, utf8_bytes: number, lines: number };
 const view = object({ phase: { enum: ["waiting", "unavailable", "ready"] }, message: text, recovery: text,
   source: object({ workspace_name: text, path: text, source_plugin_id: text, content_version: { type: "integer", minimum: 1 } }),
   ...counts }, ["phase", "message"]);
-/** `html` is the counts drawn for a page, in the page's language; a model, a workflow or an MCP client reads `view` alone. */
+/** `html` is the counts drawn for a page, in the page's language; a model or a workflow reads `view` alone. */
 interface TextStatsState { view: TextStatsView; html?: string }
 const base = { kind: "query" as const, scope: "project" as const, audiences: ["user", "agent", "workflow", "mcp"] as const, subject_kinds: ["text", "artifact"] };
 export const textStatsActions = {
@@ -32,7 +32,7 @@ export function textStatsActionHandlers(context: PluginStartContext): ActionHand
   } }];
 }
 function stateFor(caller: ActionCallContext, view: TextStatsView): TextStatsState {
-  // A page reaches it as itself (`user`) or as another plugin's page that consumes it (`plugin`); a model reads the view alone.
+  // Pages draw it: the plugin's own page calls as the person, Coding's page consumes it as a plugin; models, workflows and MCP get the view only.
   if (caller.audience !== "user" && caller.audience !== "plugin") return { view };
   const words: Record<string, { zh: string; en: string }> = TEXT_STATS_MESSAGES, locale = caller.locale ?? "zh";
   return { view, html: renderTextStats({ view, primitives: { escape: escapeHtml, text: (key, values) => fillMessage(words[key]?.[locale] ?? key, values),

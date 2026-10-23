@@ -97,6 +97,13 @@ test("PG062-01, PG062-02: a page's diff.state and text-stats.state carry the plu
       assert.equal(stats.html, renderTextStats({ view: stats.view, primitives: pagePrimitives(locale) }), `text-stats.state draws the same counts the Host drew (${locale})`);
       if (locale === "en") for (const html of [diff.html, stats.html]) assert.doesNotMatch(html.replace(/<[^>]*>/g, ""), HAN, "the English page gets English words");
     }
+    // Coding's, Files' and Git's pages read both through their consumer declarations, so the call reaches them as a plugin's (#1018):
+    // the same markup in the page's language, where the Host used to draw it.
+    for (const definition of [diffState, statsState]) for (const locale of ["zh", "en"] as const) {
+      const page = await project.invoke<{ html: string }>(definition, { locale });
+      const consumed = await project.invoke<{ html: string }>(definition, { audience: "plugin", locale });
+      assert.equal(consumed.html, page.html, `${definition.capability_id} draws the same markup for a consuming plugin's page (${locale})`);
+    }
     // No language from the page (no cookie, no Accept-Language): the plugins' Chinese, as the Host's default was.
     const plain = await project.invoke<{ view: TextStatsView; html: string }>(statsState, {});
     assert.equal(plain.html, renderTextStats({ view: plain.view, primitives: pagePrimitives("zh") }));
@@ -117,7 +124,7 @@ test("PG062-03: a model, a workflow or an MCP client reads the view alone, and b
   });
 });
 
-test("PG062-04: the Host no longer names Diff or Text Stats to decorate their route results or a page's action results", () => {
+test("PG062-04: the Host no longer names Diff or Text Stats to decorate their route results or a page's action answers", () => {
   const surface = readFileSync(new URL("../apps/local-host/src/coding-surface.ts", import.meta.url), "utf8");
   for (const name of ["DIFF_PLUGIN_ID", "TEXT_STATS_PLUGIN_ID", "renderTextStats", "decorateRuntimeResult", "decorateCompanionState"]) {
     assert.equal(surface.includes(name), false, `coding-surface.ts no longer uses ${name}`);
@@ -125,5 +132,6 @@ test("PG062-04: the Host no longer names Diff or Text Stats to decorate their ro
   // A plugin page's action (Files, Git or Coding reading diff.state or text-stats.state) returns what the plugin drew; the Host
   // adds nothing after the call (tests/security-invariants-plugin-pages.test.ts SYS-15-U5 reads the markup through that path).
   const pageActions = readFileSync(new URL("../apps/local-host/src/plugin-page-http.ts", import.meta.url), "utf8");
-  assert.doesNotMatch(pageActions, /coding-surface|decorateCompanionState|renderDiff|renderTextStats/u);
+  assert.doesNotMatch(pageActions, /coding-surface|decorateCompanionState|renderDiff|renderTextStats/u,
+    "plugin-page-http.ts returns a page action's answer as the plugin drew it");
 });

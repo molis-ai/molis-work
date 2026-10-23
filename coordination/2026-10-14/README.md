@@ -3110,3 +3110,12 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - R-19：① 定现在只在测试里加诊断；生产上的 `details.reason` 方案记在登记册里，暂缓。
 - R-22：#1086 已进 main，等 Linux 批次的结果。
 - Codex 首批的结论仍是「整线未判完成」：所有补丁合入以后还没重跑完整组合，留到统一窗口。真实账号、模型凭据、真实 Home、安装升级和用户体验验收都没有覆盖。
+
+### 10-23 21:35（13:35 UTC） 并入 Codex 阶段十六（`aa34e6ee4`）；新风险 R-25
+
+- Codex 已经认领 R-19 的测试诊断：查过 22 个在途 PR，没人碰那两份测试，它从 main `d7077301f` 开了分支 `feature/connector-test-diagnostics-20261023`。
+- batch-1023-8 的只读观察：
+  - `coding-rich-html`、`coding-change-html` 重试后还红。这个旧批次还不含 #1089、#1091 的修复，不用再开修复。
+  - `interaction-no-crosstalk.e2e` AC-05 首跑超时、重试过了，先观察。
+  - `write-checkers-settings.e2e` PA-40/42/43 重试后还红，记成 R-25。
+- R-25 的处理：① 推断是测试按 Esc 前没等对话框打开。交 Codex 先拿 main 和批次对比，再决定从 main 修还是开叠加 PR；如果是产品回归，交回 ①。合并不等这一条，批次里的 PR 都没碰设置页和对话框的代码。

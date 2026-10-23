@@ -433,7 +433,9 @@ test('ONB-LIM-02 a round has no file count or size limit, and its selection carr
 });
 
 test('ONB-LIM-03 a round of 300 files is read one by one and adopted whole: every material in Pages and the 成果库, staging cleared',{timeout:240_000},async t=>{
-  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
+  const dir=await home(t),id=randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir,s=>s.create(id));
   const files=[];for(let i=0;i<300;i++)files.push(await staged(dir,id,'notes/n-'+i+'.md','# Note '+i+'\n\nFact number '+i+'.'));
   selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files}]});
   const seen:number[]=[];const ports={...pagesPorts(dir),model:async()=>({})};
@@ -449,7 +451,9 @@ test('ONB-LIM-03 a round of 300 files is read one by one and adopted whole: ever
 });
 
 test('ONB-LIM-04 a file over 6 MB with over 2 MB of text reaches adoption whole: its original in the 成果库\'s store, its whole text in Pages parts',{timeout:240_000},async t=>{
-  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
+  const dir=await home(t),id=randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir,s=>s.create(id));
   const big='# Big notes\n\n'+Array.from({length:120_000},(_,i)=>'Line '+i+' of the long record, with ordinary work context.').join('\n')+'\nEND OF BIG FILE\n';
   assert.ok(Buffer.byteLength(big)>6_000_000);
   selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[await staged(dir,id,'big.md',big)]}]});

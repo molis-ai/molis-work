@@ -69,7 +69,7 @@ test("Form actions share original data, six question types and snapshot-backed s
   assert.equal((await invoke("generate", { id, prompt: "本地追加" })).form.questions.at(-1).title, "本地追加");
   const promoted = await invoke("promote", { id });
   await f.host.withProject(f.ref, runtime => {
-    const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id, promoted.artifact)!;
+    const artifact = runtime.artifacts.query.getArtifactVersion(f.ref.project_id, promoted.artifact)!;
     // A pinned form belongs to the Home's person; the actor who pinned it is its producer.
     assert.equal(artifact.owner_actor_id, LOCAL_PERSON_ACTOR_ID); assert.equal(artifact.created_by, "owner"); assert.equal((artifact.payload as any).questions.length, 2);
     assert.equal((artifact.payload as any).answers, undefined);
@@ -116,8 +116,8 @@ test("Form fixed publication survives partial success, actor isolation, restart 
   const restored = await f.bound.invoke(actions.promote, { id: form.id });
   assert.equal(restored.form.title, "Later edit"); assert.equal(restored.recovered, true); assert.equal(restored.artifact.version, 1);
   await f.host.withProject(f.ref, runtime => {
-    assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id, restored.artifact)!.payload as any).title, "Original snapshot");
-    assert.equal(runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id, { ...restored.artifact, version: 2 }), null);
+    assert.equal((runtime.artifacts.query.getArtifactVersion(f.ref.project_id, restored.artifact)!.payload as any).title, "Original snapshot");
+    assert.equal(runtime.artifacts.query.getArtifactVersion(f.ref.project_id, { ...restored.artifact, version: 2 }), null);
   });
   assert.equal((await f.bound.invoke(actions.promote, { id: form.id })).artifact.version, 2);
 });

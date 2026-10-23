@@ -53,7 +53,7 @@ test("Pages auto-registers all business contracts; HTTP and workflow use the sam
     const promoted = await bound.invoke(actions.promote, { id: document.id });
     assert.equal(promoted.document.artifact_version, 1);
     await host.withProject(ref, runtime => {
-      const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(ref.project_id, promoted.artifact);
+      const artifact = runtime.artifacts.query.getArtifactVersion(ref.project_id, promoted.artifact);
       assert.ok(artifact); assert.match(JSON.stringify(artifact), /Edited/);
     });
     await bound.invoke(actions.updateFolder, { id: folder.id, title: "Moved" });

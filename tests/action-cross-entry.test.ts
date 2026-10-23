@@ -19,7 +19,7 @@ async function scheduleSdk(t: Parameters<typeof openTestHome>[0], home: TestHome
   let sdk: BoundActionClient | undefined;
   const actions = { registry: home.host.actionRegistry(project.reference), client: home.host.actionClient(project.reference, false), project_id: project.project_id };
   const runtime = await home.host.withProject(project.reference, owner => new PluginRuntime(undefined, new PluginHostExecutor({ actions,
-    project_id: project.project_id, actor_id: "schedule-sdk-owner", artifacts: owner.coordinator.artifacts, processItems: owner.coordinator.processItems,
+    project_id: project.project_id, actor_id: "schedule-sdk-owner", artifacts: owner.artifacts, processItems: owner.processItems,
     ui: new UiHost(), privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { actions }));
   const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.fixture.schedule-sdk", version: "1.0.0", name: "Schedule consumer", kind: "app",
     publisher: { publisher_id: "fixture", signature: "schedule-sdk" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

@@ -169,9 +169,9 @@ for (const stop of ["withdraw", "cancel"] as const) test(`Artifact imports stay 
         assert.ok(result, "a waiting import must not occupy the project's serial write queue");
         if (stop === "withdraw") dispose(); else controller.abort();
         release.resolve(); await rejected;
-        const rows = runtime.coordinator.artifacts.query.listArtifacts("project");
+        const rows = runtime.artifacts.query.listArtifacts("project");
         assert.equal(rows.length, 1); assert.equal(rows[0]!.artifact_id, result.artifact_id);
-        assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion("project", result)!.payload as Record<string, unknown>).content, "Fast document");
+        assert.equal((runtime.artifacts.query.getArtifactVersion("project", result)!.payload as Record<string, unknown>).content, "Fast document");
       } finally {
         clearTimeout(timer); controller.abort(); release.resolve();
         await Promise.allSettled([pending, rejected, ...(fast ? [fast] : [])]); dispose();

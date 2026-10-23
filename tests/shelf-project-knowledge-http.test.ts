@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalProjectDatabase, GoalProjectApplication, openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, openHostShelfStore, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { IMPORTED_DOCUMENT_TYPE } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -35,7 +35,7 @@ test("Shelf saves the confirmed full text into project knowledge, a new version 
     return { status: response.status, body: await response.json().catch(() => null) };
   };
   const shelf = "/api/plugins/io.molis.work.shelf", at = (each: { project_id: string }) => `/projects/${encodeURIComponent(each.project_id)}${shelf}`;
-  const documents = () => new GoalProjectApplication(store).artifacts.query;
+  const documents = () => openProjectVersionStores(store).artifacts.query;
 
   const original = "﻿旧版🌲\r\n" + "完整原文。".repeat(700) + "\n末尾不能被预览截断";
   const admitted = await request(shelf + "/items", { filename: "notes.md", bytes_base64: Buffer.from(original).toString("base64") });

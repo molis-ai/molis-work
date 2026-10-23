@@ -239,8 +239,9 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // Memory classification pages and truthful bounded counts: the user approved this slice's +3437 B on 2026-10-24.
-  // Reusing 34 selectors saved 316 B. This admission is against the SDK-adoption parent, not a reusable allowance.
-  "/assets/molis-work-workbench.js": [1192837, 1196274],
+  // Reusing 34 selectors saved 316 B. Integrated parent e8e800810 and paging a59b712f4 were measured together;
+  // the same +3437 B admission remains tied to that parent, not a reusable allowance.
+  "/assets/molis-work-workbench.js": [1193918, 1197355],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

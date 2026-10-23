@@ -23,7 +23,7 @@
 | --- | --- | --- |
 | #1076 Shelf S3、#1083 Shelf S4 | Codex 整理冲突；修复按 MERGE-QUEUE §1 第 7 条认领 | PG-012 的 Shelf 一半、026、026-S1、090；S4 合入后 PG-113 归 `ac-platform` |
 | #1098、#1107、#1112 W5-06 链 | Codex / 合并 Agent | PG-060 |
-| 统筹的状态 PR（`anticorr/privileges-status-2`） | 统筹 | PG-027、052 标已做 |
+| 统筹的状态 PR #1133 | 统筹 | PG-027、052 标已做 |
 
 ## 2. 待开线（一条线空出来就按这个顺序开）
 

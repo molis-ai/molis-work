@@ -197,9 +197,10 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   const putComputerRecordOnShelf=async(env)=>{
     const id=env.state?.record_id;if(!id)return;
     let itemId='';
+    const shelfItems='/api/plugins/io.molis.work.shelf/items';
     const drop=async()=>{
       if(!itemId)return;
-      const once=()=>env.request('/api/shelf/items/'+encodeURIComponent(itemId)+'/delete',{body:{}}).then(()=>true).catch(()=>false);
+      const once=()=>env.request(shelfItems+'/'+encodeURIComponent(itemId)+'/delete',{body:{}}).then(()=>true).catch(()=>false);
       if(!await once())await once();
     };
     try{
@@ -209,7 +210,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
       const lines=[record.goal?env.L('目标：{goal}',{goal:record.goal}):'',env.L('结果：{outcome}',{outcome}),record.conclusion?env.L(record.conclusion):'',
         '',env.L('步骤（{n} 步）：',{n:record.steps.length}),...record.steps.slice(-40).map(step=>'- '+(step.app?('『'+step.app.name+'』'):'')+step.summary)].filter(Boolean);
       const title=(record.goal?record.goal.slice(0,40):env.L('电脑操作'))+'（'+new Date(record.started_at).toLocaleString()+'）';
-      const admitted=await env.request('/api/shelf/items',{key:'cu-shelf-'+id+'-'+env.now,body:{title,text:lines.join('\n')},fallback:env.L('没能放进 Shelf。')});
+      const admitted=await env.request(shelfItems,{key:'cu-shelf-'+id+'-'+env.now,body:{title,text:lines.join('\n')},fallback:env.L('没能放进 Shelf。')});
       itemId=(admitted&&admitted.item&&admitted.item.item_id)||'';
       if(!itemId){env.say(env.L('没能放进 Shelf。'));return;}
       const shot=[...record.steps].reverse().find(step=>step.shot)?.shot;
@@ -218,7 +219,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
       if(!bytes.ok){await drop();env.say(env.L('没能放进 Shelf。'));return;}
       const raw=new Uint8Array(await bytes.arrayBuffer());let binary='';
       for(let i=0;i<raw.length;i+=8192)binary+=String.fromCharCode(...raw.subarray(i,i+8192));
-      try{await env.request('/api/shelf/items',{key:'cu-shelf-shot-'+id+'-'+shot,body:{filename:shot,mime:'image/png',bytes_base64:btoa(binary)},fallback:env.L('没能放进 Shelf。')});}
+      try{await env.request(shelfItems,{key:'cu-shelf-shot-'+id+'-'+shot,body:{filename:shot,mime:'image/png',bytes_base64:btoa(binary)},fallback:env.L('没能放进 Shelf。')});}
       catch(error){if(error.status!==409||!error.body||error.body.code==='request.in_flight')throw error;}
       env.say(env.L('已放进 Shelf。'));
     }catch(error){await drop();env.sayError(error,env.L('没能放进 Shelf。'));}

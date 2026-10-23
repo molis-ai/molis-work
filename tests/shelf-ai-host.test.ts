@@ -69,7 +69,7 @@ test("Shelf Action -> registered prompt override -> shared Prologue -> result an
   const key = `${SHELF_PLUGIN_ID}/${prompt.prompt_id}`;
   const registered = definitions.prompt(key);
   definitions.save(registered.key, "OVERRIDDEN_SHELF: summarize the supplied material.", null, "owner");
-  const { item } = await f.actions.invoke(a.admit, { text: "周五交付，预算 12 万元。", title: "计划", capture_pages: false });
+  const { item } = await f.actions.invoke(a.admit, { text: "周五交付，预算 12 万元。", title: "计划"});
   const outcome = await f.actions.invoke(a.generate, { recipe: "summarize", item_id: item.item_id, option_id: "short" });
   assert.equal(outcome.job.runtime, "prologue"); assert.equal(outcome.job.execution?.state, "completed");
   assert.equal(outcome.job.execution?.configuredModel, "text"); assert.deepEqual(outcome.job.execution?.reportedModels, ["actual-fixture-model"]);
@@ -84,8 +84,8 @@ test("Shelf Action -> registered prompt override -> shared Prologue -> result an
 }));
 
 test("every recipe reaches its registered instruction; JSON alone uses JSON files and malformed output retains execution facts", async () => fixture(async f => {
-  const { item } = await f.actions.invoke(a.admit, { text: "A source document", title: "source", capture_pages: false });
-  const second = (await f.actions.invoke(a.admit, { text: "Another source", title: "second", capture_pages: false })).item;
+  const { item } = await f.actions.invoke(a.admit, { text: "A source document", title: "source"});
+  const second = (await f.actions.invoke(a.admit, { text: "Another source", title: "second"})).item;
   for (const spec of SHELF_RECIPES.filter(spec => spec.requires_agent)) for (const choice of spec.choices) {
     const recipe = spec.recipe, option = choice.id;
     f.answer(() => option === "json" ? '```json\n{"amount":120000}\n```' : "# 交付正文\n\n材料来自 source。");
@@ -154,7 +154,7 @@ test("discovery has separate model cost/permissions, AI cannot borrow local extr
 
 
 test("Shelf rechecks the exact model binding after the final business authority wait", async () => fixture(async f => {
-  const { item } = await f.actions.invoke(a.admit, { text: "Original facts", title: "fact", capture_pages: false });
+  const { item } = await f.actions.invoke(a.admit, { text: "Original facts", title: "fact"});
   const unchanged = () => JSON.parse(readFileSync(join(f.home, "shelf", "catalog.json"), "utf8")).jobs.every((job: { status: string }) => job.status === "running");
   const switchOff = (off: (modelId: string, request: Request) => boolean) => f.answer(request => {
     const provider = f.catalog.models.list()[0]!;
@@ -208,7 +208,7 @@ for (const mode of ["cancel", "revoke"] as const) test(`Shelf ${mode} during a r
   f.answer(async () => { started.resolve(); await release.promise; return "Late model answer"; });
   const caller = bindActionClient(f.host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS,
     signal: controller.signal, validate_permissions: async () => { if (!valid) throw new Error("revoked"); } }));
-  const item = (await f.actions.invoke(a.admit, { text: "Original", title: "fact", capture_pages: false })).item;
+  const item = (await f.actions.invoke(a.admit, { text: "Original", title: "fact"})).item;
   const pending = caller.invoke(a.generate, { recipe: "summarize", item_id: item.item_id });
   const rejected = assert.rejects(pending);
   await started.promise;

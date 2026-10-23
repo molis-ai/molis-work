@@ -1,5 +1,5 @@
 import { handlePluginPageHttp } from "./plugin-page-http.js";
-import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { agentWriteCheckerActions, type AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -12,6 +12,8 @@ import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { handleAgentStudioHttp } from "./plugin-builder/agent-surface.js";
 import { configuredModelChoices } from "./configured-models.js";
 import { handleSideFilesHttp } from "./side-files-http.js";
+import { handleProjectWorkspaceHttp } from "./project-workspace-http.js";
+import { pickLocalDirectory } from "./directory-picker.js";
 import { handleFunctionsHttp } from "./functions-http.js";
 import { handleAgentReviewHttp } from "./agent-review-http.js";
 import { computerHolderFor } from "./computer/computer-surfaces.js";
@@ -89,6 +91,14 @@ export const projectWorkspacesRoute: WebRoute<ProjectRuntimeContext> = { id: "pr
   } catch (error) { sendJson(response, 403, { error: error instanceof Error ? error.message : String(error) }); }
   return true;
 } };
+
+/** Linking, repairing and unlinking the project's folders and the folder window, as the person under the project setting's permission. */
+export const workspaceMembershipRoute: WebRoute<ProjectRuntimeContext> = { id: "workspace-membership", handle: ({ request, response, url, options, localHost, hostReference }) =>
+  handleProjectWorkspaceHttp({ method: request.method, pathname: url.pathname, hasProject: Boolean(options.project),
+    actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user",
+      project_id: hostReference.project_id, audience: "user", permissions: ["projects:settings"] })),
+    readBody: () => readBody(request), respond: (status, body) => sendJson(response, status, body),
+    pickDirectory: () => pickLocalDirectory() }) };
 
 /**
  * The after-write checkers of the project's authorized workspaces (specs/prologue-adoption §6.0p.12): the person's own two

@@ -32,6 +32,7 @@ import { ASSISTANT_EN } from "./assistant-en.js";
 import { PLACEMENT_EN } from "./placement-en.js";
 import { CONTEXTUAL_EN } from "./contextual-en.js";
 import { SIDE_PANEL_EN } from "./side-panel-en.js";
+import { TERMINAL_EN } from "./terminal-en.js";
 import { ONBOARDING_EN } from "./onboarding-en.js";
 import { ARRIVAL_EN } from "./arrival-en.js";
 import { RENDERER_GAP_EN } from "./renderer-gap-en.js";
@@ -1489,6 +1490,8 @@ export const EN: Record<string, string> = {
   "项目已改名为“": "Project renamed to “",
   "项目默认与当前 Goal 规则在下方独立维护": "Project defaults and extra Goal rules are maintained separately below",
   ...WORK_EN,
+  // The terminal pane's words were part of WORK_EN until SC-3; last, so they still win over earlier entries.
+  ...TERMINAL_EN,
 };
 
 Object.assign(EN, {

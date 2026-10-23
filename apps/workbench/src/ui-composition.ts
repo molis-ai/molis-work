@@ -53,7 +53,6 @@ import {
   type WorkflowsUiModel,
   type WorkflowsUiSurface,
 } from "@molis-ai/molis-work-plugin-workflows";
-import { WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 import { createArtifactWorkbenchRenderer } from "./artifact-ui.js";
@@ -177,11 +176,6 @@ export function createArtifactReferenceRenderer(primitives: ArtifactReferenceUiP
 }
 
 export const renderProjectOperations = createWorkSessionRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS);
-
-export const renderWorkTerminal = (model: WorkTerminalUiModel): string => workbenchUiHost.mount({
-  slot: WORKBENCH_UI_SLOTS.main,
-  contribution: { contribution_id: WORK_TERMINAL_UI_CONTRIBUTION_ID, surface: "terminal", model },
-}).html;
 
 export function renderFeedContribution(
   surface: UiRenderRequest<FeedUiModel | PersistedFeedDetailModel>["surface"],

@@ -48,6 +48,7 @@ import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
 import {
   agentReviewsRoute, boardRoute, desktopPanelRoute, directoryGrantRoute, pluginPageRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
   projectProbeRoutes, projectWorkspacesRoute, projectWriteCheckersRoute, runtimePluginsRoute, sessionsAddressRoute, sideFilesRoute, sideViewRoute,
+  workspaceMembershipRoute,
 } from "./web-project-platform-routes.js";
 
 /**
@@ -292,6 +293,7 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "characters", handle: ({ request, response, url, localHost, hostReference }) => handleCharactersHttp(request, response, url, hostCharactersInvoke(localHost, hostReference)) },
   runtimePluginsRoute,
   sessionsAddressRoute,
+  workspaceMembershipRoute,
   ...sessionsAndPlanningRoutes,
   ...projectProbeRoutes,
   { id: "goal-fragments", handle: context => context.composition.goalsReadHttp.fragments(context.request, context.response, context.url, context.readWebView, context.goalActions,

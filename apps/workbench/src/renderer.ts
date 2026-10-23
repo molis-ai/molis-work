@@ -57,8 +57,8 @@ import {
   renderAlchemistContribution,
   renderWorkflowsContribution,
   renderWorkbenchDocument,
-  renderWorkTerminal,
 } from "./ui-composition.js";
+import { renderTerminalPane } from "./terminal/pane.js";
 import { renderSideViewDocument as renderSideView, type SideViewDocumentInput } from "./side-view-document.js";
 export interface WorkbenchRendererPorts {
   locale: Pick<ReturnType<typeof createWorkbenchLocale>, "L" | "htmlLang" | "dateTimeLocale" | "listJoin" | "localeSwitchHref" | "clientI18nScript"> & { currentLocale(): WebLocale };
@@ -303,7 +303,7 @@ function renderTuiPane(
   view: MolisWorkWebView,
   cliAvailability: Record<string, boolean> = {},
 ): string {
-  return renderWorkTerminal({
+  return renderTerminalPane({
     selected: selected ? {
       ...selected.goal,
       event_work: selected.event_work === true,

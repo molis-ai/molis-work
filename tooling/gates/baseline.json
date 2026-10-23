@@ -30,7 +30,7 @@
       "lines": 273,
       "methods": 41
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 225,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 226,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 167,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 191,
@@ -233,7 +233,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 448,
+  "testInternalImports": 446,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -372,7 +372,7 @@
     "tests/local-web-actions.test.ts": 2,
     "tests/material-documents.test.ts": 1,
     "tests/material-extraction.test.ts": 5,
-    "tests/material-web.test.ts": 2,
+    "tests/material-web.test.ts": 1,
     "tests/mcp-action-grants.test.ts": 2,
     "tests/memory-actions.test.ts": 2,
     "tests/memory-agent-runs.test.ts": 1,
@@ -417,7 +417,7 @@
     "tests/secret-store-keychain-retry.test.ts": 1,
     "tests/shelf-ai-host.test.ts": 3,
     "tests/shelf-client-boundaries.e2e.test.ts": 1,
-    "tests/shelf-material-extraction.test.ts": 3,
+    "tests/shelf-material-extraction.test.ts": 2,
     "tests/shelf-plugin.test.ts": 1,
     "tests/shelf-recipes.test.ts": 2,
     "tests/shelf-settings.test.ts": 1,
@@ -713,7 +713,7 @@
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 9,
+  "hostPluginFilesTotal": 8,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
@@ -722,7 +722,6 @@
     "apps/local-host/src/goals-actions.ts#actions": 1,
     "apps/local-host/src/inbox-actions.ts#actions": 1,
     "apps/local-host/src/inbox-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/shelf-actions.ts#actions": 1,
     "apps/local-host/src/work-actions.ts#actions": 1
   },
   "registerProviderSitesTotal": 17,
@@ -740,10 +739,9 @@
     "apps/local-host/src/project-host.ts#register-provider": 4,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 2,
+  "hybridPluginsTotal": 1,
   "hybridPlugins": {
-    "coding#host-files": 1,
-    "shelf#host-files": 1
+    "coding#host-files": 1
   },
   "pluginOutsideMentionsTotal": 319,
   "pluginOutsideMentions": {

@@ -249,7 +249,7 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 
 ## 异步提交
 
-等待模型/网络的动作按 `scheduling: "concurrent"` 执行，读快照 → 等待 → `await caller.beforeEffect()` → 版本比较提交。嵌套调用使用 `retainActionAuthority(caller, originReference, caller.beforeEffect)`，同时保留外层注册、权限和生命周期约束。来源拉取还需逐来源独占，不能只把串行标记改掉。被撤权或取消后，不写失败记账；此前已发出的外部操作保留未确认状态供恢复。
+等待模型/网络的动作按 `scheduling: "concurrent"` 执行，读快照 → 等待 → `await caller.beforeEffect()` → 版本比较提交。嵌套调用使用 `retainActionAuthority(caller, ownDefinition, caller.beforeEffect)`，同时保留外层注册、权限和生命周期约束；自己的动作可省略 `provider_id`，平台使用本次分发解析出的提供方，其他动作必须明确提供方。来源拉取还需逐来源独占，不能只把串行标记改掉。被撤权或取消后，不写失败记账；此前已发出的外部操作保留未确认状态供恢复。
 
 ### 已授权材料的提取
 

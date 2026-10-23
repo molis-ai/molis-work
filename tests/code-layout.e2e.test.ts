@@ -93,13 +93,15 @@ test("VUX-33: a long physical line remains readable while its colouring advances
   await waitFor("document.readyState === 'complete'");
   await evaluate(BOOT);
   const source = 'const value = compute(1, "text"); '.repeat(4_000);
-  const first = await evaluate<{ text: string; inputs: number[] }>(`(() => {
+  const first = await evaluate<{ text: string; inputs: number[]; frameInputs: number[] }>(`(() => {
     window.inputs = []; const grow = ${growCodeTokens.toString()};
     window.paint = (${createCodingCodePaint.toString()})(tokensOf, (last, text, language, tokens) => { inputs.push(text.length); return grow(last, text, language, tokens); }, hint => hint);
-    window.text = ${JSON.stringify(source)}; paint.paintInto(code, text, 'ts'); return { text: code.textContent, inputs: inputs.slice() };
+    window.text = ${JSON.stringify(source)}; paint.paintInto(code, text, 'ts'); const initial = { text: code.textContent, inputs: inputs.slice() };
+    return new Promise(resolve => requestAnimationFrame(() => resolve({ ...initial, frameInputs: inputs.slice() })));
   })()`);
   assert.equal(first.text, source, "the uncoloured remainder is immediately present, without inserting newlines");
-  assert.deepEqual(first.inputs, [16_000], "a long line keeps the existing first-slice work bound instead of colouring the whole line synchronously");
+  assert.deepEqual(first.inputs, [], "SYS-49: a large block leaves colouring to its first animation frame");
+  assert.deepEqual(first.frameInputs, [16_000], "a long line keeps the first-slice work bound without colouring the whole line in one frame");
   await waitFor("matches(text)", 30_000);
   const inputs = await evaluate<number[]>("inputs.slice()");
   assert.ok(inputs.length > 1 && inputs.at(-1) === source.length && inputs.every((length, index) => length - (inputs[index - 1] ?? 0) <= 16_000));
@@ -118,12 +120,13 @@ test("VUX-33: Coding retains its pre and code line boxes, including text coloure
       window.code = pre.appendChild(document.createElement('code')); turn.append(pre);`);
     assert.deepEqual(await evaluate("[getComputedStyle(pre).fontSize, getComputedStyle(pre).lineHeight, getComputedStyle(code).fontSize, getComputedStyle(code).lineHeight]"),
       ["13px", "20.8px", "12px", "19.2px"], "the production container and inline code have distinct line boxes");
-    await evaluate(`{ window.text = ${JSON.stringify(source)};
+    await evaluate(`(async () => { window.text = ${JSON.stringify(source)};
       if (${detached}) pre.remove(); paint.paintInto(code, text, 'ts');
+      if (!${detached}) await new Promise(requestAnimationFrame);
       window.firstToken = code.querySelector('.tok-keyword'); if (${detached}) turn.append(pre);
       const range = document.createRange(); range.selectNodeContents(firstToken);
       getSelection().removeAllRanges(); getSelection().addRange(range); window.selected = getSelection().toString();
-    }`);
+    })()`);
     await waitFor("matches(text)", 30_000);
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     assert.equal(await evaluate("code.querySelector('.tok-keyword') === firstToken"), true, "resolving fonts keeps the first coloured node");

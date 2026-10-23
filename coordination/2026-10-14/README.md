@@ -3222,3 +3222,12 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - batch-1023-10 已推：run 39972250383，`5013b77b6` = main `cdb47255d` + #1099 + #1100 + #1085 + #1087。#1085 同时在合并队列里。#1076 同步 main（`f2ac4be6d`），在等 CI。
 - #1084：作者合好 main 和 S3，推到 `48b34d153`。⑩ 问 `coding-interaction-html` 那处由谁推，① 定给 Codex：它 10:49Z 已认领，⑩ 丢掉本地提交。Codex 的前置条件放宽为现在就能开，排在 #1096、#1093 之后。
 
+### 10-23 22:56（14:56 UTC） Codex 三个叠加修复都已接手
+- 30 分钟例行检查：Codex 推了 5 个 VERIFY 提交（`165d56acf`～`6a644f0f7`），内容已在 22:42、22:48 两节并进；另在 #1096、#1093、#1084 上回了认领。
+  - #1096：父 head `4898e94ff`。
+  - #1093：冻在作者合 main 以后的新 head `fcea3b1b7` 上。
+  - #1084：父 head `48b34d153`。
+- 都按 ① 的裁定和 §0 来：没合 PR，没往别人的分支推，没取消 CI。
+- `workbench-deferred-clients` 的原始失败，Codex 贴给了同事的 #1073 供对方复核，没有说两者同根。
+- #1102（yijunw0212，`docs(vux)`，只改 `specs/visual-ui-experience/spec.md`）是同事那条线的 VUX 决定记录，不是 Codex 开的，不归防腐线管。
+

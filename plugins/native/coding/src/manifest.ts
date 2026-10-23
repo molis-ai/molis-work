@@ -128,7 +128,14 @@ export const codingManifest: PluginManifest = {
   },
   agent: codingAgentManifest,
   databases: { project: CODING_PROJECT_DATABASE },
-  background: { jobs: [{ job_id: "observe", reason: "独立读取并保存会话状态与关联目标标题，页面查询保持只读", permissions: ["artifact:read", "storage:private", "goals:read"] }] },
+  // What runs on after the call that set it off, each stopping with the activation. PG-038: an accepted round is followed until it
+  // settles, and a step's wait, once over, starts the session's next round (start-round.ts, wake-loop.ts). The session state and goal
+  // titles are read and saved apart from the page's read-only queries (observation-job.ts).
+  background: { jobs: [
+    { job_id: "follow", reason: "跟住已经开始的这一轮，直到它结束，把会话记下的状态改对", permissions: [] },
+    { job_id: "wake", reason: "会话等的事有了结果，接着开这个会话的下一轮", permissions: ["artifact:read", "storage:private"] },
+    { job_id: "observe", reason: "独立读取并保存会话状态与关联目标标题，页面查询保持只读", permissions: ["artifact:read", "storage:private", "goals:read"] },
+  ] },
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
   actions: [...CODING_ACTIONS, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
   routes: [

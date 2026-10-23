@@ -31,7 +31,8 @@ export type {
   PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
 
-export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, markPluginActionChecked, currentPluginAction, currentPluginInvocation, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction } from "./action-scope.js";
+export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, inPluginInstance, markPluginActionChecked, currentPluginAction, currentPluginInvocation, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction } from "./action-scope.js";
+export type { PluginInstance } from "./action-scope.js";
 export { createPluginOwnerFilesClient } from "./owner-files-service.js";
 export type { PluginOwnerFilesGate } from "./owner-files-service.js";
 export { createPluginBackgroundClient } from "./background-service.js";
@@ -303,7 +304,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         if (input.definition.validateUpgrade) {
           const grants = Object.freeze([...targetGrants]);
           const context: PluginUpgradeContext = Object.freeze({
-            install_id: stopped.install_id,
+            install_id: stopped.install_id, installation_generation: stopped.installation_generation,
             plugin_id: stopped.plugin_id,
             version: target.version,
             deployment,
@@ -661,7 +662,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       if ((manifest.actions?.length ?? 0) > 0 || (manifest.action_scenes?.length ?? 0) > 0) {
         const actions = this.options.actions;
         if (!actions) throw pluginErrors.contribution_unredeemed("宿主未提供系统动作注册服务");
-        this.actionDisposers.set(record.install_id, actions.registry.registerProvider(pluginActionProvider(manifest, contribution, record.install_id,
+        this.actionDisposers.set(record.install_id, actions.registry.registerProvider(pluginActionProvider(manifest, contribution, record,
           actions.providerId?.(record, definition) ?? record.install_id, actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id) })));
       }
     } catch (error) {

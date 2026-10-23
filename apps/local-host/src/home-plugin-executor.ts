@@ -91,14 +91,14 @@ export class HomePluginExecutor implements PluginExecutor {
       const home = pluginHomeFor(this.options.home);
       const declaration = this.options.database(definition);
       if (declaration?.partition === "project") {
-        partitions = openPartitionedPluginDatabase(this.options.home, declaration, authorize, context.install_id, this.deletionsOf(context.install_id));
+        partitions = openPartitionedPluginDatabase(this.options.home, declaration, authorize, context, this.deletionsOf(context.install_id));
       }
-      else if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize, context.install_id);
+      else if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize, context);
       const fileDeclaration = this.options.files(definition);
-      if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize, context.install_id);
+      if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize, context);
       const owned = this.options.ownerFiles(definition);
       const ownerFiles = owned ? createPluginOwnerFilesClient(manifest, owned.declaration, openPluginOwnerFiles(this.options.home, owned.declaration),
-        { install_id: context.install_id, assertActive, requireGrant: authorize }, join(realpathSync(this.options.home), owned.declaration.store_name)) : undefined;
+        { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: authorize }, join(realpathSync(this.options.home), owned.declaration.store_name)) : undefined;
       if (owned?.initialize && context.grants.includes("storage:private") && context.grants.includes(owned.declaration.write_permission)) ownerFiles!.initializeTrusted(owned.initialize);
       withdrawAgentDefinitions = registerPluginAgentDefinitions(home, definition, context.install_id);
       const caller = Object.freeze({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actorId, project_id: null,
@@ -109,7 +109,7 @@ export class HomePluginExecutor implements PluginExecutor {
       const imageGeneration = pluginImageGenerationFor(home, definition, authorized, this.options.imageGeneration(definition), assertActive);
       const materials = pluginMaterialsFor(home, definition, authorized, assertActive, null);
       directory = manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
-        ? directoryForHome(this.options.home).connect({ plugin_id: manifest.plugin_id, install_id: context.install_id, name: manifest.name,
+        ? directoryForHome(this.options.home).connect({ plugin_id: manifest.plugin_id, install_id: context.install_id, installation_generation: context.installation_generation, name: manifest.name,
           project_id: null, actor_id: this.options.actorId, assertCurrent: () => authorize(DIRECTORY_READ_PERMISSION) }) : undefined;
       // A Home instance's jobs have no project of their own: each takes the project of the call that kept it.
       background = pluginBackgroundFor(definition, authorized, assertActive, { actor_id: this.options.actorId, record: activeRecord });

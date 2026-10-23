@@ -39,8 +39,8 @@ type Tokens = (text: string, language: string, from?: number) => Piece[];
  * VUX-33). Each coloured block remembers what it was coloured from, so a block that changes (one being streamed) is coloured
  * again only from the line where it changed, through `grow` (Coding's `growCodeTokens`); the nodes before stay. A large block
  * coloured afresh (reopened from history) shows its text at once and is coloured a slice of lines a frame, the same way,
- * so later layout reads do not traverse one accumulated inline formatting context. The first slice runs where the block
- * is made (often before it is in the page), a later one only while it is there. Newline-aligned blocks keep layout local, even when a small
+ * so later layout reads do not traverse one accumulated inline formatting context. Large blocks start colouring in the next
+ * frame, avoiding two slices before their first layout; small blocks colour where made. Newline-aligned blocks keep layout local, even when a small
  * streamed block grows large; a newer text that keeps what is coloured goes on from there, a changed one starts at its line.
  * Pieces go in 4,096 at a time: one call with every piece of a large block would pass more arguments than the engine takes. `growCode` is
  * `molisStreamText`'s `grow` for a fenced block: the block, its copy button and its leading pieces stay, and `source` keeps the
@@ -56,7 +56,7 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
     if (!kind) return document.createTextNode(value);
     const span = document.createElement("span"); span.className = "tok-" + kind; span.textContent = value; return span;
   };
-  const SLICE = 16000, BLOCK_SLICE = 8000, CAP = 400000, slicing = new WeakMap<PaintElement, Job>();
+  const SLICE = 16000, BLOCK_SLICE = 4000, CAP = 400000, slicing = new WeakMap<PaintElement, Job>();
   const throughLine = (text: string, at: number) => { const next = Math.min(text.length, at + BLOCK_SLICE), end = text.indexOf("\n", next); return end < 0 ? text.length : end + 1; };
   const piecesIn = (state: CodeColouring, start: number, end: number): Piece[] => {
     const pieces: Piece[] = []; let low = 0, high = state.starts.length - 1;
@@ -128,7 +128,7 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
       job.state = next;
       if (job.at < job.text.length || !job.framed) requestAnimationFrame(() => step()); else slicing.delete(target);
     };
-    step(true); return true;
+    if (text.length > SLICE) requestAnimationFrame(() => step()); else step(true); return true;
   };
   const blockLanguage = (code: PaintElement, text: string) => languageOf([...code.classList].find(name => name.startsWith("language-")) || "")
     || (/^\s*[[{]/.test(text) && /[\]}]\s*$/.test(text) ? "json" : /^\s*\$ /.test(text) ? "sh" : "");

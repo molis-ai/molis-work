@@ -10,12 +10,12 @@ type Dual = ReturnType<typeof dualPlugin>;
 /**
  * A Test Home whose Host starts `dualPlugin()` as the Home's marked half and, in each project, its project half (or what
  * `projectHalf` makes of it), with one project created. Every action is available (no catalog policy): a fixture has no catalog entry.
+ * `dual` is the plugin: `dualPlugin()` unless the test gives its own.
  *
  * A plugin that ships with the Host registers its actions under its `plugin_id`; a fixture does not ship with it, so under its
  * installation id (`plugin-entry-identity.ts`). Both halves hold the same `install_id`, so either way they share one provider: `provider()`.
  */
-export async function openDualHome(t: TestContext, projectHalf: (dual: Dual) => PluginDefinition = dual => dual.project) {
-  const dual = dualPlugin();
+export async function openDualHome(t: TestContext, projectHalf: (dual: Dual) => PluginDefinition = dual => dual.project, dual: Dual = dualPlugin()) {
   const home = await openTestHome(t, { catalogPolicy: false,
     host: { pluginFixtures: { home: [{ definition: dual.home, dual_instance: true }], project: [projectHalf(dual)] } } });
   await home.host.homePlugins!.ready();

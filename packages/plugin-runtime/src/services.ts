@@ -35,8 +35,9 @@ export function portArtifactId(pluginId: string, port: string): string {
 
 export interface PluginWiringServicesInput {
   manifest: PluginManifest;
-  /** The installation these clients write for; inside an action the action's original caller is asked before each write. */
+  /** The instance these clients write for; inside an action the action's original caller is asked before each write. */
   install_id: string;
+  installation_generation: string;
   graph: PluginInputGraph;
   artifacts: PluginArtifactClient;
   /** Where port publications go: process items, kept out of the 成果库 (specs/artifact-positioning A2). */
@@ -141,7 +142,7 @@ export function createPluginOutputsClient(input: PluginWiringServicesInput, asse
       const reference = { artifact_id: artifact.artifact_id, version: artifact.version };
       if (same(current, reference)) return reference;
       if (!same(current, request.expected_reference)) throw new PluginWiringError("plugin.port_binding_invalid", "当前输出已变化，请重新查看后选择");
-      assertPluginActionCurrent(input.install_id);
+      assertPluginActionCurrent(input);
       graph.publish({ plugin_id: pluginId, port: request.port, reference, scope_key: input.scopeKey ?? null });
       graph.evaluateAll();
       return reference;
@@ -150,13 +151,13 @@ export function createPluginOutputsClient(input: PluginWiringServicesInput, asse
       if (!outputs.some((declared) => declared.port === port)) {
         throw new PluginWiringError("plugin.port_unknown", `${pluginId} 没有输出端口 ${port}`);
       }
-      assertPluginActionCurrent(input.install_id);
+      assertPluginActionCurrent(input);
       assertActive();
       graph.invalidate(pluginId, port, safeReason);
       graph.evaluateAll();
     },
     retain(reference: ArtifactReference) {
-      assertPluginActionCurrent(input.install_id);
+      assertPluginActionCurrent(input);
       assertActive();
       graph.retain(pluginId, reference);
     },

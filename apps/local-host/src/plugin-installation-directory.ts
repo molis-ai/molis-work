@@ -32,7 +32,7 @@ export function pluginInstallationsFor(manifest: PluginManifest, context: Plugin
   const check = () => {
     assertActive(); context.requireGrant("plugins:read");
     const scope = currentPluginInvocation();
-    assertCapturedPluginActionCurrent(scope, context.install_id);
+    assertCapturedPluginActionCurrent(scope, context);
     if (scope && scope.caller.project_id !== projectId) throw new ActionError("actions.forbidden", "安装查询不属于这个项目");
   };
   return Object.freeze({ list: () => { check(); return source.list(); }, get: (id: string) => { check(); return source.get(id); } });

@@ -285,3 +285,70 @@ for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, 
   blocked.delete(key);revision=4;await page.evaluate('parentView.hidden=false');await page.wait(visible(4));
   assert.deepEqual(await page.evaluate('errors'),[]);
 });
+
+test("SYS-50: a Git revision waits for the open difference, then refreshes without stranding its action", { timeout: 30_000 }, async t => {
+  let revision = 1;
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
+    const host={${companionHost}};
+    window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
+  `, path => {
+    if (path.endsWith("/view-revision")) return { revision: String(revision) };
+    if (path.endsWith("/summary")) return { summary: null, workspace: { workspace_id: "ws" } };
+    if (path.endsWith("/reviews")) return { reviews: [], html: "", omitted: 0 };
+    if (path === "/api/host/plugin-page-actions") return { html: '<p data-current-diff>fixed difference</p>' };
+    if (path === "/git/prepare-index") return {};
+    return { ...state("git"), view: { phase: "ready", head: "version-" + revision, conflicts: [], staged: [], changes: [{ path: ["note.md"], label: "note.md" }] } };
+  }); if (!f) return;
+  const { page, count, blocked, pending } = f, diff = "POST /git/diff";
+  await page.evaluate("parentView.hidden=false");
+  await page.wait("document.querySelector('[data-git-path]') && !document.querySelector('[data-git-refresh]').disabled");
+  blocked.add(diff); await page.click("[data-git-path]"); await until(() => pending.has(diff));
+  const reads = count("GET /git/state"), polls = count("GET /git/view-revision");
+  revision = 2;
+  await until(() => count("GET /git/view-revision") > polls);
+  await until(() => count("GET /git/view-revision") > polls + 1);
+  assert.equal(count("GET /git/state"), reads, "the revision refresh does not invalidate the unfinished difference");
+  pending.get(diff)![0]!.end(JSON.stringify({ result: { outcome: "diff" }, selected: {
+    workspace_id: "ws", path: ["note.md"], side: "worktree", revision: "one", reference: { artifact_id: "fixed", version: 1 },
+  } }));
+  await page.wait("document.querySelector('[data-current-diff]') && !document.querySelector('[data-git-index-action]').hidden");
+  await page.wait("document.querySelector('[data-git-status]').textContent==='version-2' && !document.querySelector('[data-git-refresh]').disabled");
+  assert.equal(count("POST /api/host/plugin-page-actions"), 1, "the fixed difference remains on its captured version");
+  await page.click("[data-git-index-action]"); await until(() => count("POST /git/prepare-index") === 1);
+  assert.deepEqual(await page.evaluate("errors"), []);
+});
+
+for (const phase of ["reading", "shown"]) test(`SYS-51: a late Git decision preserves a new difference while ${phase}`, { timeout: 30_000 }, async t => {
+  let reads = 0;
+  const selected = (version: number) => ({ workspace_id: "ws", path: ["note.md"], side: version === 1 ? "worktree" : "index", revision: "r" + version,
+    reference: { artifact_id: "fixed", version } });
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
+    const host={${companionHost},reviews:{show:async(element,query,options)=>{window.decide=options.onDecision;}}};
+    window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
+  `, path => {
+    if (path.endsWith("/view-revision")) return { revision: "one" };
+    if (path.endsWith("/summary")) return { summary: null, workspace: { workspace_id: "ws" } };
+    if (path === "/api/host/plugin-page-actions") return { html: '<p data-current-diff>fixed difference</p>' };
+    if (path === "/git/prepare-index") return {};
+    if (path === "/git/diff") return { result: { outcome: "diff" }, selected: selected(++reads) };
+    return { ...state("git"), view: { phase: "ready", head: "current", conflicts: [], staged: [], changes: [{ path: ["note.md"], label: "note.md" }] } };
+  }); if (!f) return;
+  const { page, count, blocked, pending } = f, diff = "POST /git/diff";
+  await page.evaluate("parentView.hidden=false");
+  await page.wait("document.querySelector('[data-git-path]') && !document.querySelector('[data-git-refresh]').disabled");
+  await page.click("[data-git-path]"); await page.wait("!document.querySelector('[data-git-index-action]').hidden");
+  await page.click("[data-git-index-action]"); await until(() => count("POST /git/prepare-index") === 1);
+  await page.wait("!document.querySelector('[data-git-index-action]').disabled");
+  const submittedHidden = await page.evaluate("document.querySelector('[data-git-index-action]').hidden");
+  if (phase === "reading") blocked.add(diff);
+  await page.click("[data-git-path]");
+  if (phase === "reading") await until(() => pending.has(diff));
+  else await page.wait("!document.querySelector('[data-git-index-action]').hidden && document.querySelector('[data-git-scope]').textContent.includes('暂存区')");
+  await page.evaluate("decide('settled')");
+  if (phase === "reading") pending.get(diff)![0]!.end(JSON.stringify({ result: { outcome: "diff" }, selected: selected(2) }));
+  await page.wait("!document.querySelector('[data-git-index-action]').hidden && !document.querySelector('[data-git-refresh]').disabled");
+  assert.equal(submittedHidden, true, "the submitted difference cannot create another review while it waits");
+  assert.match(await page.evaluate<string>("document.querySelector('[data-git-scope]').textContent"), /暂存区/);
+  await page.click("[data-git-index-action]"); await until(() => count("POST /git/prepare-index") === 2);
+  assert.deepEqual(await page.evaluate("errors"), []);
+});

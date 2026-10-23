@@ -141,7 +141,6 @@ export const gitManifest: PluginManifest = {
         contribution_id: GIT_UI_CONTRIBUTION_ID,
         icon: "git-branch",
         order: 30,
-        accepts_objects: true,
       },
     ],
   },

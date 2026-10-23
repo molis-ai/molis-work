@@ -397,10 +397,26 @@ test("PG-060 a plugin's tab opens one object when a Manifest view of it accepts 
   const { objectTabPlugins, pluginTabTitles } = await import("@molis-ai/molis-work-app-workbench");
   const entry = (id: string, views: Array<{ accepts_objects?: boolean }>) => ({ project_plugin_id: id, manifest: { ui: { views } } });
   assert.deepEqual(objectTabPlugins([entry("notes", [{}, { accepts_objects: true }]), entry("plain", [{}]), entry("bare", [])]), ["notes"]);
-  // The shipped plugins: search, placement and side files open these as an object's tab (Sessions, Coding and Artifacts are the platform's own).
-  assert.deepEqual(new Set(objectTabPlugins()), new Set(["goals", "inbox", "feed", "pages", "lingguang", "workflows", "files", "git", "diff"]));
+  // The shipped plugins: search, placement and side files open these as an object's tab (Sessions and Artifacts are the
+  // platform's own). Git and Diff take no object by id (no `molis-work:select-item`, no row to click), so they declare none.
+  assert.deepEqual(new Set(objectTabPlugins()), new Set(["goals", "inbox", "feed", "pages", "lingguang", "workflows", "files", "coding"]));
   // The workbench writes no plugin's tab title: each is its navigator or island view's, in the page's language.
   const zh = pluginTabTitles(), en = pluginTabTitles(true);
   assert.deepEqual([zh.feed, zh.lingguang, zh.ppt, zh.workflows], ["Feed", "灵光", "PPT", "工作流程"]);
   assert.deepEqual([en.lingguang, en.workflows], ["Lingguang", "Workflows"]);
+});
+
+test("PG-060 the side panel's 打开 opens a Files file as the file's own tab, a plugin without object tabs at its record", async () => {
+  const { SIDE_FILE_OPENER_SCRIPT } = await import("@molis-ai/molis-work-app-workbench");
+  const calls: unknown[][] = [];
+  const workspace = { openItem: (...args: unknown[]) => calls.push(["openItem", ...args]), openPluginRecord: (...args: unknown[]) => calls.push(["openPluginRecord", ...args]) };
+  const opener = new Function(`return ${SIDE_FILE_OPENER_SCRIPT}`)() as (read: () => typeof workspace | undefined) => (plugin: string, id: string, title?: string) => void;
+  const open = opener(() => workspace);
+  // Files declares `accepts_objects`: the file opens as its tab (before W5-06's remainder the Files page opened with nothing chosen).
+  open("files", "workspace-1:src/a.ts", "a.ts");
+  // Todo opens its records by clicking its row: the record in its list, as search does.
+  open("todo", "task-1", "Task");
+  assert.deepEqual(calls, [["openItem", "files", "workspace-1:src/a.ts", "a.ts"], ["openPluginRecord", "todo", "task-1"]]);
+  // No tab workspace on the page yet: nothing opens and nothing throws.
+  assert.doesNotThrow(() => opener(() => undefined)("files", "x", "x"));
 });

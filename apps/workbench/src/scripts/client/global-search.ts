@@ -28,9 +28,14 @@ export function takeSearchHits(
   return matched.slice(0, limit);
 }
 
-/** Surfaces whose tab opens one object by id (they handle `molis-work:select-item` or a dedicated selector): the platform's
- *  own, and every plugin a Manifest view of which `accepts_objects`. */
-export const SEARCH_ITEM_TAB_SURFACES: readonly string[] = ["sessions", "coding", "artifacts", ...objectTabPlugins()];
+/** Surfaces whose tab opens one object by id (they handle `molis-work:select-item`, or name the row to click): the
+ *  platform's Sessions and Artifacts, and every plugin a Manifest view of which `accepts_objects`. */
+export const SEARCH_ITEM_TAB_SURFACES: readonly string[] = ["sessions", "artifacts", ...objectTabPlugins()];
+
+/** The side panel's file tab opens a file the way search does (specs/archive/side-panel P3): an object's tab where the
+ *  surface opens objects by id, else the record in the plugin's list. Called with a reader of the page's tab workspace. */
+export const SIDE_FILE_OPENER_SCRIPT = `(workspace) => (plugin, id, title) => ${JSON.stringify([...SEARCH_ITEM_TAB_SURFACES])}.includes(plugin)
+  ? workspace()?.openItem(plugin, id, title) : workspace()?.openPluginRecord(plugin, id)`;
 
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const { translate: L, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, headers, projectId } = host;

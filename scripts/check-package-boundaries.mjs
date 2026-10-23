@@ -1437,7 +1437,10 @@ export function checkProposalUiOwnership(renderer, workbench, proposalMount, leg
   if (hasWorkbenchUiContribution(workbench, registry, "goalsLegacyProposalUiContribution", descriptors)) {
     errors.push("apps/workbench: retired goalsLegacyProposalUiContribution must stay unregistered");
   }
-  if (!proposalMount.includes("host.mount(")) errors.push("apps/workbench: proposal renderers must mount the native contributions");
+  // W5-06: the shell builds the proposal renderer from the plugin's own surface map; each method mounts a declared surface.
+  if (!/createSurfaceRenderers<[^>]+>\(workbenchUiHost, GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES\)/u.test(proposalMount)) {
+    errors.push("apps/workbench: proposal renderers must mount the native contributions");
+  }
   void legacyMount;
   if (/const (?:goalTreeDecisionForm|contractDecisionForm|candidateDecisionForm|rewireDecisionForm) =/u.test(clientDispatch)
       || !clientDispatch.includes("handleGoalProposalSubmit(submittedForm, event)")) errors.push("apps/workbench: proposal submission behavior belongs to the Goals client factory");
@@ -1473,7 +1476,7 @@ export function checkPackageBoundaries(repositoryRoot) {
       const [renderer, workbench, proposalMount, clientDispatch] = [
         "apps/workbench/src/renderer.ts",
         "apps/workbench/src/index.ts",
-        "apps/workbench/src/goals-proposal-ui.ts",
+        "apps/workbench/src/ui-composition.ts",
         "apps/workbench/src/scripts/client/events-accessibility.ts",
       ].map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8")
         + (file === "apps/workbench/src/index.ts" ? fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/ui-composition.ts"), "utf8") : ""));

@@ -69,9 +69,9 @@
       "lines": 361,
       "methods": 18
     },
-    "file horizontal/memory/src/service.ts": 1147,
+    "file horizontal/memory/src/service.ts": 1153,
     "class horizontal/memory/src/service.ts#MemoryService": {
-      "lines": 1018,
+      "lines": 1022,
       "methods": 48
     },
     "class horizontal/placement/src/index.ts#PlacementService": {
@@ -1125,7 +1125,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 480,
+  "explicitAnyTotal": 478,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1228,7 +1228,6 @@
     "tests/mcp-access-browser.test.ts": 1,
     "tests/mcp-action-settings.test.ts": 6,
     "tests/memory-agent-runs.test.ts": 2,
-    "tests/memory-learning.test.ts": 2,
     "tests/model-thinking.test.ts": 2,
     "tests/pages-cross-module.test.ts": 1,
     "tests/pages-input-rules.test.ts": 3,

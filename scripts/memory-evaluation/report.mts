@@ -12,14 +12,17 @@ interface Observation {
   runtimePackedInjected?: readonly unknown[];
   source?: { text: string; evidence: string; allowedFacts: readonly string[]; forbiddenFacts: readonly string[] };
   outputs?: readonly { value: string; structured: unknown }[];
-  outcome?: { ran: boolean; reason: string; learned: readonly { outcome: string; text: string; reason: string }[] } | null;
+  outcome?: { ran?: boolean; reason?: string; formation?: { outcome: string }; learned: readonly { outcome: string; text: string; reason: string }[] } | null;
   executions?: readonly PrologueExecutionReceipt[];
   ledgerProjection?: { candidates: readonly unknown[]; changes: readonly unknown[]; revisions: readonly unknown[] };
   labels?: { request: { query?: string }; approval: string; answerRubric: string };
-  finalMemory?: { tokens: number | null; basis: string; messages: readonly unknown[]; unmatchedMessages: number };
+  finalMemory?: { tokens: number | null; basis: string; messages: readonly unknown[] };
 }
-type Row = Omit<SequenceRow, "observation"> & { observation: Observation | null };
-interface RawReport { stage: string; schema: string; attempts: number; model: string; recordedAt: string; rows: readonly Row[] }
+type Row = Omit<SequenceRow, "observation" | "arm"> & { arm: "B0" | "B1" | "B2" } & { observation: Observation | null };
+interface RawReport {
+  stage: string; schema: string; attempts: number; model: string; recordedAt: string; rows: readonly Row[];
+  source?: unknown; limitations?: readonly string[]; fixtureRequests?: readonly { endpoint: string; bytes: number }[];
+}
 type Coverage = "reported" | "estimated" | "partial-estimated" | "partial" | "unknown";
 type Direction = "input" | "cached_input" | "output" | "cache_creation";
 interface Bucket { tokens: number | null; observations: number }
@@ -36,7 +39,7 @@ function add(cost: Cost, direction: Direction, tokens: number | undefined, cover
 
 export function summarizeMemoryReport(report: RawReport) {
   const groups = new Map<string, { events: number; attempts: number; failures: number; observedNoCallFormation: number; costs: Cost; finalMemoryEstimatedTokens: number; finalMemoryUnknownEvents: number; multiAttemptEvents: number }>();
-  const layers = new Map<string, { events: number; failures: number; B1FormationOutcomes: Record<string, number>; B1InjectedMessages: number; B1FinalMemoryEstimatedTokens: number }>();
+  const layers = new Map<string, { events: number; failures: number; memoryByArm: Record<string, { formationOutcomes: Record<string, number>; injectedMessages: number; finalMemoryEstimatedTokens: number }> }>();
   for (const row of report.rows) {
     const key = `${row.arm}/${row.window}`, observation = row.observation;
     const group = groups.get(key) ?? { events: 0, attempts: 0, failures: 0, observedNoCallFormation: 0, costs: emptyCost(), finalMemoryEstimatedTokens: 0, finalMemoryUnknownEvents: 0, multiAttemptEvents: 0 };
@@ -44,10 +47,11 @@ export function summarizeMemoryReport(report: RawReport) {
     const attempts = row.attemptRange.endExclusive - row.attemptRange.startInclusive;
     group.attempts += attempts; if (attempts > 1) group.multiAttemptEvents += 1;
     if (row.status !== "observed") group.failures += 1;
-    const layer = layers.get(row.layer) ?? { events: 0, failures: 0, B1FormationOutcomes: {}, B1InjectedMessages: 0, B1FinalMemoryEstimatedTokens: 0 };
+    const layer = layers.get(row.layer) ?? { events: 0, failures: 0, memoryByArm: {} };
     layers.set(row.layer, layer); layer.events += 1; if (row.status !== "observed") layer.failures += 1;
+    const arm = layer.memoryByArm[row.arm] ??= { formationOutcomes: {}, injectedMessages: 0, finalMemoryEstimatedTokens: 0 };
     if (row.event.startsWith("source")) {
-      if (attempts === 0 && observation?.outcome?.ran === false) group.observedNoCallFormation += 1;
+      if (attempts === 0 && (observation?.outcome?.ran === false || observation?.outcome?.formation?.outcome === "skipped")) group.observedNoCallFormation += 1;
       const usage = observation?.executions?.flatMap(execution => execution.usage) ?? [];
       for (const receipt of usage) {
         add(group.costs, "input", receipt.input.tokens, receipt.input.source);
@@ -56,17 +60,19 @@ export function summarizeMemoryReport(report: RawReport) {
         add(group.costs, "cache_creation", receipt.cacheWrite.tokens, receipt.cacheWrite.source);
       }
       if (attempts > 0 && !usage.length) for (const direction of ["input", "output", "cached_input", "cache_creation"] as const) add(group.costs, direction, undefined, "unknown");
-      if (row.arm === "B1") for (const learned of observation?.outcome?.learned ?? []) layer.B1FormationOutcomes[learned.outcome] = (layer.B1FormationOutcomes[learned.outcome] ?? 0) + 1;
+      for (const learned of observation?.outcome?.learned ?? []) arm.formationOutcomes[learned.outcome] = (arm.formationOutcomes[learned.outcome] ?? 0) + 1;
     } else {
       for (const direction of ["input", "output", "cached_input", "cache_creation"] as const) add(group.costs, direction, observation?.usage?.tokens[direction], observation?.usage?.coverage?.[direction]);
       const memory = observation?.finalMemory;
       if (memory?.tokens === null || memory?.tokens === undefined) group.finalMemoryUnknownEvents += 1;
       else group.finalMemoryEstimatedTokens += memory.tokens;
-      if (row.arm === "B1" && memory) { layer.B1InjectedMessages += memory.messages.length; layer.B1FinalMemoryEstimatedTokens += memory.tokens ?? 0; }
+      if (memory) { arm.injectedMessages += memory.messages.length; arm.finalMemoryEstimatedTokens += memory.tokens ?? 0; }
     }
   }
   return {
-    sourceSchema: report.schema, stage: report.stage, model: report.model, attempts: report.attempts, events: report.rows.length,
+    sourceSchema: report.schema, source: report.source ?? null, limitations: report.limitations ?? [],
+    stage: report.stage, model: report.model, attempts: report.attempts, events: report.rows.length,
+    fixtureSetup: report.fixtureRequests ? { calls: report.fixtureRequests.length, requestBytes: report.fixtureRequests.reduce((sum, request) => sum + request.bytes, 0), provider: "loopback-scripted", paidCalls: 0 } : null,
     status: Object.fromEntries(["observed", "failed", "not-run"].map(status => [status, report.rows.filter(row => row.status === status).length])),
     costsByArmAndWindow: Object.fromEntries(groups), layers: Object.fromEntries(layers),
     failures: report.rows.filter(row => row.status !== "observed").map(row => ({ sequence: row.sequence, repeat: row.repeat, arm: row.arm, event: row.event,
@@ -76,7 +82,9 @@ export function summarizeMemoryReport(report: RawReport) {
 }
 
 function reviewMarkdown(report: RawReport, input: string) {
-  const sections = [`# B0/B1 记忆基线审查视图\n\n这是原始报告 ${input} 的可重建派生视图，原报告保持不变。全部输入为合成材料；不含凭据。任务与形成质量等待独立逐项审查，工程运行成功不等于质量通过。\n\n记录时间：${report.recordedAt}；实际网络尝试：${report.attempts}。\n\n\`source\` 只调用现役提炼函数，不覆盖 UI 工作结束与后台队列整条触发旅程。读取延迟与首个非空 assistant 视图是 Host 观察，不是最终 App 首屏实操。`];
+  const sections = [`# ${report.schema === "molis-memory-sequence-baseline-v1" ? "B0/B1 历史基线" : "B0/B2 当前观测"}审查视图\n\n这是原始报告 ${input} 的可重建派生视图，原报告保持不变。全部输入为合成材料；不含凭据。任务与形成质量等待独立逐项审查，工程运行成功不等于质量通过。\n\n记录时间：${report.recordedAt}；实际网络尝试：${report.attempts}。\n\n\`source\` 只调用现役提炼函数，不覆盖 UI 工作结束与后台队列整条触发旅程。读取延迟与首个非空 assistant 视图是 Host 观察，不是最终 App 首屏实操。`];
+  if (report.fixtureRequests) sections.push(`来源准备另计：${report.fixtureRequests.length} 次本机脚本 HTTP；不属于被评估 Provider 的 attempt，也不代表生产形成免费。`);
+  if (report.limitations?.length) sections.push(report.limitations.map(limit => `- ${limit}`).join("\n"));
   for (const sequence of new Set(report.rows.map(row => row.sequence))) {
     sections.push(`\n## ${sequence}`);
     for (const row of report.rows.filter(item => item.sequence === sequence)) {
@@ -97,7 +105,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const [input, output] = process.argv.slice(2);
   if (!input) throw new Error("用法：report.mts <原始报告.json> [不存在的审查视图.md]");
   const report: RawReport = JSON.parse(await readFile(input, "utf8"));
-  if (report.stage !== "completed" || report.schema !== "molis-memory-sequence-baseline-v1") throw new Error("只汇总已完成保存的序列报告；失败事件仍保留");
+  if (report.stage !== "completed" || !["molis-memory-sequence-baseline-v1", "molis-memory-sequence-b2-v2"].includes(report.schema)) throw new Error("只汇总已完成保存的序列报告；失败事件仍保留");
   console.log(JSON.stringify(summarizeMemoryReport(report), null, 2));
   if (output) await writeFile(output, reviewMarkdown(report, input), { flag: "wx" });
 }

@@ -176,11 +176,11 @@ export class MolisWorkLocalHost {
             add(projectWorkspaceActionProvider(reference.project_id, this.sessions, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined));
             add(artifactActionProvider(runtime, options, this.actionClient(reference)));
             for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) add(provider);
-            add(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions }, feed));
+            add(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions, readFunctions: this.systemFunctions?.read }, feed));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.client(reference)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
-              { actions: this.actionClient(reference), scenes, functions: options.functions }, (judgment, caller) => {
+              { actions: this.actionClient(reference), scenes, functions: options.functions, readFunctions: this.systemFunctions?.read }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
@@ -207,18 +207,18 @@ export class MolisWorkLocalHost {
       this.host.actionRegistry().registerProvider(this.alchemist.provider());
     }
     if (options.homeDirectory) this.systemFunctions = new SystemFunctionsActions(this.host.actionRegistry(), options.homeDirectory, options.functions ?? {}, caller => {
-      const project = caller.project_id ? this.host.status().projects.find(row => row.project_id === caller.project_id) : undefined;
+      const project = caller.project_id ? this.host.projects().find(row => row.project_id === caller.project_id) : undefined;
       if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "判断目录缺少当前项目运行环境");
       return { actions: project ? this.actionClient(project) : this.homeActionClient(), scenes: this.sceneClient(project), projectId: project?.project_id };
     });
-    if (options.homeDirectory) this.host.actionRegistry().registerProvider(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.status().projects.find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.status().projects.find(project => project.project_id === caller.project_id)!) : this.homeActionClient()));
+    if (options.homeDirectory) this.host.actionRegistry().registerProvider(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient()));
     if (options.homeDirectory) {
       // Remote MCP servers connected in 服务连接: what each last offered is back in the directory at start.
       this.connectorMcp = createConnectorMcpDirectory({ localHost: this, homeDirectory: options.homeDirectory });
       try { this.connectorMcp.sync(); } catch (error) { hostLog.warn("connections", "mcp_sync_failed", error); } // The connections page lists them again.
     }
     this.host.actionRegistry().registerProvider(actionUsagesProvider(caller => {
-      const project = caller.project_id ? this.host.status().projects.find(row => row.project_id === caller.project_id) : undefined;
+      const project = caller.project_id ? this.host.projects().find(row => row.project_id === caller.project_id) : undefined;
       if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "使用位置查询缺少当前项目运行环境");
       return project ? this.actionClient(project) : this.homeActionClient();
     }, options.homeDirectory));
@@ -230,13 +230,13 @@ export class MolisWorkLocalHost {
     if (options.homeDirectory) {
       const home = options.homeDirectory;
       this.search = createSearchHost({ homeDirectory: home, registry: this.host.actionRegistry(),
-        project: projectId => this.host.status().projects.find(row => row.project_id === projectId && row.state !== "closing"),
+        project: projectId => this.host.projects().find(row => row.project_id === projectId && row.state !== "closing"),
         projectClient: reference => this.actionClient(reference), homeClient: () => this.homeActionClient(),
         ownerContext: reference => localWebActionContext(this, reference, LOCAL_OWNER_PERMISSIONS),
         // A project is gone only when the catalog no longer has it and no runtime of it is open (deletion closes it first).
         knownProjects: async () => this.catalogRunner
           ? [...await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects().map(project => project.project_id)),
-            ...this.host.status().projects.map(project => project.project_id)] : null,
+            ...this.host.projects().map(project => project.project_id)] : null,
         openPersonalSpace: async () => {
           const space = this.catalogRunner ? await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects().find(project => isPersonalSpace(project))) : undefined;
           if (!space) return undefined;
@@ -405,6 +405,10 @@ export class MolisWorkLocalHost {
 
   lifecycle(): LocalHostStatus["state"] {
     return this.closing.resources && this.host.lifecycle() === "running" ? "closing" : this.host.lifecycle();
+  }
+
+  projects(): LocalHostStatus["projects"] {
+    return this.host.projects();
   }
 
   status(): LocalHostStatus {

@@ -6,11 +6,61 @@ import test from "node:test";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { functionAuthoringActions as authoring, functionsActions, functionsActionProvider, publishedFunctionProvider, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
+import { functionAuthoringActions as authoring, functionsActions, functionsActionProvider, publishedFunctionProvider, publishedFunctionAction, FunctionsStore } from "@molis-ai/molis-work-module-functions";
 import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/functions-host.js";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 
 const owner: ActionCallContext = { actor_id: "owner", project_id: null, audience: "user", permissions: ["functions:manage", "functions:invoke"] };
+
+test("AAP-06 Functions discovery reuses its connection, sees external publication and closes once with the Host", async t => {
+  const home = await mkdtemp(join(tmpdir(), "functions-connection-"));
+  const options = { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: {
+    async evaluate(_key, record) { return { primitive: record.primitive, noul: .8, choice: null, score: null, legend: null, probabilities: {}, confidence: null, model: record.model }; },
+  } satisfies TypeSafeProvider };
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, functions: options });
+  t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
+  const closed = t.mock.method(FunctionsStore.prototype, "close");
+  const actions = host.homeActionClient();
+  await actions.discover(owner);
+  await actions.discover(owner);
+  assert.equal(closed.mock.callCount(), 0, "directory reads keep their database connection");
+  const published = await withFunctionsServiceAsync(home, async service => {
+    const record = service.create({ primitive: "noul", function_key: "external_read_test" });
+    service.updateDraft(record.id, { instructions: "Evaluate", criteria: { true_description: "Yes", false_description: "No" } });
+    await service.preview(record.id, "Sample");
+    return service.publish(record.id);
+  }, options);
+  assert.equal(closed.mock.callCount(), 1, "the independent writer still closes its own connection");
+  assert.ok((await actions.discover(owner)).some(view => view.capability_id === publishedFunctionAction(published).capability_id),
+    "the Host reads the newly published rule without restarting or caching an older catalog");
+  assert.equal(closed.mock.callCount(), 1);
+  await host.close();
+  assert.equal(closed.mock.callCount(), 2, "the Host closes its one connection");
+  await host.close();
+  assert.equal(closed.mock.callCount(), 2);
+});
+
+test("AAP-06 closing the Host during Functions preview refuses the result and leaves the draft unchanged", async t => {
+  const home = await mkdtemp(join(tmpdir(), "functions-close-"));
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const options = { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: {
+    async evaluate(_key, record) { entered.resolve(); await release.promise; return { primitive: record.primitive, noul: .8, choice: null, score: null, legend: null, probabilities: {}, confidence: null, model: record.model }; },
+  } satisfies TypeSafeProvider };
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, functions: options });
+  t.after(async () => { release.resolve(); await host.close(); await rm(home, { recursive: true, force: true }); });
+  const actions = bindActionClient(host.homeActionClient(), () => owner);
+  const { function: draft } = await actions.invoke(authoring.create, { primitive: "noul" });
+  const { function: before } = await actions.invoke(authoring.update, { id: draft.id, patch: { instructions: "Evaluate", criteria: { true_description: "Yes", false_description: "No" } } });
+  const pending = actions.invoke(authoring.preview, { id: draft.id, input: "Pending" });
+  const rejected = assert.rejects(pending, error => error instanceof ActionError);
+  await entered.promise;
+  const closing = host.close();
+  await new Promise<void>(resolve => setImmediate(resolve));
+  release.resolve();
+  await rejected; await closing;
+  assert.deepEqual(withFunctionsService(home, service => service.get(draft.id), options), before);
+  assert.deepEqual(withFunctionsService(home, service => service.listJudgments(), options), []);
+});
 
 for (const operation of ["preview", "invoke", "published"] as const) {
   for (const reason of ["replaced", "revoked", "cancelled"] as const) test(`Functions ${operation} does not persist after ${reason} during model wait`, { timeout: 15_000 }, async () => {

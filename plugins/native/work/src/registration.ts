@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { WORK_PROJECT_PLUGIN_ID, workManifest, workTerminalUiContribution, workUiContribution } from "./index.js";
+import { WORK_PROJECT_PLUGIN_ID, workManifest, workUiContribution } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -11,7 +11,7 @@ export const registration: PluginRegistration = {
   summary: "回到你的会话，继续正在做的事。",
   workbench: {
     order: 17,
-    contributions: [workUiContribution, workTerminalUiContribution],
+    contributions: [workUiContribution],
     recordRow: { selector: "[data-operation-select]", idDataset: "operationSelect" },
   },
 };

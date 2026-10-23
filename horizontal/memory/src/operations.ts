@@ -1,4 +1,4 @@
-import type { MemoryChangeRequest, MemoryLedgerPort, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import type { MemoryCandidateRecord, MemoryChangeRequest, MemoryLedgerPort, MemoryScope, MemorySource } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller } from "./service.js";
 import { memoryErrors } from "./errors.js";
 
@@ -11,14 +11,18 @@ interface OperationIdentity {
   expected_version?: number;
   original_state?: "active" | "paused" | "disabled";
   candidate_expected_version?: number;
+  /** Number of evidence additions in a fixed duplicate adoption; never their contents. */
+  evidence_count?: number;
   /** An absolute retention decision, not content or a reconstructed command. */
   formal_expires_at?: string | null;
+  /** Identity of an entire normalized import, including items not yet dispatched. */
+  input_digest?: string;
 }
 interface OperationMark extends OperationIdentity {
   operation_id: string;
   at: string;
   phase: "pending" | "committed" | "closed";
-  result?: { memory_id?: string; candidate_id?: string; version?: number };
+  result?: { memory_id?: string; candidate_id?: string; version?: number; outcome?: "duplicate" | "candidate" };
 }
 const PREFIX = "memory-operation:";
 
@@ -69,6 +73,7 @@ export class MemoryOperations {
     const operation = this.child({ ...caller, operation_id: change.change_id }, "undo-recreate");
     // This fixed creation must use its own SDK receipt rather than attach to an unrelated equal text.
     this.begin(operation, "commit", { kind: "commit", scope: change.scope, owner: change.owner });
+    this.begin(operation, "append", { kind: "append", scope: change.scope, owner: change.owner });
     return operation;
   }
 
@@ -104,7 +109,7 @@ export class MemoryOperations {
       const existing = this.ledger.marker(caller.actor_id, `${PREFIX}${operation_id}`)?.body as OperationMark | undefined;
       if (existing) {
         if (existing.phase === "closed") throw memoryErrors.conflict("这次记忆操作已随删除关闭，不能重放");
-        for (const name of ["kind", "scope", "owner", "memory_id", "candidate_id", "formal_expires_at"] as const) {
+        for (const name of ["kind", "scope", "owner", "memory_id", "candidate_id", "formal_expires_at", "evidence_count", "input_digest"] as const) {
           if (existing[name] !== identity[name]) throw memoryErrors.conflict("同一个记忆操作号不能改为另一个目标或动作");
         }
         return existing;
@@ -112,6 +117,15 @@ export class MemoryOperations {
       const mark: OperationMark = { ...identity, operation_id, at: this.now().toISOString(), phase: "pending" };
       this.ledger.setMarker(caller.actor_id, `${PREFIX}${operation_id}`, mark, mark.at);
       return mark;
+    });
+  }
+
+  /** Bind before the first child. A pre-existing child cannot prove which unstarted items belonged to its package. */
+  importPackage(caller: MemoryCaller, scope: MemoryScope, owner: string, input_digest: string): void {
+    this.ledger.transaction(() => {
+      if (!this.find(caller, "import-package") && this.find({ ...caller, operation_id: `${caller.operation_id}:import:0` }, "import"))
+        throw memoryErrors.conflict("原导入缺少整包身份，不能用本次文件继续未完成条目，请核对已提交结果");
+      this.begin(caller, "import-package", { kind: "import-package", scope, owner, input_digest });
     });
   }
 
@@ -166,6 +180,32 @@ export class MemoryOperations {
     }
     return [...selected].map(([candidate_id, version]) => ({ candidate_id,
       ...this.condition(caller, `candidate-purge:${candidate_id}`, { kind: "purge", ...where, candidate_id, expected_version: version }) }));
+  }
+
+  /** A formed candidate kept waiting is a fixed decision, not a new creation on the next offer. */
+  holdCandidate(caller: MemoryCaller, record: MemoryCandidateRecord | undefined,
+    input: { candidate_id?: string; candidate_version?: number; source: MemorySource; why?: string }, reason: string): MemoryCandidateRecord {
+    caller.signal?.throwIfAborted();
+    const commit = this.find(caller, "commit");
+    if (!record || !commit || record.candidate_id !== input.candidate_id || record.scope !== commit.scope || record.owner !== commit.owner
+      || record.state !== "pending" || input.candidate_version !== undefined && record.version !== input.candidate_version)
+      throw memoryErrors.conflict("原等待候选已变化或不在当前范围，不能继续原决定");
+    const mark = this.begin(caller, "candidate-hold", { kind: `candidate-hold:${input.source}`, scope: record.scope, owner: record.owner,
+      candidate_id: record.candidate_id, expected_version: record.version });
+    if (mark.expected_version !== record.version) throw memoryErrors.conflict("原等待候选已有后继版本，不能追随更新");
+    if (mark.phase === "committed") {
+      if (mark.result?.outcome !== "candidate" || mark.result.candidate_id !== record.candidate_id || mark.result.version !== record.version)
+        throw memoryErrors.conflict("原等待候选回执不可确认");
+      return record;
+    }
+    const held = { ...record, hold_reason: reason, ...(input.why ? { why: input.why.slice(0, 300) } : {}) };
+    this.ledger.transaction(() => {
+      this.ledger.saveCandidate(held);
+      const result = { outcome: "candidate" as const, candidate_id: record.candidate_id, version: record.version };
+      this.committed(caller, mark, result);
+      this.committed(caller, commit, result);
+    });
+    return held;
   }
 
   committed(caller: MemoryCaller, mark: OperationMark, result: OperationMark["result"]): void {

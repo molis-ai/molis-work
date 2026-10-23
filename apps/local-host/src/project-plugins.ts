@@ -1,4 +1,4 @@
-import { openHostShelfStore } from "./shelf-actions.js";
+import { openHostShelfStore, saveShelfToProject } from "./shelf-actions.js";
 import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
 import { shelfRuntimeProbe } from "@molis-ai/molis-work-module-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -150,6 +150,11 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           const shelf = openHostShelfStore(ports.homeDirectory!, shelfRuntimeProbe());
           const item = await shelf.admit({ filename: preview.title + ".md", mime: "text/markdown", bytes: Buffer.from(preview.text, "utf8"), artifact_source: preview.source });
           return { item, snapshot: await shelf.snapshot() };
+        },
+        // 「存到项目资料」: the person's copy read from their shelf, saved through the project's 成果库 as the confirming caller (PG-026-S1, S4 moves it).
+        material: {
+          readFile: itemId => openHostShelfStore(ports.homeDirectory!, shelfRuntimeProbe()).readFile(itemId),
+          publish: (payload, caller) => saveShelfToProject(ports.actions.client, payload, caller),
         },
       } : undefined;
     const filesPorts = { readable: () => currentWorkspaceId(ports) !== null };

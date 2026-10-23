@@ -72,7 +72,7 @@ fi
   };
   const admit = async (filename: string, text: string, mime = "text/markdown") => {
     const item = await evaluate<{ item_id: string; relative_path: string }>(`(async () => {
-      const response = await fetch('/api/shelf/items', { method: 'POST', headers: molisWorkControlHeaders(),
+      const response = await fetch('/api/plugins/io.molis.work.shelf/items', { method: 'POST', headers: molisWorkControlHeaders(),
         body: JSON.stringify({ filename: ${JSON.stringify(filename)}, bytes_base64: ${JSON.stringify(Buffer.from(text).toString("base64"))}, mime: ${JSON.stringify(mime)} }) });
       const body = await response.json(); if (!response.ok) throw new Error(JSON.stringify(body)); return body.item;
     })()`);
@@ -139,7 +139,7 @@ fi
     await waitFor("document.querySelector('[data-shelf-bar-hint]')?.textContent.includes('无法读取这份副本') && !document.querySelector('[data-shelf-edit]').disabled");
     assert.equal(await evaluate("document.querySelector('[data-shelf-editor]')"), null);
     assert.equal(await evaluate("document.querySelector('[data-shelf-edit]').textContent"), "编辑副本");
-    const failedRead = await fetch(`${origin}/api/shelf/items/${broken.item_id}/file`);
+    const failedRead = await fetch(`${origin}/api/plugins/io.molis.work.shelf/items/${broken.item_id}/file`);
     assert.equal(failedRead.status, 400);
     await failedRead.text();
   });
@@ -226,7 +226,7 @@ fi
     // This records the client/native invocation contract, not the macOS pasteboard.
     await evaluate(`window.parityNativeCalls=[]; window.__TAURI__={core:{invoke:async (name,payload)=>{
       if(name!=='shelf_copy_files') return;
-      const response=await fetch(${JSON.stringify(`/api/shelf/items/${first.item_id}/file`)},{cache:'no-store'});
+      const response=await fetch(${JSON.stringify(`/api/plugins/io.molis.work.shelf/items/${first.item_id}/file`)},{cache:'no-store'});
       window.parityNativeCalls.push({name,payload,saved:await response.text()});
     }}}`);
     await select(first.item_id);

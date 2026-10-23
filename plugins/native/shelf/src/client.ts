@@ -40,9 +40,25 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   let lastBarKind = "empty";
   let stickyHint = "";
   const projectPrefix = document.body.dataset.routePrefix || "";
-  let materialPreview = null, materialTicket = 0;
+  const api = projectPrefix + "/api/plugins/io.molis.work.shelf";
   let editWrites = Promise.resolve();
-  const fileUrl = (id) => "/api/shelf/items/" + encodeURIComponent(id) + "/file";
+  const fileUrl = (id) => api + "/items/" + encodeURIComponent(id) + "/file";
+  // The plugin route shows only PNG, JPEG and WebP in the page. A PDF, GIF or AVIF shows through the side panel's inline file channel on
+  // project pages (bytes from shelf.files.content, 8 MiB and under); anything else shows its text with download and open buttons.
+  const ROUTE_IMAGES = { "image/png":1, "image/jpeg":1, "image/webp":1 }, ROUTE_IMAGE_EXTENSIONS = { png:1, jpg:1, jpeg:1, webp:1 }, SIDE_RAW = { "application/pdf":1, "image/gif":1, "image/avif":1 };
+  let sideSource = "";
+  const findSideSource = () => projectPrefix && molisWorkRequest(projectPrefix + "/api/side/files/sources", { scope: lifetime }).then((body) => {
+    sideSource = (body?.sources || []).find((source) => source.plugin_id === "io.molis.work.shelf" && (source.kinds || []).some((kind) => kind.kind === "shelf_item"))?.id || "";
+    if (sideSource && selected && !editing && (selected.kind === "pdf" || selected.kind === "image")) paintPreview();
+  }).catch(() => { /* no side channel here: the panel keeps showing the text with download and open */ });
+  const inlineUrl = (item) => ROUTE_IMAGES[item.mime] ? fileUrl(item.item_id) : SIDE_RAW[item.mime] && sideSource && item.size_bytes <= 8 * 1024 * 1024
+    ? projectPrefix + "/api/side/files/raw?source=" + encodeURIComponent(sideSource) + "&kind=shelf_item&id=" + encodeURIComponent(item.item_id) : "";
+  const fileFallback = (kicker, text, itemId, relative) => {
+    const target = ' data-shelf-file="' + escapeAttr(itemId) + '"' + (relative ? ' data-shelf-file-child="' + escapeAttr(relative) + '"' : "");
+    return '<div class="shelf-preview-inner shelf-doc" data-shelf-file-fallback><p class="shelf-kicker">' + escText(kicker) + '</p><p class="muted">' + escText(text || L("这份文件在这里显示不了，可以下载后打开。")) +
+      '</p><div class="shelf-cta"><span class="shelf-primary" role="button" tabindex="0" data-shelf-file-download' + target + ">" + escText(L("下载这份文件")) + "</span>" +
+      (typeof globalThis.__TAURI__?.core?.invoke === "function" ? '<span class="shelf-paper" role="button" tabindex="0" data-shelf-file-open' + target + ">" + escText(L("用系统打开")) + "</span>" : "") + "</div></div>";
+  };
   const TEXT_EDIT = { txt:1, md:1, markdown:1, json:1, swift:1, py:1, js:1, ts:1, mjs:1, css:1, yaml:1, yml:1, xml:1, toml:1, ini:1, rs:1, go:1, rb:1, sh:1, zsh:1, c:1, h:1, cc:1, cpp:1, m:1, mm:1, csv:1, log:1 };
   const isEditable = (item) => {
     if (!item) return false;
@@ -100,7 +116,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       && event.shiftKey === Boolean(chord.shift);
   };
   const saveSettings = async (patch) => {
-    const body = await post("/api/shelf/settings", patch);
+    const body = await post(api + "/settings", patch);
     snapshot = { ...snapshot, settings: body };
     return body;
   };
@@ -244,12 +260,11 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       : null;
     if (child) {
       const url = childUrl(item.item_id, child.relative);
-      if (child.kind === "image") {
+      if (child.kind === "image" && ROUTE_IMAGE_EXTENSIONS[String(child.name || "").split(".").pop()?.toLowerCase() || ""]) {
         return '<div class="shelf-preview-inner"><p class="shelf-kicker">' + escText(item.name + " / " + child.relative) + '</p><img class="shelf-image" alt="" src="' + url + '"></div>';
       }
-      if (child.kind === "pdf") {
-        return '<div class="shelf-preview-inner"><p class="shelf-kicker">' + escText(item.name + " / " + child.relative) + '</p><iframe class="shelf-pdf-frame" title="' + escapeAttr(child.name) + '" src="' + url + '"></iframe></div>';
-      }
+      // A file inside a folder has no side panel entry of its own, so a PDF or another image downloads or opens outside.
+      if (child.kind === "image" || child.kind === "pdf") return fileFallback(item.name + " / " + child.relative, "", item.item_id, child.relative);
       return '<div class="shelf-preview-inner shelf-doc" data-shelf-child-doc="' + escapeAttr(child.relative) + '"><p class="shelf-kicker">' + escText(item.name + " / " + child.relative) + '</p><h1 class="shelf-title">' + escText(child.name) + '</h1><p class="muted">' + escText(L("正在读这份文件…")) + "</p></div>";
     }
     const rows = (item.children || []).map((entry) => "<p>" + escText(entry.relative) + "</p>").join("");
@@ -263,11 +278,11 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       return '<div class="shelf-preview-inner shelf-doc"><p class="shelf-kicker">' + escText(kicker || L("原文")) + '</p><p class="muted">' + escText(L("原材料已不在工作区，无法对照。")) + "</p></div>";
     }
     const label = kicker || item.name;
-    if (item.kind === "pdf") {
-      return '<div class="shelf-preview-inner"><p class="shelf-kicker">' + escText(label) + '</p><iframe class="shelf-pdf-frame" title="' + escapeAttr(item.name) + '" src="' + fileUrl(item.item_id) + '"></iframe>' + (item.preview_text ? '<div class="shelf-doc" style="margin-top:24px"><p class="muted">' + escText(item.preview_text) + "</p></div>" : "") + "</div>";
-    }
-    if (item.kind === "image") {
-      return '<div class="shelf-preview-inner"><p class="shelf-kicker">' + escText(label) + '</p><img class="shelf-image" alt="" src="' + fileUrl(item.item_id) + '"></div>';
+    if (item.kind === "pdf" || item.kind === "image") {
+      const url = inlineUrl(item);
+      if (!url) return fileFallback(label, item.preview_text, item.item_id);
+      if (item.kind === "image") return '<div class="shelf-preview-inner"><p class="shelf-kicker">' + escText(label) + '</p><img class="shelf-image" alt="" src="' + url + '"></div>';
+      return '<div class="shelf-preview-inner"><p class="shelf-kicker">' + escText(label) + '</p><iframe class="shelf-pdf-frame" title="' + escapeAttr(item.name) + '" src="' + url + '"></iframe>' + (item.preview_text ? '<div class="shelf-doc" style="margin-top:24px"><p class="muted">' + escText(item.preview_text) + "</p></div>" : "") + "</div>";
     }
     const text = textCache.get(item.item_id) ?? item.preview_text ?? "";
     const coverage = item.material_coverage?.length ? '<p class="settings-hint" data-shelf-coverage>' + escText(L("材料覆盖说明")) + " · " + item.material_coverage.map(escText).join("；") + "</p>" : "";
@@ -423,7 +438,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const saveCopy = async (id, text) => {
     if (!id) return;
-    const next = editWrites.catch(() => {}).then(() => post("/api/shelf/items/" + encodeURIComponent(id) + "/edit", { text }));
+    const next = editWrites.catch(() => {}).then(() => post(api + "/items/" + encodeURIComponent(id) + "/edit", { text }));
     editWrites = next;
     try {
       const payload = await next;
@@ -723,7 +738,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const load = async (selectId, signal) => {
     const version=++loadVersion;
-    const response = await lifetime.fetch("/api/shelf", { cache: "no-store", signal });
+    const response = await lifetime.fetch(api + "/snapshot", { cache: "no-store", signal });
     if (!response.ok) throw new Error(L("无法读取置物架"));
     const next=await response.json();lifetime.assertCurrent(signal);
     if(version===loadVersion)applySnapshot(next, selectId || wantedId || undefined);
@@ -753,12 +768,14 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const found = [];
     for (const child of await readEntries(entry.createReader())) await walkEntry(child, "", found);
     if (!found.length) return null;
+    // The shelf takes a folder up to 32 MB; saying so here beats a refused upload of the whole thing.
+    if (found.reduce((total, file) => total + file.file.size, 0) > 32 * 1024 * 1024) throw new Error(L("这个文件夹超过 32 MB，请把它拆成几个小一点的文件夹再放进来"));
     const entries = [];
     for (const file of found) {
       const bytes = new Uint8Array(await file.file.arrayBuffer());
       entries.push({ relative: file.relative, bytes_base64: bufferToBase64(bytes), mime: file.file.type || "" });
     }
-    const payload = await post("/api/shelf/folders", { name: entry.name, entries });
+    const payload = await post(api + "/folders", { name: entry.name, entries });
     applySnapshot(payload.snapshot, payload.item?.item_id);
     return payload.item;
   };
@@ -767,7 +784,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       for (const file of files) {
         const bytes = new Uint8Array(await file.arrayBuffer());
-        const payload = await post("/api/shelf/items", { filename: file.name, mime: file.type, bytes_base64: bufferToBase64(bytes) });
+        const payload = await post(api + "/items", { filename: file.name, mime: file.type, bytes_base64: bufferToBase64(bytes) });
         lastId = payload.item?.item_id || lastId;
         snapshot = payload.snapshot;
       }
@@ -855,7 +872,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   const makeClipCurrent = async (clipId) => {
     const clip = (snapshot.clipboard || []).find((item) => item.clip_id === clipId);
     if (!clip || !await copyClip(clip.body)) return;
-    const payload = await post("/api/shelf/clipboard", { text: clip.body });
+    const payload = await post(api + "/clipboard", { text: clip.body });
     selected = null;
     selClip = payload.clip || (payload.snapshot.clipboard || []).find((item) => item.clip_id === clipId) || clip;
     clipSelection = selClip ? new Set([selClip.clip_id]) : new Set();
@@ -883,7 +900,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     let lastId = "";
     let next = snapshot;
     for (const id of ids) {
-      const payload = await post("/api/shelf/clipboard/" + encodeURIComponent(id) + "/material");
+      const payload = await post(api + "/clipboard/" + encodeURIComponent(id) + "/material");
       lastId = payload.item?.item_id || lastId;
       next = payload.snapshot;
     }
@@ -922,7 +939,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       event.preventDefault();
       if (sideMenu) sideMenu.hidden = true;
       try {
-        const payload = await post("/api/shelf/sample");
+        const payload = await post(api + "/sample");
         applySnapshot(payload.snapshot, payload.item.item_id);
       } catch {}
       return;
@@ -941,10 +958,10 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (action.getAttribute("aria-disabled") === "true") return;
       const id = row.dataset.shelfItem || row.dataset.shelfClip;
       try {
-        if (action.dataset.shelfRowAction === "hide" && row.dataset.shelfItem) applySnapshot((await post("/api/shelf/items/" + encodeURIComponent(id) + "/hide")).snapshot);
-        else if (action.dataset.shelfRowAction === "delete" && row.dataset.shelfItem) applySnapshot((await post("/api/shelf/items/" + encodeURIComponent(id) + "/delete")).snapshot);
+        if (action.dataset.shelfRowAction === "hide" && row.dataset.shelfItem) applySnapshot((await post(api + "/items/" + encodeURIComponent(id) + "/hide")).snapshot);
+        else if (action.dataset.shelfRowAction === "delete" && row.dataset.shelfItem) applySnapshot((await post(api + "/items/" + encodeURIComponent(id) + "/delete")).snapshot);
         else if (action.dataset.shelfRowAction === "delete" && row.dataset.shelfClip) {
-          applySnapshot((await post("/api/shelf/clipboard/" + encodeURIComponent(id) + "/delete")).snapshot);
+          applySnapshot((await post(api + "/clipboard/" + encodeURIComponent(id) + "/delete")).snapshot);
         } else if (action.dataset.shelfRowAction === "join" && row.dataset.shelfClip) {
           const group = clipSelection.has(id) && clipSelection.size > 1 ? [...clipSelection] : [id];
           await joinClips(group);
@@ -1040,6 +1057,10 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   lifetime.listen(bench,"keydown", activatePaper);
   lifetime.listen(bench,"click", async (event) => {
     if (directory.contains(event.target)) return;
+    const fileControl = event.target.closest("[data-shelf-file]"), fileItem = fileControl && itemById(fileControl.dataset.shelfFile), relative = fileControl?.dataset.shelfFileChild || "";
+    if (fileItem && !fileControl.hasAttribute("data-shelf-file-open")) Object.assign(document.createElement("a"), { href: relative ? childUrl(fileItem.item_id, relative) : fileUrl(fileItem.item_id), download: relative ? relative.split("/").pop() : fileItem.name || "" }).click();
+    else if (fileItem) invokeNative("shelf_open_path", { path: filePathOf(fileItem) + (relative ? "/" + relative : "") })?.catch((error) => { stickyHint = String(error?.message || error || L("系统没能打开这份文件")); renderBar(lastBarKind); });
+    if (fileControl) return;
     if (event.target.closest("[data-shelf-new-action]")) { await showActionComposer(); return; }
     if (event.target.closest("[data-shelf-create-cancel]")) { composingAction=false;paintPreview();syncShelfStage();return; }
     if (event.target.closest("[data-shelf-collapse]")) {
@@ -1114,7 +1135,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     if (event.target.closest("[data-shelf-pick]") || event.target.closest("[data-shelf-act=pick]")) { fileInput?.click(); return; }
     if (event.target.closest("[data-shelf-sample]")) {
-      const payload = await post("/api/shelf/sample");
+      const payload = await post(api + "/sample");
       applySnapshot(payload.snapshot, payload.item.item_id);
       return;
     }
@@ -1146,7 +1167,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       return;
     }
     if (act?.dataset.shelfAct === "use" && selected) {
-      const payload = await post("/api/shelf/items/" + encodeURIComponent(selected.item_id) + "/use-material");
+      const payload = await post(api + "/items/" + encodeURIComponent(selected.item_id) + "/use-material");
       applySnapshot(payload.snapshot, payload.item.item_id);
       return;
     }
@@ -1159,7 +1180,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     runWatch?.();
     runWatch = lifetime.poll(async signal => {
       if (!stage.classList.contains("is-run")) { runWatch?.(); runWatch=null; return; }
-      const response = await lifetime.fetch("/api/shelf", { cache: "no-store", signal });
+      const response = await lifetime.fetch(api + "/snapshot", { cache: "no-store", signal });
       if (!response.ok) return;
       const next = await response.json();lifetime.assertCurrent(signal);
       const live = (next.running_jobs || [])[0];
@@ -1188,7 +1209,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     watchRun();
     try {
-      const payload = await post("/api/shelf/jobs", {
+      const payload = await post(api + "/jobs", {
         recipe: recipe.recipe,
         item_ids: ran,
         option_id: pending.option || "",
@@ -1221,7 +1242,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   lifetime.listen(bench.querySelector("[data-shelf-cancel]"),"click", async () => {
     if (!runningJob) return;
-    try { await post("/api/shelf/jobs/" + encodeURIComponent(runningJob) + "/cancel"); } catch {}
+    try { await post(api + "/jobs/" + encodeURIComponent(runningJob) + "/cancel"); } catch {}
   });
   lifetime.listen(bench.querySelector("[data-shelf-tty-input]"),"keydown", (event) => {
     if (event.key !== "Enter" || event.isComposing) return;
@@ -1299,51 +1320,14 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   lifetime.listen(bench.querySelector("[data-shelf-use-material]"),"click", async () => {
     if (!selected) return;
-    const payload = await post("/api/shelf/items/" + encodeURIComponent(selected.item_id) + "/use-material");
+    const payload = await post(api + "/items/" + encodeURIComponent(selected.item_id) + "/use-material");
     applySnapshot(payload.snapshot, payload.item.item_id);
   });
-  (${SHELF_RESULT_CLIENT_FACTORY_SCRIPT})({lifetime,workbench:bench,projectPrefix,post,L,applySnapshot,flushEdit});
-  const materialDialog = bench.querySelector("[data-shelf-material-dialog]");
-  const materialStatus = bench.querySelector("[data-shelf-material-status]");
-  const materialSave = bench.querySelector("[data-shelf-material-save]");
-  lifetime.listen(materialDialog,"close", () => { materialTicket++; materialPreview = null; });
-  lifetime.listen(bench.querySelector("[data-shelf-material-close]"),"click", () => materialDialog.close());
-  const openProjectMaterial = async () => {
-    if (!selected || !projectPrefix) return;
-    const id = selected.item_id, ticket = ++materialTicket;
-    materialPreview = null; materialSave.disabled = true;
-    materialStatus.textContent = L("正在读取完整正文…");
-    bench.querySelector("[data-shelf-material-body]").textContent = "";
-    bench.querySelector("[data-shelf-material-destination]").textContent = "";
-    if (!materialDialog.open) materialDialog.showModal();
-    try {
-      await flushEdit(); await editWrites;
-      const response = await lifetime.fetch(projectPrefix + "/api/shelf/items/" + encodeURIComponent(id) + "/project-material", { cache: "no-store" });
-      const data = await response.json();lifetime.assertCurrent();
-      if (ticket !== materialTicket) return;
-      if (!response.ok) throw new Error(data.error || L("材料读取失败"));
-      materialPreview = { id, fingerprint: data.fingerprint };
-      bench.querySelector("[data-shelf-material-destination]").textContent = data.project_title + " / " + data.payload.title;
-      bench.querySelector("[data-shelf-material-body]").textContent = data.payload.text;
-      materialStatus.textContent = L("请核对原文后保存。"); materialSave.disabled = false;
-    } catch (error) {if(!lifetime.alive)return; if (ticket === materialTicket) materialStatus.textContent = error.message; }
-  };
-  lifetime.listen(bench.querySelector("[data-shelf-project-material]"),"click", openProjectMaterial);
+  (${SHELF_RESULT_CLIENT_FACTORY_SCRIPT})({lifetime,workbench:bench,projectPrefix,post,L,applySnapshot,flushEdit,
+    settleEdits: async () => { await flushEdit(); await editWrites; }, selectedItem: () => selected, projectTitle: () => host.projectTitle?.() || ""});
   lifetime.listen(bench.querySelector("[data-shelf-use-in-project]"),"click", () => {
     if (!selected) return;
     window.dispatchEvent(new CustomEvent("molis:placement-request", { detail: { action: "use-in-project", object: { kind: "shelf_item", id: selected.item_id, project_id: null } } }));
-  });
-  lifetime.listen(bench.querySelector("[data-shelf-material-refresh]"),"click", openProjectMaterial);
-  lifetime.listen(bench.querySelector("[data-shelf-material-form]"),"submit", async event => {
-    event.preventDefault();
-    if (!materialPreview || materialSave.disabled) return;
-    const current = materialPreview, ticket = materialTicket;
-    materialSave.disabled = true; materialStatus.textContent = L("正在保存…");
-    try {
-      const result = await post(projectPrefix + "/api/shelf/items/" + encodeURIComponent(current.id) + "/project-material", { expected_fingerprint: current.fingerprint });
-      if (ticket !== materialTicket) return;
-      materialStatus.textContent = L("已存到项目资料") + " · v" + result.reference.version + L("。项目里的 Agent 都能找到它，也可以在输入框的「项目资料」里选它。");
-    } catch (error) {if(!lifetime.alive)return; if (ticket === materialTicket) { materialStatus.textContent = error.message; materialSave.disabled = false; } }
   });
   lifetime.listen(fileInput,"change", async () => {
     const files = [...(fileInput.files || [])];
@@ -1510,9 +1494,9 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       const text = (data.getData("text/plain") || data.getData("text/uri-list") || "").trim();
       if (!text || /^file:/i.test(text)) return;
-      const recorded = await post("/api/shelf/clipboard", { text, types });
+      const recorded = await post(api + "/clipboard", { text, types });
       snapshot = recorded.snapshot;
-      const admitted = await post("/api/shelf/items", { text });
+      const admitted = await post(api + "/items", { text });
       applySnapshot(admitted.snapshot, admitted.item.item_id);
     } catch (error) {if(!lifetime.alive)return;
       preview.innerHTML = docHtml("Shelf", L("无法读取置物架"), error.message);
@@ -1531,9 +1515,9 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     let text = "";
     try { text = (await navigator.clipboard.readText()).trim(); } catch { return; }
     if (!text || /^file:/i.test(text)) return;
-    const recorded = await post("/api/shelf/clipboard", { text });
+    const recorded = await post(api + "/clipboard", { text });
     snapshot = recorded.snapshot;
-    const admitted = await post("/api/shelf/items", { text });
+    const admitted = await post(api + "/items", { text });
     applySnapshot(admitted.snapshot, admitted.item.item_id);
   };
   lifetime.listen(document,"keydown", async (event) => {
@@ -1582,14 +1566,14 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (clipSelection.size) {
         let next = snapshot;
         for (const id of [...clipSelection]) {
-          next = (await post("/api/shelf/clipboard/" + encodeURIComponent(id) + "/delete")).snapshot;
+          next = (await post(api + "/clipboard/" + encodeURIComponent(id) + "/delete")).snapshot;
         }
         selClip = null;
         clipSelection = new Set();
         applySnapshot(next);
       } else if (selected) {
         if (stageBusy()) return;
-        applySnapshot((await post("/api/shelf/items/" + encodeURIComponent(selected.item_id) + "/hide")).snapshot);
+        applySnapshot((await post(api + "/items/" + encodeURIComponent(selected.item_id) + "/hide")).snapshot);
       }
     } catch (error) {if(!lifetime.alive)return;
       preview.innerHTML = docHtml("Shelf", L("无法读取置物架"), error.message);
@@ -1643,6 +1627,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const paths = await Promise.all(picked.map(async item => item.kind === "url" ? await readFullText(item) : quotePath(filePathOf(item))));
     if (paths.length) sendToTui(paths.join(" "));
   });
+  findSideSource();
   lifetime.whenVisible(signal => {
     if(!editing && !editLoading && !stageBusy())void load(undefined,signal).catch(() => {});
     return()=>{loadVersion++;};

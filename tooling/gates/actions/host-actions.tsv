@@ -262,5 +262,3 @@ search.query	1	system.search	query	query	home	read	concurrent	agent,mcp,plugin,u
 search.rebuild	1	system.search	command	operation	home	write	concurrent	user	search:manage	-	-	-	95b7741253bf	b11c9beb88b3	-
 search.references	1	system.search	query	query	home	read	concurrent	plugin,user	search:read	-	-	-	b97ecba7506e	d300be37db51	-
 search.status	1	system.search	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	search:read	-	-	-	95b7741253bf	67fb0130cd9a	-
-shelf.material.preview	1	io.molis.work.shelf	query	query	project	read	-	user	shelf:read	shelf_item	-	-	e7b581b16414	e93fc94fd3d3	-
-shelf.material.save	1	io.molis.work.shelf	command	operation	project	write	-	user	artifacts:read,artifacts:write,shelf:read	shelf_item	-	-	33cc121c357d	758e75828c89	-

@@ -19,7 +19,6 @@ import { createWebCatalogAccess } from "./web-catalog-access.js";
 import { goalsActionProvider } from "./goals-actions.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
 import { providerTablesOwner, scheduleActionProvider, scheduleReminderActionProvider } from "./schedule-actions.js";
-import { shelfProjectActionProvider } from "./shelf-actions.js";
 import { charactersActionProvider } from "./characters-host.js";
 import { actionUsagesProvider } from "./action-usage-actions.js";
 import { ActionCallLog } from "./action-call-log.js";
@@ -181,7 +180,6 @@ export class MolisWorkLocalHost {
             add(scheduleActionProvider(runtime, { homeDirectory: options.homeDirectory, workspaceFor: options.workspaceFor }));
             add(scheduleReminderActionProvider(runtime, options.projectRoutePrefix?.(reference.project_id)));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
-            if (options.homeDirectory) add(shelfProjectActionProvider(reference.project_id, options.homeDirectory, this.actionClient(reference)));
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.client(reference)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes, functions: options.functions }, (judgment, caller) => {

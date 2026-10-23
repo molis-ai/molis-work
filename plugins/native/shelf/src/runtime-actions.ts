@@ -6,6 +6,7 @@ import type { PluginManifest, PluginStartContext } from "@molis-ai/molis-work-co
 import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
 import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
 import { checkedDocument, shelfCopyOf } from "./coding-result.js";
+import type { ShelfProjectActionPorts } from "./actions.js";
 
 const text = { type: "string" };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -36,6 +37,11 @@ export interface ShelfResultPorts {
   /** Where this project's pages are served from: a copy's source names it, so the Shelf can open the original. */
   projectPath(): string;
   receive(preview: ShelfArtifactPreview): Promise<{ item: ShelfItemRecord; snapshot: ShelfSnapshot }>;
+  /**
+   * Transitional (PG-026): saving a personal copy into this project reads the copy and imports it through the Host. S4 reads it
+   * through the Home instance's actions and imports it through the platform's.
+   */
+  material?: ShelfProjectActionPorts;
 }
 
 /** What the artifact service refuses (a version that is not there) is the caller's mistake (400), not a failure of ours. */

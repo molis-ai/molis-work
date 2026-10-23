@@ -136,7 +136,6 @@ export { handleFeedNativePluginHttp, type FeedNativePluginHttpOptions } from "./
 export { handleInboxNativePluginHttp, type InboxNativePluginHttpOptions } from "./inbox-native-plugin-http.js";
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
 export { handleScheduleNativePluginHttp, type ScheduleNativePluginHttpOptions } from "./schedule-native-plugin-http.js";
-export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 export { handleFunctionsHttp } from "./functions-http.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";

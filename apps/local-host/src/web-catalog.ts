@@ -25,8 +25,6 @@ import { L } from "./web-locale.js";
 import { handleComponentBoardHttp } from "./web-catalog-board.js";
 import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
 import { findPluginSettingsNavItem, renderCharactersSettingsEntry, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
-import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
-import { shelfPageActions } from "./shelf-actions.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -74,9 +72,6 @@ export async function handleLocalCatalogWebRequest(
   if (await handlePlacementHttp(request, response, url, () => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS))) return;
   if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
     actions: bindLocalWebActions(localHost, undefined, ["functions:invoke", "functions:manage"]),
-  })) return;
-  if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(request, response, url, {
-    shelf: { actions: shelfPageActions(bindLocalWebActions(localHost, undefined, []), serverOptions.homeDirectory) },
   })) return;
   if (await handleOnboarding(request, response, url, serverOptions.homeDirectory, projects.length, localHost, controlToken)) return;
   if (request.method === "GET" && url.pathname === "/desktop/capsule") {
@@ -169,7 +164,7 @@ export async function handleLocalCatalogWebRequest(
   const pluginSettingsSlug = url.pathname.match(/^\/settings\/([^/]+)$/)?.[1];
   const pluginSettings = pluginSettingsSlug ? findPluginSettingsNavItem(pluginSettingsSlug) : null;
   if (request.method === "GET" && pluginSettings && serverOptions.homeDirectory) {
-    let plugin_settings_html = await renderCatalogPluginSettings(pluginSettings.contribution_id, localHost, serverOptions.homeDirectory);
+    let plugin_settings_html = await renderCatalogPluginSettings(pluginSettings.contribution_id, localHost);
     if (!plugin_settings_html && pluginSettings.contribution_id !== CODING_SETTINGS_UI_CONTRIBUTION_ID) {
       sendJson(response, 404, { error: L("页面不存在") });
       return;
@@ -296,10 +291,10 @@ function escapeSettingsHtml(value: unknown): string {
     .replaceAll('"', "&quot;");
 }
 
-async function renderCatalogPluginSettings(contributionId: string, host: MolisWorkLocalHost, home: string): Promise<string | null> {
+async function renderCatalogPluginSettings(contributionId: string, host: MolisWorkLocalHost): Promise<string | null> {
   const primitives = { escape: escapeSettingsHtml, text: L };
   if (contributionId === SHELF_SETTINGS_UI_CONTRIBUTION_ID) {
-    const snapshot = await shelfPageActions(bindLocalWebActions(host, undefined, []), home).invoke(shelfActions.snapshot, {});
+    const snapshot = await bindLocalWebActions(host, undefined, []).invoke(shelfActions.snapshot, {});
     return renderPluginSettingsContribution(contributionId, {
       settings: snapshot.settings,
       runtime: snapshot.runtime,

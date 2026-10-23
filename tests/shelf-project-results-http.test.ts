@@ -52,7 +52,7 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   await shelf.writeCopy(item.item_id,'只改 Shelf 副本，来源保持。');
   assert.equal((await request(path,confirmation)).body.item.item_id,item.item_id);
   assert.equal(shelf.readFile(item.item_id).bytes.toString('utf8'),'只改 Shelf 副本，来源保持。');
-  const materialPath='/api/shelf/items/'+item.item_id+'/project-material';
+  const materialPath='/api/plugins/io.molis.work.shelf/items/'+item.item_id+'/project-material';
   const material=await request(materialPath); assert.equal(material.status,200);
   assert.deepEqual(material.body.payload.source.artifact.reference,reference);
   // Saved into the project's knowledge as an imported document with the edited copy's text (specs/project-knowledge §9).

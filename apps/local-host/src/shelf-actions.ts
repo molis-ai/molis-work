@@ -1,19 +1,16 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { ActionError, requireSynchronous, retainActionAuthority, type ActionClient, type ActionExecutionContext, type ActionProviderRegistration, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, retainActionAuthority, type ActionClient, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginOwnerFilesClient, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { importThroughArtifacts } from "./artifact-document-import.js";
-import { SHELF_OWNER_FILES, SHELF_PROJECT_ACTIONS, createShelfProjectActionHandlers, shelfActions, shelfManifest, shelfProjectActions } from "@molis-ai/molis-work-plugin-shelf";
-import { openShelfStore, shelfRuntimeProbe, type ShelfRuntimeProbe, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
-import type { ShelfAiPorts, ShelfTextMaterial, ShelfMaterialPorts, ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { SHELF_OWNER_FILES, shelfManifest, shelfProjectActions } from "@molis-ai/molis-work-plugin-shelf";
+import { openShelfStore, type ShelfRuntimeProbe, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
+import type { ShelfAiPorts, ShelfTextMaterial, ShelfMaterialPorts } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 
-const provider = (projectId?: string) => ({ provider_id: shelfManifest.plugin_id, plugin_id: shelfManifest.plugin_id, title: shelfManifest.name,
-  kind: "plugin" as const, ...(projectId ? { project_id: projectId } : {}) });
-
 /**
- * Transitional (PG-026-S1 in specs/repository-anti-corruption/privileges.md): Shelf's project half is still composed here and runs outside
- * a Plugin Runtime action scope, so the files client the platform builds for a plugin (which asks for that scope on every call) cannot
+ * Transitional (PG-026-S1 in specs/repository-anti-corruption/privileges.md): Shelf's project half still reads the person's shelf here,
+ * outside a Plugin Runtime action scope of the Home instance, so the files client the platform builds for a plugin (which asks for that scope on every call) cannot
  * serve it. This one is the same client over the same Host port and the same declared entries (`SHELF_OWNER_FILES`): a write outside
  * them, a link, a special node or a path that is not strictly relative is refused by the port. It adds no action gate and waits for no
  * `beforeEffect`: the callers keep the ones they already make. The Home actions are Shelf's Runtime Home instance on `services.ownerFiles`
@@ -55,33 +52,13 @@ export function openHostShelfStore(home: string, probe: ShelfRuntimeProbe = {}, 
 }
 
 /**
- * Transitional (PG-113): the person's Shelf actions as the Host's own pages call them, through Shelf's Home instance. The instance
- * keeps the folder behind its files to itself, so its snapshot names none; these pages still drag copies out of it and open a
- * terminal there, so the Host names it here until they move to the plugin's routes.
- */
-export function shelfPageActions(client: BoundActionClient, home: string): BoundActionClient {
-  const root = path.join(path.resolve(home), SHELF_OWNER_FILES.store_name);
-  return { discover: () => client.discover(), invoke: async (definition, input, control, transport) => {
-    const result = await client.invoke(definition, input, control, transport);
-    return definition.capability_id === shelfActions.snapshot.capability_id ? { ...result as ShelfSnapshot, root } as typeof result : result;
-  } };
-}
-
-/** Saving a personal copy into a project goes through that project's Artifact store, owned by the confirming caller. */
-export function shelfProjectActionProvider(projectId: string, home: string, client: ActionClient): ActionProviderRegistration {
-  return { provider: provider(projectId), definitions: SHELF_PROJECT_ACTIONS, handlers: createShelfProjectActionHandlers(projectId, {
-    readFile: itemId => openHostShelfStore(home, shelfRuntimeProbe()).readFile(itemId),
-    publish: (payload, caller) => saveShelfToProject(client, payload, caller),
-  }) };
-}
-
-/**
  * Saves a personal Shelf copy into the project's knowledge (specs/project-knowledge §9) through the 成果库's own import, as the
  * confirming caller: an imported document the project's agents find and read like any other, refused where the 成果库 is off,
  * as the side panel's import is. The Shelf item is its source, so saving it again after it changed is a new version of the same
- * document, and the same text keeps its version.
+ * document, and the same text keeps its version. Transitional (PG-026-S1): the project half's port until S4 moves it onto the
+ * platform's own services.
  */
-async function saveShelfToProject(client: ActionClient, payload: ShelfTextMaterial, caller: ActionExecutionContext): Promise<{ artifact_id: string; version: number }> {
+export async function saveShelfToProject(client: ActionClient, payload: ShelfTextMaterial, caller: ActionExecutionContext): Promise<{ artifact_id: string; version: number }> {
   const name = payload.title.replace(/[\\/\u0000-\u001f]/gu, " ").trim().slice(0, 240) || "Shelf";
   const nested = retainActionAuthority(caller, { ...shelfProjectActions.saveMaterial, provider_id: shelfManifest.plugin_id });
   const saved = await importThroughArtifacts(client, nested,

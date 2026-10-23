@@ -32,8 +32,6 @@ import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
 import { SCHEDULE_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-schedule";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
-import { SHELF_PROJECT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
-import { shelfPageActions } from "./shelf-actions.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
@@ -204,7 +202,6 @@ const sessionsAndPlanningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 const nativePluginRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "personal", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost, userActions }) => Boolean(serverOptions.homeDirectory)
     && await handlePersonalNativePluginHttp(request, response, url, {
-      projectId: options.project?.project_id ?? "",
       alchemist: { projectId: hostReference.project_id, routePrefix: options.routePrefix ?? "",
         actions: { invoke: async (definition, input, signal) => {
           if (!signal) throw new ActionError("actions.forbidden", "缺少请求生命周期");
@@ -213,11 +210,6 @@ const nativePluginRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
           });
           return userActions(ALCHEMIST_ACTION_PERMISSIONS).invoke(definition, input, control);
         } } },
-      shelf: {
-        actions: shelfPageActions(bindLocalWebActions(localHost, undefined, []), serverOptions.homeDirectory!),
-        project: { title: options.project?.display_name ?? options.projectId,
-          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user", permissions: SHELF_PROJECT_ACTION_PERMISSIONS })) },
-      },
     }) },
 ];
 

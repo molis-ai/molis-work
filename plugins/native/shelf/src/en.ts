@@ -2,6 +2,11 @@
 export const SHELF_EN: Record<string, string> = {
   "拖文件到这里，或点添加材料": "Drop files here, or press Add material",
   "材料覆盖说明": "Material coverage",
+  "这个文件夹超过 32 MB，请把它拆成几个小一点的文件夹再放进来": "This folder is over 32 MB. Split it into a few smaller folders and add those instead.",
+  "下载这份文件": "Download this file",
+  "用系统打开": "Open in its app",
+  "这份文件在这里显示不了，可以下载后打开。": "This file can't be shown here. Download it to open it.",
+  "系统没能打开这份文件": "The system couldn't open this file.",
   "AI、终端与存储": "AI, terminal and storage",
   "选择自动动作的 AI 模型、人工终端，以及材料存放位置。": "Choose the AI model, manual terminal and material storage.",
   "自动动作的 AI 模型": "AI model for automatic actions",

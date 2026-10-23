@@ -69,7 +69,7 @@ async function openShelfBrowser(t: TestContext) {
       const bytes = Buffer.concat(chunks);
       const result = await routes.handle({ method: request.method === "POST" ? "POST" : "GET", pathname: url.pathname, query: url.searchParams, body: bytes.length ? JSON.parse(bytes.toString("utf8")) : {} });
       if (!result) { response.writeHead(404); response.end(); return; }
-      if (request.method === "GET" && url.pathname === "/api/shelf" && delayNextRead) { const wait = delayNextRead; delayNextRead = undefined; await wait(); }
+      if (request.method === "GET" && url.pathname === "/api/plugins/io.molis.work.shelf/snapshot" && delayNextRead) { const wait = delayNextRead; delayNextRead = undefined; await wait(); }
       if (request.method === "GET" && url.pathname.endsWith("/file") && delayNextFile) { const wait = delayNextFile; delayNextFile = undefined; await wait(); }
       response.writeHead(result.status, { "content-type": result.mime || "application/json; charset=utf-8", "cache-control": "no-store", ...result.headers });
       response.end(result.bytes ? Buffer.from(result.bytes) : JSON.stringify(result.body));
@@ -131,14 +131,14 @@ test("Shelf isolated client boundaries use production UI and real file HTTP", { 
     const document = await command<{ root: { nodeId: number } }>("DOM.getDocument", {}, sessionId);
     const input = await command<{ nodeId: number }>("DOM.querySelector", { nodeId: document.root.nodeId, selector: "[data-shelf-file]" }, sessionId);
     assert.ok(input.nodeId);
-    const before = requests.filter(value => value === "POST /api/shelf/items").length;
+    const before = requests.filter(value => value === "POST /api/plugins/io.molis.work.shelf/items").length;
     await command("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [file] }, sessionId);
     await waitFor("document.querySelector('[data-shelf-preview]')?.textContent.includes('PICKER_END_SENTINEL') && document.querySelector('[data-shelf-file]').value === ''");
-    assert.equal(requests.filter(value => value === "POST /api/shelf/items").length, before + 1);
+    assert.equal(requests.filter(value => value === "POST /api/plugins/io.molis.work.shelf/items").length, before + 1);
     const item = (await shelf.snapshot()).materials.find(item => item.name === filename);
     assert.ok(item); itemId = item.item_id;
     assert.equal(shelf.readFile(item.item_id).bytes.toString("utf8"), text);
-    assert.ok(requests.includes(`GET /api/shelf/items/${itemId}/file`), "full preview must read the real copy endpoint");
+    assert.ok(requests.includes(`GET /api/plugins/io.molis.work.shelf/items/${itemId}/file`), "full preview must read the real copy endpoint");
   });
 
   await t.test("unsent input is restored, missing bridge preserves the draft, and wheel handoff quotes apostrophes", async () => {
@@ -224,7 +224,7 @@ test("W2-18-SHELF-CACHE-01: owner edits invalidate same-ID text and an earlier f
 test("W2-18-SHELF-LIFETIME-01: a window event belongs to one live mount; a detached mount answers nothing", { timeout: 35_000 }, async t => {
   const browser = await openShelfBrowser(t); if (!browser) return;
   const { requests, evaluate } = browser;
-  const reads = () => requests.filter(request => request === "GET /api/shelf").length;
+  const reads = () => requests.filter(request => request === "GET /api/plugins/io.molis.work.shelf/snapshot").length;
   const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   await evaluate("window.shelfRoot=document.querySelector('[data-shelf=workbench]');window.shelfParent=shelfRoot.parentElement;shelfRoot.remove()");
   await pause(50);
@@ -242,7 +242,7 @@ test("Shelf keeps the latest snapshot and releases global handlers across hide, 
   const browser = await openShelfBrowser(t); if (!browser) return;
   const { shelf, requests, evaluate, waitFor, delaySnapshot } = browser;
   const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-  const reads = () => requests.filter(request => request === "GET /api/shelf").length;
+  const reads = () => requests.filter(request => request === "GET /api/plugins/io.molis.work.shelf/snapshot").length;
   const delayed = delaySnapshot();
   await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))"); await delayed.started;
   await shelf.admit({ filename: "更新后的材料.md", bytes: Buffer.from("# 最新内容"), mime: "text/markdown" });
@@ -279,7 +279,7 @@ test("VUX-19: a clip's copy is said on the bar, a refused clipboard included, an
   await waitFor(`${row} && document.querySelector('[data-shelf-bar]')?.textContent.length > 0`);
   await evaluate(`(() => { window.allowCopy = false; window.copied = []; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
     writeText: (text) => window.allowCopy ? (window.copied.push(text), Promise.resolve()) : Promise.reject(new Error('denied')) } }); })()`);
-  const promoted = () => requests.filter(line => line === "POST /api/shelf/clipboard").length;
+  const promoted = () => requests.filter(line => line === "POST /api/plugins/io.molis.work.shelf/clipboard").length;
   const before = promoted();
   await evaluate(`${row}.querySelector('[data-shelf-row-action=copy]').click()`);
   await waitFor(`document.querySelector('[data-shelf-bar-hint]')?.textContent.includes('复制失败')`);

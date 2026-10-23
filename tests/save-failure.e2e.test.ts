@@ -41,6 +41,6 @@ test("VUX-31: a Shelf setting whose save fails goes back to what was saved and s
   await waitFor(`document.querySelector('${wheel}').checked === ${!before} && !document.querySelector('${wheel}').disabled`, 10_000);
   await pause(300);
   assert.equal(await evaluate(alertIn(wheel)), null, "a save that works clears the failure");
-  const saved = await evaluate<{ drop_wheel_enabled: boolean }>("fetch('/api/shelf/settings', { cache: 'no-store' }).then((r) => r.json())");
+  const saved = await evaluate<{ drop_wheel_enabled: boolean }>("fetch('/api/plugins/io.molis.work.shelf/settings', { cache: 'no-store' }).then((r) => r.json())");
   assert.equal(saved.drop_wheel_enabled, !before);
 });

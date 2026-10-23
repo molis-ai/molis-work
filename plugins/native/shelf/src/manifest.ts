@@ -2,7 +2,8 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { SHELF_UI_CONTRIBUTION_ID } from "./ui.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
 import { SHELF_RUNTIME_ACTIONS } from "./runtime-actions.js";
-import { SHELF_ACTIONS } from "./actions.js";
+import { SHELF_ACTIONS, SHELF_PROJECT_ACTIONS } from "./actions.js";
+import { SHELF_HOME_ROUTES, SHELF_MATERIAL_ROUTES } from "./routes.js";
 import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
 
 export const SHELF_PLUGIN_ID = "io.molis.work.shelf";
@@ -35,19 +36,25 @@ export const shelfManifest: PluginManifest = {
     { permission: "materials:read", required: true, reason: "抽取 PDF、网页文件与图片里的文字" },
     { permission: "materials:fetch", required: true, reason: "抓取放进置物架的公开网页" },
     { permission: "materials:fetch_local", required: true, reason: "抓取放进置物架的本机网页" },
+    { permission: "materials:original", required: true, reason: "处理前核对你放进来的原文件有没有变" },
+    { permission: "artifacts:read", required: true, reason: "存到项目资料前读取项目里已有的那一份" },
+    { permission: "artifacts:write", required: true, reason: "把置物架里的文字存到项目资料" },
   ],
   // The text of a Coding result comes from Coding itself (the plugin audience only); Shelf adds its own heading and source.
   capabilities: { provides: [], consumes: [codingResultDocument.capability_id] },
-  // The project instance offers the Coding-result actions; the Home instance the personal store's.
-  actions: [...SHELF_RUNTIME_ACTIONS, ...SHELF_ACTIONS],
+  // The project instance offers the Coding-result actions and saving into the project; the Home instance the personal store's.
+  actions: [...SHELF_RUNTIME_ACTIONS, ...SHELF_PROJECT_ACTIONS, ...SHELF_ACTIONS],
   artifacts: { produces: [], consumes: [{ artifact_type_id: "coding.report.v1", schema_version: 1 }] },
   // A Coding change set offered to Shelf is exchange data, not a 成果. What Shelf saves into a project is an imported document there.
   process_items: { produces: [], consumes: [{ artifact_type_id: "coding.changeset.v1", schema_version: 1 }] },
   ports: { inputs: [{ port: "coding-report", artifact_type_id: "coding.report.v1", schema_version: 1, optional: true, default_source: { plugin_id: "io.molis.work.coding", port: "report" } }, { port: "coding-changeset", artifact_type_id: "coding.changeset.v1", schema_version: 1, optional: true, default_source: { plugin_id: "io.molis.work.coding", port: "changeset" } }], outputs: [] },
+  // The project instance answers the Coding-result and project-material routes; the Home instance the panel's own.
   routes: [
     { route_id: "shelf.project-results", method: "GET", path: "/project-results" },
     { route_id: "shelf.project-result-preview", method: "GET", path: "/project-result" },
     { route_id: "shelf.project-result-receive", method: "POST", path: "/project-result" },
+    ...SHELF_MATERIAL_ROUTES,
+    ...SHELF_HOME_ROUTES,
   ],
   ui: {
     contributions: [SHELF_UI_CONTRIBUTION_ID, SHELF_SETTINGS_UI_CONTRIBUTION_ID],

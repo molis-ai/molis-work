@@ -35,7 +35,8 @@ export const DIFF_MESSAGES = {
   "文件权限：移除执行权限（100755 → 100644）": { zh: "文件权限：移除执行权限（100755 → 100644）", en: "File mode: no longer executable (100755 → 100644)" },
   "正文未改变": { zh: "正文未改变", en: "The text is unchanged" },
   // Sentences with a path or a count in them are written in Chinese by the producer (an Agent reads them too), so each is a
-  // template here: `sentences.ts` finds which template a sentence is, and the page says it with the values in its own words.
+  // template here (`DIFF_TEMPLATES`): the SDK's `diffViewText` finds which template a sentence is, and the page says it with the
+  // values in its own words. The three about a hunk are the sentences the SDK's `parseUnifiedDiff` refuses with.
   "diff.msg.no-change-in": { zh: "这一轮没有改动 {path}", en: "This round didn't change {path}" },
   "diff.msg.renamed": { zh: "重命名：{from} → {to}", en: "Renamed: {from} → {to}" },
   "diff.msg.hunk-count": { zh: "hunk 行数与 @@ 头不一致：声明 {declaredBefore}/{declaredAfter}，实际 {sawBefore}/{sawAfter}", en: "A hunk's line counts don't match its @@ header: declared {declaredBefore}/{declaredAfter}, found {sawBefore}/{sawAfter}" },
@@ -47,3 +48,6 @@ export const DIFF_MESSAGES = {
   "Git 固定变更当前不可读，请重新选择原变更": { zh: "Git 固定变更当前不可读，请重新选择原变更", en: "The pinned Git change can't be read right now. Choose the original change again." },
   "请选择两份文件快照进行对比": { zh: "请选择两份文件快照进行对比", en: "Choose two file snapshots to compare" },
 } as const;
+
+/** The keys above that are sentences with values in them. */
+export const DIFF_TEMPLATES: readonly string[] = ["diff.msg.no-change-in", "diff.msg.renamed", "diff.msg.hunk-count", "diff.msg.hunk-header"];

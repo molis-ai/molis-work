@@ -1,12 +1,13 @@
-import type { ActionCallContext, ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionDefinition, ActionHandlerBinding, ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE, parseCodingChangeSet, type TextDiff } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { compareSnapshots, compareChangeSet, compareRunChangeSet, emptyDiff, type DiffView } from "./comparison.js";
-import { compareTexts, fillMessage } from "@molis-ai/molis-work-plugin-sdk";
+import { compareTexts } from "@molis-ai/molis-work-plugin-sdk";
+import { diffViewText, renderDiff, type DiffViewText } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
 import { diffErrors } from "./errors.js";
-import { DIFF_MESSAGES } from "./messages.js";
-import { renderDiff } from "./ui.js";
+import { DIFF_MESSAGES, DIFF_TEMPLATES } from "./messages.js";
+import { DIFF_LABELS } from "./ui.js";
 
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: "object", properties, required, additionalProperties: false });
 const text = { type: "string" }, version = { type: "integer", minimum: 1 }, count = { type: "integer", minimum: 0 }, boolean = { type: "boolean" };
@@ -45,9 +46,15 @@ export function diffActionHandlers(context: PluginStartContext): ActionHandlerBi
 function stateFor(caller: ActionCallContext, view: DiffView): DiffState {
   // Pages draw it: the plugin's own page calls as the person, Coding's page consumes it as a plugin; models, workflows and MCP get the view only.
   if (caller.audience !== "user" && caller.audience !== "plugin") return { view };
-  const words: Record<string, { zh: string; en: string }> = DIFF_MESSAGES, locale = caller.locale ?? "zh";
-  return { view, html: renderDiff({ view, primitives: { escape: escapeHtml, text: (key, values) => fillMessage(words[key]?.[locale] ?? key, values),
-    icon: name => icon(name as Parameters<typeof icon>[0]) } }) };
+  return { view, html: renderDiff({ view, labels: DIFF_LABELS,
+    primitives: { escape: escapeHtml, text: pageText(caller.locale ?? "zh"), icon: name => icon(name as Parameters<typeof icon>[0]) } }) };
+}
+/** Diff's words in a page's language, a sentence with values in it said again with the same values; built once per language. */
+const texts = new Map<ActionLocale, DiffViewText>();
+function pageText(locale: ActionLocale): DiffViewText {
+  let text = texts.get(locale);
+  if (!text) texts.set(locale, text = diffViewText(DIFF_MESSAGES, locale, DIFF_TEMPLATES));
+  return text;
 }
 function readState(context: PluginStartContext, input: DiffStateInput): DiffView {
   if (input.reference) {

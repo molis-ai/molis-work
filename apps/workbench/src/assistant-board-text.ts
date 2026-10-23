@@ -82,6 +82,7 @@ const TEXT: Record<string, readonly [en: string, mixed?: string]> = {
   "把上周 Feed 里和试用有关的整理成摘要": ["Summarise what last week's Feed said about the trial", "把上周 Feed 里和 trial 有关的整理成 digest"],
   "Feed · 读取全文": ["Feed · read full text"],
   "来源返回 503": ["The source answered 503"],
+  "Pages · 新建摘要文档": ["Pages · create the summary document"],
   "模型服务暂时不可用": ["The model service is unavailable for now"],
   "看看哪些依赖可以升级": ["See which dependencies can be upgraded", "看看哪些 dependencies 可以 upgrade"],
   "依赖": ["Dependencies"],

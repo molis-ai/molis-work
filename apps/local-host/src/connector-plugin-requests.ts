@@ -19,7 +19,11 @@ export const pluginRequestErrors = defineErrorCodes("connector.plugin_requests",
   private_address: "forbidden", timeout: "timeout", too_large: "too_large", upstream: "upstream",
 });
 
-/** The scope an installation's slot bindings live under: one installation, so a reinstall starts unbound. */
+/**
+ * The scope an installation's slot bindings live under. `install_id` is the installation identity (`installIdentity`: the plugin id and
+ * the publisher's signature), the same in every project and after a reinstall, so a binding follows the plugin until it is unbound
+ * (the uninstall gap is listed under S-57); another publisher's build of the same plugin id never reads it.
+ */
 export function pluginSlotScope(install_id: string): string {
   return `plugin-installation:${install_id}`;
 }

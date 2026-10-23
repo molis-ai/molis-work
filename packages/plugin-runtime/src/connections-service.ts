@@ -17,6 +17,8 @@ const CREDENTIAL_HEADERS = new Set(["authorization", "proxy-authorization", "coo
 /** Headers the connection itself owns. */
 const TRANSPORT_HEADERS = new Set(["host", "connection", "content-length", "transfer-encoding", "upgrade", "keep-alive", "te", "trailer", "proxy-connection", "expect"]);
 const HEADER_NAME = /^[a-z0-9!#$%&'*+.^_`|~-]{1,128}$/u;
+/** Node's own rule for a header value: one it would throw on is refused here, as the plugin's error, before anything is sent. */
+const HEADER_VALUE_INVALID = /[^\t\x20-\x7e\x80-\xff]/u;
 
 /** One request as the Host's side receives it: checked, with only the fields it may send. */
 export interface PluginConnectionDispatch {
@@ -98,7 +100,7 @@ function connectionRequest(request: PluginConnectionRequest): Omit<PluginConnect
     const key = name.toLowerCase();
     if (CREDENTIAL_HEADERS.has(key)) throw errors.connections_request_invalid(`请求头 ${name} 由宿主决定：凭据只来自人绑定的账号`);
     if (TRANSPORT_HEADERS.has(key) || !HEADER_NAME.test(key)) throw errors.connections_request_invalid(`不能设置请求头 ${name}`);
-    if (typeof value !== "string" || value.length > MAX_HEADER_VALUE || /[\r\n\0]/u.test(value)) throw errors.connections_request_invalid(`请求头 ${name} 的值无效`);
+    if (typeof value !== "string" || value.length > MAX_HEADER_VALUE || HEADER_VALUE_INVALID.test(value)) throw errors.connections_request_invalid(`请求头 ${name} 的值无效`);
     headers[key] = value;
   }
   if (request.body !== undefined) {

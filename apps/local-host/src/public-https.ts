@@ -4,6 +4,7 @@
  *
  * - every address the connection actually uses is public (resolved inside the connection, so DNS cannot be switched
  *   to a private address between a check and the connect), and the call is rechecked after DNS, right before the connect;
+ * - always port 443: each caller refuses an address with another port before it gets here;
  * - redirects are not followed: the answer comes back as it is;
  * - bounded time (15 s) and response size (1 MiB).
  *
@@ -73,7 +74,7 @@ export function sendPublicHttps(request: PublicHttpsRequest): Promise<PublicHttp
         if (lookupOptions?.all) callback(null, addresses); else callback(null, addresses[0]!.address, addresses[0]!.family);
       }).catch(() => callback(Object.assign(new Error('原调用已取消或授权已失效'), { code: 'INVOCATION_REVOKED' }), []));
     });
-    const outgoing = httpsRequest({ protocol: 'https:', hostname: url.hostname, port: url.port || 443, path: url.pathname + url.search, method, headers, lookup: lookup as never, signal: stop, ...(request.agent ? { agent: request.agent } : {}) }, response => {
+    const outgoing = httpsRequest({ protocol: 'https:', hostname: url.hostname, port: 443, path: url.pathname + url.search, method, headers, lookup: lookup as never, signal: stop, ...(request.agent ? { agent: request.agent } : {}) }, response => {
       const chunks: Buffer[] = []; let size = 0;
       response.on('data', (chunk: Buffer) => {
         size += chunk.length;

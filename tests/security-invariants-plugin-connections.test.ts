@@ -78,7 +78,7 @@ test("S-57 a request is refused outside the instance's own concurrent action dec
   for (const url of ["http://api.github.com/user", "https://someone:pw@api.github.com/user", "https://api.github.com/user#x", "not a url"]) {
     await refusedIn({ url }, "plugin.connections_request_invalid");
   }
-  for (const headers of [{ Authorization: "Bearer forged" }, { cookie: "a=b" }, { "Proxy-Authorization": "x" }, { host: "evil.example" }, { "x-ok": "a\r\nb" }]) {
+  for (const headers of [{ Authorization: "Bearer forged" }, { cookie: "a=b" }, { "Proxy-Authorization": "x" }, { host: "evil.example" }, { "x-ok": "a\r\nb" }, { "x-ok": "a\u0001b" }, { "x-ok": "中文" }]) {
     await refusedIn({ url: "https://api.github.com/user", headers }, "plugin.connections_request_invalid");
   }
   await refusedIn({ url: "https://api.github.com/user", body: "{}" }, "plugin.connections_request_invalid");
@@ -179,7 +179,7 @@ test("S-57 the Host adds the bound credential only on the service origin, hides 
   assert.equal(seen.at(-1)?.authorization, `Bearer ${BEARER_VALUE}`);
   assert.deepEqual(Object.keys(bound.headers).sort(), ["content-type", "date", "x-ratelimit-remaining"]);
   assert.equal(JSON.stringify(bound).includes(BEARER_VALUE), false);
-  // Another installation of the same plugin has its own, unbound slot.
+  // A slot is keyed by the installation identity: another one (another publisher's build of the plugin id) has its own, unbound slot.
   assert.equal((await port.request({ ...target, install_id: "install-other" }, dispatch("https://api.github.com/user"))).authenticated, false);
   // A redirect comes back as it is: one request reached the server, and none went to the new address.
   const hits = seen.length, moved = await port.request(target, dispatch("https://api.github.com/moved"));

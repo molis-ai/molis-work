@@ -131,3 +131,39 @@ test("a settled operation reaches Git even when another installation's action se
     await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); await rm(root, { recursive: true, force: true });
   }
 });
+
+// BL-379 (PG-044): a settlement goes as `host.review.settled@1` only to the installation that asked (S-54), so Coding's worktree
+// and integration reviews never reach Git. The Host also broadcasts `host.workspace.changed@1` for every one, whoever asked.
+test("BL-379 a settled workspace operation another installation asked for makes Git's and Files' pages read again, whatever the outcome", { timeout: 60_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), "workspace-changed-")), file = join(root, "board.db");
+  seedDemoBoard(file);
+  const store = new LocalProjectDatabase(file);
+  let settle: ((settlement: ReviewSettlement) => void) | undefined;
+  const ports = { store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
+    observeReviewSettlements: (listener: (settlement: ReviewSettlement) => void) => { settle = listener; return () => { settle = undefined; }; } };
+  try {
+    const platform = (await ensureProjectPlugins(ports)).platform!;
+    await platform.wiring.drain();
+    assert.ok(settle, "the Host forwards this project's settlements");
+    const coding = platform.supervisor.state("io.molis.work.coding")?.install_id;
+    const revisions = () => [platform.viewRevision(FILES), platform.viewRevision(GIT)];
+    const cases: { kind: "git-worktree" | "git-integration"; outcome: "succeeded" | "failed" | "unknown"; recipient: ReviewSettlement["recipient"] }[] = [
+      { kind: "git-worktree", outcome: "succeeded", recipient: coding ? { plugin_id: "io.molis.work.coding", install_id: coding } : null },
+      // The activation that asked has stopped: the operation ran all the same.
+      { kind: "git-integration", outcome: "failed", recipient: null },
+      { kind: "git-worktree", outcome: "unknown", recipient: null },
+    ];
+    for (const [index, { kind, outcome, recipient }] of cases.entries()) {
+      const before = revisions();
+      settle!({ recipient, payload: { review_id: `review-${index}`, kind, operation_id: `operation-${index}`, workspace_id: "one", outcome } });
+      await platform.hostEvents.drain(); await platform.events.drain();
+      const after = revisions();
+      assert.notEqual(after[0], before[0], `${kind} ${outcome}: Files' pages read again`);
+      assert.notEqual(after[1], before[1], `${kind} ${outcome}: Git's pages read again`);
+    }
+    assert.deepEqual(platform.events.log(DEMO_PROJECT_ID).filter(event => event.event_type_id === EVENT), [],
+      "Git publishes `operation-updated` only for operations it asked for");
+  } finally {
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); await rm(root, { recursive: true, force: true });
+  }
+});

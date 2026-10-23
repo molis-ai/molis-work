@@ -48,7 +48,7 @@ Coding 可在授权范围内操作浏览器与桌面，协调有依赖关系的�
 | 讨论模式不能执行，过多逐项审查影响连贯；结束检查偏重表达 | 机制与角色可确认；不能推断为所有真实任务失败的根因；不得降低已有安全边界换取成功率 | R3、R5、R12 |
 | Dataset 列表读取完整行数据，所有单元格建控件，筛选全量重建并重复查找旧行 | 最新主线静态确认；未测大数据性能。[存储](../../plugins/native/dataset/src/store.ts)、[界面](../../plugins/native/dataset/src/client.ts) | R9，待测量与优化 |
 | Builder 已有多阶段、检查、修复、浏览器与视觉验收，但配置与阶段上下文需要核对 | 流程存在；尚无用户失败任务的端到端归因，不能宣称缺少 Harness。[适配器](../../horizontal/agent-host/src/adapters/plugin-builder.ts) | R11、R12 |
-| Git 已有本地关键操作和 `gh` 建 PR，缺完整 PR/CI/CD 后半段 | 已审查现有动作与 [Git 操作](../../apps/local-host/src/git-operations.ts)；平台连接与本机 `gh` 登录不是同一事实 | R10 |
+| Git 已有本地关键操作和 `gh` 建 PR，缺完整 PR/CI/CD 后半段 | 已审查现有动作与 [Git 操作](../../apps/local-host/src/workspace-git-operations.ts)；平台连接与本机 `gh` 登录不是同一事实 | R10 |
 | 工具并发、循环保护、延迟加载工具 schema、检查点与未知副作用恢复 | 当前 SDK/适配器已具备相关机制，不列作从零建设项 | 复用；按真实任务验证接入 |
 
 旧检出的 10 条目录/Coding 动作/助理委派定向测试通过，但目录执行器与助理部分链路使用替身，不能证明真实 Finder 或真实模型委派成功。摘要与参数实验没有调用付费模型。工程、真实产品实操、用户验收分别记录。

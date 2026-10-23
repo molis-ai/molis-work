@@ -6,8 +6,8 @@ import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/a
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerDirectoryCapabilities, writerIntegrationCapabilities, type WriterIntegrationSource } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
-import { readWriterIntegration, prepareWriterIntegration } from "./git-writer-integration.js";
-import { createGitWorktreePort } from "./git-worktrees.js";
+import { readWriterIntegration, prepareWriterIntegration } from "./workspace-git-integration.js";
+import { createGitWorktreePort } from "./workspace-git-worktrees.js";
 import { reviewAuthority } from "./plugin-callers.js";
 import { hostErrors } from "./host-errors.js";
 

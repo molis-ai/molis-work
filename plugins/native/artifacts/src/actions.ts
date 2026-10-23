@@ -20,9 +20,13 @@ const subjectDefinition = defineSubjectContextAction("artifacts.subject.read", A
 const subject: ActionDefinition<{ subject_id: string }, ActionSubjectContext> = { ...subjectDefinition,
   // Plugins read Artifacts through their own SDK with its consumption contracts, never through the subject reader.
   action: { ...subjectDefinition.action, audiences: ["user", "agent", "workflow", "mcp"], plugin: false } };
-/** A local file: a text document by its `content`, any other file by its `original_file` bytes (A3). */
+/**
+ * A local file: a text document by its `content`, any other file by its original (A3). The original's bytes come inline as
+ * `data_base64` (at most 6 MB), or, left out, from the file the Host was given for this import (`ActionCallContext.original_file`,
+ * any size; onboarding limits 2026-10-22).
+ */
 export interface ArtifactFileImport { source: "file"; filename: string; content?: string; title?: string;
-  source_id?: string; original_file?: { filename: string; mime: string; data_base64: string };
+  source_id?: string; original_file?: { filename: string; mime: string; data_base64?: string };
   /** The person agreed to download the local speech model for this transcription; the Host honours it only from a person (S-39, PMAT-48). */
   allow_model_download?: boolean }
 export interface ArtifactExternalImport { source: ExternalDocumentSource; url: string; connection_id?: string }
@@ -76,9 +80,10 @@ export const artifactsActions = {
   read: define<{ reference: ArtifactReference; supported_types?: ArtifactConsumerType[] }, Omit<ArtifactBrowserView, "versions">>("read", "读取固定成果版本", "按准确身份和版本读取成果及兼容性，不自动替换成最新版本", "query",
     object({ reference, supported_types: consumerTypes }, ["reference"]), object(selection)),
   export: define<{ reference: ArtifactReference }, { filename: string; mime: string; content: string }>("export", "导出成果版本", "导出原成果记录为 JSON，不注册新版本或改变发布状态", "query", object({ reference }), object({ filename: text, mime: text, content: text })),
-  importFile: { ...ARTIFACT_FILE_IMPORT_ACTION, ...define<ArtifactFileImport, ArtifactImportResult>("import.file", "导入本地文件", "把任何本地文件存为个人成果：Markdown、TXT、HTML 读出正文，其他文件保存原件（最多 6 MB）；同内容重复导入重用原版本", "command",
+  importFile: { ...ARTIFACT_FILE_IMPORT_ACTION, ...define<ArtifactFileImport, ArtifactImportResult>("import.file", "导入本地文件", "把任何本地文件存为个人成果：Markdown、TXT、HTML 读出正文，其他文件保存原件（随请求附上最多 6 MB，交给宿主的原件不限大小）；同内容重复导入重用原版本", "command",
     object({ source: { const: "file" }, filename: { ...text, minLength: 1, maxLength: 255 }, content: { ...text, description: "文本文件的 UTF-8 正文，解码后最多 2 MB" }, title: { ...text, maxLength: 500 },
-      source_id: { ...text, minLength: 1, maxLength: 512 }, original_file: object({ filename: { ...text, minLength: 1, maxLength: 255 }, mime: { ...text, maxLength: 128 }, data_base64: { ...text, maxLength: 8_000_000 } }),
+      source_id: { ...text, minLength: 1, maxLength: 512 }, original_file: object({ filename: { ...text, minLength: 1, maxLength: 255 }, mime: { ...text, maxLength: 128 },
+        data_base64: { ...text, maxLength: 8_000_000, description: "原文件的 base64，最多 6 MB；不写时用宿主为这次导入收下的文件" } }, ["filename", "mime"]),
       allow_model_download: { type: "boolean", description: "这个人同意为转写音视频下载本机语音模型；只有人亲自导入时有效" } }, ["source", "filename"]), imported, write, "concurrent") },
   importExternal: define<ArtifactExternalImport, ArtifactImportResult>("import.external", "导入外部文档", "使用当前 Home 已连接的文档账号读取链接，保存个人快照；不写回来源，不自动同步", "command",
     object({ source: sources, url: { ...text, minLength: 1, maxLength: 4096 }, connection_id: id }, ["source", "url"]), imported, [...write, "connectors:document:read"], "concurrent"),
@@ -145,6 +150,8 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
     bindArtifactPreview(artifactsActions.preview, DOCUMENT_ARTIFACT_TYPE, artifact => {
       const file = importedFileOf(artifact);
       if (!file) throw new ActionError("artifacts.unavailable", "这一版的内容不可用");
+      // An original in the store (over 6 MB) previews by the text read out of it; its bytes are its file route's.
+      if (file.stored) return { title: file.filename, media_type: "text/plain", text: file.text };
       const text = /^text\//u.test(file.mime);
       return { title: file.filename, media_type: file.mime.split(";")[0]!.trim(), ...(text ? { text: file.bytes.toString("utf8") } : { bytes: new Uint8Array(file.bytes) }) };
     }),

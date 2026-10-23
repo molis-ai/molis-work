@@ -146,6 +146,17 @@ export interface PagesActionPorts extends PagesStores {
   readArtifact?: (input: Parameters<PagesReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<PagesReadArtifactPort>;
   lineHead?: PagesLineHeadPort;
 }
+
+/**
+ * The file Pages reads to continue from an imported 成果 version. An original the 成果库 keeps in its store (over 6 MB) continues from
+ * the text read out of it, as Markdown.
+ */
+function continuedFiles(file: ReturnType<typeof importedDocumentFile>): { name: string; data: string }[] {
+  if (!file || !(file.stored ? file.text?.trim() : PAGES_READABLE_FILE.test(file.filename))) throw pagesErrors.unsupported("Pages 读不了这一版：支持 Markdown、TXT、HTML、CSV、Word 与 ZIP");
+  return [file.stored ? { name: file.filename.replace(/\.[^.]*$/u, "") + ".md", data: Buffer.from(file.text!, "utf8").toString("base64") }
+    : { name: file.filename, data: file.data_base64 ?? Buffer.from(file.text ?? "", "utf8").toString("base64") }];
+}
+
 export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandlerBinding[] {
   const prepareImport = async (files: readonly PagesImportFile[], caller: ActionExecutionContext) => {
     await caller.beforeEffect(); caller.signal?.throwIfAborted();
@@ -255,9 +266,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
         return { surface: "pages", id: document.id, title: document.title };
       }
       // An imported file Pages can read is parsed the way Pages imports files.
-      const file = importedDocumentFile(artifact);
-      if (!file || !PAGES_READABLE_FILE.test(file.filename)) throw pagesErrors.unsupported("Pages 读不了这一版：支持 Markdown、TXT、HTML、CSV、Word 与 ZIP");
-      const files = [{ name: file.filename, data: file.data_base64 ?? Buffer.from(file.text ?? "", "utf8").toString("base64") }];
+      const files = continuedFiles(importedDocumentFile(artifact));
       const prepared = await prepareImport(files, caller);
       const documents = prepared.documents;
       if (!documents.length) throw pagesErrors.invalid("这一版没有可以继续的正文");

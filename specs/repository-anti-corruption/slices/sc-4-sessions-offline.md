@@ -1,12 +1,12 @@
 # SC-4：Sessions 下线
 
-状态：2026-10-23 已实现，待评审与统筹集成批（分支 `migrate/sessions-sc4-offline`，叠在 SC-3 的 #1113 上）；第 1 节的保留机制由统筹转用户确认，确认前代码里不写任何读旧数据、迁移或兼容逻辑。
+状态：2026-10-23 已实现，待评审与统筹集成批（分支 `migrate/sessions-sc4-offline`，叠在 SC-3 的 #1113 上）；第 1 节的保留机制（D6 方案 A）用户 2026-10-23 确认（统筹会话弹窗，选「确认方案 A（推荐）」），代码里没有任何读旧数据、迁移或兼容逻辑。
 
 依据：用户 2026-10-18 定 Sessions 这一轮只做清理、重做另开需求（BL-177）；2026-10-23 定 D2（首页「说一句」随 Sessions 下线，入口一起删）、D6 方案 A（见第 1 节）。对应 `privileges.md` 的 PG-081、PG-082 收尾。总计划与清点在协调分支 `notes/sessions-cleanup-plan.md`、`notes/sessions-cleanup-inventory.md`。
 
-## 1. 保留机制：`<home>/sessions/` 退役存储（D6 方案 A，待用户确认）
+## 1. 保留机制：`<home>/sessions/` 退役存储（D6 方案 A，用户 2026-10-23 确认）
 
-**要登记的一条**（写进 `specs/repository-anti-corruption` 的保留机制，用户 2026-10-23 经统筹确认方案 A）：
+**要登记的一条**（写进 `specs/repository-anti-corruption` 的保留机制，用户 2026-10-23 确认（统筹会话弹窗）方案 A）：
 
 - 是什么：Home 下的 `sessions/` 目录（`sessions.db`、`content/`、`content.key`）是已退役的存储。SC-4 之后没有任何代码打开它；只有两处还认得这个目录——备份集（`home-stores.ts` 的登记，备份要同一时点包含 db 与 content）和 `uninstall --purge-user-data`（经同一份登记删除）。
 - 没有的：没有读它的代码，没有迁移，没有升级路径，没有按版本分支，没有「兜底读旧数据」。删项目不再有 `sessions` 这个 owner，所以删掉的项目留在这个目录里的行不会被清；这是已知的、被接受的残留，直到下面的删除条件成立。

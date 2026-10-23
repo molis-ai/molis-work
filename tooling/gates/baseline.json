@@ -747,7 +747,7 @@
     "git#host-files": 3,
     "shelf#host-files": 3
   },
-  "pluginOutsideMentionsTotal": 338,
+  "pluginOutsideMentionsTotal": 336,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,

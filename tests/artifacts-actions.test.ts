@@ -102,10 +102,10 @@ test("external Artifact import checks live authority and plugin state after fetc
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   process.env.MOLIS_WORK_ENCRYPTION_KEY = Buffer.alloc(32, 19).toString("base64");
   resetSecretStoreCache();
-  withConnectorConnections(home, store => store.createToken({ serviceId: "google-drive", displayName: "Google Drive", token: "fixture-only-token" }));
   let enabled = true;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
     actionAvailability: () => enabled ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "已停用" } });
+  withConnectorConnections(home, store => store.createToken({ serviceId: "google-drive", displayName: "Google Drive", token: "fixture-only-token" }));
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "project", audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), originalFetch = globalThis.fetch;

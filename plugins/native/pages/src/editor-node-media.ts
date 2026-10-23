@@ -2,7 +2,7 @@
 // The type brings `window.molisCopy`, which the workbench page provides; nothing of the package is bundled.
 import type { CopyLabels } from "@molis-ai/molis-work-design-system";
 import { Node } from "prosemirror-model";
-import { Plugin, PluginKey } from "prosemirror-state";
+import { NodeSelection, Plugin, PluginKey } from "prosemirror-state";
 import { Decoration, DecorationSet, EditorView, ViewMutationRecord } from "prosemirror-view";
 import { setImageWidth, setImageCaption, setBookmarkTitle } from "./commands.js";
 import {
@@ -20,7 +20,7 @@ import { PAGES_CODE_LANGUAGES, safePagesLanguage } from "./code-language.js";
 import { pagesSchema } from "./schema.js";
 import type { Translate } from "./editor-types.js";
 import { t, dsIcon } from "./editor-view-ui.js";
-import { SIZE_KEYS } from "./editor-size-keys.js";
+import { SIZE_KEYS, sizeHandle } from "./editor-size-keys.js";
 
 const codeHighlightKey = new PluginKey<DecorationSet>("pages-code-highlight");
 
@@ -115,6 +115,14 @@ export function imageNodeView(node: Node, view: EditorView, getPos: () => number
   handle.className = "pages-image-resize";
   handle.setAttribute("aria-label", t(translate, "调整宽度"));
   handle.setAttribute("aria-keyshortcuts", SIZE_KEYS);
+  const value = sizeHandle(handle, view, getPos, (text) => t(translate, text), (at) => NodeSelection.create(view.state.doc, at));
+  // An image without its own width fills its line, and says so.
+  const read = () => {
+    const n = safePagesImageWidth(current.attrs.width);
+    value(n || (media.querySelector("img") ?? frame).getBoundingClientRect().width, safePagesImageWidth(1), safePagesImageWidth(1e9),
+      n ? t(translate, "宽度 {n} 像素").replace("{n}", String(n)) : t(translate, "占满一行"));
+  };
+  handle.addEventListener("focus", read);
   const caption = document.createElement("input");
   caption.type = "text";
   caption.className = "pages-image-caption";
@@ -162,6 +170,7 @@ export function imageNodeView(node: Node, view: EditorView, getPos: () => number
       media.append(img);
     }
     syncCaption();
+    read();
   };
   handle.addEventListener("mousedown", (event) => event.preventDefault());
   handle.addEventListener("pointerdown", (event) => {

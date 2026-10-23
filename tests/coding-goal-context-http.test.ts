@@ -98,6 +98,7 @@ async function rejectStoppedGoalProgress(host: MolisWorkLocalHost, ref: ReturnTy
 
 test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable context, and keeps original report ownership after reassociation and restart", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-goal-context-")), databasePath = join(root, "project.db");
+  await new MolisWorkLocalHost({ homeDirectory: root, completeText: null }).close();
   seedDemoBoard(databasePath); await seedConfiguredModels(root);
   const ref = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const { host, starts, runs, sessionCount, codingCaller, holdProgress } = codingHostFixture(root);

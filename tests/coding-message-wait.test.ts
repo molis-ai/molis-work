@@ -16,7 +16,7 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 // specs/prologue-adoption §4.6.10: the wait hangs on the session's step; once it is over the plugin starts the next round, which takes the continuation up.
 test("a round that ends waiting on an answer or a background command waits as the task graph keeps it, goes on with its task, keeps waiting across a restart, and can be given up", { timeout: 60_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-message-wait-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(root); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = codingSessions(store), at = new Date().toISOString();
   await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "a", title: "改接口", runtime_id: "prologue", at });
   await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "a", "sdk-a", at);

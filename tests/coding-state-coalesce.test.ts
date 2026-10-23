@@ -14,7 +14,7 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 test("however many pages poll the Coding directory at once, one read runs and at most one waits; a request mid-read gets the next read", { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-state-coalesce-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(root); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = codingSessions(store);
   for (const id of ["a", "b", "c"]) {
     await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: `会话 ${id}`, runtime_id: "prologue", at: new Date().toISOString() });
@@ -93,7 +93,7 @@ const PLUGIN = "/api/plugins/io.molis.work.coding";
 
 async function harness(initial: Entry[]) {
   const root = mkdtempSync(join(tmpdir(), "coding-runtime-choice-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(root); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = codingSessions(store);
   const calls: Array<[string, unknown]> = [];
   const world = { runtimes: initial, noLetters: false, created: 0 };

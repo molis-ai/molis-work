@@ -18,6 +18,7 @@ const exec = promisify(execFile), hash = (value: string) => createHash("sha256")
 for (const mode of ["revoked", "reconfigured", "cancelled"] as const) {
   test(`research repository ${mode}: real Git fetch and verified package read cannot commit after authority changes; retry preserves original material identity`, { timeout: 20_000 }, async t => {
     const home = await mkdtemp(join(tmpdir(), "feed-research-authority-")), repository = join(home, "remote"), bin = join(home, "bin");
+    await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
     const realGit = (await exec("which", ["git"])).stdout.trim(), oldPath = process.env.PATH;
     const research = JSON.stringify({ source_records: [{ id: "source-1", title: "Original evidence", url: "https://example.com/one", summary: "A bounded observation" }], findings: [{ id: "finding-1", claim: "One verifiable finding", source_ids: ["source-1"] }] });
     const report = "# Original report\nOne verifiable finding", packagePath = "packages/observations/daily-v1";

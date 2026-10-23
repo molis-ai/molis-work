@@ -50,6 +50,7 @@ test("unknown SDK plugin supplies subject context through formal Runtime registr
 
 test("Home resolves original Feed, Inbox, Goal and Session facts, and never defaults an unrelated conversation", async () => {
   const home = await mkdtemp(join(tmpdir(), "home-talk-actions-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath, caller.project_id!);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: caller.project_id! });
   const host = new MolisWorkLocalHost({ homeDirectory: home, runtimeSessionTransport: { async request() { throw new Error("preparation must not contact Runtime"); }, subscribe() { return () => undefined; } } });

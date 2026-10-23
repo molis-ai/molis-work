@@ -15,8 +15,8 @@ const PROJECT = "project-feed-sources";
 test("Feed sources are managed through registered actions; the Feed page route forwards and keeps its answers", { timeout: 120_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "feed-source-actions-"));
   const dbPath = join(home, "project.db");
-  seedDemoBoard(dbPath, PROJECT);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  seedDemoBoard(dbPath, PROJECT);
   const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: NATIVE_CONTENT_PERMISSIONS };
   const client = host.actionClient(reference);

@@ -12,7 +12,7 @@ import { desktopAdvancePrompt, desktopLaunchSpec, desktopPanelEnv } from "@molis
 import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
 
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, MolisWorkLocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 import { NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-app-desktop";
@@ -1835,6 +1835,7 @@ test("isolated PTY PATH can start Grok Build help", async (t) => {
 
 test("Codex resume launch records host session on the same Goal panel", async () => {
   const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-desktop-resume-"));
+  await new MolisWorkLocalHost({ homeDirectory, completeText: null }).close();
   const workspace = join(homeDirectory, "repo");
   mkdirSync(workspace);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });

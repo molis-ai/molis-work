@@ -238,6 +238,10 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
+  // VUX-23 (slice 95): Pages' three sizing handles (layout column, table column, image) become vertical splitters as the workbench's resizers
+  // are: role, value and words read out, and ← → on the focused handle through the same command as the keys. The bundle keeps its names
+  // (whitespace-only minify); the helper and its three call sites after compacting. 709541 → 711340 (+1,799).
+  "/assets/molis-work-pages-editor.js": [709541, 711340],
   // VUX-33: complete-line layout blocks bound accumulated inline layout while preserving readable text, selected prefixes and the long-line slice budget.
   // Reviewed 2026-10-23: 4 KB flat slices and a stable tail did not improve the bottleneck; preserving pre/code font struts also retains line and tab geometry. 382075 → 384285 (+2210).
   "/assets/molis-work-plugins/coding.js": [382075, 384285],
@@ -245,12 +249,12 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-plugins/form.js": [30244, 30383],
   "/assets/molis-work-plugins/workflows.js": [83019, 83135],
   // VUX-36 / VUX-22: details menus reverse the same 250/130 ms transition when closed during entry, retaining the bar direction.
-  // Exact menu-only selectors preserve ordinary disclosures, popovers and Assistant motion; +1426 bytes per sheet, reviewed under #17.
+  // Menu-only selectors add 1426 bytes per sheet; Workflows touch visibility saves 41 bytes in the combined workbench sheet.
   "/assets/molis-work-settings.css": [994568, 995994],
   "/assets/molis-work-arrival.css": [704663, 706089],
-  "/assets/molis-work-workbench.css": [1612954, 1614380],
+  "/assets/molis-work-workbench.css": [1612954, 1614339],
   // Roving focus: child-list parents only affect their own group; added subtrees and attribute changes still visit descendant groups.
-  // The explicit mutation-kind branch costs 39 bytes; no unrelated code or comments were removed to disguise the cost.
+  // The mutation-kind branch adds 39 bytes to main, which already includes the independent kanban reduction.
   "/assets/molis-work-workbench.js": [1182906, 1182945],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

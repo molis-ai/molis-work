@@ -8,7 +8,7 @@ import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
 import { readArtifactBrowser } from "@molis-ai/molis-work-plugin-artifacts";
 import { pinnedArtifact, titleOf } from "./fixtures/artifacts.js";
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { GoalProjectApplication, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, GoalProjectApplication, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -33,6 +33,7 @@ function registration(overrides: Partial<RegisterArtifactVersionInput> = {}): Re
 async function fixture(t: test.TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-browser-"));
   const databasePath = join(directory, "fixture.db");
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);

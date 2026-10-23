@@ -453,6 +453,16 @@ P1 的 import 使用有界批次，先完整校验该批，再在 Host 可证明
 
 验收使用隔离 Home 上的真实 MemoryService、Node SDK 后端和 ledger：重复经验仍为待审候选，重启后由本人接受才成为正式记忆，历史与读取可见；既有自动变更的撤销仍可用，人工接受不会被旧自动撤销覆盖。偏好/约定自动晋升、关闭自动形成、手动保存及插件边界的原回归保持。按该包 README 的定向命令验证，不调用外部模型；本片不宣称完成 SDK 分类采用或矩阵管理。
 
+#### M2 前置片：助理学习队列保留可信来源
+
+现役完成回调先把本人消息降成 `said: string[]`，`memory.learn` 再持久复制正文；排队后的撤回、原 Run 取消和形成开关变化不能仅靠排队时的检查。此片沿用同一队列和 MemoryService 写主人，队列只保存已有 work/session/run 与输入事件引用，执行时从 AssistantStore 的原始轮次及 Agent Host 的输入记录重读，不新增来源正文库。初始消息身份是不可变的 work/run 原件，补充身份是 SDK input_id；版本表示该原件，不用工作 revision、队列重试或正文相同冒充独立来源。Host、页面、助理及工具代写不变成本人原话；`about` 只是关联，不自行判作撤销。
+
+源与调用者由可信 Host 绑定。提炼前、模型返回后及候选写入前重新核对原件、归属、撤回、原 Run 状态、工作/项目存活和现有形成开关；无原件或无法核验时跳过，不调用模型或留下候选/历史。等待期间失效时，丢弃迟到结果，已完成的写入不伪装回滚。同一来源的排队/重放保留原身份，不成为第二次独立表态。已有只有 `said` 的排队任务仅在其原 work/session/run 的可信记录能逐条完整恢复时继续；不能恢复的不补造来源。原 `typedWords` 的人工记住核验保留，Coding 自有会话仍经其主人，不能拿助理 session 引用冒读。
+
+允许修改本节、Local Host README，`apps/local-host/src/assistant/assistant-inputs.ts`、`assistant-service.ts`、`assistant-http.ts` 与同目录的来源读取职责，`apps/local-host/src/memory/memory-learning.ts`、`memory-host.ts`、`memory-effect.ts`，以及助理记忆、记忆学习和动作的定向测试。复用现有执行检查和 ledger 控制，不改 SDK 包、锁文件、Agent Host 公共合同、ledger baseline、四预设分支或 UI；配置仍由现役开关拥有，缺源拒绝不能配置掉。
+
+验收经真实生产队列、隔离 Home、Node SDK 和可控本地模型响应：正常本人初始消息/补充形成候选；排队后撤回、Run 取消、关闭形成、删除工作或项目在提炼前零模型请求，模型返回或写入等待后失效零候选/正式正文/历史；重启重读原件且重复任务不形成独立证据，代写内容不得成为本人来源。保留现有记住、history/undo/import/export/delete 回归，不调用外部付费模型。此片不完成 SDK MemorySourcePort 装配、同源遗忘抑制及 pending 决定对账；这些仍随 S2 和严格 SDK 采用接入，不能以本片宣布 MEM-35 全部完成。
+
 ### 9.5 Q0 基线记录与证据边界
 
 本轮固定的 B1 为 Molis `f6b2ff4bfba4f7ceb5aeaf95495a5e41fe85ea10`，实际使用 `attachment-order` SDK 包，上游来源 `753dbae8359e56a74397d030af4d18abf402d5b5`。Prologue 的实现起点是 `f481d53726b3a896a525386d8e93225f6091e947`，两者不能当作同一版本。B0 在相同初始材料和任务下关闭记忆；B2 只在新生产路径可运行后测量，缺席不是零成本。必要时补“新 SDK + 原 Molis 配方”的归因对照，区分 SDK 既有修复与新记忆策略的收益，不把其差异全部归功于本方案。
@@ -637,6 +647,7 @@ B1 冷启动失败另有 estimated input 6926、output 3072 和 partial cached i
 | S3-A 有界召回独立片 | [Prologue PR #70](https://github.com/molis-ai/molis-prologue/pull/70) 已合并，merge `adf1cbbc74b68d09813aebc8c5df2a753ade3fca` 与已测 head tree 一致。单次多 scope 召回共享扫描/候选/载荷上限与 deadline，范围许可先于读取、成本默认脱敏、失败和迟到结果不返回部分正文。完整 quality 和 Memory/工作台 20 文件 373 项通过 | 工程验证通过。Node 目录仍全量枚举，不把 record-slot 上限说成物理枚举硬上限；异步自定义 recaller 与组合配方尚未交付 |
 | S3-B 最终包装预算与派发回执 | [Prologue PR #71](https://github.com/molis-ai/molis-prologue/pull/71) 已合并，merge `cc138457b741c132451dc29c7808a339ccb8c8ca` 与已测 head `00c733287f80473bc6ed4b85973b19608b3f34eb` tree 一致。结构化关联贯穿原文/摘录/摘要及最终消息；App/分类/Run 预算共同取小；按 prepared handle 固定计数，发送前重读当前授权/期限/版本。本地完整 quality（679 项稳定检查、干净安装和 Rust）及 30 文件 468 项专项通过；追加干净安装包公开入口经真实 Node/本机 HTTP 证明包装超额零注入、足额时实际发送与回执计数一致 | 工程验证通过；云端 job 未启动，失败注解确认为账单阻塞，按已批准的本地门禁合并。回执区分准备、未派发、派发或未知、观察到响应，不称模型采用。resident/task/expand、Molis 接入、B2 真实收益及产品/用户验收仍未完成 |
 | S2 可信来源候选首片 | [Prologue PR #72](https://github.com/molis-ai/molis-prologue/pull/72) 已合并，merge `d9425073c23e4cc3865dbda90e29623bf8798aa7` 与已测 head `f8aa5a9900c9d95ad2f59999d31604be905dfba8` tree 一致。App 提供可信来源 Port，候选按操作身份持久创建，保存去正文的事件/版本/主体；新正式提交前复核来源、当前权限与期限，已确定提交的原操作允许补关联。shape3 在唯一 decode 核对原创建引用，来源删改不能降成人工候选。完整 quality 679 项及 Memory 22 文件 340 项通过，干净包真实 Host 创建/重启/接受/抑制重放通过；实际 shape2 旧包五条候选入口拒绝新格式、目标写入零 | 工程验证通过；已占用但正式结果未确定的决定仍需对账，不能直接 purge；extractor、正式记忆全链撤销、Molis 可信来源适配及完整遗忘闭环保持后续 P0，未操作真实 Home |
+| M2 助理学习队列来源前置片 | 基于 main `88c58bdca603ecc185b8020cdf4812d79c772a78`：完成回调保留 work/session/run/input 原身份，队列只存引用，执行与实际 SDK 写入前重读原件。统筹独立审查生产调用链及测试。完整 build、19 文件 225 项回归通过，零重试、跳过或最终失败；包括真实 SDK/隔离 Home、生产队列、两项浏览器代写路径。旧完成回调丢失 sources 的真实基线反例先红后绿。同源队列重试实际提炼两次，但只有一个候选和一条证据；撤回、取消、形成关闭、归档、项目删除、最终提交时失效及重启均有覆盖。health、包边界通过，官方 unknown casts 基线只下降 173→171 | 本地工程验证通过，准备独立 PR；模型响应为脚本替身。尚未接新 SDK MemorySourcePort、Coding 来源和完整遗忘抑制，未证明真实 Provider 质量或完整 P0 产品/用户验收 |
 | S2 / S3 / M2 / M3 / I0 | 按 §9.3 核对可信来源/候选门、异步召回/Context、产品管理与真实 SDK 接入的可并行边界；统筹负责共享装配、包及最终集成 | P0 全部行为、干净包/真实 Host、成对 B2 质量与成本、最终 App 实操及用户验收仍待完成 |
 
 交付按可独立验收部分拆 PR：C0/Q0 合同、工具与冻结结果先行；S1 第一片单独交付版本检查、并发写入与恢复；M1 第一片单独交付有效配置采用与启动保护。两仓实现 PR 分别依赖各自 C0/Q0 父 PR，后续分类、形成、召回和界面按 §9.3 依赖继续拆分；父 PR 进入 main 后再合并子 PR，不将 stacked 分支合并视为进入 main。此处持续补充 PR 和最终 head 的验证结果；未操作真实 Home，也未发布。

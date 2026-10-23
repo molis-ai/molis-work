@@ -26,10 +26,25 @@ const ADDED = /\n\n【(?:发送时的选区，数据】|附带材料「)/;
  * supplements they sent it while it ran and have not withdrawn. The supplements are read from the runtime's own input record (the run view),
  * never stored again here; a supplement the Host or a page wrote reads as a notice there, so it is not among them.
  */
-export function typedWords(rounds: ReadonlyArray<{ run_id: string; text: string; written_by?: string }>, views: ReadonlyArray<{ run_id: string; turns: readonly AgentTurnView[] }>): string[] {
+export interface AssistantMemorySourceRef { run_id: string; input_id: string | null; version: "1" }
+export interface AssistantMemorySource extends AssistantMemorySourceRef { text: string }
+
+/** Original round text and SDK input text are immutable; withdrawal changes eligibility, never this version. */
+export function typedMemorySources(rounds: ReadonlyArray<{ run_id: string; text: string; written_by?: string }>, views: ReadonlyArray<{ run_id: string; turns: readonly AgentTurnView[] }>): AssistantMemorySource[] {
   const turns = new Map(views.map(view => [view.run_id, view.turns]));
-  return rounds.flatMap(round => [...(round.written_by ? [] : [round.text]),
-    ...(turns.get(round.run_id) ?? []).filter(turn => turn.kind === "user" && turn.steer && turn.steer.state !== "withdrawn").map(turn => turn.text.split(ADDED)[0]!)]);
+  return rounds.flatMap(round => [...(round.written_by ? [] : [{ run_id: round.run_id, input_id: null, version: "1" as const, text: round.text }]),
+    ...(turns.get(round.run_id) ?? []).filter(turn => turn.kind === "user" && turn.steer && turn.steer.state !== "withdrawn")
+      .map(turn => ({ run_id: round.run_id, input_id: turn.steer!.id, version: "1" as const, text: turn.text.split(ADDED)[0]! }))]);
+}
+
+export function typedWords(rounds: ReadonlyArray<{ run_id: string; text: string; written_by?: string }>, views: ReadonlyArray<{ run_id: string; turns: readonly AgentTurnView[] }>): string[] {
+  return typedMemorySources(rounds, views).map(source => source.text);
+}
+
+export function memoryLearningSources(rounds: Parameters<typeof typedWords>[0], views: ReadonlyArray<{ run_id: string; phase: string; turns: readonly AgentTurnView[] }>): { said: string[]; sources: AssistantMemorySourceRef[] } {
+  const completed = new Set(views.filter(view => view.phase === "completed").map(view => view.run_id));
+  const sources = typedMemorySources(rounds.filter(round => completed.has(round.run_id)), views).slice(-6);
+  return { said: sources.map(source => source.text), sources: sources.map(({ text: _text, ...ref }) => ref) };
 }
 
 /** The round a Send reaches, whichever executor carries it (the Assistant's own runtime or a Coding session). */

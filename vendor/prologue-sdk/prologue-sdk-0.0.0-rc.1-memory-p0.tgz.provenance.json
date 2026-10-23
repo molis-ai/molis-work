@@ -9,11 +9,11 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "37c8886e22b7a93852c93d73e52b9b2f1bf0ac34",
+    "commit": "cdbb49137ebd362153a79844d9995863bd599c37",
     "mergedUpstream": {
-      "pullRequest": 91,
-      "head": "37c8886e22b7a93852c93d73e52b9b2f1bf0ac34",
-      "merge": "8b5f18c87ebf57f5c1bfd7e5940d3e71138a1325",
+      "pullRequest": 92,
+      "head": "cdbb49137ebd362153a79844d9995863bd599c37",
+      "merge": "cb0ceaa5066662ee6cfc81a4df4cd3835171d097",
       "note": "Main tree equals the verified PR head; no local SDK patch."
     },
     "dirty": false,
@@ -22,9 +22,9 @@
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1336980,
-    "sha256": "ac3957b5151a040cbbeaddef34d6330522c1d1375da0216e038826ecd93989f9",
-    "integrity": "sha512-6Hk8IhpbBjb/JTdywHtLK3PnwktrawLFeSIwUiy5O7L4PVO+pDiw6Slb+WiEnPB65mX7KUIDdtdByGTQb2hCxg=="
+    "bytes": 1337042,
+    "sha256": "88415d911c617d325f094613d32e76967585342e3d3441425321e4d8ef230b72",
+    "integrity": "sha512-yYZ/XAF32tOQuuiaCX52iXTaTMzHllzoitzFlmEjhs4zvRNJY9M7a+897rTiV1yuXw9Bk37TP73r18oCnSge+A=="
   },
   "build": {
     "node": "24.19.0",
@@ -37,6 +37,6 @@
       "Copy the verified package to the Molis vendor path"
     ],
     "packedOn": "2026-10-23",
-    "note": "Clean PR #91 head; complete quality including 684 stable tests, clean installed SDK and Rust passed; 218 related tests passed and seven new regressions failed before the fix. Expired formal memories may only be paused or disabled under current management authority, retention and CAS; no resume, read, TTL clearing or extension bypass. Not a release or Molis acceptance; no byte-identical independent rebuild claimed. Actual Node24.19.0 differs from declared24.14.0."
+    "note": "Clean PR #92 head; complete quality including 684 stable tests, clean installed SDK and Rust passed, plus 111 related tests. Candidate accept/promote and reconciliation share the existing bounded append address selection, preserve valid historical addresses and verify the complete candidate operation key. Eight new real Node regressions and actual old-package recovery checks passed. No public API, persistent shape or Host limit change. Not a release or Molis acceptance; no byte-identical independent rebuild claimed. Actual Node24.19.0 differs from declared24.14.0."
   }
 }

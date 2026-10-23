@@ -4,8 +4,8 @@
 
 目录里现在有这些东西：
 
-- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,336,980 字节），SHA-256 `ac3957b5151a040cbbeaddef34d6330522c1d1375da0216e038826ecd93989f9`。来源为 Prologue [#91](https://github.com/molis-ai/molis-prologue/pull/91) 的干净提交 `37c8886e22b7a93852c93d73e52b9b2f1bf0ac34`，已合 main `8b5f18c87ebf57f5c1bfd7e5940d3e71138a1325`，整树一致，无补丁。包含此前 Memory CAS/分类管理、可信来源、策略晋升、未分类读取、采用、同 Run 失效投影，以及原件稳定身份、首次时间和有界定位。本片允许在当前管理授权、保留策略和版本检查下暂停或停用已过期的正式记忆；不能恢复、读取，或通过清空/延长 TTL 绕过过期。
-- 保留主干在途包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz` 及来源记录；当前依赖为上述 memory-p0。已核对 `2c7feba5` 是 `37c8886e` 的祖先，主干采用的 #53、#58、#59、#60 全部包含。
+- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,337,042 字节），SHA-256 `88415d911c617d325f094613d32e76967585342e3d3441425321e4d8ef230b72`。来源为 Prologue [#92](https://github.com/molis-ai/molis-prologue/pull/92) 的干净提交 `cdbb49137ebd362153a79844d9995863bd599c37`，已合 main `cb0ceaa5066662ee6cfc81a4df4cd3835171d097`，整树一致，无补丁。包含此前 Memory CAS/分类管理、可信来源、策略晋升、采用、同 Run 失效投影、原件稳定身份与有界定位、过期条目条件停用。本片让长项目身份的候选接受、晋升和对账共用既有有界地址选择；合法历史地址保持，完整 owner 与原候选操作键仍被核验，不放宽 Host 上限。
+- 保留主干在途包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz` 及来源记录；当前依赖为上述 memory-p0。已核对 `2c7feba5` 是 `cdbb4913` 的祖先，主干采用的 #53、#58、#59、#60 全部包含。
 - 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
 - `patch-history.json`：已删除的 26 份历史补丁和 31 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
 - 本文件。

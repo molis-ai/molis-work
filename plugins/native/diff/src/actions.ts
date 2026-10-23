@@ -43,7 +43,8 @@ export function diffActionHandlers(context: PluginStartContext): ActionHandlerBi
     { ...diffActions.compare, handle: (_caller, input) => { const value = input as { before: string; after: string }; return compareTexts(value.before, value.after); } }];
 }
 function stateFor(caller: ActionCallContext, view: DiffView): DiffState {
-  if (caller.audience !== "user") return { view };
+  // Pages draw it: the plugin's own page calls as the person, Coding's page consumes it as a plugin; models, workflows and MCP get the view only.
+  if (caller.audience !== "user" && caller.audience !== "plugin") return { view };
   const words: Record<string, { zh: string; en: string }> = DIFF_MESSAGES, locale = caller.locale ?? "zh";
   return { view, html: renderDiff({ view, primitives: { escape: escapeHtml, text: (key, values) => fillMessage(words[key]?.[locale] ?? key, values),
     icon: name => icon(name as Parameters<typeof icon>[0]) } }) };

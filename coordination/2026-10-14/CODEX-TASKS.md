@@ -22,7 +22,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 序 | 片 | 号段 | 现状 |
 | --- | --- | --- | --- |
 | C0 | **main 的 macOS 红（先于 C1）**：自 #1079（S-56）起 `SandboxSdk.interaction` 写成 `import('./plugin-interaction.js')` 的相对导入，发给生成项目的 `developer/sdk.d.ts` 解析不了，`tests/agent-built-plugins-checks.test.ts`（创作台 G2）与 `tests/agent-built-plugins-workflow.test.ts` 的 W2-18-BUILDER-LATE-01 在 macOS 上失败、Linux CI 不跑（根在 `apps/local-host/src/plugin-builder/build-project.ts` 的 `sdkDeclaration()` 只拷 plugin-sandbox 一份声明，#1147 作者 10-23 核过）。修法：让发出去的 SDK 声明自包含（内联该类型或在生成时一并带上），断言不放宽；创作台本轮不删只绕过，但 main 的红要修。写进 `known-red-main.md` 直到修好 | — | **已完成**：#1136 合入 main（`15b656648`，10-23）。`known-red-main.md` 里这条由 Codex 移除 |
-| C1 | W5-13 收尾：宿主日志与吞掉的错误 | RAC-110～119，BL-445～449 | 进行中：第 1 片 server+cli #1151（RAC-110～112，`913ea55e0`）；desktop、local-host 两片待做 |
+| C1 | W5-13 收尾：宿主日志与吞掉的错误 | RAC-110～119，BL-445～449 | 进行中：第 1 片 server+cli draft [#1151](https://github.com/molis-ai/molis-work/pull/1151)（RAC-110～112），head `913ea55e0d899063a0f508d226a8353bd6ea3f8b`；Codex 独立 Session `01a16b08-de51-7cd0-a4c5-d45d89d9cdb3`。五文件 14 项、整体 build、整 PR merge-base health、boundary、提交范围 secrets 通过，console 28→21；full=[]，affected 26 文件，延后 21 文件列在 PR。等待 ac-review 一轮，意见由作者修，再交 ac-review 二轮；作者未自评可合、未合并。产品子集清单因在途重叠未改，请统筹集成时补入 server-cli.test.ts。desktop、local-host 两片待做，C1 整体未完成；首片后等待统筹安排 |
 | C2 | W5-16：`molis-work home snapshot` 与恢复 | RAC-100～109，BL-440～444 | 待开工 |
 | C3 | W5-10 的一部分：官方集成与横向服务的巨大单元 | RAC-120～129 里的 RAC-124～129，BL-452～454 | 待开工 |
 

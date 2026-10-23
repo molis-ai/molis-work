@@ -41,7 +41,7 @@
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 285,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2047,
-    "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
+    "file apps/workbench/src/scripts/client/navigation-feed.ts": 955,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1966,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 191,

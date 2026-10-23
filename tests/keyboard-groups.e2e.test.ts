@@ -115,6 +115,18 @@ test("VUX-28: the shared roving skips disabled items, follows removal and right-
   assert.equal(await active(), "s7");
   assert.ok(await evaluate<number>("document.querySelector('#strip').scrollLeft") > 0, "the strip scrolled");
   assert.equal(await evaluate("document.querySelector('#box').scrollTop"), 800, "the page did not");
+  // SYS-07: roving's own -1 does not remove generic focusable items from its next candidate list.
+  await evaluate(`(() => { const bar = document.createElement('div'); bar.setAttribute('role', 'toolbar');
+    bar.innerHTML = '<span id="generic-a" tabindex="0">A</span><span id="generic-b" tabindex="0">B</span>';
+    document.querySelector('#box').append(bar); })()`);
+  await frames();
+  assert.deepEqual(await evaluate("['generic-a','generic-b'].map(id => document.getElementById(id).tabIndex)"), [0, -1]);
+  await evaluate("document.querySelector('#generic-a').focus()");
+  await press("ArrowRight"); assert.equal(await active(), "generic-b");
+  assert.deepEqual(await evaluate("['generic-a','generic-b'].map(id => document.getElementById(id).tabIndex)"), [-1, 0]);
+  await press("ArrowLeft"); assert.equal(await active(), "generic-a");
+
+
 });
 
 test("VUX-28 VUX-36: ordinary content does not measure unrelated focus groups, while group mutations keep one live tab stop", { timeout: 90_000 }, async (t) => {

@@ -145,7 +145,7 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
   Object.assign(globalThis, { location: new URL("http://workbench.test/"), molisWorkRequest: undefined, molisWorkControlHeaders: undefined });
   Function(UI_REQUEST_CLIENT_SCRIPT)();
   const pages = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: unknown) => void;
-  pages({ translate: (text: string) => text, projectId: "project-a" });
+  pages({ translate: (text: string) => text, projectId: "project-a", view: {onClosing() {}} });
   const contextRow = Function(`return (${CONTEXT_ACTIONS_FACTORY_SCRIPT})`)() as (host: unknown) => unknown;
   contextRow({ translate: (text: string) => text, route: (path: string) => path, headers: () => ({}) });
   await flush();

@@ -105,6 +105,27 @@ test("VUX-06: Mod-Alt-Shift-← and → size a table column, a layout column and
   assert.equal(await said(b), "占满一行", "and say nothing new");
 });
 
+test("SYS-08 Shift-Tab exposes Pages table and layout width handles with a visible focus outline", { timeout: 90_000 }, async t => {
+  const b = await mount(t); if (!b) return;
+  await caretIn(b, "结尾");
+  await b.evaluate("const start=document.createElement('button'); start.id='focus-start'; start.textContent='Start'; document.body.append(start); start.focus()");
+  const seen = new Set<string>();
+  for (let step = 0; step < 15 && seen.size < 2; step++) {
+    for (const type of ["rawKeyDown", "keyUp"]) await b.command("Input.dispatchKeyEvent", { type, key: "Tab", code: "Tab", windowsVirtualKeyCode: 9, modifiers: 8 }, b.sessionId);
+    const handle = await b.evaluate<{ kind: string; opacity: string; outline: string; focused: boolean }>(`(() => {
+      const at = document.activeElement, style = getComputedStyle(at);
+      return { kind: at.matches('.pages-column-resize') ? 'layout' : at.matches('.pages-col-resize') ? 'table' : '',
+        opacity: style.opacity, outline: style.outlineStyle, focused: at.matches(':focus-visible') };
+    })()`);
+    if (!handle.kind) continue;
+    assert.equal(handle.focused, true);
+    assert.equal(handle.opacity, "1", `${handle.kind} handle is visible without hover`);
+    assert.notEqual(handle.outline, "none", `${handle.kind} handle shows where keyboard focus is`);
+    seen.add(handle.kind);
+  }
+  assert.deepEqual([...seen].sort(), ["layout", "table"], "both handles are reached with Shift-Tab");
+});
+
 test("VUX-23: each sizing handle is a vertical splitter that reads its value and takes ← → itself", { timeout: 90_000 }, async (t) => {
   const b = await mount(t);
   if (!b) return;

@@ -224,15 +224,20 @@ export const PAGES_STYLES = `
     gap: 16px; margin: 0.35em 0;
   }
   .pages-editor-host .ProseMirror .pages-column { position: relative; min-width: 0; padding-left: 48px; }
-  .pages-column-resize {
-    position: absolute; top: 0; right: -12px; z-index: 2; width: 8px; height: 100%;
+  .pages-column-resize, .pages-col-resize {
+    position: absolute; top: 0; width: 8px; height: 100%;
     border: 0; padding: 0; background: transparent; cursor: col-resize; opacity: 0;
   }
-  .pages-column-resize::after {
-    content: ""; position: absolute; left: 3px; top: 8px; bottom: 8px; width: 2px; border-radius: 1px;
+  .pages-column-resize { right: -12px; z-index: 2; }
+  .pages-column-resize::after, .pages-col-resize::after {
+    content: ""; position: absolute; left: 3px; width: 2px; border-radius: 1px;
     background: var(--plugin-pages, var(--ink));
   }
-  .pages-column:hover > .pages-column-resize { opacity: 1; } @media (hover: none) { .pages-column-resize { opacity: 1; } }
+  .pages-column-resize::after { top: 8px; bottom: 8px; }
+  .pages-column:hover > .pages-column-resize, .pages-table :is(th, td):hover .pages-col-resize,
+  :is(.pages-column-resize, .pages-col-resize):focus-visible { opacity: 1; }
+  :is(.pages-column-resize, .pages-col-resize):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
+  @media (hover: none) { .pages-column-resize, .pages-col-resize { opacity: 1; } }
   .pages-column:last-child > .pages-column-resize { display: none; }
   .pages-editor-host .ProseMirror mark[data-pages-wash] {
     color: inherit; border-radius: 3px;
@@ -692,15 +697,8 @@ export const PAGES_STYLES = `
   .pages-table { width: 100%; border-collapse: collapse; margin: 0.5em 0; }
   .pages-table:has([data-pages-colwidth]) { table-layout: fixed; }
   .pages-table th, .pages-table td { position: relative; border-bottom: 1px solid var(--content-line, var(--line)); padding: 8px 8px; min-width: 5rem; vertical-align: top; }
-  .pages-col-resize {
-    position: absolute; right: -4px; top: 0; z-index: 1; width: 8px; height: 100%;
-    border: 0; padding: 0; background: transparent; cursor: col-resize; opacity: 0;
-  }
-  .pages-col-resize::after {
-    content: ""; position: absolute; left: 3px; top: 4px; bottom: 4px; width: 2px; border-radius: 1px;
-    background: var(--plugin-pages, var(--ink));
-  }
-  .pages-table th:hover .pages-col-resize, .pages-table td:hover .pages-col-resize { opacity: 1; } @media (hover: none) { .pages-col-resize { opacity: 1; } }
+  .pages-col-resize { right: -4px; z-index: 1; }
+  .pages-col-resize::after { top: 4px; bottom: 4px; }
   .pages-table th { font-weight: 600; text-align: left; color: var(--muted); }
   .pages-toggle { display: flex; gap: 8px; margin: 0.45em 0; align-items: flex-start; }
   .pages-toggle-caret {

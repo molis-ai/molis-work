@@ -1,3 +1,4 @@
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -32,7 +33,7 @@ test("a project's page mounts the Todo stage once, from the Home runtime, and th
   const here = await project("待办页面");
   const page = await request(`/projects/${encodeURIComponent(here.project_id)}/`);
   assert.equal(page.status, 200);
-  const html = await page.text();
+  const html = pluginDocuments(await page.text()).join("\n");
   assert.equal(html.match(/data-todo="workbench"/g)?.length, 1, "the Home runtime draws Todo's stage, and nothing else draws it again");
   assert.match(html, /data-todo-quick-input/);
   assert.match(html, /data-todo-confirm/);
@@ -40,7 +41,7 @@ test("a project's page mounts the Todo stage once, from the Home runtime, and th
   assert.doesNotThrow(() => new Function(script));
   assert.doesNotThrow(() => new Function("return " + TODO_CLIENT_FACTORY_SCRIPT));
   // The page's script only knows Todo is there; Todo's own client loads when its surface opens (#150).
-  assert.match(script, /\["todo"\]/);
+  assert.match(script, /\["todo","io\.molis\.work\.todo"/);
   const client = pluginWorkbenchClientAsset("todo");
   assert.ok(client, "Todo's client is served on its own");
   assert.doesNotThrow(() => new Function(client));

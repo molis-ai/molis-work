@@ -1,21 +1,16 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SHELF_UI_CONTRIBUTION_ID } from "./ui.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
-import { SHELF_RUNTIME_ACTIONS } from "./runtime-actions.js";
+import { SHELF_RUNTIME_ACTIONS, shelfReceiveCopy } from "./runtime-actions.js";
+import { SHELF_ACTIONS, SHELF_PROJECT_ACTIONS } from "./actions.js";
+import { SHELF_NATIVE_PLUGIN_ROUTES } from "./routes.js";
 import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
 
 export const SHELF_PLUGIN_ID = "io.molis.work.shelf";
 /** What the project database stores for this Plugin. */
 export const SHELF_PROJECT_PLUGIN_ID = "shelf";
 
-/**
- * Declarative placement for this first-party Plugin.
- *
- * `native` rather than `app`: the shell derives navigation from these
- * declarations, while this Plugin is still composed at build time instead of
- * moving all personal copy operations into Plugin Runtime. Coding results
- * offered to Shelf do arrive through Runtime grants and its durable input graph.
- */
+/** The personal Home instance and project result instance share this declaration. */
 export const shelfManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
@@ -31,16 +26,27 @@ export const shelfManifest: PluginManifest = {
   permissions: [
     { permission: "storage:private", required: true, reason: "本机置物架文件与摘录" },
     { permission: "artifact:read", required: true, reason: "读取明确选择接收的 Coding 成果" },
+    { permission: "shelf:read", required: true, reason: "读取置物架的副本和处理状态" },
+    { permission: "terminal:run", required: true, reason: "打开资料架对话终端" },
+    { permission: "shelf:write", required: true, reason: "添加和整理置物架副本" },
+    { permission: "materials:read", required: true, reason: "解析已选择的材料" },
+    { permission: "materials:fetch", required: true, reason: "获取已选择的网页内容" },
+    { permission: "model:invoke", required: true, reason: "按所选配方处理材料" },
+    { permission: "artifacts:read", required: true, reason: "读取项目成果" },
+    { permission: "artifacts:write", required: true, reason: "将副本保存到项目成果" },
+    { permission: "actions:invoke", required: true, reason: "调用已授权的成果与资料能力" },
+    { permission: "model:read", required: true, reason: "读取当前可用模型" },
   ],
   // The text of a Coding result comes from Coding itself (the plugin audience only); Shelf adds its own heading and source.
   capabilities: { provides: [], consumes: [codingResultDocument.capability_id] },
-  // Redeemed by this project's Runtime instance. The personal store's actions are Home-level; the Host registers them from `SHELF_ACTIONS`.
-  actions: SHELF_RUNTIME_ACTIONS,
+  // Each Runtime instance redeems only the actions it owns.
+  actions: [...SHELF_ACTIONS, ...SHELF_PROJECT_ACTIONS, shelfReceiveCopy, ...SHELF_RUNTIME_ACTIONS],
   artifacts: { produces: [], consumes: [{ artifact_type_id: "coding.report.v1", schema_version: 1 }] },
   // A Coding change set offered to Shelf is exchange data, not a 成果. What Shelf saves into a project is an imported document there.
   process_items: { produces: [], consumes: [{ artifact_type_id: "coding.changeset.v1", schema_version: 1 }] },
   ports: { inputs: [{ port: "coding-report", artifact_type_id: "coding.report.v1", schema_version: 1, optional: true, default_source: { plugin_id: "io.molis.work.coding", port: "report" } }, { port: "coding-changeset", artifact_type_id: "coding.changeset.v1", schema_version: 1, optional: true, default_source: { plugin_id: "io.molis.work.coding", port: "changeset" } }], outputs: [] },
   routes: [
+    ...SHELF_NATIVE_PLUGIN_ROUTES.map(({ route_id, method, path }) => ({ route_id, method, path, ...method === "POST" ? { max_body_bytes: route_id === "shelf.folder" ? 96 * 1024 * 1024 : route_id === "shelf.admit" ? 45_000_000 : 3_000_000 } : {} })),
     { route_id: "shelf.project-results", method: "GET", path: "/project-results" },
     { route_id: "shelf.project-result-preview", method: "GET", path: "/project-result" },
     { route_id: "shelf.project-result-receive", method: "POST", path: "/project-result" },

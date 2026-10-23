@@ -1,5 +1,7 @@
+import { pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
@@ -21,6 +23,13 @@ const evidence = reviewEvidenceUrl("visual-ui-experience/chinese-layers/");
 test("VUX-40 (Chinese): every menu, popover and dialog of the project page and every plugin fits long Chinese names at 1440, 820 and 390 px", { timeout: 3_600_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded", seedLongChinese); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  const views = Object.fromEntries(await Promise.all(SURFACES.filter(id=>id === "shelf" || pluginSurfaceClients().some(client=>client.id === id)).map(async id=>
+    [id,await pluginFrameBrowser(t,browser,id,id === "shelf" ? '[data-side-body="plugin:shelf/side"] iframe' : undefined)])));
+  const content = async (path: string) => {
+    const id = new URL(path, origin).searchParams.get("openPlugin");
+    const child = id ? views[id] : undefined; if (!child) return null;
+    await child.waitFor("document.querySelector('[data-work-surface]')"); return child;
+  };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   // A layer is read where it comes to rest, not while it grows in.
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -33,8 +42,8 @@ test("VUX-40 (Chinese): every menu, popover and dialog of the project page and e
   const found: string[] = [];
   const native: string[] = [];
   let read = 0;
-  const audit = async (where: string) => {
-    const all = await chineseFindings(evaluate);
+  const audit = async (where: string, inspect = evaluate) => {
+    const all = await chineseFindings(inspect);
     read++;
     for (const finding of all) found.push(`${where}: ${JSON.stringify(finding)}`);
     t.diagnostic(`${where}: ${all.length}`);
@@ -51,7 +60,7 @@ test("VUX-40 (Chinese): every menu, popover and dialog of the project page and e
       const [id, item] = surface.split(":");
       return [`${size.width} ${surface}`, `/projects/${projectId}/${id === "project" ? "" : `?openPlugin=${id}${item ? `&openItem=${encodeURIComponent(opened[id]!)}` : ""}`}`];
     });
-    native.push(...await walkLayers(browser, screens, names, new Set(), audit, (line) => t.diagnostic(line)));
+    native.push(...await walkLayers({...browser,content}, screens, names, new Set(), audit, (line) => t.diagnostic(line)));
   }
   await writeFile(new URL("findings.json", evidence), JSON.stringify({ read, found, native }, null, 2));
   t.diagnostic(`layers read: ${read}; a browser's own dialog: ${native.join(", ") || "none"}`);

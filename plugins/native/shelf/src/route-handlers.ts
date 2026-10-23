@@ -23,6 +23,7 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
     return options.project;
   };
   return {
+    "shelf.terminal": async () => ({ status: 200, body: await call(shelfActions.terminal, {}) }),
     "shelf.material.preview": async ({ params }) => {
       const scoped = project();
       const preview = await scoped.actions.invoke(shelfProjectActions.previewMaterial, { item_id: params.item_id! });

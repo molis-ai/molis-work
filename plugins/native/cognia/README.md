@@ -59,3 +59,5 @@ Acceptance uses the actual desktop and narrow-screen UI for preview, explicit co
 - 授权等待及可见对象定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-context-regressions.e2e.test.ts`（浏览器文件需要本机 Chrome；owner 用例的授权是受控策略回调）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)、[specs/archive/cognia-plugin/spec.md](../../../specs/archive/cognia-plugin/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+目录导入：可以上传目录文件；未上传时，「预览导入」打开宿主系统目录选择器。界面不能提交绝对路径来取得授权。系统选择后得到的 grant 只供当前插件激活实例、当前项目及调用者使用，取消、撤权、重启和项目删除使其失效（SYS-15）。

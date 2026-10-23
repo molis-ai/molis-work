@@ -5,6 +5,7 @@ import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs } from "../../plugin-catalog.js";
 import { createTabWorkspaceOps, isCurrentTabWorkspace, isLoosePluginTab, settlePluginTabs, withPluginGroups } from "../../tab-workspace-ops.js";
 import { PLUGIN_TAB_GROUPS_FACTORY } from "./plugin-tab-groups.js";
+import { OPENED_PLUGIN_RECORD_SCRIPT } from "./plugin-open-record.js";
 import { TAB_DRAG_SLOT_FACTORY } from "./tab-drag-slot.js";
 import { TAB_SASH_FACTORY } from "./tab-sash.js";
 import { tabIdsAfterMove, TAB_REORDER_EASE, TAB_REORDER_MS } from "../../tab-reorder.js";
@@ -997,7 +998,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       document.title = ops.pluginTitle(focusedView) + " · Molis Work";
     }
     // Surfaces stay where they are while they keep showing: moving a node out and back drops its scroll and focus.
-    // Only what no pane shows any more goes back to the pool, after the loop below.
+    // Hidden isolated pages stay attached: reparenting an iframe reloads its browsing context.
     const mountedNow = new Set();
 
     panesEl.querySelectorAll("[data-tab-pane]").forEach((node) => {
@@ -1093,7 +1094,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     collectMounted().forEach((node) => {
       if (mountedNow.has(node) || node.parentElement === pool) return;
       rememberScroll(node);
-      pool.append(node);
+      if (node.querySelector("iframe[data-plugin-frame]")) node.hidden = true; else pool.append(node);
     });
     const treeSignature = JSON.stringify(state.layout.tree, (key, value) => key === "ratio" ? undefined : value);
     if (panesEl.dataset.treeSignature !== treeSignature) {
@@ -1297,8 +1298,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         if (spec) setTimeout(() => {
           const pane = ops.focused(state);
           if (!pane || state.exclusive || pane.activeTabId || pane.viewPlugin !== plugin || historyLock) return;
-          const row = [...surface.querySelectorAll(spec[1])].find((node) => node.matches('.is-selected, [aria-selected="true"], [aria-current="page"], [aria-current="true"]'));
-          const itemId = row?.dataset[spec[2]];
+          const itemId = (${OPENED_PLUGIN_RECORD_SCRIPT})(surface, spec[1], spec[2]);
           if (!itemId || openRecords[plugin] === itemId) return;
           openRecords[plugin] = itemId;
           saveRecords();
@@ -1309,7 +1309,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       if (surface.getAttribute("data-expanded") !== "false" || shellCollapse.has(plugin)) continue;
       if (forgetRecord(plugin)) notePlace();
     }
-  }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-expanded"] });
+  }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-expanded", "data-assistant-context"] });
   const openItem = (plugin, itemId, title, goalView) => {
     if (embedded) { notifyParent("workbench-pane-open", { plugin, itemId, title: titleForItem(plugin, itemId, title), goalView }); return; }
     if (openInSide(plugin, itemId, title)) return;
@@ -1958,7 +1958,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     persist();
   });
   if (embedded && paneParams.has("paneFeedTask")) requestAnimationFrame(() => setFeedTask?.(paneParams.get("paneFeedTask"), false));
-  return { apply, openPlugin, openPluginRecord, openItem, openBeside, openGoalWork, closeItem, addFeedTask, setExclusive, restore, landAtProjectRoot,
+  return { apply, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, addFeedTask, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,
     shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
     exclusive: () => state.exclusive, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };

@@ -1,3 +1,4 @@
+import { searchActions, SEARCH_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/search";
 import { CHARACTER_ARTIFACT_TYPE, characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -52,6 +53,7 @@ export const codingManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
+    { permission: SEARCH_READ_PERMISSION, required: true, reason: "在问题卡中查找当前有权读取的引用对象" },
     { permission: "goals:read", required: true, reason: "读取已关联目标的当前约定、状态和固定来源" },
     { permission: "goals:write", required: true, reason: "按用户确认把固定执行报告记录为原目标的进展" },
     { permission: "artifact:read", required: true, reason: "读取本项目已保存的执行报告、计划与变更集" },
@@ -74,6 +76,9 @@ export const codingManifest: PluginManifest = {
   capabilities: {
     provides: [],
     consumes: [
+      searchActions.references.capability_id, "goals.subject.read", "goals.search.entries",
+      "files.state", "files.directory", "files.open", "files.capture", "diff.state", "text-stats.state",
+      "git.state", "git.select-diff", "git.prepare-index", "git.results", "git.summary", "git.pr-support", "git.conflict", "git.operations", "git.prepare-operation", "git.save-result",
       ...Object.values(agentHostCapabilities).map((entry) => entry.capability_id),
       ...Object.values(agentCollaborationActions).map((entry) => entry.capability_id),
       ...Object.values(agentInputActions).map((entry) => entry.capability_id),
@@ -85,6 +90,7 @@ export const codingManifest: PluginManifest = {
       knowledgeActions.list.capability_id,
       projectsCapabilities.readWorkspace.capability_id,
       workspaceReadActions.file.capability_id,
+      workspaceReadActions.git.capability_id,
       projectSettingsCapabilities.workspaces.capability_id,
       projectSettingsCapabilities.browsingWorkspace.capability_id,
       ...Object.values(writerDirectoryCapabilities).map(entry => entry.capability_id),
@@ -122,6 +128,7 @@ export const codingManifest: PluginManifest = {
   },
   agent: codingAgentManifest,
   databases: { project: CODING_PROJECT_DATABASE },
+  background: { jobs: [{ job_id: "observe", reason: "独立读取并保存会话状态与关联目标标题，页面查询保持只读", permissions: ["artifact:read", "storage:private", "goals:read"] }] },
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
   actions: [...CODING_ACTIONS, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
   routes: [

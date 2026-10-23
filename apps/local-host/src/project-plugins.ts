@@ -1,6 +1,6 @@
-import { openHostShelfStore } from "./shelf-actions.js";
-import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
-import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
+import { createSchedulePlugin } from "@molis-ai/molis-work-plugin-schedule";
+import { scheduleServiceFor } from "./project-clock.js";
+import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -23,6 +23,7 @@ import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 import { projectScopeEntries } from "./plugin-scope-entries.js";
+import { projectPluginEnablement, projectPluginEnablementRefresh } from "./project-plugin-enablement.js";
 import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
 import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./review-settlement-events.js";
 
@@ -46,6 +47,7 @@ export interface ProjectPluginState {
   error?: string;
   updateObservers?(): void;
   stopObservers?(): void;
+  refreshEnablement?(): Promise<void>;
 }
 
 /**
@@ -91,7 +93,7 @@ async function stopProjectPlugins(platform: PluginPlatform): Promise<void> {
   for (const pluginId of platform.supervisor.enabledPluginIds()) {
     const active = platform.supervisor.state(pluginId);
     platform.supervisor.revoke(pluginId);
-    if (active?.status === "running" && active.install_id) {
+    if (active?.status === "running" && active.install_id && platform.runtime.get(active.install_id).state === "running") {
       try { await platform.runtime.stop(active.install_id); } catch (error) { failures.push(error); }
     }
   }
@@ -110,6 +112,7 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
       if (ports[key] !== undefined) Object.assign(existing.ports, { [key]: ports[key] });
     }
     const state = await existing.ready;
+    await state.refreshEnablement?.();
     state.updateObservers?.();
     return state;
   }
@@ -125,7 +128,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
     const artifacts = new ArtifactsModule({ db: ports.store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, appendEvent: event => ports.store.appendEvent(event), eventCursor: projectId => ports.store.eventCursor(projectId) });
     const processItems = new ProcessItemsModule({ db: ports.store.db, appendEvent: event => ports.store.appendEvent(event), eventCursor: projectId => ports.store.eventCursor(projectId) });
-    const platform = createPluginPlatform({
+    const platform = createPluginPlatform({ scheduler: scheduleServiceFor(ports.store.db),
       project_id: ports.projectId,
       actor_id: ports.actorId,
       db: ports.store.db,
@@ -143,15 +146,6 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.platform = platform;
     // Start independent companions together so their Artifact inputs and outputs
     // can connect. Browsing roots come from current-project settings capabilities.
-    const shelfPorts: ShelfResultPorts | undefined = ports.homeDirectory ? {
-        // What Shelf may take a copy of, and the text of it, it asks the platform for; the Host only holds the project's route prefix and the personal store.
-        projectPath: () => ports.routePrefix ?? "",
-        receive: async preview => {
-          const shelf = openHostShelfStore(ports.homeDirectory!, shelfRuntimeProbe());
-          const item = await shelf.admit({ filename: preview.title + ".md", mime: "text/markdown", bytes: Buffer.from(preview.text, "utf8"), artifact_source: preview.source });
-          return { item, snapshot: await shelf.snapshot() };
-        },
-      } : undefined;
     const filesPorts = { readable: () => currentWorkspaceId(ports) !== null };
     let closed = false;
     const settlements = reviewSettlementForwarder(platform.hostEvents);
@@ -159,11 +153,14 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.stopObservers = () => { closed = true; settlements.stop(); };
     record.updateObservers();
     const entries: PluginPlatformEntry[] = [
+      { definition: createSchedulePlugin(), bundled: true,
+        releaseArtifact: nativePluginReleaseArtifact<typeof createSchedulePlugin>(
+          "@molis-ai/molis-work-plugin-schedule", "createSchedulePlugin", factory => factory()) },
       {
-        definition: createShelfPlugin(shelfPorts),
+        definition: createShelfPlugin(),
         bundled: true,
         releaseArtifact: nativePluginReleaseArtifact<typeof createShelfPlugin>(
-          "@molis-ai/molis-work-plugin-shelf", "createShelfPlugin", factory => factory(shelfPorts)),
+          "@molis-ai/molis-work-plugin-shelf", "createShelfPlugin", factory => factory()),
       },
       ...ports.homeDirectory ? homeLibraryPlugins() : [],
       {
@@ -197,7 +194,10 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           "@molis-ai/molis-work-plugin-text-stats", "createTextStatsPlugin", factory => factory()),
       },
     ];
-    await platform.start(projectScopeEntries(withoutRefusedPlugins(ports.store.db, [...entries, ...projectFixtureEntries(ports.homeDirectory)], entry => entry.definition.manifest.plugin_id), ports.homeDirectory));
+    const enabled = await projectPluginEnablement(ports.homeDirectory, ports.projectId);
+    await platform.start(projectScopeEntries(withoutRefusedPlugins(ports.store.db, [...entries, ...projectFixtureEntries(ports.homeDirectory)], entry => entry.definition.manifest.plugin_id), ports.homeDirectory)
+      .map(entry => ({ ...entry, enabled: enabled?.get(entry.definition.manifest.plugin_id) ?? true })));
+    record.refreshEnablement = projectPluginEnablementRefresh(platform, ports.homeDirectory, ports.projectId);
     bindDeclaredDefaults(platform, ports.projectId, ports.actorId);
   } catch (error) {
     record.stopObservers?.();

@@ -54,7 +54,7 @@ export interface KnowledgeDraftInput { title: string; summary: string; text: str
 /** What the model proposes. Anything outside these bounds is cut; a section anchor the piece does not have is dropped. */
 /** What a model wrote for one piece: only a title and a brief are certain; keywords and section notes may be missing or partial. */
 export interface KnowledgeDraft { title: string; brief: string; keywords?: string[]; sections?: Array<{ anchor?: string; summary?: string }> }
-export type KnowledgeWriter = (input: KnowledgeDraftInput) => Promise<KnowledgeDraft>;
+export type KnowledgeWriter = (input: KnowledgeDraftInput, signal?: AbortSignal) => Promise<KnowledgeDraft>;
 
 export interface KnowledgeOrganizerOptions {
   store: KnowledgeCardStorePort;
@@ -155,29 +155,38 @@ export function cardOrganized(card: KnowledgeCardRecord, input: KnowledgeDraftIn
 export class KnowledgeOrganizer {
   private readonly running = new Map<string, Promise<void>>();
   private readonly again = new Set<string>();
+  private readonly removed = new Set<string>();
+  private readonly controllers = new Map<string, AbortController>();
   private closed = false;
 
   constructor(private readonly options: KnowledgeOrganizerOptions) {}
 
   /** Bring cards in line with the catalog, then organize what waits. Calls for a project that is already running fold into one more pass. */
   kick(projectId: string): Promise<void> {
+    if (this.closed || this.removed.has(projectId)) return Promise.resolve();
     const current = this.running.get(projectId);
     if (current) { this.again.add(projectId); return current; }
+    const controller = new AbortController();
+    this.controllers.set(projectId, controller);
     const pass = (async () => {
       do {
         this.again.delete(projectId);
         await this.reconcile(projectId);
-        await this.organizePending(projectId);
-      } while (this.again.has(projectId) && !this.closed);
-    })().catch(error => this.options.onError?.(error, "knowledge.organize")).finally(() => this.running.delete(projectId));
+        if (!controller.signal.aborted) await this.organizePending(projectId, controller.signal);
+      } while (this.again.has(projectId) && !controller.signal.aborted);
+    })().catch(error => { if (!controller.signal.aborted) this.options.onError?.(error, "knowledge.organize"); }).finally(() => {
+      this.running.delete(projectId); this.controllers.delete(projectId);
+    });
     this.running.set(projectId, pass);
     return pass;
   }
 
   /** Cards for every piece in the catalog; a card whose piece left goes, unless the person edited or kept it back. */
   async reconcile(projectId: string): Promise<void> {
+    if (this.closed || this.removed.has(projectId)) return;
     const store = this.options.store;
     const pieces = await this.options.catalog(projectId);
+    if (this.closed || this.removed.has(projectId)) return;
     const cards = new Map(store.list(projectId).map(card => [keyOf(card.subject), card]));
     for (const piece of pieces) {
       const card = cards.get(keyOf(piece.subject));
@@ -196,6 +205,7 @@ export class KnowledgeOrganizer {
    * the day's allowance) wait again. `confirm` lets one more day's allowance be used today.
    */
   queue(projectId: string, subjects: readonly ActionSubject[] | undefined, confirm: boolean): number {
+    if (this.closed || this.removed.has(projectId)) return 0;
     const store = this.options.store;
     if (confirm) { const limits = this.limits(); store.addUsage(projectId, this.day(), { extra_pieces: limits.pieces, extra_chars: limits.chars }); }
     const named = subjects?.length ? new Set(subjects.map(keyOf)) : null;
@@ -218,20 +228,29 @@ export class KnowledgeOrganizer {
   /** Whether there is a text model to organize with now. */
   modelReady(): boolean { return this.options.writer() !== null; }
 
+  /** Stop this deleted project's queued and running work before its owner clears the records. */
+  removeProject(projectId: string): void {
+    this.removed.add(projectId);
+    this.again.delete(projectId);
+    this.controllers.get(projectId)?.abort();
+  }
+
   async close(): Promise<void> {
     this.closed = true;
+    for (const controller of this.controllers.values()) controller.abort();
     await Promise.allSettled([...this.running.values()]);
   }
 
-  private async organizePending(projectId: string): Promise<void> {
+  private async organizePending(projectId: string, signal: AbortSignal): Promise<void> {
     const writer = this.options.writer();
     if (!writer) return;
-    const pieces = new Map((await this.options.catalog(projectId)).map(piece => [keyOf(piece.subject), piece]));
     // A piece kept from agents waits: its text goes to no model until the person lets agents have it again.
-    for (const waiting of this.options.store.list(projectId).filter(card => card.state === "pending" && !card.excluded)) {
-      if (this.closed) return;
-      const piece = pieces.get(keyOf(waiting.subject));
-      if (!piece || piece.revision !== waiting.revision || bare(piece)) continue;
+    for (const queued of this.options.store.list(projectId).filter(card => card.state === "pending" && !card.excluded)) {
+      if (signal.aborted) return;
+      const piece = (await this.options.catalog(projectId)).find(item => keyOf(item.subject) === keyOf(queued.subject));
+      if (signal.aborted) return;
+      const waiting = this.options.store.get(projectId, queued.subject);
+      if (!waiting || waiting.excluded || waiting.state !== "pending" || !piece || piece.revision !== waiting.revision || bare(piece)) continue;
       const input = draftInput(piece);
       const quota = this.quota(projectId);
       if (quota.used_pieces + 1 > quota.limit_pieces || quota.used_chars + input.text.length > quota.limit_chars) {
@@ -240,7 +259,8 @@ export class KnowledgeOrganizer {
         return;
       }
       this.options.store.addUsage(projectId, this.day(), { pieces: 1, chars: input.text.length });
-      const outcome = await writer(input).then(draft => ({ draft }), (error: unknown) => ({ error }));
+      const outcome = await writer(input, signal).then(draft => ({ draft }), (error: unknown) => ({ error }));
+      if (signal.aborted) return;
       // The piece may have changed, or the person queued it again, while the model wrote: then this draft is for nothing.
       const now = this.options.store.get(projectId, waiting.subject);
       if (!now || now.revision !== waiting.revision || now.state !== "pending" || now.excluded) continue;

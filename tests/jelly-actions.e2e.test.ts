@@ -2,21 +2,23 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 // W5-01-JELLYHTTP-02: the real client reads the declared Runtime root before editing and after reload.
 for (const width of [1440, 390]) test(`Jelly ${width}px: create, edit, manual plan, copy event and reload through actions`, { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "jelly");
   const read = () => { const store = openJellyStore(homeDirectory); try { return store.read(); } finally { store.close(); } };
   await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=jelly` }, sessionId));
-  await waitFor("document.querySelector('[data-plugin-id=jelly]')");
-  if (await evaluate("document.body.dataset.desktopSurface") !== "jelly") {
-    await click('[data-plugin-strip] [data-plugin-id=jelly]');
+  await browser.waitFor("document.querySelector('[data-plugin-id=jelly]')");
+  if (await browser.evaluate("document.body.dataset.desktopSurface") !== "jelly") {
+    await browser.click('[data-plugin-strip] [data-plugin-id=jelly]');
   }
-  await waitFor("document.body.dataset.desktopSurface === 'jelly' && !!document.querySelector('[data-jelly-content] [data-jelly-day]')");
+  await waitFor("!!document.querySelector('[data-jelly-content] [data-jelly-day]')");
   await click('[data-jelly-view="notes"]'); await click('[data-jelly-new]');
   await waitFor("document.querySelector('[data-jelly-record-title]')");
   await evaluate(`(() => { const input=document.querySelector('[data-jelly-record-title]'); input.value='行动服务验证笔记'; input.dispatchEvent(new InputEvent('input',{bubbles:true})); })()`);
@@ -48,9 +50,9 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: create, edit, manual pl
   await waitFor("!document.querySelector('[data-jelly-item-dialog]').open && document.querySelectorAll('[data-jelly-occurrence]').length === 2");
   assert.equal(read().items.length, 2); assert.ok(read().items.every(i => i.kind === "event"));
   assert.notEqual(read().items[0]!.id, read().items[1]!.id);
-  await reloadPage(); await waitFor("document.querySelector('[data-plugin-id=jelly]')");
-  if (await evaluate("document.body.dataset.desktopSurface") !== "jelly") {
-    await click('[data-plugin-strip] [data-plugin-id=jelly]');
+  await reloadPage(); await browser.waitFor("document.querySelector('[data-plugin-id=jelly]')");
+  if (await browser.evaluate("document.body.dataset.desktopSurface") !== "jelly") {
+    await browser.click('[data-plugin-strip] [data-plugin-id=jelly]');
   }
   await waitFor("!!document.querySelector('[data-jelly-content] [data-jelly-day]')");
   await click('[data-jelly-mode="list"]'); await waitFor("document.querySelectorAll('[data-jelly-occurrence]').length === 2");

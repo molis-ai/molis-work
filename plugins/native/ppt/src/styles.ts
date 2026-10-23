@@ -15,7 +15,7 @@ export const PPT_STYLES = `
   @media (prefers-reduced-motion: reduce) { .creative-artifact-act { transition: none; } }
   .ppt-stage-chrome { pointer-events: auto; }
   [data-ppt=workbench] { --plugin-tint: var(--plugin-ppt); }
-  [data-ppt-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; overflow-x: auto; }
+  [data-ppt-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; flex-wrap: wrap; }
   [data-ppt-stage-workspace] > .ppt-note { flex-shrink: 0; margin: 0 24px 16px; }
   .ppt-workspace > * { flex-shrink: 0; }
   .ppt-workspace {
@@ -87,6 +87,7 @@ export const PPT_STYLES = `
   .ppt-placement-line { margin: 2px 0 10px; }
   [data-ppt-empty]:not([hidden]) ~ .ppt-placement-line { display: none; }
   .ppt-export-menu > summary { list-style: none; }
+  @media (max-width: 600px) { .ppt-export-menu > .plugin-stage-more-actions { left: 0; right: auto; } }
   .ppt-present { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: #000; outline: none; cursor: pointer; }
   .ppt-present-frame { display: grid; place-items: center; width: 100%; height: 100%; overflow: hidden; }
   /* A slide is drawn on a fixed 16:9 canvas with the type scale and scaled whole to the screen, like a picture. */

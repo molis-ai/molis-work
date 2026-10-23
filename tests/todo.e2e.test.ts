@@ -3,18 +3,21 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { TODO_ACTION_PERMISSIONS, openTodoStore, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
 for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, complete and undo, batch, detail editing, delete`, { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "todo");
+  const { evaluate, waitFor, click } = child;
   const all = () => { const store = openTodoStore(homeDirectory); try { return store.list({ projectId, everything: true, actor: "user", actorId: "test" }); } finally { store.close(); } };
   const byTitle = (title: string) => all().find(item => item.title === title);
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
-    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await writeFile(new URL(`todo-${name}-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   };
   const idle = () => waitFor("document.querySelector('[data-todo=workbench]').getAttribute('aria-busy') !== 'true'");
@@ -25,14 +28,14 @@ for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, comp
     await evaluate(`(() => { const node = document.querySelector(${JSON.stringify(selector)}); node.value = ${JSON.stringify(value)}; node.dispatchEvent(new Event("change", { bubbles: true })); })()`);
   };
   const rowOf = (title: string) => `[data-todo-row="${byTitle(title)!.id}"]`;
-  const noOverflow = async () => assert.ok(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "页面不应横向滚动");
+  const noOverflow = async () => assert.ok((await browser.evaluate("document.documentElement.scrollWidth <= window.innerWidth") && await evaluate("document.documentElement.scrollWidth <= window.innerWidth")), "页面不应横向滚动");
 
   await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));
-  await waitFor("document.querySelector('[data-plugin-id=todo]')");
-  if (await evaluate("document.body.dataset.desktopSurface") !== "todo") await click("[data-plugin-strip] [data-plugin-id=todo]");
-  await waitFor("document.body.dataset.desktopSurface === 'todo'");
+  await browser.waitFor("document.querySelector('[data-plugin-id=todo]')");
+  if (await browser.evaluate("document.body.dataset.desktopSurface") !== "todo") await browser.click("[data-plugin-strip] [data-plugin-id=todo]");
+  await browser.waitFor("document.body.dataset.desktopSurface === 'todo'");
   await waitFor("document.querySelector('[data-todo-loading]').hidden && !document.querySelector('[data-todo-empty]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-todo-empty-title]').textContent"), "今天没有要处理的事");
   await noOverflow();
@@ -136,7 +139,9 @@ for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, comp
 test("Todo reminders and the project home: a due reminder shows once, later and got-it act on it, home lists today's todos", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "todo");
+  const { evaluate, waitFor, click } = child;
   const everything = { projectId, everything: true, actor: "user" as const, actorId: "test" };
   const store = openTodoStore(homeDirectory);
   const now = Date.now();
@@ -150,7 +155,7 @@ test("Todo reminders and the project home: a due reminder shows once, later and 
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
-    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await writeFile(new URL(`todo-${name}-1440.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   };
   const read = (id: string) => { const opened = openTodoStore(homeDirectory); try { return opened.get(id, everything); } finally { opened.close(); } };
@@ -159,13 +164,13 @@ test("Todo reminders and the project home: a due reminder shows once, later and 
 
   // The project home lists what needs attention today, Todo among the other sources.
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-home-list]') && document.querySelector('[data-home-list]').textContent.includes('交报销单')");
-  assert.match(String(await evaluate("document.querySelector('[data-home-list]').textContent")), /逾期的方案/);
+  await browser.waitFor("document.querySelector('[data-home-list]') && document.querySelector('[data-home-list]').textContent.includes('交报销单')");
+  assert.match(String(await browser.evaluate("document.querySelector('[data-home-list]').textContent")), /逾期的方案/);
   await screenshot("home");
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));
-  await waitFor("document.querySelector('[data-plugin-id=todo]')");
-  if (await evaluate("document.body.dataset.desktopSurface") !== "todo") await click("[data-plugin-strip] [data-plugin-id=todo]");
+  await browser.waitFor("document.querySelector('[data-plugin-id=todo]')");
+  if (await browser.evaluate("document.body.dataset.desktopSurface") !== "todo") await browser.click("[data-plugin-strip] [data-plugin-id=todo]");
   await waitFor("!document.querySelector('[data-todo-reminders]').hidden && document.querySelectorAll('[data-todo-reminder]').length === 2");
   assert.match(String(await evaluate("document.querySelector('[data-todo-reminders]').textContent")), /错过：/);
   await screenshot("reminders");
@@ -194,7 +199,9 @@ test("Organizing results wait in Todo: the person ticks, edits, adds and ignores
   });
   const browser = await openGoalBrowser(t, true, undefined, async () => answer);
   if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory, localHost } = browser;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory, localHost } = browser;
+  const child = await pluginFrameBrowser(t, browser, "todo");
+  const { evaluate, waitFor, click } = child;
   const everything = { projectId, everything: true, actor: "user" as const, actorId: "test" };
   const items = () => { const store = openTodoStore(homeDirectory); try { return store.list(everything); } finally { store.close(); } };
   // The Assistant's path: an agent asks Todo to organize; the result waits for the person.
@@ -204,14 +211,14 @@ test("Organizing results wait in Todo: the person ticks, edits, adds and ignores
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
-    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await writeFile(new URL(`todo-${name}-1440.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));
-  await waitFor("document.querySelector('[data-plugin-id=todo]')");
-  if (await evaluate("document.body.dataset.desktopSurface") !== "todo") await click("[data-plugin-strip] [data-plugin-id=todo]");
+  await browser.waitFor("document.querySelector('[data-plugin-id=todo]')");
+  if (await browser.evaluate("document.body.dataset.desktopSurface") !== "todo") await browser.click("[data-plugin-strip] [data-plugin-id=todo]");
   await waitFor("!document.querySelector('[data-todo-view=review]').hidden && document.querySelector('[data-todo-view=review]').textContent.includes('3')");
   await click("[data-todo-view=review]");
   await waitFor("document.querySelectorAll('[data-todo-candidate]').length === 3");
@@ -249,7 +256,9 @@ test("390px: opening an organize result by id keeps that batch in view", { timeo
   });
   const browser = await openGoalBrowser(t, true, undefined, async () => answer);
   if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, localHost } = browser;
+  const { command, sessionId, navigate, origin, projectId, localHost } = browser;
+  const child = await pluginFrameBrowser(t, browser, "todo");
+  const { evaluate, waitFor, click } = child;
   for (const name of ["张总", "李主管", "赵经理", "陈老师", "周女士"]) {
     await localHost.homeActionClient().invoke({ actor_id: "assistant", project_id: null, audience: "agent", permissions: [...TODO_ACTION_PERMISSIONS] }, todoOrganizeActions.extract,
       { title: `整理：${name}的邮件`, materials: [{ title: `${name}：新版方案`, text: `${name}：请周五前发新版方案，预算等小李确认。` }] });
@@ -257,8 +266,8 @@ test("390px: opening an organize result by id keeps that batch in view", { timeo
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 700, deviceScaleFactor: 1, mobile: true }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));
-  await waitFor("document.querySelector('[data-plugin-id=todo]')");
-  if (await evaluate("document.body.dataset.desktopSurface") !== "todo") await click("[data-plugin-strip] [data-plugin-id=todo]");
+  await browser.waitFor("document.querySelector('[data-plugin-id=todo]')");
+  if (await browser.evaluate("document.body.dataset.desktopSurface") !== "todo") await browser.click("[data-plugin-strip] [data-plugin-id=todo]");
   await waitFor("!document.querySelector('[data-todo-view=review]').hidden");
   await click("[data-todo-view=review]");
   await waitFor("document.querySelectorAll('[data-todo-batch-review]').length === 5");
@@ -266,7 +275,7 @@ test("390px: opening an organize result by id keeps that batch in view", { timeo
   // The result named by the Assistant or by search: Todo reloads the review list and brings that batch to the top.
   await evaluate(`(() => { document.querySelector('[data-todo=workbench]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: 'batch:${last}' } })); })()`);
   await waitFor(`document.querySelector('[data-todo-batch-review="${last}"]')?.classList.contains('is-arriving')`);
-  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   const seen = await evaluate<{ scrolled: number; gap: number; below: number }>(`(() => { const list = document.querySelector('[data-todo=directory]'), box = list.getBoundingClientRect(),
     top = document.querySelector('[data-todo-batch-review="${last}"]').getBoundingClientRect().top; return { scrolled: list.scrollTop, gap: Math.round(top - box.top), below: Math.round(box.bottom - top) }; })()`);
   assert.ok(seen.scrolled > 0, `the list was scrolled down to the batch: ${JSON.stringify(seen)}`);

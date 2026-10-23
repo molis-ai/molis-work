@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -23,6 +24,7 @@ const TODOS = JSON.stringify({
 for (const width of [1440, 390]) test(`Onboarding ${width}px: the overview and todo drafts side by side; kept drafts become the new project's todos and Todo opens`, { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, async () => TODOS);
   if (!browser) return;
+  const child=await pluginFrameBrowser(t,browser,"todo");
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, homeDirectory, localHost } = browser;
   // A journey that has already read its material and organized it: the drafts are a real Todo batch.
   const { batch } = await localHost.homeActionClient().invoke({ actor_id: "web-user", project_id: null, audience: "user", permissions: [...TODO_ACTION_PERMISSIONS, "model:invoke"] },
@@ -64,5 +66,5 @@ for (const width of [1440, 390]) test(`Onboarding ${width}px: the overview and t
     assert.deepEqual(items.map(item => item.title), ["发送新版方案"]);
     assert.equal(items[0]!.sources[0]!.kind, "onboarding");
   } finally { store.close(); }
-  await waitFor("!document.querySelector('[data-todo-view=review]').hidden");
+  await child.waitFor("!document.querySelector('[data-todo-view=review]').hidden");
 });

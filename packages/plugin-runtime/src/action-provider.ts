@@ -1,5 +1,6 @@
 import { type ActionAvailability, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginContribution, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginActionAvailability } from "./action-availability.js";
 import { runInPluginAction } from "./action-scope.js";
 import { pluginSceneHandler } from "./scene-provider.js";
 import { pluginCallbackContext } from "./callback-context.js";
@@ -29,7 +30,7 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
         const checked = { passed: false }, view = pluginCallbackContext(context), before = view.beforeEffect;
         return runInPluginAction({ install_id: installId, definition, caller: context, checked },
           () => h.handle(before ? { ...view, beforeEffect: async () => { await before(); checked.passed = true; } } : view, input));
-      }, availability: grantAvailability(definition.action.permissions, h.availability) };
+      }, availability: grantAvailability(definition.action.permissions, h.availability ? caller => pluginActionAvailability(installId, definition, caller, h.availability!) : undefined) };
     }),
     scenes: manifest.action_scenes ?? [], scene_handlers: (contribution.action_scenes ?? []).map(h => {
       const declaration = manifest.action_scenes!.find(d => d.scene_id === h.scene_id && d.version === h.version)!;

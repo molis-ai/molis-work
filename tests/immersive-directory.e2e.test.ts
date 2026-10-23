@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -10,6 +11,7 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, store, projectId, homeDirectory } = browser;
+  const todo = await pluginFrameBrowser(t, browser, "todo");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   for (const plugin_id of ["feed", "sessions"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "directory-test" });
   const other = await catalog.createProject({ display_name: "另一项目", actor_id: "directory-test" });
@@ -168,7 +170,8 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   }
   await capture("directory-goals-light");
   await click('[data-plugin-strip] [data-plugin-id="todo"]');
-  await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-todo-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await todo.waitFor("document.querySelector('[data-todo-stage-shell]')");
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=todo]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-directory-panel=todo]')"), null);
   await viewport(1280);
@@ -179,7 +182,8 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]')?.getAttribute('aria-current') === 'page' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await navigate(() => command("Page.navigate", { url: page }, sessionId));
   await click('[data-plugin-strip] [data-plugin-id="todo"]');
-  await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-todo-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await todo.waitFor("document.querySelector('[data-todo-stage-shell]')");
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
   await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=sessions]')?.getAttribute('aria-current') === 'page' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && document.querySelector('[data-session-stage-list]') && document.querySelector('[data-session-stage-chrome] [data-open-session-add]')");
   assert.equal(await evaluate("document.querySelector('[data-directory-panel=sessions]')"), null);
@@ -300,13 +304,15 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-operation-row=session] strong')).color"), await evaluate("(()=>{const n=document.createElement('span');n.style.color='var(--ink)';document.body.append(n);const c=getComputedStyle(n).color;n.remove();return c;})()"));
   await capture("directory-sessions-dark");
   await click('[data-plugin-strip] [data-plugin-id="todo"]');
-  await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-todo-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await todo.waitFor("document.querySelector('[data-todo-stage-shell]')");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.titlebar-chrome [data-directory-toggle]')).display"), "none");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-directory-show]')).display"), "none");
   assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-collapsed')"), false);
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "todo");
   await reloadPage();
-  await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-todo-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await todo.waitFor("document.querySelector('[data-todo-stage-shell]')");
   assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-collapsed')"), false);
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "todo");
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=todo]')"), null);
@@ -325,11 +331,12 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.ok(await evaluate("document.documentElement.scrollWidth<=innerWidth"));
   await capture("directory-1024");
   await click('[data-plugin-strip] [data-plugin-id="todo"]');
-  await waitFor("document.querySelector('[data-todo-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await todo.waitFor("document.querySelector('[data-todo-stage-shell]')");
+  await waitFor("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await viewport(700, 800);
   await viewport(390, 844);
   await click('[data-plugin-strip] [data-plugin-id="todo"]');
-  await waitFor("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && document.querySelector('[data-todo-stage-shell]')");
+  await waitFor("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')");
   // Round 4 phone bar: menu, the Assistant with its plugin switcher, and the project, at the foot of the page.
   assert.ok(await evaluate("(()=>{const bar=document.querySelector('.workbench-bar').getBoundingClientRect();return bar.height>0 && bar.bottom<=innerHeight+1 && bar.width<=innerWidth+1 && document.querySelector('[data-plugin-picker-toggle]').getClientRects().length>0;})()"), "On a phone the bottom bar stays in view with its plugin switcher");
   assert.equal(await evaluate("document.querySelector('[data-tree-resizer]').getClientRects().length"), 0);

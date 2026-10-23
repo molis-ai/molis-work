@@ -1,3 +1,4 @@
+import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
@@ -42,6 +43,7 @@ export async function handleAgentReviewHttp(
 ): Promise<boolean> {
   if ((request.method === "GET" || request.method === "POST") && url.pathname === "/api/agent/reviews/recovery") {
     await ports.agentHost.reviews.refresh(ports.projectId);
+    pluginPageRequest(request)?.assertCurrent();
     const body = request.method === "POST" ? await readLocalWebBody(request) : {};
     const reviewId = request.method === "POST" ? body.review_id : url.searchParams.get("review_id");
     if (typeof reviewId !== "string" || ports.agentHost.reviews.get(reviewId)?.project_id !== ports.projectId) {
@@ -61,7 +63,7 @@ export async function handleAgentReviewHttp(
   if (request.method === "GET" && url.pathname === "/api/agent/reviews") {
     // Every run of one runtime session, without naming each: a long session's history is not a list of ids.
     const runSessionId = url.searchParams.get("run_session_id");
-    const projectId = reviewProjectFor(ports.projectId, runSessionId, ports.computerHolder?.() ?? null);
+    const projectId = pluginPageRequest(request) ? ports.projectId : reviewProjectFor(ports.projectId, runSessionId, ports.computerHolder?.() ?? null);
     await ports.agentHost.reviews.refresh(projectId);
     const requested = url.searchParams.get("status");
     const status = STATUSES.find((entry) => entry === requested);
@@ -115,7 +117,7 @@ export async function handleAgentReviewHttp(
     }
     const holder = ports.computerHolder?.() ?? null;
     const review = ports.agentHost.reviews.get(reviewId);
-    const projectId = reviewProjectFor(ports.projectId, review?.run?.session_id ?? null, holder);
+    const projectId = pluginPageRequest(request) ? ports.projectId : reviewProjectFor(ports.projectId, review?.run?.session_id ?? null, holder);
     if (!review || review.project_id !== projectId) {
       sendLocalWebJson(response, 404, { error: "找不到这条待审操作" });
       return true;
@@ -126,6 +128,7 @@ export async function handleAgentReviewHttp(
     }
     await ports.agentHost.reviews.refresh(projectId);
     try {
+      pluginPageRequest(request)?.assertCurrent();
       const receipt = await ports.agentHost.reviews.respond({
         review_id: reviewId,
         decision,

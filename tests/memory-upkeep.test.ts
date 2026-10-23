@@ -184,8 +184,8 @@ test("a deleted memory does not come back through upkeep, a merge record or a re
   const clock = { now: new Date("2026-09-30T08:00:00.000Z") };
   const env = await memoryHome(t, clock);
   let memory = await env.open();
-  const keep = (await memory.offer(assistant("work-1"), { scope: "project", text: "发布前先跑全量回归", kind: "experience", basis: "repeated", why: "两次", from: "extraction" })).memory!;
-  await memory.offer(assistant("work-2"), { scope: "project", text: "发布之前先跑全量回归", kind: "experience", basis: "repeated", why: "两次", from: "extraction" });
+  const keep = (await memory.offer(assistant("work-1"), { scope: "project", text: "发布前先跑全量回归", kind: "convention", basis: "repeated", why: "两次", from: "extraction" })).memory!;
+  await memory.offer(assistant("work-2"), { scope: "project", text: "发布之前先跑全量回归", kind: "convention", basis: "repeated", why: "两次", from: "extraction" });
   await memory.upkeep(person(), { projects: ["project-a"], tidy: async entries => ({ duplicates: [[entries[0]!.memory_id, entries[1]!.memory_id]], conflicts: [] }) });
   const merged = memory.changes(person()).find(change => change.kind === "merged")!;
   assert.equal(merged.undoable, true);

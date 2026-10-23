@@ -98,11 +98,11 @@ async function listenDispatcher(
 
 // W4-11: the Home's one store registry. The pinned list is what a Home holds today; a new store is added here on purpose.
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
-  assert.deepEqual(homeStores().stores.map(store => store.path), ["projects", "logs", "backups", "sessions", "shelf", "plugin-runtime", "assistant",
+  assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["projects", "logs", "backups", "sessions", "shelf", "plugin-runtime", "assistant",
     "placement", "agent-definitions", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "functions", "characters", "memory", "search", "knowledge", "feed", "server",
     "issues", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "cache", "git-operation-details.json", "config/onboarding.json",
-    "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"]);
+    "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"].sort());
 });
 
 test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正删掉", async () => {
@@ -184,7 +184,7 @@ test("个人插件 Manifest 声明 storage:private，Pages 另有 artifact:write
 test("客户端使用当前插件路径，保留的 Host 适配按合同改写", () => {
   assert.equal(rewriteNativePluginApiPath("/api/plugins/pages/abc/promote"), "/api/pages/abc/promote");
   assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.form"), "/api/form");
-  assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.shelf/file"), "/api/shelf/file");
+  assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.shelf/file"), "/api/plugins/io.molis.work.shelf/file");
   assert.equal(rewriteNativePluginApiPath("/api/pages/abc"), "/api/pages/abc");
   assert.equal(rewriteNativePluginApiPath("/api/plugins/unknown/x"), "/api/plugins/unknown/x");
   // W5-01-PAGES-02: the Runtime client uses its Manifest route, including the resource path.

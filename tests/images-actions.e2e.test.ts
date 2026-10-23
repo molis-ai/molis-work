@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
-const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
+// SYS-15-B1 / SYS-15-V2: accepted background generation, visible pixels and a real browser download.
+const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
 
 for (const [width, locale] of [[1440, "zh"], [390, "zh"], [1440, "en"], [390, "en"]] as const) test(`RAC-58 Images ${locale} ${width}px: revoked and missing selections stay explicit, then user chooses and generates`, { timeout: 90_000 }, async t => {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND;
@@ -18,7 +21,8 @@ for (const [width, locale] of [[1440, "zh"], [390, "zh"], [1440, "en"], [390, "e
   t.after(() => { provider.closeAllConnections(); return new Promise<void>(resolve => provider.close(() => resolve())); });
   const address = provider.address(); assert.ok(address && typeof address === "object");
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
-  const { homeDirectory, origin, projectId, command, sessionId, evaluate, navigate, waitFor, click } = browser;
+  const { homeDirectory, origin, projectId, command, sessionId, navigate } = browser;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "images");
   const baseUrl = `http://127.0.0.1:${address.port}/v1`;
   const auth = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "image-api", displayName: "图像测试账号", token: "fixture-only-image-key" }));
   const replacement = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "image-api", displayName: "备用图像账号", token: "fixture-only-replacement-key" }));
@@ -33,11 +37,12 @@ for (const [width, locale] of [[1440, "zh"], [390, "zh"], [1440, "en"], [390, "e
   await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=${locale}&next=${encodeURIComponent(`/projects/${projectId}/?openPlugin=images`)}` }, sessionId));
-  await waitFor("document.querySelector('[data-plugin-id=images]')");
-  if (await evaluate("document.body.dataset.desktopSurface") !== "images") {
-    await click('[data-plugin-strip] [data-plugin-id="images"]');
+  await browser.waitFor("document.querySelector('[data-plugin-id=images]')");
+  if (await browser.evaluate("document.body.dataset.desktopSurface") !== "images") {
+    await browser.click('[data-plugin-strip] [data-plugin-id="images"]');
   }
-  await waitFor("document.body.dataset.desktopSurface === 'images'");
+  await browser.waitFor("document.body.dataset.desktopSurface === 'images'");
+  await waitFor("document.querySelector('[data-images-history-empty] strong')");
   assert.equal(await evaluate("document.querySelector('[data-images-history-empty] strong').textContent"), locale === "en" ? "No images yet" : "还没有图片");
   assert.equal(await evaluate("document.querySelector('[data-images-prompt]').placeholder"), locale === "en"
     ? "For example: A desk at dawn, coffee and an open book, sunlight from the left, film photography, warm tones."
@@ -70,13 +75,24 @@ for (const [width, locale] of [[1440, "zh"], [390, "zh"], [1440, "en"], [390, "e
   assert.equal(calls, 0); await screenshot("missing");
   await click("[data-images-service-menu] summary"); await click(`[data-images-use-connection="${backup.id}"]`);
   await waitFor("!document.querySelector('[data-images-generate]').disabled"); await click("[data-images-generate]");
-  await waitFor("document.querySelector('[data-images-result] img')?.naturalWidth > 0", 12_000);
+  await waitFor("document.querySelector('[data-images-result] img')?.naturalWidth > 0", 12_000).catch(async error => {
+    throw new Error(JSON.stringify({calls, persisted:await api("GET","/jobs"), view:await evaluate("({content:document.querySelector('[data-images-result]').textContent,images:[...document.querySelectorAll('[data-images-result] img')].map(img=>({src:img.src,title:img.title}))})")}), { cause: error });
+  });
   assert.equal(calls, 1);
   assert.equal(await evaluate("document.querySelector('[data-images-title]').textContent"), locale === "en" ? "Results" : "生成结果");
   assert.equal(await evaluate("document.querySelector('[data-images-result] h2').textContent"), locale === "en" ? "Generated" : "已生成");
   assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-images=workbench]').textContent"), /images\.(?:compose|service|history|account|result|status|error)\./);
-  const imageUrl = await evaluate<string>("document.querySelector('[data-images-result] img').src");
-  assert.deepEqual(Buffer.from(await (await fetch(imageUrl + "?download=1")).arrayBuffer()), Buffer.from(PNG, "base64"));
+  const downloads = join(homeDirectory, "image-downloads"); await mkdir(downloads);
+  await command("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloads });
+  await click("[data-images-result] a[download]");
+  const deadline = Date.now() + 4000;
+  let bytes: Buffer | undefined;
+  while (!bytes?.length) {
+    try { bytes = await readFile(join(downloads, "雨后树叶上的水珠.png")); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    if (!bytes?.length) { if (Date.now() > deadline) throw new Error("Image download missing"); await new Promise(resolve => setTimeout(resolve, 50)); }
+  }
+  assert.deepEqual(bytes, Buffer.from(PNG, "base64"));
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
   await screenshot("result");
 });

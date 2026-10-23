@@ -1,3 +1,4 @@
+import { SCHEDULE_NATIVE_PLUGIN_ROUTES } from "./schedule-direct-actions.js";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -17,10 +18,6 @@ import { PAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-ppt";
 import {
   SCHEDULE_CLIENT_FACTORY_SCRIPT,
-  SCHEDULE_NATIVE_PLUGIN_ROUTES,
-  SchedulePluginRouteTable,
-  createScheduleRouteHandlers,
-  scheduleActions,
 } from "@molis-ai/molis-work-plugin-schedule";
 import { CLIENT_EVENTS_PRIMARY_SCRIPT } from "../apps/workbench/dist/scripts/client/events-primary.js";
 import { CLIENT_EVENTS_SECONDARY_SCRIPT } from "../apps/workbench/dist/scripts/client/events-secondary.js";
@@ -111,9 +108,9 @@ test("Feed / Inbox 成功路径改走舞台刷新，工作台脚本含 refresh h
   }
 });
 
-test("Inbox / Schedule 工作区 fragment 走 HTML 路由", async () => {
+test("Inbox fragment and Schedule isolated view refresh retain their presentation boundaries", async () => {
   assert.ok(INBOX_NATIVE_PLUGIN_ROUTES.some((route) => route.route_id === "inbox.workbench"));
-  assert.ok(SCHEDULE_NATIVE_PLUGIN_ROUTES.some((route) => route.route_id === "schedule.workbench"));
+  assert.ok(!SCHEDULE_NATIVE_PLUGIN_ROUTES.some((route) => route.route_id === "schedule.workbench"));
   assert.ok(SCHEDULE_NATIVE_PLUGIN_ROUTES.some((route) => route.route_id === "schedule.task.archive"));
 
   const inbox = new InboxPluginRouteTable(createInboxRouteHandlers({
@@ -134,24 +131,8 @@ test("Inbox / Schedule 工作区 fragment 走 HTML 路由", async () => {
   assert.equal(inboxPage?.status, 200);
   assert.match(String(inboxPage?.html), /data-inbox-list/);
 
-  const schedule = new SchedulePluginRouteTable(createScheduleRouteHandlers({
-    actions: { discover: async () => [], invoke: async <Input, Output>(definition: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<Input, Output>, input: Input): Promise<Output> => {
-      assert.equal(definition, scheduleActions.list);
-      assert.deepEqual(input, {});
-      return { jobs: [], tasks: [] } as Output;
-    } },
-    changed() {},
-    renderWorkbench: () => '<section data-schedule-workbench><div data-schedule-list></div><div data-schedule-stage-workspace></div></section>',
-  }));
-  const schedulePage = await schedule.handle({
-    method: "GET",
-    pathname: "/api/schedule/workbench",
-    query: new URLSearchParams(),
-    body: {},
-  });
-  assert.equal(schedulePage?.status, 200);
-  assert.match(String(schedulePage?.html), /data-schedule-list/);
+  assert.match(SCHEDULE_CLIENT_FACTORY_SCRIPT, /await host\.view\.readDocument\(\)/);
   assert.match(SCHEDULE_CLIENT_FACTORY_SCRIPT, /const refreshStage = async/);
   assert.match(SCHEDULE_CLIENT_FACTORY_SCRIPT, /await refreshStage\(/);
-  assert.equal([...SCHEDULE_CLIENT_FACTORY_SCRIPT.matchAll(/location\.reload\(/g)].length, 1);
+  assert.doesNotMatch(SCHEDULE_CLIENT_FACTORY_SCRIPT, /location\.reload\(/);
 });

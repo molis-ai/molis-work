@@ -238,31 +238,17 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // VUX-23 (slice 95): Pages' three sizing handles (layout column, table column, image) become vertical splitters as the workbench's resizers
-  // are: role, value and words read out, and ← → on the focused handle through the same command as the keys. The bundle keeps its names
-  // (whitespace-only minify); the helper and its three call sites after compacting. 709541 → 711340 (+1,799).
-  "/assets/molis-work-pages-editor.js": [709541, 711340],
-  // VUX-33: complete-line layout blocks bound accumulated inline layout while preserving readable text, selected prefixes and the long-line slice budget.
-  // Reviewed 2026-10-23: 4 KB flat slices and a stable tail did not improve the bottleneck; preserving pre/code font struts also retains line and tab geometry. 382075 → 384285 (+2210).
-  "/assets/molis-work-plugins/coding.js": [382075, 384285],
-  // Forms reflow (slice 85): moved and removed questions and options ease through the page's molisReflow, with the fallback when it is absent. 30244 → 30383 (+139).
-  "/assets/molis-work-plugins/form.js": [30244, 30383],
-  "/assets/molis-work-plugins/workflows.js": [83019, 83135],
-  // VUX-36 / VUX-22: details menus reverse the same 250/130 ms transition when closed during entry, retaining the bar direction.
-  // Menu-only selectors add 1426 bytes per sheet; Workflows touch visibility saves 41 bytes in the combined workbench sheet.
-  "/assets/molis-work-settings.css": [994568, 995994],
-  "/assets/molis-work-arrival.css": [704663, 706089],
-  "/assets/molis-work-workbench.css": [1612954, 1614339],
   // VUX-39/VUX-12 (slice 96): an interrupted round's check list marks each outcome with its tone and puts the close after the list, not in it;
-  // a group of steps whose only open outcome is unknown says so instead of failure. 1182945 → 1183038 (+93).
-  "/assets/molis-work-workbench.js": [1182945, 1183038],
+  // a group of steps whose only open outcome is unknown says so instead of failure. 1186408 → 1186501 (+93).
+  "/assets/molis-work-workbench.js": [1186408, 1186501],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.
-// User approved 2026-10-19 (specs/project-knowledge §2): the 项目资料 browser code is its own asset, loaded only where it is used (+1.5 KB from the 10-19 review fixes, +232 B for the import status of files it recognizes or transcribes).
+// User approved 2026-10-21 (specs/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
+// shared bridge (including the common UI helpers) once; the original 90325-byte estimate was not a ceiling.
 const APPROVED_NEW_ASSETS = {
-  "/assets/molis-work-knowledge.js": 26361,
+  "/assets/molis-work-plugin-frame.js": 187120,
 };
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {

@@ -502,6 +502,26 @@ MEM-24 的配置验收：off 在 SDK 读取前停止任务/显式 recall 和非�
 
 范围限于 Assistant HTTP/调用者、round-start、continuation、输入原件读取、学习来源读取、现记忆工具入口及相关真实 Node/HTTP 回归；不改 Coding 场景归属、SDK 包、权限决策、形成/晋升配置或 source ledger。验收保留原记住/撤回/来源/关闭开关断言，并覆盖首工具、重启、同原件跨 Run 去重、伪造业务来源与派生输入拒作本人；真实模型语义收益及 queued/carry 原时间仍不由本片宣称完成。
 
+**M2 来源绑定候选与规则 v3（实施中）。** 本片先保留现有学习队列、已登记的 `memory.extract` 单次 HostTextGeneration 调用及 `applies_when/same_as/supersedes`，将可信原件身份贯穿 SDK `propose`、版本化晋升和现有撤销账。SDK extractor/form 仍是 P0 后续必接项，不能把本片称为已接 form，也不长期保留两条形成路径。只有原件主人证明的本人完整消息可由现有 `spoken.theirWords` 判作明确表达；片段命中、模型自报 explicit、不同工作/Run/job、消息切块和重放均不增加独立证据。规则 v3 只允许两个不同 canonical event 支持的低风险 preference/convention；其他内容留待审，旧无来源候选只能人工接受。新晋升前重读两源并创建固定 sources 的候选，不修改旧候选来源。
+
+SDK 的 prepare 回调先在现 ledger 保存足以恢复的操作身份及原版本快照，正式写仍由 SDK 唯一主人 CAS；record 回调在同一 ledger 事务记当前正式版本、变更与撤销，返回现 change_id。准备失败不得正式提交；正式已提交而记账失败保持待对账，原操作重启只补账，不删除补偿或用后继版本猜成功。来源遗忘标识只保存 scope/owner/event 身份，先阻断同源重学再清理正文；清空固定预览也走这条规则，不另建正文库或迁移账。
+
+现候选账注的 `source_refs` 只投影 SDK 已确认的身份，与候选记录同事务保存；prepare 只读此账注，不重入正在持有写队列的 SDK 候选读取。最终来源真值仍由 SourcePort 与 SDK decide 复核。可信调用上下文的 `source_use` 区分 `explicit` 与 `learning`：本人明确记住可核当前运行中的原件，自动学习/晋升必须核已完成原件；缺省按已完成处理。该字段不进入模型 Action 输入，不授予权限；运行中仅推断的建议不能借 explicit 上下文自动晋升。
+
+允许修改本节、memory README、MemoryService 的学习/策略/操作/清理投影及其完整职责文件、LocalHost 学习与当前策略窄口、已登记提炼 prompt 和对应真实 Node/SQLite 回归；AgentHost DTO/SDK 适配、原件 owner、最终装配分别由对应主人接线。MEM-09 验证两原件自动保存/历史/撤销/重启、同源重放不增次、取消/撤回/关形成与自动开关后的零新正式写、准备失败与提交后补账故障、后继人工编辑冲突及遗忘后重放不复活。保留原 upkeep/Assistant 正向断言；只使用现授权的本机模型替身，不把工程验证当作真实模型语义质量验收。
+
+组合来源晋升不改写旧单源候选的 SDK 状态：旧候选仍 `pending`，按原期限结束，不扩大 task 删除权。M3 管理可根据当前正式条目与历史来源身份并集标明“已涵盖”，但仍须能找到和管理；不得伪记 accepted 或静默隐藏。正式遗忘/清空先持久抑制所有历史来源，再用本人现有删除授权清理相关候选正文；失败保留抑制并沿原操作恢复。
+
+统筹装配补充：`system-agent-service` 的现 Runtime 装配处将 SourcePort 与版本化晋升回调接到同一 MemoryHost。创建时不启动 SDK、不捕获未就绪服务；回调时再读取当前 owner，关闭或未就绪即拒绝。Coding 来源的当前安装由现 Catalog 给真实项目库路径，使用只读连接和 PluginRuntime 的现 repository getter 核 install/plugin/state，再由现 Memory 消费者与插件开关核记忆授权；Coding 走现 Agent capability，未声明的 `agent:run` 不能虚构为它的来源权限；不经会启动插件的 `withProject`，不新建权限表或来源正文。助理仍核固定安装身份及其 Work owner；来源对象的身份不授予权限。该片正常/撤权/卸载/关闭/重启/零写读取与真实 SDK 生产接线均须补验，不把接口装上等同形成验收。
+
+晋升的 App ledger 回调也复用原调用的 `PrologueEffects` 控制：prepare/record 在调用方异步解析和 `beforeEffect` 后，紧邻同步 ledger 写执行 `assertCurrent` 并检查本次 `signal`；任一等待期间取消均不能继续调用 App 写账回调，不另建权限状态或注册表。候选已预留后撤权，既不能写正式记忆，也不能新增准备历史；正式已提交而补账前撤权，保留原操作待对账，由后续合法调用补齐，不借原调用继续写账。新增真实 Node 回归先复现“正式写被拒但 prepare 已执行”，再验证这两个边界。
+
+离线采用组合补充：普通 Runtime 已声明晋升后，维护 Runtime 仍只提供 `adoptStorage/verifyAdoption`，不得假装装配晋升实例。AgentHost 的既有维护入口保留 App taxonomy、版本、key domains 与限额，内存中的配方限定 `manage-read`、零形成；scope 仍由显式采用范围及同一独占 owner 授权。不持久化该维护配方、不改变普通 Runtime 的策略、偏好和可用能力。以真实已声明晋升的产品策略重跑采用及重启验证，保留旧包拒绝和零网络断言。
+
+维护组合补充：一次 upkeep 中合并与随后闲置停用是不同语义步骤，分别从同一父操作派生稳定、长度受限的子操作身份；每步沿用读取版本和 SDK CAS，同一步重试不增写。合并成功后使用实际合并后的元数据与版本，后续停用不得丢掉原来源。保留过期、合并、闲置停用、历史与撤销断言，补同一批合并后停用/重启/重试回归，不放宽 SDK 同操作不同输入的拒绝。
+
+停止收尾补充：Coding stop 的当前授权检查及 `stop_intent` 持久化仍属于这次控制调用；仅在意图成功提交后，用既有 `PrologueEffects.detach` 调度已接受 Run 的取消及终态收尾，使它不借用已结束的 stop 调用权限。SDK 仍拥有终态落盘，App 仍等真实终态事件才显示停止。未授权控制、未提交意图和普通迟到业务写不得脱离原检查；保留真实 Node 输入回执、重启及原调用失效零写反例，不把所有 storage 或 effects.call 关掉检查。
+
 ### 9.5 Q0 基线记录与证据边界
 
 本轮固定的 B1 为 Molis `f6b2ff4bfba4f7ceb5aeaf95495a5e41fe85ea10`，实际使用 `attachment-order` SDK 包，上游来源 `753dbae8359e56a74397d030af4d18abf402d5b5`。Prologue 的实现起点是 `f481d53726b3a896a525386d8e93225f6091e947`，两者不能当作同一版本。B0 在相同初始材料和任务下关闭记忆；B2 只在新生产路径可运行后测量，缺席不是零成本。必要时补“新 SDK + 原 Molis 配方”的归因对照，区分 SDK 既有修复与新记忆策略的收益，不把其差异全部归功于本方案。
@@ -586,6 +606,16 @@ B1 冷启动失败另有 estimated input 6926、output 3072 和 partial cached i
 生产矩阵显式开启已知 kind、原授权范围内的 `read.unclassifiedModes: ["explicit", "task"]`。不补 scene/lifecycle、不开放 resident、不接受未知分类；仍沿当前消费方、scope/owner、私有 namespace、真实期限、会话与关闭开关复核。新写继续要求合法分类。本片只改生产 policy、已合并 SDK 包/锁文件及既有采用测试；使用真实旧形状经公开采用后，生产 Adapter 读取与重启保留 ref/version/body/meta，过期、跨用户、其它插件 namespace 和 off 拒绝。历史导入/续期/撤销缺口仍分别验收。
 
 #### M2 可信原件接线
+
+本片把同一来源 Port 接到真实 Assistant/Coding 原件主人。canonical event 只由 actor、Session、原件种类与 input id 编码，版本为不可变原件的 `1`；工作、Run、排队任务、切块及重试不进入独立证据身份。初始原文经 `readOriginalInput(ref)` 从现 Session attempt 精确读取：原文、作者、id 与首次时间仍由首原件拥有；`accepted_run` 定位同原件最近一个已接受、非 refused、非 `frozen.continued_from` 的直接尝试，本体或原件引用均可证明关联。自动形成仍要求该 Run 完成，最新直接尝试失败或取消仍拒绝；派生继续不能洗成新的成功来源，不用任意 latest Run，也不扫描 SDK 历史。补充从同 Session 的现队列/撤回记录及 Run 输入回执读取，使用 SDK 的 `acceptedAtMs`，旧记录缺作者或原时间不补造。AssistantStore 按 actor/Session 精确找工作，不能靠展示轮次或 `starting` 字符串认定来源；首个工具早于展示轮次保存仍可核验实际 Session 原件。
+
+resolve 与最终 check 均按可信 caller 核 actor、原项目/安装/Session、本人作者、完整原文、撤回与取消、工作及项目仍存在、当前形成偏好和现 ledger 的无正文来源遗忘标记。personal 的跨项目来源逐项检查其原项目和形成许可；project 来源必须同项目。撤回记录优先于旧 Run 仍留的回执；来源缺失或记录裁剪保持不可核验。运行中的本人消息可供显式 remember 核验，完成学习仍只取真实完成 Run，不能把“已接受”当“已完成”。Source Port 不新增表、正文副本、全局 caller 或第二权限链；它不替代当前写入/晋升授权。
+
+可信 `source_use` 只由 Host/Service 原件选项派生：`explicit` 可核验当前运行中的本人原件以显式保存或提出待审建议，`learning` 及缺省只收完成的原件；自动学习/晋升强制后者，不能继承工具的显式用途。该字段不进入模型 Action 输入，也不增加授权。补充读取先用 Session 的 `locateInput(inputId)` 定位，再读其单一 Run 回执；未落定直接输入仅可查看当前 live Run，完成学习不借该后备路径。当前安装/项目的异步检查后重新读取同 id 的补充回执，撤回或回队不被先前快照覆盖；裁剪、旧记录缺定位仍保持未知。
+
+现补充把附件/选区拼进同一 SDK text，尚没有可独立证明的 raw 字段。本片将这类混合文本标为 Host 派生，仍照常发送；纯 text 保留全文，不能按中文材料标记切割用户原话。附材补充中本人 raw 句的来源能力仍是必须完成的 P0：后片沿现 Session/输入 owner 保存 raw、稳定 input key 与首次时间，model text 只作派生投影，不能另建 Memory 正文账，也不能把本片中间态写成最终不支持。
+
+验收 MEM-35 沿真实受保护 HTTP、Node SDK、隔离 Home 与现公开候选/晋升桥：同原件跨接续/重启/队列重试只是一份证据；不同本人原件保留独立身份和原时间；无 stamp、Host/peer、跨 actor/项目/安装、撤回/取消、归档、关形成及来源遗忘均拒绝新持久写。旧候选无 sources 仍只走人工接受。当前产品提炼模型仍走既有 HostTextGeneration；SDK form 装配另片完成，不把本片来源核验当真实模型语义验收。
 
 AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owner 绑定；SDK consumer/scene/session context 只用于寻找当前可信 caller，不能直接充当 actor/project。App Source Port 收到该 caller 与 SDK 有界请求，缺失或不匹配绑定时 resolve 为空、check 拒绝且不读取原件；未装配来源保持不可用。此接缝复用现 PrologueMemoryOptions，不新增全局 caller 或 SDK 身份通道，普通无 sources 的手动记忆不受影响。
 
@@ -770,6 +800,10 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 | M2 引用状态展示 | `31bbbff08` 已推送 Draft #1064，包含已提供/送达未确认/旧内容隐藏/记录未保存及空引用清除。初始化依赖顺序修正后，真实 Work/HTTP/Chrome 渲染合同和脚本/i18n 4 文件 18 项通过，零重试；保留先前初始化失败日志。合并 main `91c24d8f5` 后整体构建通过，最后 UI 单包构建通过 | DTO 替换只证明展示，派发事实另由 SDK 回归证明。原 +3,093 B 与主干独立 +76 B 合并后限额为 1,189,670 B；用户已单独批准本片 +105 B，现上限 1,189,775 B。此授权只覆盖本片，随后整合资源仍须重新计量。最终整合构建、全量和产品验收待完成 |
 | S2 原件接受时间与子代理作者 | [Prologue #89](https://github.com/molis-ai/molis-prologue/pull/89) 已合 main `0c9ffb1546e201fec96cc8fd6a1c77d3cd4403ed`，与干净 head `c85dcd33` 整树一致。可选 `acceptedAtMs` 保留首次接受时间，跨 Run 搬运/取消/裁剪/重启不改原件时间，无法证明的旧记录保持未知；模型对子代理 steer 明确 peer。真实 Node/HTTP、SIGKILL 与重开专项 10 文件 102 项、完整 quality 679 项、干净安装及 Rust 检查通过 | 统筹独审代码和证据；云端 run `39925819456`/job `120321799485` 实际注解为账单未启动，无冲突及待处理评审，按用户已授权的私仓规则合并。尚待 Molis 包集成与来源读取口接线；不是完整形成或产品验收 |
 | M2 助理原件桥 | 受保护发送入口独立标记本人原文、Host 时间与 request id；无可信证明、页面、重问和委托输入不补作本人。首个真实 remember 工具在展示轮次建立前即能读取 Runtime 原件，同 Session 自动接续及重启保留原引用和时间。单包 build、严格源码/测试类型检查与 diff-check 通过；最终四文件 39/43，originals 2/2、connector continuation 3/3、learning 18/20、assistant-memory 16/18 | 最初四个仅用展示伪 Run 的夹具已改为真实 Node/本地 HTTP 原件，未增加生产 fallback 或降低断言；四个剩余失败均为原有策略晋升未接。最后学习引用去重仍待 SourcePort 完整链验证；最终整合/全量及用户验收未完成 |
+| S2 有界补充定位 | [Prologue #90](https://github.com/molis-ai/molis-prologue/pull/90) 已合 main `1986fec70`，与干净 head `5cd21c84` 整树一致。`Session.locateInput` 只读现有有界输入账，返回排队、撤回或确切 Run；不扫描历史、不建第二索引。完整 quality 684 项、输入时间专项 10 项、新真实 Node/HTTP 5 项及干净安装通过；Molis SDK 采用提交 `e3089409b` | 统筹独审 diff 与日志；云端 `39930918729` 的实际零 step 注解为账单限制，按既定私仓门禁合并。未知/裁剪记录仍未知，不等于完整形成验收 |
+| M2 主干整合与晋升桥 | 已整合 Molis main `a259350ac`，SDK 来源 `5cd21c84` 包含主干采用的 `2c7feba5`；离线冻结安装与整体 build 通过。AgentHost 将来源与晋升 DTO 接入同一 SDK，并让 App prepare/record 复用原调用撤权检查；真实 Node 晋升 10/10、Coding 原件及安装/消费者权限 8/8 通过。四份 CI 基线/调用身份夹具修正已独立提交 `cf026aa3c` | 当前仅工程验证；Context 挂起已定位为旧夹具声明晋升策略却缺实例，初始化错误后测试未关 HTTP。接入真实 Service 并补失败清理后，最终 Context/重启/拒派发 1 项、输入回执 6 项与撤回 2 项均通过；保留失败日志，未放宽断言。其余产品形成/维护与最终全量尚未完成；Draft #1064 继续不可合并 |
+| M2 资源整合复测 | main 的工作台独立 +138 B 与 Coding 独立 +510 B 已合入；保持用户原批准净增，整体构建实测 workbench 1,189,908 B、Coding 375,483 B。资源门禁与 health 对实际 merge-base `a259350ac` 通过，未新增额度 | 仅证明资源门禁；不是性能、主观体验或最终 App 验收 |
+| S1 过期记忆管理与接入 | [Prologue #91](https://github.com/molis-ai/molis-prologue/pull/91) 已合 main `8b5f18c8`，与已测干净 head `37c8886e` 整树一致。过期正式记忆可按当前管理权限、保留策略和 CAS 暂停/停用；恢复、读取及清空/延长期限仍拒绝。完整 quality 684 项、相关 218 项、干净安装/Rust 通过，7 条新增反例先红后绿；实际云端 run `39935833527` 零 step 注解为账单限制。Molis 独立采用提交 `edc3124f2`，离线安装的 770 个 dist 文件与包一致，整体 build 通过 | SDK 工程交付已完成；Molis 集成 5 文件 39 项通过，Service 23、学习 21、产品晋升 9 项通过。维护已越过原过期拒绝，但仍有操作身份冲突；采用仍有存储键错误，均继续诊断。晋升取消窗口的独立评审回归及 Coding 停止收尾继续修复；不代表完整产品或用户验收 |
 | S2 / S3 / M2 / M3 / I0 | 按 §9.3 核对可信来源/候选门、异步召回/Context、产品管理与真实 SDK 接入的可并行边界；统筹负责共享装配、包及最终集成 | P0 全部行为、干净包/真实 Host、成对 B2 质量与成本、最终 App 实操及用户验收仍待完成 |
 
 交付按可独立验收部分拆 PR：C0/Q0 合同、工具与冻结结果先行；S1 第一片单独交付版本检查、并发写入与恢复；M1 第一片单独交付有效配置采用与启动保护。两仓实现 PR 分别依赖各自 C0/Q0 父 PR，后续分类、形成、召回和界面按 §9.3 依赖继续拆分；父 PR 进入 main 后再合并子 PR，不将 stacked 分支合并视为进入 main。此处持续补充 PR 和最终 head 的验证结果；未操作真实 Home，也未发布。

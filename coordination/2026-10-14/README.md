@@ -3405,3 +3405,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 
 - 留号：RAC-150～169、BL-460～464 给第二组插件客户端（Dataset、PPT、Form、Workflows、Pages），等第一组的样板合入再派。
 - 暂不开（碰在途 PR 的文件）：W5-02 PR-1b/2/3、W5-06 余项、PG-002/003 开关、BL-366/367/394、W5-15、PG-102～105、W5-08 的 `index.ts`、Goals S4/S9、Coding C8-3/C9、Feed/Inbox 迁移、SC-4、W5-14、W5-17（等 SC-3，另要用户定真实 Home 维护）。
+
+### 10-23 18:40 UTC　第一批开发线已启动；SC-3 开了 #1113
+
+- 用户 10-23 授权启动子会话。第一批 7 条线照 18:20 一节的派单启动：`ac-kernel`（Opus high）、`ac-feed-fn`、`ac-snapshot`、`ac-clients-1`、`ac-sandbox-sched`（Sonnet xhigh）、`ac-errors`、`ac-giants`（Sonnet high）。
+- `ac-sc3` 完成：SC-3 开了 [#1113](https://github.com/molis-ai/molis-work/pull/1113)（头 `a959f8469`，已合 main 解 7 个文件冲突），`full` 非空（assembly、spans-packages，选中 203 个文件），交 `ac-review`。
+- #1099 已合（`5248af758`，17:27 UTC）；MERGE-QUEUE.md 跟着改。

@@ -23,18 +23,17 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 「就绪」只在 1～5 条全满足时写「可合」。
 
-| 序 | PR | 内容 | 依赖 | 批 | 现状（统筹最后核对 10-23 18:05 UTC） |
+| 序 | PR | 内容 | 依赖 | 批 | 现状（统筹最后核对 10-23 18:40 UTC） |
 | --- | --- | --- | --- | --- | --- |
-| 1 | [#1099](https://github.com/molis-ai/molis-work/pull/1099) | R-25：没有 Feed 筛选面板时外壳不吞 Esc | — | batch-1023-10 已绿；也在 batch-1023-12 | **已进合并队列**（统筹 17:50 放入，第 1 位），等它自己走完 |
-| 2 | [#1100](https://github.com/molis-ai/molis-work/pull/1100) | R-25 同类三处 | #1099 | batch-1023-12（全量 39990751603 在跑） | #1099 合入后改投 main、Codex 合 main；必须在 #1087 之前合 |
-| 3 | [#1087](https://github.com/molis-ai/molis-work/pull/1087) | W5-06 第 2 片：舞台页按 Manifest views 挂 | #1099、#1100 | batch-1023-12 | 合入后从 `known-red-main.md` 删 R-25 两行（统筹做） |
-| 4 | [#1084](https://github.com/molis-ai/molis-work/pull/1084) | PG-062 S4b：Coding 卡片经 `services.interaction` | — | batch-1023-12 | DIRTY，Codex 在合 main；改了 S-56，看 Security invariants |
-| 5 | [#1098](https://github.com/molis-ai/molis-work/pull/1098) | W5-06 第 2b 片：视图声明分组、新建、首页起点、设置图标 | #1087 | 下一批（和 #1107 同批） | 叠在 #1087 上 |
-| 6 | [#1107](https://github.com/molis-ai/molis-work/pull/1107) | W5-06 第 3 片：项目级 Runtime 实例的舞台 | #1098 | 同 #1098 | 叠在 #1098 上；`ac-review` 在审 |
-| 7 | [#1076](https://github.com/molis-ai/molis-work/pull/1076) | Shelf S3：路由只由插件声明 | #1099（放行键对它合入后的 main 重算） | 下一批（和 #1083、#1112） | Codex 在整理冲突 |
-| 8 | [#1083](https://github.com/molis-ai/molis-work/pull/1083) | Shelf S4 | #1076 | 同 #1076 | 叠着 #1076；Verify 红的唯一原因是 `error-owners.json` 的 `apps/local-host/src/shelf-*` |
-| 9 | [#1112](https://github.com/molis-ai/molis-work/pull/1112) | W5-06 余项第一片（草稿） | 排在 #1076、#1099 之后 | 同 #1076 | 要合 main、重量 page-assets、转 ready；`ac-review` 在审 |
-| 10 | SC-3（分支 `migrate/sessions-sc3-terminal-workspaces`） | Sessions 清理 SC-3 | — | 开 PR 后看 `full` | 开发子会话 `ac-sc3` 在合 main、开 PR |
+| 1 | [#1100](https://github.com/molis-ai/molis-work/pull/1100) | R-25 同类三处 | #1099 | batch-1023-12（全量 39990751603 在跑） | #1099 合入后改投 main、Codex 合 main；必须在 #1087 之前合 |
+| 2 | [#1087](https://github.com/molis-ai/molis-work/pull/1087) | W5-06 第 2 片：舞台页按 Manifest views 挂 | #1099、#1100 | batch-1023-12 | 合入后从 `known-red-main.md` 删 R-25 两行（统筹做） |
+| 3 | [#1084](https://github.com/molis-ai/molis-work/pull/1084) | PG-062 S4b：Coding 卡片经 `services.interaction` | — | batch-1023-12 | DIRTY，Codex 在合 main；改了 S-56，看 Security invariants |
+| 4 | [#1098](https://github.com/molis-ai/molis-work/pull/1098) | W5-06 第 2b 片：视图声明分组、新建、首页起点、设置图标 | #1087 | 下一批（和 #1107 同批） | 叠在 #1087 上 |
+| 5 | [#1107](https://github.com/molis-ai/molis-work/pull/1107) | W5-06 第 3 片：项目级 Runtime 实例的舞台 | #1098 | 同 #1098 | 叠在 #1098 上；`ac-review` 在审 |
+| 6 | [#1076](https://github.com/molis-ai/molis-work/pull/1076) | Shelf S3：路由只由插件声明 | #1099（放行键对它合入后的 main 重算） | 下一批（和 #1083、#1112） | Codex 在整理冲突 |
+| 7 | [#1083](https://github.com/molis-ai/molis-work/pull/1083) | Shelf S4 | #1076 | 同 #1076 | 叠着 #1076；Verify 红的唯一原因是 `error-owners.json` 的 `apps/local-host/src/shelf-*` |
+| 8 | [#1112](https://github.com/molis-ai/molis-work/pull/1112) | W5-06 余项第一片（草稿） | 排在 #1076、#1099 之后 | 同 #1076 | 要合 main、重量 page-assets、转 ready；`ac-review` 在审 |
+| 9 | [#1113](https://github.com/molis-ai/molis-work/pull/1113) | Sessions 清理 SC-3（PG-082） | — | `full` 非空（assembly、spans-packages），和 #1076、#1083、#1112 同批或下一批 | 头 `a959f8469`，已合 main；`ac-review` 在审 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 收尾时合 main、转 ready |
 
 新开的开发片 PR 由统筹按依赖插进本表。
@@ -44,4 +43,5 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | PR | 合并提交 | 日期 |
 | --- | --- | --- |
 | #1096 | `01a875af0` | 10-23 |
+| #1099 | `5248af758` | 10-23 17:27 UTC |
 | #1093 | `8b8ee3131` | 10-23 |

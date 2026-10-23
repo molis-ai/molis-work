@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { MEMORY_FORMAL_KINDS, type MemoryCandidate, type MemoryCandidateRecord, type MemoryChange, type MemoryChangeRecord, type MemoryExportPackage, type MemoryRevision, type MemoryRevisionView, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import { completeRevisionSnapshot } from "./classification.js";
 import { memoryErrors } from "./errors.js";
@@ -65,9 +66,16 @@ export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
       || !Number.isSafeInteger(session.revision) || session.revision < 1)) refuse(`${at}的会话关联损坏`);
     if (item.namespace !== undefined && (typeof item.namespace !== "string" || !item.namespace.trim())) refuse(`${at}的命名空间损坏`);
     if (item.basis !== null && !["explicit", "repeated", "inferred"].includes(item.basis)) refuse(`${at}的依据类别损坏`);
-    return { text: item.text.trim(), kind: item.kind, source: "imported", basis: item.basis, applies: item.applies ?? {}, origin: item.origin, expires_at: item.expires_at ?? null,
+    return { text: item.text.trim(), kind: item.kind, source: "imported", basis: item.basis, applies: structuredClone(item.applies ?? {}), origin: item.origin, expires_at: item.expires_at ?? null,
       classification: structuredClone(classification!), ...(session ? { session_ref: { ...session } } : {}), ...(item.namespace ? { namespace: item.namespace } : {}) };
   });
+}
+
+/** Business retry identity of the normalized package; no body copy is persisted. Array order remains meaningful. */
+export function packageFingerprint(entries: MemoryExportPackage["entries"]): string {
+  const encoded = JSON.stringify(entries, (_key, value) => value && typeof value === "object" && !Array.isArray(value)
+    ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]])) : value);
+  return createHash("sha256").update(encoded).digest("hex");
 }
 
 export function pairKey(a: string, b: string, kind: string): string {

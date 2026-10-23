@@ -1033,3 +1033,26 @@ M3 逐条分类纠正本轮验证完成（2026-10-24，本地生产 head `68564e
 本轮 health 对 origin/main 的共同祖先 `afaa4fea` 仍失败：新共享助理夹具引入包内部 import，以及 SDK 95 历史材料未在 commitsChecked 登记 f4bbbd88；尚未修复或视为通过，父 health/基线收紧尚未执行。逐步结果见 `/private/tmp/molis-memory-matrix-rest-20261024.results.json`、`/private/tmp/molis-memory-matrix-finish-20261024.results.json` 和 `/private/tmp/molis-memory-matrix-independent-gates-20261024.results.json`。最终当前构建实测 27 资源共 7,828,058 B，对父纠正 `3a11c545e` 的 7,825,069 B，唯一差异为 workbench 1,202,990→1,205,979 B，净增 2,989 B；其余 26 项相同。报告 `/private/tmp/molis-memory-matrix-independent-gates-20261024-assets.log` 与父 `/private/tmp/molis-memory-classification-verify-20261024-assets.log`。本片增量尚未获批或登记，不借用前两片额度，资源门尚未通过；亦不关闭 #1064 灵光全套失败，不宣称进入 main 或用户验收。
 
 矩阵本轮收尾补记：撤销仅为一个新增场景进行的额外测试拆分，把原帮助函数与新增分类场景放回既有 `tests/assistant-memory.test.ts` 的原装配主人；没有新增生产导出、复制受控账本或更换内部 import 路径。原文件 18 项及新增 1 项共 19 项名字、顺序与断言保留（含一项纯关键词用例），逐项映射 `/private/tmp/molis-memory-assistant-case-map-20261024.json`；完整重验 19/19，零取消、零跳过。根与全包类型、boundary、API/Action 再次通过，health 对 main 只剩 SDK 95 的 f4bbbd88 登记失败，交统筹单独接线；未修改 SDK 或锁。`--update --base 3a11c545e` 只收紧快查：AssistantService 文件 1863→1855、类 1504→1496、方法 91→90；MemoryService 文件 1084→1082、类 940→934、方法仍 47。该生成命令不等于完整 health 通过。结果 `/private/tmp/molis-memory-matrix-assistant-recheck-20261024.results.json`，最终资源再次测量与前段相同；资源额度及整体 health 仍待完成，不覆盖前段失败事实。
+### M2 整包导入的固定输入身份（2026-10-24，本地工程验证通过，待统筹审查集成）
+
+本片落实 MEM-03/20 的同一操作重试：已有逐项 SDK/ledger 回执会固定开始过的子操作，但导入中途失败时，尚未开始的后续条目没有原包约束。目标是本人以同一操作号恢复时，只能继续原范围和原有序有效输入，不能替换、增删或调换后续条目；保持原逐项拒绝、部分结果、duplicate 与 append 的重开恢复，不把整个导入改成原子写入。
+
+复用 `readPackage` 的完整 v2 校验和规范化，在第一次异步派发前取与调用方引用隔离的有效条目及调用身份快照（保留原取消信号）；对象键序不构成差异，条目及语义数组顺序保持。通过现 `MemoryOperations` marker 与同一 ledger 事务绑定可信 scope/owner 及整包摘要，涵盖正文、类别、原出处、规范化来源/依据、期限、适用条件、分类扩展、Session 引用和 namespace。摘要仅是业务重试输入身份，不是流程/源码校验，也不存正文副本或 encoded request。新绑定与已有第 0 子操作检测同事务；没有整包身份但已有第 0 子操作的在途调用拒绝猜测原包，不全表扫描、不把后来提供的包当原件。取消/授权仍沿现写门，原已提交事实不撤销。
+
+允许改动 `horizontal/memory` 的现导入/规范化/操作职责及 README、本 spec、现 `memory-service-cas` 与必要 HTTP 回归；不改 SDK、UI、包锁、资源门、数据库结构或公开动作。硬边界是原输入/操作身份及现权限；Backend/ledger 仍可替换，调用方提供当前 v2 包及操作号，用户在现入口选择文件；没有新增配置或用户决定。旧 v1/缺分类的显式采用属于另一片。
+
+验收先用真实 SDK+SQLite 复现 A 完成、B 写前失败、C 未开始后换 C 能落盘的红例，再证明换包拒绝且 SDK/ledger 零新增；原包重开准确完成一次。相关回归覆盖长度/顺序和嵌套事实变化、等价键序、等待后修改原引用、旧在途缺身份拒绝、同操作并发不同包，以及既有 duplicate/new append、逐项拒绝与部分结果。构建和定向测试只按机器槽排队；当前本地实现已按该合同接入，验证结果另记，不据源码宣称通过。
+
+首轮红例（未修复）：基于同一 `ecec96b98` 且三份相关源码逐字相同的已构建公开包，机器槽内正式 runner 跑外置真实 SDK/SQLite 单例，0/1、exit 1、无取消/跳过。A 完成、B 在 SDK write 前故障、C 无子操作 marker；关闭重开后同操作换 C，raw SDK 实际包含 A、B、新 C（version 1），零新增断言失败。日志 `/private/tmp/molis-memory-import-whole-package-red.log`；永久用例已加入现 CAS 文件，生产源码尚未修改。证据只证明此重试缺口，不涉及最终 App 或用户验收。
+
+统筹核实的独立 CI 补记（保留此前失败）：#1064 head `ecec96b981027709f60fa3e0c7899ca3e38f242f` 的正常 CI `40037655100` 所有适用任务通过。Linux 两片 artifact 各 218/218，失败、flaky、timeout、skipped、not-run、quarantine 均为 0；实际并集 436、交集 0，与 manifest 完全一致。测试合并提交 `93e91802c90c808b37948b32f11377a25b7ff677` 已核 parents 为 `afaa4fea3` + `ecec96b98`；原 15/8 分钟预算不变，非浏览器阶段分别 7.7/7.6 分钟。证据 `/private/tmp/molis-ci1064-ecec-linux-coverage-20261024.json` 与 `/private/tmp/molis-ci1064-ecec-product-subset-{1,2}/report.json`。当前 review/threads 为空不代表最终验收；灵光旧全套 1398/1399 的失败仍未关闭，也不以此 CI 结果替代本片导入修复的验证。
+
+交错反例补记：同一已构建父包的三个真实 SDK/SQLite 用例均红（0/3），分别观察到 await 后改 `applies.task` 真进入 SDK、竞争整包写入替换条目、改 `caller.character.id` 后第二项写入另一合法 owner，日志 `/private/tmp/molis-memory-import-interleaving-red.log`。本地首次完整构建通过；首轮定向 5/6，唯一未闭合为 Character 嵌套身份引用，日志 `/private/tmp/molis-memory-import-identity-targeted.log`。随后复用现分页入口的 signal 分离及 identity 深复制方式修复，不以 SDK 权限拒绝替代原 owner 固定。
+
+本片最终本地证据：最后的 Character 身份修复后，Memory 包真实构建通过；公开 SDK/SQLite 六个定向反例 6/6、零取消/跳过通过，日志 `/private/tmp/molis-memory-import-identity-owner-targeted.log`。此前完整 build 通过，最终两行身份修复以受影响包重建及整树无 emit 类型检查覆盖，不表述为最终源码再次完整 build。README 必跑 18 文件加 CAS/期限往返/分类三文件的首轮为 17/21，CAS 85/85、新导入六例及原逐项拒绝/duplicate/append/取消/恢复均通过；另外四文件因本树缺 `better-sqlite3@12.8.0` native binding 而失败（HTTP 项目初始化随之返回 500），原日志 `/private/tmp/molis-memory-import-identity-regression.log` 保留。补齐同版本、同 Node 24 ABI 的本机已构建依赖后，只重跑四个环境失败文件，23/23、零失败/重试/取消/跳过通过，日志 `/private/tmp/molis-memory-import-identity-environment-recheck.log`；不将分批结果改写成一次完整批次通过。
+
+最终 `tsc --noEmit`、health（对当前父 `ecec96b98` 的 merge-base）、boundary、diff 检查通过，日志分别 `/private/tmp/molis-memory-import-identity-{types,health,boundary}.log`。生产改动仅在现 shapes/operations/scope-commands 三文件，现 README/spec/CAS 同步；未改 SDK、锁文件、UI、表结构、公开 API 或资源额度。无最终 App/浏览器实操、无全量、未发布；上述只支持本片工程验证，统筹深审与父集成另行处理。
+
+统筹集成补记（2026-10-24）：独立深度评审核对 `94a126d6f` 的六文件差异、SQLite 事务、完整输入/caller 隔离及删除后的原操作屏障，未发现确定 P1/P2；本次评审未另跑测试。该片已快进接入 #1064 候选，并无冲突合入 main `abc052bcb` 的调度器变更，形成 `e6f870615`。实际合并结果完整 build、12 个 Memory/调度器集成文件（含 CAS 85/85）、根类型、health 对当前 main、boundary、API/Action 快照、资源和 secret 全部通过，逐步退出码与原始日志见 `/private/tmp/molis-memory-1064-import-integration-20261024.results.json`。27 项实际资源仍为 7,815,997 B，无新额度。此前 CI 通过对应 `ecec96b98`，本次新 head 的 CI 尚待执行，不能继承绿色。
+
+已推送的独立后续片：#1101 head `24cc645c2` 与 #1111 head `3a11c545e` 均保留 Draft 和原依赖，分别完成 97 个 README 普通文件、目标及 README 浏览器、静态门与准确资源登记；两片仍未进入 main。灵光一次完整 Back/Forward 的被动 HTTP 诊断通过，未触发预定的失败后 A/B/C，故没有尺寸或初始化根因结论；旧全套 1398/1399 的阻塞仍保留，未把成功重跑当作修复或降低门禁。完整工程、最终 App、B2 质量/token 与用户验收继续按原 P0 范围推进。

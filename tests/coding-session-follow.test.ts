@@ -20,7 +20,7 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
   const controller = new AbortController(); let valid = true;
   const assertCurrent = () => { controller.signal.throwIfAborted(); if (!valid) throw new ActionError("actions.forbidden", "original call revoked"); };
   const root = mkdtempSync(join(tmpdir(), "coding-follow-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(root); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = codingSessions(store);
   await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "s", title: "会话", runtime_id: "prologue", at: new Date().toISOString() });
   await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "s", "sdk", new Date().toISOString());

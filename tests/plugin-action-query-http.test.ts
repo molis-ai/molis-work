@@ -39,6 +39,7 @@ test("AQD-04 real catalog project HTTP retains caller for Pages; copied controls
 
 test("AQD-04 standalone database root does not manufacture a catalog Runtime plugin entry", async t => {
   const home = await mkdtemp(join(tmpdir(), "query-root-http-")), databasePath = join(home, "project.db");
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   seedDemoBoard(databasePath);
   const probe = queryProbe("queryroot", "project"), controlToken = randomUUID();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [probe.definition] } });

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { HIDDEN_SCROLLBAR_STYLES, OVERFLOW_FADE_CLIENT_SCRIPT, OVERFLOW_FADE_SAMPLES, OVERFLOW_FADE_STYLES, OVERFLOW_FADE_WIDTH, overflowSides } from "@molis-ai/molis-work-design-system";
@@ -100,4 +100,32 @@ test("VUX-27 a strip fades only where it has more, clears at each edge, follows 
   // Forced colours: no mask; the system scrollbar comes back instead.
   await page.command("Emulation.setEmulatedMedia", { features: [{ name: "forced-colors", value: "active" }] });
   await page.wait(`getComputedStyle(document.getElementById("fits")).maskImage === "none" && getComputedStyle(document.getElementById("fits")).scrollbarWidth === "auto"`);
+});
+
+test("VUX-27 a strip is measured again when a font finishes loading, with nothing else changing", { timeout: 60_000 }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), "overflow-fade-"));
+  const browser = await openStudioChrome(directory);
+  if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
+  t.after(async () => { await browser.close(); rmSync(directory, { recursive: true, force: true }); });
+  const page = await browser.page();
+  await page.viewport(800, 400);
+  // Latin words (the face is Inter) fit in the fallback; the face that arrives later is drawn three times as large (`size-adjust`), as a wider face would be.
+  await page.evaluate(`(() => {
+    const style = document.createElement("style");
+    style.textContent = ${JSON.stringify(HIDDEN_SCROLLBAR_STYLES + OVERFLOW_FADE_STYLES)} + ".row{display:flex;gap:4px;width:300px;overflow-x:auto;font:13px Late, sans-serif}.row span{flex:none}";
+    document.head.append(style);
+    document.body.innerHTML = '<div class="row" id="late" data-overflow-fade><span>One</span><span>row</span><span>of words</span></div>';
+    ${OVERFLOW_FADE_CLIENT_SCRIPT}
+  })()`);
+  await page.wait(`document.getElementById("late").scrollWidth <= document.getElementById("late").clientWidth`);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(await page.evaluate(`document.getElementById("late").dataset.more ?? ""`), "", "in the fallback the strip fits and has no fade");
+  const font = readFileSync(new URL("../packages/design-system/fonts/inter-latin-variable.woff2", import.meta.url)).toString("base64");
+  await page.evaluate(`(async () => {
+    const bytes = Uint8Array.from(atob(${JSON.stringify(font)}), (c) => c.charCodeAt(0));
+    const face = new FontFace("Late", bytes.buffer, { sizeAdjust: "300%", unicodeRange: "U+0000-FFFF" });
+    document.fonts.add(face); await face.load();
+  })()`);
+  await page.wait(`document.getElementById("late").scrollWidth > document.getElementById("late").clientWidth`);
+  await page.wait(`document.getElementById("late").dataset.more === "end"`);
 });

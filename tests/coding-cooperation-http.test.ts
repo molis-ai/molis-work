@@ -18,7 +18,7 @@ const { createDeliveryBox } = await import(requireSdk.resolve("@prologue/sdk"));
 
 test("委派与交付走会话间的信：只由对应一方推进，发送即开始，交付可退回再交，收下后成为下一轮材料；结束后的答复只记录；重启后回执不变；旧记录只读", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-cooperation-http-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(root); let store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(root); seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
   await codingSessions(store).create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "A", title: "发起的会话", runtime_id: "prologue", at: new Date().toISOString() });
   const at = new Date().toISOString(), runs = new Map<string, { ref: { session_id: string; run_id: string } }>();
   const box = createDeliveryBox({ newId: () => crypto.randomUUID(), canReceive: () => true });

@@ -22,9 +22,9 @@ export async function codingSdkRuntime(t: TestContext, options: { extraPlugins?:
   /** Stands between Coding and the Host's capability client, to count or refuse a call. */
   wrapCapabilities?: <Client extends object>(client: Client) => Client } = {}) {
   const home = await mkdtemp(join(tmpdir(), "coding-sdk-regression-")), file = join(home, "project.db");
-  seedDemoBoard(file);
   // The model Coding lists comes from the Home's provider catalog through `services.model` (PG-047), as it does in the Host.
   await seedConfiguredModels(home, [{ provider_id: "fixture", model_id: "fixture" }]);
+  seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), sessions = codingSessions(store), service = new ActionService(), reviews = new AgentReviewQueue();
   const makeAdapter = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.coding-regression-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: reviews,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });

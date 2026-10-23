@@ -232,6 +232,7 @@ tests/goals-status-ui.test.ts
 tests/goals-tree-ui.test.ts
 
 # memory
+tests/memory-adoption.test.ts
 tests/memory-learning.test.ts
 tests/memory-spoken.test.ts
 tests/memory-text.test.ts

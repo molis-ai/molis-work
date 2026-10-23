@@ -198,6 +198,7 @@ test("a scene-only plugin registered under its plugin_id obtains local-user disc
 test("the Workbench's own call context, built from the permissions Feed declares, lets the person promote an item through Goals' actions", { timeout: 60_000 }, async () => {
   const projectId = "project-web-promotion";
   const home = await mkdtemp(join(tmpdir(), "web-promotion-context-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const databasePath = join(home, "project.db");
   seedDemoBoard(databasePath, projectId);
   const seed = new LocalProjectDatabase(databasePath);

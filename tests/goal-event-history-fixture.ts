@@ -12,8 +12,7 @@ export type GoalEventHistoryKind = (typeof goalEventHistoryKinds)[number];
  * from the 0.2 (v35) project dumps the way a real Home was carried over (repository-anti-corruption §4.1); see
  * `fixtures/goal-event-history/README.md`. Callers open the file with LocalProjectDatabase.
  */
-export function materializeGoalEventHistory(kind: GoalEventHistoryKind): { directory: string; path: string } {
-  const directory = mkdtempSync(join(tmpdir(), `molis-work-goal-event-history-${kind}-`));
+export function materializeGoalEventHistory(kind: GoalEventHistoryKind, directory = mkdtempSync(join(tmpdir(), `molis-work-goal-event-history-${kind}-`))): { directory: string; path: string } {
   const path = join(directory, "molis-work.db");
   const raw = new DatabaseSync(path);
   try { raw.exec(readFileSync(new URL(`./fixtures/goal-event-history/${kind}.sql`, import.meta.url), "utf8")); }

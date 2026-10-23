@@ -238,13 +238,16 @@ test("Images reads its body with the shared reader: too large is 413 actions.inp
   } finally { await edge.close(); }
 });
 
-test("a failure with no code of ours is a 500 actions.execution_failed, and Images keeps its own generic sentence for the unexpected", async t => {
+test("unknown failures keep each owner contract: Shelf uses the Host generic sentence and Images its own", async t => {
   for (const owner of ["shelf", "jelly", "cognia"] as const) {
     const edge = await failingEdge(owner, t);
     try {
       for (const error of [new Error("没有码的失败"), Object.assign(new Error("系统错误"), { code: "ENOENT" })]) {
         const answer = await edge.fail(error);
-        assert.deepEqual([answer.status, answer.body.code, answer.body.error], [500, "actions.execution_failed", error.message], owner);
+        // BL-404: Shelf's Runtime routes pass unknown failures to the Host, which hides the raw exception.
+        const message = owner === "shelf" ? "请求未能完成，请重试。" : error.message;
+        assert.deepEqual([answer.status, answer.body.code, answer.body.error], [500, "actions.execution_failed", message], owner);
+        if (owner === "shelf") assert.ok(!JSON.stringify(answer.body).includes(error.message), "Shelf does not expose the raw exception");
       }
     } finally { await edge.close(); }
   }

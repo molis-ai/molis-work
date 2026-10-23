@@ -243,10 +243,6 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.js": [1190721, 1190752],
   // Shelf S3: the folder cap is 32 MB (was 64); the panel explains it before uploading. 76264 → 76438 (+174).
   "/assets/molis-work-plugins/shelf.js": [76264, 76438],
-  // Slice 110's already approved stylesheet changes, retained from main.
-  "/assets/molis-work-workbench.css": [1614322, 1614554],
-  "/assets/molis-work-settings.css": [995885, 996117],
-  "/assets/molis-work-arrival.css": [705437, 705669],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

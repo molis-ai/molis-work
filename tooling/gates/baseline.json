@@ -22,7 +22,7 @@
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 183,
     "class apps/local-host/src/local-host.ts#LocalHost": {
       "lines": 543,
-      "methods": 24
+      "methods": 25
     },
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 194,
     "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 186,
@@ -1008,7 +1008,7 @@
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 169,
+  "unknownCastsTotal": 168,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1067,7 +1067,6 @@
     "tests/agent-built-plugins-agent.test.ts": 1,
     "tests/agent-built-plugins-capabilities.test.ts": 1,
     "tests/agent-built-plugins-components.test.ts": 1,
-    "tests/agent-built-plugins-network.test.ts": 1,
     "tests/agent-built-plugins-workflow.test.ts": 1,
     "tests/agent-host.test.ts": 1,
     "tests/agent-prompt-layers.test.ts": 1,

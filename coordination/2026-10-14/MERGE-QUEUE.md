@@ -38,7 +38,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 14 | [#1120](https://github.com/molis-ai/molis-work/pull/1120) | R5：Feed/Functions 入口不再导出 Repository/Store、PG-010 首页规则目标按声明找、两包巨大单元 | — | `full` 非空（shared-core、storage、spans-packages、deletes-code，141 文件），进下一批 | 头 `c0356cd09`；`ac-review` 在审 |
 | 15 | [#1121](https://github.com/molis-ai/molis-work/pull/1121) | R8 第 1 批：agent 宿主会话间消息与后台命令 7 条 typed 改成只给插件的动作（BL-365） | — | `full` 非空（shared core，205 文件），进下一批 | 头 `332cbac3e`；`ac-review` 排队审；改动作，合前确认动作快照已刷新 |
 | 17 | [#1123](https://github.com/molis-ai/molis-work/pull/1123) | PG-039～042 核对；宿主项目时钟不再自带进程内唤醒处理器 | — | `full` 为空（103 文件） | 头 `71281ccb4`；`ac-review` 排队审 |
-| 18 | [#1124](https://github.com/molis-ai/molis-work/pull/1124) | PG-051 P1：运行中的插件定义登记 Agent 块的角色与 Prompt（V-05，RAC-191） | #1122（设计稿，可先后无关） | `full` 为空（138 文件） | 头 `826be3f82`；`ac-review` 一轮：**可合**，0 条挡合并、6 条建议（[评论](https://github.com/molis-ai/molis-work/pull/1124#issuecomment-6372756714)）；Verify 绿即可合 |
 | 19 | [#1129](https://github.com/molis-ai/molis-work/pull/1129) | W5-03/04 Todo 片（样板）：客户端打包成 TS、稳定翻译键；`todo.js` 61,976→54,090 B | — | `full` 非空（assembly、deletes-code，102 文件），进下一批 | 头 `ed3b374f4`；`ac-review` 优先审（后面 5 片照它做） |
 | 20 | [#1130](https://github.com/molis-ai/molis-work/pull/1130) | SC-4：Sessions 下线（删 Work 包、Session 模块部分、首页「说一句」；PG-081、PG-082 收尾；D6 方案 A 用户 10-23 已确认） | **叠在 #1113 上**，#1113 先合 | `full` 非空（855 文件），进集成批 | 头 `06600841f`；`ac-review` 排队审；作者在改「待用户确认」措辞，之后接 BL-485/486/488 |
 | 21 | [#1131](https://github.com/molis-ai/molis-work/pull/1131) | BL-481：删 `PluginWakeupIndex` 与无安装的 `register()`，测试搬到按安装的拥有者 | **叠在 #1123 上**，#1123 先合 | `full` 为空 | `ac-review` 排队审 |
@@ -65,3 +64,4 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1084 | `3f715261f` | 10-23 18:19 UTC |
 | #1115 | `acc71ae473` | 10-23 18:39 UTC |
 | #1122 | `c68071cdc` | 10-23 19:46 UTC |
+| #1124 | `e8e79e53e` | 10-23 20:07 UTC |

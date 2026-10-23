@@ -64,7 +64,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | 登记 | `package.json`、`apps/local-host/package.json`、`apps/workbench/package.json` | 依赖行（根下的测试按包名 import 工作区包，靠根包的依赖解析） |
 | 登记 | `apps/local-host/src/project-plugins.ts` | import 和 `PluginSupervisorEntry`（`bundled: true` 加 `nativePluginReleaseArtifact`）；要宿主端口时在同一文件构造 |
 | 登记 | `plugins/native/<目录>/src/registration.ts`、该包的 `package.json` | 在包里：导出 `registration`（manifest、`summary`、`personal`，以及 `workbench` 包：`order`、`contributions`、`stylesheet`、`clientFactory`、`searchRow`，可选 `instructions`、`agent`、`methods`）；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`。再运行 `node scripts/generate-plugin-registry.mjs`，它写出 `apps/workbench/src/builtin-plugins.ts`（生成的，不手改，不计一处） |
-| 登记 | `apps/local-host/src/web-goals-read.ts` + 一个宿主渲染文件 | 舞台页：`plugin_stages` 由几个具名函数（`codingCompanionStages`、`codingWorkbenchPanel` 等）拼出，新插件要加一个函数和一处调用；Shelf 走另一条路（`ui-composition.ts`、`renderer.ts`、`goals-page-renderer.ts` 三处），两条路没有统一规则 |
+| 登记 | `apps/local-host/src/web-goals-read.ts` + 一个宿主渲染文件 | 舞台页：`plugin_stages` 由几个具名函数（`codingCompanionStages`、`codingWorkbenchPanel` 等）拼出，新插件要加一个函数和一处调用；Shelf 走另一条路（`ui-composition.ts`、`renderer.ts`、`shell-page-renderer.ts` 三处），两条路没有统一规则。W5-06 第 2 片（2026-10-23）后：贡献带 `workbench` surface 的插件，舞台由 Manifest 视图画（`apps/workbench/src/declared-stages.ts`），不用再加函数；宿主自己画的（Coding 一族、Text Stats、Characters）仍走 `plugin_stages` |
 | 名单 | `apps/workbench/src/i18n/en.ts` | `import` 并 `...X_EN`；没有它，英文界面仍是中文 key |
 | 名单 | `packages/design-system/src/palette.ts` | `MW_PLUGINS` 的色调；没有则用 `var(--muted)`（`tab-workspace.ts` 的 `PLUGIN_COLOR[tab.plugin] \|\| "var(--muted)"`） |
 | 名单 | `packages/design-system/src/icons.ts`、`packages/design-system/src/primitives/catalog.ts` | `PLUGIN_ICON`、`PLUGIN_NAMES`，只进 `/__ui/catalog` 的图标清单 |
@@ -75,7 +75,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 个 `package.json`、`project-plugins.ts`、`palette.ts`、`icons.ts`、`catalog.ts`，加 `coding-surface.ts`（宿主里写死的伙伴页渲染分支）、`demo-plugin-seed.ts`。原来还有 `workspace-plugin-bindings.ts`（13 行的默认连线表），W4-03 改为各输入口在 Manifest 里声明 `default_source`，宿主的 `plugin-default-bindings.ts` 只读声明。W5-02 PR-1a 起目录条目在包自己的 `registration.ts` 里、生成的 `builtin-plugins.ts` 不手写，这一项不再是包外一处（上面 11、12 两个数字还没按它重算）。另有 `plugins/native/coding`、`plugins/native/files` 两个包点名了它（嵌入声明和客户端），属于它与 Coding 的伙伴关系，不计。
 
-**个人（Home 级）插件**：在目录的实际 runtime 声明上由唯一 `HomePluginHost` 装配，Issue 已在这条路径；Home 与项目执行器共用 `services.database`、`services.model`、指令与可信提供方规则，Home 私有 KV 在完整 v2 安装库。现有 Form、Todo 等仍未迁移，不能把平台接线当成消费者迁移完成。现有样本 Shelf 靠宿主里手写的端口文件接上 Home 数据：按第 1 节同一条命令换成 shelf，包外有 17 个源码或配置文件点名它，宿主里仍有 `shelf-native-plugin-http.ts`、`personal-native-plugin-http.ts`、`shelf-actions.ts`、`shelf-ai.ts`（这类 `*-native-plugin-http.ts` 新文件已被门禁拦住）。Characters 原来也是这样的样本；2026-10-08 已定它不再是 Runtime 插件、并进宿主（[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 第 5.4 节），所以不再作为新插件的样本（CHR-1 已做，2026-10-22）。Home 当前接线与工程证据按防腐 spec §10.2 核对；后续迁移仍逐插件推进。
+**个人（Home 级）插件**：在目录的实际 runtime 声明上由唯一 `HomePluginHost` 装配，Issue 已在这条路径；Home 与项目执行器共用 `services.database`、`services.model`、指令与可信提供方规则，Home 私有 KV 在完整 v2 安装库。现有 Form、Todo 等仍未迁移，不能把平台接线当成消费者迁移完成。现有样本 Shelf 靠宿主里手写的端口文件接上 Home 数据：按第 1 节同一条命令换成 shelf，包外有 17 个源码或配置文件点名它，宿主里仍有 `shelf-actions.ts`（只剩演示数据的种子在用；它的动作与模型调用从 Shelf S2 起是 Runtime 实例，路由从 S3 起是插件自己的，`shelf-native-plugin-http.ts` 已删；这类 `*-native-plugin-http.ts` 新文件已被门禁拦住）。Characters 原来也是这样的样本；2026-10-08 已定它不再是 Runtime 插件、并进宿主（[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 第 5.4 节），所以不再作为新插件的样本（CHR-1 已做，2026-10-22）。Home 当前接线与工程证据按防腐 spec §10.2 核对；后续迁移仍逐插件推进。
 
 **目标：1（外加 2）。** 新增一个内置插件 = 自己的包 + `scripts/workspace-packages.mjs` 一条登记，外加门禁名单一行和 SSOT 一行。其余由声明产生，下面五项都做到才是 1：
 
@@ -200,7 +200,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 **怎么加**：先区分两层：Manifest 的视图槽 `UI_VIEW_SLOTS`（`packages/contracts/src/platform/ui.ts`）和工作台 HTML 槽 `WORKBENCH_UI_SLOTS`（`apps/workbench/src/document-shell.ts`：`directory`、`main`、`overlay`、`settings`、`side`）。契约见 `skills/molis-plugin-dev/ui.md`、`docs/platform/UI-PLATFORM.md`。
 
-**现在：5。** 以最近加的 `side` 槽为样本：`packages/contracts/src/platform/ui.ts`、`apps/workbench/src/document-shell.ts`、`apps/workbench/src/plugin-catalog.ts`（`sideEntries`）、`apps/workbench/src/side-view-document.ts`（把贡献渲成独立文档）、`apps/workbench/src/goals-page-renderer.ts`（`sideTabs`）。**目标：2**，槽的定义合并成一张表（视图槽与 HTML 槽同表，放在合同里），外壳里放这块区域的渲染一处。无切片。
+**现在：5。** 以最近加的 `side` 槽为样本：`packages/contracts/src/platform/ui.ts`、`apps/workbench/src/document-shell.ts`、`apps/workbench/src/plugin-catalog.ts`（`sideEntries`）、`apps/workbench/src/side-view-document.ts`（把贡献渲成独立文档）、`apps/workbench/src/shell-page-renderer.ts`（`sideTabs`）。**目标：2**，槽的定义合并成一张表（视图槽与 HTML 槽同表，放在合同里），外壳里放这块区域的渲染一处。无切片。
 
 ### 3.14 界面语言
 

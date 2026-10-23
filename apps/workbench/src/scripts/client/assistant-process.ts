@@ -48,9 +48,17 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     return L("{what} · {n} 步", { what: capital(what), n: run.length })
       + (unfinished ? " · " + unfinished + " " + L("步没有完成") : "");
   };
-  const facts = (item) => [item.capability_id && [L("调用的能力"), item.capability_id], item.detail && [L("返回的说明"), item.detail]].filter(Boolean);
+  // A refusal the platform classified is said in the person's words (its sort, then each field and the rule it broke); the
+  // owner's own text stays one fold further down, for tracing (user 2026-10-23 ⑤). An unclassified one shows its text as is.
+  const FAILURES = { invalid: "输入不符合能力合同", forbidden: "没有权限这样做", not_found: "要用的对象已不在", conflict: "对象在这期间变了，要重新读取", too_large: "内容太大",
+    rate_limited: "请求太频繁，被限流了", cancelled: "已取消", timeout: "超时了", unavailable: "这项能力现在用不了", upstream: "依赖的服务没有给出完整的回答", internal: "执行时出错了" };
+  const RULES = { required: "缺少必填的内容", additionalProperties: "多了合同里没有的内容", type: "类型不对", enum: "不是允许的取值" };
+  const where = (path) => path === "/" ? L("整个输入") : path.slice(1).split("/").join(" › ");
+  const facts = (item) => [item.capability_id && [L("调用的能力"), item.capability_id], item.failure && [L("原因"), L(FAILURES[item.failure.kind] || "没有完成")],
+    ...(item.failure?.fields || []).map((field) => [where(field.path), L(RULES[field.rule] || "不符合约束")]), !item.failure && item.detail && [L("返回的说明"), item.detail]].filter(Boolean);
+  const raw = (item) => item.failure && item.detail ? item.detail : "";
   const line = (round, item) => {
-    const known = (round.stepLines ||= new Map()), shown = facts(item), tag = shown.length ? "DETAILS" : "P";
+    const known = (round.stepLines ||= new Map()), shown = facts(item), tag = shown.length || raw(item) ? "DETAILS" : "P";
     let node = known.get(item.call_id);
     if (!node || node.tagName !== tag) {
       const fresh = tag === "P" ? el("p", "assistant-activity") : el("details", "assistant-activity-fold");
@@ -62,10 +70,12 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     const head = tag === "P" ? node : node.firstElementChild, words = activityLine(item);
     node.dataset.state = head.dataset.state = item.state;
     if (head.dataset.text !== words || head.dataset.glyph !== item.state) { head.dataset.text = words; head.dataset.glyph = item.state; head.replaceChildren(verbGlyph(item), el("span", "", words)); }
-    const signature = JSON.stringify(shown);
+    const said = raw(item), signature = JSON.stringify([shown, said]);
     if (tag === "DETAILS" && node.dataset.facts !== signature) {
       node.dataset.facts = signature;
-      node.lastElementChild.replaceChildren(...shown.map(([label, value]) => { const row = el("p"); row.append(el("span", "assistant-activity-label", label), el("span", "", value)); return row; }));
+      const rows = shown.map(([label, value]) => { const row = el("p"); row.append(el("span", "assistant-activity-label", label), el("span", "", value)); return row; });
+      if (said) { const fold = el("details", "assistant-activity-raw"); fold.append(el("summary", "", L("原始说明")), el("p", "", said)); rows.push(fold); }
+      node.lastElementChild.replaceChildren(...rows);
     }
     return node;
   };

@@ -32,4 +32,6 @@ export const hostErrors = defineErrorCodes("host", {
   catalog_unavailable: "invalid",
   workspace_unavailable: "invalid",
   workspace_not_found: "invalid",
+  /** A part of a request path that is not valid percent-encoding: the caller's mistake, never a Host fault. */
+  request_path_invalid: "invalid",
 });

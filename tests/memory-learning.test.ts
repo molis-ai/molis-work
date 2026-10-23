@@ -250,7 +250,7 @@ async function queuedLearning(t: test.TestContext) {
   t.mock.method(globalThis, "fetch", async () => { asked.resolve(); await roundGate; return cogniaModelResponse("完成。"); });
   const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME), originals = new AssistantStore(db), ledger = openMemoryLedger({ homeDirectory: home });
   let service: MemoryService, memoryAlive = true, beforeCandidateWrite: (() => void) | undefined;
-  let formed = false, afterCandidateRead: (() => Promise<void>) | undefined;
+  let formed = false, afterCandidateRead: (() => Promise<void>) | undefined, afterCandidateCheck: (() => void) | undefined;
   // Queue invalidation below is injected through its existing Host ports. This real policy owner keeps the
   // declared scratch project available for independent persisted-state inspection after that invocation ends.
   const policyOwner = {
@@ -269,7 +269,13 @@ async function queuedLearning(t: test.TestContext) {
       },
     },
     withCaller: caller => observe(memory.withCaller(caller)),
-    ...(memory.withExecution ? { withExecution: (control: Parameters<NonNullable<AgentMemoryCapability["withExecution"]>>[0]) => observe(memory.withExecution!(control)) } : {}),
+    ...(memory.withExecution ? { withExecution: (control: Parameters<NonNullable<AgentMemoryCapability["withExecution"]>>[0]) => observe(memory.withExecution!({
+      beforeEffect: async () => {
+        await control.beforeEffect();
+        if (extracted) { const after = afterCandidateCheck; afterCandidateCheck = undefined; after?.(); }
+      },
+      assert_current: () => control.assert_current(),
+    })) } : {}),
   });
   let extracted = false;
   const observedSources = (sources: ReturnType<typeof memorySources>): ReturnType<typeof memorySources> => ({ ...sources,
@@ -340,6 +346,7 @@ async function queuedLearning(t: test.TestContext) {
     afterLearning: (fn: () => void) => { afterLearning = fn; },
     projectRemoved: () => { projectExists = false; }, stopHost: () => { alive = false; },
     beforeCandidateWrite: (fn: () => void) => { beforeCandidateWrite = fn; },
+    afterCandidateCheck: (fn: () => void) => { afterCandidateCheck = fn; },
     afterCandidateRead: (fn: () => Promise<void>) => { afterCandidateRead = fn; },
     restart: async () => { memoryAlive = false; await adapter.close(); adapter = await open(); },
   };
@@ -531,4 +538,24 @@ test("MEM-SOURCE-06: an original archived after model checks is re-read at the a
   assert.equal(settled.last_failure, "记忆形成尚未全部记账，请携原操作重试");
   assert.deepEqual(fixture.outcomes, [], "archive invalidation reaches the SDK source gate before its commit");
   await fixture.empty(); await fixture.restart(); await fixture.empty();
+});
+
+test("MEM-SOURCE-06: a new input after the final async learning check prevents the actual candidate commit", { timeout: 60_000 }, async t => {
+  const fixture = await queuedLearning(t), first = await fixture.start(); await fixture.ended(first.ref);
+  let intercepted = false;
+  fixture.afterCandidateCheck(() => {
+    // The real source check has returned. Change the durable work before the Host's synchronous commit guard.
+    intercepted = true;
+    fixture.originals.update(LOCAL_PERSON_ACTOR_ID, first.work.work_id, null, { continuation_hold: "input", draft: "先不要学习，等我补充" }, false);
+  });
+  fixture.attach(); await fixture.enqueue(first.task);
+  const settled = await fixture.settled(first.task.key);
+  assert.equal(intercepted, true); assert.equal(fixture.modelCalls, 1);
+  assert.equal(settled.state, "failed");
+  assert.equal(settled.last_failure, "记忆形成尚未全部记账，请携原操作重试");
+  assert.deepEqual(fixture.outcomes, [], "the final guard refuses the candidate rather than reporting learning success");
+  assert.deepEqual(fixture.notes(), []);
+  await fixture.empty(); await fixture.restart(); await fixture.empty();
+  const saved = fixture.originals.get(LOCAL_PERSON_ACTOR_ID, first.work.work_id);
+  assert.equal(saved.continuation_hold, "input"); assert.equal(saved.draft, "先不要学习，等我补充");
 });

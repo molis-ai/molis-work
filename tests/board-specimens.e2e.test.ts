@@ -143,6 +143,14 @@ test("VUX-39 the board's Assistant shows its usage detail running, reported and 
   await open("board-digest");
   const unavailable = await usage();
   assert.deepEqual([unavailable.parts["上下文窗口"], unavailable.parts["本轮"], unavailable.bar], [["已用暂不可用"], ["输入暂不可用", "输出暂不可用"], false]);
+  // A refused step (user 2026-10-23 ⑤): the reason and the field in plain words; the runtime's own text, hook name and all, one fold down and closed.
+  const refused = await inFrame<{ head: string; rows: string[]; raw: string; open: boolean }>(`const step = d.querySelector('[data-entry="a:c-d3"]'), fold = step.querySelector('.assistant-activity-raw');
+    return { head: step.querySelector('summary').textContent, rows: [...step.querySelectorAll('.assistant-activity-detail > p')].map((p) => p.textContent),
+      raw: fold.textContent, open: fold.open };`);
+  assert.equal(refused.head, "修改 Pages · 新建摘要文档 — 没有完成");
+  assert.deepEqual(refused.rows, ["调用的能力pages.docs.create", "原因输入不符合能力合同", "整个输入多了合同里没有的内容"]);
+  assert.match(refused.raw, /^原始说明Hook "molis-action-gateway-pages" blocked/);
+  assert.equal(refused.open, false, "the runtime's text stays folded until asked for");
 
   // The works' own words in English beside the English interface: the panel, its tabs, the thread and the side pane keep no Chinese.
   for (const [name, value] of [["lang", "en"], ["text", "en"]] as const) {

@@ -21,6 +21,12 @@ interface OperationMark extends OperationIdentity {
   result?: { memory_id?: string; candidate_id?: string; version?: number };
 }
 const PREFIX = "memory-operation:";
+export interface MemoryPurgeTarget {
+  scope: MemoryScope;
+  owner: string;
+  entry: { memory_id: string; version: number };
+  condition?: { expected_version: number; operation_id: string; signal?: AbortSignal };
+}
 
 /** The existing ledger keeps operation identity and receipts, never a proposed body or encoded command. */
 export class MemoryOperations {
@@ -101,14 +107,50 @@ export class MemoryOperations {
       ...(caller.signal ? { signal: caller.signal } : {}) };
   }
 
-  formal(caller: MemoryCaller, located: { scope: MemoryScope; owner: string; entry: { memory_id: string; version: number } }, kind: string) {
-    return this.condition(caller, `${kind}:${located.entry.memory_id}`, { kind, scope: located.scope, owner: located.owner,
-      memory_id: located.entry.memory_id, expected_version: located.entry.version });
+  formal(caller: MemoryCaller, located: { scope: MemoryScope; owner: string; entry: { memory_id: string; version: number } }, kind: string, expectedVersion?: number) {
+    const condition = this.condition(caller, `${kind}:${located.entry.memory_id}`, { kind, scope: located.scope, owner: located.owner,
+      memory_id: located.entry.memory_id, expected_version: expectedVersion ?? located.entry.version });
+    if (expectedVersion !== undefined && condition.expected_version !== expectedVersion)
+      throw memoryErrors.conflict("原删除条件与确认版本不一致，不能重试删除后来版本");
+    return condition;
+  }
+
+  /** Missing bodies can converge only under the original decision and the caller's current scopes. */
+  purgeRecovery(caller: MemoryCaller, memoryId: string, decisionKey: string, kind: string,
+    scopes: readonly { scope: MemoryScope; owner: string }[], expectedVersion?: number): MemoryPurgeTarget {
+    caller.signal?.throwIfAborted();
+    const decision = this.find(caller, decisionKey), purge = this.find(caller, `purge:${memoryId}`);
+    if (!decision || !purge || decision.kind !== kind || purge.kind !== "purge"
+      || decision.memory_id !== memoryId || purge.memory_id !== memoryId
+      || decision.scope !== purge.scope || decision.owner !== purge.owner
+      || !["pending", "committed", "closed"].includes(purge.phase)
+      || !["pending", "committed", "closed"].includes(decision.phase)
+      || !Number.isSafeInteger(decision.expected_version) || decision.expected_version! < 1
+      || purge.expected_version !== decision.expected_version
+      || expectedVersion !== undefined && expectedVersion !== decision.expected_version)
+      throw memoryErrors.conflict("没有一致的原删除决定，不能按当前缺失推断清理完成");
+    if (!scopes.some(scope => scope.scope === purge.scope && scope.owner === purge.owner))
+      throw memoryErrors.scope("原删除目标不在本次调用的记忆范围内");
+    return { scope: purge.scope, owner: purge.owner, entry: { memory_id: memoryId, version: purge.expected_version! },
+      condition: { expected_version: purge.expected_version!, operation_id: purge.operation_id, ...(caller.signal ? { signal: caller.signal } : {}) } };
   }
 
   candidate(caller: MemoryCaller, record: { scope: MemoryScope; owner: string; candidate_id: string; version: number }, kind: string) {
     return this.condition(caller, `${kind}:${record.candidate_id}`, { kind, scope: record.scope, owner: record.owner,
       candidate_id: record.candidate_id, expected_version: record.version });
+  }
+
+  /** Retain original cleanup conditions when the SDK candidate is gone but its ledger projection remains. */
+  candidatePurges(caller: MemoryCaller, where: { scope: MemoryScope; owner: string },
+    current: readonly { candidate_id: string; version: number }[], projected: readonly { candidate_id: string }[]) {
+    const selected = new Map(current.map(item => [item.candidate_id, item.version]));
+    for (const note of projected) {
+      const old = this.find(caller, `candidate-purge:${note.candidate_id}`);
+      if (old?.scope === where.scope && old.owner === where.owner && old.candidate_id === note.candidate_id && !selected.has(note.candidate_id))
+        selected.set(note.candidate_id, old.expected_version!);
+    }
+    return [...selected].map(([candidate_id, version]) => ({ candidate_id,
+      ...this.condition(caller, `candidate-purge:${candidate_id}`, { kind: "purge", ...where, candidate_id, expected_version: version }) }));
   }
 
   committed(caller: MemoryCaller, mark: OperationMark, result: OperationMark["result"]): void {

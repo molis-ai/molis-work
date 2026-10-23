@@ -21,11 +21,11 @@ const nonempty = (value: unknown): value is string => typeof value === "string" 
 const identity = memorySourceIdentity;
 
 /** Current work owner of a canonical Session; no display round or recent-work scan can stand in for it. */
-export function assistantMemorySourceWork(home: string, actorId: string, sessionId: string): { project_id: string | null } | undefined {
+export function assistantMemorySourceWork(home: string, actorId: string, sessionId: string, explicit = false): { project_id: string | null } | undefined {
   const db = openReadOnlyHomeSqlite(home, ASSISTANT_STORE_NAME);
   try {
     const work = assistantWorkForSession(db, actorId, sessionId);
-    return work && !work.archived && !work.delegated_by && work.continuation_hold !== "stopped" && work.continuation_hold !== "paused"
+    return work && !work.archived && !work.delegated_by && (!work.continuation_hold || explicit && work.continuation_hold === "input")
       ? { project_id: work.project_ref?.project_id ?? null } : undefined;
   } finally { db.close(); }
 }
@@ -40,7 +40,7 @@ async function readSources(home: string, adapter: AgentRuntimeAdapter, task: Lea
   const db = openReadOnlyHomeSqlite(home, ASSISTANT_STORE_NAME);
   try {
     const store = new AssistantStore(db), work = store.get(actor, workId), rounds = store.rounds(workId);
-    if (work.archived || work.delegated_by || work.continuation_hold === "stopped" || work.session_id !== task.session_id) return null;
+    if (work.archived || work.delegated_by || work.continuation_hold || work.session_id !== task.session_id) return null;
     const trigger = rounds.find(round => task.key === `memory-learn:${workId}:${round.run_id}`);
     if (!trigger || (body.run_id !== undefined && body.run_id !== trigger.run_id)
       || (body.session_id !== undefined && body.session_id !== task.session_id)) return null;
@@ -99,7 +99,7 @@ async function readSources(home: string, adapter: AgentRuntimeAdapter, task: Lea
       said.push(source.text); snapshots.push(snapshot);
     }
     const current = store.get(actor, workId);
-    if (current.archived || current.delegated_by || current.continuation_hold === "stopped" || current.session_id !== task.session_id
+    if (current.archived || current.delegated_by || current.continuation_hold || current.session_id !== task.session_id
       || (current.project_ref?.project_id ?? null) !== projectId) return null;
     return { source: { actor_id: actor, work_id: workId, session_id: task.session_id, run_id: trigger.run_id, sources: refs },
       request: { caller: { actor_id: actor, project_id: projectId, consumer: "assistant", session_id: task.session_id, operation_id: task.key,

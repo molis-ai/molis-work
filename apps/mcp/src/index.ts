@@ -3,7 +3,6 @@ export type { McpContextPresentationPorts } from "./context-presentation.js";
 export { mcpWebUrl } from "./goal-presentation.js";
 
 export { handleMcpMessage } from "./protocol.js";
-export { mcpRuntimeSessionActivity } from "./session-activity.js";
 export { createMcpRuntimeContextHandlers } from "./runtime-context-tools.js";
 export type { McpRuntimeContextPorts } from "./runtime-context-tools.js";
 export type { McpPresentationErrorFactory } from "./goal-presentation.js";

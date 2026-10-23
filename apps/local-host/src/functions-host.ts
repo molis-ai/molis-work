@@ -50,14 +50,11 @@ function functionsCredential(home: string, options: FunctionsHostOptions): () =>
   return options.credential ?? (() => typeSafeCredential(home));
 }
 
-export function withFunctionsService<T>(
-  homeDirectory: string,
-  run: (service: ReturnType<typeof createFunctionsService>) => T,
-  options: FunctionsHostOptions = {},
-): T {
+/** A service and its database connection, owned and closed by the calling Host resource. */
+export function openFunctionsService(homeDirectory: string, options: FunctionsHostOptions = {}) {
   const store = openFunctionsStore(homeDirectory, { builtinSceneMaps: BUILTIN_SCENE_MAPS });
   try {
-    return run(createFunctionsService({
+    const service = createFunctionsService({
       store,
       credential: functionsCredential(homeDirectory, options),
       env: options.env ?? process.env,
@@ -65,10 +62,20 @@ export function withFunctionsService<T>(
         resolveCredential: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() || functionsCredential(homeDirectory, options)()?.trim() || null,
         configuration: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() ? "env" : options.credential ? "custom" : typeSafeConfiguration(homeDirectory),
       }),
-    }));
-  } finally {
-    store.close();
-  }
+    });
+    let closed = false;
+    return { service, close() { if (!closed) { store.close(); closed = true; } } };
+  } catch (error) { store.close(); throw error; }
+}
+
+export function withFunctionsService<T>(
+  homeDirectory: string,
+  run: (service: ReturnType<typeof createFunctionsService>) => T,
+  options: FunctionsHostOptions = {},
+): T {
+  const resource = openFunctionsService(homeDirectory, options);
+  try { return run(resource.service); }
+  finally { resource.close(); }
 }
 
 export async function withFunctionsServiceAsync<T>(
@@ -76,20 +83,9 @@ export async function withFunctionsServiceAsync<T>(
   run: (service: ReturnType<typeof createFunctionsService>) => Promise<T>,
   options: FunctionsHostOptions = {},
 ): Promise<T> {
-  const store = openFunctionsStore(homeDirectory, { builtinSceneMaps: BUILTIN_SCENE_MAPS });
-  try {
-    return await run(createFunctionsService({
-      store,
-      credential: functionsCredential(homeDirectory, options),
-      env: options.env ?? process.env,
-      provider: options.provider ?? createPrologueTypeSafeProvider(homeDirectory, {
-        resolveCredential: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() || functionsCredential(homeDirectory, options)()?.trim() || null,
-        configuration: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() ? "env" : options.credential ? "custom" : typeSafeConfiguration(homeDirectory),
-      }),
-    }));
-  } finally {
-    store.close();
-  }
+  const resource = openFunctionsService(homeDirectory, options);
+  try { return await run(resource.service); }
+  finally { resource.close(); }
 }
 
 export function parseSceneFunctionKey(body: Readonly<Record<string, unknown>>): string | null | undefined {

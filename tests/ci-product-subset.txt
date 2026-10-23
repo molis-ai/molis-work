@@ -108,6 +108,7 @@ tests/assistant-turns.test.ts
 tests/assistant-undo.test.ts
 tests/assistant-work-budget.test.ts
 tests/assistant-work-continuity.test.ts
+tests/assistant-continuation-control.test.ts
 
 # characters
 tests/characters-action-client.test.ts
@@ -238,6 +239,10 @@ tests/memory-adoption.test.ts
 tests/memory-learning.test.ts
 tests/memory-plugin-save.test.ts
 tests/memory-runtime-policy.test.ts
+tests/memory-review-remember-cancellation.test.ts
+tests/memory-review-forget-revocation.test.ts
+tests/memory-list-revocation.test.ts
+tests/memory-source-snapshot-withdrawal.test.ts
 tests/memory-source-owner.test.ts
 tests/memory-promotion.test.ts
 tests/prologue-memory-promotion.test.ts
@@ -414,7 +419,6 @@ tests/list-silent-refresh.test.ts
 tests/local-host-checkpoint.test.ts
 tests/mcp-protocol.test.ts
 tests/package-dev-requirements.test.ts
-tests/panel-sessions.test.ts
 tests/personal-artifact-owner.test.ts
 tests/planning-engine.test.ts
 tests/plugin-interaction-answer.test.ts
@@ -492,3 +496,5 @@ tests/coding-original-inputs.test.ts
 
 tests/memory-unknown-facts.test.ts
 tests/assistant-original-inputs.test.ts
+# W5-06 PRR-12: every shown plugin's stage page is drawn once, from the Manifest view that opens it.
+tests/declared-stages.test.ts

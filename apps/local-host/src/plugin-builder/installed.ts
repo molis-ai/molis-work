@@ -80,7 +80,9 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
       // The project's library only when the Manifest declares the plugin's tables there (`databases.project`).
       const database = context.services?.project_database;
       const services: SandboxServices = { storage: storageTransactions(storage), ...(database ? { projectDatabase: sandboxDatabase(database) } : {}),
-        ...(host.capability ? { capability: host.capability } : {}), ...(host.network ? { network: host.network } : {}) };
+        ...(host.capability ? { capability: host.capability } : {}), ...(host.network ? { network: host.network } : {}),
+        // The activation's drawing of questions, cards and next steps, reached through the broker like every other service.
+        ...(context.services?.interaction ? { interaction: context.services.interaction } : {}) };
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;
         const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: approved, services,

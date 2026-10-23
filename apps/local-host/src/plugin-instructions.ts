@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { AgentDefinitionRegistration } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { agentDefinitionsFor, declaredMethods } from "./agent-definitions/agent-definitions.js";
+import { agentDefinitionsFor, agentRegistration, declaredMethods } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
 import type { PluginPlatformHome } from "./home-side.js";
 
@@ -13,10 +13,11 @@ import type { PluginPlatformHome } from "./home-side.js";
 const holders = new Map<string, Map<string, { held: number; version: string }>>();
 
 /**
- * Registers what a definition carries for Agents for as long as the installation runs: its instructions
+ * Registers what a definition carries for Agents for as long as the installation runs: the roles and Agent prompts of its Manifest's
+ * `agent` block (with `PluginDefinition.agent_prompts`, so the person sees and edits them and a run uses the edit, PG-051), its instructions
  * (`PluginDefinition.instructions`), so the person sees and edits them in “Prompt 与 Character” like every other, and the methods
  * its Manifest declares with their bodies (`PluginDefinition.methods`), so other Agents use them as they use a built-in Plugin's
- * (decision #18, W4-02); a definition that carries neither registers nothing. Only for a plugin the Host runs itself on a platform that reaches a Home: instructions exist for
+ * (decision #18, W4-02); a definition that carries none of these registers nothing. Only for a plugin the Host runs itself on a platform that reaches a Home: instructions exist for
  * `services.model`, which no other plugin has, and a method's body goes into another Agent's round. Returns what withdraws them, once.
  * An upgraded version that starts while another project still runs the earlier one replaces the registration: the register shows the
  * installation's newest version, and the last instance out withdraws it.
@@ -29,8 +30,8 @@ const holders = new Map<string, Map<string, { held: number; version: string }>>(
  */
 export function registerPluginAgentDefinitions(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, installId: string): (() => void) | undefined {
   // What the definition itself carries: a catalog plugin's Manifest declares methods too, and the catalog registers them.
-  const instructions = definition.instructions ?? [], bodies = definition.methods ?? [];
-  if ((instructions.length === 0 && bodies.length === 0) || !home || definition.execution === "sandbox") return undefined;
+  const instructions = definition.instructions ?? [], bodies = definition.methods ?? [], agent = definition.manifest.agent;
+  if ((instructions.length === 0 && bodies.length === 0 && !agent) || !home || definition.execution === "sandbox") return undefined;
   const { plugin_id: owner, version, name } = definition.manifest;
   for (const item of instructions) {
     if (item.owner_id !== owner) throw new Error(`插件 ${owner} 登记的指令 ${item.prompt_id} 属于 ${item.owner_id}：一个插件只能登记自己的指令`);
@@ -40,13 +41,17 @@ export function registerPluginAgentDefinitions(home: PluginPlatformHome | null |
   const installs = holders.get(ownerKey) ?? new Map<string, { held: number; version: string }>();
   const holder = installs.get(installId);
   if (!holder && installs.size === 0 && registry.registrations().some(row => row.owner_id === owner)) {
+    // Until PG-051 P2 a catalog plugin's `agent` block is registered by the catalog, from the same package: nothing to add here.
+    if (instructions.length === 0 && bodies.length === 0) return undefined;
     throw new Error(`插件 ${owner} 在目录里已经登记了 Agent 定义（指令、角色或方法）：一个主人的定义只在一处，不能再由 PluginDefinition 登记第二个来源；有目录条目的插件把指令和方法声明在条目上`);
   }
   if (!holder || holder.version !== version) {
     const { methods, notes } = declaredMethods(definition.manifest.methods ?? [], bodies);
-    const registration: AgentDefinitionRegistration = { owner_id: owner, source: { kind: "plugin", plugin_id: owner, plugin_version: version, title: name, state: "enabled" },
-      prompts: instructions.map(item => ({ prompt_id: item.prompt_id, version: item.version, kind: "instruction" as const, title: item.title, purpose: item.purpose,
-        used_by: [...item.used_by], body: item.body })), roles: [], ...(methods.length ? { methods } : {}), ...(notes.length ? { notes } : {}) };
+    const source = { kind: "plugin" as const, plugin_id: owner, plugin_version: version, title: name, state: "enabled" as const };
+    const declared = agent ? agentRegistration(owner, source, agent, definition.agent_prompts ?? []) : { prompts: [], roles: [] };
+    const registration: AgentDefinitionRegistration = { owner_id: owner, source, prompts: [...declared.prompts, ...instructions.map(item => ({ prompt_id: item.prompt_id, version: item.version,
+      kind: "instruction" as const, title: item.title, purpose: item.purpose, used_by: [...item.used_by], body: item.body }))], roles: declared.roles,
+      ...(methods.length ? { methods } : {}), ...(notes.length ? { notes } : {}) };
     registry.register(registration, installId);
   }
   installs.set(installId, { held: (holder?.held ?? 0) + 1, version });

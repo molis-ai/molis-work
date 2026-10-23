@@ -16,7 +16,7 @@ import {
   renderMolisWorkPrimitiveCatalog,
   renderWorkbenchDocument,
 } from "@molis-ai/molis-work-app-workbench";
-import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { UiHost, createSurfaceRenderer, createSurfaceRenderers, type UiSurfaceCallModel } from "@molis-ai/molis-work-ui-host";
 
 test("Workbench owns the document shell and escapes document metadata", () => {
   const html = renderWorkbenchDocument({
@@ -111,6 +111,60 @@ test("UI Host mounts only declared Plugin surfaces into compatible Workbench slo
     }),
     (error) => error instanceof ActionError && error.code === "ui_host.surface_invalid" && error.kind === "invalid" && actionHttpStatus(error) === 400,
   );
+});
+
+test("W5-06 UI Host mounts a surface in the slot its contribution declares, and only in a slot this host offers", () => {
+  const contribution: UiContribution<UiSurfaceCallModel<{ tag: string }>> = {
+    descriptor: {
+      contribution_id: "io.molis.work.test.declared.v1",
+      plugin_id: "io.molis.work.test",
+      kind: "embedded",
+      label: "Test",
+      surfaces: [
+        { surface_id: "panel", target_slot_id: "workbench.main", format: "declarative-html" },
+        { surface_id: "elsewhere", target_slot_id: "workbench.side", format: "declarative-html" },
+      ],
+      slots: [],
+    },
+    render: ({ surface, model }) => `<${model.primitives.tag} data-surface="${surface}">${model.kind}:${model.args.join(",")}</${model.primitives.tag}>`,
+  };
+  const host = new UiHost({ slots: [WORKBENCH_UI_SLOTS.main] });
+  host.register(contribution);
+  const id = contribution.descriptor.contribution_id;
+  assert.deepEqual(host.mountDeclared({ contribution_id: id, surface: "panel", model: { kind: "panel", args: ["a"], primitives: { tag: "p" } } }), {
+    slot_id: "workbench.main",
+    contribution_id: id,
+    surface: "panel",
+    html: '<p data-surface="panel">panel:a</p>',
+  });
+  // The surface names a slot this host was not given: refused, never mounted in another slot.
+  assert.throws(
+    () => host.mountDeclared({ contribution_id: id, surface: "elsewhere", model: { kind: "elsewhere", args: [], primitives: { tag: "p" } } }),
+    (error) => error instanceof ActionError && error.code === "ui_host.slot_incompatible" && error.kind === "invalid" && actionHttpStatus(error) === 400,
+  );
+  assert.throws(
+    () => host.mountDeclared({ contribution_id: id, surface: "missing", model: { kind: "missing", args: [], primitives: { tag: "p" } } }),
+    (error) => error instanceof ActionError && error.code === "ui_host.surface_invalid",
+  );
+  assert.throws(
+    () => host.mountDeclared({ contribution_id: "io.molis.work.test.absent.v1", surface: "panel", model: { kind: "panel", args: [], primitives: { tag: "p" } } }),
+    (error) => error instanceof ActionError && error.code === "ui_host.contribution_not_found",
+  );
+
+  // A renderer built from a method→surface map hands each call to the declared surface as { kind, args, primitives }.
+  const renderer = createSurfaceRenderers<{ renderPanel(value: string, count: number): string }, { tag: string }>(host, id, { renderPanel: "panel" })({ tag: "em" });
+  assert.equal(renderer.renderPanel("x", 2), '<em data-surface="panel">panel:x,2</em>');
+  const render = createSurfaceRenderer<(value: string) => string, { tag: string }>(host, id, "panel")({ tag: "b" });
+  assert.equal(render("y"), '<b data-surface="panel">panel:y</b>');
+});
+
+test("W5-06 every surface a Workbench contribution declares names a slot the Workbench host offers", () => {
+  const offered = new Set(Object.values(WORKBENCH_UI_SLOTS).map((slot) => slot.slot_id));
+  for (const descriptor of createWorkbenchUiHost().list()) {
+    for (const surface of descriptor.surfaces ?? []) {
+      assert.ok(offered.has(surface.target_slot_id), `${descriptor.contribution_id} ${surface.surface_id} declares ${surface.target_slot_id}, which the Workbench host does not offer`);
+    }
+  }
 });
 
 test("Workbench registers Native Plugin surfaces against stable slots", () => {

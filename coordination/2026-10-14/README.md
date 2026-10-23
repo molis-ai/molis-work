@@ -3441,3 +3441,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 
 - 给 `ac-feed-fn`（R5）、`ac-sandbox-sched`（BL-395 → PG-039～042）发了派单。现在同时四条：`ac-sc3`（SC-4）、`ac-kernel`（R7 已开 #1117，在做 W5-09）、`ac-feed-fn`、`ac-sandbox-sched`。排队：`ac-clients-1` → `ac-errors` → `ac-giants`（R4c 去掉 memory）→ `ac-snapshot`。
 - #1117（R7）开了，`full` 非空，交 `ac-review`；S-58 已给（PR 里的占位 S-XX 由作者回填）。
+
+### 10-23 19:55 UTC　BL-395 用户定：这一轮做完子进程执行
+
+- `ac-sandbox-sched` 查到：better-sqlite3 编译时关了 progress/interrupt 回调，`Worker.terminate` 也停不住原生调用，主进程里没法可靠限时。BL-395 的行写着「信任边界的设计，动手前问用户」，统筹弹窗问了。
+- 用户选「这一轮就做完子进程执行」（统筹推荐的是「先限量并关住入口」，用户没选推荐）：沙箱的项目库语句放进能杀掉的子进程跑，时间和内存都限住，BL-395 做完删行；PLIB-08「项目库只在宿主进程内打开」的口径随之改写，写进该片的 slices 文件与 PLIB-08 原文所在的 spec。
+- **S-59** 给 BL-395（超时被杀、结果超限、递归被拒）。下一个空号 S-60。

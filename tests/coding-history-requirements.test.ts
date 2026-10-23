@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -45,7 +46,9 @@ async function twoRounds(t: TestContext, summary: Summary) {
   const deadline = Date.now() + 15_000;
   while (!f.requests.length) { assert.ok(Date.now() < deadline, "the first model request was sent"); await new Promise(resolve => setTimeout(resolve, 20)); }
   for (const text of SUPPLEMENTS) {
-    const sent = await f.call(project, coding + `/sessions/${id}/control`, { kind: "steer", run_id: first.body.run.ref.run_id, text, mode: "next-boundary" });
+    const inputId = randomUUID();
+    const sent = await f.call(project, coding + `/sessions/${id}/control`, { kind: "steer", run_id: first.body.run.ref.run_id, text, mode: "next-boundary",
+      key: `send.${inputId}`, original_input: { input_id: inputId, text, use: "supplement" } });
     assert.equal(sent.status, 200, JSON.stringify(sent.body));
   }
   release();

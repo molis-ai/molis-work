@@ -18,7 +18,7 @@ import { connectorAssistantModel, untilSetup } from "./fixtures/connector-assist
 const PROJECT_A = "project-onboarding-08c01264-6d29-48fb-a16c-4a27c71fac38";
 const person: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: PROJECT_A, consumer: "ui", person: true };
 const worker: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: PROJECT_A, consumer: "agent" };
-const automatic = { scope: "project" as const, text: "周报把风险放在前面", kind: "convention" as const,
+const automatic = { scope: "project" as const, text: "以后周报把风险放在前面", kind: "convention" as const,
   basis: "repeated" as const, why: "两项独立工作中重复提出", from: "extraction" as const };
 const originalPrefs = { enabled: true, task_recall: true, form: true, auto: true, learn_from_work: true, learn_from_ui: true,
   consumers: { assistant: true, agent: true, ui: true, plugin: true, mcp: false }, plugins: {} };
@@ -66,11 +66,13 @@ async function learnedAutomatic(home: string, env: Awaited<ReturnType<typeof ope
       sources.push({ event_id: "molis-input:1:" + JSON.stringify([owner.actor_id, original.ref.session_id, "original", original.ref.input_id]), version: "1",
         text: original.text, speaker: { kind: "person", id: owner.actor_id }, derivation: "original", occurred_at_ms: Date.parse(original.occurred_at) });
     }
-    const [result] = await env.service.learnFromWork({ ...worker, consumer: "assistant", current_scene: "common", operation_id: crypto.randomUUID() }, {
+    const result = await env.service.learnFromWork({ ...worker, consumer: "assistant", current_scene: "common", operation_id: crypto.randomUUID() }, {
       said: sources.map(source => source.text), sources,
-      proposals: [{ text: automatic.text, scope: "project", kind: "convention", basis: "explicit", quote: automatic.text }],
     });
-    return result!;
+    assert.equal(result.formation.outcome, "completed");
+    assert.equal(result.formation.extraction.calls, 1);
+    assert.equal(result.recording_error, undefined);
+    return result.learned[0]!;
   } finally { db.close(); }
 }
 
@@ -114,12 +116,29 @@ test("adopted effective defaults retain automatic writing, project overrides and
   });
   adopted.close();
   await createProject(home);
-  await connectorAssistantModel(t, home, () => "完成。");
+  let extractionCalls = 0;
+  await connectorAssistantModel(t, home, body => {
+    const messages = body.messages as Array<{ content: string | Array<{ type: string; text?: string }> }>;
+    const content = messages.at(-1)!.content;
+    const prompt = typeof content === "string" ? content : content.filter(block => block.type === "text").map(block => block.text).join("\n");
+    if (!prompt.includes('"destinations":')) return "完成。";
+    const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as {
+      sources: Array<{ id: string; text: string }>;
+      destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string[]> }>;
+    };
+    const slot = data.destinations.find(destination => destination.scope === "project" && !destination.replacement)?.slots.convention?.[0];
+    assert.ok(slot); assert.equal(data.sources.length, 2);
+    assert.deepEqual(data.sources.map(source => source.text), [automatic.text, automatic.text]);
+    extractionCalls++;
+    return JSON.stringify({ drafts: [{ slot_id: slot, text: automatic.text, suggested_basis: "explicit",
+      evidence: data.sources.map(source => ({ source_id: source.id, quote: source.text })) }] });
+  });
   for (let attempt = 0; attempt < 2; attempt++) {
     const env = await open(home);
     try {
       const kept = attempt === 0 ? await learnedAutomatic(home, env) : await env.service.offer(worker, automatic);
       assert.equal(kept.outcome, attempt === 0 ? "written" : "duplicate");
+      assert.equal(extractionCalls, 1, "the public extractor makes one real HTTP request; restart does not relearn the original");
       assert.equal((await env.service.recall(worker, { query: "周报风险" })).items.length, 1);
       assert.equal((await env.service.recall({ ...worker, project_id: "project-b" }, { query: "周报风险" })).items.length, 0);
       assert.equal((await env.service.recall({ ...worker, consumer: "plugin", plugin_id: "blocked" }, { query: "周报风险" })).items.length, 0);

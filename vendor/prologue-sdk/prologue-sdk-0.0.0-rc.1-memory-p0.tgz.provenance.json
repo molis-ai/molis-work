@@ -9,11 +9,11 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "cdbb49137ebd362153a79844d9995863bd599c37",
+    "commit": "98d4ae69baeab577cd5d03c706e15b21a4eab233",
     "mergedUpstream": {
-      "pullRequest": 92,
-      "head": "cdbb49137ebd362153a79844d9995863bd599c37",
-      "merge": "cb0ceaa5066662ee6cfc81a4df4cd3835171d097",
+      "pullRequest": 93,
+      "head": "98d4ae69baeab577cd5d03c706e15b21a4eab233",
+      "merge": "cbf7d7a4490cdeef6ef16f7089f1f878d3c909c2",
       "note": "Main tree equals the verified PR head; no local SDK patch."
     },
     "dirty": false,
@@ -22,9 +22,9 @@
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1337042,
-    "sha256": "88415d911c617d325f094613d32e76967585342e3d3441425321e4d8ef230b72",
-    "integrity": "sha512-yYZ/XAF32tOQuuiaCX52iXTaTMzHllzoitzFlmEjhs4zvRNJY9M7a+897rTiV1yuXw9Bk37TP73r18oCnSge+A=="
+    "bytes": 1339019,
+    "sha256": "9a82d24c7b07f0584e83c149f162cb9b0aa537b703febadfa54956f621407fbc",
+    "integrity": "sha512-nO+DAjtrw46wU30IIFNhIveaEh7hwAKPaHFaduMRuGxVpfjW9kz1zVfEJNEtAQZjuM6hz79lRRRb5GpRuC8iRQ=="
   },
   "build": {
     "node": "24.19.0",
@@ -37,6 +37,6 @@
       "Copy the verified package to the Molis vendor path"
     ],
     "packedOn": "2026-10-23",
-    "note": "Clean PR #92 head; complete quality including 684 stable tests, clean installed SDK and Rust passed, plus 111 related tests. Candidate accept/promote and reconciliation share the existing bounded append address selection, preserve valid historical addresses and verify the complete candidate operation key. Eight new real Node regressions and actual old-package recovery checks passed. No public API, persistent shape or Host limit change. Not a release or Molis acceptance; no byte-identical independent rebuild claimed. Actual Node24.19.0 differs from declared24.14.0."
+    "note": "Clean PR #93 head; complete quality including 684 stable tests, clean installed SDK and Rust passed, plus 19 related tests including six new mixed-original cases and actual SIGKILL recovery. The independent installed consumer passed again under root verification. App-attested person originals persist with the existing input identity and first acceptance time, without a second model message. Actual PR92 package rejects six read/write/export/import paths with zero commits; interrupted recovery cancels one independent Pending before refusing the new Run envelope, leaving InputBook and Run bytes unchanged. Not a release or Molis acceptance; no byte-identical independent rebuild claimed. Actual Node24.19.0 differs from declared24.14.0."
   }
 }

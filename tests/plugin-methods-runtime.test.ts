@@ -209,6 +209,57 @@ test("RAC-193 PG-051 two installations side by side: one stopping leaves the oth
     } finally { first.store.close(); second.store.close(); }
   }));
 
+/** The Host starting again on a copy of the Home: what the register shows for the Agent probe then. */
+function promptsAfterRestart(home: string) {
+  const restarted = mkdtempSync(join(tmpdir(), "plugin-methods-restart-"));
+  try {
+    for (const store of ["agent-definitions", "agent-declarations"]) cpSync(join(home, store), join(restarted, store), { recursive: true });
+    return { prompts: promptsOf(restarted), roles: homeAgentDefinitions(restarted).roles().filter(role => role.owner_id === AGENT_PROBE).map(role => role.role_id) };
+  } finally { rmSync(restarted, { recursive: true, force: true }); }
+}
+
+test("RAC-196 PG-051 Q1 b the last instance out leaves the installation's newest version, not the one it started with", { timeout: 60_000 },
+  withHome(async home => {
+    // One installation, two projects: A still runs 1.0.0 when B starts the upgraded 1.1.0; B stops first, A last.
+    const a = platformIn(home), b = platformIn(home);
+    try {
+      assert.deepEqual((await a.platform.start([{ definition: agentProbe() }])).running, [AGENT_PROBE]);
+      assert.deepEqual((await b.platform.start([{ definition: agentProbe({ version: "1.1.0", prompt: "probe-role-2" }) }])).running, [AGENT_PROBE]);
+      assert.equal(a.installId(AGENT_PROBE), b.installId(AGENT_PROBE), "one installation in both projects");
+      assert.deepEqual(promptsOf(home), ["probe-role-2:enabled"], "the register shows the newest version");
+      await b.platform.runtime.stop(b.installId(AGENT_PROBE));
+      assert.deepEqual(promptsOf(home), ["probe-role-2:enabled"], "1.0.0 still runs in A: the newest declaration stays");
+      await a.platform.runtime.stop(a.installId(AGENT_PROBE));
+      assert.deepEqual(promptsOf(home), ["probe-role-2:disabled"], "A, on 1.0.0, stops last: 1.1.0 is what stays, as not running");
+      // An earlier version starting while a newer one runs does not take its place either.
+      await b.platform.runtime.start(b.installId(AGENT_PROBE));
+      await a.platform.runtime.start(a.installId(AGENT_PROBE));
+      assert.deepEqual(promptsOf(home), ["probe-role-2:enabled"]);
+      await a.platform.runtime.stop(a.installId(AGENT_PROBE));
+      await b.platform.runtime.stop(b.installId(AGENT_PROBE));
+    } finally { a.store.close(); b.store.close(); }
+    assert.deepEqual(promptsAfterRestart(home).prompts, ["probe-role-2:disabled"], "and so when the Host starts again");
+  }));
+
+test("RAC-196 PG-051 Q1 b a new version that declares nothing for Agents replaces the remembered declaration with nothing", { timeout: 60_000 },
+  withHome(async home => {
+    const project = platformIn(home);
+    try {
+      await project.platform.start([{ definition: agentProbe() }]);
+      await project.platform.runtime.stop(project.installId(AGENT_PROBE));
+      assert.deepEqual(promptsOf(home), ["probe-role:disabled"]);
+      await project.platform.runtime.start(project.installId(AGENT_PROBE));
+      const bare = probe({ pluginId: AGENT_PROBE, version: "1.1.0", methods: [], bodies: [] }).definition;
+      const result = await project.platform.upgrade(AGENT_PROBE, bare);
+      assert.equal(result.status, "running", result.message ?? "");
+      assert.deepEqual(promptsOf(home), [], "1.1.0 declares no prompt, role or method: none of 1.0.0's is shown");
+      await project.platform.runtime.stop(project.installId(AGENT_PROBE));
+      assert.deepEqual(promptsOf(home), []);
+      assert.deepEqual(homeAgentDefinitions(home).roles().filter(role => role.owner_id === AGENT_PROBE), []);
+    } finally { project.store.close(); }
+    assert.deepEqual(promptsAfterRestart(home), { prompts: [], roles: [] }, "nor when the Host starts again");
+  }));
+
 test("RAC-196 PG-051 Q1 b a stopped installation's declaration comes back as not running when the Host starts again, offers no method, is replaced whole by a new version and goes with the uninstall", { timeout: 60_000 },
   withHome(async home => {
     const project = platformIn(home);

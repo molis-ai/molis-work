@@ -22,7 +22,7 @@
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 183,
     "class apps/local-host/src/local-host.ts#LocalHost": {
       "lines": 543,
-      "methods": 24
+      "methods": 25
     },
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 194,
     "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 186,
@@ -37,15 +37,15 @@
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/functions/client.ts": 1274,
-    "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 211,
-    "function apps/workbench/src/shell-page-renderer.ts#renderMolisWorkWeb": 175,
     "file apps/workbench/src/i18n/en.ts": 3323,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
-    "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 313,
+    "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 285,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2047,
-    "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
+    "file apps/workbench/src/scripts/client/navigation-feed.ts": 955,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1966,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
+    "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 191,
+    "function apps/workbench/src/shell-page-renderer.ts#renderMolisWorkWeb": 155,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
@@ -135,12 +135,12 @@
       "lines": 287,
       "methods": 29
     },
-    "file modules/shelf/src/store.ts": 1119,
+    "file modules/shelf/src/store.ts": 1081,
     "class modules/shelf/src/store.ts#ShelfStore": {
-      "lines": 708,
-      "methods": 34
+      "lines": 678,
+      "methods": 32
     },
-    "function modules/shelf/src/store.ts#runJob": 197,
+    "function modules/shelf/src/store.ts#runJob": 184,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 753,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
@@ -202,7 +202,7 @@
     },
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
-    "file plugins/native/pages/src/client.ts": 1100,
+    "file plugins/native/pages/src/client.ts": 1094,
     "function plugins/native/pages/src/editor-browser.ts#mount": 451,
     "class plugins/native/pages/src/store.ts#PagesStore": {
       "lines": 346,
@@ -213,14 +213,14 @@
       "lines": 654,
       "methods": 40
     },
-    "file plugins/native/shelf/src/client.ts": 1642,
-    "file plugins/native/todo/src/client.ts": 1233,
+    "file plugins/native/shelf/src/client.ts": 1641,
+    "file plugins/native/todo/src/client.ts": 1232,
     "class plugins/native/todo/src/store.ts#TodoStore": {
       "lines": 378,
       "methods": 28
     },
     "function plugins/native/work/src/actions.ts#createWorkActionHandlers": 169,
-    "function plugins/native/work/src/http/panels.ts#handleWorkPanelHttp": 163,
+    "function plugins/native/work/src/http/panels.ts#handleWorkPanelHttp": 158,
     "function plugins/native/work/src/terminal/client.ts#startWorkTerminalClient": 431,
     "function plugins/native/work/src/terminal/panels.ts#createTerminalPanels": 365,
     "function plugins/native/work/src/ui/render.ts#renderWorkSessionSurface": 342,
@@ -233,7 +233,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 449,
+  "testInternalImports": 448,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -415,7 +415,7 @@
     "tests/schedule-operations.test.ts": 1,
     "tests/search-evidence-runtime.test.ts": 1,
     "tests/secret-store-keychain-retry.test.ts": 1,
-    "tests/shelf-ai-host.test.ts": 4,
+    "tests/shelf-ai-host.test.ts": 3,
     "tests/shelf-client-boundaries.e2e.test.ts": 1,
     "tests/shelf-material-extraction.test.ts": 3,
     "tests/shelf-plugin.test.ts": 1,
@@ -741,42 +741,42 @@
     "apps/local-host/src/project-host.ts#register-provider": 4,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 4,
+  "hybridPluginsTotal": 3,
   "hybridPlugins": {
     "coding#host-files": 1,
-    "shelf#host-files": 3
+    "shelf#host-files": 2
   },
-  "pluginOutsideMentionsTotal": 335,
+  "pluginOutsideMentionsTotal": 315,
   "pluginOutsideMentions": {
-    "alchemist#outside-files": 12,
+    "alchemist#outside-files": 11,
     "artifacts#outside-files": 20,
     "coding#outside-files": 12,
     "cognia#outside-files": 6,
-    "dataset#outside-files": 8,
+    "dataset#outside-files": 7,
     "diff#outside-files": 8,
     "feed#outside-files": 35,
     "files#outside-files": 8,
-    "form#outside-files": 8,
+    "form#outside-files": 7,
     "git#outside-files": 8,
-    "goals#outside-files": 58,
+    "goals#outside-files": 47,
     "images#outside-files": 6,
     "inbox#outside-files": 17,
     "issues#outside-files": 4,
     "jelly#outside-files": 6,
     "lingguang#outside-files": 8,
-    "pages#outside-files": 13,
+    "pages#outside-files": 12,
     "plugin-builder#outside-files": 18,
-    "ppt#outside-files": 8,
+    "ppt#outside-files": 7,
     "schedule#outside-files": 11,
-    "shelf#outside-files": 16,
+    "shelf#outside-files": 14,
     "text-stats#outside-files": 7,
     "todo#outside-files": 7,
-    "work#outside-files": 23,
-    "workflows#outside-files": 8
+    "work#outside-files": 22,
+    "workflows#outside-files": 7
   },
   "rootStrayTotal": 0,
   "rootStrays": {},
-  "translationConflictTotal": 191,
+  "translationConflictTotal": 190,
   "translationConflicts": {
     "{agent} 的执行能力将在运行时检查，登录与隔离范围尚未确认。": 2,
     "{count} 次": 2,
@@ -943,7 +943,6 @@
     "在来源清单中连接账号，确认整理建议后再建立项目。": 2,
     "暂时处理不了，请稍后重试": 2,
     "暂时读不到": 3,
-    "暂停": 2,
     "怎样才算完成": 2,
     "折叠": 2,
     "这条 Goal 已从日常列表移除，但内容和历史仍然保留。": 2,
@@ -1010,7 +1009,7 @@
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 169,
+  "unknownCastsTotal": 168,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1069,7 +1068,6 @@
     "tests/agent-built-plugins-agent.test.ts": 1,
     "tests/agent-built-plugins-capabilities.test.ts": 1,
     "tests/agent-built-plugins-components.test.ts": 1,
-    "tests/agent-built-plugins-network.test.ts": 1,
     "tests/agent-built-plugins-workflow.test.ts": 1,
     "tests/agent-host.test.ts": 1,
     "tests/agent-prompt-layers.test.ts": 1,

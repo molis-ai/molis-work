@@ -9,11 +9,17 @@ import { promisify } from "node:util";
 
 const execute = promisify(execFile);
 export async function createCliPackageFixture(t: TestContext, home: string, beforeDownload?: () => Promise<void>) {
+  // R-19: keep fixed probe events outside the installation, which a failed install may remove.
+  const probeEvents = join(home, "cli-version-probe-events"); writeFileSync(probeEvents, "");
   const pkg = join(home, "package"); mkdirSync(pkg);
   writeFileSync(join(pkg, "package.json"), JSON.stringify({ name: "vercel", version: "1.2.3", bin: { vercel: "cli.mjs" } }));
   writeFileSync(join(pkg, "cli.mjs"), `#!/usr/bin/env node
 import fs from 'node:fs';import path from 'node:path';
 const own=process.env.HOME; const args=process.argv.slice(2);
+if(args[0]==='--version'){
+ fs.appendFileSync(${JSON.stringify(probeEvents)},'entered\\n');
+ process.once('exit',()=>fs.appendFileSync(${JSON.stringify(probeEvents)},'exited\\n'));
+}
 if(process.env.ASC_PRIVATE_HOST_VALUE)process.exit(9);
 if(fs.existsSync('.env'))process.exit(8);
 fs.appendFileSync(path.join(own,'calls.jsonl'),JSON.stringify(args)+'\\n');
@@ -37,5 +43,10 @@ else process.exit(3);`, { mode: 0o755 });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve)); t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
   const address = server.address(); assert.ok(address && typeof address === "object"); origin = `http://127.0.0.1:${address.port}`;
-  return { input: { service_id: "vercel", display_name: "Managed Vercel", version: "1.2.3", runtime_version: process.versions.node, registry: origin }, downloads: () => downloads };
+  return { input: { service_id: "vercel", display_name: "Managed Vercel", version: "1.2.3", runtime_version: process.versions.node, registry: origin }, downloads: () => downloads,
+    versionProbeCounts: () => {
+      const events = readFileSync(probeEvents, "utf8").split("\n");
+      return { entered: events.filter(event => event === "entered").length, exited: events.filter(event => event === "exited").length };
+    },
+  };
 }

@@ -1,6 +1,7 @@
 import { ActionError, requireSynchronous, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginCapabilityClient, PluginJobControl, PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
+import { codingInteractionHtml } from "./interaction-html.js";
 import { codingPageHtml } from "./rich-html.js";
 import { codingRouteActions } from "./route-actions.js";
 import type { CodingExecution } from "./routes.js";
@@ -57,6 +58,9 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
     };
     return { api: controlled, execution: { ...execution, locale } };
   };
+  /** What a route answers Coding's own page: the words and the change drawn (`rich-html.ts`), the cards and the next-step row (`interaction-html.ts`). */
+  const page = (body: unknown, request: PluginRouteRequest, route_id: string, locale: ActionLocale | undefined) =>
+    codingInteractionHtml(codingPageHtml(body, { route_id, query: request.query }, locale), context.services?.interaction, locale);
   const handlers = new Map<string, Handler>();
   const route = (route_id: string, handle: Handler): PluginRouteBinding => {
     handlers.set(route_id, handle);
@@ -75,11 +79,11 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
         if (!context.actor_id || request.actor_id !== context.actor_id) throw codingError(message => new ActionError("actions.forbidden", message), "coding.server.caller-mismatch");
         if (action) {
           if (!context.services?.actions) throw codingError(message => new ActionError("actions.unredeemed", message), "coding.server.no-actions");
-          // A route answers Coding's own page: the model's words travel drawn, which a call of the action alone does not get.
-          return { status: 200, body: codingPageHtml(await context.services.actions.invoke(action.definition, action.toInput(request), request.execution), request.execution?.locale) };
+          // A route answers Coding's own page: what it shows travels drawn, which a call of the action alone does not get.
+          return { status: 200, body: await page(await context.services.actions.invoke(action.definition, action.toInput(request), request.execution), request, route_id, request.execution?.locale) };
         }
         const beforeWrite = check(request.execution), { api, execution } = await execute(request, beforeWrite, request.execution?.locale);
-        return { status: 200, body: codingPageHtml(await handle(request, api, execution, beforeWrite), execution.locale) };
+        return { status: 200, body: await page(await handle(request, api, execution, beforeWrite), request, route_id, execution.locale) };
       } catch (error) { return failure(codingErrorIn(error, request.execution?.locale)); }
     } };
   };

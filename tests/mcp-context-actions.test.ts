@@ -113,11 +113,10 @@ for (const changed of ["project", "client"]) test(`context presentation rejects 
   const host = { homeDirectory: "/test-home", runtimeContext: { runtime_id: "fixture", stable_work_context_id: "session", host_declares_stable: true } };
   let resumeRead = false;
   const present = createMcpContextPresenter({ connection, contextSignal: () => lifetime.signal, createError: (code, message) => new ActionError(code, message),
-    readGuidance: async () => { throw new ActionError("actions.forbidden", "Not granted"); },
-    readSession: async () => {
+    readGuidance: async () => {
       if (changed === "project") connection.accept({ projectId: "other", databasePath: "/other.db", webBaseUrl: "http://127.0.0.1:4173" }, host.runtimeContext);
       else lifetime.abort();
-      return { sessionRegistry: { status: "unavailable", message: "No Session", session: null }, sessionGoalId: null };
+      throw new ActionError("actions.forbidden", "Not granted");
     }, readResumeFacts: async () => { resumeRead = true; return { goals: [] }; } });
   // The Catalog shape is irrelevant to this race; presentation reads only its resolved connection.
   await assert.rejects(present({ connection: { project_id: "first", database_path: "/first.db" } } as never, host), { code: "mcp.context_changed" });

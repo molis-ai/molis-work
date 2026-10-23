@@ -1,7 +1,9 @@
 import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
 export type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
+import type { AssistantActivity } from "./assistant-activity.js";
+export type { AssistantActivity, AssistantActivityFailure } from "./assistant-activity.js";
 import type { ContractDescriptor } from "../platform/package.js";
-import type { AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
+import type { AgentRetryWait, AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
 import type { AgentPendingQuestion, AgentQuestionReask } from "./agent-interaction.js";
 import type { AgentInputSend, AgentQueuedInput } from "./agent-inputs.js";
 import type { MemoryChange, MemoryScope } from "./memory.js";
@@ -280,28 +282,6 @@ export interface AssistantCharacter extends AssistantCharacterRef { title: strin
 /** A Character the person may choose for project work, and whether it can run now (never swapped for another). */
 export interface AssistantCharacterChoice { reference: AssistantCharacterRef; title: string; available: boolean; reason?: string }
 
-/** One thing the round did, in the person's terms: looked something up, read, changed, asked. Never the raw tool log. */
-export interface AssistantActivity {
-  call_id: string;
-  /**
-   * `lookup` | `read` | `change` (business capabilities) | `ask` | `todo`; for a professional Agent's own tools
-   * `file-read` | `file-list` | `file-search` | `file-change` | `command` | `command-output`; otherwise the tool's own name.
-   */
-  verb: string;
-  /** What it acted on: the capability's provider and title, or the words it searched for. */
-  target: string;
-  state: "started" | "completed" | "failed" | "unknown";
-  /** For a read or change: the capability it used, so the surface that owns that data can refresh. */
-  capability_id?: string;
-  /** Why it did not happen, when that is known: not authorized, declined by the person, stopped, or switched off / gone by the time it would run. */
-  reason?: "not-authorized" | "declined" | "interrupted" | "unavailable";
-  /** For a failure, what the owner said, bounded; data about the failure, never an instruction. */
-  detail?: string;
-  /** For a question to the person (`ask`) that was answered: what they answered — the options they picked or what they wrote, bounded. */
-  answer?: string;
-  sequence?: number;
-}
-
 /** One round the person started, with the run's own facts. */
 export interface AssistantRound {
   run_id: string;
@@ -333,6 +313,8 @@ export interface AssistantRound {
    */
   model?: { model_id: string; now?: string; window_tokens?: number };
   stop_reason?: string;
+  /** While a model call of this round waits to try again: when and why, as the runtime said (the page counts down to it). */
+  retry_wait?: AgentRetryWait;
   ended_at: string | null;
   /** The memories this round was given, and the ones that matched but did not fit (specs/archive/memory-system §7.3). Deleted ones are not listed. */
   memories_used?: { used: AssistantRoundMemory[]; omitted: Array<AssistantRoundMemory & { reason: "budget" | "limit" }> };

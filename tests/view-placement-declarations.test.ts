@@ -50,7 +50,7 @@ const RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unknown>; ex
     expected: "视图 main 的 creates 指向 drafts，本 Manifest 没有这个能新建的工作流内容站" },
   { rule: "creates naming a station that cannot create", manifest: placed({ creates: { station: "notes", title: "笔记" } }, [listing.list, listing.read, listing.receive]),
     expected: "视图 main 的 creates 指向 notes，本 Manifest 没有这个能新建的工作流内容站" },
-  { rule: "creates in a Manifest without actions", manifest: placed({ creates: { station: "notes", title: "笔记" } }, undefined),
+  { rule: "creates in a Manifest without actions", manifest: { ...placed({ creates: { station: "notes", title: "笔记" } }), actions: undefined },
     expected: "视图 main 的 creates 指向 notes，本 Manifest 没有这个能新建的工作流内容站" },
   // start
   { rule: "start on a side view", manifest: placed({ slot: "side", start: { title: "写", hint: "先写下来。" } }), expected: "视图 main 的 start 只用于 navigator 或 island 视图" },

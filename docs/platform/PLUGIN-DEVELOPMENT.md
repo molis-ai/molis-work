@@ -273,7 +273,7 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 - **平台的码**（`actions.missing`、`actions.plugin_disabled`、`actions.scope_mismatch` 等）在合同的 `ACTION_ERROR_KINDS` 里一码一行，已经有 kind，直接 `new ActionError("actions.missing", "…")`。
 - **抛 `ActionError`，不要自己造 Error 子类**：Host 里还有按 `instanceof ActionError` 认错误的入口（MCP 的错误文本、首页的动作回答、放置面板里「原对象已删除」与「暂时读不到」的区分等；它们还没有换成按形状读，SDK 的函数已经是按形状读的），只有 `ActionError` 才被当作带码的失败。Todo 原来的 `TodoError` 不是 `ActionError`，所以它的动作失败在这些入口里被当作未知失败，换成 `todoErrors` 后才各自回答成它本来的样子（Todo 读对象的那条路径本来就抛 `ActionError`，放置面板读到「原对象已删除」与首页准备对话的回答没有变）。
 - **没有 kind 的错误**：带我们格式的码（`<主人>.<原因>`）但没人给 kind，按调用者的错误处理，400；没有码、码不是我们的格式（例如系统错误码 `ENOENT`），或根本不是 Error，按内部失败处理，500，响应体的码是 `actions.execution_failed`。调用者写错了才会遇到的情形要先给它一个自己的码（kind `invalid`），别靠 500。动作的可用性对象（`{ available: false, code, reason, kind? }`）也可由主人给 kind；内核的动作与 typed 派发、SDK 的 owner 绑定在抛 `ActionError` 时保留它。Pages、PPT、Dataset、Form 的「当前环境不能发出成果」带 `conflict`，回答 409，原稿保留。没有 kind 的对象仍按主人码的默认 invalid（400）或平台表（例如 `actions.connection_required` 503）处理。
-- **响应体**统一是 `{ error, code, details? }`；`error` 是消息。**按 kind 答的入口**：Host 的 Native 插件 HTTP 分发器（`dispatchNativePluginJsonHttp`），不传 `mapError` 时让错误抛出来即可（Todo 是样例，Pages、PPT、Dataset、Form、Lingguang、Workflows、Shelf、Jelly、Cognia、Functions 同样）；要自己写 HTML、图片字节、跳转或头部的入口（Feed、Inbox、Schedule、Images），它们在 `try` 里用 `readNativePluginJsonBody` 读请求体，出错写 SDK 的 `actionErrorResponse(error)`；SDK 的 `bindPluginActionRoute`，Runtime 插件的路由用它兑现动作：动作抛出的错误按它自己的 kind 答，没有我们的码的错误答 500 `actions.execution_failed`，路由自己的请求映射函数拒绝了请求答 400 `actions.input_invalid`（带着映射函数的那句话）；还有 Plugin Runtime 路由器自己的拒绝，用的是动作层已有的码和句子：没有路由要的权限 403 `actions.forbidden`，本项目没有启用该插件 403 `actions.plugin_disabled`（页面外层对「这个项目没有启用这个插件」答的也是它），插件未运行 503 `actions.plugin_unavailable`，声明了路由却没有处理器 500 `actions.execution_failed`。Host 自己的几个入口同样按 kind 答（成果入口还在这一个地方把消息翻成当前语言，`/api/project-references/`，设置页的项目插件开关），Host 对 Host、Origin、控制令牌检查的拒绝统一是 `host.request_refused`（403，不说哪一项没过）；读不出请求体也是同样的错误：`actions.input_invalid`（400）、`actions.input_too_large`（413）；仍带 `mapError` 的入口，读不出请求体时也由它回答（多数答 400，Agent 定义入口答 500、不带码，助理入口答 500、码 `assistant.failed`）。
+- **响应体**统一是 `{ error, code, details? }`；`error` 是消息。**按 kind 答的入口**：Host 的 Native 插件 HTTP 分发器（`dispatchNativePluginJsonHttp`），不传 `mapError` 时让错误抛出来即可（Todo 是样例，Pages、PPT、Dataset、Form、Lingguang、Workflows、Shelf、Jelly、Cognia、Functions 同样）；要自己写 HTML、图片字节、跳转或头部的入口（Feed、Inbox、Schedule、Images），它们在 `try` 里用 `readNativePluginJsonBody` 读请求体，出错写 SDK 的 `actionErrorResponse(error)`；SDK 的 `bindPluginActionRoute`，Runtime 插件的路由用它兑现动作：动作抛出的错误按它自己的 kind 答，没有我们的码的错误答 500 `actions.execution_failed`，路由自己的请求映射函数拒绝了请求答 400 `actions.input_invalid`（带着映射函数的那句话）；不经它、自己写 `handle` 的路由，处理器抛出的带码错误由 Plugin Runtime 的路由派发按 kind 答（BL-404，不用自己写 catch），没有码的交给 Host 答通用句子，不带原消息；还有 Plugin Runtime 路由器自己的拒绝，用的是动作层已有的码和句子：没有路由要的权限 403 `actions.forbidden`，本项目没有启用该插件 403 `actions.plugin_disabled`（页面外层对「这个项目没有启用这个插件」答的也是它），插件未运行 503 `actions.plugin_unavailable`，声明了路由却没有处理器 500 `actions.execution_failed`。Host 自己的几个入口同样按 kind 答（成果入口还在这一个地方把消息翻成当前语言，`/api/project-references/`，设置页的项目插件开关），Host 对 Host、Origin、控制令牌检查的拒绝统一是 `host.request_refused`（403，不说哪一项没过）；读不出请求体也是同样的错误：`actions.input_invalid`（400）、`actions.input_too_large`（413）；仍带 `mapError` 的入口，读不出请求体时也由它回答（多数答 400，Agent 定义入口答 500、不带码，助理入口答 500、码 `assistant.failed`）。
 - **页面和调用方按 `code` 判断**（例如 `todo.conflict` 提示重新读取），不按 HTTP 状态；`actionErrorFromResponse(status, body)` 把响应还原成同样的错误。读错误一律按形状（有 `code` 和 `message`），不用 `instanceof`：Runtime 包和创作台页面里可能有另一份 `ActionError`。
 
 ## 连续工作：对象上下文、版本前提与助理
@@ -451,6 +451,33 @@ Integration 的 `health()` 可返回非敏感的 `account: { login, account_id? 
 
 连接的业务使用位置由消费方通过 `defineConnectorUsagesAction` 报告（contracts 的 `services/connector-host`）。输入是连接 id，输出是 owner 当前保存的使用位置、启用状态和已有业务动作引用及非敏感对象参数。共同目录按 `molis.connector-usages.input.v1` / `output.v1` 发现查询，由 `connectors.usages.read` 以原调用者权限汇总；没有宿主插件白名单和第二份绑定库。Feed 只返回当前项目来源，Images 返回原生图配置，Functions 返回使用当前绑定账号的已发布规则；模型配置不伪称所有文本动作都固定使用该账号。查询不调用业务操作，展示的操作仍按当前目录权限、作用域与可用性决定是否可用。
 
+
+## 用本人的服务账号发请求（`services.connections`）
+
+插件要以用户本人的身份读写某个服务（例如读 GitHub 通知），不自己存令牌，也不让人把令牌填进插件：Manifest 声明权限 `connections:use`，并在 `connections.slots` 里列出连接槽：
+
+```json
+"connections": { "slots": [{ "slot_id": "github", "service_id": "github", "reason": "读取本人的 GitHub 通知" }] }
+```
+
+`service_id` 只能是平台登记了固定地址的服务（`CONNECTOR_REQUEST_SERVICES`，现在只有 `github` → `https://api.github.com`）；没有权限的槽、未登记的服务、多写的字段、重复的槽，解析 Manifest 时就拒（`plugin.declaration_invalid`）。槽绑哪个账号由人选（`connectors.plugin_slot.bind@1`，只对 `user` 开放；插件设置里的选择界面是 S0b-2b）；没绑时请求照发，不带凭据。
+
+在本插件自己声明了 `connections:use` 的并发动作（`scheduling: "concurrent"`）里调：
+
+```ts
+const response = await context.services.connections!.request("github", { url: "https://api.github.com/notifications" });
+// { status, headers, body, authenticated }
+await caller.beforeEffect(); // 写业务记录之前
+```
+
+- 地址必须是该服务的固定来源；别的地址（没绑账号也一样）都是 `connector.plugin_requests.origin_refused`。
+- 不能自己写 `Authorization`、`Cookie`、`Proxy-Authorization`、`Host` 与连接类的头，不带账号密码与片段；GET/HEAD 不带内容，内容不超过 256 KB；只读动作只能发 GET/HEAD。
+- 绑了账号时宿主加 `Bearer`，插件看不到凭据，`authenticated` 说这次带没带；绑的账号断开或不能用时拒绝（`connector.plugin_requests.connection_unavailable`），不改成匿名发。
+- 不跟随跳转（3xx 原样交回，`location` 在头里）；返回的头只留内容类型、缓存、`link`、`x-ratelimit-*` 等固定的一组；15 秒超时，1 MB 上限；令牌过期的 401 原样交回。
+- 只能在本实例自己的动作或保留的后台作业里用；`start`、路由、场景回调、别的安装的调用都拒（`plugin.connections_call_required`）。授权每次都重查，取消、撤权、停用后不发也不交回。
+- 沙箱插件没有这项服务。
+
+规则与拒绝测试见 `docs/system/SECURITY-INVARIANTS.md` S-57。
 
 ## Home 主人的私有文件树
 

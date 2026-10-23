@@ -238,13 +238,14 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Onboarding without limits (slice 101, user 2026-10-22): the 资料导入 sends a non-text file over 6 MB as the raw body of the 成果库's
-  // original route, its name in a header. 26516 → 26900 (+384).
-  "/assets/molis-work-knowledge.js": [26516, 26900],
-  // Onboarding without limits (slice 101): the shared request client sends a Blob as a raw body. It is bundled into the
-  // workbench and the isolated plugin frame: 1186577 → 1186715 (+138) and 187730 → 187841 (+111).
-  "/assets/molis-work-workbench.js": [1186577, 1186715],
-  "/assets/molis-work-plugin-frame.js": [187730, 187841],
+  // A refused step in plain words (user 2026-10-23 ⑤, slice 110): the Assistant's step detail says the sort of failure and
+  // each field with the rule it broke, from the Host's classification, and folds the runtime's own text under 原始说明. The
+  // eleven sorts and four rules are words the page must hold: 1189644 → 1190721 (+1077). The fold's two rules ship in each
+  // sheet that carries the Assistant's process styles: +232 each.
+  "/assets/molis-work-workbench.js": [1189644, 1190721],
+  "/assets/molis-work-workbench.css": [1614322, 1614554],
+  "/assets/molis-work-settings.css": [995885, 996117],
+  "/assets/molis-work-arrival.css": [705437, 705669],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

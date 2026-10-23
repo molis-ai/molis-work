@@ -211,18 +211,13 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     pending.textContent = record.publication_pending ? L("上次固定版本还没存完。恢复会使用上次的固定内容，之后的编辑可以再存一版。") : "";
     if (sel && sel.id === record.id) publishContext();
   };
-  const ask = (message, okLabel) => new Promise((resolve) => {
-    if (!confirmDialog) { resolve(false); return; }
-    confirmDialog.querySelector("[data-confirm-text]").textContent = message;
-    confirmDialog.querySelector("[data-confirm-ok]").textContent = okLabel;
-    confirmDialog.returnValue = "cancel";
-    const onClose = () => {
-      confirmDialog.removeEventListener("close", onClose);
-      resolve(confirmDialog.returnValue === "ok");
-    };
-    confirmDialog.addEventListener("close", onClose);
-    confirmDialog.showModal();
-  });
+  // The shared box (host.confirmBox): with a run function the request goes out inside it and a refusal is said there.
+  const ask = (message, okLabel, run) => {
+    if (!confirmDialog) return Promise.resolve(false);
+    const ok = confirmDialog.querySelector("[data-confirm-ok]");
+    confirmDialog.querySelector("[data-confirm-text]").textContent = message; ok.textContent = okLabel;
+    return host.confirmBox(confirmDialog, ok, run);
+  };
   const currentSlide = () => (sel?.slides || []).find((slide) => slide.id === slideKey) || sel?.slides?.[0];
   const slidesFromEditor = () => {
     const slides = [...(sel?.slides || [])];
@@ -745,9 +740,11 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-ppt-delete]") && sel) {
-        if (!await ask(L("删除这份演示稿？"), L("删除"))) return;
-        await save();
-        await request("POST", api + "/" + encodeURIComponent(sel.id) + "/delete", { expected_version: sel.version });
+        if (!await ask(L("删除这份演示稿？"), L("删除"), async () => {
+          await save();
+          try { await request("POST", api + "/" + encodeURIComponent(sel.id) + "/delete", { expected_version: sel.version }); }
+          catch (error) { if (error.code === "ppt.conflict") saveError = error; throw error; }
+        })) return;
         closeEditor();
         await loadList();
       }

@@ -1,6 +1,7 @@
 /** Shelf application copy; Workbench supplies the request locale. */
 export const SHELF_EN: Record<string, string> = {
   "拖文件到这里，或点添加材料": "Drop files here, or press Add material",
+  "媒体材料行 · 图片、视频、音频与失败的结果": "Media rows · image, video, audio and a failed result",
   "材料覆盖说明": "Material coverage",
   "AI、终端与存储": "AI, terminal and storage",
   "选择自动动作的 AI 模型、人工终端，以及材料存放位置。": "Choose the AI model, manual terminal and material storage.",
@@ -25,6 +26,9 @@ export const SHELF_EN: Record<string, string> = {
   "下载文件": "Download file",
   "新建动作": "New action",
   "无法添加材料": "Could not add material",
+  "已加入 {done} 个，{count} 个没加进去：{list}": "{done} added, {count} could not be added: {list}",
+  "已加入 {done} 条，其余没加进去：{reason}": "{done} added, the rest could not be added: {reason}",
+  "重试没加上的": "Try the ones not added again",
   "请选择至少一种材料": "Choose at least one material type",
   "动作已加入动作栏": "Action added to the bar",
   "已复制": "Copied",

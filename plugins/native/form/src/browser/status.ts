@@ -64,20 +64,14 @@ export const setBusy = (page: FormPage, value: boolean) => {
   if (page.sel) paintStatus(page, page.sel);
 };
 
-/** The page's confirmation dialog; resolves true only for its OK button. */
-export const ask = (page: FormPage, message: string, okLabel: string) => new Promise<boolean>((resolve) => {
+/** The page's confirmation dialog, through the shared box; resolves true only for its OK button (and, with `run`, once that succeeded). */
+export const ask = (page: FormPage, message: string, okLabel: string, run?: () => Promise<unknown>) => {
   const dialog = page.confirmDialog;
-  if (!dialog) { resolve(false); return; }
-  dialog.querySelector("[data-confirm-text]")!.textContent = message;
-  dialog.querySelector("[data-confirm-ok]")!.textContent = okLabel;
-  dialog.returnValue = "cancel";
-  const onClose = () => {
-    dialog.removeEventListener("close", onClose);
-    resolve(dialog.returnValue === "ok");
-  };
-  dialog.addEventListener("close", onClose);
-  dialog.showModal();
-});
+  if (!dialog) return Promise.resolve(false);
+  const ok = dialog.querySelector<HTMLElement>("[data-confirm-ok]")!;
+  dialog.querySelector("[data-confirm-text]")!.textContent = message; ok.textContent = okLabel;
+  return page.host.confirmBox(dialog, ok, run);
+};
 
 export const setTab = (page: FormPage, next: string) => {
   page.tab = next;

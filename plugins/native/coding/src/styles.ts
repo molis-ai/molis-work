@@ -431,12 +431,10 @@ ${CODING_COMPOSER_BAR_STYLES}
   .coding-stage > [data-coding-tools][data-coding-reading] > :not([data-coding-change-reader]):not(.coding-tool-tabs) { display:none; }
 
 /* Timeline: tool calls read as rows, a round closes with what happened. */
-.coding-activity { max-width:76ch; margin:-12px auto 24px; color:var(--muted); font-size:13px; }
-.coding-activity > summary { list-style:none; display:flex; align-items:center; gap:8px; width:fit-content; max-width:100%; padding:4px 12px 4px 8px; border-radius:999px; cursor:pointer; color:var(--muted); transition:background-color 130ms var(--ease-quint), color 130ms var(--ease-quint); }
-.coding-activity > summary::-webkit-details-marker { display:none; }
-.coding-activity > summary:hover { background:var(--nav-hover); color:var(--ink); }
-.coding-activity[open] > summary { color:var(--ink); }
-.coding-tools-summary { display:inline-flex; align-items:center; gap:8px; min-width:0; }
+/* The group and step folds are the shared process grammar (processFold in timeline-styles.ts); here only where they sit and what a line holds. */
+.coding-activity { max-width:76ch; margin:-12px auto 24px; }
+.coding-activity > summary { display:flex; align-items:center; }
+.coding-tools-summary { display:inline-flex; align-items:center; gap:6px; min-width:0; }
 .coding-tools-summary > span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .coding-tools-summary svg, .coding-tool svg, .coding-run-card svg, .coding-live svg { width:14px; height:14px; flex:none; }
 .coding-tools-summary.is-live > span:last-child { background:linear-gradient(90deg, var(--muted) 0%, var(--ink) 50%, var(--muted) 100%); background-size:200% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation: none; }
@@ -444,20 +442,11 @@ ${CODING_COMPOSER_BAR_STYLES}
 .coding-tool-state[data-tone=waiting] { color:var(--amber); }
 .coding-tool-state[data-tone=held] { color:var(--faint); }
 .coding-tool-preview { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); }
-/* Reasoning reads as quoted prose under its row, never as tool output. */
-.coding-tools-chevron { display:inline-flex; color:var(--faint); opacity:0; transition:opacity 130ms var(--ease-quint),transform 130ms var(--ease-quint); }
-.coding-tools-chevron svg { width:12px; height:12px; }
-.coding-activity > summary:hover .coding-tools-chevron,.coding-activity > summary:focus-visible .coding-tools-chevron,.coding-activity[open] > summary .coding-tools-chevron { opacity:1; } @media (hover:none) { .coding-tools-chevron { opacity:1; } }
-.coding-activity[open] > summary .coding-tools-chevron { transform:rotate(90deg); }
-.coding-tool-list { margin:8px 0 0 12px; padding-left:16px; border-left:1px solid var(--line); display:grid; gap:1px; animation:craft-rise var(--dur-move) var(--ease-quint); }
-.coding-tool > summary, .coding-tool-head { list-style:none; display:flex; align-items:center; gap:8px; min-width:0; padding:4px 8px; border-radius:6px; color:var(--muted); }
-.coding-tool > summary::-webkit-details-marker { display:none; }
-.coding-tool > summary { cursor:pointer; }
-.coding-tool > summary:hover { background:var(--nav-hover); color:var(--ink); }
+.coding-tool > summary, .coding-tool-head { display:flex; align-items:center; gap:6px; min-width:0; }
 .coding-tool code { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; color:var(--ink); background:none; padding:0; }
 .coding-tool-icon { display:inline-flex; color:var(--faint); }
 .coding-tool-verb { flex:none; }
-.coding-tool-state { display:inline-flex; align-items:center; gap:4px; margin-left:auto; flex:none; font-size:11px; font-variant-numeric:tabular-nums; }
+.coding-tool-state { display:inline-flex; align-items:center; gap:4px; flex:none; font-size:11px; font-variant-numeric:tabular-nums; }
 .coding-tool-state[data-tone=ok] { color:var(--green); }
 .coding-tool-state[data-tone=failed] { color:var(--red); }
 .coding-tool-state[data-tone=retry] { color:var(--muted); }
@@ -492,7 +481,7 @@ ${CODING_COMPOSER_BAR_STYLES}
 .coding-run-actions { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 0 32px; }
 .coding-run-actions .mw-btn { height:28px; min-height:28px; font-size:12px; gap:8px; }
 @keyframes coding-shimmer { from { background-position:200% 0; } to { background-position:-200% 0; } }
-@media (prefers-reduced-motion: reduce) { .coding-tools-summary.is-live > span:last-child, .coding-run-footer[data-state=live] .coding-live-text, .coding-tool-list, .coding-inline-review, .coding-run-card { animation:none; } }
+@media (prefers-reduced-motion: reduce) { .coding-tools-summary.is-live > span:last-child, .coding-run-footer[data-state=live] .coding-live-text, .coding-inline-review, .coding-run-card { animation:none; } }
 
 /* A new session opens like a blank page: the question, the composer, and a few ways in. */
 .coding-dialogue > .coding-turns[data-coding-welcoming] { display:flex; flex-direction:column; justify-content:flex-end; }

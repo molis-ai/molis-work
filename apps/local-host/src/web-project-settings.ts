@@ -17,8 +17,9 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
     return withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listProjects().map(settingsProject));
   }
 
+  /** `demoSamples` puts the demo's samples in Home plugins back through their own actions once the demo is made or rebuilt. */
   async function handle(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, projectCount: number, deletionPorts: ProjectDeletionPorts,
-    pluginsChanged?: (projectId: string) => Promise<void>): Promise<boolean> {
+    pluginsChanged?: (projectId: string) => Promise<void>, demoSamples?: () => Promise<void>): Promise<boolean> {
     if (await handlePluginSettings(withMolisWorkProjectCatalog, request, response, url, homeDirectory, pluginsChanged)) return true;
     if (request.method === "GET" && url.pathname === "/api/settings/projects") {
       sendJson(response, 200, { projects: await settingsProjects(homeDirectory) });
@@ -67,6 +68,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
         await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
           if (action === "create") {
             const result = await catalog.ensureDemoProject({ actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
+            await demoSamples?.();
             sendJson(response, 200, {
               ...result,
               project: settingsProject(result.project),
@@ -75,6 +77,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
             return;
           }
           const result = await catalog.resetDemoProject({ actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
+          await demoSamples?.();
           sendJson(response, 200, {
             ...result,
             project: settingsProject(result.project),

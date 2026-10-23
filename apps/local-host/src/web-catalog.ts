@@ -4,6 +4,7 @@ import { connectorSettingsView } from "./web-connector-settings.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
+import { seedDemoHomeSamples } from "./demo-plugin-seed.js";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { mcpAccessPageModel } from "./mcp-action-access.js";
@@ -219,7 +220,8 @@ export async function handleLocalCatalogWebRequest(
   if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog)) return;
   if (await handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService)) return;
-  if (await projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts, projectId => refreshOpenProjectPlugins(localHost, projectId))) return;
+  if (await projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts, projectId => refreshOpenProjectPlugins(localHost, projectId),
+    () => seedDemoHomeSamples(bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS)))) return;
   if (request.method === "GET" && url.pathname === "/desktop/pty-client.js") {
     servePtyClient(request, response);
     return;

@@ -10,7 +10,9 @@ import type { PlanningMethodPack, ProjectGuidanceView } from "@molis-ai/molis-wo
 /** Permissions of the owners' pin actions: the local person handing in a deliverable pins with each owner's own permissions (A5). */
 const pinPermissions = () => [...new Set([...artifactTypeDeclarations().values()].flatMap(declaration => declaration.pin?.action.permissions ?? []))];
 
+/** Goals' assembly for one opened project; 2026-10-18 改: S9 turns this into the plugin's own start(). */
 export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMethods: () => readonly PlanningMethodPack[], client: ActionClient): ActionProviderRegistration {
+  runtime.coordinator.projectOpened(runtime.project_id);
   return { provider: { provider_id: goalsManifest.plugin_id, plugin_id: goalsManifest.plugin_id,
     title: goalsManifest.name, kind: "plugin", project_id: runtime.project_id },
     definitions: goalsManifest.actions!.filter(definition => definition.action.scope === "project"), handlers: createGoalsActionHandlers({ events: runtime.coordinator.goalEvents, acknowledgements: runtime.coordinator.goalAcknowledgements, projectId: runtime.project_id,

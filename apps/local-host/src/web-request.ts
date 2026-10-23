@@ -157,13 +157,12 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
-function projectWebView({ coordinator, options, webViewCache, store, homeActions, localHost, hostReference }: Omit<ProjectRuntimeContext, "readWebView">,
+function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference }: Omit<ProjectRuntimeContext, "readWebView">,
   { includeStageIds = false }: { includeStageIds?: boolean } = {}) {
   const optional = (error: unknown) => {
     if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(String(error.code)))) throw error;
   };
   return async (): Promise<MolisWorkWebView> => {
-    coordinator.goalDecisionAttention.reconcile(options.projectId);
     let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions);
     const feedActions = bindLocalWebActions(localHost, hostReference, ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"]);
     try {

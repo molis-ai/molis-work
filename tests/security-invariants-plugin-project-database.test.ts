@@ -274,7 +274,7 @@ test("PLIB-06 the check reads the library's tables again once the schema changes
 
 test("PLIB-08 one SQLite library per file: reads go through a read-only connection of the Host's SQLite, writes through the Host's own connection", async t => {
   const { store, file, mine, database } = await platform(t);
-  const library = openPluginProjectLibrary({ db: store.db, path: file }, mine.definition.manifest, () => {}, "plib-08");
+  const library = openPluginProjectLibrary({ db: store.db, path: file }, mine.definition.manifest, () => {}, { install_id: "plib-08", installation_generation: "1" });
   try {
     assert.equal(library.reader.constructor, store.db.constructor, "the reader is the Host's SQLite library, not node:sqlite");
     assert.equal(library.reader instanceof DatabaseSync, false);
@@ -288,7 +288,7 @@ test("PLIB-08 one SQLite library per file: reads go through a read-only connecti
     inside = store.db.inTransaction;
   });
   assert.equal(inside, true, "the write ran in a transaction on the Host's own connection");
-  assert.throws(() => openPluginProjectLibrary({ db: store.db, path: ":memory:" }, mine.definition.manifest, () => {}, "plib-08"), /不是文件/u);
+  assert.throws(() => openPluginProjectLibrary({ db: store.db, path: ":memory:" }, mine.definition.manifest, () => {}, { install_id: "plib-08", installation_generation: "1" }), /不是文件/u);
 });
 
 /** One operation of the sandboxed stand-in: it takes its call as JSON text and answers with what it got back, or the code it was refused with. */

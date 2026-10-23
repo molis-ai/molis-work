@@ -239,8 +239,9 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // Memory P0, user approved 2026-10-23: fixed-version command retries and per-item clear/import results.
-  // Three local deduplications saved 381 bytes; the necessary remainder is exactly 3093 bytes, not a reusable allowance.
-  "/assets/molis-work-workbench.js": [1186501, 1189594],
+  // Original 1186501 -> 1189594 is +3093. Main #1055 independently adds 76 bytes; retain that base, not another allowance.
+  // This branch therefore admits exactly 1186577 -> 1189670 (+3093); later memory-reference UI growth is not included.
+  "/assets/molis-work-workbench.js": [1186577, 1189670],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

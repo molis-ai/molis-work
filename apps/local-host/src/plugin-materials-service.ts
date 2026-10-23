@@ -28,5 +28,5 @@ export function pluginMaterialsFor(home: PluginPlatformHome | null | undefined, 
     claimOriginal: (key, offered, options) => registerOriginalFile(home.directory, key, offered, options.beforeEffect),
     readOriginal: (key, options) => readOriginalFile(home.directory, key, { maxBytes: options.maxBytes, signal: options.signal }),
     releaseOriginal: (key, options) => releaseOriginalFile(home.directory, key, options.beforeEffect),
-  }, { install_id: context.install_id, project_id, assertActive, requireGrant: permission => context.requireGrant(permission) });
+  }, { install_id: context.install_id, installation_generation: context.installation_generation, project_id, assertActive, requireGrant: permission => context.requireGrant(permission) });
 }

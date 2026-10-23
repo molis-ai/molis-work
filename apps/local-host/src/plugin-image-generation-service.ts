@@ -14,7 +14,7 @@ export function pluginImageGenerationFor(home: PluginPlatformHome | null | undef
   declaration: PluginImageGenerationDeclaration | undefined, assertActive: () => void): PluginImageGenerationClient | undefined {
   if (!home || !declaration || definition.execution === "sandbox") return undefined;
   return createPluginImageGenerationClient(definition.manifest, createPluginImageGenerationPort(home.directory, declaration.store_name),
-    { install_id: context.install_id, assertActive, requireGrant: permission => context.requireGrant(permission) }, declaration);
+    { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: permission => context.requireGrant(permission) }, declaration);
 }
 
 /** Connector owner manages bindings; agent-host owns every actual model dispatch. */

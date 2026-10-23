@@ -8,6 +8,7 @@ export function createActivationContext(record: PluginInstanceRecord, definition
   const grants = Object.freeze([...record.grants]);
   const context: PluginStartContext = Object.freeze({
     install_id: record.install_id,
+    installation_generation: record.installation_generation,
     provider_id: providerId,
     plugin_id: record.plugin_id,
     // Authenticate the running implementation; the stored version changes only on explicit upgrade.

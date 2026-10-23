@@ -338,22 +338,22 @@
 - 范围：按字面搜过源码里带中文的「Agent」（不含测试、规格、文档和词典文件），指外部 AI 工具或其中工作者的都在下面两张表里。指内置 Agent、插件自己的 Agent（Coding、插件创作台的「代码 Agent」、Schedule 的项目 Agent）和 Agent 这个概念的，不在此列。下面是请你批准的完整字面清单，只换名词，不动别的字。
 - 词典：Characters 的这些字符串在词典里没有对应条目（按字面搜过各 `*en.ts`），只改源码。Shelf 的有：`plugins/native/shelf/src/en.ts` 里对应的键和英文值（如「未发现终端 Agent。」译作 No terminal agent found.）按 2.7 第 1 点同批改。
 
-A　指产品、导入来源或运行环境的（按 2.3 是 Runtime；已知是哪个产品时写产品名，`apps/workbench/src/browser/characters/import-client.ts:267` 已经写「本地 Claude Code」这样的名字，那一条不改）
+A　指产品、导入来源或运行环境的（按 2.3 是 Runtime；已知是哪个产品时写产品名，`apps/workbench/src/browser/characters/import-client.ts:265` 已经写「本地 Claude Code」这样的名字，那一条不改）
 
 | 位置 | 现在 | 建议 |
 | --- | --- | --- |
 | `apps/workbench/src/characters/import-ui.ts:3` | 把 Codex、Claude Code 等 Agent 已有的规则、Skills 和附件带进来 | 把 Codex、Claude Code 等已有的规则、Skills 和附件带进来 |
 | `import-ui.ts:5` | 下拉框标签「Agent」，选项是 Codex、Claude Code、Cursor 等 | 标签改「Runtime」 |
 | `import-ui.ts:7` | 列表的朗读标签「发现的本地 Agent」 | 「发现的本地 Runtime」 |
-| `apps/workbench/src/browser/characters/import-client.ts:164` | 指定配置目录时，请先选择 Agent。 | 指定配置目录时，请先选择 Runtime。 |
-| `import-client.ts:179` | 可以指定 Agent 配置目录后重试 | 可以指定 Runtime 配置目录后重试 |
+| `apps/workbench/src/browser/characters/import-client.ts:163` | 指定配置目录时，请先选择 Agent。 | 指定配置目录时，请先选择 Runtime。 |
+| `import-client.ts:178` | 可以指定 Agent 配置目录后重试 | 可以指定 Runtime 配置目录后重试 |
 | `apps/workbench/src/characters/ui.ts:44` | 从 Codex、Claude Code 等本机 Agent 导入已有的规则与 Skills | 从 Codex、Claude Code 等导入已有的规则与 Skills |
 | `import-ui.ts:16` | 小节标题「本地 Agent」（来源未知时的缺省；与 `import-ui.ts:15` 的「Molis 内置引擎」并列，两节是一对环境） | 「本地 Runtime」 |
 | `import-ui.ts:16` | 按钮「启动原生 Agent」 | 「启动本地 Runtime」 |
 | `import-ui.ts:21` | 再选在 Coding（内置引擎）或本机原生 Agent 里执行 | 再选在 Coding（内置引擎）或本机 Runtime 里执行 |
 | `apps/local-host/src/characters-host.ts:92` | 预览已过期，请重新扫描本地 Agent | 预览已过期，请重新扫描本地 Runtime |
-| `apps/local-host/src/character-native-execution.ts:67` | 此角色没有本地 Agent 来源 | 此角色没有本地 Runtime 来源 |
-| `character-native-execution.ts:81` | 未发现对应 Agent CLI，请安装后重新检查；不会替换为其他引擎 | 未发现对应 Runtime 的命令行，请安装后重新检查；不会替换为其他引擎 |
+| `apps/local-host/src/character-native-execution.ts:72` | 此角色没有本地 Agent 来源 | 此角色没有本地 Runtime 来源 |
+| `character-native-execution.ts:87` | 未发现对应 Agent CLI，请安装后重新检查；不会替换为其他引擎 | 未发现对应 Runtime 的命令行，请安装后重新检查；不会替换为其他引擎 |
 | `modules/characters/src/action-handlers.ts:121` | 本地 Agent 导入服务尚未接通 | 本地 Runtime 导入服务尚未接通 |
 | `apps/local-host/src/character-import-discovery.ts:75,82`、`packages/contracts/src/modules/character-import.ts:42` | 不支持的 Agent 来源 | 不支持的 Runtime 来源 |
 | `character-import-discovery.ts:83` | 手动目录必须指定对应 Agent | 手动目录必须指定对应 Runtime |
@@ -361,7 +361,7 @@ A　指产品、导入来源或运行环境的（按 2.3 是 Runtime；已知是
 | `horizontal/agent-host/src/character-import.ts:16,20` | 请使用本地 Agent（两条报错） | 请使用本地 Runtime |
 | `plugins/native/coding/src/characters-client.ts:36` | 技能名后的「· 需要原生 Agent」 | 「· 需要本地 Runtime」 |
 | `apps/workbench/src/character-terminal-client.ts:71` | 正在连接原生 Agent… | 正在连接本地 Runtime… |
-| `modules/characters/src/actions.ts:39,40,44,49,55` | 五个动作的标题与说明里的「用本机 Agent 运行」「查找可导入的 Agent」「本机 Agent 配置目录」「本机 Agent 设定」「启动本机 Agent 执行任务」（能力库和 Agent 看得到） | 同样只把「Agent」换成「Runtime」 |
+| `modules/characters/src/actions.ts:44,46,50,55,62` | 五个动作的标题与说明里的「用本机 Agent 运行」「查找可导入的 Agent」「本机 Agent 配置目录」「本机 Agent 设定」「启动本机 Agent 执行任务」（能力库和 Agent 看得到） | 同样只把「Agent」换成「Runtime」 |
 | `modules/shelf/src/runtimes.ts:182,186` | 未发现 Agent；未发现终端 Agent。 | 未发现 Runtime；未发现终端 Runtime。 |
 | `modules/shelf/src/runtimes.ts:195`、`plugins/native/shelf/src/client.ts:82,1452` | 还没有选定运行工具时的缺省名「Agent」 | 「Runtime」 |
 | `plugins/native/shelf/src/client.ts:231,1450,1457,1682` | 没有 Agent 也可以先提取 PDF 里的字；未发现终端 Agent。（及其后接「文件已留在架子上。」的两处） | 同样把「Agent」换成「Runtime」 |
@@ -372,7 +372,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 
 | 位置 | 现在 | 建议 |
 | --- | --- | --- |
-| `apps/local-host/src/character-native-execution.ts:10` | 原生 Agent 使用自己的登录、模型和权限，仍会读取本机实时规则、插件与 MCP。…… | 外部 Agent 使用自己的登录…… |
+| `apps/local-host/src/character-native-execution.ts:9` | 原生 Agent 使用自己的登录、模型和权限，仍会读取本机实时规则、插件与 MCP。…… | 外部 Agent 使用自己的登录…… |
 | `apps/workbench/src/characters/ui.ts:66` | 外部原生 Agent 使用自己的工具与权限 | 外部 Agent 使用自己的工具与权限 |
 | `apps/workbench/src/character-terminal-client.ts:42` | 原生 Agent · 授权、提问和操作状态显示在终端中 | 外部 Agent · 授权、提问和操作状态显示在终端中 |
 | `modules/shelf/src/runtimes.ts:176` | Workspace Sandbox：Agent 只能写任务工作区 | Workspace Sandbox：外部 Agent 只能写任务工作区 |

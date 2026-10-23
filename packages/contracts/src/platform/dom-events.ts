@@ -218,7 +218,7 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis-work:character-terminal", kind: "request", owner: "character-terminal", on: "window",
-    detail: "PtySpawnRequest (services/runtime-host), or { panelId, sessionId, attachOnly }",
+    detail: "PtySpawnRequest (services/runtime-host), or { panelId, attachOnly } for a run already started",
     summary: "Attach the Character terminal to a process the Characters page spawned or found running.",
   },
   {

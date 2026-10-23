@@ -128,11 +128,11 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
   /** Ask for `runtimeId`'s loop; nothing when one runs. */
   const wakeLoop = (_api: Capabilities, execution: Execution, runtimeId: string, recovery = false) => jobs.wake(execution, runtimeId, recovery);
   /** The person gives the wait up: a request it waited on is withdrawn, a queued round's project work item goes. */
-  const cancel = async (api: Capabilities, record: CodingSessionRecord, view: CodingWaitView, beforeWrite: CodingBeforeWrite) => {
+  const cancel = async (record: CodingSessionRecord, view: CodingWaitView, beforeWrite: CodingBeforeWrite) => {
     const actions = codingActions(context, beforeWrite);
     for (const one of view.wait.conditions) if (one.kind === "envelope") await actions.invoke(agent.cancelMessage, [record.runtime_id, one.ref]).catch(() => undefined);
     const queued = queuedOf(view.wait.wait_id);
-    if (view.wait.by === "app" && queued) await api.invoke(agent.releaseProjectRound, [record.runtime_id, queued.work_id, "用户取消了等待"]).catch(() => undefined);
+    if (view.wait.by === "app" && queued) await actions.invoke(agent.releaseProjectRound, [record.runtime_id, queued.work_id, "用户取消了等待"]).catch(() => undefined);
     // An open wait is cancelled; one over whose step is held for the person gives the step back.
     if (view.wait.state === "waiting" || ["blocked", "needs-reconciliation"].includes(view.continuation?.state ?? ""))
       await actions.invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "cancel-wait", wait_id: view.wait.wait_id, note: "用户取消了等待" });

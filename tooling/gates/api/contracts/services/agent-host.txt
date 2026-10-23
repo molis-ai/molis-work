@@ -1528,11 +1528,11 @@ export declare const agentHostCapabilities: {
     readonly listSubagents: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>;
     readonly cancelSubagent: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, actorId: string], void>;
     readonly readSession: HostCapabilityDefinition<[session: AgentSessionRef], AgentSessionView>;
-    readonly readSessionStatuses: HostCapabilityDefinition<[runtimeId: string, sessionIds: string[]], Array<AgentSessionStatus | {
+    readonly readSessionStatuses: ActionDefinition<[runtimeId: string, sessionIds: string[]], Array<AgentSessionStatus | {
         session_id: string;
         error: string;
     }>>;
-    readonly readProjectWork: HostCapabilityDefinition<[runtimeId: string, probe?: {
+    readonly readProjectWork: ActionDefinition<[runtimeId: string, probe?: {
         session_id?: string;
         directory: string;
         text: string;
@@ -1552,7 +1552,7 @@ export declare const agentHostCapabilities: {
         attachments?: AgentMessageAttachment[];
     }], AgentSessionMessage>;
     readonly cancelMessage: ActionDefinition<[runtimeId: string, messageId: string], void>;
-    readonly queueProjectRound: HostCapabilityDefinition<[runtimeId: string, input: {
+    readonly queueProjectRound: ActionDefinition<[runtimeId: string, input: {
         session: AgentSessionRef;
         directory: string;
         task: string;
@@ -1562,7 +1562,7 @@ export declare const agentHostCapabilities: {
     readonly awaitContinuations: HostCapabilityDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>;
     readonly readBackground: ActionDefinition<[runtimeId: string, sessionId?: string], AgentBackgroundTask[]>;
     readonly stopBackground: ActionDefinition<[runtimeId: string, taskId: string], boolean>;
-    readonly releaseProjectRound: HostCapabilityDefinition<[runtimeId: string, workId: string, note: string], void>;
+    readonly releaseProjectRound: ActionDefinition<[runtimeId: string, workId: string, note: string], void>;
     readonly listSkills: HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentSkillCatalogEntry[]>;
     readonly readSkill: HostCapabilityDefinition<[runtimeId: string, pluginId: string, ref: AgentSkillRef], AgentSkillDefinition>;
     readonly discoverSkills: HostCapabilityDefinition<[runtimeId: string, pluginId: string, directory: AgentWorkingDirectory, path: string], AgentSkillCandidate[]>;

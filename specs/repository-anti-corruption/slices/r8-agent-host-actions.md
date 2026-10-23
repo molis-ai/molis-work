@@ -1,6 +1,6 @@
-# R8 第 1 批：agent 宿主的会话间的信与后台命令改登记成动作（PG-035、BL-364、BL-365）
+# R8：agent 宿主的 typed 能力分批改登记成动作（PG-035、BL-364、BL-365）
 
-状态：评审修复已完成本地验证（2026-10-23，防腐线 ac-kernel 片，Codex 接续修复）；验收 RAC-188～190 的定向回归通过，共享核心全量与浏览器验证留统一集成窗口，未宣称整线完成。
+状态：第 1 批评审修复已完成本地验证（2026-10-23，防腐线 ac-kernel 片，Codex 接续修复），第 2 批（§8）已实现、在评审；验收 RAC-188～190、RAC-197 的定向回归通过，共享核心全量与浏览器验证留统一集成窗口，未宣称整线完成。
 
 ## 1. 目标
 
@@ -35,7 +35,7 @@
    - 输入的 schema（draft-07 元组：`items: [...]` 加 `additionalItems: false`）：Runtime id 1～200 字，会话、信、命令的 id 1～500 字；一封信的字段照 `AgentPeopleMessageInput` 列全、不收别的字段，正文 1～1,000,000 字，`kind` 只收 `request`、`reply`，附件至多 50 件；处理一封信的步骤只收六个，`detail` 只收 `event`（≤200 字）、`note`（≤100,000 字）、附件。处理器里原有的检查留作纵深。
    - 输出：按 `AgentSessionMessage` 和 `AgentBackgroundTask` 的真实映射约束读取列表、发送和处理结果，包含附件、历史和可选字段；不套输入长度上限。`prioritizeSession`、`stopBackground` 保留现有输出 schema，`cancelMessage` 仍返回 void、不改成 null。
 2. **登记**：不改。`apps/local-host/src/agent-host-composition.ts` 的适配器已经按定义上有没有 `action` 分到 `registerAction`，`horizontal/agent-host/src/capability-registration.ts` 的处理器原样复用。
-3. **调用方**：Coding 从 `services.capabilities.invoke` 换成 `services.actions.invoke(definition, input)`（`background-state.ts`、`delegation-dispatch.ts`、`routes-delegations.ts`、`routes-timeline.ts`、`routes-sessions.ts`、`session-observation.ts`、`start-round.ts`、`wake-loop.ts`）。Manifest 的 consumes 不变（已是 `Object.values(agentHostCapabilities)`）。受控动作客户端合并请求/作业与调用点自己的 signal，先调用点自己的 beforeEffect 再原 beforeWrite，同步检查也两边保留；透传其他 control 与 transport。委派所有读写、timeline 的信和后台命令、priority、startDelegation、失败发送后的读、后台观察和 wake cancel 均携带各自已有的 beforeWrite；后台观察用作业控制。wake cancel 的 beforeWrite 改必传，api 仍用于 releaseProjectRound，不删。
+3. **调用方**：Coding 从 `services.capabilities.invoke` 换成 `services.actions.invoke(definition, input)`（`background-state.ts`、`delegation-dispatch.ts`、`routes-delegations.ts`、`routes-timeline.ts`、`routes-sessions.ts`、`session-observation.ts`、`start-round.ts`、`wake-loop.ts`）。Manifest 的 consumes 不变（已是 `Object.values(agentHostCapabilities)`）。受控动作客户端合并请求/作业与调用点自己的 signal，先调用点自己的 beforeEffect 再原 beforeWrite，同步检查也两边保留；透传其他 control 与 transport。委派所有读写、timeline 的信和后台命令、priority、startDelegation、失败发送后的读、后台观察和 wake cancel 均携带各自已有的 beforeWrite；后台观察用作业控制。wake cancel 的 beforeWrite 改必传，api 当时仍用于 releaseProjectRound（第 2 批把它也转成动作后删掉，见 §8）。
 4. **测试夹具**：`tests/fixtures/plugin-actions.ts` 加 `fakeAgentHostActions`，把这 7 条动作交给测试原有的 agent 宿主假实现应答，五个 Coding 测试改用它。真实 SDK 集成夹具 `tests/fixtures/coding-sdk-runtime.ts` 则直接共用 LocalHost 的动作登记和调用服务：原夹具把正式动作登记到 LocalHost，却让插件借用另一份只有 knowledge 的目录；修正这处测试接线，真实路由验证经过 LocalHost 的调用上下文与 action handler。
 
 ## 4. 验收
@@ -66,3 +66,23 @@
 - 首轮发现并修正 3 处测试问题：新命令输出拒绝断言应为 `actions.output_invalid_after_effect`；state-coalesce 的假消息漏两个必填标题；真实 SDK 夹具接入 LocalHost 后还须组合其公开同步动作客户端。生产控制、输出合同和原成功/拒绝断言未放宽；失败文件定向复跑通过。
 - API 刷新无新增变化；动作快照仅 readMessages/sendPeopleMessage/actOnPeopleMessage/readBackground 的四个输出哈希变化。7 条描述符迁移使 typed 类型引用和无 action 登记各少 7，更新本地快查；不修改门禁规则。
 - affected 对整条 PR 与 main 的差异命中 shared-core 全量要求。主会话安排统一集成，当前未跑全量、README 的其他非直接用例和浏览器用例；真实安装与一骏验收不在本片证据内。
+
+## 8. 第 2 批：项目里的工作与会话状态（RAC-197）
+
+叠在第 1 批上，写法同 §3（描述符换 `ActionDefinition`、只给插件、登记不改、Coding 改走 `services.actions`）。选的 4 条同样只有 Coding 用、不要权限、输入里不读身份：
+
+| 描述符 | id | 种类 | Coding 调用点 |
+| --- | --- | --- | --- |
+| `readSessionStatuses` | `agent.sessions.status.v1` | 查询 | `session-observation.ts`（目录与后台观察） |
+| `readProjectWork` | `agent.project-work.read.v1` | 查询 | `routes-sessions.ts` 的 `overlapsFor`（发送前与「等它完成后再开始」） |
+| `queueProjectRound` | `agent.project-work.queue.v1`（版本 2 不变） | 命令 | `routes-sessions.ts` 的 `coding.start-run` |
+| `releaseProjectRound` | `agent.project-work.release.v1` | 命令 | `wake-loop.ts` 的 `cancel` |
+
+- **输入 schema**：Runtime id 与 §3 相同；会话列表至多 1000 条、每条 1～500 字（处理器原有的同一检查留作纵深）；探查的 `directory` 1～4096 字、`text` 至多 1,000,000 字；排队的 `session` 只收 `session_id`、`runtime_id`，`task` 1～1,000,000 字，`title` 至多 2000 字，不收别的字段（`actor_id` 之类带不进来，排给谁仍由处理器从调用者取）；放下的说明至多 2000 字。
+- **输出 schema**：按 `AgentProjectWork`、`AgentProjectWorkOverlap`、`AgentSessionStatus` 列全字段；会话状态是「状态」与「这条读不了、带原因」二选一（`oneOf`），阶段只收 `AgentRunPhase` 的取值或 `null`。
+- **调用方**：四处都用调用点已有的 `beforeWrite` 包一层 `codingActions`（读也一样，取消信号与作业控制随之传下）；`overlapsFor` 与 `coding.scope-check` 因此多传 `beforeWrite`。转完以后 `readCodingSessions` 与 `wake-loop` 的 `cancel` 不再用 typed 客户端，删掉这个参数（第 1 批 §3 说「api 仍用于 releaseProjectRound」，现在不再用）。
+- **测试**：`tests/agent-host-actions.test.ts` 的 RAC-197；三个 Coding 测试（`coding-queued-round`、`coding-message-wait`、`coding-state-coalesce`）已经经 `fakeAgentHostActions` 应答全部带 `action` 的描述符，不用改。
+
+**RAC-197** 这 4 条是只给插件、不要权限的项目动作，在宿主启动插件的那个项目里运行：放下与探查交给 Runtime 的项目来自调用；另一个项目的会话，状态单独回「当前项目找不到这条会话」，排队被拒（`agent.session_unknown`），Runtime 没有被要求排队；自己项目的会话排给插件自己的 actor。没有消费它的插件、人、Agent、工作流、MCP 调不到；schema 拒绝空会话 id、排队里多出的 `actor_id`、少一项的元组，被拒的调用到不了 Runtime。
+
+没改的：第 1 批 §6 建议 1 的归属缺口在这 4 条里同样存在——`readProjectWork` 本来就读整个项目的工作，`releaseProjectRound` 只按工作 id 放下，不核这项工作是不是调用插件的会话的；`readSessionStatuses` 与 `queueProjectRound` 核会话归属。这是原 typed 路径已有的行为，仍等统筹给的 BL 与 owner，本片不改信任设计。剩 26 条：`listActions`、`listRuntimes`、`availableRoles`（谁能调、`pluginId` 从输入读）、两个 `wait`、`listSkills` 等 7 条从输入读 `pluginId` 的、`cancelSubagent`（`actorId` 从输入读）、`listReviews`（`projectId` 从输入读），以及读会话、跑轮次的其余各条。

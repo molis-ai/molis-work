@@ -150,3 +150,72 @@ test("RAC-190 stored outputs include optional history and task fields without in
   assert.deepEqual(await actions.invoke(agent.readBackground, [RUNTIME]), [task]);
   assert.equal(await actions.invoke(agent.cancelMessage, [RUNTIME, "m1"]), undefined, "cancel retains its void result");
 });
+
+/*
+ * R8 batch 2: the project's work and the sessions' standing are plugin-only actions too. Each reaches the Runtime in the plugin's
+ * own project; a queued round names a session the plugin owns, and one it does not own is refused before the Runtime queues it.
+ */
+const FOUR = [agent.readSessionStatuses, agent.readProjectWork, agent.queueProjectRound, agent.releaseProjectRound];
+const work = (work_id: string) => ({ work_id, session_id: "s2", title: "二", task: "改 src/x.ts", state: "running" as const, directory: "/w", paths: ["src/x.ts"], updated_at_ms: 1 });
+
+async function projectWorkSetup(t: TestContext) {
+  const directory = await mkdtemp(join(tmpdir(), "agent-host-project-work-"));
+  const localHost = new MolisWorkLocalHost();
+  const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: PROJECT });
+  const composition = composeAgentHost({ localHost, workspaceFor: () => null });
+  const seen: Array<[string, unknown[]]> = [], owner: { current?: Record<string, string> } = {};
+  const unused = async (): Promise<never> => { throw new Error("Not used by this fixture"); };
+  const answer = <T>(name: string, value: (args: unknown[]) => T) => async (...args: unknown[]) => { seen.push([name, args]); return value(args); };
+  composition.agentHost.register({
+    descriptor: { runtime_id: RUNTIME, display_name: "Project work fixture", provider_version: "1", capabilities: emptyCapabilityMatrix() },
+    async health() { return { ok: true, status: "ready", message: "ready" }; },
+    createSession: unused, start: unused, read: unused, control: unused, readCommandOutput: unused,
+    observe() { throw new Error("Not used by this fixture"); },
+    readSession: async (session: { session_id: string }) => ({ session_id: session.session_id, owner: owner.current }) as never,
+    readSessionStatus: answer("status", args => ({ owner: owner.current, status: { session_id: (args[0] as { session_id: string }).session_id, latest_phase: "completed", recovery: false, checkpoint_busy: false } })),
+    projectWork: { read: answer("read", () => ({ items: [work("w1")], overlaps: [{ work: work("w1"), paths: ["src/x.ts"] }] })),
+      queue: answer("queue", () => ({ ...work("w2"), state: "waiting", waits_for: ["w1"], wait_id: "wait-1" })), release: answer("release", () => undefined) },
+  } as AgentRuntimeAdapter);
+  const store = new LocalProjectDatabase(join(directory, "plugins.sqlite"));
+  const consumer = callerPlugin("project-work", "project", {}, FOUR.map(definition => definition.capability_id));
+  const bystander = callerPlugin("project-work-bystander", "project");
+  await startPlugin(localHost, reference, store, consumer);
+  await startPlugin(localHost, reference, store, bystander);
+  t.after(async () => { composition.dispose(); store.close(); await localHost.closeProject(reference); await localHost.close(); await rm(directory, { recursive: true, force: true }); });
+  return { localHost, reference, seen, owner, consumer, bystander };
+}
+
+test("RAC-197 the project's work and the sessions' standing are plugin-only actions, run in the plugin's own project", async t => {
+  for (const definition of FOUR as ActionDefinition[]) assert.deepEqual([definition.action.scope, definition.action.audiences, definition.action.permissions], ["project", ["plugin"], []], definition.capability_id);
+  const { localHost, reference, seen, owner, consumer, bystander } = await projectWorkSetup(t), actions = consumer.actions(PROJECT);
+  // Releasing names no session; the Runtime is told the project and who released it, both from the call.
+  await actions.invoke(agent.releaseProjectRound, [RUNTIME, "w0", "用户取消了等待"]);
+  const [project, workId, actor, note] = seen.at(-1)![1] as string[];
+  assert.deepEqual([project, workId, note], [PROJECT, "w0", "用户取消了等待"]);
+  const found = await actions.invoke(agent.readProjectWork, [RUNTIME, { session_id: "s1", directory: "/w", text: "改 src/x.ts" }]);
+  assert.deepEqual(found.overlaps.map(overlap => overlap.work.work_id), ["w1"]);
+  assert.equal(seen.at(-1)![1][0], PROJECT);
+
+  // Another project's session: its status comes back as an error of its own, and a round is not queued on it.
+  owner.current = { project_id: "project-b", plugin_id: consumer.id, install_id: consumer.context(PROJECT).install_id, actor_id: actor! };
+  assert.deepEqual(await actions.invoke(agent.readSessionStatuses, [RUNTIME, ["s1"]]), [{ session_id: "s1", error: "当前项目找不到这条会话" }]);
+  const round = { session: { runtime_id: RUNTIME, session_id: "s1" }, directory: "/w", task: "等它做完再改", after: "w1" };
+  await assert.rejects(actions.invoke(agent.queueProjectRound, [RUNTIME, round]), { code: "agent.session_unknown" });
+  assert.ok(!seen.some(([name]) => name === "queue"), "the Runtime was not asked to queue a round on another project's session");
+
+  owner.current = { ...owner.current, project_id: PROJECT };
+  assert.deepEqual(await actions.invoke(agent.readSessionStatuses, [RUNTIME, ["s1"]]), [{ session_id: "s1", latest_phase: "completed", recovery: false, checkpoint_busy: false }]);
+  const queued = await actions.invoke(agent.queueProjectRound, [RUNTIME, round]);
+  assert.deepEqual([queued.work_id, queued.wait_id], ["w2", "wait-1"]);
+  assert.deepEqual(seen.at(-1)!, ["queue", [PROJECT, round, actor]], "queued for the plugin's own actor, as the person asked");
+
+  // Nothing but a consuming plugin calls them, and the schemas refuse what the handlers never see.
+  const before = seen.length;
+  await assert.rejects(bystander.actions(PROJECT).invoke(agent.readProjectWork, [RUNTIME]), { code: "actions.forbidden" });
+  for (const audience of ["user", "agent", "workflow", "mcp"] as const)
+    await assert.rejects(localHost.actionClient(reference).invoke(person(audience), agent.releaseProjectRound, [RUNTIME, "w1", "x"]), { code: "actions.forbidden" }, audience);
+  await assert.rejects(actions.invoke(agent.readSessionStatuses, [RUNTIME, [""]]), { code: "actions.input_invalid" });
+  await assert.rejects(actions.invoke(agent.queueProjectRound, [RUNTIME, { ...round, actor_id: "someone-else" } as never]), { code: "actions.input_invalid" });
+  await assert.rejects(actions.invoke(agent.releaseProjectRound, [RUNTIME, "w1"] as never), { code: "actions.input_invalid" });
+  assert.equal(seen.length, before, "no refused call reached the Runtime");
+});

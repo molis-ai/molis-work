@@ -20,7 +20,7 @@ test("Shelf saves the confirmed full text into project knowledge, a new version 
   for (const each of [project, otherProject]) catalog.addProjectPlugin({ project_id: each.project_id, plugin_id: "artifacts", actor_id: "web-user" });
   catalog.close();
   const store = new LocalProjectDatabase(project.database_path);
-  const token = "shelf-knowledge-test-control-token-1234567";
+  const token = "shelf-knowledge-test-control-0123456789abcdef";
   let server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
   const listen = async () => {
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

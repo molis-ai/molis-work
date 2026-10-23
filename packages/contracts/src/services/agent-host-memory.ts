@@ -200,6 +200,9 @@ export interface AgentMemoryMutation {
   signal?: AbortSignal;
 }
 export interface AgentMemoryChange { text: string; origin?: string; meta?: AgentMemoryMeta }
+/** The actual maintenance command, checked before preparing App history; execution still rechecks authority. */
+export type AgentMemoryPreviewMutation = { kind: "update"; change: AgentMemoryChange }
+  | { kind: "pause" | "disable"; reason: string } | { kind: "resume" | "remove" };
 /** Supplied only by trusted App/Host code, independently of business/model input. */
 export interface AgentMemoryCaller {
   actor_id: string;
@@ -253,6 +256,9 @@ export interface AgentMemoryCapability {
   pause(input: AgentMemoryLocation & AgentMemoryMutation & { reason: string }): Promise<AgentMemoryEntry>;
   disable(input: AgentMemoryLocation & AgentMemoryMutation & { reason: string }): Promise<AgentMemoryEntry>;
   resume(input: AgentMemoryLocation & AgentMemoryMutation): Promise<AgentMemoryEntry>;
+  previewMutation(input: AgentMemoryLocation & AgentMemoryMutation & { mutation: AgentMemoryPreviewMutation }): Promise<void>;
+  /** Logical removal preserves the original SDK operation receipt for maintenance reconciliation. */
+  tombstone(input: AgentMemoryLocation & AgentMemoryMutation): Promise<AgentMemoryEntry>;
   remove(input: AgentMemoryLocation & AgentMemoryMutation): Promise<void>;
   recall(input: { scope: AgentMemoryEntry["scope"]; owner: string; keywords?: string[]; text?: string; kinds?: string[]; limit?: number }): Promise<Array<{ entry: AgentMemoryEntry; score: number }>>;
   candidates: AgentMemoryCandidateCapability;

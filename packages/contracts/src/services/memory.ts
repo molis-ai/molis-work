@@ -631,7 +631,9 @@ export interface MemoryMetaRecord {
 
 /** How a change is taken back: delete what was written, go back to a version, switch back on (and forget an expiry), or bring back one merged away. */
 export type MemoryUndoPlan = { action: "remove" } | { action: "restore"; version: number } | { action: "enable"; clear_expiry?: boolean } | { action: "disable" }
-  | { action: "recreate"; text: string; kind: MemoryKind; source: MemorySource; basis: MemoryBasis | null; applies: MemoryApplies; snapshot?: MemoryRevision["snapshot"] };
+  | { action: "pause"; change_id: string }
+  | { action: "recreate"; text: string; kind: MemoryKind; source: MemorySource; basis: MemoryBasis | null; applies: MemoryApplies;
+    snapshot?: MemoryRevision["snapshot"]; source_refs?: readonly { event_id: string; version: string }[] };
 
 export interface MemoryChangeRecord extends MemoryChange {
   operation_id?: string;

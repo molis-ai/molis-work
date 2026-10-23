@@ -56,6 +56,13 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
       pause: input => call(async bound => memoryView(await bound.memory.pause(await formal(bound, input), input.reason, mutation(input)))),
       disable: input => call(async bound => memoryView(await bound.memory.disable(await formal(bound, input), input.reason, mutation(input)))),
       resume: input => call(async bound => memoryView(await bound.memory.resume(await formal(bound, input), mutation(input)))),
+      previewMutation: input => call(async bound => {
+        const proposed = input.mutation;
+        await bound.memory.preview({ scope: input.scope, owner: input.owner, ...(input.signal ? { signal: input.signal } : {}),
+          items: [{ ref: await formal(bound, input), expectedVersion: input.expected_version, operationId: input.operation_id,
+            mutation: proposed.kind === "update" ? { kind: "update", change: change(proposed.change) } : proposed }] });
+      }),
+      tombstone: input => call(async bound => memoryView(await bound.memory.remove(await formal(bound, input), mutation(input)))),
       remove: input => call(async bound => bound.memory.purge(await formal(bound, input), mutation(input))),
       recall: input => call(async bound => {
         const result = await bound.memory.recall({ receiptId: randomUUID(), scopes: [{ scope: input.scope, owner: input.owner }],

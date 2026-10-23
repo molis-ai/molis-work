@@ -28,6 +28,8 @@ export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapabilit
     pause: async input => view(await (await store()).pause({ ...input, scope: prologueScope(input.scope) })),
     disable: async input => view(await (await store()).disable({ ...input, scope: prologueScope(input.scope) })),
     resume: async input => view(await (await store()).resume({ ...input, scope: prologueScope(input.scope) })),
+    previewMutation: async input => (await store()).previewMutation({ ...input, scope: prologueScope(input.scope) }),
+    tombstone: async input => view(await (await store()).tombstone({ ...input, scope: prologueScope(input.scope) })),
     remove: async input => (await store()).remove({ ...input, scope: prologueScope(input.scope) }),
     screen: async text => { const memory = await source(); if (!memory.screen) throw memoryErrors.off("当前运行时不能筛查"); return memory.screen(text); },
     previewScope: async (scope, owner) => (await store()).previewScope(prologueScope(scope), owner),

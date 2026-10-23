@@ -44,6 +44,7 @@ import {
 import { consumerAccess, CONSUMER_LABELS } from "./prefs.js";
 import { MemoryPreferences } from "./preferences.js";
 import { MemoryOperations } from "./operations.js";
+import { MemoryUpkeep } from "./upkeep.js";
 import { memoryUses } from "./usage.js";
 import { assertFormationFacts, automaticMemoryHold, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
 import { memoryErrors } from "./errors.js";
@@ -134,6 +135,7 @@ export class MemoryService {
   private readonly scopeCommands: MemoryScopeCommands;
   private readonly learning: MemoryLearning;
   private readonly promotions: MemoryPromotion;
+  private readonly maintenance: MemoryUpkeep;
 
   constructor(private readonly ports: MemoryServicePorts) {
     this.preferences = new MemoryPreferences(ports.ledger);
@@ -142,6 +144,8 @@ export class MemoryService {
     this.operations = new MemoryOperations(ports.ledger, this.newId, this.now);
     this.promotions = new MemoryPromotion({ ledger: ports.ledger, now: this.now, newId: this.newId,
       prefs: (actor, scope, project) => this.preferences.prefsFor(actor, scope, project) });
+    this.maintenance = new MemoryUpkeep({ backend: ports.backend, ledger: ports.ledger, operations: this.operations,
+      promotions: this.promotions, now: this.now, newId: this.newId });
     this.scopeCommands = new MemoryScopeCommands({ backend: ports.backend, ledger: ports.ledger, preferences: this.preferences, operations: this.operations,
       now: this.now, newId: this.newId, timeZone: ports.timeZone,
       importEntry: (caller, scope, item, origin) => this.commit(caller, { scope, text: item.text, kind: item.kind, applies: item.applies,
@@ -832,9 +836,9 @@ export class MemoryService {
     if (plan.action === "enable" && (plan.clear_expiry || located?.meta.expires_at && Date.parse(located.meta.expires_at) <= this.now().getTime()))
       throw memoryErrors.invalid("记忆已到期，请先明确新的期限；撤销不会清除或延长原期限");
     const priorUndo = this.operations.find(holder, `undo:${changeId}`);
-    if (located && record.applied_version !== undefined && located.entry.version !== record.applied_version && !priorUndo)
+    if (plan.action !== "recreate" && located && record.applied_version !== undefined && located.entry.version !== record.applied_version && !priorUndo)
       throw memoryErrors.conflict("记忆在这次变动之后已有新版本，不能把旧撤销决定套到后来编辑上");
-    const undoMark = located ? this.operations.begin(holder, `undo:${changeId}`, { kind: "undo", scope: located.scope, owner: located.owner,
+    const undoMark = plan.action !== "recreate" && located ? this.operations.begin(holder, `undo:${changeId}`, { kind: "undo", scope: located.scope, owner: located.owner,
       memory_id: located.entry.memory_id, expected_version: record.applied_version ?? located.entry.version }) : undefined;
     if (plan.action !== "remove") this.preferences.assertEnabled(caller.actor_id, { ...record, project: holder.project_id });
     if (located && (plan.action === "remove" || plan.action === "restore") && !AUTOMATIC_SOURCES.includes(located.meta.source)) {
@@ -843,12 +847,25 @@ export class MemoryService {
     }
     if (plan.action === "recreate") {
       // Undoing a merge brings back the one merged away, as it was.
-      await this.commit({ ...holder, person: true }, { scope: record.scope, text: plan.text, kind: plan.kind, applies: plan.applies,
-        source: plan.source === "auto" ? "manual" : plan.source, ...restoredEntryFacts(plan.snapshot) });
+      await this.commit(this.operations.recreate({ ...holder, person: true }, record), { scope: record.scope, text: plan.text, kind: plan.kind, applies: plan.applies,
+        source: plan.source === "auto" ? "manual" : plan.source, ...restoredEntryFacts(plan.snapshot), sources: plan.source_refs ?? [] });
     } else if (located) {
       const memoryId = located.entry.memory_id;
       if (plan.action === "remove") await this.purge(caller,located);
       else if (plan.action === "restore") await this.change({ ...holder, person: true }, { memory_id: memoryId, action: "restore", version: plan.version, expected_version: undoMark!.expected_version }, true);
+      else if (plan.action === "pause") {
+        const prior = this.ports.ledger.change(plan.change_id);
+        if (!prior || prior.actor_id !== caller.actor_id || prior.memory_id !== memoryId || prior.kind !== "paused" || !prior.reason)
+          throw memoryErrors.conflict("原暂停记录已不可用，不能推断撤销理由");
+        const entry = await this.ports.backend.withCaller(holder).pause({ scope: located.scope, owner: located.owner,
+          memory_id: memoryId, expected_version: undoMark!.expected_version!, operation_id: undoMark!.operation_id,
+          reason: prior.reason, ...(caller.signal ? { signal: caller.signal } : {}) });
+        this.ports.ledger.transaction(() => {
+          this.recordChange(holder, { kind: "paused", scope: located.scope, owner: located.owner, memory_id: memoryId, text: entry.text,
+            applied_version: entry.version, by: "person", rule: null, reason: prior.reason, undo: null });
+          this.ports.ledger.saveChange({ ...record, state: "undone", undoable: false });
+        });
+      }
       else await this.change({ ...holder, person: true }, { memory_id: memoryId, action: plan.action, expected_version: undoMark!.expected_version }, true);
     }
     const undone: MemoryChangeRecord = { ...(this.ports.ledger.change(changeId) ?? record), state: "undone", undoable: false, ...(plan.action === "remove" ? { text: "" } : {}) };
@@ -911,30 +928,26 @@ export class MemoryService {
     for (const where of scopes) {
       if (!this.scopeCommands.prefsAt(caller.actor_id, where).enabled) continue;
       const holder: MemoryCaller = { ...caller, project_id: where.project ?? caller.project_id, person: true };
+      await this.maintenance.recover(holder, where.scope, where.owner, report);
       let located = await this.scopeCommands.located(holder, where.scope, where.owner);
       if (!located.length) continue;
-      const turnOff = async (one: Located, step: string, state: "disabled" | "paused", reason: string, kind: MemoryChangeKind, undo: MemoryUndoPlan) => {
-        const operation = this.operations.child(holder, `${step}:${one.entry.memory_id}`);
-        const meta: MemoryMetaRecord = { ...one.meta, state, state_reason: reason, updated_at: at };
-        await this.saveFacts(operation, one, meta, one.meta);
-        this.recordChange(operation, { kind, scope: where.scope, owner: where.owner, memory_id: one.entry.memory_id, text: one.entry.text, applied_version: one.entry.version, by: "maintenance", rule: "整理", reason, undo });
-        one.meta = meta;
-      };
       for (const one of located) {
         if (one.meta.state === "active" && one.meta.expires_at && Date.parse(one.meta.expires_at) <= now.getTime()) {
-          await turnOff(one, "expired", "disabled", `已于 ${one.meta.expires_at.slice(0, 10)} 到期`, "auto_disabled", { action: "enable", clear_expiry: true }); report.expired += 1; continue;
+          if (await this.maintenance.state(holder, one, "expired", "disable", `已于 ${one.meta.expires_at.slice(0, 10)} 到期`, "auto_disabled", { action: "enable", clear_expiry: true })) report.expired += 1;
+          continue;
         }
         // What it rests on: an object deleted or no longer readable pauses it; back again, it resumes.
         const object = one.meta.evidence.find(item => item.kind === "object" && item.ref)?.ref;
         if (object && typeof object !== "string" && options.objectState) {
           const state = await options.objectState({ kind: object.kind, id: object.id, project_id: object.project_id ?? where.project }).catch(() => "unknown" as const);
-          if (state === "missing" && one.meta.state === "active") { await turnOff(one, "object-missing", "paused", `依据已不存在或读不到了（${object.kind} ${object.id}）`, "paused", { action: "enable" }); report.paused += 1; }
+          if (state === "missing" && one.meta.state === "active") {
+            if (await this.maintenance.state(holder, one, "paused", "pause", `依据已不存在或读不到了（${object.kind} ${object.id}）`, "paused", { action: "enable" })) report.paused += 1;
+          }
           else if (state === "ok" && one.meta.state === "paused" && (one.meta.state_reason ?? "").startsWith("依据已不存在")) {
-            const operation = this.operations.child(holder, `object-restored:${one.entry.memory_id}`);
-            const meta: MemoryMetaRecord = { ...one.meta, state: "active", state_reason: null, updated_at: at };
-            await this.saveFacts(operation, one, meta, one.meta);
-            this.recordChange(operation, { kind: "resumed", scope: where.scope, owner: where.owner, memory_id: one.entry.memory_id, text: one.entry.text, by: "maintenance", rule: "整理", reason: "依据又能读到了", undo: null });
-            one.meta = meta; report.resumed += 1;
+            const prior = this.ports.ledger.changesOf(one.entry.memory_id).find(change => change.kind === "paused"
+              && change.actor_id === holder.actor_id && change.applied_version === one.entry.version && change.reason === one.meta.state_reason);
+            if (!prior) throw memoryErrors.conflict("维护未执行：缺少原版本的暂停记录，不能复制未知理由");
+            if (await this.maintenance.state(holder, one, "resumed", "resume", "依据又能读到了", "resumed", { action: "pause", change_id: prior.change_id })) report.resumed += 1;
           }
         }
       }
@@ -948,26 +961,13 @@ export class MemoryService {
           a: { memory_id: a.entry.memory_id, text: a.entry.text, source: a.meta.source }, b: { memory_id: b.entry.memory_id, text: b.entry.text, source: b.meta.source }, why, created_at: at, state: "pending" });
         report.pairs += 1;
       };
-      const merge = async (keep: Located, drop: Located) => {
-        const operation = this.operations.child(holder, `merge:${keep.entry.memory_id}:${drop.entry.memory_id}`);
-        const evidence = [...keep.meta.evidence, ...drop.meta.evidence.filter(item => !keep.meta.evidence.some(existing => isDeepStrictEqual(existing, item)))].slice(-6);
-        const meta: MemoryMetaRecord = { ...keep.meta, evidence, updated_at: at };
-        await this.saveFacts(operation, keep, meta, keep.meta);
-        keep.meta = meta;
-        this.promotions.link(holder.actor_id, keep.entry.memory_id, this.promotions.linked(holder.actor_id, drop.entry.memory_id));
-        await this.purge(operation, drop, "merge");
-        this.recordChange(operation, { kind: "merged", scope: where.scope, owner: where.owner, memory_id: keep.entry.memory_id, text: keep.entry.text, by: "maintenance", rule: "整理",
-          reason: `合并了意思相同的「${drop.entry.text.slice(0, 60)}」`, undo: { action: "recreate", text: drop.entry.text, kind: drop.meta.kind, source: drop.meta.source, basis: drop.meta.basis, applies: drop.meta.applies,
-            snapshot: { origin: drop.entry.origin, meta: drop.entry.meta } } });
-        report.merged += 1;
-      };
       const active = () => located.filter(one => one.meta.state === "active");
       const mergedAway = new Set<string>();
       const handleDuplicate = async (a: Located, b: Located, why: string) => {
         if (mergedAway.has(a.entry.memory_id) || mergedAway.has(b.entry.memory_id)) return;
         if (a.meta.source === "auto" && b.meta.source === "auto" && a.meta.kind === b.meta.kind && a.meta.created_at !== null && b.meta.created_at !== null) {
           const [keep, drop] = a.meta.created_at <= b.meta.created_at ? [a, b] : [b, a];
-          await merge(keep, drop); mergedAway.add(drop.entry.memory_id);
+          if (await this.maintenance.merge(holder, keep, drop)) { report.merged += 1; mergedAway.add(drop.entry.memory_id); }
         } else raise(a, b, "duplicate", why);
       };
       const list = active();
@@ -991,7 +991,8 @@ export class MemoryService {
       // Automatic ones not used for 90 days are switched off (after merging, so a merged one counts its provenances once).
       for (const one of located.filter(item => !mergedAway.has(item.entry.memory_id) && item.meta.state === "active" && item.meta.source === "auto")) {
         const used = this.ports.ledger.lastUse(one.entry.memory_id)?.at ?? one.meta.created_at;
-        if (used !== null && now.getTime() - Date.parse(used) > 90 * day) { await turnOff(one, "unused", "disabled", "90 天没有用到", "auto_disabled", { action: "enable" }); report.unused += 1; }
+        if (used !== null && now.getTime() - Date.parse(used) > 90 * day
+          && await this.maintenance.state(holder, one, "unused", "disable", "90 天没有用到", "auto_disabled", { action: "enable" })) report.unused += 1;
       }
     }
     this.ports.ledger.setMarker(caller.actor_id, "upkeep", report, at);

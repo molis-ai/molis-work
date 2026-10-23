@@ -45,6 +45,14 @@ export class MemoryOperations {
     return { ...parent, operation_id };
   }
 
+  /** Recreating a merged item belongs to the original change, even when the person's retry is a new request. */
+  recreate(caller: MemoryCaller, change: { change_id: string; scope: MemoryScope; owner: string }): MemoryCaller {
+    const operation = this.child({ ...caller, operation_id: change.change_id }, "undo-recreate");
+    // This fixed creation must use its own SDK receipt rather than attach to an unrelated equal text.
+    this.begin(operation, "commit", { kind: "commit", scope: change.scope, owner: change.owner });
+    return operation;
+  }
+
   find(caller: MemoryCaller, key: string): OperationMark | undefined {
     if (!caller.operation_id) return undefined;
     return this.ledger.marker(caller.actor_id, `${PREFIX}${caller.operation_id}:${key}`)?.body as OperationMark | undefined;

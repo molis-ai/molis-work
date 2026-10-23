@@ -13,6 +13,25 @@ const bob: AgentMemoryCaller = { actor_id: "bob", project_id: "project-b", consu
 const where = { scope: "project", owner: "project-a" } as const;
 const save = { ...where, text: "Publish release notes before the release.", origin: "person", operation_id: "manual-save" };
 
+test("maintenance preview has no record writes and logical removal retains an exact current-authority receipt", async t => {
+  const f = await fixture(t), memory = f.bound();
+  const entry = await memory.write(save);
+  const command = { ...where, memory_id: entry.memory_id, expected_version: entry.version, operation_id: "logical-remove" };
+  const before = f.bytes();
+  await memory.previewMutation({ ...command, mutation: { kind: "remove" } });
+  assert.deepEqual(f.bytes(), before);
+  await assert.rejects(f.adapter.memory!.previewMutation({ ...command, mutation: { kind: "remove" } }));
+  const removed = await memory.tombstone(command);
+  assert.equal(removed.tombstoned, true); assert.equal(removed.version, entry.version + 1);
+  assert.deepEqual(await memory.list(where.scope, where.owner), []);
+  await f.reopen();
+  assert.equal((await f.bound().tombstone(command)).version, removed.version);
+  f.revoked.add(alice.actor_id);
+  const committed = f.bytes();
+  await assert.rejects(f.bound().tombstone(command));
+  assert.deepEqual(f.bytes(), committed);
+});
+
 function deferred() {
   let resolve!: () => void;
   const promise = new Promise<void>(done => { resolve = done; });

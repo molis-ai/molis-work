@@ -538,11 +538,11 @@ App 复用已有形成限额配置，为有限创建/替换槽选择可解释的
 
 维护补账续片：复用现 ledger 的 operation marker 和 revision history，保存固定父/子操作、目标与原版本、旧快照指针及完成状态，不存第二份提议正文或另建恢复表。历史准备前由同一 SDK management.preview 对实际固定命令完成内容与当前权限预检；只新增所需的固定预览薄口，执行时仍重新过门。pending 步骤在重新扫描 active 条目前恢复，按原操作与原版本重放；只有 SDK 确认实际提交才能在一个 ledger 事务中补唯一 change、applied_version、历史与完成标记。后继人工编辑、未知提交或目标被物理清除但没有原回执时明确冲突/待对账，不用正文相同、版本加一或缺失猜成功。
 
-后台下一次调度不必持有前次 caller.operation_id：同一 actor 的现 marker 保存有界在途索引，仅含原操作、范围/owner、项目/安装约束及计划引用，完成即移除。创建计划与登记索引、补账完成与移除索引各在同一个 ledger 事务中；新维护调用先按当前许可与原约束的交集对账，再处理新目标。并发 pass 不得覆盖在途项或替同一目标另起操作。若索引达到明确容量，停止接收新维护动作，保留所有未完成项。remove 的预检不负责校验旧正文，因此合并撤销只引用已经存在且精确匹配的安全 revision；缺少它时明确报告未执行，不把旧正文另抄进历史，也不把拒绝计为维护成功。
+后台下一次调度不必持有前次 caller.operation_id：同一 actor 的现 marker 最多保存一个在途步骤，仅含原操作、范围/owner、项目/安装约束及计划引用，完成即移除；当前维护串行逐步提交，无需缓存整批。创建计划与登记索引、补账完成与移除索引各在同一个 ledger 事务中；新维护调用先按当前许可与原约束的交集对账，再处理新目标。并发 pass 不得覆盖在途项或替同一目标另起操作。若索引达到明确容量，停止接收新维护动作，保留所有未完成项。remove 的预检不负责校验旧正文，因此合并撤销只引用已经存在且精确匹配的安全 revision；缺少它时明确报告未执行，不把旧正文另抄进历史，也不把拒绝计为维护成功。
 
 维护合并的冗余条目改用 SDK 已有逻辑 remove，经 AgentHost/Backend 窄 tombstone 口返回实际版本；保留原删除回执直到账完成，再清其 ledger 历史。用户 remove/clear 仍走物理 purge 和来源抑制，不变更它们的语义。SDK 成功而保存变更失败时保留旧 revision，重启后同操作只补账；忘记、清空与项目删除的屏障优先。object-restored 同样保留变更前状态和精确版本的撤销，不把原先 undo=null 当作已完成承诺。
 
-撤销的版本条件绑定实际写目标：remove/restore/状态恢复仍核原 canonical 的 applied_version，不能覆盖后继编辑；merge 的 recreate 只重建被合并项，不改变 survivor，因此不拿 survivor 后续停用或编辑的版本拒绝它，也不为 survivor 创建无用写操作。真实验收需同时证明 survivor 正文/状态/版本不变，以及遗忘/清空后不能靠旧 merge 撤销复活来源。
+撤销的版本条件绑定实际写目标：remove/restore/状态恢复仍核原 canonical 的 applied_version，不能覆盖后继编辑；merge 的 recreate 只重建被合并项，不改变 survivor，因此不拿 survivor 后续停用或编辑的版本拒绝它，也不为 survivor 创建无用写操作。recreate 由原 changeId 派生一次短创建号，重试复用 SDK 原回执，不靠同文判断成功；现 undo 计划保留被合并项的 source refs 身份，重建复核来源抑制并重新链接。真实验收需同时证明 survivor 正文/状态/版本不变，创建后账失败的新请求只补一次，以及遗忘/清空后不能靠旧 merge 撤销复活来源。
 
 允许修改 Memory 维护/operations/Backend、必要的同包完整维护职责文件、AgentHost Memory 窄口与 DTO、LocalHost 薄适配、相关 API 快照/README 和真实维护恢复测试；不改 SDK、存储 schema、UI 或供应商。验收包含状态提交后账失败、合并更新后/逻辑删除后故障、ledger 事务失败与重开；每项只补一次且实际可撤销，后继修改/撤权/取消/遗忘不复活，长父操作和长 owner 不突破既有上限。没有可靠回执的既有物理删除失败不追溯伪补。
 
@@ -836,6 +836,7 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 | S2 候选正式地址 | [Prologue #92](https://github.com/molis-ai/molis-prologue/pull/92) 已合 main `cb0ceaa5`，与已测干净 head `cdbb4913` 整树一致。复用已有有界 append 地址选择，合法旧地址保持，完整 owner 和候选操作键仍验证；不放宽 Host 128 字符限制。新 8 例、相关 111 项、完整 quality 684 项及干净包/Rust 通过，实际旧包恢复不重复正式写 | 实际 run `39939444106`/job `120366987584` 零 step 原注解为付款/额度限制；统筹独审、无冲突与待处理评审后按私仓授权合并。Molis 接入提交 `4deeb0cf1`，离线冻结安装、770 个 dist 文件比对和整体 build 通过；原采用失败已通过 11/11，不代表完整 P0 |
 | M2 当前来源生产装配 | `bcf6cbae0` 接入 App SourcePort、助理 canonical 原件、当前安装/偏好/工作状态与遗忘检查。Coding 非本人调用即使目标为 personal 也核当前 Session 项目和安装；两个真实 SDK 跨项目/跨安装反例先红后绿，不把来源安装存在当作读取授权。SDK #92 整合 7 文件 74 项全部通过 | Coding 原件 8、SourcePort 9、Assistant 18、upkeep 9、SDK采用 7、晋升桥 12、App采用 11；health/资源门禁对 main `a259350ac` 通过并收紧本地快查。混合附材原文、SDK form、维护提交后补账及最终完整工程/产品/B2/用户验收仍待完成 |
 | S2 混合补充原件 | [Prologue #93](https://github.com/molis-ai/molis-prologue/pull/93) 已合 main `cbf7d7a4`，统筹核合并树与已测 `98d4ae69` 一致。完整 quality 684 项、输入专项 19 项含新 6 例和真实 SIGKILL、干净安装通过；统筹另在新临时存储重跑安装包 HTTP/队列/carry/重启/导出导入。实际旧 #92 包六入口零提交拒绝，旧恢复先取消一个独立 Pending，InputBook/Run 原件字节不变 | 云端 run `39943206634`/job `120379426438` 零步骤，原注解确认付款/额度限制，按私仓授权合并。Molis 包接入已提交 `211ea65a5`，离线冻结安装与 770 个 dist 文件比对通过；App 混合输入绑定、形成接线与完整回归未完成，不把 SDK 保存能力当产品来源已接通 |
+| M2 维护补账与撤销 | SDK93 整体 build 通过，维护与当前授权两文件 36/36、无重试。真实故障验证 SDK 已停用/合并而账失败后重开补唯一变更；每 actor 一项在途，满时零新写；撤销按原 changeId 创建回执收口，保留被删项来源身份，后继编辑不覆盖、遗忘不学回。统筹独审发现的无容量限制和依赖同文去重两处缺口均有红绿反例 | 本片为工程验证，完整全量和最终产品/用户验收未完成；无精确安全旧快照的合并明确未执行，旧数据恢复入口仍按后续 P0 处理 |
 | I0 包来源门禁修复 | Molis `755f9dfd2` 的 CI run `39941681549` 中 Gates 的来源回归仍断言旧 retry-waiting 包。将当前包断言更新为已合 #93 的确切 head/merge，保留全部摘要、无补丁和历史来源校验，未改门禁脚本；本地 78/78 通过 | 修复尚待新提交的正常 CI；历史 patch-history 仍记录其实际核验的 #60 main，不伪称它已重新逐项核验最新头 |
 | I0 冻结整合回归进行中 | 已推送 Molis `755f9dfd2`/SDK #92 的独立工作树整体 build 通过。首次全量发现 Homebrew Node 24.19 动态库被产品 Seatbelt 拦截，保留日志并停止该轮；改用本机同版本独立 Node，两份原失败文件 19 项通过、1 项既有真实 npm 条件跳过，未改代码/沙箱/断言；重新启动 1374 文件全量，真实模型/账号开关关闭 | 该轮尚未结束，不宣称全量通过；只对应冻结 `755f9dfd2`，不覆盖后续 SDK #93、维护恢复或混合输入接线。真实 Provider 和用户验收另计 |
 | S2 / S3 / M2 / M3 / I0 | 按 §9.3 核对可信来源/候选门、异步召回/Context、产品管理与真实 SDK 接入的可并行边界；统筹负责共享装配、包及最终集成 | P0 全部行为、干净包/真实 Host、成对 B2 质量与成本、最终 App 实操及用户验收仍待完成 |

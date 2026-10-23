@@ -1,3 +1,4 @@
+import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { feedRuleActions } from "@molis-ai/molis-work-plugin-feed";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
@@ -155,13 +156,12 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
-function projectWebView({ coordinator, options, webViewCache, store, homeActions, localHost, hostReference }: Omit<ProjectRuntimeContext, "readWebView">,
+function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference }: Omit<ProjectRuntimeContext, "readWebView">,
   { includeStageIds = false }: { includeStageIds?: boolean } = {}) {
   const optional = (error: unknown) => {
     if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(String(error.code)))) throw error;
   };
   return async (): Promise<MolisWorkWebView> => {
-    coordinator.goalDecisionAttention.reconcile(options.projectId);
     let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions);
     const feedActions = bindLocalWebActions(localHost, hostReference, ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"]);
     try {
@@ -267,10 +267,12 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     changed: () => { webViewCache.delete(options.databasePath); },
     actions: goalActions,
   }) },
-  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
+  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
     projectId: options.projectId, routePrefix: options.routePrefix ?? "",
     projectTitle: options.project?.display_name ?? "Molis Work",
     actions: userActions(ARTIFACT_ACTION_PERMISSIONS), controlToken,
+    homeDirectory: serverOptions.homeDirectory ?? resolveMolisWorkHome(),
+    offeredActions: original_file => userActions(ARTIFACT_ACTION_PERMISSIONS, { original_file }),
     ownerActions: permissions => userActions(permissions), // each 成果 type's owner previews its own versions (A4)
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },

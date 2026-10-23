@@ -3,12 +3,20 @@ import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/a
 import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
 
 export type ContextSourceKind = "files" | "directory" | "downloads" | "documents" | "desktop" | "custom" | "browser" | "gmail" | "chat";
-export interface ImportFile { path: string; data?: string; reason?: string }
+/**
+ * One file of a source: staged in the journey by digest (an upload, a folder read), or bytes the Host itself read for this pass
+ * (pasted web text, mail) that are staged before reading, or the reason it was not read. Bytes never reach the journey's row.
+ */
+export interface ImportFile { path: string; staged?: string; bytes?: Buffer; reason?: string }
 export interface ContextFileMetadata { path: string; size: number; modified_ms: number; identity: string }
+/** A read material: its text and its original are staged in the journey (context-onboarding-staging.ts), named here by digest. */
 export interface ContextReference {
-  source_id: string; version: 1; label: string; title: string; path: string; body: string;
-  original: { filename: string; mime: string; data_base64: string };
+  source_id: string; version: 1; label: string; title: string; path: string;
+  text: { sha256: string; bytes: number; chars: number };
+  original: { filename: string; mime: string; sha256: string; size_bytes: number };
   artifact?: ArtifactReference;
+  /** The Pages documents adoption made from it, one per part of a long text. */
+  documents?: string[];
 }
 export interface ContextSource {
   kind: ContextSourceKind; selected: boolean; path?: string; files?: ImportFile[];
@@ -16,7 +24,11 @@ export interface ContextSource {
   metadata?: { files: ContextFileMetadata[]; skipped: number; truncated: boolean };
   excluded?: string[];
   references?: ContextReference[]; skipped?: number; issues?: { path: string; reason: string }[]; error?: string;
+  /** Reading in progress, one file at a time: what is read so far survives a restart, and reading resumes after it. */
+  reading?: { done: number; total: number; references: ContextReference[]; issues: { path: string; reason: string }[] };
 }
+/** How long the model calls of a phase took so far, so the page can say how long the rest may take. */
+export interface CallTiming { ms: number; calls: number }
 export interface ContextJourney {
   id: string; phase: "selecting" | "reading" | "review" | "failed" | "adopting" | "complete";
   sources: ContextSource[]; model: string | null; error: string | null;
@@ -24,16 +36,26 @@ export interface ContextJourney {
   project_id: string; document_id: string | null; updated_at: string;
   adoption?: { title: string; body: string; blank: boolean; todo_selected?: string[] };
   /** Todo drafts organized from the same materials; applied into the new project's todos on adoption. */
-  todo?: { status: "pending" | "ready" | "failed"; batch_id: string | null; batch: TodoBatch | null; error: string | null; added?: string[] };
+  /** Todo drafts, one organizer batch per 50 materials (or parts of long ones); `total` is how many the round needs. */
+  /** `key` names the material set the batches came from: another set (the person went back and chose again) starts over. */
+  todo?: { status: "pending" | "ready" | "failed"; key: string; batches: TodoBatch[]; total: number; error: string | null; added?: string[]; timing: CallTiming };
   auto_start?: boolean;
   previewed?: boolean;
   artifact_references?: ArtifactReference[];
   requires_reselection?: boolean;
+  /** The round sat unfinished for 30 days and its staged files were removed (user 2026-10-22); its files must be chosen again. */
+  staging_removed?: boolean;
   needs_model?: boolean;
   oauth_status?: "pending" | "connected" | "cancelled" | "failed";
   oauth_state?: string;
   oauth_expires_at?: number;
-  synthesis?: { key: string; stage: number; completed: number; total: number; notes: Record<string, string> };
+  /**
+   * The summary's batches: the round, its batches done and in all; `notes` are the batches whose notes are staged (by digest).
+   * `batches` counts every call of the summary, done and still to come (later rounds estimated from how much the notes shrink).
+   */
+  synthesis?: { key: string; stage: number; completed: number; total: number; notes: string[]; batches: { done: number; all: number }; timing: CallTiming };
+  /** Bytes of the chosen materials read so far and in all; a source read at the start (mail, pasted text) adds its own when read. */
+  reading_bytes?: { done: number; total: number };
 }
 const CONTEXT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 export function contextJourneyId(value: unknown): string {
@@ -51,9 +73,13 @@ class ContextJourneyStore {
     applySqliteBaseline(db, CONTEXT_ONBOARDING_HOME_STORE.path, CONTEXT_ONBOARDING_BASELINE);
   }
   get(id: string): ContextJourney {
+    const journey = this.find(id);
+    if (!journey) throw new Error("这轮整理不存在，请重新开始");
+    return journey;
+  }
+  find(id: string): ContextJourney | null {
     const row = this.db.prepare("SELECT body FROM journeys WHERE id=?").get(contextJourneyId(id)) as { body: string } | undefined;
-    if (!row) throw new Error("这轮整理不存在，请重新开始");
-    return JSON.parse(row.body) as ContextJourney;
+    return row ? JSON.parse(row.body) as ContextJourney : null;
   }
   latestIncomplete(): Pick<ContextJourney, "id" | "phase" | "updated_at"> & { title: string } | null {
     const row = this.db.prepare(`SELECT body FROM journeys

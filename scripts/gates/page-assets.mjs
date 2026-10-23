@@ -238,10 +238,13 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // VUX-40: the Git surface's branch, upstream and status lines are said in the page's language — six host sentence templates
-  // (detached, no commits yet, up to date, ahead, behind, both) with their English, and the notice line passing head and upstream
-  // through the recognizer. The templates are the shortest that keep English word order; 374235 → 374745 (+510).
-  "/assets/molis-work-plugins/coding.js": [374235, 374745],
+  // Onboarding without limits (slice 101, user 2026-10-22): the 资料导入 sends a non-text file over 6 MB as the raw body of the 成果库's
+  // original route, its name in a header. 26516 → 26900 (+384).
+  "/assets/molis-work-knowledge.js": [26516, 26900],
+  // Onboarding without limits (slice 101): the shared request client sends a Blob as a raw body. It is bundled into the
+  // workbench and the isolated plugin frame: 1186577 → 1186715 (+138) and 187730 → 187841 (+111).
+  "/assets/molis-work-workbench.js": [1186577, 1186715],
+  "/assets/molis-work-plugin-frame.js": [187730, 187841],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

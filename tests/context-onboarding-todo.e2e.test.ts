@@ -1,7 +1,8 @@
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { join } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import { TODO_ACTION_PERMISSIONS, openTodoStore, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 import { withContextJourneys, type ContextJourney } from "../apps/local-host/dist/context-onboarding-store.js";
@@ -30,14 +31,20 @@ for (const width of [1440, 390]) test(`Onboarding ${width}px: the overview and t
   const { batch } = await localHost.homeActionClient().invoke({ actor_id: "web-user", project_id: null, audience: "user", permissions: [...TODO_ACTION_PERMISSIONS, "model:invoke"] },
     todoOrganizeActions.extract, { title: "开始使用时整理的待办", origin: "onboarding", materials: [{ title: "张总：新版方案", text: MAIL }] });
   const id = randomUUID();
-  const reference = { source_id: "m1", version: 1 as const, label: "S1", title: "张总：新版方案", path: "mail.md", body: MAIL,
-    original: { filename: "mail.md", mime: "text/markdown", data_base64: Buffer.from(MAIL).toString("base64") } };
+  // The journey's staging holds the mail as its file and its text, under its digest (docs/system/HOME-DATA.md).
+  const sha256 = createHash("sha256").update(MAIL).digest("hex"), bytes = Buffer.byteLength(MAIL);
+  const reference = { source_id: "m1", version: 1 as const, label: "S1", title: "张总：新版方案", path: "mail.md", text: { sha256, bytes, chars: MAIL.length },
+    original: { filename: "mail.md", mime: "text/markdown", sha256, size_bytes: bytes } };
+  for (const kind of ["files", "texts"]) {
+    const directory = join(homeDirectory, "context-onboarding", "journeys", id, kind);
+    await mkdir(directory, { recursive: true }); await writeFile(join(directory, sha256), MAIL);
+  }
   withContextJourneys(homeDirectory, store => {
     const journey = store.create(id) as ContextJourney;
     journey.sources = [{ kind: "browser", selected: true, references: [reference] }];
     journey.phase = "review";
     journey.summary = { title: "新版方案", body: "张总要求周五前发新版方案，预算等小李确认。[S1]", references: [reference] };
-    journey.todo = { status: "ready", batch_id: batch.batch_id, batch, error: null };
+    journey.todo = { status: "ready", batches: [batch], total: 1, error: null };
     return store.save(journey);
   });
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);

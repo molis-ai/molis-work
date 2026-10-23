@@ -32,7 +32,7 @@
 | `artifacts.browse` | 可选精确引用与支持类型，返回版本目录、所选版本和兼容状态 |
 | `artifacts.read` | `reference: { artifact_id, version }`，返回固定版本；不存在时保留请求引用 |
 | `artifacts.export` | 精确引用，返回原记录的 JSON 文本、文件名和 MIME |
-| `artifacts.import.file` | 文件名，文本文件的 UTF-8 正文或任意文件的原件（`original_file`，base64），可选标题；保存或复用个人快照 |
+| `artifacts.import.file` | 文件名，文本文件的 UTF-8 正文或任意文件的原件（`original_file`：随请求附 base64 最多 6 MB；不附字节时用宿主为这次导入收下的文件，不限大小，超过 6 MB 的存进成果库自己的目录、版本只记摘要与大小，见 `src/original-store.ts`），可选标题；保存或复用个人快照。版本正文 `content` 最多 2 MB：附了原件的更长文本留开头并给提示，原件完整保存 |
 | `artifacts.import.external` | 来源与文档链接，读取当前 Home 已连接账号并保存快照 |
 | `artifacts.import.sources` | 返回支持来源的连接布尔状态，不返回凭据 |
 | `artifacts.goals.embeds` | Goal ID，读取 Ledger 明确关联的固定输入/输出版本 |

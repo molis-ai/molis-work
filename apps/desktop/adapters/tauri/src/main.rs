@@ -847,7 +847,7 @@ fn main() {
       context_directories::context_directory_authorize,
       context_directories::context_directory_forget,
       context_directories::context_directory_preview,
-      context_directories::context_directory_read,
+      context_directories::context_directory_stage,
       shelf_surface_changed,
       shelf_drag_out,
       shelf_copy_files,

@@ -6,7 +6,7 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { memoryRuntimePolicy, memorySources, prologueMemoryBackend, ensureSystemAgentService, withConnectorConnections, type MemorySourceOwner } from "@molis-ai/molis-work-app-local-host";
+import { memoryRuntimePolicy, memorySources, memoryExtractor, hostTextGeneration, prologueMemoryBackend, ensureSystemAgentService, withConnectorConnections, type MemorySourceOwner } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -24,18 +24,35 @@ const sourceRef = (session: string, input: string, kind = "original"): AgentMemo
 });
 const meta: AgentMemoryMeta = { kind: "preference", classification: { scenes: ["coding"], lifecycle: "long-term" }, basis: "explicit" };
 
+function formationReply(body: { messages: Array<{ content: string | Array<{ type: string; text?: string }> }> }) {
+  const content = body.messages.at(-1)!.content;
+  const prompt = typeof content === "string" ? content : content.filter(block => block.type === "text").map(block => block.text).join("\n");
+  const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as {
+    sources: Array<{ id: string; text: string }>;
+    destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string[]> }>;
+  };
+  const slot = data.destinations.find(destination => destination.scope === "user" && !destination.replacement)?.slots.preference?.[0];
+  assert.ok(slot, "Coding's current permission supplies a personal preference slot");
+  assert.equal(data.sources.length, 1, "continuation never manufactures a second original");
+  const source = data.sources[0]!;
+  return cogniaScriptedResponse(undefined, JSON.stringify({ drafts: [{ slot_id: slot, text: source.text,
+    suggested_basis: "explicit", evidence: [{ source_id: source.id, quote: source.text }] }] }));
+}
+
 async function localModel(t: test.TestContext, response: (turn: number) => Response | Promise<Response>) {
-  let calls = 0;
+  let calls = 0, formationCalls = 0;
   const server = createServer(async (request, reply) => {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    const review = endingReviewAnswer(JSON.parse(Buffer.concat(chunks).toString("utf8")), () => []);
-    const result = review === undefined ? await response(++calls) : cogniaScriptedResponse(undefined, review);
+    const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    const review = endingReviewAnswer(body, () => []);
+    const result = request.url?.startsWith("/formation/") ? (formationCalls++, formationReply(body))
+      : review === undefined ? await response(++calls) : cogniaScriptedResponse(undefined, review);
     reply.writeHead(result.status, { "content-type": "text/event-stream" }); reply.end(await result.text());
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
-  return { base: `http://127.0.0.1:${address.port}`, get calls() { return calls; } };
+  return { base: `http://127.0.0.1:${address.port}`, get calls() { return calls; }, get formationCalls() { return formationCalls; } };
 }
 
 /** Actual Node/SQLite and loopback model; only the Host's mutable installation grant is a supplied dependency. */
@@ -50,9 +67,12 @@ async function sourceHome(t: test.TestContext, response: (turn: number) => Respo
     projectExists: async id => id === project || id === "second-project", deletingProject: () => undefined };
   const sources = memorySources(home, () => alive ? { adapter, policy, sessionAllowed: owner => installed(owner),
     sourceAllowed: (id, scope, owner, refs) => service.sourceAllowed(id, scope, owner, refs) } : undefined);
+  const generate = hostTextGeneration({ homeDirectory: home, resolveInference: async () => adapter.inference,
+    env: { MOLIS_WORK_TEXT_API_KEY: "fixture-loopback-only", MOLIS_WORK_TEXT_BASE_URL: model.base + "/formation/v1", MOLIS_WORK_TEXT_MODEL: "fixture" } });
+  assert.ok(generate);
   const open = async () => {
     adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
-      memory: { ...memoryRuntimePolicy(() => policy), sources, promotion: { policy: "memory.write-gate", version: 3,
+      memory: { ...memoryRuntimePolicy(() => policy, memoryExtractor(home, () => generate)), sources, promotion: { policy: "memory.write-gate", version: 3,
         decide: (caller, request) => service.promotion.decide(caller, request), undo: {
           prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } } },
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: model.base + "/v1/messages", model: "fixture", credential_ref: "fixture",
@@ -76,6 +96,7 @@ async function sourceHome(t: test.TestContext, response: (turn: number) => Respo
     text: "回答请保留步骤", origin: "source owner contract", meta, sources: [ref], expected_version: 0, operation_id: randomUUID() });
   return { home, session, caller, sources, request, start, completed, propose, policy,
     get service() { return service; }, get adapter() { return adapter; }, get calls() { return model.calls; },
+    get formationCalls() { return model.formationCalls; },
     installation(check: typeof installed) { installed = check; },
     contextWindow(tokens: number | undefined) { contextTokens = tokens; },
     async reopen() { await adapter.close(); await open(); },
@@ -103,10 +124,33 @@ test("MEM-35: a canonical original stays one source across continuation/restart 
   assert.equal((await f.sources.resolve({ ...f.caller, source_use: "explicit" }, f.request([ref]))).length, 1, "explicit save is independent from automatic learning");
   f.service.savePrefs(person, "project", { learn_from_work: true });
   const learning: MemoryCaller = { ...f.caller, consumer: "agent", operation_id: "first-learning" };
-  const input = { said: [text], sources: snapshots, proposals: [{ text, kind: "preference" as const, scope: "personal" as const, basis: "explicit" as const, quote: text }] };
-  assert.equal((await f.service.learnFromWork(learning, input))[0]?.outcome, "candidate");
-  assert.equal((await f.service.learnFromWork({ ...learning, operation_id: "continued-learning" }, input))[0]?.outcome, "skipped", "another Run using the same original does not add independent evidence");
+  const input = { said: [text], sources: snapshots } satisfies Parameters<MemoryService["learnFromWork"]>[1];
+  const firstLearning = await f.service.learnFromWork(learning, input);
+  assert.equal(firstLearning.formation.outcome, "completed"); assert.equal(firstLearning.formation.extraction.calls, 1);
+  assert.equal(f.formationCalls, 1, "the production extractor dispatched through the actual local HTTP model");
+  assert.equal(firstLearning.recording_error, undefined); assert.equal(firstLearning.learned[0]?.outcome, "candidate");
+  const pending = await f.service.candidates(person, { scope: "personal" });
+  assert.equal(pending.length, 1, "the direct SDK proposal has no App note; actual form records its own candidate");
+  assert.equal(pending[0]!.candidate_id, firstLearning.learned[0]!.candidate_id);
+  assert.notEqual(pending[0]!.candidate_id, candidate.candidate_id);
+  assert.equal(pending[0]!.basis, "explicit");
+  const rawCandidates = () => f.adapter.memory!.withCaller({ ...f.caller, consumer: "ui", person: true }).candidates.list("user", actor);
+  const before = await rawCandidates(); assert.equal(before.length, 2);
+  assert.deepEqual(before.find(entry => entry.candidate_id === pending[0]!.candidate_id)!.sources, candidate.sources);
+  const unchanged = async (operation_id: string) => {
+    const result = await f.service.learnFromWork({ ...learning, operation_id }, input);
+    assert.equal(result.formation.outcome, "completed"); assert.equal(result.formation.extraction.calls, 1);
+    assert.equal(result.recording_error, undefined);
+    assert.deepEqual(result.formation.items, [], "the extractor removes the already represented original before SDK writes");
+    assert.deepEqual(result.learned, [], "another Run using the same original does not add independent evidence");
+    assert.deepEqual(await rawCandidates(), before, "candidate identities, versions and original sources stay unchanged");
+    assert.deepEqual(await f.service.candidates(person, { scope: "personal" }), pending);
+    assert.deepEqual(await f.adapter.memory!.withCaller({ ...f.caller, consumer: "ui", person: true }).list("user", actor), []);
+  };
+  await unchanged("continued-learning");
   await f.reopen();
+  await unchanged("restarted-learning");
+  assert.equal(f.formationCalls, 3, "each invocation may extract again, but the same original never adds evidence or writes");
   assert.deepEqual(await f.sources.resolve(f.caller, f.request([ref])), snapshots);
   assert.deepEqual(await f.sources.resolve({ ...f.caller, actor_id: "another-person" }, f.request([ref])), []);
   assert.deepEqual(await f.sources.resolve(f.caller, { ...f.request([ref]), target: { scope: "project", owner: "second-project" } }), []);

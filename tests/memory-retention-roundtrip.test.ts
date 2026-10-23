@@ -227,6 +227,18 @@ test("merge undo recreates the removed canonical classification and retention sn
   const a = await f.raw().write({ scope: "project", owner: "project-a", text: "Keep release notes concise before launch", origin: "First evidence", meta, operation_id: "a" });
   t.mock.timers.setTime(START + 1);
   const b = await f.raw().write({ scope: "project", owner: "project-a", text: "Keep release notes concise after launch", origin: "Second evidence", meta, operation_id: "b" });
+  // A raw SDK seed has no App history. Confirm the same content through the real public edit path,
+  // which validates the current version and records the safe snapshot required by merge undo.
+  for (const [index, entry] of [a, b].entries()) {
+    const confirmed = await f.service.change(caller(`confirm-history-${index}`), {
+      action: "update", memory_id: entry.memory_id, expected_version: entry.version, text: entry.text,
+    });
+    assert.ok(confirmed.memory);
+    const current = (await f.raw().list("project", "project-a")).find(item => item.memory_id === entry.memory_id)!;
+    assert.equal(current.version, confirmed.memory.version);
+    assert.deepEqual(current.meta, entry.meta, "the confirmation keeps every canonical classification and retention fact");
+    assert.equal(current.origin, entry.origin); assert.equal(current.text, entry.text);
+  }
   const report = await f.service.upkeep(caller("merge"), { projects: ["project-a"], tidy: async () => ({ duplicates: [[a.memory_id, b.memory_id]], conflicts: [] }) });
   assert.equal(report.merged, 1);
   const change = f.service.changes(caller("changes")).find(item => item.kind === "merged")!;

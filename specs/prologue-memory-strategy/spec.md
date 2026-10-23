@@ -516,9 +516,19 @@ SDK 的 prepare 回调先在现 ledger 保存足以恢复的操作身份及原�
 
 晋升的 App ledger 回调也复用原调用的 `PrologueEffects` 控制：prepare/record 在调用方异步解析和 `beforeEffect` 后，紧邻同步 ledger 写执行 `assertCurrent` 并检查本次 `signal`；任一等待期间取消均不能继续调用 App 写账回调，不另建权限状态或注册表。候选已预留后撤权，既不能写正式记忆，也不能新增准备历史；正式已提交而补账前撤权，保留原操作待对账，由后续合法调用补齐，不借原调用继续写账。新增真实 Node 回归先复现“正式写被拒但 prepare 已执行”，再验证这两个边界。
 
+Coding 来源归属补充：非本人 Coding 调用即使写入个人记忆，也只能使用当前可信 Session 同项目、同安装的原件。SourcePort 通过已有 caller.session_id 读取 Session owner，核 actor/project/plugin，再核来源 Session 的 project/install 和当前安装许可；仅证明来源安装仍存在不能替代调用者有权读取它。缺绑定明确无来源，不从页面参数或来源引用补造；本人管理与助理原有合法范围不因此扩大或收窄。真实双 Session 回归覆盖跨项目、跨安装、缺 caller Session 的零候选，以及同安装合法读取与撤权。
+
 离线采用组合补充：普通 Runtime 已声明晋升后，维护 Runtime 仍只提供 `adoptStorage/verifyAdoption`，不得假装装配晋升实例。AgentHost 的既有维护入口保留 App taxonomy、版本、key domains 与限额，内存中的配方限定 `manage-read`、零形成；scope 仍由显式采用范围及同一独占 owner 授权。不持久化该维护配方、不改变普通 Runtime 的策略、偏好和可用能力。以真实已声明晋升的产品策略重跑采用及重启验证，保留旧包拒绝和零网络断言。
 
-维护组合补充：一次 upkeep 中合并与随后闲置停用是不同语义步骤，分别从同一父操作派生稳定、长度受限的子操作身份；每步沿用读取版本和 SDK CAS，同一步重试不增写。合并成功后使用实际合并后的元数据与版本，后续停用不得丢掉原来源。保留过期、合并、闲置停用、历史与撤销断言，补同一批合并后停用/重启/重试回归，不放宽 SDK 同操作不同输入的拒绝。
+维护组合补充：一次 upkeep 中合并与随后闲置停用是不同语义步骤，现 ledger 为同一父操作及步骤事务性保存一次短子操作身份，重试和重启复用；不截断合法长父操作号，也不增设正文账。每步沿用读取版本和 SDK CAS，同一步重试不增写。合并成功后使用实际合并后的元数据与版本，后续停用不得丢掉原来源。保留过期、合并、闲置停用、历史与撤销断言，补同一批合并后停用/重启/重试回归，不放宽 SDK 同操作不同输入的拒绝。
+
+维护合并删除的是重复正式条目，不代表用户遗忘原来源：先把来源身份合并到保留条目，再沿现 SDK 删除冗余条目，不抑制原件或清除关联候选。用户明确删除/清空保留条目时，仍对历史来源并集执行遗忘抑制。维护保存成功、历史记账失败后的重试补账须另验，不把只覆盖删除前失败的用例当作完整恢复证据。
+
+维护补账续片：复用现 ledger 的 operation marker 和 revision history，保存固定父/子操作、目标与原版本、旧快照指针及完成状态，不存第二份提议正文或另建恢复表。历史准备前由同一 SDK management.preview 对实际固定命令完成内容与当前权限预检；只新增所需的固定预览薄口，执行时仍重新过门。pending 步骤在重新扫描 active 条目前恢复，按原操作与原版本重放；只有 SDK 确认实际提交才能在一个 ledger 事务中补唯一 change、applied_version、历史与完成标记。后继人工编辑、未知提交或目标被物理清除但没有原回执时明确冲突/待对账，不用正文相同、版本加一或缺失猜成功。
+
+维护合并的冗余条目改用 SDK 已有逻辑 remove，经 AgentHost/Backend 窄 tombstone 口返回实际版本；保留原删除回执直到账完成，再清其 ledger 历史。用户 remove/clear 仍走物理 purge 和来源抑制，不变更它们的语义。SDK 成功而保存变更失败时保留旧 revision，重启后同操作只补账；忘记、清空与项目删除的屏障优先。object-restored 同样保留变更前状态和精确版本的撤销，不把原先 undo=null 当作已完成承诺。
+
+允许修改 Memory 维护/operations/Backend、必要的同包完整维护职责文件、AgentHost Memory 窄口与 DTO、LocalHost 薄适配、相关 API 快照/README 和真实维护恢复测试；不改 SDK、存储 schema、UI 或供应商。验收包含状态提交后账失败、合并更新后/逻辑删除后故障、ledger 事务失败与重开；每项只补一次且实际可撤销，后继修改/撤权/取消/遗忘不复活，长父操作和长 owner 不突破既有上限。没有可靠回执的既有物理删除失败不追溯伪补。
 
 停止收尾补充：Coding stop 的当前授权检查及 `stop_intent` 持久化仍属于这次控制调用；仅在意图成功提交后，用既有 `PrologueEffects.detach` 调度已接受 Run 的取消及终态收尾，使它不借用已结束的 stop 调用权限。SDK 仍拥有终态落盘，App 仍等真实终态事件才显示停止。未授权控制、未提交意图和普通迟到业务写不得脱离原检查；保留真实 Node 输入回执、重启及原调用失效零写反例，不把所有 storage 或 effects.call 关掉检查。
 
@@ -804,6 +814,11 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 | M2 主干整合与晋升桥 | 已整合 Molis main `a259350ac`，SDK 来源 `5cd21c84` 包含主干采用的 `2c7feba5`；离线冻结安装与整体 build 通过。AgentHost 将来源与晋升 DTO 接入同一 SDK，并让 App prepare/record 复用原调用撤权检查；真实 Node 晋升 10/10、Coding 原件及安装/消费者权限 8/8 通过。四份 CI 基线/调用身份夹具修正已独立提交 `cf026aa3c` | 当前仅工程验证；Context 挂起已定位为旧夹具声明晋升策略却缺实例，初始化错误后测试未关 HTTP。接入真实 Service 并补失败清理后，最终 Context/重启/拒派发 1 项、输入回执 6 项与撤回 2 项均通过；保留失败日志，未放宽断言。其余产品形成/维护与最终全量尚未完成；Draft #1064 继续不可合并 |
 | M2 资源整合复测 | main 的工作台独立 +138 B 与 Coding 独立 +510 B 已合入；保持用户原批准净增，整体构建实测 workbench 1,189,908 B、Coding 375,483 B。资源门禁与 health 对实际 merge-base `a259350ac` 通过，未新增额度 | 仅证明资源门禁；不是性能、主观体验或最终 App 验收 |
 | S1 过期记忆管理与接入 | [Prologue #91](https://github.com/molis-ai/molis-prologue/pull/91) 已合 main `8b5f18c8`，与已测干净 head `37c8886e` 整树一致。过期正式记忆可按当前管理权限、保留策略和 CAS 暂停/停用；恢复、读取及清空/延长期限仍拒绝。完整 quality 684 项、相关 218 项、干净安装/Rust 通过，7 条新增反例先红后绿；实际云端 run `39935833527` 零 step 注解为账单限制。Molis 独立采用提交 `edc3124f2`，离线安装的 770 个 dist 文件与包一致，整体 build 通过 | SDK 工程交付已完成；Molis 集成 5 文件 39 项通过，Service 23、学习 21、产品晋升 9 项通过。维护已越过原过期拒绝，但仍有操作身份冲突；采用仍有存储键错误，均继续诊断。晋升取消窗口的独立评审回归及 Coding 停止收尾继续修复；不代表完整产品或用户验收 |
+| M2 来源与可取消的晋升桥 | `1681269b6` 已提交并推送。App prepare/record 在异步授权后再次核当前调用与取消信号；两个晚到回调反例先红后绿，真实 SDK 晋升最终 12/12。Context/输入回执/撤回 9/9、实际晋升配方的采用 7/7；包括新文件的 health 对 main `a259350ac` 通过 | App SourcePort 装配及规则 v3 仍在集成；通过不代表 SDK form、完整 App 或用户验收。四份管理夹具改接真实 Service 晋升实例后 34/34，原权限、期限与副作用断言保留 |
+| M2 Coding 停止持久收尾 | `2424c3641` 已提交并推送。停止意图提交后沿既有 detach 使已接受 Run 自行完成终态落盘，修复 stop 调用结束后收尾触发 `actions.expired`。真实 executor 3/3 与 effects 13/13；关闭重开后仍为 stopped，未读补充仍 queued，持久化失败列表为空 | 只证明停止及已有权限反例；pause/resume 未据此宣称验证，不代表完整 Coding 产品验收 |
+| M2 来源晋升与维护首片 | `cf54c58f8` 已推送；两份独立本人原件经规则 v3 才晋升，准备/记账沿 SDK 回调和现 ledger，遗忘抑制历史来源并集。维护不同语义步骤使用稳定短子操作，合并不冒充遗忘、不清原来源候选；维护来源错误的两个真实反例先红后绿。整体 build、6 文件 87 项及 health 对 main 通过 | Service 23、learning 21、promotion 9、upkeep 9、SourcePort 7、Assistant 18。维护提交后账失败的补账边界与 Coding personal 来源跨项目边界另行收束；SDK form、完整产品和用户验收仍待完成 |
+| S2 候选正式地址 | [Prologue #92](https://github.com/molis-ai/molis-prologue/pull/92) 已合 main `cb0ceaa5`，与已测干净 head `cdbb4913` 整树一致。复用已有有界 append 地址选择，合法旧地址保持，完整 owner 和候选操作键仍验证；不放宽 Host 128 字符限制。新 8 例、相关 111 项、完整 quality 684 项及干净包/Rust 通过，实际旧包恢复不重复正式写 | 实际 run `39939444106`/job `120366987584` 零 step 原注解为付款/额度限制；统筹独审、无冲突与待处理评审后按私仓授权合并。Molis 接入提交 `4deeb0cf1`，离线冻结安装、770 个 dist 文件比对和整体 build 通过；原采用失败已通过 11/11，不代表完整 P0 |
+| M2 当前来源生产装配 | `bcf6cbae0` 接入 App SourcePort、助理 canonical 原件、当前安装/偏好/工作状态与遗忘检查。Coding 非本人调用即使目标为 personal 也核当前 Session 项目和安装；两个真实 SDK 跨项目/跨安装反例先红后绿，不把来源安装存在当作读取授权。SDK #92 整合 7 文件 74 项全部通过 | Coding 原件 8、SourcePort 9、Assistant 18、upkeep 9、SDK采用 7、晋升桥 12、App采用 11；health/资源门禁对 main `a259350ac` 通过并收紧本地快查。混合附材原文、SDK form、维护提交后补账及最终完整工程/产品/B2/用户验收仍待完成 |
 | S2 / S3 / M2 / M3 / I0 | 按 §9.3 核对可信来源/候选门、异步召回/Context、产品管理与真实 SDK 接入的可并行边界；统筹负责共享装配、包及最终集成 | P0 全部行为、干净包/真实 Host、成对 B2 质量与成本、最终 App 实操及用户验收仍待完成 |
 
 交付按可独立验收部分拆 PR：C0/Q0 合同、工具与冻结结果先行；S1 第一片单独交付版本检查、并发写入与恢复；M1 第一片单独交付有效配置采用与启动保护。两仓实现 PR 分别依赖各自 C0/Q0 父 PR，后续分类、形成、召回和界面按 §9.3 依赖继续拆分；父 PR 进入 main 后再合并子 PR，不将 stacked 分支合并视为进入 main。此处持续补充 PR 和最终 head 的验证结果；未操作真实 Home，也未发布。

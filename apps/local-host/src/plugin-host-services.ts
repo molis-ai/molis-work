@@ -41,6 +41,7 @@ import { pluginConnectionsFor } from "./plugin-connections-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService } from "./plugin-directory-service.js";
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
+import { assertSandboxDeclarations } from "@molis-ai/molis-work-plugin-sandbox";
 
 /** What the executor keeps of one started Plugin until it stops. */
 export interface HostSession {
@@ -76,6 +77,8 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   const dispose = () => { active = false; stopped = true; withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); files?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
+    // Running in a sandbox is an install trust; what the package asks for that the sandbox is not given stops its start with a code (S-60).
+    if (definition.execution === "sandbox") assertSandboxDeclarations(definition, context.grants);
     const manifest = definition.manifest;
     const pluginCaller = hostPluginCaller(options, definition, context, assertActive);
     withdrawCaller = issuePluginCaller(pluginCaller, heldPermissions(manifest, context.grants));

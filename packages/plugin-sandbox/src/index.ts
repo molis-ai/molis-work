@@ -2,6 +2,7 @@ export { createSandboxRunner, DEFAULT_SANDBOX_LIMITS } from './runner.js';
 export type { SandboxRunner, SandboxRunnerOptions, SandboxLimits, SandboxCallControl } from './runner.js';
 export type { SandboxServices, SandboxServiceContext } from './broker.js';
 export { sandboxDatabase, type SandboxDatabaseService, type SandboxStatement } from './database.js';
+export { sandboxServicesFor, storageTransactions, assertSandboxDeclarations, type SandboxHostServices, type SandboxHostExtras, type SandboxDeclarations } from './services.js';
 export { createHttpsProxy, isPublicAddress, validateNetworkRequest } from './https-proxy.js';
 export type { HttpsProxyOptions, SandboxSecret } from './https-proxy.js';
 export { assertContract, assertSchema, assertMatches, assertEffects, assertJson, SandboxError } from './schema.js';

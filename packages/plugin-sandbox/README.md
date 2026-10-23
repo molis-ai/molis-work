@@ -148,17 +148,18 @@ answers and validates every resulting address; it does not change production def
 
 ## 开发要求
 
-- 负责：生成插件的 macOS 进程隔离与异步宿主中介（网络、存储、项目库、能力调用）。
+- 负责：生成插件的 macOS 进程隔离与异步宿主中介（网络、存储、项目库、能力调用），以及宿主给这次激活建出来的服务哪些经 broker 送进沙箱（`sandboxServicesFor`），和沙箱不给的服务的启动期拒绝（`assertSandboxDeclarations`）。
 - 不负责：插件产品状态、模型执行、安装流程与构建门禁。
 - 公开入口：`@molis-ai/molis-work-plugin-sandbox`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin-sandbox`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（共享执行生命周期）。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 沙箱不自带能力：宿主必须显式提供授予与已连接的服务，异步中介调用必须被等待。
+  - 服务经 broker 进沙箱是安装信任，不是另一套权限（S-60，PG-017）：沙箱拿到的是宿主按 Manifest 与授权为这次激活建出来的同一份服务，操作声明的效果 ∩ 人批准的授权在 broker 查，宿主服务自己的检查（Manifest 权限、授权、实例是否还在跑、动作作用域、原调用者）照旧；沙箱不给的服务，Manifest 或定义一声明，启动就被拒（`sandbox.service_not_given`），`NOT_GIVEN` 表里每一行在给它的那一片里删掉。
   - 查询操作不能声明存储、成果或项目库的写入，也不能发事件。
   - 项目库（`projectDatabase`）：跨通道的语句先有界再交给宿主，宿主的客户端逐句对照本插件的表；一个事务在宿主一侧整个提交或整个不写；操作声明了、人也批准了才放行。语句不在宿主的线程上执行：宿主把它们交给一个自己能杀的子进程（`services.project_statements`），超时或超内存就杀进程、答带码的错误，行数与字节在读的时候就停，递归查询不开始（S-59）。
   - 读权限只覆盖暂存的 bundle/worker、Node 可执行文件与必要系统路径；CPU 是整个进程的预算。
   - 私有存储按完整身份串行，回调拿到快照，只在成功且信号仍有效时原子落盘；适配器在提交副作用前遵守取消。
   - 一次操作发起的 SDK 服务调用，在调起这次 `call()` 当时的异步上下文里运行（`AsyncResource`），不在进程启动时的上下文里，所以宿主按调用上下文给出的东西（调用编号）跟着这次操作走；沙箱不读、不传这些值，也不依赖提供它们的包。
   - 沙箱不能直接联网，Host 必须显式装配网络适配器。`createHttpsProxy` 要求精确批准的域名、443 端口、URL 不带凭据、每个 DNS 答案必须是公网地址；fake-IP 需注入批准的 DoH 解析器。现有生成式 Host 适配器的代理策略见上文，不能把两者误写成同一实现。
-- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-sandbox.test.ts tests/plugin-sandbox-network.test.ts tests/security-invariants-plugin-project-database.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-sandbox.test.ts tests/plugin-sandbox-network.test.ts tests/security-invariants-plugin-project-database.test.ts tests/security-invariants-sandbox-services.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

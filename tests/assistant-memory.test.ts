@@ -162,6 +162,14 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     service.saveMemoryPrefs({ form: true, use_personal: false });
     const noPersonal = await round("再来一次", projectA, "req-memory-009");
     assert.doesNotMatch(recalled(noPersonal.first), /回答用要点列表/);
+    // MEM-24: off cannot be reopened by the older Assistant settings projection; neither scope gives memory tools.
+    const manager = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
+    memory.savePrefs(manager, "personal", "off"); memory.savePrefs(manager, "project", "off");
+    service.saveMemoryPrefs({ form: true, use_personal: true, use_project: true });
+    assert.equal(service.memoryTools(store.get("web-user", first.work.work_id)), undefined);
+    assert.equal(memory.prefs(manager, "personal").prefs.enabled, false);
+    assert.equal(memory.prefs(manager, "project").prefs.enabled, false);
+
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 

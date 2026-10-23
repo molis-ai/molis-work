@@ -68,6 +68,8 @@ export type ActionLocale = "zh" | "en";
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;
+  /** Memory read intent fixed by a protected Host entry; never copied from business/model input. Absent means task. */
+  readonly memory_read_mode?: "explicit" | "task";
   /** Host-authenticated delivery of a completed discussion run; never accepted from business input. */
   readonly assistant_reply?: import("../services/assistant.js").AssistantReplyDelivery;
   /** Optional page evidence supplied by a protected entry adapter, never business/model input. */

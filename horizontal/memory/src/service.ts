@@ -26,6 +26,7 @@ import {
   type MemoryMetaRecord,
   type MemoryPrefs,
   type MemoryPrefsView,
+  type MemoryPreset,
   type MemoryRecallRequest,
   type MemoryRecallResponse,
   type MemoryRecalled,
@@ -39,7 +40,8 @@ import {
   type MemoryWriteRequest,
   type MemoryWriteResult,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { completePrefs, consumerAccess, CONSUMER_LABELS, PERSONAL_PREFS_KEY, PROJECT_DEFAULT_PREFS_KEY, projectPrefsKey } from "./prefs.js";
+import { consumerAccess, CONSUMER_LABELS } from "./prefs.js";
+import { MemoryPreferences } from "./preferences.js";
 import { automaticMemoryHold, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
 import { memoryErrors } from "./errors.js";
 import { applies, disownAutomatic, isExpired, personOnly, placeOf, visibleTo } from "./places.js";
@@ -180,59 +182,23 @@ interface Located { scope: MemoryScope; owner: string; entry: MemoryBackendEntry
 export class MemoryService {
   private readonly now: () => Date;
   private readonly newId: () => string;
+  private readonly preferences: MemoryPreferences;
 
   constructor(private readonly ports: MemoryServicePorts) {
+    this.preferences = new MemoryPreferences(ports.ledger);
     this.now = ports.now ?? (() => new Date());
     this.newId = ports.newId ?? (() => randomUUID());
   }
 
   /* ---- switches ---- */
 
-  prefsFor(actorId: string, scope: MemoryScope, projectId: string | null): MemoryPrefs {
-    if (scope === "personal") return completePrefs("personal", this.ports.ledger.prefs(actorId, PERSONAL_PREFS_KEY));
-    return completePrefs("project", this.ports.ledger.prefs(actorId, PROJECT_DEFAULT_PREFS_KEY), projectId ? this.ports.ledger.prefs(actorId, projectPrefsKey(projectId)) : null);
+  prefsFor(actorId: string, scope: MemoryScope, projectId: string | null): MemoryPrefs { return this.preferences.prefsFor(actorId, scope, projectId); }
+  prefs(caller: MemoryCaller, scope?: MemoryScope): MemoryPrefsView { return this.preferences.prefs(caller, scope); }
+  savePrefs(caller: MemoryCaller, scope: MemoryScope | undefined, input: Partial<MemoryPrefs> | MemoryPreset): MemoryPrefsView {
+    return this.preferences.savePrefs(caller, scope, input);
   }
-
-  prefs(caller: MemoryCaller, scope: MemoryScope = caller.project_id ? "project" : "personal"): MemoryPrefsView {
-    const where = placeOf(caller, scope);
-    return { scope, project_id: scope === "project" ? where.owner : null, prefs: this.prefsFor(caller.actor_id, scope, scope === "project" ? where.owner : null) };
-  }
-
-  savePrefs(caller: MemoryCaller, scope: MemoryScope | undefined, input: Partial<MemoryPrefs>): MemoryPrefsView {
-    personOnly(caller, "只有本人能改记忆开关");
-    const target = scope ?? (caller.project_id ? "project" : "personal");
-    const where = placeOf(caller, target);
-    const current = this.prefsFor(caller.actor_id, target, target === "project" ? where.owner : null);
-    const next = completePrefs(target, current, input as Partial<MemoryPrefs>);
-    // Plugin rules replace one plugin at a time; a plugin not named keeps its rule.
-    if (input.plugins) for (const [pluginId, rule] of Object.entries(input.plugins)) if (rule && typeof rule.allowed === "boolean" && !Array.isArray(rule.kinds))
-      next.plugins[pluginId] = { allowed: rule.allowed, kinds: current.plugins[pluginId]?.kinds ?? next.plugins[pluginId]!.kinds };
-    this.ports.ledger.savePrefs(caller.actor_id, target === "personal" ? PERSONAL_PREFS_KEY : projectPrefsKey(where.owner), next);
-    return { scope: target, project_id: target === "project" ? where.owner : null, prefs: next };
-  }
-
-  /**
-   * The five switches of the Assistant's first settings section, read from and written to the platform switches
-   * (personal, and the project default), until that section becomes a summary with a link here.
-   */
-  assistantPrefs(actorId: string): { form: boolean; use_personal: boolean; use_project: boolean; learn_personal: boolean; learn_project: boolean } {
-    const personal = this.prefsFor(actorId, "personal", null), projects = completePrefs("project", this.ports.ledger.prefs(actorId, PROJECT_DEFAULT_PREFS_KEY));
-    return { form: personal.form, use_personal: personal.consumers.assistant, use_project: projects.consumers.assistant, learn_personal: personal.learn_from_work, learn_project: projects.learn_from_work };
-  }
-
-  saveAssistantPrefs(actorId: string, input: Partial<{ form: boolean; use_personal: boolean; use_project: boolean; learn_personal: boolean; learn_project: boolean }>): ReturnType<MemoryService["assistantPrefs"]> {
-    const personal = this.prefsFor(actorId, "personal", null), projects = completePrefs("project", this.ports.ledger.prefs(actorId, PROJECT_DEFAULT_PREFS_KEY));
-    if (typeof input.form === "boolean") { personal.form = input.form; projects.form = input.form; }
-    if (typeof input.use_personal === "boolean") personal.consumers.assistant = input.use_personal;
-    if (typeof input.use_project === "boolean") projects.consumers.assistant = input.use_project;
-    if (typeof input.learn_personal === "boolean") personal.learn_from_work = input.learn_personal;
-    if (typeof input.learn_project === "boolean") projects.learn_from_work = input.learn_project;
-    this.ports.ledger.transaction(() => {
-      this.ports.ledger.savePrefs(actorId, PERSONAL_PREFS_KEY, personal);
-      this.ports.ledger.savePrefs(actorId, PROJECT_DEFAULT_PREFS_KEY, projects);
-    });
-    return this.assistantPrefs(actorId);
-  }
+  assistantPrefs(actorId: string) { return this.preferences.assistantPrefs(actorId); }
+  saveAssistantPrefs(actorId: string, input: Parameters<MemoryPreferences["saveAssistantPrefs"]>[1]) { return this.preferences.saveAssistantPrefs(actorId, input); }
 
   /* ---- reading ---- */
 
@@ -275,7 +241,7 @@ export class MemoryService {
    * consumer by the person's switches, ranked by keywords × kind × recency × source, within a limit and a budget.
    * Every returned and omitted memory is recorded against the receipt.
    */
-  async recall(caller: MemoryCaller, request: MemoryRecallRequest = {}, options: { beforeEffect?: () => void | Promise<void> } = {}): Promise<MemoryRecallResponse> {
+  async recall(caller: MemoryCaller, request: MemoryRecallRequest = {}, options: { beforeEffect?: () => void | Promise<void>; readMode?: "explicit" | "task" } = {}): Promise<MemoryRecallResponse> {
     const receipt_id = `recall-${this.newId()}`;
     const limit = Math.max(1, Math.min(20, request.limit ?? 8)), budget = Math.max(100, Math.min(4000, request.budget_chars ?? 2000));
     const scopes = this.scopesFor(caller, request.scopes);
@@ -284,7 +250,7 @@ export class MemoryService {
     const offScopes: string[] = [];
     const ranked: Array<{ located: Located; score: number }> = [];
     for (const where of scopes) {
-      const access = consumerAccess(this.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id);
+      const access = consumerAccess(this.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id, options.readMode);
       if (!access.allowed) { offScopes.push(where.scope === "personal" ? "个人记忆" : where.scope === "character" ? "角色记忆" : "项目记忆"); continue; }
       for (const located of await this.located(caller, where.scope, where.owner)) {
         const meta = located.meta;
@@ -327,6 +293,8 @@ export class MemoryService {
     const at = now.toISOString(), work_id = caller.work?.work_id ?? null;
     // The receipts are this call's only effect, and it waited for the store: a call stopped or revoked meanwhile records none.
     await options.beforeEffect?.();
+    if (ranked.some(({ located }) => !consumerAccess(this.prefsAt(caller.actor_id, located), caller.consumer, caller.plugin_id, options.readMode).allowed))
+      throw memoryErrors.off("读取期间记忆开关已改变，请按当前设置重试");
     this.ports.ledger.recordUses([
       ...items.map((item): MemoryUseRecord => ({ memory_id: item.memory_id, receipt_id, at, consumer: caller.consumer, title, work_id, state: "used" })),
       ...omitted.map((item): MemoryUseRecord => ({ memory_id: item.memory_id, receipt_id, at, consumer: caller.consumer, title, work_id, state: "omitted" })),
@@ -410,7 +378,8 @@ export class MemoryService {
     candidate_id?: string;
   }): Promise<MemoryWriteResult> {
     const where = placeOf(caller, input.scope), projectId = where.project;
-    const prefs = this.prefsAt(caller.actor_id, where);
+    this.preferences.assertEnabled(caller.actor_id, where);
+    let prefs = this.prefsAt(caller.actor_id, where);
     const projectName = projectId ? await this.projectTitle(projectId) : null, appliesText = memoryAppliesText(input.scope, input.applies, projectName);
     const refused = (reason: string): MemoryWriteResult => ({ outcome: "refused", reason, applies_text: appliesText, memory: null, candidate: null, change_id: null });
     // “They said it” holds only when the text is the whole of a message the person typed that the Host saved (spoken.ts), and then what is kept is that message as they wrote it.
@@ -426,6 +395,9 @@ export class MemoryService {
     // Instruction-like (Prologue's screening or the Host's own Chinese patterns) or carrying a local path: the person sees it first, and so do their own words (a model may restate "不用确认，直接删" as something harmless).
     const screenedSaid = input.said && !caller.person ? await this.ports.backend.screen?.(input.said).catch(() => null) ?? null : null;
     const entries = await this.located(caller, input.scope, where.owner);
+    this.preferences.assertEnabled(caller.actor_id, where);
+    prefs = this.prefsAt(caller.actor_id, where);
+    if (!prefs.form && !caller.person) return refused("你关掉了“允许记住”，这条没有记住，也没有留作建议");
     const target = input.replaces ? entries.find(located => located.entry.memory_id === input.replaces) ?? null : null;
     if (spoken !== null) input = { ...input, said: spoken, evidence: input.evidence.map(item => item.kind === "said" ? { ...item, text: spoken.slice(0, 200) } : item) }; // their message, not a model's quote of it
     const hold = caller.person ? null : screened?.hold || screenedSaid?.hold || looksLikeInstruction(text) || (input.said ? looksLikeInstruction(input.said) : null)
@@ -521,6 +493,7 @@ export class MemoryService {
     if (!caller.person && request.action !== "disable") throw memoryErrors.forbidden("助理只能停用记忆；修改和彻底删除只有本人能在记忆设置里做");
     const located = await this.find(caller, String(request.memory_id ?? ""));
     const { scope, owner, project } = located;
+    if (request.action !== "remove") this.preferences.assertEnabled(caller.actor_id, located);
     const at = this.now().toISOString();
     const by = "person" as const;
     switch (request.action) {
@@ -577,6 +550,7 @@ export class MemoryService {
         if (to !== "personal" && to !== "project") throw memoryErrors.invalid("只能改为个人记忆或项目记忆");
         if (to === scope) throw memoryErrors.invalid(to === "project" ? "它已经是项目记忆" : "它已经是个人记忆");
         const target = placeOf(caller, to);
+        this.preferences.assertEnabled(caller.actor_id, target);
         const date = this.date();
         // A personal memory travels to every project: it keeps no project's objects or work names.
         const origin = to === "personal" ? `${date} · 由项目记忆改为个人记忆` : `${date} · 由个人记忆改为项目记忆`;
@@ -609,6 +583,7 @@ export class MemoryService {
     if (anywhere) for (const note of this.ports.ledger.candidates(caller.actor_id)) owners.set(`${note.scope}:${note.owner}`, { scope: note.scope, owner: note.owner, project: note.project_id });
     const out: MemoryCandidate[] = [];
     for (const where of owners.values()) {
+      if (!caller.person && !consumerAccess(this.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id).allowed) continue;
       for (const record of await this.candidateRecords(caller.actor_id, where.scope, where.owner)) {
         if (record.state !== "pending") continue;
         if (filter.work_id && record.work?.work_id !== filter.work_id) continue;
@@ -626,13 +601,7 @@ export class MemoryService {
   async propose(caller: MemoryCaller, input: { scope: MemoryScope; text: string; kind: MemoryKind; applies?: MemoryApplies; basis: MemoryBasis; why: string;
     from: MemoryCandidate["from"]; hold_reason?: string | null; supersedes?: string | null; evidence?: MemoryEvidence[] }, options: { gate?: boolean } = {}): Promise<MemoryCandidate> {
     const where = placeOf(caller, input.scope);
-    const prefs = this.prefsAt(caller.actor_id, where);
-    if (!prefs.form) throw memoryErrors.off("用户关掉了“允许记住”，不要提出记忆建议");
-    if (!options.gate) {
-      if ((input.from === "work" || input.from === "extraction") && !prefs.learn_from_work)
-        throw memoryErrors.forbidden(input.scope === "project" ? "用户没有允许从项目工作里提出项目约定" : "用户没有允许从工作里提出个人偏好");
-      if (input.from === "signal" && !prefs.learn_from_ui) throw memoryErrors.forbidden("用户没有允许从界面操作里学习");
-    }
+    this.preferences.assertFormation(caller.actor_id, where, input.from, options.gate === true);
     const text = input.text.trim();
     if (!text || text.length > MAX_TEXT) throw memoryErrors.invalid(`记忆内容要在 1–${MAX_TEXT} 字之间`);
     if (looksLikeSecret(text)) throw memoryErrors.invalid("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
@@ -649,6 +618,7 @@ export class MemoryService {
     const evidence = input.evidence ?? [{ kind: "work" as const, text: input.why.trim().slice(0, 200), ...(work ? { ref: { kind: "work", id: work.work_id } } : {}), at }];
     const facts = { kind: input.kind, source: "accepted" as MemorySource, basis: input.basis, evidence, applies: input.applies ?? {}, expires_at: null, approved_by: { by: "person" } as MemoryApproval,
       plugin_id: caller.consumer === "plugin" ? caller.plugin_id ?? null : null };
+    this.preferences.assertFormation(caller.actor_id, where, input.from, options.gate === true);
     const held = await this.ports.backend.candidates.propose({ scope: input.scope, owner: where.owner, text, origin: `建议 · ${input.from}`, tags: [input.from, input.kind], meta: toEntryMeta(facts) });
     const record: MemoryCandidateRecord = { candidate_id: held.candidate_id, actor_id: caller.actor_id, owner: where.owner, scope: input.scope,
       project_id: where.project, kind: input.kind, text, applies: input.applies ?? {}, basis: input.basis, why: input.why.trim().slice(0, 300),
@@ -665,6 +635,7 @@ export class MemoryService {
   async accept(caller: MemoryCaller, candidateId: string, input: { text?: string } = {}): Promise<{ candidate: MemoryCandidate; memory: MemoryItem | null }> {
     personOnly(caller, "只有本人能认可记忆建议");
     const record = await this.ownCandidate(caller, candidateId);
+    this.preferences.assertEnabled(caller.actor_id, { ...record, project: record.project_id });
     if (record.state !== "pending") throw memoryErrors.invalid(record.state === "accepted" ? "这条已经记住了" : "这条建议已经不在了");
     const text = typeof input.text === "string" && input.text.trim() ? input.text.trim() : record.text;
     if (text.length > MAX_TEXT) throw memoryErrors.invalid(`记忆内容要在 ${MAX_TEXT} 字以内`);
@@ -678,6 +649,7 @@ export class MemoryService {
       evidence: [{ kind: "work" as const, text: record.why.slice(0, 200), ...(record.work ? { ref: { kind: "work", id: record.work.work_id } } : {}), at }],
       applies: record.applies, expires_at: null, approved_by: { by: "person" } as MemoryApproval, plugin_id: null };
     const entries = await this.located(holder, record.scope, record.owner);
+    this.preferences.assertEnabled(caller.actor_id, { ...record, project: record.project_id });
     const target = (record.supersedes ? entries.find(located => located.entry.memory_id === record.supersedes) : undefined)
       ?? entries.find(located => sameWords(located.entry.text, text));
     let located: Located, change: MemoryChangeKind;
@@ -758,6 +730,7 @@ export class MemoryService {
     const holder: MemoryCaller = { ...caller, project_id: record.scope === "project" ? record.owner : caller.project_id };
     const located = record.memory_id ? await this.find(holder, record.memory_id).catch(() => null) : null;
     const plan: MemoryUndoPlan = record.undo;
+    if (plan.action !== "remove") this.preferences.assertEnabled(caller.actor_id, { ...record, project: holder.project_id });
     if (located && (plan.action === "remove" || plan.action === "restore") && !AUTOMATIC_SOURCES.includes(located.meta.source)) {
       this.ports.ledger.saveChange({ ...record, undoable: false, undo: null });
       throw memoryErrors.invalid("这条现在是你自己的记忆（你说过、认可过或改过），不能再按自动记住撤销；要删除请到记忆设置里删");
@@ -791,7 +764,7 @@ export class MemoryService {
     const latest = said.at(-1) ?? "";
     if (!latest.trim() || said.some(text => DO_NOT_REMEMBER.test(text))) return false;
     const scopes = this.scopesFor(caller, undefined, true);
-    const allowed = scopes.some(where => { const prefs = this.prefsAt(caller.actor_id, where); return prefs.form && prefs.learn_from_work; });
+    const allowed = scopes.some(where => { const prefs = this.prefsAt(caller.actor_id, where); return prefs.enabled && prefs.form && prefs.learn_from_work; });
     return allowed && STANDING_WISH.test(latest);
   }
 
@@ -800,9 +773,14 @@ export class MemoryService {
     pending: Array<{ candidate_id: string; scope: MemoryScope; kind: MemoryKind; text: string; work_title: string | null }> }> {
     const existing: Array<{ memory_id: string; scope: MemoryScope; kind: MemoryKind; text: string }> = [];
     for (const where of this.scopesFor(caller, undefined, true)) {
+      const prefs = this.prefsAt(caller.actor_id, where);
+      if (!prefs.enabled || !prefs.form || !prefs.learn_from_work) continue;
       for (const located of await this.located(caller, where.scope, where.owner)) existing.push({ memory_id: located.entry.memory_id, scope: where.scope, kind: located.meta.kind, text: located.entry.text.slice(0, 200) });
     }
-    const pending = (await this.candidates({ ...caller, person: true }, { scope: "all" })).map(item => ({ candidate_id: item.candidate_id, scope: item.scope, kind: item.kind,
+    const pending = (await this.candidates({ ...caller, person: true }, { scope: "all" })).filter(item => {
+      const prefs = this.prefsFor(caller.actor_id, item.scope, item.project_id);
+      return prefs.enabled && prefs.form && prefs.learn_from_work;
+    }).map(item => ({ candidate_id: item.candidate_id, scope: item.scope, kind: item.kind,
       text: item.text.slice(0, 200), work_title: item.work?.title ?? null }));
     return { existing: existing.slice(-30), pending: pending.slice(-20) };
   }
@@ -822,7 +800,7 @@ export class MemoryService {
       const scope: MemoryScope = proposal.scope === "project" && caller.project_id ? "project" : "personal";
       const where = placeOf(caller, scope);
       const prefs = this.prefsAt(caller.actor_id, where);
-      if (!prefs.form || !prefs.learn_from_work) { skip("这个范围没有允许从工作里学习"); continue; }
+      if (!prefs.enabled || !prefs.form || !prefs.learn_from_work) { skip("这个范围没有允许从工作里学习"); continue; }
       // Only what is really in the person's own words counts as theirs; anything else is an inference.
       const quote = String(proposal.quote ?? "").trim().slice(0, 200);
       const verified = quotedFrom(quote, input.said);
@@ -871,7 +849,7 @@ export class MemoryService {
     const where = placeOf(caller, scope);
     const prefs = this.prefsAt(caller.actor_id, where);
     const threshold = { ...SIGNAL_THRESHOLD };
-    if (!prefs.form || !prefs.learn_from_ui) return { state: "off", count: 0, distinct: 0, candidate_id: null, threshold };
+    if (!prefs.enabled || !prefs.form || !prefs.learn_from_ui) return { state: "off", count: 0, distinct: 0, candidate_id: null, threshold };
     const situation = report.situation ?? {};
     const key = [scope, where.owner, report.signal, report.subject.capability_id, situation.plugin_id ?? "", situation.object_kind ?? ""].join("|");
     const counted = this.ports.ledger.countSignal({ actor_id: caller.actor_id, key, event_id: report.event_id, occurrence: report.occurrence ?? report.event_id, at: this.now().toISOString() });
@@ -909,6 +887,7 @@ export class MemoryService {
       ...[...new Set(options.projects)].flatMap(id => [{ scope: "project" as const, owner: id, project: id },
         ...this.ports.ledger.owners(id).filter(owner => owner.scope === "character").map(owner => ({ scope: "character" as const, owner: owner.owner, project: id }))])];
     for (const where of scopes) {
+      if (!this.prefsAt(caller.actor_id, where).enabled) continue;
       const holder: MemoryCaller = { ...caller, project_id: where.project ?? caller.project_id, person: true };
       let located = await this.located(holder, where.scope, where.owner);
       if (!located.length) continue;
@@ -1016,6 +995,7 @@ export class MemoryService {
     const pair = this.ports.ledger.pairs(caller.actor_id).find(item => item.pair_id === pairId);
     if (!pair) throw memoryErrors.not_found("没有这一对");
     if (pair.state !== "pending") return { resolved: true };
+    this.preferences.assertEnabled(caller.actor_id, { ...pair, project: pair.project_id });
     const holder: MemoryCaller = { ...caller, project_id: pair.project_id ?? caller.project_id };
     if (keep !== "both") {
       const other = keep === "a" ? pair.b : pair.a;
@@ -1100,8 +1080,9 @@ export class MemoryService {
    */
   async importScope(caller: MemoryCaller, scope: MemoryScope, pack: unknown): Promise<{ written: number; skipped: number; refused: number }> {
     personOnly(caller, "只有本人能导入记忆");
-    const entries = readPackage(pack);
     const where = placeOf(caller, scope);
+    this.preferences.assertEnabled(caller.actor_id, where);
+    const entries = readPackage(pack);
     const written: string[] = [];
     let skipped = 0, refused = 0;
     try {

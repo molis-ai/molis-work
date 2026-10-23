@@ -318,6 +318,8 @@ export interface MemoryPair {
 }
 
 export interface MemoryPrefs {
+    enabled: boolean;
+    task_recall: boolean;
     form: boolean;
     auto: boolean;
     learn_from_work: boolean;
@@ -334,6 +336,18 @@ export interface MemoryPrefsView {
     project_id: string | null;
     prefs: MemoryPrefs;
 }
+
+export type MemoryPrefsWriteRequest = {
+    scope?: MemoryScope;
+} & ({
+    prefs: Partial<MemoryPrefs>;
+    preset?: never;
+} | {
+    preset: MemoryPreset;
+    prefs?: never;
+});
+
+export type MemoryPreset = "off" | "manual" | "reviewed" | "assisted";
 
 export interface MemoryRecallRequest {
     query?: string;
@@ -533,10 +547,7 @@ export declare const memoryActions: {
     prefs: ActionDefinition<{
         scope?: MemoryScope;
     }, MemoryPrefsView>;
-    savePrefs: ActionDefinition<{
-        scope?: MemoryScope;
-        prefs: Partial<MemoryPrefs>;
-    }, MemoryPrefsView>;
+    savePrefs: ActionDefinition<MemoryPrefsWriteRequest, MemoryPrefsView>;
     signal: ActionDefinition<MemorySignalReport, MemorySignalResult>;
     pairs: ActionDefinition<{
         scope?: MemoryScope | "all";

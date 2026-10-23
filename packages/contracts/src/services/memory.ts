@@ -165,6 +165,10 @@ export interface MemoryChange {
 
 /** Switches of one scope: the person's (personal memories), or one project's. */
 export interface MemoryPrefs {
+  /** 总开关；关闭仍允许本人管理读取与清除，不允许新写或恢复。 */
+  enabled: boolean;
+  /** 自动为当前任务读取；关闭不影响 Host 确认的显式回忆。 */
+  task_recall: boolean;
   /** 允许记住: off, nothing new is kept and no candidates are made (existing ones are still used). */
   form: boolean;
   /** 自动记住低风险的偏好与经验: off, what would be written automatically waits for the person instead. */
@@ -178,6 +182,12 @@ export interface MemoryPrefs {
   /** Per plugin: whether it may read, and which kinds. Absent: plugins follow `consumers.plugin` with preferences and conventions only. */
   plugins: Record<string, { allowed: boolean; kinds: MemoryKind[] }>;
 }
+
+export type MemoryPreset = "off" | "manual" | "reviewed" | "assisted";
+
+/** Exactly one source of changes; the recipe is not another persisted setting. */
+export type MemoryPrefsWriteRequest = { scope?: MemoryScope } &
+  ({ prefs: Partial<MemoryPrefs>; preset?: never } | { preset: MemoryPreset; prefs?: never });
 
 export interface MemoryPrefsView {
   scope: MemoryScope;
@@ -403,12 +413,12 @@ const changeSchema = { type: "object", properties: {
   rule: nullableText, reason: nullableText, work: workRef, at: text, undoable: { type: "boolean" }, state: { enum: ["active", "undone"] } },
   required: ["change_id", "kind", "memory_id", "scope", "project_id", "text", "by", "rule", "reason", "work", "at", "undoable", "state"], additionalProperties: false };
 const prefsSchema = { type: "object", properties: {
-  form: { type: "boolean" }, auto: { type: "boolean" }, learn_from_work: { type: "boolean" }, learn_from_ui: { type: "boolean" },
+  enabled: { type: "boolean" }, task_recall: { type: "boolean" }, form: { type: "boolean" }, auto: { type: "boolean" }, learn_from_work: { type: "boolean" }, learn_from_ui: { type: "boolean" },
   consumers: { type: "object", properties: Object.fromEntries(MEMORY_CONSUMERS.map(key => [key, { type: "boolean" }])), required: [...MEMORY_CONSUMERS], additionalProperties: false },
   plugins: { type: "object", additionalProperties: { type: "object", properties: { allowed: { type: "boolean" }, kinds: { type: "array", items: kindSchema } }, required: ["allowed", "kinds"], additionalProperties: false } } },
-  required: ["form", "auto", "learn_from_work", "learn_from_ui", "consumers", "plugins"], additionalProperties: false };
+  required: ["enabled", "task_recall", "form", "auto", "learn_from_work", "learn_from_ui", "consumers", "plugins"], additionalProperties: false };
 const prefsInputSchema = { type: "object", properties: {
-  form: { type: "boolean" }, auto: { type: "boolean" }, learn_from_work: { type: "boolean" }, learn_from_ui: { type: "boolean" },
+  enabled: { type: "boolean" }, task_recall: { type: "boolean" }, form: { type: "boolean" }, auto: { type: "boolean" }, learn_from_work: { type: "boolean" }, learn_from_ui: { type: "boolean" },
   consumers: { type: "object", properties: Object.fromEntries(MEMORY_CONSUMERS.map(key => [key, { type: "boolean" }])), additionalProperties: false },
   plugins: { type: "object", maxProperties: 200, additionalProperties: { type: "object", properties: { allowed: { type: "boolean" }, kinds: { type: "array", maxItems: 4, items: kindSchema } }, required: ["allowed"], additionalProperties: false } } },
   additionalProperties: false };
@@ -493,14 +503,14 @@ export const memoryActions = {
     title: "撤销一次记忆变动", description: "自动记住的删除；自动替换的回到旧版本；自动停用的、助理按要求停用的重新启用。之后用户自己说过、认可过或改过的记忆，不能再按自动记住撤销。",
     input_schema: { type: "object", properties: { change_id: memoryId }, required: ["change_id"], additionalProperties: false },
     output_schema: { type: "object", properties: { change: changeSchema }, required: ["change"], additionalProperties: false } } } as ActionDefinition<{ change_id: string }, { change: MemoryChange }>,
-  prefs: { capability_id: "memory.prefs.read", version: 1, operation: "query", action: { ...reads, audiences: person, permissions: [MEMORY_CONFIGURE_PERMISSION],
+  prefs: { capability_id: "memory.prefs.read", version: 2, operation: "query", action: { ...reads, audiences: person, permissions: [MEMORY_CONFIGURE_PERMISSION],
     title: "记忆开关", description: "个人或当前项目的记忆开关：允许记住、自动记住、从工作与界面里学习、谁可以用。",
     input_schema: { type: "object", properties: { scope: scopeSchema }, additionalProperties: false },
     output_schema: prefsViewSchema } } as ActionDefinition<{ scope?: MemoryScope }, MemoryPrefsView>,
-  savePrefs: { capability_id: "memory.prefs.write", version: 1, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_CONFIGURE_PERMISSION],
+  savePrefs: { capability_id: "memory.prefs.write", version: 2, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_CONFIGURE_PERMISSION],
     title: "修改记忆开关", description: "只有本人能改。改动下一次使用时生效。",
-    input_schema: { type: "object", properties: { scope: scopeSchema, prefs: prefsInputSchema }, required: ["prefs"], additionalProperties: false },
-    output_schema: prefsViewSchema } } as ActionDefinition<{ scope?: MemoryScope; prefs: Partial<MemoryPrefs> }, MemoryPrefsView>,
+    input_schema: { type: "object", properties: { scope: scopeSchema, prefs: prefsInputSchema, preset: { enum: ["off", "manual", "reviewed", "assisted"] } }, oneOf: [{ required: ["prefs"], not: { required: ["preset"] } }, { required: ["preset"], not: { required: ["prefs"] } }], additionalProperties: false },
+    output_schema: prefsViewSchema } } as ActionDefinition<MemoryPrefsWriteRequest, MemoryPrefsView>,
   signal: { capability_id: "memory.signals.report", version: 1, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_WRITE_PERMISSION], scheduling: "concurrent" as const,
     title: "报告一次界面操作", description: "界面建议被采纳、忽略、改写或撤销时报告一次。只做计数（按建议与情境聚合，不存内容）；单次操作不会形成记忆，达到门槛也只提出待认可的建议。",
     input_schema: { type: "object", properties: { event_id: { type: "string", minLength: 8, maxLength: 120, pattern: "^[A-Za-z0-9_.:-]+$" },

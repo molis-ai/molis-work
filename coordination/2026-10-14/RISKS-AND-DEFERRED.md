@@ -1,6 +1,6 @@
 # 防腐加速期：高风险、潜在问题与延后事项
 
-状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 22:00 本地时间）。
+状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 22:10 本地时间）。
 - 用户 10-23 定：「优先完成防腐的工程开发，维护一个文档记录高风险和潜在问题，先完成工程开发，后续统一处理重度任务，测试任务」。
 - 又补一句：在有限的槽位里优先开发，不要让 VPN 断掉，维持当前机器负载，剩余事项用文档记清楚。
 - 各会话不直接改这份文件。要记的事，要么发给 ①，要么写在 PR 正文的「本机延后验证」一节，由 ① 收进来。
@@ -119,7 +119,7 @@
 | R-17 | 删除项目时不清 `character_runs`（#1080 之后角色运行记在角色库里）。旧行为也没清，因为会话记录没有 `project_id` | 删掉的项目在角色库里留下运行记录 | 以后让 Characters 在 `ProjectDeletionService` 里声明自己要清的数据，单开一片，BL-385（③ 取号，行在 #1080 的 `fcec150fb`） | ③ | SC 系列之后 |
 | R-18 | main 上 #1041（yijunw0212，VUX 第 101 片）留下几处本地红，CI 产品子集不含这几个文件，所以 main 的 CI 是绿的（`VERIFY-2026-10-23` `0bf6f3502`）。① `tests/host-pages-error-model.test.ts`：`DOCUMENT_STATUS` 精确状态表缺 `original_not_offered: 400`；`apps/local-host/src/artifact-document-import.ts:120` 的 `new Error("not a file")` 被「入口不抛裸 Error」扫描命中。下一行的 catch 已经转成现有错误码，不是已证实的 500 泄漏。② `tests/personal-plugins-review-fixes.test.ts`、`tests/plugin-project-database.test.ts`：Home 存储的精确清单多出 `artifacts`，已核实（`7c6b0657e`）是测试漏项。`artifacts` 是原文件目录，由 Manifest 声明、owner 是 `io.molis.work.artifacts`，生产登记是对的 | 本地跑全量或这几个文件时 main 本身就红，容易被算到在途 PR 头上 | ⑤ 在 batch-1023-5 里也碰上了，多一处 `fill-message`（VUX-40：三句新英文的 "batches" 不跟数字变单复数），已开 [#1082](https://github.com/molis-ai/molis-work/pull/1082)（`fix/main-red-1041`，6 个文件，`full` 为空，CI 绿了就合）。这 4 份已记进 ⑤ 的已知红名单。Codex 在它那台机器上备的同类修复 `feature/host-pages-error-model` 是重复的，① 已在 [#1041](https://github.com/molis-ai/molis-work/pull/1041#issuecomment-6362965357) 请它停掉、下一批直接验 #1082；它多出来的「原件已删或变成目录时拒绝」用例，等 #1082 合了再从 main 单开一个小 PR | ⑤ 修和合；Codex 验 | #1082 合入 |
 | R-19 | 两个安全用例在 Codex 的定向批里红了，还没分类（`7c6b0657e`）。`tests/security-invariants-connector-intent.test.ts`：3 秒内没看到假 gh 的启动标记，可能是连接请求提前失败，也可能是还没起来。`tests/security-invariants-cli-install.test.ts`：第一次安装在 `--version` 探测上就报 `connector.install.failed`，15 秒的探测期限和 16.1 秒的耗时很接近；包装器把超时、spawn 失败和非零退出合成同一个码，分不出是哪一种 | 如果是产品问题，就是安全边界的回归；如果是时序问题，会在别的机器上偶发 | Codex 在干净的 main 基线上跑同一批文件对比，再分类；分不出来就是测试缺陷，要让包装器把三种失败分开报 | Codex | 本批结束前 |
-| R-20 | S0b-2（#1081，`services.connections`）留下的四处，② 报：① 卸载不删 `connector_bindings` 里这个安装的绑定，`install_id` 不变，重装以后沿用原来的账号；② 绑定动作不核这个安装在不在、有没有声明这个槽。没声明的槽发请求时还会按 Manifest 再核一次，所以用不上，但会留下记录；③ 令牌过期的 401 不强制刷新重试，原样交回给插件；④ 让人选账号的界面（S0b-2b）还没做，现在只能经 user 动作绑定 | ① 是卸载以后留着的授权，重装时用户没再确认就接上了原来的账号；②③ 不会越权，但留下死记录，插件得自己处理过期 | ① 和 BL-356（卸载或丢弃数据时清原文件登记）一起做，在卸载那条路上一并清掉；②③ 在 S0b-2b 里收紧：绑定时核安装和槽，过期 401 刷新后重试一次。S0b-2b 由 ② 从自己的 BL-350–369 段取一个号（先查 main 和在途 PR，350–366 里已经有不少被用了），行写进下一片 | ② | W5-06 之后 |
+| R-20 | S0b-2（#1081，`services.connections`）留下的四处，② 报：① 卸载不删 `connector_bindings` 里这个安装的绑定，`install_id` 不变，重装以后沿用原来的账号；② 绑定动作不核这个安装在不在、有没有声明这个槽。没声明的槽发请求时还会按 Manifest 再核一次，所以用不上，但会留下记录；③ 令牌过期的 401 不强制刷新重试，原样交回给插件；④ 让人选账号的界面（S0b-2b）还没做，现在只能经 user 动作绑定 | ① 是卸载以后留着的授权，重装时用户没再确认就接上了原来的账号；②③ 不会越权，但留下死记录，插件得自己处理过期 | ① 和 BL-356（卸载或丢弃数据时清原文件登记）一起做，在卸载那条路上一并清掉；②③ 在 S0b-2b 里收紧：绑定时核安装和槽，过期 401 刷新后重试一次。S0b-2b 取号 **BL-350**（② 查过 main、在途 PR 和 git 历史，都没用过）。BL-350 一行，以及 BL-356 并进「卸载时清 `connector_bindings` 里这个安装的绑定，补一条断言删干净的测试」、优先级提到「中」并写明不排在 S0b-2b 之后，两处都写进 W5-06 那个 PR 的 BACKLOG 改动 | ② | W5-06 之后 |
 
 ## 3. 延后的重活与测试（按 PR）
 

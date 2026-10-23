@@ -510,6 +510,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "第 {n} 轮": "Round {n}",
   "下次发送带上": "Carried with the next message",
   "待发送": "To send",
+  "不支持拖入这种内容": "This kind of content can't be dropped here",
   "上下文窗口": "Context window",
   "已用": "Used",
   "窗口大小暂不可用": "window size not available",

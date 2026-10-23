@@ -78,7 +78,7 @@ export function artifactAnalysisContext(record: ArtifactVersionRecord, goalIds: 
       producer: { plugin_id: record.producer_plugin_id, plugin_version: record.producer_plugin_version,
         binding_signature: record.producer_binding_signature },
       created_at: record.created_at, payload: record.payload, metadata: record.metadata }),
-    goal_ids: relatedGoals, session_id: null,
+    goal_ids: relatedGoals,
   }, request);
 }
 

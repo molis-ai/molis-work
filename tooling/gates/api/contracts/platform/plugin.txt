@@ -745,7 +745,6 @@ export interface ActionSubjectContext {
     content: string;
     truncated: boolean;
     goal_ids: string[];
-    session_id: string | null;
     open?: {
         surface: string;
         id: string;
@@ -4017,9 +4016,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
             };
             uniqueItems: boolean;
         };
-        session_id: {
-            type: string[];
-        };
     };
     required: string[];
     additionalProperties: boolean;
@@ -4065,9 +4061,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN: {
                 minLength: number;
             };
             uniqueItems: boolean;
-        };
-        session_id: {
-            type: string[];
         };
     };
     required: string[];
@@ -4130,9 +4123,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
                 minLength: number;
             };
             uniqueItems: boolean;
-        };
-        session_id: {
-            type: string[];
         };
     };
     required: string[];

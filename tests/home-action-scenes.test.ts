@@ -219,7 +219,7 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
         const row = project.store.db.prepare("SELECT * FROM fixture_home_judgment_notes WHERE id = ?").get((input as { subject_id: string }).subject_id) as { id: string; revision: number; content: string } | undefined;
         if (!row) throw new ActionError("actions.subject_unavailable", "笔记已不存在");
         onRead?.();
-        return subjectContext({ subject: { kind: subject.kind, id: row.id }, revision: String(row.revision), title: "插件自有笔记", content: row.content, goal_ids: [], session_id: null });
+        return subjectContext({ subject: { kind: subject.kind, id: row.id }, revision: String(row.revision), title: "插件自有笔记", content: row.content, goal_ids: [] });
       } }, { ...events, handle: () => ({ source: { surface: "notes", title: "笔记", icon: "note" }, events: [{ event_id: "own-note", subject, occurred_at: now,
         placement: "occurred", category: "personal", title: "插件自有笔记", summary: "", content: "插件私有记录的原始正文", facts: [], needs_attention: true, open: null }] }) }] }; } });
     const repository = new SqlitePluginRuntimeRepository(project.store.db);

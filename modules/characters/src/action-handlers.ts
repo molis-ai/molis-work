@@ -44,7 +44,7 @@ function recordHandlers(drafts: CharactersQuery) {
       const draft = drafts.get(input.subject_id);
       if (!draft || draft.state === "tombstoned") throw new ActionError("characters.not_found", "角色已删除");
       return subjectContext({ subject: { kind: "character", id: draft.character_id }, revision: String(draft.revision), title: draft.title || "未命名角色",
-        content: draft.instructions, goal_ids: [], session_id: null, open: { surface: "characters", id: draft.character_id } });
+        content: draft.instructions, goal_ids: [], open: { surface: "characters", id: draft.character_id } });
     },
   };
 }

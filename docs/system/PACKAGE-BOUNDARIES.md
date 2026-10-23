@@ -88,7 +88,7 @@ F2 创建目标地图里的全部 package。每个 package 必须有：
 不设顶层 `adapters/`：
 
 - SQLite、Filesystem、Blob：`packages/storage/adapters/`
-- PTY、Codex app-server：`horizontal/runtime-host/adapters/`
+- PTY：`horizontal/runtime-host/adapters/`
 - Tauri、Keychain、Updater：`apps/desktop/adapters/`
 - GitHub、Gmail、RSS 等：对应 `plugins/official-integrations/<provider>/`
 

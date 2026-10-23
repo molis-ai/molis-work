@@ -1,9 +1,9 @@
 {
   "giantUnits": 111,
   "giant": {
-    "file apps/local-host/src/assistant/assistant-service.ts": 1868,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1867,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1515,
+      "lines": 1514,
       "methods": 91
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
@@ -968,7 +968,7 @@
     "packages/im-ui/src/browser/controller.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 167,
+  "unknownCastsTotal": 166,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1067,7 +1067,6 @@
     "tests/plugin-private-storage.test.ts": 3,
     "tests/project-catalog-preservation.test.ts": 1,
     "tests/project-policy-save.test.ts": 1,
-    "tests/runtime-host.test.ts": 1,
     "tests/side-panel-assistant-surface.test.ts": 1,
     "tests/system-search-lifecycle.test.ts": 1,
     "tests/typesafe-inference-port.test.ts": 3,
@@ -1081,7 +1080,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 479,
+  "explicitAnyTotal": 475,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1179,7 +1178,6 @@
     "tests/lingguang-actions.test.ts": 1,
     "tests/lingguang-material.test.ts": 1,
     "tests/lingguang-mcp.test.ts": 1,
-    "tests/live-product-integration.e2e.test.ts": 4,
     "tests/mcp-access-browser.test.ts": 1,
     "tests/mcp-action-settings.test.ts": 6,
     "tests/memory-agent-runs.test.ts": 2,
@@ -1307,7 +1305,7 @@
     "orderDependent": [],
     "nested": []
   },
-  "errorSubclassTotal": 27,
+  "errorSubclassTotal": 26,
   "errorSubclasses": {
     "apps/local-host/src/assistant/assistant-coding.ts": 1,
     "apps/local-host/src/browser/cdp.ts": 1,
@@ -1316,7 +1314,6 @@
     "apps/local-host/src/project-deleted-deferred.ts": 1,
     "apps/local-host/src/workspace-git.ts": 1,
     "horizontal/agent-host/src/inference.ts": 1,
-    "horizontal/runtime-host/src/adapters/codex-app-server.ts": 1,
     "packages/contracts/src/platform/plugin-events.ts": 1,
     "packages/contracts/src/platform/plugin-wiring.ts": 1,
     "packages/plugin-sandbox/src/schema.ts": 1,

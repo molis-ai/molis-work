@@ -67,7 +67,7 @@ function register(service: ActionService, state: Source, provider: { provider_id
         const note = state.notes.get((input as { subject_id: string }).subject_id);
         if (!note) throw state.absent?.() ?? new ActionError("actions.subject_unavailable", "笔记已删除");
         if (note.refuse) throw note.refuse instanceof Error ? note.refuse : new ActionError(note.refuse.code, note.refuse.text);
-        return subjectContext({ subject: { kind: "note", id: note.id }, revision: String(note.version), title: note.title, content: note.body, goal_ids: [], session_id: null });
+        return subjectContext({ subject: { kind: "note", id: note.id }, revision: String(note.version), title: note.title, content: note.body, goal_ids: [] });
       } },
     ],
   });

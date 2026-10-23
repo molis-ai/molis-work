@@ -33,7 +33,7 @@ export function createPptSearchHandlers(withStore: <T>(run: (store: PptStore) =>
         throw error;
       }
       return subjectContext({ subject: { kind: PPT_SUBJECT_KIND, id: presentation.id }, revision: String(presentation.version), title: presentation.title,
-        content: pptSearchContent(presentation), goal_ids: [], session_id: null, open: { surface: PPT_PROJECT_PLUGIN_ID, id: presentation.id } });
+        content: pptSearchContent(presentation), goal_ids: [], open: { surface: PPT_PROJECT_PLUGIN_ID, id: presentation.id } });
     }) },
   ];
 }

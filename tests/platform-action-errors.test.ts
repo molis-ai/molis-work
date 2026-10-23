@@ -123,7 +123,7 @@ test("W3-02-G1-03 real Home, Placement and Contextual routes preserve owner deta
     provider: { provider_id: "example-platform", title: "Example", kind: "plugin", plugin_id: "io.molis.work.example.platform", project_id: project.project_id },
     definitions: [reader, mover, offers, write], handlers: [
       { ...reader, handle: () => { return subjectContext({ subject: { kind: "example_note", id: note.id },
-        revision: "1", title: "Example note", content: note.body, project_id: note.project_id, goal_ids: [], session_id: null }); } },
+        revision: "1", title: "Example note", content: note.body, project_id: note.project_id, goal_ids: [] }); } },
       { ...mover, handle: () => { if (failure) throw failure; writes.push("moved"); return { subject: { kind: "example_note", id: note.id }, project_id: target.project_id, revision: "2" }; } },
       { ...offers, handle: () => { throw failure; } },
       { ...write, handle: () => { writes.push("written"); return null; } },

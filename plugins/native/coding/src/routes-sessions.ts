@@ -127,7 +127,7 @@ const ROUTES: RouteMaker[] = [
         }
       }
       return subjectContext({ subject: { kind: "coding_session", id: record.session_id }, revision, title: record.title || "编码会话",
-        content: lines.filter((line, index) => line || index > 1).join("\n"), goal_ids: record.goal_id ? [record.goal_id] : [], session_id: record.session_id,
+        content: lines.filter((line, index) => line || index > 1).join("\n"), goal_ids: record.goal_id ? [record.goal_id] : [],
         open: { surface: "coding", id: record.session_id } });
     });
   },

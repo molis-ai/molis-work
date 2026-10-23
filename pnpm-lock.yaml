@@ -813,9 +813,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      better-sqlite3:
-        specifier: 12.8.0
-        version: 12.8.0
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^9.6.0

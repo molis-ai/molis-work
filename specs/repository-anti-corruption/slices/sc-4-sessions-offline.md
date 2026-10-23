@@ -47,3 +47,13 @@
 - **RAC-217**　钉选、导轨、primitive、标签、全局搜索、画布、目标页里不再有 `sessions`。
 - **RAC-218**　门禁数字只降（对 SC-3 的 #1113 分支）：巨大单元 117 → 112，点名内置插件包名的文件数 317 → 298，宿主入口 `export *` 11 → 10，模块导出的 Repository/Store 8 → 6，以内置插件命名的宿主文件 10 → 9，测试引用包内部 448 → 442，浏览器脚本里的裸 `fetch` 50 → 40，冻结的旧路径插件名单少 `sessions` 一项；`registerProvider(` 行数不变（17，原先在测试里的几行随用例一起删）。`pnpm health:check` 自己保证只降。
 - **RAC-219**　PRODUCT.md、SSOT、HOME-DATA、GLOSSARY 和产品运营文档都写「Sessions 已下线，重做见 BL-177」。
+
+## 4. 收尾（SC-4b，叠在 SC-4 上的第二个 PR）
+
+SC-4 留下的三项没有调用方、没有提供者的残留，单开一个 PR 清掉，不留兼容（`docs/system/CONTRACT-CHANGES.md` 第一阶段：同一个 PR 改掉所有生产者与消费者，PR 里写影响）：
+
+- `horizontal/runtime-host`：删 Codex 会话适配器与路由（`RuntimeHostRouter`、`CodexRuntimeSessionAdapter`、`CodexAppServerTransport`、`assertCompleteRuntimeSessionCapabilities`），合同 `services/runtime-host` 删 `RuntimeSession*` 一组类型与 `RuntimeHostApi`、`RuntimeProviderDescriptor`、`RUNTIME_SESSION_CAPABILITIES`，只留 PTY 的三个类型；`packageDescriptor` 去掉 `runtime.codex.v1`；`tests/codex-transport.test.ts` 与两个只测适配器的用例（`runtime-host.test.ts` 的两条、`live-product-integration` 的 live Codex 一条，它还在调已删的 `/api/sessions`）一起删。
+- `ActionSubjectContext.session_id`：合同接口与输出 schema 里删；所有 `subject.read` 提供者不再返回它（23 个动作的输出形状变了，动作快照的哈希随之变；它们都是 `@1`，不留带 `session_id` 的旧形状）；消费者——助理的「所在会话」一行、首页判断的 `revision` 哈希输入——一并去掉。首页判断的 `revision` 因此对同一份正文换了一个值，已缓存的判断会被当作过期重新算一次，不是数据损坏。
+- `modules/private-work-context/package.json`：`better-sqlite3` 只被 `import type` 引用，从 `dependencies` 去掉（类型仍由 devDependency `@types/better-sqlite3` 提供）；描述字段本来就对。
+
+验收不另立编号：由 `pnpm api:update`、`pnpm actions:update`、`pnpm boundary:check`、`action-contract-snapshot` 与 `runtime-host`、`artifact-subject-context`、`system-search`、`assistant-work-continuity` 等用例证明。

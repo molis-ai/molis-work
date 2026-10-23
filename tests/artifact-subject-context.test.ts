@@ -71,7 +71,7 @@ test("resolveActionSubject discovers the original provider and reads an exact in
   assert.equal(context.title, "第一版原文");
   assert.equal(context.truncated, false);
   assert.deepEqual(context.goal_ids, []);
-  assert.equal(context.session_id, null, "payload locators are not trusted relations");
+  assert.equal("session_id" in context, false, "the subject context has no Session field; payload locators are not trusted relations");
   const body = JSON.parse(context.content);
   assert.equal(body.version, 1);
   assert.deepEqual(body.payload, first.payload);

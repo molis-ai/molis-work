@@ -2,7 +2,7 @@
   "name": "@molis-ai/molis-work-service-runtime-host",
   "version": "0.0.0",
   "private": true,
-  "description": "Runtime provider discovery, start/resume/stream/interrupt/stop, and technical Receipts.",
+  "description": "Local terminal (PTY) process host: spawn, attach, write, resize, kill, bounded replay.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {

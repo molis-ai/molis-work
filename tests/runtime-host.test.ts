@@ -4,73 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import {
-  CodexRuntimeSessionAdapter,
-  MolisWorkPtyHost,
-  RuntimeHostRouter,
-  type RuntimeSessionAdapter,
-  type RuntimeSessionCapabilities,
-} from "@molis-ai/molis-work-service-runtime-host";
-
-const ALL_NATIVE: RuntimeSessionCapabilities = {
-  create: "native",
-  list: "native",
-  discover: "native",
-  read: "native",
-  resume: "native",
-  events: "native",
-  handoff: "native",
-  message: "native",
-};
-
-test("Runtime Host registers a provider, exposes its matrix, and returns honest unsupported results", async () => {
-  const calls: string[] = [];
-  const adapter: RuntimeSessionAdapter = {
-    runtime_id: "fake",
-    capabilities: ALL_NATIVE,
-    async invoke(capability, input) {
-      calls.push(capability);
-      return { status: "ok", source: "native", capability, value: input };
-    },
-  };
-  const host = new RuntimeHostRouter();
-  host.register(adapter);
-
-  assert.deepEqual(host.matrix(["fake", "fake"]), [{ runtime_id: "fake", capabilities: ALL_NATIVE }]);
-  const started = await host.invoke("fake", "create", { prompt: "go" });
-  assert.equal(started.status, "ok");
-  assert.deepEqual(calls, ["create"]);
-
-  const missing = await host.invoke("missing", "resume", {});
-  assert.equal(missing.status, "unsupported");
-  if (missing.status === "unsupported") assert.equal(missing.code, "runtime.capability_unavailable");
-});
-
-test("Codex Adapter translates resume and returns a working event unsubscribe", async () => {
-  const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
-  let listener: ((event: { method: string; params: unknown }) => void) | null = null;
-  const adapter = new CodexRuntimeSessionAdapter({
-    async request(method, params) {
-      calls.push({ method, params });
-      return { accepted: true };
-    },
-    subscribe(next) {
-      listener = next;
-      return () => { listener = null; };
-    },
-  });
-
-  assert.equal((await adapter.invoke("resume", { threadId: "thread-a" })).status, "ok");
-  const received: unknown[] = [];
-  const events = await adapter.invoke("events", { listener: (event: unknown) => received.push(event) });
-  assert.equal(events.status, "ok");
-  assert.equal(typeof listener, "function");
-  (listener as unknown as (event: unknown) => void)({ method: "changed", params: "output" });
-  assert.deepEqual(received, [{ method: "changed", params: "output" }]);
-  if (events.status === "ok") (events.value as { unsubscribe(): void }).unsubscribe();
-  assert.equal(listener, null);
-  assert.deepEqual(calls, [{ method: "thread/resume", params: { threadId: "thread-a" } }]);
-});
+import { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 
 test("Terminal PTY supports attach, input, process exit cleanup, and a fresh recovery spawn", async () => {
   const cwd = mkdtempSync(path.join(os.tmpdir(), "molis-work-runtime-host-"));

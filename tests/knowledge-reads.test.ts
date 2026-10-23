@@ -45,7 +45,7 @@ test("PMAT-06 a reader without offset gives its first page, and the read says th
 
 test("PMAT-06 subjectContext pages from the offset it is given and says where the page starts and how long the text is", () => {
   const whole = "a".repeat(40_000) + "b".repeat(10);
-  const base = { subject: { kind: "page", id: "p" }, revision: "1", title: "t", content: whole, goal_ids: [], session_id: null };
+  const base = { subject: { kind: "page", id: "p" }, revision: "1", title: "t", content: whole, goal_ids: [] };
   assert.deepEqual([subjectContext(base).content.length, subjectContext(base).truncated, subjectContext(base).offset], [32_000, true, undefined]);
   const second = subjectContext(base, { offset: 32_000 });
   assert.deepEqual([second.content.length, second.truncated, second.offset, second.length, second.content.endsWith("b".repeat(10))], [8_010, false, 32_000, 40_010, true]);

@@ -134,7 +134,7 @@ for (const operation of ["link", "convert"] as const) for (const stop of ["cance
     const reader = defineSubjectContextAction("fixture.clip.read", "fixture-clip", "Fixture", [], "home");
     host.actionRegistry().registerProvider({ provider: { provider_id: "fixture-clip", title: "Fixture", kind: "system" }, definitions: [reader],
       handlers: [{ ...reader, handle: async () => { if (holding) { entered.resolve(); await release.promise; }
-        return subjectContext({ subject: { kind: "fixture-clip", id: "original" }, revision: "1", title: "Fixed source", content: "original body", goal_ids: [], session_id: null }); } }] });
+        return subjectContext({ subject: { kind: "fixture-clip", id: "original" }, revision: "1", title: "Fixed source", content: "original body", goal_ids: [] }); } }] });
     const controller = new AbortController(), definition = placementActions[operation];
     const caller: ActionCallContext = { actor_id: "web-user", audience: "user", project_id: null, permissions: [...definition.action.permissions], signal: controller.signal,
       validate_authority: reference => { if (!valid && reference.capability_id === definition.capability_id) throw new ActionError("actions.forbidden", "fixture grant revoked"); } };

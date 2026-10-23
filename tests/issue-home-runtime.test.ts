@@ -9,13 +9,14 @@ import { randomUUID } from "node:crypto";
 import { crc32 } from "node:zlib";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, resolveWebControlToken, LocalActionGatewayClient } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, resolveWebControlToken, LocalActionGatewayClient, captureHostLog, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopWebHost, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { actionMcpToolName } from "@molis-ai/molis-work-app-mcp";
 import { issuesActions, ISSUES_PLUGIN_ID, type Issue } from "@molis-ai/molis-work-plugin-issues";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openReadOnlyHomeSqlite } from "@molis-ai/molis-work-storage";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 const user: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: ["issues:read", "issues:write"] };
 const input = { title: "跨入口记录", type: "bug", description: "  点击后没有反馈\n再次点击才出现。\n" };
@@ -140,7 +141,7 @@ test("ISSUE-01 ISSUE-02 Home discovery starts once, crosses projects, persists, 
 
 test("ISSUE-02 ISSUE-04 revoked installation cannot commit a queued write or keep an old route alive", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "issue-revoke-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), logged: HostLogEntry[] = [], restore = captureHostLog(logged);
   try {
     const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(ISSUES_PLUGIN_ID)!;
     const contribution = platform.runtime.contribution(install.install_id);
@@ -151,12 +152,16 @@ test("ISSUE-02 ISSUE-04 revoked installation cannot commit a queued write or kee
     await entered.promise;
     await platform.runtime.stop(install.install_id);
     platform.runtime.grant(install.install_id, ["issues:read", "storage:private"]); release.resolve(); await refusal;
-    const stale = await oldRoute!.handle({ method: "POST", pathname: "/create", actor_id: LOCAL_PERSON_ACTOR_ID, params: {}, query: {}, body: input });
-    assert.notEqual(stale.status, 200);
+    // BL-411: the Host routes requests to the running activation only. Held directly, the stopped activation's route calls through
+    // its refused client outside every call, so it never answers (it used to answer 403); the Host logs the refused call, and the
+    // list below shows the write did not land.
+    assert.equal(await within(oldRoute!.handle({ method: "POST", pathname: "/create", actor_id: LOCAL_PERSON_ACTOR_ID, params: {}, query: {}, body: input })), PENDING);
+    assert.ok(logged.some(entry => entry.event === "stopped_service_call" && entry.fields?.plugin_id === ISSUES_PLUGIN_ID
+      && entry.fields.install_id === install.install_id && entry.fields.service === "actions" && entry.fields.method === "invoke"));
     platform.runtime.grant(install.install_id, ["issues:read", "issues:write", "storage:private"]); await platform.runtime.start(install.install_id);
     const list = await host.homeActionClient().invoke(user, issuesActions.list, {}) as { items: Issue[] };
     assert.equal(list.items.length, 0);
-  } finally { release.resolve(); await host.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { restore(); release.resolve(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("ISSUE-03 ISSUE-06 ISSUE-07 ISSUE-09 real HTTP and authorized MCP process share Home records without a project", { timeout: 90_000 }, async () => {

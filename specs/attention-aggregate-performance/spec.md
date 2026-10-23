@@ -41,6 +41,8 @@ VUX-27 的原准备只等待 DOM 存在，但插件文档在桥接完成前仍�
 
 ## 验证与交付
 
+主线在 2026-10-23 合入 #1086（`df7a3bdba`），同样修正 VUX-36 的首次轮询测量时点，与本分支的通知准备相冲突。组合保留本分支对种子通知的确认、已读及显式 attention 刷新，同时保留主线在预热与测量中各跨过一次 15 秒自然轮询；45 次切换、GC 和计数阈值不变。组合后的整体构建、11 个文件 72 项测试及包边界通过，包含两个相关浏览器文件、Functions 生命周期、attention 聚合及自动合并的插件数据库用例；证据在 `validation/main1086-{build,tests,boundary}.log`。已启动的 `2b28ca2bb` 全量先跑完，不能将其结果当作新合并提交的通过；下一轮全量等待这一轮结束后再启动。
+
 先整体 `pnpm build`，用独立子进程运行真实 Web Host 与 HTTP 负载客户端，Home、端口与凭据均为临时测试数据，模型关闭。每项目启用 Coding/Goals，准备等待中的会话及已完成会话；查询必须返回应见任务且排除已完成项。基线和修复使用相同种子副本，保留测量与代表性完整回答，每次回答逐项校验，结束关闭自己的进程和数据目录。
 
 定向用例包含 local-host、local-host-close、local-host-actions、security-invariants-home-aggregate、coding-background-tasks、attention-route、插件原调用者/beforeEffect 及受影响调用点。运行 `node scripts/affected-tests.mjs` 与包 README 的必跑集合；`pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm secrets:check` 和 spec 编号检查。共享装配改动的全量按仓库规则由集成/CI 执行；2026-10-23 已获推送、PR 与 CI/评审修复授权，交付时明确未跑项。基线已有失败单独记录，不放宽门禁。

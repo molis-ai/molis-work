@@ -35,10 +35,11 @@ test("VUX-36: moving between finished Assistant works again and again leaves not
     method: 'POST', headers: molisWorkControlHeaders(), body: JSON.stringify({ work_id, state: 'seen' })
   }).then(r => r.ok))).then(results => results.every(Boolean))`), true);
   await refreshAttention();
-  await around(); await around();
+  // Also cross the natural 15s refresh before and during measurement, as well as the explicit refreshes.
+  await around(); await pause(16_000); await around();
   const before = await domCounters(command, sessionId);
   await refreshAttention();
-  for (let i = 0; i < 15; i++) await around();
+  for (let i = 0; i < 15; i++) { await around(); if (i === 7) await pause(16_000); }
   const after = await domCounters(command, sessionId);
   t.diagnostic(`45 moves: ${JSON.stringify(before)} → ${JSON.stringify(after)}`);
   assert.equal(await evaluate("localStorage.getItem('molis.assistant.current')"), works[2]);

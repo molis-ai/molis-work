@@ -15,10 +15,11 @@ import { gitActions, gitManifest, GIT_ACTIONS } from "@molis-ai/molis-work-plugi
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDefinition, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_WORKSPACE_CHANGED_EVENT, type PluginDefinition, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DEMO_PROJECT_ID, HOST_PROVIDER_ID, LocalProjectDatabase, MolisWorkLocalHost, PluginHostExecutor, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 /** The parts of the routes' JSON answers this test reads; a key a route does not send fails the assertion that reads it. */
 interface Reply {
@@ -109,9 +110,9 @@ test("a Runtime plugin reaches an action only when its Manifest consumes it: as 
     assert.deepEqual(await withoutGrant.discover(), [], "its own action needs the read permission it was never granted");
     assert.equal(reads.host, 1);
 
-    // A stopped instance holds nothing.
+    // A stopped instance holds nothing: outside every call (BL-411) the refusal throws nothing, and the call never answers.
     await runtime.stop(reader.install_id);
-    await assert.rejects(client.invoke(readFile, query), { code: "actions.forbidden" });
+    assert.equal(await within(client.invoke(readFile, query)), PENDING);
     assert.equal(reads.host, 1);
 
     // The client does not depend on having an action of one's own: a plugin that only consumes the Host action reaches it,
@@ -289,8 +290,10 @@ test("Files, Git and Coding read the linked folder through the one action in a r
 
 test("a Home that installed Files, Git and Coding before the read permission existed follows the new Manifest and holds it, without asking", () => {
   for (const manifest of [filesManifest, gitManifest, codingManifest] as readonly PluginManifest[]) {
-    // The Manifest as the Home last saw it: no read permission, no read dependency on any action, no read id consumed.
+    // The Manifest as the Home last saw it: no read permission, no read dependency on any action, no read id consumed, and no
+    // subscription to the Host's workspace broadcast, which needs that permission (BL-379).
     const before: PluginManifest = { ...manifest, permissions: manifest.permissions.filter(item => item.permission !== "workspace:read"),
+      ...(manifest.events ? { events: { ...manifest.events, subscribes: manifest.events.subscribes.filter(item => item.event_type_id !== HOST_WORKSPACE_CHANGED_EVENT) } } : {}),
       actions: (manifest.actions ?? []).map(({ action, ...rest }) => {
         const { required_actions: _required, ...kept } = action;
         return { ...rest, action: { ...kept, permissions: action.permissions.filter(permission => permission !== "workspace:read") } };

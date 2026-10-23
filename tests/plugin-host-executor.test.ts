@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, PluginHostExecutor, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -57,7 +57,9 @@ test("W3-07-6-02: an unknown Runtime plugin cannot revive the removed developer 
   }
 });
 
-test("Host gives a real Plugin private storage, Artifact exchange and revocable UI across restart and failed stop", async () => {
+test("Host gives a real Plugin private storage, Artifact exchange and revocable UI across restart and failed stop", async t => {
+  const entries: HostLogEntry[] = [];
+  t.after(captureHostLog(entries));
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-host-"));
   const file = join(directory, "board.db");
   seedDemoBoard(file);
@@ -117,11 +119,11 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
     await runtime.reportCrash(installId);
     assert.deepEqual(ui.list(), []);
     assert.deepEqual(pluginActions(store, DEMO_PROJECT_ID).registry.registry.descriptors(), [], "crash must release SDK actions");
-    assert.throws(() => old.storage!.get("visits"), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
+    assert.equal(old.storage!.get("visits"), undefined, "BL-411: outside every call a crashed activation's handle is refused and answers nothing");
     await runtime.recover(installId);
     assert.equal(contexts[1]!.services!.storage!.get("visits"), "2");
     assert.deepEqual(contexts[1]!.services!.artifacts.read({ artifact_id: "hosted-note", version: 1 })!.payload, { visits: 1 });
-    assert.throws(() => old.artifacts.read({ artifact_id: "hosted-note", version: 1 }), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
+    assert.equal(old.artifacts.read({ artifact_id: "hosted-note", version: 1 }), undefined, "nor after the recovery started another activation");
 
     failStop = true;
     await assert.rejects(runtime.uninstall(installId), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
@@ -129,7 +131,10 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
     assert.equal(runtime.contribution(installId), null);
     assert.deepEqual(ui.list(), []);
     assert.deepEqual(pluginActions(store, DEMO_PROJECT_ID).registry.registry.descriptors(), [], "failed stop must release SDK actions");
-    assert.throws(() => contexts[1]!.services!.storage!.set("visits", "bad"), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
+    // BL-411: the activation whose stop failed is over too: outside every call its write is refused and throws nothing.
+    assert.equal(contexts[1]!.services!.storage!.set("visits", "bad"), undefined);
+    assert.deepEqual(entries.filter(entry => entry.event === "stopped_service_call" && entry.fields?.method === "set").map(entry => entry.fields?.service), ["storage"],
+      "the Host noted the refused write");
     await runtime.uninstall(installId);
     assert.equal(runtime.get(installId).state, "uninstalled");
     assert.equal(artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, "hosted-note").length, 2);
@@ -202,7 +207,7 @@ test("compatible Host execution and crash recovery use the implementation versio
       contribution: { contribution_id: "example.compatible", surface: "main", model: null } }).html, "<p>2.0.0</p>");
     const previous = contexts.at(-1)!;
     await runtime.reportCrash(installed.install_id);
-    assert.throws(() => previous.services!.storage!.get("visits"), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
+    assert.equal(previous.services!.storage!.get("visits"), undefined, "BL-411: outside every call a crashed activation's handle is refused and answers nothing");
     await runtime.recover(installed.install_id);
     assert.equal(contexts.at(-1)!.version, "2.0.0");
     assert.equal(contexts.at(-1)!.services!.storage!.get("visits"), "3");

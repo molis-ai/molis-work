@@ -268,7 +268,7 @@ test("W5-01-JMC-02 real configuration rejects stopped, revoked and replaced inst
       assert.equal(existsSync(join(f.home, "jelly", "preferences.json")), false);
       providerStore(f.home, store => assert.equal(store.get("jelly-text"), null));
       withConnectorConnections(f.home, store => store.assertTarget(connection.connection_id, "model-api", "https://first-save.example/v1"));
-      assert.throws(() => f.contexts[0]!.services!.model!.configuration!.selection());
+      assert.equal(f.contexts[0]!.services!.model!.configuration!.selection(), undefined, `${change}: the stopped activation's handle answers nothing (BL-411)`);
     } finally { await f.host.close(); }
   }
 });

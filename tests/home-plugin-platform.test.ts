@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, MolisWorkLocalHost, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { issuesActions, ISSUES_PLUGIN_ID } from "@molis-ai/molis-work-plugin-issues";
 import { type ActionDefinition, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -13,6 +13,7 @@ import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/a
 import { AgentHost, registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
 import { CapabilityRegistry } from "@molis-ai/molis-work-kernel";
 import { deferred, grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 test("W3-06-F-01 W3-06-F-02 concurrent discovery, scenes and HTTP share the Home registration and genuine project scopes", { timeout: 60_000 }, async t => {
   const probe = homeProbe(), { host, origin, request, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
@@ -138,6 +139,8 @@ test("W3-06-F-02 local web discovers a scene-only Home installation by actual sc
 });
 
 test("W3-06-F-02 a Home database comes from the trusted definition entry, never an identity, path or another owner's library", async t => {
+  const entries: HostLogEntry[] = [];
+  t.after(captureHostLog(entries));
   const probe = homeProbe("dbprobe");
   const declaration: PluginDatabaseDeclaration = { store_name: "dbprobe-notes", version: 1, schema: "CREATE TABLE notes (text TEXT NOT NULL);",
     read_permission: "dbprobe:read", write_permission: "dbprobe:write" };
@@ -169,7 +172,9 @@ test("W3-06-F-02 a Home database comes from the trusted definition entry, never 
   const lookalike = homeProbe("dbprobe", "1.1.0");
   await platform.runtime.upgrade({ install_id: record.install_id, definition: lookalike.definition, grants: probe.permissions });
   assert.equal(lookalike.contexts.at(-1)!.services!.database, undefined, "the new object cannot inherit the old entry's library");
-  await assert.rejects(currentDatabase.transaction(async () => {}, tx => tx.run("INSERT INTO notes VALUES ('old')")), { code: "actions.plugin_unavailable" });
+  // BL-411: the upgrade stopped the activation that was given this library: outside every call its write is refused and never answers.
+  assert.equal(await within(currentDatabase.transaction(async () => {}, tx => tx.run("INSERT INTO notes VALUES ('old')"))), PENDING);
+  assert.deepEqual(entries.filter(entry => entry.event === "stopped_service_call").map(entry => [entry.fields?.service, entry.fields?.method]), [["database", "transaction"]], "the Host noted the refused write");
 });
 
 test("W3-06-F-02 a fixture cannot take the Host's Issue library or declare an invalid or duplicate Home store", async () => {
@@ -196,6 +201,8 @@ test("W3-06-F-02 a fixture cannot take the Host's Issue library or declare an in
 });
 
 test("W3-06-F-07 shared Home operations preserve POST protection, revision and the original upload limit", { timeout: 60_000 }, async t => {
+  const entries: HostLogEntry[] = [];
+  t.after(captureHostLog(entries));
   const probe = homeProbe(), { host, request, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   const { platform, install } = await grantHomeProbe(host, probe);
   const route = (operation: string) => `/api/plugins/${probe.id}/${operation}`;
@@ -233,7 +240,9 @@ test("W3-06-F-07 shared Home operations preserve POST protection, revision and t
     const refused = await request(`${prefix}${route(operation)}`, operation === "state" ? {} : { method: "POST", body: {} });
     assert.deepEqual([refused.status, (await refused.json()).code], [404, "actions.missing"]);
   }
-  assert.throws(() => old.services!.storage!.set("note", "after uninstall"), { code: "actions.forbidden" });
-  await assert.rejects(old.services!.actions!.invoke(probe.save, { text: "after uninstall" }), { code: "actions.forbidden" });
+  // BL-411: outside every call the uninstalled activation's handles are refused and throw nothing: the write gives undefined, the call never answers.
+  assert.equal(old.services!.storage!.set("note", "after uninstall"), undefined);
+  assert.equal(await within(old.services!.actions!.invoke(probe.save, { text: "after uninstall" })), PENDING);
+  assert.deepEqual(entries.filter(entry => entry.event === "stopped_service_call").map(entry => [entry.fields?.service, entry.fields?.method]), [["storage", "set"], ["actions", "invoke"]], "the Host noted both refusals");
   assert.deepEqual(platform.runtime.list(), facts, "lookup and rejected control requests preserve grants, generation, state and install facts");
 });

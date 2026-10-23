@@ -1,3 +1,4 @@
+import { pluginInteraction } from "./plugin-interaction.js";
 import { pluginPagesFor } from "./plugin-page-authority.js";
 import { pluginPageActions } from "./plugin-page-actions.js";
 import { pluginPageFiles } from "./plugin-page-files.js";
@@ -117,7 +118,7 @@ export class HomePluginExecutor implements PluginExecutor {
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       terminal = pluginTerminalFor(this.options.home, manifest, authorized, ownerFiles?.client, assertActive);
       const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
-        ui: ui.client, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(files ? { files: files.client } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
+        ui: ui.client, interaction: pluginInteraction, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(files ? { files: files.client } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });

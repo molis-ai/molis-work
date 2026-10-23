@@ -3468,3 +3468,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 8. **Artifacts 去插件身份（PG-077～079）**：归 W5-01「平台事实」一族，统筹排片。
 9. **W5-11 OAuth 搬迁**：连接器的供应商设置与 OAuth 搬进官方集成插件；搬不了的登记成例外要写理由，统筹审定。
 10. **Alchemist、插件创作台的删除时点**：仍按用户 10-21 的话，防腐收尾时再问用户（红线）。
+
+### 10-23 18:35 UTC 统筹
+
+- #1084 已合（`3f715261f`）：PG-062 收口，#1115 里标已做（#1024、#1049、#1067、#1071、#1079、#1084）；#1115 合了 main，PG-060 记在途片（#1098、#1107、#1112；BL-387、388、430、Goals S11 未开）。
+- #1117 红只有一个原因：新测试 `tests/security-invariants-trusted-user-action.test.ts` 没被 `SECURITY-INVARIANTS.md` 点名；已叫 `ac-kernel` 补 S-58 行并合 main。
+- 用户 10-23：独立开发片可以派给 Codex。新开 `CODEX-TASKS.md`：C1 W5-13 收尾、C2 W5-16 Home 快照、C3 W5-10 的官方集成与横向服务（设计系统那份留给 `ac-giants`）。号段沿用原派单；Codex 的 PR 一轮与二轮都由 `ac-review` 做，修意见由 Codex 自己做。排队会话 `ac-errors`、`ac-snapshot` 没收到过派单，归档、删工作树。

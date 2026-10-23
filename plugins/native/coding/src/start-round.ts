@@ -28,46 +28,58 @@ import { continuedBody } from "./waits.js";
 import { codingWriterAssignments } from "./writers.js";
 import { codingFailure, codingText } from "./words.js";
 
+const SETTLED = ["completed", "failed", "stopped", "cancelled", "reconcile-required"];
+
 // A round started here is followed until it settles, so the session's recorded state — which the directory and the
-// cross-project background list read — stays right while no page is open. One follower per session; a newer round
-// replaces it, and a Host that stops answering (the plugin closing) ends it.
-const follow = (a: CodingActivation, api: Capabilities, execution: CodingExecution,
-  sessionId: string, session: { runtime_id: string; session_id: string }, run: { session_id: string; run_id: string }, workspaceId: string) => {
-  const { context, projectId, stopped, following } = a;
-  const token = Symbol(sessionId);
-  following.set(sessionId, token);
-  const current = () => !stopped.signal.aborted && following.get(sessionId) === token;
-  // What a write of the follower waits for. The follower runs outside any action (it outlives the one that started the round), so
-  // the platform has no original call to check for it: the only currency it has is its own, that the activation is alive and no
-  // newer round has taken the session over. Throwing ends the follower, as the checks around each write did before.
-  const stillFollowing = async () => { if (!current()) throw new Error("这一轮的跟随已结束"); };
-  // The activation's follower, not the request's: it outlives the action that started the round.
-  a.detach(() => void (async () => {
+// cross-project background list read — stays right while no page is open. The follower is the activation's `follow` job
+// (PG-038): kept by the call that asks for the Run, before it asks, so no Run is accepted without one, and begun once that
+// call has recorded its receipt. It holds the installation's own authority, never the call's: a call cancelled or revoked once
+// its Run was accepted still has that Run followed (R-CODING-RECEIPT-02). One follower per session; a newer round's replaces
+// it, and the plugin stopping ends it (its signal ends the wait under way, and each write asks the job first).
+const follow = (a: CodingActivation, execution: CodingExecution, sessionId: string, session: { runtime_id: string; session_id: string }, workspaceId: string) => {
+  const { context, projectId, following } = a;
+  if (!context.services?.background) throw new Error("宿主没有提供后台作业（services.background），跟不住这一轮，不开始");
+  let begin!: (accepted: { run: { session_id: string; run_id: string }; receipted: boolean } | null) => void;
+  const accepted = new Promise<Parameters<typeof begin>[0]>(resolve => { begin = resolve; });
+  const job = context.services.background.keep("follow", async control => {
+    const round = await accepted;
+    if (!round) return;
+    const api = context.services!.capabilities!, { run } = round;
     let since: string | null = null;
-    while (current()) {
-      const waited: { version: string; view: AgentRunView } = await api.invoke(agent.waitRun, [session, run, since, 25_000], { signal: stopped.signal });
-      if (!current()) return;
+    for (;;) {
+      const waited: { version: string; view: AgentRunView } = await api.invoke(agent.waitRun, [session, run, since, 25_000], { signal: control.signal });
+      control.signal.throwIfAborted();
       const view = waited.view;
       since = waited.version;
       const record = execution.sessions.get(projectId, sessionId), next = sessionState(view);
-      if (next !== record.state) await execution.sessions.setState(stillFollowing, projectId, sessionId, next, record.updated_at);
-      if (["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(view.phase)) {
-        // Notification only: terminal does not mean every tool succeeded or that a file changed.
-        // The activation-owned events client rejects publication after stop/revocation.
-        try { context.services?.events?.publish({ event_type_id: CODING_RUN_UPDATED_EVENT, type_version: 1,
-          payload: { workspace_id: workspaceId, session_id: session.session_id, run_id: run.run_id, phase: view.phase } }); }
-        catch { /* A missed UI hint must never retry or reclassify an already executed Run. */ }
-        if (!current()) return;
-        // A round that ended parked (waiting for an answer or a command) shows as waiting from here on.
-        if (view.phase !== "reconcile-required" && await a.waits.openWaitOf(execution.sessions.get(projectId, sessionId)).catch(() => undefined)) {
-          if (!current()) return;
-          await execution.sessions.setState(stillFollowing, projectId, sessionId, "queued", new Date().toISOString());
-          a.waits.wakeLoop(api, execution, session.runtime_id);
-        }
-        break;
+      if (next !== record.state) await execution.sessions.setState(control.beforeEffect, projectId, sessionId, next, record.updated_at);
+      if (!SETTLED.includes(view.phase)) continue;
+      // Notification only: terminal does not mean every tool succeeded or that a file changed.
+      // The activation-owned events client rejects publication after stop/revocation.
+      try { context.services?.events?.publish({ event_type_id: CODING_RUN_UPDATED_EVENT, type_version: 1,
+        payload: { workspace_id: workspaceId, session_id: session.session_id, run_id: run.run_id, phase: view.phase } }); }
+      catch { /* A missed UI hint must never retry or reclassify an already executed Run. */ }
+      // A round that ended parked (waiting for an answer or a command) shows as waiting from here on.
+      if (view.phase !== "reconcile-required" && await a.waits.openWaitOf(execution.sessions.get(projectId, sessionId)).catch(() => undefined)) {
+        await execution.sessions.setState(control.beforeEffect, projectId, sessionId, "queued", new Date().toISOString());
+        // A call refused after its Run was accepted has that Run's result recorded, and nothing set off in its name: the loop that
+        // would start the next round is not asked for here (§12.10).
+        if (round.receipted) a.waits.wakeLoop(api, execution, session.runtime_id);
       }
+      return;
     }
-  })().catch(() => undefined).finally(() => { if (following.get(sessionId) === token) following.delete(sessionId); }));
+  });
+  return {
+    /** The Run was accepted: follow it from here. `receipted`: the call that asked for it recorded its receipt. */
+    begin(run: { session_id: string; run_id: string }, receipted: boolean) {
+      following.get(sessionId)?.cancel();
+      following.set(sessionId, job);
+      void job.done.catch(() => undefined).finally(() => { if (following.get(sessionId) === job) following.delete(sessionId); });
+      begin({ run, receipted });
+    },
+    /** No Run was accepted: the job ends having written nothing. */
+    cancel() { begin(null); job.cancel(); },
+  };
 };
 
 /**
@@ -75,9 +87,8 @@ const follow = (a: CodingActivation, api: Capabilities, execution: CodingExecuti
  * done. The same checks run either way; nothing about a queued round is decided at the moment it starts.
  */
 export const startRound = async (a: CodingActivation, record: CodingSessionRecord, body: Record<string, unknown>, actorId: string,
-  api: Capabilities, execution: CodingExecution,
-  // A round woken by the activation's own loop (an answer arrived, a wait ended) has no call to answer to; it answers to the activation.
-  beforeWrite: CodingBeforeWrite = Object.assign(async () => a.stopped.signal.throwIfAborted(), { assert_current: () => a.stopped.signal.throwIfAborted() })) => {
+  // A round woken by the activation's own loop (an answer arrived, a wait ended) answers to that loop's job (wake-loop.ts).
+  api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
   const { context, projectId } = a;
   // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
   const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "coding.field.continued-run", 200);
@@ -182,13 +193,13 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     queued: "carry",
     budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
     model_selection: { provider_id: model.provider_id, model_id: model.model_id }, ...(effort ? { reasoning_effort: effort } : {}), skills: methodSelection(body.methods ?? []), action_tools, mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
-  let run;
-  try { run = await start(history); }
-  catch (error) {
+  const follower = follow(a, execution, record.session_id, session, workspace.workspace_id);
+  let run, receipted = false;
+  try { run = await start(history).catch(async error => {
     if (history !== "session" || !record.runtime_session_id || (error as { code?: string }).code !== "CONTEXT_BUDGET_EXCEEDED") throw error;
     history = "digest"; historyReason = "完整的对话历史已放不进模型窗口";
-    run = await start("digest");
-  }
+    return start("digest");
+  }); } catch (error) { follower.cancel(); throw error; }
   try {
     await beforeWrite(); beforeWrite.assert_current();
     if (history === "digest") context.services!.storage!.delete(`compact-next:${record.session_id}`);
@@ -208,13 +219,14 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     const continued = typeof body.task === "string" && body.task.startsWith(CONTINUATION_MARKER) && typeof lastStart?.origin_task === "string";
     context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
       ...(effort ? { reasoning_effort: effort } : {}),
-      workspace_id: body.workspace_id, actor_id: actorId,
+      workspace_id: body.workspace_id,
       origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000) }));
+    receipted = true;
     return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
       ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
   } finally {
-    // R-CODING-RECEIPT-01/02: accepted work keeps its activation follower even when the caller cannot finish its receipt.
-    follow(a, context.services!.capabilities!, execution, record.session_id, session, run.ref, workspace.workspace_id);
+    // R-CODING-RECEIPT-01/02: accepted work keeps its follower even when the caller cannot finish its receipt.
+    follower.begin(run.ref, receipted);
   }
 };
 

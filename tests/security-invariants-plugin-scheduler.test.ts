@@ -167,7 +167,7 @@ test("PG-039 RAC-206: the Host's project clock has no handler of its own: a job 
   const db = new Database(":memory:");
   const later = new Date("2026-01-02T00:00:00.000Z"), clock = scheduleServiceFor(db, () => later);
   try {
-    // Before: the Host built its clock with an empty in-process index, which any code in the Host could register a handler on.
+    // The clock no longer receives an in-process index; its former empty index was not exposed, so these refusal results already held.
     assert.throws(() => clock.register({ plugin_id: "io.molis.work.example.host-handler", capability_id: "host.wakeup", object_ref: "o", title: "t", due_at: due }),
       { code: "scheduler.handler_missing" });
     assert.equal(clock.list().length, 0, "nothing was stored");

@@ -21,7 +21,7 @@
 
 ## 接入与边界
 
-不拥有 cron 表达式、Automation rule、Feed 来源意图或 Action 参数。插件不能替别人登记：`schedule.*` 的主人是调用的插件，由 Scheduler 的处理器从可信调用（`HostCapabilityInvocation.plugin`）读取，输入里没有 `plugin_id`，写了也不读，任何输入形状都改不了；没有插件身份的调用（含 Host 自己的客户端）和已停止的安装一律拒绝。Host 的插件端口不认识 `schedule.` 这个名字。没有安装绑定、也没有进程内 handler 的任务不能挂闹钟（`scheduler.handler_missing`）。
+不拥有 cron 表达式、Automation rule、Feed 来源意图或 Action 参数。插件不能替别人登记：`pluginSchedulerFor` 从激活使用的 Manifest 取 `plugin_id`，绑定当前安装、代次与声明的唤醒动作；写入器覆盖登记输入中的主人字段，调用方不能改用别人的身份。读取、写入和到点投递都复查安装与授权，已停止的安装拒绝。生产插件只用 `services.scheduler`，宿主项目时钟不带进程内索引；没有安装绑定的直接 `register()` 被拒绝（`scheduler.handler_missing`）。进程内 handler 的测试路径仍由 BL-481 负责删除。
 
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用它的执行生命周期）。
 

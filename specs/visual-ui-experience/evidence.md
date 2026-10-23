@@ -22,7 +22,7 @@
 | VUX-10 | 工程 | `board-assistant.e2e` | 未走 | 未做 | 执行级证据（模型实际读了什么）只到「已附加/可用」 |
 | VUX-11 | 工程 | `assistant-usage.e2e` | 未走 | 未做 | 账户额度与重置要 Prologue 提供 |
 | VUX-12 | 工程 | `assistant-chooser-open-result.e2e`、`assistant-late-view.e2e`、`assistant-open-object.e2e`、`missing-item-feedback.e2e` | 第一次（第八十九片：选择页的结果打开） | 未做 | 无权限、部分成功 |
-| VUX-13 | 工程 | `assistant-process-info.e2e`、`board-assistant.e2e`、`soft-workbench-refinement` | 未走 | 未做 | Coding 时间线的折叠 |
+| VUX-13 | 工程 | `assistant-process-info.e2e`、`board-assistant.e2e`、`soft-workbench-refinement`、`coding-process-fold.e2e` | 未走 | 未做 | 每行的影响摘要（要改合同）、按计划步骤或子任务分组 |
 | VUX-14 | 人工 | `assistant-rich-lists.e2e`、`soft-workbench-refinement`、`stream-text.e2e` | 第一次（第八十九片：流式与重开一字不差） | 未做 | 模糊量与时长的观感 |
 | VUX-15 | 工程 | `stream-text.e2e` | 第一次（第八十九片：回答的列表） | 未做 | — |
 | VUX-16 | 工程 | `assistant-attachment-chips.e2e`、`composer-steady.e2e`、`field-fit.e2e`、`form-question-reflow.e2e`、`lingguang-actions`、`soft-workbench-refinement` | 第一次（第八十九片：草稿在失败与重载后仍在） | 未做 | IM 长高后的位置（#919） |

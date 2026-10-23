@@ -3481,3 +3481,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - #1118 一轮可合，等集成批。#1120（R5）开出，交 `ac-review`；`ac-feed-fn` 归档、工作树删。
 - #1119（BL-395）只做了行数/字节上限与拒递归 CTE，耗时与内存改记 BL-480「要用户定」——与用户 10-23「这一轮做完子进程执行」不符，已退回作者在同一 PR 补子进程执行（S-59）、删 BL-480。
 - 派出 `ac-clients-1`（W5-03/04，Todo 样板起）。在跑的 Claude 开发线：ac-kernel、ac-sc3、ac-sandbox-sched、ac-clients-1；排队：ac-giants（只剩设计系统）。
+
+### 10-23 19:00 UTC 统筹
+
+- #1121（R8 第 1 批）开出，交 `ac-review`。#1122（PG-051 设计稿）开出：Q1 定 (b)（登记库记住各安装最近的声明、启动按未运行恢复、卸载才删；未运行的只显示和预改，不给方法、不进 `startAuthority`；新版本整份替换；库结构按 CONTRACT-CHANGES 不留兼容），Q2 定推荐（创作台 Agent 主人 id 不变、来源改平台自己的、不迁数据）；RAC-195 前要先把走目录回落的调用方逐个改成给声明。
+- `ac-kernel` 还没修 #1117 的 S-58（消息在它队列里），已三次提醒；顺序定为 #1117 → PG-051 P1 → P2 → R8 余下批次。

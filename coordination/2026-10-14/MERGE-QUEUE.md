@@ -44,6 +44,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 21 | [#1131](https://github.com/molis-ai/molis-work/pull/1131) | BL-481：删 `PluginWakeupIndex` 与无安装的 `register()`，测试搬到按安装的拥有者 | **叠在 #1123 上**，#1123 先合 | `full` 为空 | `ac-review` 排队审 |
 | 22 | [#1132](https://github.com/molis-ai/molis-work/pull/1132) | W5-03/04 Issues 片：客户端打包成 TS、稳定翻译键；`issues.js` +3,605 B（统筹已放行，`APPROVED_CEILINGS` 一条） | 和 #1129 的 `page-assets.mjs`/`page-assets.json` 会撞相邻行，后合的解 | `full` 非空（assembly、deletes-code，77 文件），进下一批 | 头 `6c5baf809`；`ac-review` 排队审 |
 | 23 | [#1133](https://github.com/molis-ai/molis-work/pull/1133) | privileges.md 状态第 2 批：PG-027、PG-052 标已做，PG-012/022/088/089 写清剩下的（统筹的账） | — | `full` 为空 | 纯文档；Verify 绿就可合，不必等评审 |
+| 24 | [#1134](https://github.com/molis-ai/molis-work/pull/1134) | PG-017 组设计稿：沙箱插件经 broker 拿宿主服务（只加 slices 文档） | — | `full` 为空 | 统筹已审定（[评论](https://github.com/molis-ai/molis-work/pull/1134)）；纯文档，Verify 绿即可合 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 收尾时合 main、转 ready |
 
 新开的开发片 PR 由统筹按依赖插进本表。

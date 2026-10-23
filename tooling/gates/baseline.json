@@ -741,10 +741,9 @@
     "apps/local-host/src/project-host.ts#register-provider": 4,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 7,
+  "hybridPluginsTotal": 4,
   "hybridPlugins": {
     "coding#host-files": 1,
-    "git#host-files": 3,
     "shelf#host-files": 3
   },
   "pluginOutsideMentionsTotal": 336,

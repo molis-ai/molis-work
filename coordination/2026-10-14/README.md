@@ -3119,3 +3119,10 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - `interaction-no-crosstalk.e2e` AC-05 首跑超时、重试过了，先观察。
   - `write-checkers-settings.e2e` PA-40/42/43 重试后还红，记成 R-25。
 - R-25 的处理：① 推断是测试按 Esc 前没等对话框打开。交 Codex 先拿 main 和批次对比，再决定从 main 修还是开叠加 PR；如果是产品回归，交回 ①。合并不等这一条，批次里的 PR 都没碰设置页和对话框的代码。
+
+### 10-23 21:37（13:37 UTC） ② 开 #1098（2b），③ 的 W5-06 片改完，#1093 门禁转绿
+
+- ② 开了 [#1098](https://github.com/molis-ai/molis-work/pull/1098)（W5-06 第 2b 片），叠在 #1087 上：插件在 Manifest 的视图里自己声明分组、新建入口、首页起点和设置图标，宿主删掉几张手写表。改了 contracts 和 SDK，要进集成批次。只有一处变严：视图的 `icon` 不是字符串就拒绝。② 下一片做 `prefixLocalLinks`。
+- ③ 照四条改完 W5-06 余项第一片（本地 `0c0c0039d`），等 #1075 合入、SC-3 推完再推。
+- ⑩ 把 #1093 推到 `5f4675143`，门禁改动单独成一个提交，Package boundaries 转绿了，已交 ⑤ 进集成批次。
+- ⑤：#1089、#1092 进了合并队列；#1095 评审过，CI 一绿就排队；#1096 评审过，可以合；VUX-36 回到已知红名单，等 batch-9 再看。

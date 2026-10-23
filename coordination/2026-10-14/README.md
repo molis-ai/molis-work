@@ -3513,3 +3513,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 用户 10-23：PR 有点积压，减一条开发线。停 `ac-clients-1`：做完手上的 Jelly 片就停，等 #1129（样板）评审出结论、合入后再续 Images、Cognia、灵光、R11（评审的做法层面意见可以直接用上，省返工）。在跑的开发线剩 3 条：`ac-kernel`、`ac-sc3`、`ac-sandbox-sched`。
 - 更正 19:40 给 `ac-sc3` 的安排：BL-485/486/488 不叠第三层，本地做好、等 #1113 合入且 #1130 改投 main 后再开 PR。
 - #1134（PG-017 设计稿）统筹审定，入队；PG-022 改归 `ac-sandbox-sched`；新开 `ASK-USER-NOT-DO.md` 攒要问用户的不做项。
+
+### 10-23 20:40 UTC 统筹
+
+- #1076（Shelf S3）已合（`38111ce61`）。`ac-review` 已审完大部分：可合 #1131、#1130、#1137；修后可合 #1129、#1117、#1121、#1132、#1138、#1119；#1123、#1107 Codex 二轮可合。剩 #1139、#1083 已发给它。
+- #1138 的 2 条挡合并由作者 `ac-kernel` 修（统筹代留认领）；`ac-sc3` 派 Goals S4（PG094-06）。在跑的开发线：`ac-kernel`、`ac-sandbox-sched`、`ac-sc3`；`ac-clients-1` 暂停。
+- `LINES.md` 加 §5：`ac-clients-1` 恢复时要带的 #1129 做法层面 6 条，以及 BL-455 (c) 指向字体皮肤语言书 §6.1。

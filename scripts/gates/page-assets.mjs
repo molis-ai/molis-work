@@ -238,10 +238,10 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Onboarding without limits (slice 99, user 2026-10-22): the 资料导入 sends a non-text file over 6 MB as the raw body of the 成果库's
+  // Onboarding without limits (slice 100, user 2026-10-22): the 资料导入 sends a non-text file over 6 MB as the raw body of the 成果库's
   // original route, its name in a header. 26516 → 26900 (+384).
   "/assets/molis-work-knowledge.js": [26516, 26900],
-  // Onboarding without limits (slice 99): the shared request client sends a Blob as a raw body. It is bundled into the
+  // Onboarding without limits (slice 100): the shared request client sends a Blob as a raw body. It is bundled into the
   // workbench and the isolated plugin frame: 1186577 → 1186715 (+138) and 187730 → 187841 (+111).
   "/assets/molis-work-workbench.js": [1186577, 1186715],
   "/assets/molis-work-plugin-frame.js": [187730, 187841],

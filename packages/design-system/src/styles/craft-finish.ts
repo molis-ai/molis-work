@@ -928,7 +928,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-rich pre code { padding: 0; background: none; }
   ${ASSIST} :is(.assistant-activity, .assistant-round-status, .assistant-muted) { margin: 0; font-size: 12px; color: var(--muted); } ${ASSIST} .assistant-round > .mw-receipt { align-self: flex-end; max-width: 88%; margin-top: -8px; }
   ${ASSIST} :is(.assistant-activity, .assistant-recovery > li)[data-state="failed"] { color: var(--danger); }
-  ${ASSIST} .assistant-round-status[hidden] { display: none; }
+  ${ASSIST} .assistant-round-status[hidden] { display: none; } ${ASSIST} .assistant-round-status[data-retry-until] { font-variant-numeric: tabular-nums; }
   ${ASSIST} .assistant-round-status[data-phase="failed"] { color: var(--danger); }
   /* What needs the person: a question to answer, or an exact effect to allow. */
   ${ASSIST} .assistant-card { display: flex; flex-direction: column; gap: 8px; padding: 12px 12px; border-radius: 10px; box-shadow: 0 0 0 1px var(--line-strong); }

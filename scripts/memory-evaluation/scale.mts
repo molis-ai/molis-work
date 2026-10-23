@@ -3,8 +3,8 @@ import { performance } from "node:perf_hooks";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { MEMORY_KINDS, type MemoryPrefs } from "@molis-ai/molis-work-contracts/services/memory";
-import type { AgentMemoryCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { MEMORY_BASELINE, memoryEvaluationPreflight } from "./baseline.mjs";
+import { evaluationPerson } from "./originals.mjs";
+import { currentEvaluationSource, memoryEvaluationB2Preflight } from "./baseline.mjs";
 import { memoryEvaluationEnvironment, type EvaluationArm } from "./replay.mjs";
 
 /** Frozen before measurement. Synthetic volumes, not a distribution observed in any real Home. */
@@ -13,36 +13,22 @@ export const MEMORY_SCALE_PLAN = Object.freeze({
   replicas: 3,
   repeatedReads: 9,
   query: "项目安装依赖和运行检查的约定是什么",
-  caller: { actor_id: "synthetic-person", project_id: "project-a", consumer: "agent" as const },
+  caller: evaluationPerson("project-a", "coding"),
   distribution: "four current kinds; half personal, one quarter project-a, one quarter project-b (rounding for small libraries)",
   queryDensity: "all entries contain the query topic: dense-match synthetic stress, not representative relevance",
 });
 type Environment = Awaited<ReturnType<typeof memoryEvaluationEnvironment>>;
-type ListObservation = { scope: string; owner: string; status: "completed" | "failed"; entries: number | null; error: string | null };
-const person = (project_id: string | null) => ({ actor_id: "synthetic-person", project_id, consumer: "ui" as const, person: true });
+const person = (project_id: string | null) => evaluationPerson(project_id, "coding");
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 
-/** Observes the public SDK adapter port, including calls that throw. Delegation preserves production behavior. */
-export function observeScaleLists(memory: AgentMemoryCapability) {
-  const original = memory.list;
-  const observations: ListObservation[] = [];
-  memory.list = async (scope, owner) => {
-    const item: ListObservation = { scope, owner, status: "failed", entries: null, error: null };
-    observations.push(item);
-    try { const rows = await original.call(memory, scope, owner); item.status = "completed"; item.entries = rows.length; return rows; }
-    catch (error) { item.error = errorText(error); throw error; }
-  };
-  return { observations, restore() { memory.list = original; } };
-}
-
-export async function observeScaleRecall(env: Environment, lists: ReturnType<typeof observeScaleLists>, index: number) {
-  const before = lists.observations.length;
+export async function observeScaleRecall(env: Environment, index: number) {
+  const before = env.observations.length;
   const started = performance.now();
   let result: Awaited<ReturnType<Environment["memory"]["recall"]>> | null = null, error: string | null = null;
   try { result = await env.memory.recall(MEMORY_SCALE_PLAN.caller, { query: MEMORY_SCALE_PLAN.query }); }
   catch (failure) { error = errorText(failure); }
   const latencyMs = performance.now() - started;
-  const calls = lists.observations.slice(before);
+  const calls = env.observations.slice(before);
   return {
     index, phase: index === 0 ? "first-recall-after-runtime-reopen" : "repeated-recall",
     status: error ? "failed" : "observed", error, latencyMs, state: result?.state ?? null,
@@ -79,26 +65,24 @@ async function seedScaleHome(size: number) {
 
 async function measureScaleArm(home: string, arm: EvaluationArm, prefs: ScopePrefs[]) {
   let env: Environment | undefined;
-  let observer: ReturnType<typeof observeScaleLists> | undefined;
   const samples: Array<Awaited<ReturnType<typeof observeScaleRecall>>> = [];
   try {
     env = await memoryEvaluationEnvironment(undefined, { seeds: [], homeDirectory: home });
-    // Restore the original effective B1 preferences; a preceding B0 must not change the next arm.
+    // Restore the original effective B2 preferences; a preceding B0 must not change the next arm.
     for (const item of prefs) env.memory.savePrefs(person(item.project), item.project ? "project" : "personal", item.prefs);
     await env.prepare(arm);
     if (!env.adapter.memory) throw new Error("SDK memory capability unavailable");
-    observer = observeScaleLists(env.adapter.memory);
-    for (let index = 0; index <= MEMORY_SCALE_PLAN.repeatedReads; index++) samples.push(await observeScaleRecall(env, observer, index));
+    for (let index = 0; index <= MEMORY_SCALE_PLAN.repeatedReads; index++) samples.push(await observeScaleRecall(env, index));
     return { arm, status: samples.some(sample => sample.status === "failed") ? "failed" : "observed", error: null, samples };
   } catch (error) { return { arm, status: "failed", error: errorText(error), samples }; }
-  finally { observer?.restore(); await env?.close(false); }
+  finally { await env?.close(false); }
 }
 
 export async function measureMemoryScaleReplica(size: number, replica: number) {
   const seeded = await seedScaleHome(size);
   try {
     const arms = [];
-    const order: EvaluationArm[] = replica % 2 === 0 ? ["B0", "B1"] : ["B1", "B0"];
+    const order: EvaluationArm[] = replica % 2 === 0 ? ["B0", "B2"] : ["B2", "B0"];
     for (const arm of order) arms.push(await measureScaleArm(seeded.home, arm, seeded.prefs));
     return { size, replica, actualSize: seeded.size, distribution: seeded.distribution, seedDurationMs: seeded.seedDurationMs, order, arms };
   } finally { await rm(seeded.home, { recursive: true, force: true }); }
@@ -117,24 +101,25 @@ export async function measureMemoryScale() {
     try { rows.push(await measureMemoryScaleReplica(size, replica)); }
     catch (error) { failures.push({ size, replica, error: errorText(error) }); }
   }
-  const summaries = MEMORY_SCALE_PLAN.sizes.flatMap(size => (["B0", "B1"] as const).map(arm => {
+  const summaries = MEMORY_SCALE_PLAN.sizes.flatMap(size => (["B0", "B2"] as const).map(arm => {
     const samples = rows.filter(row => row.size === size).flatMap(row => row.arms.filter(item => item.arm === arm).flatMap(item => item.samples));
     const observed = samples.filter(sample => sample.status === "observed");
     return { size, arm, errors: samples.length - observed.length, first: latencySummary(observed.filter(sample => sample.index === 0).map(sample => sample.latencyMs)),
       repeated: latencySummary(observed.filter(sample => sample.index > 0).map(sample => sample.latencyMs)),
       replicaRepeated: rows.filter(row => row.size === size).map(row => ({ replica: row.replica, ...latencySummary(row.arms.filter(item => item.arm === arm).flatMap(item => item.samples.filter(sample => sample.index > 0 && sample.status === "observed").map(sample => sample.latencyMs))) })) };
   }));
-  return { schema: "molis-memory-scale-v1", recordedAt: new Date().toISOString(), baseline: MEMORY_BASELINE, plan: MEMORY_SCALE_PLAN,
+  return { schema: "molis-memory-scale-v2", recordedAt: new Date().toISOString(), source: currentEvaluationSource(), measurement: "MemoryService explicit recall (not SDK task recall)", plan: MEMORY_SCALE_PLAN,
     runtime: { node: process.version, platform: process.platform, arch: process.arch }, modelCalls: 0,
-    limitations: ["合成规模假设，不是任何真实Home的统计；不测语义质量", "首次读取在新Runtime重新打开后测量，包含该路径的hydrate；不宣称操作系统文件缓存冷启动", "计时包含生产recall和账本回执，不含Runtime启动、造数、配置；不等同最终Agent Context延迟", "list调用/返回量可观察；底层存储扫描量unknown，不能互相替代", "3个独立副本的本机波动不能建立跨设备稳定SLA；B2及新SDK旧配方对照未执行"],
+    limitations: ["合成规模假设，不是任何真实Home的统计；不测语义质量", "首次读取在新Runtime重新打开后测量，包含该路径的hydrate；不宣称操作系统文件缓存冷启动", "计时包含生产recall和账本回执，不含Runtime启动、造数、配置；不等同最终Agent Context延迟", "使用当前可信本人管理读身份保留四类完整规模分布；当前授权链不同于旧B1，不能归因全部延迟差为检索实现", "保留原显式召回5ms阈值；未测新SDK task召回时延，不以该值替代", "list调用/返回量可观察；底层存储扫描量unknown，不能互相替代", "3个独立副本的本机波动不能建立跨设备稳定SLA；新SDK旧配方归因对照未执行"],
     rows, failures, summaries };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const args = process.argv.slice(2);
-  if (args.length !== 2 || args[0] !== "--out") throw new Error("usage: scale.mts --out <new report path>");
-  const preflight = memoryEvaluationPreflight(fileURLToPath(new URL("../../", import.meta.url)));
-  if (!preflight.matchesFrozenBaseline) throw new Error("当前构建或生产代码不匹配冻结B1；未测量");
+  const [mode, ...args] = process.argv.slice(2);
+  if (mode !== "--b2") throw new Error("usage: scale.mts --b2 --out <new report path>");
+  if (args.length !== 2 || args[0] !== "--out") throw new Error("usage: scale.mts --b2 --out <new report path>");
+  const preflight = memoryEvaluationB2Preflight(fileURLToPath(new URL("../../", import.meta.url)));
+  if (!preflight.ready) throw new Error("当前 B2 构建/安装/dirty 状态未通过预检；未测量");
   const report = { preflight, ...await measureMemoryScale() };
   await writeFile(args[1]!, `${JSON.stringify(report, null, 2)}\n`, { flag: "wx" });
   if (report.failures.length || report.rows.some(row => row.arms.some(arm => arm.status === "failed"))) process.exitCode = 1;

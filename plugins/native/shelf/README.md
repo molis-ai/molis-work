@@ -24,7 +24,7 @@
 | [src/settings-ui.ts](src/settings-ui.ts) | 六段用途堆叠的设置页 |
 | [src/terminal-client.ts](src/terminal-client.ts) | 「对话」的终端井，接 `/pty` |
 
-可对照 [apps/workbench/src/goals-page-renderer.ts](../../../apps/workbench/src/goals-page-renderer.ts) 与 [src/route-handlers.ts](src/route-handlers.ts)。
+可对照 [apps/workbench/src/shell-page-renderer.ts](../../../apps/workbench/src/shell-page-renderer.ts) 与 [src/route-handlers.ts](src/route-handlers.ts)。
 
 ## 接入与边界
 

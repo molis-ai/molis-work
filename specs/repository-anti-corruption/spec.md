@@ -1373,7 +1373,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | 19 个构建期装配的内置插件（BL-080，含 BL-088） | 仍然成立 [已确认] | 见 R-01 | W4-04、W5-01、W5-02、W6-01；BL-088 随 W5-01 |
 | 首屏渲染全部插件的隐藏界面（PMR-07） | 未验证 [未验证] | #150 加了部分按需加载（`lifetime.whenVisible` 用在 `coding-companions.ts`、`plugin-event-recovery.ts`）；当时的 293 KB HTML、6041 个节点没有重量 | W1-07（页面资源预算门禁给出数字）、W5-05 |
 | 空闲轮询 | 已做（W4-09 #539、#540，W4-10） | 宿主的周期任务登记在 `periodic-tasks.ts`（W4-09）；页面上等着人的事并成一个读 `/api/attention`、每 15 秒且只在可见时读，Board 游标检查只在 Goals 面跑，空闲首页每分钟请求数由 `tests/idle-request-budget.e2e.test.ts` 守住不超过 6（W4-10，见上方记录）；BL-116 已删 | W4-09、W4-10 |
-| 渲染后改写 HTML 里的链接（`prefixLocalLinks`） | 仍然成立 [已确认] | 定义在 `apps/workbench/src/renderer.ts:407`，`renderer.ts:299/309/313` 与 `goals-page-renderer.ts:138/330` 在渲染后改写 HTML 串 | 补记：并入 W5-06 |
+| 渲染后改写 HTML 里的链接（`prefixLocalLinks`） | 仍然成立 [已确认] | 定义在 `apps/workbench/src/renderer.ts:407`，`renderer.ts:299/309/313` 与 `goals-page-renderer.ts:138/330` 在渲染后改写 HTML 串 | 补记：并入 W5-06。第 1 片没动（文件已改名 `shell-page-renderer.ts`）：真正的改法是生成链接时就带上作用域，不在渲染后改写，留 W5-06 后面一片 |
 | Home 级插件的数据分项目时的搜索来源模式 | 仍然成立 [已确认] | `skills/molis-plugin-dev/search.md`（63 行）没有写这种模式 | 补记：并入 W6-03（Skill 与手册统一更新） |
 | 147 个被三条以上线改过的热点文件 | 仍然成立 [引用] | roadmap §4.7：`apps/workbench/src/i18n/en.ts` 23 次、`web-request.ts` 21 次、`web-catalog.ts` 14 次、`project-host.ts` 12 次等；`tooling/gates/baseline.json` 自身也成了冲突热点 | W1-13 已做（枢纽文件与排时段，`PARALLEL-DEVELOPMENT.md` 第 2、5 节；归属见 `.github/CODEOWNERS`，#314）；W5-02（声明式登记）、W6-04（重量） |
 | 翻译键重复与覆盖（PMR-04、PMR-14） | 仍然成立，且变大；全角冒号一处已修 [已确认] | `apps/workbench/src/i18n/*.ts` 5,516 个键里 192 个重复、100 个英文不同（AST 数，口径与 10-03 不同；后写的覆盖先写的）；`assistant-island.ts:2114` 原来的 `L("正在看") + "："` 已改成一句带参数的译文 `L("正在看：{title}", { title })`（英文 `Viewing: {title}`，W2-02；`tests/assistant-island-script.test.ts`）；同类写法（译文加全角冒号拼接）还有 66 处，在 10 个文件里（`assistant-island.ts` 37 处、`settings-memory.ts` 9、`plugins/native/todo/src/client.ts` 8 等），英文界面都会显示全角冒号；没有重复键门禁；`tests/i18n.test.ts` 只查 61 个手写文件、不在 CI | 决定 #16（换成稳定键，先做一个插件样板）：W1-08、W5-03（拼接冒号的 66 处并进 W5-03，换键时一并改成带参数的整句）；BL-118 |
@@ -3176,7 +3176,7 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 10. **插件经 `services.actions` 调自己的动作时**，保留外层调用的受众。`allowModelDownload` 只认 Host 发的路由 control，或本人的直接调用（②）。
 11. **Cognia 读用户指定的本机目录**，要一项带同意流程的平台服务，任何插件都走它。这是信任边界的变化，② 设计时先弹窗问用户。
 12. **RUNTIME-MIGRATION §5.4 第 3 条**与 10-18 冲突，以 10-18 为准（① 改文档）。
-13. **Characters 的界面落点**：处理器进 `modules/characters`，界面由 ui-host 或宿主登记的工作台面提供（推荐；② 做 W5-06 时确认）。
+13. **Characters 的界面落点**：处理器进 `modules/characters`，界面由 ui-host 或宿主登记的工作台面提供（推荐；② 做 W5-06 时确认）。② 10-23 确认：界面写成宿主登记的 UI 贡献，surface 声明目标 slot，经 UiHost `mountDeclared` 挂，不进工作台的手写行、不另开挂载转接文件。
 14. **X-5 与「Goals 按标准迁」的读法**：
     - Goals 的事实只有 Goals 一个主人。`modules/goals` 和 `governance-collaboration` 只有 Goals 在用，它们的表随 Goals 插件声明，由 X-5 项目库服务按声明建，表名和数据不动。
     - 10-18 那一行说「仍归 Module」的，是多方共用的 Attention、Feed、Sources、Signals 等。
@@ -3313,7 +3313,7 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 | R-13 | 未解决主检出工作状态：本次看到 main `9da180833` 与未提交他人成果，不 reset/clean；当前隔离复查与受测树不依赖它。主检出整理遵循独立归属与授权 |
 | R-14 | 数量已显著缩小：I6 门禁 318 个入库 `.impeccable` 文件且只降，历史 1,085 不能当现状；保留文件仍按引用规则审查，W1-23/W6-06 |
 | 皮肤 | 已完成：W5-05 按 `quiet-paper`、`personal-shell`、`personal-workbench-v2`、`-v3`、`calm-desktop` 的顺序一片删一层，五层都已删（第 1～5 片，见 §W4-12 下的记录） |
-| Goals UI | 部分：旧转接仍有，通用挂载器和外壳 renderer 改名仍 W5-06；不能把外壳错移进业务插件 |
+| Goals UI | 部分：W5-06 第 1 片（2026-10-23）删了 11 个挂载转接文件，通用挂载器（UiHost `mountDeclared`、`createSurfaceRenderers`）接上，外壳 renderer 改名 `shell-page-renderer.ts`；剩 `goals-document-routes.ts`、`goals-fragment-renderer.ts`、`goals-planning-request.ts` 三个读路由与片段组合（不是挂载转接），按 Manifest `views` 挂载的通道是第 2 片；不能把外壳错移进业务插件 |
 | Server | 按用户决定保留 IM/讨论；表归属与 Home 登记已有修复。实验的独立启动器不包装成生产入口，不删产品讨论 |
 | N-01 | 已确认遗留第二铃铛/占位已清，真实事件恢复用例消费现行唯一注意力入口；后续新 UI 以现行产品决定为准 |
 | N-02 | 已确认仅一份当前 Prologue tgz，旁置来源/摘要与历史补丁记录有门禁；不等于 N-14 上游接入完成 |

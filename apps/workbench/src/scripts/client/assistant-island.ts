@@ -4,7 +4,7 @@ import { assistantCodeColours, createAssistantCodeGrow } from "./assistant-code-
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
-import { ASSISTANT_PROCESS_FACTORY_SCRIPT } from "./assistant-process.js";
+import { ASSISTANT_PROCESS_FACTORY_SCRIPT, ASSISTANT_RETRY_FACTORY_SCRIPT } from "./assistant-process.js";
 import { ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT } from "./assistant-context-strip.js";
 import { ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT } from "./assistant-attachments.js";
 import { ASSISTANT_MENTION_FACTORY_SCRIPT } from "./assistant-mention.js";
@@ -414,7 +414,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return node;
   };
   const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
-  const proc = (${ASSISTANT_PROCESS_FACTORY_SCRIPT})({ L, el, keyed, setText, placer: (parent) => placer(parent), glyph: (name) => glyph(name), spinner: (state) => spinner(state) }), activityLine = proc.activityLine;
+  const proc = (${ASSISTANT_PROCESS_FACTORY_SCRIPT})({ L, el, keyed, setText, placer: (parent) => placer(parent), glyph: (name) => glyph(name), spinner: (state) => spinner(state) }), activityLine = proc.activityLine, retries = (${ASSISTANT_RETRY_FACTORY_SCRIPT})({ L, root: island, setText });
   /* Questions, action cards and next steps come drawn by the Host (in the person's language); the page binds them with the
      shared client. A node is redrawn only when its key changes, so what the person is typing stays put. */
   const ixClient = host.interaction, fills = new Map(); // fills: words from the composer into a card's draft (R4, assistant-send.ts)
@@ -625,11 +625,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       }
       put(box);
     }
-    const status = keyed(node, "data-entry", "status", () => el("p", "assistant-round-status"));
-    const phase = round.phase;
+    const status = keyed(node, "data-entry", "status", () => el("p", "assistant-round-status")), phase = round.phase;
     status.dataset.phase = phase; status.dataset.mwState = ({starting:'starting',running:'running',compacting:'running',failed:'failed',stopped:'stopped',cancelled:'cancelled',paused:'paused','reconcile-required':'verify',unknown:'verify'})[phase] || 'idle';
     const ownStop = round.stop_reason && round.stop_reason !== "已停止" ? round.stop_reason : "";
-    setText(status, phase === "running" || phase === "starting" || phase === "compacting" ? L("正在处理…")
+    const retry = (phase === "running" || phase === "starting") && round.retry_wait ? round.retry_wait : null; retries.mark(status, retry);
+    setText(status, retry ? retries.line(status) : phase === "running" || phase === "starting" || phase === "compacting" ? L("正在处理…")
       : phase === "failed" ? L("这一轮没有完成") + (round.stop_reason ? "：" + round.stop_reason : "")
       : phase === "stopped" || phase === "cancelled" ? (ownStop || L("这一轮已停止，已经发生的操作不会被撤回"))
       : phase === "paused" ? L("已暂停，点“继续”接着做")
@@ -2042,5 +2042,5 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   return { isOpen: () => Boolean(panel && !panel.hidden),
     /** Where a new work goes, as the page changes what it is about: a project, or null for the person's own space. */
     setProject: (next) => { project = next && next.id ? next : null; if (!getWork()) nextScope = project ? "project" : "personal"; paintAim(); paintSum(); },
-    dispose: () => { follower.stop(); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
+    dispose: () => { follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
 }`;

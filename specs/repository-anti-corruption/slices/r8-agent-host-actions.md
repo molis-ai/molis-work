@@ -118,23 +118,20 @@ PR 等 #1121 合入再开，不开第三层。
 - 输入里带回身份字段（`plugin_id`、`actor_id`……）：schema 拒绝（`actions.input_invalid`）。
 - `cancelSubagent`：取消别人会话里的子任务被拒。
 
-### 9.3 规矩没盖到的，请统筹裁定
+### 9.3 规矩没盖到的（统筹 10-23 裁）
 
 1. **大视图的输出 schema。**
-   - `AgentRunView`（`agent-host-run-view.ts`，内含步骤板、事件、冻结的角色与工具、审查等）和 `AgentSessionView` 嵌套很深，跨四五个文件的类型。照第 1 批的口径把每个字段列全、`additionalProperties: false`，要写几百行 schema；Runtime 每加一个字段，动作派发就会以 `actions.output_invalid` 拒掉整条读取。
-   - 我建议：
-     - 顶层列必填字段与类型；
-     - 嵌套的大对象只约束 `type: "object"`，不禁多出的字段；
-     - 小而稳的类型照第 1 批写全：`AgentSessionRef`、`AgentRunHandle`、`AgentCheckpoint`、`AgentRecoveryReport`、命令输出。
-     - 理由写进 schema 旁的注释。
-   - 另一种是全列。请定。
-2. **`AgentStartRequest` 去掉身份字段是合同改动**（规矩 1 的直接结果）。
-   - 动作输入用一个新的 schema，不收这四个字段；
-   - TypeScript 类型 `AgentStartRequest` 还被 Runtime 适配器当作「处理器补全身份后交给 Runtime 的请求」用。我打算：
-     - 拆成插件给的 `AgentStartInput`，不带身份；
-     - 宿主补全后的 `AgentStartRequest` 保持现在的形状，只在宿主和适配器之间用。
-   - `createSession` 同理。请定是否这样拆。
-3. **plugin-builder 的 Manifest** 在 consumes 里点名了 `createSession`、`readSession`、`startRun`、`readRun`、`controlRun`，但代码里没有经插件调用它们（创作台是平台能力，经 `createBuilderAgent`）。
-   - 转成只给插件的动作后，这几行仍然合法；
-   - 但如果创作台不再是插件（PG-051 Q2），这几行应删。
-   - 我建议这一批不动，留给创作台去插件化那一片。
+   - 顶层字段列全、`required`、`additionalProperties: false`。
+   - 嵌套对象只列仓库里调用方（Coding 与其他调用点）真读的字段，其余只约束 `object`。
+   - 只约束 `object` 的地方，动作合同快照看不出形状变化，所以只列真用的，不把没人读的字段塞进 schema。
+   - 收紧记为 BL-470。去掉的条件：仓库外第一个插件读嵌套字段，或 `validateResult`（PG-047）开启。
+   - 小而稳的类型照第 1 批写全：`AgentSessionRef`、`AgentRunHandle`、`AgentCheckpoint`、`AgentRecoveryReport`、命令输出。
+2. **身份字段拆开。**
+   - 插件给的 `*Input` 不带身份字段，就是动作的输入 schema。
+   - 宿主补全后的 `Request` 只在宿主与适配器之间用，不进 SDK 公开 API。
+   - 公开 API 有变化就 `pnpm api:update`，在 PR 里写对调用方的影响。
+3. **plugin-builder 的 Manifest** 点名的 `createSession`、`readSession`、`startRun`、`readRun`、`controlRun` 这一批不动。
+   - 这是用户 10-21 定的「创作台先绕开、以后重做」（BL-377）。
+   - Manifest 里这 5 行 consumes 随创作台重做或删除一起去掉。这 5 条描述符照样转成动作（id 不变，consumes 仍然合法，Coding 照常用）；typed 计数只降不升，门禁不受影响。
+
+先做不受这三条影响的：`readCommandOutput`、`listCheckpoints`、`inspectRecovery`、`recoverRun`、`controlRun`、`cancelSubagent`。

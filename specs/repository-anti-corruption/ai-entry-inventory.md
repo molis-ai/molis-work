@@ -165,7 +165,7 @@ Issue 的页面录入（#396、#420）原先不是新的入口：页面开一件
 | --- | --- | --- | --- |
 | EX-3 | Shelf「对话」里的外部终端 Agent | `modules/shelf/src/runtimes.ts` 的 `SHELF_ENGINES`（grok、claude、gemini、opencode、cursor-agent、codex、kimi、codebuddy、qwen）与自定义运行时，只用 `spawnSync` 探测本机有哪些（`--help` 只在显式作业时探）；对话本身是 `plugins/native/shelf/src/terminal-client.ts` 接 `/pty` 的终端，用户和所选 Agent 在终端里说话 | 暂缓；模块里的注释写明「Manual terminal discovery. Automatic recipes use the independent AI port」，自动配方走 TX-12（Prologue），两者互相独立。[已确认] |
 | EX-4 | 角色的「用本机 Agent 运行」 | `modules/characters`（CHR-1，2026-10-22 前是 `plugins/native/characters`）：`characters.launch` + 角色导入读 `~/.codex`、`~/.claude`、`~/.cursor`、`~/.grok` 等（只读扫描） | 暂缓。[已确认] |
-| EX-5 | Sessions 的终端与外部 Runtime 会话 | `plugins/native/work/src/terminal`、`horizontal/runtime-host/src/adapters/terminal-pty.ts` | 暂缓；用户在终端里自己运行的 Agent。[已确认] |
+| EX-5 | Sessions 的终端与外部 Runtime 会话 | `apps/workbench/src/terminal`（SC-3 从 Work 搬来）、`horizontal/runtime-host/src/adapters/terminal-pty.ts` | 暂缓；用户在终端里自己运行的 Agent。[已确认] |
 | EX-6 | agent-host 的 `CliAgentAdapter`（`claude`） | 已删（原 `agent-host-composition.ts:87`、`:101`） | **已删（2026-10-10，W2-18 决定 1，#364）**：原先默认注册、没有内置调用方；编号保留不重排。见 §1 第 5 项与 §7 第 1 项。[已确认] |
 
 ### 3.9 开发用环境钥匙

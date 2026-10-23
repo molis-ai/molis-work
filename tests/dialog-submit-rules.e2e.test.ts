@@ -59,7 +59,7 @@ const FORM = String.raw`(() => { const layer = document.querySelector('[data-ov-
   const buttons = [...layer.querySelectorAll('button')].filter((el) => shown(el) && !/^(取消|关闭|放弃|Cancel|Close)$/.test((el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, '').trim()) && !el.hasAttribute('data-dialog-close'));
   const primary = buttons.filter((el) => el.matches('.mw-btn--primary, .mw-btn--danger, [type=submit]')).at(-1) ?? buttons.at(-1) ?? null;
   if (primary) primary.dataset.vuxPrimary = '';
-  return { fields: fields.length, firstIsInput: fields[0]?.tagName === 'INPUT', primary: primary ? (primary.getAttribute('aria-label') || primary.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 30) : null }; })()`;
+  return { fields: fields.length, buttons: [...layer.querySelectorAll('button')].filter(shown).length, firstIsInput: fields[0]?.tagName === 'INPUT', primary: primary ? (primary.getAttribute('aria-label') || primary.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 30) : null }; })()`;
 
 /** What a person types: a different word in each field. */
 const TYPE = String.raw`(() => [...document.querySelectorAll('[data-ov-layer] [data-vux-field]')].map((el, index) => {
@@ -186,7 +186,7 @@ function focusLoop({ evaluate, command, sessionId }: Browser, seen: { dialogs: s
   };
 }
 
-interface Submitted { lines: string[]; twice: string[]; lost: string[]; submitted: number; refusedWithInput: number }
+interface Submitted { lines: string[]; twice: string[]; lost: string[]; submitted: number; refusedWithInput: number; confirms: string[] }
 
 /**
  * Chrome answers every request that changes something with an error, so nothing the walk presses (a delete button in a dialog it
@@ -223,10 +223,12 @@ async function submitAudit(browser: Browser) {
   const requests = await refusingChanges(browser);
   const press = (type: "mousePressed" | "mouseReleased", point: { x: number; y: number }) => command("Input.dispatchMouseEvent", { type, ...point, button: "left", clickCount: 1 }, sessionId);
   const enter = (type: "keyDown" | "keyUp") => command("Input.dispatchKeyEvent", { type, key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, ...(type === "keyDown" ? { text: "\r" } : {}) }, sessionId);
-  const result: Submitted = { lines: [], twice: [], lost: [], submitted: 0, refusedWithInput: 0 };
+  const result: Submitted = { lines: [], twice: [], lost: [], submitted: 0, refusedWithInput: 0, confirms: [] };
 
   const read: Read = async (where, inspect = evaluate, point) => {
-    const form = await inspect<{ fields: number; primary: string | null; firstIsInput: boolean } | null>(FORM);
+    const form = await inspect<{ fields: number; buttons: number; primary: string | null; firstIsInput: boolean } | null>(FORM);
+    // A confirmation has nothing to type and at most a close mark, Cancel and the one button that goes ahead; a chooser (a grid of templates) is not one.
+    const confirmation = !form?.fields && (form?.buttons ?? 9) <= 3;
     if (!form || !form.primary) return;
     const typed = await inspect<string[]>(TYPE);
     await pause(150);
@@ -247,6 +249,18 @@ async function submitAudit(browser: Browser) {
         }
         await pause(500);
         const sent = requests.sent();
+        // VUX-29: a dialog with nothing to type (a delete's "are you sure") is still open and busy while its request is out, and
+        // Esc then does not pretend to cancel what is on its way.
+        const during = confirmation && sent.length ? await inspect<{ open: boolean; busy: boolean }>(AFTER) : null;
+        if (during) {
+          if (!during.open) result.lost.push(`${where} (${how}): the confirmation closed before the Host answered ${sent.join(", ")}`);
+          else {
+            if (!during.busy) result.lost.push(`${where} (${how}): the confirmation does not show it is sending ${sent.join(", ")}`);
+            await Promise.all((["rawKeyDown", "keyUp"] as const).map((type) => command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 }, sessionId)));
+            await pause(150);
+            if (!(await inspect<{ open: boolean }>(AFTER)).open) result.lost.push(`${where} (${how}): Esc closed the confirmation while ${sent.join(", ")} was out`);
+          }
+        }
         const counts = new Map<string, number>();
         for (const line of sent) counts.set(line, (counts.get(line) ?? 0) + 1);
         for (const [line, count] of counts) if (count > 1) result.twice.push(`${where} (${how}): 「${form.primary}」 sent ${line} ${count} times`);
@@ -258,7 +272,16 @@ async function submitAudit(browser: Browser) {
         if (how === "enter" && !sent.length && !after.open && form.firstIsInput) result.lost.push(`${where} (enter): Enter in a field closed the dialog and sent nothing`);
         if (!sent.length) continue;
         result.submitted++;
-        if (!typed.length) continue;
+        if (!typed.length) {
+          if (!confirmation) continue;
+          // VUX-29: refused, a confirmation stays open and says why inside itself (not in a note on the page behind it).
+          result.confirms.push(where);
+          if (!during?.open) continue;
+          if (!after.open) result.lost.push(`${where} (${how}): the confirmation closed when the Host refused ${sent.join(", ")}; the reason is not shown inside it`);
+          else if (!after.said.length) result.lost.push(`${where} (${how}): the Host refused ${sent.join(", ")} and the confirmation says nothing`);
+          else if (after.busy) result.lost.push(`${where} (${how}): the confirmation is still busy after the Host refused`);
+          continue;
+        }
         result.refusedWithInput++;
         if (!after.samePage) result.lost.push(`${where} (${how}): the page was left after the Host refused ${sent.join(", ")}`);
         else if (!after.open) result.lost.push(`${where} (${how}): the dialog closed when the Host refused ${sent.join(", ")}; what was typed is gone`);
@@ -352,6 +375,8 @@ test("VUX-29: a dialog's submit sent twice goes out once, and a refused submit k
   for (const line of result.lost) t.diagnostic(`LOST ${line}`);
   assert.ok(result.submitted >= 9, `dialogs were submitted (${result.submitted})`);
   assert.ok(result.refusedWithInput >= 6, `dialogs with something typed in them were refused (${result.refusedWithInput})`);
+  // The delete confirmations of Todo, Pages, Issues, Form and PPT (each of them reached by its own screen) were all refused and read.
+  for (const plugin of ["todo", "pages", "issues", "form", "ppt"]) assert.ok(result.confirms.some((where) => where.startsWith(plugin)), `a ${plugin} confirmation was submitted (${result.confirms.join("; ")})`);
   assert.deepEqual(result.twice, []);
   assert.deepEqual(result.lost, []);
 });
@@ -380,6 +405,84 @@ test("VUX-29: the submit check notices a dialog that sends twice, closes, says n
     assert.ok((await run("cancelFirst")).lost.some((line) => /Enter in a field closed/.test(line)), "a dialog whose Enter cancels it is reported");
     assert.ok(audit.result.submitted >= 4, `each of them was submitted (${audit.result.submitted})`);
   } finally { await audit.stop(); }
+});
+
+/**
+ * What a person sees of the workbench outside the visible plugin frame: at points there, the element on top, its background and how
+ * opaque it is (its own and its ancestors'), next to what the frame itself shows at its middle.
+ */
+const OUTSIDE = String.raw`(() => { const frame = [...document.querySelectorAll('iframe[data-plugin-frame]')].find((f) => f.checkVisibility()); if (!frame) return null;
+  const box = frame.getBoundingClientRect(), W = innerWidth, H = innerHeight, points = [];
+  for (const [fx, fy] of [[.01, .3], [.01, .7], [.99, .3], [.99, .7], [.3, .01], [.7, .01], [.3, .99], [.7, .99], [.01, .01], [.99, .01]]) {
+    const x = fx * W, y = fy * H; if (x >= box.left && x < box.right && y >= box.top && y < box.bottom) continue; points.push([x, y]); }
+  const read = (x, y) => { const el = document.elementFromPoint(x, y); if (!el) return { color: 'none', opacity: 0, on: 'none' };
+    let opacity = 1; for (let node = el; node; node = node.parentElement) opacity *= Number(getComputedStyle(node).opacity);
+    return { color: getComputedStyle(el).backgroundColor, opacity, on: el.tagName.toLowerCase() + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/)[0] : '') }; };
+  const cover = document.querySelector('.mw-modal-cover');
+  return { outside: points.map(([x, y]) => read(x, y)), inside: read(box.left + box.width / 2, box.top + box.height / 2).on,
+    animated: cover ? cover.getAnimations().length + ' ' + getComputedStyle(cover).animationName + ' ' + getComputedStyle(cover).transitionProperty : 'no cover' }; })()`;
+
+/** The colour a modal dialog of the workbench itself paints behind it. */
+const BACKDROP = String.raw`(() => { const dialog = document.createElement('dialog'); document.body.append(dialog); dialog.showModal();
+  const color = getComputedStyle(dialog, '::backdrop').backgroundColor; dialog.close(); dialog.remove(); return color; })()`;
+
+test("VUX-29: while a plugin's modal dialog is open the workbench outside its frame is covered like a dialog's backdrop, and only then", { timeout: 300_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, "seeded", seedLongChinese); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  const view = await pluginFrameBrowser(t, browser, "todo");
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));
+  await command("Page.bringToFront", {}, sessionId);
+  await waitFor("document.readyState === 'complete' && typeof globalThis.molisWorkControlHeaders === 'function'", 20_000);
+  await view.waitFor("document.querySelector('[data-work-surface]')");
+  const scrim = await evaluate<string>(BACKDROP);
+  assert.notEqual(scrim, "rgba(0, 0, 0, 0)", "a modal dialog's backdrop has a colour");
+  type Seen = { outside: Array<{ color: string; opacity: number; on: string }>; inside: string; animated: string };
+  const seen = () => evaluate<Seen>(OUTSIDE);
+  const covered = (now: Seen) => now.outside.length >= 5 && now.outside.every((point) => point.color === scrim && point.opacity === 1);
+  const settle = async (want: boolean) => { for (let wait = 0; wait < 40; wait++) { if (covered(await seen()) === want) return; await pause(100); } };
+  const open = () => view.evaluate("(() => { const dialog = document.createElement('dialog'); dialog.id = 'vux29-cover'; dialog.className = 'mw-dialog'; dialog.innerHTML = '<p>VUX-29</p><button>ok</button>'; document.body.append(dialog); dialog.showModal(); return true; })()");
+  const close = () => view.evaluate("document.getElementById('vux29-cover')?.remove()");
+
+  const before = await seen();
+  t.diagnostic(`before: ${JSON.stringify(before)}`);
+  assert.ok(before.outside.length >= 5, `the workbench has room around the frame (${before.outside.length} points)`);
+  assert.ok(!before.outside.some((point) => point.color === scrim), "nothing outside the frame is covered while no dialog is open");
+
+  await open(); await settle(true);
+  const during = await seen();
+  t.diagnostic(`modal open: ${JSON.stringify(during)}`);
+  assert.ok(covered(during), `VUX-29: outside the frame shows the backdrop colour ${scrim} at full strength (${JSON.stringify(during.outside)})`);
+  assert.equal(during.inside, "iframe", "the frame itself is not covered a second time (its dialog has its own backdrop)");
+  // Reduced motion: shown at once, no fade.
+  assert.match(during.animated, /^0 none (none|all)?/, `no animation under reduced motion (${during.animated})`);
+
+  await close(); await settle(false);
+  const after = await seen();
+  assert.ok(!after.outside.some((point) => point.color === scrim) && after.animated === "no cover", `the cover goes when the dialog does (${JSON.stringify(after)})`);
+
+  // Hidden frame: the cover goes with it (the workbench is not left dimmed behind a page nobody sees).
+  await open(); await settle(true);
+  await evaluate("document.querySelector('section[data-work-surface=todo]').hidden = true");
+  const covers = () => evaluate<number>("document.querySelectorAll('.mw-modal-cover').length");
+  for (let wait = 0; wait < 40 && await covers(); wait++) await pause(100);
+  assert.equal(await covers(), 0, "a hidden frame leaves nothing covered");
+  await evaluate("document.querySelector('section[data-work-surface=todo]').hidden = false");
+
+  // Motion allowed: the cover fades in (an animation is running or has just run), as the backdrop of a dialog does.
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
+  await close(); await open(); await settle(true);
+  const moving = await seen();
+  t.diagnostic(`modal open, motion allowed: ${JSON.stringify(moving)}`);
+  assert.ok(covered(moving), "the cover is shown with motion allowed too");
+  assert.match(moving.animated, /craft-fade-in/, `with motion allowed it fades in like the dialog's own backdrop (${moving.animated})`);
+  await close(); await settle(false);
+  // Frame teardown: leaving the page leaves nothing of the cover behind.
+  await open(); await settle(true);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.readyState === 'complete'", 20_000);
+  assert.equal(await evaluate("document.querySelectorAll('.mw-modal-cover').length"), 0, "no cover outlives the frame");
 });
 
 test("VUX-29: no dialog in the source is shown without showModal", () => {

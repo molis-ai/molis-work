@@ -11,6 +11,25 @@ import type { UiContribution } from "./ui.js";
 /** A row on a plugin's page that a search result or record opens, found by its selector and the dataset key holding its id. */
 export interface PluginSearchRow { readonly selector: string; readonly idDataset: string }
 
+/** One fixed state of a plugin's own view, drawn by its own renderer from sample data for the component board (a development tool). */
+export interface PluginBoardSpecimen {
+  readonly id: string;
+  /** What the state is, in the page's language (through `text`). */
+  readonly title: string;
+  /** Where the page draws it: a directory column beside the main area, or the main area itself. */
+  readonly place: "column" | "page";
+  readonly html: string;
+}
+/** What the component board hands a plugin's specimens: the page's own primitives and the language of the sample's words. */
+export interface PluginBoardSpecimenPorts {
+  escape(value: unknown): string;
+  text(value: string, values?: Record<string, string | number>): string;
+  icon(name: string): string;
+  formatDate(value: string): string;
+  /** The sample's own words (names, titles), apart from the interface's language. */
+  readonly sample: "zh" | "en" | "mixed";
+}
+
 /** What the workbench shell loads for one plugin: its views, styles and browser client. */
 export interface PluginWorkbenchRegistration {
   /** Exact existing HTTP routes for pages whose backend is registered outside Plugin Runtime. This grants no Runtime services. */
@@ -46,6 +65,11 @@ export interface PluginWorkbenchRegistration {
    * opens the record as a tab in the plugin's group (specs/plugin-tab-groups).
    */
   readonly recordRow?: PluginSearchRow;
+  /**
+   * The plugin's rows in fixed sample states for the component board (`/__ui/catalog`, specs/visual-ui-experience VUX-39), drawn
+   * by the renderer its page uses, so the board shows the production row and never a copy of it. Nothing is read or written.
+   */
+  readonly specimens?: (ports: PluginBoardSpecimenPorts) => readonly PluginBoardSpecimen[];
 }
 
 /**

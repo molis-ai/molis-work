@@ -50,11 +50,15 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 只有可信 Home 启动条目可声明 `owner_files: { store_name, entries, read_permission, write_permission }`，其中 entries 固定顶层文件或目录，根须已登记归该插件所有；不与任何 scope 的 database/旧 files 共根。`services.ownerFiles` 提供 `stat/read/list` 与 `await write(writer => …)`；写回调同步完成，每个原语重查原动作权限，不能保存 writer 或跨 await 使用。Writer 支持 mkdir、独占 create/copy、存在文件 replace、原子替换、树删除与固定访问模式，接受 Unicode 相对路径但拒绝链接、硬链接和特殊节点。声明目录顶层不能删除。
 
-`initialize_owner_files` 只在当前安装与写 grant 有效后、插件 start 前获得单次同步 writer；失败不注册动作，但已经合法写入的字节不回滚。原子替换在 rename 前失败保留原文件，树删除先预检；没有多文件事务或抵御同 OS 用户并发替换父目录的承诺。Manifest、自报 id、project、sandbox 和升级预检不能取得此服务；现 Shelf 尚未迁移。详情见 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-主人的私有文件树)。
+`initialize_owner_files` 只在当前安装与写 grant 有效后、插件 start 前获得单次同步 writer；失败不注册动作，但已经合法写入的字节不回滚。原子替换在 rename 前失败保留原文件，树删除先预检；没有多文件事务或抵御同 OS 用户并发替换父目录的承诺。Manifest、自报 id、project、sandbox 和升级预检不能取得此服务。Shelf 从 S2 起用它：Home 实例启动时放一次首次示例（`registration.ts` 的 `initialize_owner_files: initializeShelfFiles`）。详情见 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-主人的私有文件树)。
 
 ### Home 模型配置与生图
 
 消费者的独立模型设置使用可信条目的 `model_configuration` 与 `services.model.configuration`；真实生图使用 `image_generation` 与 `services.imageGeneration`，任务调度和图片校验仍由插件拥有。不要把 Home 路径或凭据解析器交给插件。生成返回的 revision 必须用于后续写入复核；失效时成功和失败记录都不能写。删项目时平台先停掉插件经 `services.background` 在这个项目里受理的执行和保留的作业，再按原可信 project_data 清理，插件不被通知。调用范围、声明字段和路由字节响应见 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-消费者的模型配置生图与项目清理)。
+
+### 问题卡、操作卡与下一步行
+
+插件自己的页面要显示一轮 Agent 留下的问题、操作卡和下一步时，不自己画，也不等宿主替路由结果加料：用 `context.services.interaction` 的 `questionHtml`、`cardHtml`、`nextStepsHtml` 拿到与助理一样的 html，语言跟这次调用（页面的语言）走。卡先用 SDK 的 `actionCardView(card)` 变成人读的样子（`AssistantCard`）再交过去。它只画、不读不写任何记录，每个激活都有、不用声明权限；沙箱插件经 broker 拿到同一份（`sdk.interaction`）。交来的字符串都按文字画，结果链接只画本 Home 的路径，形状不对的值整个拒绝（S-56）。
 
 ### 已受理的后台执行
 
@@ -163,7 +167,7 @@ Inbox 的显式判断与 Feed 入箱事件已这样接通，参考 `plugins/nati
 
 构建期 Native（Feed/Inbox/Pages/…）没有这条总线。不要为了「完整」给它们加 `events:`。Integration 的进来走 Signal，不是这条总线。Functions「事件去向」也不是。
 
-Workbench 标签选中是另一种纯 UI 通知：Host 在当前插件根节点派发 `molis-work:select-item`，`detail.itemId` 为对象 ID，回到插件列表时为 `null`。Pages 等插件通过自己的公开 HTTP 读取对象并恢复编辑器；切换时要保存未落盘输入，忽略过期读取。要的对象读不到（已删除）时：在条目本来的位置用自己的话说明（`mw-alert`，留在页面上，不用会消失的轻提示），并在插件根上发 `molis-work:item-unreadable`（`{ itemId }`，冒泡），工作台就不会按标签名给这个面命名、助理也不会把它当「正在看」带上；`detail.quiet` 为真时是人没要的重开（重新载入、后退），只发事件、不出声。这个 DOM 通知不承担跨插件业务写入，也不是 Plugin Runtime 事件合同。
+Workbench 标签选中是另一种纯 UI 通知：Host 在当前插件根节点派发 `molis-work:select-item`，`detail.itemId` 为对象 ID，回到插件列表时为 `null`。Pages 等插件通过自己的公开 HTTP 读取对象并恢复编辑器；切换时要保存未落盘输入，忽略过期读取。要的对象读不到（已删除）时：在条目本来的位置用自己的话说明（`mw-alert`，留在页面上，不用会消失的轻提示），并在插件根上发 `molis-work:item-unreadable`（`{ itemId }`，冒泡），工作台就不会按标签名给这个面命名、助理也不会把它当「正在看」带上；`detail.quiet` 为真时是人没要的重开（重新载入、后退），只发事件、不出声。读被 Host 的路由拒绝（403、`actions.*` 码：没有授权，或项目停用了这个插件）不是「已删除」：对读取请求把 `host.readRefusal(status, code)` 的返回当作错误文字（空串表示不是这类拒绝），照样放在条目本来的位置、照样发 `molis-work:item-unreadable`，且重开时也要说（条目还在，人可以去授权）。这个 DOM 通知不承担跨插件业务写入，也不是 Plugin Runtime 事件合同。
 
 ## 信息整理的 Host 组合
 

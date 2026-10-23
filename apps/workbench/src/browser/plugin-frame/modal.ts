@@ -12,14 +12,29 @@ export function childModal(port: MessagePort, scope: FrameScope): void {
 
 /**
  * While the child shows a modal dialog, everything outside its frame's line of ancestors is inert, as showModal() leaves the
- * rest of one document: Tab cannot walk out of the dialog into the workbench behind it. Only what it set inert is let go,
- * when the dialog closes, the frame is hidden or the page goes.
+ * rest of one document: Tab cannot walk out of the dialog into the workbench behind it. The workbench around the frame is also
+ * covered with the backdrop colour of a dialog (`--scrim`), with a hole where the frame is (its dialog dims its own page), so it
+ * looks as unavailable as it is. Only what it set inert and laid over is let go, when the dialog closes, the frame is hidden or
+ * the page goes.
  */
 export function pageModal(scope: FrameScope, frame: HTMLIFrameElement): (open: unknown) => void {
-  let aside: HTMLElement[] = [];
-  const release = () => { for (const element of aside) element.inert = false; aside = []; };
+  let aside: HTMLElement[] = [], cover: HTMLElement | null = null;
+  const release = () => { for (const element of aside) element.inert = false; aside = []; cover?.remove(); cover = null; };
   scope.own(release);
   scope.whenVisible(() => release);
+  /** A popover is in the top layer, so no stacking order of the workbench can put anything above it; it follows the frame's box. */
+  const lay = () => {
+    const shade = cover = Object.assign(document.createElement("div"), { className: "mw-modal-cover", popover: "manual" });
+    document.body.append(shade); shade.showPopover();
+    let box = "";
+    const follow = () => {
+      if (cover !== shade) return;
+      const { left, top, right, bottom } = frame.getBoundingClientRect(), now = `M0 0h1e5v1e5H0zM${left} ${top}H${right}V${bottom}H${left}z`;
+      if (now !== box) shade.style.clipPath = `path(evenodd,"${box = now}")`;
+      scope.frame(follow);
+    };
+    follow();
+  };
   return (open) => {
     release();
     if (open !== true || !scope.visible) return;
@@ -28,5 +43,6 @@ export function pageModal(scope: FrameScope, frame: HTMLIFrameElement): (open: u
         if (sibling !== node && sibling instanceof HTMLElement && !sibling.inert) { sibling.inert = true; aside.push(sibling); }
       }
     }
+    lay();
   };
 }

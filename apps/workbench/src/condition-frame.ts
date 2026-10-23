@@ -3,6 +3,7 @@ import { THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, escapeHtml, re
 import { assistantTextHtml } from "./scripts/client/assistant-island.js";
 import { createAssistantCodeGrow } from "./scripts/client/assistant-code-grow.js";
 import { conditionSample, conditionStream, type ConditionKind, type ConditionText } from "./condition-samples.js";
+import { BOARD_PLUGIN_ROW_STYLES, renderBoardPluginRows } from "./board-plugin-rows.js";
 
 /**
  * The component board's conditions frame (specs/visual-ui-experience VUX-39, §render-lifecycle 同源标本): the page
@@ -20,6 +21,8 @@ export interface ConditionFrameOptions {
   font: "system" | "fallback";
   /** `fail` (simulated): the clipboard refuses, so every copy answers with its failure. */
   copy: "ok" | "fail";
+  /** `rows`: the plugins' own rows (board-plugin-rows.ts) instead of the reply, for the board's 插件行视图 section. */
+  part: "reply" | "rows";
 }
 export interface ConditionFramePorts { L(text: string, values?: Record<string, string | number>): string; htmlLang(): string; clientI18nScript(): string }
 
@@ -30,7 +33,7 @@ export function parseConditionFrame(query: URLSearchParams): ConditionFrameOptio
   return {
     lang: pick(query.get("lang"), ["zh", "en"] as const), text: pick(query.get("text"), ["zh", "en", "mixed"] as const),
     kind: pick(query.get("kind"), ["code", "prose"] as const), font: pick(query.get("font"), ["system", "fallback"] as const),
-    copy: pick(query.get("copy"), ["ok", "fail"] as const),
+    copy: pick(query.get("copy"), ["ok", "fail"] as const), part: pick(query.get("part"), ["reply", "rows"] as const),
   };
 }
 
@@ -72,8 +75,8 @@ function frameBody(options: ConditionFrameOptions, L: ConditionFramePorts["L"], 
 const FALLBACK_FONT = `--font:"Inter Variable","Noto Sans SC",sans-serif;--font-mono:monospace`;
 
 export function renderMolisWorkConditionsSpecimen(options: ConditionFrameOptions, ports: ConditionFramePorts): string {
-  const { L } = ports, sample = conditionSample(options.kind, options.text);
-  const steps = conditionStream(sample.reply).map((text) => assistantTextHtml(text, [], L));
+  const { L } = ports, sample = conditionSample(options.kind, options.text), rows = options.part === "rows";
+  const steps = rows ? [] : conditionStream(sample.reply).map((text) => assistantTextHtml(text, [], L));
   const data = JSON.stringify({ steps, reply: sample.reply, copy: options.copy, pace: 220 }).replaceAll("<", "\\u003c");
   return `<!doctype html>
 <html lang="${ports.htmlLang()}"${options.font === "fallback" ? ` style='${FALLBACK_FONT}'` : ""}>
@@ -83,15 +86,15 @@ export function renderMolisWorkConditionsSpecimen(options: ConditionFrameOptions
   <title>${escapeHtml(L("条件与状态样例"))} · Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-workbench.css">
-  <style>${FRAME_STYLES}</style>
+  <style>${FRAME_STYLES}${rows ? BOARD_PLUGIN_ROW_STYLES : ""}</style>
 </head>
 <body class="immersive-workbench mw-cond-page">
   ${renderIconSprite()}
-  ${frameBody(options, L, sample)}
-  <script type="application/json" id="mw-cond-data">${data}</script>
+  ${rows ? `<main class="mw-cond" data-cond-frame-page data-part="rows">${renderBoardPluginRows(L, options.text)}</main>` : frameBody(options, L, sample)}
   <script>${ports.clientI18nScript()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  ${rows ? "" : `<script type="application/json" id="mw-cond-data">${data}</script>
   <script>globalThis.molisBoardCodeGrow = ${createAssistantCodeGrow.toString()};</script>
-  <script>${CONDITIONS_FRAME_SCRIPT}</script>
+  <script>${CONDITIONS_FRAME_SCRIPT}</script>`}
 </body>
 </html>`;
 }

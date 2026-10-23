@@ -328,6 +328,12 @@ export type { WorkExecutorRunControl } from "@molis-ai/molis-work-contracts/plat
 export type { WorkExecutorSession } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkExecutorState } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare function actionCardView(card: ActionCard & {
+    readonly run_id?: string | null;
+    readonly from?: AssistantCard["from"];
+    readonly source_object?: AssistantCard["source_object"];
+}): AssistantCard;
+
 export declare function actionErrorBody(error: unknown, options?: ActionErrorBodyOptions): ActionErrorBody;
 
 export declare function actionErrorFromResponse(status: number, body: unknown): ActionError;

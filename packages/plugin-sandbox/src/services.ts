@@ -1,4 +1,4 @@
-import type { PluginDefinition, PluginPrivateStorage, PluginStartContext } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginDefinition, PluginHostServices, PluginPrivateStorage, PluginStartContext } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SandboxServices } from './broker.js';
 import { sandboxDatabase } from './database.js';
@@ -64,11 +64,39 @@ export function sandboxServicesFor(host: SandboxHostServices | undefined, extras
 /** What a definition says it needs of the Host: its Manifest, and the bodies that ride on the definition rather than the Manifest. */
 export type SandboxDeclarations = Pick<PluginDefinition, 'manifest' | 'instructions' | 'methods' | 'agent_prompts' | 'agent_skills'>;
 
-interface NotGiven {
+/**
+ * What the sandbox does with each member of the Host's services (`PluginHostServices`), so none is left without a decision: `given` is forwarded
+ * by `sandboxServicesFor` (as itself, or through the caller's own adapter for `capabilities`); `refused` has a row in `NOT_GIVEN`, and a package
+ * that declares what the Host builds it from does not start; `entry` is built only for a Host entry (a start-list declaration), which a sandboxed
+ * package does not have (PG-022, PG-102, PG-103, PG-104 move those declarations into the Manifest, and each then becomes `given` or `refused`);
+ * `replaced` is another service in its place; `drawn` is something the Host does for the package and needs no service for.
+ * The type makes a member added to the contract without a line here fail to compile.
+ */
+export type SandboxServiceFate = 'given' | 'refused' | 'entry' | 'replaced' | 'drawn';
+export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServices]-?: SandboxServiceFate } = Object.freeze({
+  storage: 'given', project_statements: 'given', interaction: 'given', capabilities: 'given',
+  project_database: 'replaced', ui: 'drawn',
+  database: 'entry', files: 'entry', ownerFiles: 'entry', terminal: 'entry', imageGeneration: 'entry',
+  model: 'refused', materials: 'refused', connections: 'refused', background: 'refused', agents: 'refused', scheduler: 'refused', directory: 'refused',
+  notifications: 'refused', installations: 'refused', actions: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
+});
+
+export interface NotGiven {
+  /** What the person who installs the package reads in the refusal. */
   readonly service: string;
+  /** The Host services (`PluginHostServices`) this row stands for; none for a body that rides on the definition. */
+  readonly services: ReadonlyArray<keyof PluginHostServices>;
   /** Why it is not given, in the words the person who installs the package reads. */
   readonly reason: string;
   declared(definition: SandboxDeclarations, held: readonly string[]): boolean;
+}
+
+/** The Manifest's declarations of project artifacts, process items, ports and events: the services built from them are not given. */
+function declaresCoordination(definition: SandboxDeclarations, held: readonly string[]): boolean {
+  const { artifacts, process_items, ports, events } = definition.manifest;
+  return !!(artifacts.produces.length || artifacts.consumes.length || process_items?.produces.length || process_items?.consumes.length
+    || ports?.inputs.length || ports?.outputs.length || events?.publishes.length || events?.subscribes.length)
+    || asksFor(definition, held, ['artifact:read', 'artifact:write']);
 }
 
 /** A declared permission counts when the package cannot work without it, or when the person approved it. */
@@ -80,19 +108,33 @@ function asksFor(definition: SandboxDeclarations, held: readonly string[], permi
  * Services a sandboxed plugin can declare and the sandbox does not give, with the slice of PG-017 that gives it. A row is deleted from
  * here in the same change that gives its service, so what stays in the list is exactly what a package asking for it is refused for.
  */
-const NOT_GIVEN: readonly NotGiven[] = [
-  { service: 'model', reason: 'Model calls (model:read, model:invoke) are not given to sandboxed plugins yet (PG-017 P1).',
+export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
+  { service: 'model', services: ['model'], reason: 'Model calls (model:read, model:invoke) are not given to sandboxed plugins yet (PG-017 P1).',
     declared: (definition, held) => asksFor(definition, held, ['model:read', 'model:invoke']) },
-  { service: 'instructions', reason: 'Registered instructions are not given to sandboxed plugins yet (PG-017 P1, V-20).',
+  { service: 'instructions', services: [], reason: 'Registered instructions are not given to sandboxed plugins yet (PG-017 P1, V-20).',
     declared: definition => !!definition.instructions?.length },
-  { service: 'connections', reason: 'Connections (connections:use) are not given to sandboxed plugins yet (PG-017 P2).',
+  { service: 'connections', services: ['connections'], reason: 'Connections (connections:use) are not given to sandboxed plugins yet (PG-017 P2).',
     declared: (definition, held) => !!definition.manifest.connections?.slots.length || asksFor(definition, held, ['connections:use']) },
-  { service: 'materials', reason: 'Materials are not given to sandboxed plugins yet (PG-017 P2).',
+  { service: 'materials', services: ['materials'], reason: 'Materials are not given to sandboxed plugins yet (PG-017 P2).',
     declared: (definition, held) => asksFor(definition, held, ['materials:read', 'materials:fetch', 'materials:fetch_local', 'materials:original']) },
-  { service: 'background', reason: 'Background jobs are not given to sandboxed plugins yet (PG-017 P3).',
+  { service: 'background', services: ['background'], reason: 'Background jobs are not given to sandboxed plugins yet (PG-017 P3).',
     declared: definition => !!definition.manifest.background?.jobs.length || !!definition.manifest.actions?.some(item => item.action.background_job) },
-  { service: 'agent', reason: 'Roles, prompts, skills and methods that reach other Agents are not given to sandboxed plugins until a package install can show the person what it adds (PG-017 BL-493, PG-001).',
+  { service: 'agent', services: [], reason: 'Roles, prompts, skills and methods that reach other Agents are not given to sandboxed plugins until a package install can show the person what it adds (PG-017 BL-493, PG-001).',
     declared: definition => !!(definition.methods?.length || definition.manifest.methods?.length || definition.agent_prompts?.length || definition.agent_skills?.length || definition.manifest.agent) },
+  { service: 'directory', services: ['directory'], reason: 'A person-authorized directory (directory:read) is not given to sandboxed plugins: it hands the plugin a folder of the person\'s, and has no form without paths yet (PG-017 BL-494).',
+    declared: (definition, held) => asksFor(definition, held, ['directory:read']) },
+  { service: 'scheduler', services: ['scheduler'], reason: 'Wakeups (schedule:read, schedule:write) are not given to sandboxed plugins yet (PG-017 BL-494).',
+    declared: (definition, held) => asksFor(definition, held, ['schedule:read', 'schedule:write']) },
+  { service: 'agents', services: ['agents'], reason: 'Running an Agent (agent:run) is not given to sandboxed plugins yet (PG-017 BL-494).',
+    declared: (definition, held) => asksFor(definition, held, ['agent:run']) },
+  { service: 'notifications', services: ['notifications'], reason: 'Delivering notifications (notifications:write) is not given to sandboxed plugins yet (PG-017 BL-494).',
+    declared: (definition, held) => asksFor(definition, held, ['notifications:write']) },
+  { service: 'installations', services: ['installations'], reason: 'Reading the installed plugins (plugins:read) is not given to sandboxed plugins yet (PG-017 BL-494).',
+    declared: (definition, held) => asksFor(definition, held, ['plugins:read']) },
+  { service: 'actions', services: ['actions'], reason: 'Calling the actions of others (actions:delegate) is not given to sandboxed plugins: a sandboxed package is reached as the actions it declares and calls nothing back (PG-017 BL-494).',
+    declared: (definition, held) => asksFor(definition, held, ['actions:delegate']) },
+  { service: 'artifacts', services: ['artifacts', 'processItems', 'events', 'inputs', 'outputs'], reason: 'Project artifacts, process items, ports and events (artifacts, process_items, ports, events in the Manifest) are not given to sandboxed plugins yet (PG-017 BL-494).',
+    declared: declaresCoordination },
 ];
 
 /**
@@ -101,7 +143,7 @@ const NOT_GIVEN: readonly NotGiven[] = [
  * the first time the plugin reaches for the service.
  */
 export function assertSandboxDeclarations(definition: SandboxDeclarations, held: readonly string[]): void {
-  for (const row of NOT_GIVEN) {
+  for (const row of SANDBOX_NOT_GIVEN) {
     if (row.declared(definition, held)) {
       throw new SandboxError('sandbox.service_not_given', `Sandboxed plugin ${definition.manifest.plugin_id} asks for ${row.service}: ${row.reason}`);
     }

@@ -154,7 +154,7 @@ answers and validates every resulting address; it does not change production def
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（共享执行生命周期）。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 沙箱不自带能力：宿主必须显式提供授予与已连接的服务，异步中介调用必须被等待。
-  - 服务经 broker 进沙箱是安装信任，不是另一套权限（S-60，PG-017）：沙箱拿到的是宿主按 Manifest 与授权为这次激活建出来的同一份服务，操作声明的效果 ∩ 人批准的授权在 broker 查，宿主服务自己的检查（Manifest 权限、授权、实例是否还在跑、动作作用域、原调用者）照旧；沙箱不给的服务，Manifest 或定义一声明，启动就被拒（`sandbox.service_not_given`），`NOT_GIVEN` 表里每一行在给它的那一片里删掉。
+  - 服务经 broker 进沙箱是安装信任，不是另一套权限（S-60，PG-017）：沙箱拿到的是宿主按 Manifest 与授权为这次激活建出来的同一份服务，操作声明的效果 ∩ 人批准的授权在 broker 查，宿主服务自己的检查（Manifest 权限、授权、实例是否还在跑、动作作用域、原调用者）照旧；沙箱不给的服务，Manifest 或定义一声明，启动就被拒（`sandbox.service_not_given`），`NOT_GIVEN` 表里每一行在给它的那一片里删掉。宿主的每一项服务在 `SANDBOX_SERVICE_FATE` 里都有决定（新增服务不写决定编译不过），宿主认的权限名在 local-host 的 `HOST_SERVICE_PERMISSIONS` 一处，`tests/security-invariants-sandbox-services.test.ts` 的完整性测试要求每个名字要么被给、要么被一行拒绝。
   - 查询操作不能声明存储、成果或项目库的写入，也不能发事件。
   - 项目库（`projectDatabase`）：跨通道的语句先有界再交给宿主，宿主的客户端逐句对照本插件的表；一个事务在宿主一侧整个提交或整个不写；操作声明了、人也批准了才放行。语句不在宿主的线程上执行：宿主把它们交给一个自己能杀的子进程（`services.project_statements`），超时或超内存就杀进程、答带码的错误，行数与字节在读的时候就停，递归查询不开始（S-59）。
   - 读权限只覆盖暂存的 bundle/worker、Node 可执行文件与必要系统路径；CPU 是整个进程的预算。

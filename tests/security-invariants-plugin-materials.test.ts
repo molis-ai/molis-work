@@ -76,7 +76,7 @@ test("PG-050 / W5-01-PAGES-01 a document batch is read by the Host under materia
   await assert.rejects(probe.contexts.at(-1)!.services!.materials!.readDocuments!([upload("outside.md", "x")]), { code: "plugin.materials_action_required" });
 });
 
-test("RAC-25 a sandboxed definition receives no Host material service", async t => {
+test("RAC-25 S-60 a sandboxed definition that declares materials is not given the Host's material service: it does not start", async t => {
   const { home } = await serveHomeRuntime(t), probe = materialsProbe("boxedmaterials", { execution: "sandbox" });
   const file = join(mkdtempSync(join(home, "project-")), "project.db"); seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), shared = pluginActions(store, DEMO_PROJECT_ID);
@@ -86,11 +86,11 @@ test("RAC-25 a sandboxed definition receives no Host material service", async t 
     ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
     home: { directory: home, completeText: () => null, stores: homeStores() } });
   try {
-    await platform.start([{ definition: probe.definition, grants: probe.permissions }]);
-    assert.equal(probe.contexts.length, 1);
-    assert.equal(probe.contexts[0]!.services!.materials, undefined);
+    assert.deepEqual((await platform.start([{ definition: probe.definition, grants: probe.permissions }])).running, []);
+    assert.equal(probe.contexts.length, 0, "the sandboxed plugin's code never ran");
+    assert.deepEqual(platform.runtime.list().map(record => record.last_error_code), ["sandbox.service_not_given"]);
   } finally {
-    for (const installed of platform.runtime.list()) await platform.runtime.stop(installed.install_id);
+    for (const installed of platform.runtime.list()) if (installed.state === "running") await platform.runtime.stop(installed.install_id);
     store.close();
   }
 });

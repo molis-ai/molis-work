@@ -5,11 +5,12 @@ import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvoc
 import type { ScheduleService } from "@molis-ai/molis-work-service-scheduler";
 import { joinPluginTransaction } from "./plugin-transaction.js";
 import { pluginSchedulerOwner, type PluginSchedulerPorts } from "./plugin-scheduler-owner.js";
+import { SCHEDULE_READ_PERMISSION, SCHEDULE_WRITE_PERMISSION } from "./plugin-service-permissions.js";
 
 /** Every plugin gets the same owner-scoped scheduler; no plugin receives the service's database connection. */
 export function pluginSchedulerFor(manifest: PluginManifest, context: PluginStartContext, database: PluginDatabase | undefined,
   schedule: ScheduleService | undefined, assertActive: () => void, ports: PluginSchedulerPorts): { client: PluginScheduleClient; dispose(): void } | undefined {
-  if (!manifest.permissions.some(entry => entry.permission === "schedule:read" || entry.permission === "schedule:write")) return undefined;
+  if (!manifest.permissions.some(entry => entry.permission === SCHEDULE_READ_PERMISSION || entry.permission === SCHEDULE_WRITE_PERMISSION)) return undefined;
   if (!database || !schedule) return undefined;
   const owner = manifest.plugin_id;
   const activation = pluginSchedulerOwner(manifest, context, ports, assertActive);
@@ -21,7 +22,7 @@ export function pluginSchedulerFor(manifest: PluginManifest, context: PluginStar
     const scope = currentPluginInvocation();
     if (scope && scope.caller.project_id !== ports.plugin_caller.project_id) throw new ActionError("actions.forbidden", "调用不属于此调度器的项目");
     assertCapturedPluginActionCurrent(scope, context);
-    if (permission === "schedule:write" && pluginInvocationReadOnly(scope)) throw new ActionError("actions.forbidden", "只读调用不能修改闹钟");
+    if (permission === SCHEDULE_WRITE_PERMISSION && pluginInvocationReadOnly(scope)) throw new ActionError("actions.forbidden", "只读调用不能修改闹钟");
   };
   const owned = (jobId: string) => {
     const job = schedule.get(jobId);
@@ -34,11 +35,11 @@ export function pluginSchedulerFor(manifest: PluginManifest, context: PluginStar
     return { ...job, authorization: authorized ? "current" : "needs_confirmation" };
   };
   const client = Object.freeze<PluginScheduleClient>({
-    list: () => { check("schedule:read"); return schedule.list(owner).map(view); },
-    get: (jobId: string) => { check("schedule:read"); const job = owned(jobId); return job ? view(job) : null; },
-    isExecuting: (jobId: string) => { check("schedule:read"); return !!owned(jobId) && schedule.isExecuting(jobId); },
+    list: () => { check(SCHEDULE_READ_PERMISSION); return schedule.list(owner).map(view); },
+    get: (jobId: string) => { check(SCHEDULE_READ_PERMISSION); const job = owned(jobId); return job ? view(job) : null; },
+    isExecuting: (jobId: string) => { check(SCHEDULE_READ_PERMISSION); return !!owned(jobId) && schedule.isExecuting(jobId); },
     join: (transaction, write) => joinPluginTransaction(database, transaction, (afterCommit, live) => {
-      const permit = () => { live(); check("schedule:write"); };
+      const permit = () => { live(); check(SCHEDULE_WRITE_PERMISSION); };
       permit();
       return write(Object.freeze<PluginScheduleWriter>({
         register: input => {

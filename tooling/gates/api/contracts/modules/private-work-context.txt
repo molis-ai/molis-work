@@ -195,12 +195,6 @@ export interface RuntimeContextBindingRecord {
     updated_at: string;
 }
 
-export interface RuntimeGoalSessionActivity {
-    goal_id: string;
-    actor_id: string;
-    event: Omit<AppendWorkSessionEventInput, "session_id">;
-}
-
 export interface RuntimeProjectSuggestionClue {
     kind: RuntimeProjectSuggestionClueKind;
     value: string;
@@ -216,18 +210,6 @@ export interface RuntimeSessionHostSignals {
     goal_id: string | null;
     runtime_context: RuntimeWorkContext;
     project_suggestion_clues: RuntimeProjectSuggestionClue[];
-}
-
-export interface RuntimeSessionReadResult {
-    sessionGoalId: string | null;
-    sessionRegistry: {
-        status: "unavailable";
-        message: string;
-        session: null;
-    } | {
-        status: "ready";
-        session: Pick<WorkSessionRecord, "session_id" | "runtime_id" | "native_runtime_session_id" | "surface_id" | "project_id" | "current_goal_id" | "workspace_id" | "status" | "provenance"> | null;
-    };
 }
 
 export interface RuntimeWorkContext {

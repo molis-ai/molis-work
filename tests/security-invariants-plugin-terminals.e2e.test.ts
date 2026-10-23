@@ -31,24 +31,37 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
   const input = { reference: published.reference, workspace_id: workspace.workspace_id, task: "Verify the isolated terminal", request_id: randomUUID() };
   const launched = await browser.web.post<{ run: { session_id: string; panel_id: string }; spawn: Record<string, unknown> }>(api + "/execution/native", input);
   assert.equal(launched.spawn.command, undefined); assert.equal(launched.spawn.cwd, undefined);
+  const received: Record<string, unknown>[] = [];
+  await browser.command("Network.enable", {}, browser.sessionId);
+  t.after(browser.on("Network.webSocketFrameReceived", params => {
+    if (received.length >= 20) return;
+    const payload = (params.response as { payloadData?: string }).payloadData;
+    if (!payload) return;
+    const message = JSON.parse(payload) as Record<string, unknown>;
+    if (message.panelId === launched.run.panel_id) received.push({ type: message.type, attached: message.attached, started: message.started,
+      replay: typeof message.replay === "string" ? message.replay.slice(0,200) : undefined,
+      data: typeof message.data === "string" ? message.data.slice(0,200) : undefined });
+  }));
   const open = async (running = true) => {
     await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?settings=characters` }, browser.sessionId));
     await browser.surfaceReady("characters");
     await child.waitFor("document.querySelector('[data-character-id]')");
     await child.click('[data-character-id]'); await child.waitFor("document.querySelector('[data-character-native-runs] button')");
     await child.click('[data-character-native-runs] button');
+    // xterm pauses its renderer outside the viewport. Read and type in the visible terminal, as a person does.
+    await child.evaluate("document.querySelector('[data-character-terminal]').scrollIntoView({block:'center',behavior:'instant'})");
     if (running) {
-      try { await child.waitFor("document.querySelector('.xterm-rows')?.textContent.includes('ISOLATED_TERMINAL_READY')"); }
-      catch (error) { throw new Error(JSON.stringify(await child.evaluate("({ output: document.querySelector('.xterm-rows')?.textContent, status: document.querySelector('[data-character-terminal-status]')?.textContent, saved: document.querySelector('[data-character-run-output]')?.textContent, width: document.querySelector('.xterm-rows')?.clientWidth })")), { cause: error }); }
+      try { await child.waitFor("document.querySelector('[data-character-terminal] .xterm-rows')?.textContent.includes('ISOLATED_TERMINAL_READY')"); }
+      catch (error) { throw new Error(JSON.stringify({ received, page: await child.evaluate("({ output: document.querySelector('[data-character-terminal] .xterm-rows')?.textContent, status: document.querySelector('[data-character-terminal-status]')?.textContent, saved: document.querySelector('[data-character-run-output]')?.textContent, viewport: [innerWidth,innerHeight], terminal: document.querySelector('[data-character-terminal]')?.getBoundingClientRect().toJSON(), rows: [...document.querySelectorAll('.xterm-rows')].map(node=>({text:node.textContent,box:node.getBoundingClientRect().toJSON()})) })") }), { cause: error }); }
     }
   };
   await open();
   assert.equal(await browser.evaluate("document.querySelector('[data-work-surface=characters] iframe') === null"), true, "Characters retains the Host surface from CHR-1");
   await browser.command("Input.insertText", { text: "TYPED_THROUGH_RESTRICTED_CHANNEL" }, browser.sessionId);
   await browser.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" }, browser.sessionId);
-  await child.waitFor("document.querySelector('.xterm-rows').textContent.includes('TYPED_THROUGH_RESTRICTED_CHANNEL')");
+  await child.waitFor("document.querySelector('[data-character-terminal] .xterm-rows').textContent.includes('TYPED_THROUGH_RESTRICTED_CHANNEL')");
   await open();
-  await child.waitFor("document.querySelector('.xterm-rows').textContent.includes('TYPED_THROUGH_RESTRICTED_CHANNEL')");
+  await child.waitFor("document.querySelector('[data-character-terminal] .xterm-rows').textContent.includes('TYPED_THROUGH_RESTRICTED_CHANNEL')");
   const replay = await browser.web.post<{ run: { session_id: string } }>(api + "/execution/native", input);
   assert.equal(replay.run.session_id, launched.run.session_id);
   await child.click('[data-character-terminal-stop]');

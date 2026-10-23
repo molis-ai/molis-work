@@ -35,6 +35,10 @@ CI 跟进发现：首轮 Full suite 停在主线 #1057 新增的 `assistant-repe
 
 第二轮 CI（`1402e54b2`，[运行 39936897195](https://github.com/molis-ai/molis-work/actions/runs/39936897195)）：常规 Verify 通过，Full suite 的 1–8 分片通过，第 9 分片停在 `host-pages-error-model.test.ts`，其余 7 片取消。两处失败都来自组合主线 #1041：错误码表新增 `original_not_offered` 而测试状态表未更新；`offeredOriginal` 中立即被 catch 转为业务错误的裸 Error 触发现有源码检查，没有证据表明它会泄漏为 HTTP 500。已存在的 [PR #1082](https://github.com/molis-ai/molis-work/pull/1082) `83ae7ebea` 同时修复这两处及同批已知的英文批数、Home 存储清单问题，常规 CI 通过。本分支直接合入该原提交，保留作者与依赖关系，不另写重复补丁；#1082 应先于本 PR 合入 main。组合包含主线 `24156e6b8`，无文本冲突。最终组合的整体构建、门禁与全量交由新一轮 CI，未用上轮结果冒充通过，也未放宽断言。本机的统一验证窗口正占用构建和浏览器槽位，此次不另起重复重型验证。
 
+第三轮 CI（`a1c1e0bbe`，[运行 39946362515](https://github.com/molis-ai/molis-work/actions/runs/39946362515)）：常规 Verify 通过，全量第 1 分片在 `visual-review-consumers.e2e.test.ts` 的 VUX-27 窄屏测量失败（预期溢出大于 1 px，实际 0 px），第 4/5 分片通过，其余取消。#1082 已于 2026-10-23 合入 main（`1ded3c218`），相同修复已在本分支，不重复添加；当前主线组合预检无冲突。
+
+VUX-27 的原准备只等待 DOM 存在，但插件文档在桥接完成前仍为 hidden。将真实 `molis:plugin-connect` 消息延迟 600 ms 的隔离负对照，在本分支和干净 `f8c9b4246` 基线都读到 clientWidth/scrollWidth 为 0/0、祖先 hidden，随后自然变为 296/376 px，原断言准确失败。测试现先等待可见宽度，再等 `document.fonts.ready`，随后仍执行原来的 `more > 1`、渐隐和动态条带断言；相同延迟条件在两棵树上都通过。没有等待预期溢出值、改阈值或改产品源码。两棵树整体构建通过；基线原文件与修正后的本分支完整文件均 3/3 通过，修正的健康门禁通过。证据在 `validation/visual-{baseline-negative,baseline-fixed,candidate-fixed}.log`（下文证据目录）；Linux 最终全量仍须重新运行。本轮用指向最终 PR head 的 `integration/attention-1073-20261023` 验证分支触发已有 Full suite，让所有分片执行完，避免一个失败取消其余分片；不修改工作流或重复启动另一轮全量。
+
 ## 验证与交付
 
 先整体 `pnpm build`，用独立子进程运行真实 Web Host 与 HTTP 负载客户端，Home、端口与凭据均为临时测试数据，模型关闭。每项目启用 Coding/Goals，准备等待中的会话及已完成会话；查询必须返回应见任务且排除已完成项。基线和修复使用相同种子副本，保留测量与代表性完整回答，每次回答逐项校验，结束关闭自己的进程和数据目录。

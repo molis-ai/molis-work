@@ -48,6 +48,7 @@ import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
 import {
   agentReviewsRoute, boardRoute, desktopPanelRoute, directoryGrantRoute, pluginPageRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
   projectProbeRoutes, projectWorkspacesRoute, projectWriteCheckersRoute, runtimePluginsRoute, sessionsAddressRoute, sideFilesRoute, sideViewRoute,
+  workspaceMembershipRoute,
 } from "./web-project-platform-routes.js";
 
 /**
@@ -191,8 +192,8 @@ const sessionsAndPlanningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "sessions", handle: ({ request, response, url, serverOptions, options, sessionResources, readWebView, composition, localHost, hostReference }) =>
     composition.handleSessions(request, response, url, serverOptions.homeDirectory, options, sessionResources, readWebView,
       bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user",
-        // Goal read lets a session association check the Goal through its owner; project settings cover the folder membership this page manages.
-        project_id: hostReference.project_id, audience: "user", permissions: [...WORK_ACTION_PERMISSIONS, "goals:read", "projects:settings"] }))) },
+        // Goal read lets a session association check the Goal through its owner.
+        project_id: hostReference.project_id, audience: "user", permissions: [...WORK_ACTION_PERMISSIONS, "goals:read"] }))) },
   { id: "goals-settings", handle: ({ request, response, url, readWebView, controlToken, goalActions, composition }) =>
     composition.goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions) },
   { id: "planning", handle: ({ request, response, url, controlToken, readWebView, goalActions, composition, localHost }) =>
@@ -286,6 +287,7 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "characters", handle: ({ request, response, url, localHost, hostReference }) => handleCharactersHttp(request, response, url, hostCharactersInvoke(localHost, hostReference)) },
   runtimePluginsRoute,
   sessionsAddressRoute,
+  workspaceMembershipRoute,
   ...sessionsAndPlanningRoutes,
   ...projectProbeRoutes,
   { id: "goal-fragments", handle: context => context.composition.goalsReadHttp.fragments(context.request, context.response, context.url, context.readWebView, context.goalActions,

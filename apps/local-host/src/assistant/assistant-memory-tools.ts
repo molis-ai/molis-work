@@ -13,6 +13,7 @@ interface AssistantMemoryToolsInput {
   controlled(control: AgentMemoryExecutionControl, bindChangeTarget: NonNullable<MemoryServicePorts["bindChangeTarget"]>): MemoryService | undefined;
   sources?: Pick<ReturnType<typeof memorySources>, "check">;
   currentWork(): StoredWork;
+  currentInput(): boolean;
   onSourceWithdrawal(listener: (eventId: string) => void): () => void;
   actorId: string;
   work: StoredWork;
@@ -44,6 +45,7 @@ async function memoryInvocation(input: AssistantMemoryToolsInput, call: ToolCont
     signal.throwIfAborted();
     const current = input.currentWork();
     if (current.archived || ["paused", "stopped"].includes(current.continuation_hold ?? "") || current.session_id !== work.session_id
+      || current.continuation_hold === "input" && !input.currentInput()
       || !isDeepStrictEqual(current.delegated_by, input.work.delegated_by) || (current.project_ref?.project_id ?? null) !== input.projectId
       || current.character?.artifact_id !== work.character?.artifact_id || current.character?.version !== work.character?.version)
       throw memoryErrors.forbidden("原工作已停止或权限已变化，停止记忆写入");

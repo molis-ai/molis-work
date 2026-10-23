@@ -15,9 +15,11 @@ const scenarios = [
   { boundary: "screen", action: "none" }, { boundary: "screen", action: "stop" },
   { boundary: "screen", action: "pause" }, { boundary: "screen", action: "withdraw" },
   { boundary: "screen", action: "revoke" },
+  { boundary: "screen", action: "latest-input" },
   { boundary: "commit", action: "none" }, { boundary: "commit", action: "stop" },
   { boundary: "commit", action: "withdraw" }, { boundary: "commit", action: "revoke" },
   { boundary: "commit", action: "form-off" },
+  { boundary: "commit", action: "latest-input" },
   { boundary: "commit", action: "withdraw-unrelated" },
 ] as const;
 for (const { boundary, action } of scenarios) {
@@ -118,6 +120,12 @@ for (const { boundary, action } of scenarios) {
       assert.equal(captured?.[0].signal?.aborted, action === "withdraw");
     } else if (action === "revoke" || action === "form-off") {
       await home.web.post("/api/memory/prefs", { scope: "personal", prefs: action === "form-off" ? { form: false } : { consumers: { assistant: false } } });
+    } else if (action === "latest-input") {
+      // Keep the actual newer Send preparation open while the old real tool returns from its held boundary.
+      const latest = current.service.continuations.begin(current.store.get(LOCAL_PERSON_ACTOR_ID, sent.work.work_id), "先不要记住，等我补充");
+      t.after(latest.end);
+      assert.equal(latest.current(), true);
+      assert.equal(current.store.get(LOCAL_PERSON_ACTOR_ID, sent.work.work_id).continuation_hold, "input");
     }
     gate.resolve();
     const writeResult = await completedWrite.promise;

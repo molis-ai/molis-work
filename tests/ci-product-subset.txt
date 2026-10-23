@@ -108,6 +108,7 @@ tests/assistant-turns.test.ts
 tests/assistant-undo.test.ts
 tests/assistant-work-budget.test.ts
 tests/assistant-work-continuity.test.ts
+tests/assistant-continuation-control.test.ts
 
 # characters
 tests/characters-action-client.test.ts

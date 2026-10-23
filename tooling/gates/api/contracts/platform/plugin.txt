@@ -2463,6 +2463,8 @@ export declare const PLUGIN_MODEL_LIMITS: {
     readonly max_output_tokens: 12000;
 };
 
+export declare const PROJECT_JOURNAL_PERMISSION = "journal:project";
+
 export interface PlacementCopyInput {
     subject: ActionSubject;
     to_project_id: string;
@@ -2847,7 +2849,7 @@ export interface PluginHostServices {
     readonly actions?: PluginActionClient;
     readonly storage?: PluginPrivateStorage;
     readonly database?: import("platform/plugin-database").PluginDatabase;
-    readonly project_database?: import("platform/plugin-database").PluginDatabase;
+    readonly project_database?: import("platform/plugin-database").PluginProjectDatabase;
     readonly scheduler?: import("platform/plugin-scheduler").PluginScheduleClient;
     readonly files?: import("platform/plugin-files").PluginFilesClient;
     readonly ownerFiles?: import("platform/plugin-owner-files").PluginOwnerFilesClient;
@@ -2865,6 +2867,20 @@ export interface PluginHostServices {
     readonly inputs?: PluginInputsClient;
     readonly outputs?: PluginOutputsClient;
     readonly capabilities?: PluginCapabilityClient;
+}
+
+export interface PluginIdempotencyPut {
+    readonly actorId: string;
+    readonly operation: string;
+    readonly key: string;
+    readonly requestHash: string;
+    readonly outcome: unknown;
+    readonly at: string;
+}
+
+export interface PluginIdempotencyRecord {
+    readonly request_hash: string;
+    readonly outcome: unknown;
 }
 
 export interface PluginImageConnectionState {
@@ -3065,6 +3081,40 @@ export interface PluginJobDeclaration {
     readonly job_id: string;
     readonly reason: string;
     readonly permissions: readonly string[];
+}
+
+export interface PluginJournalAppend {
+    readonly eventId: string;
+    readonly actorId: string;
+    readonly type: string;
+    readonly objectType: string;
+    readonly objectId: string;
+    readonly reason: string;
+    readonly payload: unknown;
+    readonly at: string;
+}
+
+export interface PluginJournalEvent {
+    readonly seq: number;
+    readonly event_id: string;
+    readonly actor_id: string;
+    readonly type: string;
+    readonly object_type: string;
+    readonly object_id: string;
+    readonly reason: string;
+    readonly payload: unknown;
+    readonly at: string;
+}
+
+export interface PluginJournalReader {
+    eventCursor(objectType?: string): number;
+    readEventsDescending(): PluginJournalEvent[];
+}
+
+export interface PluginJournalWriter extends PluginJournalReader {
+    appendEvent(input: PluginJournalAppend): number;
+    getIdempotency(actorId: string, operation: string, key: string): PluginIdempotencyRecord | null;
+    putIdempotency(input: PluginIdempotencyPut): void;
 }
 
 export interface PluginKeptJob {
@@ -3499,6 +3549,15 @@ export interface PluginProcessItemInput extends ArtifactReference {
     content: ArtifactContentInput;
     metadata?: ArtifactMetadata;
     supersedes_version?: number | null;
+}
+
+export interface PluginProjectDatabase extends PluginDatabase {
+    readonly journal: PluginJournalReader;
+    transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginProjectDatabaseTransaction) => T): Promise<T>;
+}
+
+export interface PluginProjectDatabaseTransaction extends PluginDatabaseTransaction {
+    readonly journal: PluginJournalWriter;
 }
 
 export interface PluginRequirementDeclaration {

@@ -24,6 +24,80 @@ export interface PluginDatabase extends PluginDatabaseReader {
 }
 
 /**
+ * The permission under which a plugin reaches the project's domain journal (`services.project_database.journal`, PG-094 S9-0): the
+ * project's event log and the idempotency records of its actions. The two tables belong to the storage package, not to a plugin's
+ * own declaration, so the statement-checked client above refuses them; this is the port that does not.
+ */
+export const PROJECT_JOURNAL_PERMISSION = "journal:project";
+
+export interface PluginJournalEvent {
+  readonly seq: number;
+  readonly event_id: string;
+  readonly actor_id: string;
+  readonly type: string;
+  readonly object_type: string;
+  readonly object_id: string;
+  readonly reason: string;
+  readonly payload: unknown;
+  readonly at: string;
+}
+
+/** An event to append. The project is the library's, never the plugin's to name; `actorId` must be the original caller's (see `PluginJournalWriter`). */
+export interface PluginJournalAppend {
+  readonly eventId: string;
+  readonly actorId: string;
+  readonly type: string;
+  readonly objectType: string;
+  readonly objectId: string;
+  readonly reason: string;
+  readonly payload: unknown;
+  readonly at: string;
+}
+
+export interface PluginIdempotencyRecord {
+  readonly request_hash: string;
+  readonly outcome: unknown;
+}
+
+export interface PluginIdempotencyPut {
+  readonly actorId: string;
+  readonly operation: string;
+  readonly key: string;
+  readonly requestHash: string;
+  readonly outcome: unknown;
+  readonly at: string;
+}
+
+/** What a read of the journal shows: this project's events, newest first, and where its log ends. */
+export interface PluginJournalReader {
+  eventCursor(objectType?: string): number;
+  readEventsDescending(): PluginJournalEvent[];
+}
+
+/**
+ * The journal inside a write transaction, which is the only place it is written: an event or an idempotency record lands in
+ * the same SQLite transaction as the plugin's own rows, or not at all. Every call asks the grants (`PROJECT_JOURNAL_PERMISSION`) and
+ * the original caller again, like a statement does, so a call cancelled or revoked before it writes nothing here either (S-61).
+ * The actor of an event or a record is the actor of the call the plugin runs in (its `actor_id` or `audit_actor_id`); outside every
+ * call, the one the Host runs the project's plugins as. Any other actor is refused.
+ */
+export interface PluginJournalWriter extends PluginJournalReader {
+  appendEvent(input: PluginJournalAppend): number;
+  getIdempotency(actorId: string, operation: string, key: string): PluginIdempotencyRecord | null;
+  putIdempotency(input: PluginIdempotencyPut): void;
+}
+
+export interface PluginProjectDatabaseTransaction extends PluginDatabaseTransaction {
+  readonly journal: PluginJournalWriter;
+}
+
+/** `services.project_database`: the plugin's own tables, and the project's journal beside them. */
+export interface PluginProjectDatabase extends PluginDatabase {
+  readonly journal: PluginJournalReader;
+  transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginProjectDatabaseTransaction) => T): Promise<T>;
+}
+
+/**
  * A plugin's own tables: the store's name, the version recorded for it, and the statements that create them. Never chosen by an
  * action argument or an installed script. In a project's library it is declared in the Manifest (`databases.project`, PG-020), like
  * any plugin's; a library in the Home is still selected by the trusted Host entry. 2026-10-18 改: the Home one is declared in the

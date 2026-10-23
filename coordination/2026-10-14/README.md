@@ -3507,3 +3507,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 新增 `LINES.md`：把 `privileges.md` 里 94 条没关的 PG 行、W5/W6 各项和交接说明 §3 的各片，逐条落到线上（在跑的 4 条 Claude 线 + Codex + 7 条待开线 + 统筹），脚本核过没有漏的行。待开线顺序：`ac-giants`（设计系统）→ `ac-trust`（PG-001/002/004/005/013/015/016/049）→ `ac-registry`（W5-02 PR-1b～3、PG-024、095、111、W4-01 探针）→ `ac-coding`（C8-3、C9）→ `ac-artifacts`（PG-077～079、096、097、107）→ `ac-platform`（零散平台行）→ `ac-shell`（W5-06 链后的 BL-387/388、Goals S11、PG-088 余项）。
 - 统筹自己开 `anticorr/privileges-status-2`：PG-027（#843）、PG-052（#847、#853；创作台部分不迁）标已做，PG-012、022、088、089 写清剩下的。
 - 登记册加 R-30（桌面 Rust 用例抖动，归 Codex）、R-31（评审单点，统筹）、R-32（漏派，`LINES.md` 兜）。
+
+### 10-23 20:30 UTC 统筹
+
+- 用户 10-23：PR 有点积压，减一条开发线。停 `ac-clients-1`：做完手上的 Jelly 片就停，等 #1129（样板）评审出结论、合入后再续 Images、Cognia、灵光、R11（评审的做法层面意见可以直接用上，省返工）。在跑的开发线剩 3 条：`ac-kernel`、`ac-sc3`、`ac-sandbox-sched`。
+- 更正 19:40 给 `ac-sc3` 的安排：BL-485/486/488 不叠第三层，本地做好、等 #1113 合入且 #1130 改投 main 后再开 PR。
+- #1134（PG-017 设计稿）统筹审定，入队；PG-022 改归 `ac-sandbox-sched`；新开 `ASK-USER-NOT-DO.md` 攒要问用户的不做项。

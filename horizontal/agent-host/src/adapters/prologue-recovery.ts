@@ -60,7 +60,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       if (run.operations.some(operation => operation.outcome === "unknown")) reasons.push("有操作缺少可核实的结果；不会自动重复执行，也不能将它标记为成功。");
       if (run.blockers.length && !reasons.length) reasons.push("执行或操作记录尚未核实，请稍后重新核对。");
       return { run_id: run.ref.id, version: run.version, live: run.live, waiting: run.waiting,
-        operations: run.operations.map(operation => ({ ...operation })), blockers: reasons,
+        operations: run.operations.map(({ effect_id, kind, summary, outcome }) => ({ effect_id, kind, summary, outcome })), blockers: reasons,
         can_close: run.canClose && blockers.length === 0, ...(run.canAnswer && blockers.length === 0 ? { can_answer: true as const } : {}),
         ...(run.questions.length ? { questions: run.questions.map(question => ({ pending_id: question.ref.id, pending_revision: question.ref.revision, kind: question.kind,
           prompt: question.prompt, ...(question.answered ? { answered: true as const } : {}) })) } : {}),

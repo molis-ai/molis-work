@@ -1526,7 +1526,7 @@ export declare const agentHostCapabilities: {
     }>>;
     readonly createSession: HostCapabilityDefinition<[runtimeId: string, input: AgentCreateSessionInput], AgentSessionRef>;
     readonly listSubagents: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>;
-    readonly cancelSubagent: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, actorId: string], void>;
+    readonly cancelSubagent: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], void>;
     readonly readSession: HostCapabilityDefinition<[session: AgentSessionRef], AgentSessionView>;
     readonly readSessionStatuses: ActionDefinition<[runtimeId: string, sessionIds: string[]], Array<AgentSessionStatus | {
         session_id: string;
@@ -1577,11 +1577,11 @@ export declare const agentHostCapabilities: {
         version: string;
         view: AgentRunView;
     }>;
-    readonly controlRun: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, control: AgentRunControl], void>;
-    readonly readCommandOutput: HostCapabilityDefinition<[session: AgentSessionRef, ref: AgentCommandOutputRef], AgentCommandOutput>;
-    readonly inspectRecovery: HostCapabilityDefinition<[session: AgentSessionRef], AgentRecoveryReport>;
-    readonly recoverRun: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, expectedVersion: number], AgentRecoveryReport>;
-    readonly listCheckpoints: HostCapabilityDefinition<[session: AgentSessionRef], AgentCheckpoint[]>;
+    readonly controlRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, control: AgentRunControl], void>;
+    readonly readCommandOutput: ActionDefinition<[session: AgentSessionRef, ref: AgentCommandOutputRef], AgentCommandOutput>;
+    readonly inspectRecovery: ActionDefinition<[session: AgentSessionRef], AgentRecoveryReport>;
+    readonly recoverRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, expectedVersion: number], AgentRecoveryReport>;
+    readonly listCheckpoints: ActionDefinition<[session: AgentSessionRef], AgentCheckpoint[]>;
     readonly prepareRewind: HostCapabilityDefinition<[session: AgentSessionRef, checkpointId: string, roleId: string], AgentReviewRequest>;
     readonly readRunReviews: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], Array<{
         request: AgentReviewRequest;

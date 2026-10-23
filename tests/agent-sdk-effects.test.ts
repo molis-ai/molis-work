@@ -211,8 +211,13 @@ for (const stage of ["configuration", "credential", "sdk-acceptance"] as const) 
     const host = new AgentHost(); host.register(adapter);
     const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } });
     registerAgentHostCapabilities<null>({ register: (definition, handler) => definition.action ? local.registerAction(definition as typeof definition & ActionDefinition, handler) : local.register(definition, handler) }, { agentHost: () => host, projectId: () => "project", authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home] }) });
-    const client = local.client({ project_id: "project", storage_key: join(home, "project.db") });
-    const owner = { project_id: "project", plugin_id: "io.molis.work.coding", install_id: "install", actor_id: "person" }, directory = { canonical_path: home, realpath_verified: true };
+    const reference = { project_id: "project", storage_key: join(home, "project.db") }, client = local.client(reference);
+    // Controlling a round is a plugin's own action (R8 batch 3): the round is started and switched by a plugin the Host started.
+    const store = new LocalProjectDatabase(join(home, "plugins.db")), probe = registerProbe(local.actionRegistry(reference), "project");
+    const starter = callerPlugin("switch-authority", "project");
+    await startPlugin(local, reference, store, starter, { actorId: "person" });
+    const plugin_caller = await issuedCaller(probe, starter, reference.project_id);
+    const owner = { project_id: "project", plugin_id: plugin_caller.plugin_id, install_id: plugin_caller.install_id, actor_id: "person" }, directory = { canonical_path: home, realpath_verified: true };
     const controller = new AbortController();
     const invalidate = () => { if (invalidation === "cancel") controller.abort(new Error("original switch cancelled")); else current = false; };
     const check = () => {
@@ -230,14 +235,14 @@ for (const stage of ["configuration", "credential", "sdk-acceptance"] as const) 
       if (models.length === 1) { network.resolve(); await response.promise; return switchReadResponse(); }
       return cogniaModelResponse("Finished with the accepted model B.");
     });
-    t.after(async () => { release.resolve(); response.resolve(); await local.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
-    const session = await client.invoke(agent.createSession, ["prologue", { ...owner, directory, title: "One running session" }]);
-    const handle = await client.invoke(agent.startRun, ["prologue", { ...owner, session, directory, role_id: "reader", task: "Read note.txt, then answer." }]);
+    t.after(async () => { release.resolve(); response.resolve(); await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
+    const session = await client.invoke(agent.createSession, ["prologue", { ...owner, directory, title: "One running session" }], { plugin_caller });
+    const handle = await client.invoke(agent.startRun, ["prologue", { ...owner, session, directory, role_id: "reader", task: "Read note.txt, then answer." }], { plugin_caller });
     await network.promise;
     const requested = (id: string) => [session, handle.ref, { kind: "switch-model" as const, provider_id: "fixture", model_id: id }] as const;
-    await client.invoke(agent.controlRun, [...requested("peer")]);
+    await client.invoke(agent.controlRun, [...requested("peer")], { plugin_caller });
     assert.equal((await adapter.read(handle.ref)).model_switch?.requested, "B");
-    const refused = client.invoke(agent.controlRun, [...requested("denied")], { signal: controller.signal, before_effect: async () => check(), assert_authority_current: check });
+    const refused = client.invoke(agent.controlRun, [...requested("denied")], { plugin_caller, signal: controller.signal, before_effect: async () => check(), assert_authority_current: check });
     const rejected = assert.rejects(refused);
     if (stage === "sdk-acceptance") { await rejected; assert.equal(held, true, "the original checker reached the actual SDK acceptance frame"); }
     else await entered.promise;

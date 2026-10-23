@@ -76,7 +76,7 @@ test("real Plugin executor binds unknown Agent declarations and rejects forged o
     for (const [definition, input] of [
       [agent.readSession, [session]], [agent.readRun, [session, handle.ref]], [agent.controlRun, [session, handle.ref, { kind: "cancel" }]],
       [agent.inspectRecovery, [session]], [agent.listCheckpoints, [session]], [agent.readRunReviews, [session, handle.ref]],
-      [agent.readCommandOutput, [session, { call_id: "foreign" }]], [agent.listSubagents, [session, handle.ref]],
+      [agent.readCommandOutput, [session, { call_id: "foreign", run_id: handle.ref.run_id }]], [agent.listSubagents, [session, handle.ref]],
     ] as const) await assert.rejects(other.invoke(definition as any, input), rejected);
     await assert.rejects(api.invoke(agent.startRun, ["prologue", { ...owner, actor_id: "another-user", session, role_id: "private-reader", task: "Read" }]), rejected);
     let releaseQueue = () => {}, releaseStop = () => {}, queueEntered = () => {};

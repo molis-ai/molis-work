@@ -245,6 +245,6 @@ export const roundAfterParkedAnswer = async (a: CodingActivation, record: Coding
   try { return { started: true, run_id: (await start()).run.ref.run_id }; } catch (error) {
     if ((error as { code?: unknown }).code !== "agent.session_busy") return { started: false, reason: reason(error) };
   }
-  await api.invoke(agent.inspectRecovery, [session]).catch(() => undefined);
+  await codingActions(a.context, beforeWrite).invoke(agent.inspectRecovery, [session]).catch(() => undefined);
   try { return { started: true, run_id: (await start()).run.ref.run_id }; } catch (error) { return { started: false, reason: reason(error) }; }
 };

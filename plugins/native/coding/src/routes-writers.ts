@@ -6,7 +6,7 @@ import { parseFilePath, writerDirectoryCapabilities, writerIntegrationCapabiliti
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingFailure } from "./words.js";
-import { codingActionControl } from "./route-entry.js";
+import { codingActions, codingActionControl } from "./route-entry.js";
 
 /** Coding routes for parallel writers: their directories, integrating a child's result, and stopping or judging a child. */
 
@@ -51,7 +51,7 @@ const ROUTES: RouteMaker[] = [
       const children = await api!.invoke(agent.listSubagents, [session, run]);
       const child = children.find(child => child.subagent_id === request.params.childId);
       if (!child) throw codingFailure("coding.server.subtask-elsewhere");
-      if (body.action === "stop") await api!.invoke(agent.cancelSubagent, [session, run, child.subagent_id, request.actor_id]);
+      if (body.action === "stop") await codingActions(context, beforeWrite).invoke(agent.cancelSubagent, [session, run, child.subagent_id]);
       else {
         if (!["accepted", "needs-work"].includes(String(body.action)) || child.state !== "completed") throw codingFailure("coding.server.rate-ended-only");
         const notes = typeof body.notes === "string" ? body.notes.trim() : "";

@@ -217,10 +217,10 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { route } = a;
-    return route("coding.recovery", async (request, api, execution) => {
+    return route("coding.recovery", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw codingFailure("coding.server.no-run-record");
-      return api!.invoke(agent.inspectRecovery, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]);
+      return codingActions(a.context, beforeWrite).invoke(agent.inspectRecovery, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]);
     });
   },
   (a) => {
@@ -244,7 +244,7 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.continuation", async (request, api, execution) => {
+    return route("coding.continuation", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
@@ -262,7 +262,7 @@ const ROUTES: RouteMaker[] = [
       const reviews = await api!.invoke(agent.readRunReviews, [session, ref]);
       // A receipt that cannot be read is reported as such, never skipped: the continuation must not overstate what ran.
       const commands = await Promise.all((run.command_outputs ?? []).map(async command => {
-        try { return { call_id: command.call_id, output: await api!.invoke(agent.readCommandOutput, [session, { run_id: ref.run_id, call_id: command.call_id }]) }; }
+        try { return { call_id: command.call_id, output: await codingActions(context, beforeWrite).invoke(agent.readCommandOutput, [session, { run_id: ref.run_id, call_id: command.call_id }]) }; }
         catch { return { call_id: command.call_id, output: null }; }
       }));
       const plan = run.step_board && !run.step_board.terminal ? codingTaskBoardPlans(context, record.session_id, [run]).find(entry => entry.board && entry.revision) : undefined;
@@ -282,21 +282,21 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { route } = a;
-    return route("coding.recover-run", async (request, api, execution) => {
+    return route("coding.recover-run", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw codingFailure("coding.server.no-run-record");
       const expectedVersion = bodyOf(request).expected_version;
       if (typeof expectedVersion !== "number" || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1) throw codingFailure("coding.server.check-version-stale");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-      return api!.invoke(agent.recoverRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "coding.field.run") }, expectedVersion]);
+      return codingActions(a.context, beforeWrite).invoke(agent.recoverRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "coding.field.run") }, expectedVersion]);
     });
   },
   (a) => {
     const { route } = a;
-    return route("coding.checkpoints", async (request, api, execution) => {
+    return route("coding.checkpoints", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) return { checkpoints: [] };
-      return { checkpoints: await api!.invoke(agent.listCheckpoints, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]) };
+      return { checkpoints: await codingActions(a.context, beforeWrite).invoke(agent.listCheckpoints, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]) };
     });
   },
   (a) => {
@@ -312,14 +312,14 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { route } = a;
-    return route("coding.command-output", async (request, api, execution) => {
+    return route("coding.command-output", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const snapshot = await api!.invoke(agent.readSession, [session]);
       const run = snapshot.runs.find(entry => entry.run_id === request.params.runId);
       if (!run) throw codingFailure("coding.server.run-elsewhere");
-      return api!.invoke(agent.readCommandOutput, [session, { run_id: run.run_id, call_id: text(request.params.callId, "coding.field.command") }]);
+      return codingActions(a.context, beforeWrite).invoke(agent.readCommandOutput, [session, { run_id: run.run_id, call_id: text(request.params.callId, "coding.field.command") }]);
     });
   },
   // Messages this session sent and received, and withdrawing an open one.

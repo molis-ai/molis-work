@@ -253,6 +253,32 @@ const sessionStatusOutput = { oneOf: [
   { type: "object", required: ["session_id", "error"], additionalProperties: false, properties: { session_id: { type: "string" }, error: { type: "string" } } },
 ] } as const;
 const sessionRef = { type: "object", required: ["session_id", "runtime_id"], additionalProperties: false, properties: { session_id: entryId, runtime_id: runtimeId } } as const;
+/** A round of a session, and what a session's recovery, checkpoints and command receipts read as (R8 batch 3). */
+const runRef = { type: "object", required: ["run_id", "session_id"], additionalProperties: false, properties: { run_id: entryId, session_id: entryId } } as const;
+const strings = { type: "array", items: { type: "string" } } as const;
+const recoveryOutput = { type: "object", required: ["session_id", "blockers", "runs"], additionalProperties: false, properties: {
+  session_id: { type: "string" }, blockers: strings,
+  inputs: { type: "array", items: { type: "object", required: ["input_id", "text", "source"], additionalProperties: false, properties: {
+    input_id: { type: "string" }, text: { type: "string" }, source: { enum: ["person", "host", "peer"] }, key: { type: "string" }, about: { type: "string" },
+    left_by: { type: "object", required: ["run_id", "applied"], additionalProperties: false, properties: { run_id: { type: "string" }, applied: { type: "boolean" } } } } } },
+  runs: { type: "array", items: { type: "object", required: ["run_id", "version", "live", "waiting", "can_close", "blockers", "operations"], additionalProperties: false, properties: {
+    run_id: { type: "string" }, version: { type: "number" }, live: { type: "boolean" }, waiting: { type: "number" }, can_close: { type: "boolean" }, can_answer: { const: true },
+    questions: { type: "array", items: { type: "object", required: ["pending_id", "pending_revision", "kind", "prompt"], additionalProperties: false, properties: {
+      pending_id: { type: "string" }, pending_revision: { type: "number" }, kind: { type: "string" }, prompt: { type: "string" }, answered: { const: true } } } },
+    blockers: strings,
+    operations: { type: "array", items: { type: "object", required: ["effect_id", "kind", "summary", "outcome"], additionalProperties: false, properties: {
+      effect_id: { type: "string" }, kind: { type: "string" }, summary: { type: "string" }, outcome: { enum: ["completed", "failed", "not-dispatched", "unknown"] } } } },
+    subagent: { type: "object", required: ["subagent_id"], additionalProperties: false, properties: { subagent_id: { type: "string" } } } } } } } } as const;
+/** The person's answer to a question a round stopped on (`AgentAnswerControl`). */
+const questionValue = { anyOf: [{ type: "string", maxLength: 1_000_000 }, { type: "number" }, { type: "null" }, { type: "array", maxItems: 500, items: { type: "object", required: ["kind", "id", "label"],
+  additionalProperties: false, properties: { kind: entryId, id: entryId, label: { type: "string", maxLength: 2000 } } } }] } as const;
+const runControl = { oneOf: [
+  { type: "object", required: ["kind"], additionalProperties: false, properties: { kind: { enum: ["pause", "resume", "stop", "cancel"] } } },
+  { type: "object", required: ["kind", "provider_id", "model_id"], additionalProperties: false, properties: { kind: { const: "switch-model" }, provider_id: entryId, model_id: entryId } },
+  { type: "object", required: ["kind", "pending_id"], additionalProperties: false, properties: { kind: { const: "answer" }, pending_id: entryId, pending_revision: { type: "integer", minimum: 0 },
+    text: { type: "string", maxLength: 1_000_000 }, answers: { type: "array", maxItems: 500, items: { type: "object", required: ["question"], additionalProperties: false, properties: {
+      question: { type: "integer", minimum: 0 }, indexes: { type: "array", maxItems: 500, items: { type: "integer", minimum: 0 } }, other: { type: "string", maxLength: 1_000_000 }, value: questionValue } } } } },
+] } as const;
 /** Offered to plugins only, which reach them through `services.actions` once their Manifest consumes them; nothing else needed. */
 const pluginOnly = { scope: "project", audiences: ["plugin"], permissions: [], subject_kinds: [] } as const;
 
@@ -284,9 +310,12 @@ export const agentHostCapabilities = {
   listSubagents: {
     capability_id: "agent.subagents.list.v1", version: 1, operation: "query",
   } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>,
+  /** Stop a subtask of the calling plugin's own round; who stopped it is the caller (R8 rule 4). */
   cancelSubagent: {
     capability_id: "agent.subagents.cancel.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, actorId: string], void>,
+    action: { title: "停下一个子任务", description: "本人停下自己会话里一轮派出的一个子任务。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, entryId], additionalItems: false } },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], void>,
   readSession: {
     capability_id: "agent.session.read.v1",
     version: 1,
@@ -450,13 +479,10 @@ export const agentHostCapabilities = {
     operation: "wait",
   } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, since: string | null, timeoutMs: number], { version: string; view: AgentRunView }>,
   controlRun: {
-    capability_id: "agent.run.control.v1",
-    version: 1,
-    operation: "command",
-  } as HostCapabilityDefinition<
-    [session: AgentSessionRef, run: AgentRunRef, control: AgentRunControl],
-    void
-  >,
+    capability_id: "agent.run.control.v1", version: 1, operation: "command",
+    action: { title: "控制一轮执行", description: "暂停、继续、停下或取消自己会话的一轮，换它之后用的模型，或回答它停下来问的问题。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, runControl], additionalItems: false } },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, control: AgentRunControl], void>,
   /**
    * Read what one command this Run executed produced.
    *
@@ -467,22 +493,36 @@ export const agentHostCapabilities = {
    * rather than returning an empty result.
    */
   readCommandOutput: {
-    capability_id: "agent.command-output.v1",
-    version: 1,
-    operation: "query",
-  } as HostCapabilityDefinition<
+    capability_id: "agent.command-output.v1", version: 1, operation: "query",
+    action: { title: "读命令的输出", description: "自己会话里一轮已经跑过的一条命令的输出回执，不会再跑它。", kind: "query", ...pluginOnly,
+      output_schema: { type: "object", required: ["ref", "command", "exit_code", "stdout", "stderr", "truncated"], additionalProperties: false, properties: {
+        ref: { type: "object", required: ["call_id", "run_id"], additionalProperties: false, properties: { call_id: { type: "string" }, run_id: { type: "string" } } },
+        command: { type: "string" }, exit_code: { type: ["number", "null"] }, stdout: { type: "string" }, stderr: { type: "string" }, truncated: { type: "boolean" },
+        timed_out: { type: "boolean" }, cancelled: { type: "boolean" }, stop_reason: { enum: ["cancelled", "timed-out"] } } },
+      input_schema: { type: "array", minItems: 2, maxItems: 2, additionalItems: false, items: [sessionRef,
+        { type: "object", required: ["call_id", "run_id"], additionalProperties: false, properties: { call_id: entryId, run_id: entryId } }] } },
+  } as ActionDefinition<
     [session: AgentSessionRef, ref: AgentCommandOutputRef],
     AgentCommandOutput
   >,
   inspectRecovery: {
     capability_id: "agent.session.recovery.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[session: AgentSessionRef], AgentRecoveryReport>,
+    action: { title: "看会话中断后的情况", description: "自己会话里被中断的轮次：还在等什么、做过哪些操作、能不能收尾或回答。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false }, output_schema: recoveryOutput },
+  } as ActionDefinition<[session: AgentSessionRef], AgentRecoveryReport>,
   recoverRun: {
     capability_id: "agent.session.recover.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, expectedVersion: number], AgentRecoveryReport>,
+    action: { title: "收尾一轮中断的执行", description: "把自己会话里一轮被中断的执行记为中断并收尾，不重做它做过的事。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, { type: "integer", minimum: 0 }], additionalItems: false }, output_schema: recoveryOutput },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, expectedVersion: number], AgentRecoveryReport>,
   listCheckpoints: {
     capability_id: "agent.checkpoints.list.v1", version: 1, operation: "query",
-  } as HostCapabilityDefinition<[session: AgentSessionRef], AgentCheckpoint[]>,
+    action: { title: "列出会话的检查点", description: "自己会话里各轮留下的文件检查点。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false },
+      output_schema: { type: "array", items: { type: "object", required: ["checkpoint_id", "session_id", "label", "created_at"], additionalProperties: false, properties: {
+        checkpoint_id: { type: "string" }, origin_run_id: { type: "string" }, paths: strings, session_id: { type: "string" }, label: { type: "string" }, created_at: { type: "string" }, rewound_at: { type: "string" },
+        directory: { type: "object", required: ["canonical_path", "realpath_verified"], additionalProperties: false, properties: { canonical_path: { type: "string" }, realpath_verified: { type: "boolean" } } } } } } },
+  } as ActionDefinition<[session: AgentSessionRef], AgentCheckpoint[]>,
   prepareRewind: {
     capability_id: "agent.checkpoints.prepare-rewind.v1", version: 1, operation: "command",
   } as HostCapabilityDefinition<[session: AgentSessionRef, checkpointId: string, roleId: string], AgentReviewRequest>,

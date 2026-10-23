@@ -297,7 +297,7 @@ const ROUTES: RouteMaker[] = [
       const view = await api!.invoke(agent.readRun, [session, run]);
       if (isTerminalAgentPhase(view.phase)) throw codingError(codingRunErrors.round_ended, "coding.server.round-ended");
       const question = control.kind === "answer" ? view.awaiting_input.find(item => item.pending_id === control.pending_id) : undefined;
-      await api!.invoke(agent.controlRun, [session, run, control]).catch((error: { code?: string }) => {
+      await codingActions(context, beforeWrite).invoke(agent.controlRun, [session, run, control]).catch((error: { code?: string }) => {
         // A refused answer goes back with the questions it answered, so each field's line can name the limit it crossed.
         throw error?.code === "agent.answer_invalid" && question?.questions ? Object.assign(error, { questions: question.questions }) : error;
       });

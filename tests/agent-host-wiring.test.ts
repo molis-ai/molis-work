@@ -105,10 +105,14 @@ test("组合根把 Agent Host 接进宿主之后，插件经 Capability 够得�
       (error: unknown) => (error as { code?: string }).code === "agent.capability_unavailable",
     );
 
-    // 命令回执仍然如实不可用——接线不等于接通
+    // 命令回执只给插件（R8 第 3 批，RAC-199）：宿主自己的客户端调不到；运行时那一侧仍然如实不可用——接线不等于接通
     await assert.rejects(
       () => client.invoke(agentHostCapabilities.readCommandOutput,
-        [{ session_id: "session-1", runtime_id: "fixture-read-only" }, { call_id: "c1" }]),
+        [{ session_id: "session-1", runtime_id: "fixture-read-only" }, { call_id: "c1", run_id: "r1" }]),
+      (error: unknown) => (error as { code?: string }).code === "actions.forbidden",
+    );
+    await assert.rejects(
+      () => agentHost.adapter("fixture-read-only").readCommandOutput({ session_id: "session-1", runtime_id: "fixture-read-only" }, { call_id: "c1", run_id: "r1" }),
       (error: unknown) => (error as { code?: string }).code === "agent.capability_unavailable",
     );
 

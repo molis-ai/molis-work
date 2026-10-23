@@ -9,7 +9,7 @@ import { CODING_COMMIT_DRAFT } from "./prompts.js";
 import { codingReportSteps } from "./report-steps.js";
 import { codingReportPreview, codingReportPublication, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
 import { type Capabilities, type CodingActivation, selected } from "./route-activation.js";
-import type { CodingBeforeWrite } from "./route-entry.js";
+import { codingActions, type CodingBeforeWrite } from "./route-entry.js";
 import { bodyOf } from "./route-selections.js";
 import { text } from "./run-inputs.js";
 import type { CodingSessionRecord } from "./store.js";
@@ -35,7 +35,7 @@ export const roundReport = async (a: CodingActivation, record: CodingSessionReco
   if (!isTerminalAgentPhase(run.phase)) throw codingFailure("coding.server.report-not-ready");
   const commands = await Promise.all((run.command_outputs ?? []).map(async command => {
     try {
-      const output = await api.invoke(agent.readCommandOutput, [session, { run_id: runId, call_id: command.call_id }]);
+      const output = await codingActions(context, beforeWrite).invoke(agent.readCommandOutput, [session, { run_id: runId, call_id: command.call_id }]);
       return { call_id: command.call_id, output };
     } catch { return { call_id: command.call_id, output: null }; }
   }));

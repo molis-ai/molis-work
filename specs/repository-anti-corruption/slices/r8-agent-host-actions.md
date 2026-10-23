@@ -135,3 +135,17 @@ PR 等 #1121 合入再开，不开第三层。
    - Manifest 里这 5 行 consumes 随创作台重做或删除一起去掉。这 5 条描述符照样转成动作（id 不变，consumes 仍然合法，Coding 照常用）；typed 计数只降不升，门禁不受影响。
 
 先做不受这三条影响的：`readCommandOutput`、`listCheckpoints`、`inspectRecovery`、`recoverRun`、`controlRun`、`cancelSubagent`。
+
+### 9.4 第 3 批第一段（6 条，已做）
+
+- **合同**：这 6 条换成 `ActionDefinition`，只给插件（`pluginOnly`），输入是定长元组：会话引用、轮次引用（`run_id`、`session_id`）、各自的参数。
+  - `controlRun` 的控制是 `oneOf`：暂停、继续、停下、取消；换模型（`provider_id`、`model_id`）；回答（`pending_id`，可选 `pending_revision`、`text`、`answers`）。补充与撤回早已走 `agent.inputs.*`，不在这里。
+  - `cancelSubagent` 的输入去掉第 4 项 `actorId`。
+  - 输出照 §9.3① 写全：命令回执、`AgentRecoveryReport`（`recoverRun` 与 `inspectRecovery` 共用）、`AgentCheckpoint[]`。动作服务会核对输出，所以宿主把运行时给的操作记录逐字段拷出，不整个展开，免得运行时多带的字段让结果被拒。
+- **处理器**：`cancelSubagent` 停下子任务的人只从调用者取；没有插件调用者就拒绝（规矩 1、4）。另外 5 条的处理器不变：`readScopedSession`、`requireRun` 已经按项目、插件、安装、actor 核会话归属。
+- **Coding**：9 个调用点改经 `codingActions(context, beforeWrite).invoke`，带上路由的写前栅栏。涉及 `routes-sessions.ts`、`routes-changesets.ts`、`routes-timeline.ts`（5 处）、`routes-writers.ts`、`start-round.ts`。
+- **测试**：
+  - `tests/agent-host-actions.test.ts` 的 RAC-199 覆盖：只给插件；取消子任务的人是调用者；别的插件、别的项目、别的人的会话都按「找不到」拒绝，Runtime 没被问到；别处的轮次被拒；不消费的插件与人、Agent、工作流、MCP 调不到；输入带身份字段、未知控制、缺字段、非整数版本被 schema 拒绝。
+  - 改过的旧用例：`coding-subagents-http`（取消不再带人）、`coding-report-persistence`、`coding-surface`、`coding-session-recovery`（假的 Agent 宿主也应答动作）、`agent-plugin-identity`（命令引用补上 `run_id`，拒绝仍是会话归属那一条）。
+
+BL-364 剩 20 条。

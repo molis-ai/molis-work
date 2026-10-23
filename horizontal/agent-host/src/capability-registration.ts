@@ -251,14 +251,14 @@ export function registerAgentHostCapabilities<Context>(
       if (!port) throw agentErrors.capability_unavailable("当前运行时未接通子代理");
       return port.list(run);
     }),
-    register(agentHostCapabilities.cancelSubagent, async (context, [session, run, childId, actorId]) => {
+    // Who stops it is the caller, never an input: requireRun has already held the session to the caller's own.
+    register(agentHostCapabilities.cancelSubagent, async (context, [session, run, childId]) => {
       await requireRun(context, session, run);
-      const port = ports.agentHost(context).adapter(session.runtime_id).subagents;
+      const caller = pluginFor(context), port = ports.agentHost(context).adapter(session.runtime_id).subagents;
+      if (!caller) throw denied();
       if (!port) throw agentErrors.capability_unavailable("当前运行时未接通子代理");
-      const caller = pluginFor(context);
-      if (caller && caller.actor_id !== actorId) throw denied();
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-      await port.cancel(run, childId, caller?.actor_id ?? actorId);
+      await port.cancel(run, childId, caller.actor_id);
     }),
     // The project's work under way: every session's rounds in this project, never another project's.
     register(agentHostCapabilities.readProjectWork, async (context, [runtimeId, probe]) => {

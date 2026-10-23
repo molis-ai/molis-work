@@ -1,4 +1,4 @@
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeAgentHostActions, pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -34,9 +34,7 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
     command_outputs: [{ call_id: "check", run_id: "failed" }, { call_id: "missing", run_id: "failed" }],
     usage: { tokens: { input: 0, output: 0 }, unavailable_reason: "未报告" }, awaiting_input: [], stop_reason: "检查失败",
   };
-  const host = () => ({ store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
-    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+  const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (!runtimeAvailable) throw new Error("runtime offline");
       const values = args as unknown as Array<{ session_id?: string; run_id?: string; call_id?: string }>;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: values[0]?.session_id === "sdk" ?
@@ -50,7 +48,9 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
           stdout: "```\nnot ok cart\n```", stderr: "Expected 2, got 3", truncated: true } as Output;
       }
       throw new Error(`Unexpected capability ${definition.capability_id}`);
-    } },
+    } };
+  const host = () => ({ store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(pluginActions(store, DEMO_PROJECT_ID), (definition, input) => agentHost.invoke(definition, input)), actorId: "web-user",
+    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value, capabilities: agentHost,
   });
   const server = createServer((request, response) => {
     void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => {

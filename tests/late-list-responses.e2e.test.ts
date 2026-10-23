@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 // specs/visual-ui-experience VUX-31「旧响应不覆盖新状态」: a list that is filtered, searched or paged shows what was asked last.
 // The earlier question's answer is held back in Chrome (a real request, nothing mocked) while the person asks again; when it arrives late it changes nothing, the control keeps what was chosen last, and a late page of an older question is
@@ -58,7 +59,8 @@ const openPlugin = async (browser: Browser, plugin: string) => browser.navigate(
 
 test("VUX-31: Todo shows the view chosen last when an earlier view answers late", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { evaluate, waitFor } = browser;
+  // Todo runs in its own isolated frame: the page is read and driven there; its reads still go through this page's Host.
+  const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "todo");
   await wide(browser); await openPlugin(browser, "todo");
   await waitFor("!!document.querySelector('[data-todo-quick-input]') && document.querySelector('[data-todo-loading]').hidden", 20_000);
   // One item is due today, the other has no day: each view lists exactly one of them.
@@ -88,7 +90,8 @@ test("VUX-31: Todo shows the view chosen last when an earlier view answers late"
 
 test("VUX-31: Todo shows the search typed last when an earlier search answers late", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { evaluate, waitFor } = browser;
+  // Todo runs in its own isolated frame: the page is read and driven there; its reads still go through this page's Host.
+  const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "todo");
   await wide(browser); await openPlugin(browser, "todo");
   await waitFor("!!document.querySelector('[data-todo-quick-input]') && document.querySelector('[data-todo-loading]').hidden", 20_000);
   for (const title of ["今天写甲报告", "今天写乙报告"]) {
@@ -112,7 +115,8 @@ test("VUX-31: Todo shows the search typed last when an earlier search answers la
 
 test("VUX-31: Cognia shows the search typed last when an earlier search answers late", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { evaluate, waitFor, homeDirectory } = browser;
+  const { homeDirectory } = browser;
+  const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "cognia");
   const store = openCogniaStore(homeDirectory);
   try { for (const title of ["甲资料", "乙资料"]) store.createMaterial({ title, body: title + "的正文" }); } finally { store.close(); }
   await wide(browser); await openPlugin(browser, "cognia");

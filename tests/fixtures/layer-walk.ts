@@ -69,11 +69,12 @@ const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /**
  * Walks the layers of each screen at `path`. `shell` collects the shell's own triggers (the dock, the tab strip, the project
  * button), which are the same on every screen: pass one set per width so each is read once there. `read(where)` reads the
- * open layer; it is marked `data-audit-scope` while `read` runs. `moreVerbs` are words besides the usual ones (create, rename, delete…)
+ * open layer; it is marked `data-audit-scope` while `read` runs, and in a plugin's own frame `read` is given that frame's `evaluate`
+ * and `point` (the page's coordinates of a selector inside it). `moreVerbs` are words besides the usual ones (create, rename, delete…)
  * that a button asks for a dialog with. Returns the browser's own dialogs that were answered No.
  */
 export async function walkLayers(browser: LayerWalkBrowser, screens: Array<[where: string, path: string]>, names: string[], shell: Set<string>,
-  read: (where: string, evaluate: Evaluate) => Promise<void>, log: (line: string) => void = () => undefined, moreVerbs: string[] = []): Promise<string[]> {
+  read: (where: string, evaluate: Evaluate, point?: (selector: string) => Promise<{ x: number; y: number }>) => Promise<void>, log: (line: string) => void = () => undefined, moreVerbs: string[] = []): Promise<string[]> {
   const { command, navigate, sessionId, origin } = browser;
   let active: Pick<LayerWalkBrowser, "evaluate" | "waitFor"> & {point?: (selector: string) => Promise<{x: number; y: number}>} = browser;
   const evaluate: Evaluate = (...args) => active.evaluate(...args);
@@ -98,7 +99,7 @@ export async function walkLayers(browser: LayerWalkBrowser, screens: Array<[wher
   };
   const scoped = async (where: string) => {
     await evaluate("document.querySelector('[data-ov-layer]')?.setAttribute('data-audit-scope', '')");
-    try { await read(where, evaluate); } finally { await evaluate("document.querySelectorAll('[data-audit-scope]').forEach((el) => el.removeAttribute('data-audit-scope'))"); }
+    try { await read(where, evaluate, active.point); } finally { await evaluate("document.querySelectorAll('[data-audit-scope]').forEach((el) => el.removeAttribute('data-audit-scope'))"); }
   };
   // Presses what the selector finds and returns the layer that came up.
   const raise = async (selector: string, button: "left" | "right" = "left"): Promise<OverlayLayer | null> => {

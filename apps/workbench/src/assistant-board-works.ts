@@ -1,4 +1,5 @@
 import type { AssistantActivity, AssistantNotice, AssistantRecovery, AssistantRound, AssistantWork, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 
 /**
  * The shapes the component board's Assistant samples are built from (assistant-board-samples.ts), and its four lighter works:
@@ -24,15 +25,31 @@ export const boardView = (work: AssistantWork, rounds: AssistantRound[], more: P
   ({ work, rounds, reviews: [], cards: [], objects: [], ...more });
 const said = (at: Iso, id: string, minutesAgo: number, text: string, sequence = 2) => ({ turn_id: id, kind: "assistant" as const, text, at: at(minutesAgo), sequence });
 
+/**
+ * The question 「给王一骏回邮件」 waits on: a questionnaire with one choice (a recommended option and room for another), a
+ * choice of several (with another) and words that may stay empty, so the board shows each way a card is answered.
+ */
+export const BOARD_QUESTION: AgentPendingQuestion = {
+  pending_id: "q-reply", pending_revision: 1, sequence: 3, kind: "clarification", prompt: "回信之前想跟你确认三件事", options: [], allows_free_text: false, answerable: true,
+  questions: [
+    { index: 1, prompt: "回复用哪种语言？", type: "choice", required: true, multiple: false, allow_other: true,
+      options: [{ index: 1, label: "中文", recommended: true, description: "他上一封是中文写的" }, { index: 2, label: "英文" }] },
+    { index: 2, prompt: "回信里写上哪些安排？", type: "choice", required: true, multiple: true, allow_other: true, help: "可以多选；没列出的写在「其他」里。",
+      options: [{ index: 1, label: "同意延到下周三" }, { index: 2, label: "时间沿用上午 10:00" }, { index: 3, label: "附上试用复盘议程" }] },
+    { index: 3, prompt: "还有想补充的话吗？", type: "text", required: false, multiple: false, allow_other: false, options: [], multiline: true },
+  ],
+};
+
 export function boardFinishedWorks(at: Iso): AssistantWorkView[] {
   const asking = boardView(boardWork(at, "board-reply", "给王一骏回邮件", "waiting-input", 2), [round(at, "run-reply-1", 4, {
     text: "帮我回王一骏关于试用时间的邮件", phase: "awaiting-input", ended_at: null,
-    activity: [act("c-r1", "read", "Mail · 读取邮件", "completed", { capability_id: "mail.messages.read", sequence: 1 }), act("c-r2", "ask", "回复用中文还是英文？", "started", { sequence: 3 })],
+    activity: [act("c-r1", "read", "Mail · 读取邮件", "completed", { capability_id: "mail.messages.read", sequence: 1 }), act("c-r2", "ask", "回信之前想跟你确认三件事", "started", { sequence: 3 })],
     turns: [said(at, "t-reply-1", 3, "邮件读过了，他问能不能把试用延到下周三。")],
-    awaiting_input: [{ pending_id: "q-lang", pending_revision: 1, sequence: 3, kind: "clarification", prompt: "回复用中文还是英文？", options: [{ value: "zh", label: "中文" }, { value: "en", label: "英文" }], allows_free_text: true, answerable: true }],
+    awaiting_input: [BOARD_QUESTION],
+    model: { model_id: "MiniMax-M2", window_tokens: 200000 },
   })]);
   const failed = boardView(boardWork(at, "board-digest", "整理上周的 Feed 摘要", "failed", 25, { scope: { kind: "personal" }, scope_title: undefined }), [round(at, "run-digest-1", 30, {
-    text: "把上周 Feed 里和试用有关的整理成摘要", phase: "failed", stop_reason: "模型服务暂时不可用",
+    text: "把上周 Feed 里和试用有关的整理成摘要", phase: "failed", stop_reason: "模型服务暂时不可用", model: { model_id: "MiniMax-M2" },
     activity: [act("c-d1", "read", "Feed · 读取条目", "completed", { capability_id: "feed.items.read", sequence: 1 }), act("c-d2", "read", "Feed · 读取全文", "failed", { capability_id: "feed.items.content", detail: "来源返回 503", sequence: 2 })],
   })]);
   const stopped = boardView(boardWork(at, "board-deps", "检查依赖更新", "stopped", 70), [round(at, "run-deps-1", 75, {

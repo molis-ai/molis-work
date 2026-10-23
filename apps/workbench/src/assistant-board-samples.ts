@@ -2,6 +2,7 @@ import type { AssistantActivity, AssistantNotice, AssistantRecovery, AssistantRo
 import {
   BOARD_PROJECT, act, boardAnswered, boardDelegatedWorks, boardFinishedWorks, boardInterruptedWork, boardNotices, boardView, boardWork, round, type Iso,
 } from "./assistant-board-works.js";
+import { boardSampleText, type BoardSampleText } from "./assistant-board-text.js";
 
 /**
  * The fixed works of the component board's Assistant frame (specs/visual-ui-experience VUX-39, VUX-08/09/13): what the Host
@@ -101,7 +102,7 @@ function codingWork(at: Iso): { views: AssistantWorkView[]; surroundings: Assist
   const reply = "先读了 `auth/session.ts` 和 `auth/cookie.ts`：旧格式的 Cookie 叫 `session`，没有过期时间。改成先读 `sid`、再读旧的 `session`，过期时间按新的七天补上。";
   const step = (state: AssistantActivity["state"]) => act("c-c7", "command", "pnpm test auth", state, { sequence: 7 });
   const stage = (activity: AssistantActivity[], steps: Array<"pending" | "in-progress" | "done">, more: Partial<AssistantRound> = {}) => round(at, "run-code-1", 9, {
-    executor: "coding", text, phase: "running", ended_at: null, activity, steps: CODE_STEPS(steps),
+    executor: "coding", text, phase: "running", ended_at: null, activity, steps: CODE_STEPS(steps), model: { model_id: "MiniMax-M2", window_tokens: 200000 },
     turns: [{ turn_id: "t-code-1", kind: "assistant", text: reply, at: at(7), sequence: 0 }], ...more,
   });
   const done = "改好了：旧 Cookie 可读，42 个用例通过，`docs/auth.md` 写了兼容说明。";
@@ -124,13 +125,16 @@ function codingWork(at: Iso): { views: AssistantWorkView[]; surroundings: Assist
   return { views, surroundings };
 }
 
-/** The samples as the Host would answer them `now`: times are relative, so a finished work is still fresh when the frame opens. */
-export function assistantBoardSamples(now: number): AssistantBoardSamples {
+/**
+ * The samples as the Host would answer them `now`, their words in `text`: times are relative, so a finished work is still fresh
+ * when the frame opens.
+ */
+export function assistantBoardSamples(now: number, text: BoardSampleText = "zh"): AssistantBoardSamples {
   const at: Iso = (minutesAgo) => new Date(now - minutesAgo * 60_000).toISOString();
   const plan = planWork(at), coding = codingWork(at), rest = boardFinishedWorks(at), cut = boardInterruptedWork(at);
   const others = [...rest, cut.view, ...boardDelegatedWorks(at, plan.view.work)];
   const views = [coding.views[0]!, plan.view, ...others];
-  return {
+  return boardSampleText({
     project: { ...BOARD_PROJECT },
     works: views.map((view) => view.work),
     views: Object.fromEntries(views.map((view) => [view.work.work_id, view])),
@@ -141,5 +145,5 @@ export function assistantBoardSamples(now: number): AssistantBoardSamples {
     closed: { [cut.view.work.work_id]: cut.closed },
     recovery: { [cut.view.work.work_id]: cut.recovery },
     notices: boardNotices(at),
-  };
+  }, text);
 }

@@ -10,6 +10,9 @@ import { withPluginInteraction } from "./plugin-interaction-answer.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
+/** Host lifecycle entries are never provided by a plugin page, even if its Manifest reuses one of these paths. */
+export const PLUGIN_MANAGEMENT_OPERATIONS = new Set(["retry", "enable", "disable", "restart", "release-quarantine", "upgrade"]);
+
 /**
  * What the instance that owns a Runtime plugin's routes adds around the shared operations. The operations know no plugin and no
  * project: whatever belongs to one plugin, or to the project's input graph, is handed in here by the caller. An instance with
@@ -100,12 +103,16 @@ export async function dispatchRuntimePluginRoute(
   const stop = () => controls.stop?.();
   if (match.stream) return answerPluginRouteStream(response, async emit => {
     const result = await router.dispatch({ ...input, emit, stopped: stop });
+    controls.execution?.assert_authority_current?.();
     if (result) await hooks.afterDispatch?.(result);
+    controls.execution?.assert_authority_current?.();
     return result;
   }, stop);
   const result = await router.dispatch(input);
   if (!result) return false;
+  controls.execution?.assert_authority_current?.();
   await hooks.afterDispatch?.(result);
+  controls.execution?.assert_authority_current?.();
   if (result.bytes !== undefined) {
     const raster = ["image/png", "image/jpeg", "image/webp"].includes(result.mime ?? "");
     const disposition = raster && result.disposition === "inline" ? "inline" : "attachment";

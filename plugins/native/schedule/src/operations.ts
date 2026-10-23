@@ -77,6 +77,20 @@ export function prepareScheduledOperation(db: ScheduleTaskDatabase, input: Sched
     state: "pending", detail: null, startedAt: null, finishedAt: null });
 }
 
+function removeScheduledOperation(db: ScheduleTaskDatabase, schedule: ScheduledOperationScheduler, run: ScheduledOperation): void {
+    try { schedule.cancel(run.jobId, run.jobOwner); }
+    catch (error) { if (!(error instanceof ActionError) || error.code !== "scheduler.job_not_found") throw error; }
+    db.prepare("DELETE FROM schedule_operation_occurrences WHERE project_id = ? AND operation_id = ?").run(run.projectId, run.id);
+    db.prepare("DELETE FROM schedule_operations WHERE project_id = ? AND id = ?").run(run.projectId, run.id);
+}
+
+export function cancelInstallationOperations(db: ScheduleTaskDatabase, schedule: ScheduledOperationScheduler, projectId: string, pluginId: string, installationId: string): number {
+  return db.transaction(() => {
+    const runs = listScheduledOperations(db, projectId).filter(run => run.pluginId === pluginId && run.installationId === installationId);
+    runs.forEach(run => removeScheduledOperation(db, schedule, run)); return runs.length;
+  }).immediate();
+}
+
 /** Creation/cancellation belongs to Schedule; only installation metadata comes from the Host. */
 export function createScheduledOperations(options: {
   db: ScheduleTaskDatabase; projectId: string; schedule: ScheduledOperationScheduler;
@@ -89,12 +103,6 @@ export function createScheduledOperations(options: {
     const current = options.describe(identity);
     if (!current || current.installationId !== identity.installationId || !current.generation) throw scheduleErrors.job_invalid("只有安装好的插件才能设定时执行");
     return current;
-  };
-  const remove = (run: ScheduledOperation) => {
-    try { schedule.cancel(run.jobId, run.jobOwner); }
-    catch (error) { if (!(error instanceof ActionError) || error.code !== "scheduler.job_not_found") throw error; }
-    db.prepare("DELETE FROM schedule_operation_occurrences WHERE project_id = ? AND operation_id = ?").run(projectId, run.id);
-    db.prepare("DELETE FROM schedule_operations WHERE project_id = ? AND id = ?").run(projectId, run.id);
   };
   return {
     add(identity: ScheduledOperationIdentity, input: ScheduledOperationInput): { scheduleId: string } {
@@ -123,15 +131,10 @@ export function createScheduledOperations(options: {
       return db.transaction(() => {
         const current = describe(identity), run = getScheduledOperation(db, projectId, input.scheduleId);
         if (!run || run.state === "completed" || run.pluginId !== identity.pluginId || run.installationId !== identity.installationId || run.installationGeneration !== current.generation) return { cancelled: false };
-        remove(run); return { cancelled: true };
+        removeScheduledOperation(db, schedule, run); return { cancelled: true };
       }).immediate();
     },
-    cancelInstallation(pluginId: string, installationId: string): number {
-      return db.transaction(() => {
-        const runs = listScheduledOperations(db, projectId).filter(run => run.pluginId === pluginId && run.installationId === installationId);
-        runs.forEach(remove); return runs.length;
-      }).immediate();
-    },
+    cancelInstallation: (pluginId: string, installationId: string) => cancelInstallationOperations(db, schedule, projectId, pluginId, installationId),
   };
 }
 
@@ -140,6 +143,10 @@ export function reconcileScheduledOperations(db: ScheduleTaskDatabase, schedule:
   for (const item of listScheduledOperations(db)) db.transaction(() => {
     const run = getScheduledOperation(db, item.projectId, item.id), job = run && schedule.get(run.jobId);
     if (!run || !job || schedule.isExecuting(job.job_id)) return;
+    if ("authorization" in job && job.authorization === "needs_confirmation") {
+      if (run.state !== "completed" && run.state !== "needs_review") saveScheduledOperation(db, { ...run, state: "needs_confirmation", detail: "调度安装已变化，请确认后恢复" });
+      return;
+    }
     const occurrences = listScheduledOperationOccurrences(db, run.projectId, run.id), interrupted = occurrences.filter(entry => entry.state === "running");
     if (interrupted.length) {
       const detail = "上次调用已派出但结果未知，请先检查结果，再决定重试或跳过本次";
@@ -178,8 +185,10 @@ export async function runScheduledOperation(db: ScheduleTaskDatabase, input: Sch
   currentInstallation(run: ScheduledOperation): boolean;
   executor(run: ScheduledOperation): ScheduledOperationExecutor | null;
   deliver(run: ScheduledOperation, dueAt: string, outcome: ScheduledOperationOutcome, text: string): void;
+  write?(operation: () => void): Promise<void>;
   now?(): Date;
 }): Promise<ScheduleWakeupReply> {
+  const write = ports.write ?? (async (operation: () => void) => { db.transaction(operation).immediate(); });
   const run = scheduledOperationForJob(db, input.job_id);
   if (!run || run.jobOwner !== input.plugin_id) return { detail: "定时执行已取消" };
   if (run.state !== "enabled") return { status: "plugin_unavailable", detail: run.detail ?? "定时执行已暂停或完成" };
@@ -195,7 +204,7 @@ export async function runScheduledOperation(db: ScheduleTaskDatabase, input: Sch
   };
   if (!run.installationId || !run.installationGeneration || !ports.currentInstallation(run)) {
     const detail = "定时操作的原安装身份不可用，需要重新确认归属";
-    db.transaction(() => { assertCurrent(); saveScheduledOperation(db, { ...run, state: "needs_confirmation", detail }); }).immediate();
+    await write(() => { assertCurrent(); saveScheduledOperation(db, { ...run, state: "needs_confirmation", detail }); });
     return { status: "plugin_unavailable", detail };
   }
   const executor = ports.executor(run);
@@ -205,17 +214,17 @@ export async function runScheduledOperation(db: ScheduleTaskDatabase, input: Sch
     signal.throwIfAborted(); assertCurrent(); executor.beforeEffect();
     if (!ports.currentInstallation(run)) throw new Error("定时操作的安装身份已改变");
   } };
-  db.transaction(() => {
+  await write(() => {
     control.beforeEffect();
     const current = occurrenceAt(db, run, input.due_at);
     if (current?.state !== "pending") throw new Error("本次定时执行已被处理");
     saveScheduledOperationOccurrence(db, { ...occurrence, state: "running", startedAt: now().toISOString() });
-  }).immediate();
+  });
   let outcome: ScheduledOperationOutcome;
   try { outcome = await executor.invoke(control); }
   catch (error) { control.beforeEffect(); outcome = { state: "unknown", value: error instanceof Error ? error.message : String(error) }; }
   const text = operationResultText(outcome.value);
-  db.transaction(() => {
+  await write(() => {
     control.beforeEffect();
     if (outcome.state !== "unknown" && (outcome.state === "failed" || run.inbox)) ports.deliver(run, input.due_at, outcome, text);
     control.beforeEffect();
@@ -225,7 +234,7 @@ export async function runScheduledOperation(db: ScheduleTaskDatabase, input: Sch
     else if (run.repeat === "none" && !listScheduledOperationOccurrences(db, run.projectId, run.id).some(item => item.state === "pending")) {
       saveScheduledOperation(db, { ...run, state: "completed", detail: text });
     }
-  }).immediate();
+  });
   return { status: outcome.state === "succeeded" ? "ok" : "failed", detail: outcome.state === "unknown" ? "本次结果未知，已停止后续排期" : outcome.state === "failed" ? "运行失败：" + text : run.inbox ? "已运行，结果放进收件箱" : "已运行" };
 }
 

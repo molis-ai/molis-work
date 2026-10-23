@@ -1,5 +1,7 @@
+import type { UiPageMessages } from "@molis-ai/molis-work-contracts/platform/ui";
 /** Browser-only ports and view state; Pages owns the corresponding HTTP records. */
 export interface CommentSideHost {
+  messages: UiPageMessages;
   translate(value: string): string;
   projectId: string | (() => string);
   route(path: string): string;

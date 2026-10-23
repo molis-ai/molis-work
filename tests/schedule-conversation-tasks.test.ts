@@ -1,3 +1,4 @@
+import { SchedulePluginRouteTable } from "./schedule-direct-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import Database from "better-sqlite3";
@@ -10,7 +11,6 @@ import {
   SCHEDULE_PLUGIN_ID,
   SCHEDULE_PROJECT_DATABASE,
   SCHEDULE_TASK_WAKEUP_CAPABILITY,
-  SchedulePluginRouteTable,
   bindScheduleConversationJob,
   composeScheduledTaskPrompt,
   createScheduleConversationTask,
@@ -297,7 +297,7 @@ test("HTTP 能创建对话任务并返回 tasks", async () => {
   }));
   const created = await routes.handle({
     method: "POST",
-    pathname: "/api/schedule/tasks",
+    pathname: "/api/plugins/io.molis.work.schedule/tasks",
     query: new URLSearchParams(),
     body: { title: "汇总", instructions: "收成三条", time: "09:00", notify_important: true },
   });
@@ -305,7 +305,7 @@ test("HTTP 能创建对话任务并返回 tasks", async () => {
   const taskId = (created?.body as { task: { task_id: string } }).task.task_id;
   const listed = await routes.handle({
     method: "GET",
-    pathname: "/api/schedule",
+    pathname: "/api/plugins/io.molis.work.schedule/list",
     query: new URLSearchParams(),
     body: {},
   });
@@ -316,7 +316,7 @@ test("HTTP 能创建对话任务并返回 tasks", async () => {
   try {
     await routes.handle({
       method: "POST",
-      pathname: `/api/schedule/jobs/${encodeURIComponent(task.job_id)}/enabled`,
+      pathname: `/api/plugins/io.molis.work.schedule/jobs/${encodeURIComponent(task.job_id)}/enabled`,
       query: new URLSearchParams(),
       body: { enabled: false },
     });
@@ -337,9 +337,9 @@ test("对话任务编辑会重新排期；归档后不在列表且不会再唤�
   const ports = createScheduleActionPorts({ db, schedule, now });
   const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ actions: directScheduleActions(ports), changed() {} }));
   const call = (pathname: string, body: Record<string, unknown>) => routes.handle({ method: "POST", pathname, query: new URLSearchParams(), body });
-  const created = await call("/api/schedule/tasks", { title: "旧任务", instructions: "读旧说明", time: "09:00" });
+  const created = await call("/api/plugins/io.molis.work.schedule/tasks", { title: "旧任务", instructions: "读旧说明", time: "09:00" });
   const id = (created?.body as { task: { task_id: string } }).task.task_id;
-  const updated = await call(`/api/schedule/tasks/${id}/update`, { title: "新任务", instructions: "读新说明", time: "18:30", notify_important: false });
+  const updated = await call(`/api/plugins/io.molis.work.schedule/tasks/${id}/update`, { title: "新任务", instructions: "读新说明", time: "18:30", notify_important: false });
   const task = (updated?.body as { task: { title: string; instructions: string; clock_label: string; notify_important: boolean; job_id: string } }).task;
   assert.equal(task.title, "新任务");
   assert.equal(task.instructions, "读新说明");
@@ -347,7 +347,7 @@ test("对话任务编辑会重新排期；归档后不在列表且不会再唤�
   assert.equal(task.notify_important, false);
   assert.equal(schedule.get(task.job_id)?.title, "新任务");
   assert.equal(schedule.get(task.job_id)?.next_due_at, nextDailyLocalDue(18, 30, now()).toISOString());
-  assert.equal((await call(`/api/schedule/tasks/${id}/archive`, {}))?.status, 200);
+  assert.equal((await call(`/api/plugins/io.molis.work.schedule/tasks/${id}/archive`, {}))?.status, 200);
   assert.equal(schedule.get(task.job_id), null);
   assert.equal(ports.listTasks().length, 0);
   assert.equal(getScheduleConversationTask(db, id)?.archived, true);

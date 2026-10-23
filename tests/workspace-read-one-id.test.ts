@@ -83,7 +83,7 @@ test("a Runtime plugin reaches an action only when its Manifest consumes it: as 
     assert.equal(call.host_plugin?.plugin_id, "io.molis.work.example.reader");
     assert.equal(call.plugin_install_id, reader.install_id);
     assert.deepEqual(call.permissions, ["workspace:read"]);
-    assert.deepEqual(call.allowed_actions, [{ capability_id: readFile.capability_id, version: 1, provider_id: HOST_PROVIDER_ID }]);
+    assert.deepEqual(call.allowed_capability_ids, [readFile.capability_id, other.capability_id], "the dependency check is limited to exactly the Manifest consumption list");
     // The input schema is the action's own: a mode it does not have is refused before the handler runs.
     await assert.rejects(client.invoke(readFile, { ...query, kind: "everything" as never }));
     await assert.rejects(client.invoke(readFile, { ...query, extra: true } as never));
@@ -248,7 +248,9 @@ test("Files, Git and Coding read the linked folder through the one action in a r
     const sources = (await request(`/projects/${id}/api/side/files/sources`)).body.sources as Array<{ id: string; plugin_id: string; kinds: Array<{ kind: string }> }>;
     const source = sources.find(item => item.kinds.some(kind => kind.kind === WORKSPACE_FILE_KIND));
     assert.ok(source, JSON.stringify(sources));
-    const entries = (await request(`/projects/${id}/api/side/files/entries?source=${encodeURIComponent(source.id)}`)).body.page.entries as Array<{ title: string; subject: { id: string } }>;
+    const entryReply = await request(`/projects/${id}/api/side/files/entries?source=${encodeURIComponent(source.id)}`);
+    assert.equal(entryReply.status, 200, JSON.stringify(entryReply.body));
+    const entries = entryReply.body.page.entries as Array<{ title: string; subject: { id: string } }>;
     assert.deepEqual(entries.map(entry => entry.title).sort(), ["chart.png", "note.txt", "streaks.ts"]);
     const picture = entries.find(entry => entry.title === "chart.png")!;
     const preview = await request(`/projects/${id}/api/side/files/content?source=${encodeURIComponent(source.id)}&kind=${WORKSPACE_FILE_KIND}&id=${encodeURIComponent(picture.subject.id)}`);

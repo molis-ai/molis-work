@@ -76,8 +76,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   // The project has one current directory: where new rounds run and what Files and Git show. Choosing it here sets it
   // for the whole project (the same setting as in project settings), then the embedded Files and Git views re-read it.
   const useProjectWorkspace = async (id) => {
-    const response=await lifetime.fetch((document.body.dataset.routePrefix || '')+'/api/project-settings/workspaces',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({workspace_id:id})});
-    if(!response.ok){let reason='';try{reason=(await response.json()).error || '';}catch{}throw new Error(reason?L('coding.workspace.switch-failed-why',{reason}):L('coding.workspace.switch-failed'));}
+    try{await host.selectWorkspace(id);}catch(error){throw new Error(L('coding.workspace.switch-failed-why',{reason:error.message}));}
     lifetime.assertCurrent();
     root.querySelectorAll('[data-git-refresh],[data-files-refresh]').forEach(button=>button.click());
   };
@@ -1188,7 +1187,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       await refreshState();host.openItem('coding',id,selected.title);await select(id);
       if(selected.workspace_id){workspaceId=selected.workspace_id;rememberConfiguration();await draft.flush();await refreshState();}
       input.focus();status(L('coding.character.brought-in'));
-    })().catch(error=>{status(error.message,true);window.alert(L('coding.character.session-failed',{reason:error.message}));}).finally(()=>{creatingCharacterSession=false;});
+    })().catch(error=>{status(L('coding.character.session-failed',{reason:error.message}),true);}).finally(()=>{creatingCharacterSession=false;});
   });
   /** The composer keeps rarely used context behind one "+" so the bar stays about the task. */
   const attachMenu=q('[data-coding-attach-menu]'),attachToggle=q('[data-coding-attach-toggle]'),setAttach=open=>{attachMenu.hidden=!open;attachToggle.setAttribute('aria-expanded',String(open));};
@@ -1338,7 +1337,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if(target.matches('[data-coding-stop]') && lastRun) { target.disabled=true;await api(sessionPath(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:'stop'});status(L('coding.run.stop-received'));await readCurrent(); }
       if(target.matches('[data-coding-archive]') && current) {
-        if(!confirm(L('coding.session.archive-confirm')))return;
+        if(!await host.confirm(L('coding.session.archive-confirm')))return;
         target.disabled=true;
         const id=current;
         try {

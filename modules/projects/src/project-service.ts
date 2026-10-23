@@ -66,7 +66,10 @@ export class ProjectService {
   register(record: ProjectRecord, eventType: string, actorId: string): void {
     this.repository.transaction(() => {
       this.repository.insertProject(record);
-      this.repository.addProjectPlugin(record.project_id, "goals", record.created_at);
+      for (const pluginId of new Set(["goals", ...this.plugins.initial?.() ?? []])) {
+        if (!this.plugins.has(pluginId)) throw catalogErrors.plugin_not_found("新项目的默认插件未在目录登记");
+        this.repository.addProjectPlugin(record.project_id, pluginId, record.created_at);
+      }
       this.appendEvent(record.project_id, eventType, this.requiredActorId(actorId), {
         project_id: record.project_id,
         database_path: record.database_path,

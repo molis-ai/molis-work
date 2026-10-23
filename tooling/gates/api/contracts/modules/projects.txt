@@ -77,6 +77,7 @@ export interface ProjectPluginMembership {
 
 export interface ProjectPluginRegistry {
     has(pluginId: ProjectPluginId): boolean;
+    initial?(): readonly ProjectPluginId[];
     companions(pluginId: ProjectPluginId): readonly ProjectPluginId[];
     isPersonal?(pluginId: ProjectPluginId): boolean;
     isAlwaysOn?(pluginId: ProjectPluginId): boolean;

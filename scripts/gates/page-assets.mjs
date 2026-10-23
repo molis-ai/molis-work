@@ -238,31 +238,25 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // VUX-23 (slice 95): Pages' three sizing handles (layout column, table column, image) become vertical splitters as the workbench's resizers
-  // are: role, value and words read out, and ← → on the focused handle through the same command as the keys. The bundle keeps its names
-  // (whitespace-only minify); the helper and its three call sites after compacting. 709541 → 711340 (+1,799).
-  "/assets/molis-work-pages-editor.js": [709541, 711340],
-  // VUX-33: complete-line layout blocks bound accumulated inline layout while preserving readable text, selected prefixes and the long-line slice budget.
-  // Reviewed 2026-10-23: 4 KB flat slices and a stable tail did not improve the bottleneck; preserving pre/code font struts also retains line and tab geometry. 382075 → 384285 (+2210).
-  "/assets/molis-work-plugins/coding.js": [382075, 384285],
-  // Forms reflow (slice 85): moved and removed questions and options ease through the page's molisReflow, with the fallback when it is absent. 30244 → 30383 (+139).
-  "/assets/molis-work-plugins/form.js": [30244, 30383],
-  "/assets/molis-work-plugins/workflows.js": [83019, 83135],
-  // VUX-36 / VUX-22: details menus reverse the same 250/130 ms transition when closed during entry, retaining the bar direction.
-  // Menu-only selectors add 1426 bytes per sheet; Workflows touch visibility saves 41 bytes in the combined workbench sheet.
-  "/assets/molis-work-settings.css": [994568, 995994],
-  "/assets/molis-work-arrival.css": [704663, 706089],
-  "/assets/molis-work-workbench.css": [1612954, 1614339],
-  // Roving focus: child-list parents only affect their own group; added subtrees and attribute changes still visit descendant groups.
-  // The mutation-kind branch adds 39 bytes to main, which already includes the independent kanban reduction.
-  "/assets/molis-work-workbench.js": [1182906, 1182945],
+  // SYS-15: page metadata, context/placement bridges and workspace navigation. Moving the trusted review factory into
+  // the existing lazy frame asset removed 11 KB from startup; the remaining workbench delta is 3463 bytes.
+  "/assets/molis-work-workbench.js": [1182945, 1186408],
+  // Builder uses public dialogs, file/settings messages and the isolated page lifecycle (+613).
+  "/assets/molis-work-plugins/plugin-builder.js": [115519, 116132],
+  // Restore keyboard focus after leaving and returning to the isolated Issues view (+20).
+  "/assets/molis-work-plugins/issues.js": [24182, 24202],
+  // Register conditional blank cleanup before closing; obsolete unload-only request branches were removed (+308).
+  "/assets/molis-work-plugins/lingguang.js": [25558, 25866],
+  // Form/PPT detail controls wrap and export menus stay inside narrow frames; old delete-button margin removed (+92).
+  "/assets/molis-work-workbench.css": [1614339, 1614431],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.
-// User approved 2026-10-19 (specs/project-knowledge §2): the 项目资料 browser code is its own asset, loaded only where it is used (+1.5 KB from the 10-19 review fixes, +232 B for the import status of files it recognizes or transcribes).
+// User approved 2026-10-21 (specs/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
+// shared bridge (including the common UI helpers) once; the original 90325-byte estimate was not a ceiling.
 const APPROVED_NEW_ASSETS = {
-  "/assets/molis-work-knowledge.js": 26361,
+  "/assets/molis-work-plugin-frame.js": 187120,
 };
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {

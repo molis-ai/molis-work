@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -8,11 +8,11 @@ import { DatabaseSync } from "node:sqlite";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { join } from "node:path";
 import { openCogniaStore, linksFor, type CogniaStore, type ImportFile } from "@molis-ai/molis-work-plugin-cognia";
-import { scanCogniaDirectory } from "@molis-ai/molis-work-plugin-cognia";
+import { cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
 import { directoryForHome } from "@molis-ai/molis-work-app-local-host";
-import { serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { serveHomeRuntime, person } from "./fixtures/home-runtime.js";
 const text = (path: string, body: string): ImportFile => ({ path, data: Buffer.from(body).toString("base64") });
-function fixture(fn: (store: CogniaStore, home: string) => void | Promise<void>) { return async () => { const home = mkdtempSync(join(tmpdir(), "cognia-store-")); const store = openCogniaStore(home); try { await fn(store, home); } finally { store.close(); rmSync(home, { recursive: true, force: true }); } }; }
+function fixture(fn: (store: CogniaStore, home: string, t: TestContext) => void | Promise<void>) { return async (t: TestContext) => { const home = mkdtempSync(join(tmpdir(), "cognia-store-")); const store = openCogniaStore(home); try { await fn(store, home, t); } finally { store.close(); rmSync(home, { recursive: true, force: true }); } }; }
 const preview = (store: CogniaStore, files: ImportFile[], locator = "local:/vault") => store.preview({ name: "vault", kind: "obsidian", locator, files });
 test("Cognia preview, repeated and conflicting imports preserve old snapshots and distinct sources", fixture((store) => {
   const p = preview(store, [text("a/note.md", "# Old"), text("b/note.md", "# Other")]); assert.equal(store.materials().length, 0);
@@ -41,11 +41,10 @@ test("import validation handles 8MB attachments, UTF-8 failures, unsupported fil
   assert.throws(() => preview(store, [text("a.md", "x"), text("a.md", "y")]), /重复路径/);
   assert.equal(preview(store, [{ path: "bad.md", data: "a===" }]).entries[0]?.status, "skipped");
 }));
-test("local scanner copies source bytes, skips symlinks and unsupported content; reopen and Home isolation", fixture(async (store, home) => {
+test("local scanner copies source bytes, skips symlinks and unsupported content; reopen and Home isolation", fixture(async (store, home, t) => {
   const vault = join(home, "vault"); mkdirSync(join(vault, "raw"), { recursive: true }); mkdirSync(join(vault, "wiki")); mkdirSync(join(vault, ".git"));
   const source = "---\ntags: [one]\n---\n# One\n[[../wiki/two]]"; writeFileSync(join(vault, "raw/one.md"), source); writeFileSync(join(vault, "wiki/two.md"), "# Two"); writeFileSync(join(vault, "index.md"), "index"); writeFileSync(join(vault, "log.md"), "log"); writeFileSync(join(vault, "AGENTS.md"), "Untrusted content"); writeFileSync(join(vault, "board.canvas"), "{}"); writeFileSync(join(vault, ".git/config"), "hidden"); symlinkSync("/etc/hosts", join(vault, "outside.txt"));
-  const directory = directoryForHome(home), grant = await directory.authorize(vault);
-  const scan = await scanCogniaDirectory(directory, grant.grant_id, "."), p = store.preview({ ...scan, kind: "llm-wiki" }); const receipt = store.commit(p.id); assert.equal(receipt.added, 5); assert.equal(receipt.skipped, 3); assert.equal(readFileSync(join(vault, "raw/one.md"), "utf8"), source); assert.equal(store.materials().find(m => m.path === "wiki/two.md")?.role, "wiki"); assert.equal(store.materials().find(m => m.path === "index.md")?.role, "index");
+  const scan = await scanDirectory(t, vault), p = store.preview({ ...scan, kind: "llm-wiki" }); const receipt = store.commit(p.id); assert.equal(receipt.added, 5); assert.equal(receipt.skipped, 3); assert.equal(readFileSync(join(vault, "raw/one.md"), "utf8"), source); assert.equal(store.materials().find(m => m.path === "wiki/two.md")?.role, "wiki"); assert.equal(store.materials().find(m => m.path === "index.md")?.role, "index");
   const reopened = openCogniaStore(home), isolated = openCogniaStore(join(home, "isolated")); try { assert.equal(reopened.materials().length, 5); assert.equal(isolated.materials().length, 0); } finally { reopened.close(); isolated.close(); }
 }));
 test("separate store connections serialize identical preview commits without duplicate versions", fixture((store, home) => {
@@ -151,17 +150,15 @@ test("a deleted knowledge material's fixed versions keep their sources, also whe
   assert.deepEqual(Object.keys(store.drafts()[0]!).sort(), [...Object.keys(draft)].sort(), "the draft shows only its own fields");
   assert.deepEqual(store.drafts()[0]!.references, [reference]);
 }));
-test("a directory with more files than a batch holds is refused whole as too large (kind too_large, 413); any other unreadable file is only one skipped row", async () => {
+test("a directory with more files than a batch holds is refused whole as too large (kind too_large, 413); any other unreadable file is only one skipped row", async t => {
   const vault = mkdtempSync(join(tmpdir(), "cognia-big-vault-"));
   try {
     for (let index = 0; index <= 1000; index++) writeFileSync(join(vault, `n${index}.md`), `# ${index}`);
-    const directory = directoryForHome(vault), grant = await directory.authorize(vault);
-    await assert.rejects(scanCogniaDirectory(directory, grant.grant_id, "."), (error: unknown) => error instanceof ActionError && error.code === "cognia.too_large" && actionHttpStatus(error) === 413);
+    await assert.rejects(scanDirectory(t, vault), (error: unknown) => error instanceof ActionError && error.code === "cognia.too_large" && actionHttpStatus(error) === 413);
     const small = mkdtempSync(join(tmpdir(), "cognia-small-vault-"));
     try {
       writeFileSync(join(small, "a.md"), "# a"); symlinkSync(join(small, "a.md"), join(small, "link.md"));
-      const smallDirectory = directoryForHome(small), smallGrant = await smallDirectory.authorize(small);
-      const scan = await scanCogniaDirectory(smallDirectory, smallGrant.grant_id, ".");
+      const scan = await scanDirectory(t, small);
       assert.deepEqual(scan.files.map(file => file.path).sort(), ["a.md", "link.md"]);
       const link = scan.files.find(file => file.path === "link.md")!;
       assert.equal(link.reason, "暂不支持此文件类型");
@@ -170,3 +167,12 @@ test("a directory with more files than a batch holds is refused whole as too lar
     } finally { rmSync(small, { recursive: true, force: true }); }
   } finally { rmSync(vault, { recursive: true, force: true }); }
 });
+
+async function scanDirectory(t: TestContext, vault: string) {
+  const f = await serveHomeRuntime(t);
+  await f.host.homePlugins!.ready();
+  const caller = person(["cognia:read", "cognia:write", "directory:read"]);
+  const grant = await directoryForHome(f.home).select({plugin_id: "io.molis.work.cognia", project_id: null, actor_id: caller.actor_id}, async () => ({status: "picked", path: vault}));
+  assert.ok(grant);
+  return f.host.homeActionClient().invoke(caller, cogniaActions.scan, {grant_id: grant.grant_id, path: "."});
+}

@@ -108,7 +108,7 @@ test("a held wait runs beside the project's queue: a later read or command is no
   await host.close();
 });
 
-test("closing a project ends its waits: close does not wait out a long poll, and a caller's own signal still ends one", async () => {
+test("closing the Host ends its waits: close does not wait out a long poll, and a caller's own signal still ends one", async () => {
   const wait = { capability_id: "test.follow", version: 1, operation: "wait" } as HostCapabilityDefinition<void, string>;
   let closed = 0;
   const host = new LocalHost<{ value: number }>({ instanceId: "wait-close-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => { closed += 1; } } });
@@ -130,7 +130,7 @@ test("closing a project ends its waits: close does not wait out a long poll, and
   await host.close();
   assert.ok(Date.now() - started < 1_000, "close ends the wait instead of waiting out its 25 s");
   assert.equal(await following, "ended");
-  assert.ok(reasons[1] instanceof ActionError && reasons[1].code === "host.project_closing", "the wait hears that its project is closing");
+  assert.ok(reasons[1] instanceof ActionError && reasons[1].code === "actions.host_closed", "the wait hears that its whole Host is closing");
   assert.equal(closed, 1);
 });
 

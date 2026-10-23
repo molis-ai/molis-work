@@ -1,6 +1,6 @@
 import { ActionError, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
+import { createExecutionLifetime, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -44,39 +44,48 @@ const codeOf = (error: unknown) => error instanceof ActionError ? error.code : "
 const closing = (error: unknown) => codeOf(error) === "host.project_closing";
 const same = (a: ActionReference, b: Required<ActionReference>) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
 
+/** One slow provider cannot keep the Home waiting or hold another project's answer behind it. */
+async function beforeDeadline<T>(signal: AbortSignal | undefined, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const lifetime = createExecutionLifetime({ signal, timeout: { milliseconds: 2_000, reason: new ActionError("actions.timeout", "首页读取超时，请重试") } });
+  try { lifetime.assertActive(); return await lifetime.wait(work(lifetime.signal)); }
+  finally { lifetime.dispose(); }
+}
+
 export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, outputType: string, input: unknown, signal?: AbortSignal): Promise<HomeAggregateResult<Output>> {
-  const answers: HomeAggregateAnswer<Output>[] = [], issues: HomeAggregateIssue[] = [];
-  for (const reference of ports.openProjects()) {
-    signal?.throwIfAborted();
+  signal?.throwIfAborted();
+  const projects = await Promise.all(ports.openProjects().map(async reference => {
     const project_id = reference.project_id;
     try {
-      await ports.whileOpen(reference, async () => {
-        // Read-only on top: whatever the query calls in turn, the Kernel refuses a command or a metered query (`query_only`).
-        const caller: ActionCallContext = { ...await ports.context(reference, signal), query_only: true };
+      return await ports.whileOpen(reference, async (): Promise<HomeAggregateResult<Output>> => {
         const client = ports.client(reference);
-        for (const view of await client.discover(caller)) {
-          if (view.action.output_type !== outputType || !isHomeAggregateQuery(view)) continue;
+        const { caller, views } = await beforeDeadline(signal, async discoverySignal => {
+          // Queries and all their nested calls remain read-only; discovery has its own bound too.
+          const caller: ActionCallContext = { ...await ports.context(reference, discoverySignal), query_only: true, signal: discoverySignal };
+          discoverySignal.throwIfAborted();
+          return { caller, views: await client.discover(caller) };
+        });
+        const results = await Promise.all(views.map(async (view: typeof views[number]): Promise<HomeAggregateResult<Output>> => {
+          const empty = { answers: [], issues: [] };
+          if (view.action.output_type !== outputType || !isHomeAggregateQuery(view)) return empty;
           const source = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
-          // Not granted in this project, or the plugin is off here: it is not called, and there is nothing to report.
-          if (caller.allowed_actions && !caller.allowed_actions.some(allowed => same(allowed, source))) continue;
-          if (!view.availability.available) {
-            if (view.availability.code !== "actions.plugin_disabled") issues.push({ project_id, source, code: view.availability.code });
-            continue;
-          }
+          if (caller.allowed_actions && !caller.allowed_actions.some(allowed => same(allowed, source))) return empty;
+          if (!view.availability.available) return { answers: [], issues: view.availability.code === "actions.plugin_disabled" ? [] : [{ project_id, source, code: view.availability.code }] };
           try {
-            answers.push({ project_id, source, plugin_id: view.provider.plugin_id ?? null, output: await client.invoke(caller, source, input) as Output });
+            const output = await beforeDeadline(signal, providerSignal => client.invoke({ ...caller, signal: providerSignal }, source, input)) as Output;
+            return { answers: [{ project_id, source, plugin_id: view.provider.plugin_id ?? null, output }], issues: [] };
           } catch (error) {
             signal?.throwIfAborted();
-            if (!closing(error)) issues.push({ project_id, source, code: codeOf(error) });
+            return { answers: [], issues: closing(error) ? [] : [{ project_id, source, code: codeOf(error) }] };
           }
-        }
-      });
+        }));
+        return { answers: results.flatMap(result => result.answers), issues: results.flatMap(result => result.issues) };
+      }) ?? { answers: [], issues: [] };
     } catch (error) {
       signal?.throwIfAborted();
-      if (!closing(error)) issues.push({ project_id, source: null, code: codeOf(error) });
+      return { answers: [], issues: closing(error) ? [] : [{ project_id, source: null, code: codeOf(error) }] };
     }
-  }
-  return { answers, issues };
+  }));
+  return { answers: projects.flatMap(result => result.answers), issues: projects.flatMap(result => result.issues) };
 }
 
 /** The ports over this Host: its open projects, and the local person's own context in each, as the Web uses it. */

@@ -9,11 +9,11 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "c85dcd33563629f9ed56c184168fad216f21e46f",
+    "commit": "5cd21c84bdf36ba206fa58413e3dfc33f571146f",
     "mergedUpstream": {
-      "pullRequest": 89,
-      "head": "c85dcd33563629f9ed56c184168fad216f21e46f",
-      "merge": "0c9ffb1546e201fec96cc8fd6a1c77d3cd4403ed",
+      "pullRequest": 90,
+      "head": "5cd21c84bdf36ba206fa58413e3dfc33f571146f",
+      "merge": "1986fec70ee8bedf16bb3d8387ecc39ec0c06635",
       "note": "Main tree equals the verified PR head; no local SDK patch."
     },
     "dirty": false,
@@ -22,9 +22,9 @@
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1336510,
-    "sha256": "fc53257a002459fdc25cc84f437cb6960dfc3b9e177e5c4973c729f8673a84a6",
-    "integrity": "sha512-gjbuzhmwbGNIbMXoLJBKfWKzWCzhbTZZofPNicwKoTP9D/X7034llMTfsC6ovNlu9AXOKDCekhXzPh1Tvegung=="
+    "bytes": 1336780,
+    "sha256": "1b2268437ffc7f2d51a6de546237e52d248fd026975e0c1511ee472c0d2a668e",
+    "integrity": "sha512-g/6cgPz3Pt7tv54HpFFMx6gag0pygX5us8TPXgTZFqpcQWAczl7qw6KzzqEcG74zy2rsnHYfablq2Wh4bD68Mg=="
   },
   "build": {
     "node": "24.19.0",
@@ -37,6 +37,6 @@
       "Copy the verified package to the Molis vendor path"
     ],
     "packedOn": "2026-10-23",
-    "note": "Clean PR #89 head; complete quality including 679 stable tests, clean installed SDK real HTTP/Node queue/carry/reopen, Rust and 102 targeted tests passed. First accepted input time survives carry/cancel/trimming/restart; unknown old times stay unknown; model-to-subagent steer is peer. Not a release or Molis acceptance; no byte-identical independent rebuild claimed. Actual Node24.19.0 differs from declared24.14.0."
+    "note": "Clean PR #90 head; complete quality including 684 stable tests, clean installed SDK real HTTP/Node queue/carry/reopen, Rust and the original 10 input-time tests passed. Session.locateInput reads the existing bounded input book and returns queued, withdrawn or an exact Run without history scans or writes. Missing, trimmed and unsettled direct inputs remain unknown. Not a release or Molis acceptance; no byte-identical independent rebuild claimed. Actual Node24.19.0 differs from declared24.14.0."
   }
 }

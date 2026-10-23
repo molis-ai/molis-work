@@ -20,7 +20,7 @@ test("提交说明的材料：计划标题、每轮的要求与结论、实际�
     { number: 4, run: run("按计划执行", "改了 mentionedPaths"), change: change("src/mentions.ts", "a\nfilter(/[./]/)\nc\n", "a\nfilter(none)\nc\n") },
     { number: 9, run: run("只提到裸名字又读不到时不要留空标题", "加了 parts 为空时原样返回"), change: change("src/rejected.ts", "x\n", "y\n", "not-applied") },
   ] });
-  assert.match(material, /^这些改动服务的计划：让 @ 引用支持无扩展名文件/);
+  assert.match(material, /^提交说明用中文写。\n这些改动服务的计划：让 @ 引用支持无扩展名文件/, "without a page the draft is written in Chinese");
   assert.match(material, /### 第 4 轮\n要求：按计划执行\n结论：改了 mentionedPaths/);
   assert.match(material, /#### src\/mentions\.ts（修改，\+1 −1）\n.*- filter\(\/\[\.\/\]\/\)\n\+ filter\(none\)/s);
   assert.doesNotMatch(material, /rejected\.ts/, "a write that never landed is not described as a change");
@@ -29,6 +29,13 @@ test("提交说明的材料：计划标题、每轮的要求与结论、实际�
   assert.doesNotMatch(long, /### 第 1 轮\n/, "the oldest round goes first"); assert.match(long, /### 第 20 轮/);
   assert.equal(commitMessageFrom("```text\nfix: 标题\n\n- 要点\n```"), "fix: 标题\n\n- 要点");
   assert.match(CODING_COMMIT_DRAFT.body, /不编造/);
+  // VUX-40: in the English page the draft is asked for in English, and its frame reads in English too, even when the
+  // person's requests were written in Chinese.
+  const english = commitDraftMaterial({ planTitle: "Bare names in @", locale: "en", rounds: [
+    { number: 4, run: run("按计划执行", "改了 mentionedPaths"), change: change("src/mentions.ts", "a\n", "b\n") }] });
+  assert.match(english, /^Write the commit message in English\.\nThe plan these changes serve: Bare names in @\n\n### Round 4\nRequest: 按计划执行\nConclusion: 改了 mentionedPaths\nChanges:\n#### src\/mentions\.ts \(modified, \+1 −1\)/);
+  assert.doesNotMatch(english, /[轮要求结论改动修改]：|（/, "no Chinese frame words around the person's own text");
+  assert.match(CODING_COMMIT_DRAFT.body, /材料第一行指定的语言/);
 });
 
 test("packed SDK: drafts share their owning Runtime, have no tools and leave no draft workspace", { timeout: 30_000 }, async () => {
@@ -99,7 +106,7 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
       assert.ok(JSON.stringify(bodies.at(-1).system).includes(edited));
       assert.doesNotMatch(JSON.stringify(bodies.at(-1).system), /UNTRUSTED_MATERIAL/);
       assert.match(JSON.stringify(bodies.at(-1).messages), /UNTRUSTED_MATERIAL/);
-      assert.deepEqual(definitions.uses(promptKey).map(use => [use.version, use.user_revision, use.caller]), [[1, 1, pluginId]]);
+      assert.deepEqual(definitions.uses(promptKey).map(use => [use.version, use.user_revision, use.caller]), [[prompt.version, 1, pluginId]]);
     }
     const otherHome = join(home, "another-home");
     await draftText({ ...options, homeDirectory: otherHome }, named, { pluginId });

@@ -1453,7 +1453,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 ### 4.1 库与就地补表
 
-系统评审修复的项目库 v8 → v9（2026-10-22，`feature/system-review-fixes`，待提交、待维护）：新增 `schedule_action_bindings`，记录闹钟所绑定安装、世代与动作版本。运行时只接受 v9，不补旧表、不推测旧闹钟身份。维护只在备份副本先演练：严格检查 v8、加入现行表、暂停未绑定闹钟、保留原任务与执行历史，明确重新授权后才恢复；拒绝错误版本并保证失败回滚。真实 Home 尚未维护，切换前须按发布维护窗口另行授权。验收与证据归 `specs/system-review-fixes/spec.md` 的 SYS-15-S6。
+系统评审修复的项目库 v8 → v9（2026-10-22，`feature/system-review-fixes`，待提交、待维护）：新增 `schedule_action_bindings`，记录闹钟所绑定安装、世代与动作版本。运行时只接受 v9，不补旧表、不推测旧闹钟身份。维护只在备份副本先演练：严格检查 v8、加入现行表、暂停未绑定闹钟、保留原任务与执行历史，明确重新授权后才恢复；拒绝错误版本并保证失败回滚。真实 Home 尚未维护，切换前须按发布维护窗口另行授权。验收与证据归 `specs/archive/system-review-fixes/spec.md` 的 SYS-15-S6。
 
 一个隔离 Home（QA Home，跑过一轮场景）里 Molis 自己的库共 30 个：
 

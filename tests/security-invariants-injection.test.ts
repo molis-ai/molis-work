@@ -236,7 +236,11 @@ test("S-13 onboarding materials reach the model only as fenced JSON under the fi
   const hostile = hostileMaterial("HOSTILE-ONBOARDING");
   const id = randomUUID();
   await post("/api/onboarding/context", { id });
-  await post(`/api/onboarding/context/${id}/selection`, { sources: [{ kind: "files", selected: true, files: [{ path: "供应商来信.md", data: Buffer.from(hostile).toString("base64") }] }] });
+  // The page uploads the chosen file as the raw body, then names it by the digest it got back.
+  const upload = await fetch(`${served.origin}/api/onboarding/context/${id}/files?path=${encodeURIComponent("供应商来信.md")}`, { method: "POST", headers: { origin: served.origin, "content-type": "application/octet-stream", "x-molis-work-control-token": served.controlToken, "x-molis-work-idempotency-key": randomUUID() }, body: Buffer.from(hostile) });
+  assert.equal(upload.status, 201, await upload.clone().text());
+  const file = await upload.json() as { path: string; staged: string };
+  await post(`/api/onboarding/context/${id}/selection`, { sources: [{ kind: "files", selected: true, files: [{ path: file.path, staged: file.staged }] }] });
   await post(`/api/onboarding/context/${id}/start`, {});
   await until(async () => ["review", "failed"].includes((await (await fetch(`${served.origin}/api/onboarding/context/${id}`)).json() as { phase: string }).phase), "the end of the reading");
   // Onboarding also hands the same materials to Todo's organizer, under Todo's own instruction; none of them may reach system text.

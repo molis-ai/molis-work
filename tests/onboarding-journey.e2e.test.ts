@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,7 @@ import test, { type TestContext } from "node:test";
 import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
 import { TODO_ACTION_PERMISSIONS, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 import { withContextJourneys, type ContextJourney, type ContextReference } from "../apps/local-host/dist/context-onboarding-store.js";
+import { startContextJourney, waitContextJourney } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean } from "./fixtures/layout-audit.js";
 
@@ -30,9 +32,11 @@ const TODOS = JSON.stringify({
 const LONG_NAME = "一个名字特别特别长的项目——用来确认标题、预览和底栏里的名字都不会顶破各自的框，也不会盖住旁边的按钮";
 const SUMMARY = `# 新版方案\n\n## 当前进展\n张总要求周五前发新版方案，预算等小李确认；团建改到周四。[S1]\n\n## 下一步\n1. 周四前把预算项列给小李，请他逐条确认。[S1]\n2. **周五上午**把新版方案发给张总。\n\n一段很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长的话，用来确认摘要里的长行会自己折行而不是撑出横向滚动条。https://example.com/a/very/long/path/that/never/breaks/anywhere/at/all/in/the/text`;
 
+// Every seeded material is the same mail; the journey's staging holds it once, as its file and as its text, under its digest.
+const MAIL_SHA256 = createHash("sha256").update(MAIL).digest("hex");
 const reference = (n: number, title = `材料 ${n}：张总的邮件`): ContextReference => ({
-  source_id: `m${n}`, version: 1, label: `S${n}`, title, path: `${title}.md`, body: MAIL,
-  original: { filename: `${title}.md`, mime: "text/markdown", data_base64: Buffer.from(MAIL).toString("base64") },
+  source_id: `m${n}`, version: 1, label: `S${n}`, title, path: `${title}.md`, text: { sha256: MAIL_SHA256, bytes: Buffer.byteLength(MAIL), chars: MAIL.length },
+  original: { filename: `${title}.md`, mime: "text/markdown", sha256: MAIL_SHA256, size_bytes: Buffer.byteLength(MAIL) },
 });
 const fileMeta = (count: number) => Array.from({ length: count }, (_, index) => ({
   path: index % 3 === 0 ? `会议纪要/第${index + 1}次产品评审会议纪要与后续跟进事项的完整记录（含各方意见）.md` : `资料-${index + 1}.md`,
@@ -58,6 +62,10 @@ async function openJourneyBrowser(t: TestContext, mode: true | "empty") {
   const seed = (build: (journey: ContextJourney) => void) => {
     const id = randomUUID();
     withContextJourneys(homeDirectory, store => { const journey = store.create(id); build(journey); return store.save(journey); });
+    for (const kind of ["files", "texts"]) {
+      const directory = join(homeDirectory, "context-onboarding", "journeys", id, kind);
+      mkdirSync(directory, { recursive: true }); writeFileSync(join(directory, MAIL_SHA256), MAIL);
+    }
     return id;
   };
   const batch = async () => (await localHost!.homeActionClient().invoke({ actor_id: "web-user", project_id: null, audience: "user", permissions: [...TODO_ACTION_PERMISSIONS, "model:invoke"] },
@@ -154,7 +162,10 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   // Confirm the scope: each file is a choice, and unchecking one makes its group read as partly chosen.
   await click("[data-action=prepare]");
   await waitFor(obView("preview"));
-  assert.ok(await evaluate("document.querySelectorAll('.ob-right .mw-file-row .mw-check').length >= 4 && document.querySelectorAll('.ob-meter').length === 2"));
+  assert.ok(await evaluate("document.querySelectorAll('.ob-right .mw-file-row .mw-check').length >= 4"));
+  // No count or size limit (user 2026-10-22): no meters against a cap, no “up to 200 files / 50 MB”.
+  assert.equal(await evaluate("document.querySelectorAll('.ob-meter, .ob-meters').length"), 0);
+  assert.doesNotMatch(await evaluate<string>("document.querySelector('.ob-left').textContent"), /200 份|50 MB|上限/);
   await click(".ob-right .mw-file-row .mw-check[data-file]");
   await waitFor("document.querySelector('.mw-file-group__count')?.textContent.trim() === '3/4'");
   assert.equal(await evaluate("document.querySelector('.mw-file-group__head .mw-check').indeterminate"), true);
@@ -170,7 +181,13 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   assert.equal(await evaluate("document.querySelector('[data-action=start] [data-slot=button-label]').textContent"), "先带入资料");
   // RING-05: model setup retains its own connection state beside the existing copy.
   assert.equal(await evaluate("document.querySelector('.ob-model .mw-state-ring')?.dataset.mwState"), "disconnected");
+  // ONB-LIM-10: the upload goes by bytes across every source. Each upload waits a moment here, so the bar can be read part-way.
+  await evaluate("(() => { const send = window.fetch; window.fetch = (url, init) => String(url).includes('/files?path=') ? new Promise(resolve => setTimeout(resolve, 400)).then(() => send(url, init)) : send(url, init); })()");
   await click("[data-action=start]");
+  await waitFor("Number(document.querySelector('.ob-upload [role=progressbar]')?.getAttribute('aria-valuenow')) > 0");
+  const upload = await evaluate<{ now: number; max: number; text: string }>("(() => { const bar = document.querySelector('.ob-upload [role=progressbar]'); return { now: +bar.getAttribute('aria-valuenow'), max: +bar.getAttribute('aria-valuemax'), text: document.querySelector('.ob-upload small').textContent }; })()");
+  assert.ok(upload.now < upload.max, JSON.stringify(upload)); assert.match(upload.text, /^已上传 \d.* \/ \d.*B$/);
+  await assertLayoutClean(evaluate, "scope, uploading");
   await waitFor(obView("materials"), 20_000);
   assert.ok(await evaluate("!!document.querySelector('[data-action=materials-only]')"));
   await assertLayoutClean(evaluate, "materials ready");
@@ -185,6 +202,43 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   assert.match(await evaluate<string>("location.pathname"), /^\/projects\/[^/]+\/?$/);
   const created = await (await fetch(origin + "/api/settings/projects")).json() as { projects: Array<{ display_name: string }> };
   assert.deepEqual(created.projects.map(project => project.display_name), [LONG_NAME]);
+});
+
+// While organizing (user 2026-10-22): reading goes by bytes, the summary by its calls, and once a call has finished the page says how
+// long the rest may take, worked out from the calls done; reopening the page shows the same, from the journey.
+test("ONB-LIM-10 while organizing, bars go by bytes and by calls, the time left comes once a call has finished, and reopening shows the same", { timeout: 120_000 }, async t => {
+  const journey = await openJourneyBrowser(t, true);
+  if (!journey) return;
+  const { view, go, evaluate, waitFor, homeDirectory } = journey;
+  await view(1440);
+  // One long material, already read: about 270,000 characters make several batches, one more for their notes, then the proposal.
+  const text = "# 长材料\n\n" + "普通的工作背景。\n".repeat(30_000), sha256 = createHash("sha256").update(text).digest("hex"), bytes = Buffer.byteLength(text);
+  const id = journey.seed(item => { item.sources = [{ kind: "files", selected: true, references: [{ ...reference(1, "长材料"), text: { sha256, bytes, chars: text.length }, original: { filename: "长材料.md", mime: "text/markdown", sha256, size_bytes: bytes } }] }]; });
+  for (const kind of ["files", "texts"]) writeFileSync(join(homeDirectory, "context-onboarding", "journeys", id, kind, sha256), text);
+  let first!: () => void, hold!: (error: Error) => void;
+  const firstGate = new Promise<void>(resolve => { first = resolve; }), held = new Promise<string>((_, reject) => { hold = reject; });
+  let calls = 0;
+  const completeText = async () => { if (++calls > 1) return held; await firstGate; return "# 要点\n普通的工作背景 [S1]"; };
+  startContextJourney(homeDirectory, id, { model: async () => ({ runtimeLabel: "stub", completeText }) } as never);
+  // On a failure the round is let go here; the Home goes in the browser's own clean-up, which runs before this one.
+  const release = () => { first(); hold(new Error("test over")); };
+  t.after(release);
+  const summary = "document.querySelectorAll('.ob-phase')[1]";
+  const bar = `${summary}?.querySelector('[role=progressbar]')`;
+  await go(`/onboarding?mode=new-project&journey=${id}`);
+  await waitFor(`/正在估算剩余时间/.test(${summary}?.textContent ?? '')`, 20_000);
+  const all = withContextJourneys(homeDirectory, store => store.get(id)).synthesis!.batches.all;
+  assert.ok(all > 2, "the first round's batches, a round for their notes, and the proposal");
+  assert.deepEqual(await evaluate(`[${bar}.getAttribute('aria-valuenow'), ${bar}.getAttribute('aria-valuemax')]`), ["0", String(all)], "every call is counted before the first is made");
+  assert.deepEqual(await evaluate("(() => { const b = document.querySelector('.ob-right [role=progressbar]'); return [b.getAttribute('aria-valuenow'), b.getAttribute('aria-valuemax')]; })()"), [String(bytes), String(bytes)], "reading goes by bytes");
+  first();
+  await waitFor(`/还要不到 1 分钟/.test(${summary}?.textContent ?? '') && ${bar}.getAttribute('aria-valuenow') === '1'`, 20_000);
+  await assertLayoutClean(evaluate, "reading, time left");
+  await go(`/onboarding?mode=new-project&journey=${id}`);
+  await waitFor(`/还要不到 1 分钟/.test(${summary}?.textContent ?? '') && ${bar}?.getAttribute('aria-valuenow') === '1'`, 20_000);
+  await view(390);
+  await assertLayoutClean(evaluate, "reading, time left, 390");
+  release(); await waitContextJourney(homeDirectory, id);
 });
 
 const SCREENS: Array<{ name: string; width: number; height?: number }> = [
@@ -258,26 +312,26 @@ async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof open
   const drafts = await batch();
   const scope = seed(item => {
     item.sources = [
-      { kind: "directory", selected: true, days: 30, excluded: ["资料-2.md"], files: fileMeta(24).map(file => ({ path: file.path, data: Buffer.from("x").toString("base64") })), metadata: { files: fileMeta(24), skipped: 3, truncated: false } },
+      { kind: "directory", selected: true, days: 30, excluded: ["资料-2.md"], files: fileMeta(24).map(file => ({ path: file.path, staged: MAIL_SHA256 })), metadata: { files: fileMeta(24), skipped: 3, truncated: false } },
       { kind: "browser", selected: true, text: MAIL.repeat(40), url: "https://example.com/some/very/long/address/that/goes/on/and/on/and/on" },
     ];
     item.previewed = true;
   });
   const added = seed(item => {
-    item.sources = [{ kind: "directory", selected: true, days: 30, files: fileMeta(12).map(file => ({ path: file.path, data: Buffer.from("x").toString("base64") })), metadata: { files: fileMeta(12), skipped: 0, truncated: false } },
+    item.sources = [{ kind: "directory", selected: true, days: 30, files: fileMeta(12).map(file => ({ path: file.path, staged: MAIL_SHA256 })), metadata: { files: fileMeta(12), skipped: 0, truncated: false } },
       { kind: "browser", selected: true, text: MAIL }];
   });
   const reviewWithDrafts = seed(item => {
     item.sources = [{ kind: "browser", selected: true, references: [reference(1)] }];
     item.phase = "review";
     item.summary = { title: "新版方案", body: SUMMARY, references: [reference(1), reference(2, "材料 2：预算表（含各部门明细与历史对比的完整版本）")] };
-    item.todo = { status: "ready", batch_id: drafts.batch_id, batch: drafts, error: null };
+    item.todo = { status: "ready", batches: [drafts], total: 1, error: null };
   });
   const reviewPlain = seed(item => {
     item.sources = [{ kind: "browser", selected: true, references: [reference(1)] }];
     item.phase = "review";
     item.summary = { title: LONG_NAME, body: SUMMARY, references: [reference(1)] };
-    item.todo = { status: "failed", batch_id: null, batch: null, error: "模型暂时没有响应" };
+    item.todo = { status: "failed", batches: [], total: 1, error: "模型暂时没有响应" };
   });
   const interrupted = seed(item => {
     item.sources = [{ kind: "browser", selected: true, references: [reference(1)] }, { kind: "directory", selected: true, error: "读取 会议纪要/第1次产品评审会议纪要与后续跟进事项的完整记录（含各方意见）.md 失败：文件已移动", files: [{ path: "a.md", data: "" }] }];
@@ -296,6 +350,14 @@ async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof open
     item.adoption = { title: LONG_NAME, body: SUMMARY, blank: false };
     item.summary = { title: "新版方案", body: SUMMARY, references: [reference(1)] };
   });
+  // A long round stopped part-way: the checkpoint says how far reading, the summary's batches and the todo batches came.
+  const longQueue = seed(item => {
+    item.sources = [{ kind: "files", selected: true, files: fileMeta(12).map(file => ({ path: file.path, staged: MAIL_SHA256 })), reading: { done: 120, total: 300, references: [], issues: [] } }];
+    item.phase = "failed"; item.error = "读取在第 121 份时中断，已读的会沿用。";
+    item.reading_bytes = { done: 48_000_000, total: 120_000_000 };
+    item.synthesis = { key: "fixture", stage: 1, completed: 3, total: 8, notes: [], batches: { done: 3, all: 10 }, timing: { ms: 90_000, calls: 3 } };
+    item.todo = { status: "pending", batches: [], total: 6, error: null, timing: { ms: 0, calls: 0 } };
+  });
   const reselect = seed(item => {
     item.sources = [{ kind: "browser", selected: true, references: [{ ...reference(1), original: undefined as never }] }];
     item.phase = "review";
@@ -305,6 +367,7 @@ async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof open
     ["sources, materials added", `/onboarding?mode=new-project&journey=${added}`, `${obView("sources")} && document.querySelectorAll('.ob-right .mw-file-group').length === 2`],
     ["scope, long names", `/onboarding?mode=new-project&journey=${scope}`, `${obView("preview")} && document.querySelectorAll('.mw-file-row').length > 20`],
     ["reading, interrupted", `/onboarding?mode=new-project&journey=${interrupted}`, obView("reading")],
+    ["reading, a long queue interrupted", `/onboarding?mode=new-project&journey=${longQueue}`, `${obView("reading")} && document.querySelectorAll('.ob-phase').length === 3 && /120\\D+300/.test(document.querySelector('.ob-phases').textContent) && /8\\D+4/.test(document.querySelectorAll('.ob-phase')[1].textContent) && /6\\D+1/.test(document.querySelectorAll('.ob-phase')[2].textContent) && /48\\.0 MB \\/ 120\\.0 MB/.test(document.querySelector('.ob-phases').textContent) && document.querySelector('.ob-right [role=progressbar]').getAttribute('aria-valuenow') === '48000000' && document.querySelectorAll('.ob-phase [role=progressbar]').length === 2`],
     ["materials ready", `/onboarding?mode=new-project&journey=${needsModel}`, obView("materials")],
     ["review with drafts", `/onboarding?mode=new-project&journey=${reviewWithDrafts}`, `${obView("review")} && document.querySelectorAll('[data-draft]').length === 3`],
     ["review, long name, no drafts", `/onboarding?mode=new-project&journey=${reviewPlain}`, obView("review")],
@@ -369,7 +432,7 @@ test("in English every screen of the journey lays out cleanly too: longer words,
 test("the new project is previewed in the sentence the chooser will use for it, and a blank start carries one line about the personal space, not a paragraph", { timeout: 60_000 }, async t => {
   const journey = await openJourneyBrowser(t, true);
   if (!journey) return;
-  const { view, go, seed, evaluate, waitFor } = journey;
+  const { view, go, seed, evaluate, waitFor, click } = journey;
   await view(1440);
   const id = seed(item => {
     item.sources = [{ kind: "browser", selected: true, references: [reference(1)] }];
@@ -380,6 +443,11 @@ test("the new project is previewed in the sentence the chooser will use for it, 
   await waitFor(obView("review"));
   assert.equal(await evaluate("document.querySelector('.ob-preview .mw-brief__desc').textContent"), "张总要求周五前发新版方案，预算等小李确认；团建改到周四。",
     "the first paragraph that says something: not the heading, not the [S1] mark");
+  // A cited material's text is staged on the Host, not in the journey: the dialog reads it from there (no limits, 2026-10-22).
+  await click(".cx-citation[data-cite=S1]");
+  await waitFor("document.getElementById('cx-dialog').open && document.querySelector('#cx-dialog .cx-source-body').textContent.length > 0");
+  assert.equal(await evaluate("document.querySelector('#cx-dialog .cx-source-body').textContent"), MAIL);
+  await click("#cx-dialog [data-close]");
   await go("/onboarding?mode=new-project&start=blank");
   await waitFor(`${obView("blank")} && !!document.getElementById('cx-blank-name')`);
   assert.equal(await evaluate("document.querySelectorAll('.ob-left .ob-note').length"), 0, "no long note under the name");

@@ -238,23 +238,17 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // VUX-31 (slice 98): the slash menu keeps the words typed last when the lists the first asked for answer late, and the side panel's file
-  // list drops a late page of a list read again. 1186501 → 1186577 (+76).
-  "/assets/molis-work-workbench.js": [1186501, 1186577],
-  // VUX-29 (slice 97): Pages' folder name dialog sends while it is open: a second press is swallowed, a refusal keeps the name and says why
-  // under the field, Enter saves instead of cancelling. 48446 → 49109 (+663).
-  "/assets/molis-work-plugins/pages.js": [48446, 49109],
-  // VUX-31 (slice 98): the 项目资料 page's newest read wins and a longer list is not added to another state's; the helper keeps the bind
-  // function under the giant-unit limit, so inlining it to save ~60 B is not open. 26305 → 26516 (+211).
-  "/assets/molis-work-knowledge.js": [26305, 26516],
-  // VUX-29 (slice 97): a modal dialog in a plugin's isolated frame says so, and the workbench around the frame is inert until it closes,
-  // as showModal() leaves the rest of one document; without it the back, home, tab and plugin buttons stayed usable. 187115 → 187730 (+615).
-  "/assets/molis-work-plugin-frame.js": [187115, 187730],
+  // Shelf S3: the host's /api/shelf is gone, so the computer-use panel puts its record on the shelf through the plugin's own route
+  // (/api/plugins/io.molis.work.shelf/items, named once instead of three times). 1186715 → 1186746 (+31).
+  "/assets/molis-work-workbench.js": [1186715, 1186746],
+  // Shelf S3: the folder cap is 32 MB (was 64); the panel says so before reading a larger folder, instead of base64-uploading it into
+  // the route's body limit and getting a bare 413 back. 74969 → 75143 (+174).
+  "/assets/molis-work-plugins/shelf.js": [74969, 75143],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.
-// User approved 2026-10-21 (specs/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
+// User approved 2026-10-21 (specs/archive/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
 // shared bridge (including the common UI helpers) once; the original 90325-byte estimate was not a ceiling.
 const APPROVED_NEW_ASSETS = {
   "/assets/molis-work-plugin-frame.js": 187120,

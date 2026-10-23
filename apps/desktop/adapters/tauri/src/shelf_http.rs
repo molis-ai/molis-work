@@ -354,7 +354,8 @@ fn http_payload(raw: &[u8]) -> Result<String, String> {
         .to_ascii_lowercase()
         .contains("transfer-encoding: chunked")
     {
-        decode_chunked(body)?
+        let joined = decode_chunked(body).ok_or("置物架分块响应不完整")?;
+        String::from_utf8(joined).map_err(|_| "置物架响应不是文本".to_string())?
     } else {
         String::from_utf8(body.to_vec()).map_err(|_| "置物架响应不是文本".to_string())?
     };
@@ -368,43 +369,38 @@ fn http_payload(raw: &[u8]) -> Result<String, String> {
     Ok(payload)
 }
 
-fn split_http(raw: &[u8]) -> Option<(&[u8], &[u8])> {
+pub(crate) fn split_http(raw: &[u8]) -> Option<(&[u8], &[u8])> {
     let pos = raw.windows(4).position(|window| window == b"\r\n\r\n")?;
     Some((&raw[..pos], &raw[pos + 4..]))
 }
 
-fn decode_chunked(body: &[u8]) -> Result<String, String> {
+/// A chunked HTTP body put back together; None when it is cut short or a chunk size cannot be read.
+pub(crate) fn decode_chunked(body: &[u8]) -> Option<Vec<u8>> {
     let mut out = Vec::new();
     let mut index = 0;
     while index < body.len() {
-        let Some(line_end) = body[index..]
+        let line_end = body[index..]
             .windows(2)
             .position(|window| window == b"\r\n")
-            .map(|offset| index + offset)
-        else {
-            return Err("置物架分块响应不完整".into());
-        };
-        let size_line = std::str::from_utf8(&body[index..line_end])
-            .map_err(|_| "置物架分块长度无效".to_string())?;
-        let size_hex = size_line.split(';').next().unwrap_or("").trim();
+            .map(|offset| index + offset)?;
+        let size_line = std::str::from_utf8(&body[index..line_end]).ok()?;
         let size =
-            usize::from_str_radix(size_hex, 16).map_err(|_| "置物架分块长度无效".to_string())?;
+            usize::from_str_radix(size_line.split(';').next().unwrap_or("").trim(), 16).ok()?;
         index = line_end + 2;
         if size == 0 {
             break;
         }
         if index + size > body.len() {
-            return Err("置物架分块响应不完整".into());
+            return None;
         }
         out.extend_from_slice(&body[index..index + size]);
         index += size;
-        if body.get(index..index + 2) == Some(b"\r\n".as_ref()) {
-            index += 2;
-        } else {
-            return Err("置物架分块响应不完整".into());
+        if body.get(index..index + 2) != Some(b"\r\n".as_ref()) {
+            return None;
         }
+        index += 2;
     }
-    String::from_utf8(out).map_err(|_| "置物架响应不是文本".into())
+    Some(out)
 }
 
 fn idempotency_key() -> String {

@@ -2999,3 +2999,14 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - CI 队列里看到 [#1064](https://github.com/molis-ai/molis-work/pull/1064)（用户自己的账号，`codex/memory-sdk-adoption`），登记册里原来没有，已报给用户，记在 R-02。
 - Codex 的查看时间：19:53（每 30 分钟一次）。
 - 补记：上一节的登记册改动第一次没写进去（脚本被 shell 截住了），这次补上了。同时并入 Codex 的 `2c02f2271`：它的全量跑完了，1352 个文件里 1342 个过、10 个红。10 个红都已经有归属：VUX-36 归 #1086；`goals-mcp-actions`、`session-workspace` 归 #1075 的叠加 PR；`fill-message`、`host-pages-error-model`、`personal-plugins-review-fixes`、`plugin-project-database` 归 #1082（R-18）；`coding-rich-html` 归 #1067 合入后的夹具修复；`issue-capture-page` 记成 R-23；`busy-feedback` 记在 R-07，正在单独重跑。6 个文件含跳过项：没给真实账号和模型凭据，跳过不算通过。接下来 Codex 拿固定的 main `a259350ac` 做失败对照。
+
+### 10-23 20:04（12:04 UTC） 「新建 / 开始入口」并进 ② 的 2b；②、③ 断在一次临时的代理错误上
+
+- ② 查过 ③ 那五处：三处有现成的 Manifest 字段可读。标签标题表在 `tab-workspace-ops.ts:12-27`，读视图的 `title`；搜索表读 `ui.views[].accepts_objects`；`/__ui/catalog` 样张读带 navigator 视图的目录条目。这三处 ③ 现在就做。
+- 另外两处没有字段可读：`goal-inputs-html.ts:22` 的 CREATE，连同 `scripts/client/placement.ts:532` 的 `names`；`scripts/client/project-home.ts:217-221` 的 `starts`。`artifacts.produces` 顶不了，images、灵光也产出成果，却不能经 placement 新建。
+- ① 批了 ② 的提议：2b 一次改合同，分组、设置图标、新建 / 开始入口三样都是视图元数据，一起声明，省得 `api:update`、CONTRACT-CHANGES 和全量批走两遍。条件：
+  - 三样各有自己的字段校验和拒绝用例；
+  - 2b 进集成批，PR 写清对插件作者的影响；
+  - 2b 里不删那两处手写行，合进去以后由 ③ 删；
+  - 顺序是 #1081 的 P1 → BL-403 + BL-404 → 2b。
+- 两边都在 19:5x 断在 `ERR_PROXY_TUNNEL` 上（代理拒绝了隧道）。① 20:03 试过，到 Anthropic 和 GitHub 都通了，负载 5，所以是临时的。已经发消息让两边接着做；② 那边要先看 #1081 的构建还在不在。

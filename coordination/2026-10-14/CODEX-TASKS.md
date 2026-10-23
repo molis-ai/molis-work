@@ -21,7 +21,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 | 序 | 片 | 号段 | 现状 |
 | --- | --- | --- | --- |
-| C0 | **main 的 macOS 红（先于 C1）**：自 #1079（S-56）起 `SandboxSdk.interaction` 写成 `import('./plugin-interaction.js')` 的相对导入，发给生成项目的 `developer/sdk.d.ts` 解析不了，`tests/agent-built-plugins-checks.test.ts`（创作台 G2）与 `tests/agent-built-plugins-workflow.test.ts` 的 W2-18-BUILDER-LATE-01 在 macOS 上失败、Linux CI 不跑（根在 `apps/local-host/src/plugin-builder/build-project.ts` 的 `sdkDeclaration()` 只拷 plugin-sandbox 一份声明，#1147 作者 10-23 核过）。修法：让发出去的 SDK 声明自包含（内联该类型或在生成时一并带上），断言不放宽；创作台本轮不删只绕过，但 main 的红要修。写进 `known-red-main.md` 直到修好 | — | Codex 已接收；当前修复优先，随后先于C1。只读已定位生成声明与G2 snapshot均漏发类型依赖；尚未修改源码、开PR；请分配验收号段或允许C0-01～04（统筹 10-23 20:45 派） |
+| C0 | **main 的 macOS 红（先于 C1）**：自 #1079（S-56）起 `SandboxSdk.interaction` 写成 `import('./plugin-interaction.js')` 的相对导入，发给生成项目的 `developer/sdk.d.ts` 解析不了，`tests/agent-built-plugins-checks.test.ts`（创作台 G2）与 `tests/agent-built-plugins-workflow.test.ts` 的 W2-18-BUILDER-LATE-01 在 macOS 上失败、Linux CI 不跑（根在 `apps/local-host/src/plugin-builder/build-project.ts` 的 `sdkDeclaration()` 只拷 plugin-sandbox 一份声明，#1147 作者 10-23 核过）。修法：让发出去的 SDK 声明自包含（内联该类型或在生成时一并带上），断言不放宽；创作台本轮不删只绕过，但 main 的红要修。写进 `known-red-main.md` 直到修好 | — | 21:17盘点发现已有独立修复 #1136，头24be770d5（20:12开出，早于本派单）；Codex已读实际diff，创建/G1/G2同一声明集合覆盖相同根因，全部CI已绿。作者报告macOS checks17/17与workflow42/42，尚未独立核原始本机日志；请统筹安排ac-review并复用该PR。Codex未另写或重开重复PR，known-red保留至实际确认合入。 |
 | C1 | W5-13 收尾：宿主日志与吞掉的错误 | RAC-110～119，BL-445～449 | Codex 已领取；按 §1 排在当前修复、二轮与测试之后。届时创建独立 Session，从 server+cli 区域开始；尚未写源码、未开 PR |
 | C2 | W5-16：`molis-work home snapshot` 与恢复 | RAC-100～109，BL-440～444 | 待开工 |
 | C3 | W5-10 的一部分：官方集成与横向服务的巨大单元 | RAC-120～129 里的 RAC-124～129，BL-452～454 | 待开工 |

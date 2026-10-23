@@ -10,6 +10,8 @@
 
 ## 当前已知红（2 个文件，同一 C0 根因）
 
+21:17 UTC 发现已有 [#1136](https://github.com/molis-ai/molis-work/pull/1136)，头24be770d5，创建/G1/G2共用完整声明集合，静态覆盖下列同一根因；全部CI已绿，作者报告macOS checks17/17与workflow42/42。Codex已读diff，未独立核本机原始日志；待评审及合入确认前保留本表，不另做重复修复。
+
 | 文件 | 失败的用例 | 原因类别 | 依据 |
 | --- | --- | --- | --- |
 | `agent-built-plugins-checks.test.ts`（macOS） | G2：生成的 `developer/sdk.d.ts` 找不到 `./plugin-interaction.js` | 产品回归：声明依赖漏交付 | 统筹20:45派C0；#1119一轮6373464651报告相同失败。Codex已静态核main38111：#1079增加相对类型引用，创建目录/G1/G2快照仍只交付一个文件；尚待C0在main基线复现及修复。现有整文件标macOS，Linux全量跳过；不是Linux已验证通过。 |

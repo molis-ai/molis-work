@@ -330,7 +330,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     const manifest = this.#activeEntries.get(pluginId)?.definition.manifest;
     const record = this.#runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === manifest?.publisher.signature && item.state !== "uninstalled");
     return record ? { install_id: record.install_id, installation_generation: record.installation_generation, version: record.version,
-      running: record.state === "running" && this.#runtime.contribution(record.install_id) !== null } : undefined;
+      running: record.state === "running" && this.#runtime.contribution(record.install_id) !== null, grants: [...record.grants] } : undefined;
   }
 
   manifest(pluginId: string): PluginManifest | undefined {

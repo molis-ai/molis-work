@@ -110,6 +110,7 @@ test("SIDE-FWD-01 a side view's placement events reach the page; an unlisted eve
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click("[data-side-toggle]");
   await child.waitFor("document.querySelector('[data-shelf-stage-shell]')", 10_000);
+  await waitFor(`document.querySelector('[data-side-body="${SHELF_TAB}"] iframe')?.contentDocument?.querySelector('[data-work-surface=shelf]')?.dataset.uiClientState === 'ready'`);
   await evaluate(`(() => {
     window.__heard = [];
     for (const name of ['molis:placement-result', 'molis:placement-request', 'molis:not-forwarded']) addEventListener(name, (event) => window.__heard.push([name, event.detail && event.detail.title]));

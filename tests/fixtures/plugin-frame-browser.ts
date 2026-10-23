@@ -1,9 +1,38 @@
 import assert from "node:assert/strict";
 import type { TestContext } from "node:test";
+import type { Server } from "node:http";
+import { renderPluginFrameClientScript } from "@molis-ai/molis-work-app-workbench";
 import type { openGoalBrowser } from "./goal-browser.js";
 
 type Browser = Pick<NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>, "command" | "on" | "evaluate" | "sessionId">;
 type Context = { id: number; auxData?: { frameId?: string; isDefault?: boolean } };
+
+/** Serve observation before the unmodified production bridge. Opaque srcdoc targets can attach after their scripts ran. */
+export function observePluginFrames(server: Server): (source: string) => void {
+  let source = "";
+  const handlers = server.listeners("request"); server.removeAllListeners("request");
+  server.on("request", (request, response) => {
+    if (source && request.method === "GET" && request.url === "/assets/molis-work-plugin-frame.js") {
+      response.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
+      response.end("(()=>{\n" + source + "\n})();\n" + renderPluginFrameClientScript());
+    } else for (const handler of handlers) handler.call(server, request, response);
+  });
+  return value => { source = value; };
+}
+
+/** Observe the public factory in every actual opaque document, keeping its sandbox and CSP unchanged. */
+export async function pluginFrameInitScript(t: TestContext, browser: Browser & { setFrameInitScript(source: string): void }, source: string, prepare?: (session: string) => Promise<void>): Promise<void> {
+  browser.setFrameInitScript(source);
+  if (!prepare) return;
+  const pending: Promise<void>[] = [], failures: unknown[] = [];
+  t.after(browser.on("Target.attachedToTarget", params => {
+    if ((params.targetInfo as { type: string }).type === "iframe") {
+      pending.push(prepare(String(params.sessionId)).catch(error => { failures.push(error); }));
+    }
+  }));
+  t.after(async () => { await Promise.all(pending); if (failures.length) throw new AggregateError(failures, "Plugin frame observation failed"); });
+  await prepare(browser.sessionId);
+}
 
 /** Operate the real child execution context through DevTools; never pierce it through the owner's DOM. */
 export async function pluginFrameBrowser(t: TestContext, browser: Browser, surface?: string, ownerFrame?: string) {

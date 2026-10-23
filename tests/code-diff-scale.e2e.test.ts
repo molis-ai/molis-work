@@ -31,11 +31,12 @@ const WHOLE = `(list) => { const codes = [...list.querySelectorAll(':scope > li 
     return holder.innerHTML; }); }`;
 
 test("VUX-33: a large change reads whole at once and is coloured a slice a frame to the whole colouring; a minified line stays text, not the file", { timeout: 180_000 }, async t => {
-  const opened = await openCoding(t, `window.diffFontListeners = new Set();
+  const opened = await openCoding(t); if (!opened) return;
+  const { evaluate, waitFor, start, openItem, command, sessionId } = opened;
+  await evaluate(`window.diffFontListeners = new Set();
     const addFontListener = document.fonts.addEventListener.bind(document.fonts), removeFontListener = document.fonts.removeEventListener.bind(document.fonts);
     document.fonts.addEventListener = (type, listener, options) => { if (type === 'loadingdone') diffFontListeners.add(listener); addFontListener(type, listener, options); };
-    document.fonts.removeEventListener = (type, listener, options) => { if (type === 'loadingdone') diffFontListeners.delete(listener); removeFontListener(type, listener, options); };`); if (!opened) return;
-  const { evaluate, waitFor, start, openItem, command, sessionId } = opened;
+    document.fonts.removeEventListener = (type, listener, options) => { if (type === 'loadingdone') diffFontListeners.delete(listener); removeFontListener(type, listener, options); };`);
   const session = await start("看一份很大的改动");
   const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-large", applied: true, files: [{ path: "large.ts", kind: "modified", added_lines: 202, removed_lines: 200, diff: "",
     review: { review_id: "review-large", before_text: BEFORE, after_text: AFTER, decision: "approved", execution: "applied" } }] },

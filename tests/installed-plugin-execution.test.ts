@@ -69,7 +69,7 @@ for (const mode of ['cancelled', 'revoked', 'withdrawn'] as const) test(`install
         firstRouteBody ??= response.body;
         return response;
       } finally { firstRouteFinished.resolve(); }
-    }).dispose;
+    }, undefined, installId).dispose;
     withdraw = register();
     const caller: ActionCallContext = { actor_id: 'owner', project_id: 'p', audience: 'user', permissions: [], signal: controller.signal,
       validate_authority: () => { if (!allowed) throw new Error('Authority revoked'); } };
@@ -287,8 +287,9 @@ for (const mode of ['cancelled', 'revoked'] as const) test(`PLIB-10 S-18 an inst
     const report = await platform.start([{ definition, grants: ['storage:private', tables.read_permission, tables.write_permission] }]);
     assert.ok(report.running.includes(contract.pluginId), JSON.stringify(report));
     assert.equal(count(), 0, 'its tables are made when it starts');
+    const installId = platform.runtime.list().find(item => item.plugin_id === contract.pluginId)!.install_id;
     withdraw = exposeInstalledPlugin(actions, release, async (pluginId, operation, input, context) => await platform.router().dispatch({ method: 'POST',
-      pathname: '/api/plugins/' + pluginId + '/call', actor_id: context.actor_id, execution: context, body: { operation, input } }) ?? { status: 409 }).dispose;
+      pathname: '/api/plugins/' + pluginId + '/call', actor_id: context.actor_id, execution: context, body: { operation, input } }) ?? { status: 409 }, undefined, installId).dispose;
     const caller: ActionCallContext = { actor_id: 'owner', project_id: DEMO_PROJECT_ID, audience: 'user', permissions: [], signal: controller.signal,
       validate_authority: () => { if (!allowed) throw new Error('Authority revoked'); } };
     const action = { capability_id: exposedActionId(release, 'save'), version: 1 };

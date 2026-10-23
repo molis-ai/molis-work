@@ -42,6 +42,7 @@ for (const [width, locale] of [[1440, "zh"], [390, "zh"], [1440, "en"], [390, "e
     await browser.click('[data-plugin-strip] [data-plugin-id="images"]');
   }
   await browser.waitFor("document.body.dataset.desktopSurface === 'images'");
+  await waitFor("document.querySelector('[data-images-history-empty] strong')");
   assert.equal(await evaluate("document.querySelector('[data-images-history-empty] strong').textContent"), locale === "en" ? "No images yet" : "还没有图片");
   assert.equal(await evaluate("document.querySelector('[data-images-prompt]').placeholder"), locale === "en"
     ? "For example: A desk at dawn, coffee and an open book, sunlight from the left, film photography, warm tones."

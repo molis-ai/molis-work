@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -26,6 +26,8 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
   characters.close();
   const api = `/projects/${browser.projectId}/api/plugins/io.molis.work.characters`;
   const published = await browser.web.post<{ reference: { artifact_id: string; version: number } }>(api + `/drafts/${draft.character_id}/publish`, { expected_revision: draft.revision });
+  const prepared = await browser.web.post<{ executable: string }>(api + "/execution", { reference: published.reference });
+  assert.equal(prepared.executable, await realpath(join(bin, "codex")), "the native process must use this test fixture");
   const input = { reference: published.reference, workspace_id: workspace.workspace_id, task: "Verify the isolated terminal", request_id: randomUUID() };
   const launched = await browser.web.post<{ run: { session_id: string; panel_id: string }; spawn: Record<string, unknown> }>(api + "/execution/native", input);
   assert.equal(launched.spawn.command, undefined); assert.equal(launched.spawn.cwd, undefined);
@@ -35,7 +37,10 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
     await child.waitFor("document.querySelector('[data-character-id]')");
     await child.click('[data-character-id]'); await child.waitFor("document.querySelector('[data-character-native-runs] button')");
     await child.click('[data-character-native-runs] button');
-    if (running) await child.waitFor("document.querySelector('.xterm-rows')?.textContent.includes('ISOLATED_TERMINAL_READY')");
+    if (running) {
+      try { await child.waitFor("document.querySelector('.xterm-rows')?.textContent.includes('ISOLATED_TERMINAL_READY')"); }
+      catch (error) { throw new Error(JSON.stringify(await child.evaluate("({ output: document.querySelector('.xterm-rows')?.textContent, status: document.querySelector('[data-character-terminal-status]')?.textContent, saved: document.querySelector('[data-character-run-output]')?.textContent, width: document.querySelector('.xterm-rows')?.clientWidth })")), { cause: error }); }
+    }
   };
   await open();
   assert.equal(await browser.evaluate("document.querySelector('[data-work-surface=characters] iframe') === null"), true, "Characters retains the Host surface from CHR-1");

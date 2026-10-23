@@ -10,6 +10,7 @@ export interface FrameScope extends UiRequestScope {
   readonly signal: AbortSignal;
   own(cleanup: () => void): () => void;
   dispose(): void;
+  frame(callback: () => void): number;
   listen(target: EventTarget, name: string, callback: EventListener): () => void;
   whenVisible(start: (signal: AbortSignal) => (() => void) | void): () => void;
   observe(observer: MutationObserver, target: Node, options: MutationObserverInit): MutationObserver;

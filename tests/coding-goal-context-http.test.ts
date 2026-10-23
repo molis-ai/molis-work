@@ -20,7 +20,7 @@ function codingHostFixture(root: string) {
   let sdkSessions = 0;
   let captured: HostPluginCaller | undefined;
   let heldProgress: { enter(): void; wait: Promise<void> } | undefined;
-  const host = new MolisWorkLocalHost({ actionAvailability: (caller, action) => { if (caller.audience === "plugin" && action.capability_id === goalPluginActions.contract.capability_id) captured = caller.host_plugin; if (heldProgress && caller.audience === "plugin" && action.capability_id === goalPluginActions.progress.capability_id && caller.allowed_actions?.some(ref => ref.capability_id === action.capability_id && ref.provider_id)) {
+  const host = new MolisWorkLocalHost({ actionAvailability: (caller, action) => { if (caller.audience === "plugin" && action.capability_id === goalPluginActions.contract.capability_id) captured = caller.host_plugin; if (heldProgress && caller.audience === "plugin" && action.capability_id === goalPluginActions.progress.capability_id && caller.allowed_capability_ids?.includes(action.capability_id)) {
       const held = heldProgress; heldProgress = undefined; held.enter(); return held.wait.then(() => ({ available: true as const }));
     } return { available: true }; }, homeDirectory: root, workspacesFor: () => [{ workspace_id: "work", canonical_path: root, display_name: "fixture", realpath_verified: true }] });
   // A Host with a Home composes its own Agent service (and registers its agent.* capabilities); the Home is what gives Coding's

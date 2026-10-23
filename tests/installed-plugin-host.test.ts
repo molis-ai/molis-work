@@ -124,7 +124,7 @@ test('an in-flight catalog inspection cannot restore generated registrations aft
   } finally { release.resolve(); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test('Host alone restores installed actions and scheduled operations, retains data across restart and leaves authoring untouched', mac, async () => {
+test('SYS-15-S1 Host alone restores installed actions and scheduled operations, retains data across restart and leaves authoring untouched', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-headless-'));
   const fixture = await publishedFixture(home, 'project'), { release, ref } = fixture;
   let host = new MolisWorkLocalHost({ homeDirectory: home });
@@ -133,7 +133,10 @@ test('Host alone restores installed actions and scheduled operations, retains da
     await host.inspectActions(caller, ref);
     const client = host.actionClient(ref), discovered = await client.discover(caller);
     assert.equal(discovered.filter(view => view.capability_id.startsWith('generated.')).length, 3);
+    const privateValues = () => host.withProject(ref, runtime => new SqlitePluginPrivateStorage(runtime.store.db).snapshotInstallationData(fixture.install.install_id));
+    const beforeRead = await privateValues();
     assert.equal(await client.invoke(caller, action('read'), null), 'empty', 'null reaches the declared contract unchanged');
+    assert.deepEqual(await privateValues(), beforeRead, 'SYS-15-S1 a sandbox query never persists an unchanged private snapshot');
     assert.equal(await client.invoke(caller, action('save'), { value: 'original data' }), 'original data');
     const at = Date.now() + 1500;
     await client.invoke(caller, action('schedule'), new Date(at).toISOString());
@@ -145,7 +148,8 @@ test('Host alone restores installed actions and scheduled operations, retains da
     await host.inspectActions(caller, ref);
     assert.equal(await host.actionClient(ref).invoke(caller, action('read'), null), 'original data');
     await host.withProject(ref, async runtime => {
-      await scheduleServiceFor(runtime.store.db).tick(new Date(at + 1000));
+      const clock = scheduleServiceFor(runtime.store.db), receipt = await clock.tick(new Date(at + 1000));
+      assert.deepEqual(receipt, { invoked: 1, failed: 0, skipped: 0 }, JSON.stringify(clock.list()));
       const builder = new AgentBuilderStore(studioStorage(runtime.store.db, DEMO_PROJECT_ID));
       assert.deepEqual(builder.get(fixture.draft.id), fixture.draft, 'restoring or executing an install does not resume the authoring Workflow');
       assert.equal(new SqlitePluginRuntimeRepository(runtime.store.db).get(fixture.install.install_id)?.manifest_digest, fixture.install.manifest_digest, 'no same-version manifest rewrite');

@@ -13,6 +13,7 @@ import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 // by any window that is not one of the panes is dropped.
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
 const paneText = "(document.querySelector('[data-pages-editor] .ProseMirror')?.textContent ?? '')";
+const PANE = "document.querySelector('iframe[data-pane-owner]:not([hidden])')";
 
 test("PANE-LAND-01, PANE-LAND-02 (W3-B3, S-30): a passage selected in the right panel is put at the cursor of the Pages document in a split pane, after a preview in that pane", { timeout: 150_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);

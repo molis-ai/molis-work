@@ -142,7 +142,13 @@ test("W2-18-WFSAVE-02: a real CAS failure retains A's latest edits across B, reo
   assert.equal(await editor.frame.evaluate("document.querySelector('[data-wf-save-state]').dataset.mwState"), "failed", "RING-07: a refused save never displays the saved mark");
   assert.equal(await editor.frame.evaluate("JSON.parse(document.querySelector('[data-workflows=workbench]').dataset.assistantContext).unsaved"), true);
   assert.equal(await editor.frame.evaluate("document.querySelector('[data-wf-action=start]').disabled"), true, "an unsaved draft cannot start the older stored chain");
-  await editor.reloadPage();
+  // The Host now owns the unsaved-input prompt for an opaque editor; this journey explicitly chooses to reload.
+  const leaving: string[] = [], answers: Promise<unknown>[] = [];
+  const stopLeaving = editor.on("Page.javascriptDialogOpening", params => {
+    leaving.push(String(params.type)); answers.push(editor.command("Page.handleJavaScriptDialog", { accept: true }, editor.sessionId));
+  });
+  try { await editor.reloadPage(); await Promise.all(answers); } finally { stopLeaving(); }
+  assert.ok(leaving.every(type => type === "beforeunload"));
   if (await editor.frame.evaluate("document.querySelector('[data-workflows=workbench]').hidden")) await editor.click("[data-plugin-strip] [data-plugin-id=workflows]");
   await editor.surfaceReady("workflows");
   await editor.frame.waitFor(`document.querySelector('[data-wf-open="${editor.a.workflow_id}"]')`);

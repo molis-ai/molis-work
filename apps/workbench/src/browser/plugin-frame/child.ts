@@ -92,9 +92,9 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     if (message.type === "state") {
       const prior = document.documentElement.dataset.resolvedTerminalTheme;
       document.body.hidden = !message.visible; Object.assign(document.documentElement.dataset, message.theme);
-      if (prior !== document.documentElement.dataset.resolvedTerminalTheme) window.dispatchEvent(new CustomEvent("molis-work:terminal-theme-change"));
+      if (prior !== document.documentElement.dataset.resolvedTerminalTheme) dispatchEvent(new CustomEvent("molis-work:terminal-theme-change"));
     }
-    else if (message.type === "focus") { window.focus(); window.dispatchEvent(new Event("focus")); }
+    else if (message.type === "focus") scope.frame(() => { if (scope.visible) dispatchEvent(new Event("focus")); });
     else if (message.type === "select") select(message.detail);
     else if (message.type === "collapse") collapsePage(root);
     else if (message.type === "model-ready") document.dispatchEvent(new CustomEvent("molis-work:model-ready"));

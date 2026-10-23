@@ -284,8 +284,8 @@
   },
   "GET <project>/side/todo/no-such-view (page)": {
     "status": 404,
-    "type": "text/html",
-    "title": ""
+    "type": "application/json",
+    "error": "插件没有这个侧栏入口"
   },
   "GET <project>/side/no-such-plugin/x (page)": {
     "status": 404,

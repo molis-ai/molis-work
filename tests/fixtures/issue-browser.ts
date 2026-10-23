@@ -29,7 +29,11 @@ export async function issueView(t: TestContext, b: IssueBrowser, evidence = "iss
     send: () => key("Enter", 4),
     escape: () => key("Escape"),
     type: (text: string) => b.command("Input.insertText", { text }, b.sessionId),
-    composerFocused: () => until("d.hasFocus() && d.activeElement === $('[data-issue-composer] [name=description]')"),
+    composerFocused: async () => {
+      try { await until("d.hasFocus() && d.activeElement === $('[data-issue-composer] [name=description]')"); }
+      catch (error) { throw new Error(JSON.stringify({ child: await ask("({focus:d.hasFocus(),active:d.activeElement?.outerHTML.slice(0,180),hidden:d.body.hidden})").catch(String),
+        owner: await b.evaluate(`(()=>{const outer=document.querySelector(${JSON.stringify(ISSUE_FRAME)}),d=outer?.contentDocument;return{focus:d?.hasFocus(),active:d?.activeElement?.outerHTML.slice(0,180),top:document.activeElement?.outerHTML.slice(0,180),hidden:outer?.hidden};})()`) }), {cause:error}); }
+    },
     press: child.click,
     point: child.point,
     /** A real PNG on a synthetic clipboard, pasted where the keyboard is: what a pasted screenshot looks like to the page. */

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 
 // SYS-15-V2: local media is allowed while independent network, socket and owner-credential access is refused.
 
@@ -134,12 +134,12 @@ test("SYS-15-U7 S-47 embedded content is host owned, confined to the page and ca
   const store = openPagesStore(browser.homeDirectory);
   const page = (()=>{try{return store.create({project_id:browser.projectId!,title:"Embedded witness",body:{type:"doc",content:[{type:"paragraph",content:[{type:"text",text:"PRIVATE_EMBEDDED_WITNESS"}]}]}})}finally{store.close()}})();
   // Observe only the public host ports that the production plugin factory already receives.
-  await browser.command("Page.addScriptToEvaluateOnNewDocument", {source:`
+  await pluginFrameInitScript(t, browser, `
     let factories;
     Object.defineProperty(globalThis,'molisWorkbenchPluginFactories',{configurable:true,get:()=>factories,set:value=>{
       factories=new Proxy(value,{set:(target,key,factory)=>{target[key]=host=>{window.publicViewForTest=host.view;return factory(host)};return true}});
     }});
-  `},browser.sessionId);
+  `);
   await browser.navigate(()=>browser.command("Page.navigate",{url:browser.origin+"/projects/"+browser.projectId+"/?openPlugin=cognia"},browser.sessionId));
   await child.waitFor("window.publicViewForTest && document.querySelector('[data-cognia-rows]')");
   await child.evaluate("window.slot=document.body.appendChild(document.createElement('div'));slot.style.cssText='position:absolute;left:-40px;top:-20px;width:2000px;height:1600px';");

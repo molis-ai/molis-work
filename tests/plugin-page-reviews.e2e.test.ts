@@ -13,6 +13,7 @@ test("SYS-15-U10 S-47 Git reviews remain Host-owned and require a real Host conf
   await mkdir(repo);
   const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", ...args], { cwd: repo, encoding: "utf8" });
   git("init", "-q", "-b", "main"); await writeFile(join(repo, "note.md"), "first\n");
+  git("config", "user.name", "Test"); git("config", "user.email", "test@example.com");
   git("add", "."); git("commit", "-q", "-m", "first"); await writeFile(join(repo, "note.md"), "first\nsecond\n");
   await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + prefix + "/" }, browser.sessionId));
   await browser.click(".navigator-project-settings"); await browser.click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");

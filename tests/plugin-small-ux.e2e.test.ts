@@ -134,7 +134,7 @@ test("Pages and 灵光: a blank item is gone when the person switches to another
   await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await lingguang.waitFor(`document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const keptSparks = sparks().length;
-  await lingguang.evaluate("document.querySelector('[data-lingguang-capture]').click()");
+  await lingguang.click("[data-lingguang-capture]");
   await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
   assert.equal(sparks().length, keptSparks + 1, "made at once, as before");
   await click("[data-plugin-strip] [data-plugin-id=pages]");
@@ -190,7 +190,7 @@ test("Pages and 灵光: reloading with a blank item open takes it back, and the 
   await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await lingguang.waitFor(`document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const keptSparks = sparks().length;
-  await lingguang.evaluate("document.querySelector('[data-lingguang-capture]').click()");
+  await lingguang.click("[data-lingguang-capture]");
   await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
   assert.equal(sparks().length, keptSparks + 1, "made at once, as before");
   await waitRemembered("lingguang");
@@ -224,7 +224,7 @@ test("Pages and 灵光: once a blank item is taken back on 「返回」 the surf
   await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
   await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await lingguang.waitFor(`document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
-  await lingguang.evaluate("document.querySelector('[data-lingguang-capture]').click()");
+  await lingguang.click("[data-lingguang-capture]");
   await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
   assert.ok(await object("[data-lingguang=workbench]"), "named while it is open");
   await lingguang.click("[data-lingguang-back]");
@@ -249,7 +249,7 @@ test("Pages and 灵光: going back with the workbench's own Back button or the p
     await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
   };
   const openBlankSpark = async () => {
-    await lingguang.evaluate("document.querySelector('[data-lingguang-capture]').click()");
+    await lingguang.click("[data-lingguang-capture]");
     await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
   };
   await click("[data-plugin-strip] [data-plugin-id=pages]");
@@ -386,7 +386,7 @@ test("Pages and 灵光: the workbench's Back and Forward do not bring back a bla
   const keptSparks = sparks().length;
   await evaluate(WATCH_TOASTS);
   await walk("lingguang", "[data-lingguang=workbench]", async () => {
-    await lingguang.evaluate("document.querySelector('[data-lingguang-capture]').click()");
+    await lingguang.click("[data-lingguang-capture]");
     await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
   }, "[data-lingguang-back]", () => sparks().length, keptSparks);
   await noToast("lingguang");
@@ -597,7 +597,7 @@ test("灵光: 「记下第一条灵光」 left empty is thrown away when the per
   await lingguang.waitFor(`document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const kept = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
   assert.deepEqual(kept(), []);
-  await lingguang.evaluate("document.querySelector('[data-lingguang-capture]').click()");
+  await lingguang.click("[data-lingguang-capture]");
   await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true' && document.querySelectorAll('[data-lingguang-id]').length === 1", 20_000);
   assert.deepEqual(kept(), ["未命名灵光"], "made at once, as before");
   await lingguang.click("[data-lingguang-back]");
@@ -605,7 +605,7 @@ test("灵光: 「记下第一条灵光」 left empty is thrown away when the per
   await until(() => kept().length === 0);
   assert.deepEqual(kept(), [], "nothing is left behind, and no 「丢掉这条？」 question was asked");
 
-  await lingguang.evaluate("document.querySelector('[data-lingguang-capture]').click()");
+  await lingguang.click("[data-lingguang-capture]");
   await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
   await lingguang.evaluate(`(() => { const body = document.querySelector('[data-lingguang-body]'); body.value = '一句话'; body.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
   await lingguang.click("[data-lingguang-back]");

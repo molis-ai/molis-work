@@ -58,9 +58,13 @@ node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控制绑定到生成插件的公开操作；嵌套调用不借用上游插件的安装身份，取消和撤权仍沿原调用检查。
+
 动作可用性在同步只读作用域读取插件自己的设置，按原调用者权限检查；写入、模型执行与回调结束后的访问均拒绝。插件动作、动作可用性和全部场景回调共用隔离后的上下文视图，视图不含 Host 签发的 `host_plugin`；Runtime 内部保留原上下文检查授权，插件继续经自己的 SDK 服务调用。
 
 ## 开发要求
+
+显式解除隔离时，Runtime 先把安装转为可恢复状态，再启动新激活，使启动期间声明的常驻作业接受同一安装检查；启动失败恢复隔离。普通恢复仍拒绝隔离安装，不能绕过用户决定。验证见 `tests/plugin-compatible-recovery-http.test.ts` 与 `tests/plugin-host-executor.test.ts`。
 
 - 负责：插件身份、安装、授予、隔离、生命周期与回滚。
 - 不负责：Module 业务事实、提供方协议。

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { sendBarrier } from "./fixtures/assistant-send-journey.js";
@@ -9,15 +9,16 @@ test("a hung UI asset times out, retries and ignores the late first response wit
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, click, waitFor, command, sessionId, navigate } = browser;
   const child = await pluginFrameBrowser(t,browser,"pages");
-  await command("Page.addScriptToEvaluateOnNewDocument",{source:`window.reviewPagesMounts=0;
+  const sessions = new Set<string>(); let holdAsset = true;
+  t.after(browser.on("Target.detachedFromTarget", params => { sessions.delete(String(params.sessionId)); }));
+  await pluginFrameInitScript(t, browser, `window.reviewPagesMounts=0;
     window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=key==='pages'?(...args)=>{window.reviewPagesMounts++;return value(...args)}:value;return true}});
-  `},sessionId);
+  `, async session => { sessions.add(session); if (holdAsset) await command("Fetch.enable", { patterns: [{ urlPattern: "*/assets/molis-work-plugins/pages.js", requestStage: "Request" }] }, session); });
   await navigate(() => command("Page.navigate", { url: browser.origin + "/projects/" + browser.projectId + "/" }, sessionId));
   await evaluate(`(() => {
     const root = document.querySelector('[data-work-surface=pages]'); root.retainedClientRoot = true;
     root.addEventListener('molis-work:select-item', event => { window.reviewLastSelection = event.detail; });
   })()`);
-  await command("Fetch.enable", { patterns: [{ urlPattern: "*/assets/molis-work-plugins/pages.js", requestStage: "Request" }] }, sessionId);
   await click('[data-plugin-strip] [data-plugin-id="pages"]');
   await waitFor("document.querySelector('[data-work-surface=pages]').dataset.uiClientState === 'loading'");
   await evaluate(`(() => {
@@ -31,7 +32,8 @@ test("a hung UI asset times out, retries and ignores the late first response wit
   await click('[data-work-surface=pages] [data-ui-client-retry]');
   await waitFor("document.querySelector('[data-work-surface=pages]').dataset.uiClientState === 'loading'");
   // Release both the removed first script's network request and the retry's request.
-  await command("Fetch.disable", {}, sessionId);
+  holdAsset = false;
+  await Promise.all([...sessions].map(session => command("Fetch.disable", {}, session)));
   await waitFor("document.querySelector('[data-work-surface=pages]').dataset.uiClientState === 'ready'");
   assert.equal(await child.evaluate("window.reviewPagesMounts"), 1);
   assert.deepEqual(await evaluate("window.reviewLastSelection"), { itemId: null });
@@ -46,16 +48,20 @@ test("registered clients mount on demand, retry resources and retain their origi
   const { evaluate, click, waitFor, command, sessionId, navigate } = browser;
   const views=Object.fromEntries(await Promise.all(pluginSurfaceClients().map(async pack=>[pack.id,await pluginFrameBrowser(t,browser,pack.id)])));
   const child=views.pages!;
+  const sessions = new Set<string>(); let blocked = [browser.origin + "/assets/molis-work-pages-editor.js"];
+  t.after(browser.on("Target.detachedFromTarget", params => { sessions.delete(String(params.sessionId)); }));
+  await pluginFrameInitScript(t, browser, "", async session => {
+    sessions.add(session); await command("Network.enable", {}, session); await command("Network.setBlockedURLs", { urls: blocked }, session);
+  });
   await navigate(() => command("Page.navigate", { url: browser.origin + "/projects/" + browser.projectId + "/" }, sessionId));
   assert.equal(await evaluate("typeof window.MolisWorkPagesEditor"), "undefined");
   assert.equal(await evaluate("Object.keys(window.molisWorkbenchPluginFactories || {}).length"), 0);
   assert.ok(await evaluate<number>("document.querySelectorAll('[data-plugin-document]').length") > 10);
-  await command("Network.enable", {}, sessionId);
-  await command("Network.setBlockedURLs", { urls: [browser.origin + "/assets/molis-work-pages-editor.js"] }, sessionId);
   await click('[data-plugin-strip] [data-plugin-id="pages"]');
   await waitFor("document.querySelector('[data-work-surface=pages] [data-ui-client-retry]')");
   assert.equal(await evaluate("document.querySelector('[data-work-surface=pages]').inert"), false);
-  await command("Network.setBlockedURLs", { urls: [] }, sessionId);
+  blocked = [];
+  await Promise.all([...sessions].map(session => command("Network.setBlockedURLs", { urls: blocked }, session)));
   await click('[data-work-surface=pages] [data-ui-client-retry]');
   await waitFor("document.querySelector('[data-work-surface=pages]').dataset.uiClientState === 'ready'");
   assert.equal(await child.evaluate("typeof window.MolisWorkPagesEditor.mount"), "function");
@@ -91,11 +97,11 @@ test("W5-02-REG-09 SYS-15-U9 the mounted Host confirms a workspace and translate
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { command, sessionId, navigate, origin, projectId } = browser;
   const child = await pluginFrameBrowser(t, browser, "coding");
-  await command("Page.addScriptToEvaluateOnNewDocument", { source: `
+  await pluginFrameInitScript(t, browser, `
     window.molisWorkbenchPluginFactories = new Proxy({}, {
       set(target, key, value) { target[key] = key === 'coding' ? host => { window.workspaceTestHost = host; return value(host); } : value; return true; }
     });
-  ` }, sessionId);
+  `);
   for (const [locale, linkFailure, defaultFailure] of [["zh", "无法关联工作区", "来源操作失败"], ["en", "Unable to link workspace", "Source operation failed"]]) {
     await command("Network.setCookie", { name: "molis_work_locale", value: locale, url: origin }, sessionId);
     await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));

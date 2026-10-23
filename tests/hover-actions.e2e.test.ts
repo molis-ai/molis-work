@@ -74,9 +74,12 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
     await waitFor("document.readyState === 'complete'", 20_000);
     await pause(1500);
   };
-  const touch = async (on: boolean) => {
-    await command("Emulation.setTouchEmulationEnabled", on ? { enabled: true, maxTouchPoints: 5 } : { enabled: false }, sessionId);
-    await command("Emulation.setEmulatedMedia", { features: on ? [{ name: "hover", value: "none" }, { name: "pointer", value: "coarse" }, { name: "any-hover", value: "none" }, { name: "any-pointer", value: "coarse" }] : [] }, sessionId);
+  const touch = async (on: boolean, name: string, child: boolean) => {
+    const ownerCommand = (method: string, params: Record<string, unknown>) => command(method, params, sessionId);
+    for (const target of child ? [ownerCommand, children[name]!.frameCommand] : [ownerCommand]) {
+      await target("Emulation.setTouchEmulationEnabled", on ? { enabled: true, maxTouchPoints: 5 } : { enabled: false });
+      await target("Emulation.setEmulatedMedia", { features: on ? [{ name: "hover", value: "none" }, { name: "pointer", value: "coarse" }, { name: "any-hover", value: "none" }, { name: "any-pointer", value: "coarse" }] : [] });
+    }
   };
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
   const found: string[] = [];
@@ -106,7 +109,7 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
       await evaluate("document.activeElement?.blur()");
     }
     if (!hidden.length) continue;
-    await touch(true);
+    await touch(true, name, page !== browser);
     await pause(400);
     assert.equal(await evaluate("matchMedia('(hover: none)').matches && matchMedia('(pointer: coarse)').matches"), true, "the page is a touch device now");
     const still = await evaluate<HoverHidden[]>(HOVER_HIDDEN);
@@ -146,7 +149,7 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
       }
       else t.diagnostic(`${name}: ${kind} shows on touch after a tap on its row`);
     }
-    await touch(false);
+    await touch(false, name, page !== browser);
     t.diagnostic(`${name}: ${hidden.length} hidden until hover (${seen.size} kinds), ${still.length} still hidden without hover`);
     }
   }

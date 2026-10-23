@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { openGoalBrowser } from "./goal-browser.js";
-import { pluginFrameBrowser } from "./plugin-frame-browser.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./plugin-frame-browser.js";
 
 export const coding = "[data-coding-workbench]";
 /** The words `start()` writes into a new session's box unless given others. */
@@ -23,7 +23,7 @@ export async function openCoding(t: TestContext, before = "") {
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const frame = await pluginFrameBrowser(t, browser, "coding");
   const { evaluate, waitFor, click } = frame;
-  await command("Page.addScriptToEvaluateOnNewDocument", { source: before }, sessionId);
+  if (before) await pluginFrameInitScript(t, browser, before);
   const interceptRequests = `
     window.hold={what:null,fail:false,next:null,except:'',seen:0,id:'',release:null,slow:0};window.stateReads=0;window.posts=[];window.patches=[];window.puts=[];window.fakes=[];const originalFetch=window.fetch;
     window.fetch=(input,init)=>{const path=String(input?.url||input),method=init?.method||'GET';

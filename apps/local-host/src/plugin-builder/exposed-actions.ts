@@ -9,6 +9,7 @@
 import { ActionError, type ActionAvailability, type ActionDefinition, type ActionExecutionContext, type ActionExecutionPolicy, type ActionHandlerBinding, type ActionSchema } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import { runInPluginAction } from '@molis-ai/molis-work-plugin-runtime';
 import type { ProjectActions } from './catalog.js';
 import { latestCapability, type CapabilityExecution } from './capabilities.js';
 
@@ -98,7 +99,12 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
         // Per-operation replacement preserves unrelated in-flight calls and their registration tokens.
         previous?.dispose(); registrations.delete(operationId);
         const unregister = actions.registry.registerProvider({ provider: { provider_id: providerId, title, kind: 'plugin', plugin_id: release.pluginId, project_id: actions.project_id, ...(pluginInstallId ? { plugin_install_id: pluginInstallId } : {}) },
-          definitions: [{ ...definition, action: { ...definition.action, execution: { cost } } }], handlers: [handlers[index]!], ...(availability ? { availability } : {}) });
+          definitions: [{ ...definition, action: { ...definition.action, execution: { cost } } }],
+          // The target owns the private write; its Runtime scope retains the original caller checks.
+          handlers: [{ ...handlers[index]!, handle: (caller, input) => {
+            const execute = () => handlers[index]!.handle(caller, input);
+            return pluginInstallId ? runInPluginAction({ install_id: pluginInstallId, definition, caller }, execute) : execute();
+          } }], ...(availability ? { availability } : {}) });
         registrations.set(operationId, { cost, dispose: unregister }); changed = true;
       });
     } catch (error) { dispose(); throw error; }

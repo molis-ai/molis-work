@@ -787,9 +787,9 @@ test("SYS-15 the approved plugin frame asset may be added once at its measured s
   const asset = "/assets/molis-work-plugin-frame.js";
   branch("plugin-frame-base", () => { putBudget(sizes); });
   git("checkout", "-q", "-B", "plugin-frame-change");
-  (sizes as Record<string, number>)[asset] = 147605;
+  (sizes as Record<string, number>)[asset] = 187121;
   assert.equal(gate("--update", "--base", "plugin-frame-base").code, 1, "a byte over the approved size");
-  (sizes as Record<string, number>)[asset] = 147604;
+  (sizes as Record<string, number>)[asset] = 187120;
   assert.equal(gate("--update", "--base", "plugin-frame-base").code, 0);
   assert.equal(gate("--base", "plugin-frame-base").code, 0);
   (sizes as Record<string, number>)["/assets/molis-work-other.js"] = 10;
@@ -797,7 +797,7 @@ test("SYS-15 the approved plugin frame asset may be added once at its measured s
   delete (sizes as Record<string, number>)["/assets/molis-work-other.js"];
   assert.equal(gate("--update", "--base", "plugin-frame-base").code, 0);
   commit("budget the approved plugin frame asset"); git("branch", "-f", "plugin-frame-frozen");
-  (sizes as Record<string, number>)[asset] = 147604 + 1; putBudget(sizes);
+  (sizes as Record<string, number>)[asset] = 187120 + 1; putBudget(sizes);
   assert.equal(gate("--base", "plugin-frame-frozen").code, 1, "once budgeted it only falls");
   assert.equal(gate("--update", "--base", "plugin-frame-frozen").code, 1);
 });

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { sendBarrier } from "./fixtures/assistant-send-journey.js";
@@ -25,7 +25,7 @@ test("VUX-31: quick loads never flash a waiting mark, and a slow refresh shows i
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
   const views = Object.fromEntries(await Promise.all(ORDER.map(async id => [id, await pluginFrameBrowser(t, browser, id,
     id === "shelf" ? '[data-side-body="plugin:shelf/side"] iframe' : undefined)])));
-  await command("Page.addScriptToEvaluateOnNewDocument", {source:SAMPLE}, sessionId);
+  await pluginFrameInitScript(t, browser, SAMPLE);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await command("Page.bringToFront", {}, sessionId);

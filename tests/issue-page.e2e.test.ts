@@ -125,10 +125,13 @@ test("ISSUE-09 ISSUE-27 screenshots: six join a capture, a seventh and a mislabe
   assert.deepEqual(await v.ask("({ shots: d.querySelectorAll('[data-issue-thumbs] img').length, text: $('[data-issue-composer] [name=description]').value })"), { shots: 5, text: "一次贴六张截图" });
   // Preview fits the window. A screenshot that already shows at its own pixels offers no 原始尺寸 (it would change nothing);
   // zoomed in from the keyboard, the button comes back to fit it again. It closes with Escape back to its thumbnail.
+  await v.ask("(window.issuePreviewLoaded = new Promise(resolve => $('[data-issue-picture] img').addEventListener('load', () => resolve(true), { once: true })), true)");
   await v.press("[data-issue-thumbs] figure:first-child [data-preview]"); await v.until("$('[data-issue-preview]').open");
-  await v.until("$('[data-issue-picture]').dataset.zoom === 'fit' && $('[data-issue-zoom]').hidden");
-  await v.ask("($('[data-issue-picture]').dispatchEvent(new KeyboardEvent('keydown', { key: '+', bubbles: true })), true)");
-  await v.until("$('[data-issue-picture]').dataset.zoom === 'zoomed' && !$('[data-issue-zoom]').hidden && $('[data-issue-zoom]').textContent === '适应窗口'");
+  await v.ask("window.issuePreviewLoaded");
+  await v.until("$('[data-issue-picture] img').complete && $('[data-issue-picture] img').naturalWidth > 0 && $('[data-issue-picture]').dataset.zoom === 'fit' && $('[data-issue-zoom]').hidden");
+  assert.equal(await v.ask("($('[data-issue-picture]').dispatchEvent(new KeyboardEvent('keydown', { key: '+', bubbles: true })), $('[data-issue-picture]').dataset.zoom)"), "zoomed", "the zoom key changes the view synchronously");
+  try { await v.until("$('[data-issue-picture]').dataset.zoom === 'zoomed' && !$('[data-issue-zoom]').hidden && $('[data-issue-zoom]').textContent === '适应窗口'"); }
+  catch (error) { throw new Error(JSON.stringify(await v.ask("({ zoom: $('[data-issue-picture]').dataset.zoom, button: $('[data-issue-zoom]').outerHTML, image: $('[data-issue-picture] img').style.cssText })")), { cause: error }); }
   await v.escape(); await v.until("!$('[data-issue-preview]').open && d.activeElement?.matches('[data-issue-thumbs] figure:first-child [data-preview]')");
 });
 
@@ -199,7 +202,7 @@ test("ISSUE-06 hidden and removed Issue views stop refreshing; one remount keeps
     "removing the view must release its global listener");
   await evaluate(`issueChecks.parent.append(issueChecks.root);
     const mount = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
-    const host = { root: issueChecks.root, mountPluginClient: mount, translate: text => text };
+    const host = { root: issueChecks.root, mountPluginClient: mount, translate: text => text, route: path => path };
     globalThis.molisWorkbenchPluginFactories.issues(host);globalThis.molisWorkbenchPluginFactories.issues(host);`);
   await waitFor("issueChecks.reads === 1");
   assert.equal(await evaluate(`(async()=>{issueChecks.reads=0;issueChecks.refresh();${nextFrame}return issueChecks.reads;})()`), 1,

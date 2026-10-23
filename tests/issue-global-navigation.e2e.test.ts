@@ -37,7 +37,8 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
   await v.chord(); await b.waitFor(closed);
   assert.equal(await b.evaluate("document.querySelector('[data-side-panel]').contains(document.activeElement)"), false);
   // The button is a switch, and it brings the keyboard along.
-  await b.click(entry); await b.waitFor(open); await v.composerFocused();
+  await b.click(entry); await b.waitFor(open);
+  await v.composerFocused();
   await v.type("项目页里写了一半");
   await b.click(entry); await b.waitFor(closed);
   // Pressed while the keyboard is inside another side view's frame, the chord still reaches the shell.

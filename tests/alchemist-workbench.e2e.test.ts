@@ -152,7 +152,9 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   const saved=await read('/bootstrap');assert.equal(saved.directions.length,4);assert.equal(saved.explorations[0].status,'failed');assert.equal(saved.explorations[0].errorCode,'alchemist.runtime_not_configured');assert.deepEqual(saved.explorations[0].cards,[]);
   await noModelCard();
   await click('[data-alc-action="explore"]');
-  for(let n=0;n<100&&(await read('/bootstrap')).explorations[0]?.status!=='failed';n++)await new Promise(r=>setTimeout(r,100));
+  let retried=await read('/bootstrap');
+  for(let n=0;n<100&&(retried.explorations[0]?.id===saved.explorations[0].id||retried.explorations[0]?.status!=='failed');n++){await new Promise(r=>setTimeout(r,100));retried=await read('/bootstrap');}
+  assert.notEqual(retried.explorations[0]?.id,saved.explorations[0].id,'the retry creates its own run');assert.equal(retried.explorations[0]?.status,'failed');
   await waitFor(`document.querySelector(${text(content)})?.innerText.includes('还没有可用模型') && !document.querySelector(${text(content+' .alc-progress')})`,12_000);await noModelCard();
   await command('Page.reload',{},sessionId);await visible('[data-alc-action="explore"]');await includes('浏览器验收缺模型也保存方向');
   await click('[data-alc-collection="ideas"]');await click(`[data-alchemist-id="${ids.idea}"]`);await visible('[data-alc-action="market"]');await click('[data-alc-action="market"]');await includes('研究摘要');

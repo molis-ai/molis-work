@@ -83,7 +83,7 @@ test("a Runtime plugin reaches an action only when its Manifest consumes it: as 
     assert.equal(call.host_plugin?.plugin_id, "io.molis.work.example.reader");
     assert.equal(call.plugin_install_id, reader.install_id);
     assert.deepEqual(call.permissions, ["workspace:read"]);
-    assert.deepEqual(call.allowed_actions, [{ capability_id: readFile.capability_id, version: 1, provider_id: HOST_PROVIDER_ID }]);
+    assert.deepEqual(call.allowed_capability_ids, [readFile.capability_id, other.capability_id], "the dependency check is limited to exactly the Manifest consumption list");
     // The input schema is the action's own: a mode it does not have is refused before the handler runs.
     await assert.rejects(client.invoke(readFile, { ...query, kind: "everything" as never }));
     await assert.rejects(client.invoke(readFile, { ...query, extra: true } as never));

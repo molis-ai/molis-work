@@ -1,4 +1,4 @@
-import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
@@ -26,7 +26,7 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   store.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   // What the page reports, and every flash asked for and every flash line Pages draws.
-  await command("Page.addScriptToEvaluateOnNewDocument", { source: `document.addEventListener('molis:surface-landing', (event) => { window.lastLanding = event.detail; });
+  await pluginFrameInitScript(t, browser, `document.addEventListener('molis:surface-landing', (event) => { window.lastLanding = event.detail; });
     document.addEventListener('molis:surface-focus', (event) => { window.lastFocus = event.detail; });
     window.flashAsked = 0; window.flashLines = 0;
     // A judgment held back until the test lets it go, and how many came back (PICK-05).
@@ -36,7 +36,7 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
       try { return await realFetch.apply(window, args); } finally { if (judge) window.judged += 1; } };
     document.addEventListener('molis:surface-landing-flash', () => { window.flashAsked += 1; }, true);
     new MutationObserver((records) => { for (const record of records) for (const node of record.addedNodes) if (node.classList?.contains('pages-landing-flash')) window.flashLines += 1; })
-      .observe(document, { childList: true, subtree: true });` }, sessionId);
+      .observe(document, { childList: true, subtree: true });`);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${left.id}` }, sessionId));
   await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
 

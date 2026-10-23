@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdir, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 
 test("SYS-15-U9 S-47 Coding links and selects only through the trusted workspace service", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
@@ -11,9 +11,9 @@ test("SYS-15-U9 S-47 Coding links and selects only through the trusted workspace
   const prefix = `/projects/${browser.projectId}`;
   const first = join(browser.homeDirectory, "first-workspace"), second = join(browser.homeDirectory, "cancelled-workspace");
   await mkdir(first); await mkdir(second);
-  await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: `window.molisWorkbenchPluginFactories=new Proxy({}, {
+  await pluginFrameInitScript(t, browser, `window.molisWorkbenchPluginFactories=new Proxy({}, {
     set(target,key,value){target[key]=key==='coding'?host=>{window.workspaceHost=host;return value(host)}:value;return true}
-  });` }, browser.sessionId);
+  });`);
   await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + prefix + "/?openPlugin=coding" }, browser.sessionId));
   await browser.surfaceReady("coding"); await child.click("[data-coding-new]");
   await child.waitFor("document.querySelector('[data-coding-task]')?.getClientRects().length");

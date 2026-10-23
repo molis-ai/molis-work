@@ -10,6 +10,23 @@ const BACKEND_STATES = ["pending", "ready", "listed", "failed", "over_quota", "m
 const waiting = (card: KnowledgeCardRecord) => card.state === "pending" && !card.excluded;
 
 /**
+ * The read asked for last wins (VUX-31): an answer that comes after a newer question (another state, a refresh, a longer list)
+ * changes nothing, and a longer list is not asked for while the list is being replaced, so it is never added to a list other than
+ * its own. `read` asks, `apply` changes the page; the answer says whether the page changed.
+ */
+function latestReads() {
+  let newest = 0, replacing = 0;
+  return async <T>(more: boolean, read: () => Promise<T>, apply: (data: T) => void): Promise<boolean> => {
+    if (more && replacing) return false;
+    const ticket = ++newest;
+    if (!more) replacing = ticket;
+    try { const data = await read(); return ticket === newest && (apply(data), true); }
+    catch (error) { if (ticket === newest) throw error; return false; }
+    finally { if (replacing === ticket) replacing = 0; }
+  };
+}
+
+/**
  * Binds one 项目资料 page (a standalone settings page, or the same page placed into the settings cover). Everything is drawn
  * with textContent: nothing a card or a piece says is ever parsed as markup.
  */
@@ -30,23 +47,23 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
   const { toast, fail } = pageNotices(errorBox);
 
   const backendState = () => BACKEND_STATES.includes(stateFilter.value) ? stateFilter.value : "";
-  async function load(more = false): Promise<void> {
-    const offset = more ? cards.length : 0;
-    const state = backendState();
-    const data = await api<Overview>("/overview?offset=" + offset + (state ? "&state=" + state : ""));
-    cards = more ? [...cards, ...data.cards] : data.cards;
-    total = data.total; recent = data.recent.receipts; modelReady = data.model_ready; listing = data.listing;
-    $("[data-knowledge-model]").hidden = modelReady || !cards.some(waiting);
-    errorBox.hidden = true;
-    drawQuota(root, data.quota, data.quota.reached || cards.some(card => card.state === "over_quota"));
-    drawList(); drawReceipts(root, recent, cards, data.recent.total);
-    schedule();
+  const reading = latestReads();
+  async function load(more = false): Promise<boolean> {
+    return reading(more, () => api<Overview>("/overview?offset=" + (more ? cards.length : 0) + (backendState() ? "&state=" + backendState() : "")), data => {
+      cards = more ? [...cards, ...data.cards] : data.cards;
+      total = data.total; recent = data.recent.receipts; modelReady = data.model_ready; listing = data.listing;
+      $("[data-knowledge-model]").hidden = modelReady || !cards.some(waiting);
+      errorBox.hidden = true;
+      drawQuota(root, data.quota, data.quota.reached || cards.some(card => card.state === "over_quota"));
+      drawList(); drawReceipts(root, recent, cards, data.recent.total);
+      schedule();
+    });
   }
   /** Loads again as far as the person had loaded (a refresh does not fold the list back to its first page). */
   async function reload(): Promise<void> {
     const had = cards.length;
-    await load();
-    while (cards.length < Math.min(had, total)) await load(true);
+    if (!await load()) return;
+    while (cards.length < Math.min(had, total)) if (!await load(true)) break;
   }
   // While anything waits for organizing, or the project's sources are still being listed, the page looks again now and then; it
   // stops once nothing does or the page is gone. An open card the person is writing in is not redrawn under them.
@@ -61,7 +78,7 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
   }
   const writing = () => { const detail = list.querySelector("[data-knowledge-detail]"); return !!detail && (detail.contains(document.activeElement) || detail.hasAttribute("data-knowledge-dirty")); };
   // The filters the page applies itself (changed, kept from agents, the words) look at every card, not only the loaded pages.
-  const whole = async () => { while (cards.length < total) { const had = cards.length; await load(true); if (cards.length === had) break; } };
+  const whole = async () => { while (cards.length < total) { const had = cards.length; if (!await load(true) || cards.length === had) break; } };
   const local = () => !!queryFilter.value.trim() || stateFilter.value === "changed" || stateFilter.value === "excluded";
 
   const visible = () => {
@@ -149,7 +166,7 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
     } catch (error) { fail(error); }
   }
 
-  stateFilter.addEventListener("change", () => { selected.clear(); void load().then(() => local() ? whole() : undefined).then(() => drawList()).catch(fail); });
+  stateFilter.addEventListener("change", () => { selected.clear(); void load().then(applied => applied && local() ? whole() : undefined).then(() => drawList()).catch(fail); });
   queryFilter.addEventListener("input", () => { drawList(); if (local() && cards.length < total) void whole().then(() => drawList()).catch(fail); });
   $("[data-knowledge-more]").addEventListener("click", () => void load(true).catch(fail));
   $("[data-knowledge-select-all]").addEventListener("change", event => {

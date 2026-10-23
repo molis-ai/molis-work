@@ -38,14 +38,14 @@
 | VUX-26 | 工程 | `agent-studio.e2e`、`assistant-scroll-follow.e2e`、`coding-question-card.e2e`、`im-follow-copy.e2e`、`scroll-follow.e2e` | 未走 | 未做 | — |
 | VUX-27 | 工程 | `overflow-fade.e2e`、`soft-workbench-refinement`、`visual-review-consumers.e2e` | 未走 | 未做 | — |
 | VUX-28 | 工程 | `keyboard-groups.e2e` | 未走 | 未做 | — |
-| VUX-29 | 工程 | `hover-actions.e2e`、`overlay-placement.e2e` | 未走 | 未做 | 模态焦点圈、重复提交、失败留输入 |
+| VUX-29 | 工程 | `hover-actions.e2e`、`overlay-placement.e2e`、`dialog-submit-rules.e2e` | 未走 | 未做 | 只确认的对话框被拒时仍关上、说明在页面提示里；插件框架里的模态只把框架外设为 inert，遮罩没有盖到框架外 |
 | VUX-30 | 工程 | `chinese-walkthrough.e2e`、`english-walkthrough.e2e`、`narrow-surfaces.e2e`、`text-wrap.e2e` | 未走 | 未做 | — |
-| VUX-31 | 工程 | `busy-feedback.e2e`、`load-geometry.e2e`、`save-failure.e2e`、`stale-detail.e2e` | 未走 | 未做 | 筛选与翻页的迟到回应 |
+| VUX-31 | 工程 | `busy-feedback.e2e`、`load-geometry.e2e`、`save-failure.e2e`、`stale-detail.e2e`、`late-list-responses.e2e` | 未走 | 未做 | 不是筛选、搜索、翻页的迟到读取（Jelly 命令后、Todo 提醒与批量）没有查 |
 | VUX-32 | 工程 | `issue-draft-preview.e2e`、`media-zoom-board.e2e`、`visual-mechanisms.e2e` | 未走 | 未做 | — |
 | VUX-33 | 工程 | `assistant-text-html.e2e`、`code-diff-reader.e2e`、`code-diff-scale.e2e`、`code-incremental-colour`、`code-incremental.e2e`、`code-rows-geometry.e2e`、`code-scale.e2e`、`coding-changeset-http`、`diff-patch`、`diff-plugin` | 未走 | 未做 | Assistant 40k 以上的代码图、CSS 缩放下制表约 2 px |
 | VUX-34 | 人工 | `desktop-drag-regions.e2e` | 未走 | 未做 | macOS 真机的拖拽、全屏与缩放留白 |
 | VUX-35 | 工程 | `action-directory-pass`、`local-web-actions`、`pages-assistant-surfaces.e2e`、`style-has-scope` | 未走 | 未做 | 真实 Home 规模下的复测 |
-| VUX-36 | 工程 | `action-directory-pass`、`code-diff-scale.e2e`、`code-scale.e2e`、`code-turn-style.e2e`、`has-anchors.e2e`、`hidden-surfaces-quiet.e2e`、`plugin-market-upgrade.e2e`、`repeat-no-accumulation.e2e`、`style-has-scope`、`visual-foundation` | 未走 | 未做 | 助理面板泄漏测试 |
+| VUX-36 | 工程 | `action-directory-pass`、`code-diff-scale.e2e`、`code-scale.e2e`、`code-turn-style.e2e`、`has-anchors.e2e`、`hidden-surfaces-quiet.e2e`、`plugin-market-upgrade.e2e`、`repeat-no-accumulation.e2e`、`assistant-repeat-no-accumulation.e2e`、`style-has-scope`、`visual-foundation` | 未走 | 未做 | 流式一轮从开始到结束的反复没量 |
 | VUX-37 | 工程 | `action-directory-pass` | 未走 | 未做 | — |
 | VUX-38 | 工程 | `style-custom-properties`（语义参数有声明） | 未走 | 未做 | 同源的其余部分靠门禁与共有组件守着（插件 SDK、包边界、`pnpm boundary:check`） |
 | VUX-39 | 工程 | `board-assistant.e2e`、`board-conditions.e2e`、`board-overflow.e2e`、`media-zoom-board.e2e` | 未走 | 未做 | 限流倒计时、英文样本、用量细节、媒体与 Diff 插件行的标本 |

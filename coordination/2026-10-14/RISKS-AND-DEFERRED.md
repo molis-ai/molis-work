@@ -1,6 +1,6 @@
 # 防腐加速期：高风险、潜在问题与延后事项
 
-状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 18:50 本地时间）。
+状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 19:05 本地时间）。
 - 用户 10-23 定：「优先完成防腐的工程开发，维护一个文档记录高风险和潜在问题，先完成工程开发，后续统一处理重度任务，测试任务」。
 - 又补一句：在有限的槽位里优先开发，不要让 VPN 断掉，维持当前机器负载，剩余事项用文档记清楚。
 - 各会话不直接改这份文件。要记的事，要么发给 ①，要么写在 PR 正文的「本机延后验证」一节，由 ① 收进来。
@@ -108,22 +108,23 @@
 | R-13 | #1074 之后，插件停止以后同步方法被拒，返回 `undefined`。残留回调如果接着用返回值，会在插件自己的代码里出 TypeError。PR 里列了 30 多个返回值有用的同步方法 | 停用时插件日志里出现看着像插件缺陷的 TypeError，可能误导排查 | 先接受；统一窗口里看停用、撤权那几路用例有没有这类报错。BL-403 做路由时一起评估要不要给同步方法一个明确的拒绝 | ② | 统一窗口、BL-403 |
 | R-14 | 工具风险：在借用的工作树里，`mcp__ccd_host__sync_with_base_branch` 合进的是会话原来的工作树，不是当前所在的。② 10-23 碰上一次，在 `feat/project-library-l1b` 上留下 39 个冲突，已经 abort，分支回到 cdcda41b1，没有残留 | 合错分支；没注意到就会把冲突或别的改动推上去 | 在借用的工作树里不用这个工具，自己 `git merge origin/main`。① 已通知各开发和评审会话 | 全体 | 持续 |
 | R-15 | 手写路由不 catch：#1018 写法的 Home 插件路由（`routes: … async handle(request)`，不经 SDK 的 `bindPluginActionRoute`）抛出不带错误码的错误时，落到宿主的通用句子「请求未能完成，请重试」，状态和错误码都丢了。Shelf 在 #1076 里已改成用 SDK 的 `actionErrorResponse` 自己答；别的插件还没查 | 用户只看到通用报错；调用方拿不到错误码，没法按类别处理 | 根治放在平台：Plugin Runtime 的路由分派统一 catch，交给 SDK 的 `actionErrorResponse` 答，插件不用各写 catch；顺带列一遍现存的手写路由。BL-404，和 BL-403 一起做 | ② | BL-403 一起 |
+| R-16 | 候选 PR 之间在枢纽文件上互相冲突（`VERIFY-2026-10-23` 用 `git merge-tree` 逐对核对）：#1071 和 #1067 冲在 `apps/local-host/src/coding-surface.ts`，和 #1066、#1068 冲在 `specs/repository-anti-corruption/privileges.md`；#1051 和 #1066、#1068 冲在 `privileges.md`、`tests/builtin-plugin-assembly-gate.test.ts`、`tooling/gates/baseline.json`，和 #1068 冲在 `specs/BACKLOG.md`。每个单独对 main 都不冲突 | 这两个 PR（以及叠在 #1051 上的 #1076）进不了同一个验证批；合并顺序不对会一串返工 | 按顺序合：#1066 → #1068，#1067 → #1071；#1051、#1076 在 #1066、#1068 之后合 main 再进批。被排除的 PR 合完 main 后，由 Codex 在下一批验证 | ⑤ | 合并时 |
 
 ## 3. 延后的重活与测试（按 PR）
 
-CI 状态是 10-23 17:40 的快照，以 PR 页面为准。
+CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是另一台机器上 Codex 的统一验证结果，原始记录在同目录的 `VERIFY-<日期>.md`（现在是 `VERIFY-2026-10-23.md`：集成分支 `integration/window-2026-10-23`，基于 main `a259350ac`）。
 
 | PR / 片 | 线 | 延后了什么 | 状态 |
 | --- | --- | --- | --- |
-| #1063（Goals S6） | ③，⑤ 合 main | ⑤ 在本机合 #1048 和 main 之后的构建与相关用例 | batch-1023-4 过（除事先料到的 `workspace-read-one-id`）；⑤ 合了 main 重推，CI 12 过、产品子集在跑 |
-| #1066（Git G5） | ③ | 同上 | batch-1023-4 过；⑤ 合了 main 重推，CI 12 过、产品子集在跑 |
-| #1068（Git、Files 订阅 `host.workspace.changed@1`） | ③，叠在 #1066 上 | 本机相关用例 | CI 全过；等 #1066 合了再合 |
-| #1067（PG-062 第 2 片） | PG-038 | ⑤ 在本机合 main 之后的验证 | CI 在跑（6 过、6 在跑） |
-| #1071（PG-038 S3，SDK `/diff-view`） | PG-038 | 合 main 之后的本机验证 | CI 在跑 |
-| #1051（Shelf S2） | Shelf | ⑩ 本机 26 个 Shelf 用例里失败的 3 个，以及拿基线的对比 | 和 main 冲突，CI 没跑；先 rebase（R-08） |
-| #1074（BL-411、BL-368） | ② | rebase 之后最后一次本机构建、测试和门禁（bl411-final，已撤）；affected-tests 选中的 125 个用例。`full` 为空，不进批；不动合同、SDK、Manifest 和门禁，没有构建 | CI 在跑；已合过一次 main（没有 force push）。留下的缺口见 R-12、R-13 |
-| #1075（Sessions 清理 SC-1，PG-081） | ③ | 本机相关用例的最后一轮 | CI 9 过、4 在跑 |
-| #1076（Shelf S3，路由只由插件声明、删宿主 `/api/shelf`） | Shelf，⑩ 评审 | 本机 84 个选中文件只跑完 68 个（负载 221 时叫停）：11 个失败，其中 4 个已修但修后没重跑（`shelf-project-results-http`、`action-cross-entry` T5、`shelf-owner-files` PG-026-S2-2、`shelf-jelly-cognia-images-error-model`）；6 个原因不明，多半是高负载下超时（`shelf-ai-host`、`images-concurrency`、`images-mcp`、`coding-product-http`、`coding-material-consumption`、`security-invariants-plugin-pages` 的 ECONNRESET）；1 个环境问题（`shelf-material-extraction`，本机 Swift 编译 Vision 帮助程序失败）；16 个没跑（列表在 PR 正文）。另外没跑：`boundary:check`、健康门禁、`page-assets --base`（合 main 后没重建，workbench 的数是推算的）、`test:security`、浏览器用例与截图、`native-checks`（`shelf_http.rs` 改了） | 叠在 #1051 上；`full` 非空（shared-core、assembly、spans-packages、deletes-code，选中 518 个文件），等 #1051 合了进集成批。三个审批项 ① 10-23 已裁决（见 README） |
+| #1063（Goals S6） | ③，⑤ 合 main | ⑤ 在本机合 #1048 和 main 之后的构建与相关用例 | batch-1023-4 过（除事先料到的 `workspace-read-one-id`）；⑤ 合了 main 重推，CI 12 过、产品子集在跑；验证：已进 Codex 集成批（head `093f70581`），构建和用例还没跑 |
+| #1066（Git G5） | ③ | 同上 | batch-1023-4 过；⑤ 合了 main 重推，CI 12 过、产品子集在跑；验证：已进 Codex 集成批（head `cf884362e`），还没跑 |
+| #1068（Git、Files 订阅 `host.workspace.changed@1`） | ③，叠在 #1066 上 | 本机相关用例 | CI 全过；等 #1066 合了再合；验证：已进 Codex 集成批（head `571b4e807`，排在 #1066 后），还没跑 |
+| #1067（PG-062 第 2 片） | PG-038 | ⑤ 在本机合 main 之后的验证 | CI 在跑（6 过、6 在跑）；验证：已进 Codex 集成批（head `dfd917c3a`），还没跑 |
+| #1071（PG-038 S3，SDK `/diff-view`） | PG-038 | 合 main 之后的本机验证 | CI 在跑；验证：被排除，和 #1067、#1066/#1068 冲突（R-16），等 #1067 合了合 main 再验 |
+| #1051（Shelf S2） | Shelf | ⑩ 本机 26 个 Shelf 用例里失败的 3 个，以及拿基线的对比 | 和 main 冲突，CI 没跑；先 rebase（R-08）；验证：被排除，和 #1066/#1068 冲突（R-16），等它们合了再验 |
+| #1074（BL-411、BL-368） | ② | rebase 之后最后一次本机构建、测试和门禁（bl411-final，已撤）；affected-tests 选中的 125 个用例。`full` 为空，不进批；不动合同、SDK、Manifest 和门禁，没有构建 | CI 在跑；已合过一次 main（没有 force push）。留下的缺口见 R-12、R-13；验证：已进 Codex 集成批（head `0d32cff50`），还没跑；R-12、R-13 单独看 |
+| #1075（Sessions 清理 SC-1，PG-081） | ③ | 本机相关用例的最后一轮 | CI 9 过、4 在跑；验证：已进 Codex 集成批（head `917ff927b`），还没跑 |
+| #1076（Shelf S3，路由只由插件声明、删宿主 `/api/shelf`） | Shelf，⑩ 评审 | 本机 84 个选中文件只跑完 68 个（负载 221 时叫停）：11 个失败，其中 4 个已修但修后没重跑（`shelf-project-results-http`、`action-cross-entry` T5、`shelf-owner-files` PG-026-S2-2、`shelf-jelly-cognia-images-error-model`）；6 个原因不明，多半是高负载下超时（`shelf-ai-host`、`images-concurrency`、`images-mcp`、`coding-product-http`、`coding-material-consumption`、`security-invariants-plugin-pages` 的 ECONNRESET）；1 个环境问题（`shelf-material-extraction`，本机 Swift 编译 Vision 帮助程序失败）；16 个没跑（列表在 PR 正文）。另外没跑：`boundary:check`、健康门禁、`page-assets --base`（合 main 后没重建，workbench 的数是推算的）、`test:security`、浏览器用例与截图、`native-checks`（`shelf_http.rs` 改了） | 叠在 #1051 上；`full` 非空（shared-core、assembly、spans-packages、deletes-code，选中 518 个文件），等 #1051 合了进集成批。三个审批项 ① 10-23 已裁决（见 README）；验证：没进批（Codex 拿到的登记册版本里它还没编号；又叠在被排除的 #1051 上），等 #1051 再验 |
 
 ## 4. 要用户本人做的
 

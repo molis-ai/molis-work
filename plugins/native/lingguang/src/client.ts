@@ -101,7 +101,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       body: body === undefined || method === "GET" ? undefined : JSON.stringify(body),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || L("灵光请求失败"));
+    if (!response.ok) throw Object.assign(new Error((method === "GET" && host.readRefusal?.(response.status, payload.code)) || payload.error || L("灵光请求失败")), { status: response.status });
     return payload;
   };
   const showNote = (text, isError) => {
@@ -670,7 +670,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     wantedByLink = event.detail?.quiet ? "quiet" : true;
     if (records.some((item) => item.id === wantedId)) void openWanted().catch((error) => showNote(error.message, true));
     // The workbench may name the same spark several times while the page settles: one load for it is enough.
-    else if (loadingFor !== itemId) void loadList().catch((error) => { listFailed(error); throw error; }).then(openWanted).catch((error) => showNote(error.message, true));
+    else if (loadingFor !== itemId) void loadList().catch((error) => { listFailed(error); throw error; }).then(openWanted).catch((error) => { if (error.status === 403) workbench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId } })); showNote(error.message, true); });
   });
   // A list that cannot be read says so where the list is, with a way to try again (the note lives in the editor).
   const listFailed = (error) => {

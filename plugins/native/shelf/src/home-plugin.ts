@@ -5,7 +5,6 @@ import type { PluginDefinition, PluginMaterialsClient, PluginStartContext } from
 import type { MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/services/materials";
 import type { ShelfArtifactPreview, ShelfDeviceSettings, ShelfMaterialPorts, ShelfModelSelection } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { openShelfStore, shelfRuntimeProbe, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
-import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { createShelfActionHandlers, createShelfProjectActionHandlers, SHELF_PROJECT_ACTIONS, shelfActions, type ShelfActionPorts } from "./actions.js";
 import { shelfAiPorts } from "./ai.js";
 import { shelfManifest } from "./manifest.js";
@@ -109,11 +108,8 @@ export function createHomeShelfPlugin(): PluginDefinition {
       const handlers = createShelfRouteHandlers({ actions: bound, ...(request.execution?.project_id ? {
         project: { title: request.execution.project_title ?? request.execution.project_id, actions: bound },
       } : {}) });
-      // A failure answers the way every plugin route's does (the SDK's status and body), not as the Host's unexpected route error.
-      try {
-        return await handlers[route_id]!({ params: request.params, request: { method: request.method as "GET" | "POST", pathname: request.pathname,
-          query: new URLSearchParams(request.query), body: request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {} } });
-      } catch (error) { return actionErrorResponse(error); }
+      return handlers[route_id]!({ params: request.params, request: { method: request.method as "GET" | "POST", pathname: request.pathname,
+        query: new URLSearchParams(request.query), body: request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {} } });
     } })) };
   } };
 }

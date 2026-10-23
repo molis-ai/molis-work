@@ -238,12 +238,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Shelf S3: the host's /api/shelf is gone, so the computer-use panel puts its record on the shelf through the plugin's own route
-  // (/api/plugins/io.molis.work.shelf/items, named once instead of three times). 1186715 → 1186746 (+31).
-  "/assets/molis-work-workbench.js": [1186715, 1186746],
-  // Shelf S3: the folder cap is 32 MB (was 64); the panel says so before reading a larger folder, instead of base64-uploading it into
-  // the route's body limit and getting a bare 413 back. 74969 → 75143 (+174).
-  "/assets/molis-work-plugins/shelf.js": [74969, 75143],
+  // Shelf S3: the host's /api/shelf is gone, so the computer-use panel uses the plugin's own route.
+  // The previously approved +31 bytes are rebased onto main after #1099: 1190716 → 1190747.
+  "/assets/molis-work-workbench.js": [1190716, 1190747],
+  // Shelf S3: the folder cap is 32 MB (was 64); the panel explains it before uploading. 76264 → 76438 (+174).
+  "/assets/molis-work-plugins/shelf.js": [76264, 76438],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

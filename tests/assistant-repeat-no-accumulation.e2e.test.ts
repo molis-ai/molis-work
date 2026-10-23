@@ -20,9 +20,26 @@ test("VUX-36: moving between finished Assistant works again and again leaves not
       await pause(150);
     }
   };
-  await around(); await around();
+  const refreshAttention = () => evaluate(`new Promise((resolve, reject) => {
+    const started = performance.now(), eventName = 'molis-work:attention';
+    const heard = (event) => { if (event.detail.started < started) return; clearTimeout(timer); document.removeEventListener(eventName, heard); resolve(true); };
+    const timer = setTimeout(() => { document.removeEventListener(eventName, heard); reject(new Error('Attention refresh did not finish')); }, 10000);
+    document.addEventListener(eventName, heard);
+    document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'));
+  })`);
+  // Seeded completions must already be seen: a notice first arriving on the 15s poll legitimately adds an unread ring
+  // (122 geometry arrays). Compare the same content, including on slower CI runs that cross that poll.
+  const notices = await evaluate<{ notices: Array<{ work_id: string }> }>("fetch('/api/assistant/notices').then(r => r.json())");
+  assert.ok(works.every(id => notices.notices.some(notice => notice.work_id === id)), "the seeded completion notices exist");
+  assert.equal(await evaluate(`Promise.all(${JSON.stringify(works)}.map(work_id => fetch('/api/assistant/notices', {
+    method: 'POST', headers: molisWorkControlHeaders(), body: JSON.stringify({ work_id, state: 'seen' })
+  }).then(r => r.ok))).then(results => results.every(Boolean))`), true);
+  await refreshAttention();
+  // Also cross the natural 15s refresh before and during measurement, as well as the explicit refreshes.
+  await around(); await pause(16_000); await around();
   const before = await domCounters(command, sessionId);
-  for (let i = 0; i < 15; i++) await around();
+  await refreshAttention();
+  for (let i = 0; i < 15; i++) { await around(); if (i === 7) await pause(16_000); }
   const after = await domCounters(command, sessionId);
   t.diagnostic(`45 moves: ${JSON.stringify(before)} → ${JSON.stringify(after)}`);
   assert.equal(await evaluate("localStorage.getItem('molis.assistant.current')"), works[2]);

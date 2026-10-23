@@ -6,6 +6,8 @@ import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability,
+  writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 /**
  * Built-in plugins reach the product one of two ways. Plugin Runtime plugins are
@@ -119,14 +121,15 @@ test("the frozen lists name exactly what exists: no id, route file or Runtime pl
  * `<plugin>…ActionProvider` registered in project-host.ts, or Host files named after the plugin. A hybrid is neither the
  * Runtime shape (declarations only) nor the frozen build-time shape, and the name list above cannot see it. Frozen on
  * 2026-10-08; a plugin leaves this list when its Host code is gone, and none joins.
- *  - coding, git: the workspace surface adapters in the Host (coding-*.ts, git-*.ts), the part R-03 asks to move behind
- *    declarations
+ *  - coding: the workspace surface adapters in the Host (coding-*.ts), the part R-03 asks to move behind declarations
+ * W5-01-GIT-04: Git left with G5. What ran git for it in the Host is the platform's workspace Git service (workspace-git*.ts,
+ * the projects.workspace.git.* and projects.workspace.writers.* actions only plugins call); the next test pins what is left.
  * RAC-70: Characters left with CHR-1: it is no plugin any more; its handlers are in modules/characters and its page is a section of
  * the Host's Settings.
  * Shelf left with S4: its actions, model calls and routes are the plugin's Runtime instances (S2, S3), and the demo puts its sample
  * back through `shelf.sample.seed` instead of opening Shelf's files in the Host.
  */
-const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set(["coding", "git"]);
+const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set(["coding"]);
 
 test("Runtime plugins that the Host also assembles by hand are named, and no plugin joins them", async () => {
   const sources = await hostSourceFiles();
@@ -142,6 +145,42 @@ test("Runtime plugins that the Host also assembles by hand are named, and no plu
   }).sort();
   assert.deepEqual(hybrid, [...HYBRID_RUNTIME_PLUGINS].sort(),
     `Runtime plugins with hand-written Host code. A new one joins nothing: put the code in the plugin package. One that is clean leaves HYBRID_RUNTIME_PLUGINS.`);
+});
+
+// Git's exit from the hybrid list (G5, privileges.md PG-035, PG-044, PG-061, PG-099): the Host runs git for plugins as the platform's
+// workspace Git service and keeps no Git wiring of its own. The hybrid check above sees only file names and providers; these see the
+// imports, the supervisor entry and the typed registry.
+test("W5-01-GIT-01..03: the Host keeps no Git wiring of its own; its workspace Git service imports no plugin and registers actions only", async () => {
+  const sources = await hostSourceFiles();
+  const text = new Map(await Promise.all(sources.map(async file => [file, await readFile(join(repoRoot, file), "utf8")] as const)));
+  // W5-01-GIT-01: only the supervisor starts Git. coding-surface.ts still draws Git's companion stage for Coding (T1, PG-091);
+  // Coding's C9 deletes that file and this list shrinks to the supervisor alone.
+  const importsGit = sources.filter(file => /["']@molis-ai\/molis-work-plugin-git["']/.test(text.get(file)!));
+  assert.deepEqual(importsGit, ["apps/local-host/src/coding-surface.ts", "apps/local-host/src/project-plugins.ts"],
+    "a Host file imports the Git plugin; Git is started by the supervisor and reached through its declarations");
+  const supervisor = text.get("apps/local-host/src/project-plugins.ts")!;
+  assert.deepEqual([...supervisor.matchAll(/createGitPlugin\(([^)]*)\)/g)].map(match => match[1]), [""], "the supervisor starts Git with no Host ports");
+  assert.match(supervisor, /"createGitPlugin",\s*factory => factory\(\)\)/, "and builds its release artifact the same way");
+  assert.deepEqual(sources.filter(file => /\bgitPorts\b|observeGitOperations/.test(text.get(file)!)), [], "no Host-written Git port");
+  // W5-01-GIT-02: the workspace Git service is the platform's, so it depends on no plugin package. The SDK, Runtime and sandbox
+  // share the prefix but are the platform's own packages: the porcelain parse comes from the SDK, as it does for the Git plugin.
+  const service = sources.filter(file => /\/workspace-git[a-z-]*\.ts$/.test(file));
+  assert.ok(service.length >= 7, `the workspace Git service files are found: ${service.join(", ")}`);
+  const platformPackages = new Set(["sdk", "runtime", "sandbox"]);
+  assert.deepEqual(service.filter(file => [...text.get(file)!.matchAll(/["']@molis-ai\/molis-work-plugin-([a-z0-9-]+)/g)]
+    .some(match => !platformPackages.has(match[1]!))), [], "a workspace Git file imports a plugin package");
+  // W5-01-GIT-03: Git's and the parallel writers' Host side are plugin-only actions, none a typed capability.
+  const home = await mkdtemp(join(tmpdir(), "git-host-wiring-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  try {
+    const registered = host.status().capabilities;
+    assert.deepEqual(registered.filter(row => !row.action && /^projects\.workspace\.(git|writers)\./.test(row.capability_id)).map(row => row.capability_id), [],
+      "a workspace Git entry is registered as a typed capability");
+    for (const definition of [prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability,
+      ...Object.values(writerDirectoryCapabilities), ...Object.values(writerIntegrationCapabilities)]) {
+      const row = registered.find(entry => entry.capability_id === definition.capability_id);
+      assert.deepEqual(row?.action?.audiences, ["plugin"], `${definition.capability_id} is an action only plugins call`);
+    }
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 // RAC-44 (Cognia moved to a Home Runtime, specs/repository-anti-corruption): Cognia reaches the product only through its

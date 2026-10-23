@@ -10,7 +10,7 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 
 const TOKEN = "molis-work-workspace-actions-token-0123456789";
 
-test("project workspace actions require confirmation, repair matching Sessions, launch, and unlink without touching files", async () => {
+test("project workspace actions require confirmation, repair and unlink only the folder relation, launch, and touch no files", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-workspace-actions-"));
   const home = path.join(directory, ".molis-work");
   const previousPath = path.join(directory, "repository-before");
@@ -87,12 +87,13 @@ test("project workspace actions require confirmation, repair matching Sessions, 
       user_confirmed: true,
     });
     assert.equal(repairResponse.status, 200);
-    const repaired = await repairResponse.json() as { workspace: { workspace_id: string; canonical_path: string }; updated_session_count: number };
-    assert.equal(repaired.updated_session_count, 2);
+    const repaired = await repairResponse.json() as { workspace: { workspace_id: string; canonical_path: string } };
+    // Sessions are retired (BL-177): repair (v2) changes the folder relation only, and reports no Session count.
+    assert.equal(Object.hasOwn(repaired, "updated_session_count"), false);
 
     const afterRepair = await openWorkSessionRegistry({ homeDirectory: home });
-    assert.equal(afterRepair.get(existingSession.session_id).workspace_path, repaired.workspace.canonical_path);
-    assert.equal(afterRepair.get(conflictingSession.session_id).workspace_id, repaired.workspace.workspace_id);
+    assert.deepEqual(afterRepair.get(existingSession.session_id), existingSession);
+    assert.deepEqual(afterRepair.get(conflictingSession.session_id), conflictingSession);
     afterRepair.close();
     await access(previousPath);
     await access(repairedPath);
@@ -115,17 +116,15 @@ test("project workspace actions require confirmation, repair matching Sessions, 
       user_confirmed: true,
     });
     assert.equal(unlinkResponse.status, 200);
-    const unlink = await unlinkResponse.json() as { updated_session_count: number };
-    assert.equal(unlink.updated_session_count, 3);
+    assert.deepEqual(await unlinkResponse.json(), { changed: true });
 
     const finalCatalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     assert.equal(finalCatalog.listWorkspaceDirectory(project.project_id).length, 0);
     assert.equal(finalCatalog.listWorkspaceMemberships().some((membership) => membership.is_default), false);
     finalCatalog.close();
     const finalRegistry = await openWorkSessionRegistry({ homeDirectory: home });
-    assert.equal(finalRegistry.get(existingSession.session_id).workspace_path, null);
-    assert.equal(finalRegistry.get(conflictingSession.session_id).workspace_path, null);
-    assert.equal(finalRegistry.get(launched.session.session_id).workspace_path, null);
+    assert.deepEqual(finalRegistry.get(existingSession.session_id), existingSession);
+    assert.equal(finalRegistry.get(launched.session.session_id).workspace_path, repaired.workspace.canonical_path);
     finalRegistry.close();
     await access(previousPath);
     await access(repairedPath);

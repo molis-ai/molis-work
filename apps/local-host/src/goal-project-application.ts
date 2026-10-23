@@ -46,6 +46,7 @@ export class GoalProjectApplication {
   readonly goalTreeCheck: GoalsApplication["goalTreeCheck"];
   readonly goalTreeDecision: GoalsApplication["goalTreeDecision"];
   readonly goalDecisionAttention: GoalsApplication["goalDecisionAttention"];
+  readonly projectOpened: GoalsApplication["projectOpened"];
 
   constructor(
     readonly store: LocalProjectDatabase,
@@ -115,6 +116,7 @@ export class GoalProjectApplication {
     this.goalTreeCheck = application.goalTreeCheck;
     this.goalTreeDecision = application.goalTreeDecision;
     this.goalDecisionAttention = application.goalDecisionAttention;
+    this.projectOpened = application.projectOpened;
   }
 
   /**

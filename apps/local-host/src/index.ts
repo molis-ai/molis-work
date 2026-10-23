@@ -7,10 +7,9 @@ export { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 export { SUPPORTED_RUNTIME_IDS, isSupportedRuntimeId } from "./installer/runtime-integration-contract.js";
 export type { SupportedRuntimeId, RuntimeIntegrationAction, RuntimeConnectionState, RuntimeIntegrationDetection, RuntimeIntegrationChange, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResultStatus, RuntimeIntegrationResult, RuntimeIntegrationValidationContext, RuntimeIntegrationServiceOptions } from "./installer/runtime-integration-contract.js";
 export { openWorkSessionRegistry } from "./session-registry.js";
-export { RuntimeSessionHost } from "./runtime-session.js";
 export { RuntimeProjectConnection } from "./runtime-project-connection.js";
 export { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
-export { runtimeContextHostFromEnvironment, runtimeSessionHostSignalsFromEnvironment, sessionSignalsForHost } from "./runtime-context.js";
+export { runtimeContextHostFromEnvironment, runtimeSessionHostSignalsFromEnvironment } from "./runtime-context.js";
 export type { MolisWorkRuntimeContextHost } from "./runtime-context.js";
 export { prepareLocalProjectStorage } from "./project-storage.js";
 export { PluginHostExecutor } from "./plugin-executor.js";
@@ -22,6 +21,7 @@ export { collectHomeAggregate, homeAggregatePorts, type HomeAggregateAnswer, typ
 export { openPluginDatabase } from "./plugin-database.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { createPluginPlatform } from "./plugin-platform.js";
+export { dispatchDeclaredPluginRoutes, type DeclaredPluginRoutes } from "./plugin-route-operations.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
 export { readMaterialLocalPage } from "./material-local-page.js";
@@ -109,6 +109,8 @@ export { installManagedConnectorTool, removeManagedConnectorTool } from "./conne
 export { retainConnectorSetupsForSession } from "./connector-setup-retain.js";
 export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
 export { connectorUsagesAction } from "./connector-usage-actions.js";
+export { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
+export { createPluginConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
 export { connectorSetupAction } from "./connector-setup.js";
 export { connectorSetupExecuteAction } from "./connector-setup-execute.js";
@@ -164,7 +166,6 @@ export { sendLocalWebJson, sendUnhandledWebError, readLocalWebBody, authorizeLoc
 export { createLocalWebAssets } from "./web-assets.js";
 
 export * from "./web-session.js";
-export { panelSessionInput, recordDesktopPanelSessions } from "./panel-sessions.js";
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 export { assembleMcpCatalog, findAssembledMcpTool } from "./mcp-catalog.js";
 export { readMcpToolPreference } from "./mcp-settings-store.js";
@@ -211,8 +212,8 @@ export {
 export { handleProjectPluginHttp, type ProjectPluginHttpPorts, type ProjectPluginRouteHooks } from "./project-plugin-http.js";
 export { releaseProjectPlugins } from "./project-plugins.js";
 export { observeReviewSettlements, reviewSettlementForwarder, type ObserveReviewSettlements, type ReviewSettlement } from "./review-settlement-events.js";
-export { createGitWorktreePort, type GitWorktreePort } from "./git-worktrees.js";
-export { readWriterIntegration, prepareWriterIntegration } from "./git-writer-integration.js";
+export { createGitWorktreePort, type GitWorktreePort } from "./workspace-git-worktrees.js";
+export { readWriterIntegration, prepareWriterIntegration } from "./workspace-git-integration.js";
 export { draftText } from "./model-draft.js";
 
 export { ensureSystemAgentService } from "./system-agent-service.js";

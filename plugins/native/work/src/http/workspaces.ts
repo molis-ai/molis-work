@@ -1,7 +1,6 @@
 
 import type { WorkSessionHttpContext } from "./types.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { sessionErrors } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { workActions } from "../actions.js";
 import { projectWorkspaceActions } from "@molis-ai/molis-work-contracts/modules/projects";
 
@@ -9,12 +8,11 @@ const actions = (context: WorkSessionHttpContext) => {
   if (!context.actions) throw new Error("Session 服务尚未接通动作调用");
   return context.actions;
 };
-/** Unknown folder 404; a declared Session error, or an action service that is down or not redeemed, 503; everything else 400, including a change that rolled back or needs recovery (WSERR-03). */
+/** Unknown folder 404; an action service that is down or not redeemed 503; everything else 400. */
 function respondMembershipError(context: WorkSessionHttpContext, error: unknown): void {
   const code = error instanceof ActionError ? error.code : "";
   context.respond(code === "host.workspace_not_found" ? 404
-    : (error instanceof ActionError && code.startsWith("work.session.") && Object.hasOwn(sessionErrors, code.slice("work.session.".length)))
-      || code === "actions.service_unavailable" || code === "actions.unredeemed" ? 503 : 400,
+    : code === "actions.service_unavailable" || code === "actions.unredeemed" ? 503 : 400,
   { error: error instanceof Error ? error.message : String(error) });
 }
 

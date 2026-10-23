@@ -154,11 +154,13 @@ test("W2-18-FIXED-INPUT-01, W2-18-FIXED-INPUT-02: real library bindings reach SD
     assert.equal((await project.platform.supervisor.restart(PROBE)).status, "running");
     const denied = started.clients.get(PROBE)!;
     assert.notEqual(denied, oldProbe, "the denied client belongs to a fresh activation without a read grant");
-    for (const inputs of [oldProbe, denied]) {
-      assert.throws(() => inputs.status(), { code: "plugin.grant_denied" });
-      assert.throws(() => inputs.reference("after"), { code: "plugin.grant_denied" });
-      assert.throws(() => inputs.read("after"), { code: "plugin.grant_denied" });
-    }
+    assert.throws(() => denied.status(), { code: "plugin.grant_denied" });
+    assert.throws(() => denied.reference("after"), { code: "plugin.grant_denied" });
+    assert.throws(() => denied.read("after"), { code: "plugin.grant_denied" });
+    // BL-411: the stopped activation's client is refused too and, outside every call, throws nothing: each read gives undefined.
+    assert.equal(oldProbe.status(), undefined);
+    assert.equal(oldProbe.reference("after"), undefined);
+    assert.equal(oldProbe.read("after"), undefined);
     await project.platform.runtime.stop(installId);
     project.platform.runtime.grant(installId, ["artifact:read"]);
     assert.equal((await project.platform.supervisor.restart(PROBE)).status, "running");
@@ -168,7 +170,8 @@ test("W2-18-FIXED-INPUT-01, W2-18-FIXED-INPUT-02: real library bindings reach SD
     await closeProject(project); project = undefined;
     project = openProject(databasePath); started = await startPlugins(project);
     assertRead(started.clients, first, "fixed\n"); assertRows(await readDiff(project), "fixed");
-    for (const inputs of oldClients.values()) assert.throws(() => inputs.reference("after"), { code: "plugin.grant_denied" });
+    // BL-411: the closed project's clients are refused and, outside every call, throw nothing: no reference, not even null.
+    for (const inputs of oldClients.values()) assert.equal(inputs.reference("after"), undefined);
     assert.equal(project.platform.wiring.view().plugins.find(plugin => plugin.plugin_id === DIFF_PLUGIN_ID)!.ports.find(port => port.port === "after")!.artifact?.version, 1);
     project.artifacts.commands.markUnavailable({ project_id: DEMO_PROJECT_ID, actor_id: ACTOR, ...first, reason: "fixture content lost" });
     const diff = started.clients.get(DIFF_PLUGIN_ID)!;

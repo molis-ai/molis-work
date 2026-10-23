@@ -446,7 +446,6 @@ test("launch recipes resume Codex, Claude, OpenCode, Pi Agent, and Grok Build", 
   const env = desktopPanelEnv({
     homeDirectory: "/tmp/molis-work-home",
     runtimeId: "opencode",
-    sessionId: "session-1",
     panelId: "panel-1",
     workContextId: "panel-1",
     goalId: "LEAF-1",
@@ -455,7 +454,8 @@ test("launch recipes resume Codex, Claude, OpenCode, Pi Agent, and Grok Build", 
   assert.equal(env.MOLIS_WORK_PANEL_ID, "panel-1");
   assert.equal(env.MOLIS_WORK_WORK_CONTEXT_ID, "panel-1");
   assert.equal(env.MOLIS_WORK_RUNTIME_ID, "opencode");
-  assert.equal(env.MOLIS_WORK_SESSION_ID, "session-1");
+  // Sessions are retired (BL-177): a panel has no Molis Work Session to name.
+  assert.equal(env.MOLIS_WORK_SESSION_ID, undefined);
   assert.equal(env.MOLIS_WORK_WEB_URL, "http://127.0.0.1:4173");
   assert.equal(
     desktopPanelEnv({
@@ -911,7 +911,8 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     assert.equal(payload.spawn.env.MOLIS_WORK_GOAL_ID, "TUI-GOAL");
     assert.equal(payload.spawn.env.MOLIS_WORK_PANEL_ID, payload.panel.panel_id);
     assert.equal(payload.spawn.env.MOLIS_WORK_WORK_CONTEXT_ID, payload.panel.work_context_id);
-    assert.match(payload.spawn.env.MOLIS_WORK_SESSION_ID ?? "", /^session-/);
+    assert.equal(payload.spawn.env.MOLIS_WORK_SESSION_ID, undefined);
+    assert.equal(Object.hasOwn(payload.spawn, "sessionId"), false);
     assert.equal(payload.spawn.env.MOLIS_WORK_WEB_URL, origin);
     assert.equal(payload.spawn.cwd, realpathSync.native(fixture.homeDirectory));
 

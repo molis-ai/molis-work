@@ -126,6 +126,12 @@
       ],
       "reason": "Contextual ranking's Host side (service, judgment, HTTP edge); its codes already start with contextual."
     },
+    "diff": {
+      "paths": [
+        "packages/plugin-sdk/src/unified-diff.ts"
+      ],
+      "reason": "The unified-diff parse the SDK's /diff-view gives Diff, Coding and third-party plugins, moved out of the Diff plugin (PG-062); its codes already start with diff."
+    },
     "feed": {
       "paths": [
         "modules/feed/",
@@ -146,10 +152,9 @@
     },
     "git": {
       "paths": [
-        "apps/local-host/src/git-*",
         "packages/plugin-sdk/src/git-porcelain.ts"
       ],
-      "reason": "The Git plugin's Host side (worktrees, status, operations) and the porcelain parse the SDK gives both the Host and the Git plugin; its codes already start with git."
+      "reason": "The porcelain parse the SDK gives both the Host's workspace Git service and the Git plugin (G1); its codes start with git. The Git plugin's own files are git's by their directory; the Host's workspace Git files are workspace_git's (G5)."
     },
     "goals": {
       "paths": [
@@ -289,10 +294,9 @@
     },
     "shelf": {
       "paths": [
-        "modules/shelf/",
-        "apps/local-host/src/shelf-*"
+        "modules/shelf/"
       ],
-      "reason": "The Shelf module, plugin and its Host AI file; its codes already start with shelf."
+      "reason": "The Shelf module and plugin; its codes already start with shelf."
     },
     "signals": {
       "paths": [
@@ -331,9 +335,12 @@
     "workspace_git": {
       "paths": [
         "apps/local-host/src/workspace-git-actions.ts",
+        "apps/local-host/src/workspace-git-integration.ts",
+        "apps/local-host/src/workspace-git-operations.ts",
+        "apps/local-host/src/workspace-git-worktrees.ts",
         "apps/local-host/src/workspace-git-writers.ts"
       ],
-      "reason": "The platform's workspace Git service (Git exit plan T5, T6): the projects.workspace.git.* (G3) and projects.workspace.writers.* (G4, workspace_git.writer.*) actions the Host registers for plugins. Not the Git plugin, so not git.*; not Work's workspace.* either. The other workspace-git files join when they are renamed (G5)."
+      "reason": "The platform's workspace Git service (Git exit plan T5, T6): the projects.workspace.git.* (G3) and projects.workspace.writers.* (G4, workspace_git.writer.*) actions the Host registers for plugins, and the operations, writer worktrees (workspace_git.worktree.*) and integration behind them, renamed from git-*.ts (G5). Not the Git plugin, so not git.*; not Work's workspace.* either. workspace-git.ts and workspace-git-index.ts were the host owner's before G5 and stay so (the table only gets stricter)."
     }
   }
 }

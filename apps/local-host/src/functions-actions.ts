@@ -2,7 +2,7 @@ import { functionsActionProvider, publishedFunctionProvider, publishedFunctionAc
 import { sceneConfigurationActions, retainActionAuthority, ActionError, type ActionRegistryPort, type ActionCallContext, type ActionClient, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_MCP_DESTINATION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import { actionSceneCompatibilityReason } from "@molis-ai/molis-work-kernel";
-import { functionsConnectionId, functionsCredentialConfigured, withFunctionsService, withFunctionsServiceAsync, type FunctionsHostOptions } from "./functions-host.js";
+import { functionsConnectionId, functionsCredentialConfigured, openFunctionsService, type FunctionsHostOptions } from "./functions-host.js";
 import { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
 
 type FunctionContext = (caller: ActionCallContext) => { actions: ActionClient; scenes: ActionSceneClient; projectId?: string };
@@ -12,11 +12,13 @@ export class SystemFunctionsActions {
   private readonly registrations = new Map<string, { hash: string; dispose(): void }>();
   private readonly ports: FunctionsActionPorts;
   private readonly removeManagement: () => void;
+  private serviceResource?: ReturnType<typeof openFunctionsService>;
+  readonly read: FunctionsActionPorts["read"] = operation => operation(this.service());
 
-  constructor(private readonly registry: ActionRegistryPort, home: string, options: FunctionsHostOptions, context: FunctionContext) {
+  constructor(private readonly registry: ActionRegistryPort, private readonly home: string, private readonly options: FunctionsHostOptions, context: FunctionContext) {
     this.ports = {
-      read: operation => withFunctionsService(home, operation, options),
-      run: operation => withFunctionsServiceAsync(home, operation, options),
+      read: this.read,
+      run: async operation => operation(this.service()),
       credentialAvailable: () => functionsCredentialConfigured(home, options), connectionId: () => functionsConnectionId(home, options),
       validateRecommendations: async (record, caller) => {
         const references = Object.values(record.action_map ?? {});
@@ -111,6 +113,10 @@ export class SystemFunctionsActions {
     });
   }
 
+  private service() {
+    return (this.serviceResource ??= openFunctionsService(this.home, this.options)).service;
+  }
+
   refresh(): void {
     const published = this.ports.read(service => service.list()).filter(record => record.status === "published" && record.version != null);
     const current = new Set(published.map(record => `${record.function_key}@${record.version}`));
@@ -132,8 +138,10 @@ export class SystemFunctionsActions {
   }
 
   dispose(): void {
-    for (const registration of this.registrations.values()) registration.dispose();
-    this.registrations.clear();
-    this.removeManagement();
+    try {
+      for (const registration of this.registrations.values()) registration.dispose();
+      this.registrations.clear();
+      this.removeManagement();
+    } finally { this.serviceResource?.close(); }
   }
 }

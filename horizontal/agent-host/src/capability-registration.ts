@@ -58,7 +58,7 @@ export function runViewVersion(view: AgentRunView): string {
   return [view.phase, view.turns.length, last?.text.length ?? 0, view.activity.length,
     view.activity.map(item => item.state[0] + (item.output?.length ?? 0)).join(""), view.awaiting_input.length,
     view.usage.tokens.input + view.usage.tokens.output, view.step_board?.version ?? 0,
-    view.turn_changes?.length ?? 0, view.sleeping_until ?? "", view.model_switch?.now ?? "", view.model_switch?.requested ?? "",
+    view.turn_changes?.length ?? 0, view.sleeping_until ?? "", view.retry_wait?.until ?? "", view.model_switch?.now ?? "", view.model_switch?.requested ?? "",
     view.turns.map(turn => turn.steer?.state ?? "").join(",")].join(":");
 }
 

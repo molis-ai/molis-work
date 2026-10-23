@@ -31,8 +31,17 @@ export interface AssistantActivity {
     capability_id?: string;
     reason?: "not-authorized" | "declined" | "interrupted" | "unavailable";
     detail?: string;
+    failure?: AssistantActivityFailure;
     answer?: string;
     sequence?: number;
+}
+
+export interface AssistantActivityFailure {
+    kind: ActionErrorKind;
+    fields?: {
+        path: string;
+        rule: string;
+    }[];
 }
 
 export interface AssistantBackgroundJob {
@@ -462,6 +471,7 @@ export interface AssistantRound {
         window_tokens?: number;
     };
     stop_reason?: string;
+    retry_wait?: AgentRetryWait;
     ended_at: string | null;
     memories_used?: {
         used: AssistantRoundMemory[];

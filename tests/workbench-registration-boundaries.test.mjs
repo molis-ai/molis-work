@@ -9,7 +9,7 @@ import { CATALOG, catalogText } from "../scripts/gates/catalog-entries.mjs";
 const root = fileURLToPath(new URL("..", import.meta.url));
 
 test("DD2 UI guard rejects restored root implementations, bypassed mounts and legacy client handlers", () => {
-  const sources = ["apps/workbench/src/renderer.ts", "apps/workbench/src/index.ts", "apps/workbench/src/goals-proposal-ui.ts", "apps/workbench/src/scripts/client/events-accessibility.ts"]
+  const sources = ["apps/workbench/src/renderer.ts", "apps/workbench/src/index.ts", "apps/workbench/src/ui-composition.ts", "apps/workbench/src/scripts/client/events-accessibility.ts"]
     .map(file => readFileSync(new URL(`../${file}`, import.meta.url), "utf8")
       + (file === "apps/workbench/src/index.ts" ? readFileSync(new URL("../apps/workbench/src/ui-composition.ts", import.meta.url), "utf8") : ""));
   sources.splice(3, 0, "");
@@ -22,7 +22,7 @@ test("DD2 UI guard rejects restored root implementations, bypassed mounts and le
   }
   const unregistered = [...sources]; unregistered[6] = unregistered[6].replace(/contributions:\s*\[[^\]]*\]/gu, list => list.replace("goalsProposalUiContribution,", ""));
   assert.match(checkProposalUiOwnership(...unregistered).join("\n"), /registered with UiHost/);
-  const bypassed = [...sources]; bypassed[2] = bypassed[2].replace("host.mount(", "oldRender(");
+  const bypassed = [...sources]; bypassed[2] = bypassed[2].replace("createSurfaceRenderers<GoalsProposalRenderer", "oldRender<GoalsProposalRenderer");
   assert.match(checkProposalUiOwnership(...bypassed).join("\n"), /must mount/);
   const legacy = [...sources]; legacy[4] += '\nconst goalTreeDecisionForm = form.closest("[data-goal-tree-decision-form]");';
   assert.match(checkProposalUiOwnership(...legacy).join("\n"), /Goals client factory/);
@@ -45,7 +45,7 @@ test("Workbench registration guard follows the pack registry and rejects broken 
     assert.equal(hasWorkbenchUiContribution(`host.register(${name})`, "", name), true);
   }
   const retired = descriptors.replace("contributions: [feedUiContribution]", "contributions: [feedUiContribution, goalsLegacyProposalUiContribution]");
-  assert.match(checkProposalUiOwnership("", composition, "host.mount(", "", "handleGoalProposalSubmit(submittedForm, event)", registry, retired).join("\n"), /retired/);
+  assert.match(checkProposalUiOwnership("", composition, composition, "", "handleGoalProposalSubmit(submittedForm, event)", registry, retired).join("\n"), /retired/);
 });
 
 // W5-02: the catalog lists each plugin's own src/registration.ts; the guard reads the entry there, and only for a listed one.

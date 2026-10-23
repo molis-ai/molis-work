@@ -39,7 +39,8 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
       // A write that lost its answer may have happened: say so instead of inviting a blind repeat.
       throw new Error(L(/(update|delete|capture|discard|run|name-draft)$/.test(path) ? '没收到结果，可能已经生效，请刷新列表核对。' : '连接中断，请稍后重试。'));
     }
-    if (!response.ok) throw Object.assign(new Error(L(result.error || '操作失败，请重试')), { status: response.status, code: result.code });
+    // A read the Host's router refuses (403) is a permission matter or a plugin turned off, not an item that is gone.
+    if (!response.ok) throw Object.assign(new Error((body === undefined && host.readRefusal?.(response.status, result.code)) || L(result.error || '操作失败，请重试')), { status: response.status, code: result.code });
     return result;
   };
   const read = id => api('read?id=' + encodeURIComponent(id));
@@ -93,13 +94,12 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     list.removeAttribute('aria-busy');
     list.innerHTML = '<li class="issues-empty">' + esc(L('列表没读出来。')) + ' <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-reload>' + esc(L('重试')) + '</button></li>';
   });
-  const confirm = (title, text, label) => new Promise(resolve => {
+  // The shared box (host.confirmBox): with a run function the request goes out inside it and a refusal is said there.
+  const confirm = (title, text, label, run) => {
     const dialog = $('dialog'), [ok] = dialog.querySelectorAll('[value=confirm]');
-    if (dialog.open) { resolve(false); return; }
     dialog.querySelector('h2').textContent = L(title); dialog.querySelector('p').textContent = text; ok.textContent = L(label);
-    const cancel = scope.own(() => resolve(false));
-    dialog.returnValue = ''; scope.listen(dialog, 'close', () => { resolve(dialog.returnValue === 'confirm'); cancel(); }, { once: true }); dialog.showModal();
-  });
+    return host.confirmBox(dialog, ok, run);
+  };
   const pick = (type = '') => { editor.dataset.type = type; for (const button of editor.querySelectorAll('[data-type]')) button.setAttribute('aria-pressed', String(button.dataset.type === type)); };
   const flag = (text = '') => { const box = $('flag'); box.hidden = !text; box.textContent = text;
     if (/模型|model/i.test(text)) box.insertAdjacentHTML('beforeend', ' <a href="/settings/models">' + esc(L('模型设置')) + '</a>'); };
@@ -187,9 +187,8 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     else if (is('redo')) { if (draft()) await redo(current); else await reviewIssue(); }
     else if (is('delete')) {
       const target = current;
-      if (!await confirm('删除这条 Issue？', target.title + '\n\n' + L('删除后无法恢复。'), '删除') || current !== target) return;
-      await api('delete', { id: target.id, expected_version: target.version });
-      rows = rows.filter(row => row.id !== target.id); await back(); toast(L('已删除'));
+      if (!await confirm('删除这条 Issue？', target.title + '\n\n' + L('删除后无法恢复。'), '删除', () => api('delete', { id: target.id, expected_version: target.version }))) return;
+      rows = rows.filter(row => row.id !== target.id); if (current === target) await back(); toast(L('已删除'));
     }
     else if (is('more')) await load(true);
     else if (is('reload')) await refresh();
@@ -202,9 +201,9 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     if (typeof id !== 'string') return;
     gone.hidden = true;
     run(() => open(id).catch(error => {
-      if (error.status !== 404) throw error;
+      if (error.status !== 404 && error.status !== 403) throw error;
       root.dispatchEvent(new CustomEvent('molis-work:item-unreadable', { bubbles: true, detail: { itemId: id } }));
-      if (!quiet) { gone.textContent = error.message; gone.hidden = false; }
+      if (!quiet || error.status === 403) { gone.textContent = error.message; gone.hidden = false; }
     }));
   });
   scope.listen(window, 'beforeunload', event => {

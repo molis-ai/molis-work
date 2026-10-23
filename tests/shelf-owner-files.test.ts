@@ -18,6 +18,7 @@ import { openTestShelfFiles, openTestShelfStore } from "./shelf-direct-actions.j
  * PG-026 (specs/repository-anti-corruption/privileges.md): Shelf keeps its files through the owner-files client, over the entries it declares.
  * What that client and its port refuse (outside the declared entries, links, an asynchronous or expired writer) and how they replace a
  * whole file is the platform's, tested on the Runtime: SHF-IO-S02 to S06 (tests/security-invariants-plugin-owner-files*.test.ts).
+ * S1-6 concurrent appends keep every line because the write callback is synchronous; SHF-IO-S02 to S06 do not test concurrent appends.
  * The stores below are opened over plain test files (tests/shelf-direct-actions.ts); the Host's own copy of that client went in Shelf S4.
  */
 

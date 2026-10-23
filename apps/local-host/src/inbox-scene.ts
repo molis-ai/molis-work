@@ -3,16 +3,20 @@ import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { hydrateFeedItemContent } from "./feed-content.js";
 import { ActionError, type ActionView, type ActionClient, type ActionSceneBinding, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
-import { publishedFunctionAction, publishedFunctionKey } from "@molis-ai/molis-work-module-functions";
+import { publishedFunctionAction, publishedFunctionKey, type FunctionsActionPorts } from "@molis-ai/molis-work-module-functions";
 import { createInboxSceneHandler, inboxNextScene, inboxSceneBindingId, type InboxActionPorts, type InboxJudgmentSubject } from "@molis-ai/molis-work-plugin-inbox";
 import type { FeedApplication } from "@molis-ai/molis-work-plugin-feed";
 import { withFunctionsService, type FunctionsHostOptions } from "./functions-host.js";
 
-export interface InboxSceneServices { actions: ActionClient; scenes: ActionSceneClient; functions?: FunctionsHostOptions }
+export interface InboxSceneServices {
+  actions: ActionClient; scenes: ActionSceneClient; functions?: FunctionsHostOptions;
+  /** A running Host owns this connection; standalone scene callers use a scoped service. */
+  readFunctions?: FunctionsActionPorts["read"];
+}
 
 /** Uses the existing binding row and history owner; no second configuration store. */
 export function createLocalInboxScene(home: string, projectId: string, feed: FeedApplication, services: InboxSceneServices) {
-  const read = <T>(operation: Parameters<typeof withFunctionsService<T>>[1]) => withFunctionsService(home, operation, services.functions);
+  const read = services.readFunctions ?? (<T>(operation: Parameters<typeof withFunctionsService<T>>[1]) => withFunctionsService(home, operation, services.functions));
   const published = () => read(service => service.list().filter(rule => rule.status === "published" && rule.version));
   const bindingFor = (functionKey: string, version: number): ActionSceneBinding => ({
     binding_id: inboxSceneBindingId(projectId), scene_id: inboxNextScene.scene_id, scene_version: inboxNextScene.version,

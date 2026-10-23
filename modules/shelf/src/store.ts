@@ -26,6 +26,7 @@ import type {
   ShelfAiStatus,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { isShelfFailure, readShelfCopy, shelfErrors } from "./errors.js";
+import { assertOriginsUntouched, contentHash } from "./copy-checks.js";
 import { markdownFromExtract } from "./extract.js";
 import { OCR_MISSING, ocrLanguages, ocrMarkdown } from "./ocr.js";
 import { SAMPLE_PDF_TEXT, createExtractablePdf } from "./pdf.js";
@@ -54,8 +55,6 @@ export const SHELF_JOB_TIMEOUT_MS = 10 * 60 * 1000;
 export const SHELF_FOLDER_MAX_BYTES = 32 * 1024 * 1024;
 const CATALOG_VERSION = 2;
 const CATALOG_FILE = "catalog.json";
-/** The platform's answers for an original with nothing to compare: never registered, or no longer there. */
-const ORIGINAL_GONE = new Set(["material.original.not_registered", "material.original.missing"]);
 const SAMPLE_NAME = "试用示例.pdf";
 export const CLIPBOARD_LIMIT = 10;
 const MAX_CLIP_TEXT_BYTES = 256 * 1024;
@@ -423,9 +422,9 @@ export class ShelfStore {
     if (!spec.requires_agent && !this.materials.extract) throw shelfErrors.extraction_unavailable("材料提取服务不可用，请从 Molis Work 打开置物架后重试");
     if (!spec.requires_agent && items.some(item => item.kind === "image") && !runtime.image_text) throw shelfErrors.no_ocr(OCR_MISSING);
     const optionId = spec.choices.length ? resolvedChoiceId(spec.recipe, input.option_id) : null;
-    await this.assertOriginsUntouched(items, control?.signal);
+    await assertOriginsUntouched(this.materials, items, control?.signal);
     const copyHashes = new Map<string, string>();
-    for (const item of items) copyHashes.set(item.item_id, this.contentHash(item));
+    for (const item of items) copyHashes.set(item.item_id, contentHash(this.files, item));
 
     const jobId = this.id("job");
     const jobRoot = `jobs/${jobId}`;
@@ -489,8 +488,8 @@ export class ShelfStore {
       for (const [index, item] of items.entries()) {
         const latest = this.requireItem(current, item.item_id);
         if (latest.hidden || latest.relative_path !== item.relative_path) throw shelfErrors.item_not_found("材料已收起或改变，未保存结果");
-        if (this.contentHash(latest) !== copyHashes.get(item.item_id)
-          || this.contentHash(item, `${inputRoot}/${workNames[index]}`) !== copyHashes.get(item.item_id)) throw shelfErrors.hash_changed("架子上的副本 Hash 已变化，已停止写入");
+        if (contentHash(this.files, latest) !== copyHashes.get(item.item_id)
+          || contentHash(this.files, item, `${inputRoot}/${workNames[index]}`) !== copyHashes.get(item.item_id)) throw shelfErrors.hash_changed("架子上的副本 Hash 已变化，已停止写入");
       }
     };
     let validateResult: (() => void) | undefined;
@@ -498,7 +497,7 @@ export class ShelfStore {
     const beforeCommit = async () => {
       await lifetime.wait(Promise.resolve(control?.beforeEffect?.()));
       lifetime.assertActive(); assertCurrent(); validateResult?.();
-      await lifetime.wait(this.assertOriginsUntouched(items, lifetime.signal)); lifetime.assertActive();
+      await lifetime.wait(assertOriginsUntouched(this.materials, items, lifetime.signal)); lifetime.assertActive();
     };
 
     let execution: ShelfJobRecord["execution"];
@@ -757,39 +756,6 @@ export class ShelfStore {
     const item = this.requireItem(this.readCatalog(), itemId);
     if (!item.relative_path) throw shelfErrors.missing_output("这次没有生成文件");
     return { item: publicItem(item), bytes: readShelfCopy(this.files, item.relative_path) };
-  }
-
-  /** A file hashes its bytes; a folder hashes every path and file under it. */
-  private contentHash(item: StoredItem, relative = item.relative_path): string {
-    if (item.kind !== "folder") return sha256(readShelfCopy(this.files, relative));
-    const digest = createHash("sha256");
-    const walk = (directory: string, prefix: string): void => {
-      for (const entry of this.files.list(directory)) {
-        const full = `${directory}/${entry.name}`;
-        const nested = prefix ? `${prefix}/${entry.name}` : entry.name;
-        if (entry.kind === "directory") walk(full, nested);
-        else digest.update(`${nested}:${sha256(readShelfCopy(this.files, full))}\n`);
-      }
-    };
-    walk(relative, "");
-    return digest.digest("hex");
-  }
-
-  /**
-   * The original the person handed in is the platform's to read, under the item's id: a copy that has none registered, or whose
-   * file is gone, has nothing to compare. Any other refusal stops the job, as a changed file does.
-   */
-  private async assertOriginsUntouched(items: readonly StoredItem[], signal?: AbortSignal): Promise<void> {
-    const read = this.materials.readOriginal;
-    if (!read) return;
-    for (const item of items) {
-      if (item.kind === "folder" || item.group !== "material") continue;
-      const original = await read(item.item_id, { signal }).catch((error: unknown) => {
-        if (ORIGINAL_GONE.has((error as { code?: unknown } | null)?.code as string)) return null;
-        throw error;
-      });
-      if (original && sha256(Buffer.from(original.bytes)) !== item.origin_hash) throw shelfErrors.origin_changed("原件 Hash 已变化，已停止这次任务");
-    }
   }
 
   private requireItem(catalog: CatalogFile, itemId: string): StoredItem {

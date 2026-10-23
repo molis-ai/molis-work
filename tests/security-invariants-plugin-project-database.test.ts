@@ -12,6 +12,7 @@ import { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, type PluginProje
 import { assertContract, createSandboxRunner, sandboxDatabase } from "@molis-ai/molis-work-plugin-sandbox";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 // S-46, the per-statement half (PLIB-06, PLIB-08; specs/plugin-project-database §2.4): a plugin given `services.project_database`
 // reaches its own tables in the project's library and nothing else. Every statement is read through `EXPLAIN` before it runs and
@@ -242,8 +243,9 @@ test("PLIB-06 a stopped plugin's client is refused, the same after it starts aga
   await running.runtime.stop(installId(mine));
   for (const phase of ["stopped", "restarted"] as const) {
     if (phase === "restarted") await running.runtime.start(installId(mine));
-    assert.throws(() => old.all("SELECT * FROM libprobe_notes"), { code: "actions.plugin_unavailable" }, phase);
-    await assert.rejects(write(old, "INSERT INTO libprobe_notes (project_id, text) VALUES (?, ?)", [DEMO_PROJECT_ID, phase]), { code: "actions.plugin_unavailable" }, phase);
+    // BL-411: outside every call the stopped activation's client is refused and does nothing: a read gives nothing, a write never settles.
+    assert.equal(old.all("SELECT * FROM libprobe_notes"), undefined, phase);
+    assert.equal(await within(write(old, "INSERT INTO libprobe_notes (project_id, text) VALUES (?, ?)", [DEMO_PROJECT_ID, phase])), PENDING, phase);
   }
   assert.equal(count("libprobe_notes"), 0);
   await write(database(mine), "INSERT INTO libprobe_notes (project_id, text) VALUES (?, ?)", [DEMO_PROJECT_ID, "这一次的"]);

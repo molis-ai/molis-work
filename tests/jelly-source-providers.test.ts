@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { Readable } from "node:stream";
 import { gzipSync, brotliCompressSync, deflateSync } from "node:zlib";
 import { classifyMaterialSource, materialSourceEmbeddedJSON, materialXiaohongshuNoteID, parseMaterialXiaohongshu, parseMaterialXiaoyuzhouAudio, readMaterialSource, type MaterialSourceOptions } from "../apps/local-host/src/material-source-providers.js";
-import { fetchMaterialPublicBytes, isMaterialPublicAddress, readMaterialPublicBody, resolveMaterialPublicAddresses, validateMaterialPublicURL, type MaterialPublicResponse } from "../apps/local-host/src/material-source-reader.js";
+import { assertMaterialHostAllowed, fetchMaterialPublicBytes, isMaterialPublicAddress, materialRedirectTarget, readMaterialPublicBody, resolveMaterialPublicAddresses, validateMaterialPublicURL, type MaterialPublicResponse } from "../apps/local-host/src/material-source-reader.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { type UploadedMaterial } from "../apps/local-host/src/material-upload.js";
@@ -133,4 +133,69 @@ test("RAC-27 source authority is checked before the first fetch, every later fet
 test("the reader's address policy refuses every address of the shared table that is not public", () => {
   for (const address of ADDRESSES_NEVER_PUBLIC) assert.equal(isMaterialPublicAddress(address), false, address);
   for (const address of ADDRESSES_PUBLIC) assert.equal(isMaterialPublicAddress(address), true, address);
+});
+
+// BL-492 (specs/repository-anti-corruption/slices/pg017-sandbox-services.md §3.4): the material reader can be held to a list of exact host
+// names, so a caller that approved a few domains (a sandboxed plugin, over its broker) gets no page, redirect, API or media file from another
+// host. The list is checked before a host is looked up or contacted, on every request the reader makes.
+const refusal = (expected: string) => (error: unknown) => (error as { code?: string } | undefined)?.code === expected;
+const NOT_ALLOWED = "material.source.domain_not_allowed";
+const host = (value: string) => new URL(value);
+
+test("BL-492 a host outside the allowed list is refused, by exact name, and without a list every public host is allowed", () => {
+  const allowed = ["docs.example.com", "example.org"];
+  assert.doesNotThrow(() => assertMaterialHostAllowed(host("https://docs.example.com/a?b=1"), allowed));
+  assert.doesNotThrow(() => assertMaterialHostAllowed(host("https://DOCS.example.com:443/a"), allowed), "a host name is compared as the URL parser lowercases it");
+  for (const other of ["https://example.com/", "https://www.example.org/", "https://docs.example.com.evil.example/", "https://evil.example/docs.example.com", "https://user.docs.example.com/"]) {
+    assert.throws(() => assertMaterialHostAllowed(host(other), allowed), refusal(NOT_ALLOWED), other);
+  }
+  assert.throws(() => assertMaterialHostAllowed(host("https://docs.example.com/"), []), refusal(NOT_ALLOWED), "an empty list allows nothing");
+  assert.doesNotThrow(() => assertMaterialHostAllowed(host("https://anything.example/"), undefined));
+});
+
+test("BL-492 the first request is refused before any lookup or request, and a redirect off the list is refused the same way", async () => {
+  // A host that would resolve and answer if asked: the refusal is the reader's own, before it asks anyone.
+  await assert.rejects(fetchMaterialPublicBytes("https://example.com/", { allowedHosts: ["docs.example.com"] }), refusal(NOT_ALLOWED));
+  const from = host("https://docs.example.com/start");
+  assert.equal(materialRedirectTarget(from, "/next?page=2", ["docs.example.com"]), "https://docs.example.com/next?page=2");
+  assert.equal(materialRedirectTarget(from, "https://example.org/", ["docs.example.com", "example.org"]), "https://example.org/");
+  assert.equal(materialRedirectTarget(from, "https://evil.example/", undefined), "https://evil.example/", "no list, no restriction");
+  for (const location of ["https://evil.example/", "//evil.example/x", "https://docs.example.com.evil.example/", "https://example.com/"]) {
+    assert.throws(() => materialRedirectTarget(from, location, ["docs.example.com"]), refusal(NOT_ALLOWED), location);
+  }
+  assert.throws(() => materialRedirectTarget(from, undefined, ["docs.example.com"]), refusal("material.source.redirect_invalid"));
+  assert.throws(() => materialRedirectTarget(from, "http://[bad", ["docs.example.com"]), refusal("material.source.redirect_invalid"));
+});
+
+test("BL-492 every request a source's reader makes carries the list: its page, the API it follows to and the media it downloads", async () => {
+  const url = "https://www.bilibili.com/video/BVexample"; const seen: string[] = [];
+  const state = '<script>__INITIAL_STATE__={"videoData":{"bvid":"BVexample","cid":123,"title":"视频标题"}}</script>';
+  const options = (allowedHosts: readonly string[]): MaterialSourceOptions => ({
+    allowed_hosts: allowedHosts,
+    async fetch(target, request) {
+      // The reader hands its fetcher the list on every call; the fetcher is the real check, applied to what it was handed.
+      assert.deepEqual(request?.allowedHosts, allowedHosts);
+      assertMaterialHostAllowed(host(target), request?.allowedHosts);
+      seen.push(target);
+      if (target === url) return page(url, state);
+      if (target.includes("/x/player/v2?")) return page(target, JSON.stringify({ code: 0, data: { subtitle: { subtitles: [{ lan: "zh-Hans", subtitle_url: "https://cdn.example/chinese" }] } } }), "application/json");
+      if (target.endsWith("chinese")) return page(target, JSON.stringify({ body: Array.from({ length: 30 }, (_, i) => ({ from: i, to: i + 1, content: `这是第${i}段真实公开中文字幕内容` })) }), "application/json");
+      throw new Error("unexpected fetch");
+    },
+    async extractMaterial() { assert.fail("subtitles are enough"); },
+  });
+  // Only the page's host is allowed: the page is read, the API on another host is refused, and nothing after it is requested.
+  await assert.rejects(readMaterialSource("/unused", url, options(["www.bilibili.com"])), refusal(NOT_ALLOWED));
+  assert.deepEqual(seen, [url]);
+  // Every host the read follows to, allowed: it reads.
+  seen.length = 0;
+  const read = await readMaterialSource("/unused", url, options(["www.bilibili.com", "api.bilibili.com", "cdn.example"]));
+  assert.equal(read.provider, "bilibili");
+  assert.equal(seen.length, 3);
+  // A plain article on an allowed host reads; the same article on another host is refused before its fetch.
+  const article = (allowedHosts: readonly string[]) => readMaterialSource("/unused", "https://example.com/post", { allowed_hosts: allowedHosts, async fetch(target, request) {
+    assertMaterialHostAllowed(host(target), request?.allowedHosts); return page(target, `<article><p>${"真实公开文章内容。".repeat(8)}</p></article>`);
+  } });
+  assert.equal((await article(["example.com"])).provider, "article");
+  await assert.rejects(article(["docs.example.com"]), refusal(NOT_ALLOWED));
 });

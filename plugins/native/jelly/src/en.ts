@@ -1,29 +1,10 @@
-export const JELLY_EN: Record<string, string> = {
-  // Chinese keys that other owners (or Jelly's own server-side text) still look up by their Chinese text. The page's own words live in messages.ts under stable keys.
+/**
+ * English for the Chinese words Jelly's own server-side text is looked up by: the search result kinds (`search.ts`) and the
+ * "new note" action title (`command-actions.ts`), which the Host translates by their Chinese text. The page itself (`ui.ts`,
+ * `browser/`) speaks through `messages.ts`. Words that only other owners look up live in those owners' dictionaries.
+ */
+export const JELLY_EN: Readonly<Record<string, string>> = {
   "笔记": "Notes",
-  "操作失败，请重试": "Could not complete the action. Try again.",
-  "修改范围": "Apply changes to",
-  "月": "Month",
-  "导出 Markdown": "Export Markdown",
-  "开始日期": "Start date",
-  "结束日期": "End date",
-  "开始时间": "Start time",
-  "结束时间": "End time",
-  "分类": "Category",
-  "新建笔记": "New note",
-  "一": "Mon",
-  "二": "Tue",
-  "三": "Wed",
-  "四": "Thu",
-  "五": "Fri",
-  "六": "Sat",
-  "日": "Sun",
   "日程": "Event",
-  "移除关联": "Remove link",
-  "结束日期不能早于开始日期": "End date cannot be before the start date",
-  "补充要求": "Instructions",
-  "应用": "Apply",
-  "服务地址": "Service URL",
-  "本周": "This week",
-  "移动": "Move",
+  "新建笔记": "New note",
 };

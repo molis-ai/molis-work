@@ -1,6 +1,6 @@
 # W5-03 / W5-04 Jelly 片：稳定翻译键与打包的、类型检查的客户端
 
-状态：执行中（2026-10-23）。Jelly 的页面客户端与页面文字按 Todo 片（#1129）的做法改完，本地验证通过，待 CI。
+状态：执行中（2026-10-23）。Jelly 的页面客户端与页面文字按 Todo 片（#1129）的做法改完，评审第一轮的两项（回顾页签自己的键、`en.ts` 逐词归位）已改，待 CI。
 
 验收编号：RAC-140～141。
 
@@ -10,7 +10,8 @@
 
 - 客户端从六份模板字符串（`client.ts`、`client-calendar.ts`、`client-content.ts`、`client-plan.ts`、`client-model.ts`、`client-material.ts`，共约 680 行，拼成一个 `(host) => {…}`）改成 `src/browser/` 的 TypeScript（28 个模块：页面状态与共用操作、请求、对话框、日历与事项、笔记与块、任务计划、模型设置、按钮命令表与事件，函数都在 150 行以内），`tsconfig.browser.json` 类型检查，esbuild 打成 `dist/jelly-client.js`；`src/client.ts` 只读这份包。
 - 请求：原先自己拼 `fetch` 与 `molisWorkControlHeaders()`，现在经共同的 `molisWorkRequest`（`src/browser/request.ts`）；拆成任务的流式请求用它的 `stream`，进度与取消照旧。失败仍是带 `code` 和 `status` 的 Error，`GET` 被拒时仍先问 `host.readRefusal`。
-- 页面文字：`ui.ts` 与 `src/browser/` 里的 247 句中文都改成稳定键 `jelly.<区域>.<名称>`，中英文放在 `src/messages.ts`（`JELLY_MESSAGES`，248 个键，含原有的 `jelly.category.uncategorized`），`registration.messages` 早已登记。英文逐字照搬原 `JELLY_EN`（其中 10 个词，工作台合并后的英文曾被别的主人的同名条目盖掉，现在显示 Jelly 自己的词：正文 Text、已完成 completed、完成 Done、重试 Try again、确认导入 Import、恢复 Restore、完成要求 Completion criteria、未完成 Open、返回列表 Back to list、备注 Notes；同名冲突因此从 190 处降到 184 处）。`en.ts` 只留别的主人仍按中文原文翻译的 26 个词。
+- 页面文字：`ui.ts` 与 `src/browser/` 里的 247 句中文都改成稳定键 `jelly.<区域>.<名称>`，中英文放在 `src/messages.ts`（`JELLY_MESSAGES`，249 个键，含原有的 `jelly.category.uncategorized`），`registration.messages` 早已登记。英文逐字照搬原 `JELLY_EN`；其中 9 个词，工作台合并后的英文曾被别的主人的同名条目盖掉，现在显示 Jelly 自己的词（正文 Text、完成 Done、重试 Try again、确认导入 Import、恢复 Restore、完成要求 Completion criteria、未完成 Open、返回列表 Back to list、备注 Notes），同名冲突因此从 190 处降到 184 处。「已完成」一词在 Jelly 页面里两种用法：回顾页签的名字有自己的键 `jelly.review.completed`（Completed，与改前一致），其余三处是状态词，用 `jelly.status.completed`（completed，Jelly 自己的词，改前被别的主人的 Completed 盖掉）。
+- `src/en.ts`：原先留 26 个词，逐个按谁在查来分：只有别的主人按中文原文查的 19 个词搬回那个主人的词典（工作台 `gap-en.ts`：月、一～日、补充要求、应用、开始日期、结束日期、开始时间、结束时间、操作失败，请重试；`placement-en.ts`：移除关联、移动；`studio-en.ts`：修改范围；Pages 的 `en.ts`：导出 Markdown），英文与合并后的一样，所以别处显示不变；工作台已有同样英文的 `分类` 直接删；没人查的 3 个词删掉（本周、服务地址、结束日期不能早于开始日期，页面都走键，服务端没有把后一句翻译出去的路径）；Jelly 自己的服务端文字还按中文原文查的 3 个词留下：搜索结果种类名 `笔记`、`日程` 和动作标题 `新建笔记`，登记在 BL-456（做完的条件：合同能带稳定键并由宿主消费）。合并后整个目录逐词对照改前：`没有匹配的内容` 的英文由 No matching content 变成 No matching items（全局搜索、Workflows），`页` 由 Page 变成 slides（PPT）——这两句原先被 Jelly 的同名条目盖掉，现在显示各自主人的词；其余只有 Jelly 页面自己不再查的词从目录里消失。
 - 不动 `manifest.ts`（#1098）和 `*actions.ts`（#1117）。
 
 ## 不变的行为

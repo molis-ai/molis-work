@@ -4,7 +4,7 @@ import { API } from "./request.js";
 import { addDays, civil, dateLabel, dayDate, mondayIndex } from "./util.js";
 import type { JellyOccurrence, JellyPage, ReviewTab } from "./types.js";
 
-const TABS: readonly (readonly [ReviewTab, string])[] = [["completed", "jelly.status.completed"], ["open", "jelly.review.open"], ["overdue", "jelly.review.postponed"], ["priority", "jelly.review.high-priority"], ["categories", "jelly.review.categories"]];
+const TABS: readonly (readonly [ReviewTab, string])[] = [["completed", "jelly.review.completed"], ["open", "jelly.review.open"], ["overdue", "jelly.review.postponed"], ["priority", "jelly.review.high-priority"], ["categories", "jelly.review.categories"]];
 
 function reviewRange(page: JellyPage): { start: string; end: string } {
   const day = dayDate(page.anchor);

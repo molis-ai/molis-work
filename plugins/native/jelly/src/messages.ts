@@ -99,6 +99,7 @@ export const JELLY_MESSAGES = {
   "jelly.week.sat": { zh: "六", en: "Sat" },
   "jelly.week.sun": { zh: "日", en: "Sun" },
   "jelly.status.completed": { zh: "已完成", en: "completed" },
+  "jelly.review.completed": { zh: "已完成", en: "Completed" },
   "jelly.calendar.shift-next-week": { zh: "搬到下周", en: "Move to next week" },
   "jelly.calendar.shift-next-month": { zh: "搬到下月", en: "Move to next month" },
   "jelly.calendar.move-selected": { zh: "移动所选", en: "Move selected" },

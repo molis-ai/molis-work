@@ -18,6 +18,7 @@ export const STUDIO_EN: Record<string, string> = {
   "我的插件（{n}）": "My plugins ({n})",
   "还没有插件": "No plugins yet",
   "新建插件": "New plugin",
+  "修改范围": "Apply changes to",
   "新插件": "New plugin",
   "构建使用的模型": "Model used for building",
   "选择模型": "Choose a model",

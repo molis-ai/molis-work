@@ -11,16 +11,16 @@ const draftKey = (id: string): string => `molis-jelly-draft:${id}`;
 interface Recovery { id: string; kind: string; revision: number; patch: { title?: string; blocks?: JellyBlock[] }; saved_at: string }
 
 export function readRecovery(id: string): Recovery | null {
-  try { return JSON.parse(localStorage.getItem(draftKey(id)) || "null") as Recovery | null; } catch { return null; }
+  try { return JSON.parse(localStorage.getItem(draftKey(id)) || "null") as Recovery | null; } catch { /* 读不到草稿就当没有草稿 */ return null; }
 }
 function writeRecovery(page: JellyPage): void {
   if (!page.selected) return;
   try {
     localStorage.setItem(draftKey(page.selected.id), JSON.stringify({ id: page.selected.id, kind: page.selected.kind, revision: page.editorRevision, patch: readDraft(page), saved_at: new Date().toISOString() }));
-  } catch { return; }
+  } catch { /* 存不了草稿不影响保存笔记本身 */ return; }
 }
 export function clearRecovery(id: string): void {
-  try { localStorage.removeItem(draftKey(id)); } catch { return; }
+  try { localStorage.removeItem(draftKey(id)); } catch { /* 清不掉草稿也不影响别的 */ return; }
 }
 
 export const blockText = (note: JellyNote): string => note.blocks.map((block) => block.text).join("\n");

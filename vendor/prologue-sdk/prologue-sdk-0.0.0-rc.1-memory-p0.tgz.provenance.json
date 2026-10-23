@@ -9,11 +9,11 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "1fb84f3f6ca26e578c948d8e11eff57f453dbf41",
+    "commit": "89bded90a73e88fb0b21b09231ce00714a567fab",
     "mergedUpstream": {
-      "pullRequest": 87,
-      "head": "1fb84f3f6ca26e578c948d8e11eff57f453dbf41",
-      "merge": "29346ca8de64a8b5935ab740834538262fa807ab",
+      "pullRequest": 88,
+      "head": "89bded90a73e88fb0b21b09231ce00714a567fab",
+      "merge": "8c9c5460d0d24ef449c7fc01b262c52206a0b801",
       "note": "Main tree equals the verified PR head; no local SDK patch."
     },
     "dirty": false,
@@ -22,9 +22,9 @@
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1333791,
-    "sha256": "902d109b51d1a323b56a2e5ebb539fa7f82a7e00cdad7a8c6d79067aeb7b02f0",
-    "integrity": "sha512-hyHQk8AKSoULQkHdEIBgfShRoGeix4IxRFYDY7AorHK4+EWhhiR9EqOUYlxiA3Z46JMaj6AQ3diCMHcCyPM8Jw=="
+    "bytes": 1335783,
+    "sha256": "4ea6e04c393e37fc1f9672272d52b0916d826b487c0460e45a1f87b1773c96f4",
+    "integrity": "sha512-g+Ac1ZrOoykPA3DSMcdGqpexUQwvuQhcyw0SwJHY8ENI0O0PoHLzYjxnZrHUYa07vgmR3jv5zljgtyDm7v3ZTg=="
   },
   "build": {
     "node": "24.19.0",
@@ -37,6 +37,6 @@
       "Copy the verified package to the Molis vendor path"
     ],
     "packedOn": "2026-10-23",
-    "note": "Clean PR #87 head; complete quality including 679 tests, clean installed SDK and Rust passed. Explicit opt-in permits unclassified formal task/explicit reads without inventing classification or retention; actual old-package adoption/reopen probe passed. Not a release or Molis acceptance; no byte-identical independent rebuild claimed. Actual Node24.19.0 differs from declared24.14.0."
+    "note": "Clean PR #88 head; final complete quality including 679 stable tests, clean installed SDK real tool disable followed by a successful second HTTP request, Rust and 167 targeted tests passed. Invalid canonical projections are retired before reuse, without weakening current permission/final dispatch checks or refunding budget. Not a release or Molis acceptance; no byte-identical independent rebuild claimed. Actual Node24.19.0 differs from declared24.14.0."
   }
 }

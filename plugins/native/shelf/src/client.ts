@@ -1,5 +1,6 @@
 import { SHELF_READING_FACTORY_SCRIPT } from "./reading-client.js";
 import { SHELF_RESULT_CLIENT_FACTORY_SCRIPT } from "./result-client.js";
+import { SHELF_ADMIT_CLIENT_FACTORY_SCRIPT } from "./admit-client.js";
 /** Shelf workbench client: select, extract, ingest, DropAgent command bar. */
 export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
@@ -67,6 +68,11 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     return payload;
   };
+  // Adding several at once (the later consts are used only when it runs, so they are passed as calls).
+  const admit = (${SHELF_ADMIT_CLIENT_FACTORY_SCRIPT})({ lifetime, workbench: bench, api, post, L, bufferToBase64, applySnapshot: (...args) => applySnapshot(...args), current: () => snapshot,
+    afterJoin: (next, lastId) => { selClip = null; clipSelection = new Set(); applySnapshot(next, lastId); },
+    clearHint: () => { stickyHint = ""; renderBar(lastBarKind); }, showError: (error) => showAdmissionError(error) });
+  const { admitFiles, joinClips } = admit;
 
   const cap = (kind) => kind === "pdf" ? "PDF" : kind === "markdown" ? "MD" : kind === "text" ? "TXT" : kind === "image" ? "IMG" : kind === "website" ? "WEB" : kind === "url" ? "URL" : kind === "folder" ? "DIR" : "FILE";
   const clockLabel = (stamp) => {
@@ -490,8 +496,9 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (hint) {
       if (stickyHint) {
         hint.hidden = false;
-        hint.textContent = stickyHint;
+        admit.paintHint(hint, stickyHint);
       } else {
+        admit.paintHint(hint, "");
         hint.hidden = !(kind === "pdf" || kind === "text" || kind === "markdown" || kind === "image" || kind === "url" || kind === "website") || !agentMissing();
       }
     }
@@ -763,18 +770,8 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     applySnapshot(payload.snapshot, payload.item?.item_id);
     return payload.item;
   };
-  const admitFiles = async (files) => {
-    let lastId = "";
-    try {
-      for (const file of files) {
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        const payload = await post(api + "/items", { filename: file.name, mime: file.type, bytes_base64: bufferToBase64(bytes) });
-        lastId = payload.item?.item_id || lastId;
-        snapshot = payload.snapshot;
-      }
-    } finally { if (lastId) applySnapshot(snapshot, lastId); }
-  };
   const showAdmissionError = (error) => {
+    admit.remember(error);
     expandShelfStage(true);
     if (!selected) preview.innerHTML=docHtml("Shelf",L("无法添加材料"),error.message);
     stickyHint=error.message;renderBar(lastBarKind);
@@ -878,19 +875,6 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   const copyShelfItem = async (id) => {
     const item = itemById(id);
     if (item) await copyFiles([item]);
-  };
-
-  const joinClips = async (ids) => {
-    let lastId = "";
-    let next = snapshot;
-    for (const id of ids) {
-      const payload = await post(api + "/clipboard/" + encodeURIComponent(id) + "/material");
-      lastId = payload.item?.item_id || lastId;
-      next = payload.snapshot;
-    }
-    selClip = null;
-    clipSelection = new Set();
-    applySnapshot(next, lastId);
   };
 
   lifetime.listen(directory,"click", async (event) => {
@@ -1466,7 +1450,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
         try {
           if(entry.isDirectory) await admitFolderEntry(entry);
           else if(entry.isFile) await admitFiles([await new Promise((resolve,reject)=>entry.file(resolve,reject))]);
-        } catch(error){if(!lifetime.alive)return;failures.push(error.message);}
+        } catch(error){if(!lifetime.alive)return;failures.push(entry.name+"（"+error.message+"）");}
       }
       if(failures.length)showAdmissionError(new Error(failures.join(" · ")));
       return;

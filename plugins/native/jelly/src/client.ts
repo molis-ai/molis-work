@@ -65,7 +65,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const route = (document.body.dataset.routePrefix || '') + path;
     const response = await fetch(route, { method, headers: typeof molisWorkControlHeaders === 'function' ? molisWorkControlHeaders() : {'content-type':'application/json'}, ...(method === 'GET' ? {} : {body: JSON.stringify(body || {})}) });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) { const err = new Error(result.error || L('Jelly 请求失败')); err.status = response.status; err.code = result.code; err.details=result.details; throw err; }
+    if (!response.ok) { const err = new Error((method === 'GET' && host.readRefusal?.(response.status, result.code)) || result.error || L('Jelly 请求失败')); err.status = response.status; err.code = result.code; err.details=result.details; throw err; }
     return result;
   };
   const run = (fn) => Promise.resolve().then(fn).catch((error) => showNote(error.message || L('操作失败，请重试'), true));
@@ -173,7 +173,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if(typeof id!=='string'||!id)return;
     void run(async()=>{
       await flushEditor();await mutationQueue.catch(()=>{});
-      take((await request('GET',API+'/')).state);
+      take((await request('GET',API+'/').catch((error)=>{if(error.status===403)root.dispatchEvent(new CustomEvent('molis-work:item-unreadable',{bubbles:true,detail:{itemId:id}}));throw error;})).state);
       const item=state.items.find((entry)=>entry.id===id),series=state.series.find((entry)=>entry.id===id);
       const kind=item||series?null:recordFor('note',id)?'note':null;
       if(!item&&!series&&!kind){root.dispatchEvent(new CustomEvent('molis-work:item-unreadable',{bubbles:true,detail:{itemId:id}}));await renderView();if(!event.detail.quiet)showNote(L('这条内容已不存在'),true);return;}

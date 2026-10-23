@@ -52,10 +52,11 @@ test("SYS-49/VUX-33: a large block reads at once and is coloured a slice a frame
     window.steps = []; window.stepCosts = []; const frame = window.requestAnimationFrame.bind(window);
     window.grown = 0; const grow = ${growCodeTokens.toString()};
     window.paint = (() => {
-      const requestAnimationFrame = (step) => frame((stamp) => { const start = performance.now(); step(stamp); const worked=performance.now(); window.code?.getBoundingClientRect(); const end=performance.now(); window.steps.push(end-start); window.stepCosts.push([worked-start,end-worked]); });
+      const requestAnimationFrame = (step) => frame((stamp) => { const start = performance.now(); window.code?.getBoundingClientRect(); const pending=performance.now(); step(stamp); const worked=performance.now(); window.code?.getBoundingClientRect(); const end=performance.now(); window.steps.push(end-start); window.stepCosts.push([pending-start,worked-pending,end-worked]); });
       return (${createCodingCodePaint.toString()})(tokensOf, (last, text, language, tokens) => { const next = grow(last, text, language, tokens); window.grown += text.length - (next.starts[next.from] ?? text.length); return next; }, (hint) => hint); })();
     window.block = () => { document.querySelector('#scale')?.remove(); const pre = document.body.appendChild(document.createElement('pre')); pre.id = 'scale'; return pre.appendChild(document.createElement('code')); };`);
   const text = textOf(300_000);
+  t.diagnostic(JSON.stringify({ catalogLayout: await evaluate("(() => { const start=performance.now(); document.body.getBoundingClientRect(); return performance.now()-start; })()") }));
   const first = await evaluate<{ coloured: boolean; reads: boolean; ms: number }>(`(() => { window.text = ${JSON.stringify(text)}; window.code = block(); steps.length = 0;
     const start = performance.now(), coloured = paint.paintInto(code, text, 'ts'); return { coloured, reads: code.textContent === text, ms: performance.now() - start }; })()`);
   assert.deepEqual([first.coloured, first.reads], [true, true], "past the old 40,000-character cap it is coloured, and reads whole from the start");

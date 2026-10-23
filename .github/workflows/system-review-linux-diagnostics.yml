@@ -42,5 +42,5 @@ jobs:
           echo "MOLIS_WORK_BROWSER_PATH=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends fonts-wqy-zenhei
-      - name: Run the two relevant files
-        run: node scripts/run-tests.mjs --verbose tests/interaction-no-crosstalk.e2e.test.ts tests/code-scale.e2e.test.ts
+      - name: Separate pending layout from each colouring slice
+        run: node scripts/run-tests.mjs --verbose tests/code-scale.e2e.test.ts

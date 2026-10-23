@@ -20,9 +20,11 @@ test("VUX-36: moving between finished Assistant works again and again leaves not
       await pause(150);
     }
   };
-  await around(); await around();
+  // The page refreshes the works list every 15 s; its first refresh fills what it keeps once (244 arrays on Chrome 156), so the
+  // warm-up waits for one, and the moves wait for another: a refresh that kept more each time would show.
+  await around(); await pause(16_000); await around();
   const before = await domCounters(command, sessionId);
-  for (let i = 0; i < 15; i++) await around();
+  for (let i = 0; i < 15; i++) { await around(); if (i === 7) await pause(16_000); }
   const after = await domCounters(command, sessionId);
   t.diagnostic(`45 moves: ${JSON.stringify(before)} → ${JSON.stringify(after)}`);
   assert.equal(await evaluate("localStorage.getItem('molis.assistant.current')"), works[2]);

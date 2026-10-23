@@ -68,7 +68,7 @@ async function shelfBesidePages(t: TestContext) {
   await waitFor("window.lastLanding?.position === 'cursor'");
 
   // A text material on the shelf, opened in Shelf's side tab.
-  const item = await evaluate<{ item_id: string }>(`fetch(${JSON.stringify(`/projects/${projectId}/api/shelf/items`)}, { method: "POST", headers: molisWorkControlHeaders(),
+  const item = await evaluate<{ item_id: string }>(`fetch(${JSON.stringify(`/projects/${projectId}/api/plugins/io.molis.work.shelf/items`)}, { method: "POST", headers: molisWorkControlHeaders(),
     body: JSON.stringify({ filename: "访谈记录.md", mime: "text/markdown", bytes_base64: btoa(String.fromCharCode(...new TextEncoder().encode(${JSON.stringify(`# 访谈记录\n\n用户说：${MATERIAL}\n`)}))) }) })
     .then((response) => response.json()).then((body) => body.item)`);
   assert.ok(item?.item_id, "the material is on the shelf");

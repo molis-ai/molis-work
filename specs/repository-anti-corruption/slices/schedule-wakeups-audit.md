@@ -12,8 +12,8 @@
 | --- | --- |
 | 唤醒是动作，经网关投递 | Manifest `background.wakeups` 声明三个唤醒动作（`plugins/native/schedule/src/manifest.ts:41`、`background-actions.ts`）；调度器登记时只收 `registerAction`（带安装、代次、动作版本的绑定，`horizontal/scheduler/src/action-wakeups.ts`），到点经 `owner.invoke` 调那个安装的动作网关 |
 | 带安装身份和授权 | 绑定存在库里，活的“拥有者”由激活经 `connectActionOwner` 接上（`apps/local-host/src/plugin-scheduler-service.ts:16`）；认领（`claim`）与每次续租（`renewExecutions`）都重查 `actionWakeups.current`，安装停了、重装了（代次变了）、撤权了，到点的任务原样留着不跑（`tests/security-invariants-plugin-scheduler.test.ts`「SYS-15-S4/S5」） |
-| 宿主不再登记处理器 | 生产里没有任何 `PluginWakeupIndex.register` 调用（grep 全仓）；但 `project-clock.ts` 还建一个空的 `PluginWakeupIndex` 交给调度器，所以宿主里的任何代码都还能往里登记。**本片补：** `wakeupIndex` 改成可选，`project-clock.ts` 不再建它；没有安装的 `register()` 一律 `scheduler.handler_missing`，库里遗留的没绑定的任务只记“不可用”（RAC-206） |
-| 余项 | `PluginWakeupIndex` 类和无安装的 `register()` 现在只有测试在用（`tests/scheduler.test.ts` 等 7 个文件约 50 处，其中有认领事务里的 `prepare` 钩子的断言，那一路生产里已不走）。整个删掉要把这些测试搬到绑定了安装的拥有者上，记为 BL-481 |
+| 宿主不再登记处理器 | 生产里没有任何 `PluginWakeupIndex.register` 调用（grep 全仓）；但 `project-clock.ts` 还建一个空的 `PluginWakeupIndex` 交给调度器，所以宿主里的任何代码都还能往里登记。**本片补：** `project-clock.ts` 不再建它，随后整个类连同没有安装的 `register()` 删掉（BL-481）；库里遗留的没绑定的任务只记“不可用”（RAC-206） |
+| 余项（已做，BL-481） | `PluginWakeupIndex` 类、`ScheduleWakeupPreparation`、认领事务里的 `prepare` 钩子和无安装的 `register()` 已删（第 2 节第 3 条）；测试搬到绑定了安装的拥有者上（`tests/fixtures/scheduler-owner.ts`），`prepare` 的断言改在插件自己的唤醒动作里 |
 
 ### PG-040 每 30 秒的 `projects.schedules` 轮询由宿主手写，用宿主名字 —— Schedule 一半已做，Feed 一半留给 Feed 迁移
 
@@ -47,6 +47,7 @@
 
 1. `horizontal/scheduler/src/index.ts`：`ScheduleServiceOptions.wakeupIndex` 可选；没有它时，没有安装绑定的任务不可登记（`scheduler.handler_missing`），遗留的没绑定的任务到点记 `plugin_unavailable`、不调用任何东西。
 2. `apps/local-host/src/project-clock.ts`：不再建 `PluginWakeupIndex`。
+3. BL-481：删 `PluginWakeupIndex`、`ScheduleWakeupHandler`、`ScheduleWakeupPreparation`、认领事务里的 `prepare` 钩子、没有安装的 `register()` 和 `wakeupIndex` 选项；调度器只剩 `registerAction`（带安装绑定）一条登记路。没有绑定的遗留行仍被认领、到点只记 `plugin_unavailable`（RAC-206）。到点那一刻（`next_due_at`）不再在认领时预先推进，一律在动作回答、收据落库时推进：以前没绑定安装的任务是先推进再投，所以已派发的一次性任务“调度器自己不重放”；现在整台调度器只有“动作回答了才推进”这一种，重放交给动作自己的持久记录（`prepareScheduledOperation` 的 occurrence、提醒的 `key`）去重，生产里本来就是这样。
 
 没动：合同、动作、Manifest、`manifest.ts`、Feed、Todo。
 
@@ -54,9 +55,8 @@
 
 | 编号 | 断言 |
 | --- | --- |
-| RAC-206 | 宿主的项目时钟（`scheduleServiceFor`）拒绝没有安装的任务登记（`scheduler.handler_missing`），库里没绑定安装的遗留任务到点被认领但只记 `plugin_unavailable`、没有任何东西被调用（`tests/security-invariants-plugin-scheduler.test.ts`「PG-039 RAC-206」）；绑定了安装的唤醒经网关送达、停了就不跑的断言本来就在同一个文件的「SYS-15-S4/S5」 |
+| RAC-206 | 宿主的项目时钟（`scheduleServiceFor`）没有登记任务的无安装入口（没有 `register`；`registerAction` 在没有连上该安装的动作网关时拒绝，`scheduler.handler_missing`），库里没绑定安装的遗留任务到点被认领但只记 `plugin_unavailable`、没有任何东西被调用（`tests/security-invariants-plugin-scheduler.test.ts`「PG-039 RAC-206」）；绑定了安装的唤醒经网关送达、停了就不跑的断言本来就在同一个文件的「SYS-15-S4/S5」 |
 
 ## 4. 留着的
 
-- BL-481：删 `PluginWakeupIndex`，把调度器测试搬到绑定了安装的拥有者上。
 - PG-040 的 Feed 一半、`workflow-events` 判断身份：随 Feed 迁移（PG-093）和 PG-010。

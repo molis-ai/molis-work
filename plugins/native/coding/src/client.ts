@@ -1256,7 +1256,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         const said=[...run.turns].reverse().find(turn=>turn.kind==='assistant')?.text.trim() || '',asked=ownTask(run.turns.find(turn=>turn.kind==='user')?.text || '');
         const intent={builder:'execute',writer:'edit',reader:'discuss',reviewer:'review',planner:'plan',coordinator:'collaborate'}[run.frozen.role_id] || q('[data-coding-intent]').value;
         const id=current,modelValue=q('[data-coding-model]').value;sending=true;controls();
-        try{await startRound(id,'上一轮你说「'+said+'」之后就结束了，没有调用任何工具，所以还什么都没做。请直接调用工具执行下一步，完成原任务：\\n'+asked,intent,modelValue,currentSelection(id));status(L('coding.run.nudged'));follow.resume();await refreshState();await readCurrent();}
+        try{await startRound(id,'上一轮你说「'+said+'」之后就结束了，没有调用任何工具，所以还什么都没做。请直接调用工具执行下一步，完成原任务：\\n'+asked,intent,modelValue,currentSelection(id),{continued_from:run.ref});status(L('coding.run.nudged'));follow.resume();await refreshState();await readCurrent();}
         catch(error){status(error.message,true);}finally{sending=false;controls();}
       }
       // Committing a round's changes happens in Git, under Host review; the round only drafts the message.
@@ -1492,7 +1492,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const [provider_id,model_id]=JSON.parse(modelValue);
     // A round that carries a digest waits for the model to write it first; say so rather than look stuck.
     if(id===current && lastData?.next_history?.history==='digest')status(L('coding.digest.writing'));
-    const started=await api(sessionPath(id)+'/runs','POST',{...extra,task,intent,provider_id,model_id,...composerModels.effort(),workspace_id:selection.workspace_id,methods:selection.methods,...(selection.action_tools===undefined?{}:{action_tools:selection.action_tools}),mcp_tools:selection.mcp_tools,mcp_sources:selection.mcp_sources,materials:selection.materials,character:selection.character,character_skill_ids:characterSkills.get(id),...(intent==='parallel'?{writer_assignments:selection.writer_assignments}:{})});
+    const started=await inputReceipts.start(id,{...extra,task,intent,provider_id,model_id,...composerModels.effort(),workspace_id:selection.workspace_id,methods:selection.methods,...(selection.action_tools===undefined?{}:{action_tools:selection.action_tools}),mcp_tools:selection.mcp_tools,mcp_sources:selection.mcp_sources,materials:selection.materials,character:selection.character,character_skill_ids:characterSkills.get(id),...(intent==='parallel'?{writer_assignments:selection.writer_assignments}:{})});
     const digest=started?.digest;
     if(digest && id===current)status(digest.source==='model'?L(digest.usage?'coding.digest.model-usage':'coding.digest.model',{tokens:digest.usage?(digest.usage.input+digest.usage.output).toLocaleString():''})
       :L('coding.digest.host',{reason:digest.problem}),digest.source!=='model');
@@ -1512,7 +1512,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const chosen=q('[data-coding-intent]').value,intent=next.continue_step_board_of&&['execute','parallel'].includes(chosen)?chosen:next.intent;
       // A parallel round goes on with the directories it was given; the saved split is what those subtasks used.
       const selection=currentSelection(id);if(intent==='parallel')selection.writer_assignments=structuredClone(configurations.get(id)?.writer_assignments || []);
-      await startRound(id,next.task,intent,modelValue,selection,next.continue_step_board_of?{plan_revision:next.plan_revision,continue_step_board_of:next.continue_step_board_of}:{reask});
+      await startRound(id,next.task,intent,modelValue,selection,{...(next.continue_step_board_of?{plan_revision:next.plan_revision,continue_step_board_of:next.continue_step_board_of}:{}),...(next.continued_from?{continued_from:next.continued_from}:{}),...(reask?{reask}:{})});
       if(!reask)status(L('coding.run.continued'));
       follow.resume();await refreshState();await readCurrent();
     } catch(error) {if(current===id)status(error.message,true);}

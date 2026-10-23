@@ -419,6 +419,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
     readonly original_file?: HostOfferedOriginalFile;
+    readonly original_input?: HostOfferedOriginalInput;
     readonly query_only?: true;
     readonly read_only_effects?: true;
     readonly permissions: readonly string[];
@@ -2246,6 +2247,15 @@ export interface HostEventType {
 export interface HostOfferedOriginalFile {
     readonly path: string;
     readonly install_id: string;
+}
+
+export interface HostOfferedOriginalInput {
+    readonly input_id: string;
+    readonly text: string;
+    readonly written_by: "person" | "host";
+    readonly occurred_at: string;
+    readonly install_id: string;
+    readonly action: ActionReference;
 }
 
 export interface HostReviewSettledPayload {

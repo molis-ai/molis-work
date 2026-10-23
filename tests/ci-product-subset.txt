@@ -482,3 +482,7 @@ tests/knowledge-cards.test.ts
 tests/knowledge-reads.test.ts
 tests/security-invariants-knowledge-lifecycle.test.ts
 tests/canonical-json-value.test.ts
+
+tests/coding-original-inputs.test.ts
+
+tests/memory-unknown-facts.test.ts

@@ -62,6 +62,16 @@ export interface HostOfferedOriginalFile {
   readonly install_id: string;
 }
 
+/** A protected HTTP entry's original text, limited to its installation and exact first own Action. Grants nothing. */
+export interface HostOfferedOriginalInput {
+  readonly input_id: string;
+  readonly text: string;
+  readonly written_by: "person" | "host";
+  readonly occurred_at: string;
+  readonly install_id: string;
+  readonly action: ActionReference;
+}
+
 /** The languages a page is shown in; the words a handler sends back follow the caller's. */
 export type ActionLocale = "zh" | "en";
 
@@ -122,6 +132,8 @@ export interface ActionCallContext extends ActionCallOrigin {
    * plugin may do with it is the `materials:original` service's, which asks for the declaration and the grant. Never business input.
    */
   readonly original_file?: HostOfferedOriginalFile;
+  /** Protected HTTP provenance only; never copied from Action/model arguments or carried into background work. */
+  readonly original_input?: HostOfferedOriginalInput;
   /** Restrict this call and its descendants to registered query operations; never grants authority. */
   readonly query_only?: true;
   /** Read callbacks may inspect the original authorized directory, but execute only non-metered queries. */

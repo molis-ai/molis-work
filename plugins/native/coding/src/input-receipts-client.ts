@@ -24,6 +24,17 @@ export const CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT = `({api,refresh,q,land
   const SENT={'next-boundary':L('coding.sent.next-boundary'),interrupt:L('coding.sent.interrupt'),'after-run':L('coding.sent.after-run')};
   const small=text=>{const node=document.createElement('small');node.className='coding-turn-receipt';node.textContent=text;return node;};
   const AGAIN=L('coding.sent.again'),unsure=error=>error instanceof TypeError||error.name=='SyntaxError',control=id=>'/sessions/'+encodeURIComponent(id)+'/control';let item=null;
+  // A failed initial send retains its source identity, independently of the HTTP transport's retry key.
+  let initial;
+  const start=async(id,command)=>{
+    const direct=typeof command.task==='string'&&command.task.trim()&&['continued_from','reask','plan_revision','continue_step_board_of','origin_task','wait_for'].every(key=>command[key]===undefined);
+    const signature=direct?JSON.stringify([id,command]):null;
+    if(direct&&initial?.signature!==signature)initial={signature,input_id:crypto.randomUUID(),text:command.task};
+    const original=direct?initial:null;
+    const result=await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{...command,...(original?{original_input:{input_id:original.input_id,text:original.text}}:{})});
+    if(initial===original)initial=undefined;
+    return result;
+  };
   const send=async sent=>{
     sent.lost=0;item=sent;refresh();const writing=sent.mode=='interrupt'&&q('.coding-turn.is-writing');
     try{
@@ -35,6 +46,7 @@ export const CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT = `({api,refresh,q,land
     finally{refresh();}
   };
   return {
+    start,
     from(node,first){const one=node?.origins?.[0];return one?receipts.link(q('[data-coding-turns]'),one.input_id,first,'来自补充「'):null;},
     steer(id,run,text,mode){
       return send({id,run,text,mode,key:item?.lost&&item.id==id&&item.text==text&&item.mode==mode?item.key:'send.'+crypto.randomUUID()});

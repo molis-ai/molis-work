@@ -123,6 +123,7 @@ export interface PrologueStartInput {
   subagent_workspaces?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentWorkspace[];
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentFrozenSubagentRole[];
   /** Host provenance, persisted before execution; never credentials or event history. */
+  original_input?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput;
   provenance: { frozen: AgentRunView["frozen"]; started_at: string };
   session_id: string;
   /** Authorized root this Run may touch, already resolved by the Host. `business`: no root, the App's actions only. */
@@ -205,6 +206,7 @@ export interface PrologueRuntimePort {
   readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
     create(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<{ ref: { id: string } }>;
+    originalInput?(sessionId: string, input: Pick<AgentStartRequest, "original_input" | "continued_from">): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput | undefined>;
     restore?(sessionId: string): Promise<PrologueRestoredSession | undefined>;
     /** Same owner/recovery checks as restore, without restoring historical controls or retaining transcripts. */
     readStatus?(sessionId: string): Promise<{
@@ -232,6 +234,7 @@ export interface PrologueRestoredSession {
     frozen: AgentRunView["frozen"];
     started_at: string;
     task: string;
+    original_input?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput;
     memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage">;
     stop_intent?: "stopped" | "cancelled";
     /** Why the Host stopped this run itself, when it did. */ stop_reason?: string;
@@ -304,6 +307,44 @@ export interface RunRecord {
   timingError?: string;
   observedEndAt?: string;
   memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage">;
+}
+
+/** Validate a frozen role and any continued plan against this Runtime before preparing an execution. */
+async function prepareRunRole(request: AgentStartRequest, runtime: PrologueRuntimePort, descriptor: AgentRuntimeDescriptor,
+  read: (ref: AgentRunRef) => Promise<AgentRunView>) {
+  const role = request.role;
+  if (role === undefined) {
+    throw agentErrors.role_not_frozen("宿主没有冻结角色定义，不能在没有角色 Prompt 的情况下起跑");
+  }
+  if (request.continue_step_board_of !== undefined) {
+    // Continuing a graph is only ever the same plan, in the same session, while that graph is unfinished.
+    if (!request.execution_plan) throw agentErrors.capability_unavailable("继续计划需要原确认计划");
+    const earlier = await read({ session_id: request.session.session_id, run_id: request.continue_step_board_of });
+    if (!isEnded(earlier.phase)) throw agentErrors.session_busy("被继续的那一轮还没有结束");
+    if (JSON.stringify(earlier.frozen.execution_plan) !== JSON.stringify(request.execution_plan)) throw agentErrors.capability_unavailable("继续计划必须使用那一轮的同一版确认计划");
+    if (!earlier.step_board || earlier.step_board.terminal) throw agentErrors.capability_unavailable("那一轮的计划图已经结束，请调整计划后重新开始");
+  }
+  if (request.execution_plan && (!runtime.readStepBoard || STEP_TOOLS.some(tool => !role.host_tools.includes(tool)))) {
+    throw agentErrors.capability_unavailable("当前运行时或角色尚未接通计划步骤回报");
+  }
+  // Only Host-frozen workspace grants open the SDK write envelope for children.
+  // The coordinator's Character still restricts its own tools to read/dispatch.
+  if (role.subagents?.length && !runtime.subagents) throw agentErrors.capability_unavailable("当前运行时未装配子代理观察和控制");
+  const mode: "plan" | "build" = role.execution === "read-only" && !role.subagent_workspaces?.length ? "plan" : "build";
+  if (mode === "build" && descriptor.capabilities["text-edit"] === "unsupported") {
+    throw agentErrors.capability_unavailable("这个 Runtime 尚未接通副作用审批，不能运行会写入的角色");
+  }
+
+  if ((request.skills?.length ?? 0) !== (role.skills?.length ?? 0)
+    || role.skills?.some(skill => !request.skills?.some(ref => ref.skill_id === skill.skill_id && ref.version === skill.version))
+    || ((role.skills?.length ?? 0) > 0 && !runtime.inlineMethods)) {
+    throw agentErrors.capability_unavailable("方法未由宿主解析或当前运行时不能展开方法");
+  }
+  if ((request.mcp_tools?.length || request.mcp_sources?.length) && descriptor.capabilities.mcp === "unsupported") throw agentErrors.capability_unavailable("此运行时尚未接通 MCP 审查");
+  if (role.compaction && !runtime.compaction) throw agentErrors.capability_unavailable("上下文整理尚未接通");
+  if ((role.actions?.tools.length || role.action_gateway) && !runtime.actionTools) throw agentErrors.capability_unavailable("Action tools are not connected to this runtime");
+  if (role.action_gateway && request.workspace !== "business") throw agentErrors.capability_unavailable("能力网关只用于业务会话");
+  return { role, mode };
 }
 
 export class PrologueAgentAdapter implements AgentRuntimeAdapter {
@@ -488,7 +529,9 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle> {
-    request = { ...request, budget: parseAgentRunBudget(request.budget) };
+    request = { ...request, budget: parseAgentRunBudget(request.budget),
+      ...(request.original_input ? { original_input: structuredClone(request.original_input) } : {}),
+      ...(request.continued_from ? { continued_from: structuredClone(request.continued_from) } : {}) };
     request = { ...request, execution_plan: freezeExecutionPlan(request), text_materials: structuredClone(request.text_materials ?? []) };
     const session = await this.#loadSession(request.session.session_id);
     if (session.workspace !== (request.workspace ?? "required") || request.role?.workspace === "none" && request.workspace !== "none"
@@ -524,6 +567,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async #start(request: AgentStartRequest, session: SessionRecord, execution?: AgentStartExecution): Promise<AgentRunHandle> {
+    if ((request.original_input || request.continued_from) && !this.#runtime.sessions.originalInput) throw agentErrors.capability_unavailable("当前运行时没有初始原件读取能力");
+    const original = await this.#runtime.sessions.originalInput?.(request.session.session_id, request);
     const { textMaterials, imageMaterials } = validateRunAttachments(request, Boolean(this.#runtime.imageAttachments));
     if (request.budget?.max_turns !== undefined && (!Number.isSafeInteger(request.budget.max_turns) || request.budget.max_turns < 1 || request.budget.max_turns > 100)) throw new Error("执行轮次预算必须为 1–100 的整数");
     const model = await this.#ports.modelConfiguration(request.model_selection);
@@ -532,40 +577,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     }
     // A model the settings mark as not seeing images never gets them: nothing is sent, and the person hears why.
     if (imageMaterials.length && model.vision === false) throw agentErrors.capability_unavailable(`模型设置里标注「${model.model}」不支持看图，图片没有发出；可以换一个支持看图的模型，或去掉图片再发`);
-    const role = request.role;
-    if (role === undefined) {
-      throw agentErrors.role_not_frozen("宿主没有冻结角色定义，不能在没有角色 Prompt 的情况下起跑");
-    }
-    if (request.continue_step_board_of !== undefined) {
-      // Continuing a graph is only ever the same plan, in the same session, while that graph is unfinished.
-      if (!request.execution_plan) throw agentErrors.capability_unavailable("继续计划需要原确认计划");
-      const earlier = await this.read({ session_id: request.session.session_id, run_id: request.continue_step_board_of });
-      if (!isEnded(earlier.phase)) throw agentErrors.session_busy("被继续的那一轮还没有结束");
-      if (JSON.stringify(earlier.frozen.execution_plan) !== JSON.stringify(request.execution_plan)) throw agentErrors.capability_unavailable("继续计划必须使用那一轮的同一版确认计划");
-      if (!earlier.step_board || earlier.step_board.terminal) throw agentErrors.capability_unavailable("那一轮的计划图已经结束，请调整计划后重新开始");
-    }
-    if (request.execution_plan && (!this.#runtime.readStepBoard || STEP_TOOLS.some(tool => !role.host_tools.includes(tool)))) {
-      throw agentErrors.capability_unavailable("当前运行时或角色尚未接通计划步骤回报");
-    }
-    // Only Host-frozen workspace grants open the SDK write envelope for children.
-    // The coordinator's Character still restricts its own tools to read/dispatch.
-    if (role.subagents?.length && !this.#runtime.subagents) throw agentErrors.capability_unavailable("当前运行时未装配子代理观察和控制");
-    const mode = role.execution === "read-only" && !role.subagent_workspaces?.length ? "plan" : "build";
-    if (mode === "build" && this.descriptor.capabilities["text-edit"] === "unsupported") {
-      throw agentErrors.capability_unavailable("这个 Runtime 尚未接通副作用审批，不能运行会写入的角色");
-    }
-
-    if ((request.skills?.length ?? 0) !== (role.skills?.length ?? 0)
-      || role.skills?.some(skill => !request.skills?.some(ref => ref.skill_id === skill.skill_id && ref.version === skill.version))
-      || ((role.skills?.length ?? 0) > 0 && !this.#runtime.inlineMethods)) {
-      throw agentErrors.capability_unavailable("方法未由宿主解析或当前运行时不能展开方法");
-    }
-    if ((request.mcp_tools?.length || request.mcp_sources?.length) && this.descriptor.capabilities.mcp === "unsupported") throw agentErrors.capability_unavailable("此运行时尚未接通 MCP 审查");
-    if (role.compaction && !this.#runtime.compaction) throw agentErrors.capability_unavailable("上下文整理尚未接通");
-    if ((role.actions?.tools.length || role.action_gateway) && !this.#runtime.actionTools) throw agentErrors.capability_unavailable("Action tools are not connected to this runtime");
-    if (role.action_gateway && request.workspace !== "business") throw agentErrors.capability_unavailable("能力网关只用于业务会话");
+    const { role, mode } = await prepareRunRole(request, this.#runtime, this.descriptor, ref => this.read(ref));
     const at = this.#now().toISOString();
-    const frozen = freezeRunStart({ request, role, model, textMaterials, imageMaterials, defaultWindow: this.#runtime.defaultContextWindowTokens, callId: execution?.call_id });
+    const frozen = { ...freezeRunStart({ request, role, model, textMaterials, imageMaterials, defaultWindow: this.#runtime.defaultContextWindowTokens, callId: execution?.call_id }),
+      ...(original ? { original_input: original.ref } : {}), ...(request.continued_from ? { continued_from: request.continued_from } : {}) };
 
     await execution?.beforeStart?.();
     requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
@@ -574,6 +589,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       assertBeforeStart: execution?.assertBeforeStart,
       beforeDispatch: execution?.beforeDispatch,
       provenance: { frozen, started_at: at },
+      ...(original ? { original_input: original } : {}),
       session_id: request.session.session_id,
       ...(request.workspace === "none" ? { workspace: "none" } : request.workspace === "business" ? { workspace: "business" } : { root_path: request.directory.canonical_path }),
       model,
@@ -610,6 +626,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     };
     const view: AgentRunView = {
       ref,
+      ...(original ? { original_input: original } : {}),
       phase: "starting",
       frozen,
       turns: [{ turn_id: "user-1", kind: "user", text: request.task, at, sequence: 0 }],

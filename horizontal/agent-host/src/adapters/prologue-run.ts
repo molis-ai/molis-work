@@ -1,3 +1,4 @@
+import { recordOriginalInput } from "./prologue-original-inputs.js";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
@@ -330,6 +331,7 @@ async function recordAttempt(deps: RunDeps, input: PrologueStartInput, attempt: 
   let attemptIndex = -1;
   await deps.index.update(input.session_id, index => {
     attemptIndex = index.attempts.length;
+    recordOriginalInput(index, intent, input.original_input);
     index.attempts.push(intent);
   });
   const abandon = () => deps.effects.detach(() => deps.index.update(input.session_id, saved => {

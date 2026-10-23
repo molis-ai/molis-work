@@ -134,3 +134,5 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 宿主还可通过 `checks.owned` 登记领域 owner 的只读检查；模型与插件没有登记入口。每次读取前后都用当前会话身份向 owner 重新证明权限，允许仅该窄读取在重启后恢复；通用动作和文件检查仍按 S-27 拒绝重启后的旧授权。读取暂时失败保留 unknown；撤权或归属不符是 refused，不展示原始错误正文。个人助理的 `molis.connector-setup@1` 只查看同一会话准备的接入请求，不能借它安装、调用业务工具或判断任务成功。回归见 `tests/security-invariants-owned-checks.test.ts`。
 
 信的规则：agents 受众的信只在同一张板相邻的步骤之间走，宿主负责把信交给收件人正在跑的那一轮。同一项目的会话可以互相请求、答复、通知、交接计划步骤；跨项目的会话不在同一张板上，照旧拒绝。几个会话同写一张板靠 SDK 按节点判冲突（P2k）：只有要改的那一步在模型读过之后被人改过，才报冲突。
+
+可信初始输入由受保护 Host 入口交给现 Session attempt 保存原件，后续同 Session 接续只带引用；业务 DTO 不能自证本人身份。`tests/coding-original-inputs.test.ts` 走真实 HTTP/Node 验证原文、首个时间、重启、失败重试同身份、并发拒绝及跨 Session/派生输入拒绝；这只证明原件桥，不代表学习形成已接通。

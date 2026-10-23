@@ -64,6 +64,12 @@ Directory candidates and browsing preferences come from the [current-project set
 
 短草稿（提交说明、接续摘要）的固定指令归 `src/prompts.ts`，通过共同目录登记并支持用户覆盖。`agent.draft-text.v1` 只传 `prompt` id、材料和所选模型；Host 使用原调用插件身份解析，不能在业务输入声明 owner。材料裁剪、摘要降级及提交前的用户审阅仍由 Coding 负责。相关回归：`tests/coding-commit-draft.test.ts`、`tests/coding-history-summary-http.test.ts`、`tests/prompt-registration.test.ts`。
 
+## 初始输入原件
+
+普通发送在 `original_input` HTTP 信封中携带稳定输入键及未拼接的正文。受保护 Host 入口固定作者与首次受理时间，沿原 Action 控制传给 AgentHost；原件只由既有加密 Session attempt 保存，Coding 不建正文账。Run 的材料、摘要、计划和继续说明不反推为本人原话。同 Session 继续只携带原 Run 引用；原输入重试沿用身份/时间，不授权重复执行未知结果。队列与跨 Session 原件继承待后续 P0 接入，旧来源不明记录不回填。
+
+本片遵循 [Memory spec §9.4](../../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)。作者证明、同身份不可改文和当前权限不可配置关闭；已有 Host/Agent Adapter 可替换，未接原件读取时明确不可用；用户仍只操作原输入框/继续按钮。聚焦验收为 `tests/coding-original-inputs.test.ts` 与 `tests/coding-continuation.test.ts`，覆盖真实 HTTP/SDK、重启、同输入重试与派生来源拒绝；不代表来源形成或整体 Memory P0 已完成。
+
 ## 开发要求
 
 - 负责：参照 App：编码会话、每轮执行、委派，以及它们产出的变更集、报告与图；自己固定的报告和变更怎样变成可复制的 Markdown 正文（`coding.results.document@1`），以及自己成果的列表。

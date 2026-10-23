@@ -1,3 +1,4 @@
+import { originalInputOf } from "./prologue-original-inputs.js";
 import type { QueuedInput, Runtime } from "@prologue/sdk";
 import type { AgentRecoveryReport, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentQueuedInput } from "@molis-ai/molis-work-contracts/services/agent-inputs";
@@ -118,6 +119,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       if (statusOnly && attempt !== last) continue;
       runs.push({ ref: { run_id: attempt.run_id, session_id: id }, frozen: attempt.frozen,
         started_at: attempt.started_at, task: attempt.task,
+        original_input: originalInputOf(index, attempt.original_input?.ref ?? attempt.original_input_ref),
         ...(attempt.memory_context ? { memory_context: attempt.memory_context } : {}),
         ...(attempt.stop_intent ? { stop_intent: attempt.stop_intent } : {}),
         ...(attempt.stop_reason ? { stop_reason: attempt.stop_reason } : {}),

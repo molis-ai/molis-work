@@ -129,6 +129,10 @@ export interface AgentFrozenCharacter extends CharacterContent {
 }
 
 interface AgentFrozenStartFields {
+  /** Body-free reference to the original text, not the assembled model task. */
+  original_input?: import("./agent-inputs.js").AgentOriginalInputRef;
+  /** Canonical earlier Run of this Session supplying the original input. */
+  continued_from?: import("./agent-host-runtime.js").AgentRunRef;
   action_tools?: ExactActionReference[];
   /** The run used the Host's action gateway (see AgentStartRequest.action_gateway). */
   action_gateway?: true;
@@ -309,6 +313,10 @@ export interface AgentFrozenRole {
 }
 
 interface AgentStartRequestFields {
+  /** Host-proven original text before assembly. Mutually exclusive with continued_from; person requires Host authority. */
+  original_input?: import("./agent-inputs.js").AgentOriginalInputDraft;
+  /** Reuse the original input of this exact Run in the same Session, without creating a new personal statement. */
+  continued_from?: import("./agent-host-runtime.js").AgentRunRef;
   action_tools?: ExactActionReference[];
   /**
    * Business roles only: instead of one tool per action, the Host's gateway — find the actions in scope, run a read,
@@ -349,7 +357,7 @@ interface AgentStartRequestFields {
   plugin_id: string;
   install_id: string;
   actor_id: string;
-  /** The user's instruction for this Run. */
+  /** The assembled task for this Run; it may contain Host-derived text and is not proof of personal authorship. */
   task: string;
   role_id: string;
   /** A configured provider/model selected for this run, resolved by the Host. */

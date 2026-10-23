@@ -826,6 +826,23 @@ export interface AgentOfferRunRequest {
     input: unknown;
 }
 
+export interface AgentOriginalInput extends Omit<AgentOriginalInputDraft, "input_id"> {
+    readonly ref: AgentOriginalInputRef;
+}
+
+export interface AgentOriginalInputDraft {
+    readonly input_id: string;
+    readonly text: string;
+    readonly written_by: AgentInputSource;
+    readonly occurred_at: string;
+}
+
+export interface AgentOriginalInputRef {
+    readonly session_id: string;
+    readonly input_id: string;
+    readonly version: 1;
+}
+
 export type AgentPeopleMessageAction = "deliver" | "accept" | "reject" | "complete" | "cancel" | "record";
 
 export interface AgentPeopleMessageInput {
@@ -1093,6 +1110,7 @@ export interface AgentRunUsage {
 }
 
 export interface AgentRunView {
+    original_input?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentOriginalInput;
     step_board?: AgentStepBoard;
     step_board_error?: string;
     ref: AgentRunRef;
@@ -1782,6 +1800,8 @@ interface AgentCreateSessionFields {
 }
 
 interface AgentFrozenStartFields {
+    original_input?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentOriginalInputRef;
+    continued_from?: import("services/agent-host-runtime").AgentRunRef;
     action_tools?: ExactActionReference[];
     action_gateway?: true;
     character_skill_ids?: string[];
@@ -1841,6 +1861,8 @@ type AgentMemoryLocation = {
 };
 
 interface AgentStartRequestFields {
+    original_input?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentOriginalInputDraft;
+    continued_from?: import("services/agent-host-runtime").AgentRunRef;
     action_tools?: ExactActionReference[];
     action_gateway?: boolean;
     character_skill_ids?: string[];

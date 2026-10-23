@@ -23,6 +23,25 @@ export const servicesAgentInputsContract = {
 export type AgentInputSource = "person" | "host";
 export const AGENT_INPUT_SOURCES: readonly AgentInputSource[] = ["person", "host"];
 
+/** An immutable initial input owned by the original Session's existing start attempt. Never an authority grant. */
+export interface AgentOriginalInputRef {
+  readonly session_id: string;
+  readonly input_id: string;
+  readonly version: 1;
+}
+/** Original text before material/digest assembly. The protected Host, never business input, establishes authorship/time. */
+export interface AgentOriginalInputDraft {
+  readonly input_id: string;
+  readonly text: string;
+  readonly written_by: AgentInputSource;
+  readonly occurred_at: string;
+}
+/** Read from the canonical attempt; derived rounds retain this same reference. */
+export interface AgentOriginalInput extends Omit<AgentOriginalInputDraft, "input_id"> {
+  readonly ref: AgentOriginalInputRef;
+}
+
+
 /**
  * When a supplement reaches the model (specs/ai-input-receipts §4.1). `next-boundary`: after the reply or batch of tools
  * under way. `interrupt`: the reply being written is dropped and the round goes on with this at once; what already ran

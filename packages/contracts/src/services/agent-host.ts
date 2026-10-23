@@ -1,3 +1,4 @@
+export type { AgentOriginalInputRef, AgentOriginalInputDraft, AgentOriginalInput } from "./agent-inputs.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRuntimeAdapter, AgentRuntimeDescriptor, AgentRuntimeCapabilityMatrix, AgentSessionRef, AgentRunRef } from "./agent-host-runtime.js";
 import type { AgentReviewQueueApi, AgentReviewRequest, AgentReviewReceipt, AgentReviewStatus } from "./agent-host-reviews.js";

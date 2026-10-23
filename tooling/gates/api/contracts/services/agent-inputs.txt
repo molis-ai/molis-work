@@ -77,6 +77,23 @@ export interface AgentInputsPort {
     withdraw?(run: AgentRunRef, inputId: string, beforeWithdraw?: () => void): Promise<AgentInputWithdrawal>;
 }
 
+export interface AgentOriginalInput extends Omit<AgentOriginalInputDraft, "input_id"> {
+    readonly ref: AgentOriginalInputRef;
+}
+
+export interface AgentOriginalInputDraft {
+    readonly input_id: string;
+    readonly text: string;
+    readonly written_by: AgentInputSource;
+    readonly occurred_at: string;
+}
+
+export interface AgentOriginalInputRef {
+    readonly session_id: string;
+    readonly input_id: string;
+    readonly version: 1;
+}
+
 export interface AgentQueuedInput {
     input_id: string;
     text: string;

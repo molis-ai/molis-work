@@ -1,3 +1,4 @@
+import { resolveOriginalInput } from "./prologue-original-inputs.js";
 import { createHash } from "node:crypto";
 import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type PendingAnswer, type QueuedTask, type Runtime } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -228,6 +229,7 @@ function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
       return session;
     }),
     restore: id => deps.recovery.restore(id),
+    originalInput: (id, input) => resolveOriginalInput(deps.index, id, input),
     queued: id => deps.recovery.queued(id),
     async readStatus(id) {
       const saved = await deps.recovery.restore(id, true);

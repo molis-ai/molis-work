@@ -16,7 +16,8 @@ export function restoredSessionRecords(restored: PrologueRestoredSession): { ses
     const control: PrologueControlPort = { state: state.phase === "reconcile-required" ? "reconcile-required" : "running",
       stop: unavailable, pause: unavailable, resume: unavailable, steer: unavailable, subscribe: () => () => {} };
     const view: AgentRunView = { ref: saved.ref, frozen: saved.frozen, started_at: saved.started_at, ended_at: endedAt,
-      phase: state.phase, turns: [], activity: [], usage: state.usage, awaiting_input: [] };
+      phase: state.phase, turns: [], activity: [], usage: state.usage, awaiting_input: [],
+      ...(saved.original_input ? { original_input: structuredClone(saved.original_input) } : {}) };
     records.push({ view, state, control, unsubscribe: () => {}, listeners: new Set(), timingReady: true,
       ...(saved.memory_context ? { memory_context: saved.memory_context } : {}) });
     session.runs.push(saved.ref);

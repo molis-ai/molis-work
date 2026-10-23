@@ -10,7 +10,7 @@ import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { PluginRuntime, SqlitePluginRuntimeRepository, pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
-for (const quarantined of [false, true]) test(`authorized retry restores an older Coding install (quarantined=${quarantined}) at the Host's version`, async () => {
+for (const quarantined of [false, true]) test(`SYS-15-S8 authorized retry restores an older Coding install (quarantined=${quarantined}) at the Host's version`, async () => {
   const root = await mkdtemp(path.join(tmpdir(), "compatible-recovery-http-"));
   const token = "compatible-recovery-fixture-control-token";
   const server = createMolisWorkWebServer({ homeDirectory: root, controlToken: token });

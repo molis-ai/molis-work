@@ -7,7 +7,7 @@ export const crossEntrySchedule = {
   archive: scheduleActions.archiveTask,
   list: scheduleActions.list,
   missing: { code: "schedule.task_not_found", message: "定时任务不存在" },
-  path(projectId: string) { return `/projects/${encodeURIComponent(projectId)}/api/schedule`; },
+  path(projectId: string) { return `/projects/${encodeURIComponent(projectId)}/api/plugins/io.molis.work.schedule/list`; },
   input(title: string, time: string) { return { title, instructions: "读当前项目的工作记录，给本人一条摘要。", time, notify_important: false }; },
 };
 export const crossEntryTodo = { create: todoActions.create, get: todoActions.get, status: todoActions.status, batch: todoActions.batch, conflict: "todo.conflict" };

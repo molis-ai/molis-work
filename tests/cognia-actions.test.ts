@@ -3,14 +3,14 @@ import test from "node:test";
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COGNIA_ACTIONS, COGNIA_ACTION_PERMISSIONS, cogniaActions as actions, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
 import { MolisWorkLocalHost, directoryForHome } from "@molis-ai/molis-work-app-local-host";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 function fixture(t: { after(fn: () => Promise<void>): void }, completeText: HostCompleteText | null = null) {
   const home = mkdtempSync(join(tmpdir(), "cognia-actions-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
-  const caller: ActionCallContext = { actor_id: "knowledge-owner", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS };
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS };
   const service = host.homeActionClient(), bound = bindActionClient(service, () => caller);
   t.after(async () => { await host.close(); rmSync(home, { recursive: true, force: true }); });
   const read = () => bound.invoke(actions.workspace, {});
@@ -63,7 +63,8 @@ test("uploaded and directory imports use original preview receipts, bytes and fi
   await f.bound.invoke(actions.updateSource, { id: a.receipt.source_id, name: "Renamed" });
   assert.equal((await f.read()).sources.find(s => s.id === a.receipt.source_id)!.name, "Renamed");
   const vault = join(f.home, "vault"); mkdirSync(vault); writeFileSync(join(vault, "local.md"), "Local evidence"); symlinkSync(join(vault, "local.md"), join(vault, "alias.md"));
-  const grant = await directoryForHome(f.home).authorize(vault);
+  const grant = await directoryForHome(f.home).select({ plugin_id: "io.molis.work.cognia", project_id: null, actor_id: f.caller.actor_id }, async () => ({ status: "picked", path: vault }));
+  assert.ok(grant);
   await assert.rejects(uploaded.invoke(actions.previewDirectory, { grant_id: grant.grant_id, path: ".", kind: "markdown" }), { code: "actions.forbidden" });
   const scanned = await f.bound.invoke(actions.scan, { grant_id: grant.grant_id, path: "." });
   assert.equal(scanned.files.find(row => row.path === "alias.md")!.data, undefined);

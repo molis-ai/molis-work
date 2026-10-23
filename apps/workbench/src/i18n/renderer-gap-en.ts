@@ -1,5 +1,10 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  "请重新点击或拖动文件": "Click or drag the file again",
+  "请重新点击该操作": "Click this action again",
+  "未上传文件时，预览导入会打开系统目录选择器。": "Without uploaded files, Preview import opens the system folder chooser.",
+  "请求未能完成，请重试。": "The request could not be completed. Please try again.",
+  "{name} 的后台工作（将停止）": "Background work for {name} (will stop)",
   "组里还有 {n} 个标签": "Tabs in this group: {n}",
   "撤销关闭 {plugin}": "Reopen {plugin}",
   "已关闭 {plugin} 标签组": "Closed the {plugin} tab group",
@@ -628,6 +633,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "开启（由模型决定想多少）": "On (the model decides how much to think)",
   "无法读取文件工作区": "Couldn't read the file workspace",
   "无法关联工作区": "Unable to link workspace",
+  "允许 {plugin} 为项目 {project} 关联目录？\n{path}": "Allow {plugin} to link this folder to project {project}?\n{path}",
   "项目连接失败": "Couldn't connect to the project",
   "{name}，{action}": "{name}, {action}",
 };

@@ -1,4 +1,5 @@
-import { bindActionClient, type ActionCallContext, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, requireSynchronous, type ActionCallContext, type ActionReference, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { shownProjectPlugins, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { observeReviewSettlements } from "./review-settlement-events.js";
@@ -52,9 +53,9 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
 /** What a Home plugin's route under `/projects/<id>/…` checks: the plugins that project shows, or null when there is no such project. */
 export function homeRouteProjectPlugins({ composition, serverOptions }: WebRequestContext): HomeRouteProjectPlugins {
   return projectId => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => {
-    let databasePath: string;
-    try { databasePath = catalog.getProject(projectId).database_path; } catch { return null; /* No such project: the route refuses, saying so. */ }
-    return { database_path: databasePath, plugins: shownProjectPlugins(catalog.listProjectPlugins(projectId), catalog.listHiddenPlugins(projectId)) };
+    let databasePath: string, displayName: string;
+    try { const project = catalog.getProject(projectId); databasePath = project.database_path; displayName = project.display_name; } catch { return null; /* No such project: the route refuses, saying so. */ }
+    return { database_path: databasePath, display_name: displayName, plugins: shownProjectPlugins(catalog.listProjectPlugins(projectId), catalog.listHiddenPlugins(projectId)) };
   });
 }
 
@@ -71,14 +72,23 @@ export function projectPluginServices({ localHost, hostReference, options, agent
 }
 
 /** The context row's ports for one project: the local person's own authority there, and H3's owner check for 「放进左边」. */
-export function contextualPorts({ localHost, hostReference, serverOptions }: ProjectRequestContext): ContextualHttpPorts {
+export function contextualPorts({ localHost, hostReference, serverOptions, request }: ProjectRequestContext): ContextualHttpPorts {
   const homeDirectory = serverOptions.homeDirectory;
-  const context = () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
+  const page = pluginPageRequest(request);
+  const context = async (signal?: AbortSignal) => {
+    const caller = await localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS,
+      signal && page ? AbortSignal.any([signal, page.signal]) : signal ?? page?.signal);
+    return { ...caller, validate_authority: async (reference: ActionReference) => {
+      page?.assertCurrent(); await caller.validate_authority?.(reference); page?.assertCurrent();
+    }, assert_authority_current: (reference?: ActionReference, permissions?: readonly string[]) => {
+      page?.assertCurrent(); requireSynchronous(caller.assert_authority_current?.(reference, permissions));
+    } };
+  };
   return {
     ...(homeDirectory ? { homeDirectory } : {}), scope: hostReference.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,
     actions: () => {
       const client = localHost.actionClient(hostReference);
-      return { discover: async () => client.discover(await context()), invoke: async (reference, input) => client.invoke(await context(), reference, input) };
+      return { discover: async () => client.discover(await context()), invoke: async (reference, input, signal) => client.invoke(await context(signal), reference, input) };
     },
     confirmReferences: async (picked, kinds) => localHost.search ? localHost.search.confirmReferences(hostReference.project_id, picked, kinds) : picked.map(() => false),
   };

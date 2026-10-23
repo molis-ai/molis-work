@@ -12,10 +12,6 @@
     "core:window:allow-start-dragging",
     "core:app:default",
     "core:webview:default",
-    "allow-pty-spawn",
-    "allow-pty-write",
-    "allow-pty-resize",
-    "allow-pty-kill",
     "allow-capsule-window",
     "allow-shelf-desktop"
   ]

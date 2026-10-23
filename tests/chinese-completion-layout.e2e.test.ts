@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { PROJECT } from "./fixtures/chinese-walk.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 test("a long Chinese project name leaves completion text and both actions on screen", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
+  const pages = await pluginFrameBrowser(t, browser, "pages");
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/locale?lang=zh&next=%2F" }, sessionId));
@@ -20,7 +22,7 @@ test("a long Chinese project name leaves completion text and both actions on scr
     if (!response.ok) throw new Error(await response.text());
   })()`);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
-  await click("[data-pages-new]");
+  await pages.click("[data-pages-new]");
   await waitFor("document.querySelector('.placement-toast-text small')");
   const findings = await evaluate<string[]>(`(() => {
     const card = document.querySelector('.placement-toast'), found = [];

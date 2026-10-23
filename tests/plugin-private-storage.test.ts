@@ -282,11 +282,11 @@ test("persisted running state rehydrates a plugin contribution after process res
   const { ActionService } = await import("@molis-ai/molis-work-kernel");
   const process = () => ({ actions: { registry: new ActionService(), project_id: "project-rehydrate" } });
   const first = new PluginRuntime(repository, undefined, process());
-  const installed = first.install({definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","storage:private","workspace:read","review:git-worktree","review:git-integration"]});
+  const installed = first.install({definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","search:read","storage:private","workspace:read","review:git-worktree","review:git-integration"]});
   await first.start(installed.install.install_id);
   // A new Runtime models a new process; the database still records running.
   const reopened = new PluginRuntime(repository, undefined, process());
-  const replayedInstall = reopened.install({definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","storage:private","workspace:read","review:git-worktree","review:git-integration"]});
+  const replayedInstall = reopened.install({definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","search:read","storage:private","workspace:read","review:git-worktree","review:git-integration"]});
   assert.equal(replayedInstall.replayed,true);
   assert.equal(reopened.contribution(installed.install.install_id),null);
   const started = await reopened.start(installed.install.install_id);

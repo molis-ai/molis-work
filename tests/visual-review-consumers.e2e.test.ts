@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
@@ -9,7 +10,8 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("VUX-27: a Home plugin's page fades its strip, and a strip drawn after load is found on its own", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
-  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  const { evaluate, waitFor } = await pluginFrameBrowser(t,browser,"todo");
+  const { command, sessionId, navigate, origin } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 360, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/plugins/todo` }, sessionId));
   await waitFor("document.querySelector('.todo-views[data-overflow-fade]')", 20_000);
@@ -38,7 +40,9 @@ test("VUX-27: the workspace's container tabs and the terminal's tab list are mar
 
 test("VUX-19: Pages' code block copy says done only when the clipboard took it, and says so when it did not", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
-  const { evaluate, waitFor, command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t,browser,"pages");
+  const { evaluate, waitFor } = child;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const pages = openPagesStore(homeDirectory);
   const code = "const answer = 42;\nconsole.log(answer);";
   const page = pages.create({ project_id: projectId!, title: "代码复制", body: { type: "doc", content: [{ type: "code_block", attrs: { language: "typescript" }, content: [{ type: "text", text: code }] }] } });
@@ -47,18 +51,14 @@ test("VUX-19: Pages' code block copy says done only when the clipboard took it, 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await waitFor("document.querySelector('.pages-code-copy')", 20_000);
   await command("Browser.grantPermissions", { origin, permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"] });
-  const press = async () => {
-    const at = await evaluate<{ x: number; y: number }>("(() => { const button = document.querySelector('.pages-code-copy'); button.scrollIntoView({ block: 'center' }); const r = button.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()");
-    await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: at.x, y: at.y }, sessionId);
-    for (const type of ["mousePressed", "mouseReleased"]) await command("Input.dispatchMouseEvent", { type, x: at.x, y: at.y, button: "left", clickCount: 1 }, sessionId);
-  };
+  const press = () => child.click(".pages-code-copy");
   await press();
   await waitFor("document.querySelector('.pages-code-copy').dataset.copy === 'done'", 5_000);
-  assert.equal(await evaluate("navigator.clipboard.readText()"), code);
+  assert.equal(await browser.evaluate("navigator.clipboard.readText()"), code);
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.pages-code-copy')).opacity"), "1", "the answer stays visible while it holds");
   // A refused write is said on the button, not swallowed.
   await waitFor("document.querySelector('.pages-code-copy').dataset.copy === undefined", 6_000);
-  await evaluate("navigator.clipboard.writeText = () => Promise.reject(new Error('denied'))");
+  await browser.evaluate("navigator.clipboard.writeText = () => Promise.reject(new Error('denied'))");
   await press();
   await waitFor("document.querySelector('.pages-code-copy').dataset.copy === 'failed'", 5_000);
 });

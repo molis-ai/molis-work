@@ -3,6 +3,7 @@ import test from "node:test";
 import { createServer } from "node:http";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
@@ -46,7 +47,9 @@ test("PA-24: the composer sends a chosen reasoning effort and switches a running
   t.after(async () => { answered.resolve(); model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address !== "string");
   const b = await openGoalBrowser(t, "seeded"); if (!b) return;
-  const { click, evaluate, waitFor, command, sessionId, homeDirectory } = b;
+  const child = await pluginFrameBrowser(t, b, "coding");
+  const {click, evaluate, waitFor} = child;
+  const { command, sessionId, homeDirectory } = b;
   await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
     const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages",
@@ -55,19 +58,19 @@ test("PA-24: the composer sends a chosen reasoning effort and switches a running
   const workspace = join(homeDirectory, "coding-model-fixture");
   await mkdir(workspace, { recursive: true });
   await writeFile(join(workspace, "note.txt"), "release notes go in CHANGELOG.md\n");
-  const fill = (selector: string, value: string) => evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  const fill = (selector: string, value: string, page: Pick<typeof child, "evaluate"> = child) => page.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/` }, sessionId));
-  await click('.navigator-project-settings');
-  await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
-  await click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
-  await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
-  await fill('[data-project-workspaces-add] [name=path]', workspace);
-  await click('[data-project-workspaces-add] [type=submit]');
-  await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('coding-model-fixture')");
+  await b.click('.navigator-project-settings');
+  await b.waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
+  await b.click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
+  await b.waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
+  await fill('[data-project-workspaces-add] [name=path]', workspace, b);
+  await b.click('[data-project-workspaces-add] [type=submit]');
+  await b.waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('coding-model-fixture')");
   const coding = "[data-coding-workbench]";
-  await click(`[data-plugin-strip] [data-plugin-id="coding"]`);
-  await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
+  await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
+  await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   await click(`${coding} [data-coding-new]`);
   await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 2`);
   const small = JSON.stringify(["local-only", "fixture-small"]), large = JSON.stringify(["local-only", "fixture-large"]), plain = JSON.stringify(["local-only", "fixture-plain"]);

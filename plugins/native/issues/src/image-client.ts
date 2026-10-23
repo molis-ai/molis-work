@@ -5,16 +5,16 @@
 export const ISSUE_IMAGES_CLIENT_SCRIPT = String.raw`
   let importing = 0, restoring = true, pictureWrites = 0, pictureFault = false, pictureQueue = Promise.resolve();
   // Serialize image changes: a later drop/removal must read the preceding draft, even while its disk write is pending.
-  // Cache Storage keeps the accepted image size locally without a network request or a business database change.
+  // The page draft service keeps screenshots locally within this installation; no business record is created.
   // Only a write can lose something on leaving: reading the kept draft back is neither pending nor a fault.
   const pictures = change => {
     if (change) pictureWrites++;
     const result = pictureQueue.catch(() => { /* A failed write does not block a retry. */ }).then(async () => {
       const next = change?.(images);
       try {
-        const cache = await caches.open(KEY), key = '/issue-draft-pictures';
-        if (change) { await cache.put(key, new Response(JSON.stringify(next))); images = next; pictureFault = false; }
-        else images = await (await cache.match(key))?.json() || [];
+        const key = 'issue-draft-pictures';
+        if (change) { await host.drafts.write(key, JSON.stringify(next)); images = next; pictureFault = false; }
+        else images = JSON.parse(await host.drafts.read(key) || '[]');
       } catch { if (change) pictureFault = true; throw new Error(L('截图草稿未能保存在本机，请重试后再离开页面。')); }
     })
       .finally(() => { if (change) pictureWrites--; if (scope.alive) paint(); });

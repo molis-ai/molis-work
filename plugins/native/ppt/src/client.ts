@@ -118,29 +118,16 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   /** Every slide on its own landscape page, for the browser's print dialog (“存储为 PDF”). */
   const printDeck = (record) => {
-    const frame = document.createElement("iframe");
-    frame.setAttribute("aria-hidden", "true");
-    frame.style.cssText = "position:fixed;width:0;height:0;border:0;right:0;bottom:0";
-    document.body.append(frame);
-    const doc = frame.contentDocument;
+    const doc = document.implementation.createHTMLDocument();
     doc.open();
     doc.write("<!doctype html><html><head><meta charset='utf-8'><title></title><style>@page{size:A4 landscape;margin:0}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif}.ppt-present-slide{box-sizing:border-box;width:100vw;height:100vh;padding:7vh 8vw;page-break-after:always;border-left:1.2vw solid var(--ppt-accent)}h2{font-size:5vh;margin:0 0 4vh}ul{font-size:3vh;line-height:1.6;margin:0;padding-left:1.2em}p{font-size:3vh}</style></head><body></body></html>");
     doc.close();
     doc.title = record.title;
     (record.slides || []).forEach((slide, index) => doc.body.append(doc.importNode(slideNode(record, slide, index), true)));
-    setTimeout(() => {
-      frame.contentWindow.focus();
-      frame.contentWindow.print();
-      placed({ verb: "printed", title: record.title });
-      setTimeout(() => frame.remove(), 1000);
-    }, 50);
+    host.printDocument(doc.documentElement.outerHTML);
+    placed({ verb: "printed", title: record.title });
   };
-  const download = (name, blob) => {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url; link.download = name; link.click();
-    URL.revokeObjectURL(url);
-  };
+  const download = (name, blob) => host.download(blob, name);
   let saveError = null;
   let busy = false;
   let listSeq = 0;
@@ -748,12 +735,12 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (format === "pptx") {
           const exported = await request("GET", api + "/" + encodeURIComponent(sel.id) + "/pptx?expected_version=" + sel.version);
           const bytes = Uint8Array.from(atob(exported.content_base64), (char) => char.charCodeAt(0));
-          download(exported.filename, new Blob([bytes], { type: exported.mime_type }));
+          await download(exported.filename, new Blob([bytes], { type: exported.mime_type }));
           placed({ verb: "exported", title: sel.title, file: { name: exported.filename, format: L("PowerPoint · {count} 页，含讲者备注", { count: exported.slide_count }) } });
           return;
         }
         const exported = await request("GET", api + "/" + encodeURIComponent(sel.id) + "/export?expected_version=" + sel.version);
-        download(exported.filename, new Blob([exported.content], { type: exported.mime_type }));
+        await download(exported.filename, new Blob([exported.content], { type: exported.mime_type }));
         placed({ verb: "exported", title: sel.title, file: { name: exported.filename, format: L("数据文件，不是演示文稿") } });
         return;
       }

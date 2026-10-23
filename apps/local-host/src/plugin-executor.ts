@@ -29,6 +29,8 @@ export interface PluginHostExecutorOptions {
    * (`services.project_database`); absent or `null`: none, and such a plugin does not start.
    */
   projectLibrary?: import("./plugin-project-library.js").ProjectLibrary | null;
+  installations?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginInstallationClient;
+  scheduler?: import("@molis-ai/molis-work-service-scheduler").ScheduleService;
   filesFor?(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
   /**
    * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its

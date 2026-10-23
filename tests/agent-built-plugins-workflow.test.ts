@@ -1,3 +1,5 @@
+import { studioFrameAsset } from "./fixtures/studio-framed-page.js";
+import { pluginPagesFor, sendLocalWebJson } from "@molis-ai/molis-work-app-local-host";
 import { memoryStorage, proposal, detail, experience, finding, detailUsing, proposalsUsing, detailWithFour, composition, PROPOSALS, CAPABILITY_WORDS, COMPONENT_WORDS, GOALS_CATALOG, until } from './fixtures/builder-workflow-design.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -1065,9 +1067,15 @@ test('through the studio surface: the studio asks Jev the question the person sa
 // W2-18-BUILDER-LATE-01: a reset belonging to an older job cannot adopt or connect into its replacement.
 test('W2-18-BUILDER-LATE-01: real Host sandbox cleanup cannot delete the resumed build preview', { timeout: 180_000, skip: process.platform !== 'darwin' }, async t => {
   const home = mkdtempSync(join(tmpdir(), 'builder-reset-http-')), file = join(home, 'project.db'); seedDemoBoard(file);
-  const store = new LocalProjectDatabase(file), options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, ...agentStudioFixture(0) };
+  const store = new LocalProjectDatabase(file), options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...agentStudioFixture(0) };
   const server = createServer((request, response) => {
-    void handleAgentStudioHttp(request, response, new URL(request.url ?? '/', 'http://localhost'), options, 'control-token').then(handled => { if (!handled) { response.writeHead(404); response.end(); } });
+    const url = new URL(request.url ?? '/', 'http://localhost');
+    if (studioFrameAsset(response, url.pathname)) return;
+    void pluginPagesFor(home).bind(request, url).then(release => {
+      if (release) response.once('close', release);
+      if (url.pathname.startsWith(options.routePrefix + '/')) url.pathname = url.pathname.slice(options.routePrefix.length);
+      return handleAgentStudioHttp(request, response, url, options, 'control-token');
+    }).then(handled => { if (!handled) { response.writeHead(404); response.end(); } }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address(); assert.ok(address && typeof address === 'object'); const origin = `http://127.0.0.1:${address.port}/api/plugin-builder/studio`;

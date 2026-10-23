@@ -238,17 +238,9 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // SYS-15: page metadata, context/placement bridges and workspace navigation. Moving the trusted review factory into
-  // the existing lazy frame asset removed 11 KB from startup; the remaining workbench delta is 3463 bytes.
-  "/assets/molis-work-workbench.js": [1182945, 1186408],
-  // Builder uses public dialogs, file/settings messages and the isolated page lifecycle (+613).
-  "/assets/molis-work-plugins/plugin-builder.js": [115519, 116132],
-  // Restore keyboard focus after leaving and returning to the isolated Issues view (+20).
-  "/assets/molis-work-plugins/issues.js": [24182, 24202],
-  // Register conditional blank cleanup before closing; obsolete unload-only request branches were removed (+308).
-  "/assets/molis-work-plugins/lingguang.js": [25558, 25866],
-  // Form/PPT detail controls wrap and export menus stay inside narrow frames; old delete-button margin removed (+92).
-  "/assets/molis-work-workbench.css": [1614339, 1614431],
+  // VUX-39/VUX-12 (slice 96): an interrupted round's check list marks each outcome with its tone and puts the close after the list, not in it;
+  // a group of steps whose only open outcome is unknown says so instead of failure. 1186408 → 1186501 (+93).
+  "/assets/molis-work-workbench.js": [1186408, 1186501],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

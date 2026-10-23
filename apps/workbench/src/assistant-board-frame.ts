@@ -4,6 +4,7 @@ import {
 } from "@molis-ai/molis-work-design-system";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./scripts/client/assistant-island.js";
+import { ATTENTION_FACTORY_SCRIPT } from "./scripts/client/attention.js";
 import { renderWorkbenchBar } from "./immersive-shell.js";
 
 /**
@@ -11,14 +12,14 @@ import { renderWorkbenchBar } from "./immersive-shell.js";
  * `/__ui/catalog/assistant` that the board's 助理信息与任务 section loads in an iframe. The resident Assistant is the shipped
  * island in the bar the workbench composes, with its panel, tabs and list of works, the side pane's six groups, the round's
  * steps, the composer, the context strip and the attachment path. What it reads is simulated: a stand-in for the Host
- * (`src/browser/board/assistant-frame.ts`) answers `/api/assistant` from fixed works (`assistant-board-samples.ts`) that the
+ * (`src/browser/board/assistant-frame.ts`) answers `/api/assistant` and the page's attention read from fixed works (`assistant-board-samples.ts`) that the
  * Host has drawn as it draws a real answer, refuses every write, and keeps the island's per-viewer state in memory, so the
  * frame never reaches a real work or changes what the workbench remembers on this computer.
  */
 export interface AssistantFrameOptions {
   lang: "zh" | "en";
-  /** The work open when the frame starts: not about code, about code, or a new one (its draft and scope). */
-  work: "plan" | "coding" | "new";
+  /** The work open when the frame starts: not about code, about code, one cut off to be checked, or a new one (its draft and scope). */
+  work: "plan" | "coding" | "check" | "new";
 }
 export interface AssistantFramePorts {
   L(text: string, values?: Record<string, string | number>): string;
@@ -32,10 +33,10 @@ const pick = <T extends string>(value: string | null, allowed: readonly T[]): T 
 
 /** Only known values are read; anything else is the first value, so the page never reflects what the query said. */
 export function parseAssistantFrame(query: URLSearchParams): AssistantFrameOptions {
-  return { lang: pick(query.get("lang"), ["zh", "en"] as const), work: pick(query.get("work"), ["plan", "coding", "new"] as const) };
+  return { lang: pick(query.get("lang"), ["zh", "en"] as const), work: pick(query.get("work"), ["plan", "coding", "check", "new"] as const) };
 }
 
-const WORK_IDS: Record<AssistantFrameOptions["work"], string | null> = { plan: "board-plan", coding: "board-coding", new: null };
+const WORK_IDS: Record<AssistantFrameOptions["work"], string | null> = { plan: "board-plan", coding: "board-coding", check: "board-sync", new: null };
 
 // The bar stands at the foot of the frame, as it does in the workbench, so the panel opens upwards into the room above it.
 const FRAME_STYLES = `body.mw-asst-page{display:flex;flex-direction:column;margin:0;min-height:100vh;background:var(--desk,var(--wash));color:var(--ink)}`
@@ -59,7 +60,7 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
 <body class="immersive-workbench mw-asst-page">
   ${renderIconSprite()}
   <main class="mw-asst" data-asst-frame-page data-work="${options.work}">
-    <p data-asst-note>${escapeHtml(L("模拟：工作、轮次与宿主的回答是固定样例（宿主照常画好），不连接模型，任何写入都被拒绝。面板、侧栏六组、过程、输入框、上下文条与附件都是生产的助理程序。"))}</p>
+    <p data-asst-note>${escapeHtml(L("模拟：工作、轮次与宿主的回答是固定样例（宿主照常画好），不连接模型；回答、核对与提醒只在这一页里生效，别的写入都被拒绝。面板、侧栏六组、过程、输入框、上下文条与附件都是生产的助理程序。"))}</p>
     <div class="mw-asst-row">
       <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-asst-attach>${escapeHtml(L("带上三个文件（模拟）"))}</button>
       <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-asst-advance>${escapeHtml(L("推进一步（模拟）"))}</button>
@@ -73,7 +74,8 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
   <script>${ASSISTANT_FRAME_SCRIPT}</script>
   <script>(board => board.start((${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.L, route: board.route, headers: () => ({}), project: board.project,
     showToast: board.toast, openItem: board.openItem, pluginTitle: (plugin) => plugin, receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.L),
-    interaction: (client => (root, host) => client(root, { references: () => Promise.resolve({ items: [] }), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})) })))(globalThis.molisBoardAssistant);</script>
+    interaction: (client => (root, host) => client(root, { references: () => Promise.resolve({ items: [] }), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})) })))(globalThis.molisBoardAssistant);
+  (board => (${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.L, projectId: board.project.id, openItem: board.openItem, route: board.route }))(globalThis.molisBoardAssistant);</script>
 </body>
 </html>`;
 }

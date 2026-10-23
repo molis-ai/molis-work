@@ -3387,3 +3387,21 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 用户另派一个 Agent 专门合代码。统筹只交代和统筹，不再合 PR（17:50 放进队列的 #1099 让它自己走完）。
 - 给合并 Agent 的顺序、就绪条件和现状写在同目录 `MERGE-QUEUE.md`，统筹随时更新；合入后合并 Agent 在那里挪行，`privileges.md`、spec 链接、已知红和登记册仍由统筹改。
 - 流程：开发子会话开 PR → `ac-review` 一轮评审 → Codex 修并二轮评审、测试与集成批 → 合并 Agent 按 `MERGE-QUEUE.md` 合 → 统筹改账。
+
+### 10-23 18:20 UTC　现状矩阵与第一批开发线派单
+
+- 现状矩阵（只读调研，基准 main `8b8ee3131`）存为同目录 `STATUS-MATRIX-2026-10-23.md`：W5/W6 逐项、privileges.md 逐行判定、可并行的片 R1～R11 与要等的事项、要用户拍板的汇总。
+- 第一批开发线（每条线串行做几片，一片一个 PR，从 main 开；号段写在括号里）：
+
+| 线（子会话） | 片 | 模型 | 验收号段 | BL 号段 |
+| --- | --- | --- | --- | --- |
+| `ac-kernel` | R7 PG-029/030/BL-374（可信 `user_action` 来源，Goals S9 前置）→ W5-09 拆 `contracts/services/agent-host.ts` → R8 里 typed 改动作（PG-035 余项、BL-364、BL-365）与 agent-host 巨大单元；PG-051 改行为先出设计不动手 | Opus high | RAC-180～199 | BL-470～479 |
+| `ac-feed-fn` | R5：`modules/feed`、`modules/functions` 的 Repository 出口（W5-08）、PG-010、两包巨大单元 | Sonnet xhigh | RAC-170～179 | BL-465～469 |
+| `ac-snapshot` | R1：W5-16 `molis-work home snapshot` 与恢复 | Sonnet xhigh | RAC-100～109 | BL-440～444 |
+| `ac-errors` | R3：W5-13 收尾（`console.*` 改宿主日志、其余吞掉的错误） | Sonnet high | RAC-110～119 | BL-445～449 |
+| `ac-giants` | R4a 设计系统、R4b 官方集成、R4c memory/placement/search/listener-host/im-ui（不含 scheduler）：W5-10 纯移动拆分 | Sonnet high | RAC-120～129 | BL-450～454 |
+| `ac-clients-1` | R6 第一组：W5-03＋W5-04 按插件一片，Todo（并 R11 PG-063/064）先做出样板，再 Issues、Jelly、Images、Cognia、灵光 | Sonnet xhigh | RAC-130～149 | BL-455～459 |
+| `ac-sandbox-sched` | R9 BL-395 → R10 PG-039～042（先核哪几行已做） | Sonnet xhigh | RAC-200～209 | BL-480～484 |
+
+- 留号：RAC-150～169、BL-460～464 给第二组插件客户端（Dataset、PPT、Form、Workflows、Pages），等第一组的样板合入再派。
+- 暂不开（碰在途 PR 的文件）：W5-02 PR-1b/2/3、W5-06 余项、PG-002/003 开关、BL-366/367/394、W5-15、PG-102～105、W5-08 的 `index.ts`、Goals S4/S9、Coding C8-3/C9、Feed/Inbox 迁移、SC-4、W5-14、W5-17（等 SC-3，另要用户定真实 Home 维护）。

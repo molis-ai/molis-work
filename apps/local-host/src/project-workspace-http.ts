@@ -43,7 +43,7 @@ async function addWorkspace(context: ProjectWorkspaceHttpContext) {
   }
 }
 
-async function repairWorkspace(context: ProjectWorkspaceHttpContext, workspaceId: string) {
+async function repairWorkspace(context: ProjectWorkspaceHttpContext, encodedWorkspaceId: string) {
   const body = await context.readBody();
   const nextPath = typeof body.workspace_path === "string" ? body.workspace_path.trim() : "";
   if (body.user_confirmed !== true || !nextPath) {
@@ -51,19 +51,21 @@ async function repairWorkspace(context: ProjectWorkspaceHttpContext, workspaceId
     return;
   }
   try {
+    const workspaceId = decodeLocalWebPathPart(encodedWorkspaceId);
     context.respond(200, await context.actions.invoke(projectWorkspaceActions.repair, { workspace_id: workspaceId, workspace_path: nextPath }));
   } catch (error) {
     respondLocalWebRefusal(context, error);
   }
 }
 
-async function unlinkWorkspace(context: ProjectWorkspaceHttpContext, workspaceId: string) {
+async function unlinkWorkspace(context: ProjectWorkspaceHttpContext, encodedWorkspaceId: string) {
   const body = await context.readBody();
   if (body.user_confirmed !== true) {
     context.respond(400, { error: "请确认解除当前 Project 的工作目录关系" });
     return;
   }
   try {
+    const workspaceId = decodeLocalWebPathPart(encodedWorkspaceId);
     context.respond(200, await context.actions.invoke(projectWorkspaceActions.unlink, { workspace_id: workspaceId }));
   } catch (error) {
     respondLocalWebRefusal(context, error);
@@ -75,9 +77,9 @@ function workspaceRoute(method: string | undefined, pathname: string): ((context
   if (method === "POST" && pathname === "/api/workspaces/pick") return pickWorkspace;
   if (method === "POST" && pathname === "/api/workspaces") return addWorkspace;
   const repair = method === "PATCH" ? pathname.match(/^\/api\/workspaces\/([^/]+)\/path$/) : null;
-  if (repair) return (context) => repairWorkspace(context, decodeLocalWebPathPart(repair[1]));
+  if (repair) return (context) => repairWorkspace(context, repair[1]);
   const unlink = method === "POST" ? pathname.match(/^\/api\/workspaces\/([^/]+)\/unlink$/) : null;
-  if (unlink) return (context) => unlinkWorkspace(context, decodeLocalWebPathPart(unlink[1]));
+  if (unlink) return (context) => unlinkWorkspace(context, unlink[1]);
   return null;
 }
 

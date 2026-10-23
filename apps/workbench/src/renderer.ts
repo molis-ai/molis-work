@@ -49,12 +49,6 @@ import {
   createWorkbenchGoalsRelationRenderer,
   createWorkbenchGoalsStatusRenderer,
   createWorkbenchGoalsTreeRenderer,
-  renderPagesContribution,
-  renderFormContribution,
-  renderDatasetContribution,
-  renderPptContribution,
-  renderAlchemistContribution,
-  renderWorkflowsContribution,
   renderWorkbenchDocument,
 } from "./ui-composition.js";
 import { renderTerminalPane } from "./terminal/pane.js";
@@ -74,44 +68,16 @@ const { sectionHeading, subsectionHeading, renderFocusSectionDeck } = createWork
 
 const { renderGoalTreeProposalDecision, renderGoalTreeProposalList } = createWorkbenchGoalsProposalRenderer({ translate: L, escapeHtml, icon, renderList });
 
-const { renderFeedNativePluginPersistedDetail, renderFeedNativePluginSurface } = createWorkbenchFeedProjectionRenderer({ L, dateTimeLocale });
-const { renderInboxNativePluginSurface } = createWorkbenchInboxProjectionRenderer({ L, dateTimeLocale });
-const { renderScheduleNativePluginSurface } = createWorkbenchScheduleProjectionRenderer({ L, dateTimeLocale });
-function renderPagesNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderPagesContribution(surface, {
-    primitives: { escape: escapeHtml, text: L },
-  });
-}
-
-function renderFormNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderFormContribution(surface, {
-    primitives: { escape: escapeHtml, text: L },
-  });
-}
-
-function renderDatasetNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderDatasetContribution(surface, {
-    primitives: { escape: escapeHtml, text: L },
-  });
-}
-
-function renderPptNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderPptContribution(surface, {
-    primitives: { escape: escapeHtml, text: L },
-  });
-}
-
-function renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderWorkflowsContribution(surface, {
-    primitives: { escape: escapeHtml, text: L },
-  });
-}
-
-function renderAlchemistNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderAlchemistContribution(surface, {
-    primitives: { escape: escapeHtml, text: L },
-  });
-}
+const { buildFeedNativePluginModel, renderFeedNativePluginPersistedDetail, renderFeedNativePluginSurface } = createWorkbenchFeedProjectionRenderer({ L, dateTimeLocale });
+const { buildInboxNativePluginModel, renderInboxNativePluginSurface } = createWorkbenchInboxProjectionRenderer({ L, dateTimeLocale });
+const { buildScheduleNativePluginModel, renderScheduleNativePluginSurface } = createWorkbenchScheduleProjectionRenderer({ L, dateTimeLocale });
+// Feed, Inbox and Schedule still draw their stage from this page's view, not from a running instance; every other declared
+// stage gets the shared primitives.
+const stageModels: ReadonlyMap<string, (view: MolisWorkWebView) => unknown> = new Map<string, (view: MolisWorkWebView) => unknown>([
+  ["feed", view => buildFeedNativePluginModel(view, "feed", [], false)],
+  ["inbox", buildInboxNativePluginModel],
+  ["schedule", buildScheduleNativePluginModel],
+]);
 
 const { explainWorkState, explainParentCompletion } = createGoalStateExplainer(L);
 
@@ -347,7 +313,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer, renderGoalProposals: (view) => renderGoalTreeProposalList(view.snapshot.goal_tree_proposals, view),
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderDesktopProjectChrome, renderProjectSwitcher,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface,
+    renderFeedNativePluginSurface, stageModel: (pluginId, view) => stageModels.get(pluginId)?.(view),
   });
   return {
     renderMolisWorkProjectIndex,

@@ -1,5 +1,5 @@
 import { handlePluginPageHttp } from "./plugin-page-http.js";
-import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { agentWriteCheckerActions, type AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -95,8 +95,7 @@ export const projectWorkspacesRoute: WebRoute<ProjectRuntimeContext> = { id: "pr
 /** Linking, repairing and unlinking the project's folders and the folder window, as the person under the project setting's permission. */
 export const workspaceMembershipRoute: WebRoute<ProjectRuntimeContext> = { id: "workspace-membership", handle: ({ request, response, url, options, localHost, hostReference }) =>
   handleProjectWorkspaceHttp({ method: request.method, pathname: url.pathname, hasProject: Boolean(options.project),
-    actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user",
-      project_id: hostReference.project_id, audience: "user", permissions: ["projects:settings"] })),
+    actions: bindLocalWebActions(localHost, hostReference, ["projects:settings"]),
     readBody: () => readBody(request), respond: (status, body) => sendJson(response, status, body),
     pickDirectory: () => pickLocalDirectory() }) };
 

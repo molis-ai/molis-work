@@ -1,6 +1,5 @@
 import type { InteractionNextStep } from "@molis-ai/molis-work-design-system";
-
-type Say = (text: string, values?: Record<string, string | number>) => string;
+import type { CodingText } from "./words.js";
 
 /** The part of a round its follow-ups read: the same view its round card is drawn from (timeline.ts). */
 export interface CodingFollowUpRun {
@@ -21,13 +20,13 @@ export const CODING_NEXT_STEP = {
   changes: (runId: string) => `[data-coding-change-open=${JSON.stringify(runId)}]`,
 } as const;
 
-/** What follows a round on its card, as next steps beside the composer: check and continue, then its changes. */
-export function codingFollowUps(run: CodingFollowUpRun, say: Say): InteractionNextStep[] {
+/** What follows a round on its card, as next steps beside the composer: check and continue, then its changes, in Coding's words. */
+export function codingFollowUps(run: CodingFollowUpRun, say: CodingText): InteractionNextStep[] {
   if (!ENDED.has(run.phase)) return [];
   const steps: InteractionNextStep[] = [];
-  if (run.phase === "reconcile-required") steps.push({ id: CODING_NEXT_STEP.recover(run.ref.run_id), label: say("核对并继续"), source: say("这一轮需要核对结果") });
+  if (run.phase === "reconcile-required") steps.push({ id: CODING_NEXT_STEP.recover(run.ref.run_id), label: say("coding.round.check-continue"), source: say("coding.round.reconcile") });
   // The card offers its changes when the round wrote a file, counted the way the card counts them.
   if (run.activity?.some(item => (item.name === "edit" || item.name === "write") && item.state === "completed" && item.target))
-    steps.push({ id: CODING_NEXT_STEP.changes(run.ref.run_id), label: say("查看变更"), source: say("这一轮改过的文件") });
+    steps.push({ id: CODING_NEXT_STEP.changes(run.ref.run_id), label: say("coding.round.changes"), source: say("coding.round.changed-files") });
   return steps;
 }

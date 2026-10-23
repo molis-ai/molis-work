@@ -2,7 +2,6 @@ import { renderPluginFrameSurface } from "./plugin-frame.js";
 import { pluginSurfaceClients, deferredSurfaceClients } from "./plugin-workbench.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
-import type { UiContribution, UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionView, type GoalCollectionModel } from "@molis-ai/molis-work-plugin-goals";
 
@@ -10,6 +9,7 @@ import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-syst
 import { renderDialog } from "@molis-ai/molis-work-design-system";
 import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
 import { shownProjectPlugins, sideEntries } from "./plugin-catalog.js";
+import { renderDeclaredStages } from "./declared-stages.js";
 import { homeToolKeysScript, homePluginSideTabs } from "./home-plugin-navigation.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";
@@ -110,14 +110,8 @@ export interface WorkbenchShellPageOwners<TItem extends GoalCollectionItem, TVie
     desktop: boolean, className: string, manageHref: string): string;
   renderFeedNativePluginSurface(view: TView, surface: FeedPageSurface, preset: "feed",
     entries?: TFeedEntry[], active?: boolean): string;
-  renderInboxNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
-  renderScheduleNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
-  renderPagesNativePluginSurface(surface: "directory" | "workbench"): string;
-  renderFormNativePluginSurface(surface: "directory" | "workbench"): string;
-  renderDatasetNativePluginSurface(surface: "directory" | "workbench"): string;
-  renderPptNativePluginSurface(surface: "directory" | "workbench"): string;
-  renderAlchemistNativePluginSurface(surface: "directory" | "workbench"): string;
-  renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string;
+  /** The model a plugin's declared stage needs from this page's view; undefined gives it the shared primitives. */
+  stageModel(projectPluginId: string, view: TView): unknown;
 }
 
 /** A project file that evidence points to opens here, in an overlay over the workbench, never in a new browser tab. */
@@ -126,30 +120,6 @@ function renderProjectReferenceDialog(L: (text: string) => string): string {
     attrs: { "data-project-reference-dialog": true }, closeLabel: L("关闭"),
     body: `<pre class="project-reference-body" data-project-reference-body tabindex="0"></pre>`,
     footer: `<a class="mw-btn mw-btn--secondary" data-project-reference-download download>${L("下载")}</a><button class="mw-btn mw-btn--primary" value="close">${L("关闭")}</button>` });
-}
-
-/** Manifest-declared stage views, rendered by each Plugin's own UI contribution; no per-plugin host branch (PRR-12).
- * Only the stages this project shows, in the mode it shows them, and only those a host stage path has not already
- * rendered. Stages whose contribution needs a model beyond the shared primitives are host-rendered and named in
- * `plugin_stage_ids`; a fallback must not duplicate them with an empty model. */
-function renderManifestStageViews(
-  primitives: { escape(value: unknown): string; text(value: string): string },
-  { enabled, developerMode, rendered }: { enabled: readonly string[]; developerMode: boolean; rendered: readonly string[] },
-): string[] {
-  const shown = new Set(enabled), already = new Set(rendered);
-  return BUILTIN_PLUGIN_CATALOG.flatMap(entry => {
-    if (!shown.has(entry.project_plugin_id)) return [];
-    if (entry.project_plugin_id === "text-stats" && !developerMode) return [];
-    const declared = (entry.manifest.ui?.views as readonly UiViewDeclaration[] | undefined)?.find(view => view.slot === "stage");
-    if (!declared) return [];
-    const contributionId = declared.contribution_id ?? `${entry.manifest.plugin_id}.${declared.view_id}`;
-    if (already.has(contributionId)) return [];
-    const contribution = (entry.workbench.contributions as readonly UiContribution[]).find(item => item.descriptor.contribution_id === contributionId);
-    if (!contribution) return [];
-    // The fallback model is the shared primitives: a stage that needs project data is host-rendered and listed above.
-    try { return [contribution.render({ contribution_id: contributionId, surface: "workbench", model: { primitives } })]; }
-    catch { return []; }
-  });
 }
 
 /** The shell's whole page: Workbench owns placement; Goals/Feed/Work owners retain their actual UI and facts. The function keeps its old name until W5-10 splits it, because the giant-unit gate keys a function by its name. */
@@ -162,7 +132,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer, renderGoalProposals,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, stageModel } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -293,21 +263,10 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${L("应用目录")}">
         <div class="mw-scroll directory-content-scroll">
         ${renderDirectoryPluginSections(primitives, enabledPlugins, {
-          goals: "",
-          inbox: "",
           feed: pluginEnabled("feed")
             ? renderFeedNativePluginSurface(view, "source-directory", initialFeedPreset)
             : "",
-          lingguang: "",
-          todo: "",
-          alchemist: "",
-          workflows: "",
-          pages: "",
-          form: "",
-          dataset: "",
-          ppt: "",
-          artifacts: "",
-          // A running Plugin's own panel wins over the built-in blank.
+          // A running Plugin's own panel wins over the built-in one.
           ...(view.plugin_panels ?? {}),
         }, initialDesktopDirectory, settingsDirectory)}
         </div>
@@ -322,21 +281,13 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderProjectHome(view.project?.display_name || title, primitives)}
             ${goalStage}
             ${frameStage}
-            ${renderInboxNativePluginSurface(view, "workbench")}
-            ${defer(renderScheduleNativePluginSurface(view, "workbench"))}
-            ${defer(renderPagesNativePluginSurface("workbench"))}
-            ${defer(renderFormNativePluginSurface("workbench"))}
-            ${defer(renderDatasetNativePluginSurface("workbench"))}
-            ${defer(renderPptNativePluginSurface("workbench"))}
-            ${defer(renderAlchemistNativePluginSurface("workbench"))}
-            ${defer(renderWorkflowsNativePluginSurface("workbench"))}
-            ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="成果" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode })}</section>
             ${settingsSurfaces}
             ${(view.plugin_stages ?? []).map(defer).join("")}
-            ${renderManifestStageViews({ escape: primitives.escapeHtml, text: primitives.L }, { enabled: enabledPlugins, developerMode: Boolean(view.developer_mode), rendered: view.plugin_stage_ids ?? [] }).map(defer).join("")}
+            ${renderDeclaredStages({ enabled: enabledPlugins, developerMode: Boolean(view.developer_mode), rendered: view.plugin_stage_ids ?? [],
+              model: pluginId => stageModel(pluginId, view) ?? { primitives: { escape: escapeHtml, text: L } } }).map(defer).join("")}
           </div>
         </div>
       </div>

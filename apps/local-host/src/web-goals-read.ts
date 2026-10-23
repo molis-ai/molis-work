@@ -1,4 +1,3 @@
-import { builderWorkbenchPanel } from "./plugin-builder-surface.js";
 import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./plugin-builder/agent-surface.js";
 import { configuredModelChoices } from "./configured-models.js";
@@ -38,7 +37,7 @@ async function projectPluginStages(ports: CodingSurfacePorts, enabled: readonly 
   await ensureProjectPlugins(ports);
   const builtin = await builtinStagePanels(ports, enabled);
   const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) } });
-  return { html: [characters, ...builtin.html, await builderWorkbenchPanel(ports)], ids: builtin.ids };
+  return { html: [characters, ...builtin.html], ids: builtin.ids };
 }
 export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;

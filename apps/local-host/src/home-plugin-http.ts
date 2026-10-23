@@ -3,7 +3,7 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 import { escapeHtml, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
 import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage, sideOpenedPlugins } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage, sideOpenedPlugins, stageContributionId } from "@molis-ai/molis-work-app-workbench";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
@@ -172,7 +172,11 @@ function homeViewModel() {
   return { primitives: { escape: (value: unknown) => escapeHtml(String(value)), text: L } };
 }
 
-/** A fresh Runtime view for every page render; the catalog does not grant activation or render a stopped instance. */
+/**
+ * A fresh Runtime view for every page render; the catalog does not grant activation or render a stopped instance. Each stage
+ * drawn here, the unavailable shell included, is reported by the contribution that would draw it, so the shell's declared
+ * stages do not draw it again.
+ */
 export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ html: string[]; ids: string[] }> {
   if (!host) return { html: [], ids: [] };
   let platform: HomePluginPlatform | undefined, failure: string | undefined;
@@ -180,8 +184,8 @@ export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ h
   catch (error) { failure = error instanceof Error ? error.message : String(error); }
   const ids: string[] = [], sideOnly = sideOpenedPlugins();
   const html = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home" && !Object.hasOwn(sideOnly, entry.project_plugin_id)).map(entry => {
-    const declared = entry.manifest.ui?.views?.find(view => view.slot === "stage");
-    if (declared) ids.push(declared.contribution_id ?? `${entry.manifest.plugin_id}.${declared.view_id}`);
+    const stage = stageContributionId(entry.manifest);
+    if (stage) ids.push(stage);
     const install = host.installation(entry.manifest.plugin_id);
     const contribution = install?.state === "running" ? platform?.runtime.contribution(install.install_id) : null;
     const view = contribution?.kind === "app" ? contribution.views?.find(view => view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench")) : undefined;

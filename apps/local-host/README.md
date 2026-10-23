@@ -9,7 +9,7 @@
 
 初始化失败后释放本次资源，普通 `ready()` 保留失败结果，不因页面查询自动重试。用户从错误页点击重试，经受保护的 `POST /api/plugins/<plugin_id>/retry` 调用 `HomePluginHost.retry()`；并发重试共用一次启动，故障库不重建、不迁移。清理失败或 Host 已关闭时不可重启；恢复后仍保留用户停用意图。
 
-Home Runtime 渲染工作台页面时，同时交回已声明 stage 的 contribution ID；项目装配将它们与项目 stage ID 合并，Manifest 补位只渲染尚未提供的页面。插件停用或启动失败时，不可用占位也占据同一个 stage，不能再由静态补位生成可用页面。单一页面与停用后恢复的回归见 `tests/workbench-deferred-clients.e2e.test.ts`、`tests/home-plugin-private-store.test.ts`。
+Home Runtime 渲染工作台页面时，同时交回每个已画 stage 的 contribution ID（打开 stage 的那个视图指的贡献：`stage` 视图，否则目录入口，`stageContributionId`）；项目装配将它们与项目 stage ID 合并，工作台按 Manifest 画 stage 时只画尚未提供的。插件停用或启动失败时，不可用占位也占据同一个 stage，不能再由静态补位生成可用页面。单一页面与停用后恢复的回归见 `tests/workbench-deferred-clients.e2e.test.ts`、`tests/home-plugin-private-store.test.ts`。
 `plugin_stage_ids` 只在真实页面渲染的读取回调中提供，用于内部补位去重；通用读取与 `/api/board` 保持原返回合同，路由快照不包含该字段。
 
 助理接续监听归 Local Host：关闭借用 Web 传输不终止共享助理，Host 关闭开始时释放监听，持久等待留待重启恢复。手动构造 `AssistantService` 的嵌入者需在关闭运行时及数据库前调用 `service.continuations.close()`；回归见 `tests/assistant-continuation-control.test.ts`、`tests/assistant-connector-continuation.test.ts`。
@@ -47,7 +47,7 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 | [src/plugin-host-services.ts](src/plugin-host-services.ts) | 一个插件启动时宿主交给它的身份和服务（动作、私人存储、成果、事件、输入输出）；`PluginHostExecutor` 只管启停 |
 | [src/plugin-interaction.ts](src/plugin-interaction.ts) | `services.interaction`（PG-062）：插件自己的页面要的问题卡、操作卡与下一步行，用助理同一套画法、按调用的语言画；只画不写、不要权限，交来的值形状不对就拒（S-56） |
 | [src/plugin-route-operations.ts](src/plugin-route-operations.ts) | Runtime 插件 HTTP 共用的那一段：重启、解除隔离、升级、未运行的 503、视图版本号、已声明路由的分发；不认识任何插件，属于某个插件或项目输入图的部分由调用方经钩子给（项目一侧的调用方是 `project-plugin-http.ts`） |
-| [src/project-plugin-http.ts](src/project-plugin-http.ts) | 项目插件的 HTTP 入口，与 Home 一侧的 `home-plugin-http.ts` 对称：升级候选、事件的恢复与跳过、`/api/plugins/<插件 id>/…` 都在这里，交给 `plugin-route-operations.ts`；不认识任何插件，Coding 族还要加的两段（`coding-surface.ts` 的 `codingRouteHooks`）由调用方经钩子给 |
+| [src/project-plugin-http.ts](src/project-plugin-http.ts) | 项目插件的 HTTP 入口，与 Home 一侧的 `home-plugin-http.ts` 对称：升级候选、事件的恢复与跳过、`/api/plugins/<插件 id>/…` 都在这里，交给 `plugin-route-operations.ts`；不认识任何插件，Coding 族还要做的一段（`coding-surface.ts` 的 `codingRouteHooks`：读 Files 产物的插件先刷新一次）由调用方经路由前的钩子给；插件回答之后不再加料（PG-062） |
 | [src/project-plugin-ports.ts](src/project-plugin-ports.ts) | 项目里内置插件和已安装插件用到的端口（`MolisWorkLocalHost` 的两个入口转到这里） |
 | [src/home-side.ts](src/home-side.ts) | 宿主与它的 Home 的登记：宿主构造时绑定（`bindHomeSide`，Agent 服务照旧在这里装配）、关闭时撤下；项目的插件平台经它拿到本宿主的 Home（模型注入在调用时读，不在启动时拷）和测试夹具，`PluginPlatformOptions.home` 的值（`pluginHomeFor`）也由它给 |
 | [src/plugin-model-service.ts](src/plugin-model-service.ts)、[src/plugin-instructions.ts](src/plugin-instructions.ts) | 插件的模型服务端口（`hostTextGeneration` → agent-host）与没有目录条目的插件的指令登记 |
@@ -72,7 +72,7 @@ Git 审查把全部有效 push URL 纳入修订，执行固定的提交与目标
 
 插件调用自己的动作、声明消费的动作或 typed 能力时，Host 捕获 Runtime 中原动作或场景的调用者；下游写入前同步复查原调用者，不能只信插件传入的等待回调。只读场景的约束跟随调用，typed 口按真实注册的操作与费用拒绝写入或付费查询。回归：`tests/security-invariants-plugin-scenes.test.ts`。
 
-PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信任的进程内开发执行。应用通过 openWorkSessionRegistry 组合 Work 与 Ledger，关闭 Registry 时释放其拥有的连接。
+PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信任的进程内开发执行。
 
 Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定唤醒，无须打开 Studio。`schedule-reminders.ts` 只连接安装仓库和同库 Feed/Inbox 投递；时间、数量、安装隔离和一次性消费归 Schedule 插件。`schedule-operations.ts` 同样只装配安装执行器和 Inbox；计划与 occurrence、重装后的归属确认、未知结果恢复归 Schedule。执行器注册不派出工作，新的 lease 才能运行持久 pending；结果未知必须在 Schedule 核对后明确重试或跳过。
 

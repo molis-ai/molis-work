@@ -23,7 +23,7 @@ Host 把架子快照交给 UI contribution；HTTP 路由表拥有 `/api/shelf` �
 | [src/settings-ui.ts](src/settings-ui.ts) | 六段用途堆叠的设置页 |
 | [src/terminal-client.ts](src/terminal-client.ts) | 「对话」的终端井，接 `/pty` |
 
-可对照 [apps/workbench/src/goals-page-renderer.ts](../../../apps/workbench/src/goals-page-renderer.ts) 与 [apps/local-host/src/shelf-native-plugin-http.ts](../../../apps/local-host/src/shelf-native-plugin-http.ts)。
+可对照 [apps/workbench/src/shell-page-renderer.ts](../../../apps/workbench/src/shell-page-renderer.ts) 与 [apps/local-host/src/shelf-native-plugin-http.ts](../../../apps/local-host/src/shelf-native-plugin-http.ts)。
 
 ## 接入与边界
 

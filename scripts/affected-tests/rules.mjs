@@ -28,7 +28,7 @@ export const FULL_REGRESSION = {
    *  - 18 that the two packages' READMEs name by file name. By table ("从哪里读代码"): local-host's project-host, home-plugins, local-host,
    *    project-capabilities, web-server, mcp-server, system-agent-service, home-side (binds a Host to its Home and its Agent service,
    *    W3-06 D0), goal-project-application, and workbench's ui-composition,
-   *    goals-page-renderer, home-plugin-page, scripts/client/initialization, browser-assets. By prose: the workbench README's invariants name
+   *    shell-page-renderer, home-plugin-page, scripts/client/initialization, browser-assets. By prose: the workbench README's invariants name
    *    src/builtin-plugins.ts, src/plugin-catalog.ts and src/plugin-workbench.ts (the projections derived from BUILTIN_PLUGIN_CATALOG),
    *    and its "阅读装配方式" line points to apps/local-host/src/workbench-renderer.ts, the 12 lines that bind the renderer to the host.
    *  - 7 from the hub table of PARALLEL-DEVELOPMENT section 2 (and, for project-plugins, the AGENTS.md pointer to it), which neither
@@ -63,7 +63,7 @@ export const FULL_REGRESSION = {
     "apps/workbench/src/builtin-plugins.ts",
     "apps/workbench/src/browser-assets.ts",
     "apps/workbench/src/document-shell.ts",
-    "apps/workbench/src/goals-page-renderer.ts",
+    "apps/workbench/src/shell-page-renderer.ts",
     "apps/workbench/src/home-plugin-page.ts",
     "apps/workbench/src/immersive-shell.ts",
     "apps/workbench/src/page-assets.ts",
@@ -112,7 +112,7 @@ export const UI = {
   packages: ["apps/workbench", "packages/design-system", "packages/ui-host", "packages/im-ui"],
   /**
    * A file of any package that is a page, a browser program or a stylesheet, by name or place: `client.ts`, `client-views.ts`,
-   * `goals-page-renderer.ts`, `styles.ts`, `ui.ts`, anything in a `client/` or `views/` folder, and css, html and svg files.
+   * `shell-page-renderer.ts`, `styles.ts`, `ui.ts`, anything in a `client/` or `views/` folder, and css, html and svg files.
    * Not `web-request.ts` (the host's route dispatch) or `viewer.ts`: the word has to stand alone between `/`, `-` and `.`.
    */
   files: /(?:^|[/-])(?:client|clients|styles?|ui|views?|renderers?|pages?)(?:[-.][\w.-]*)?\.(?:ts|mts|css|html|svg)$|\/(?:client|clients|styles|ui|views)\/[^/]+\.(?:ts|mts|css|html|svg)$|\.(?:css|html|svg)$/,

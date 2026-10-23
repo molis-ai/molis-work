@@ -1,5 +1,5 @@
 import { FILES_ACTIONS } from "./actions.js";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_WORKSPACE_CHANGED_EVENT, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   CODING_RUN_UPDATED_EVENT,
@@ -115,6 +115,9 @@ export const filesManifest: PluginManifest = {
         type_version: 1,
         from_plugin_ids: ["io.molis.work.git"],
       },
+      // A person-approved workspace operation of this project ran, whoever asked for it (BL-379). Only the Host sends it, to
+      // each installation that subscribes and holds `workspace:read`, so no source is named.
+      { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1 },
     ],
   },
   routes: [

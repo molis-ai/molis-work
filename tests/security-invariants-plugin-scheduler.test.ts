@@ -7,10 +7,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseTransaction, PluginScheduleWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, captureHostLog, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import { deferred } from "./fixtures/home-runtime.js";
 import { pluginSchedulerFixture as fixture } from "./fixtures/plugin-scheduler.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 const wakeup = "scheduler-a.wakeup", due = "2026-01-01T00:00:00.000Z";
 const job = (object_ref: string) => ({ action: { capability_id: wakeup, version: 1 }, object_ref, title: object_ref, due_at: due });
@@ -40,9 +41,16 @@ test("SYS-15-S1: the Runtime scheduler joins its owner's project transaction and
     tx.run("INSERT INTO scheduler_a_notes VALUES ('revoked')"); schedule.register(job("revoked")); revoked = true;
   })); }, { assert_authority_current: () => { if (revoked) throw new ActionError("actions.forbidden", "revoked"); } }));
   assert.equal(a.count(), 1); assert.deepEqual(a.schedule.list().map(item => item.object_ref), ["kept"]);
-  await a.stop();
-  assert.throws(() => a.schedule.list(), { code: "actions.forbidden" });
-  await assert.rejects(a.database.transaction(async () => {}, tx => a.schedule.join(tx, schedule => schedule.register(job("stopped")))));
+  const logged: HostLogEntry[] = [], restore = captureHostLog(logged);
+  try {
+    await a.stop();
+    // BL-411: outside every call the stopped activation's services are refused and throw nothing: the list is nothing, and the
+    // joined write never answers. The Host logs both refusals; the scheduler below still holds only the job kept before the stop.
+    assert.equal(a.schedule.list(), undefined);
+    assert.equal(await within(a.database.transaction(async () => {}, tx => a.schedule.join(tx, schedule => schedule.register(job("stopped"))))), PENDING);
+  } finally { restore(); }
+  assert.deepEqual(logged.filter(entry => entry.event === "stopped_service_call").map(entry => `${String(entry.fields?.service)}.${String(entry.fields?.method)}`).sort(),
+    ["project_database.transaction", "scheduler.list"]);
   assert.equal(f.scheduler.list().length, 1);
 });
 

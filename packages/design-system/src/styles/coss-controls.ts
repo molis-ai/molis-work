@@ -220,6 +220,7 @@ export const COSS_CONTROL_STYLES = `
   :where(dialog[open])::backdrop { opacity: 1; transition-duration: var(--dur-move); }
   @starting-style { :where(dialog[open]) { opacity: 0; transform: translateY(8px) scale(.98); } :where(dialog[open])::backdrop { opacity: 0; } }
   [popover]:popover-open { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
+  .mw-modal-cover[popover] { width: auto; height: auto; margin: 0; padding: 0; border: 0; background: var(--scrim); }
   :is(.form-error, .event-form-status, .event-field-error)[role=alert]:not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
   .form-disclosure[open] { border-color: var(--line-strong); }
   :is(.form-disclosure, .feed-task-extra) summary { transition: color var(--dur-hover) var(--ease-quint); }

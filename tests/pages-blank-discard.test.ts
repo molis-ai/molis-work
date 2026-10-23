@@ -141,8 +141,9 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
     }
     return json({ document: current });
   }) as typeof fetch;
-  const factory = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; projectId: string; mountPluginClient: typeof lifetime.mount; view: typeof lifetime.view }) => void;
-  factory({ translate: value => value, projectId: "project-pages", mountPluginClient: lifetime.mount, view: lifetime.view });
+  const factory = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; projectId: string; mountPluginClient: typeof lifetime.mount; view: typeof lifetime.view; confirmBox: (dialog: unknown, ok: unknown, run?: () => Promise<unknown>) => Promise<boolean> }) => void;
+  // The frame's shared confirmation box, answering yes: its request (when it has one) runs first, as in the page.
+  factory({ translate: value => value, projectId: "project-pages", mountPluginClient: lifetime.mount, view: lifetime.view, confirmBox: async (_dialog, _ok, run) => { await run?.(); return true; } });
   await flush();
   const fire = async (event: ReturnType<typeof click>) => { await workbench.listeners.click!(event); await flush(); };
   return {
@@ -211,8 +212,6 @@ test("LOGIC-02 and LOGIC-03 unsaved edits are stored before a star, a folder cha
   try {
     await folder.fire(click("button[data-page-id]", { pageId: "OLD" }));
     await folder.write({ title: "删文件夹前先保存" }, false);
-    const confirm = folder.parts.get("[data-pages-confirm]") as FakeNode & { returnValue?: string };
-    confirm.showModal = () => { confirm.returnValue = "ok"; void confirm.listeners.close?.({}); };
     await folder.fire(click("[data-pages-folder-delete]", { pagesFolderDelete: "f1" }));
     assert.equal(folder.store.get("OLD")?.title, "删文件夹前先保存");
     const deleteAt = folder.calls.findIndex(call => call.path.includes("/folders/"));

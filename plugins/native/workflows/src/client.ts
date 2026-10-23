@@ -666,7 +666,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     return ico('alert') + '<span>' + esc(L('未接上：{reason}', { reason: L(ready.reason) })) + fix + '</span>';
   }
 
-  let submitForm = null;
+  let submitForm = null; dlg.addEventListener('cancel', (ev) => { if (dlg.querySelector('[data-loading]')) ev.preventDefault(); }); // Esc and Close do not pretend to cancel a submit on its way (VUX-29).
   function showForm(title, bodyHtml, submitLabel, onSubmit, { tone } = {}) {
     dlg.querySelector('[data-wf-dialog-title]').textContent = title;
     dlg.querySelector('[data-wf-dialog-body]').innerHTML = bodyHtml;
@@ -1005,7 +1005,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
         return;
       }
       if (act === 'start') { await startRun(); return; }
-      if (act === 'dialog-close') { dlg.close(); return; }
+      if (act === 'dialog-close') { if (!dlg.querySelector('[data-loading]')) dlg.close(); return; }
       if (act === 'stop') {
         const run = ui.instance;
         showForm(L('结束这一次？'), '<p>' + tx('后面的站不会再继续。已经交出去的内容都会留在各自的插件里。') + '</p>', L('结束这一次'), async () => {

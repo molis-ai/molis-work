@@ -6,7 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { MolisWorkLocalHost, DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import {
   artifactAnalysisContext, artifactOriginalPath, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument,
@@ -525,6 +526,27 @@ test("ONB-LIM-01 an original over 6 MB is kept in the 成果库's store by diges
   // A name with a path in it is refused before anything is read.
   const named = await fetch(origin + "/api/artifacts/import/original", { method: "POST", headers: { ...headers(), "content-type": "application/octet-stream", "x-molis-work-filename": encodeURIComponent("../x.bin") }, body: Buffer.from("x") });
   assert.equal(named.status, 400);
+});
+
+test("ONB-LIM-01 a deleted offered original or a directory is refused with no saved Artifact", async t => {
+  const { library, directory } = await fixture(t);
+  const removed = join(directory, "removed.bin");
+  await writeFile(removed, "original bytes"); await rm(removed);
+  const input = { source: "file", filename: "original.bin", original_file: { filename: "original.bin", mime: "application/octet-stream" } };
+  const previous = library.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
+  for (const offeredPath of [removed, directory]) {
+    await assert.rejects(importLocalArtifactDocument(input, {
+      projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", ownerActorId: LOCAL_PERSON_ACTOR_ID,
+      routePrefix: "/projects/current", artifacts: library.artifacts, offeredPath,
+    }), error => {
+      assert.ok(error instanceof ActionError);
+      assert.deepEqual([error.code, error.message, actionHttpStatus(error)], [
+        "artifacts.document.original_not_offered", "交给宿主的原文件已经不在了，请重新选择", 400,
+      ]);
+      return true;
+    });
+    assert.deepEqual(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID), previous, "an unavailable original saves nothing");
+  }
 });
 
 // S-55: the 成果库 reads a file the Host was given only from the call's trusted context; nothing in a request names one for it.

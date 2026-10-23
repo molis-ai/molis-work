@@ -156,11 +156,12 @@ test("pick route reports the window result and does not open one without a proje
     { error: "这台电脑打不开目录选择窗口" },
   ]);
   assert.deepEqual(calls.slice(1).map((call) => call.status), [200, 200, 409, 503]);
-  // SESSION-02: only a declared Session failure keeps membership's existing 503 recovery response.
+  // Membership no longer moves Sessions (BL-177), so a Session error is a refusal like any other;
+  // only an action service that is down or not redeemed keeps the 503 recovery response.
   for (const [failure, expectedStatus] of [
-    [sessionErrors.invalid_input("关联恢复需要核对"), 503],
+    [new ActionError("actions.service_unavailable", "项目目录服务尚未装配"), 503],
+    [sessionErrors.invalid_input("关联恢复需要核对"), 400],
     [new ActionError("actions.forbidden", "没有目录权限"), 400],
-    [new ActionError("work.session.unlisted", "不是声明中的 Session 原因"), 400],
   ] as const) {
     let invoked = 0;
     await handleWorkspaceHttp({ ...base, projectOptions: project, method: "PATCH", pathname: "/api/workspaces/current/path",

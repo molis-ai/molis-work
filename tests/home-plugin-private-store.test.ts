@@ -107,7 +107,9 @@ test("W3-06-F-04 Home KV survives shutdown, isolates installs and rejects an int
     assert.equal(second.get("revision"), "from-a");
   } finally { connection.close(); }
   await host.homePlugins!.close();
-  assert.throws(() => a.set("draft", "after close"), { code: "actions.forbidden" });
+  // BL-411: outside every call a handle kept after close is refused and does nothing; the restart below reads the draft unchanged.
+  assert.equal(a.set("draft", "after close"), undefined);
+  assert.equal(a.get("draft"), undefined, "it reads nothing either, though the draft is there");
   assert.equal(host.homePlugins!.installations().length, 0);
   // Opening another Host is allowed only after the old execution owner has closed.
   await host.close();

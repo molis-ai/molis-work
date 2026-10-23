@@ -95,11 +95,6 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
       executes: () => owner.withCatalog !== undefined,
       projects: async () => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().map(project => project.project_id)) : [],
       projectExists: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().some(project => project.project_id === projectId)) : null,
-      pendingMemoryDeletion: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => {
-        const receipt = catalog.listProjectDeletions().find(row => row.project_id === projectId && row.actor_id === LOCAL_PERSON_ACTOR_ID
-          && row.cleanup_state === "pending" && row.owner_steps.some(step => step.owner_id === "memory" && step.state === "pending"));
-        return receipt ? { deletion_id: receipt.deletion_id } : null;
-      }) : null,
       projectTitle: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null) : null });
     const unbind = bindPrologueInference(storageHome, service.inference);
     const unbindBuilder = bindPrologueBuilder(storageHome, service.createBuilderAgent);

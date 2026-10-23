@@ -38,14 +38,14 @@ test("MIX-IN-01/02: protected Coding supplement keeps raw original through queue
   const first = await one.send(text, id, envelope); assert.equal(first.status, 200, JSON.stringify(first.body));
   const ref = { session_id: one.run.ref.session_id, input_id: first.body.receipt.input_id };
   const queued = await one.adapter.inputs!.read!(ref); assert.equal(queued?.state, "queued");
-  assert.deepEqual(queued && "input" in queued && (queued.input as unknown as { original?: unknown }).original, { text: raw, source: "person" });
+  assert.deepEqual(queued && "input" in queued && queued.input.original, { text: raw, source: "person" });
   const replay = await one.send(text, id, envelope); assert.equal(replay.status, 200, JSON.stringify(replay.body));
   assert.equal(replay.body.receipt.replayed, true); assert.equal(replay.body.receipt.input_id, ref.input_id);
   const changed = await one.send(text, id, { original_input: { input_id: id, text: raw + "changed", use: "supplement" } });
   assert.notEqual(changed.status, 200, "a retry cannot substitute another raw original under the old key");
   const next = await one.start(), read = await one.adapter.inputs!.read!(ref); assert.equal(read?.state, "run");
   assert.ok(read && read.state === "run"); assert.equal(read.text, text.trim());
-  assert.equal(read.receipt.source, "host"); assert.deepEqual((read.receipt as unknown as { original?: unknown }).original, { text: raw, source: "person" });
+  assert.equal(read.receipt.source, "host"); assert.deepEqual(read.receipt.original, { text: raw, source: "person" });
   assert.equal(read.receipt.accepted_at_ms, queued && "input" in queued ? queued.input.accepted_at_ms : undefined);
   const wire = JSON.stringify(f.requests.at(-1)); assert.ok(wire.includes("外部选区"));
   assert.equal(wire.split("统一用 pnpm。").length - 1, 1, "original is not added as a second model message");
@@ -63,7 +63,7 @@ test("MIX-IN-03: Coding business source or original cannot manufacture personal 
     const response = await one.send("业务文本", randomUUID(), extra); assert.equal(response.status, 200, JSON.stringify(response.body));
     const read = await one.adapter.inputs!.read!({ session_id: one.run.ref.session_id, input_id: response.body.receipt.input_id });
     assert.ok(read?.state === "queued"); assert.equal(read.input.source, "host");
-    assert.equal((read.input as unknown as { original?: unknown }).original, undefined);
+    assert.equal(read.input.original, undefined);
   }
   const forged = await one.send("业务文本", randomUUID(), { original: { text: "假原文", source: "person" } });
   assert.notEqual(forged.status, 200, "original is not an Action input field");
@@ -124,13 +124,13 @@ for (const executor of ["assistant", "coding"] as const) test(`MIX-IN-01: protec
   const hostText = before.turns.find(turn => turn.text === "页面代写句子");
   assert.equal(hostText?.steer?.source, "host"); assert.equal(hostText?.steer?.original, undefined, "page/business claims cannot supply personal originals");
   assert.equal(supplement.steer.source, "host");
-  assert.deepEqual((supplement.steer as unknown as { original?: unknown }).original, { text: raw, source: "person" });
+  assert.deepEqual(supplement.steer.original, { text: raw, source: "person" });
   assert.ok(supplement.text.includes(external)); assert.ok(supplement.text.includes("第三方选区"));
   const accepted = supplement.steer.accepted_at_ms; assert.ok(accepted !== undefined);
   gate.resolve(); const ended = await f.ended(ref); assert.equal(ended.phase, "completed", ended.stop_reason);
   const final = await adapter.inputs!.read!({ session_id: ref.session_id, input_id: supplement.steer.id });
   assert.ok(final?.state === "run"); assert.equal(final.receipt.accepted_at_ms, accepted);
-  assert.deepEqual((final.receipt as unknown as { original?: unknown }).original, { text: raw, source: "person" });
+  assert.deepEqual(final.receipt.original, { text: raw, source: "person" });
   if (executor === "assistant") {
     const calls = ended.activity.filter(activity => activity.name === "remember");
     assert.equal(calls.length, 2, JSON.stringify(ended.activity));

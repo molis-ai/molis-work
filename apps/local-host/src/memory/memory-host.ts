@@ -95,7 +95,6 @@ interface MemoryHostPorts {
   projects?(): Promise<string[]>;
   /** Whether the project is still in this Home's catalog; null when this process has no catalog to ask. */
   projectExists?(projectId: string): Promise<boolean | null>;
-  pendingMemoryDeletion?(projectId: string): Promise<{ deletion_id: string } | null>;
   projectTitle?(projectId: string): Promise<string | null>;
 }
 

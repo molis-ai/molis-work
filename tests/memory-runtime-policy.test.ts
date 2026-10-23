@@ -7,7 +7,7 @@ import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-ho
 import type { AgentMemoryCaller, AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
-import { MemoryService, characterOwner, defaultPrefs } from "@molis-ai/molis-work-service-memory";
+import { MemoryService, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, characterOwner, defaultPrefs } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
@@ -27,14 +27,20 @@ async function fixture(t: TestContext) {
     prefsFor: (scope, project) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, project),
     owners: project => ledger.owners(project), candidateOwners: project => ledger.candidateOwners(project),
     projectExists: id => projectCheck ? projectCheck(id) : Promise.resolve(projects.has(id)), deletingProject: () => undefined };
-  const options = memoryRuntimePolicy(() => registered ? owner : undefined);
+  const options = { ...memoryRuntimePolicy(() => registered ? owner : undefined), promotion: {
+    policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION,
+    decide: (caller, request) => service.promotion.decide(caller, request),
+    undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request),
+      record: (caller, request) => service.promotion.undo.record(caller, request) },
+  } } satisfies NonNullable<Parameters<typeof createPrologueNodeAdapter>[0]["memory"]>;
   let network = 0;
   t.mock.method(globalThis, "fetch", async () => { network++; throw new Error("Memory policy must not send model requests"); });
   const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), memory: options,
     modelConfiguration: async () => { throw new Error("No model is needed for policy"); } });
-  let adapter = await open();
+  let adapter!: Awaited<ReturnType<typeof open>>;
+  t.after(async () => { await adapter?.close(); ledger.close(); rmSync(home, { recursive: true, force: true }); assert.equal(network, 0); });
+  adapter = await open();
   service = new MemoryService({ ledger, backend: prologueMemoryBackend(async () => adapter.memory!) });
-  t.after(async () => { await adapter.close(); ledger.close(); rmSync(home, { recursive: true, force: true }); assert.equal(network, 0); });
   return { home, ledger, service, options, projects, owner, get adapter() { return adapter; }, bound: (caller: AgentMemoryCaller = person) => adapter.memory!.withCaller(caller),
     save: (id: string, extra: Partial<AgentMemoryMeta> = {}) => adapter.memory!.withCaller(person).write({ scope: "project", owner: "a", text: `Convention ${id}`, origin: "person", operation_id: id, meta: { ...meta, ...extra } }),
     reopen: async () => { await adapter.close(); adapter = await open(); }, closeOwner: () => { alive = false; }, unregister: () => { registered = false; },
@@ -194,19 +200,19 @@ test("only the real deletion hook clears a missing project, keeping unrelated sc
   const { projectDeletedHooksFor } = await import("@molis-ai/molis-work-app-local-host");
   const f = await fixture(t), original = await f.save("clear-original");
   const other = await f.bound({ ...person, project_id: "b" }).write({ scope: "project", owner: "b", text: "Other project", origin: "person", meta, operation_id: "other-project" });
-  let hasReceipt = false, release!: () => void, entered!: () => void, first = true;
+  const receipt = { deletion_id: "confirmed-deletion", project_id: "a" };
+  let release!: () => void, entered!: () => void, first = true;
   const gate = new Promise<void>(done => { release = done; }), pending = new Promise<void>(done => { entered = done; });
   const backend = prologueMemoryBackend(async () => f.adapter.memory!, {
     beforeEffect: async () => { if (first) { first = false; entered(); await gate; } }, assert_current: () => undefined });
   const deletion = registerMemoryProjectDeletion({ homeDirectory: f.home, backend, ledger: f.ledger,
-    alive: f.owner.alive, executes: () => true, ready: async () => undefined, projectExists: f.owner.projectExists,
-    pendingMemoryDeletion: async () => hasReceipt ? { deletion_id: "confirmed-deletion" } : null });
+    alive: f.owner.alive, executes: () => true, ready: async () => undefined, projectExists: f.owner.projectExists });
   f.owner.deletingProject = deletion.deletingProject;
   f.projects.delete("a");
   await assert.rejects(projectDeletedHooksFor(f.home).clear("memory", "a"), { code: "memory.forbidden" });
-  hasReceipt = true;
+  await assert.rejects(projectDeletedHooksFor(f.home).clear("memory", "a", { ...receipt, project_id: "b" }), { code: "memory.forbidden" });
   f.service.savePrefs({ ...person, consumer: "ui" }, "project", "off");
-  const clearing = projectDeletedHooksFor(f.home).clear("memory", "a"); await pending;
+  const clearing = projectDeletedHooksFor(f.home).clear("memory", "a", receipt); await pending;
   assert.equal(deletion.deletingProject(), undefined, "the in-flight clear does not grant its scope to another invocation");
   await assert.rejects(f.bound(task).remove({ scope: "project", owner: "a", memory_id: original.memory_id, expected_version: original.version, operation_id: "task-delete" }));
   release(); assert.equal(await clearing, true);
@@ -214,7 +220,7 @@ test("only the real deletion hook clears a missing project, keeping unrelated sc
   f.projects.add("a"); f.service.savePrefs({ ...person, consumer: "ui" }, "project", "reviewed");
   assert.deepEqual(await f.bound().list("project", "a"), []);
   const later = await f.save("after-original-preview");
-  f.projects.delete("a"); await projectDeletedHooksFor(f.home).clear("memory", "a");
+  f.projects.delete("a"); await projectDeletedHooksFor(f.home).clear("memory", "a", receipt);
   f.projects.add("a");
   assert.deepEqual((await f.bound().list("project", "a")).map(item => item.memory_id), [later.memory_id]);
   assert.deepEqual((await f.bound({ ...person, project_id: "b" }).list("project", "b")).map(item => item.memory_id), [other.memory_id]);
@@ -228,8 +234,7 @@ test("demo cleanup keeps its operation after a failed dispatch and starts a new 
   const backend = prologueMemoryBackend(async () => f.adapter.memory!, {
     beforeEffect: async () => { if (refuse) throw new Error("controlled cleanup failure"); }, assert_current: () => undefined });
   const deletion = registerMemoryProjectDeletion({ homeDirectory: f.home, backend, ledger: f.ledger,
-    alive: f.owner.alive, executes: () => true, ready: async () => undefined, projectExists: f.owner.projectExists,
-    pendingMemoryDeletion: async () => null });
+    alive: f.owner.alive, executes: () => true, ready: async () => undefined, projectExists: f.owner.projectExists });
   f.owner.deletingProject = deletion.deletingProject;
   await assert.rejects(projectDeletedHooksFor(f.home).clear("memory", "a"));
   const first = f.ledger.marker(person.actor_id, "memory-project-delete:a")?.body;

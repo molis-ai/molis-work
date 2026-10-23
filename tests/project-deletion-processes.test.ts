@@ -8,8 +8,10 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { memoryActions, MEMORY_PERMISSIONS } from "@molis-ai/molis-work-contracts/services/memory";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_PROJECT_ID, MolisWorkLocalHost, ensureSystemAgentService, projectDeletedHooksFor, type ProjectDeletedOwner } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, MolisWorkLocalHost, ensureSystemAgentService, molisWorkHostProjectReference, projectDeletedHooksFor, type ProjectDeletedOwner } from "@molis-ai/molis-work-app-local-host";
 import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { openMemoryLedger, openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -143,17 +145,31 @@ test("an executor whose Agent runtime another process holds defers the memory st
 
 test("a Host whose runtime has already started clears the memory step itself, whatever transport it serves", { timeout: 180_000 }, async t => {
   const { home, catalog } = await scratchHome(t);
+  const gone = (await catalog.createProject({ project_id: "project-onboarding-00000000-0000-4000-8000-000000000001", display_name: "要删除的项目", actor_id: "test-user" })).project_id;
+  const seedHost = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const client = (host: MolisWorkLocalHost) => bindActionClient(host.actionClient(molisWorkHostProjectReference({ projectId: gone, databasePath: catalog.getProject(gone).database_path })), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID,
+    project_id: gone, audience: "user" as const, permissions: [...MEMORY_PERMISSIONS] }));
+  try {
+    await ensureSystemAgentService(seedHost, home, withMolisWorkProjectCatalog).ready;
+    const actions = client(seedHost);
+    assert.equal((await actions.invoke(memoryActions.write, { scope: "project", text: "本项目周报先写风险" })).outcome, "written");
+    assert.equal((await actions.invoke(memoryActions.write, { scope: "personal", text: "个人回答使用短段落" })).outcome, "written");
+  } finally { await seedHost.close(); }
   const host = new MolisWorkLocalHost({ homeDirectory: home });
-  t.after(() => host.close());
-  // No transport adopted the service (no catalog owner), but something needed the runtime, so this process holds it.
-  const service = ensureSystemAgentService(host, home);
-  await service.ready;
-  const gone = (await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" })).project_id;
+  try {
+    // No transport adopted the service (no catalog owner), but something needed the runtime, so this process holds it.
+    const service = ensureSystemAgentService(host, home);
+    await service.ready;
+    const result = await catalog.deleteProject({ ...deletion(gone), actor_id: "runtime:codex:project-deletion" });
 
-  const result = await catalog.deleteProject(deletion(gone));
-
-  assert.equal(result.deletion.cleanup_state, "complete", "waiting for another process could never help: this one holds the runtime");
-  assert.deepEqual(result.deletion.owner_steps.filter(step => step.owner_id === "memory").map(step => [step.state, step.error]), [["complete", null]]);
+    assert.equal(result.deletion.cleanup_state, "complete", "waiting for another process could never help: this one holds the runtime");
+    assert.deepEqual(result.deletion.owner_steps.filter(step => step.owner_id === "memory").map(step => [step.state, step.error]), [["complete", null]]);
+    // Reuse the public fixed project identity only after cleanup, so current-authority reads can inspect the old scope.
+    await catalog.createProject({ project_id: gone, display_name: "重新建立的项目", actor_id: "test-user" });
+    ensureSystemAgentService(host, home, withMolisWorkProjectCatalog);
+    assert.deepEqual((await client(host).invoke(memoryActions.list, { scope: "project" })).items, []);
+    assert.deepEqual((await client(host).invoke(memoryActions.list, { scope: "personal" })).items.map(item => item.text), ["个人回答使用短段落"]);
+  } finally { await host.close(); }
 });
 
 test("a Host in a Home that never ran an Agent clears the project's notes in the ledger without starting a runtime", { timeout: 60_000 }, async t => {

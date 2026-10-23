@@ -13,7 +13,6 @@ export function registerMemoryProjectDeletion(ports: {
   homeDirectory: string; backend: MemoryBackendPort; ledger: MemoryLedgerPort;
   alive(): boolean; executes(): boolean; ready(): Promise<void>; started?(): Promise<void>;
   projectExists?(projectId: string): Promise<boolean | null>;
-  pendingMemoryDeletion?(projectId: string): Promise<{ deletion_id: string } | null>;
 }): { deletingProject(): string | undefined } {
   const deleting = new AsyncLocalStorage<{ project: string; active: boolean }>();
   let runtimeHere = false;
@@ -30,12 +29,12 @@ export function registerMemoryProjectDeletion(ports: {
   };
   projectDeletedHooksFor(ports.homeDirectory).register({ ...MEMORY_OWNER, alive: ports.alive,
     check: () => executes() ? (runtimeExists() ? whileRuntimeIsOurs(() => ports.ready()) : undefined) : elsewhere.check?.(),
-    clear: async projectId => {
+    clear: async (projectId, receipt) => {
+      if (receipt && (receipt.project_id !== projectId || !receipt.deletion_id.trim())) throw memoryErrors.forbidden("项目删除回执不属于当前清理范围");
       if (!executes()) return elsewhere.clear(projectId);
       if (!runtimeExists()) { await purgeProjectMemories({ backend: null, ledger: ports.ledger }, projectId); return; }
       await whileRuntimeIsOurs(async () => {
         await ports.ready();
-        const receipt = await ports.pendingMemoryDeletion?.(projectId);
         const key = `memory-project-delete:${projectId}`;
         const marker = ports.ledger.marker(LOCAL_PERSON_ACTOR_ID, key)?.body as { operation_id?: string; complete?: boolean } | undefined;
         if (!receipt && await ports.projectExists?.(projectId) !== true) throw memoryErrors.forbidden("没有当前项目删除回执，不能清理记忆");

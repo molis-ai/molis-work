@@ -3381,3 +3381,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - **Codex**：一轮评审提出的问题由 Codex 修（照登记册 §0 的做法：从作者分支开叠加 PR，或在作者已收尾的分支上直接修，PR 上留言写明），修完做二轮评审，并负责测试与集成批。
 - 一个 PR 的流程：开发子会话开 PR → `ac-review` 一轮评审，评论开头写结论、挡合并的各条标「交 Codex 修」→ Codex 修并二轮评审，在 PR 上写「二轮：可合」→ 统筹看 CI 与 `full`，`full` 非空的进集成批 → 统筹合并、改 `privileges.md` 与本目录。
 - 开发子会话开完 PR 就接下一片，不等评审。
+
+### 10-23 18:05 UTC　合并交给合并 Agent（用户 10-23）
+
+- 用户另派一个 Agent 专门合代码。统筹只交代和统筹，不再合 PR（17:50 放进队列的 #1099 让它自己走完）。
+- 给合并 Agent 的顺序、就绪条件和现状写在同目录 `MERGE-QUEUE.md`，统筹随时更新；合入后合并 Agent 在那里挪行，`privileges.md`、spec 链接、已知红和登记册仍由统筹改。
+- 流程：开发子会话开 PR → `ac-review` 一轮评审 → Codex 修并二轮评审、测试与集成批 → 合并 Agent 按 `MERGE-QUEUE.md` 合 → 统筹改账。

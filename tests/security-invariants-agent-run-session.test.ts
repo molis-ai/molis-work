@@ -14,7 +14,7 @@ import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import {
   agentHostCapabilities, agentOfferActions, type AgentActionClient, type AgentOfferRunRequest, type AgentRunHandle, type AgentRunOffer, type AgentRunRef, type AgentRunView,
-  type AgentSessionRef, type AgentSessionView, type AgentStartRequest,
+  type AgentSessionRef, type AgentSessionView, type AgentStartInput,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { actionDigest, emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
@@ -124,8 +124,8 @@ async function world(t: TestContext) {
   };
   /** `agent.run.start` as the plugin's page sends it, in the given session of that plugin; `extra` is whatever else a body could carry. */
   const start = (sessionId: string, tools: readonly string[], extra: Record<string, unknown> = {}) => capabilities.invoke(agentHostCapabilities.startRun, [RUNTIME, {
-    ...owner, session: { runtime_id: RUNTIME, session_id: sessionId }, task: "读取项目", role_id: "builder",
-    directory: { canonical_path: home, realpath_verified: true }, action_tools: tools.map(reference), ...extra } as AgentStartRequest]);
+    session: { runtime_id: RUNTIME, session_id: sessionId }, task: "读取项目", role_id: "builder",
+    directory: { canonical_path: home, realpath_verified: true }, action_tools: tools.map(reference), ...extra } as AgentStartInput]);
   const tools = [note.capability_id, goalsActions.treeSubmit.capability_id, goalsActions.treeRead.capability_id];
   const submit = (round: AgentActionClient, key: string, item = key) => round.invoke(reference(goalsActions.treeSubmit.capability_id), proposal(key, item)) as Promise<Submitted>;
   const proposals = async (round: AgentActionClient) => ((await round.invoke(reference(goalsActions.treeRead.capability_id), {})) as Proposals).proposals;
@@ -150,8 +150,11 @@ async function world(t: TestContext) {
 
 test("S-17 a round's tool calls carry the session the Host verified (RCPT-391)", { timeout: 180_000 }, async t => {
   const w = await world(t);
-  // Whatever else the start body carries is the plugin's own data: only the Host-verified session reaches the tools.
-  await w.start("s", w.tools, { runtime_session_id: "forged", audit_actor_id: `${CLIENT}:forged` });
+  // A start body naming a session or an author of its own is refused by the action's schema before any round or tool exists.
+  await assert.rejects(w.start("s", w.tools, { runtime_session_id: "forged", audit_actor_id: `${CLIENT}:forged` }), { code: "actions.input_invalid" });
+  assert.equal(w.rounds.length, 0, "the refused start built no tools");
+  // Only the Host-verified session reaches the tools.
+  await w.start("s", w.tools);
   const first = w.last();
   await first.invoke(w.reference(note.capability_id), {});
   assert.deepEqual(w.handled, [{ actor_id: CLIENT, runtime_session_id: "s", audit_actor_id: `${CLIENT}:s` }],

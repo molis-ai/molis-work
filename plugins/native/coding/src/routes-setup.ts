@@ -4,7 +4,7 @@ import { symbolsIn, workspaceFileIndex, workspaceFileReader } from "./mentions.j
 import { confirmedPlan, parseCodingPlan, planFromRun, planMaterial, planReference } from "./plans.js";
 import { type CodingActivation, selected } from "./route-activation.js";
 import { bodyOf, savedActions, methodSelection } from "./route-selections.js";
-import { codingActionControl } from "./route-entry.js";
+import { codingActions, codingActionControl } from "./route-entry.js";
 import { text } from "./run-inputs.js";
 import { libraryRuntime } from "./runtime-choice.js";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -105,7 +105,7 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { projectId, busy, route } = a;
-    return route("coding.save-plan", async (request, api, execution, beforeWrite) => {
+    return route("coding.save-plan", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution), body = bodyOf(request);
       const notStarting = () => { if (busy.has(record.session_id)) throw codingFailure("coding.server.busy-plan-adjust"); };
       notStarting();
@@ -117,17 +117,17 @@ const ROUTES: RouteMaker[] = [
       if (body.run_id !== undefined) {
         if (!record.runtime_session_id) throw codingFailure("coding.server.no-planning-turn");
         const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-        const snapshot = await api!.invoke(agent.readSession, [session]);
+        const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
         const ref = snapshot.runs.find(run => run.run_id === body.run_id);
         if (!ref) throw codingFailure("coding.server.planning-turn-elsewhere");
         // The planning rounds just before this one, back to the round that started planning, give the plan its task.
         const earlier: AgentRunView[] = [];
         for (let at = snapshot.runs.indexOf(ref) - 1; at >= 0; at--) {
-          const view = await api!.invoke(agent.readRun, [session, snapshot.runs[at]!]);
+          const view = await codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, snapshot.runs[at]!]);
           if (view.frozen.role_id !== "planner") break;
           earlier.unshift(view);
         }
-        proposal = planFromRun(record.session_id, await api!.invoke(agent.readRun, [session, ref]), earlier);
+        proposal = planFromRun(record.session_id, await codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]), earlier);
       } else {
         if (!current) throw codingFailure("coding.server.plan-from-turn");
         proposal = { source: current.source, content: parseCodingPlan(body.content) };

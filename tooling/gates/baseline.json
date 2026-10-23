@@ -59,7 +59,7 @@
       "lines": 602,
       "methods": 18
     },
-    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 363,
+    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 356,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
       "lines": 381,
       "methods": 12
@@ -693,7 +693,7 @@
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },
-  "typedCapabilitiesTotal": 106,
+  "typedCapabilitiesTotal": 92,
   "typedCapabilities": {
     "apps/local-host/src/agent-host-composition.ts#register-calls": 1,
     "apps/local-host/src/local-host.ts#type-refs": 5,
@@ -706,8 +706,8 @@
     "packages/contracts/src/platform/actions.ts#type-refs": 1,
     "packages/contracts/src/platform/app-host.ts#type-refs": 4,
     "packages/contracts/src/platform/plugin.ts#type-refs": 1,
-    "packages/contracts/src/services/agent-host.ts#type-refs": 20,
-    "packages/contracts/src/services/agent-host.ts#without-action": 20,
+    "packages/contracts/src/services/agent-host.ts#type-refs": 13,
+    "packages/contracts/src/services/agent-host.ts#without-action": 13,
     "packages/kernel/src/action-service.ts#register-calls": 1,
     "packages/kernel/src/index.ts#type-refs": 5,
     "packages/kernel/src/index.ts#register-calls": 2,
@@ -1123,7 +1123,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 480,
+  "explicitAnyTotal": 479,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1175,7 +1175,7 @@
     "tests/coding-commit-draft.test.ts": 1,
     "tests/coding-companion-inputs.test.ts": 1,
     "tests/coding-cooperation-http.test.ts": 6,
-    "tests/coding-goal-context-http.test.ts": 9,
+    "tests/coding-goal-context-http.test.ts": 8,
     "tests/coding-history-summary-http.test.ts": 4,
     "tests/coding-message-wait.test.ts": 3,
     "tests/coding-plan-dependencies.test.ts": 1,

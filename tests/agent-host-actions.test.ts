@@ -251,6 +251,8 @@ test("RAC-197 the project's work and the sessions' standing are plugin-only acti
  * plugin-only actions on the calling plugin's own session. Who stops a subtask is the caller, never an input.
  */
 const SIX = [agent.controlRun, agent.readCommandOutput, agent.inspectRecovery, agent.recoverRun, agent.listCheckpoints, agent.cancelSubagent];
+/** R8 batch 3, second part: reading a session, a round, its reviews and subtasks, and preparing a rewind. */
+const READS = [agent.readSession, agent.readRun, agent.readRunReviews, agent.listSubagents, agent.prepareRewind];
 const recovery = { session_id: "s1", blockers: [], runs: [{ run_id: "r1", version: 1, live: false, waiting: 0, can_close: true, blockers: [], operations: [] }] };
 
 async function roundsSetup(t: TestContext) {
@@ -264,17 +266,18 @@ async function roundsSetup(t: TestContext) {
   composition.agentHost.register({
     descriptor: { runtime_id: RUNTIME, display_name: "Rounds fixture", provider_version: "1", capabilities: emptyCapabilityMatrix() },
     async health() { return { ok: true, status: "ready", message: "ready" }; },
-    createSession: unused, start: unused, read: unused,
+    createSession: unused, start: unused,
+    read: answer("read", args => ({ ref: args[0], phase: "completed", frozen: {}, turns: [], activity: [], usage: {}, awaiting_input: [], started_at: "2026-10-23T00:00:00.000Z", ended_at: null })),
     observe() { throw new Error("Not used by this fixture"); },
-    readSession: async (session: { session_id: string }) => ({ session_id: session.session_id, owner: owner.current, runs: [{ session_id: "s1", run_id: "r1" }] }) as never,
+    readSession: async (session: { runtime_id: string; session_id: string }) => ({ session, owner: owner.current, title: "Rounds", runs: [{ session_id: "s1", run_id: "r1" }], latest_run: null }) as never,
     control: answer("control", () => undefined),
     readCommandOutput: answer("command", args => ({ ref: args[1], command: "node --test", exit_code: 0, stdout: "ok", stderr: "", truncated: false })),
     recovery: { inspect: answer("inspect", () => structuredClone(recovery)), close: answer("close", () => structuredClone(recovery)) },
-    checkpoints: { list: answer("checkpoints", () => []), prepareRewind: unused },
+    checkpoints: { list: answer("checkpoints", () => []), prepareRewind: answer("rewind", () => { throw new Error("A read-only plugin prepares no rewind"); }) },
     subagents: { list: answer("subagents", () => []), cancel: answer("cancel", () => undefined) },
   } as AgentRuntimeAdapter);
   const store = new LocalProjectDatabase(join(directory, "plugins.sqlite"));
-  const consumer = callerPlugin("rounds", "project", {}, SIX.map(definition => definition.capability_id));
+  const consumer = callerPlugin("rounds", "project", {}, [...SIX, ...READS].map(definition => definition.capability_id));
   const bystander = callerPlugin("rounds-bystander", "project");
   await startPlugin(localHost, reference, store, consumer, { actorId: "web-user" });
   await startPlugin(localHost, reference, store, bystander, { actorId: "web-user" });
@@ -321,5 +324,46 @@ test("RAC-199 a round's controls, receipts, recovery, checkpoints and subtasks a
   await assert.rejects(actions.invoke(agent.controlRun, [session, run, { kind: "pause", actor_id: "someone-else" }] as never), { code: "actions.input_invalid" });
   await assert.rejects(actions.invoke(agent.readCommandOutput, [session, { call_id: "c1" }] as never), { code: "actions.input_invalid" });
   await assert.rejects(actions.invoke(agent.recoverRun, [session, run, 1.5]), { code: "actions.input_invalid" });
+  assert.equal(seen.length, before, "no refused call reached the Runtime");
+});
+
+/*
+ * R8 batch 3, second part (RAC-180): reading a session, a round, its reviews and subtasks, and preparing a rewind are plugin-only
+ * actions on the calling plugin's own session; who the session is for is the call's, never an input.
+ */
+test("RAC-180 reading a session, its rounds, reviews and subtasks, and preparing a rewind are plugin-only actions on the caller's own session", async t => {
+  for (const definition of READS as ActionDefinition[]) assert.deepEqual([definition.action.scope, definition.action.audiences, definition.action.permissions], ["project", ["plugin"], []], definition.capability_id);
+  const { localHost, reference, seen, owner, consumer, bystander } = await roundsSetup(t), actions = consumer.actions(PROJECT);
+  const session = { runtime_id: RUNTIME, session_id: "s1" }, run = { session_id: "s1", run_id: "r1" };
+  const mine = { project_id: PROJECT, plugin_id: consumer.id, install_id: consumer.context(PROJECT).install_id, actor_id: "web-user" };
+  owner.current = mine;
+  assert.deepEqual((await actions.invoke(agent.readSession, [session])).runs, [run]);
+  assert.equal((await actions.invoke(agent.readRun, [session, run])).phase, "completed");
+  assert.deepEqual(await actions.invoke(agent.readRunReviews, [session, run]), []);
+  assert.deepEqual(await actions.invoke(agent.listSubagents, [session, run]), []);
+  // A rewind is prepared only for a role that edits files; this plugin declares none, so it is refused past the session check.
+  await assert.rejects(actions.invoke(agent.prepareRewind, [session, "checkpoint", "reader"]), { code: "agent.capability_unavailable" });
+
+  const calls: Array<[ActionDefinition<never, unknown>, unknown[]]> = [
+    [agent.readSession, [session]], [agent.readRun, [session, run]], [agent.readRunReviews, [session, run]], [agent.listSubagents, [session, run]],
+    [agent.prepareRewind, [session, "checkpoint", "reader"]],
+  ] as never;
+  const before = seen.length;
+  // Another plugin's session, another project's, another install's, another person's: refused as unknown, and the Runtime is asked nothing more.
+  for (const other of [{ ...mine, plugin_id: bystander.id }, { ...mine, project_id: "project-b" }, { ...mine, install_id: "another-install" }, { ...mine, actor_id: "someone-else" }]) {
+    owner.current = other;
+    for (const [definition, input] of calls) await assert.rejects(actions.invoke(definition, input as never), { code: "agent.session_unknown" }, `${definition.capability_id} on ${JSON.stringify(other)}`);
+  }
+  owner.current = mine;
+  // A run of no round of this session is not this session's.
+  for (const definition of [agent.readRun, agent.readRunReviews, agent.listSubagents])
+    await assert.rejects(actions.invoke(definition, [session, { session_id: "s1", run_id: "elsewhere" }] as never), { code: "agent.run_unknown" }, definition.capability_id);
+  // Nothing but a consuming plugin calls them, and the schemas refuse identity in the input.
+  await assert.rejects(bystander.actions(PROJECT).invoke(agent.readSession, [session]), { code: "actions.forbidden" });
+  for (const audience of ["user", "agent", "workflow", "mcp"] as const)
+    await assert.rejects(localHost.actionClient(reference).invoke(person(audience), agent.readRun, [session, run]), { code: "actions.forbidden" }, audience);
+  await assert.rejects(actions.invoke(agent.readSession, [{ ...session, actor_id: "someone-else" }] as never), { code: "actions.input_invalid" });
+  await assert.rejects(actions.invoke(agent.readRun, [session, run, "someone-else"] as never), { code: "actions.input_invalid" });
+  await assert.rejects(actions.invoke(agent.prepareRewind, [session, "checkpoint", "reader", "someone-else"] as never), { code: "actions.input_invalid" });
   assert.equal(seen.length, before, "no refused call reached the Runtime");
 });

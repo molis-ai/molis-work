@@ -101,10 +101,11 @@ export function registerAgentHostCapabilities<Context>(
       await invocation.beforeEffect(); invocation.assertAuthorityCurrent();
       const result = await withAgentEffect(owners.agentHost(source), invocation, async () => handler(call, snapshot)); invocation.assertAuthorityCurrent(); return result;
     });
-  const assertInputOwner = (call: Call, input: { project_id?: string; plugin_id: string; install_id?: string; actor_id?: string }) => {
-    const caller = pluginFor(call, input.plugin_id);
-    if (caller && (input.project_id !== caller.project_id || input.install_id !== caller.install_id || input.actor_id !== caller.actor_id)) throw denied();
-    return caller;
+  /** Who a session or round is for: the calling plugin's installation and person, never an input (R8 rule 1). */
+  const ownerOf = (call: Call) => {
+    const caller = pluginFor(call);
+    if (!caller) throw denied();
+    return { caller, owner: { project_id: caller.project_id, plugin_id: caller.plugin_id, install_id: caller.install_id, actor_id: caller.actor_id } };
   };
   const readScopedSession = async (context: Call, session: AgentSessionRef) => {
     const view = await ports.agentHost(context).adapter(session.runtime_id).readSession(session);
@@ -175,12 +176,9 @@ export function registerAgentHostCapabilities<Context>(
     }),
 
     register(agentHostCapabilities.createSession, async (context, [runtimeId, input]) => {
-      const caller = assertInputOwner(context, input);
-      if (input.project_id !== ports.projectId(context)) throw agentErrors.session_unknown("不能为其他项目创建会话");
-      const authority = await ports.authority(context, input.plugin_id);
+      const { owner } = ownerOf(context), authority = await ports.authority(context, owner.plugin_id);
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-      return ports.agentHost(context).createSession(runtimeId, { ...input,
-        ...(caller ? { project_id: caller.project_id, plugin_id: caller.plugin_id, install_id: caller.install_id, actor_id: caller.actor_id } : {}) }, authority);
+      return ports.agentHost(context).createSession(runtimeId, { ...input, ...owner }, authority);
     }),
 
     register(agentHostCapabilities.readSession, async (context, [session]) =>
@@ -208,18 +206,13 @@ export function registerAgentHostCapabilities<Context>(
       }));
     }),
 
-    register(agentHostCapabilities.startRun, async (context, [runtimeId, request]) => {
-      const caller = assertInputOwner(context, request);
-      const authority = await ports.authority(context, request.plugin_id);
-      const view = await readScopedSession(context, request.session);
-      if (request.project_id !== ports.projectId(context) || runtimeId !== request.session.runtime_id || request.plugin_id !== view.owner.plugin_id || request.install_id !== view.owner.install_id || view.owner.actor_id !== undefined && request.actor_id !== view.owner.actor_id) {
-        throw agentErrors.session_unknown("执行请求与会话归属不一致");
-      }
-      return ports.agentHost(context).start(
-        runtimeId,
-        { ...request, ...(caller ? { project_id: caller.project_id, plugin_id: caller.plugin_id, install_id: caller.install_id, actor_id: caller.actor_id } : {}) },
-        authority,
-      );
+    // The round is the caller's, in a session that is the caller's (readScopedSession), on the runtime that session is on.
+    register(agentHostCapabilities.startRun, async (context, [runtimeId, input]) => {
+      const { owner } = ownerOf(context);
+      if (runtimeId !== input.session.runtime_id) throw agentErrors.session_unknown("执行请求与会话所在的运行时不一致");
+      const authority = await ports.authority(context, owner.plugin_id);
+      await readScopedSession(context, input.session);
+      return ports.agentHost(context).start(runtimeId, { ...input, ...owner }, authority);
     }),
 
     register(agentHostCapabilities.readRun, async (context, [session, run]) => {

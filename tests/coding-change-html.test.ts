@@ -13,7 +13,7 @@ import { renderDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-sdk/diff-v
 import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
-import { fakeWriterActions, pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeWriterActions, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import { diffPageText } from "./fixtures/diff-page-text.js";
 
 // specs/repository-anti-corruption PG-062 (C7, plugin half), slice 3: Coding draws its change reader and a child's integration
@@ -76,7 +76,7 @@ test("PG062-09: Coding's change reader and integration preview draw their own ma
   // No Coding route hooks: whatever markup the page gets, Coding drew.
   const server = createServer((request, response) => {
     const locale = request.headers["x-page-locale"] === "en" ? "en" : "zh";
-    void runWithLocale(locale, () => handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host())).catch(error => {
+    void runWithLocale(locale, () => handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host()))).catch(error => {
       response.writeHead(500); response.end(String(error));
     });
   });

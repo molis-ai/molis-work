@@ -197,7 +197,7 @@ function assertBusinessRole(role: AgentRoleDeclaration, manifest: AgentManifest)
   }
 }
 
-function assertSessionCreation(adapter: AgentRuntimeAdapter, input: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCreateSessionInput, authority: AgentStartAuthority): void {
+function assertSessionCreation(adapter: AgentRuntimeAdapter, input: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCreateSessionRequest, authority: AgentStartAuthority): void {
   if (input.workspace === "none") {
     const role = authority.manifest.roles.find(row => row.role_id === input.role_id);
     if (!role) throw agentErrors.role_not_declared("无工作区会话需要插件声明的推理角色");
@@ -361,7 +361,7 @@ export class AgentHost implements AgentHostApi {
     });
   }
 
-  async createSession(runtimeId: string, input: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCreateSessionInput, authority: AgentStartAuthority) {
+  async createSession(runtimeId: string, input: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCreateSessionRequest, authority: AgentStartAuthority) {
     const adapter = this.adapter(runtimeId);
     assertSessionCreation(adapter, input, authority);
     await authority.beforeStart?.();

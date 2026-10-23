@@ -1,4 +1,4 @@
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -29,7 +29,7 @@ test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact
       if (definition.capability_id === agent.readRunReviews.capability_id) return structuredClone(rows) as O;
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } } });
-  const server = createServer((req, res) => { void handleProjectPluginHttp(req, res, new URL(req.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { res.writeHead(500); res.end(String(error)); }); });
+  const server = createServer((req, res) => { void handleProjectPluginHttp(req, res, new URL(req.url!, "http://localhost"), withFakeAgentHost(host()), codingRouteHooks).catch(error => { res.writeHead(500); res.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const prefix = '/api/plugins/io.molis.work.coding/sessions/app/runs/r/changeset';

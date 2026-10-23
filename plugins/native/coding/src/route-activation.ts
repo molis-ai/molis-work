@@ -44,7 +44,7 @@ export function startCodingActivation(context: PluginStartContext, execution: Co
   // the activation's too, so a loop a request set off never reads through that request's execution).
   const waits = codingWakeLoop<CodingExecution>({ context, projectId, busy, records: from => from.sessions.list(projectId),
     record: (from, id) => from.sessions.get(projectId, id),
-    startRound: (record, body, actor, api, from, beforeWrite) => startRound(activation, record, body, actor, api, from, beforeWrite) });
+    startRound: (record, body, api, from, beforeWrite) => startRound(activation, record, body, api, from, beforeWrite) });
   const activation: CodingActivation = { context, execution, projectId, busy, summaries: summaryCache(), fileIndexes: new Map(), following: new Map(),
     state: { read: null, next: null }, route: codingRouteEntry(context, execution, actions, failure), waits };
   // The loops' job is kept while the activation starts, the one place outside a command it may be kept from: a later

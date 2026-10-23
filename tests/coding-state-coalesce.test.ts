@@ -118,7 +118,7 @@ async function harness(initial: Entry[]) {
     if (id === agent.discoverSkills.capability_id) return [{ candidate_id: "c1", runtime: input[0] }] as Output;
     if (id === agent.installSkill.capability_id) return { skill_id: "installed", runtime: input[0] } as Output;
     if (id === agent.readSkill.capability_id) return { skill_id: "read", runtime: input[0] } as Output;
-    if (id === agent.createSession.capability_id) return { session_id: `rt-${++world.created}` } as Output;
+    if (id === agent.createSession.capability_id) return { runtime_id: input[0], session_id: `rt-${++world.created}` } as Output;
     if (id === agent.readMessages.capability_id) return [] as Output;
     if (id === agent.sendPeopleMessage.capability_id) {
       // A Runtime with no letters between sessions says so before it sends anything.

@@ -155,4 +155,27 @@ PR 等 #1121 合入再开，不开第三层。
   - `tests/agent-host-actions.test.ts` 的 RAC-199 覆盖：只给插件；取消子任务的人是调用者；别的插件、别的项目、别的人的会话都按「找不到」拒绝，Runtime 没被问到；别处的轮次被拒；不消费的插件与人、Agent、工作流、MCP 调不到；输入带身份字段、未知控制、缺字段、非整数版本被 schema 拒绝。
   - 改过的旧用例：`coding-subagents-http`（取消不再带人）、`coding-report-persistence`、`coding-surface`、`coding-session-recovery`（假的 Agent 宿主也应答动作）、`agent-plugin-identity`（命令引用补上 `run_id`，拒绝仍是会话归属那一条）。
 
-BL-364 剩 20 条。
+### 9.5 第 3 批第二段（7 条，已做）
+
+- **合同**：`createSession`、`startRun`、`readSession`、`readRun`、`readRunReviews`、`listSubagents`、`prepareRewind` 换成只给插件的 `ActionDefinition`。
+- **身份拆开（§9.3②）**：
+  - 插件给的 `AgentCreateSessionInput`、`AgentStartInput` 不带项目、插件、安装、actor，`AgentStartInput` 也不带 `role`。它们就是动作的输入 schema，`additionalProperties: false`，带回这些字段的被拒。
+  - 宿主补全后的 `AgentCreateSessionRequest`、`AgentStartRequest` 只在宿主与运行时适配器之间用（`AgentRuntimeAdapter.createSession`、`start`），插件 SDK 不转出。
+  - 归属 `AgentSessionOwner` 一处定义，`AgentSessionView.owner` 用它。
+  - 原来的 `assertInputOwner`（输入里的身份与调用者比对）删掉：处理器只从调用者取归属，没有插件调用者就拒绝。`startRun` 另核元组里的 Runtime 与会话所在的一致，会话归属仍由 `readScopedSession` 核。
+- **输出（§9.3①）**：会话视图、一轮的视图、审批、子任务、回退请求的顶层字段列全，`required` 加 `additionalProperties: false`。嵌套对象（`frozen`、`turns`、`activity`、`usage`、`step_board`、审批的 `document` 等）只约束 `object`，收紧见 BL-470。
+- **输入**：开始一轮的每个嵌套字段都列了形状和上限（材料、计划、工具引用、预算等），宿主原有的检查（材料长度、预算、目录授权、角色）照旧在后面。
+- **Coding**：
+  - 50 处调用改经 `codingActions(context, beforeWrite)`。`subagentGroups`、`reaskMaterial` 改收动作客户端或 `beforeWrite`；`coding.taskboard`、`coding.prepare-rewind` 两条路由多接 `beforeWrite`。
+  - 新建会话与开始一轮不再拼 `identity`。`startRound`、`roundAfterParkedAnswer`、`runtimeSessionOf`、`goOn` 和唤醒循环不再收 actor 参数：一轮替谁开始，由宿主从调用上下文定。原来写在 `wake-loop.ts` 里「名字必须与调用者一致」的说明改成「不点名」。
+  - `roundReport` 不再用 typed 客户端，删掉这个参数。
+- **plugin-builder**：Manifest 里点名的 5 条 consumes 不动（§9.3③）。描述符 id 不变，consumes 仍然合法；创作台没有代码调用它们。
+- **测试**：
+  - RAC-180（`tests/agent-host-actions.test.ts`）：读会话、读一轮、读审批、列子任务、准备回退只给消费它们的插件；别的插件、项目、安装、人的会话一律按「找不到」拒，运行时什么也没被问到；不属于这条会话的一轮按 `agent.run_unknown` 拒；人、Agent、工作流、MCP 一律 `actions.forbidden`；输入里带身份的被 schema 拒。
+  - 建会话与开始一轮的拒绝在 `tests/agent-plugin-identity.test.ts`（也标 RAC-180）：输入里伪造的归属被 schema 拒；别的插件拿到会话引用也开不了一轮。
+  - S-17（RCPT-391）原来证明「开始请求里多带的会话与作者字段不进工具」，现在这些字段在 schema 就被拒，测试改成先断言拒绝、再用干净的请求证明工具只拿到宿主核过的会话。拒绝提前了，没有放宽。
+  - AC-07 原来断言下一轮「以回答者的 actor 开始」是看输入里的 `actor_id`；现在输入不点名任何人，测试改成断言输入里没有 actor、也没带上被搁置那轮发起人的任何东西，替谁开始由宿主从调用上下文定。
+  - `agent-plugin-identity` 里三处拒绝换了把关的地方，都还是拒绝：调用选项里伪造的 `plugin_caller` 被插件 SDK 丢掉，会话建成插件自己的（测试改成断言归属是自己的）；宿主没绑定安装的 SDK 没有调用者，由动作服务按 `actions.forbidden` 拒；停止中的安装，调用由 SDK（「已停止」）或动作服务（「没有宿主发出的有效身份」）拒。
+  - 测试夹具：`withFakeAgentHost` 让 Coding 测试的假 Agent Host 同时回答这些动作；动作服务两头都校验，所以假回答缺的顶层字段由夹具补中性值（`completeView`）。
+
+BL-364 剩 13 条。

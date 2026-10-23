@@ -1,4 +1,4 @@
-import { fakeAgentHostActions, pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeAgentHostActions, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -131,7 +131,7 @@ const steerRun = (): AgentRunView => ({
     { turn_id: "s4", kind: "user", text: "顺便看日志", at: null, steer: { id: "s4", state: "unread", about: "earlier" } },
     { turn_id: "s5", kind: "user", text: "不要动数据库", at: null, steer: { id: "s5", state: "withdrawn" } },
     { turn_id: "answer", kind: "assistant", text: "改好了", at: null }],
-  activity: [], command_outputs: [], usage: { tokens: { input: 0, output: 0 }, unavailable_reason: "未报告" }, awaiting_input: [], stop_reason: null,
+  activity: [], command_outputs: [], usage: { tokens: { input: 0, output: 0 }, unavailable_reason: "未报告" }, awaiting_input: [],
   // Stage 3d-2: step reports naming supplements; one quotes the smuggled words.
   step_board: { project_id: "plan", version: 3, terminal: true, nodes: [
     { id: "step-1", state: "succeeded", reports: [{ note: "建好 fixture", at_ms: 1 }] },
@@ -165,7 +165,7 @@ test("RCPT-341–343: the report's 补充要求 keeps the ledger's fact, the AI'
       throw new Error(`Unexpected capability ${definition.capability_id} ${JSON.stringify(args)}`);
     } } });
   const server = createServer((request, response) => {
-    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); });
+    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host()), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");

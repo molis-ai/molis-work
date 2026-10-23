@@ -38,9 +38,11 @@ async function codingCards(options: { offers?: AgentRunOffer[]; views?: () => Ac
   } };
   const context: PluginStartContext = { project_id: "board", plugin_id: "io.molis.work.coding", services: { storage, capabilities } } as never;
   const routes = codingFixtureRoutes(context, sessions);
-  // The fixture redeems Coding's own actions; the Agent Host's suggestion runner is recorded here.
+  // The fixture redeems Coding's own actions; the Agent Host's session and round reads (actions Coding calls as itself, R8 batch 3)
+  // answer from the recorded Agent Host above, and its suggestion runner is recorded here.
   const actions = context.services!.actions!, own = actions.invoke.bind(actions);
   Object.assign(actions, { invoke: async (definition: { capability_id: string }, input: unknown, control?: { beforeEffect?(): Promise<void> }) => {
+    if (definition.capability_id === agent.readSession.capability_id || definition.capability_id === agent.readRun.capability_id) return capabilities.invoke(definition);
     if (definition.capability_id !== agentOfferActions.run.capability_id) return own(definition as never, input as never, control as never);
     await control?.beforeEffect?.(); ran.push(input);
     return { output: await (options.run?.(input) ?? Promise.resolve({ saved: "note-7" })) };

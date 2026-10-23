@@ -6,7 +6,7 @@ import { bodyOf } from "./route-selections.js";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PluginCapabilityClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { CodingSessionRecord } from "./store.js";
-import type { CodingBeforeWrite } from "./route-entry.js";
+import { codingActions, type CodingBeforeWrite } from "./route-entry.js";
 
 /** The zone the person works in, as their page says; a name the platform does not know is none. */
 function zoneOf(value: unknown): string | undefined {
@@ -23,8 +23,8 @@ export function cardsRoutes(a: CodingActivation): PluginRouteBinding[] {
     let cards = sessionCards(a.context, record.session_id);
     if (!cards.some(entry => entry.card_id === request.params.cardId) && record.runtime_session_id) {
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-      const snapshot = await api.invoke(agent.readSession, [session]);
-      const runs = await Promise.all(snapshot.runs.map(run => api.invoke(agent.readRun, [session, run])));
+      const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
+      const runs = await Promise.all(snapshot.runs.map(run => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, run])));
       cards = await landRoundOffers(a.context, api, record, runs, beforeWrite, true);
     }
     return cards.find(entry => entry.card_id === request.params.cardId) ?? (() => { throw codingCardErrors.card_unknown("这个会话没有这张建议卡"); })();

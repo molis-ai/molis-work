@@ -10,7 +10,7 @@ import type {
   AgentMcpSourceRef,
   AgentCommandOutput,
   AgentCommandOutputRef,
-  AgentCreateSessionInput,
+  AgentCreateSessionRequest,
   AgentRunControl,
   AgentRunHandle,
   AgentRunRef,
@@ -199,7 +199,7 @@ export interface PrologueRuntimePort {
   readPendingQuestion?(run: AgentRunRef, pendingId: string, revision: number): Promise<AgentPendingQuestion | null>;
   readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
-    create(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<{ ref: { id: string } }>;
+    create(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<{ ref: { id: string } }>;
     restore?(sessionId: string): Promise<PrologueRestoredSession | undefined>;
     /** Same owner/recovery checks as restore, without restoring historical controls or retaining transcripts. */
     readStatus?(sessionId: string): Promise<{
@@ -421,7 +421,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     return { ok: true, status: "ready", message: `已配置 ${configuration.model}` };
   }
 
-  async createSession(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<AgentSessionRef> {
+  async createSession(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<AgentSessionRef> {
     assertSessionCreation(input, this.#runtime.workspaceNone, this.descriptor.supports_workspace_business);
     await execution?.beforeStart?.(); requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
     const session = await this.#runtime.sessions.create(input, execution);

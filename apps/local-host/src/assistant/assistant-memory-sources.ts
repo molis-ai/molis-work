@@ -3,7 +3,7 @@ import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-w
 import type { AgentRuntimeAdapter, AgentRunView, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { MemoryLearningRequest } from "../memory/memory-learning.js";
 import { ASSISTANT_STORE_NAME, AssistantStore } from "./assistant-store.js";
-import { typedMemorySources, type AssistantMemorySourceRef } from "./assistant-inputs.js";
+import { typedMemorySources, memorySourceIdentity, type AssistantMemorySourceRef } from "./assistant-inputs.js";
 
 /** Only references cross the durable learning queue. Their bodies stay with the original owners. */
 export interface AssistantMemoryLearningRequest {
@@ -17,7 +17,7 @@ export interface AssistantMemoryLearningRequest {
 type LearningTask = Pick<AgentScheduledTask, "key" | "session_id" | "payload">;
 const object = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const nonempty = (value: unknown): value is string => typeof value === "string" && value.length > 0;
-const identity = (source: AssistantMemorySourceRef): string => JSON.stringify([source.run_id, source.input_id, source.version]);
+const identity = memorySourceIdentity;
 
 /** Re-read one work's originals, including current withdrawal receipts; absence never authorizes learning. */
 async function readSources(home: string, adapter: AgentRuntimeAdapter, task: LearningTask): Promise<{ source: AssistantMemoryLearningRequest; request: MemoryLearningRequest } | null> {
@@ -55,16 +55,19 @@ async function readSources(home: string, adapter: AgentRuntimeAdapter, task: Lea
       refs = [];
       for (const raw of body.sources) {
         const ref = object(raw);
-        if (!ref || Object.keys(ref).some(key => !["run_id", "input_id", "version"].includes(key)) || !nonempty(ref.run_id)
+        if (!ref || Object.keys(ref).some(key => !["run_id", "input_id", "version", "original"].includes(key)) || !nonempty(ref.run_id)
           || (ref.input_id !== null && !nonempty(ref.input_id)) || ref.version !== "1") return null;
-        refs.push({ run_id: ref.run_id, input_id: ref.input_id, version: "1" });
+        const original = ref.original === undefined ? null : object(ref.original);
+        if (ref.input_id === null ? !original || Object.keys(original).some(key => !["session_id", "input_id", "version"].includes(key))
+          || original.session_id !== task.session_id || !nonempty(original.input_id) || original.version !== 1 : ref.original !== undefined) return null;
+        refs.push({ run_id: ref.run_id, input_id: ref.input_id, version: "1", ...(original ? { original: { session_id: original.session_id as string, input_id: original.input_id as string, version: 1 as const } } : {}) });
       }
       if (new Set(refs.map(identity)).size !== refs.length) return null;
     } else {
       // An old queued snapshot is usable only when the original owners still prove every complete message.
       if (!Array.isArray(body.said) || !body.said.length || body.said.length > 6 || !body.said.every(nonempty)) return null;
       for (const round of rounds.slice(-30)) await readRun(round.run_id);
-      const available = typedMemorySources(rounds.filter(round => views.has(round.run_id)), [...views.values()].map(run => ({ run_id: run.ref.run_id, turns: run.turns })));
+      const available = typedMemorySources([...views.values()]);
       refs = [];
       for (const text of body.said) {
         const index = available.findIndex(source => source.text.trim() === text);
@@ -77,7 +80,7 @@ async function readSources(home: string, adapter: AgentRuntimeAdapter, task: Lea
     for (const ref of refs) {
       const run = await readRun(ref.run_id);
       if (!run) return null;
-      const source = typedMemorySources([rounds.find(round => round.run_id === ref.run_id)!], [{ run_id: ref.run_id, turns: run.turns }]).find(one => identity(one) === identity(ref));
+      const source = typedMemorySources([run]).find(one => identity(one) === identity(ref));
       if (!source || !source.text.trim()) return null;
       said.push(source.text);
     }

@@ -14,6 +14,8 @@ Home Runtime 渲染工作台页面时，同时交回已声明 stage 的 contribu
 
 助理接续监听归 Local Host：关闭借用 Web 传输不终止共享助理，Host 关闭开始时释放监听，持久等待留待重启恢复。手动构造 `AssistantService` 的嵌入者需在关闭运行时及数据库前调用 `service.continuations.close()`；回归见 `tests/assistant-continuation-control.test.ts`、`tests/assistant-connector-continuation.test.ts`。
 
+助理本人初始输入由受保护发送入口交给可信 caller，再经 AgentHost 固定在现 Session attempt；业务正文不能声明作者。人工记住与完成学习只读 Runtime 的原件及未撤回补充，初始原件跨接续按原引用去重，不从展示轮次或 `starting` 推断。无来源的旧调用仍可运行，但不补作本人；页面、重新提问、Host 与委托输入保持派生。范围及后续 SDK 补充时间依赖见 [记忆策略 §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)。
+
 Web 工厂自建 Host 时，`server.close(callback)` 在自有 Host 和目录连接关闭后才调用回调；调用方应等待它，再退出或清理 Home。传入的借用 Host 仍由嵌入者负责 `await host.close()`。
 
 ## 一次典型调用

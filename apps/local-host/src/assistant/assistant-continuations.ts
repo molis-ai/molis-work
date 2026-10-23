@@ -9,7 +9,7 @@ const owner = (work: StoredWork) => work.project_ref?.project_id ?? ASSISTANT_PE
 const RUNTIME = "prologue";
 type Ports = {
   store: AssistantStore; actorId: string; host(): Promise<AgentHost>;
-  start(work: StoredWork, text: string, current: () => boolean): Promise<unknown>;
+  start(work: StoredWork, text: string, current: () => boolean, continuedFrom?: AgentRunRef): Promise<unknown>;
   changed(work: StoredWork, current: () => boolean): Promise<void>;
   holdSetups?(sessionId: string, revision: string): void;
 };
@@ -120,7 +120,7 @@ export class AssistantContinuations {
         if (!current()) { retry = true; continue; }
         this.enter(work.work_id);
         try {
-          await this.ports.start(work, `（Molis 转告）这项工作等待的条件已有结果：${view.wait.reason}。请读取当前状态，依照本对话最新有效的要求，从尚未完成的地方继续；不要重复已完成的操作。等待结果只证明它报告的事实，不证明原任务已经完成。`, current);
+          await this.ports.start(work, `（Molis 转告）这项工作等待的条件已有结果：${view.wait.reason}。请读取当前状态，依照本对话最新有效的要求，从尚未完成的地方继续；不要重复已完成的操作。等待结果只证明它报告的事实，不证明原任务已经完成。`, current, session.latest_run?.ref);
         } catch {
           // A revoked/stale start changes no wait and writes no diagnostic business record. A future activation may retry.
           if (current()) held.set(next.request_key, { work_id: work.work_id, revision: work.revision }); else retry = true;

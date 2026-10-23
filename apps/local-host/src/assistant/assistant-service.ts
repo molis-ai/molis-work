@@ -8,7 +8,7 @@ import { AssistantFollowUps, type AssistantFollowUpPorts } from "./assistant-fol
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, requireSynchronous, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, actionResultSubject, isSubjectReader, type HostOfferedOriginalInput, type ActionSubjectContext, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { describeReview } from "./assistant-review-words.js";
 import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
@@ -39,11 +39,11 @@ import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { CodingExecutor, dispatchControl, type CodingControl, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
-import { AssistantInputs, exactRevision, inputsOf, queuedInputs, memoryLearningSources, typedWords, withdrawInput, type AssistantMemorySourceRef, type SendIntent } from "./assistant-inputs.js";
+import { AssistantInputs, exactRevision, inputsOf, queuedInputs, readAssistantInputs, memoryLearningSources, typedWords, withdrawInput, type AssistantMemorySourceRef, type SendIntent } from "./assistant-inputs.js";
 import { startOfToday } from "./assistant-usage-ledger.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./assistant-landing.js";
-import { ownerOf, ROUND_TURNS, roundStartInput } from "./assistant-round-start.js";
+import { ownerOf, ROUND_TURNS, roundStartInput, sentOriginal } from "./assistant-round-start.js";
 import { reaskMaterial, reaskTask } from "./assistant-reask.js";
 import { afterParkedAnswer, answerablePhase, PARKED_ANSWER_TASK, recoveryAction, roundAfterParkedAnswer, sessionProblem } from "./assistant-parked-answer.js";
 import { checkHeldImages, checkMaterials, readPickedPiece } from "./assistant-send-materials.js";
@@ -86,6 +86,8 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
 
 /** Where a Send came from: the page's own project, when there is one. Only used to scope a new work. */
 export interface AssistantCaller {
+  /** Attested by the protected send owner, never read from a business input. */
+  original_input?: Omit<HostOfferedOriginalInput, "action">;
   project_ref?: LocalHostProjectReference;
   /** Set by the discussion controller, never read from HTTP input. */
   thread_request?: string;
@@ -350,7 +352,7 @@ export class AssistantService {
   constructor(private readonly store: AssistantStore, private readonly ports: AssistantServicePorts, private readonly actorId: string,
     private readonly now = () => new Date()) {
     this.continuations = new AssistantContinuations({ store, actorId, host: () => ports.host(), holdSetups: ports.holdSetups,
-      start: (work, text, current) => this.dispatch(work, text, [], null, undefined, "host", current, undefined, undefined, { byHost: true }),
+      start: (work, text, current, continued_from) => this.dispatch(work, text, [], null, undefined, "host", current, undefined, undefined, { byHost: true, continued_from }),
       changed: async (work, alive) => { const current = store.get(actorId, work.work_id), state = await this.stateSafely(current); if (alive() && store.get(actorId, work.work_id).revision === current.revision) this.notice(current, state); } });
     this.jobs = new AssistantJobs({ store, actorId, host: () => ports.host(), actions: async work => (await ports.authority(work)).actions?.(RUNTIME) });
     this.offers = new AssistantOffers({ store, actorId, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
@@ -413,7 +415,7 @@ export class AssistantService {
     // What the person said in this work may hold a standing wish worth keeping: the platform memory decides (a sub-task's
     // words are the delegating work's, not the person's, so it never learns from those).
     if (state === "completed" && before !== "completed" && !work.delegated_by && round !== "none")
-      void this.assistantPart(work).then(part => part.rounds, () => []).then(views => this.ports.learnFromRound?.({ work, run_id: round, ...memoryLearningSources(this.store.rounds(work.work_id), views) }));
+      void this.assistantPart(work).then(part => part.sourceViews, () => []).then(views => this.ports.learnFromRound?.({ work, run_id: round, ...memoryLearningSources(views) }));
   }
 
   /** Open notices, each saying whether one of the person's rules holds it here and now (on this surface). */
@@ -550,27 +552,21 @@ export class AssistantService {
   }
 
   /** The rounds run in the Assistant's own session. */
-  private async assistantPart(work: StoredWork): Promise<{ rounds: AssistantRound[]; reviews: AssistantPendingReview[]; recovery: boolean; problem?: { message: string; action?: string };
+  private async assistantPart(work: StoredWork): Promise<{ sourceViews: AgentRunView[]; rounds: AssistantRound[]; reviews: AssistantPendingReview[]; recovery: boolean; problem?: { message: string; action?: string };
     memory: Map<string, import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryRecallFact>;
     queued: Pick<AssistantWorkView, "queued_inputs"> }> {
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     const stored = this.store.rounds(work.work_id).filter(round => round.executor !== "coding");
-    const session = await adapter.readSession(sessionRef(work)).catch(() => null);
+    const { session, views } = await readAssistantInputs(adapter, sessionRef(work), stored.map(round => round.run_id));
     const recovery = session?.recovery;
-    const views = new Map<string, AgentRunView>();
-    // Older rounds first come from the session's own record; a run the store knows but the runtime lost reads as unknown.
-    await Promise.all(stored.slice(-30).map(async round => {
-      const view = await adapter.read({ session_id: work.session_id!, run_id: round.run_id }).catch(() => null);
-      if (view) views.set(round.run_id, view);
-    }));
     const titles = await this.capabilityTitles(work);
     const rounds: AssistantRound[] = stored.slice(-30).map(round => ({ ...this.roundView(round, views.get(round.run_id), titles), executor: "assistant" as const }));
     // Only a round that is really waiting on a decision shows one; a review left behind by an ended round is not offered.
     const waiting = new Set(rounds.filter(round => round.phase === "awaiting-review").map(round => round.run_id));
     // What each run really took from memory, from the runtime's own event.
     const memory = new Map([...views].filter(([, view]) => view.memory_recalled).map(([runId, view]) => [runId, view.memory_recalled!]));
-    return { rounds, reviews: this.reviewsFor(host, work).filter(review => review.run_id !== null && waiting.has(review.run_id)), recovery: Boolean(recovery), memory,
+    return { rounds, sourceViews: [...views.values()], reviews: this.reviewsFor(host, work).filter(review => review.run_id !== null && waiting.has(review.run_id)), recovery: Boolean(recovery), memory,
       queued: queuedInputs(session),
       ...sessionProblem(recovery, rounds, session) };
   }
@@ -665,6 +661,7 @@ export class AssistantService {
    */
   async send(input: AssistantSendInput, caller: AssistantCaller, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean): Promise<AssistantSendResult> {
     const text = input?.reask !== undefined ? reaskTask() : checkText(input?.text, "要发送的内容", MAX_TEXT);
+    const original_input = sentOriginal(input, caller.original_input, writtenBy);
     let materials = checkMaterials(input.materials);
     checkHeldImages(materials, this.images);
     const context = checkContext(input.context);
@@ -695,7 +692,7 @@ export class AssistantService {
       if (input.reask !== undefined) materials = [...materials, await reaskMaterial(work, input.reask, this.store.rounds(work.work_id), (await this.ports.host()).adapter(RUNTIME))];
       assertSendCurrent(stillCurrent);
       linkSent(this.store.relations, work, materials, created ? context : null);
-      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, byHost: Boolean(writtenBy ?? input.written_by), about: input.about });
+      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input });
       if (inputHold) { inputHold.accept(); const current = this.store.get(this.actorId, work.work_id); result.work = this.publicWork(current, await this.stateSafely(current)); }
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
@@ -1309,12 +1306,13 @@ export class AssistantService {
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     let base = await this.ports.authority(work);
-    const startAuthority = () => stillCurrent || beforeStart || assertBeforeStart ? { ...base, beforeStart: async () => {
+    const original_input = !work.delegated_by && !work.reply_target ? intent?.original_input : undefined;
+    const startAuthority = () => ({ ...(stillCurrent || beforeStart || assertBeforeStart ? { ...base, beforeStart: async () => {
       await base.beforeStart?.(); await beforeStart?.(); assertSendCurrent(stillCurrent);
     }, assertBeforeStart: () => {
       requireSynchronous(base.assertBeforeStart?.(), "最终授权检查必须同步完成");
       requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent);
-    } } : base;
+    } } : base), original_input });
     let authority = startAuthority();
     const role = work.reply_target ? "thread-reply" : work.delegated_by ? ASSISTANT_DELEGATED_ROLE_ID : ASSISTANT_ROLE_ID;
     if (!work.session_id) {
@@ -1357,7 +1355,7 @@ export class AssistantService {
       prepared = work.thread_round ? threadReplyMaterials(work.work_id, work.thread_round) : await this.roundMaterials(work, materials, context, offered, unavailable, previousWaitWithdrawn);
       handle = await this.delegations.startPlaced(work, async placed => {
         work = placed; assertSendCurrent(stillCurrent);
-        return host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: prepared.materials, materials, tokens_left: left }), authority);
+        return host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: prepared.materials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from }), authority);
       });
     } catch (error) {
       // A recipe alone has no usage effect. Only the Runtime can report actual Context dispatch.
@@ -1722,7 +1720,7 @@ export class AssistantService {
     if (!memory) return undefined;
     const projectId = work.project_ref?.project_id ?? null;
     return assistantMemoryTools({ memory, actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId),
-      spoken: async () => [...typedWords(this.store.rounds(work.work_id), (await Promise.resolve().then(() => this.assistantPart(this.store.get(this.actorId, work.work_id))).catch(() => null))?.rounds ?? []), ...(this.starting.has(work.work_id) ? [this.starting.get(work.work_id)!] : [])] });
+      spoken: async () => typedWords((await Promise.resolve().then(() => this.assistantPart(this.store.get(this.actorId, work.work_id))).catch(() => null))?.sourceViews ?? []) });
   }
 
   /**

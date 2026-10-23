@@ -486,3 +486,4 @@ tests/canonical-json-value.test.ts
 tests/coding-original-inputs.test.ts
 
 tests/memory-unknown-facts.test.ts
+tests/assistant-original-inputs.test.ts

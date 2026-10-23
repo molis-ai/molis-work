@@ -1,4 +1,5 @@
-import type { AgentRunView, AgentSessionView, AgentTurnView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRunView, AgentSessionView, AgentRuntimeAdapter, AgentRunRef, AgentOriginalInputRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentAnswerControl } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { AGENT_INPUT_KEY_PATTERN, type AgentInputSend, type AgentInputsPort, type AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { AssistantContextSnapshot, AssistantMaterial, AssistantSendInput, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -16,35 +17,50 @@ type RoundInputOutcome = "answered" | "steered" | "queued";
  * the person's (a page or the Host wrote them), so the runtime records them as the Host's. `about`: the earlier input
  * these words correct (D34); the runtime keeps the link, the words say what changes.
  */
-export interface SendIntent { id?: string; target?: AssistantSendInput["target"]; byHost?: boolean; about?: string }
+export interface SendIntent { id?: string; target?: AssistantSendInput["target"]; byHost?: boolean; about?: string; original_input?: Omit<HostOfferedOriginalInput, "action">; continued_from?: AgentRunRef }
 
 /** Where `compose` starts what it added after the person's words; nothing before it was added. */
 const ADDED = /\n\n【(?:发送时的选区，数据】|附带材料「)/;
 
-/**
- * What the person typed, in order (memory's 「你说过」, specs/ai-input-receipts G13): each round they wrote, then the
- * supplements they sent it while it ran and have not withdrawn. The supplements are read from the runtime's own input record (the run view),
- * never stored again here; a supplement the Host or a page wrote reads as a notice there, so it is not among them.
- */
-export interface AssistantMemorySourceRef { run_id: string; input_id: string | null; version: "1" }
+/** Source identities point into the Runtime's immutable originals; run_id is only the route used to re-read them. */
+export interface AssistantMemorySourceRef { run_id: string; input_id: string | null; version: "1"; original?: AgentOriginalInputRef }
 export interface AssistantMemorySource extends AssistantMemorySourceRef { text: string }
-
-/** Original round text and SDK input text are immutable; withdrawal changes eligibility, never this version. */
-export function typedMemorySources(rounds: ReadonlyArray<{ run_id: string; text: string; written_by?: string }>, views: ReadonlyArray<{ run_id: string; turns: readonly AgentTurnView[] }>): AssistantMemorySource[] {
-  const turns = new Map(views.map(view => [view.run_id, view.turns]));
-  return rounds.flatMap(round => [...(round.written_by ? [] : [{ run_id: round.run_id, input_id: null, version: "1" as const, text: round.text }]),
-    ...(turns.get(round.run_id) ?? []).filter(turn => turn.kind === "user" && turn.steer && turn.steer.state !== "withdrawn")
-      .map(turn => ({ run_id: round.run_id, input_id: turn.steer!.id, version: "1" as const, text: turn.text.split(ADDED)[0]! }))]);
+export function memorySourceIdentity(source: AssistantMemorySourceRef): string {
+  return JSON.stringify(source.original ? ["original", source.original.session_id, source.original.input_id, source.original.version] : ["input", source.input_id, source.version]);
 }
 
-export function typedWords(rounds: ReadonlyArray<{ run_id: string; text: string; written_by?: string }>, views: ReadonlyArray<{ run_id: string; turns: readonly AgentTurnView[] }>): string[] {
-  return typedMemorySources(rounds, views).map(source => source.text);
+/** Only Runtime-owned originals and non-withdrawn personal supplements qualify, never an App display row or a prepared task. */
+export function typedMemorySources(views: readonly AgentRunView[]): AssistantMemorySource[] {
+  const seen = new Set<string>(), sources: AssistantMemorySource[] = [];
+  for (const view of views) {
+    const original = view.original_input;
+    const eligible: AssistantMemorySource[] = [
+      ...(original?.written_by === "person" ? [{ run_id: view.ref.run_id, input_id: null, version: "1" as const, original: original.ref, text: original.text }] : []),
+      ...view.turns.filter(turn => turn.kind === "user" && turn.steer && turn.steer.state !== "withdrawn")
+        .map(turn => ({ run_id: view.ref.run_id, input_id: turn.steer!.id, version: "1" as const, text: turn.text.split(ADDED)[0]! })),
+    ];
+    for (const source of eligible) {
+      const key = memorySourceIdentity(source);
+      if (!seen.has(key)) { seen.add(key); sources.push(source); }
+    }
+  }
+  return sources;
 }
 
-export function memoryLearningSources(rounds: Parameters<typeof typedWords>[0], views: ReadonlyArray<{ run_id: string; phase: string; turns: readonly AgentTurnView[] }>): { said: string[]; sources: AssistantMemorySourceRef[] } {
-  const completed = new Set(views.filter(view => view.phase === "completed").map(view => view.run_id));
-  const sources = typedMemorySources(rounds.filter(round => completed.has(round.run_id)), views).slice(-6);
+export function typedWords(views: readonly AgentRunView[]): string[] { return typedMemorySources(views).map(source => source.text); }
+
+export function memoryLearningSources(views: readonly AgentRunView[]): { said: string[]; sources: AssistantMemorySourceRef[] } {
+  const sources = typedMemorySources(views.filter(view => view.phase === "completed")).slice(-6);
   return { said: sources.map(source => source.text), sources: sources.map(({ text: _text, ...ref }) => ref) };
+}
+
+/** Include the accepted latest Run: its first tool can run before the Assistant adds its display round. */
+export async function readAssistantInputs(adapter: AgentRuntimeAdapter, sessionRef: { session_id: string; runtime_id: string }, runIds: readonly string[]) {
+  const session = await adapter.readSession(sessionRef).catch(() => null);
+  const ids = [...new Set([...runIds.slice(-30), ...(session?.latest_run ? [session.latest_run.ref.run_id] : [])])];
+  const found = await Promise.all(ids.map(run_id => adapter.read({ session_id: sessionRef.session_id, run_id }).catch(() => null)));
+  const views = new Map(found.filter((view): view is AgentRunView => view !== null && view.ref.session_id === sessionRef.session_id).map(view => [view.ref.run_id, view]));
+  return { session, views };
 }
 
 /** The round a Send reaches, whichever executor carries it (the Assistant's own runtime or a Coding session). */

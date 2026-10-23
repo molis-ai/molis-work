@@ -13,7 +13,7 @@ interface AssistantMemoryToolsInput {
   /** The work's project, when it has one. */
   projectId: string | null;
   caller: MemoryCaller;
-  /** What the person typed in this work, one message each: the rounds they wrote and the supplements they sent them (`typedWords`), plus the one being started. Words the Host, the Assistant or a page wrote are not among them. */
+  /** What the person typed in this work, one message each: the Runtime-owned originals and the supplements they sent them (`typedWords`), including the accepted Run before its display round exists. Words the Host, the Assistant or a page wrote are not among them. */
   spoken(): Promise<readonly string[]>;
 }
 

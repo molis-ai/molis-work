@@ -282,12 +282,13 @@ async function queuedLearning(t: test.TestContext) {
     const session = await adapter.createSession({ ...owner, workspace: "none", role_id: "assistant", title: "周报" });
     const work = originals.create({ actor_id: owner.actor_id, title: "周报", scope: { kind: "project", project_id: owner.project_id }, project_ref: { project_id: owner.project_id, storage_key: "memory:project-q4" }, origin: null });
     originals.update(owner.actor_id, work.work_id, null, { session_id: session.session_id });
-    const handle = await adapter.start({ ...owner, session, workspace: "none", task: text, role_id: "assistant",
+    const original_input = { input_id: crypto.randomUUID(), text, written_by: written_by ? "host" as const : "person" as const, occurred_at: new Date().toISOString() };
+    const handle = await adapter.start({ ...owner, session, workspace: "none", task: text, role_id: "assistant", original_input,
       role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
     originals.addRound(work.work_id, { run_id: handle.ref.run_id, text, ...(written_by ? { written_by } : {}), materials: [], context: null, started_at: new Date().toISOString() });
     const task = { key: `memory-learn:${work.work_id}:${handle.ref.run_id}`, session_id: session.session_id,
       payload: { actor_id: owner.actor_id, work_id: work.work_id, session_id: session.session_id, run_id: handle.ref.run_id,
-        sources: [{ run_id: handle.ref.run_id, input_id: null as string | null, version: "1" }] } };
+        sources: [{ run_id: handle.ref.run_id, input_id: null as string | null, version: "1", original: { session_id: session.session_id, input_id: original_input.input_id, version: 1 } }] } };
     return { work, ref: handle.ref, task };
   };
   const ended = (ref: AgentRunRef) => reached(async () => { const run = await adapter.read(ref); return ["completed", "cancelled"].includes(run.phase) && run; });

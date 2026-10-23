@@ -6,7 +6,7 @@ import test from "node:test";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { functionAuthoringActions as authoring, functionsActions, functionsActionProvider, publishedFunctionProvider, publishedFunctionAction, FunctionsStore } from "@molis-ai/molis-work-module-functions";
+import { functionAuthoringActions as authoring, functionsActions, functionsActionProvider, publishedFunctionProvider, publishedFunctionAction, FunctionsService } from "@molis-ai/molis-work-module-functions";
 import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/functions-host.js";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { homeProbe } from "./fixtures/home-runtime.js";
@@ -20,7 +20,7 @@ test("AAP-06 Functions discovery reuses its connection, sees external publicatio
   } satisfies TypeSafeProvider };
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, functions: options });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const closed = t.mock.method(FunctionsStore.prototype, "close");
+  const closed = t.mock.method(FunctionsService.prototype, "close");
   const actions = host.homeActionClient();
   await actions.discover(owner);
   await actions.discover(owner);
@@ -47,14 +47,14 @@ test("AAP-06 closing before Home startup finishes never opens a late Functions c
   const probe = homeProbe("slowfunctionsstart"), start = probe.definition.start;
   probe.definition.start = async context => { entered.resolve(); await release.promise; return start(context); };
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [probe.definition] } });
-  const stores = new Set<FunctionsStore>(), list = FunctionsStore.prototype.list, close = FunctionsStore.prototype.close;
-  const reads = t.mock.method(FunctionsStore.prototype, "list", function(this: FunctionsStore) { stores.add(this); return list.call(this); });
-  t.mock.method(FunctionsStore.prototype, "close", function(this: FunctionsStore) { stores.delete(this); return close.call(this); });
+  const services = new Set<FunctionsService>(), list = FunctionsService.prototype.list, close = FunctionsService.prototype.close;
+  const reads = t.mock.method(FunctionsService.prototype, "list", function(this: FunctionsService) { services.add(this); return list.call(this); });
+  t.mock.method(FunctionsService.prototype, "close", function(this: FunctionsService) { services.delete(this); return close.call(this); });
   const closePlugins = host.homePlugins!.close.bind(host.homePlugins);
   t.mock.method(host.homePlugins!, "close", () => { disposing.resolve(); return closePlugins(); });
   t.after(async () => {
     release.resolve(); await host.close();
-    for (const store of stores) close.call(store);
+    for (const service of services) close.call(service);
     await rm(home, { recursive: true, force: true });
   });
   const rejected = assert.rejects(host.homeActionClient().discover(owner), { code: "host.closed" });
@@ -64,7 +64,7 @@ test("AAP-06 closing before Home startup finishes never opens a late Functions c
   assert.equal(host.lifecycle(), "closed");
   release.resolve(); await rejected; await closing;
   assert.equal(reads.mock.callCount(), 0, "a query waiting for Home startup must not reopen Functions after its owner was disposed");
-  assert.equal(stores.size, 0, "no late connection survives Host close");
+  assert.equal(services.size, 0, "no late connection survives Host close");
 });
 
 test("AAP-06 closing the Host during Functions preview refuses the result and leaves the draft unchanged", async t => {

@@ -6,7 +6,7 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { INBOX_ACTION_PERMISSIONS, inboxNextScene, inboxSceneBindingId } from "@molis-ai/molis-work-plugin-inbox";
-import { openFunctionsStore } from "@molis-ai/molis-work-module-functions";
+import { createFunctionsService } from "@molis-ai/molis-work-module-functions";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -33,13 +33,13 @@ test("system capability pages derive unknown capabilities, bindings, lifecycle a
   try {
     await host.sceneClient(reference).bind(caller, { binding_id: inboxSceneBindingId(project.project_id), scene_id: inboxNextScene.scene_id,
       scene_version: inboxNextScene.version, project_id: project.project_id, function: definition, enabled: true, title: "实际入箱绑定" });
-    const store = openFunctionsStore(home);
+    const functions = createFunctionsService({ home, credential: () => null });
     try {
       for (const [key, board] of [["global-record", undefined], ["selected-record", project.project_id], ["other-record", "other-project"]] as const) {
-        store.recordJudgment({ function_key: key, function_version: 1, subject: { kind: "mcp_invoke", id: key, ...(board ? { project_id: board } : {}) },
+        functions.recordSceneJudgment({ function_key: key, function_version: 1, subject: { kind: "mcp_invoke", id: key, ...(board ? { project_id: board } : {}) },
           scene_id: null, outcome: "ok", suggested_behavior_ids: [], error_code: null });
       }
-    } finally { store.close(); }
+    } finally { functions.close(); }
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
     const base = `http://127.0.0.1:${address.port}`;

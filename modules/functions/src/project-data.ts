@@ -1,6 +1,6 @@
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { clearInExistingHomeSqlite } from "@molis-ai/molis-work-storage";
-import { FUNCTIONS_STORE_BASELINE } from "./store.js";
+import { FUNCTIONS_STORE_BASELINE } from "./store-schema.js";
 
 /**
  * The project is deleted: the rules it bound to its scenes and every judgment made there go. The functions

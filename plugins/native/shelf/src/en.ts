@@ -1,6 +1,7 @@
 /** Shelf application copy; Workbench supplies the request locale. */
 export const SHELF_EN: Record<string, string> = {
   "拖文件到这里，或点添加材料": "Drop files here, or press Add material",
+  "媒体材料行 · 图片、视频、音频与失败的结果": "Media rows · image, video, audio and a failed result",
   "材料覆盖说明": "Material coverage",
   "这个文件夹超过 32 MB，请把它拆成几个小一点的文件夹再放进来": "This folder is over 32 MB. Split it into a few smaller folders and add those instead.",
   "AI、终端与存储": "AI, terminal and storage",

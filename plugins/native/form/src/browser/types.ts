@@ -16,6 +16,8 @@ export interface FormClientHost {
   readonly projectId?: string | (() => string);
   readonly route: (path: string) => string;
   readonly interaction?: (card: Element, options: { onSubmit: () => void }) => FormInteraction;
+  /** The shared confirmation box: with `run` the request goes out inside the open dialog and a refusal is said there. */
+  readonly confirmBox: (dialog: HTMLDialogElement, ok: HTMLElement, run?: () => Promise<unknown>) => Promise<boolean>;
 }
 
 /** One request to the Forms routes; `path` follows `/forms`. A failure is an Error with the Host's `code` and `details`. */

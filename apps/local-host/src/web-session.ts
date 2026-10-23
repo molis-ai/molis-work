@@ -3,29 +3,7 @@ export type { SessionRuntimeResources } from "./session-runtime-resources.js";
 import fs from "node:fs";
 import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import { buildWorkSessionView, workActions, type ProjectOperationsData } from "@molis-ai/molis-work-plugin-work";
-import { type MolisWorkProjectCatalog, type MolisWorkWorkspaceDirectoryRecord, normalizeRuntimeWorkContext } from "./project-catalog.js";
-import { openWorkSessionRegistry } from "./session-registry.js";
-
-
-/** Each panel's Session id; panels write their Sessions when they are written, so this only reads. */
-export async function desktopPanelSessionIds(
-  catalog: MolisWorkProjectCatalog,
-  panelIds: readonly string[],
-): Promise<Map<string, string>> {
-  const result = new Map<string, string>();
-  if (panelIds.length === 0) return result;
-  const registry = await openWorkSessionRegistry({ homeDirectory: catalog.homeDirectory });
-  try {
-    for (const panelId of panelIds) {
-      const sessionId = registry.findBySurface(panelId)?.session_id;
-      if (sessionId) result.set(panelId, sessionId);
-    }
-    return result;
-  } finally {
-    registry.close();
-  }
-}
-
+import { type MolisWorkWorkspaceDirectoryRecord, normalizeRuntimeWorkContext } from "./project-catalog.js";
 
 export function createSessionProjectOperations(runtimeTitle: (runtimeKind: string) => string) {
   return async function sessionProjectOperationsData(

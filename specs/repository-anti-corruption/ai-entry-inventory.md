@@ -195,7 +195,7 @@ Issue 的页面录入（#396、#420）原先不是新的入口：页面开一件
 
 2026-10-10 补记：第 6 类（Casebook 参考客户端）随 Casebook 一起删除（用户决定，防腐整理 §1），不再是出站网络的一类；本清单其余部分仍是 2026-10-09 的记录，类别编号不改。
 
-**不算在内的**（是用户的动作或外部 Agent 自己的联网，不是 Molis Work 向外发请求）：用户在终端面板里运行的东西与 Shelf「对话」里的外部 Agent（EX-3、EX-5）；经审查队列批准后宿主运行的命令（Coding 的写入与命令）和 Git 插件批准后的 `git push`、`git pull`、`gh pr create`（`git-operations.ts:165-212`）；用户点击的外部链接（桌面壳 `external_links.rs` 交给系统浏览器）。
+**不算在内的**（是用户的动作或外部 Agent 自己的联网，不是 Molis Work 向外发请求）：用户在终端面板里运行的东西与 Shelf「对话」里的外部 Agent（EX-3、EX-5）；经审查队列批准后宿主运行的命令（Coding 的写入与命令）和 Git 插件批准后的 `git push`、`git pull`、`gh pr create`（`workspace-git-operations.ts:165-212`，G5 前叫 `git-operations.ts`）；用户点击的外部链接（桌面壳 `external_links.rs` 交给系统浏览器）。
 
 **vendored 包内部**（三个包各自解开 tgz 扫 `dist`；三个 tgz 的 sha256 都与同目录的 `.sha256` 一致）。**Prologue SDK**：宿主默认全拒出站（`host/plugin/node.js` 里 `allowance = DENY_ALL`），上面说的三条是 Molis Work 声明的全部。解开 vendored 的包（`vendor/prologue-sdk/…tgz`）后扫 `dist`，含联网代码的文件只有五个：节点宿主 `host/plugin/node.js`（模型请求，上面说的两个钩子就挂在它上面）；技能安装 `skill/core/install.js`、插件安装 `plugin/core/install.js`、来源摄取 `source/core/ingest.js` 都只调用调用方给的 `fetch` 端口，Molis Work 唯一给的端口是 `prologue-methods.ts:91` 读本地目录，不联网；MCP 授权 `mcp/plugin/oauth-node.js` 自带回调端口与令牌请求，agent-host 里没有任何一处引用 OAuth（外部 MCP 的授权走 Host 自己的 `connector-mcp.ts`，第 1 类）。[已确认，只扫了调用点，没有逐文件读语义]
 

@@ -6,10 +6,9 @@ import { openDualHome } from "./fixtures/dual-home.js";
 // DUAL-11 and DUAL-13 (specs/dual-instance-plugins/spec.md): each half's permissions and lifetime are its own record's. Neither half
 // starts on the other's grants, stopping or restarting the Home half leaves the project half's handles as they were and never
 // revives its own old ones, a deleted project takes its half with it and leaves the Home half's data, and closing the Home ends
-// every Home handle. A stopped instance's handle answers `actions.forbidden`; one whose installation's grants went with its project
-// (deleted, or the Home closed with it) answers `plugin.grant_denied`.
-
-const stopped = { code: "actions.forbidden" }, revoked = { code: "plugin.grant_denied" };
+// every Home handle. The handle of an instance that stopped (switched off, its project deleted, or the Home closed) is refused and,
+// since BL-411, outside every call does nothing and throws nothing: a read gives undefined though the data is still there, a write
+// is not made.
 
 test("DUAL-11 the Home record's permissions are its own: without a required one the Home half does not start, while the project half runs on its record", { timeout: 60_000 }, async t => {
   const s = await openDualHome(t), { actions } = s.dual;
@@ -33,15 +32,16 @@ test("DUAL-13 switching the Home half off and on leaves the project half's handl
   projectStore.set("kept", "project");
   await s.home.web.post(`/api/plugins/${s.dual.id}/disable`, {});
   assert.notEqual(s.home.host.homePlugins!.installation(s.dual.id)?.state, "running");
-  assert.throws(() => oldHome.get("kept"), stopped, "a stopped Home half's handle is refused");
+  assert.equal(oldHome.get("kept"), undefined, "a stopped Home half's handle reads nothing");
+  oldHome.set("kept", "late");
   assert.equal(projectStore.get("kept"), "project", "the project half is not stopped with it");
 
   await s.home.web.post(`/api/plugins/${s.dual.id}/enable`, {});
   assert.equal(s.home.host.homePlugins!.installation(s.dual.id)?.state, "running");
   const newHome = s.dual.services.home!.storage!;
   assert.notEqual(newHome, oldHome, "the restarted half is given new handles");
-  assert.equal(newHome.get("kept"), "home", "its data outlives the stop");
-  assert.throws(() => oldHome.get("kept"), stopped, "the old handle does not come back with the restart");
+  assert.equal(newHome.get("kept"), "home", "its data outlives the stop, and BL411-05 the stopped half's write did not reach the running one");
+  assert.equal(oldHome.get("kept"), undefined, "the old handle does not come back with the restart");
   assert.equal(projectStore.get("kept"), "project");
 });
 
@@ -53,7 +53,8 @@ test("DUAL-13 deleting the project takes the project half's record and handles w
   projectStore.set("kept", "project");
   await s.home.web.post(`/api/settings/projects/${s.projectId}/delete`, { delete_confirmed: true, idempotency_key: "dual-instance-delete" });
   assert.equal(existsSync(s.project.database_path), false, "the project half's record went with the project's database");
-  assert.throws(() => projectStore.get("kept"), revoked, "the project half's handle went with it");
+  assert.equal(projectStore.get("kept"), undefined, "the project half's handle went with it: it reads nothing");
+  projectStore.set("kept", "late");
   assert.equal(s.home.host.homePlugins!.installation(s.dual.id)?.state, "running");
   assert.equal(homeStore.get("kept"), "home");
 });
@@ -63,8 +64,9 @@ test("DUAL-13 closing the Home ends every handle of both halves", { timeout: 60_
   await s.page();
   const homeStore = s.dual.services.home!.storage!, projectStore = s.dual.services.project!.storage!;
   homeStore.set("kept", "home");
+  projectStore.set("kept", "project");
   await s.home.close();
   await s.home.host.close();
-  assert.throws(() => homeStore.get("kept"), stopped);
-  assert.throws(() => projectStore.get("kept"), revoked);
+  assert.equal(homeStore.get("kept"), undefined, "the Home half's handle reads nothing, though its data was written");
+  assert.equal(projectStore.get("kept"), undefined, "nor does the project half's");
 });

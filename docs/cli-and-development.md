@@ -130,7 +130,7 @@ molis-work-mcp
 
 | source | 走到 |
 | --- | --- |
-| `action` | 同一 ActionClient；正式 stdio 通过本机通道进入常驻 Host 的注册表和执行队列。Runtime 的写入以会话身份为审计作者，成功的 Goals 写入记进会话活动 |
+| `action` | 同一 ActionClient；正式 stdio 通过本机通道进入常驻 Host 的注册表和执行队列。Runtime 的写入以会话身份为审计作者 |
 | `platform` 且是连接工具 | `apps/mcp` 的 runtime-context handlers |
 | 其余 `platform`（管理入口） | Host 注入身份后 `dispatchMcpProjectTool` |
 

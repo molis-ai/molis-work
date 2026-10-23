@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import type { HostCompleteText, HostTextRequestOptions } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, type HostCompleteText, type HostLogEntry, type HostTextRequestOptions } from "@molis-ai/molis-work-app-local-host";
 import { deferred, grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 test("W3-06-F-03 Home model actions use the shared instruction registry and local model binding, and refuse serial or finished calls", { timeout: 60_000 }, async t => {
   const probe = homeProbe(), calls: Array<{ prompt: string; options: HostTextRequestOptions }> = [];
@@ -89,8 +90,10 @@ test("W3-06-F-06 stopping revokes old storage/model/actions before its hook awai
   assert.deepEqual(replacement.grants, ["storage:private"]);
   await platform.runtime.start(replacement.install_id);
   assert.equal(probe.contexts.at(-1)!.services!.storage!.get("draft"), "keep on reinstall");
-  assert.throws(() => old.services!.storage!.set("draft", "resurrected"), { code: "actions.forbidden" });
-  await assert.rejects(old.services!.actions!.invoke(probe.save, { text: "resurrected" }), { code: "actions.forbidden" });
+  // BL-411: once its stop hook returned, outside every call the old activation's handles are refused and do nothing.
+  assert.equal(old.services!.storage!.set("draft", "resurrected"), undefined);
+  assert.equal(await within(old.services!.actions!.invoke(probe.save, { text: "resurrected" })), PENDING);
+  assert.equal(probe.contexts.at(-1)!.services!.storage!.get("draft"), "keep on reinstall", "the old handle's write did not reach the new instance");
   const fresh = person(probe.permissions);
   await assert.rejects(host.homeActionClient().invoke(fresh, probe.save, { text: "missing new install grant" }), { code: "actions.plugin_permission" });
 });
@@ -122,19 +125,26 @@ test("W3-06-F-07 a disconnected real Home HTTP request cancels the model and can
 
 test("W3-06-F-06 Home close revokes every installation before awaiting the first plugin's cleanup", { timeout: 60_000 }, async t => {
   const first = homeProbe("first-close"), next = homeProbe("next-close"), entered = deferred(), release = deferred();
+  const entries: HostLogEntry[] = [];
+  t.after(captureHostLog(entries));
   const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [first.definition, next.definition] } });
   await host.homePlugins!.ready();
-  const held = next.contexts.at(-1)!.services!;
+  const held = next.contexts.at(-1)!.services!, heldInstall = host.homePlugins!.installation(next.id)!.install_id;
   const activeModel = held.model!.availability();
   assert.notEqual(activeModel.available ? undefined : activeModel.code, "actions.provider_stopped");
   first.behavior.stop = async () => { entered.resolve(); await release.promise; };
   const closing = host.homePlugins!.close();
   try {
     await entered.promise;
-    assert.throws(() => held.storage!.set("late", "other installation"), { code: "actions.forbidden" });
-    await assert.rejects(held.actions!.invoke(next.state, {}), { code: "actions.forbidden" });
+    // The other installation already stopped (installations stop in install_id order), so outside every call its handles are
+    // refused and do nothing (BL-411): no throw, no settlement; the Host logs each refusal below.
+    assert.equal(held.storage!.set("late", "other installation"), undefined);
+    assert.equal(await within(held.actions!.invoke(next.state, {})), PENDING);
     assert.deepEqual(held.model!.availability(), { available: false, code: "actions.provider_stopped", reason: "此插件实例已停止" });
   } finally { release.resolve(); }
   await closing;
+  assert.deepEqual(entries.filter(entry => entry.event === "stopped_service_call" && entry.fields?.install_id === heldInstall).map(entry => entry.fields),
+    [{ plugin_id: next.id, install_id: heldInstall, service: "storage", method: "set" }, { plugin_id: next.id, install_id: heldInstall, service: "actions", method: "invoke" }],
+    "both calls were refused, not answered");
   await assert.rejects(host.homePlugins!.retry(), { code: "actions.plugin_unavailable" });
 });

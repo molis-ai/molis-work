@@ -132,7 +132,7 @@ test("PART-09 stopping the plugin closes every project's library, and a handle k
   const kept = probe.database();
   await platform.runtime.stop(record.install_id);
   assert.equal(open(f.home, "a"), false); assert.equal(open(f.home, "b"), false);
-  assert.throws(() => kept.get("SELECT 1"), { code: "actions.plugin_unavailable" });
+  assert.equal(kept.get("SELECT 1"), undefined, "BL-411: outside every call the kept handle is refused and answers nothing");
   await platform.runtime.start(record.install_id);
   assert.deepEqual(await f.invoke(read, {}, "b"), ["b"], "a new start opens the library again");
 });

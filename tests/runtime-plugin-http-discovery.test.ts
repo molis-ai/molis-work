@@ -8,7 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindPluginActionRoute, type ActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { ensureProjectPlugins, releaseProjectPlugins, runningProjectPlatform } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -149,7 +149,7 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
   store.db.exec("CREATE TABLE unfamiliar_results (value INTEGER NOT NULL)");
   const shared = pluginActions(store, DEMO_PROJECT_ID);
   let dependencyCalls = 0;
-  const ports = { store, projectId: DEMO_PROJECT_ID, actorId: "web-user", actions: shared,
+  const ports = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", actions: shared,
     escapeHtml: String, translate: (value: string) => value,
     capabilities: { availability: () => ({ available: true as const }), invoke: async () => { dependencyCalls++; return null as never; } } };
   const pluginId = `io.molis.work.example.${randomUUID()}`;
@@ -244,7 +244,7 @@ test("product Web server mounts a registered unfamiliar plugin with control-toke
   };
   const platform = await host.withProject(reference, async runtime => {
     runtime.store.db.exec("CREATE TABLE web_plugin_notes (text TEXT NOT NULL)");
-    const started = await ensureProjectPlugins({ store: runtime.store, projectId: project.project_id, actorId: "web-user",
+    const started = await ensureProjectPlugins({ store: runtime.store, artifacts: runtime.artifacts, processItems: runtime.processItems, projectId: project.project_id, actorId: "web-user",
       homeDirectory: home, capabilities: host.client(reference),
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: project.project_id } });
     assert.ok(started.platform);

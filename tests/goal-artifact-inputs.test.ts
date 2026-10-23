@@ -7,7 +7,7 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { MolisWorkLocalHost, DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { createGoalsDeliverableActionHandlers, goalsArtifactInputActions, goalsDeliverableActions, type GoalDeliverable } from "@molis-ai/molis-work-plugin-goals";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -22,7 +22,7 @@ test("a 成果 version becomes a Goal's input from its detail, shows on the Goal
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
-  const coordinator = new GoalProjectApplication(store);
+  const library = openProjectVersionStores(store);
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -30,7 +30,7 @@ test("a 成果 version becomes a Goal's input from its detail, shows on the Goal
   const origin = `http://127.0.0.1:${address.port}`;
   t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); store.close(); await rm(directory, { recursive: true, force: true }); });
   await (await fetch(origin + "/health")).text();
-  for (const version of [1, 2]) coordinator.artifacts.commands.registerVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", artifact_id: "pages-brief", version,
+  for (const version of [1, 2]) library.artifacts.commands.registerVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", artifact_id: "pages-brief", version,
     artifact_type_id: "io.molis.work.pages.document", schema_version: 1,
     producer: { plugin_id: "io.molis.work.pages", plugin_version: "1.0.0", binding_signature: "official-pages-binding" },
     content: { kind: "inline", payload: { title: "需求说明", body: { type: "doc", content: [] } } }, ...pinnedArtifact("需求说明", { kind: "pages_document", id: "brief" }, String(version)),
@@ -54,14 +54,14 @@ test("a 成果 version becomes a Goal's input from its detail, shows on the Goal
   assert.match(await detail(2), /href="\/goals\/V1">[^<]+<\/a><span>输入<\/span>/);
 
   // An archived version is neither offered nor accepted; removing keeps the version itself.
-  coordinator.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", artifact_id: "pages-brief", version: 1 });
+  library.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", artifact_id: "pages-brief", version: 1 });
   assert.doesNotMatch(await detail(1), /data-artifact-goal-input-form/);
   const archived = await post({ reference: { artifact_id: "pages-brief", version: 1 }, used: true });
   assert.equal(archived.status, 400);
   assert.equal((await archived.json() as { code: string }).code, "goals.artifact_input_unavailable");
   assert.equal((await (await post({ reference: { artifact_id: "pages-brief", version: 2 }, used: false })).json() as { removed: boolean }).removed, true);
   assert.deepEqual((await (await fetch(`${origin}/api/goals/V1/artifact-inputs`)).json() as { inputs: unknown[] }).inputs, []);
-  assert.ok(coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "pages-brief", version: 2 }));
+  assert.ok(library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "pages-brief", version: 2 }));
 });
 
 // One entry for a Goal's inputs (artifact-positioning 五.1): an object taken as 「固定这一版」 is pinned by its owner first.
@@ -71,7 +71,7 @@ test("a document taken as a Goal's input 「固定这一版」 is pinned by Page
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
-  const coordinator = new GoalProjectApplication(store);
+  const library = openProjectVersionStores(store);
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -87,7 +87,7 @@ test("a document taken as a Goal's input 「固定这一版」 is pinned by Page
   const input = (await pinned.json() as { input: GoalDeliverable }).input;
   assert.deepEqual([input.title, input.reference.version, input.proposed], ["访谈纪要", 1, false]);
   // Pages fixed the document's content as a version in the 成果库; the Goal counts that version, not the live document.
-  const version = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, input.reference);
+  const version = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, input.reference);
   assert.equal(version?.origin.kind === "pinned" ? version.origin.subject.id : null, created.document.id);
   const page = await (await fetch(`${origin}/api/goals/V1/document`)).text();
   assert.match(page, /data-goal-inputs[\s\S]*<strong>访谈纪要<\/strong><\/a><span class="goal-input-mode" data-goal-input-mode="fixed">固定的第 1 版<\/span>/);

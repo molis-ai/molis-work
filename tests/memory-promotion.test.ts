@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMemoryCapability, AgentMemorySourceSnapshot } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { MemoryCaller, MemoryProposal } from "@molis-ai/molis-work-service-memory";
-import { memoryServiceHome } from "./fixtures/memory-service-home.js";
+import { memoryServiceHome, scriptedMemoryExtraction } from "./fixtures/memory-service-home.js";
 
 const actor = LOCAL_PERSON_ACTOR_ID;
 const person: MemoryCaller = { actor_id: actor, project_id: "project-a", consumer: "ui", person: true };
@@ -17,7 +17,8 @@ const proposal = (text: string, extra: Partial<MemoryProposal> = {}): MemoryProp
 
 async function fixture(t: Parameters<typeof memoryServiceHome>[0]) {
   const sources = new Map<string, AgentMemorySourceSnapshot>();
-  const env = await memoryServiceHome(t, { projects: ["project-a"], sources: {
+  const extraction = scriptedMemoryExtraction();
+  const env = await memoryServiceHome(t, { projects: ["project-a"], generate: extraction.generate, sources: {
     async resolve(caller, request) {
       if (caller.actor_id !== actor || request.target.scope !== "project" || request.target.owner !== "project-a") return [];
       return request.refs.flatMap(ref => { const source = sources.get(ref.event_id); return source?.version === ref.version ? [source] : []; });
@@ -30,11 +31,16 @@ async function fixture(t: Parameters<typeof memoryServiceHome>[0]) {
   } });
   let memory = await env.open();
   memory.savePrefs(person, "project", "assisted");
+  memory.savePrefs(person, "personal", { learn_from_work: false });
   const learn = async (operation: string, originals: AgentMemorySourceSnapshot[], proposed = proposal(originals[0]!.text)) => {
     for (const source of originals) sources.set(source.event_id, source);
-    return memory.learnFromWork(caller(operation), { said: originals.map(source => source.text), sources: originals, proposals: [proposed] });
+    extraction.set([proposed]);
+    const result = await memory.learnFromWork(caller(operation), { said: originals.map(source => source.text), sources: originals });
+    if (result.recording_error || !["completed", "skipped"].includes(result.formation.outcome))
+      throw new ActionError(result.recording_error?.code ?? result.formation.code ?? "memory.conflict", "Source-bound learning did not complete", { details: { formation: result.formation } });
+    return result.learned;
   };
-  return { ...env, sources, capability: env.memory, memory: () => memory, learn, reopen: async () => { await env.close(); memory = await env.open(); return memory; } };
+  return { ...env, sources, extraction, capability: env.memory, memory: () => memory, learn, reopen: async () => { await env.close(); memory = await env.open(); return memory; } };
 }
 
 // MEM-09: actual Node candidate queue, formal CAS, journal and undo must finish; no mocked promotion owner.
@@ -44,7 +50,7 @@ test("MEM-09 two independent originals promote once; repeating an original under
   const initial = await env.learn("first", [first]);
   assert.equal(initial[0]!.outcome, "candidate");
   assert.equal((await env.memory().list(person, { scope: "project" })).items.length, 0);
-  assert.equal((await env.learn("different-job-same-original", [first]))[0]!.outcome, "skipped");
+  assert.deepEqual(await env.learn("different-job-same-original", [first]), []);
   assert.equal((await env.memory().candidates(person, { scope: "project" })).length, 1);
   const repeated = await env.learn("second", [second]);
   assert.equal(repeated[0]!.outcome, "written");
@@ -71,7 +77,9 @@ test("MEM-09 whole-message meaning, unknown sources, non-person sources and dupl
   assert.equal(result[0]!.outcome, "candidate");
   assert.equal((await env.memory().candidates(person, { scope: "project" }))[0]!.basis, "inferred");
   assert.equal((await env.memory().offer(caller("naked-repeat"), { scope: "project", text: "以后邮件统一用中文", kind: "convention", basis: "repeated", why: "模型声称重复", from: "extraction" })).outcome, "candidate");
-  await env.learn("model", [{ ...snapshot("model-1", "以后版本号写在标题"), speaker: { kind: "model", id: "assistant" } }]);
+  const beforeModel = await env.raw(person).candidates.list("project", "project-a");
+  await assert.rejects(env.learn("model", [{ ...snapshot("model-1", "以后版本号写在标题"), speaker: { kind: "model", id: "assistant" } }]), { code: "MEMORY_NOT_ACCEPTED" });
+  assert.deepEqual(await env.raw(person).candidates.list("project", "project-a"), beforeModel, "non-person originals create no candidate");
   await env.learn("duplicate-ids", [snapshot("only-one", "以后先列风险"), snapshot("only-one", "以后先列风险")]);
   assert.equal((await env.memory().list(person, { scope: "project" })).items.length, 0);
 });
@@ -87,8 +95,7 @@ test("MEM-09 committed formal with failed journal retries the original operation
   });
   await assert.rejects(env.learn("retry-operation", originals), (error: { code?: string; operation_id?: string; committed?: { version: number } }) => {
     assert.equal(error.code, "agent.memory_promotion_record_pending");
-    assert.ok(error.operation_id);
-    assert.equal(error.committed?.version, 1);
+    assert.equal((error as ActionError).details?.formation && ((error as ActionError).details!.formation as { outcome: string }).outcome, "completed", "SDK formation facts survive the App journal failure");
     return true;
   });
   const [committed] = await env.raw(person).list("project", "project-a");
@@ -132,8 +139,7 @@ test("MEM-09 prepare failure writes no formal; forgetting retains suppression th
   assert.equal((await env.raw(person).list("project", "project-a")).length, 1, "failed cleanup did not claim formal removal");
   await env.memory().clearScope(deletion, "project", preview.fingerprint);
   await env.reopen();
-  const replay = await env.learn("relearn-old-source", originals);
-  assert.equal(replay[0]!.outcome, "skipped");
+  await assert.rejects(env.learn("relearn-old-source", originals), { code: "MEMORY_PROMOTION_HELD" }, "a suppressed original cannot regain automatic approval");
   assert.equal((await env.raw(person).list("project", "project-a")).length, 0);
   assert.equal(env.memory().sourceAllowed(actor, "project", "project-a", [{ ...originals[0]!, version: "2" }]), false);
 });
@@ -163,9 +169,9 @@ test("MEM-09 cancellation and current automatic/formation switches are rechecked
       if (mode === "cancel") signal.abort();
       else env.memory().savePrefs(person, "project", { [mode]: false });
     });
-    await assert.rejects(env.memory().learnFromWork({ ...caller(`stop-${mode}`), signal: signal.signal }, {
-      said: [text], sources, proposals: [proposal(text)],
-    }));
+    env.extraction.set([proposal(text)]);
+    const result = await env.memory().learnFromWork({ ...caller(`stop-${mode}`), signal: signal.signal }, { said: [text], sources });
+    assert.ok(result.recording_error, "the original formation receipt survives a stopped promotion");
     mocked.mock.restore();
     assert.equal((await env.raw(person).list("project", "project-a")).length, 0, mode);
     assert.equal(env.memory().changes(person).length, 0, mode);

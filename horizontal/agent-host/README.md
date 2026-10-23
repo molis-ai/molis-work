@@ -28,6 +28,8 @@ adapter 只报告事实并执行已批准的工作。
 
 ## 记忆晋升与可信原件桥
 
+形成沿 `memory.candidates.form` 委托同一 SDK 候选主人；Host extractor 只在既有 `memory-extractor` 槽执行一次提炼。固定 slots、replacement 原版本与 canonical 来源由 SDK 校验，Adapter 仅投影 snake case，不产生候选或批准。已有记忆（最多 30）及待审候选（最多 20）的授权展示快照随这次 ALS 调用传给 extractor，正文只传一次，不成为来源证明，不存第二份账；快照不能替代后续来源、权限、期限与目标 CAS。进程内 `validate_context` 与 caller/context 分开保存在本次 ALS 中，在真实模型 before_dispatch 前复核原 ref/version 与当前读取许可，不序列化、不落盘、不发模型；`none` 零调用。逐项 created/replayed/rejected/unknown、部分成功、取消和未知用量完整返回。正常返回的 reported usage 先交 SDK，再由来源与实际存储门拒绝迟到写入；Host 自身拒绝结果或取消竞速尚未交回结果时，usage 保持 unknown，不推算为零。`trigger:none` 委托 SDK 零来源/模型读取；缺 extractor 明确 unavailable。验证使用公开 Adapter、真实 Node 存储与本机 HTTP，不宣称真实模型质量已验收。
+
 补充原件证明由 Host 绑定实际 install、Action 和 `send.<input_id>`；无证明的 Action 输入按 host 来源处理，不因自报 person 升权。混合输入的 raw 原件只原位保存，外层正文仍是唯一模型材料；初始输入与补充输入的证明用途隔离，不能互换。Adapter 只投影已核验原件，不从组合正文或分隔符反推本人原话。
 
 已经接受的 Run 停止时，当前控制调用先通过原权限检查并持久化停止意图；随后取消和 SDK 终态收尾经现有 effects.detach 脱离该短调用。终态仍由 SDK 保存并发布，界面不提前伪报停止；普通迟到业务写仍受原调用检查。
@@ -38,7 +40,7 @@ SDK 仍拥有来源、权限、期限、取消与正式 CAS 门。App 的回执�
 
 `AgentTurnSteer` 和 `AgentQueuedInput` 仅复制 SDK 可证明的 `acceptedAtMs` 为可选 `accepted_at_ms`，不把新 Run 或读取时刻当作原件时间；旧记录未知就省略。steer 的 `source` 同样从 SDK 原件投影，app 映为 host，peer 保持 peer，不凭 user-role 判断本人。carry、取消与重启不另造输入身份。
 
-SourcePort 也只接 AgentHost 的 snake_case 引用、身份与短期正文快照，调用方来自同一可信绑定；来源内容不由模型自报。当前产品保留唯一 HostTextGeneration 提炼，SDK form/extractor 的产品装配仍未完成。此桥不接第二模型循环或第二来源/历史表。回归使用公开 Node Adapter 与隔离真实存储，覆盖创建、替换、hold、故障补账、撤权及取消。
+SourcePort 也只接 AgentHost 的 snake_case 引用、身份与短期正文快照，调用方来自同一可信绑定；来源内容不由模型自报。当前产品通过 SDK form/extractor 复用唯一 HostTextGeneration 提炼；来源与候选持久化仍由 SDK 核验。此桥不接第二模型循环或第二来源/历史表。回归使用公开 Node Adapter 与隔离真实存储，覆盖创建、替换、hold、故障补账、撤权及取消。
 
 ## 插件怎么够到它
 

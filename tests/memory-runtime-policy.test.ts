@@ -278,3 +278,28 @@ test("candidate sources resolve through the same trusted caller and foreign or a
   await assert.rejects(f.bound().candidates.propose({ ...proposal, operation_id: "withdrawn" }), { code: "MEMORY_NOT_ACCEPTED" });
   assert.deepEqual((await f.bound().candidates.list("project", "a")).map(one => one.candidate_id), [candidate.candidate_id]);
 });
+
+
+test("learning candidate management stays independent of task recall without granting formal or unrelated reads", async t => {
+  const f = await fixture(t); await f.save("formal-retained");
+  const candidate = await f.bound().candidates.propose({ scope: "project", owner: "a", text: "Keep reports concise", origin: "person",
+    meta, expected_version: 0, operation_id: "candidate-management" });
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { task_recall: false });
+  const learner: AgentMemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "a", consumer: "assistant",
+    current_scene: "common", purpose: "management", source_use: "learning" };
+  assert.deepEqual((await f.bound(learner).candidates.list("project", "a")).map(row => row.candidate_id), [candidate.candidate_id]);
+  assert.deepEqual(await f.bound(learner).list("project", "a"), [], "the candidate grant is not formal memory access");
+  await assert.rejects(f.bound({ ...learner, purpose: "task" }).candidates.list("project", "a"), { code: "MEMORY_SCOPE_DENIED" },
+    "a task caller cannot turn a candidate query into management");
+  for (const other of [{ ...learner, source_use: undefined }, { ...learner, source_use: "explicit" as const }, { ...learner, project_id: "b" }]) {
+    assert.deepEqual(await f.bound(other).candidates.list("project", "a"), []);
+  }
+  for (const override of [{ form: false }, { learn_from_work: false }, { enabled: false },
+    { consumers: { ...defaultPrefs("project", "reviewed").consumers, assistant: false } }]) {
+    f.service.savePrefs({ ...person, consumer: "ui" }, "project", { ...defaultPrefs("project", "reviewed"), task_recall: false, ...override });
+    assert.deepEqual(await f.bound(learner).candidates.list("project", "a"), []);
+  }
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", "reviewed"); await f.reopen();
+  assert.equal((await f.bound().candidates.list("project", "a"))[0]?.version, candidate.version);
+  assert.equal((await f.bound().list("project", "a")).length, 1, "permission probes never modify persistent values");
+});

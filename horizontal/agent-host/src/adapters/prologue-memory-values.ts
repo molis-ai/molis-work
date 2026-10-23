@@ -41,6 +41,8 @@ export const memoryView = (entry: MemoryEntry): Entry => ({ memory_id: entry.ref
   ...(entry.key ? { key: { ...entry.key } } : {}),
   ...(entry.paused ? { paused: { reason: entry.paused.reason, at_ms: entry.paused.atMs } } : {}), created_at_ms: entry.createdAtMs ?? 0, updated_at_ms: entry.updatedAtMs ?? 0 });
 export const candidateView = (item: ScopedCandidate): Candidate => ({ candidate_id: item.ref.id, version: item.version,
+  ...(item.replacement ? { replacement: { memory_id: item.replacement.ref.id, expected_version: item.replacement.expectedVersion } } : {}),
+  ...(item.suggestedBasis === undefined ? {} : { suggested_basis: item.suggestedBasis }),
   ...(item.sources ? { sources: item.sources.map(sourceIdentityView) } : {}), scope: item.scope as Candidate["scope"], owner: item.owner,
   text: item.text, origin: item.origin, tags: [...item.tags], meta: fromSdkMemoryMeta(item.meta), state: item.state, created_at_ms: item.createdAtMs,
   ...(item.settledAtMs !== undefined ? { settled_at_ms: item.settledAtMs } : {}), ...(item.entry ? { memory_id: item.entry.id } : {}) });

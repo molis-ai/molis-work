@@ -48,7 +48,10 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
       redactScreenshot: (bytes: Uint8Array) => { const bound = surfaceHost(); return bound ? bound.redact(bytes) : Promise.reject(new Error("界面控制尚未就绪")); } } } : {}),
     preset: "local-agent",
     onQueuedWork: runScheduled,
-    ...(options.documentParsers?.length ? { slots: { "document-parser": { implementation: "molis-host-document-parsers", version: "1.0.0", impl: options.documentParsers } } } : {}),
+    slots: {
+      ...(options.documentParsers?.length ? { "document-parser": { implementation: "molis-host-document-parsers", version: "1.0.0", impl: options.documentParsers } } : {}),
+      ...(memoryAccess.extractor ? { "memory-extractor": { implementation: "molis-host-memory-extractor", version: "1.0.0", impl: memoryAccess.extractor } } : {}),
+    },
     // The runtime's turn default is what a subagent gets when its dispatch names none; the user set it to 20.
     // A request between sessions may wait for the other side's whole round, or a restart: a week, not half an hour.
     // Background commands belong to the session and keep running after its round (the person's decision), at most four

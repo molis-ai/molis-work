@@ -84,8 +84,8 @@ export interface MemoryCaller {
   character?: { id: string; title: string } | null;
 }
 
-export type { MemoryProposal, MemoryLearned } from "./learning.js";
-import { MemoryLearning, type MemoryLearned } from "./learning.js";
+export type { MemoryProposal, MemoryLearned, MemoryLearningResult } from "./learning.js";
+import { MemoryLearning } from "./learning.js";
 import { MemoryPromotion } from "./promotion.js";
 
 export interface MemoryServicePorts {
@@ -103,6 +103,7 @@ interface MemoryCommitInput {
   evidence: MemoryEvidence[]; approved_by: MemoryApproval | null; replaces?: string; said?: string; /** The messages the person typed, as the Host saved them. */ originals?: readonly string[]; why?: string; from?: MemoryCandidate["from"]; origin?: string;
   /** The waiting candidate this settles (an automatic write of something already suggested once). */
   candidate_id?: string;
+  candidate_version?: number;
   sources?: readonly AgentMemorySourceRef[];
   /** Prepared only for new App inputs; old imports and undo reconstruction must not acquire a guessed class. */
   classificationMeta?: Pick<AgentMemoryMeta, "classification" | "session_ref">;
@@ -155,9 +156,8 @@ export class MemoryService {
       recordClear: (caller, scope, owner, removed, complete) => { this.recordChange(caller, { kind: "cleared", scope, owner, memory_id: null,
         text: "", by: "person", rule: null, reason: `${complete ? "清空" : "部分清空"}了 ${removed} 条`, undo: null }); },
     });
-    this.learning = new MemoryLearning({ backend: ports.backend, scopes: this.scopeCommands, operations: this.operations,
-      candidates: (caller, scope, owner) => this.candidateRecords(caller, scope, owner),
-      propose: (caller, input, options) => this.propose(caller, input, options), offer: (caller, input) => this.offer(caller, input) });
+    this.learning = new MemoryLearning({ backend: ports.backend, ledger: ports.ledger, scopes: this.scopeCommands, operations: this.operations,
+      offer: (caller, input) => this.offer(caller, input) });
   }
 
   get promotion() { return this.promotions.capability; }
@@ -344,13 +344,15 @@ export class MemoryService {
    * low-risk kinds are written automatically (undoable) when 自动记住 is on; everything else waits for the person.
    */
   async offer(caller: MemoryCaller, input: { scope: MemoryScope; text: string; kind: MemoryKind; applies?: MemoryApplies; basis: MemoryBasis; why: string;
-    evidence?: MemoryEvidenceInput[]; from: MemoryCandidate["from"]; supersedes?: string | null; candidate_id?: string }): Promise<MemoryWriteResult> {
+    evidence?: MemoryEvidenceInput[]; from: MemoryCandidate["from"]; supersedes?: string | null; candidate_id?: string; candidate_version?: number }): Promise<MemoryWriteResult> {
     assertFormationFacts(input.basis, input.evidence);
     caller = this.operations.caller({ ...caller, source_use: "learning" });
-    return this.commit(caller, { scope: input.scope, text: input.text, kind: input.kind, applies: input.applies ?? {}, expires_at: null, source: "auto", basis: input.basis,
+    const note = input.candidate_id ? this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === input.candidate_id) : undefined;
+    return this.commit(caller, { scope: input.scope, text: input.text, kind: input.kind, applies: input.applies ?? {}, expires_at: note?.formal_expires_at ?? null, source: "auto", basis: input.basis,
       classificationMeta: newMemoryClassification(caller, null),
       evidence: input.evidence ?? [], approved_by: { by: "policy", policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION }, why: input.why, from: input.from,
-      ...(input.supersedes ? { replaces: input.supersedes } : {}), ...(input.candidate_id ? { candidate_id: input.candidate_id } : {}) });
+      ...(input.supersedes ? { replaces: input.supersedes } : {}), ...(input.candidate_id ? { candidate_id: input.candidate_id } : {}),
+      ...(input.candidate_version === undefined ? {} : { candidate_version: input.candidate_version }) });
   }
 
   private async commit(caller: MemoryCaller, input: MemoryCommitInput): Promise<MemoryWriteResult> {
@@ -471,7 +473,7 @@ export class MemoryService {
     const creation = this.operations.begin(caller, "append", { kind: "append", scope: input.scope, owner: where.owner });
     const candidate = requiresPromotion ? await this.policyCandidate(caller, input.candidate_id, where) : undefined;
     const condition = candidate ? this.operations.condition(caller, `promote:${candidate.candidate_id}`, { kind: "promote", scope: input.scope, owner: where.owner,
-      candidate_id: candidate.candidate_id, expected_version: candidate.version }) : undefined;
+      candidate_id: candidate.candidate_id, expected_version: input.candidate_version ?? candidate.version }) : undefined;
     const entry = candidate
       ? await this.ports.backend.withCaller(caller).candidates.promote({ scope: input.scope, owner: where.owner, candidate_id: candidate.candidate_id,
         ...condition!,
@@ -716,14 +718,16 @@ export class MemoryService {
     if (text.length > MAX_TEXT) throw memoryErrors.invalid(`记忆内容要在 ${MAX_TEXT} 字以内`);
     if (looksLikeSecret(text)) throw memoryErrors.invalid("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
     const holder: MemoryCaller = { ...caller, project_id: record.project_id ?? caller.project_id, work: record.work };
+    const candidate = (await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner)).find(item => item.candidate_id === candidateId);
+    if (!candidate) throw memoryErrors.conflict("候选原件已不可读，不能重建其分类或来源");
     const original = this.operations.find(caller, `accept:${candidateId}`);
     const entries = await this.scopeCommands.located(holder, record.scope, record.owner);
     this.preferences.assertEnabled(caller.actor_id, { ...record, project: record.project_id });
-    const target = original
+    const target = candidate.replacement ? entries.find(located => located.entry.memory_id === candidate.replacement!.memory_id) : original
       ? (original.memory_id ? entries.find(located => located.entry.memory_id === original.memory_id) : undefined)
       : (record.supersedes ? entries.find(located => located.entry.memory_id === record.supersedes) : undefined)
         ?? entries.find(located => sameWords(located.entry.text, text));
-    if (original?.memory_id && !target) throw memoryErrors.conflict("原候选决定的目标已不可读，请核对原操作");
+    if ((original?.memory_id || candidate.replacement) && !target) throw memoryErrors.conflict("原候选决定的目标已不可读，请核对原操作");
     const decision = this.operations.begin(caller, `accept:${candidateId}`, { kind: "accept", scope: record.scope, owner: record.owner,
       candidate_id: candidateId, ...(target ? { memory_id: target.entry.memory_id } : {}), expected_version: input.expected_version ?? record.version });
     if (input.expected_version !== undefined && input.expected_version !== decision.expected_version) throw memoryErrors.conflict("重试不能改变原候选版本");
@@ -731,8 +735,6 @@ export class MemoryService {
     const origin = record.scope === "project" && record.work ? `你认可的建议 · 工作「${record.work.title.slice(0, 40)}」· ${date} · 依据：${record.why.slice(0, 120)}`
       : `你认可的建议 · ${date} · 依据：${record.why.slice(0, 120)}`;
     const at = decision.at;
-    const candidate = (await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner)).find(item => item.candidate_id === candidateId);
-    if (!candidate) throw memoryErrors.conflict("候选原件已不可读，不能重建其分类或来源");
     if (!target && record.formal_expires_at === undefined) throw memoryErrors.invalid("这条建议未记录正式期限，请明确分类与期限后重新决定");
     const formalExpiry = record.formal_expires_at === undefined ? target?.meta.expires_at ?? null : record.formal_expires_at;
     const facts = { kind: record.kind, source: "accepted" as MemorySource, basis: record.basis,
@@ -742,7 +744,8 @@ export class MemoryService {
     if (target) {
       const meta: MemoryMetaRecord = { ...target.meta, ...facts,
         evidence: [...new Map([...target.meta.evidence, ...facts.evidence].map(item => [JSON.stringify(item), item])).values()].slice(-6), updated_at: at };
-      const targetCondition = this.operations.formal(caller, target, `accept-target:${candidateId}`);
+      const targetCondition = candidate.replacement ? { expected_version: candidate.replacement.expected_version }
+        : this.operations.formal(caller, target, `accept-target:${candidateId}`);
       const entry = await this.ports.backend.withCaller(holder).candidates.settleInto({ scope: record.scope, owner: record.owner, candidate_id: candidateId,
         candidate_expected_version: decision.expected_version!, operation_id: decision.operation_id, ...(caller.signal ? { signal: caller.signal } : {}),
         target: { memory_id: target.entry.memory_id, expected_version: targetCondition.expected_version, change: { text, meta: toEntryMeta(meta, target.entry.meta) } }, by: { by: "person" } });
@@ -877,7 +880,7 @@ export class MemoryService {
 
   worthLearning(caller: MemoryCaller, said: readonly string[]): boolean { return this.learning.worthLearning(caller, said); }
   learningContext(caller: MemoryCaller) { return this.learning.context(caller); }
-  learnFromWork(caller: MemoryCaller, input: Parameters<MemoryLearning["learn"]>[1]): Promise<MemoryLearned[]> { return this.learning.learn(caller, input); }
+  learnFromWork(caller: MemoryCaller, input: Parameters<MemoryLearning["learn"]>[1]) { return this.learning.learn(caller, input); }
 
   /* ---- interface signals ---- */
 
@@ -1049,11 +1052,13 @@ export class MemoryService {
   }
 
   /** Both the formal replacement and candidate association use the SDK's single conditional decision. */
-  private async settleByPolicy(caller: MemoryCaller, input: { candidate_id?: string; kind: MemoryKind; source: MemorySource; policy: { policy: string; version: number } }, where: { scope: MemoryScope; owner: string },
+  private async settleByPolicy(caller: MemoryCaller, input: { candidate_id?: string; candidate_version?: number; kind: MemoryKind; source: MemorySource; policy: { policy: string; version: number } }, where: { scope: MemoryScope; owner: string },
     entry: MemoryBackendEntry, text: string, meta: MemoryMetaRecord): Promise<{ entry: MemoryBackendEntry; change_id: string }> {
     const candidate = await this.policyCandidate(caller, input.candidate_id, where);
+    if (candidate.replacement && candidate.replacement.memory_id !== entry.memory_id) throw memoryErrors.conflict("形成时的替换目标不能改变");
     const mark = this.operations.begin(caller, `policy-settle:${candidate.candidate_id}`, { kind: "settleInto", ...where,
-      candidate_id: candidate.candidate_id, memory_id: entry.memory_id, expected_version: entry.version, candidate_expected_version: candidate.version });
+      candidate_id: candidate.candidate_id, memory_id: entry.memory_id, expected_version: candidate.replacement?.expected_version ?? entry.version,
+      candidate_expected_version: input.candidate_version ?? candidate.version });
     const updated = await this.ports.backend.withCaller(caller).candidates.settleInto({ ...where, candidate_id: candidate.candidate_id,
       candidate_expected_version: mark.candidate_expected_version!, operation_id: mark.operation_id, ...(caller.signal ? { signal: caller.signal } : {}),
       target: { memory_id: entry.memory_id, expected_version: mark.expected_version!, change: { text, meta: toEntryMeta(meta, entry.meta) } },

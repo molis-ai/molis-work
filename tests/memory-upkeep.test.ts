@@ -2,19 +2,24 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import type { MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
-import { memoryServiceHome, observeMemoryBackend, originalMemorySources } from "./fixtures/memory-service-home.js";
+import { memoryServiceHome, observeMemoryBackend, scriptedMemoryExtraction, originalMemorySources } from "./fixtures/memory-service-home.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readerOutcome } from "../apps/local-host/dist/memory/memory-upkeep.js";
 
 async function memoryHome(t: Parameters<typeof memoryServiceHome>[0], clock: { now: Date }) {
+  const extraction = scriptedMemoryExtraction();
   const originals = originalMemorySources(["project-a"], () => clock.now.getTime());
-  const env = await memoryServiceHome(t, { projects: ["project-a"], now: () => clock.now, sources: originals.port });
+  const env = await memoryServiceHome(t, { projects: ["project-a"], now: () => clock.now, sources: originals.port, generate: extraction.generate });
   return { ...env, async automatic(memory: MemoryService, operation: string, scope: "personal" | "project", text: string, kind: "preference" | "convention") {
     memory.savePrefs(person(), scope, "assisted");
-    const sources = [originals.add(`${operation}:input-1`, text), originals.add(`${operation}:input-2`, text)];
-    const [result] = await memory.learnFromWork({ ...assistant(operation), operation_id: operation }, {
-      said: sources.map(source => source.text), sources, proposals: [{ text, kind, scope, basis: "explicit", quote: text }],
+    const sources = [originals.add(`${operation}:input-1`, text), originals.add(`${operation}:input-2`, text), originals.add(`${operation}:trigger`, "以后按这些要求执行")];
+    extraction.set([{ text, kind, scope, basis: "explicit", quote: text }]);
+    const learned = await memory.learnFromWork({ ...assistant(operation), operation_id: operation }, {
+      said: sources.map(source => source.text), sources,
     });
+    assert.equal(learned.formation.outcome, "completed");
+    assert.equal(learned.recording_error, undefined);
+    const [result] = learned.learned;
     assert.equal(result!.outcome, "written", "upkeep starts with a real source-bound SDK promotion");
     return (await memory.list(person(), { scope })).items.find(item => item.memory_id === result!.memory_id)!;
   } };

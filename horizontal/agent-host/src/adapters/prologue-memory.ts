@@ -1,10 +1,11 @@
 import { memoryPromotionFailure } from "./prologue-memory-promotion.js";
+import { formationInput, formationView } from "./prologue-memory-formation.js";
 import { candidateView, memoryView, toSdkMemoryMeta } from "./prologue-memory-values.js";
 import { randomUUID } from "node:crypto";
 import type { PrologueEffects } from "./prologue-effects.js";
 import { agentErrors } from "../errors.js";
 import { redactText, screenInbound, type ExactRef, type Runtime, type MemoryCallerContext } from "@prologue/sdk";
-import type { AgentMemoryCaller, AgentMemoryMutation, AgentMemoryChange, AgentMemoryExecutionControl, AgentMemoryCapability, AgentMemoryEntry } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryCaller, AgentMemoryFormationContext, AgentMemoryMutation, AgentMemoryChange, AgentMemoryExecutionControl, AgentMemoryCapability, AgentMemoryEntry } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /**
  * The platform memory port over the runtime's memory and candidate stores, and the exact references of the memories the
@@ -12,7 +13,7 @@ import type { AgentMemoryCaller, AgentMemoryMutation, AgentMemoryChange, AgentMe
  */
 export interface PrologueMemoryBinding {
   context(caller: AgentMemoryCaller): MemoryCallerContext;
-  run<T>(caller: AgentMemoryCaller, work: () => Promise<T>): Promise<T>;
+  run<T>(caller: AgentMemoryCaller, work: () => Promise<T>, formation?: AgentMemoryFormationContext, validateContext?: () => Promise<void>): Promise<T>;
 }
 export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEffects, "call">, binding: PrologueMemoryBinding): {
   capability: AgentMemoryCapability;
@@ -37,12 +38,12 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
     return reference;
   };
   const facade = (caller?: AgentMemoryCaller, control?: AgentMemoryExecutionControl): AgentMemoryCapability => {
-    const call = <T>(work: (bound: Bound) => Promise<T>): Promise<T> => {
+    const call = <T>(work: (bound: Bound) => Promise<T>, formation?: AgentMemoryFormationContext, validateContext?: () => Promise<void>): Promise<T> => {
       if (!caller) return Promise.reject(agentErrors.capability_unavailable("记忆调用缺少可信身份绑定"));
       return binding.run(caller, () => {
         const operation = () => work(runtime.bindMemory(binding.context(caller)));
         return (control ? effects.call(control, operation) : operation()).catch(error => { throw memoryPromotionFailure(error); });
-      });
+      }, formation, validateContext);
     };
     return {
       withCaller: next => facade(Object.freeze(structuredClone(next)), control),
@@ -95,6 +96,8 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
           ...(item.status === "completed" ? { version: item.version } : {}) })) };
       }),
       candidates: {
+        form: input => call(async bound => formationView(await bound.candidates.form(formationInput(input))),
+          input.trigger === "none" ? undefined : input.context, input.trigger === "none" ? undefined : input.validate_context),
         propose: input => call(async bound => candidateView(await bound.candidates.propose({ scope: input.scope, owner: input.owner,
           text: input.text, origin: input.origin, ...(input.tags ? { tags: input.tags } : {}), ...(input.meta ? { meta: toSdkMemoryMeta(input.meta) } : {}),
           ...(input.sources ? { sources: input.sources.map(source => ({ eventId: source.event_id, version: source.version })) } : {}) }, mutation(input)))),

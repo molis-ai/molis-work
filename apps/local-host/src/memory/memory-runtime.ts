@@ -9,6 +9,7 @@ import { pluginInstallRecords } from "../plugin-install-records.js";
 import { memoryHostFor } from "./memory-host.js";
 import { memoryRuntimePolicy } from "./memory-runtime-policy.js";
 import { memorySources } from "./memory-sources.js";
+import { memoryExtractor } from "./memory-extractor.js";
 
 type Options = NonNullable<PrologueNodeAdapterOptions["memory"]>;
 
@@ -35,7 +36,7 @@ export function memoryRuntime(localHost: MolisWorkLocalHost, home: string, adapt
     return memory;
   };
   return {
-    ...memoryRuntimePolicy(() => memoryHostFor(localHost)?.policy),
+    ...memoryRuntimePolicy(() => memoryHostFor(localHost)?.policy, memoryExtractor(home)),
     sources: memorySources(home, () => {
       const memory = memoryHostFor(localHost);
       if (!memory?.policy.alive()) return undefined;

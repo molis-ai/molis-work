@@ -4,13 +4,44 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { createPrologueNodeAdapter, openPrologueMemoryAdoption, type PrologueNodeAdapterOptions } from "@molis-ai/molis-work-service-agent-host";
-import { MemoryService, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { createPrologueNodeAdapter, openPrologueMemoryAdoption, type PrologueNodeAdapterOptions, type PrologueRunRef } from "@molis-ai/molis-work-service-agent-host";
+import { MemoryService, type MemoryBackendPort, type MemoryCaller, type MemoryProposal } from "@molis-ai/molis-work-service-memory";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMemoryCaller, AgentMemorySourceSnapshot, AgentMemorySourceRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
-import { memoryRuntimePolicy, prologueMemoryBackend, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
+import { memoryExtractor, memoryRuntimePolicy, prologueMemoryBackend, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
+
+type Generation = NonNullable<ReturnType<NonNullable<Parameters<typeof memoryExtractor>[1]>>>;
+/** A bounded model response, passed through the production registered prompt, schema and extractor before the real SDK. */
+export function scriptedMemoryExtraction() {
+  let proposals: readonly (MemoryProposal & { replaces_text?: string })[] = [];
+  const generate: Generation = async (prompt, options) => {
+    await options?.beforeDispatch?.();
+    const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as {
+      sources: Array<{ id: string; text: string }>; existing: Array<{ id: string; text: string }>;
+      destinations: Array<{ scope: string; replacement?: string; task?: string; slots: Record<string, string[]> }>;
+    };
+    const used = new Set<string>();
+    const drafts = proposals.map(proposal => {
+      const scope = proposal.scope === "personal" ? "user" : proposal.scope;
+      const targets = proposal.supersedes ? data.existing.filter(entry => proposal.replaces_text === undefined || entry.text === proposal.replaces_text) : [];
+      if (proposal.supersedes && targets.length !== 1) throw new Error("Scripted correction needs one unambiguous existing text");
+      const group = data.destinations.find(destination => destination.scope === scope && destination.replacement === targets[0]?.id
+        && destination.slots[proposal.kind]?.some(id => !used.has(id)));
+      const slot = group?.slots[proposal.kind]?.find(id => !used.has(id));
+      if (!slot) throw new Error("Scripted draft has no authorized destination");
+      used.add(slot);
+      const quoted = data.sources.filter(source => source.text.includes(proposal.quote));
+      return { slot_id: slot, text: proposal.text, suggested_basis: proposal.basis,
+        ...(proposal.applies_when ? { applies_when: { task: proposal.applies_when } } : {}),
+        evidence: (quoted.length ? quoted : data.sources.slice(0, 1)).map(source => ({ source_id: source.id, quote: proposal.quote })) };
+    });
+    return { value: "{}", structured: { drafts }, run_ref: { kind: "run", id: "memory-extractor-fixture", revision: 1 } as PrologueRunRef,
+      state: "completed", configuredModel: "bounded-fixture", reportedModels: [], usage: [], validateResult() {} };
+  };
+  return { generate, set(next: typeof proposals) { proposals = next; } };
+}
 
 /** Explicit original-input fixture. A request can resolve only declared identities in the person's allowed scopes. */
 export function originalMemorySources(projects: readonly string[], now: () => number = Date.now) {
@@ -38,6 +69,8 @@ export function originalMemorySources(projects: readonly string[], now: () => nu
 export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, options: {
   projects: readonly string[]; now?: () => Date; projectTitle?: (id: string) => Promise<string>;
   sources?: NonNullable<PrologueNodeAdapterOptions["memory"]>["sources"];
+  extractor?: NonNullable<PrologueNodeAdapterOptions["memory"]>["extractor"];
+  generate?: Generation;
 }) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-service-"));
   const projects = new Set(options.projects);
@@ -55,7 +88,7 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
   const open = async () => {
     ledger = openMemoryLedger({ homeDirectory: home });
     adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
-      memory: { ...memoryRuntimePolicy(() => owner), ...(options.sources ? { sources: options.sources } : {}),
+      memory: { ...memoryRuntimePolicy(() => owner, options.extractor ?? (options.generate ? memoryExtractor(home, () => options.generate) : undefined)), ...(options.sources ? { sources: options.sources } : {}),
         promotion: { policy: "memory.write-gate", version: 3, decide: (caller, request) => service.promotion.decide(caller, request),
           undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } } }, modelConfiguration: async () => { throw new Error("Memory fixture does not call a model"); } });
     service = new MemoryService({ backend: backend(), ledger, timeZone: "Asia/Shanghai",

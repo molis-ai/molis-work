@@ -2,6 +2,7 @@
  * Memory and documents through the Agent Host's runtime: part of the `services/agent-host` contract (re-exported there),
  * declared in their own file.
  */
+import type { AgentMemoryFormationInput, AgentMemoryFormationResult } from "./agent-host-memory-formation.js";
 
 /** One remembered item in the runtime's memory store (Prologue Memory), in one scope and owner. */
 export interface AgentMemoryEntry {
@@ -46,6 +47,8 @@ export interface AgentMemoryCandidateEntry {
   candidate_id: string;
   version: number;
   sources?: AgentMemorySourceIdentity[];
+  replacement?: { memory_id: string; expected_version: number };
+  suggested_basis?: "explicit" | "inferred";
   scope: AgentMemoryEntry["scope"];
   owner: string;
   text: string;
@@ -268,6 +271,7 @@ export interface AgentMemoryCapability {
 }
 
 export interface AgentMemoryCandidateCapability {
+  form(input: AgentMemoryFormationInput): Promise<AgentMemoryFormationResult>;
   propose(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta; sources?: AgentMemorySourceRef[]; expected_version: 0; operation_id: string; signal?: AbortSignal }): Promise<AgentMemoryCandidateEntry>;
   list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryCandidateEntry[]>;
   accept(input: AgentCandidateLocation & AgentMemoryMutation & { text?: string; origin?: string; meta?: AgentMemoryMeta }): Promise<AgentMemoryEntry>;

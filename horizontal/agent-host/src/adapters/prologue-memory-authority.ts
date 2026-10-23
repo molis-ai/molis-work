@@ -1,8 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { isDeepStrictEqual } from "node:util";
-import type { AgentMemoryCaller, AgentMemoryPromotion, AgentMemorySourceRequest, AgentMemorySourceRef, AgentMemorySourceIdentity, AgentMemorySourceSnapshot, AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { MemoryAuthority, MemoryCallerContext, MemoryPolicyConfig, MemorySourcePort, MemoryPromotionLatch } from "@prologue/sdk";
+import type { AgentMemoryCaller, AgentMemoryExtractor, AgentMemoryFormationContext, AgentMemoryPromotion, AgentMemorySourceRequest, AgentMemorySourceRef, AgentMemorySourceIdentity, AgentMemorySourceSnapshot, AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { MemoryAuthority, MemoryCallerContext, MemoryExtractor, MemoryPolicyConfig, MemorySourcePort, MemoryPromotionLatch } from "@prologue/sdk";
 import { prologueMemoryPromotion } from "./prologue-memory-promotion.js";
+import { prologueMemoryExtractor } from "./prologue-memory-formation.js";
 import { sourceIdentityToSdk, sourceIdentityView } from "./prologue-memory-values.js";
 import { agentErrors } from "../errors.js";
 import type { PrologueMemoryBinding } from "./prologue-memory.js";
@@ -13,6 +14,7 @@ import type { PrologueEffects } from "./prologue-effects.js";
 export interface PrologueMemoryOptions {
   policy: MemoryPolicyConfig;
   promotion?: AgentMemoryPromotion;
+  extractor?: AgentMemoryExtractor;
   sources?: {
     resolve(caller: AgentMemoryCaller, request: AgentMemorySourceRequest & { refs: readonly AgentMemorySourceRef[] }): Promise<readonly AgentMemorySourceSnapshot[]>;
     check(caller: AgentMemoryCaller, request: AgentMemorySourceRequest & { identities: readonly AgentMemorySourceIdentity[] }): Promise<boolean>;
@@ -25,9 +27,9 @@ export interface PrologueMemoryOptions {
 }
 
 export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | undefined, index: SessionIndexStore, effects: Pick<PrologueEffects, "beforeEffect" | "assertCurrent">): {
-  authority: MemoryAuthority; binding: PrologueMemoryBinding; sources?: MemorySourcePort; promotion?: MemoryPromotionLatch;
+  authority: MemoryAuthority; binding: PrologueMemoryBinding; sources?: MemorySourcePort; promotion?: MemoryPromotionLatch; extractor?: MemoryExtractor;
 } {
-  const calls = new AsyncLocalStorage<AgentMemoryCaller>();
+  const calls = new AsyncLocalStorage<{ caller: AgentMemoryCaller; formation?: AgentMemoryFormationContext; validateContext?: () => Promise<void> }>();
   const sourcePort = options?.sources;
   const context = (caller: AgentMemoryCaller): MemoryCallerContext => {
     if (!caller.actor_id || !caller.consumer || !caller.current_scene) throw agentErrors.capability_unavailable("记忆调用缺少可信身份或场景");
@@ -40,7 +42,7 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
       } } : caller.plugin_id ? { facts: { plugins: [caller.plugin_id] } } : {}) };
   };
   const callerFor = async (requested: MemoryCallerContext): Promise<AgentMemoryCaller | undefined> => {
-    const bound = calls.getStore();
+    const bound = calls.getStore()?.caller;
     if (bound && isDeepStrictEqual(context(bound), requested)) return bound;
     if (!options || requested.purpose !== "task" || !requested.sessionRef) return undefined;
     const saved = await index.read(requested.sessionRef.id);
@@ -59,11 +61,13 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
       ...(request.target.namespace === undefined ? {} : { namespace: request.target.namespace }) }, ...(request.signal ? { signal: request.signal } : {}),
   });
   return {
+    ...(options?.extractor ? { extractor: prologueMemoryExtractor(options.extractor, () => calls.getStore(), effects) } : {}),
     ...(options?.promotion ? { promotion: prologueMemoryPromotion(options.promotion, requested => {
-      const bound = calls.getStore();
+      const bound = calls.getStore()?.caller;
       return requested ? callerFor(requested) : Promise.resolve(bound);
     }, effects) } : {}),
-    binding: { context, run: (caller, work) => calls.run(Object.freeze(structuredClone(caller)), work) },
+    binding: { context, run: (caller, work, formation, validateContext) => calls.run({ caller: Object.freeze(structuredClone(caller)),
+      ...(formation ? { formation: structuredClone(formation) } : {}), ...(validateContext ? { validateContext } : {}) }, work) },
     ...(sourcePort ? { sources: {
       async resolve(request: Parameters<MemorySourcePort["resolve"]>[0]) {
         const caller = await callerFor(request.context);

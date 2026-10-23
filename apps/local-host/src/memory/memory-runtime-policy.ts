@@ -1,5 +1,5 @@
 import type { PrologueNodeAdapterOptions } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentMemoryCaller } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryCaller, AgentMemoryExtractor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { MEMORY_CONSUMERS, type MemoryPrefs, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
@@ -42,7 +42,7 @@ const POLICY: Options["policy"] = {
 };
 
 /** SDK authority sees only trusted caller bindings and current owner facts, never model-supplied permissions. */
-export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | undefined): Options {
+export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | undefined, extractor?: AgentMemoryExtractor): Options {
   const callerAllowed = (caller: AgentMemoryCaller) => caller.actor_id === LOCAL_PERSON_ACTOR_ID
     && MEMORY_CONSUMERS.some(value => value === caller.consumer) && SCENES.some(scene => scene === caller.current_scene)
     && (caller.consumer !== "plugin" || !!caller.plugin_id)
@@ -86,6 +86,11 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     }
     const { prefs, allowed } = preferences(caller, request.target, state.owner,
       request.readMode === "explicit" && caller.person === true ? "explicit" : "task");
+    if (request.action === "manage-read" && request.target.ref.kind === "memory-candidate"
+      && caller.source_use === "learning" && caller.purpose === "management") {
+      return prefs.enabled && prefs.form && prefs.learn_from_work
+        && preferences(caller, request.target, state.owner, "explicit").allowed;
+    }
     if (request.action === "read" || request.action === "manage-read") return allowed;
     if (!prefs.enabled) return false;
     if (request.action === "promote") return prefs.form && prefs.learn_from_work && prefs.auto
@@ -96,7 +101,11 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     return caller.consumer !== "plugin" || request.target.namespace === caller.plugin_id;
   };
   return {
-    policy: POLICY,
+    policy: extractor ? { ...POLICY, formation: { maxSlots: 144 },
+      // 120 fixed replacement metas can each occupy the SDK's 4 KiB metadata budget, plus 24 creation slots and identities.
+      limits: { maxContentChars: 655360, maxContentNodes: 16384 }, matrix: { ...POLICY.matrix,
+      rows: POLICY.matrix!.rows!.map(row => ({ ...row, formation: ["run-end"] })) } } : POLICY,
+    ...(extractor ? { extractor } : {}),
     async authorize(caller, requests) {
       const state = await current(caller);
       return !!state && requests.every(request => permitted(caller, request, state)

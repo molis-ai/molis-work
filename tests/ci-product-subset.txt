@@ -19,7 +19,9 @@
 tests/assistant-dock-ime.e2e.test.ts
 tests/context-onboarding-blank.e2e.test.ts
 tests/goals-refresh.e2e.test.ts
+tests/memory-formation.test.ts
 tests/project-management-navigation.e2e.test.ts
+tests/prologue-memory-formation.test.ts
 tests/shell-direct-links.e2e.test.ts
 
 # Main flows: the main action or HTTP flow of each product area, and the i18n test (W2-16).

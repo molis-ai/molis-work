@@ -9,7 +9,7 @@ import { MemoryService, characterOwner, type MemoryCaller } from "@molis-ai/moli
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, ensureSystemAgentService, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { observeMemoryBackend } from "./fixtures/memory-service-home.js";
+import { memoryServiceHome, observeMemoryBackend, originalMemorySources, scriptedMemoryExtraction } from "./fixtures/memory-service-home.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const projectId = "project-onboarding-00000000-0000-4000-8000-000000000001";
@@ -103,7 +103,10 @@ test("manual allows personal saving and acceptance while task reads and learning
   const saved = await service.write(person, { scope: "personal", text: "周报用短句" }); assert.equal(saved.outcome, "written");
   assert.equal((await service.forRun(worker, { scopes: ["personal"], query: "周报" }))?.skip, true);
   assert.equal(service.worthLearning({ ...worker, project_id: null }, ["以后都写短句"]), false);
-  assert.equal((await service.learnFromWork({ ...worker, project_id: null }, { said: ["以后都写短句"], proposals: [{ ...proposal, basis: "explicit", quote: "以后都写短句" }] })).every(item => item.outcome === "skipped"), true);
+  const learning = await service.learnFromWork({ ...worker, project_id: null }, { said: ["以后都写短句"] });
+  assert.deepEqual(learning.learned, []);
+  assert.equal(learning.formation.outcome, "skipped");
+  assert.equal(learning.formation.extraction.calls, 0);
   assert.equal((await service.learningContext({ ...worker, project_id: null })).existing.length, 0);
   // Only the Host-bound person can explicitly bypass task_recall; a worker cannot claim that intent.
   assert.equal((await service.recall(worker, { scopes: ["personal"], query: "周报" }, { readMode: "explicit" })).items.length, 0);
@@ -173,9 +176,17 @@ test("character preset resolves the existing project profile and survives restar
 
 // MEM-24: switching off never traps an automatic addition; undo may still remove it, but may not recreate it.
 test("off preserves removal undo and prevents upkeep from changing disabled scopes", async t => {
-  const env = await memoryHome(t), { service, backend } = env.current;
+  const sources = originalMemorySources([projectId]), extraction = scriptedMemoryExtraction();
+  const env = await memoryServiceHome(t, { projects: [projectId], sources: sources.port, generate: extraction.generate });
+  const service = await env.open(), backend = env.raw(person);
   service.savePrefs(person, "personal", "assisted");
-  const kept = await service.offer(worker, proposal); assert.equal(kept.outcome, "written");
+  service.savePrefs(person, "project", { learn_from_work: false });
+  const text = "以后周报先写风险";
+  const originals = [sources.add("independent-input-a", text), sources.add("independent-input-b", text)];
+  extraction.set([{ ...proposal, text, basis: "explicit", quote: text }]);
+  const kept = await service.learnFromWork({ ...worker, operation_id: "learn-before-off" }, { said: [text, text], sources: originals });
+  assert.equal(kept.formation.outcome, "completed");
+  assert.equal(kept.learned[0]?.outcome, "written", "only two real independent originals authorize automatic retention");
   const auto = service.changes(person, { scope: "personal" }).find(item => item.undoable)!;
   service.savePrefs(person, "personal", "off"); service.savePrefs(person, "project", "off");
   const before = await backend.list("personal", person.actor_id);

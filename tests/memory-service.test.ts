@@ -3,26 +3,30 @@ import test from "node:test";
 import { MemoryService, MEMORY_GATE_RULE, SIGNAL_THRESHOLD, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import type { MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
-import { memoryServiceHome, originalMemorySources } from "./fixtures/memory-service-home.js";
+import { memoryServiceHome, scriptedMemoryExtraction, originalMemorySources } from "./fixtures/memory-service-home.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { NOT_THEIRS, THEIRS } from "./fixtures/memory-said-cases.js";
 
 async function memoryHome(t: Parameters<typeof memoryServiceHome>[0], clock?: () => Date) {
+  const extraction = scriptedMemoryExtraction();
   const originals = originalMemorySources(["project-a", "project-b"], () => clock?.().getTime() ?? Date.now());
-  const env = await memoryServiceHome(t, { projects: ["project-a", "project-b"], ...(clock ? { now: clock } : {}), sources: originals.port,
+  const env = await memoryServiceHome(t, { projects: ["project-a", "project-b"], ...(clock ? { now: clock } : {}), sources: originals.port, generate: extraction.generate,
     projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙" });
   return { ...env, async automatic(memory: MemoryService, text: string, scope: "personal" | "project" = "project") {
     const operation = crypto.randomUUID();
-    const sources = [originals.add(`${operation}:first`, text), originals.add(`${operation}:second`, text)];
-    const [result] = await memory.learnFromWork({ ...assistant(), operation_id: operation, work: { work_id: operation, title: "两份原始表态" } }, {
+    const sources = [originals.add(`${operation}:first`, text), originals.add(`${operation}:second`, text), originals.add(`${operation}:trigger`, "以后按这些要求执行")];
+    extraction.set([{ text, scope, kind: scope === "project" ? "convention" : "preference", basis: "explicit", quote: text }]);
+    const learned = await memory.learnFromWork({ ...assistant(), operation_id: operation, work: { work_id: operation, title: "两份原始表态" } }, {
       said: sources.map(source => source.text), sources,
-      proposals: [{ text, scope, kind: scope === "project" ? "convention" : "preference", basis: "explicit", quote: text }],
     });
+    assert.equal(learned.formation.outcome, "completed");
+    assert.equal(learned.recording_error, undefined);
+    const [result] = learned.learned;
     assert.equal(result!.outcome, "written", "the automatic premise uses two canonical originals and the real SDK promotion");
     const entry = (await memory.list(person(), { scope })).items.find(item => item.memory_id === result!.memory_id);
     const change = memory.changes(person(), { scope }).find(item => item.memory_id === result!.memory_id);
     assert.ok(entry); assert.ok(change);
-    return { ...result!, memory: entry, change_id: change.change_id };
+    return { ...result!, memory: entry, change_id: change.change_id, originals: sources.slice(0, 2) };
   } };
 }
 
@@ -685,7 +689,11 @@ test("a text is a duplicate only when it is the same words: what the person type
   const said = await memory.write(work(10), { scope: "personal", text: "NSM 是北极星指标", said: "NSM 是北极星指标。" }, { originals: ["NSM 是北极星指标。"] });
   assert.deepEqual([said.outcome, said.memory!.memory_id, said.memory!.source], ["duplicate", spaced.memory!.memory_id, "said"]);
   assert.equal(undoable(spaced.change_id), false, "and it is no longer the gate's to take back");
-  assert.deepEqual(said.memory!.evidence.map(item => item.text), ["NSM是北极星指标", "NSM是北极星指标", "NSM 是北极星指标。"], "the two original statements remain alongside the latest complete message");
+  assert.deepEqual(said.memory!.evidence.slice(0, 2), spaced.originals.map(source => ({ kind: "said",
+    ref: { kind: "memory-source", id: source.event_id, revision: source.version }, at: new Date(source.occurred_at_ms).toISOString() })),
+  "both canonical original identities remain exact without copying their bodies into the ledger");
+  assert.equal(said.memory!.evidence.length, 3);
+  assert.equal(said.memory!.evidence[2]!.text, "NSM 是北极星指标。", "the new complete manual statement remains verbatim");
 
   // The person's own page is the same: a text with another comma is another memory, the same words with a mark at the end are the person keeping the gate's memory as theirs.
   const gate = await auto("不要删除旧文件");

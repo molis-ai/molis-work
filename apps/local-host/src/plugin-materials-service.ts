@@ -7,8 +7,8 @@ import { materialImageTextAvailable } from "./material-native.js";
 import { readOriginalFile, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
 import { readMaterialSource } from "./material-source-providers.js";
 import type { PluginPlatformHome } from "./home-side.js";
+import { MATERIAL_PERMISSIONS } from "./plugin-service-permissions.js";
 
-const MATERIAL_PERMISSIONS = ["materials:read", "materials:fetch", "materials:fetch_local", "materials:original"];
 
 /**
  * Same trust boundary as services.model; a platform without a Home receives no material service. A sandboxed activation is given this

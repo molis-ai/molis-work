@@ -117,7 +117,7 @@ test("W4-02-03 an upgrade that starts while another project still runs the earli
     } finally { first.store.close(); second.store.close(); }
   }));
 
-test("W4-02-04 a definition's methods for an owner the catalog registers for are refused; one that carries no bodies starts; a sandboxed definition's are not registered", { timeout: 60_000 },
+test("W4-02-04 a definition's methods for an owner the catalog registers for are refused; one that carries no bodies starts; a sandboxed definition that carries them does not start", { timeout: 60_000 },
   withHome(async home => {
     // A catalog plugin's own definition (Issues on the Home Runtime) shares the Manifest that declares the methods and carries no
     // bodies: the catalog registers them, and the plugin starts as before.
@@ -136,11 +136,13 @@ test("W4-02-04 a definition's methods for an owner the catalog registers for are
       assert.equal(shadow.started(), 0, "the plugin never started");
       assert.ok(homeAgentDefinitions(home).methods().some(method => method.key === "io.molis.work.pages/meeting-notes"), "the catalog's method is still there");
     } finally { project.store.close(); }
-    // A method's body goes into another Agent's round: only a plugin the Host runs itself registers one.
+    // A method's body goes into another Agent's round: only a plugin the Host runs itself registers one, and a sandboxed package that carries methods
+    // does not start until an install can show the person what it adds (S-60, PG-017 BL-493).
     const sandboxed = platformIn(home), generated = probe({ pluginId: "io.molis.work.example.generated", execution: "sandbox" });
     try {
-      assert.deepEqual((await sandboxed.platform.start([{ definition: generated.definition, grants: [] }])).running, ["io.molis.work.example.generated"]);
-      assert.equal(generated.started(), 1);
-      assert.deepEqual(listed(home, "io.molis.work.example.generated"), [], "it runs, and its methods are not registered");
+      assert.deepEqual((await sandboxed.platform.start([{ definition: generated.definition, grants: [] }])).running, []);
+      assert.equal(generated.started(), 0, "the plugin never started");
+      assert.equal(sandboxed.platform.runtime.get(sandboxed.platform.runtime.list()[0]!.install_id).last_error_code, "sandbox.service_not_given");
+      assert.deepEqual(listed(home, "io.molis.work.example.generated"), [], "its methods are not registered");
     } finally { sandboxed.store.close(); }
   }));

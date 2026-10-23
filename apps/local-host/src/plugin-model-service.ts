@@ -12,6 +12,7 @@ import { configuredModelChoices, openConfiguredModels, selectConfiguredTextModel
 import { withPluginModelImages } from "./plugin-model-images.js";
 import { rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
 import type { PluginPlatformHome } from "./home-side.js";
+import { MODEL_PERMISSIONS } from "./plugin-service-permissions.js";
 
 /**
  * `services.model` for a plugin this Host runs itself: declared `model:read` or `model:invoke`, not sandboxed, on a platform that
@@ -29,7 +30,6 @@ export function pluginModelFor(home: PluginPlatformHome | null | undefined, defi
 }
 
 /** Either builds the service: `model:read` for the list and availability, `model:invoke` for those and requests. */
-const MODEL_PERMISSIONS: readonly string[] = ["model:read", "model:invoke"];
 
 const unavailable = (reason: string): ActionAvailability => ({ available: false, code: "actions.connection_required", reason });
 

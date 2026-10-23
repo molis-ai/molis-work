@@ -382,7 +382,7 @@ test("the committed snapshots of this repository leave no mentioned declaration 
   const carried = new Set(snapshots.flatMap(({ text }) => [...text.matchAll(DECLARATION)].map((match) => match[1])));
   const missing = snapshots.flatMap(({ file, text }) => {
     const body = text.replace(/"(?:[^"\\]|\\.)*"/g, '""').replace(/^\/\/.*$/gm, "");
-    return [...new Set(body.match(/[A-Z][A-Za-z0-9_$]*/g) ?? [])].filter((name) => declared.has(name) && !carried.has(name)).map((name) => `${path.relative(repoRoot, file)}: ${name}`);
+    return [...new Set(body.match(/(?<![A-Za-z0-9_$])[A-Z][A-Za-z0-9_$]*/g) ?? [])].filter((name) => declared.has(name) && !carried.has(name)).map((name) => `${path.relative(repoRoot, file)}: ${name}`);
   });
   assert.deepEqual(missing, [], "a snapshot mentions a declaration that no snapshot carries; the helper lookup in scripts/gates/api-snapshot.mjs does not reach it");
 });

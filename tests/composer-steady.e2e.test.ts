@@ -139,6 +139,8 @@ test("VUX-16: the discussion's send stays at the composer's corner when the stat
   await waitFor(`${im}?.querySelector('[data-name-form] input')`, 30_000);
   await evaluate(`(() => { const form = ${im}.querySelector('[data-name-form]'); form.querySelector('input').value = '读者'; form.requestSubmit(); })()`);
   await waitFor(`${im}?.querySelector('[data-conversations]')?.hidden === false && ${im}.querySelector('#im-group-input')`, 30_000);
+  await waitFor(`${im}?.querySelector('[data-composer="group"] .im-send')?.getBoundingClientRect().width > 0 && ${im}.querySelector('#im-group-input')?.getBoundingClientRect().height > 0`);
+  await evaluate(`${im}.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))`);
   type Place = { send: number[]; field: number[]; form: number[]; outside: boolean };
   const place = () => evaluate<Place>(`(() => { const doc = ${im}, form = doc.querySelector('[data-composer="group"]'), box = (node) => { const b = node.getBoundingClientRect(); return [b.x, b.y, b.width, b.height].map(Math.round); };
     const f = form.getBoundingClientRect(), s = doc.querySelector('[data-composer="group"] .im-send').getBoundingClientRect();

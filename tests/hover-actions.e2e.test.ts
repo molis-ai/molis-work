@@ -131,7 +131,11 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
             const rect=(owner?.contentDocument??document).querySelector('iframe[data-plugin-frame="${name}"]').getBoundingClientRect(),outer=owner?.getBoundingClientRect()??{x:0,y:0};return{x:rect.x+outer.x,y:rect.y+outer.y};})()`);
           row.x+=offset.x;row.y+=offset.y;
         }
-        await command("Input.synthesizeTapGesture", { ...row, duration: 60, tapCount: 1, gestureSourceType: "touch" }, sessionId, 10_000);
+        // As in workflows-touch-tools: native touch events feed Chrome/Aura's gesture recognizer;
+        // synthesizeTapGesture can deliver touchstart/end without the tap's compatibility click.
+        await command("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ ...row, id: 1, radiusX: 1, radiusY: 1, force: 1 }] }, sessionId);
+        await pause(60);
+        await command("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }, sessionId);
         await pause(400);
       }
       // Shelf redraws the selected row; follow that same record and operation after the real tap.

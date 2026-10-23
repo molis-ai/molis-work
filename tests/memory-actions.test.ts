@@ -93,7 +93,7 @@ test("memory is one system.memory provider in the shared directory: the person m
   const views = await client.discover(person);
   const memoryViews = views.filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID);
   assert.deepEqual(memoryViews.map(view => view.capability_id).sort(), ["memory.candidates.accept", "memory.candidates.discard", "memory.candidates.list", "memory.change", "memory.changes.list",
-    "memory.changes.undo", "memory.export", "memory.history", "memory.import", "memory.list", "memory.pairs.list", "memory.pairs.resolve", "memory.prefs.read", "memory.prefs.write",
+    "memory.changes.undo", "memory.export", "memory.history", "memory.import", "memory.list", "memory.page", "memory.pairs.list", "memory.pairs.resolve", "memory.prefs.read", "memory.prefs.write",
     "memory.recall", "memory.scope.clear", "memory.scope.preview", "memory.signals.report", "memory.upkeep.run", "memory.write"]);
   const agentViews = (await client.discover(agent)).filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID).map(view => view.capability_id).sort();
   assert.deepEqual(agentViews, ["memory.list", "memory.recall", "memory.write"], "agents see reading and the gated write, never management");

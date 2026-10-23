@@ -21,7 +21,7 @@ const entry = (id: string, version: number, state = "active") => ({ memory_id: i
 interface PageInput { query?: string; cursor?: string; filter?: { kinds?: string[]; scenes?: string[]; states?: string[]; expired?: boolean; unclassified?: boolean } }
 const pageOf = (items: unknown[], extra: object = {}) => ({ items, exhausted: true, stopped: "end", total: { kind: "exact", value: items.length },
   scanned: "unknown", cost: {}, labels: { goals: {} }, ...extra });
-async function open(t: TestContext, answer: (request: Request) => { status?: number; body: unknown }, pageAnswer?: (input: PageInput) => Promise<unknown>) {
+async function open(t: TestContext, answer: (request: Request) => { status?: number; body: unknown }, pageAnswer?: (input: PageInput) => Promise<{ status?: number; body: unknown }>) {
   const chrome = locateTestChrome(); if (!chrome) { t.skip("Chrome is required"); return null; }
   const directory = await mkdtemp(join(tmpdir(), "memory-settings-cas-"));
   const calls: Request[] = [];
@@ -47,8 +47,9 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
     if (path.endsWith("/pairs")) { response.end(JSON.stringify({ pairs: [] })); return; }
     if (path.endsWith("/page")) {
       const input: PageInput = JSON.parse(url.searchParams.get("input")!); reads.push(input);
-      const body = pageAnswer ? await pageAnswer(input) : pageOf(overview.items.filter(item => !input.query || item.text.includes(input.query)));
-      if (!response.destroyed) response.end(JSON.stringify(body)); return;
+      const result = pageAnswer ? await pageAnswer(input) : { body: pageOf(overview.items.filter(item => !input.query || item.text.includes(input.query))) };
+      response.statusCode = result.status ?? 200;
+      if (!response.destroyed) response.end(JSON.stringify(result.body)); return;
     }
     if (path.endsWith("/history")) { response.end(JSON.stringify({ revisions: [{ version: 2, text: "旧版", at: "2026-10-22T00:00:00Z" }] })); return; }
     let raw = ""; for await (const chunk of request) raw += chunk;
@@ -72,9 +73,9 @@ const textButton = (label: string) => `button[aria-label^="${label}："]`;
 test("Memory page continues after an empty scan, preserves unknown totals and sends the server cursor with its filters", { timeout: 45_000 }, async t => {
   const final = { ...entry("expired", 31), text: "临时周报约定", kind: "habit", classification: null,
     expired: true, expires_at: "2026-01-01T00:00:00Z" };
-  const f = await open(t, () => ({ body: {} }), async input => input.cursor
+  const f = await open(t, () => ({ body: {} }), async input => ({ body: input.cursor
     ? pageOf([final, { ...entry("decision", 5), kind: "project-decision" }], { total: { kind: "unknown" } })
-    : pageOf([], { cursor: "fixed-query-page-2", exhausted: false, stopped: "unknown", total: { kind: "unknown" } }));
+    : pageOf([], { cursor: "fixed-query-page-2", exhausted: false, stopped: "unknown", total: { kind: "unknown" } }) }));
   if (!f) return;
   await f.page.fill("[data-memory-filter=query]", "周报");
   await f.page.wait("document.querySelector('[data-memory-list]').textContent.includes('尚未查完') && !document.querySelector('[data-memory-next]').disabled");
@@ -99,8 +100,8 @@ test("Memory filter changes reject a late page and reset navigation without reus
   let entered!: () => void, release!: () => void;
   const started = new Promise<void>(resolve => { entered = resolve; }), barrier = new Promise<void>(resolve => { release = resolve; });
   const f = await open(t, () => ({ body: {} }), async input => {
-    if (input.query === "旧查询") { entered(); await barrier; return pageOf([entry("late", 1)], { cursor: "wrong-cursor", exhausted: false }); }
-    return pageOf([entry("current", 2)]);
+    if (input.query === "旧查询") { entered(); await barrier; return { body: pageOf([entry("late", 1)], { cursor: "wrong-cursor", exhausted: false }) }; }
+    return { body: pageOf([entry("current", 2)]) };
   });
   if (!f) return;
   t.after(release);
@@ -114,15 +115,16 @@ test("Memory filter changes reject a late page and reset navigation without reus
 });
 
 test("A failed page read does not claim an empty library and reload retries the same filter without a write", { timeout: 45_000 }, async t => {
-  const f = await open(t, () => ({ body: {} })); if (!f) return;
-  const network = (offline: boolean) => f.page.command("Network.emulateNetworkConditions", { offline, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
-  await network(true);
-  try {
-    await f.page.fill("[data-memory-filter=query]", "记忆 active");
-    await f.page.wait("document.querySelector('[data-memory-page-status]').textContent.includes('读取未完成')");
-    assert.match(await f.page.evaluate<string>("document.querySelector('[data-memory-list]').textContent"), /读取未完成/);
-    assert.equal(await f.page.evaluate("document.querySelector('[data-memory-next]').disabled"), true);
-  } finally { await network(false); }
+  let unavailable = true;
+  const f = await open(t, () => ({ body: {} }), async () => unavailable
+    ? { status: 503, body: { code: "memory.unavailable", error: "本次读取暂不可用" } }
+    : { body: pageOf([entry("active", 7)]) }); if (!f) return;
+  await f.page.fill("[data-memory-filter=query]", "记忆 active");
+  await f.page.wait("document.querySelector('[data-memory-page-status]').textContent.includes('读取未完成')");
+  assert.match(await f.page.evaluate<string>("document.querySelector('[data-memory-list]').textContent"), /读取未完成/);
+  assert.equal(await f.page.evaluate("document.querySelector('[data-memory-next]').disabled"), true);
+  assert.equal(f.reads.at(-1)?.query, "记忆 active", "the failing request reached the real HTTP server");
+  unavailable = false;
   await f.page.click("[data-memory-reload]"); await f.page.wait("document.querySelector('[data-memory-id=active]')");
   assert.equal(f.reads.at(-1)?.query, "记忆 active");
   assert.equal(await f.page.evaluate("document.querySelectorAll('[data-memory-id]').length"), 1);
@@ -286,7 +288,7 @@ test("Import retry retains the selected package after the file input clears and 
     ? { status: 503, body: { code: "memory.conflict", error: "结果待核对" } }
     : { body: { written: 1, skipped: 1, refused: 1 } }); if (!f) return;
   const { page, calls, directory } = f;
-  const pack: MemoryExportPackage = { format: "molis.memory", version: 1, exported_at: "2026-10-23T00:00:00Z", scope: "project", redactions: [],
+  const pack: MemoryExportPackage = { format: "molis.memory", version: 2, exported_at: "2026-10-23T00:00:00Z", scope: "project", redactions: [],
     entries: ["导入原文", "已有原文", "暂不导入"].map(text => ({ text, kind: "preference", applies: {}, source: "manual", basis: "explicit", origin: "本人", expires_at: null })) };
   const file = join(directory, "memory.json"); await writeFile(file, JSON.stringify(pack));
   const document = await page.command<{ root: { nodeId: number } }>("DOM.getDocument");

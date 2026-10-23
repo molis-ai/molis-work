@@ -16,12 +16,12 @@ import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
-const list = "[data-memory-list]", rows = `${list} [data-memory-id]`;
-const ready = (page: ChromePage) => page.wait(`document.querySelector('${list}')?.getAttribute('aria-busy') === 'false' && document.querySelector('[data-memory-error]').hidden`);
+const list = "[data-memory-test-active] [data-memory-list]", rows = `${list} [data-memory-id]`;
+const ready = (page: ChromePage) => page.wait(`document.querySelector('${list}')?.getAttribute('aria-busy') === 'false' && document.querySelector('[data-memory-test-active] [data-memory-error]').hidden`);
 const ids = (page: ChromePage) => page.evaluate<string[]>(`[...document.querySelectorAll('${rows}')].map(row => row.dataset.memoryId)`);
 
 async function filter(page: ChromePage, name: string, value: string) {
-  const picker = `.mw-select-picker:has([data-memory-filter="${name}"])`;
+  const picker = `[data-memory-test-active] .mw-select-picker:has([data-memory-filter="${name}"])`;
   await page.click(picker + " .mw-select-picker__trigger");
   await page.click(`.mw-select-picker__menu:popover-open [data-value="${value}"]`);
   await ready(page);
@@ -100,21 +100,34 @@ test("nonempty memory settings page through authorized storage, preserve old dec
     const page = await browser.page(); await page.viewport(1440, 960);
     let visit = 0;
     const navigate = async (path: string) => {
-      await page.command("Page.navigate", { url: env.origin + path + "?visit=" + ++visit });
-      await page.wait(`new URL(location.href).searchParams.get('visit') === '${visit}' && document.readyState === 'complete'`);
+      // Top-level settings addresses redirect into the workbench, which consumes settingsPath.
+      // Mark the old document so its still-visible settings cannot satisfy the next arrival.
+      await page.evaluate(`document.documentElement.dataset.memoryTestOld = '${++visit}'`);
+      await page.command("Page.navigate", { url: env.origin + path });
+      const target = path.endsWith("?settings=assistant") ? `[data-assistant-settings][data-project="${project.project_id}"] [data-assistant-memory-summary]`
+        : `[data-memory-settings][data-memory-scope="${path.startsWith("/projects/") ? "project" : "personal"}"]`;
+      await page.wait(`document.documentElement && document.documentElement.dataset.memoryTestOld !== '${visit}' && document.readyState === 'complete' && document.querySelector(${JSON.stringify(target)})?.getBoundingClientRect().height > 0`,
+        { describe: "JSON.stringify({url:location.href,ready:document.readyState,settings:document.querySelector('[data-settings-stage-body]')?.textContent.slice(0,300)})" });
+      if (path.endsWith("/memory")) {
+        assert.equal(await page.evaluate(`(() => {
+          const roots = [...document.querySelectorAll('[data-memory-settings]')].filter(root => root.checkVisibility());
+          if (roots.length !== 1 || !roots[0].matches(${JSON.stringify(target)})) return false;
+          roots[0].setAttribute('data-memory-test-active', ''); return true;
+        })()`), true, "exactly the requested Memory scope is visible; hidden shell caches are not this page");
+      }
     };
     await navigate("/settings/memory"); await ready(page);
     const first = await ids(page); assert.equal(first.length, 40);
-    assert.match(await page.evaluate<string>("document.querySelector('[data-memory-summary]').textContent"), /总数未知/);
-    await page.click("[data-memory-next]"); await ready(page);
+    assert.match(await page.evaluate<string>("document.querySelector('[data-memory-test-active] [data-memory-summary]').textContent"), /总数未知/);
+    await page.click("[data-memory-test-active] [data-memory-next]"); await ready(page);
     const last = await ids(page); assert.equal(last.length, 3);
     assert.deepEqual([...first, ...last].sort(), [...personal].sort());
-    assert.match(await page.evaluate<string>("document.querySelector('[data-memory-summary]').textContent"), /总数未知/, "last page cannot claim a snapshot total");
-    await page.click("[data-memory-previous]"); await ready(page); assert.deepEqual(await ids(page), first);
-    await page.fill("[data-memory-filter=query]", "周报采用要点"); await ready(page);
-    for (let part = 0; !(await ids(page)).length && part < 2; part++) { await page.click("[data-memory-next]"); await ready(page); }
+    assert.match(await page.evaluate<string>("document.querySelector('[data-memory-test-active] [data-memory-summary]').textContent"), /总数未知/, "last page cannot claim a snapshot total");
+    await page.click("[data-memory-test-active] [data-memory-previous]"); await ready(page); assert.deepEqual(await ids(page), first);
+    await page.fill("[data-memory-test-active] [data-memory-filter=query]", "周报采用要点"); await ready(page);
+    for (let part = 0; !(await ids(page)).length && part < 2; part++) { await page.click("[data-memory-test-active] [data-memory-next]"); await ready(page); }
     assert.deepEqual(await ids(page), [personal[0]]);
-    await page.fill("[data-memory-filter=query]", ""); await ready(page);
+    await page.fill("[data-memory-test-active] [data-memory-filter=query]", ""); await ready(page);
     await filter(page, "kind", "fact");
     assert.equal((await ids(page)).length, 0);
     await filter(page, "kind", "");
@@ -128,17 +141,19 @@ test("nonempty memory settings page through authorized storage, preserve old dec
       await navigate("/settings/memory"); await ready(page);
       assert.equal((await ids(page)).length, 40);
       assert.equal(await page.evaluate("document.documentElement.dataset.theme"), theme);
-      assert.equal(await page.evaluate("document.querySelector('#memory-title').textContent"), locale === "zh" ? "记忆" : "Memory");
-      await page.evaluate("document.querySelector('.memory-items').scrollIntoView({block:'start',behavior:'instant'})");
+      assert.equal(await page.evaluate("document.querySelector('[data-memory-test-active] #memory-title').textContent"), locale === "zh" ? "记忆" : "Memory");
+      await page.evaluate("document.querySelector('[data-memory-test-active] .memory-items').scrollIntoView({block:'start',behavior:'instant'})");
       assert.equal(await page.evaluate("document.documentElement.scrollWidth <= innerWidth && [...document.querySelectorAll('.settings-content')].every(node => node.scrollWidth <= node.clientWidth + 1)"), true, `${locale}/${width}: page and filters fit`);
       await page.screenshot(fileURLToPath(new URL(`${locale}-${width}-${theme}.png`, shots)));
     }
     await page.command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: env.origin, path: "/" });
     await page.viewport(1440, 960);
     await navigate(prefix + "/settings/memory"); await ready(page);
+    assert.equal(await page.evaluate(`[...document.querySelectorAll('[data-memory-scope="personal"] [data-memory-id]')].filter(row => row.checkVisibility()).length`), 0,
+      "the shell's cached personal rows are not visible in project settings");
     const projectIds = [...saved.map(entry => entry.memory_id), "historical", expiring.memory.memory_id].sort();
     assert.deepEqual((await ids(page)).sort(), projectIds);
-    const historical = '[data-memory-id="historical"]', expired = `[data-memory-id="${expiring.memory.memory_id}"]`;
+    const historical = '[data-memory-test-active] [data-memory-id="historical"]', expired = `[data-memory-test-active] [data-memory-id="${expiring.memory.memory_id}"]`;
     assert.match(await page.evaluate<string>(`document.querySelector('${historical} .memory-meta').textContent`), /未分类/);
     assert.match(await page.evaluate<string>(`document.querySelector('${expired} .memory-meta').textContent`), /已到期/);
     assert.equal(await page.evaluate(`document.querySelector('${expired} [data-mw-state]') === null`), true, "expired active entry must not be relabelled disabled");
@@ -151,35 +166,38 @@ test("nonempty memory settings page through authorized storage, preserve old dec
     await filter(page, "lifecycle", "");
     await filter(page, "expired", "true"); assert.deepEqual(await ids(page), [expiring.memory.memory_id]);
     await filter(page, "expired", "");
-    await page.click("[data-memory-next]"); await ready(page); assert.deepEqual(await ids(page), [pausedId]);
-    const paused = `[data-memory-id="${pausedId}"]`;
+    await page.click("[data-memory-test-active] [data-memory-next]"); await ready(page); assert.deepEqual(await ids(page), [pausedId]);
+    const paused = `[data-memory-test-active] [data-memory-id="${pausedId}"]`;
     assert.match(await page.evaluate<string>(`document.querySelector('${paused} .memory-meta').textContent`), /资料审校员/);
     assert.equal(await page.evaluate(`document.querySelector('${paused} [data-mw-state]').dataset.mwState`), "paused");
     assert.match(await page.evaluate<string>(`document.querySelector('${paused} [data-mw-state]').textContent`), /已暂停.*等待引用来源确认/);
+    await page.evaluate(`document.querySelector('${paused}').scrollIntoView({block:'center',behavior:'instant'})`);
     await page.screenshot(fileURLToPath(new URL("zh-project-paused-character.png", shots)));
     await filter(page, "state", "paused");
     assert.deepEqual(await ids(page), [], "the project owner has no paused matches but its character owner remains");
-    assert.match(await page.evaluate<string>("document.querySelector('[data-memory-list]').textContent"), /尚未查完/);
-    assert.equal(await page.evaluate("document.querySelector('[data-memory-next]').textContent"), "继续查找");
-    await page.click("[data-memory-next]"); await ready(page); assert.deepEqual(await ids(page), [pausedId]);
+    assert.match(await page.evaluate<string>("document.querySelector('[data-memory-test-active] [data-memory-list]').textContent"), /尚未查完/);
+    assert.equal(await page.evaluate("document.querySelector('[data-memory-test-active] [data-memory-next]').textContent"), "继续查找");
+    await page.click("[data-memory-test-active] [data-memory-next]"); await ready(page); assert.deepEqual(await ids(page), [pausedId]);
     await filter(page, "state", ""); assert.deepEqual((await ids(page)).sort(), projectIds);
     await page.screenshot(fileURLToPath(new URL("zh-project-expired-unclassified.png", shots)));
     assert.equal(pairReads, 0, "a real pending pair is not read by overview");
-    assert.equal(await page.evaluate("document.querySelectorAll('.memory-row--pair').length"), 0);
-    await page.click("[data-memory-pairs-read]"); await page.wait("document.querySelector('.memory-row--pair')");
+    assert.equal(await page.evaluate("document.querySelectorAll('[data-memory-test-active] .memory-row--pair').length"), 0);
+    await page.click("[data-memory-test-active] [data-memory-pairs-read]"); await page.wait("document.querySelector('[data-memory-test-active] .memory-row--pair')");
     assert.equal(pairReads, 1);
-    await page.fill("[data-memory-filter=query]", "审校"); await ready(page); assert.equal(pairReads, 1);
-    await page.click(".memory-row--pair .memory-actions button");
-    await page.wait("document.querySelector('[data-memory-pairs]').textContent.includes('没有需要处理的')");
+    await page.fill("[data-memory-test-active] [data-memory-filter=query]", "审校"); await ready(page); assert.equal(pairReads, 1);
+    await page.click("[data-memory-test-active] .memory-row--pair .memory-actions button");
+    await page.wait("document.querySelector('[data-memory-test-active] [data-memory-pairs]').textContent.includes('没有需要处理的')");
     assert.equal(pairReads, 2, "the chosen open section refreshes after resolving, not on ordinary paging");
-    const chosen = `[data-memory-id="${saved[0]!.memory_id}"]`;
+    const chosen = `[data-memory-test-active] [data-memory-id="${saved[0]!.memory_id}"]`;
     await page.click(chosen + " button[aria-label^=修改]"); await page.fill(chosen + " textarea", "审校完成后保留准确的修改记录");
     await page.click(chosen + " button[type=submit]"); await ready(page);
     await page.wait(`document.querySelector('${chosen} .memory-text')?.textContent === '审校完成后保留准确的修改记录'`);
     assert.equal(pairReads, 3);
-    await navigate(prefix + "/settings/assistant");
-    await page.wait("document.querySelector('[data-assistant-memory-summary]')?.textContent.includes('总数未知')");
-    assert.match(await page.evaluate<string>("document.querySelector('[data-assistant-memory-summary]').textContent"), /这个项目的记忆 总数未知/, "project plus character owners cannot claim a combined exact total");
+    // Assistant is a global settings section; the workbench entry supplies its current project context.
+    await navigate(prefix + "/?settings=assistant");
+    const assistantSummary = `[data-assistant-settings][data-project="${project.project_id}"] [data-assistant-memory-summary]`;
+    await page.wait(`document.querySelector('${assistantSummary}')?.textContent.includes('总数未知')`);
+    assert.match(await page.evaluate<string>(`document.querySelector('${assistantSummary}').textContent`), /这个项目的记忆 总数未知/, "project plus character owners cannot claim a combined exact total");
     assert.equal(pairReads, 3, "Assistant summary also uses bounded overview and leaves pairs unread");
     assert.equal(fullLists, 0);
   } finally { await browser.close(); await rm(directory, { recursive: true, force: true }); }

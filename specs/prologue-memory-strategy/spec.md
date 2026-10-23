@@ -663,6 +663,24 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 
 当前 Run 已冻结并经 Host 核验的 Character 允许查询其确定的 project+character 空范围；没有既存 ledger owner 不应使同批个人/项目召回全部失败。角色身份仍来自真实 Run，派生 owner 必须匹配，已有 owner 若与该身份矛盾则拒绝；后台无角色、其他角色/项目仍拒绝，管理与删除沿原 ledger owner 边界。最小修复落在 MemoryService 候选管理方法与 LocalHost memory-runtime-policy，不加表或新的身份通道。真实 Node/SQLite 回归先复现全局候选不可见和空角色混合查询拒绝，再验证全局接受/丢弃、重启及跨项目/角色拒绝；Assistant 原生产回归继续覆盖面板和真实角色启动。
 
+#### M3 第一片：正式记忆有界管理页
+
+本片闭合本人在现个人/项目设置页查看、筛选和翻页的完整路径，引用 MEM-08、MEM-15、MEM-17、MEM-24。复用 SDK 已有 `page`、当前管理授权、MemoryService 范围解析和现页面；不建索引、游标表、额外分类注册表或新的设置页。App 只配置页大小和整次扫描上限，终端用户选择过滤条件；当前授权、单一写主人及未知事实不得由配置关掉。正式记忆由 SDK 持有，ledger 继续只持有原历史、配置和使用投影。
+
+调用链为现设置页 → 受保护 HTTP / 共同 Action → MemoryService → AgentHost 薄口 → SDK page → Node Host。新增管理 `page` 与原 `list` 分开：原 Agent/显式读取合同保持，管理调用不得借 task/explicit 身份绕开权限；off 本人管理仍可读。AgentHost 逐字段传递 SDK 分类/状态/来源/期限筛选、游标、停止原因、计数与成本。Service 从可信 caller 解析 scope/owner，项目页保留已授权 Character；产品输入不收 owner。组合范围共享单次输出和扫描预算，复合游标绑定原查询与范围，当前授权在每次查询及返回前复核，不把旧游标当授权。
+
+现 overview 不得继续调用全量 list：保留偏好、候选、变化与配对，正式部分改为第一页，目标名称随每页实际条目解析。页面过滤变更重置游标，迟到响应不能覆盖新查询，失败命令单独保留。产品请求包含 scope、可选 character_id、filter、query、limit、cursor；filter 支持 scene/kind/lifecycle/state/source/expired 及明确的未分类选择。响应包含 items、cursor、exhausted、stopped、total（exact 或 unknown）与有界扫描成本投影；不给前端传全库再切片。正文搜索在已授权 SDK 页内推进，整次预算耗尽仍可继续；空 items 且未 exhausted 明确是“尚未查完”，不是“无结果”。沿 SDK 稳定游标顺序，不承诺全局最近更新。只有本次完整证明的授权匹配集合才给 exact；跨页最后一页、可见性过滤或正文过滤使总量不可证明时仍为 unknown，不能把已展示数量累加成快照总数，也不为每个分类另扫全库。Node 目录仍可能全量枚举，扫描槽上限不冒充底层目录 I/O 上限；成本默认按当前权限隐藏，未知不写零。
+
+管理投影增加 classification 或 null、独立 expired，并保留实际 state、来源、范围、适用条件、期限及真实使用记录。到期 active 不再伪装 disabled；旧未分类不补 common、不自动扩权，按明确分类筛选时不误命中。SDK 已声明六类与现自动形成四类不是同一清单：本片展示原实际分类，不扩大自动形成许可；可编辑六类及分类策略在下一片统一。候选、历史、撤销、导入导出和现固定清空入口保持；SDK 候选尚无 page，不能将其标成已完成分页。
+
+责任与允许路径：后端负责人修改 contracts 的 memory/agent-host-memory 合同、AgentHost Memory Adapter、Memory backend/scope 查询及 Service 薄入口、LocalHost memory backend/host 与同包 README；界面负责人只改现 settings-memory、memory 英文词典、必要的既有样式与 assistant 摘要消费者、Workbench README。统筹拥有 spec、聚合导出/快照、CI 清单、资源门禁与集成；共享文件不得并发修改。先冻结产品 DTO 与 Action，再并行后端实现和 UI 对接；本片使用依赖 #1064 的独立工作树与分支，避免修改正在验收的集成快照，父 PR 先合后再合本片；由统筹统一构建，相关用例按机器时段运行。接口行为变化按现合同规则升级，不混入无关重构。
+
+- **MEM-PAGE-01**：真实 Service → SDK → Node/SQLite 的非空个人、项目、两个角色数据按场景/类型/生命周期/状态/来源分页，单次输出有界；未分类与过期实际状态可区分，异项目/异角色不可见，off 本人可管理。
+- **MEM-PAGE-02**：同一查询有至少两页；过滤和全文搜索共享扫描预算，零命中未穷尽可继续，游标换查询/范围被拒。取消、撤权、重启与并发变更不扩大权限；exact 仅在可证明时给出，跨页/过滤未知保持 unknown。
+- **MEM-PAGE-03**：隔离非空 Home 的真实设置页完成选择分类、翻页、改变过滤、空页继续、到期/未分类展示，并确认网络不下发全库。现历史、撤销、导入导出、候选与失败重试入口仍可用。renderer/HTTP 夹具仅作定向回归，不替代生产链实操；资源沿已批准逐文件额度实测，不自动放宽。
+
+后续两个紧随切片仍是 P0：其一按所见版本改类/场景/生命周期/期限，并把分类 read/form 限制接入现 prefs 与当前权限；其二通过 SDK 固定 preview/mutateBatch 与现 marker/history/forget 清理完成选中条目的批量停用/遗忘、逐项结果及原操作恢复。改类不得改 owner/namespace、自动续期或恢复；批量不得重跑动态查询追删后来新增项。旧格式导入、历史撤销、候选管理及完整 Coding/助理旅程继续沿原承诺完成，本片通过不代表完整 M3/P0 验收。
+
 #### M2 期限与往返保留
 
 候选自有 expiresAt 只管等待决定截止；Molis 在既有候选记录保存内部 formal_expires_at（null 表示明确无固定期限，缺省表示原意图未知），公开候选投影不暴露它。提议前在既有无正文操作身份中冻结 formal_expires_at 标量，区分缺省、null 和绝对时间；SDK 已保存而候选账失败后的同操作重试不得更换正式期限，不把正文或完整 meta 写入该身份标记。接受/纠正保留原正式期限和 canonical 分类/session/namespace；SDK 继续复核候选期限及同操作已提交补账，不自动续期。

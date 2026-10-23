@@ -2751,3 +2751,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   3. Shelf 目录 v1 → v2 不进 CHECKLIST 第 3 节的表（表的范围点名排除了 `shelf/catalog.json`，`verify-release-versions` 也不核对表外的 JSON）；改为在第 4.3 节维护八下加子项，发布说明的「兼容与升级」发版时写。登记 R-05。
 - Shelf 报的新风险：手写路由不 catch，错误落到宿主的通用句子。登记 R-15，根治放在 Plugin Runtime 的路由分派，取号 BL-404 给 ②，和 BL-403 一起做（main 和在途 PR 上 403、404 都没人用）。
 
+### 10-23 18:50 统一验证改由另一台机器上的 Codex 跑
+
+- 用户定：统一验证由 Codex 在另一台机器上跑，结果单独写进 `coordination/2026-10-14/VERIFY-<日期>.md`，由 ① 并进登记册。登记册 §0「怎么更新」已写明两边的分工：登记册和本日志只由 ① 改；验证结果只写进 `VERIFY` 文件。
+- 给 Codex 的 prompt 按另一台机器写：不用 `heavy.sh` 和代理；第一次装依赖不带 `--offline`；命中全量条件时可以跑全量；不合并 PR，不往别人的 PR 分支推送，修复交用户分派。
+

@@ -351,6 +351,7 @@ export class MolisWorkLocalHost {
     if (this.closing.resources || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     // The Home keeps its failed ready promise; unrelated providers remain available while its HTTP entry reports that failure.
     await this.homePlugins?.ready().catch(() => undefined);
+    if (this.closing.resources || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     this.systemFunctions?.refresh();
   }
 

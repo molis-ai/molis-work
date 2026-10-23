@@ -5,7 +5,7 @@ import { createRuntimeContextBindingMetadata, RuntimeContextProjectReferences } 
 import type {
   RuntimeContextBindingEventRecord,
   RuntimeContextBindingRecord,
-} from "@molis-ai/molis-work-contracts/modules/private-work-context";
+} from "@molis-ai/molis-work-contracts/modules/runtime-context";
 
 export interface RuntimeContextSetupRequestRecord {
   request_fingerprint: string;

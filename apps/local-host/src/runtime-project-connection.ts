@@ -1,5 +1,5 @@
 import type { MolisWorkRuntimeConnection, RuntimeProjectConnectionState } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { RuntimeWorkContext } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { RuntimeWorkContext } from "@molis-ai/molis-work-contracts/modules/runtime-context";
 
 function contextKey(context: RuntimeWorkContext): string {
   const workspace = context.workspace?.canonical_path ?? "no-workspace";

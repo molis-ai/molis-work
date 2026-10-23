@@ -1,4 +1,4 @@
-# Private Work Context
+# Runtime Context
 
 **定位：** Runtime 工作入口与 Project 之间绑定关系的唯一 owner。
 
@@ -21,7 +21,7 @@ Sessions 插件已下线（SC-4，`specs/repository-anti-corruption/slices/sc-4-
 
 ## 公开入口与内部拆分
 
-所有业务调用从 `@molis-ai/molis-work-module-private-work-context` 进入：
+所有业务调用从 `@molis-ai/molis-work-module-runtime-context` 进入：
 
 - `createRuntimeContextModule`：在同一数据库连接里装配绑定、创建并绑定、拒绝建议与清理服务；Repository 不对包外导出。
 - `context-bindings.ts`：Runtime context binding 的身份、控制历史、mapping 和 Repository。

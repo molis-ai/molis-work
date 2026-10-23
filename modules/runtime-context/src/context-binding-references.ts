@@ -2,8 +2,8 @@ import { bindingErrors } from "./binding-errors.js";
 import type Database from "better-sqlite3";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 
-const scope = { kind: "personal", id: "private-work-context" } as const;
-const access = (actor = "module:private-work-context"): ContextAccess => ({ actor_id: actor, scope });
+const scope = { kind: "personal", id: "runtime-context" } as const;
+const access = (actor = "module:runtime-context"): ContextAccess => ({ actor_id: actor, scope });
 const target = (id: string): ObjectRef => ({ module: "projects", object_type: "project", id, version: null, scope, project_id: id });
 
 export class RuntimeContextProjectReferences {
@@ -19,7 +19,7 @@ export class RuntimeContextProjectReferences {
 
   set(bindingId: string, projectId: string, actor: string, at: string): void {
     this.ledger.commands.put(access(actor), { key: `work.binding_project:${bindingId}`, type: "work.binding_project",
-      source: { module: "private-work-context", object_type: "runtime-context", id: bindingId, version: null, scope },
+      source: { module: "runtime-context", object_type: "runtime-context", id: bindingId, version: null, scope },
       target: target(projectId), cause: "work.context_bound", recorded_at: at });
   }
 

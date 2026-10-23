@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { RuntimeWorkContext, RuntimeProjectSuggestionClue, RuntimeSessionHostSignals } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { RuntimeWorkContext, RuntimeProjectSuggestionClue, RuntimeSessionHostSignals } from "@molis-ai/molis-work-contracts/modules/runtime-context";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { readProductEnv } from "@molis-ai/molis-work-storage";
 export type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";

@@ -1048,40 +1048,40 @@ export function checkPrivateWorkContextOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const requiredOwnerFiles = [
-    "modules/private-work-context/src/context-bindings.ts",
-    "modules/private-work-context/src/runtime-context-module.ts",
-    "packages/contracts/src/modules/private-work-context.ts",
+    "modules/runtime-context/src/context-bindings.ts",
+    "modules/runtime-context/src/runtime-context-module.ts",
+    "packages/contracts/src/modules/runtime-context.ts",
     "tests/runtime-binding-ledger.test.ts",
   ];
   for (const relativePath of requiredOwnerFiles) {
     if (!fs.existsSync(path.join(repositoryRoot, relativePath))) {
-      errors.push(`${relativePath}: missing Private Work Context owner boundary`);
+      errors.push(`${relativePath}: missing Runtime Context owner boundary`);
     }
   }
 
-  const contract = read("packages/contracts/src/modules/private-work-context.ts");
+  const contract = read("packages/contracts/src/modules/runtime-context.ts");
   for (const required of [
     'maturity: "partial"',
     "RuntimeContextBindingRecord",
   ]) {
     if (!contract.includes(required)) {
-      errors.push(`packages/contracts/src/modules/private-work-context.ts: missing ${required}`);
+      errors.push(`packages/contracts/src/modules/runtime-context.ts: missing ${required}`);
     }
   }
 
-  const entry = read("modules/private-work-context/src/index.ts");
+  const entry = read("modules/runtime-context/src/index.ts");
   for (const required of [
     "createRuntimeContextModule",
     'maturity: "partial"',
     '"runtime-context-bindings"',
   ]) {
     if (!entry.includes(required)) {
-      errors.push(`modules/private-work-context/src/index.ts: missing ${required}`);
+      errors.push(`modules/runtime-context/src/index.ts: missing ${required}`);
     }
   }
 
   if (entry.includes("RuntimeContextBindingRepository")) {
-    errors.push("modules/private-work-context/src/index.ts: Runtime binding Repository must remain private");
+    errors.push("modules/runtime-context/src/index.ts: Runtime binding Repository must remain private");
   }
 
   for (const retired of ["src/sessions/registry.ts","src/sessions/content-store.ts"]) {
@@ -1095,14 +1095,14 @@ export function checkPrivateWorkContextOwnership(repositoryRoot) {
 
   const catalog = read("apps/local-host/src/project-catalog.ts");
   if (!catalog.includes("createRuntimeContextModule")) {
-    errors.push("apps/local-host/src/project-catalog.ts: Runtime binding composition must use the Private Work Context public entrypoint");
+    errors.push("apps/local-host/src/project-catalog.ts: Runtime binding composition must use the Runtime Context public entrypoint");
   }
   if (catalog.includes("RuntimeContextBindingRepository")) {
     errors.push("apps/local-host/src/project-catalog.ts: Runtime binding Repository must remain private");
   }
   const directContextSql = /\b(?:CREATE TABLE(?: IF NOT EXISTS)?|FROM|INTO|UPDATE|DELETE FROM)\s+(runtime_context_bindings|runtime_context_binding_events|runtime_context_setup_requests|runtime_context_suggestion_rejections)\b/giu;
   for (const match of catalog.matchAll(directContextSql)) {
-    errors.push(`apps/local-host/src/project-catalog.ts: direct ${match[1]} SQL must stay inside modules/private-work-context`);
+    errors.push(`apps/local-host/src/project-catalog.ts: direct ${match[1]} SQL must stay inside modules/runtime-context`);
   }
 
   for (const relativePath of requiredOwnerFiles.filter((file) => file.endsWith(".ts"))) {
@@ -1156,7 +1156,7 @@ function checkRuntimeHostOwnership(repositoryRoot) {
   const ownerSource = ownerFiles.map(read).join("\n");
   for (const forbidden of [
     "MolisWorkSessionRegistry",
-    "@molis-ai/molis-work-module-private-work-context",
+    "@molis-ai/molis-work-module-runtime-context",
     "better-sqlite3",
     "SqliteMolisWorkStore",
     "src/web/server",
@@ -1499,7 +1499,7 @@ export function checkPackageBoundaries(repositoryRoot) {
     ...migratedGovernanceOwnership.errors.map((message) => `[governance-owner] ${message}`),
     ...executionValidationOwnership.errors.map((message) => `[execution-validation-owner] ${message}`),
     ...artifactsOwnership.errors.map((message) => `[artifacts-owner] ${message}`),
-    ...privateWorkContextOwnership.errors.map((message) => `[private-work-context-owner] ${message}`),
+    ...privateWorkContextOwnership.errors.map((message) => `[runtime-context-owner] ${message}`),
     ...runtimeHostOwnership.errors.map((message) => `[runtime-host-owner] ${message}`),
     ...dialogueOwnership.map(message => `[draft-dialogue-owner] ${message}`),
   ];

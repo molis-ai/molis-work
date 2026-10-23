@@ -1,5 +1,5 @@
 import type { ProjectSelection as MolisWorkProjectSelection } from "./projects.js";
-import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, RuntimeProjectSuggestionClue } from "./private-work-context.js";
+import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, RuntimeProjectSuggestionClue } from "./runtime-context.js";
 
 export type MolisWorkProjectBindingScope = "session" | "workspace_default";
 

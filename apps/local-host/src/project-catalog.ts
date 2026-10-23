@@ -56,10 +56,10 @@ import {
 import type {
   RuntimeContextBindingEventRecord,
   RuntimeContextBindingRecord,
-} from "@molis-ai/molis-work-contracts/modules/private-work-context";
+} from "@molis-ai/molis-work-contracts/modules/runtime-context";
 import {
   createRuntimeContextModule, createRuntimeProjectBindingValidation,
-} from "@molis-ai/molis-work-module-private-work-context";
+} from "@molis-ai/molis-work-module-runtime-context";
 import { DEMO_PROJECT_ID, seedDemoBoard } from "./demo-seed.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -80,15 +80,15 @@ export interface MolisWorkProjectCatalogOptions {
  * ID resumes the same host Session/work entry; a fresh Session must receive a
  * fresh ID from its host.
  */
-export type RuntimeWorkContext = import("@molis-ai/molis-work-contracts/modules/private-work-context").RuntimeWorkContext;
+export type RuntimeWorkContext = import("@molis-ai/molis-work-contracts/modules/runtime-context").RuntimeWorkContext;
 
-export type NormalizedRuntimeWorkContext = import("@molis-ai/molis-work-contracts/modules/private-work-context").NormalizedRuntimeWorkContext;
+export type NormalizedRuntimeWorkContext = import("@molis-ai/molis-work-contracts/modules/runtime-context").NormalizedRuntimeWorkContext;
 
-export type RuntimeWorkspaceContext = import("@molis-ai/molis-work-contracts/modules/private-work-context").RuntimeWorkspaceContext;
+export type RuntimeWorkspaceContext = import("@molis-ai/molis-work-contracts/modules/runtime-context").RuntimeWorkspaceContext;
 
-export type NormalizedRuntimeWorkspaceContext = import("@molis-ai/molis-work-contracts/modules/private-work-context").NormalizedRuntimeWorkspaceContext;
+export type NormalizedRuntimeWorkspaceContext = import("@molis-ai/molis-work-contracts/modules/runtime-context").NormalizedRuntimeWorkspaceContext;
 
-export type MolisWorkProjectBindingScope = import("@molis-ai/molis-work-contracts/modules/private-work-context").MolisWorkProjectBindingScope;
+export type MolisWorkProjectBindingScope = import("@molis-ai/molis-work-contracts/modules/runtime-context").MolisWorkProjectBindingScope;
 
 export type MolisWorkWorkspaceMembership = ProjectWorkspaceMembership;
 export type MolisWorkWorkspaceDirectoryRecord = ProjectWorkspaceDirectoryRecord;
@@ -100,11 +100,11 @@ export type MolisWorkProjectSelection = ProjectSelection;
  * fresh Session. It is never an identity and is never accepted from a Runtime
  * MCP tool argument.
  */
-export type RuntimeProjectSuggestionClueKind = import("@molis-ai/molis-work-contracts/modules/private-work-context").RuntimeProjectSuggestionClueKind;
+export type RuntimeProjectSuggestionClueKind = import("@molis-ai/molis-work-contracts/modules/runtime-context").RuntimeProjectSuggestionClueKind;
 
-export type RuntimeProjectSuggestionClue = import("@molis-ai/molis-work-contracts/modules/private-work-context").RuntimeProjectSuggestionClue;
+export type RuntimeProjectSuggestionClue = import("@molis-ai/molis-work-contracts/modules/runtime-context").RuntimeProjectSuggestionClue;
 
-export type MolisWorkProjectSuggestion = import("@molis-ai/molis-work-contracts/modules/private-work-context").MolisWorkProjectSuggestion;
+export type MolisWorkProjectSuggestion = import("@molis-ai/molis-work-contracts/modules/runtime-context").MolisWorkProjectSuggestion;
 
 export type MolisWorkRuntimeContextBinding = RuntimeContextBindingRecord;
 
@@ -114,19 +114,19 @@ export type AliasMolisWorkDesktopPanelSessionInput = AliasDesktopPanelSessionInp
 
 export type MolisWorkRuntimeContextBindingEvent = RuntimeContextBindingEventRecord;
 
-export type MolisWorkProjectConnection = import("@molis-ai/molis-work-contracts/modules/private-work-context").MolisWorkProjectConnection;
+export type MolisWorkProjectConnection = import("@molis-ai/molis-work-contracts/modules/runtime-context").MolisWorkProjectConnection;
 
-export type MolisWorkRuntimeContextResolution = import("@molis-ai/molis-work-contracts/modules/private-work-context").MolisWorkRuntimeContextResolution;
+export type MolisWorkRuntimeContextResolution = import("@molis-ai/molis-work-contracts/modules/runtime-context").MolisWorkRuntimeContextResolution;
 
-export type BindRuntimeWorkContextInput = import("@molis-ai/molis-work-contracts/modules/private-work-context").BindRuntimeWorkContextInput;
+export type BindRuntimeWorkContextInput = import("@molis-ai/molis-work-contracts/modules/runtime-context").BindRuntimeWorkContextInput;
 
-export type UnbindRuntimeWorkContextInput = import("@molis-ai/molis-work-contracts/modules/private-work-context").UnbindRuntimeWorkContextInput;
+export type UnbindRuntimeWorkContextInput = import("@molis-ai/molis-work-contracts/modules/runtime-context").UnbindRuntimeWorkContextInput;
 
-export type MolisWorkRuntimeContextUnbindResult = import("@molis-ai/molis-work-contracts/modules/private-work-context").MolisWorkRuntimeContextUnbindResult;
+export type MolisWorkRuntimeContextUnbindResult = import("@molis-ai/molis-work-contracts/modules/runtime-context").MolisWorkRuntimeContextUnbindResult;
 
-export type RejectRuntimeContextSuggestionInput = import("@molis-ai/molis-work-contracts/modules/private-work-context").RejectRuntimeContextSuggestionInput;
+export type RejectRuntimeContextSuggestionInput = import("@molis-ai/molis-work-contracts/modules/runtime-context").RejectRuntimeContextSuggestionInput;
 
-export type MolisWorkRuntimeContextSuggestionRejectionResult = import("@molis-ai/molis-work-contracts/modules/private-work-context").MolisWorkRuntimeContextSuggestionRejectionResult;
+export type MolisWorkRuntimeContextSuggestionRejectionResult = import("@molis-ai/molis-work-contracts/modules/runtime-context").MolisWorkRuntimeContextSuggestionRejectionResult;
 
 export type DeleteMolisWorkProjectInput = DeleteProjectInput;
 export type MolisWorkProjectDeletionRecord = ProjectDeletionRecord;
@@ -137,7 +137,7 @@ export type MolisWorkProjectDeletionResult = ProjectDeletionResult;
  * entry in one recoverable operation. Call this only after the user has
  * explicitly asked for a new project in the current Runtime conversation.
  */
-export type CreateAndBindRuntimeContextInput = import("@molis-ai/molis-work-contracts/modules/private-work-context").CreateAndBindRuntimeContextInput;
+export type CreateAndBindRuntimeContextInput = import("@molis-ai/molis-work-contracts/modules/runtime-context").CreateAndBindRuntimeContextInput;
 
 export interface LocalCatalogPlatform {
   createPanelSchema(db: SqliteDatabase): void;
@@ -249,7 +249,7 @@ export class MolisWorkProjectCatalog {
         assertCurrentCatalog(storage, databasePath);
         const ledger = createContextLedger(db, {
           initializeSchema: false,
-          authorize: (access) => access.scope.kind === "personal" && access.scope.id === "private-work-context",
+          authorize: (access) => access.scope.kind === "personal" && access.scope.id === "runtime-context",
         });
         return new MolisWorkProjectCatalog(storage, homeDirectory, ledger, platform);
       }
@@ -263,7 +263,7 @@ export class MolisWorkProjectCatalog {
         }
         const ledger = createContextLedger(db, {
           initializeSchema: !initialized,
-          authorize: (access) => access.scope.kind === "personal" && access.scope.id === "private-work-context",
+          authorize: (access) => access.scope.kind === "personal" && access.scope.id === "runtime-context",
         });
         if (!initialized) initializeCatalog(storage, platform.createPanelSchema);
         return new MolisWorkProjectCatalog(storage, homeDirectory, ledger, platform);

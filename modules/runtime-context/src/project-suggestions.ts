@@ -1,5 +1,5 @@
 import type { ProjectRecord as MolisWorkProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { RuntimeProjectSuggestionClueKind, RuntimeProjectSuggestionClue } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { RuntimeProjectSuggestionClueKind, RuntimeProjectSuggestionClue } from "@molis-ai/molis-work-contracts/modules/runtime-context";
 
 const RUNTIME_PROJECT_SUGGESTION_KINDS = new Set<RuntimeProjectSuggestionClueKind>([
   "workspace",

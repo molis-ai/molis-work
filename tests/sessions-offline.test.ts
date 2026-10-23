@@ -39,12 +39,12 @@ test("RAC-210 the Work package and every `sessions` plugin entry are gone", () =
 });
 
 test("RAC-211 the private work context module keeps only Runtime context bindings", () => {
-  const files = readdirSync(join(root, "modules/private-work-context/src")).sort();
+  const files = readdirSync(join(root, "modules/runtime-context/src")).sort();
   assert.deepEqual(files, [
     "binding-errors.ts", "context-binding-references.ts", "context-bindings.ts", "index.ts", "project-binding-commands.ts",
     "project-binding-validation.ts", "project-resolution.ts", "project-setup.ts", "project-suggestions.ts", "runtime-context-module.ts",
   ]);
-  const contract = text("packages/contracts/src/modules/private-work-context.ts");
+  const contract = text("packages/contracts/src/modules/runtime-context.ts");
   assert.doesNotMatch(contract, /WorkSession|sessionErrors|PrivateWorkContextApplicationApi/u);
   assert.equal(existsSync(join(root, "packages/contracts/src/modules/session-messages.ts")), false);
 });

@@ -78,9 +78,9 @@
       "types": "./dist/modules/model-providers.d.ts",
       "import": "./dist/modules/model-providers.js"
     },
-    "./modules/private-work-context": {
-      "types": "./dist/modules/private-work-context.d.ts",
-      "import": "./dist/modules/private-work-context.js"
+    "./modules/runtime-context": {
+      "types": "./dist/modules/runtime-context.d.ts",
+      "import": "./dist/modules/runtime-context.js"
     },
     "./modules/projects": {
       "types": "./dist/modules/projects.d.ts",

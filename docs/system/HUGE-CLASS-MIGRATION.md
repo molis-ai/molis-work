@@ -76,7 +76,7 @@
 | 21 | `packages/kernel` | 1 | 1 | 3 | `registerProvider` 已在 W3-01 降到阈值下；W3-05 的交叉校验在 SDK 的 `action-cross-references.ts`，`registerProvider` 只在原有的一行里多调一个函数，没有加行 |
 | 22 | `horizontal/placement` | 1 | 1 | 3 | 决定 N-03：代码不搬，包内拆 |
 | 23 | `plugins/official-integrations/gmail` | 4 | 5 | 2 |  |
-| 24 | `modules/private-work-context` | 4 | 4 | 2 |  |
+| 24 | `modules/runtime-context` | 4 | 4 | 2 |  |
 | 25 | `modules/shelf` | 1 | 3 | 2 |  |
 | 26 | `horizontal/scheduler` | 1 | 1 | 2 |  |
 | 27 | `modules/projects` | 1 | 1 | 2 |  |
@@ -244,10 +244,10 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `goals` | `src/event-state-repository.ts` | `GoalEventStateRepository` 类 408 行 / 30 方法 | 拆 · W5-10 | 30 个方法按表分组：所有者与工作状态、约定与进度、顾虑、决定请求、已应用决定、结论与收尾。每组一个表访问类。 | 2 |
 | `goals` | `src/guidance-commands.ts` | `GuidanceCommands` 类 368 行 / 3 方法<br>`update` 函数 201 行 | 拆 · W5-10 | 只有 3 个方法但 `update` 201 行、`add` 149 行。`update` 依次是读取并规范化输入、校验（确认、动作、必填）、`edit` 分支、构造请求与哈希、事务（141 行的 `return`），各成函数；`add`、`update` 成两个命令类。`update` 在类里（类和方法各计一次）。 | 1 |
 | `goals` | `src/lifecycle-archive.ts` | `setTrashed` 函数 185 行<br>`setTrashed callback 1` 函数 174 行 | 拆 · W5-10 | `setTrashed` 的返回里是 174 行的事务回调（同一段计两次），按步骤拆；`GoalArchiveCommands` 其余方法留在类里。 | 2 |
-| `private-work-context` | `src/project-binding-commands.ts` | `RuntimeProjectBindingCommands` 类 333 行 / 12 方法 | 拆 · W5-10 | `bindRuntimeContextInTransaction` 102 行、`unbindRuntimeContext` 57、`rejectRuntimeContextSuggestion` 51：绑定、解绑、拒绝建议各一个命令类，成员关系与日志助手（`upsertWorkspaceMembership`、`removeSessionBinding`、`appendRuntimeContextBindingEvent`）单独成文件。 | 0 |
-| `private-work-context` | `src/session-handoffs.ts` | `SessionHandoffRepository` 类 325 行 / 14 方法 | 拆 · W5-10 | 草稿（`createDraft*`、`updateDraft*`）、发送状态（`markSending`、`attachDestination`、`markFailed`、`markSent`、`cancel`）、恢复中断与行映射（`recoverInterrupted`、`map`）三组。 | 0 |
-| `private-work-context` | `src/session-records.ts` | `SessionRecordRepository` 类 320 行 / 15 方法 | 拆 · W5-10 | 创建与发现（`createSession`、`discoverSession`、`explicitlyLinkSession`、`linkNativeRuntimeSession`）、关联更新（`updateAssociations*`、`setAssociationReferences`、`reassignWorkspaceSessions`）、查找（`get`、`find*`、`list`、`goalHistory`）三组。 | 0 |
-| `private-work-context` | `src/session-registry.ts` | `MolisWorkSessionRegistry` 类 174 行 / 29 方法 | 拆 · W5-10 | 对外门面：29 个方法几乎都是转发，只因方法数超标。按会话、交接、事件三组拆成子门面，调用方拿自己要的那个。 | 2 |
+| `runtime-context` | `src/project-binding-commands.ts` | `RuntimeProjectBindingCommands` 类 333 行 / 12 方法 | 拆 · W5-10 | `bindRuntimeContextInTransaction` 102 行、`unbindRuntimeContext` 57、`rejectRuntimeContextSuggestion` 51：绑定、解绑、拒绝建议各一个命令类，成员关系与日志助手（`upsertWorkspaceMembership`、`removeSessionBinding`、`appendRuntimeContextBindingEvent`）单独成文件。 | 0 |
+| `runtime-context` | `src/session-handoffs.ts` | `SessionHandoffRepository` 类 325 行 / 14 方法 | 拆 · W5-10 | 草稿（`createDraft*`、`updateDraft*`）、发送状态（`markSending`、`attachDestination`、`markFailed`、`markSent`、`cancel`）、恢复中断与行映射（`recoverInterrupted`、`map`）三组。 | 0 |
+| `runtime-context` | `src/session-records.ts` | `SessionRecordRepository` 类 320 行 / 15 方法 | 拆 · W5-10 | 创建与发现（`createSession`、`discoverSession`、`explicitlyLinkSession`、`linkNativeRuntimeSession`）、关联更新（`updateAssociations*`、`setAssociationReferences`、`reassignWorkspaceSessions`）、查找（`get`、`find*`、`list`、`goalHistory`）三组。 | 0 |
+| `runtime-context` | `src/session-registry.ts` | `MolisWorkSessionRegistry` 类 174 行 / 29 方法 | 拆 · W5-10 | 对外门面：29 个方法几乎都是转发，只因方法数超标。按会话、交接、事件三组拆成子门面，调用方拿自己要的那个。 | 2 |
 | `projects` | `src/repository.ts` | `ProjectsRepository` 类 287 行 / 29 方法 | 拆 · W5-10 | 29 个方法分四组：项目（`insertProject`、`renameProject`、`updateDatabasePath`）、项目插件与隐藏插件、工作区与成员关系、删除记录（`insertDeletion`、`findDeletion`）。每组一个表访问类；删除记录这组预计会被 W2-07（项目删除统一）碰到，那一片的新增部分先写在新文件里。 | 2 |
 | `shelf` | `src/store.ts` | 文件 1,176 行<br>`ShelfStore` 类 748 行 / 35 方法<br>`runJob` 函数 199 行 | 拆 · W5-10 | 文件 1,176 行；`ShelfStore` 748 行/35 方法分组：收件（`admitFile`、`admit`、`admitFolder`、`admitText`、`admitUrl`、`captureUrl`）、作业（`runJob`、`storeResult`、`cancelJob`、`writeCopy`、`useAsMaterial`）、剪贴（`addClipboard`、`deleteClipboard`、`clipboardToMaterial`）、目录文件读写（`readCatalog`、`writeCatalog`、`update`）。`runJob` 199 行（`try` 83 行）按阶段拆，它在类里（类和方法各计一次）。`normalizeCatalog`、`clipTitleFor`、`normalizeClip` 等移出。 | 2 |
 

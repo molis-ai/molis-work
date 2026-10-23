@@ -1,5 +1,5 @@
 import type { RuntimeProjectCatalogProvider, RuntimeProjectConnectionState, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { MolisWorkRuntimeContextResolution } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { MolisWorkRuntimeContextResolution } from "@molis-ai/molis-work-contracts/modules/runtime-context";
 import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { McpPresentationErrorFactory } from "./goal-presentation.js";
 import type { McpToolCallContext } from "./protocol.js";

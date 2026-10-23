@@ -114,7 +114,7 @@
     },
     "function modules/goals/src/guidance-commands.ts#update": 177,
     "function modules/goals/src/lifecycle-archive.ts#setTrashed": 155,
-    "class modules/private-work-context/src/project-binding-commands.ts#RuntimeProjectBindingCommands": {
+    "class modules/runtime-context/src/project-binding-commands.ts#RuntimeProjectBindingCommands": {
       "lines": 310,
       "methods": 12
     },

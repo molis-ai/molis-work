@@ -10,7 +10,7 @@ import { CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
 
 
 const context = (id: string) => ({ runtime_id: "codex", stable_work_context_id: id, host_declares_stable: true });
-const access = { actor_id: "test-reader", scope: { kind: "personal", id: "private-work-context" } as const };
+const access = { actor_id: "test-reader", scope: { kind: "personal", id: "runtime-context" } as const };
 
 async function fixture(legacy = true) {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-runtime-binding-ledger-"));

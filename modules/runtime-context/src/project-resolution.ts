@@ -1,5 +1,5 @@
 import type { ProjectRecord as MolisWorkProjectRecord, ProjectSelection as MolisWorkProjectSelection, ProjectsQueryApi } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { NormalizedRuntimeWorkContext, NormalizedRuntimeWorkspaceContext, RuntimeProjectSuggestionClue, MolisWorkProjectSuggestion, MolisWorkRuntimeContextResolution, RuntimeContextBindingRecord as MolisWorkRuntimeContextBinding } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { NormalizedRuntimeWorkContext, NormalizedRuntimeWorkspaceContext, RuntimeProjectSuggestionClue, MolisWorkProjectSuggestion, MolisWorkRuntimeContextResolution, RuntimeContextBindingRecord as MolisWorkRuntimeContextBinding } from "@molis-ai/molis-work-contracts/modules/runtime-context";
 import type { RuntimeContextBindingRepository } from "./context-bindings.js";
 import { normalizeRuntimeProjectSuggestionClues, scoreProjectSuggestion } from "./project-suggestions.js";
 

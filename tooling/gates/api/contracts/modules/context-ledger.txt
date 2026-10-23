@@ -87,7 +87,7 @@ export interface ContextScope {
 }
 
 export interface ObjectRef {
-    module: "goals" | "artifacts" | "feed" | "private-work-context" | "projects" | "assistant" | "plugins" | "agent-host";
+    module: "goals" | "artifacts" | "feed" | "runtime-context" | "projects" | "assistant" | "plugins" | "agent-host";
     id: string;
     version: number | null;
     revision?: string;

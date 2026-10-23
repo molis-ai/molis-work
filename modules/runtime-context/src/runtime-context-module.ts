@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import type { CreateAndBindRuntimeContextInput } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { CreateAndBindRuntimeContextInput } from "@molis-ai/molis-work-contracts/modules/runtime-context";
 import type { ProjectsQueryApi } from "@molis-ai/molis-work-contracts/modules/projects";
 import { RuntimeContextBindingRepository } from "./context-bindings.js";
 import { RuntimeProjectBindingCommands, type RuntimeProjectBindingPorts } from "./project-binding-commands.js";

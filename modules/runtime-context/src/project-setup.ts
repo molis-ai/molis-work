@@ -1,4 +1,4 @@
-import type { CreateAndBindRuntimeContextInput, MolisWorkRuntimeContextResolution } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { CreateAndBindRuntimeContextInput, MolisWorkRuntimeContextResolution } from "@molis-ai/molis-work-contracts/modules/runtime-context";
 import type { ProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { RuntimeContextBindingRepository } from "./context-bindings.js";
 import type { RuntimeProjectBindingCommands } from "./project-binding-commands.js";

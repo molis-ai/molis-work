@@ -7,12 +7,12 @@ import test from "node:test";
 import { checkPrivateWorkContextOwnership } from "../scripts/check-package-boundaries.mjs";
 
 const repository = fileURLToPath(new URL("../", import.meta.url));
-const entry = "modules/private-work-context/src/index.ts";
+const entry = "modules/runtime-context/src/index.ts";
 const catalog = "apps/local-host/src/project-catalog.ts";
 function fixture(t) {
   const root = mkdtempSync(path.join(tmpdir(), "molis-context-boundary-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  for (const file of ["modules/private-work-context/src", "packages/contracts/src/modules/private-work-context.ts",
+  for (const file of ["modules/runtime-context/src", "packages/contracts/src/modules/runtime-context.ts",
     "tests/runtime-binding-ledger.test.ts", catalog]) {
     mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
     cpSync(path.join(repository, file), path.join(root, file), { recursive: true });
@@ -34,7 +34,7 @@ test("W5-08-CTX-04 boundary keeps direct binding SQL and owner size restrictions
   const f = fixture(t);
   f.append(catalog, '\ndb.prepare("DELETE FROM runtime_context_bindings");\n');
   assert.ok(f.check().some(error => error.includes("direct runtime_context_bindings SQL")));
-  f.append("modules/private-work-context/src/runtime-context-module.ts", "\n".repeat(501));
+  f.append("modules/runtime-context/src/runtime-context-module.ts", "\n".repeat(501));
   assert.ok(f.check().some(error => error.includes("runtime-context-module.ts") && error.includes("owner limit")));
 });
 

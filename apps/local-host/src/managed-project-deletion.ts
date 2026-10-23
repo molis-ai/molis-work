@@ -2,7 +2,7 @@ import type { CatalogCommit } from "./catalog-commit.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
-import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
+import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-runtime-context";
 import { catalogErrors } from "./project-catalog-contract.js";
 import { randomUUID } from "node:crypto";
 import type { StoredProjectDeletion } from "@molis-ai/molis-work-module-projects";

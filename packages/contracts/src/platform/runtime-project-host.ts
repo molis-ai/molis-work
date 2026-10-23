@@ -5,7 +5,7 @@ import type {
   BindRuntimeWorkContextInput, UnbindRuntimeWorkContextInput, MolisWorkRuntimeContextUnbindResult,
   RejectRuntimeContextSuggestionInput, MolisWorkRuntimeContextSuggestionRejectionResult,
   CreateAndBindRuntimeContextInput,
-} from "../modules/private-work-context.js";
+} from "../modules/runtime-context.js";
 
 /** Host-only identity and configuration; never decoded from model tool arguments. */
 export interface MolisWorkRuntimeContextHost {

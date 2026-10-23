@@ -4,7 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import type { ProjectRecord as MolisWorkProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
+import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-runtime-context";
 import type { CreateMolisWorkProjectInput } from "./project-catalog-contract.js";
 import { initializeProjectDatabase, validateManagedBoard } from "./managed-project-database.js";
 

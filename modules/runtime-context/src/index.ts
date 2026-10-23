@@ -1,4 +1,4 @@
-export * from "@molis-ai/molis-work-contracts/modules/private-work-context";
+export * from "@molis-ai/molis-work-contracts/modules/runtime-context";
 export {
   createRuntimeContextBindingTables,
   createRuntimeContextSetupRequestTable,
@@ -7,11 +7,11 @@ export {
 } from "./context-bindings.js";
 
 export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-private-work-context",
-  packagePath: "modules/private-work-context",
+  packageName: "@molis-ai/molis-work-module-runtime-context",
+  packagePath: "modules/runtime-context",
   kind: "module",
   maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/modules/private-work-context",
+  contract: "@molis-ai/molis-work-contracts/modules/runtime-context",
   migrationGoals: ["goal-reorg-f2","goal-reorg-wk1"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: [

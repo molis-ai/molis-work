@@ -1,5 +1,5 @@
 import type { MolisWorkRuntimeContextHost, RuntimeProjectConnectionState } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { MolisWorkRuntimeContextResolution } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { MolisWorkRuntimeContextResolution } from "@molis-ai/molis-work-contracts/modules/runtime-context";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mcpWebUrl } from "./goal-presentation.js";

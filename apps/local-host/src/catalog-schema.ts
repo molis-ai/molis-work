@@ -1,7 +1,7 @@
 import { LocalCatalogMetadata, type LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createProjectsSchema } from "@molis-ai/molis-work-module-projects";
 import { createPersonalPlanningMethodSchema } from "@molis-ai/molis-work-module-goals";
-import { createRuntimeContextBindingTables, createRuntimeContextSetupRequestTable, createRuntimeContextSuggestionRejectionTable } from "@molis-ai/molis-work-module-private-work-context";
+import { createRuntimeContextBindingTables, createRuntimeContextSetupRequestTable, createRuntimeContextSuggestionRejectionTable } from "@molis-ai/molis-work-module-runtime-context";
 import { createModelProviderTables } from "./model-provider-store.js";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION, catalogErrors, catalogSchemaCompatibilityError, isOwnedCatalogOwner } from "./project-catalog-contract.js";
 

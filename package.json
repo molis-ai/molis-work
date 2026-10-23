@@ -98,7 +98,7 @@
     "@molis-ai/molis-work-module-functions": "workspace:*",
     "@molis-ai/molis-work-module-goals": "workspace:*",
     "@molis-ai/molis-work-module-governance-collaboration": "workspace:*",
-    "@molis-ai/molis-work-module-private-work-context": "workspace:*",
+    "@molis-ai/molis-work-module-runtime-context": "workspace:*",
     "@molis-ai/molis-work-module-projects": "workspace:*",
     "@molis-ai/molis-work-module-shelf": "workspace:*",
     "@molis-ai/molis-work-module-signals": "workspace:*",

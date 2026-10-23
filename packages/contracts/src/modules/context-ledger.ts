@@ -22,7 +22,7 @@ export interface ObjectRef {
    * `<session>/<input_id>`) or `runtime_session`. Molis keeps only the reference and does not check that it exists
    * (specs/ai-input-receipts S3).
    */
-  module: "goals" | "artifacts" | "feed" | "private-work-context" | "projects" | "assistant" | "plugins" | "agent-host";
+  module: "goals" | "artifacts" | "feed" | "runtime-context" | "projects" | "assistant" | "plugins" | "agent-host";
   id: string;
   /** null means an identity reference, not an invented historical version. Artifacts require a version. */
   version: number | null;

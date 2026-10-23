@@ -254,8 +254,18 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [704663, 706089],
   "/assets/molis-work-workbench.css": [1612954, 1614339],
   // VUX-39/VUX-12 (slice 96): an interrupted round's check list marks each outcome with its tone and puts the close after the list, not in it;
-  // a group of steps whose only open outcome is unknown says so instead of failure. 1182945 → 1183038 (+93).
-  "/assets/molis-work-workbench.js": [1182945, 1183038],
+  // a group of steps whose only open outcome is unknown says so instead of failure (+93). VUX-31 (slice 98): the slash menu keeps the words typed
+  // last when the lists the first asked for answer late, and the side panel's file list drops a late page of a list read again (+76).
+  // 1182945 → 1183114 (+169).
+  "/assets/molis-work-workbench.js": [1182945, 1183114],
+  // VUX-29 (slice 97): Pages' folder name dialog sends while it is open: a second press is swallowed, a refusal keeps the name and says why
+  // under the field, Enter saves instead of cancelling. 48706 → 49369 (+663).
+  "/assets/molis-work-plugins/pages.js": [48706, 49369],
+  // VUX-31 (slice 98): the 项目资料 page's newest read wins and a longer list is not added to another state's; the helper keeps the bind
+  // function under the giant-unit limit, so inlining it to save ~60 B is not open. 26305 → 26516 (+211).
+  "/assets/molis-work-knowledge.js": [26305, 26516],
+  // VUX-31 (slice 98): the Shelf's local file search shows the words typed last when an earlier search answers late. 75782 → 75821 (+39).
+  "/assets/molis-work-plugins/shelf.js": [75782, 75821],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

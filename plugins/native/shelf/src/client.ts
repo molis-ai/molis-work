@@ -996,7 +996,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   });
   const findList = bench.querySelector("[data-shelf-find]");
-  let findTimer = 0;
+  let findTimer = 0, findSeq = 0;
   const paintFound = (rows) => {
     if (!findList) return;
     findList.hidden = !rows.length;
@@ -1006,11 +1006,11 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     )).join("");
   };
   const findLocalFiles = () => {
-    const query = (search?.value || "").trim();
+    const query = (search?.value || "").trim(), mine = ++findSeq;
     if (query.length < 2) { paintFound([]); return; }
     const found = invokeNative("shelf_find_files", { query });
     if (!found) { paintFound([]); return; }
-    found.then((rows) => paintFound(Array.isArray(rows) ? rows : [])).catch(() => paintFound([]));
+    found.catch(() => []).then((rows) => mine === findSeq && paintFound(Array.isArray(rows) ? rows : []));
   };
   lifetime.listen(findList,"click", async (event) => {
     const row = event.target.closest("[data-shelf-add-path]");
@@ -1019,7 +1019,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!added) return;
     try {
       await added;
-      paintFound([]);
+      findSeq++; paintFound([]);
       if (search) search.value = "";
       await load();
     } catch {}

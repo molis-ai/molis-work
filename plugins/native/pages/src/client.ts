@@ -105,20 +105,21 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     confirmDialog.addEventListener("close", onClose);
     confirmDialog.showModal();
   });
-  const askName = (message, initial) => new Promise((resolve) => {
+  const askName = (message, initial, save) => new Promise((resolve) => {
     if (!nameDialog) { resolve(null); return; }
-    const input = nameDialog.querySelector("[data-name-input]");
-    nameDialog.querySelector("[data-name-label]").textContent = message;
-    input.value = initial || "";
-    nameDialog.returnValue = "cancel";
-    const onClose = () => {
-      nameDialog.removeEventListener("close", onClose);
-      resolve(nameDialog.returnValue === "ok" ? input.value : null);
+    const input = nameDialog.querySelector("[data-name-input]"), ok = nameDialog.querySelector("[data-name-ok]"), bad = nameDialog.querySelector("[data-name-error]");
+    nameDialog.querySelector("[data-name-label]").textContent = message; input.value = initial || ""; bad.hidden = true; nameDialog.returnValue = "cancel"; let busy = false;
+    nameDialog.onclose = () => { nameDialog.onclose = nameDialog.oncancel = null; resolve(nameDialog.returnValue === "ok" ? input.value : null); };
+    nameDialog.oncancel = (event) => { if (busy) event.preventDefault(); };
+    nameDialog.querySelector("[data-name-cancel]").onclick = () => { if (!busy) nameDialog.close("cancel"); };
+    nameDialog.querySelector("form").onsubmit = async (event) => {
+      event.preventDefault();
+      if (busy) return;
+      busy = true; bad.hidden = true; ok.setAttribute("data-loading", ""); ok.insertAdjacentHTML("afterbegin", '<span class="mw-spinner" aria-hidden="true"></span>');
+      try { await save(input.value); nameDialog.close("ok"); } catch (error) { bad.textContent = error.message; bad.hidden = false; input.focus(); }
+      finally { busy = false; ok.removeAttribute("data-loading"); ok.querySelector(".mw-spinner").remove(); }
     };
-    nameDialog.addEventListener("close", onClose);
-    nameDialog.showModal();
-    input.focus();
-    input.select();
+    nameDialog.showModal(); input.focus(); input.select();
   });
   const formatTime = (value) => {
     if (!value) return "";
@@ -923,9 +924,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         stop(event);
         const folder = folders.find((item) => item.id === folderRename.dataset.pagesFolderRename);
         if (!folder) return;
-        const title = await askName(L("文件夹名称"), folder.title);
+        const title = await askName(L("文件夹名称"), folder.title, (title) => request("POST", api + "/folders/" + encodeURIComponent(folder.id), { title }));
         if (title == null) return;
-        await request("POST", api + "/folders/" + encodeURIComponent(folder.id), { title });
         await loadList();
         return;
       }
@@ -955,9 +955,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-pages-new-folder]")) {
         closeCreate();
-        const title = await askName(L("文件夹名称"), "");
+        const title = await askName(L("文件夹名称"), "", (title) => request("POST", api + "/folders", { title }));
         if (title == null) return;
-        await request("POST", api + "/folders", { title });
         await loadList();
         return;
       }

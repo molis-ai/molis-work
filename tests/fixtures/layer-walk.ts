@@ -12,8 +12,8 @@ import { OVERLAY_AFTER, OVERLAY_BEFORE, OVERLAY_OPEN, type OverlayLayer } from "
  * only the verb: the days of a calendar give one trigger) and the shape of the element around it, so the rows of one list
  * give one trigger. `shell` is outside the plugin's stage.
  */
-const triggersOf = (names: string[]) => String.raw`(() => {
-  const OPENS = /新建|新增|创建|添加|重命名|改名|删除|移除|归档/, NAMES = ${JSON.stringify(names)};
+const triggersOf = (names: string[], verbs: string) => String.raw`(() => {
+  const OPENS = /新建|新增|创建|添加|重命名|改名|删除|移除|归档${verbs}/, NAMES = ${JSON.stringify(names)};
   const stage = document.querySelector('[data-plugin-stage]');
   const shown = (el) => { const box = el.getBoundingClientRect(); if (!box.width || !box.height) return false;
     const style = getComputedStyle(el); return style.visibility !== 'hidden' && !el.closest('[hidden], [inert], [aria-hidden=true]')
@@ -42,8 +42,8 @@ const triggersOf = (names: string[]) => String.raw`(() => {
   return list; })()`;
 
 /** The items of the open layer that ask for a dialog, by label. */
-const LAYER_ITEMS = String.raw`(() => { const layer = document.querySelector('[data-ov-layer]'); if (!layer) return [];
-  const OPENS = /新建|新增|创建|添加|重命名|改名|删除|移除|归档/;
+const layerItems = (verbs: string) => String.raw`(() => { const layer = document.querySelector('[data-ov-layer]'); if (!layer) return [];
+  const OPENS = /新建|新增|创建|添加|重命名|改名|删除|移除|归档${verbs}/;
   return [...new Set([...layer.querySelectorAll('[role=menuitem], button, a[href]')].filter((el) => el.checkVisibility() && !el.matches(':disabled, [aria-disabled=true]'))
     .map((el) => (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim()).filter((label) => label.length <= 16 && OPENS.test(label)))]; })()`;
 
@@ -68,12 +68,14 @@ const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /**
  * Walks the layers of each screen at `path`. `shell` collects the shell's own triggers (the dock, the tab strip, the project
  * button), which are the same on every screen: pass one set per width so each is read once there. `read(where)` reads the
- * open layer; it is marked `data-audit-scope` while `read` runs. Returns the browser's own dialogs that were answered No.
+ * open layer; it is marked `data-audit-scope` while `read` runs. `moreVerbs` are words besides the usual ones (create, rename, delete…)
+ * that a button asks for a dialog with. Returns the browser's own dialogs that were answered No.
  */
 export async function walkLayers(browser: LayerWalkBrowser, screens: Array<[where: string, path: string]>, names: string[], shell: Set<string>,
-  read: (where: string) => Promise<void>, log: (line: string) => void = () => undefined): Promise<string[]> {
+  read: (where: string) => Promise<void>, log: (line: string) => void = () => undefined, moreVerbs: string[] = []): Promise<string[]> {
   const { evaluate, command, navigate, waitFor, sessionId, origin } = browser;
-  const TRIGGERS = triggersOf(names);
+  const verbs = moreVerbs.map((verb) => `|${verb}`).join("");
+  const TRIGGERS = triggersOf(names, verbs), LAYER_ITEMS = layerItems(verbs);
   const native: string[] = [];
   const press = async (point: { x: number; y: number }, button: "left" | "right") => {
     for (const type of ["mousePressed", "mouseReleased"] as const) await command("Input.dispatchMouseEvent", { type, ...point, button, clickCount: 1 }, sessionId);

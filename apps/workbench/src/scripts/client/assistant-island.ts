@@ -1675,7 +1675,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     try { capabilityRows = ((await api("/capabilities")).capabilities || []).filter((row) => row.enabled); } catch { capabilityRows = []; }
     return capabilityRows;
   };
-  let methodRows = null;
+  let methodRows = null, slashSeq = 0;
   const loadMethodRows = async () => {
     if (methodRows) return methodRows;
     try { methodRows = (await api("/methods")).methods || []; } catch { methodRows = []; }
@@ -1684,11 +1684,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const slashOpen = () => startPop && !startPop.hidden && startPop.dataset.mode === "slash";
   async function setSlash(query) {
     if (!startPop) return;
-    const q = String(query || "").trim().toLowerCase();
+    const q = String(query || "").trim().toLowerCase(), mine = ++slashSeq;
     const starters = startersFor().filter((starter) => !q || starter.label.toLowerCase().includes(q));
     const rows = (await loadCapabilityRows()).filter((row) => !q || [row.title, row.provider, row.description].some((text) => String(text || "").toLowerCase().includes(q))).slice(0, 8);
     const methods = (await loadMethodRows()).filter((row) => !q || [row.name, row.plugin_title, row.summary].some((text) => String(text || "").toLowerCase().includes(q))).slice(0, 5);
-    if (!String(input.value || "").startsWith("/")) return;
+    if (mine !== slashSeq || !String(input.value || "").startsWith("/")) return;
     startPop.dataset.mode = "slash";
     startPop.hidden = false;
     startPop.replaceChildren(el("p", "assistant-popover-title", L("用一个方法或能力，或这样开始")));

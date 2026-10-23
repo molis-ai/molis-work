@@ -38,9 +38,9 @@
 | VUX-26 | 工程 | `agent-studio.e2e`、`assistant-scroll-follow.e2e`、`coding-question-card.e2e`、`im-follow-copy.e2e`、`scroll-follow.e2e` | 未走 | 未做 | — |
 | VUX-27 | 工程 | `overflow-fade.e2e`、`soft-workbench-refinement`、`visual-review-consumers.e2e` | 未走 | 未做 | — |
 | VUX-28 | 工程 | `keyboard-groups.e2e` | 未走 | 未做 | — |
-| VUX-29 | 工程 | `hover-actions.e2e`、`overlay-placement.e2e` | 未走 | 未做 | 模态焦点圈、重复提交、失败留输入 |
+| VUX-29 | 工程 | `hover-actions.e2e`、`overlay-placement.e2e`、`dialog-submit-rules.e2e` | 未走 | 未做 | 只确认的对话框被拒时仍关上、说明在页面提示里 |
 | VUX-30 | 工程 | `chinese-walkthrough.e2e`、`english-walkthrough.e2e`、`narrow-surfaces.e2e`、`text-wrap.e2e` | 未走 | 未做 | — |
-| VUX-31 | 工程 | `busy-feedback.e2e`、`load-geometry.e2e`、`save-failure.e2e`、`stale-detail.e2e` | 未走 | 未做 | 筛选与翻页的迟到回应 |
+| VUX-31 | 工程 | `busy-feedback.e2e`、`load-geometry.e2e`、`save-failure.e2e`、`stale-detail.e2e`、`late-list-responses.e2e` | 未走 | 未做 | 不是筛选、搜索、翻页的迟到读取（Jelly 命令后、Todo 提醒与批量）没有查 |
 | VUX-32 | 工程 | `issue-draft-preview.e2e`、`media-zoom-board.e2e`、`visual-mechanisms.e2e` | 未走 | 未做 | — |
 | VUX-33 | 工程 | `assistant-text-html.e2e`、`code-diff-reader.e2e`、`code-diff-scale.e2e`、`code-incremental-colour`、`code-incremental.e2e`、`code-rows-geometry.e2e`、`code-scale.e2e`、`coding-changeset-http`、`diff-patch`、`diff-plugin` | 未走 | 未做 | Assistant 40k 以上的代码图、CSS 缩放下制表约 2 px |
 | VUX-34 | 人工 | `desktop-drag-regions.e2e` | 未走 | 未做 | macOS 真机的拖拽、全屏与缩放留白 |

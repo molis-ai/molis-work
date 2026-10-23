@@ -37,10 +37,11 @@ embedded reader keeps its own selector rather than rendering duplicate buttons.
 - 负责：对快照、准备好的变更与 Git 变更的统一比较界面。
 - 不负责：产生变更集、读文件、应用变更。
 - 公开入口：`@molis-ai/molis-work-plugin-diff`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（逐行比较 `compareTexts` 等从 SDK 取，Diff 不再转出它们）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（逐行比较 `compareTexts` 等从 SDK 取，Diff 不再转出它们）、`@molis-ai/molis-work-design-system`（页面上的转义与图标）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 三类输入按 `input_groups` 互换，只有选中的一组生效。
   - 三类输入都可读取过程项或成果库里明确选定的固定版本；读取仍遵守 Manifest 消费类型与当前授权，固定输入失效时不改读最新版本。回归见 [plugin-fixed-input-sdk.test.ts](../../../tests/plugin-fixed-input-sdk.test.ts)。
   - 比较的是固定版本（带执行回执），不是对当前工作树的断言；反馈锚点只在保存固定版本后添加。
-- 改动后必跑：`node scripts/run-tests.mjs tests/diff-plugin.test.ts tests/workspace-plugin-graph.test.ts tests/companion-actions.test.ts tests/git-product-http.test.ts tests/coding-changeset-http.test.ts tests/coding-companion-inputs.test.ts tests/companion-client-lifecycle.e2e.test.ts`
+  - `diff.state` 被页面调用时，自己按页面的语言用 `DIFF_MESSAGES` 画好 `html` 一起返回；模型、工作流、MCP 只得 `{ view }`。宿主不替 Diff 画（PG-062，[companion-state-html.test.ts](../../../tests/companion-state-html.test.ts)）。
+- 改动后必跑：`node scripts/run-tests.mjs tests/diff-plugin.test.ts tests/workspace-plugin-graph.test.ts tests/companion-actions.test.ts tests/companion-state-html.test.ts tests/git-product-http.test.ts tests/coding-changeset-http.test.ts tests/coding-companion-inputs.test.ts tests/companion-client-lifecycle.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/elements.md](../../../skills/molis-plugin-dev/elements.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

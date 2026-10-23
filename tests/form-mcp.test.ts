@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { GoalProjectApplication, LocalActionGatewayClient, LocalProjectDatabase, MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { LocalActionGatewayClient, LocalProjectDatabase, MolisWorkLocalHost, openProjectVersionStores, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FORM_ANSWER_FORMAT, openFormStore } from "@molis-ai/molis-work-plugin-form";
@@ -104,12 +104,12 @@ test("Form standard MCP preserves submissions and publications across tool proce
   assert.equal(recovered.form.title,"Later edit"); assert.equal(recovered.form.share_id,share);
   const project = new LocalProjectDatabase(a.database_path);
   try {
-    const owner = new GoalProjectApplication(project);
-    const artifact = owner.artifacts.query.getArtifactVersion(a.project_id,recovered.artifact)!;
+    const library = openProjectVersionStores(project);
+    const artifact = library.artifacts.query.getArtifactVersion(a.project_id,recovered.artifact)!;
     const payload = artifact.payload as { title: string; questions: Array<{ title: string }>; answers?: unknown };
     assert.equal(payload.title,"MCP 问卷"); assert.equal(payload.questions[0]!.title,"MCP 题目");
     assert.equal(payload.answers,undefined);
-    assert.equal(owner.artifacts.query.getArtifactVersion(a.project_id,{...recovered.artifact,version:2}),null);
+    assert.equal(library.artifacts.query.getArtifactVersion(a.project_id,{...recovered.artifact,version:2}),null);
   } finally {project.close();}
   const store = openFormStore(home);
   try {assert.deepEqual(store.get(id,a.project_id),recovered.form);assert.deepEqual(store.listSubmissions(id,a.project_id),[submission]);} finally {store.close();}

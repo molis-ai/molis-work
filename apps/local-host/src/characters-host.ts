@@ -24,14 +24,14 @@ export type CharactersHostOptions = Pick<MolisWorkLocalHostOptions, "characterSp
  * the actions it may be given.
  */
 export function charactersActionProvider(runtime: MolisWorkProjectRuntime, options: CharactersHostOptions, capabilities: () => Pick<LocalHostProjectClient, "invoke">): ActionProviderRegistration {
-  return charactersProvider(runtime, characterActionPorts(options, LOCAL_PERSON_ACTOR_ID, runtime.project_id, runtime.coordinator.artifacts.query), {
+  return charactersProvider(runtime, characterActionPorts(options, LOCAL_PERSON_ACTOR_ID, runtime.project_id, runtime.artifacts.query), {
     listRuntimes: () => capabilities().invoke(agentHostCapabilities.listRuntimes, []),
     listActions: () => capabilities().invoke(agentHostCapabilities.listActions, ["prologue", CHARACTER_PLUGIN_ID]),
   });
 }
 
 /** The project stores a Characters call writes through: its 成果库, and the process items an id must not already name. */
-export interface CharactersProject { readonly project_id: string; readonly coordinator: Pick<MolisWorkProjectRuntime["coordinator"], "artifacts" | "processItems"> }
+export type CharactersProject = Pick<MolisWorkProjectRuntime, "project_id" | "artifacts" | "processItems">;
 
 /**
  * The provider over the stores it is given. The handlers are Characters' own (modules/characters); the Host binds them for the
@@ -52,7 +52,7 @@ export function charactersProvider(project: CharactersProject, actionPorts: Char
  * is still current.
  */
 function characterArtifacts(project: CharactersProject, caller: ActionExecutionContext, guard: CharacterCallGuard): CharactersActionRuntime["artifacts"] {
-  const { artifacts, processItems } = project.coordinator, projectId = project.project_id;
+  const { artifacts, processItems, project_id: projectId } = project;
   return {
     read: reference => artifacts.query.getArtifactVersion(projectId, reference),
     publish: value => {

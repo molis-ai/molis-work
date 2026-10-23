@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { atomicWriteFileSync } from "@molis-ai/molis-work-storage";
-import { LocalProjectDatabase, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ImError } from "@molis-ai/molis-work-server";
@@ -48,7 +48,7 @@ export async function restoreWorkAssets(value: unknown, directory: string) {
   });
   const store=new LocalProjectDatabase(project.database_path,{existingOnly:true});
   try {
-    const artifacts=new GoalProjectApplication(store).artifacts;
+    const {artifacts}=openProjectVersionStores(store);
     const restored=store.immediate(()=>bundle.artifacts.map(asset=>{
       const {owner_actor_id,availability,lifecycle_state,source_supersedes_version:_source,...record}=asset;
       const result=artifacts.commands.registerVersion({...record,project_id:project.project_id,actor_id:owner_actor_id,team_share_authorized:record.scope === "team_project"});
@@ -72,7 +72,7 @@ export async function readRestoredAssets(directory: string, sourceProjectId: str
   const project=await withCatalog({homeDirectory:directory},catalog=>catalog.getProject(snapshot.project_id));
   const store=new LocalProjectDatabase(project.database_path,{existingOnly:true});
   try {
-    const artifacts=new GoalProjectApplication(store).artifacts.query.listArtifacts(project.project_id);
+    const artifacts=openProjectVersionStores(store).artifacts.query.listArtifacts(project.project_id);
     return {title:project.display_name,goals:snapshot.goals,artifacts,warnings:snapshot.warnings};
   } finally {store.close();}
 }

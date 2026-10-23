@@ -42,6 +42,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 19 | [#1129](https://github.com/molis-ai/molis-work/pull/1129) | W5-03/04 Todo 片（样板）：客户端打包成 TS、稳定翻译键；`todo.js` 61,976→54,090 B | — | `full` 非空（assembly、deletes-code，102 文件），进下一批 | 头 `ed3b374f4`；`ac-review` 优先审（后面 5 片照它做） |
 | 20 | [#1130](https://github.com/molis-ai/molis-work/pull/1130) | SC-4：Sessions 下线（删 Work 包、Session 模块部分、首页「说一句」；PG-081、PG-082 收尾；D6 方案 A 用户 10-23 已确认） | **叠在 #1113 上**，#1113 先合 | `full` 非空（855 文件），进集成批 | 头 `06600841f`；`ac-review` 排队审；作者在改「待用户确认」措辞，之后接 BL-485/486/488 |
 | 21 | [#1131](https://github.com/molis-ai/molis-work/pull/1131) | BL-481：删 `PluginWakeupIndex` 与无安装的 `register()`，测试搬到按安装的拥有者 | **叠在 #1123 上**，#1123 先合 | `full` 为空 | `ac-review` 排队审 |
+| 22 | [#1132](https://github.com/molis-ai/molis-work/pull/1132) | W5-03/04 Issues 片：客户端打包成 TS、稳定翻译键；`issues.js` +3,605 B（统筹已放行，`APPROVED_CEILINGS` 一条） | 和 #1129 的 `page-assets.mjs`/`page-assets.json` 会撞相邻行，后合的解 | `full` 非空（assembly、deletes-code，77 文件），进下一批 | 头 `6c5baf809`；`ac-review` 排队审 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 收尾时合 main、转 ready |
 
 新开的开发片 PR 由统筹按依赖插进本表。

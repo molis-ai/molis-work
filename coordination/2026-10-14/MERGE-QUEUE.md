@@ -35,6 +35,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 8 | [#1112](https://github.com/molis-ai/molis-work/pull/1112) | W5-06 余项第一片（草稿） | 排在 #1076、#1099 之后 | 同 #1076 | `ac-review` 一轮：修后可合，2 条交 Codex（[评论](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6370952389)）；统筹裁定规格板选 (b)、补 RAC-80～84（[裁定](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6371157480)）；Codex 合 main、重量 page-assets、转 ready |
 | 9 | [#1113](https://github.com/molis-ai/molis-work/pull/1113) | Sessions 清理 SC-3（PG-082） | — | `full` 非空（assembly、spans-packages），和 #1076、#1083、#1112 同批或下一批 | 头 `a959f8469`，已合 main；`ac-review` 在审 |
 | 10 | [#1115](https://github.com/molis-ai/molis-work/pull/1115) | privileges.md：PG-003、018、019、048、050 标已做（统筹的账） | — | `full` 为空 | 纯文档；Verify 绿就可合，不必等评审 |
+| 11 | [#1117](https://github.com/molis-ai/molis-work/pull/1117) | R7：可信 `user_action` 来源（PG-029、PG-030、BL-374，S-58） | — | `full` 非空（shared-core、spans-packages），进下一批 | `ac-kernel` 开；`ac-review` 在审；改了安全不变量，合前看 Security invariants |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 收尾时合 main、转 ready |
 
 新开的开发片 PR 由统筹按依赖插进本表。

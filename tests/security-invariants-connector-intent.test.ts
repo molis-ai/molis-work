@@ -4,6 +4,7 @@ import { assistantConnectionCheckers, retainConnectorSetupsForSession, MolisWork
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { isLocalHostHttpError } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openTestHome, serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 
 type IntentServer = TestHostServer & { host: MolisWorkLocalHost };
@@ -194,9 +195,16 @@ const fs=require('node:fs');
 if(process.argv.includes('notifications')){fs.appendFileSync(${JSON.stringify(calls)},'read\\n');process.stdout.write('[]');}
 else{fs.writeFileSync(${JSON.stringify(entered)},'entered');const timer=setInterval(()=>{if(!fs.existsSync(${JSON.stringify(barrier)})){clearInterval(timer);process.stdout.write(JSON.stringify({id:1,login:'intent-cli'}));}},20);}`, { mode: 0o755 });
   process.env.PATH = `${home.home}:${previousPath}`;
+  const diagnostic: { connecting: "pending" | "resolved" | "rejected"; http_status: number | null; code: string | null } =
+    { connecting: "pending", http_status: null, code: null };
   try {
     const request = await prepare(home, "github", "cli");
     const connecting = home.web.post<{ awaiting_intent: boolean }>("/api/settings/connectors/methods/cli/connect", { service_id: "github", display_name: "Intent account", setup_id: request.authorization_id });
+    // R-19: observe immediately, while the original promise still propagates its refusal at the await below.
+    void connecting.then(() => { diagnostic.connecting = "resolved"; }, error => {
+      diagnostic.connecting = "rejected";
+      if (isLocalHostHttpError(error)) { diagnostic.http_status = error.status; diagnostic.code = error.code ?? null; }
+    });
     for (let attempt = 0; attempt < 150 && !existsSync(entered); attempt++) await new Promise(resolve => setTimeout(resolve, 20));
     assert.equal(existsSync(entered), true); hold(home.home, "keep-cli"); unlinkSync(barrier);
     assert.equal((await connecting).awaiting_intent, true);
@@ -207,6 +215,9 @@ else{fs.writeFileSync(${JSON.stringify(entered)},'entered');const timer=setInter
     await home.host.homeActionClient().invoke({ ...caller, permissions: [...caller.permissions, CONNECTOR_RECORDS_READ] }, connectorRecordActions.read, { connection_id: kept.connection_id });
     assert.equal(readFileSync(calls, "utf8"), "read\n");
     assert.equal(secret(home.home, request.authorization_id), null);
+  } catch (error) {
+    t.diagnostic(`R-19 connector-intent ${JSON.stringify({ ...diagnostic, entered: existsSync(entered) })}`);
+    throw error;
   } finally { if (existsSync(barrier)) unlinkSync(barrier); process.env.PATH = previousPath; }
 });
 

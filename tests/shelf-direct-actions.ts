@@ -1,7 +1,8 @@
+import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
 import type { ActionDefinition, ActionProviderRegistration, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ShelfAiPorts } from "@molis-ai/molis-work-contracts/modules/shelf";
 import type { ShelfStore } from "@molis-ai/molis-work-module-shelf";
-import { createShelfActionHandlers, shelfStorePorts, SHELF_ACTIONS, SHELF_PLUGIN_ID, type ShelfActionPorts } from "@molis-ai/molis-work-plugin-shelf";
+import { createShelfActionHandlers, shelfManifest, shelfStorePorts, SHELF_ACTIONS, SHELF_PLUGIN_ID, type ShelfActionPorts, type ShelfPluginRouteHandler, type ShelfPluginRouteRequest } from "@molis-ai/molis-work-plugin-shelf";
 import { shelfTestAi } from "./shelf-test-ai.js";
 
 /** Browser boundary tests drive the plugin's own handlers over a fixture store; Host registration is covered by shelf-actions.test.ts. */
@@ -15,6 +16,16 @@ export function directShelfActions(ports: ShelfActionPorts): BoundActionClient {
       return await handler.handle({ actor_id: "test", project_id: null, audience: "user", permissions: [], beforeEffect: async () => {} }, input) as Output;
     },
   };
+}
+
+/** Current route shapes come from the same Manifest matcher as Runtime; a route with no handler here (the project half's) answers nothing. */
+export class ShelfPluginRouteTable {
+  private readonly match = pluginRouteMatcher(shelfManifest);
+  constructor(private readonly handlers: Readonly<Record<string, ShelfPluginRouteHandler>>) {}
+  async handle(request: ShelfPluginRouteRequest) {
+    const match = this.match(request.method, request.pathname), handle = match && this.handlers[match.route_id];
+    return match && handle ? handle({ params: match.params, request }) : null;
+  }
 }
 
 /**

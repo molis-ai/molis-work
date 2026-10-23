@@ -1,5 +1,6 @@
 import * as xterm from "@xterm/xterm";
 import * as xtermFit from "@xterm/addon-fit";
+import { terminalPalette } from "../terminal-theme.js";
 
 // The bundler reads these packages' ES modules; Node reads their UMD main, whose named exports sit on `default`.
 // Either way the same classes are used, so the controllers can also be exercised outside a browser.
@@ -17,56 +18,6 @@ interface TerminalScreensOptions {
 /** Own xterm rendering, local output buffers and theme changes. */
 export function createTerminalScreens(options: TerminalScreensOptions) {
   const terminalHost = options.host;
-  const terminalPalette = () => document.documentElement.dataset.resolvedTerminalTheme === "light"
-    ? {
-        background: "#ffffff",
-        foreground: "#222326",
-        cursor: "#222326",
-        cursorAccent: "#ffffff",
-        selectionBackground: "#eef0fb",
-        selectionInactiveBackground: "#eceef0",
-        black: "#222326",
-        red: "#b03d45",
-        green: "#2d7a5a",
-        yellow: "#8a6d12",
-        blue: "#5e6ad2",
-        magenta: "#7f5eb0",
-        cyan: "#3d6f78",
-        white: "#d0d6e0",
-        brightBlack: "#6b6f76",
-        brightRed: "#eb5757",
-        brightGreen: "#4cb782",
-        brightYellow: "#e2b203",
-        brightBlue: "#8b93f1",
-        brightMagenta: "#a78bda",
-        brightCyan: "#4db7c9",
-        brightWhite: "#f3f4f5",
-      }
-    : {
-        background: "#0f1011",
-        foreground: "#f7f8f8",
-        cursor: "#f7f8f8",
-        cursorAccent: "#0f1011",
-        selectionBackground: "#262848",
-        selectionInactiveBackground: "#23252a",
-        black: "#0f1011",
-        red: "#ee858c",
-        green: "#6bc49a",
-        yellow: "#e0c56a",
-        blue: "#8b93f1",
-        magenta: "#c0a0ea",
-        cyan: "#86c0c7",
-        white: "#d0d1d3",
-        brightBlack: "#8a8f98",
-        brightRed: "#eb5757",
-        brightGreen: "#4cb782",
-        brightYellow: "#e2b203",
-        brightBlue: "#a8aef5",
-        brightMagenta: "#a78bda",
-        brightCyan: "#4db7c9",
-        brightWhite: "#f7f8f8",
-      };
-
   const sessions = new Map<string, {
     term: Terminal;
     fit: FitAddon;

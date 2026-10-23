@@ -2,102 +2,10 @@
 import type { WorkSessionHttpContext } from "./types.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workActions } from "../actions.js";
-import { projectWorkspaceActions } from "@molis-ai/molis-work-contracts/modules/projects";
 
-const actions = (context: WorkSessionHttpContext) => {
-  if (!context.actions) throw new Error("Session 服务尚未接通动作调用");
-  return context.actions;
-};
-/** Unknown folder 404; an action service that is down or not redeemed 503; everything else 400. */
-function respondMembershipError(context: WorkSessionHttpContext, error: unknown): void {
-  const code = error instanceof ActionError ? error.code : "";
-  context.respond(code === "host.workspace_not_found" ? 404
-    : code === "actions.service_unavailable" || code === "actions.unredeemed" ? 503 : 400,
-  { error: error instanceof Error ? error.message : String(error) });
-}
-
-/** Folder membership is a project setting kept by the Home catalog and changed through its actions; Work owns the page flow and the confirmed launch. */
+/** Starting a Session in one of the project's folders; the folders themselves (link, repair, unlink, pick) are the Host's project setting. */
 export async function handleWorkspaceHttp(context: WorkSessionHttpContext): Promise<boolean> {
   const options = context.projectOptions;
-  if (context.method === "POST" && context.pathname === "/api/workspaces/pick") {
-    if (!options.project) {
-      context.respond(400, { error: "请先选择 Project" });
-      return true;
-    }
-    try {
-      await context.readBody();
-    } catch (error) {
-      context.respond(400, { error: error instanceof Error ? error.message : "请求不是有效 JSON" });
-      return true;
-    }
-    try {
-      const picked = await context.pickDirectory();
-      if (picked.status === "picked") context.respond(200, { path: picked.path });
-      else if (picked.status === "cancelled") context.respond(200, { cancelled: true });
-      else if (picked.status === "busy") context.respond(409, { error: "目录选择窗口已经打开" });
-      else context.respond(503, { error: picked.message });
-    } catch (error) {
-      context.respond(503, { error: error instanceof Error ? error.message : "这台电脑打不开目录选择窗口" });
-    }
-    return true;
-  }
-  if (context.method === "POST" && context.pathname === "/api/workspaces") {
-    if (!options.project) {
-      context.respond(400, { error: "请先选择 Project" });
-      return true;
-    }
-    const body = await context.readBody();
-    const workspacePath = typeof body.workspace_path === "string" ? body.workspace_path.trim() : "";
-    if (body.user_confirmed !== true || !workspacePath) {
-      context.respond(400, { error: "请选择目录并确认关联当前 Project" });
-      return true;
-    }
-    try {
-      context.respond(201, await actions(context).invoke(projectWorkspaceActions.add, { workspace_path: workspacePath }));
-    } catch (error) {
-      context.respond(400, { error: error instanceof Error ? error.message : String(error) });
-    }
-    return true;
-  }
-  const projectWorkspaceRepairMatch = context.pathname.match(/^\/api\/workspaces\/([^/]+)\/path$/);
-  if (context.method === "PATCH" && projectWorkspaceRepairMatch) {
-    if (!options.project) {
-      context.respond(400, { error: "请先选择 Project" });
-      return true;
-    }
-    const body = await context.readBody();
-    const workspaceId = decodeURIComponent(projectWorkspaceRepairMatch[1]);
-    const nextPath = typeof body.workspace_path === "string" ? body.workspace_path.trim() : "";
-    if (body.user_confirmed !== true || !nextPath) {
-      context.respond(400, { error: "请输入新的绝对路径并确认修复" });
-      return true;
-    }
-    try {
-      context.respond(200, await actions(context).invoke(projectWorkspaceActions.repair, { workspace_id: workspaceId, workspace_path: nextPath }));
-    } catch (error) {
-      respondMembershipError(context, error);
-    }
-    return true;
-  }
-  const projectWorkspaceUnlinkMatch = context.pathname.match(/^\/api\/workspaces\/([^/]+)\/unlink$/);
-  if (context.method === "POST" && projectWorkspaceUnlinkMatch) {
-    if (!options.project) {
-      context.respond(400, { error: "请先选择 Project" });
-      return true;
-    }
-    const body = await context.readBody();
-    const workspaceId = decodeURIComponent(projectWorkspaceUnlinkMatch[1]);
-    if (body.user_confirmed !== true) {
-      context.respond(400, { error: "请确认解除当前 Project 的工作目录关系" });
-      return true;
-    }
-    try {
-      context.respond(200, await actions(context).invoke(projectWorkspaceActions.unlink, { workspace_id: workspaceId }));
-    } catch (error) {
-      respondMembershipError(context, error);
-    }
-    return true;
-  }
   const projectWorkspaceLaunchMatch = context.pathname.match(/^\/api\/workspaces\/([^/]+)\/sessions$/);
   if (context.method === "POST" && projectWorkspaceLaunchMatch) {
     if (!options.project) {

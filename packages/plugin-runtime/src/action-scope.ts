@@ -2,12 +2,25 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { ActionError, requireSynchronous, type ActionDefinition, type ActionExecutionContext, type ActionCallContext, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
- * The action a Plugin's code is running for, as the Runtime knows it: which installation, which declaration, and the call's own
+ * One running instance of a Plugin. The Home half and the project half of a dual-instance plugin share `install_id` and differ in
+ * `installation_generation` (specs/dual-instance-plugins U3), so a service compares both: a handle one half holds is not the other's.
+ */
+export interface PluginInstance {
+  readonly install_id: string;
+  readonly installation_generation: string;
+}
+
+/** Whether a call's scope runs for this very instance: the same installation and the same generation. */
+export function inPluginInstance(scope: PluginInstance | undefined, instance: PluginInstance): boolean {
+  return !!scope && scope.install_id === instance.install_id && scope.installation_generation === instance.installation_generation;
+}
+
+/**
+ * The action a Plugin's code is running for, as the Runtime knows it: which instance, which declaration, and the call's own
  * control (its signal and `beforeEffect`). A Plugin never passes any of this to a service; the service asks here, so a call
  * cannot be made to look like it comes from an action it does not run in.
  */
-export interface PluginActionScope {
-  readonly install_id: string;
+export interface PluginActionScope extends PluginInstance {
   readonly definition: ActionDefinition;
   readonly caller: ActionExecutionContext;
   /** Where this call stands in the order this process began calls in (`lastBegunPluginInvocation`). */
@@ -19,8 +32,7 @@ export interface PluginActionScope {
   readonly checked?: { passed: boolean };
 }
 
-interface PluginSceneScope {
-  readonly install_id: string;
+interface PluginSceneScope extends PluginInstance {
   readonly scene: ActionSceneDefinition;
   readonly read_only: boolean;
   readonly caller: ActionCallContext;
@@ -31,8 +43,7 @@ interface PluginSceneScope {
  * A job an activation keeps (`services.background.keep`, PG-038). Its caller is the installation itself in the job's project, with the
  * job's own lifetime and checks: it names neither the call that kept the job nor that call's audience.
  */
-interface PluginJobScope {
-  readonly install_id: string;
+interface PluginJobScope extends PluginInstance {
   readonly job: string;
   readonly caller: ActionCallContext;
   readonly begun: number;
@@ -103,23 +114,23 @@ export function currentPluginAction(): PluginActionScope | undefined {
  * Asked by a service right before it writes for a Plugin: the original caller of the action that code runs for must still be
  * current, its call not cancelled and its authority not revoked or moved to another provider. The answer is synchronous, so
  * nothing runs between it and the write; a `beforeEffect` the Plugin hands the service only waits, and the Plugin passes no
- * caller of its own. `installId` is the installation the service writes for: inside another installation's action that action's
- * caller never asked this one to write, so the write is refused. Inside a job (`runInPluginJob`) the job's own checks are asked.
- * Outside every action and job (`start`, a route, a timer set up there) there is no caller to ask, and the installation's live
- * grants, which each service checks itself, decide alone.
+ * caller of its own. `instance` is the instance the service writes for: inside another installation's action, or one of the other
+ * half of a dual-instance plugin, that action's caller never asked this one to write, so the write is refused. Inside a job
+ * (`runInPluginJob`) the job's own checks are asked. Outside every action and job (`start`, a route, a timer set up there) there is
+ * no caller to ask, and the installation's live grants, which each service checks itself, decide alone.
  */
-export function assertPluginActionCurrent(installId: string): void {
+export function assertPluginActionCurrent(instance: PluginInstance): void {
   const scope = currentPluginInvocation();
   if (!scope) return;
   if (pluginInvocationReadOnly(scope)) throw new ActionError("actions.forbidden", "只读场景不能写入业务记录");
-  assertCapturedPluginActionCurrent(scope, installId);
+  assertCapturedPluginActionCurrent(scope, instance);
   markPluginActionChecked(scope);
 }
 
 /** A nested call retains the original invocation's authority; query-only narrowing travels separately to its dispatcher. */
-export function assertCapturedPluginActionCurrent(scope: PluginInvocationScope | undefined, installId: string): void {
+export function assertCapturedPluginActionCurrent(scope: PluginInvocationScope | undefined, instance: PluginInstance): void {
   if (!scope) return;
-  if (scope.install_id !== installId) throw new ActionError("actions.forbidden", "这次写入属于另一个插件安装，不属于正在运行的动作");
+  if (!inPluginInstance(scope, instance)) throw new ActionError("actions.forbidden", "这次写入属于另一个插件实例，不属于正在运行的动作");
   scope.caller.signal?.throwIfAborted();
   requireSynchronous(scope.caller.assert_authority_current?.(), "最终授权检查必须同步完成");
   scope.caller.signal?.throwIfAborted();

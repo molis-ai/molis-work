@@ -1,7 +1,7 @@
 import { ActionError, defineErrorCodes, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MaterialSourceContent, PluginLocalPageRequest, PluginManifest, PluginMaterialDocumentsRequest, PluginMaterialRequest, PluginMaterialsClient, PluginOriginalContent, PluginOriginalRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MaterialDocumentBatch, MaterialExtraction, MaterialSource, MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
-import { currentPluginAction } from "./action-scope.js";
+import { currentPluginAction, inPluginInstance, type PluginInstance } from "./action-scope.js";
 
 const errors = defineErrorCodes("plugin", {
   materials_action_required: "forbidden", materials_permission_undeclared: "forbidden", materials_action_not_concurrent: "forbidden",
@@ -41,8 +41,7 @@ export interface PluginMaterialsPort {
   readOriginal?(key: PluginOriginalFileKey, options: PluginMaterialsDispatch & { readonly maxBytes?: number }): Promise<Uint8Array>;
   releaseOriginal?(key: PluginOriginalFileKey, options: PluginMaterialsDispatch): Promise<void>;
 }
-export interface PluginMaterialsGate {
-  readonly install_id: string;
+export interface PluginMaterialsGate extends PluginInstance {
   /** The project this activation runs in, from the Host's start list; `null` for a Home-level activation. */
   readonly project_id: string | null;
   assertActive(): void;
@@ -62,7 +61,7 @@ export function createPluginMaterialsClient(manifest: PluginManifest, port: Plug
   const declared = (permission: string) => manifest.permissions.some(item => item.permission === permission);
   async function run<T>(permission: string, request: PluginMaterialRequest, invoke: (options: PluginMaterialsDispatch, caller: ActionExecutionContext) => Promise<T>): Promise<T> {
     const scope = currentPluginAction();
-    if (!scope || scope.install_id !== gate.install_id) throw errors.materials_action_required("材料只能在本插件自己的动作里读取");
+    if (!scope || !inPluginInstance(scope, gate)) throw errors.materials_action_required("材料只能在本插件自己的动作里读取");
     const { definition, caller } = scope;
     if (!definition.action.permissions.includes(permission)) throw errors.materials_permission_undeclared(`动作 ${definition.capability_id} 没有声明 ${permission}`);
     if (definition.action.scheduling !== "concurrent") throw errors.materials_action_not_concurrent("读取材料的动作必须声明 scheduling: concurrent");

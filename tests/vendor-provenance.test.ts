@@ -204,7 +204,7 @@ describe("the records of this repository", () => {
   const file = (relative: string) => readFileSync(path.join(repoRoot, relative), "utf8");
   const json = (relative: string) => JSON.parse(file(relative));
   const folder = "vendor/prologue-sdk";
-  const current = "prologue-sdk-0.0.0-rc.1-attachment-order.tgz";
+  const current = "prologue-sdk-0.0.0-rc.1-retry-waiting.tgz";
 
   test("every vendored archive matches its .sha256 and provenance", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
@@ -214,9 +214,9 @@ describe("the records of this repository", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    // vendor/prologue-sdk/README.md: upstream main's merge of PR #57 (several images reach the model in the order they were given), on top of #56 (an attachment placeholder is never the start of another), #55 and #54 (an effect's origin may name the tool call, model call and board step; BL-162), #52, #51, #50, #49, #48, #47, #46, #45, #44, #43 and #42. PA-MCP-02.
-    assert.equal(provenance.source.commit, "753dbae8359e56a74397d030af4d18abf402d5b5");
-    assert.equal(provenance.source.mergedUpstream.pullRequest, 57);
+    // vendor/prologue-sdk/README.md: upstream main's merge of PR #60 (a model call that waits to retry says so: retry-waiting, with the retry time and why), on top of #59 (internal exports narrowed), #58 (runtime admission and shutdown boundaries hardened), #53 (an answered ask-user result names its question under answered; BL-176), #57, #56, #55, #54, #52, #51, #50, #49, #48, #47, #46, #45, #44, #43 and #42. PA-MCP-02.
+    assert.equal(provenance.source.commit, "2c7feba5a6ea85e81e4a263671fb5e68f536d86a");
+    assert.equal(provenance.source.mergedUpstream.pullRequest, 60);
     assert.equal(provenance.source.inFlight, undefined);
     assert.equal(json(`${folder}/patch-history.json`).upstream.mainHead, provenance.source.commit);
     assert.deepEqual(provenance.source.patches, []);
@@ -229,12 +229,12 @@ describe("the records of this repository", () => {
     assert.deepEqual(patches, named ? [named] : []);
   });
 
-  test("patch-history.json holds the 26 deleted patches and the 30 packages that never had one", () => {
+  test("patch-history.json holds the 26 deleted patches and the 31 packages that never had one", () => {
     const record = json(`${folder}/patch-history.json`);
     assert.equal(record.patches.length, 26);
-    assert.equal(record.packagesWithoutPatch.length, 30);
-    // The 30th is the after-write-check-marker package this one replaced.
-    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-after-write-check-marker.tgz");
+    assert.equal(record.packagesWithoutPatch.length, 31);
+    // The 31st is the attachment-order package this one replaced.
+    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-attachment-order.tgz");
     assert.equal(record.patches.reduce((sum: number, patch: { bytes: number }) => sum + patch.bytes, 0), 2_791_897);
     const kinds = record.patches.reduce((count: Record<string, number>, patch: { sourceKind: string }) => ({ ...count, [patch.sourceKind]: (count[patch.sourceKind] ?? 0) + 1 }), {});
     assert.deepEqual(kinds, { "upstream-commit": 8, "uncommitted-worktree": 17, "molis-repo": 1 });
@@ -243,7 +243,7 @@ describe("the records of this repository", () => {
     const networkDispatch = record.patches.find((patch: { file: string }) => patch.file === "network-dispatch.patch");
     assert.equal(networkDispatch.package.sha256, "7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e");
     assert.equal(networkDispatch.package.file, "prologue-sdk-0.0.0-rc.1-network-dispatch.tgz");
-    assert.equal(record.upstream.commitsChecked.length, 40);
+    assert.equal(record.upstream.commitsChecked.length, 41);
     // The commit named for retrieval is one that is known to hold every patch; it is not "the last one" (every later commit
     // on main up to the deletion holds them too), so the key must not say so.
     assert.deepEqual(Object.keys(record.retrieval).filter((key) => /^last/i.test(key)), []);

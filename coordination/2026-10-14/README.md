@@ -3519,3 +3519,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - #1076（Shelf S3）已合（`38111ce61`）。`ac-review` 已审完大部分：可合 #1131、#1130、#1137；修后可合 #1129、#1117、#1121、#1132、#1138、#1119；#1123、#1107 Codex 二轮可合。剩 #1139、#1083 已发给它。
 - #1138 的 2 条挡合并由作者 `ac-kernel` 修（统筹代留认领）；`ac-sc3` 派 Goals S4（PG094-06）。在跑的开发线：`ac-kernel`、`ac-sandbox-sched`、`ac-sc3`；`ac-clients-1` 暂停。
 - `LINES.md` 加 §5：`ac-clients-1` 恢复时要带的 #1129 做法层面 6 条，以及 BL-455 (c) 指向字体皮肤语言书 §6.1。
+
+- 10-23 20:55：`ac-clients-1` 已停（Jelly #1145 在停令前已推，Cognia 未开工）。#1145（Jelly，资源变小）进队第 31 行，排在 #1129 后审；`ac-sc3` 开 #1146（Goals S4），进第 32 行，BL-501（写死提供方）统筹裁定归 `ac-platform`：宿主按能力在目录找提供方，`allowed_actions` 精确提供方不放宽。

@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, type HostLogEntry, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createWebCatalogAccess } from "../apps/local-host/dist/web-catalog-access.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -69,4 +69,28 @@ test("concurrent borrowers share preparation and a transient retry never replays
     await access.withCatalog({ homeDirectory: home }, () => { effects++; });
     assert.equal(opens, 2); assert.equal(effects, 1);
   } finally { await access.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+
+test("SYS-39 an unhandled HTTP failure has a safe localized answer and a matching log diagnostic", async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-web-error-"));
+  const secret = "private material at /Users/example/notes";
+  const localHost = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  localHost.ensureWebCatalog(home, async () => { throw new Error(secret); });
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost, controlToken: "http-error-test-control-token-0123456789" });
+  t.after(async () => {
+    server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
+    await localHost.close(); await rm(home, { recursive: true, force: true });
+  });
+  const entries: HostLogEntry[] = [], restore = captureHostLog(entries); t.after(restore);
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  const response = await fetch(`http://127.0.0.1:${address.port}/api/settings/models`, { headers: { "accept-language": "en", "x-molis-work-control-token": "http-error-test-control-token-0123456789" } });
+  const body = await response.json();
+  assert.equal(response.status, 500);
+  assert.equal(body.error, "The request could not be completed. Please try again.");
+  assert.equal(body.code, "actions.execution_failed");
+  assert.ok(body.diagnostic_id);
+  assert.equal(entries.find(entry => entry.event === "request_failed")?.call_id, body.diagnostic_id);
+  assert.equal(JSON.stringify([body, entries]).includes(secret), false);
 });

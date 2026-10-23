@@ -60,8 +60,12 @@ export const HOVER_RULES = `(() => {
     else if (rule instanceof CSSMediaRule) walk(rule.cssRules, media + ' ' + rule.conditionText);
     else if (rule.cssRules) walk(rule.cssRules, media); } };
   for (const sheet of document.styleSheets) { try { walk(sheet.cssRules, ''); } catch {} }
-  const split = (text) => { const out = []; let depth = 0, from = 0; for (let i = 0; i < text.length; i++) { const c = text[i];
+  const splitList = (text) => { const out = []; let depth = 0, from = 0; for (let i = 0; i < text.length; i++) { const c = text[i];
     if (c === '(') depth++; else if (c === ')') depth--; else if (c === ',' && !depth) { out.push(text.slice(from, i).trim()); from = i + 1; } } out.push(text.slice(from).trim()); return out; };
+  // :is() shares one rule between controls; audit each alternative so a focus-visible reveal is not lost.
+  const expand = selector => { const match = /:is\\(([^()]*)\\)/.exec(selector); return match
+    ? splitList(match[1]).flatMap(part => expand(selector.slice(0, match.index) + part + selector.slice(match.index + match[0].length))) : [selector]; };
+  const split = text => splitList(text).flatMap(expand);
   const shows = (style) => style.opacity === '1' || style.visibility === 'visible';
   const hides = (style) => style.opacity === '0' || style.visibility === 'hidden';
   const last = (selector) => (selector.split(/[\\s>+~]+/).pop() ?? '').replace(/:[\\w-]+(\\([^)]*\\))?/g, '');

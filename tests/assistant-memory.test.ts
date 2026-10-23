@@ -763,6 +763,51 @@ test("G13: a supplement the person types while a round runs is theirs: remember 
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+test("MEM-WITHDRAWN-01/02: a withdrawn supplement is neither remembered as said nor handed to completion learning, while the person's other input remains", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-withdrawn-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project-a", storage_key: "memory:a" };
+  const initial = "帮我整理这周的周报", withdrawn = "周报一律先写风险", retained = "周报结尾保留下一步安排";
+  const learned: Array<{ said: string[]; run: string }> = [];
+  const held = Promise.withResolvers<void>(), asked = Promise.withResolvers<void>();
+  // Deliberately quote the withdrawn words after the input owner has recorded their withdrawal: a model claim must not restore them.
+  const script: Array<() => Response | Promise<Response>> = [
+    async () => { asked.resolve(); await held.promise; return reply({ name: "remember", input: { text: withdrawn, scope: "personal", said: withdrawn } }); },
+    () => reply({ name: "remember", input: { text: retained, scope: "personal", said: retained } }),
+    () => reply(undefined, "周报已整理。"),
+  ];
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async () => (script.shift() ?? (() => reply()))()));
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-withdrawn-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const memory = platformMemory(host, home, t), store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+      memory: (task: string) => service.memoryForRound(work, task) }),
+    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory,
+    learnFromRound: input => learned.push({ said: input.said, run: input.run_id }) }, "web-user");
+  try {
+    const sent = await service.send({ text: initial, request_id: "req-withdrawn-1" }, { project_ref: project });
+    const workId = sent.work.work_id, runId = sent.run_id!;
+    await asked.promise;
+    assert.equal((await service.send({ work_id: workId, text: withdrawn, request_id: "req-withdrawn-2" }, {})).outcome, "steered");
+    assert.equal((await service.send({ work_id: workId, text: retained, request_id: "req-withdrawn-3" }, {})).outcome, "steered");
+    const receipt = await until(async () => (await service.read(workId)).rounds.flatMap(round => round.turns).find(turn => turn.text === withdrawn)?.steer, "supplement receipt");
+    const controlled = await service.control(workId, { kind: "withdraw", run_id: runId, input_id: receipt.id });
+    assert.equal(controlled.rounds.flatMap(round => round.turns).find(turn => turn.steer?.id === receipt.id)?.steer?.state, "withdrawn");
+    held.resolve();
+    await until(async () => { await service.list(); return (await service.read(workId)).work.state === "completed"; }, "round after withdrawal");
+    const handed = await until(() => learned.find(item => item.run === runId), "completion learning handoff");
+    const person = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
+    const memories = (await memory.list(person)).items, candidates = await memory.candidates(person, { work_id: workId });
+    assert.deepEqual({ kept: memories.map(item => [item.text, item.source]), said: handed.said },
+      { kept: [[retained, "said"]], said: [initial, retained] }, "MEM-WITHDRAWN-01/02: current memory and completion reads both exclude the withdrawn input");
+    assert.equal(candidates.find(item => item.text === withdrawn)?.basis, "inferred", "the model's unsupported claim remains a suggestion, not the person's words");
+    assert.match(candidates.find(item => item.text === withdrawn)?.hold_reason ?? "", /原话/);
+  } finally { held.resolve(); service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});
+
 test("remember keeps what the person wrote and nothing the model changed: a superscript or an invisible character in the text, and a message that differs from an automatic memory by a comma, a symbol or a question mark, never make a memory theirs that says something else", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-forms-"));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });

@@ -1,8 +1,8 @@
 // Security invariant S-14 (docs/system/SECURITY-INVARIANTS.md; spec F15/D9): what a page can ask the desktop shell to do.
 //
-// The Tauri shell loads the workbench from the local web host and gives that origin native commands: it can spawn a process in a
-// pseudo-terminal (`pty_spawn` runs any command it is given), read and write the shelf's files, open a link in the system browser.
-// The only thing between a page and those commands is the capability files in apps/desktop/src-tauri/capabilities: which origins
+// The Tauri shell loads the workbench from the local web host and gives that origin commands to handle
+// Shelf files or open a link. Unused native PTY commands have been removed (SYS-14).
+// Host identity is checked before custom commands; the capability files also restrict which origins
 // (`remote.urls`), which windows, which permissions. This test pins all three, so widening any of them (a wildcard host or port,
 // a new window, a new permission such as a shell, filesystem, HTTP or updater plugin) fails here and has to be argued for in the
 // review that changes this file.
@@ -26,7 +26,7 @@ const capabilities: Capability[] = readdirSync(join(SHELL, "capabilities")).filt
 /** The web host the shell loads, by its two loopback names. A port other than 4173, a scheme other than http, another host or a wildcard host is a different promise. */
 const ORIGIN_PATTERN = /^http:\/\/(?:127\.0\.0\.1|localhost):4173\/(?:[A-Za-z0-9_\-/]*\*)?$/;
 const PERMISSIONS = new Map<string, string[]>([
-  ["default", ["allow-capsule-window", "allow-pty-kill", "allow-pty-resize", "allow-pty-spawn", "allow-pty-write", "allow-shelf-desktop", "core:app:default", "core:event:default", "core:webview:default", "core:window:allow-start-dragging", "core:window:default", "core:default"].sort()],
+  ["default", ["allow-capsule-window", "allow-shelf-desktop", "core:app:default", "core:event:default", "core:webview:default", "core:window:allow-start-dragging", "core:window:default", "core:default"].sort()],
   ["context-directories", ["allow-context-directories"]],
   ["main-external-links", ["allow-open-external-url"]],
 ]);
@@ -63,15 +63,16 @@ test("S-14 each permission is defined in the shell, allows only commands the she
     }
   }
   const registered = new Set([...(/generate_handler!\[([\s\S]*?)\]/.exec(readFileSync(MAIN_RS, "utf8"))?.[1] ?? "").matchAll(/(?:[A-Za-z_]+::)?([a-z_][a-z0-9_]*)\s*,?/g)].map(match => match[1]!));
-  assert.ok(registered.has("pty_spawn") && registered.has("shelf_open_path"), "the command list was read");
+  assert.ok(registered.has("capsule_hide") && registered.has("shelf_open_path"), "the command list was read");
   for (const [identifier, commands] of definitions) for (const command of commands) assert.ok(registered.has(command), `${identifier} allows ${command}, which the shell does not register`);
   for (const capability of capabilities) for (const permission of capability.permissions as string[]) {
     if (permission.startsWith("core:")) continue;
     assert.ok(definitions.has(permission), `${capability.identifier}: ${permission} is defined nowhere`);
   }
-  // The terminal commands are the powerful ones: they are granted to the default capability's windows and to nothing narrower or wider.
+  // SYS-14: process spawning is only the authenticated WebSocket service, never a second native entry.
   const spawning = capabilities.filter(capability => (capability.permissions as string[]).some(permission => (definitions.get(permission) ?? []).includes("pty_spawn")));
-  assert.deepEqual(spawning.map(capability => capability.identifier), ["default"]);
+  assert.deepEqual(spawning, []);
+  for (const command of ["pty_spawn", "pty_write", "pty_resize", "pty_kill"]) assert.equal(registered.has(command), false);
 });
 
 test("S-14 the shell's own configuration does not turn on remote IPC for every domain or load anything but the local placeholder first", () => {

@@ -1,4 +1,4 @@
-import { pluginWorkbenchClientAsset, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkKnowledgeClientScript } from "@molis-ai/molis-work-app-workbench";
+import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkKnowledgeClientScript } from "@molis-ai/molis-work-app-workbench";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -62,6 +62,8 @@ export function createLocalWebAssets(ports: {
       const client = plugin ? pluginWorkbenchClientAsset(plugin[1]!) : null;
       const loaded = client ? { body: client, contentType: "text/javascript; charset=utf-8" } : pathname === "/assets/molis-work-workbench.css"
       ? { body: renderMolisWorkWorkbenchStylesheet(), contentType: "text/css; charset=utf-8" }
+      : pathname === "/assets/molis-work-plugin-frame.js"
+        ? { body: renderPluginFrameClientScript(), contentType: "text/javascript; charset=utf-8" }
       : pathname === "/assets/molis-work-workbench.js"
         ? { body: renderMolisWorkWorkbenchClientScript(), contentType: "text/javascript; charset=utf-8" }
         : pathname === "/assets/molis-work-capabilities.js"
@@ -91,6 +93,7 @@ export function createLocalWebAssets(ports: {
     const { etag } = asset;
     const headers = {
       "content-type": asset.contentType,
+      ...(asset.contentType === "font/woff2" ? { "access-control-allow-origin": "*" } : {}),
       "cache-control": "private, max-age=0, must-revalidate",
       etag,
       "x-content-type-options": "nosniff",

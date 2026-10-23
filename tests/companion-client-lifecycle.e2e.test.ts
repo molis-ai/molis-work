@@ -46,7 +46,8 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
         window.errors=[];addEventListener('error',event=>errors.push(event.message));addEventListener('unhandledrejection',event=>errors.push(String(event.reason)));
         ${clientI18nScript()}
         ${UI_REQUEST_CLIENT_SCRIPT}
-        window.mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();window.parentView=document.querySelector('#parent');
+        const actualMount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();window.mountedScopes=new WeakMap();
+        window.mount=root=>{const scope=actualMount(root);if(scope)mountedScopes.set(root,scope);return scope;};window.parentView=document.querySelector('#parent');
         ${script}
       </script>`);return;
     }
@@ -68,7 +69,11 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
 /** Coding's bundle as the page mounts it on each of its surfaces: Coding's factory with Files' and Git's clients and the Host's reviews folded in. */
 const CODING_SURFACE_FACTORY = pluginSurfaceClients().find(client => client.id === "coding")!.factory;
 // A companion's reads go to `/api/plugins/io.molis.work.<plugin>/…`; the fixture serves them at `/<plugin>/…`.
-const companionHost = "root:document.querySelector('[data-companion]'),mountPluginClient:mount,translate:L,route:path=>path.replace('/api/plugins/io.molis.work.','/'),headers:()=>({}),openPlugin:()=>{}";
+const companionHost = `root:document.querySelector('[data-companion]'),mountPluginClient:mount,translate:L,route:path=>path.replace('/api/plugins/io.molis.work.','/'),headers:()=>({}),openPlugin:()=>{} ,reviews:{show:(element,query,options)=>{
+  window.fixtureReviewShow ??= (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mount,route:path=>path,headers:()=>({})});
+  return fixtureReviewShow(element,query.runIds.map(run_id=>({run_id})),query.sessionId,query.workspaceId,query,
+    {lifetime:mountedScopes.get(element.closest('[data-companion]')),signal:options?.signal});
+}}`;
 const fixedMarkup = '<button data-companion-refresh><span class="mw-spinner" hidden></span>刷新</button><p data-companion-status></p><div data-companion-content></div>';
 const state = (name: string) => name === "files" ? { workspace: { workspace_id: "ws" } }
   : name === "git" ? { workspace: { workspace_id: "ws" }, selected: null, view: { phase: "ready", head: "current", conflicts: [], staged: [], changes: [] } }
@@ -128,7 +133,7 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
     } }) };
   };
   const previous = await fixedState(1);
-  const f = await fixture(t, `<section data-companion="diff">${fixedMarkup}</section>`, `
+  const f = await fixture(t, `<section data-work-surface="diff" data-companion="diff">${fixedMarkup}</section>`, `
     const host={${companionHost}};
     window.root=host.root;window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
   `, (_path, url) => { const index = Number(url.searchParams.get("change_index") ?? 0); indices.push(index); return fixedState(index); });
@@ -154,7 +159,7 @@ for (const name of ["files", "git", "diff", "text-stats"]) {
   test(`${name} owns visible queries and listeners across hide, detach and remount`, { timeout: 30_000 }, async t => {
     const body = name === "files" ? renderFilesBrowserDirectory(L) + renderFilesBrowserResult(L)
       : name === "git" ? renderGitBrowserDirectory(L) + renderGitBrowserResult(L) : fixedMarkup;
-    const f = await fixture(t, `<section data-companion="${name}">${body}</section>`, `
+    const f = await fixture(t, `<section data-work-surface="${name}" data-companion="${name}">${body}</section>`, `
       const host={${companionHost}};
       window.root=host.root;window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
     `, path => {
@@ -255,7 +260,7 @@ test("Host reviews retain decisions across hiding without rendering stale result
 for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, resumes after disconnect and stops while hidden`, { timeout: 30_000 }, async t => {
   let revision = 1;
   const markup = name === "files" ? renderFilesBrowserDirectory(L) + renderFilesBrowserResult(L) : renderGitBrowserDirectory(L) + renderGitBrowserResult(L);
-  const f = await fixture(t, `<section data-companion="${name}">${markup}</section>`, `
+  const f = await fixture(t, `<section data-work-surface="${name}" data-companion="${name}">${markup}</section>`, `
     const host={${companionHost}};
     window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
   `, path => {

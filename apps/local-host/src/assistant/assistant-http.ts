@@ -1,3 +1,4 @@
+import { pageRelatedWorks } from "./assistant-page-related.js";
 import { AssistantThreads } from "./assistant-threads.js";
 import { assistantThreadActions, assistantThreadRegistration } from "./assistant-thread-actions.js";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
@@ -209,7 +210,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 1 && parts[0] === "related") {
         const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";
         if (!kind || !id) throw assistantErrors.invalid("需要对象种类与标识");
-        return { status: 200, body: { works: await service.related(ports.projectRef?.project_id ?? null, { kind, id }) } };
+        return { status: 200, body: await pageRelatedWorks(service, request, ports.projectRef?.project_id ?? null, { kind, id }) };
       }
       // Characters the person may choose here: for a work (its own project), or for a new work on this page.
       if (method === "GET" && parts.length === 1 && parts[0] === "characters") {

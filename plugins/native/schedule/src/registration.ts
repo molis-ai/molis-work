@@ -7,6 +7,7 @@ import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts, SCHEDULE
  */
 export const registration: PluginRegistration = {
   project_plugin_id: SCHEDULE_PROJECT_PLUGIN_ID, catalog_order: 9,
+  default_enabled: true,
   manifest: scheduleManifest,
   summary: "定时跑对话任务，也替插件准时提醒。",
   agent: { prompts: schedulePrompts },

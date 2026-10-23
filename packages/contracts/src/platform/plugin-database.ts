@@ -11,9 +11,8 @@ export interface PluginDatabaseReader {
 }
 
 /**
- * The one handle through which a platform service may later join a plugin's write transaction (a scheduler registering a job, the
- * journal): it would check that the handle is the write transaction in progress on its own connection. Nothing joins one today
- * (specs/plugin-project-database §2.6).
+ * The handle through which the scheduler joins the plugin's current write transaction. The platform checks the exact library,
+ * activation and live transaction; a retained or copied handle cannot start another write.
  */
 export interface PluginDatabaseTransaction extends PluginDatabaseReader {
   run(sql: string, parameters?: readonly PluginSqlValue[]): { changes: number | bigint };

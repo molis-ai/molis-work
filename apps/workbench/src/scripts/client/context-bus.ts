@@ -118,8 +118,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       source.frame.contentWindow.postMessage({ type: "workbench-context-action-chosen", context_id: focus.context_id, candidate }, location.origin);
       return;
     }
-    const fallback = deliver(focus, candidate);
-    if (fallback) prepared().then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(fallback));
+    void deliver(focus, candidate).then(fallback => { if (fallback) prepared().then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(fallback)); });
   };
   // A choice from the row or a starter alike: into the object open on the left, its owner previews it at the landing
   // (context-landing.ts; an attach is a record too, so it goes first); a creation entry is made at once or drafted for a
@@ -223,8 +222,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       if (!candidate || !candidate.available) { bar.error(new Error(candidate ? candidate.reason || L("不可用") : L("这个动作已不在当前内容的候选里"))); return; }
       const prepared = settle(focus, candidate, "assistant-start");
       // The page that has this object open takes it when it can (Pages runs it on the whole document); else a card.
-      const fallback = prepared && deliver(focus, { ...candidate, scope: "object" });
-      if (fallback) prepared().then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(fallback));
+      if (prepared) void deliver(focus, { ...candidate, scope: "object" }).then(fallback => { if (fallback) prepared().then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(fallback)); });
     },
   };
   document.addEventListener("molis:assistant-starters-request", (event) => {

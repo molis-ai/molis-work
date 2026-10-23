@@ -98,20 +98,20 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
   }
   async function afterDecision(outcome){
     if(!lifetime.visible || !outcome.workspaceId || outcome.workspaceId!==workspace)return;
-    const receipt=outcome.receipt;
+    const state=outcome.state,reason=L('git.decision.details');
     let notice;
-    if(outcome.error)notice=L('git.decision.no-receipt',{reason:S(outcome.error)});
-    else if(receipt?.effect_uncertain)notice=L('git.decision.uncertain',{reason:S(receipt.effect_uncertain)});
-    else if(receipt?.status==='rejected')notice=L('git.decision.rejected');
-    else if(receipt?.reconciliation)notice=L('git.decision.reconciled');
-    else if(receipt?.effect_error)notice=L('git.decision.failed',{reason:S(receipt.effect_error)});
-    else if(receipt?.effect_settled)notice=L('git.decision.settled');
+    if(state==='unavailable')notice=L('git.decision.no-receipt',{reason});
+    else if(state==='uncertain')notice=L('git.decision.uncertain',{reason});
+    else if(state==='rejected')notice=L('git.decision.rejected');
+    else if(state==='reconciled')notice=L('git.decision.reconciled');
+    else if(state==='failed')notice=L('git.decision.failed',{reason});
+    else if(state==='settled')notice=L('git.decision.settled');
     else notice=L('git.decision.pending');
     // A commit, branch, push or PR decided here reads as that operation, never as an index change.
     if(lastPrepared){
-      const done=receipt?.effect_settled,label=OPERATION[lastPrepared] || L('git.op.other');
+      const done=state==='settled',label=OPERATION[lastPrepared] || L('git.op.other');
       if(lastPrepared==='commit' && done){message.value='';try{sessionStorage.removeItem('molis-commit-draft:'+scWorkspace);}catch{}}
-      scStatus.textContent=outcome.error?L('git.op.no-receipt',{reason:S(outcome.error)}):receipt?.status==='rejected'?L('git.op.rejected',{op:label}):receipt?.effect_error?L('git.op.failed',{op:label,reason:S(receipt.effect_error)}):done?L('git.op.done',{op:label}):L('git.op.recorded');
+      scStatus.textContent=state==='unavailable'?L('git.op.no-receipt',{reason}):state==='rejected'?L('git.op.rejected',{op:label}):state==='failed'?L('git.op.failed',{op:label,reason}):done?L('git.op.done',{op:label}):L('git.op.recorded');
       lastPrepared='';q('[data-git-notice]').textContent=scStatus.textContent;await refresh();return;
     }
     displayed=null;action.hidden=true;

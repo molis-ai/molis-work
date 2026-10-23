@@ -737,14 +737,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (i === run.current && run.status === 'active') return readyState(link).ready ? 'waiting' : 'blocked';
     return 'future';
   }
-  function frameSrc(step) {
-    const url = new URL(host.route('/'), location.origin);
-    url.searchParams.set('workbenchPane', 'workflow-' + ui.instance.instance_id);
-    url.searchParams.set('panePlugin', step.item.plugin);
-    url.searchParams.set('paneItem', step.item.item_id);
-    url.searchParams.set('paneTitle', step.item.title || '');
-    return url.pathname + url.search;
-  }
   function runBarHtml(run) {
     const status = runStatus(run);
     return '<button class="plugin-stage-back" type="button" data-wf-action="back-to-flow" aria-label="' + tx('回到这条流程') + '" title="' + tx('回到这条流程') + '">' + ico('chevron-right') + '</button>'
@@ -842,34 +834,24 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       settle(slot.firstElementChild);
       return;
     }
-    const src = frameSrc(step);
+    const src = step.item.plugin + ':' + step.item.item_id;
     if (slot.dataset.src === src) return;
     slot.dataset.src = src;
     slot.classList.remove('is-empty');
-    slot.querySelectorAll('.wf-stage__empty').forEach((node) => node.remove());
-    const previous = [...slot.querySelectorAll('iframe')];
-    slot.classList.toggle('is-cold', !previous.length);
-    slot.classList.add('is-loading');
-    if (!slot.querySelector('.wf-frame-skeleton')) {
-      slot.insertAdjacentHTML('afterbegin', '<div class="wf-frame-skeleton" aria-hidden="true"><span class="mw-skeleton" style="width:38%"></span><span class="mw-skeleton" style="width:72%"></span><span class="mw-skeleton" style="width:64%"></span><span class="mw-skeleton" style="width:46%"></span></div>');
-    }
-    const frame = document.createElement('iframe');
-    frame.title = L('{plugin} 里这一次的内容', { plugin: label(step.plugin) });
-    frame.dataset.wfFrame = '';
-    frame.className = 'is-entering';
-    let shown = false;
-    const show = () => {
-      if (shown || slot.dataset.src !== src) return;
-      shown = true;
-      frame.classList.remove('is-entering');
-      slot.classList.remove('is-loading', 'is-cold');
-      setTimeout(() => previous.forEach((old) => old.remove()), calm() ? 0 : 220);
-    };
-    frame.addEventListener('load', show, { once: true });
-    setTimeout(show, 8000);
-    slot.append(frame);
-    frame.src = src;
+    const region = document.createElement('div');
+    region.style.cssText = 'width:100%;height:100%';
+    slot.replaceChildren(region);
+    slot.classList.add('is-loading', 'is-cold');
+    const embedded = host.view.embed(region, {surface:step.item.plugin,itemId:step.item.item_id,title:step.item.title || label(step.plugin)});
+    embedded.ready.then(() => {
+      if (slot.dataset.src === src) slot.classList.remove('is-loading','is-cold');
+    }).catch(error => {
+      if (!region.isConnected) return;
+      slot.classList.remove('is-loading','is-cold');
+      region.textContent = error.message;
+    });
   }
+
   function dataHtml(dataIn) {
     return '<div class="wf-payload"><strong>' + esc(dataIn.title) + '</strong><pre>' + esc(dataIn.body) + '</pre>' + (dataIn.url ? '<a href="' + esc(dataIn.url) + '" target="_blank" rel="noopener noreferrer">' + esc(dataIn.url) + '</a>' : '') + '</div>';
   }
@@ -1306,14 +1288,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     else moveTo(drag.from, gap);
   });
 
-  window.addEventListener('message', (ev) => {
-    if (ev.origin !== location.origin || ev.data?.type !== 'workbench-pane-open' || !ev.data.itemId) return;
-    const frame = [...view.querySelectorAll('[data-wf-frame]')].find((entry) => entry.contentWindow === ev.source);
-    if (!frame) return;
-    const url = new URL(frame.src, location.origin);
-    url.searchParams.set('panePlugin', ev.data.plugin); url.searchParams.set('paneItem', ev.data.itemId); url.searchParams.set('paneTitle', ev.data.title || '');
-    frame.src = url.pathname + url.search;
-  });
 
   let started = false;
   let listReady = null;

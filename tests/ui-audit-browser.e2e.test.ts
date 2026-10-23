@@ -4,6 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const SHOTS = "/tmp/molis-ui-audit-2026-09-22";
@@ -13,6 +14,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, click, waitFor, navigate, origin, projectId, reloadPage } = browser;
+  const pages = await pluginFrameBrowser(t, browser, "pages");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: browser.homeDirectory });
   catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "feed", actor_id: "ui-audit" });
   catalog.close();
@@ -197,7 +199,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   await titleAt(640, 800, "05-inbox-title-640x800.png");
 
   await click('[data-plugin-strip] [data-plugin-id="pages"]');
-  await waitFor("document.querySelectorAll('button.feed-stage-entry[data-page-id]').length >= 2");
+  await pages.waitFor("document.querySelectorAll('button.feed-stage-entry[data-page-id]').length >= 2");
   await click("[data-global-search-open]");
   await waitFor("document.querySelector('[data-global-search-dialog]')?.open");
   await evaluate(`(() => { const input = document.querySelector('[data-global-search]'); input.value = 'Jev 的三个待验证问题'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
@@ -207,13 +209,13 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   assert.equal(hits.filter((id) => id === first.document.id || id === second.document.id).length, 2);
   await shot("04-pages-search.png");
   await evaluate("document.querySelector('[data-global-search-dialog]').close()");
-  await evaluate(`document.querySelector('button.feed-stage-entry[data-page-id="${first.document.id}"]').click()`);
-  await waitFor("document.querySelector('[data-pages-more]')");
-  await click("[data-pages-more]");
-  await waitFor("document.querySelector('[data-pages-more]').getAttribute('aria-expanded') === 'true'");
-  await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))");
-  await waitFor("document.querySelector('[data-pages-more]').getAttribute('aria-expanded') === 'false'");
-  assert.equal(await evaluate("document.querySelector('[data-pages-more-menu]').hidden"), true);
-  assert.equal(await evaluate("document.activeElement === document.querySelector('[data-pages-more]')"), true);
+  await pages.evaluate(`document.querySelector('button.feed-stage-entry[data-page-id="${first.document.id}"]').click()`);
+  await pages.waitFor("document.querySelector('[data-pages-more]')");
+  await pages.click("[data-pages-more]");
+  await pages.waitFor("document.querySelector('[data-pages-more]').getAttribute('aria-expanded') === 'true'");
+  await pages.evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))");
+  await pages.waitFor("document.querySelector('[data-pages-more]').getAttribute('aria-expanded') === 'false'");
+  assert.equal(await pages.evaluate("document.querySelector('[data-pages-more-menu]').hidden"), true);
+  assert.equal(await pages.evaluate("document.activeElement === document.querySelector('[data-pages-more]')"), true);
   await shot("06-pages-more-after-escape.png");
 });

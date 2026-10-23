@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
 
 test("PAS-15: Host text streams, keeps reading state, copies exact code, opens named objects and submits real review decisions", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const child = await pluginFrameBrowser(t, browser, "pages");
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const pages = openPagesStore(homeDirectory);
   const page = pages.create({ project_id: projectId!, title: "代码验证文档", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "打开的是实际文档。" }] }] } });
@@ -16,7 +18,7 @@ test("PAS-15: Host text streams, keeps reading state, copies exact code, opens n
   const model = await assistantTextModel(t, homeDirectory, `「${page.title}」\n\n<img src=x onerror="window.injected=1"> [不能执行](javascript:alert)\n\n\`\`\`ts\n${code}\n\`\`\``);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
-  await waitFor("document.querySelector('[data-pages-title]')?.value === '代码验证文档'");
+  await child.waitFor("document.querySelector('[data-pages-title]')?.value === '代码验证文档'");
   await click("[data-assistant-input]");
   // The work is linked under the document because the hand-over brings it (viewing a page no longer adds it, context-program
   // §21.5), so the hand-over names the document by its own kind.

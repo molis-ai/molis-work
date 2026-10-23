@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
@@ -15,12 +16,13 @@ const WRITE = `[...document.querySelectorAll('${BAR} button,.mw-ctx-menu button'
 test("W3-A3a: a write chosen on the page goes into the open work that holds the object; with the panel closed, into a new one", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
+  const child=await pluginFrameBrowser(t,browser,"pages");
   const { command, sessionId, navigate, evaluate, waitFor, click, origin, projectId, homeDirectory } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const pages = openPagesStore(homeDirectory);
   const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: TEXTS.map(paragraph) } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(TEXTS[2])})`);
+  await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(TEXTS[2])})`);
   // The same document in the right panel's file preview, beside the Assistant's panel: what is selected there is in hand.
   await evaluate(`document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'files', target: { subject: { kind: 'pages_document', id: ${JSON.stringify(page.id)} } } } }))`);
   await waitFor(`document.querySelector('[data-side-files-body]')?.textContent.includes(${JSON.stringify(TEXTS[2])})`, 20_000);

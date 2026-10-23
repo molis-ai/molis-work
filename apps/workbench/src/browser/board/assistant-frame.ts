@@ -13,10 +13,11 @@
  * - 「带上三个文件」 picks files through the island's own file input: a text file it reads, a kind it refuses before reading
  *   and a picture the stand-in Host refuses, so the strip shows the parts that failed beside the one that went in.
  */
+import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 type Json = Record<string, unknown>;
 type View = { work: Json & { work_id: string }; [key: string]: unknown };
 type Samples = { project: { id: string; title: string }; works: Array<Json & { work_id: string }>; views: Record<string, View>; surroundings: Record<string, Json>; next: Record<string, View[]> };
-type Page = Window & { L?: (text: string, values?: Record<string, string | number>) => string; molisWorkRequest?: { toast(target: Element, error?: unknown, fallback?: string, options?: { ms: number }): void } };
+type Page = Window & { L?: (text: string, values?: Record<string, string | number>) => string; molisWorkRequest?: Pick<UiRequest, "toast"> };
 
 const page = window as Page;
 const L = (text: string, values?: Record<string, string | number>) => page.L ? page.L(text, values) : text;

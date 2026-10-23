@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { createServer } from "node:http";
@@ -63,13 +64,15 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address !== "string");
   const b = await openGoalBrowser(t, "seeded"); if (!b) return null;
-  const { click, evaluate, waitFor, command, sessionId, homeDirectory } = b;
+  const { command, sessionId, homeDirectory } = b;
+  const child = await pluginFrameBrowser(t,b,"coding");
+  const { click, evaluate, waitFor } = child;
   await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
     const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages",
       models: [{ model_id: "fixture-plain", enabled: true }] });
   }));
-  const fill = (selector: string, value: string) => evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  const fill = (selector: string, value: string) => (selector.includes("data-project-workspaces") ? b.evaluate : evaluate)(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const coding = "[data-coding-workbench]";
   const prepared = new Set<string>();
@@ -80,17 +83,18 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
       const workspace = join(homeDirectory, `no-crosstalk-${prepared.size}`);
       await mkdir(workspace, { recursive: true });
       await writeFile(join(workspace, "note.txt"), "release notes go in CHANGELOG.md\n");
-      await click('.navigator-project-settings');
-      await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
-      await click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
-      await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
+      await b.click('.navigator-project-settings');
+      await b.waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
+      await b.click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
+      await b.waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
       await fill('[data-project-workspaces-add] [name=path]', workspace);
-      await click('[data-project-workspaces-add] [type=submit]');
-      await waitFor(`document.querySelector('[data-project-workspaces-list]').textContent.includes(${JSON.stringify(`no-crosstalk-${prepared.size}`)})`);
+      await b.click('[data-project-workspaces-add] [type=submit]');
+      await b.waitFor(`document.querySelector('[data-project-workspaces-list]').textContent.includes(${JSON.stringify(`no-crosstalk-${prepared.size}`)})`);
       prepared.add(project);
     }
-    await click(`[data-plugin-strip] [data-plugin-id="coding"]`);
-    await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
+    await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
+    await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
+    await waitFor("document.querySelector('[data-coding-task]')");
     // What the page sends: each request's path and body, to tell which session a draft or an answer went to.
     await evaluate(`(() => { if (window.__sent) return; window.__sent = []; const original = window.fetch; window.fetch = async (...args) => {
       const sent = args[1] && typeof args[1].body === 'string' ? { url: String(args[0]), method: args[1].method || 'GET', body: args[1].body } : null; if (sent) window.__sent.push(sent);
@@ -111,13 +115,13 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
   };
   /** Shows a session of `project` again through its tab, the way a person switches. */
   const show = async (session: string, project = b.projectId!) => {
-    const state = await evaluate<{ panes: Array<{ tabs: Array<{ id: string; itemId: string }> }> }>(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${project}'))`);
+    const state = await b.evaluate<{ panes: Array<{ tabs: Array<{ id: string; itemId: string }> }> }>(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${project}'))`);
     const tab = state.panes.flatMap(pane => pane.tabs).find(one => one.itemId === session);
     assert.ok(tab, "the session has a tab");
-    await click(`[data-tab-id="${tab.id}"]`);
+    await b.click(`[data-tab-id="${tab.id}"]`);
     await waitFor(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(session)} && Boolean(document.querySelector('${coding} [data-coding-question][data-ix-question]'))`, 15_000);
   };
-  return { ...b, coding, fill, heard, prompts, enter, ask, show };
+  return { ...b, ...child, ownerEvaluate: b.evaluate, coding, fill, heard, prompts, enter, ask, show };
 }
 
 /** The tool results a model request carries: what the round heard back from its questions. */
@@ -219,18 +223,19 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   };
+  const otherPage=await pluginFrameBrowser(t,{command,on:opened.on,evaluate:other,sessionId:tab},"coding");
   // The second tab picks the same session from Coding's list, the way a person would.
   assert.equal(await other("document.visibilityState"), "visible");
   await otherWaits(`document.querySelector('[data-plugin-strip] [data-plugin-id="coding"]')`);
   await other(`document.querySelector('[data-plugin-strip] [data-plugin-id="coding"]').click()`);
   // The list is drawn by the server first; the row is clicked once Coding's page script has loaded and listens.
-  await otherWaits(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]') && !document.querySelector('[data-ui-client-state="loading"]')`);
-  await other(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]').click()`);
-  await otherWaits(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(session)} && document.querySelector(${JSON.stringify(card(coding))})`);
+  await otherPage.waitFor(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]') && !document.querySelector('[data-ui-client-state="loading"]')`);
+  await otherPage.evaluate(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]').click()`);
+  await otherPage.waitFor(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(session)} && document.querySelector(${JSON.stringify(card(coding))})`);
   // Its request to answer waits in its page until released; the reply is kept for the assertions. Every read of the session that
   // starts after the reply waits until `__rereads()`, and is counted once the page has drawn from it: its JSON taken, and the page's own
   // code after that run.
-  await other(`(() => { const original = window.fetch; let release, reread; window.__held = new Promise(resolve => { release = resolve; }); window.__release = () => release();
+  await otherPage.evaluate(`(() => { const original = window.fetch; let release, reread; window.__held = new Promise(resolve => { release = resolve; }); window.__release = () => release();
     window.__readsAfter = 0; const rereads = new Promise(resolve => { reread = resolve; }); window.__rereads = () => reread();
     window.fetch = async (...args) => { const answering = args[1] && typeof args[1].body === 'string' && args[1].body.includes('"kind":"answer"');
       const rereading = Boolean(window.__reply) && !(args[1] && args[1].body) && /\\/sessions\\//.test(String(args[0]));
@@ -238,9 +243,9 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
       if (rereading) { await rereads; const response = await original(...args), json = response.json.bind(response);
         response.json = async () => { const value = await json(); setTimeout(() => { window.__readsAfter++; }); return value; }; return response; }
       const response = await original(...args); if (answering) window.__reply = { status: response.status, body: await response.clone().json() }; return response; }; })()`);
-  await other(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-field="q0"] [data-ix-option="0"]`)}).click()`);
-  await other(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-action="answer"]`)}).click()`);
-  await otherWaits("window.__sent === true");
+  await otherPage.evaluate(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-field="q0"] [data-ix-option="0"]`)}).click()`);
+  await otherPage.evaluate(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-action="answer"]`)}).click()`);
+  await otherPage.waitFor("window.__sent === true");
 
   await click(`${card(coding)} [data-ix-field="q0"] [data-ix-option="1"]`);
   await click(`${card(coding)} [data-ix-action="answer"]`);
@@ -256,23 +261,23 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
 
   // The second tab follows the round too: it sees the question answered and the round end while its own answer is still on the
   // way. The card it was sent from stays, so the answer's outcome has a place to show.
-  await otherWaits(`document.querySelector('${coding}').innerText.includes(${JSON.stringify(LOGIN.done)})`);
-  assert.equal(await other(`document.querySelector(${JSON.stringify(card(coding))})?.dataset.busy`), "true", "the card whose answer is on its way is not taken down");
-  await other("window.__release()");
-  await otherWaits("window.__reply");
-  const reply = await other<{ status: number; body: { code?: string; error?: string } }>("window.__reply");
+  await otherPage.waitFor(`document.querySelector('${coding}').innerText.includes(${JSON.stringify(LOGIN.done)})`);
+  assert.equal(await otherPage.evaluate(`document.querySelector(${JSON.stringify(card(coding))})?.dataset.busy`), "true", "the card whose answer is on its way is not taken down");
+  await otherPage.evaluate("window.__release()");
+  await otherPage.waitFor("window.__reply");
+  const reply = await otherPage.evaluate<{ status: number; body: { code?: string; error?: string } }>("window.__reply");
   // The first answer was taken and the round has ended: what the Host knows is that, not who answered.
   assert.deepEqual([reply.status, reply.body.code], [409, "coding.round_ended"], "the other is refused with a code: the round has ended");
   const refusedCard = `(() => { const node = document.querySelector(${JSON.stringify(card(coding))}); return node && { refused: node.dataset.refused, note: node.querySelector('[data-ix-note]').textContent,
     open: [...node.querySelectorAll('fieldset,button')].filter(one => !one.disabled).length, picked: node.querySelector('[data-ix-field="q0"] [data-ix-option="0"]').getAttribute('aria-checked') ?? node.querySelector('[data-ix-field="q0"] [data-ix-option="0"]').getAttribute('aria-pressed') }; })()`;
   const kept = { refused: "true", note: reply.body.error, open: 0, picked: "true" };
   // Refused, before the page has read the session again: the card is closed with its reason.
-  await otherWaits(`JSON.stringify(${refusedCard}) === ${JSON.stringify(JSON.stringify(kept))}`);
+  await otherPage.waitFor(`JSON.stringify(${refusedCard}) === ${JSON.stringify(JSON.stringify(kept))}`);
   // The page reads the session again after the refusal; the question is gone from the round, and the refused card stays, closed,
   // with its reason and what was picked, so the person sees why it was not sent.
-  await other("window.__rereads()");
-  await otherWaits("window.__readsAfter >= 1");
-  assert.deepEqual(await other(refusedCard), kept, "after the session is read again, the refused card still says why, closed");
+  await otherPage.evaluate("window.__rereads()");
+  await otherPage.waitFor("window.__readsAfter >= 1");
+  assert.deepEqual(await otherPage.evaluate(refusedCard), kept, "after the session is read again, the refused card still says why, closed");
   await new Promise(resolve => setTimeout(resolve, 800));
   assert.equal(heard.length, 1, "the round heard the answer once");
   const answer = answersIn(heard[0]!.body);
@@ -298,7 +303,7 @@ test("AC-05: a reference question in one project finds and keeps only that proje
     } finally { catalog.close(); }
   })();
   /** A Goal created through the project's own Goals route, from the page, in the project the page is in. */
-  const goal = (goalId: string, title: string) => evaluate(`fetch(document.body.dataset.routePrefix + '/api/goals', { method: 'POST',
+  const goal = (goalId: string, title: string) => opened.ownerEvaluate(`fetch(document.body.dataset.routePrefix + '/api/goals', { method: 'POST',
     headers: { ...molisWorkControlHeaders(), 'content-type': 'application/json', 'x-molis-work-idempotency-key': crypto.randomUUID() },
     body: JSON.stringify({ goal_id: ${JSON.stringify(goalId)}, title: ${JSON.stringify(title)}, outcome: '', why: '', business_logic: '' }) })
     .then(async r => { if (!r.ok) throw new Error(await r.text()); })`);
@@ -379,17 +384,18 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const { command, sessionId, navigate, evaluate, waitFor, click, origin, projectId, homeDirectory, store } = browser;
+  const child=await pluginFrameBrowser(t,browser,"pages");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const pages = openPagesStore(homeDirectory);
   const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
+  await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
   const selectScript = (index: number) => `(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[${index}].firstChild, range = document.createRange(); range.selectNodeContents(text);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
   })()`;
-  const select = (index: number) => evaluate(selectScript(index));
+  const select = (index: number) => child.evaluate(selectScript(index));
   const bar = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
   // A write that still goes as a card (记成待办 is made at once since W4-1): a plan broken into Goal steps, a proposal.
   const writeButton = `[...document.querySelectorAll('${bar} button,.mw-ctx-menu button')].find(button => !button.disabled && button.textContent.startsWith('拆成目标步骤'))`;
@@ -408,7 +414,7 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
     if (await evaluate<boolean>("Boolean(document.querySelector('[data-assistant-panel-close]')?.getClientRects().length)")) await click("[data-assistant-panel-close]");
     await select(index);
     await waitFor(`document.querySelector('${bar} [data-more]')`, 8000).catch(async error => { throw new Error(`${(error as Error).message}\nbars: ${await evaluate<string>(
-      `[...document.querySelectorAll('.mw-ctx'), ...[...document.querySelectorAll('iframe')].flatMap(frame => { try { return [...frame.contentDocument.querySelectorAll('.mw-ctx')]; } catch { return []; } })].map(node => node.outerHTML.slice(0, 400)).join(' || ')`)}\nselection: ${await evaluate<string>("getSelection().toString()")}\nassistant open: ${await evaluate<boolean>("!document.querySelector('[data-assistant-panel]')?.hidden")}`); });
+      `[...document.querySelectorAll('.mw-ctx'), ...[...document.querySelectorAll('iframe')].flatMap(frame => { try { return [...frame.contentDocument.querySelectorAll('.mw-ctx')]; } catch { return []; } })].map(node => node.outerHTML.slice(0, 400)).join(' || ')`)}\nselection: ${await child.evaluate<string>("getSelection().toString()")}\nassistant open: ${await evaluate<boolean>("!document.querySelector('[data-assistant-panel]')?.hidden")}`); });
     await click(`${bar} [data-more]`);
     await waitFor(`Boolean(${writeButton})`);
     await evaluate(`${writeButton}.click()`);
@@ -429,7 +435,7 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
   // 1. After the card is shown, the person selects the other paragraph; the bar follows the new selection, the card does not.
   const first = await offer(0);
   await select(1);
-  assert.equal(await evaluate("getSelection().toString()"), SECOND);
+  assert.equal(await child.evaluate("getSelection().toString()"), SECOND);
   assert.equal(await evaluate<boolean>(`document.querySelector(${JSON.stringify(first)}).textContent.includes(${JSON.stringify(SECOND)})`), false,
     "the shown card does not take up the new selection");
   await click(`${first} [data-ix-action="run"]`);
@@ -438,13 +444,15 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
 
   // 2. In the moment its button is pressed: the pointer going down on it selects the other paragraph first.
   const second = await offer(1);
-  await evaluate(`document.querySelector(${JSON.stringify(`${second} [data-ix-action="run"]`)}).addEventListener('pointerdown', () => ${selectScript(0)}, { capture: true, once: true })`);
-  await click(`${second} [data-ix-action="run"]`);
+  const pressAt = await evaluate<{x:number;y:number}>(`(() => {const button=document.querySelector(${JSON.stringify(`${second} [data-ix-action="run"]`)});button.scrollIntoView({block:"center"});const box=button.getBoundingClientRect();return {x:box.x+box.width/2,y:box.y+box.height/2};})()`);
+  await command("Input.dispatchMouseEvent",{type:"mousePressed",...pressAt,button:"left",clickCount:1},sessionId);
+  await select(0);
+  await command("Input.dispatchMouseEvent",{type:"mouseReleased",...pressAt,button:"left",clickCount:1},sessionId);
   await waitFor(`document.querySelector(${JSON.stringify(second)})?.dataset.status === 'done'`, 20_000);
-  assert.equal(await evaluate("getSelection().toString()"), FIRST, "the selection did change as the button was pressed");
+  assert.equal(await child.evaluate("getSelection().toString()"), FIRST, "the selection did change as the button was pressed");
   const runs = await evaluate<unknown[]>("window.__runs");
   assert.equal(runs.length, 2);
   assert.equal(JSON.stringify(runs[1]).includes(FIRST), false, "what the press sent carries nothing of the selection made at that moment");
   assert.deepEqual(proposals().sort(), [FIRST, SECOND].sort(), "each card made its own proposal once; the selection at the press made none");
-  assert.equal(await evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), FIRST + SECOND, "the page is unchanged");
+  assert.equal(await child.evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), FIRST + SECOND, "the page is unchanged");
 });

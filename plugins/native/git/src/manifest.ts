@@ -62,7 +62,7 @@ export const gitManifest: PluginManifest = {
   capabilities: {
     provides: [],
     consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, workspaceReadActions.git.capability_id, prepareGitIndexCapability.capability_id, readGitResultsCapability.capability_id,
-      prepareGitOperationCapability.capability_id, readGitOperationsCapability.capability_id],
+      prepareGitOperationCapability.capability_id, readGitOperationsCapability.capability_id, "diff.state"],
   },
   actions: GIT_ACTIONS,
   artifacts: { produces: [], consumes: [] },

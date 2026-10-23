@@ -45,7 +45,15 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
   const store = new Map<string, Spark>(initial.map(item => [item.id, item]));
   const calls: Array<{ method: string; path: string; body: Record<string, unknown>; keepalive?: boolean; stored_updated_at?: Record<string, string> }> = [];
   let created = 0, clock = 0;
-  const lifetime = fakeLifetime();
+  const lifetime = fakeLifetime({ close(action) {
+    assert.equal(action.reference.capability_id, "lingguang.revert");
+    const input = action.input as {id: string; expected_updated_at: string};
+    workbench.setAttribute("data-expanded", "false");
+    const context = JSON.parse(attributes.get("data-assistant-context") || "{}"); delete context.object; delete context.unsaved;
+    workbench.setAttribute("data-assistant-context", JSON.stringify(context));
+    part("[data-lingguang-stage-workspace]").hidden = true;
+    void fetch("/api/plugins/io.molis.work.lingguang/sparks/discard", {method:"POST",body:JSON.stringify({ids:[input.id],expected_updated_at:{[input.id]:input.expected_updated_at}}),keepalive:true});
+  } });
   const saved = { fetch: globalThis.fetch, document: (globalThis as { document?: unknown }).document, window: (globalThis as { window?: unknown }).window,
     location: (globalThis as { location?: unknown }).location, molis: (globalThis as { molisWorkControlHeaders?: unknown }).molisWorkControlHeaders };
   const workbench = element();
@@ -100,8 +108,8 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
     options.afterGet?.(store);
     return answer;
   }) as typeof fetch;
-  const factory = Function(`return (${LINGGUANG_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; route: (path: string) => string; mountPluginClient: typeof lifetime.mount }) => void;
-  factory({ translate: value => value, route: path => path, mountPluginClient: lifetime.mount });
+  const factory = Function(`return (${LINGGUANG_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; route: (path: string) => string; mountPluginClient: typeof lifetime.mount; view: typeof lifetime.view }) => void;
+  factory({ translate: value => value, route: path => path, mountPluginClient: lifetime.mount, view: lifetime.view });
   await flush();
   const fire = async (event: ReturnType<typeof click>) => { await workbench.listeners.click!(event); await flush(); };
   return {

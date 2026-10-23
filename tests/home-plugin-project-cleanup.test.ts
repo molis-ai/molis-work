@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { HomePluginHost, projectDeletedHooksFor, type HomePluginEntry } from "@molis-ai/molis-work-app-local-host";
+import { HomePluginHost, pluginPagesFor, projectDeletedHooksFor, type HomePluginEntry } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -15,6 +15,7 @@ import { deferred, homeProbe } from "./fixtures/home-runtime.js";
 
 function fixture(t: TestContext) {
   const home = mkdtempSync(join(tmpdir(), "home-project-cleanup-")), marker = join(home, "project-data.txt");
+  pluginPagesFor(home); // Include the Host's page authority before comparing the plugin owner's lifecycle.
   const hooks = projectDeletedHooksFor(home), trace: string[] = [];
   const ownerId = "cleanup-probe", label = "测试清理数据";
   const offline = hooks.register({ id: ownerId, label, clear() { trace.push("offline"); rmSync(marker, { force: true }); } });

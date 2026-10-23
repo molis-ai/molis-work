@@ -22,7 +22,7 @@ description: How to add or change an AI capability in Molis Work — anything th
 
 1. 手册第 1–3 节（分工与调用链）；要写提示词、方法、材料或工具时再读第 12–16 节。
 2. `specs/action-architecture/spec.md` §3「基本合同」与 F1–F4（身份、副作用前检查、预算、交接）。
-3. 你要仿照的现有实现：单次调用看灵光对话（`plugins/native/lingguang/src/actions.ts` + `plugins/native/lingguang/src/plugin.ts`）；Agent 看 Schedule（`plugins/native/schedule/src/roles.ts` + `apps/local-host/src/schedule-task-runner.ts`），复杂的再看 Coding。
+3. 你要仿照的现有实现：单次调用看灵光对话（`plugins/native/lingguang/src/actions.ts` + `plugins/native/lingguang/src/plugin.ts`）；Agent 看 Schedule（`plugins/native/schedule/src/roles.ts` + `plugins/native/schedule/src/runtime-wakeups.ts`），复杂的再看 Coding。
 
 ## 判断放在哪
 

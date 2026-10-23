@@ -115,6 +115,7 @@ export const GIT_MESSAGES = {
   "git.outcome.expired": { zh: "已过期", en: "Expired" },
   "git.outcome.unknown": { zh: "结果待核对", en: "Result to check" },
   "git.decision.no-receipt": { zh: "本次请求未取得执行回执：{reason}。请核对下方操作记录，不要直接重试。", en: "No receipt came back for this request: {reason}. Check the operation record below; don't just retry." },
+  "git.decision.details": { zh: "请查看审查区的详细结果", en: "See the review for details" },
   "git.decision.uncertain": { zh: "执行结果待核对：{reason}", en: "The result needs checking: {reason}" },
   "git.decision.rejected": { zh: "已拒绝，本次没有更新暂存区。", en: "Rejected. The index wasn't changed." },
   "git.decision.reconciled": { zh: "已核对原操作未发生，已解除阻塞；原操作不会重试。", en: "Checked that the original operation didn't happen and unblocked it; it won't be retried." },

@@ -246,15 +246,15 @@ test("a registered event that nothing dispatches or listens to is stale", () => 
 test("an owner has to hold what it owns", () => {
   const request = domEventProblems(withRegistry(/name: "molis:side-open", kind: "request", owner: "side-panel"/, 'name: "molis:side-open", kind: "request", owner: "assistant"'));
   assert.ok(request.some((problem) => /"molis:side-open" is a request owned by "assistant", but none of its files .* listens to it/.test(problem)), request.join("\n"));
-  const announcement = domEventProblems(withRegistry(/name: "molis:assistant-effect", kind: "announcement", owner: "assistant"/, 'name: "molis:assistant-effect", kind: "announcement", owner: "context-actions"'));
-  assert.ok(announcement.some((problem) => /"molis:assistant-effect" is an announcement owned by "context-actions", but none of its files .* dispatches it/.test(problem)), announcement.join("\n"));
+  const announcement = domEventProblems(withRegistry(/name: "molis:assistant-effect", kind: "announcement", owner: "assistant"/, 'name: "molis:assistant-effect", kind: "announcement", owner: "coding"'));
+  assert.ok(announcement.some((problem) => /"molis:assistant-effect" is an announcement owned by "coding", but none of its files .* dispatches it/.test(problem)), announcement.join("\n"));
   // The kind decides which side the owner has to be on: placement dispatches molis:placement-changed and does not listen to it.
   const flipped = domEventProblems(withRegistry(/name: "molis:placement-changed", kind: "announcement"/, 'name: "molis:placement-changed", kind: "request"'));
   assert.ok(flipped.some((problem) => /"molis:placement-changed" is a request owned by "placement", but none of its files .* listens to it/.test(problem)), flipped.join("\n"));
 });
 
 test("an owner's files exist, and an owner without events is deleted", () => {
-  const moved = domEventProblems(withRegistry('files: ["apps/workbench/src/scripts/client/placement.ts"]', 'files: ["apps/workbench/src/scripts/client/placement-moved.ts"]'));
+  const moved = domEventProblems(withRegistry('files: ["apps/workbench/src/scripts/client/placement.ts",', 'files: ["apps/workbench/src/scripts/client/placement-moved.ts",'));
   assert.ok(moved.some((problem) => /owner "placement" names apps\/workbench\/src\/scripts\/client\/placement-moved\.ts, which is not a tracked file/.test(problem)), moved.join("\n"));
   const unused = domEventProblems(withRegistry("  placement: {", '  nobody: {\n    files: ["apps/workbench/src/side-panel.ts"],\n    state: "No event.",\n  },\n  placement: {'));
   assert.ok(unused.some((problem) => /owner "nobody" owns no event; delete it/.test(problem)), unused.join("\n"));

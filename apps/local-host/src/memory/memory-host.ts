@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryEntry, AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryEntry, AgentMemoryExecutionControl, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
@@ -24,7 +24,8 @@ import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { learnFromWork, type MemoryLearningRequest } from "./memory-learning.js";
+import { learnFromQueuedWork } from "./memory-learning.js";
+import { assistantMemorySources, type AssistantMemoryLearningRequest } from "../assistant/assistant-memory-sources.js";
 import { runUpkeep, subjectTitles } from "./memory-upkeep.js";
 import { memoryCallService, memoryCaller } from "./memory-effect.js";
 import { hostLog } from "../host-log.js";
@@ -47,7 +48,7 @@ interface MemoryHost {
    * A work's round finished: draw out what may be worth keeping, once per round (`key`), through the runtime's durable
    * queue so a restart does not lose it. Nothing runs when the round said nothing worth learning.
    */
-  learnLater(request: MemoryLearningRequest & { key: string; session_id: string | null }): Promise<void>;
+  learnLater(request: AssistantMemoryLearningRequest): Promise<void>;
   close(): void;
 }
 
@@ -169,17 +170,14 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     if (schedule.find(key)) return;
     await schedule.enqueue({ key, session_id: await upkeepSession(), kind: UPKEEP_KIND, payload: {}, due_at: when.toISOString(), max_attempts: 2 });
   };
-  const runLearning = async (request: MemoryLearningRequest) => {
-    // A round queued before its project was deleted, or still being learned from, writes nothing for it afterwards.
-    const stillWanted = async () => {
-      const project = request.caller.project_id;
-      return !project || await ports.projectExists?.(project).catch(() => null) !== false;
-    };
+  const runLearning = async (task: Pick<AgentScheduledTask, "key" | "session_id" | "payload">) => {
     try {
-      const outcome = await learnFromWork(service, ports.homeDirectory, request, undefined, stillWanted);
+      const outcome = await learnFromQueuedWork(ports.homeDirectory, task, { adapter: ports.agentHost.adapter(RUNTIME), service,
+        ports: { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) }, backend: control => prologueMemoryBackend(store, control),
+        alive: () => !closed && ports.localHost.lifecycle() === "running", ...(ports.projectExists ? { projectExists: ports.projectExists } : {}) });
       logMemoryLearning(outcome);
     } catch (error) {
-      // Nothing was written (the gate commits only whole proposals); the queue may try once more.
+      // A failure can follow an earlier completed proposal; the same queue key remains the retry identity.
       hostLog.warn("memory", "learning_failed", error);
       throw error;
     }
@@ -188,7 +186,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     if (queueAttached) return;
     const schedule = ports.agentHost.adapter(RUNTIME).schedule;
     if (!schedule) return;
-    schedule.handle(LEARN_KIND, async task => { await runLearning(task.payload as unknown as MemoryLearningRequest); });
+    schedule.handle(LEARN_KIND, runLearning);
     schedule.handle(UPKEEP_KIND, async () => { await upkeepNow(); await scheduleUpkeep(new Date()); });
     queueAttached = true;
     void scheduleUpkeep(new Date()).catch(error => hostLog.warn("memory", "upkeep_not_queued", error));
@@ -225,15 +223,14 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     service,
     caller,
     learnLater: async request => {
-      const said = request.said.map(text => text.trim()).filter(Boolean).slice(-6);
-      if (!service.worthLearning(request.caller, said)) { hostLog.debug("memory", "learning_skipped", { key: request.key }); return; }
       await ports.ready();
+      const key = `memory-learn:${request.work_id}:${request.run_id}`, payload = { ...request };
+      const task = { key, session_id: request.session_id, payload }, sources = await assistantMemorySources(ports.homeDirectory, ports.agentHost.adapter(RUNTIME), task);
+      if (!sources || !service.worthLearning(sources.request.caller, sources.request.said)) { hostLog.debug("memory", "learning_skipped", { key }); return; }
       attachQueue();
       const schedule = ports.agentHost.adapter(RUNTIME).schedule;
-      const payload = { caller: request.caller, said } as unknown as Record<string, unknown>;
-      // Without the durable queue (or a session to hang it on) it runs now; a failure leaves nothing half written.
-      if (!schedule || !request.session_id) { void runLearning({ caller: request.caller, said }).catch(error => hostLog.warn("memory", "learning_failed", error)); return; }
-      const queued = await schedule.enqueue({ key: `memory-learn:${request.key}`, session_id: request.session_id, kind: LEARN_KIND, payload, due_at: new Date().toISOString(), max_attempts: 2 });
+      if (!schedule) { void runLearning(task).catch(error => hostLog.warn("memory", "learning_failed", error)); return; }
+      const queued = await schedule.enqueue({ ...task, kind: LEARN_KIND, due_at: new Date().toISOString(), max_attempts: 2 });
       hostLog.debug("memory", "learning_queued", { key: queued.key, state: queued.state, due_at: queued.due_at });
     },
     close: () => { closed = true; dispose(); ledger.close(); hosts.delete(ports.localHost); },

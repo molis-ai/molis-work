@@ -14,7 +14,7 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 
 // All Keychain calls resolve to this test executable. PATH contains no system
 // directories, so these tests cannot reach the user's real `security` program.
-async function withKeychainFixture(run: (fixture: { home: string; root: string; calls: () => string[]; allow: () => void }) => void | Promise<void>, mode: string) {
+async function withKeychainFixture(run: (fixture: { home: string; root: string; calls: () => string[]; allow: () => void }) => void | Promise<void>, mode: string, initializeHome = false) {
   const root = mkdtempSync(join(tmpdir(), "molis-keychain-retry-"));
   const home = join(root, "home"), bin = join(root, "bin"), calls = join(root, "calls");
   const old = { PATH: process.env.PATH, MOLIS_WORK_SECRET_BACKEND: process.env.MOLIS_WORK_SECRET_BACKEND,
@@ -28,6 +28,11 @@ async function withKeychainFixture(run: (fixture: { home: string; root: string; 
     process.env.MOLIS_WORK_SECRET_BACKEND = "env";
     process.env.MOLIS_WORK_ENCRYPTION_KEY = fixtureKey;
     resetSecretStoreCache();
+    if (initializeHome) {
+      // This scenario creates a current Home before adding locked credentials; it is not an unadopted old Home.
+      const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, functions: { env: {} } });
+      await host.close();
+    }
     runWithMolisWorkHome(home, () => createFileSecretStore().put("fixture", "original credential"));
     const file = join(home, "feed", "secrets.json");
     const persisted = JSON.parse(readFileSync(file, "utf8"));
@@ -209,7 +214,7 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
       if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
       await actionHost.close();
     }
-  }, "exit 36"));
+  }, "exit 36", true));
 
 // The Keychain item is shared by every Home on this machine, so a Home without Keychain ciphertext never deletes
 // or replaces it: another Home's secrets may depend on the key it holds.

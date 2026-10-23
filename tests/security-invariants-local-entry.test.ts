@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
 import { WebSocket } from "ws";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { BROWSER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/browser";
 import { COMPUTER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/computer";
 import { createMolisWorkWebServer, resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../apps/desktop/launchers/web/server.js";
@@ -392,6 +393,7 @@ test("S-05 no channel answers before the control token (the self-guarded /im mou
   }
   // A file an earlier version read is only a file now: a world-readable one does not stop the host, opens no channel, and is left as it was.
   const home = await mkdtemp(join(os.tmpdir(), "security-invariants-leftover-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   t.after(() => rm(home, { recursive: true, force: true }));
   await mkdir(join(home, "config"), { recursive: true });
   const leftover = JSON.stringify({ version: 1, grants: [{ token: credential, project_ref: "project-one" }] });

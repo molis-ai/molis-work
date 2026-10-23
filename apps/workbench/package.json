@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && ../../node_modules/.bin/esbuild src/browser/knowledge/entry.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/knowledge-client.js && ../../node_modules/.bin/esbuild src/browser/characters/entry.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/characters-client.js && ../../node_modules/.bin/esbuild src/browser/write-checkers-factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=const molisWorkWriteCheckers = (host) => {' --footer:js=} --outfile=dist/write-checkers-client.js && ../../node_modules/.bin/esbuild src/browser/board/conditions-frame.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/board-conditions-frame.js && ../../node_modules/.bin/esbuild src/browser/board/conditions-section.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/board-conditions-section.js && ../../node_modules/.bin/esbuild src/browser/board/assistant-frame.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/board-assistant-frame.js",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && ../../node_modules/.bin/esbuild src/browser/knowledge/entry.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/knowledge-client.js && ../../node_modules/.bin/esbuild src/browser/characters/entry.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/characters-client.js && ../../node_modules/.bin/esbuild src/browser/write-checkers-factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=const molisWorkWriteCheckers = (host) => {' --footer:js=} --outfile=dist/write-checkers-client.js && ../../node_modules/.bin/esbuild src/browser/board/conditions-frame.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/board-conditions-frame.js && ../../node_modules/.bin/esbuild src/browser/board/conditions-section.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/board-conditions-section.js && ../../node_modules/.bin/esbuild src/browser/board/assistant-frame.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/board-assistant-frame.js && ../../node_modules/.bin/esbuild src/browser/plugin-frame/entry.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/plugin-frame-client.js",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {
@@ -57,6 +57,8 @@
     "@molis-ai/molis-work-im-ui": "workspace:*",
     "@molis-ai/molis-work-plugin-issues": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
+    "@xterm/xterm": "^6.0.0",
+    "@xterm/addon-fit": "^0.11.0",
     "marked": "^18.0.11",
     "sanitize-html": "^2.17.7"
   },

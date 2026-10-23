@@ -133,6 +133,18 @@ test("Host request locales stay isolated across interleaved async rendering and 
 });
 
 
+test("SYS-48: clipboard Copy and Pages Duplicate stay distinct in the Host and browser", () => {
+  for (const locale of ["zh", "en"] as const) runWithLocale(locale, () => {
+    const browser: { L?: typeof L } = {};
+    runInNewContext(clientI18nScript(), browser);
+    assert.ok(browser.L);
+    for (const translate of [L, browser.L]) {
+      assert.equal(translate("复制"), locale === "en" ? "Copy" : "复制");
+      assert.equal(translate("创建副本"), locale === "en" ? "Duplicate" : "创建副本");
+    }
+  });
+});
+
 test("RAC-56/RAC-57: owner messages reach the Host renderer and the actual browser translator in both languages", () => {
   for (const locale of ["zh", "en"] as const) runWithLocale(locale, () => {
     const browser: { L?: typeof L } = {};

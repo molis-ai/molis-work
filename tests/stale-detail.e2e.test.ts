@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
@@ -31,7 +32,8 @@ const CASES: Case[] = [
 
 for (const item of CASES) test(`VUX-31: ${item.plugin} shows what was picked last when an earlier pick answers late, and stays on the list after going back`, { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
-  const { evaluate, waitFor, command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const { evaluate, waitFor } = await pluginFrameBrowser(t,browser,item.plugin);
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const open = () => navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=${item.plugin}` }, sessionId));
   const seeded = item.plugin === "todo" ? null : await item.items({ homeDirectory, projectId: projectId!, evaluate, waitFor });

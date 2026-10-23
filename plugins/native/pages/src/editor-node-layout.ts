@@ -7,7 +7,7 @@ import { setColumnWidth } from "./table-edit.js";
 import { pagesSchema, safePagesColumnShare, safePagesColumnWidth } from "./schema.js";
 import type { Translate, PagesEditorMountOptions } from "./editor-types.js";
 import { t, dsIcon } from "./editor-view-ui.js";
-import { SIZE_KEYS } from "./editor-size-keys.js";
+import { SIZE_KEYS, sizeHandle } from "./editor-size-keys.js";
 
 
 export function columnNodeView(node: Node, view: EditorView, getPos: () => number | undefined, translate?: Translate) {
@@ -21,8 +21,14 @@ export function columnNodeView(node: Node, view: EditorView, getPos: () => numbe
   handle.className = "pages-column-resize";
   handle.setAttribute("aria-label", t(translate, "调整栏宽"));
   handle.setAttribute("aria-keyshortcuts", SIZE_KEYS);
+  const value = sizeHandle(handle, view, getPos, (text) => t(translate, text));
   const paint = () => {
-    dom.dataset.pagesColumnShare = String(safePagesColumnShare(current.attrs.width));
+    const pos = getPos(), own = safePagesColumnShare(current.attrs.width);
+    let all = 0;
+    if (pos != null) view.state.doc.resolve(pos).parent.forEach((column) => { all += safePagesColumnShare(column.attrs.width); });
+    const n = all ? Math.round(own / all * 100) : 100;
+    dom.dataset.pagesColumnShare = String(own);
+    value(n, 0, 100, t(translate, "栏宽 {n}%").replace("{n}", String(n)));
   };
   handle.addEventListener("mousedown", (event) => event.preventDefault());
   handle.addEventListener("pointerdown", (event) => {
@@ -86,6 +92,13 @@ export function cellNodeView(node: Node, view: EditorView, getPos: () => number 
   handle.className = "pages-col-resize";
   handle.setAttribute("aria-label", t(translate, "调整列宽"));
   handle.setAttribute("aria-keyshortcuts", SIZE_KEYS);
+  const value = sizeHandle(handle, view, getPos, (text) => t(translate, text));
+  // Without its own width a column is as wide as it is drawn, read again when the handle is reached.
+  const read = () => {
+    const n = safePagesColumnWidth(current.attrs.colwidth) || Math.round(dom.getBoundingClientRect().width);
+    value(n, safePagesColumnWidth(1), safePagesColumnWidth(1e9), t(translate, "列宽 {n} 像素").replace("{n}", String(n)));
+  };
+  handle.addEventListener("focus", read);
   const paint = () => {
     const width = safePagesColumnWidth(current.attrs.colwidth);
     if (width) {
@@ -95,6 +108,7 @@ export function cellNodeView(node: Node, view: EditorView, getPos: () => number 
       dom.style.width = "";
       delete dom.dataset.pagesColwidth;
     }
+    read();
   };
   handle.addEventListener("mousedown", (event) => event.preventDefault());
   handle.addEventListener("pointerdown", (event) => {

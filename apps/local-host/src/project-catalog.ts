@@ -1,4 +1,5 @@
 import { createCatalogCommit, type CatalogCommit } from "./catalog-commit.js";
+import { prepareMemoryHome } from "./memory/memory-adoption.js";
 import { ModelProviderStore } from "./model-provider-store.js";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ManagedProjectFiles } from "./managed-project-files.js";
@@ -146,6 +147,18 @@ export interface LocalCatalogPlatform {
   }): DesktopPanelCatalogApi;
 }
 
+/** The Home adoption gate precedes the catalog's first filesystem or SQLite write. */
+async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
+  const homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
+  prepareMemoryHome(homeDirectory);
+  const projectsDirectory = path.join(homeDirectory, "projects");
+  await fs.mkdir(projectsDirectory, { recursive: true });
+  const databasePath = path.join(projectsDirectory, "catalog.db");
+  const existed = await exists(databasePath);
+  const storage = new LocalSqliteStorage(databasePath);
+  return { homeDirectory, databasePath, existed, storage };
+}
+
 /** Local catalog resource lifetime and explicit composition of Project, Session and platform owners. */
 export class MolisWorkProjectCatalog {
   readonly homeDirectory: string;
@@ -228,12 +241,7 @@ export class MolisWorkProjectCatalog {
   }
 
   static async open(options: MolisWorkProjectCatalogOptions, platform: LocalCatalogPlatform): Promise<MolisWorkProjectCatalog> {
-    const homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
-    const projectsDirectory = path.join(homeDirectory, "projects");
-    await fs.mkdir(projectsDirectory, { recursive: true });
-    const databasePath = path.join(projectsDirectory, "catalog.db");
-    const existed = await exists(databasePath);
-    const storage = new LocalSqliteStorage(databasePath);
+    const { homeDirectory, databasePath, existed, storage } = await prepareCatalogStorage(options);
     const db = storage.db;
     try {
       if (existed) {

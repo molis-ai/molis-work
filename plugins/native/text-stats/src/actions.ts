@@ -13,11 +13,11 @@ const counts = { characters: number, utf8_bytes: number, lines: number };
 const view = object({ phase: { enum: ["waiting", "unavailable", "ready"] }, message: text, recovery: text,
   source: object({ workspace_name: text, path: text, source_plugin_id: text, content_version: { type: "integer", minimum: 1 } }),
   ...counts }, ["phase", "message"]);
-/** `html` is the counts drawn for a page, in the page's language; a model or a workflow reads `view` alone. */
+/** `html` is the counts drawn for a page, in the page's language; a model, a workflow or an MCP client reads `view` alone. */
 interface TextStatsState { view: TextStatsView; html?: string }
 const base = { kind: "query" as const, scope: "project" as const, audiences: ["user", "agent", "workflow", "mcp"] as const, subject_kinds: ["text", "artifact"] };
 export const textStatsActions = {
-  state: { capability_id: "text-stats.state", version: 1, operation: "query", action: { ...base,
+  state: { capability_id: "text-stats.state", version: 1, operation: "query", action: { ...base, audiences: [...base.audiences, "plugin"],
     title: "读取快照统计", description: "统计当前明确绑定的固定文本版本；输入缺失或不可用时保留状态，不读取当前磁盘", permissions: ["artifact:read"],
     input_schema: object({}), output_schema: object({ view, html: text }, ["view"]) } } as ActionDefinition<Record<string, never>, TextStatsState>,
   count: { capability_id: "text-stats.count", version: 1, operation: "query", action: { ...base,
@@ -32,7 +32,8 @@ export function textStatsActionHandlers(context: PluginStartContext): ActionHand
   } }];
 }
 function stateFor(caller: ActionCallContext, view: TextStatsView): TextStatsState {
-  if (caller.audience !== "user") return { view };
+  // A page reaches it as itself (`user`) or as another plugin's page that consumes it (`plugin`); a model reads the view alone.
+  if (caller.audience !== "user" && caller.audience !== "plugin") return { view };
   const words: Record<string, { zh: string; en: string }> = TEXT_STATS_MESSAGES, locale = caller.locale ?? "zh";
   return { view, html: renderTextStats({ view, primitives: { escape: escapeHtml, text: (key, values) => fillMessage(words[key]?.[locale] ?? key, values),
     icon: name => icon(name as Parameters<typeof icon>[0]) } }) };

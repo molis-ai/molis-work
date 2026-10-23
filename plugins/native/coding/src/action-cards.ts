@@ -85,8 +85,8 @@ export function codingCardPorts(context: PluginStartContext, api: PluginCapabili
  * now, written only after the call's own check (`beforeWrite`). A suggestion whose action is no longer offered (access
  * revoked, the action switched off) lands nothing; a later read tries it again.
  */
-async function landRoundOffers(context: PluginStartContext, api: PluginCapabilityClient, record: CodingSessionRecord, runs: readonly AgentRunView[],
-  beforeWrite: CodingBeforeWrite): Promise<CodingActionCard[]> {
+export async function landRoundOffers(context: PluginStartContext, api: PluginCapabilityClient, record: CodingSessionRecord, runs: readonly AgentRunView[],
+  beforeWrite: CodingBeforeWrite, persist = false): Promise<CodingActionCard[]> {
   const held = sessionCards(context, record.session_id), known = new Set(held.map(card => card.offer_id));
   const offers = runs.flatMap(run => (run.offers ?? []).filter(offer => !known.has(offer.offer_id)).map(offer => ({ offer, run_id: run.ref.run_id })));
   if (!offers.length) return held;
@@ -95,13 +95,14 @@ async function landRoundOffers(context: PluginStartContext, api: PluginCapabilit
   const drafted: CodingActionCard[] = [];
   for (const { offer, run_id } of offers) {
     try {
-      const card = await draftActionCard(`card-${offer.offer_id}`, offer, views, { readSubject: async () => null, now: () => new Date(), check: () => {},
+      const card = await draftActionCard(`card-${offer.offer_id}`, offer, views, { readSubject: async () => null, now: () => new Date(offer.offered_at), check: () => {},
         refuse: (reason, message) => codingCardErrors[REFUSALS[reason]](message) });
       drafted.push({ ...card, offer_id: offer.offer_id, run_id });
     } catch { /* Not offered now (revoked or switched off): this suggestion lands no card. */ }
   }
   if (!drafted.length) return held;
   await beforeWrite();
+  if (!persist) { beforeWrite.assert_current(); return [...held, ...drafted]; }
   return writeCards(context, record.session_id, beforeWrite, cards => {
     const landed = new Set(cards.map(card => card.offer_id)), fresh = drafted.filter(card => !landed.has(card.offer_id));
     return fresh.length ? [...cards, ...fresh] : null;

@@ -44,9 +44,11 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
     const out = { tabs: [...d.querySelectorAll('.assistant-tab-title')].map((n) => n.textContent), groups: [...d.querySelectorAll('.assistant-works-group')].map((n) => n.textContent),
       states: [...d.querySelectorAll('.assistant-works-meta')].map((n) => n.textContent.split(' · ')[0]) };
     d.querySelector('[data-assistant-works-toggle]').click(); return out;`);
-  assert.deepEqual(works.tabs, ["登录兼容旧的 session cookie", "安排试用复盘", "给王一骏回邮件", "整理上周的 Feed 摘要", "检查依赖更新", "写本周周报"]);
+  assert.deepEqual(works.tabs, ["登录兼容旧的 session cookie", "安排试用复盘", "给王一骏回邮件", "整理上周的 Feed 摘要", "检查依赖更新", "写本周周报"],
+    "six tabs at most; the work cut off and the two sub-tasks are in the list");
   assert.deepEqual(works.groups, ["等你", "进行中", "最近"]);
-  assert.deepEqual([...works.states].sort(), ["已停止", "已完成", "没有完成", "等你回答", "等你确认", "进行中"].sort(), "running, waiting on an answer and a confirmation, failed, stopped, done");
+  assert.deepEqual([...works.states].sort(), ["已停止", "已完成", "没有完成", "等你回答", "等你确认", "进行中", "需要核对", "进行中", "已完成"].sort(),
+    "running, waiting on an answer and a confirmation, failed, stopped, done, cut off and to be checked, and the plan's running and finished sub-tasks");
 
   // Not about code: the six groups in order, each with the summary that lets it stay folded; what went wrong stands out.
   const plan = await blocks();
@@ -209,4 +211,78 @@ test("VUX-39 the board's Assistant frame loads without taking the board's focus 
   const after = await evaluate<{ scrollTop: number; active: string }>("({ scrollTop: document.querySelector('.mw-catalog').scrollTop, active: document.activeElement.tagName })");
   assert.equal(after.active, "BODY", "the frame did not take focus");
   assert.ok(Math.abs(after.scrollTop - at) < 24, `the board stayed where it was read (${at} → ${after.scrollTop})`);
+});
+
+// The paths that end well beside the ones that fail: sub-tasks the plan handed on and the work they report to, the bell's
+// notices (what needs the person first, news folded, one held by a rule, a reminder that opens its item), a question that
+// is answered and lets the round finish, and a round cut off by a closed window that is checked and then ended.
+test("VUX-39 the board's Assistant shows delegated sub-tasks, the bell's notices, an answered question and an interrupted round's recovery", { timeout: 180_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, evaluate, navigate, waitFor, origin } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#assistant` }, sessionId));
+  await evaluate("document.querySelector('#assistant').scrollIntoView()");
+  const frame = "document.querySelector('[data-asst-frame]')";
+  const inFrame = <T>(body: string) => evaluate<T>(`(async () => { const d = ${frame}.contentDocument, w = d.defaultView; ${body} })()`);
+  const inside = (expression: string) => `(() => { const d = ${frame}.contentDocument; if (!d || d.readyState !== 'complete') return false; return ${expression}; })()`;
+  await waitFor(inside("!!d.querySelector('[data-assistant-panel]:not([hidden]) .assistant-subtask')"), 20_000);
+
+  // Sub-tasks: the plan names both, how far they are, and one opens its work, which says whom it reports to.
+  const subtasks = await inFrame<string[]>("return [...d.querySelectorAll('.assistant-subtask')].filter((n) => n.querySelector('button.assistant-subtask-name')).map((n) => n.querySelector('.assistant-subtask-name').textContent + ' | ' + n.querySelector('.assistant-subtask-state').textContent);");
+  assert.deepEqual(subtasks, ["汇总试用访谈 | 进行中 · 补改 1", "整理问卷里的首次导入问题 | 已完成"]);
+  assert.match(await inFrame<string>("return [...d.querySelectorAll('.assistant-step-label')].find((n) => n.textContent === '分出去的子任务').parentElement.textContent;"), /1\/2/);
+  await inFrame("[...d.querySelectorAll('button.assistant-subtask-name')][0].click();");
+  await waitFor(inside("[...d.querySelectorAll('.assistant-step-label')].some((n) => n.textContent === '受托于')"), 10_000);
+  assert.match(await inFrame<string>("return [...d.querySelectorAll('.assistant-step-label')].find((n) => n.textContent === '受托于').parentElement.textContent;"), /安排试用复盘.*验收：列出首次导入卡住最久的三处/);
+  t.diagnostic("delegated: " + subtasks.join("; "));
+
+  // The bell: the decision on the open work counts as seen; a failure and a reminder wait; news and a held one fold below.
+  await waitFor(inside("!d.querySelector('[data-assistant-attention]').hidden"), 10_000);
+  const bell = async () => inFrame<{ count: string; rows: string[]; folds: string[] }>(`
+    const pop = d.querySelector('[data-assistant-notices]'); if (pop.hidden) d.querySelector('[data-assistant-attention]').click();
+    await new Promise((r) => setTimeout(r, 200));
+    return { count: d.querySelector('[data-assistant-attention-count]').textContent,
+      rows: [...pop.querySelectorAll(':scope > .assistant-notice .assistant-notice-text')].map((n) => n.textContent),
+      folds: [...pop.querySelectorAll(':scope > details > summary')].map((n) => n.textContent) };`);
+  const first = await bell();
+  t.diagnostic("bell: " + JSON.stringify(first));
+  assert.deepEqual(first.rows, ["「安排试用复盘」等你确认创建日程", "「整理上周的 Feed 摘要」没有完成：模型服务暂时不可用", "到时间了：订会议室"]);
+  assert.deepEqual(first.folds, ["有新结果 · 1", "按你的规则暂不提醒 · 1"]);
+  assert.equal(first.count, "等你 3");
+  // 知道了 on the reminder settles it; the count follows.
+  await inFrame("d.querySelector('[data-notice-id=n-room][data-notice-action=dismiss]').click();");
+  await waitFor(inside("d.querySelector('[data-assistant-attention-count]').textContent === '等你 2'"), 10_000);
+  // 打开 on the failure opens its work.
+  await inFrame("d.querySelector('[data-notice-id=n-digest][data-notice-action=open]').click();");
+  await waitFor(inside("d.querySelector('[data-assistant-thread]').textContent.includes('Feed 里和试用有关的整理成摘要')"), 10_000);
+
+  // A question answered: the card goes, the round runs on to its end and says what it made.
+  await inFrame("[...d.querySelectorAll('.assistant-tab-title')].find((n) => n.textContent === '给王一骏回邮件').click();");
+  await waitFor(inside("!!d.querySelector('[data-question] [type=submit]')"), 10_000);
+  await inFrame(`const card = d.querySelector('[data-question]'); const zh = [...card.querySelectorAll('input[type=radio], [role=radio], button')].find((n) => (n.value === 'zh' || n.textContent.trim() === '中文'));
+    zh.click(); await new Promise((r) => setTimeout(r, 100)); card.querySelector('[type=submit]').click();`);
+
+  await waitFor(inside("!d.querySelector('[data-question]') && d.querySelector('[data-assistant-thread]').textContent.includes('回复草稿写好了')"), 10_000);
+
+  // An interrupted round: what really happened, one line per step, and only then the round is ended.
+  await evaluate(`document.querySelector('[data-asst-params] [data-cond-param="work"][data-cond-value="check"]').click()`);
+  await waitFor(`${frame}.contentWindow.location.search.includes('work=check') && ` + inside("!!d.querySelector('.assistant-problem')"), 20_000);
+  assert.match(await inFrame<string>("return d.querySelector('.assistant-problem').textContent;"), /出了问题上一轮在窗口关闭时中断了/);
+  await inFrame("[...d.querySelectorAll('.assistant-problem button')].find((n) => n.textContent === '查看实际发生了什么').click();");
+  await waitFor(inside("!!d.querySelector('.assistant-recovery li')"), 10_000);
+  const recovery = await inFrame<string[]>("return [...d.querySelectorAll('.assistant-recovery li')].map((n) => n.textContent);");
+  assert.deepEqual(recovery, ["Todo · 新建待办「复盘跟进」 — 已发生", "Mail · 发送邮件给产品组 — 结果未知，请到原处核对", "日程 · 修改「试用复盘」 — 失败，没有发生", "Pages · 更新「试用复盘提纲」 — 没有执行"]);
+  // Each outcome reads in the tone a step's own line uses; the close is the box's action, after the list, not one of its items.
+  const tones = await inFrame<{ colors: string[]; closeIn: boolean; close: string }>(`const items = [...d.querySelectorAll('.assistant-recovery li')];
+    const close = [...d.querySelectorAll('.assistant-problem button')].find((n) => n.textContent === '已核对，结束这一轮');
+    return { colors: items.map((n) => w.getComputedStyle(n).color), closeIn: !!close.closest('ul'), close: close.previousElementSibling?.className ?? '' };`);
+  assert.equal(new Set(tones.colors).size, 3, "done and not run read plainly; failed and unknown each have their tone: " + tones.colors.join(" "));
+  assert.equal(tones.colors[0], tones.colors[3]);
+  // The round's steps, one done and one whose outcome is unknown, are summed up in the unknown's tone, not a failure's.
+  assert.equal(await inFrame<string>("return w.getComputedStyle(d.querySelector('[data-assistant-thread] details.assistant-steps > summary')).color;"), tones.colors[1]);
+  assert.deepEqual([tones.closeIn, tones.close], [false, "assistant-recovery"]);
+  await inFrame("[...d.querySelectorAll('.assistant-problem button')].find((n) => n.textContent === '已核对，结束这一轮').click();");
+  await waitFor(inside("!d.querySelector('.assistant-problem')"), 10_000);
+  assert.match(await inFrame<string>("return d.querySelector('[data-assistant-thread]').textContent;"), /你核对后结束了这一轮/);
 });

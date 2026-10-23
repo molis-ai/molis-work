@@ -4,6 +4,7 @@ import test from "node:test";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { createLocalRuntime } from "./fixtures/alchemist-runtime.js";
 import { alchemistActions } from "@molis-ai/molis-work-plugin-alchemist";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -42,7 +43,8 @@ async function seed(home: string, project: string) {
 test("native Alchemist: candidates, reports, decision, memory, annotations, Pulse and recoverable model failure in host",{timeout:90_000},async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
   const ids=await seed(b.homeDirectory,b.projectId!);
-  const {origin,projectId,command,sessionId,navigate,click,waitFor,evaluate}=b;
+  const { origin, projectId, command, sessionId, navigate } = b;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, b, "alchemist");
   const root='[data-alchemist="workbench"]', content='[data-alc-content]';
   const read=async(path:string)=>(await (await fetch(`${origin}/projects/${projectId}/api/alchemist/studio/api/v1${path}`)).json()) as any;
   const text=JSON.stringify;
@@ -51,7 +53,7 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   const fill=async(name:string,value:string)=>evaluate(`(()=>{const e=document.querySelector('[data-alc-dialog] [name="${name}"]'); e.value=${text(value)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await command("Emulation.setDeviceMetricsOverride",{width:1440,height:1000,deviceScaleFactor:1,mobile:false},sessionId);
   await navigate(()=>command("Page.navigate",{url:`${origin}/projects/${projectId}/`},sessionId));
-  await click('[data-plugin-strip] [data-plugin-id="alchemist"]');
+  await b.click('[data-plugin-strip] [data-plugin-id="alchemist"]');
   await visible(`[data-alchemist-id="${ids.direction}"]`);
   assert.equal(await evaluate(`document.querySelector('${root} iframe')`),null);
   assert.equal(await evaluate(`document.querySelector('${root}').dataset.expanded`),'false');
@@ -150,7 +152,9 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   const saved=await read('/bootstrap');assert.equal(saved.directions.length,4);assert.equal(saved.explorations[0].status,'failed');assert.equal(saved.explorations[0].errorCode,'alchemist.runtime_not_configured');assert.deepEqual(saved.explorations[0].cards,[]);
   await noModelCard();
   await click('[data-alc-action="explore"]');
-  for(let n=0;n<100&&(await read('/bootstrap')).explorations[0]?.status!=='failed';n++)await new Promise(r=>setTimeout(r,100));
+  let retried=await read('/bootstrap');
+  for(let n=0;n<100&&(retried.explorations[0]?.id===saved.explorations[0].id||retried.explorations[0]?.status!=='failed');n++){await new Promise(r=>setTimeout(r,100));retried=await read('/bootstrap');}
+  assert.notEqual(retried.explorations[0]?.id,saved.explorations[0].id,'the retry creates its own run');assert.equal(retried.explorations[0]?.status,'failed');
   await waitFor(`document.querySelector(${text(content)})?.innerText.includes('还没有可用模型') && !document.querySelector(${text(content+' .alc-progress')})`,12_000);await noModelCard();
   await command('Page.reload',{},sessionId);await visible('[data-alc-action="explore"]');await includes('浏览器验收缺模型也保存方向');
   await click('[data-alc-collection="ideas"]');await click(`[data-alchemist-id="${ids.idea}"]`);await visible('[data-alc-action="market"]');await click('[data-alc-action="market"]');await includes('研究摘要');
@@ -160,7 +164,7 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
     await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<500},sessionId);
     const bounds=await evaluate<{width:number;right:number}>(`(()=>{const r=document.querySelector('${content}').getBoundingClientRect();return {width:document.documentElement.scrollWidth,right:r.right}})()`);
     assert.ok(bounds.width<=width+1&&bounds.right<=width+1,JSON.stringify(bounds));
-    for(const theme of ['light','dark']){await evaluate(`document.documentElement.dataset.resolvedTheme='${theme}'`);const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(join(screenshotDirectory,`native-${label}-${theme}.png`),Buffer.from(shot.data,'base64'));}
+    for(const theme of ['light','dark']){await b.evaluate(`document.documentElement.dataset.resolvedTheme='${theme}'`);const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(join(screenshotDirectory,`native-${label}-${theme}.png`),Buffer.from(shot.data,'base64'));}
   }
   await click('[data-alc-action="back"]');await visible(`[data-alchemist-id="${ids.idea}"]`);
   assert.equal(await evaluate(`document.querySelector('${root}').dataset.expanded`),'false');

@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -6,18 +7,19 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 // reference in the workbench's overlay. Neither opens a new browser page.
 test("a Shelf file and a project reference open inside the workbench, not in a new tab", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const child = await pluginFrameBrowser(t,browser,"shelf",'[data-side-body="plugin:shelf/side"] iframe');
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await evaluate("window.__opened = []; window.open = (...args) => { window.__opened.push(String(args[0])); return null; }");
 
   // Shelf is the side panel's first tab; its rows live in the tab's frame.
-  const shelf = "document.querySelector('[data-side-body=\"plugin:shelf/side\"] iframe')?.contentDocument";
+  const shelf = "document";
   await click("[data-side-toggle]");
-  await waitFor(`[...(${shelf}?.querySelectorAll('[data-shelf-list=materials] [data-shelf-item]') ?? [])].some(row => row.dataset.shelfName === '试用示例.pdf')`, 10_000);
+  await child.waitFor(`[...(${shelf}?.querySelectorAll('[data-shelf-list=materials] [data-shelf-item]') ?? [])].some(row => row.dataset.shelfName === '试用示例.pdf')`, 10_000);
   const address = await evaluate<string>("location.href");
   // A double click on the row (the first click opens the row's preview and moves the layout, so dispatch it on the row).
-  await evaluate(`(() => { const doc = ${shelf}; doc.querySelector('[data-shelf-list=materials] [data-shelf-item][data-shelf-name="试用示例.pdf"] .shelf-name').dispatchEvent(new doc.defaultView.MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 })); })()`);
+  await child.evaluate(`(() => { const doc = ${shelf}; doc.querySelector('[data-shelf-list=materials] [data-shelf-item][data-shelf-name="试用示例.pdf"] .shelf-name').dispatchEvent(new doc.defaultView.MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 })); })()`);
   await waitFor("document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tab=files]')?.getAttribute('aria-selected') === 'true'", 10_000);
   await waitFor("(document.querySelector('[data-side-files-title]')?.textContent ?? '').includes('试用示例.pdf')", 10_000);
 

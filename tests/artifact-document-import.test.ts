@@ -7,7 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, MolisWorkLocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import {
   artifactAnalysisContext, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument,
   type ArtifactDocumentImportPorts, type ImportedArtifactDocument,
@@ -21,6 +21,7 @@ const markdown = "# 导入验收\n\n保留中文正文和 **Markdown**。\n\n<sc
 
 async function fixture(t: test.TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-import-"));
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   const databasePath = join(directory, "fixture.db");
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);

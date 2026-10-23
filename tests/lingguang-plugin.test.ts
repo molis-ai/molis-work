@@ -1,3 +1,4 @@
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -117,19 +118,21 @@ test("PRR-12 the Manifest fallback only renders stages no host path already rend
     plugin_stage_ids: [LINGGUANG_UI_CONTRIBUTION_ID],
     plugin_stages: ['<section data-work-surface="lingguang" data-stage="host"></section>'],
   } as MolisWorkWebView;
-  const html = renderMolisWorkWeb(view);
+  const owner = renderMolisWorkWeb(view);
+  const html = owner + pluginDocuments(owner).join("\n");
   assert.equal((html.match(/data-stage="host"/g) ?? []).length, 1, "the host's stage is kept once");
   assert.doesNotMatch(html, /data-lingguang="directory"/, "the fallback did not render a second Lingguang stage");
   assert.match(html, /data-issue-root/, "Issues, which needs no model, still comes from the Manifest stage");
-  assert.match(renderMolisWorkWeb({ ...view, plugin_stage_ids: [], plugin_stages: [] } as MolisWorkWebView), /data-lingguang="directory"/,
+  assert.match(pluginDocuments(renderMolisWorkWeb({ ...view, plugin_stage_ids: [], plugin_stages: [] } as MolisWorkWebView)).join("\n"), /data-lingguang="directory"/,
     "without the host's stage, Lingguang comes from its Manifest stage");
 
   const hiddenIssues = { ...view, enabled_plugins: ["goals", "lingguang"], hidden_plugins: ["issues"] } as MolisWorkWebView;
-  assert.doesNotMatch(renderMolisWorkWeb(hiddenIssues), /data-issue-root/, "a plugin the project does not show gets no fallback stage");
+  assert.doesNotMatch(pluginDocuments(renderMolisWorkWeb(hiddenIssues)).join("\n"), /data-issue-root/, "a plugin the project does not show gets no fallback stage");
 });
 
 test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 Manifest 的 stage view 渲染", () => {
-  const html = renderMolisWorkWeb(emptyView());
+  const owner = renderMolisWorkWeb(emptyView());
+  const html = owner + pluginDocuments(owner).join("\n");
   assert.match(html, /data-plugin-id="lingguang"/);
   // Unified bottom bar: the plugin switcher (every entry of the project) at the left, the assistant in the middle, the
   // side panel's one button beside the project button (side-shelf §3.1). 灵光 is a tab of the side panel, right after Shelf,
@@ -161,7 +164,8 @@ test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 
   assert.match(html, /data-lingguang-dispatch>复制内容</);
   assert.doesNotMatch(html, /lingguang-dispatch-candidates/);
   assert.doesNotMatch(html, /window\.confirm/);
-  const lingguang = html.slice(html.indexOf('data-lingguang="workbench"'), html.indexOf("data-lingguang-confirm"));
+  const contents = pluginDocuments(owner).join("\n");
+  const lingguang = contents.slice(contents.indexOf('data-lingguang="workbench"'), contents.indexOf("data-lingguang-confirm"));
   assert.match(lingguang, /plugin-stage-list feed-stage-list feed-stage-tree/);
   assert.match(lingguang, /tree-create/);
   assert.match(lingguang, /class="mw-empty"/);

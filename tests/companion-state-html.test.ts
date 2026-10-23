@@ -117,9 +117,13 @@ test("PG062-03: a model, a workflow or an MCP client reads the view alone, and b
   });
 });
 
-test("PG062-04: the Host no longer names Diff or Text Stats to decorate their route results", () => {
+test("PG062-04: the Host no longer names Diff or Text Stats to decorate their route results or a page's action results", () => {
   const surface = readFileSync(new URL("../apps/local-host/src/coding-surface.ts", import.meta.url), "utf8");
-  for (const name of ["DIFF_PLUGIN_ID", "TEXT_STATS_PLUGIN_ID", "renderTextStats", "decorateRuntimeResult"]) {
+  for (const name of ["DIFF_PLUGIN_ID", "TEXT_STATS_PLUGIN_ID", "renderTextStats", "decorateRuntimeResult", "decorateCompanionState"]) {
     assert.equal(surface.includes(name), false, `coding-surface.ts no longer uses ${name}`);
   }
+  // A plugin page's action (Files, Git or Coding reading diff.state or text-stats.state) returns what the plugin drew; the Host
+  // adds nothing after the call (tests/security-invariants-plugin-pages.test.ts SYS-15-U5 reads the markup through that path).
+  const pageActions = readFileSync(new URL("../apps/local-host/src/plugin-page-http.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(pageActions, /coding-surface|decorateCompanionState|renderDiff|renderTextStats/u);
 });

@@ -40,6 +40,7 @@ import {
   type MemoryWriteResult,
 } from "@molis-ai/molis-work-contracts/services/memory";
 import { completePrefs, consumerAccess, CONSUMER_LABELS, PERSONAL_PREFS_KEY, PROJECT_DEFAULT_PREFS_KEY, projectPrefsKey } from "./prefs.js";
+import { automaticMemoryHold, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
 import { memoryErrors } from "./errors.js";
 import { applies, disownAutomatic, isExpired, personOnly, placeOf, visibleTo } from "./places.js";
 import { MAX_TEXT, candidateView, changeView, joinedFingerprint, pairKey, readPackage, useTitle } from "./shapes.js";
@@ -154,10 +155,6 @@ export interface MemoryServicePorts {
   projectTitle?(projectId: string): Promise<string | null>;
 }
 
-/** The write gate's rules. The version is written into every automatic change's provenance (spec §6.3). */
-export const MEMORY_GATE_POLICY = "memory.write-gate";
-export const MEMORY_GATE_VERSION = 1;
-export const MEMORY_GATE_RULE = `自动记住 · 规则 v${MEMORY_GATE_VERSION}`;
 /** Interface signals: at least this many, from at least this many different occasions, before a candidate is made. */
 export const SIGNAL_THRESHOLD = { count: 3, distinct: 2 } as const;
 const CANDIDATE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -461,9 +458,8 @@ export class MemoryService {
     if (hold) return asCandidate(hold, hold === unsaid ? "inferred" : input.basis);
     if (target && input.basis === "inferred" && EXPLICIT_SOURCES.includes(target.meta.source)) return asCandidate("推断出来的内容不能覆盖你明确说过的，先请你看一下");
     if (input.source === "auto") {
-      if (input.basis !== "repeated") return asCandidate("只是从工作里推断出来的，需要你认可才会生效");
-      if (input.kind === "fact") return asCandidate("背景事实以原资料为准，自动记住容易过时，先请你看一下");
-      if (!prefs.auto) return asCandidate("你关掉了“自动记住”，所以先请你认可");
+      const reason = automaticMemoryHold(input.kind, input.basis, prefs.auto);
+      if (reason) return asCandidate(reason);
     }
     const at = this.now().toISOString();
     // Approved by a policy rather than the person: the write gate's (automatic) or a plugin's install-time grant (its own namespace).
@@ -857,7 +853,7 @@ export class MemoryService {
         const candidate = await this.propose({ ...caller, work }, { scope, text, kind: proposal.kind, applies, basis, from: "extraction", supersedes, evidence: evidence.length ? evidence : undefined,
           why: verified ? `你在${named && work ? `工作「${work.title}」` : "一项工作"}里说：“${quote}”` : `从${named && work ? `工作「${work.title}」` : "一项工作"}里推断`,
           hold_reason: basis === "explicit"
-            ? `只在一项工作里出现过：在另一项工作里再这样要求会自动记住，也可以现在就认可${pointed ? `；它可能和另一条等你认可的建议「${pointed.text.slice(0, 40)}」是一回事，但意思不一定相同，所以两条都留给你看` : ""}`
+            ? `${automaticMemoryHold(proposal.kind, "repeated", prefs.auto) ?? "只在一项工作里出现过：在另一项工作里再这样要求会自动记住，也可以现在就认可"}${pointed ? `；它可能和另一条等你认可的建议「${pointed.text.slice(0, 40)}」是一回事，但意思不一定相同，所以两条都留给你看` : ""}`
             : "只是推断出来的，需要你认可才会生效" });
         out.push({ text, outcome: "candidate", reason: candidate.hold_reason ?? "等你认可", candidate_id: candidate.candidate_id, memory_id: null });
       } catch (error) {

@@ -537,3 +537,13 @@ test("the page program carries each factory as it is less its indentation, and t
     assert.ok(!UI_REQUEST_CLIENT_SCRIPT.includes(source), `${factory.name} is not in the program with its indentation`);
   }
 });
+
+
+test("SYS-15-L4 a closing request keeps its transport alive while retaining the ordinary control headers", async () => {
+  const {seen, request} = harness();
+  await request("/api/host/plugin-pages/current", {method:"DELETE",body:{closing:{reference:{capability_id:"pages.discard",version:1},input:{id:"blank",expected_version:1}}},keepalive:true});
+  assert.equal(seen[0]!.init.keepalive, true);
+  assert.equal(seen[0]!.init.method, "DELETE");
+  assert.equal(headersOf(seen[0]!)["x-molis-work-control-token"], "page-token");
+  assert.ok(headersOf(seen[0]!)["x-molis-work-idempotency-key"]);
+});

@@ -9,7 +9,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { createPluginPlatform, DEMO_PROJECT_ID, LocalHost, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { createPluginPlatform, DEMO_PROJECT_ID, homeStores, LocalHost, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -138,7 +138,7 @@ async function setup(t: TestContext) {
     }] };
   } };
   const platform = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: "owner", db: store.db, journal: store, artifacts, processItems,
-    ui: new UiHost(), capabilities: typedHost.client({ project_id: DEMO_PROJECT_ID, storage_key: join(directory, "typed") }), privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest), home: { directory, completeText: () => null } });
+    ui: new UiHost(), capabilities: typedHost.client({ project_id: DEMO_PROJECT_ID, storage_key: join(directory, "typed") }), privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest), home: { directory, completeText: () => null, stores: homeStores() } });
   const registerJudgment = () => actions.registry.registerProvider({ provider: { provider_id: "scene-judgment", kind: "system", title: "判断探针" },
     definitions: [judgment], handlers: [{ ...judgment, handle: () => { if (state.failJudgment) throw new Error("judgment failed"); return true; } }] });
   let disposeJudgment = registerJudgment();

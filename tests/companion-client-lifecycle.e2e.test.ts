@@ -46,7 +46,8 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
         window.errors=[];addEventListener('error',event=>errors.push(event.message));addEventListener('unhandledrejection',event=>errors.push(String(event.reason)));
         ${clientI18nScript()}
         ${UI_REQUEST_CLIENT_SCRIPT}
-        window.mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();window.parentView=document.querySelector('#parent');
+        const actualMount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();window.mountedScopes=new WeakMap();
+        window.mount=root=>{const scope=actualMount(root);if(scope)mountedScopes.set(root,scope);return scope;};window.parentView=document.querySelector('#parent');
         ${script}
       </script>`);return;
     }
@@ -68,7 +69,11 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
 /** Coding's bundle as the page mounts it on each of its surfaces: Coding's factory with Files' and Git's clients and the Host's reviews folded in. */
 const CODING_SURFACE_FACTORY = pluginSurfaceClients().find(client => client.id === "coding")!.factory;
 // A companion's reads go to `/api/plugins/io.molis.work.<plugin>/…`; the fixture serves them at `/<plugin>/…`.
-const companionHost = "root:document.querySelector('[data-companion]'),mountPluginClient:mount,translate:L,route:path=>path.replace('/api/plugins/io.molis.work.','/'),headers:()=>({}),openPlugin:()=>{}";
+const companionHost = `root:document.querySelector('[data-companion]'),mountPluginClient:mount,translate:L,route:path=>path.replace('/api/plugins/io.molis.work.','/'),headers:()=>({}),openPlugin:()=>{} ,reviews:{show:(element,query,options)=>{
+  window.fixtureReviewShow ??= (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mount,route:path=>path,headers:()=>({})});
+  return fixtureReviewShow(element,query.runIds.map(run_id=>({run_id})),query.sessionId,query.workspaceId,query,
+    {lifetime:mountedScopes.get(element.closest('[data-companion]')),signal:options?.signal});
+}}`;
 const fixedMarkup = '<button data-companion-refresh><span class="mw-spinner" hidden></span>刷新</button><p data-companion-status></p><div data-companion-content></div>';
 const state = (name: string) => name === "files" ? { workspace: { workspace_id: "ws" } }
   : name === "git" ? { workspace: { workspace_id: "ws" }, selected: null, view: { phase: "ready", head: "current", conflicts: [], staged: [], changes: [] } }
@@ -128,7 +133,7 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
     } }) };
   };
   const previous = await fixedState(1);
-  const f = await fixture(t, `<section data-companion="diff">${fixedMarkup}</section>`, `
+  const f = await fixture(t, `<section data-work-surface="diff" data-companion="diff">${fixedMarkup}</section>`, `
     const host={${companionHost}};
     window.root=host.root;window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
   `, (_path, url) => { const index = Number(url.searchParams.get("change_index") ?? 0); indices.push(index); return fixedState(index); });
@@ -154,7 +159,7 @@ for (const name of ["files", "git", "diff", "text-stats"]) {
   test(`${name} owns visible queries and listeners across hide, detach and remount`, { timeout: 30_000 }, async t => {
     const body = name === "files" ? renderFilesBrowserDirectory(L) + renderFilesBrowserResult(L)
       : name === "git" ? renderGitBrowserDirectory(L) + renderGitBrowserResult(L) : fixedMarkup;
-    const f = await fixture(t, `<section data-companion="${name}">${body}</section>`, `
+    const f = await fixture(t, `<section data-work-surface="${name}" data-companion="${name}">${body}</section>`, `
       const host={${companionHost}};
       window.root=host.root;window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
     `, path => {
@@ -255,7 +260,7 @@ test("Host reviews retain decisions across hiding without rendering stale result
 for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, resumes after disconnect and stops while hidden`, { timeout: 30_000 }, async t => {
   let revision = 1;
   const markup = name === "files" ? renderFilesBrowserDirectory(L) + renderFilesBrowserResult(L) : renderGitBrowserDirectory(L) + renderGitBrowserResult(L);
-  const f = await fixture(t, `<section data-companion="${name}">${markup}</section>`, `
+  const f = await fixture(t, `<section data-work-surface="${name}" data-companion="${name}">${markup}</section>`, `
     const host={${companionHost}};
     window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
   `, path => {
@@ -279,4 +284,71 @@ for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, 
   const hidden=f.requests.length;await pause(2200);assert.equal(f.requests.length,hidden,'no hidden polling or business writes');
   blocked.delete(key);revision=4;await page.evaluate('parentView.hidden=false');await page.wait(visible(4));
   assert.deepEqual(await page.evaluate('errors'),[]);
+});
+
+test("SYS-50: a Git revision waits for the open difference, then refreshes without stranding its action", { timeout: 30_000 }, async t => {
+  let revision = 1;
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
+    const host={${companionHost}};
+    window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
+  `, path => {
+    if (path.endsWith("/view-revision")) return { revision: String(revision) };
+    if (path.endsWith("/summary")) return { summary: null, workspace: { workspace_id: "ws" } };
+    if (path.endsWith("/reviews")) return { reviews: [], html: "", omitted: 0 };
+    if (path === "/api/host/plugin-page-actions") return { html: '<p data-current-diff>fixed difference</p>' };
+    if (path === "/git/prepare-index") return {};
+    return { ...state("git"), view: { phase: "ready", head: "version-" + revision, conflicts: [], staged: [], changes: [{ path: ["note.md"], label: "note.md" }] } };
+  }); if (!f) return;
+  const { page, count, blocked, pending } = f, diff = "POST /git/diff";
+  await page.evaluate("parentView.hidden=false");
+  await page.wait("document.querySelector('[data-git-path]') && !document.querySelector('[data-git-refresh]').disabled");
+  blocked.add(diff); await page.click("[data-git-path]"); await until(() => pending.has(diff));
+  const reads = count("GET /git/state"), polls = count("GET /git/view-revision");
+  revision = 2;
+  await until(() => count("GET /git/view-revision") > polls);
+  await until(() => count("GET /git/view-revision") > polls + 1);
+  assert.equal(count("GET /git/state"), reads, "the revision refresh does not invalidate the unfinished difference");
+  pending.get(diff)![0]!.end(JSON.stringify({ result: { outcome: "diff" }, selected: {
+    workspace_id: "ws", path: ["note.md"], side: "worktree", revision: "one", reference: { artifact_id: "fixed", version: 1 },
+  } }));
+  await page.wait("document.querySelector('[data-current-diff]') && !document.querySelector('[data-git-index-action]').hidden");
+  await page.wait("document.querySelector('[data-git-status]').textContent==='version-2' && !document.querySelector('[data-git-refresh]').disabled");
+  assert.equal(count("POST /api/host/plugin-page-actions"), 1, "the fixed difference remains on its captured version");
+  await page.click("[data-git-index-action]"); await until(() => count("POST /git/prepare-index") === 1);
+  assert.deepEqual(await page.evaluate("errors"), []);
+});
+
+for (const phase of ["reading", "shown"]) test(`SYS-51: a late Git decision preserves a new difference while ${phase}`, { timeout: 30_000 }, async t => {
+  let reads = 0;
+  const selected = (version: number) => ({ workspace_id: "ws", path: ["note.md"], side: version === 1 ? "worktree" : "index", revision: "r" + version,
+    reference: { artifact_id: "fixed", version } });
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
+    const host={${companionHost},reviews:{show:async(element,query,options)=>{window.decide=options.onDecision;}}};
+    window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
+  `, path => {
+    if (path.endsWith("/view-revision")) return { revision: "one" };
+    if (path.endsWith("/summary")) return { summary: null, workspace: { workspace_id: "ws" } };
+    if (path === "/api/host/plugin-page-actions") return { html: '<p data-current-diff>fixed difference</p>' };
+    if (path === "/git/prepare-index") return {};
+    if (path === "/git/diff") return { result: { outcome: "diff" }, selected: selected(++reads) };
+    return { ...state("git"), view: { phase: "ready", head: "current", conflicts: [], staged: [], changes: [{ path: ["note.md"], label: "note.md" }] } };
+  }); if (!f) return;
+  const { page, count, blocked, pending } = f, diff = "POST /git/diff";
+  await page.evaluate("parentView.hidden=false");
+  await page.wait("document.querySelector('[data-git-path]') && !document.querySelector('[data-git-refresh]').disabled");
+  await page.click("[data-git-path]"); await page.wait("!document.querySelector('[data-git-index-action]').hidden");
+  await page.click("[data-git-index-action]"); await until(() => count("POST /git/prepare-index") === 1);
+  await page.wait("!document.querySelector('[data-git-index-action]').disabled");
+  const submittedHidden = await page.evaluate("document.querySelector('[data-git-index-action]').hidden");
+  if (phase === "reading") blocked.add(diff);
+  await page.click("[data-git-path]");
+  if (phase === "reading") await until(() => pending.has(diff));
+  else await page.wait("!document.querySelector('[data-git-index-action]').hidden && document.querySelector('[data-git-scope]').textContent.includes('暂存区')");
+  await page.evaluate("decide('settled')");
+  if (phase === "reading") pending.get(diff)![0]!.end(JSON.stringify({ result: { outcome: "diff" }, selected: selected(2) }));
+  await page.wait("!document.querySelector('[data-git-index-action]').hidden && !document.querySelector('[data-git-refresh]').disabled");
+  assert.equal(submittedHidden, true, "the submitted difference cannot create another review while it waits");
+  assert.match(await page.evaluate<string>("document.querySelector('[data-git-scope]').textContent"), /暂存区/);
+  await page.click("[data-git-index-action]"); await until(() => count("POST /git/prepare-index") === 2);
+  assert.deepEqual(await page.evaluate("errors"), []);
 });

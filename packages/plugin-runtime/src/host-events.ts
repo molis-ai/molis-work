@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import {
   eventTypeKey,
   HOST_EVENT_SOURCE,
-  isHostEventType,
+  hostEventType,
+  type HostEventType,
   PluginEventError,
   type PluginAppContribution,
   type PluginContribution,
@@ -38,17 +39,22 @@ interface Delivery {
   contribution: PluginAppContribution;
   /** How many times the recipient's activation had been withdrawn when the event was sent (`revoke`). */
   revocation: number;
+  /** What a broadcast's recipient must hold, declared and granted, from the type table. */
+  permission: string | undefined;
   record: PluginEventRecord;
 }
 
 /**
- * Host events (X-6, S-54): what the Host itself tells one installation, such as `host.review.settled`.
+ * Host events (X-6, S-54): what the Host itself tells installations, such as `host.review.settled` (addressed) and
+ * `host.workspace.changed` (broadcast). The type table decides which: `notify` sends only addressed types, `broadcast` only
+ * broadcast ones.
  *
- * Unlike `PluginEventBus` nothing is stored. An event goes only to the installation it is addressed to, and only while that
- * installation is running, enabled and subscribed to the type in its current Manifest; it never starts one and is never
- * replayed. The same conditions, and the very contribution that was running when the event was sent, are checked again just
- * before the handler runs, so a stop, crash, restart, revocation or reinstall in between drops it. The handler runs outside any
- * action, as the subscriber itself; a failure is reported once and not retried.
+ * Unlike `PluginEventBus` nothing is stored. An event goes only to the installation it is addressed to, or for a broadcast to
+ * each installation of the project that holds the type's permission, and only while that installation is running, enabled and
+ * subscribed to the type in its current Manifest; it never starts one and is never replayed. The same conditions, and the very
+ * contribution that was running when the event was sent, are checked again just before the handler runs, so a stop, crash,
+ * restart, revocation, reinstall or withdrawn permission in between drops it. The handler runs outside any action, as the
+ * subscriber itself; a failure is reported once and not retried.
  */
 export class PluginHostEvents {
   readonly #projectId: string;
@@ -79,36 +85,30 @@ export class PluginHostEvents {
    * now; the event is then dropped, not kept for later.
    */
   notify(recipient: HostEventRecipient, input: HostEventInput): boolean {
-    if (!isHostEventType(input.event_type_id, input.type_version)) {
-      throw new PluginEventError("plugin.event_type_invalid", `宿主没有事件 ${eventTypeKey(input.event_type_id, input.type_version)}`);
-    }
+    const type = this.#type(input, "addressed");
     if (this.#closed) return false;
-    const generation = this.#lifecycle.generation(recipient.plugin_id);
-    const installation = this.#lifecycle.installation(recipient.plugin_id);
-    const contribution = this.#lifecycle.contribution(recipient.plugin_id);
-    if (generation === undefined || installation === undefined || contribution?.kind !== "app") return false;
-    const delivery: Delivery = {
-      recipient: { plugin_id: recipient.plugin_id, install_id: recipient.install_id },
-      generation,
-      installation_generation: installation.installation_generation,
-      contribution,
-      revocation: this.#revocations.get(recipient.plugin_id) ?? 0,
-      record: {
-        event_id: this.#createId(),
-        project_id: this.#projectId,
-        sequence: 0,
-        event_type_id: input.event_type_id,
-        type_version: input.type_version,
-        source_plugin_id: HOST_EVENT_SOURCE,
-        source_install_id: HOST_EVENT_SOURCE,
-        payload: JSON.parse(JSON.stringify(input.payload ?? null)) as unknown,
-        correlation_id: input.correlation_id ?? null,
-        occurred_at: this.#now().toISOString(),
-      },
-    };
-    if (!this.#current(delivery)) return false;
+    const delivery = this.#prepare(recipient.plugin_id, recipient.install_id, input, type);
+    if (!delivery || !this.#current(delivery)) return false;
     this.#enqueue(delivery);
     return true;
+  }
+
+  /**
+   * Queue one broadcast host event for every installation of the project that can take it now, each behind its own earlier
+   * events and with its own `event_id`. It names no review or caller: `correlation_id` is always null. Returns how many it was
+   * queued for; the rest are not kept for later.
+   */
+  broadcast(input: Omit<HostEventInput, "correlation_id">): number {
+    const type = this.#type(input, "broadcast");
+    if (this.#closed) return 0;
+    let queued = 0;
+    for (const pluginId of this.#lifecycle.enabledPluginIds()) {
+      const delivery = this.#prepare(pluginId, undefined, { event_type_id: input.event_type_id, type_version: input.type_version, payload: input.payload }, type);
+      if (!delivery || !this.#current(delivery)) continue;
+      this.#enqueue(delivery);
+      queued += 1;
+    }
+    return queued;
   }
 
   /** Abort the recipient's handler that is running now; anything queued for it before now fails its own check and is dropped. */
@@ -141,13 +141,56 @@ export class PluginHostEvents {
     };
   }
 
-  /** The recipient is still the one the event was sent to: same enablement, installation and running contribution, still subscribed. */
-  #current({ recipient, generation, installation_generation, contribution, revocation, record }: Delivery): boolean {
+  /** The type as the Host declares it, sent the way the type table says; a type sent the other way is refused, not converted. */
+  #type(input: Pick<HostEventInput, "event_type_id" | "type_version">, delivery: HostEventType["delivery"]): HostEventType {
+    const key = eventTypeKey(input.event_type_id, input.type_version), type = hostEventType(input.event_type_id, input.type_version);
+    if (!type) throw new PluginEventError("plugin.event_type_invalid", `宿主没有事件 ${key}`);
+    if (type.delivery !== delivery) {
+      throw new PluginEventError("plugin.event_type_invalid", type.delivery === "broadcast" ? `宿主事件 ${key} 是广播，不能定向发给一个安装` : `宿主事件 ${key} 只发给指定的安装，不能广播`);
+    }
+    return type;
+  }
+
+  /** One delivery to the running contribution of `pluginId`, or undefined when there is none to deliver to. */
+  #prepare(pluginId: string, installId: string | undefined, input: HostEventInput, type: HostEventType): Delivery | undefined {
+    const generation = this.#lifecycle.generation(pluginId);
+    const installation = this.#lifecycle.installation(pluginId);
+    const contribution = this.#lifecycle.contribution(pluginId);
+    if (generation === undefined || installation === undefined || contribution?.kind !== "app") return undefined;
+    return {
+      recipient: { plugin_id: pluginId, install_id: installId ?? installation.install_id },
+      generation,
+      installation_generation: installation.installation_generation,
+      contribution,
+      revocation: this.#revocations.get(pluginId) ?? 0,
+      permission: type.permission,
+      record: {
+        event_id: this.#createId(),
+        project_id: this.#projectId,
+        sequence: 0,
+        event_type_id: input.event_type_id,
+        type_version: input.type_version,
+        source_plugin_id: HOST_EVENT_SOURCE,
+        source_install_id: HOST_EVENT_SOURCE,
+        payload: JSON.parse(JSON.stringify(input.payload ?? null)) as unknown,
+        correlation_id: input.correlation_id ?? null,
+        occurred_at: this.#now().toISOString(),
+      },
+    };
+  }
+
+  /**
+   * The recipient is still the one the event was sent to: same enablement, installation and running contribution, still
+   * subscribed, and for a broadcast still holding its permission — declared in the current Manifest and granted.
+   */
+  #current({ recipient, generation, installation_generation, contribution, revocation, permission, record }: Delivery): boolean {
     const installation = this.#lifecycle.installation(recipient.plugin_id);
     return !this.#closed && (this.#revocations.get(recipient.plugin_id) ?? 0) === revocation && this.#lifecycle.generation(recipient.plugin_id) === generation
       && installation?.running === true && installation.install_id === recipient.install_id
       && installation.installation_generation === installation_generation
       && this.#lifecycle.contribution(recipient.plugin_id) === contribution
+      && (permission === undefined || (installation.grants.includes(permission)
+        && (this.#lifecycle.manifest(recipient.plugin_id)?.permissions ?? []).some((declared) => declared.permission === permission)))
       && (this.#lifecycle.contract(recipient.plugin_id)?.subscribes ?? []).some((subscription) =>
         subscription.event_type_id === record.event_type_id && subscription.type_version === record.type_version);
   }

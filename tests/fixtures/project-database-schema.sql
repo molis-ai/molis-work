@@ -496,3 +496,10 @@ CREATE INDEX signals_project_source_observed_idx
       ON signals(project_id, source_id, observed_at DESC, signal_id);
 CREATE INDEX source_events_project_source_idx
       ON source_events(project_id, source_id, at, event_id);
+
+CREATE TABLE schedule_action_bindings (
+  job_id TEXT PRIMARY KEY REFERENCES schedule_jobs(job_id) ON DELETE CASCADE,
+  install_id TEXT NOT NULL,
+  installation_generation TEXT NOT NULL,
+  action_version INTEGER NOT NULL CHECK (action_version > 0)
+);

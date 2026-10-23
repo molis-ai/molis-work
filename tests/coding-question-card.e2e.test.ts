@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
@@ -48,7 +49,9 @@ async function openCoding(t: TestContext, ask: object) {
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address !== "string");
   const b = await openGoalBrowser(t, "seeded"); if (!b) return null;
-  const { click, evaluate, waitFor, command, sessionId, homeDirectory } = b;
+  const { command, sessionId, homeDirectory } = b;
+  const frame = await pluginFrameBrowser(t, b, "coding");
+  const { click, evaluate, waitFor } = frame;
   await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
     const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages",
@@ -60,23 +63,24 @@ async function openCoding(t: TestContext, ask: object) {
   const fill = (selector: string, value: string) => evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/` }, sessionId));
-  await click('.navigator-project-settings');
-  await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
-  await click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
-  await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
-  await fill('[data-project-workspaces-add] [name=path]', workspace);
-  await click('[data-project-workspaces-add] [type=submit]');
-  await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('coding-question-fixture')");
+  await b.click('.navigator-project-settings');
+  await b.waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
+  await b.click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
+  await b.waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
+  await b.evaluate(`(() => { const input = document.querySelector('[data-project-workspaces-add] [name=path]'); input.value = ${JSON.stringify(workspace)}; input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  await b.click('[data-project-workspaces-add] [type=submit]');
+  await b.waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('coding-question-fixture')");
   const coding = "[data-coding-workbench]";
-  await click(`[data-plugin-strip] [data-plugin-id="coding"]`);
-  await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
+  await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
+  await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
+  await b.waitFor("document.querySelector('[data-work-surface=coding]')?.dataset.uiClientState === 'ready'");
   await click(`${coding} [data-coding-new]`);
   await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 1`);
   await fill(`${coding} [data-coding-model]`, JSON.stringify(["local-only", "fixture-plain"]));
   await fill(`${coding} [data-coding-intent]`, "discuss");
   await fill(`${coding} [data-coding-task]`, "登录和导出都坏了，先修哪个？");
   await waitFor(`!document.querySelector('${coding} [data-coding-send]').disabled`);
-  return { ...b, coding, fill, bodies };
+  return { ...b, ...frame, owner: b, coding, fill, bodies };
 }
 
 // specs/ai-interaction-experience A2: Coding shows a run's waiting question as the Host's shared question card (the same one as the
@@ -245,7 +249,7 @@ test("AC-10-1, AC-10-2, AC-10-7: Coding's card fits 1440, 1024 and 390 px, reads
     await settle();
   };
   const theme = async (name: "light" | "dark") => {
-    await evaluate(`localStorage.setItem('molis-work:theme','${name}');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'${name}'}))`);
+    await opened.owner.evaluate(`localStorage.setItem('molis-work:theme','${name}');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'${name}'}))`);
     // Black on the card's surface: a light card gives it a high contrast, a dark one almost none.
     await waitFor(`window.__contrast('#000', document.querySelector(${JSON.stringify(card)})) ${name === "dark" ? "<" : ">"} 3`);
     await settle();
@@ -404,7 +408,8 @@ test("AC-10-6: while Coding waits, the page reads the run again and the card, th
   // Scrolled up with the wheel, as a person reading back does.
   const lane = await evaluate<{ x: number; y: number; room: number }>(`(() => { const node = document.querySelector(${JSON.stringify(turns)}), r = node.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, room: node.scrollHeight - node.clientHeight }; })()`);
   assert.ok(lane.room > 200, `the thread has something above the card to scroll back to (${lane.room} px)`);
-  await command("Input.dispatchMouseEvent", { type: "mouseWheel", x: lane.x, y: lane.y, deltaX: 0, deltaY: -200 }, sessionId);
+  const offset = await opened.owner.evaluate<{ x: number; y: number }>("(() => { const r = document.querySelector('iframe[data-plugin-frame=coding]').getBoundingClientRect(); return { x: r.x, y: r.y }; })()");
+  await command("Input.dispatchMouseEvent", { type: "mouseWheel", x: offset.x + lane.x, y: offset.y + lane.y, deltaX: 0, deltaY: -200 }, sessionId);
   await new Promise(resolve => setTimeout(resolve, 400));
   const position = `(() => { const node = document.querySelector(${JSON.stringify(turns)}); return { top: Math.round(node.scrollTop), latest: node.scrollHeight - node.clientHeight - node.scrollTop < 8 }; })()`;
   const before = await evaluate<{ top: number; latest: boolean }>(position);

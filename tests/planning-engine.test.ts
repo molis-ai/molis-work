@@ -331,6 +331,7 @@ test("planning composition keeps work type, domain, industry, and overlay as par
 
 test("project and personal methods persist without a second Goal truth model", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "molis-work-planning-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: root });
   const store = new LocalProjectDatabase(path.join(root, "board.db"));
   const coordinator = new GoalProjectApplication(store, () => new Date("2026-08-22T03:00:00.000Z"));
   coordinator.initializeBoard({ project_id: "board-1", actor_id: "user", idempotency_key: "init" });
@@ -353,7 +354,6 @@ test("project and personal methods persist without a second Goal truth model", a
   assert.equal(store.snapshot("board-1").planning_method_packs.length, 1);
   store.close();
 
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: root });
   const personal = normalizePlanningMethodPack(customMethod("domain-personal-research"), "personal", null, "2026-08-22T04:00:00.000Z");
   catalog.personalPlanningMethods.save(personal, personal.updated_at);
   catalog.close();

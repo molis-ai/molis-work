@@ -11,9 +11,7 @@ import {
   CODING_PLUGIN_ID,
   CODING_PROJECT_PLUGIN_ID,
   CODING_UI_CONTRIBUTION_ID,
-  renderCodingReport,
   codingNetChange,
-  HISTORY_DIGEST_MARKER,
   codingFollowUps,
   type CodingFollowUpRun,
   type CodingUiHostModel,
@@ -40,7 +38,6 @@ import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assi
 
 import type { PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IncomingMessage } from "node:http";
-import { renderRichText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
 
 /**
  * Coding's directory panel, rendered by the Plugin the Host is running.
@@ -152,18 +149,11 @@ export function codingNextSteps(run: CodingFollowUpRun & { awaiting_input: reado
 type CodingCard = Omit<StoredCard, "work_id">;
 
 function decorateCodingResult(result: PluginRouteResponse, request: IncomingMessage, url: URL): void {
-  // The existing sanitized rich-text renderer is supplied by the composition;
-  // Coding neither imports another plugin nor trusts model-produced HTML.
-  const body = result.body as { runs?: Array<CodingFollowUpRun & { turns: Array<{ text: string; kind: string }>; awaiting_input: AgentPendingQuestion[]; cards?: CodingCard[] }> } | undefined;
+  // Coding draws the model's words itself (its `rich-html.ts`); the Host adds the question and suggestion cards and the next-step row.
+  const body = result.body as { runs?: Array<CodingFollowUpRun & { turns: unknown; awaiting_input: AgentPendingQuestion[]; cards?: CodingCard[] }> } | undefined;
   if (body?.runs) for (const run of body.runs) {
     // Recovery reports also list runs, but carry receipt facts rather than turns.
     if (!Array.isArray(run.turns) || !Array.isArray(run.awaiting_input)) continue;
-    // A digest round's opening is drawn by the page from its text; rendering it as well would double what travels.
-    // After the SDK compacts context, earlier replies reach the model labelled "[retained assistant …]" or
-    // "[historical … run:…]", and it sometimes opens its answer with one or several of them. They are the SDK's
-    // bookkeeping, not something said to the person; only labels at the very start are dropped.
-    for (const turn of run.turns) if (!(turn.kind === "user" && turn.text.startsWith(HISTORY_DIGEST_MARKER))) Object.assign(turn, {
-      html: renderRichText(turn.kind === "assistant" ? turn.text.replace(/^(?:[^\S\n]*\[(?:retained|historical) [^\]\n]*\][^\S\n]*\n?)+/, "") : turn.text) });
     // The same question card the Assistant shows, in the person's language; Coding's page restores its own drafts into it.
     for (const question of run.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, L, undefined, undefined, true) });
     // The row beside the composer: the round's questions as the Assistant's are, then what its card offers next (AC-25).
@@ -174,11 +164,6 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
     const steps = codingNextSteps(run, cards, L);
     Object.assign(run, { next_html: steps.length ? renderInteractionNextSteps(steps, L("下一步"), { max: steps.length }) : "" });
   }
-  const childBody = result.body as { subagents?: Array<{ children: Array<{ result: string | null }> }> } | undefined;
-  if (childBody?.subagents) for (const group of childBody.subagents) for (const child of group.children) {
-    if (child.result) Object.assign(child, { result_html: renderRichText(child.result) });
-  }
-  const reportBody = result.body as { report?: { title: string; body_markdown: string; run_id: string } } | undefined;
   const changeBody = result.body as { change?: import("@molis-ai/molis-work-contracts/modules/workspace-artifacts").CodingChangeSet; reference?: { version: number }; html?: string } | undefined;
   if (result.status === 200 && changeBody?.change) {
     const change = changeBody.change, changeIndex = Number(url.searchParams.get("change_index") ?? 0);
@@ -212,13 +197,6 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
       file.diff_html = renderDiff({ view, fold_context: 3, sides: false,
         primitives: { escape: value => escapeHtml(String(value)), text: L, icon: name => icon(name as Parameters<typeof icon>[0]) } });
     }
-  }
-  if (result.status === 200 && reportBody?.report) {
-    const report = reportBody.report;
-    Object.assign(reportBody, { html: renderCodingReport({ title: report.title, run_id: report.run_id,
-      body_html: renderRichText(report.body_markdown), primitives: { escape: value => escapeHtml(String(value)),
-        icon: name => icon(name as Parameters<typeof icon>[0]), text: L, formatDate: value => value },
-    }) });
   }
 }
 

@@ -65,9 +65,30 @@ export function lastBegunPluginInvocation(): number {
 
 const place = (begun: number | undefined) => begun ?? running.getStore()?.begun ?? ++lastBegun;
 
+/** Scopes whose handler has returned, thrown or settled (`pluginInvocationOpen`). */
+const ended = new WeakSet<PluginInvocationScope>();
+
+/** Runs `handle` in `scope`; once what it returned settles, the call is over for whatever it left running. */
+function runOpen<T>(scope: PluginInvocationScope, handle: () => T): T {
+  const end = () => { ended.add(scope); };
+  let result: T;
+  try { result = running.run(scope, handle); } catch (error) { end(); throw error; }
+  if (typeof (result as { then?: unknown } | null | undefined)?.then === "function") void (result as PromiseLike<unknown>).then(end, end);
+  else end();
+  return result;
+}
+
+/**
+ * Whether the call a scope belongs to is still under way: its handler has not yet returned or settled, so whoever called it hears
+ * what its code does. A timer or a listener set up during a call keeps the call's scope after the call ended (BL-411).
+ */
+export function pluginInvocationOpen(scope: PluginInvocationScope): boolean {
+  return !ended.has(scope);
+}
+
 /** Scene callbacks retain their real declaration and control, never an invented action. */
 export function runInPluginScene<T>(scope: Omit<PluginSceneScope, "begun">, handle: () => T): T {
-  return running.run({ ...scope, begun: place(undefined) }, handle);
+  return runOpen({ ...scope, begun: place(undefined) }, handle);
 }
 
 /** Common authority for services and nested calls, whether the caller is an action or a scene callback. */
@@ -82,17 +103,18 @@ export function pluginInvocationReadOnly(scope: PluginInvocationScope | undefine
 }
 
 /**
- * Runs a Plugin's action handler inside its scope. The scope follows the handler's promises and timers, and ends with nothing: the
- * call's `beforeEffect` is what says the action is over. A call begun outside every other one gets the next place in the order;
- * work that carries on an accepted call (a background job) passes that call's `begun` along.
+ * Runs a Plugin's action handler inside its scope. The scope follows the handler's promises and timers, and its authority ends with
+ * nothing: the call's `beforeEffect` is what says the action is over (`pluginInvocationOpen` only tells whether the handler still
+ * runs). A call begun outside every other one gets the next place in the order; work that carries on an accepted call (a
+ * background job) passes that call's `begun` along.
  */
 export function runInPluginAction<T>(scope: Omit<PluginActionScope, "begun"> & { readonly begun?: number }, handle: () => T): T {
-  return running.run({ ...scope, begun: place(scope.begun) }, handle);
+  return runOpen({ ...scope, begun: place(scope.begun) }, handle);
 }
 
 /** Runs a job's work in its own scope: services ask the job's checks, never those of the call that kept it. */
 export function runInPluginJob<T>(scope: Omit<PluginJobScope, "begun"> & { readonly begun?: number }, handle: () => T): T {
-  return running.run({ ...scope, begun: place(scope.begun) }, handle);
+  return runOpen({ ...scope, begun: place(scope.begun) }, handle);
 }
 
 /**

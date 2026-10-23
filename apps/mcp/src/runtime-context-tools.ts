@@ -20,7 +20,7 @@ export interface McpRuntimeContextPorts {
   actorFor(host: MolisWorkRuntimeContextHost, context: McpToolCallContext): string;
   /** Deleting a project is the Host's one deletion service; it records `actorFor` as the actor. */
   deleteProject(request: McpProjectDeletionRequest, host: MolisWorkRuntimeContextHost, context: McpToolCallContext): Promise<ProjectDeletionResult>;
-  presentResolution(resolution: MolisWorkRuntimeContextResolution, host: MolisWorkRuntimeContextHost, bound?: boolean): Promise<string>;
+  presentResolution(resolution: MolisWorkRuntimeContextResolution, host: MolisWorkRuntimeContextHost): Promise<string>;
 }
 
 const IDENTITY_FIELDS = ["actor_id", "actor_kind", "audit_actor_id", "runtime_actor_id"];
@@ -114,7 +114,7 @@ export function createMcpRuntimeContextHandlers(ports: McpRuntimeContextPorts) {
           ? arguments_.binding_scope
           : undefined,
       });
-      return ports.presentResolution(resolution, host, true);
+      return ports.presentResolution(resolution, host);
     });
   }
 
@@ -157,7 +157,7 @@ export function createMcpRuntimeContextHandlers(ports: McpRuntimeContextPorts) {
           : undefined,
         idempotency_key: typeof arguments_.idempotency_key === "string" ? arguments_.idempotency_key : "",
       });
-      return ports.presentResolution(resolution, host, true);
+      return ports.presentResolution(resolution, host);
     });
   }
 

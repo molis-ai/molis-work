@@ -202,7 +202,7 @@
     },
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
-    "file plugins/native/pages/src/client.ts": 1100,
+    "file plugins/native/pages/src/client.ts": 1094,
     "function plugins/native/pages/src/editor-browser.ts#mount": 451,
     "class plugins/native/pages/src/store.ts#PagesStore": {
       "lines": 346,
@@ -214,7 +214,7 @@
       "methods": 40
     },
     "file plugins/native/shelf/src/client.ts": 1642,
-    "file plugins/native/todo/src/client.ts": 1233,
+    "file plugins/native/todo/src/client.ts": 1232,
     "class plugins/native/todo/src/store.ts#TodoStore": {
       "lines": 378,
       "methods": 28
@@ -741,10 +741,9 @@
     "apps/local-host/src/project-host.ts#register-provider": 4,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 7,
+  "hybridPluginsTotal": 4,
   "hybridPlugins": {
     "coding#host-files": 1,
-    "git#host-files": 3,
     "shelf#host-files": 3
   },
   "pluginOutsideMentionsTotal": 335,

@@ -2972,7 +2972,7 @@ CLI 那一侧如实报「不会提出结构化问题，因此也没有可回答�
 | 没报用量显示未知而不是 0 | 0 会被读成「这一轮不花钱」 |
 | 人往上翻后不抢滚动 | 读历史读到一半被拽到底，等于没法读 |
 
-**并行写入接了真实 git**：`apps/local-host/src/git-worktrees.ts` 用 `execFile`（参数数组，不走 shell，
+**并行写入接了真实 git**：`apps/local-host/src/workspace-git-worktrees.ts`（G5 前叫 `git-worktrees.ts`） 用 `execFile`（参数数组，不走 shell，
 因为分支名受用户影响）建工作树、列改动、清理。非 git 目录和没有提交的仓库都如实报不支持——
 在那里说支持，会在第一次建工作树时才失败。写入者 id 限定安全字符集，
 `../escape`、`--upload-pack=evil` 这类都被拒，不会变成 git 参数。

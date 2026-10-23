@@ -58,6 +58,7 @@ export type PrologueEvent =
   | { type: "compaction-cancelled" }
   | { type: "tripped"; stage: "input" | "output"; rail: string; why: string; failed?: boolean }
   | { type: "agent-control"; state: "running" | "pausing" | "paused" | "sleeping"; untilMs?: number }
+  | { type: "retry-waiting"; model: string; attempt: number; waitMs: number; retryAtMs: number; reason: "rate-limited" | "unavailable" | "not-sent"; why: string; status?: number }
   | { type: "turn-changes"; turn: number; changes: ReadonlyArray<{ path: string; byteLength: number; digest: string; checkpointId: string }> }
   | { type: "model-switched"; from: { protocol: string; model: string }; to: { protocol: string; model: string } }
   | { type: "memory-recalled"; method?: string; injected?: ReadonlyArray<{ id: string; version: number }>; omitted?: ReadonlyArray<{ id: string; version: number }>; unavailable?: readonly string[] }
@@ -119,6 +120,8 @@ export interface PrologueStreamState {
   offers: AgentRunOffer[];
   /** While the Run sleeps on its own: when it wakes. */
   sleeping_until?: string;
+  /** While a model call waits to try again: when, and why. */
+  retry_wait?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRetryWait;
   /** The model the person switched this Run to (since its last `model-switched`), and one asked for but not yet in effect. */
   model_now?: string;
   model_requested?: string;
@@ -505,6 +508,21 @@ function applyRunRecovered(state: PrologueStreamState, event: PrologueEvent, at:
   return true;
 }
 
+/**
+ * A model call that failed and will be tried again (Prologue's `retry-waiting`, emitted just before the wait). The time and
+ * the reason are the runtime's; a later wait replaces an earlier one. Nothing is added to the activity: it is not a step.
+ */
+function applyRetryWaiting(state: PrologueStreamState, event: PrologueEvent): boolean {
+  const wait = event as Extract<PrologueEvent, { type: "retry-waiting" }>;
+  if (!Number.isFinite(wait.retryAtMs) || !["rate-limited", "unavailable", "not-sent"].includes(wait.reason)) return false;
+  state.retry_wait = { until: new Date(wait.retryAtMs).toISOString(), reason: wait.reason, attempt: wait.attempt };
+  return true;
+}
+
+/** What a model call that is answering, or a Run that ended or stopped to ask, says: the wait to retry is over. */
+const ENDS_RETRY_WAIT = new Set(["text-delta", "reasoning-delta", "tool-call", "usage-recorded", "awaiting-approval", "awaiting-input",
+  "compaction-started", "tripped", "completed", "failed", "cancelled"]);
+
 /** Events with a handler of their own; the switch in applyPrologueEvent dispatches the rest. */
 const HANDLERS: Readonly<Record<string, (state: PrologueStreamState, event: PrologueEvent, at: string | null) => boolean>> = {
   "model-response-repair": applyResponseRepair,
@@ -512,6 +530,7 @@ const HANDLERS: Readonly<Record<string, (state: PrologueStreamState, event: Prol
   "todo-changed": applyTodoChanged,
   "circuit-tripped": applyCircuitTripped,
   "agent-control": applyAgentControl,
+  "retry-waiting": applyRetryWaiting,
   "turn-changes": applyTurnChanges,
   "model-switched": applyModelSwitched,
   "run-recovered": applyRunRecovered,
@@ -524,7 +543,9 @@ const HANDLERS: Readonly<Record<string, (state: PrologueStreamState, event: Prol
  * from the same events. Returns true when the view changed.
  */
 export function applyRunEvent(state: PrologueStreamState, event: PrologueEvent, at: string | null): boolean {
-  const changed = applyPrologueEvent(state, event, at);
+  const waited = state.retry_wait !== undefined && ENDS_RETRY_WAIT.has(event.type);
+  if (waited) delete state.retry_wait;
+  const changed = applyPrologueEvent(state, event, at) || waited;
   return noteInputEvent(state, event) || changed;
 }
 
@@ -733,7 +754,7 @@ function applyPrologueEvent(
  * step list, the files each turn wrote, a wait it sleeps in. A fact that no longer holds is not carried forward.
  */
 export function withRunFacts(state: PrologueStreamState, ended: boolean, view: AgentRunView): AgentRunView {
-  const { memory_recalled: _memory, todo: _todo, turn_changes: _changes, sleeping_until: _asleep, model_switch: _switch, offers: _offers, ...rest } = view;
+  const { memory_recalled: _memory, todo: _todo, turn_changes: _changes, sleeping_until: _asleep, retry_wait: _retry, model_switch: _switch, offers: _offers, ...rest } = view;
   const requested = ended ? undefined : state.model_requested;
   return {
     ...rest,
@@ -742,6 +763,7 @@ export function withRunFacts(state: PrologueStreamState, ended: boolean, view: A
     ...(state.turn_changes.length ? { turn_changes: structuredClone(state.turn_changes) } : {}),
     ...(state.offers.length ? { offers: structuredClone(state.offers) } : {}),
     ...(state.sleeping_until !== undefined && !ended ? { sleeping_until: state.sleeping_until } : {}),
+    ...(state.retry_wait && !ended ? { retry_wait: { ...state.retry_wait } } : {}),
     ...(state.model_now || requested ? { model_switch: { ...(state.model_now ? { now: state.model_now } : {}), ...(requested ? { requested } : {}) } } : {}),
   };
 }

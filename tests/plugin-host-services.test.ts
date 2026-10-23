@@ -526,8 +526,9 @@ test("W5-01-D1-06: a process item port keeps its own version sequence: selecting
     await rig.runtime.stop(rig.supervisor.state(PRODUCER)!.install_id!);
     assert.deepEqual(rig.services[CONSUMER]!.artifacts!.read(first), first, "producer stop does not invalidate a fixed consumable version");
     assert.ok(rig.services[CONSUMER]!.artifacts!.listConsumable().some(row => row.artifact_id === unbound.artifact_id));
-    assert.throws(() => process.readOwn(first), { code: "plugin.grant_denied" });
-    assert.throws(() => process.head(first.artifact_id), { code: "plugin.grant_denied" });
+    // BL-411: outside every call the stopped producer's handles are refused and answer nothing (they answered both above).
+    assert.equal(process.readOwn(first), undefined);
+    assert.equal(process.head(first.artifact_id), undefined);
   } finally { rig.close(); }
 });
 

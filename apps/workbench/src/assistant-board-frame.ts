@@ -18,8 +18,12 @@ import { renderWorkbenchBar } from "./immersive-shell.js";
  */
 export interface AssistantFrameOptions {
   lang: "zh" | "en";
-  /** The work open when the frame starts: not about code, about code, one cut off to be checked, or a new one (its draft and scope). */
-  work: "plan" | "coding" | "check" | "new";
+  /** The works' own words (the person's, the model's and what the Host and plugins wrote): Chinese, English or mixed. */
+  text: "zh" | "en" | "mixed";
+  /** What the stand-in Host does with a questionnaire's answer: takes it, or refuses it as the Runtime would (simulated). */
+  answer: "ok" | "refused";
+  /** The work open when the frame starts: not about code, about code, one cut off to be checked, one waiting out a rate limit, or a new one. */
+  work: "plan" | "coding" | "check" | "limited" | "new";
 }
 export interface AssistantFramePorts {
   L(text: string, values?: Record<string, string | number>): string;
@@ -33,10 +37,11 @@ const pick = <T extends string>(value: string | null, allowed: readonly T[]): T 
 
 /** Only known values are read; anything else is the first value, so the page never reflects what the query said. */
 export function parseAssistantFrame(query: URLSearchParams): AssistantFrameOptions {
-  return { lang: pick(query.get("lang"), ["zh", "en"] as const), work: pick(query.get("work"), ["plan", "coding", "check", "new"] as const) };
+  return { lang: pick(query.get("lang"), ["zh", "en"] as const), text: pick(query.get("text"), ["zh", "en", "mixed"] as const),
+    work: pick(query.get("work"), ["plan", "coding", "check", "limited", "new"] as const), answer: pick(query.get("answer"), ["ok", "refused"] as const) };
 }
 
-const WORK_IDS: Record<AssistantFrameOptions["work"], string | null> = { plan: "board-plan", coding: "board-coding", check: "board-sync", new: null };
+const WORK_IDS: Record<AssistantFrameOptions["work"], string | null> = { plan: "board-plan", coding: "board-coding", check: "board-sync", limited: "board-sub-interviews", new: null };
 
 // The bar stands at the foot of the frame, as it does in the workbench, so the panel opens upwards into the room above it.
 const FRAME_STYLES = `body.mw-asst-page{display:flex;flex-direction:column;margin:0;min-height:100vh;background:var(--desk,var(--wash));color:var(--ink)}`
@@ -46,7 +51,7 @@ const FRAME_STYLES = `body.mw-asst-page{display:flex;flex-direction:column;margi
 export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions, ports: AssistantFramePorts): string {
   const { L } = ports;
   const bar = renderWorkbenchBar({ L, escapeHtml, icon, htmlLang: ports.htmlLang }, { rail: "", projectChrome: "", enabled: [] });
-  const data = `{"samples":${ports.samples.replaceAll("<", "\\u003c")},"current":${JSON.stringify(WORK_IDS[options.work])}}`;
+  const data = `{"samples":${ports.samples.replaceAll("<", "\\u003c")},"current":${JSON.stringify(WORK_IDS[options.work])},"answer":"${options.answer}"}`;
   return `<!doctype html>
 <html lang="${ports.htmlLang()}">
 <head>
@@ -59,7 +64,7 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
 </head>
 <body class="immersive-workbench mw-asst-page">
   ${renderIconSprite()}
-  <main class="mw-asst" data-asst-frame-page data-work="${options.work}">
+  <main class="mw-asst" data-asst-frame-page data-work="${options.work}" data-text="${options.text}" data-answer="${options.answer}">
     <p data-asst-note>${escapeHtml(L("模拟：工作、轮次与宿主的回答是固定样例（宿主照常画好），不连接模型；回答、核对与提醒只在这一页里生效，别的写入都被拒绝。面板、侧栏六组、过程、输入框、上下文条与附件都是生产的助理程序。"))}</p>
     <div class="mw-asst-row">
       <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-asst-attach>${escapeHtml(L("带上三个文件（模拟）"))}</button>

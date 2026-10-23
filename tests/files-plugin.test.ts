@@ -1,7 +1,7 @@
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_EVENT_SOURCE, HOST_WORKSPACE_CHANGED_EVENT, type HostWorkspaceChangedPayload, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginEventDeliveryContext, PluginEventRecord } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -247,4 +247,28 @@ test("S18-FILES-RETRY a refused workspace transition retries persistence and eve
       assert.deepEqual(invalidated, []);
     } finally { unregister(); }
   }
+});
+
+test("BL-379 any person-approved workspace operation makes Files' pages read again, whoever asked for it", async () => {
+  // Coding's worktree and integration reviews settle only to Coding, and Git publishes `operation-updated` only for its own
+  // (S-54). The Host's broadcast reaches Files for every one of them.
+  assert.ok(filesManifest.events?.subscribes.some(item => item.event_type_id === HOST_WORKSPACE_CHANGED_EVENT && item.type_version === 1 && item.from_plugin_ids === undefined),
+    "Files subscribes to the Host's broadcast by type and version only");
+  assert.ok(filesManifest.permissions.some(item => item.permission === "workspace:read" && item.required), "and declares the permission it is broadcast under");
+  let invalidated = 0;
+  const context: PluginStartContext = { install_id: "files-changed", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
+    deployment: "local", grants: filesManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user",
+    requireGrant: () => {}, services: { ui: { register: () => {}, unregister: () => {}, invalidate: () => { invalidated++; } } } };
+  const plugin = createFilesPlugin({ readable: () => true }), contribution = await plugin.start(context);
+  const payload: HostWorkspaceChangedPayload = { workspace_id: "ws-1", cause: "plugin-operation" };
+  const record: PluginEventRecord = { event_id: "host-changed-1", project_id: "project", sequence: 0, event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1,
+    source_plugin_id: HOST_EVENT_SOURCE, source_install_id: HOST_EVENT_SOURCE, payload, correlation_id: null, occurred_at: new Date(0).toISOString() };
+  const delivery = (beforeEffect: () => void): PluginEventDeliveryContext => ({ project_id: "project", plugin_id: filesManifest.plugin_id,
+    install_id: context.install_id, installation_generation: "1", actor_id: `plugin:${filesManifest.plugin_id}`, signal: new AbortController().signal, beforeEffect });
+  await contribution.onEvent!(record, delivery(() => {}));
+  assert.equal(invalidated, 1, "Files' pages read again");
+  const stale = new Error("the subscriber's installation is no longer current");
+  await assert.rejects(async () => contribution.onEvent!(record, delivery(() => { throw stale; })), error => error === stale);
+  assert.equal(invalidated, 1, "a delivery no longer current moves nothing");
+  await plugin.stop!(context);
 });

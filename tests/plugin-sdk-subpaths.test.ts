@@ -58,14 +58,22 @@ test("W5-01-CODING-61: only /rich-text loads the Markdown parser and sanitizer, 
     assert.ok(manifest.peerDependencies?.[name], `${name} is a peer of the SDK`);
     assert.equal(manifest.peerDependenciesMeta?.[name]?.optional, true, `${name} is an optional peer`);
   }
-  // The README tells such a plugin what to add, with the peer ranges; the workbench and the Host add the same ranges.
+  // The README tells such a plugin what to add, with the peer ranges; every package of the repository that imports /rich-text adds
+  // the same ranges (the workbench and Coding, PG-062).
   const readme = readFileSync(join(sdkDirectory, "README.md"), "utf8");
+  // The workspace's package roots, as pnpm-workspace.yaml lists them.
+  const packages = [...["apps", "packages", "modules", "horizontal", "plugins/native", "plugins/official-integrations"].flatMap(group =>
+    readdirSync(join(root, group), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => `${group}/${entry.name}`)), "server", "tooling/plugin-cli"];
+  const consumers = packages.filter(directory => directory !== "packages/plugin-sdk" && existsSync(join(root, directory, "src"))
+    && readdirSync(join(root, directory, "src"), { recursive: true, encoding: "utf8" }).some(name => name.endsWith(".ts")
+      && readFileSync(join(root, directory, "src", name), "utf8").includes("@molis-ai/molis-work-plugin-sdk/rich-text")));
+  assert.ok(consumers.includes("apps/workbench") && consumers.includes("plugins/native/coding"), consumers.join(", "));
   for (const name of ["marked", "sanitize-html"]) {
     const range = manifest.peerDependencies![name]!;
     assert.ok(readme.includes(`\`${name}@${range}\``), `the README names ${name}@${range}`);
-    for (const consumer of ["apps/workbench", "apps/local-host"]) {
+    for (const consumer of consumers) {
       const declared = (JSON.parse(readFileSync(join(root, consumer, "package.json"), "utf8")) as Manifest).dependencies?.[name];
-      assert.equal(declared, range, `${consumer} declares ${name} in the SDK's peer range`);
+      assert.equal(declared, range, `${consumer} imports /rich-text and declares ${name} in the SDK's peer range`);
     }
   }
 });

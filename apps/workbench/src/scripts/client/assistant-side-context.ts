@@ -66,7 +66,7 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ L, el, kinds,
       zone.append(hint);
       if (waiting.length) zone.append(tiles(waiting.map((one) => materialTile({ material: one }))));
       zone.addEventListener("dragover", (event) => { if ([...(event.dataTransfer?.types || [])].includes("Files")) event.preventDefault(); });
-      window.molisDropZone?.(zone, (on) => { if (on) zone.dataset.dropping = "true"; else delete zone.dataset.dropping; });
+      window.molisDropZone?.(zone, (on) => { if (on) zone.dataset.dropping = "true"; else delete zone.dataset.dropping; }, undefined, L("不支持拖入这种内容"));
       zone.addEventListener("drop", (event) => { const dropped = [...(event.dataTransfer?.files || [])]; if (!dropped.length) return; event.preventDefault(); void addFiles(dropped); });
       const content = el("div", "assistant-group-list");
       content.append(zone);

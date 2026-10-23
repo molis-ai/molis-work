@@ -6,13 +6,55 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_STORE_NAME, AssistantStore, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
+import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { memoryHostFor, registerMemoryHost } from "../apps/local-host/dist/memory/memory-host.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
 import { assistantAuthority, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 
 const person: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
 const agent: ActionCallContext = { actor_id: "agent:coding-1", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [...MEMORY_PERMISSIONS] };
+
+test("the production learning Host queues original identities only, and respects settings changed after enqueue", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "memory-learning-host-")), localHost = new MolisWorkLocalHost({ completeText: null });
+  t.mock.method(globalThis, "fetch", async () => cogniaModelResponse("完成。"));
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.learning-host-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  const agentHost = new AgentHost(); agentHost.register(adapter);
+  const memory = registerMemoryHost({ localHost, homeDirectory: home, agentHost, ready: async () => {}, executes: () => true, projectExists: async () => true });
+  const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME), store = new AssistantStore(db);
+  t.after(async () => { memory.close(); await adapter.close(); db.close(); await localHost.close(); await rm(home, { recursive: true, force: true }); });
+  const owner = { actor_id: "web-user", project_id: "project-q4", plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_PLUGIN_ID };
+  const session = await adapter.createSession({ ...owner, workspace: "none", role_id: "assistant", title: "周报" });
+  const work = store.create({ actor_id: owner.actor_id, title: "周报", scope: { kind: "project", project_id: owner.project_id }, origin: null,
+    project_ref: { project_id: owner.project_id, storage_key: "memory:project-q4" } });
+  store.update(owner.actor_id, work.work_id, null, { session_id: session.session_id });
+  const text = "以后周报都把风险放最前面", run = await adapter.start({ ...owner, session, task: text, workspace: "none", role_id: "assistant",
+    role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
+  store.addRound(work.work_id, { run_id: run.ref.run_id, text, materials: [], context: null, started_at: new Date().toISOString() });
+  const until = async (read: () => boolean | Promise<boolean>) => { for (let i = 0; i < 400; i++) { if (await read()) return; await new Promise(resolve => setTimeout(resolve, 20)); } assert.fail("production learning did not settle"); };
+  await until(async () => (await adapter.read(run.ref)).phase === "completed");
+  const schedule = adapter.schedule!, enqueue = schedule.enqueue.bind(schedule);
+  t.mock.method(schedule, "enqueue", async (...args: Parameters<typeof enqueue>) => {
+    const queued = await enqueue(...args);
+    if (args[0].kind === "memory.learn") {
+      memory.service.savePrefs({ ...person, consumer: "ui", person: true }, "personal", { learn_from_work: false });
+      memory.service.savePrefs({ ...person, project_id: owner.project_id, consumer: "ui", person: true }, "project", { learn_from_work: false });
+    }
+    return queued;
+  });
+  const request = { actor_id: owner.actor_id, work_id: work.work_id, session_id: session.session_id, run_id: run.ref.run_id,
+    sources: [{ run_id: run.ref.run_id, input_id: null, version: "1" as const }] };
+  await memory.learnLater(request);
+  const key = `memory-learn:${work.work_id}:${run.ref.run_id}`;
+  assert.deepEqual(schedule.find(key)!.payload, request);
+  assert.equal(JSON.stringify(schedule.find(key)!.payload).includes(text), false);
+  await until(() => schedule.find(key)?.state === "done");
+  assert.deepEqual(await memory.service.candidates({ actor_id: "web-user", project_id: owner.project_id, consumer: "ui", person: true }, { scope: "all" }), []);
+  assert.deepEqual(memory.service.changes({ actor_id: "web-user", project_id: owner.project_id, consumer: "ui", person: true }), []);
+});
 
 test("memory is one system.memory provider in the shared directory: the person manages it, agents read and write by the gate, the local person owns what agents keep", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-actions-"));

@@ -2,7 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult, PluginInstanceRecord, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { isTerminalAgentPhase, type AgentRunHandle, type AgentRunView, type AgentRuntimeAdapter, type AgentWorkspace } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { assertCapturedPluginActionCurrent, currentPluginInvocation, markPluginActionChecked, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
+import { assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance, markPluginActionChecked, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import { PROLOGUE_RUNTIME_ID } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentHostComposition } from "./agent-host-composition.js";
@@ -20,7 +20,7 @@ export function pluginAgentsFor(home: PluginPlatformHome | null | undefined, man
   const client = Object.freeze<PluginAgentClient>({
     async run(given) {
       const input = structuredClone(given), scope = currentPluginInvocation();
-      if (!scope || scope.install_id !== context.install_id || scope.caller.project_id !== caller.project_id || pluginInvocationReadOnly(scope)
+      if (!scope || !inPluginInstance(scope, context) || scope.caller.project_id !== caller.project_id || pluginInvocationReadOnly(scope)
         || "scene" in scope || "job" in scope && !scope.caller.permissions.includes(permission) || "definition" in scope && (scope.definition.operation !== "command" || scope.definition.action.scheduling !== "concurrent" || !scope.definition.action.permissions.includes(permission))) {
         throw new ActionError("actions.forbidden", "Agent 必须由本插件声明权限的并行动作或后台作业启动");
       }
@@ -37,7 +37,7 @@ export function pluginAgentsFor(home: PluginPlatformHome | null | undefined, man
         if (!active || !generation || !current || current.installation_generation !== generation || current.state !== "running" || !current.grants.includes(permission)) {
           throw new ActionError("actions.forbidden", "Agent 所属的插件安装已经停止或撤权");
         }
-        assertCapturedPluginActionCurrent(scope, context.install_id);
+        assertCapturedPluginActionCurrent(scope, context);
       };
       check();
       const controller = new AbortController(); controllers.add(controller);

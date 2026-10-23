@@ -12,6 +12,7 @@ import { childDrafts } from "./drafts.js";
 import { childNavigation } from "./navigation.js";
 import { childTodo } from "./todo.js";
 import { childWorkspaces } from "./workspaces.js";
+import { childModal } from "./modal.js";
 import { childPresentation } from "./presentation.js";
 import { childCopy } from "./clipboard.js";
 import { childNativeFiles } from "./native-files.js";
@@ -116,5 +117,5 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   await load("/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js");
   const factory = globalThis.molisWorkbenchPluginFactories?.[config.bundle];
   if (!factory) throw new Error(L("无法加载界面，请重试"));
-  childPresentation(port, scope); factory(host); childPlacement(port, scope); childNavigation(port, scope, config); context(); send({ type: "ready" });
+  childPresentation(port, scope); childModal(port, scope); factory(host); childPlacement(port, scope); childNavigation(port, scope, config); context(); send({ type: "ready" });
 }

@@ -15,6 +15,7 @@ import { frameContext } from "./context.js";
 import { pageDrafts } from "./drafts.js";
 import { pageNavigation } from "./navigation.js";
 import { pageTodo } from "./todo.js";
+import { pageModal } from "./modal.js";
 import { pagePresentation } from "./presentation.js";
 import { pageFilePicker } from "./file-picker.js";
 import { pageWorkspaces } from "./workspaces.js";
@@ -70,6 +71,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const makeTodo = pageTodo(port, scope, frame, grant.page_id, route);
   const placement = pagePlacement(port, scope, root, frame);
   const presentation = pagePresentation(scope, frame, root, pack, grant.page_id);
+  const modal = pageModal(scope, frame);
   const reviews = pageReviews(port, scope, root, frame, grant.page_id, route, host);
   const embed = pageEmbeds(port, scope, root, frame, grant.page_id, route);
   const workspaces = pageWorkspaces(port, scope, grant.page_id, route, host.translate, frame.title, host.projectTitle?.() ?? "");
@@ -112,6 +114,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "draft") { void drafts(message); return; }
     if (message.type === "make-todo") { void makeTodo(message); return; }
     if (message.type === "presentation") { presentation(message); return; }
+    if (message.type === "modal") { modal(message.open); return; }
     if (message.type === "interaction") { if (scope.visible) window.dispatchEvent(new CustomEvent("molis:surface-interaction")); return; }
     if (message.type === "shortcut" || message.type === "close-side") { navigation.receive(message); return; }
     if (message.type === "terminal") { void terminal(message); return; }

@@ -238,9 +238,18 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // VUX-39/VUX-12 (slice 96): an interrupted round's check list marks each outcome with its tone and puts the close after the list, not in it;
-  // a group of steps whose only open outcome is unknown says so instead of failure. 1186408 → 1186501 (+93).
-  "/assets/molis-work-workbench.js": [1186408, 1186501],
+  // VUX-31 (slice 98): the slash menu keeps the words typed last when the lists the first asked for answer late, and the side panel's file
+  // list drops a late page of a list read again. 1186501 → 1186577 (+76).
+  "/assets/molis-work-workbench.js": [1186501, 1186577],
+  // VUX-29 (slice 97): Pages' folder name dialog sends while it is open: a second press is swallowed, a refusal keeps the name and says why
+  // under the field, Enter saves instead of cancelling. 48446 → 49109 (+663).
+  "/assets/molis-work-plugins/pages.js": [48446, 49109],
+  // VUX-31 (slice 98): the 项目资料 page's newest read wins and a longer list is not added to another state's; the helper keeps the bind
+  // function under the giant-unit limit, so inlining it to save ~60 B is not open. 26305 → 26516 (+211).
+  "/assets/molis-work-knowledge.js": [26305, 26516],
+  // VUX-29 (slice 97): a modal dialog in a plugin's isolated frame says so, and the workbench around the frame is inert until it closes,
+  // as showModal() leaves the rest of one document; without it the back, home, tab and plugin buttons stayed usable. 187115 → 187730 (+615).
+  "/assets/molis-work-plugin-frame.js": [187115, 187730],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

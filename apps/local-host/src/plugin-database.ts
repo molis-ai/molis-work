@@ -1,5 +1,6 @@
 import type { PluginDatabase, PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openReadOnlyHomeSqlite, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
+import type { PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginDatabaseClient } from "./plugin-database-client.js";
 
 /**
@@ -9,7 +10,7 @@ import { pluginDatabaseClient } from "./plugin-database-client.js";
  * `partition` opens one project's library of a library partitioned by project (`plugin-database-partitions.ts`); its `refuse` is
  * asked first on every read and write, so the partitions can say why that project's library is gone.
  */
-export function openPluginDatabase(home: string, declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void, installId: string,
+export function openPluginDatabase(home: string, declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void, instance: PluginInstance,
   partition?: { readonly project_id: string; refuse(): void }): {
   client: PluginDatabase; close(): void;
 } {
@@ -23,7 +24,7 @@ export function openPluginDatabase(home: string, declaration: PluginDatabaseDecl
   } catch (error) { writer.close(); throw error; }
   let closed = false;
   return {
-    client: pluginDatabaseClient({ reader, writer, inTransaction: () => writer.isTransaction, ...(partition ? { refuse: () => partition.refuse() } : {}) }, declaration, authorize, installId, () => closed),
+    client: pluginDatabaseClient({ reader, writer, inTransaction: () => writer.isTransaction, ...(partition ? { refuse: () => partition.refuse() } : {}) }, declaration, authorize, instance, () => closed),
     close() { if (!closed) { closed = true; try { reader.close(); } finally { writer.close(); } } },
   };
 }

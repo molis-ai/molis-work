@@ -761,6 +761,18 @@ W5-01-GIT Git 离开 HYBRID 名单（G5，2026-10-23，③；分支 `migrate/git
 - **RAC-77**（W5-06-PLACE-03）：设置目录里 Shelf、Goals、Coding 的图标是各自设置视图的 `icon`（library、workflow、code）；按地址打开、项目没显示的插件的设置页也取到；视图没写宿主认识的图标的页用 `settings`。`tests/view-placement-declarations.test.ts`。
 - **RAC-78**（W5-06-PLACE-04）：`creatableKinds` 按目录视图的 `order` 给 Pages、Form、Dataset、PPT 的站与名称（文档、问卷、数据表、演示稿），`homeStarts` 给 Goals、Pages、灵光的起点（标题、提示、图标与 ③ 的手写表一致）；两者都只列本项目显示的插件。`tests/view-placement-declarations.test.ts`。
 
+### W5-06 第 3 片：项目级 Runtime 实例的舞台由运行中的实例画（PG-060，2026-10-23，②；分支 `feat/w5-06-project-stages`）
+
+状态：已实现，待评审与集成批次（本机只跑 dev 构建与快照，相关用例交给批次，见开发优先阶段的规则）。叠在第 2b 片（#1098）上。
+
+- **宿主**（`apps/local-host/src/project-plugin-stages.ts`）：项目的 Runtime 跑的内置插件里声明了舞台的（Form、Dataset、PPT、Pages、灵光、Workflows、Schedule），舞台用运行中实例的视图画，并按打开舞台的贡献 id 报给外壳（`plugin_stage_ids`），工作台不再从构建目录画第二份。没在运行的（被停、启动失败、项目库被拒、整个平台没起来）在同一个舞台画不可用占位（`data-project-plugin-unavailable`，写明原因）；实例在运行却没有这个视图，或画的时候抛错，也画占位，后者另写日志。Home 级插件（含双实例插件）仍归 Home 那条路径（`renderHomePluginStages`）。
+- **启动名单**（`apps/local-host/src/project-plugins.ts`）：内置条目移进 `projectPluginEntries`，在创建平台之前记到 `ProjectPluginState.plugins`，平台整个没起来也认得出该画占位的插件。没有 Home 目录时，除 Schedule 外这几个实例不启动，舞台照旧由工作台按目录画。
+- **模型**：渲染器给 `declaredStageModel`（Feed、Inbox、Schedule 用页面视图里的数据，其余给共用原语），外壳与宿主用同一份，外壳自己的兜底删掉；`declaredStageContributionId`（`apps/workbench/src/declared-stages.ts`）给出插件在主区的舞台贡献，两边共用。
+- **次序**：这几个舞台在舞台池里从外壳声明的那段挪到宿主那段；舞台池是隐藏的，次序不影响显示。
+
+#### 验收（RAC-79）
+- **RAC-79**（W5-06-STAGE-01）：项目页里 Form 的舞台只有一份，实例在运行时可用（有「新建问卷」）；停掉实例后，同一个舞台是不可用占位，没有 Form 的界面，不从构建目录补画；重启后恢复可用，占位消失。`tests/runtime-plugin-http-discovery.test.ts`。框架里挂不可用占位时的浏览器表现交给集成批次。
+
 ## 0. 现场与范围
 
 - **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。

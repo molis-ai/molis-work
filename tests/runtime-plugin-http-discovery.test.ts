@@ -18,7 +18,9 @@ import { deferred, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { streamProbe } from "./fixtures/plugin-stream.js";
 import { backgroundProbe } from "./fixtures/plugin-background.js";
 
+import { FORM_PLUGIN_ID } from "@molis-ai/molis-work-plugin-form";
 import { lingguangActions, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import { serveLingguang } from "./fixtures/lingguang-runtime.js";
 import type { HostTextRequestOptions } from "@molis-ai/molis-work-app-local-host";
 
@@ -335,3 +337,27 @@ for (const scope of ["home", "project"] as const) {
     } finally { release.resolve(); heldStop.resolve(); }
   });
 }
+
+test("RAC-79 W5-06-STAGE-01 a project Runtime plugin's stage is its running instance's; a stopped one shows the unavailable shell, never the catalog's", { timeout: 60_000 }, async t => {
+  const { host, project, request } = await serveHomeRuntime(t);
+  const one = await project("Project stage has one Runtime owner");
+  const formUnavailable = /data-work-surface="form"[^>]*\bdata-project-plugin-unavailable\b/u;
+  const page = async () => {
+    const response = await request(`/projects/${one.project_id}`);
+    assert.equal(response.status, 200, await response.clone().text());
+    const html = await response.text();
+    assert.equal([...html.matchAll(/data-work-surface="form"/gu)].length, 1, "Form has one stage");
+    return html + pluginDocuments(html).join("");
+  };
+  assert.match(await page(), /data-form-new/u);
+  const platform = await host.withProject(one.reference, runtime => runningProjectPlatform(runtime.store, one.project_id));
+  assert.ok(platform);
+  await platform.runtime.stop(platform.supervisor.state(FORM_PLUGIN_ID)!.install_id!);
+  const unavailable = await page();
+  assert.match(unavailable, formUnavailable);
+  assert.doesNotMatch(unavailable, /data-form-new/u, "a stopped instance's stage is not drawn from the build catalog");
+  assert.equal((await platform.supervisor.restart(FORM_PLUGIN_ID)).status, "running");
+  const back = await page();
+  assert.match(back, /data-form-new/u);
+  assert.doesNotMatch(back, formUnavailable);
+});

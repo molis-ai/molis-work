@@ -106,7 +106,7 @@ export interface WorkbenchShellPageOwners<TItem extends GoalCollectionItem, TVie
     desktop: boolean, className: string, manageHref: string): string;
   renderFeedNativePluginSurface(view: TView, surface: FeedPageSurface, preset: "feed",
     entries?: TFeedEntry[], active?: boolean): string;
-  /** The model a plugin's declared stage needs from this page's view; undefined gives it the shared primitives. */
+  /** The model a plugin's declared stage is drawn with, from this page's view. */
   stageModel(projectPluginId: string, view: TView): unknown;
 }
 
@@ -288,7 +288,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${settingsSurfaces}
             ${(view.plugin_stages ?? []).map(defer).join("")}
             ${renderDeclaredStages({ enabled: enabledPlugins, rendered: view.plugin_stage_ids ?? [],
-              model: pluginId => stageModel(pluginId, view) ?? { primitives: { escape: escapeHtml, text: L } } }).map(defer).join("")}
+              model: pluginId => stageModel(pluginId, view) }).map(defer).join("")}
           </div>
         </div>
       </div>

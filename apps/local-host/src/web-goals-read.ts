@@ -2,7 +2,7 @@ import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./plugin-builder/agent-surface.js";
 import { configuredModelChoices } from "./configured-models.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { availableProjectPluginIds, declaredArtifactTypes, renderCharacters, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { availableProjectPluginIds, declaredArtifactTypes, renderCharacters, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, shownProjectPlugins, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { goalsActions, resolveGoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
@@ -23,6 +23,7 @@ import {
   type CodingSurfacePorts,
 } from "./coding-surface.js";
 import { ensureProjectPlugins } from "./project-plugins.js";
+import { renderProjectRuntimeStages } from "./project-plugin-stages.js";
 
 
 /** The page still opens without the installed plugins' entries; why they are missing is written. */
@@ -31,24 +32,29 @@ const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowled
   .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
 /**
- * Opening the project page starts the project's plugin platform; the stages read what it runs. The 角色 page is the Host's
+ * Opening the project page starts the project's plugin platform; the stages read what it runs: the Coding family's panels, then
+ * every other declared stage of a plugin the Runtime runs, drawn by its running instance (W5-06). The 角色 page is the Host's
  * own (CHR-1): the settings cover shows it inside the project, and its client mounts when it is first shown.
  */
-async function projectPluginStages(ports: CodingSurfacePorts, enabled: readonly string[]): Promise<{ html: string[]; ids: string[] }> {
-  await ensureProjectPlugins(ports);
-  const builtin = await builtinStagePanels(ports, enabled);
+async function projectPluginStages(ports: CodingSurfacePorts, view: MolisWorkWebView,
+  configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[] },
+  model: (projectPluginId: string, view: MolisWorkWebView) => unknown): Promise<{ html: string[]; ids: string[] }> {
+  const record = await ensureProjectPlugins(ports);
+  const builtin = await builtinStagePanels(ports, configuration.plugins);
+  const runtime = renderProjectRuntimeStages(record, ports.store, { shown: shownProjectPlugins(configuration.plugins, configuration.hidden),
+    drawn: [...view.plugin_stage_ids ?? [], ...builtin.ids], model: projectPluginId => model(projectPluginId, view) });
   const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) } });
-  return { html: [characters, ...builtin.html], ids: builtin.ids };
+  return { html: [characters, ...builtin.html, ...runtime.html], ids: [...builtin.ids, ...runtime.ids] };
 }
 export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
-  renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderMolisWorkProjectSettingsHub" | "renderMolisWorkMomentumFragment" | "renderMolisWorkRefreshFragment" | "renderMolisWorkWeb" | "renderGoalDocumentFragment">;
+  renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderMolisWorkProjectSettingsHub" | "renderMolisWorkMomentumFragment" | "renderMolisWorkRefreshFragment" | "renderMolisWorkWeb" | "renderGoalDocumentFragment" | "declaredStageModel">;
   isDesktopShellRequest(request: IncomingMessage, url: URL): boolean;
   pageCsp: string;
   sessionProjectOperationsData: ReturnType<typeof createSessionProjectOperations>;
 }) {
   const { withCatalog: withMolisWorkProjectCatalog, isDesktopShellRequest, pageCsp: PAGE_CSP, sessionProjectOperationsData } = ports;
-  const { renderMolisWorkProjectSettingsHub, renderMolisWorkMomentumFragment, renderMolisWorkRefreshFragment, renderMolisWorkWeb, renderGoalDocumentFragment } = ports.renderer;
+  const { renderMolisWorkProjectSettingsHub, renderMolisWorkMomentumFragment, renderMolisWorkRefreshFragment, renderMolisWorkWeb, renderGoalDocumentFragment, declaredStageModel } = ports.renderer;
   async function settings(request: IncomingMessage, response: ServerResponse, url: URL,
     readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, actions: BoundActionClient,
   ): Promise<boolean> {
@@ -146,7 +152,7 @@ export function createLocalGoalsReadHttp(ports: {
             workspaces: projectConfiguration.workspaces,
             routePrefix: view.route_prefix,
           };
-          const builtinStages = await projectPluginStages(surfacePorts, projectConfiguration.plugins);
+          const builtinStages = await projectPluginStages(surfacePorts, view, projectConfiguration, declaredStageModel);
           view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtinStages.html], plugin_stage_ids: [...(view.plugin_stage_ids ?? []), ...builtinStages.ids] };
           // Installed execution supplies rail entries and stages independently of opening the authoring studio.
           const installed = await installedPluginStages({ store, projectId: options.projectId, homeDirectory, routePrefix: view.route_prefix,

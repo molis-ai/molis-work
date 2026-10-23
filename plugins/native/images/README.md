@@ -47,6 +47,8 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 - 首次连接与可见对象定向回归（需要本机 Chrome）：`node scripts/run-tests.mjs tests/content-context-regressions.e2e.test.ts tests/images-actions.e2e.test.ts`（使用受控本机 provider，不调用真实厂商）。
 - 相关手册：[docs/platform/PROLOGUE-AI.md](../../../docs/platform/PROLOGUE-AI.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
+页面客户端是 `src/browser/` 的 TypeScript（`tsconfig.browser.json` 类型检查），构建时由 esbuild 打成 `dist/images-client.js`，`src/client.ts` 读取它；请求只经共同的 `molisWorkRequest`，不直接 `fetch`。
+
 客户端资源由 Host 注入的 UI 生命周期管理：隐藏停止进度轮询，再次显示刷新；卸载取消本机请求并释放监听、定时器和观察器。服务端任务保持原有取消与恢复语义。
 
 执行时限与取消监测复用 Plugin SDK 的执行生命周期；请求去重、图片提交和重启后中断记录继续由 Images 拥有。监测失去执行资格后停止等待，不能把撤销或关闭改写成普通失败。

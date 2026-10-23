@@ -286,7 +286,7 @@ test("S-18 Characters publish: a caller gone after its beforeWrite is refused by
   const characterPorts = { actorId: "user", drafts: characters.service,
     references: () => artifacts.query.listArtifacts(DEMO_PROJECT_ID).map(record => ({ artifact_id: record.artifact_id, version: record.version })),
     publish: (id: string, revision: number, publisher: Parameters<typeof characters.service.publish>[2]) => { gone?.(); return characters.service.publish(id, revision, publisher); } };
-  t.after(actions.registry.registerProvider(charactersProvider({ project_id: DEMO_PROJECT_ID, coordinator: { artifacts, processItems: new ProcessItemsModule(ports) } }, characterPorts)));
+  t.after(actions.registry.registerProvider(charactersProvider({ project_id: DEMO_PROJECT_ID, artifacts, processItems: new ProcessItemsModule(ports) }, characterPorts)));
   const created = characters.service.create();
   const draft = characters.service.update(created.character_id, created.revision, { title: "Guarded", instructions: "Fixed instructions", host_tools: null });
   for (const failure of ["revoke", "cancel", "none"] as const) {

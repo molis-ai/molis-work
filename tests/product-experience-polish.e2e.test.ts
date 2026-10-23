@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
+import { openProjectVersionStores } from '@molis-ai/molis-work-app-local-host';
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
@@ -136,7 +136,7 @@ test('Artifact tabs restore the exact item after switching, reload and split', {
   const b = await openGoalBrowser(t, 'seeded'); if (!b) return;
   try {
   const { origin, projectId, command, sessionId, navigate, evaluate, click, waitFor, reloadPage } = b;
-  const app = new GoalProjectApplication(b.store);
+  const app = openProjectVersionStores(b.store);
   for (const id of ['polish/a', 'polish-b']) app.artifacts.commands.registerVersion({ ...pinnedArtifact(`验证 ${id}`),
     project_id: projectId!, actor_id: 'polish-test', artifact_id: id, version: 1,
     artifact_type_id: 'io.molis.work.document', schema_version: 1,

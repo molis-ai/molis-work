@@ -10,7 +10,7 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactsActions, artifactsManifest, createArtifactActionHandlers, importArtifactDocument } from "@molis-ai/molis-work-plugin-artifacts";
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication, LocalProjectDatabase, openProjectVersionStores, type ProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
 // Who a personal 成果 belongs to (specs/artifact-positioning, 2026-10-07): in a Home it is the person, whoever produced it.
@@ -99,7 +99,7 @@ test("the team-shared rule is unchanged: a shared 成果 stays with the actor th
 });
 
 // Re-importing a document: the same source is one line of snapshots, so the person's re-import goes on after a workflow's.
-const importPorts = (artifacts: ArtifactsModule | GoalProjectApplication["artifacts"], actorId: string, content: () => string) => ({
+const importPorts = (artifacts: ArtifactsModule | ProjectVersionStores["artifacts"], actorId: string, content: () => string) => ({
   projectId: "p", actorId, ownerActorId: person, routePrefix: "/projects/p", artifacts: artifacts as ArtifactsModule,
   readHtml: () => ({ title: "", content: "" }),
   readExternal: async () => ({ source: "notion" as const, source_id: "notion-page-1", source_url: "https://notion.so/x", title: "Roadmap", content: content(), format: "markdown" as const, warnings: [], connection_id: "c1" }) });
@@ -134,15 +134,15 @@ test("a document imported before the Home named its owner is re-imported by the 
 });
 
 test("a real Home's coordinator reads the person as the owner of every personal 成果", async () => {
-  const storage = new LocalProjectDatabase(":memory:"), project = new GoalProjectApplication(storage);
+  const storage = new LocalProjectDatabase(":memory:"), project = new GoalProjectApplication(storage), library = openProjectVersionStores(storage);
   project.initializeBoard({ project_id: "p", actor_id: person, idempotency_key: "p" });
   try {
     const registration = (actor: string, version: number): RegisterArtifactVersionInput => ({ project_id: "p", actor_id: actor, artifact_id: "report", version,
       artifact_type_id: "io.example.report", schema_version: 1, producer, content: { kind: "inline", payload: { version } }, ...pinnedArtifact("Report") });
-    project.artifacts.commands.registerVersion(registration("workflow-events", 1));
-    project.artifacts.commands.registerVersion(registration("claude-code", 2));
-    project.artifacts.commands.registerVersion(registration(person, 3));
-    assert.deepEqual(project.artifacts.query.listArtifactVersions("p", "report").map(version => [version.owner_actor_id, version.created_by]),
+    library.artifacts.commands.registerVersion(registration("workflow-events", 1));
+    library.artifacts.commands.registerVersion(registration("claude-code", 2));
+    library.artifacts.commands.registerVersion(registration(person, 3));
+    assert.deepEqual(library.artifacts.query.listArtifactVersions("p", "report").map(version => [version.owner_actor_id, version.created_by]),
       [[person, "workflow-events"], [person, "claude-code"], [person, person]]);
   } finally { storage.close(); }
 });

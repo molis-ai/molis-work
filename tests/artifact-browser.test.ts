@@ -8,7 +8,7 @@ import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
 import { readArtifactBrowser } from "@molis-ai/molis-work-plugin-artifacts";
 import { pinnedArtifact, titleOf } from "./fixtures/artifacts.js";
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { MolisWorkLocalHost, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, GoalProjectApplication, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -36,7 +36,7 @@ async function fixture(t: test.TestContext) {
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
-  const coordinator = new GoalProjectApplication(store);
+  const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory,
     controlToken: "artifact-browser-test-control-token-0123456789" });
   t.after(async () => {
@@ -54,30 +54,30 @@ async function fixture(t: test.TestContext) {
   const direct = (path: string) => fetch(origin + path, { redirect: "manual" });
   // Allow the normal host's first-request initialization before taking the read-only baseline.
   await (await get("/health")).text();
-  return { store, coordinator, get, surface, direct, origin };
+  return { store, coordinator, library, get, surface, direct, origin };
 }
 
 test("the 成果库 shows each version's recorded title and media type, never one guessed from the payload", async (t) => {
   // specs/artifact-positioning A1: a 成果 records its title and media type; the payload stays the producer's own shape.
-  const { coordinator, surface } = await fixture(t);
-  coordinator.artifacts.commands.registerVersion(registration({ artifact_id: "recorded-title",
+  const { library, surface } = await fixture(t);
+  library.artifacts.commands.registerVersion(registration({ artifact_id: "recorded-title",
     content: { kind: "inline", payload: { title: "Payload title", name: "Ignored name" } }, title: "Recorded title", media_type: "text/markdown" }));
   const list = await (await surface("/artifacts")).text();
   assert.match(list, /Recorded title/);
   assert.doesNotMatch(list, /Payload title|Ignored name/);
-  const record = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "recorded-title", version: 1 })!;
+  const record = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "recorded-title", version: 1 })!;
   assert.equal(record.title, "Recorded title");
   assert.equal(record.media_type, "text/markdown");
   assert.deepEqual(record.origin, { kind: "pinned", subject: { kind: "item", id: "Payload title" }, revision: "1" });
 });
 
 test("Artifact HTTP links exact versions, exports opaque records and preserves existing Goal state", async (t) => {
-  const { store, coordinator, get, surface, direct, origin } = await fixture(t);
-  const first = coordinator.artifacts.commands.registerVersion(registration()).artifact;
-  const second = coordinator.artifacts.commands.registerVersion(registration({ version: 2,
+  const { store, library, get, surface, direct, origin } = await fixture(t);
+  const first = library.artifacts.commands.registerVersion(registration()).artifact;
+  const second = library.artifacts.commands.registerVersion(registration({ version: 2,
     content: { kind: "inline", payload: { title: "Later report" } } })).artifact;
   const before = store.snapshot(DEMO_PROJECT_ID);
-  const versions = coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
+  const versions = library.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
   const root = await (await get("/")).text();
   assert.match(root, /data-plugin-id="artifacts"/);
   // Opened directly, the 成果 address and a version's address open the workbench there (specs/artifact-positioning S2).
@@ -133,16 +133,16 @@ test("Artifact HTTP links exact versions, exports opaque records and preserves e
   assert.match(await (await get(opened.pathname + opened.search, "en")).text(), /lang="en"/);
   assert.match(english, /No compatible plugin/);
   assert.match(english, /Export this version/);
-  assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID), versions);
+  assert.deepEqual(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID), versions);
   const after = store.snapshot(DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, before.goals);
 });
 
 test("Artifact HTTP keeps unknown and cross-project versions missing and rejects malformed exact references", async (t) => {
-  const { coordinator, get, surface, direct } = await fixture(t);
-  coordinator.artifacts.commands.registerVersion(registration());
+  const { coordinator, library, get, surface, direct } = await fixture(t);
+  library.artifacts.commands.registerVersion(registration());
   coordinator.initializeBoard({ project_id: "other-project", actor_id: "owner", idempotency_key: "other-project" });
-  coordinator.artifacts.commands.registerVersion(registration({ project_id: "other-project", artifact_id: "other-only" }));
+  library.artifacts.commands.registerVersion(registration({ project_id: "other-project", artifact_id: "other-only" }));
   for (const path of [exactPath(2), "/artifacts/missing/versions/1", "/artifacts/other-only/versions/1"]) {
     // Opened directly, the workbench opens on that version and says it is missing there.
     const opened = await direct(path);
@@ -164,15 +164,15 @@ test("Artifact HTTP keeps unknown and cross-project versions missing and rejects
       await page.text();
     }
   }
-  assert.equal(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 1);
+  assert.equal(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 1);
 });
 
 test("Artifact empty, unavailable, archived and embedded views reflect Module state without inventing consumers", async (t) => {
-  const { coordinator, surface } = await fixture(t);
+  const { library, surface } = await fixture(t);
   assert.match(await (await surface("/artifacts")).text(), /还没有成果/);
   assert.doesNotMatch(await (await surface("/artifacts")).text(), /插件明确发布的结果会出现在这里|查看插件发布的结果、来源和原始内容/);
-  coordinator.artifacts.commands.registerVersion(registration());
-  const query = coordinator.artifacts.query;
+  library.artifacts.commands.registerVersion(registration());
+  const query = library.artifacts.query;
   const reference = { artifact_id: artifactId, version: 1 };
   const escape = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   const view = readArtifactBrowser(query, DEMO_PROJECT_ID, reference);
@@ -184,12 +184,12 @@ test("Artifact empty, unavailable, archived and embedded views reflect Module st
   assert.doesNotMatch(embed, /attack\(\)|\/export/);
   assert.equal(readArtifactBrowser(query, DEMO_PROJECT_ID, reference, [{ artifact_type_id: "io.example.report", schema_version: 1 }]).compatibility?.consumable, true);
   assert.equal(readArtifactBrowser(query, DEMO_PROJECT_ID, reference, [{ artifact_type_id: "io.example.report", schema_version: 2 }]).compatibility?.consumable, false);
-  coordinator.artifacts.commands.markUnavailable({ project_id: DEMO_PROJECT_ID, ...reference, actor_id: "report-owner", reason: "Source disconnected" });
+  library.artifacts.commands.markUnavailable({ project_id: DEMO_PROJECT_ID, ...reference, actor_id: "report-owner", reason: "Source disconnected" });
   const unavailable = await (await surface(exactPath(1))).text();
   assert.match(unavailable, /这个版本的内容不可用|Source disconnected/);
   assert.match(unavailable, /<h1>Original report<\/h1>/);
   assert.doesNotMatch(unavailable, /&lt;\/pre&gt;&lt;script&gt;attack|<script>attack\(\)<\/script>/);
-  coordinator.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, ...reference, actor_id: "report-owner" });
+  library.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, ...reference, actor_id: "report-owner" });
   assert.match(await (await surface("/artifacts")).text(), /已归档/);
   assert.equal(query.getArtifactVersion(DEMO_PROJECT_ID, reference)?.lifecycle_state, "archived");
 });
@@ -202,8 +202,8 @@ test("Artifact navigation and export retain the selected catalog Project", async
   catalog.addProjectPlugin({ project_id: alpha.project_id, plugin_id: "artifacts", actor_id: "fixture-user" });
   catalog.close();
   const store = new LocalProjectDatabase(alpha.database_path);
-  const coordinator = new GoalProjectApplication(store);
-  const original = coordinator.artifacts.commands.registerVersion(registration({ project_id: alpha.project_id })).artifact;
+  const library = openProjectVersionStores(store);
+  const original = library.artifacts.commands.registerVersion(registration({ project_id: alpha.project_id })).artifact;
   store.close();
   const server = createMolisWorkWebServer({ homeDirectory: directory, controlToken: "artifact-project-test-control-token-0123456789" });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -236,12 +236,12 @@ test("Artifact navigation and export retain the selected catalog Project", async
 });
 
 test("Goal context embeds explicit exact Artifact relations and refreshes owner state without mutating facts", async (t) => {
-  const { store, coordinator, get, surface } = await fixture(t);
+  const { store, library, get, surface } = await fixture(t);
   const documentPath = "/goals/V1";
   const empty = await (await get(documentPath)).text();
   assert.doesNotMatch(empty, /artifact-embed|data-goal-input-fixed|<h3>交付物<\/h3>/);
-  const first = coordinator.artifacts.commands.registerVersion(registration()).artifact;
-  coordinator.artifacts.commands.registerVersion(registration({ version: 2,
+  const first = library.artifacts.commands.registerVersion(registration()).artifact;
+  library.artifacts.commands.registerVersion(registration({ version: 2,
     content: { kind: "inline", payload: { title: "Later report" } } }));
   const ledger = createContextLedger(store.db, { authorize: () => true });
   const scope = { kind: "personal" as const, id: DEMO_PROJECT_ID };
@@ -259,7 +259,7 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
     target: { module: "artifacts", id: artifactId, version: 1, scope, project_id: "foreign-project" } });
   const before = store.snapshot(DEMO_PROJECT_ID);
   const beforeEdges = ledger.query.list(access);
-  const beforeArtifacts = coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
+  const beforeArtifacts = library.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
   const page = await (await get(documentPath)).text();
   // Deliverables are the card under 「完成要求」; inputs, fixed here, are listed with the Goal's other inputs (五.1, one entry).
   assert.match(page, /<h3>交付物<\/h3>/);
@@ -278,15 +278,15 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   assert.match(english, /Fixed version 1/);
   const opened = await surface(exactPath(1));
   assert.match(await opened.text(), /Original report/);
-  assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: artifactId, version: 1 }), first);
-  assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID), beforeArtifacts);
+  assert.deepEqual(library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: artifactId, version: 1 }), first);
+  assert.deepEqual(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID), beforeArtifacts);
   assert.deepEqual(ledger.query.list(access), beforeEdges);
   const after = store.snapshot(DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, before.goals);
 
-  coordinator.artifacts.commands.markUnavailable({ project_id: DEMO_PROJECT_ID, artifact_id: artifactId, version: 1,
+  library.artifacts.commands.markUnavailable({ project_id: DEMO_PROJECT_ID, artifact_id: artifactId, version: 1,
     actor_id: "report-owner", reason: "Source disconnected" });
-  coordinator.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, artifact_id: artifactId, version: 2, actor_id: "report-owner" });
+  library.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, artifact_id: artifactId, version: 2, actor_id: "report-owner" });
   const changed = await (await get(documentPath)).text();
   assert.match(changed, /固定的第 1 版<\/span><small>这一版现在不可用 · Source disconnected<\/small>/);
   assert.match(changed, /这个版本已归档/);
@@ -302,12 +302,12 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
 
 test("Artifact type folds use the names their owners declare, and an undeclared type its last segment", async t => {
   // specs/artifact-positioning A4: no table of type names in the 成果库; Feed declares 「捕获的消息」 for its captures.
-  const { coordinator, surface } = await fixture(t);
-  coordinator.artifacts.commands.registerVersion(registration({
+  const { library, surface } = await fixture(t);
+  library.artifacts.commands.registerVersion(registration({
     artifact_id: "goal-delivery",
     artifact_type_id: "io.molis.work.goal.delivery",
   }));
-  coordinator.artifacts.commands.registerVersion(registration({
+  library.artifacts.commands.registerVersion(registration({
     artifact_id: "feed-capture",
     version: 1,
     artifact_type_id: "io.molis.work.feed.capture",
@@ -321,14 +321,14 @@ test("Artifact type folds use the names their owners declare, and an undeclared 
 });
 
 test("Artifact browser distinguishes no results, unselected versions and missing references", async t => {
-  const {coordinator,surface}=await fixture(t);
+  const {library,surface}=await fixture(t);
   const empty=await (await surface("/artifacts")).text();
   assert.match(empty,/还没有项目成果/);
   assert.doesNotMatch(empty,/<h1>选择一个结果版本<\/h1>/);
   // The way to get a first result is told where the empty list is, in the shared empty block, and only there (E-5).
   assert.match(empty,/<div class="mw-empty" data-artifact-list-empty><span class="mw-empty__mark">[\s\S]*?<\/span><strong>还没有成果<\/strong><p>在 Pages、问卷、演示稿、数据表里「存为固定版本」/);
   assert.equal(empty.split("固定下来的版本都在这里").length - 1, 1, "the explanation is written once");
-  coordinator.artifacts.commands.registerVersion(registration());
+  library.artifacts.commands.registerVersion(registration());
   const unselected=await (await surface("/artifacts")).text();
   assert.match(unselected,/<h1>选择一个结果版本<\/h1>/);
   const missing=await (await surface(exactPath(99))).text();
@@ -338,7 +338,7 @@ test("Artifact browser distinguishes no results, unselected versions and missing
 
 
 test("Coding report Artifact reads its fixed body and source, rejects forged ownership and preserves history", async (t) => {
-  const { coordinator, surface, direct } = await fixture(t);
+  const { library, surface, direct } = await fixture(t);
   const fixedId = "coding-report:session-fixed:run-original";
   // A report pins its session at one round (artifact-positioning A1); Coding previews it and the link opens that session (A4).
   const input = registration({ artifact_id: fixedId, artifact_type_id: "coding.report.v1",
@@ -346,7 +346,7 @@ test("Coding report Artifact reads its fixed body and source, rejects forged own
     producer: { plugin_id: "io.molis.work.coding", plugin_version: "1.15.0", binding_signature: "official-coding-binding" },
     content: { kind: "inline", payload: { title: "已保存的原报告", run_id: "run-original", source: { session_id: "session-fixed" },
       body_markdown: "## 原任务结果\n固定正文，不能使用后来的会话。\n\n<script>attack()</script>\n\n[危险](javascript:attack())" } } });
-  const original = coordinator.artifacts.commands.registerVersion(input).artifact;
+  const original = library.artifacts.commands.registerVersion(input).artifact;
   const path = `/artifacts/${encodeURIComponent(fixedId)}/versions/1`;
   const opened = await direct(path);
   assert.equal(opened.status, 302);
@@ -361,15 +361,15 @@ test("Coding report Artifact reads its fixed body and source, rejects forged own
     assert.ok(html.includes("openPlugin=coding") && html.includes("openItem=session-fixed"));
     assert.doesNotMatch(html, /<script>attack\(\)<\/script>|href="javascript:/);
   }
-  assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, {artifact_id:fixedId,version:1}), original);
-  coordinator.artifacts.commands.registerVersion({...input, artifact_id:"coding-report:session-forged:run-original"});
+  assert.deepEqual(library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, {artifact_id:fixedId,version:1}), original);
+  library.artifacts.commands.registerVersion({...input, artifact_id:"coding-report:session-forged:run-original"});
   const forged = await (await surface(`/artifacts/${encodeURIComponent("coding-report:session-forged:run-original")}/versions/1`)).text();
   assert.doesNotMatch(forged, /data-artifact-business-preview|在 Coding 打开原对象/);
-  coordinator.artifacts.commands.archiveVersion({project_id:DEMO_PROJECT_ID,artifact_id:fixedId,version:1,actor_id:"report-owner"});
+  library.artifacts.commands.archiveVersion({project_id:DEMO_PROJECT_ID,artifact_id:fixedId,version:1,actor_id:"report-owner"});
   const archived = await (await surface(path)).text();
   assert.match(archived, /这个版本已归档/);
   assert.match(archived, /data-artifact-business-preview/, "archiving preserves historical reading");
-  coordinator.artifacts.commands.markUnavailable({project_id:DEMO_PROJECT_ID,artifact_id:fixedId,version:1,actor_id:"report-owner",reason:"正文来源失效"});
+  library.artifacts.commands.markUnavailable({project_id:DEMO_PROJECT_ID,artifact_id:fixedId,version:1,actor_id:"report-owner",reason:"正文来源失效"});
   const unavailable = await (await surface(path)).text();
   assert.doesNotMatch(unavailable, /data-artifact-business-preview|在 Coding 打开原对象/);
 });
@@ -377,7 +377,7 @@ test("Coding report Artifact reads its fixed body and source, rejects forged own
 
 test("A Coding changeset is a process item: it never shows in the 成果库, and the 成果库 never renders one", async (t) => {
   // specs/artifact-positioning A2: change sets are exchange data for Git and Diff, kept in Coding's process items.
-  const { coordinator, surface } = await fixture(t);
+  const { library, surface } = await fixture(t);
   const fixedId = "coding-changeset:session-fixed:run-original";
   const payload = { scope: "run-frozen", run_id: "run-original", applied: false, coverage: "text-reviews",
     origin: { session_id: "session-fixed", runtime_session_id: "sdk", workspace_id: "w", workspace_name: "授权工作区" },
@@ -386,9 +386,9 @@ test("A Coding changeset is a process item: it never shows in the 成果库, and
   const input = registration({ artifact_id: fixedId, artifact_type_id: "coding.changeset.v1",
     producer: { plugin_id: "io.molis.work.coding", plugin_version: "1.20.0", binding_signature: "official-coding-binding" },
     content: { kind: "inline", payload }, metadata: { title: "购物车的固定变更" } });
-  const recorded = coordinator.processItems.commands.registerVersion(input).artifact;
-  assert.equal(coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: fixedId, version: 1 }), null);
-  assert.deepEqual(coordinator.processItems.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: fixedId, version: 1 }), recorded);
+  const recorded = library.processItems.commands.registerVersion(input).artifact;
+  assert.equal(library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: fixedId, version: 1 }), null);
+  assert.deepEqual(library.processItems.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: fixedId, version: 1 }), recorded);
   const list = await (await surface("/artifacts")).text();
   assert.doesNotMatch(list, /购物车的固定变更|coding-changeset/);
   const path = `/artifacts/${encodeURIComponent(fixedId)}/versions/1`;
@@ -398,9 +398,9 @@ test("A Coding changeset is a process item: it never shows in the 成果库, and
   assert.match(html, /找不到这个/);
   assert.doesNotMatch(html, /data-artifact-business-preview|在 Coding 查看固定变更并返回原任务|cart\.mjs/);
   // Coding cannot write it straight into the 成果库: its Manifest declares change sets as process items (A7).
-  assert.throws(() => coordinator.artifacts.commands.registerVersion({ ...input, artifact_id: "coding-changeset:session-fixed:in-library" }), { code: "artifacts.artifact.type_undeclared" });
+  assert.throws(() => library.artifacts.commands.registerVersion({ ...input, artifact_id: "coding-changeset:session-fixed:in-library" }), { code: "artifacts.artifact.type_undeclared" });
   // Another producer writing the same type into the 成果库 still gets no change set preview of its own.
-  coordinator.artifacts.commands.registerVersion({ ...input, artifact_id: "coding-changeset:session-fixed:in-library",
+  library.artifacts.commands.registerVersion({ ...input, artifact_id: "coding-changeset:session-fixed:in-library",
     producer: { plugin_id: "com.example.installed", plugin_version: "1.0.0", binding_signature: "installed-binding" } });
   const direct = await (await surface(`/artifacts/${encodeURIComponent("coding-changeset:session-fixed:in-library")}/versions/1`)).text();
   assert.doesNotMatch(direct, /data-artifact-business-preview|在 Coding 查看固定变更并返回原任务/);
@@ -408,10 +408,10 @@ test("A Coding changeset is a process item: it never shows in the 成果库, and
 
 test("each visible type is previewed by its owner: Pages renders its own version, named as Pages declares it", async (t) => {
   // specs/artifact-positioning A4: the type's owner declares its display name and preview; the 成果库 renders what it returns.
-  const { coordinator, surface } = await fixture(t);
+  const { library, surface } = await fixture(t);
   const body = { type: "doc", content: [{ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "季度目标" }] },
     { type: "paragraph", content: [{ type: "text", text: "保持每周发布。<script>attack()</script>" }] }] };
-  coordinator.artifacts.commands.registerVersion(registration({ artifact_id: "pages-page-q3", artifact_type_id: "io.molis.work.pages.document",
+  library.artifacts.commands.registerVersion(registration({ artifact_id: "pages-page-q3", artifact_type_id: "io.molis.work.pages.document",
     producer: { plugin_id: "io.molis.work.pages", plugin_version: "1.0.0", binding_signature: "official-pages-binding" },
     content: { kind: "inline", payload: { title: "季度计划", page_id: "page-q3", goal_id: "", body } },
     origin: { kind: "pinned", subject: { kind: "pages_document", id: "page-q3" }, revision: "4" }, title: "季度计划", media_type: "application/json" }));
@@ -426,7 +426,7 @@ test("each visible type is previewed by its owner: Pages renders its own version
   assert.match(html, /原对象已经删除，这里仍保留第 1 版/);
   assert.doesNotMatch(html, /在 Pages 打开原对象|openItem=page-q3/);
   // A version of the type that Pages did not produce gets no Pages preview.
-  coordinator.artifacts.commands.registerVersion(registration({ artifact_id: "pages-forged", artifact_type_id: "io.molis.work.pages.document",
+  library.artifacts.commands.registerVersion(registration({ artifact_id: "pages-forged", artifact_type_id: "io.molis.work.pages.document",
     content: { kind: "inline", payload: { title: "伪造", body } } }));
   assert.doesNotMatch(await (await surface("/artifacts/pages-forged/versions/1")).text(), /data-artifact-business-preview/);
 });

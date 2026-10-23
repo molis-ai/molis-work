@@ -7,7 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, MolisWorkLocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import {
   artifactAnalysisContext, artifactOriginalPath, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument,
   type ArtifactDocumentImportPorts, type ImportedArtifactDocument,
@@ -25,7 +25,7 @@ async function fixture(t: test.TestContext) {
   const databasePath = join(directory, "fixture.db");
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
-  const coordinator = new GoalProjectApplication(store);
+  const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);
   let server: ReturnType<typeof createMolisWorkWebServer>;
   let origin = "";
   const stop = async () => {
@@ -54,11 +54,11 @@ async function fixture(t: test.TestContext) {
   });
   // The 成果 surface as the workbench reads it; a person's direct visit is redirected into the workbench (checked below).
   const get = (path: string, extraHeaders: Record<string, string> = {}) => fetch(origin + path, { headers: { "accept-language": "zh", "x-molis-work-fragment": "artifact-workbench", ...extraHeaders } });
-  return { store, coordinator, post, rawPost, get, headers, origin, directory, restart: async () => { await stop(); await start(); } };
+  return { store, coordinator, library, post, rawPost, get, headers, origin, directory, restart: async () => { await stop(); await start(); } };
 }
 
 test("document file HTTP import registers, previews, exports, reuses and survives restart", async t => {
-  const { store, coordinator, post, get, origin, restart } = await fixture(t);
+  const { store, library, post, get, origin, restart } = await fixture(t);
   const before = store.snapshot(DEMO_PROJECT_ID);
   // Importing is one entry for the whole project, the side panel's 资料 tab (specs/project-knowledge §8); the 成果库 points there.
   const directory = await (await get("/artifacts")).text();
@@ -72,7 +72,7 @@ test("document file HTTP import registers, previews, exports, reuses and survive
   assert.equal(imported.version, 1);
   assert.equal(imported.reused, false);
   assert.deepEqual(imported.warnings, []);
-  const artifact = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, imported);
+  const artifact = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, imported);
   assert.ok(artifact);
   assert.equal(artifact.artifact_type_id, DOCUMENT_ARTIFACT_TYPE);
   assert.equal(artifact.scope, "personal");
@@ -105,7 +105,7 @@ test("document file HTTP import registers, previews, exports, reuses and survive
   const duplicate = await post(file);
   assert.equal(duplicate.status, 200);
   assert.deepEqual(await duplicate.json(), { ...imported, reused: true });
-  assert.equal(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 1);
+  assert.equal(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 1);
 
   await restart();
   const restored = await get(`/api${imported.url}/export`);
@@ -120,13 +120,13 @@ test("document file HTTP import registers, previews, exports, reuses and survive
 });
 
 test("HTML import extracts readable content, preserves its source and never executes its markup", async t => {
-  const { coordinator, post, get } = await fixture(t);
+  const { library, post, get } = await fixture(t);
   const original = '<!doctype html><html><head><title>导出的文档</title></head><body><h1>导出的文档</h1><p>真实正文 <strong>保留文字</strong> &#x1f642; &#999999999999;</p><script>htmlAttack()</script><template>hiddenTemplate</template><script>unfinishedScript()';
   const response = await post({ source: "file", filename: "export.html", content: original });
   assert.equal(response.status, 201);
   const imported = await response.json() as { artifact_id: string; version: number; url: string; warnings: string[] };
   assert.ok(imported.warnings.length > 0);
-  const artifact = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, imported)!;
+  const artifact = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, imported)!;
   const payload = artifact.payload as Record<string, unknown>;
   assert.equal(payload.original_html, original);
   assert.equal(payload.title, "导出的文档");
@@ -142,10 +142,10 @@ test("HTML import extracts readable content, preserves its source and never exec
 });
 
 for (const stop of ["cancel", "revoke"] as const) test(`HTML import ${stop} after real parsing leaves no Artifact and a fresh call recovers`, async t => {
-  const { coordinator } = await fixture(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
+  const { library } = await fixture(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
   const input = { source: "file", filename: "page.html", content: "<head><title>Page</title></head><p>Original body</p>" };
-  const ports = { projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: "/projects/current", artifacts: coordinator.artifacts };
-  const previous = coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
+  const ports = { projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: "/projects/current", artifacts: library.artifacts };
+  const previous = library.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
   const pending = importLocalArtifactDocument(input, { ...ports, signal: controller.signal, beforeSave: async () => {
     entered.resolve(); await release.promise;
     if (stop === "revoke") throw new Error("revoked after parsing");
@@ -155,17 +155,17 @@ for (const stop of ["cancel", "revoke"] as const) test(`HTML import ${stop} afte
     await entered.promise;
     if (stop === "cancel") controller.abort();
     release.resolve(); await rejected;
-    assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID), previous);
+    assert.deepEqual(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID), previous);
     const saved = await importLocalArtifactDocument(input, ports);
-    const record = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, saved)!;
+    const record = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, saved)!;
     assert.equal((record.payload as Record<string, unknown>).original_html, input.content);
     assert.equal((record.payload as Record<string, unknown>).content, "Original body");
   } finally { release.resolve(); }
 });
 
 test("invalid, empty, oversized and unauthorized imports leave Artifact records unchanged and can recover", async t => {
-  const { coordinator, post, rawPost, headers } = await fixture(t);
-  const before = coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
+  const { library, post, rawPost, headers } = await fixture(t);
+  const before = library.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
   const cases: Array<{ body: unknown; status: number; code: string }> = [
     // R4B-01: production import refusals retain kind and reason under the Artifacts owner.
     { body: { source: "unsupported" }, status: 400, code: "artifacts.document.source_invalid" },
@@ -183,7 +183,7 @@ test("invalid, empty, oversized and unauthorized imports leave Artifact records 
     const response = await post(example.body);
     assert.equal(response.status, example.status, example.code);
     assert.equal((await response.json() as { code: string }).code, example.code);
-    assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID), before);
+    assert.deepEqual(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID), before);
   }
   for (const body of ["{broken", "null", "[]", Buffer.from([0xff, 0xfe])]) {
     const response = await rawPost(body, headers());
@@ -209,18 +209,18 @@ test("invalid, empty, oversized and unauthorized imports leave Artifact records 
   const missingKey = await rawPost(validBody, noKey);
   assert.equal(missingKey.status, 400);
   await missingKey.text();
-  assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID), before);
+  assert.deepEqual(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID), before);
   const failed = await post({ ...file, content: "" }, "failed-import-retry");
   assert.equal(failed.status, 400, "a document with nothing to import was a 422; no kind stands for 422, so it is the caller's mistake (400)");
   await failed.text();
   const recovered = await post(file, "failed-import-retry");
   assert.equal(recovered.status, 201, "a failed attempt must release its mutation key for a corrected retry");
   await recovered.text();
-  assert.equal(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, before.length + 1);
+  assert.equal(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, before.length + 1);
 });
 
 test("external document snapshots preserve exact old versions and isolate the same source by project", async t => {
-  const { coordinator, get } = await fixture(t);
+  const { coordinator, library, get } = await fixture(t);
   coordinator.initializeBoard({ project_id: "other-project", actor_id: "fixture-owner", idempotency_key: "create-other-project" });
   let document: ImportedArtifactDocument = {
     source: "notion", source_id: "a1b2c3-source", source_url: "https://www.notion.so/a1b2c3-source",
@@ -228,14 +228,14 @@ test("external document snapshots preserve exact old versions and isolate the sa
   };
   const observed: Array<{ source: string; url: string }> = [];
   const ports: ArtifactDocumentImportPorts = {
-    projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: "/projects/current", artifacts: coordinator.artifacts,
+    projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: "/projects/current", artifacts: library.artifacts,
     readExternal: async input => { observed.push(input); return { ...document, warnings: [...document.warnings] }; },
     readHtml: () => { throw new Error("external imports must not read HTML files"); },
     now: () => "2026-09-22T00:00:00.000Z",
   };
   const input = { source: "notion", url: document.source_url };
   const first = await importArtifactDocument(input, ports);
-  const original = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first)!;
+  const original = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first)!;
   assert.ok(first.url.startsWith("/projects/current/artifacts/"));
   assert.deepEqual(observed, [input]);
   assert.equal((original.metadata as Record<string, unknown>).source_url, document.source_url);
@@ -244,8 +244,8 @@ test("external document snapshots preserve exact old versions and isolate the sa
   document = { ...document, source_url: "https://www.notion.so/renamed-page-a1b2c3-source?share=copy" };
   const alias = await importArtifactDocument({ ...input, url: document.source_url }, ports);
   assert.deepEqual(alias, { ...first, reused: true }, "a different URL for the same source and content must reuse the saved snapshot");
-  assert.equal(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 1);
-  assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first), original, "alias imports must preserve the original version and provenance");
+  assert.equal(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 1);
+  assert.deepEqual(library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first), original, "alias imports must preserve the original version and provenance");
   const originalPath = `/artifacts/${encodeURIComponent(first.artifact_id)}/versions/${first.version}`;
   assert.match(await (await get(originalPath)).text(), /href="https:\/\/www\.notion\.so\/a1b2c3-source"[^>]*>打开来源文档<\/a>/);
   document = { ...document, content: "第二次读取的正文", title: "来源文档更新" };
@@ -253,8 +253,8 @@ test("external document snapshots preserve exact old versions and isolate the sa
   assert.equal(second.artifact_id, first.artifact_id);
   assert.equal(second.version, 2);
   assert.equal(second.reused, false);
-  assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first), original);
-  const latest = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, second)!;
+  assert.deepEqual(library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first), original);
+  const latest = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, second)!;
   assert.equal((latest.payload as Record<string, unknown>).content, "第二次读取的正文");
   assert.equal(latest.supersedes_version, 1);
 
@@ -262,12 +262,12 @@ test("external document snapshots preserve exact old versions and isolate the sa
   assert.notEqual(other.artifact_id, first.artifact_id);
   assert.equal(other.version, 1);
   assert.ok(other.url.startsWith("/projects/other/artifacts/"));
-  assert.equal(coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, other), null);
-  assert.equal(coordinator.artifacts.query.getArtifactVersion("other-project", first), null);
-  const beforeFailure = coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
+  assert.equal(library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, other), null);
+  assert.equal(library.artifacts.query.getArtifactVersion("other-project", first), null);
+  const beforeFailure = library.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
   const permissionDenied = new Error("fixture provider denied permission");
   await assert.rejects(importArtifactDocument(input, { ...ports, readExternal: async () => { throw permissionDenied; } }), error => error === permissionDenied);
-  assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID), beforeFailure);
+  assert.deepEqual(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID), beforeFailure);
 
   // Stored metadata may come from an older producer; both display surfaces must
   // treat it as data even when the current external adapters validate their URLs.
@@ -287,19 +287,19 @@ test("external document snapshots preserve exact old versions and isolate the sa
 });
 
 test("different local files with the same filename never overwrite the earlier snapshot", async t => {
-  const { coordinator, post, get } = await fixture(t);
+  const { library, post, get } = await fixture(t);
   const filename = "同名导出.md";
   const firstResponse = await post({ source: "file", filename, content: "第一个文件正文" });
   assert.equal(firstResponse.status, 201);
   const first = await firstResponse.json() as { artifact_id: string; version: number; url: string };
-  const original = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first);
+  const original = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first);
   const secondResponse = await post({ source: "file", filename, content: "第二个文件正文" });
   assert.equal(secondResponse.status, 201);
   const second = await secondResponse.json() as { artifact_id: string; version: number; url: string };
   assert.notEqual(first.artifact_id, second.artifact_id);
   assert.equal(first.version, 1);
   assert.equal(second.version, 1);
-  assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first), original);
+  assert.deepEqual(library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first), original);
   const firstHtml = await (await get(first.url)).text();
   assert.match(firstHtml, /第一个文件正文/);
   assert.doesNotMatch(firstHtml, /第二个文件正文/);
@@ -382,12 +382,12 @@ test("catalog project HTTP imports keep independent snapshots and all read paths
 
 test("any file imports as a 成果 with its original bytes and real media type; a text version continues in Pages", async t => {
   // specs/artifact-positioning A3: one import entry for any file; Pages starts documents from a version, not its own import.
-  const { coordinator, post, get, origin, headers } = await fixture(t);
+  const { library, post, get, origin, headers } = await fixture(t);
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
   const imageResponse = await post({ source: "file", filename: "封面.png", original_file: { filename: "封面.png", mime: "image/png", data_base64: png.toString("base64") } });
   assert.equal(imageResponse.status, 201);
   const image = await imageResponse.json() as { artifact_id: string; version: number };
-  const record = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, image)!;
+  const record = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, image)!;
   assert.equal(record.media_type, "image/png");
   assert.equal(record.title, "封面");
   assert.deepEqual(record.origin, { kind: "imported", file_name: "封面.png" });
@@ -436,13 +436,13 @@ function pdfWith(lines: string[]): Buffer {
 }
 
 test("PMAT-14 a PDF or Word file keeps its original, and the text read out of it is what readers of the 成果 get", async t => {
-  const { coordinator, post } = await fixture(t);
+  const { library, post } = await fixture(t);
   const original = (filename: string, mime: string, bytes: Uint8Array) => ({ source: "file", filename, original_file: { filename, mime, data_base64: Buffer.from(bytes).toString("base64") } });
   const saved = async (body: unknown) => {
     const response = await post(body);
     assert.equal(response.status, 201, await response.clone().text());
     const result = await response.json() as { artifact_id: string; version: number; warnings: string[] };
-    return { result, record: coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)! };
+    return { result, record: library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)! };
   };
 
   const pdf = pdfWith(["Quarterly review notes", "The beta pass code is MW-0042."]);
@@ -472,12 +472,12 @@ test("PMAT-14 a PDF or Word file keeps its original, and the text read out of it
 });
 
 test("PMAT-47 Office, OpenDocument, EPUB and RTF files are read as Markdown; an image is recognized, or the import says why not", async t => {
-  const { coordinator, post } = await fixture(t);
+  const { library, post } = await fixture(t);
   const imported = async (filename: string, mime: string, bytes: Uint8Array) => {
     const response = await post({ source: "file", filename, original_file: { filename, mime, data_base64: Buffer.from(bytes).toString("base64") } });
     assert.equal(response.status, 201, await response.clone().text());
     const result = await response.json() as { artifact_id: string; version: number; warnings: string[] };
-    return { warnings: result.warnings, content: (coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)!.payload as { content: string }).content };
+    return { warnings: result.warnings, content: (library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)!.payload as { content: string }).content };
   };
   const sheet = await imported("价目.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", xlsx([["型号", "价格"], ["TP-2", "1299"]]));
   assert.match(sheet.content, /\| 型号 \| 价格 \|\n\| --- \| --- \|\n\| TP-2 \| 1299 \|/u, "a sheet is a Markdown table");
@@ -497,13 +497,13 @@ test("PMAT-47 Office, OpenDocument, EPUB and RTF files are read as Markdown; an 
 // Onboarding limits (user 2026-10-22, ONB-LIM-01): an original over the inline 6 MB is sent as the raw body, offered to the 成果库 by
 // the Host, kept in its store by digest, and handed back whole; without an offered file an import without bytes is refused.
 test("ONB-LIM-01 an original over 6 MB is kept in the 成果库's store by digest and downloads whole", async t => {
-  const { coordinator, post, origin, directory, headers } = await fixture(t);
+  const { library, post, origin, directory, headers } = await fixture(t);
   const bytes = Buffer.alloc(7_000_001, 7); bytes.write("%PDF-1.4 not really", 0);
   const raw = { ...headers(), "content-type": "application/octet-stream", "x-molis-work-filename": encodeURIComponent("大文件.bin") };
   const response = await fetch(origin + "/api/artifacts/import/original", { method: "POST", headers: raw, body: bytes });
   assert.equal(response.status, 201, await response.clone().text());
   const imported = await response.json() as { artifact_id: string; version: number; reused: boolean };
-  const artifact = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, imported);
+  const artifact = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, imported);
   const original = (artifact!.payload as { original_file: Record<string, unknown> }).original_file;
   assert.equal(original.data_base64, undefined, "the bytes are not in the version's record");
   assert.equal(original.size_bytes, bytes.length);
@@ -516,7 +516,7 @@ test("ONB-LIM-01 an original over 6 MB is kept in the 成果库's store by diges
   const again = await fetch(origin + "/api/artifacts/import/original", { method: "POST", headers: { ...raw, "x-molis-work-idempotency-key": randomUUID() }, body: bytes });
   assert.equal(((await again.json()) as { reused: boolean }).reused, true);
   const small = await fetch(origin + "/api/artifacts/import/original", { method: "POST", headers: { ...headers(), "content-type": "application/octet-stream", "x-molis-work-filename": "small.bin" }, body: Buffer.from("tiny") });
-  const smallVersion = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, await small.json() as { artifact_id: string; version: number });
+  const smallVersion = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, await small.json() as { artifact_id: string; version: number });
   assert.equal((smallVersion!.payload as { original_file: { data_base64: string } }).original_file.data_base64, Buffer.from("tiny").toString("base64"));
   // No file offered: an original without its bytes is refused, whoever asks.
   const refused = await post({ source: "file", filename: "x.bin", original_file: { filename: "x.bin", mime: "application/octet-stream" } });
@@ -543,11 +543,11 @@ test("S-55 an import reads no file the request names: a path header, a body fiel
 // A file too big to hold in memory (review 2026-10-22): the original is still kept whole in the store and the import says its text was
 // not read, instead of failing on Node's 2 GiB read limit.
 test("ONB-LIM-08 an original over 2 GB is kept whole without its text, and the import says so instead of failing", async t => {
-  const { coordinator } = await fixture(t);
+  const { library } = await fixture(t);
   const stored = { sha256: "a".repeat(64), size_bytes: 3_000_000_000 };
   let readText = 0;
   const ports: ArtifactDocumentImportPorts = {
-    projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: "/projects/current", artifacts: coordinator.artifacts,
+    projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: "/projects/current", artifacts: library.artifacts,
     readExternal: async () => { throw new Error("a file import reads no external document"); },
     readHtml: () => { throw new Error("a file import of a video reads no HTML"); },
     readFileText: async () => { readText++; return { text: "never", warnings: [] }; },
@@ -557,6 +557,6 @@ test("ONB-LIM-08 an original over 2 GB is kept whole without its text, and the i
   const result = await importArtifactDocument({ source: "file", filename: "录像.mov", original_file: { filename: "录像.mov", mime: "video/quicktime" } }, ports);
   assert.equal(readText, 0, "no text is read from bytes the Host could not hold");
   assert.deepEqual(result.warnings, ["文件超过 2 GB，没有读取正文；原件完整保存。"]);
-  const original = (coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)!.payload as { original_file: Record<string, unknown> }).original_file;
+  const original = (library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)!.payload as { original_file: Record<string, unknown> }).original_file;
   assert.deepEqual([original.sha256, original.size_bytes], [stored.sha256, stored.size_bytes]);
 });

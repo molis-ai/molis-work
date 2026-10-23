@@ -41,7 +41,8 @@ export const lingguangManifest: PluginManifest = {
     contributions: [LINGGUANG_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "workbench", slot: "stage", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10 },
-      { view_id: "island", slot: "island", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10 },
+      { view_id: "island", slot: "island", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10, group: "personal",
+        start: { title: "记下一点灵感", hint: "还没想清楚，也可以先留下。" } },
       { view_id: "side", slot: "side", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10 },
     ],
   },

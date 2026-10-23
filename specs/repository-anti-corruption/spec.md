@@ -737,6 +737,30 @@ W5-01-GIT Git 离开 HYBRID 名单（G5，2026-10-23，③；分支 `migrate/git
   - 合并 origin/main `4591a1484` 之后：14 个文件全部通过，含动作快照 25/25、S-18 17/17，以及 main 新加的 `coding-work-executor`、`plugin-ui-invalidate`。
 - 门禁：动作快照、`boundary:check`、§5.1 包清单（71 个包）、页面资源与 health 门禁都对 merge-base `4591a148` 通过；`secrets:check` 扫了 1830 行，没有发现。RAC-74 的浏览器用例交给集成批次。
 
+### W5-06 第 2b 片：视图声明分组、新建、首页起点与设置图标（PG-060，2026-10-23，②；分支 `feat/w5-06-manifest-placement`）
+
+状态：已实现，待评审与集成批次（改了 contracts 与插件 SDK，算共享核心；本机只跑 dev 构建与两份快照，相关用例交给批次，见开发优先阶段的规则）。叠在第 2 片（#1087）上。
+
+- **合同**（`packages/contracts/src/platform/ui.ts`，都可选）：`UiViewDeclaration` 加三项。
+  - `group`：插件切换列表里的分组，取 `UI_VIEW_GROUPS`（`advance`、`make`、`personal`、`research`、`code`）之一。组名（推进、写与做、个人、研究、编码）和顺序归宿主；骨干（Goals、Inbox、Feed、Sessions）照旧由宿主排在第一组的标题下。
+  - `creates`：`{ station, title }`，目标材料里的新建入口。`station` 是本 Manifest 里一个能新建的工作流内容站；新建的默认标题是「未命名」加 `title`。
+  - `start`：`{ title, hint, icon? }`，项目首页当天没有事件时的一个起点，点了打开这个插件。
+  - 设置页图标用已有的 `icon`：`settings` 视图的 `icon` 就是设置目录里这一页的图标。
+- **校验**（`packages/plugin-sdk/src/view-placement-declarations.ts`，接在 `parsePluginManifest` 的视图检查之后）：`icon`、`start.icon` 不是图标名；`group`、`creates`、`start` 用在 `navigator`、`island` 以外的槽；不认识的组；`creates` 缺 `station` 或 `title`、不是对象、指向本 Manifest 没有的站或不能新建的站；`start` 缺 `title` 或 `hint`、不是对象。每一种都拒绝，提示写明视图与字段。
+- **工作台**：
+  - 外壳的分组表删掉，按视图的 `group` 分组，宿主只留 `RAIL_GROUP_LABELS`（组名）；没写分组的插件在「更多」。灵光（`island`，`group: "personal"`）照旧排在「个人」第一个。
+  - 设置图标表删掉，按 `settings` 视图的 `icon` 取，宿主不认识的名字和没写的都用 `settings`；按地址直接打开的设置页同样取到。原来表里 Pages、Form、Dataset、PPT 四行没有对应的设置页，一起删。
+  - 新增 `creatableKinds(enabled)`、`homeStarts(enabled)`（`apps/workbench/src/plugin-catalog.ts`）：只列本项目显示的插件，按插件切换列表的顺序。页面还没改读它们：`goal-inputs-html.ts` 的新建表、`scripts/client/placement.ts` 的默认标题表、`scripts/client/project-home.ts` 的起点表由 ③ 接上后删（BL-387）。新建入口的顺序会从手写的 Pages、PPT、Form、Dataset 变成声明顺序 Pages、Form、Dataset、PPT。
+  - 内置插件的声明照原来的表写：Schedule、Workflows 是 `advance`；Pages、Form、Dataset、PPT、Images、成果库是 `make`；灵光、Todo、Jelly、Cognia 是 `personal`；Alchemist 是 `research`；Coding 是 `code`。Pages、Form、Dataset、PPT 声明 `creates`；Goals、Pages、灵光声明 `start`；Shelf、Coding 的设置视图声明 `icon`。
+- **顺带**（#1087 评审建议）：声明舞台里不起作用的 Text Stats 分支删掉（它的贡献没有 `workbench` surface），外壳不再传 `developerMode`；`tests/declared-stages.test.ts` 的点名清单补上 Alchemist，并钉住 Feed、Inbox 的舞台用的是页面视图的数据；`docs/system/RUNTIME-MIGRATION.md` 第 5.1 节不再点名已删的函数。第 5 条（隐藏创作台的项目里直接打开预览地址，落到不存在的舞台上）不归这一片，记 BL-369。
+- **对插件作者**：三项都可选。不写 `group` 的插件在「更多」；设置视图不写 `icon` 的用 `settings`；不写 `creates`、`start` 的插件不出现在新建入口和首页起点里。已有 Manifest 不用改；写了的照上面的规则校验。
+
+#### 验收（RAC-75～78）
+- **RAC-75**（W5-06-PLACE-01）：每一种写错的分组、新建、起点与图标声明都被 `parsePluginManifest` 拒绝，提示逐字一致；三项都写对、都不写、写在 `island` 上的都通过；全部内置 Manifest 通过。`tests/view-placement-declarations.test.ts`。
+- **RAC-76**（W5-06-PLACE-02）：插件切换列表的组标题依次是推进、写与做、个人、研究、编码、更多；每个插件都在它的视图所写分组的标题下，没写的在「更多」（如 Files）；各组成员与删掉的表一致，灵光排在「个人」第一个。`tests/view-placement-declarations.test.ts`、`tests/characters-appearance.test.ts`。
+- **RAC-77**（W5-06-PLACE-03）：设置目录里 Shelf、Goals、Coding 的图标是各自设置视图的 `icon`（library、workflow、code）；按地址打开、项目没显示的插件的设置页也取到；视图没写宿主认识的图标的页用 `settings`。`tests/view-placement-declarations.test.ts`。
+- **RAC-78**（W5-06-PLACE-04）：`creatableKinds` 按切换列表顺序给 Pages、Form、Dataset、PPT 的站与名称（文档、问卷、数据表、演示稿），`homeStarts` 给 Goals、Pages、灵光的起点（标题、提示、图标与 ③ 的手写表一致）；两者都只列本项目显示的插件。`tests/view-placement-declarations.test.ts`。
+
 ## 0. 现场与范围
 
 - **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。

@@ -287,7 +287,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode })}</section>
             ${settingsSurfaces}
             ${(view.plugin_stages ?? []).map(defer).join("")}
-            ${renderDeclaredStages({ enabled: enabledPlugins, developerMode: Boolean(view.developer_mode), rendered: view.plugin_stage_ids ?? [],
+            ${renderDeclaredStages({ enabled: enabledPlugins, rendered: view.plugin_stage_ids ?? [],
               model: pluginId => stageModel(pluginId, view) ?? { primitives: { escape: escapeHtml, text: L } } }).map(defer).join("")}
           </div>
         </div>

@@ -173,7 +173,7 @@ Characters 并进宿主（第 5.4 节）是第 4 波的另一片，不在这条�
 这个 PR 做什么：
 
 1. 删：`apps/local-host/src/form-actions.ts`、`form-native-plugin-http.ts`；`index.ts` 里 `handleFormNativePluginHttp` 的导出；`project-host.ts` 里 `formActionProvider` 的 import 和 `registerProvider` 一行；`web-request.ts`、`web-catalog.ts` 里 `handleFormNativePluginHttp` 的 import 和调用段；`FORM_ACTION_PERMISSIONS` 的两处 import（权限由 Manifest 推出）。
-2. 改：`apps/workbench/src/ui-composition.ts`、`renderer.ts`、`shell-page-renderer.ts` 里 Form 的挂载（`FORM_SURFACE_SLOTS`、`renderFormContribution`、`renderFormNativePluginSurface`）改为 Runtime 视图；`creative-artifacts.ts` 里 Form 的成果发布与读取端口（`registerFormArtifactVersion`、`readFormArtifactVersion`）换成 `services.artifacts`（2026-10-15 定：换成；宿主的 `artifactLineHead` 由 `services.artifacts.head` 取代，W4-04 第一片补上）。
+2. 改：工作台里 Form 的挂载改为 Runtime 视图，宿主为 Form 单写的挂载表与绘制函数删掉（已做：舞台现在由 Manifest 里打开它的视图决定，`apps/workbench/src/declared-stages.ts`，W5-06）；宿主替 Form 发布与读回成果的端口换成 `services.artifacts`（2026-10-15 定：换成；宿主的 `artifactLineHead` 由 `services.artifacts.head` 取代，W4-04 第一片补上；已做，宿主里那份文件已删）。
 3. 加：包里 `plugin.ts`（`createFormPlugin`，`start()` 兑现 Manifest 的每条视图、路由、动作）；`project-plugins.ts` 的监督器条目（`bundled: true`），放在每个项目一个的实例里（2.2 的放置规则）；`tests/builtin-plugin-assembly-gate.test.ts` 里从 `BUILD_TIME_ASSEMBLED` 和 `NATIVE_PLUGIN_HTTP_FILES` 移到 `RUNTIME_ASSEMBLED`。
 4. 保持：`plugin_id`、`{home}/form/form.db` 的位置与结构、界面外观、动作 id 与版本。不碰真实 Home 的数据。
 5. 授权规则与提供方身份已定（用户 2026-10-10，4.2，W3-06 B、C）：Form 的条目标 `bundled: true`，所以 `model:invoke` 虽是可选权限，在全新安装时默认打开（用户 2026-10-18 起与其他插件同一规则：可以关，关了只是 Form 的 AI 动作不可用；设置里的开关是下一片），Form 的 AI 动作不会因迁移不可用；动作登记在 `plugin_id` 之下。开工前仍要定下的只有「项目已删」步骤的送达方式（Form 的表带 `project_id`）。

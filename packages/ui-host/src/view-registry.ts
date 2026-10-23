@@ -1,7 +1,10 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   UiCommandDeclaration,
+  UiViewCreateEntry,
+  UiViewGroup,
   UiViewSlot,
+  UiViewStartEntry,
   UiWorkspaceCommand,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
@@ -20,6 +23,10 @@ export interface UiPlacedView {
   accepts_objects: boolean;
   context_binding?: "focused-object";
   order: number;
+  /** The rail group a navigator or island view is listed in; null is 更多. */
+  group: UiViewGroup | null;
+  creates?: UiViewCreateEntry;
+  start?: UiViewStartEntry;
 }
 
 export interface UiViewRegistryInput {
@@ -64,6 +71,9 @@ export class UiViewRegistry {
           accepts_objects: view.accepts_objects === true,
           ...(view.context_binding ? { context_binding: view.context_binding } : {}),
           order: view.order ?? 100,
+          group: view.group ?? null,
+          ...(view.creates ? { creates: { ...view.creates } } : {}),
+          ...(view.start ? { start: { ...view.start } } : {}),
         });
       }
       for (const declaration of manifest.ui.commands ?? []) {

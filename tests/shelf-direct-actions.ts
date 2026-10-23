@@ -2,7 +2,7 @@ import { chmodSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync
 import { randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
-import { requireSynchronous, type ActionDefinition, type ActionProviderRegistration, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type ActionDefinition, type ActionProviderRegistration, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginOwnerFilesClient, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ShelfAiPorts, ShelfMaterialPorts } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { openShelfStore, type ShelfRuntimeProbe, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
@@ -12,44 +12,66 @@ import { shelfTestAi } from "./shelf-test-ai.js";
 /**
  * This Home's Shelf files as plain files under the folder Shelf declares, for tests that drive the store itself or read what Shelf's
  * Runtime instance wrote. Shelf's actions use the Runtime's `services.ownerFiles`; what that client and its port refuse is
- * SHF-IO-S03 to S07 (tests/security-invariants-plugin-owner-files*.test.ts), not this.
+ * SHF-IO-S03 to S07 (tests/security-invariants-plugin-owner-files*.test.ts), not this. It keeps two of their rules, so a store change
+ * that breaks them fails here too: a path stays inside the entries Shelf declares, and a writer answers only while its callback runs.
  */
 export function openTestShelfFiles(home: string): PluginOwnerFilesClient {
-  const root = join(resolve(home), SHELF_OWNER_FILES.store_name), at = (relative: string) => join(root, relative);
-  const parent = (relative: string) => mkdirSync(dirname(at(relative)), { recursive: true });
-  const writer = Object.freeze<PluginOwnerFilesWriter>({
-    stat(relative) {
-      if (!existsSync(at(relative))) return null;
-      const stat = statSync(at(relative));
-      return stat.isFile() ? { kind: "file", byte_length: stat.size } : { kind: "directory" };
-    },
-    read: relative => existsSync(at(relative)) ? readFileSync(at(relative)) : null,
-    list: relative => existsSync(at(relative)) ? readdirSync(at(relative), { withFileTypes: true }).map(entry => entry.name).sort()
-      .map(name => ({ name, kind: statSync(join(at(relative), name)).isDirectory() ? "directory" as const : "file" as const })) : [],
-    mkdir: relative => { mkdirSync(at(relative), { recursive: true }); },
-    writeFile(relative, bytes, mode) {
-      if (mode === "create") parent(relative);
-      else statSync(at(relative));
-      writeFileSync(at(relative), bytes, { flag: mode === "create" ? "wx" : "w" });
-    },
-    replaceFileAtomic(relative, bytes) {
-      parent(relative);
-      const temporary = join(dirname(at(relative)), `.owner-file-${randomUUID()}.tmp`);
-      writeFileSync(temporary, bytes, { flag: "wx" });
-      renameSync(temporary, at(relative));
-    },
-    copyFile(source, target) { parent(target); copyFileSync(at(source), at(target), constants.COPYFILE_EXCL); },
-    removeTree: relative => { rmSync(at(relative), { recursive: true, force: true }); },
-    setAccess(relative, access) {
-      const directory = statSync(at(relative)).isDirectory();
-      chmodSync(at(relative), directory ? access === "readonly" ? 0o555 : 0o755 : access === "readonly" ? 0o444 : 0o644);
-    },
-  });
+  const root = join(resolve(home), SHELF_OWNER_FILES.store_name), entries = new Map(SHELF_OWNER_FILES.entries.map(entry => [entry.name, entry.kind]));
+  const files = (open: () => boolean) => {
+    const at = (relative: string, kind?: "file" | "directory") => {
+      if (!open()) throw new ActionError("actions.expired", "文件写入作用域已结束");
+      const parts = relative.split("/"), top = entries.get(parts[0]!);
+      if (/[\\\u0000]/u.test(relative) || parts.some(part => !part || part === "." || part === "..") || !top
+        || (top === "file" && parts.length > 1) || (parts.length === 1 && kind && top !== kind)) throw new Error(`不在 Shelf 的文件声明内：${relative}`);
+      return join(root, relative);
+    };
+    const parent = (file: string) => mkdirSync(dirname(file), { recursive: true });
+    return Object.freeze<PluginOwnerFilesWriter>({
+      stat(relative) {
+        const file = at(relative);
+        if (!existsSync(file)) return null;
+        const stat = statSync(file);
+        return stat.isFile() ? { kind: "file", byte_length: stat.size } : { kind: "directory" };
+      },
+      read(relative) { const file = at(relative, "file"); return existsSync(file) ? readFileSync(file) : null; },
+      list(relative) {
+        const directory = at(relative, "directory");
+        return existsSync(directory) ? readdirSync(directory).sort()
+          .map(name => ({ name, kind: statSync(join(directory, name)).isDirectory() ? "directory" as const : "file" as const })) : [];
+      },
+      mkdir(relative) { mkdirSync(at(relative, "directory"), { recursive: true }); },
+      writeFile(relative, bytes, mode) {
+        const file = at(relative, "file");
+        if (mode === "create") parent(file);
+        else statSync(file);
+        writeFileSync(file, bytes, { flag: mode === "create" ? "wx" : "w" });
+      },
+      replaceFileAtomic(relative, bytes) {
+        const file = at(relative, "file"), temporary = join(dirname(file), `.owner-file-${randomUUID()}.tmp`);
+        parent(file);
+        writeFileSync(temporary, bytes, { flag: "wx" });
+        renameSync(temporary, file);
+      },
+      copyFile(source, target) { const from = at(source, "file"), to = at(target, "file"); parent(to); copyFileSync(from, to, constants.COPYFILE_EXCL); },
+      removeTree(relative) {
+        const file = at(relative);
+        if (entries.get(relative) === "directory") throw new Error(`不能删除声明的顶层目录：${relative}`);
+        rmSync(file, { recursive: true, force: true });
+      },
+      setAccess(relative, access) {
+        const file = at(relative), directory = statSync(file).isDirectory();
+        chmodSync(file, directory ? access === "readonly" ? 0o555 : 0o755 : access === "readonly" ? 0o444 : 0o644);
+      },
+    });
+  };
+  const reader = files(() => true);
   return Object.freeze<PluginOwnerFilesClient>({
-    rootPath: () => root, stat: writer.stat, read: writer.read, list: writer.list,
-    // The body runs before the first await, as the Runtime client's does.
+    rootPath: () => root, stat: reader.stat, read: reader.read, list: reader.list,
+    // The body runs before the first await, as the Runtime client's does, and its writer ends with it.
     async write<Result>(run: (files: PluginOwnerFilesWriter) => Result): Promise<Result> {
-      return requireSynchronous(run(writer), "文件写入回调必须同步完成");
+      let open = true;
+      try { return requireSynchronous(run(files(() => open)), "文件写入回调必须同步完成"); }
+      finally { open = false; }
     },
   });
 }

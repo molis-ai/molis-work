@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-Local Host 提供页面模型和操作端口；Workbench renderer 组合公共样式、导航与 Plugin UI，浏览器脚本处理选择、滚动恢复、刷新和请求。Goal 终端（xterm 画面、面板的开关与重开、连接与自动补全）在 `src/terminal/`，由子路径 `@molis-ai/molis-work-app-workbench/terminal` 交给 `pty-client` 资产打包。
+Local Host 提供页面模型和操作端口；Workbench renderer 组合公共样式、导航与 Plugin UI，浏览器脚本处理选择、滚动恢复、刷新和请求。Goal 终端（xterm 画面、面板的开关与重开、连接与自动补全）在 `src/terminal/`；`src/terminal-client.ts` 相对导入 `src/terminal/client.ts`，由 `pnpm build:pty-client` 打包。子路径 `@molis-ai/molis-work-app-workbench/terminal` 为测试提供公开入口。
 
 ## 从哪里读代码
 

@@ -158,12 +158,15 @@ test("pick route reports the window result and does not open one without a proje
     assert.deepEqual(calls.at(-1), { status: expectedStatus, body: { error: failure.message, code: failure.code } });
   }
   // A folder id that is not valid percent-encoding is the caller's mistake: refused as invalid before any action runs.
-  let decoded = 0;
-  await assert.rejects(handleProjectWorkspaceHttp({ ...base, method: "POST", pathname: "/api/workspaces/%E0%A4%A/unlink",
-    readBody: async () => ({ user_confirmed: true }),
-    actions: { discover: async () => [], invoke: async () => { decoded++; return {}; } },
-  }), { code: "host.request_path_invalid", kind: "invalid" });
-  assert.equal(decoded, 0);
+  for (const [method, suffix] of [["POST", "unlink"], ["PATCH", "path"]]) {
+    let invoked = 0;
+    assert.equal(await handleProjectWorkspaceHttp({ ...base, method, pathname: `/api/workspaces/%E0%A4%A/${suffix}`,
+      readBody: async () => ({ user_confirmed: true, workspace_path: "/tmp/next" }),
+      actions: { discover: async () => [], invoke: async () => { invoked++; return {}; } },
+    }), true, "the route answers malformed paths instead of throwing into the Host error logger");
+    assert.deepEqual(calls.at(-1), { status: 400, body: { error: "请求路径里有无效的编码", code: "host.request_path_invalid" } });
+    assert.equal(invoked, 0);
+  }
   // Starting a Session in a folder stays with Work: the Host's folder routes leave that address alone.
   assert.equal(await handleProjectWorkspaceHttp({ ...base, pathname: "/api/workspaces/current/sessions" }), false);
 });

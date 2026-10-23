@@ -1267,11 +1267,10 @@
     "tests/workspace-plugin-graph.test.ts": 2,
     "tests/writer-integration-host.test.ts": 1
   },
-  "consoleCallsTotal": 28,
+  "consoleCallsTotal": 21,
   "consoleCalls": {
     "apps/local-host/src/assistant/assistant-http.ts": 2,
     "apps/local-host/tooling/pack-npm.mjs": 1,
-    "apps/server/src/main.ts": 7,
     "examples/seed-demo.mts": 3,
     "server/public/preview.mjs": 1,
     "tests/cli-protocol.test.ts": 1,

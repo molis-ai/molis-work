@@ -12,6 +12,8 @@ Migration: `goal-reorg-f2`
 
 本地显式恢复生成独立的目标项目标识，`continuity/<source-project-id>.json` 保存来源映射与目标摘要。原成果 ID/version/content digest/producer 由原 Artifacts owner 校验，缺插件或来源凭据保留提示。目标历史与完成验收不被伪造为已迁移。
 
+命令结果与启动指引写 stdout，JSON 保留两格缩进。SIGINT/SIGTERM 依次关闭 HTTP 服务与库，重复信号不重复关闭；失败仍尝试其余清理，以 1 退出，并通过现有 Host 日志在 stderr 记录 `server / shutdown_failed` 和固定阶段名，只记错误名与码，不记消息、栈或路径；全部关闭成功以 0 退出。
+
 ## 开发要求
 
 - 负责：无桌面窗口的独立服务启动器、原 Host 动作桥与本地成果恢复适配。
@@ -23,5 +25,5 @@ Migration: `goal-reorg-f2`
   - 对 `@molis-ai/molis-work-app-desktop` 的依赖只用于 `withMolisWorkProjectCatalog` 适配，不启动窗口或原生桥。
   - `server` 核心不依赖本包或 desktop，保持 local-host → core 的嵌入不成环。
   - 成果的 ID、版本、内容摘要与生产者由 Artifacts owner 校验，缺插件或来源凭据时保留提示。
-- 改动后必跑：`node scripts/run-tests.mjs tests/cross-device-continuity.test.ts tests/cross-device-gateway.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/cross-device-continuity.test.ts tests/cross-device-gateway.test.ts tests/server-cli.test.ts`
 - 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

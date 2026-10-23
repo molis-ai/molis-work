@@ -1,6 +1,7 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "./index.js";
 import { CODING_MESSAGES } from "./messages.js";
+import { codingBoardSpecimens } from "./board-specimens.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -18,5 +19,6 @@ export const registration: PluginRegistration = {
     contributions: [codingSettingsContribution],
     clientFactory: CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT,
     clientUses: ["git", "files"],
+    specimens: codingBoardSpecimens,
   },
 };

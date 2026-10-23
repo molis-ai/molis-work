@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
+import { openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
+import { TODO_ACTION_PERMISSIONS, openTodoStore, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
@@ -298,5 +300,97 @@ test("VUX-31: the side panel's file list does not add a late page to the list th
     assert.equal(await newRows(), before, "the late page does not take back the list that was read again");
     assert.ok(before > 0);
     assert.equal(hold.seen.filter((line) => line.includes("cursor=")).length, 1, "the page after the first was read once: " + JSON.stringify(hold.seen));
+  } finally { await hold.close(); }
+});
+
+const civilToday = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`; };
+
+test("VUX-31: Jelly keeps what a command returned when the re-read after the Assistant's change answers late", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
+  const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "jelly");
+  const today = civilToday();
+  const store = openJellyStore(browser.homeDirectory);
+  try { for (const [id, title] of [["late-a", "写周报"], ["late-b", "订会议室"]]) store.execute({ type: "item.create", item: { id, title, kind: "task", start_date: today, end_date: today } }, store.read().revision); } finally { store.close(); }
+  await wide(browser); await openPlugin(browser, "jelly");
+  await waitFor("!!document.querySelector('[data-jelly-content] [data-jelly-day]')", 20_000);
+  await evaluate("document.querySelector('[data-jelly-mode=list]').click()");
+  await waitFor("document.querySelectorAll('[data-jelly-toggle-item]').length === 2", 10_000);
+  const done = () => evaluate<string[]>("[...document.querySelectorAll('[data-jelly-occurrence].is-done .jelly-item-title')].map((node) => node.textContent)");
+  // The Host answers the page's read of the workspace at once; the answer is held on its way to the page.
+  const hold = await holdReads(browser, ["*io.molis.work.jelly/"], "Response");
+  try {
+    await browser.evaluate("window.dispatchEvent(new CustomEvent('molis:assistant-effect', { detail: { work_id: 'w-1', capability_id: 'jelly.item.create' } }))");
+    const stale = await hold.next("io.molis.work.jelly/");
+    // The person ticks an item meanwhile: the command's answer is the newer workspace.
+    await evaluate("document.querySelector('[data-jelly-toggle-item=late-a]').click()");
+    await waitFor("document.querySelectorAll('[data-jelly-occurrence].is-done').length === 1", 10_000);
+    assert.deepEqual(await done(), ["写周报"]);
+    await hold.release(stale); await pause(800);
+    assert.deepEqual(await done(), ["写周报"], "the earlier read's late answer does not take the tick back");
+    assert.equal(hold.seen.length, 1, "the late answer started nothing more: " + JSON.stringify(hold.seen));
+    // The next command is accepted (it carries the newer revision), not turned away as a conflict.
+    await evaluate("document.querySelector('[data-jelly-toggle-item=late-b]').click()");
+    await waitFor("document.querySelectorAll('[data-jelly-occurrence].is-done').length === 2 || !document.querySelector('[data-jelly-notice]').hidden", 10_000);
+    assert.equal(await evaluate("document.querySelector('[data-jelly-notice]').hidden ? '' : document.querySelector('[data-jelly-notice]').textContent"), "", "no conflict notice");
+    assert.deepEqual((await done()).sort(), ["写周报", "订会议室"]);
+  } finally { await hold.close(); }
+});
+
+/** Todo with an organize result of three candidates waiting in 整理结果, opened on that view. */
+async function openTodoReview(t: Parameters<typeof openGoalBrowser>[0]) {
+  const answer = JSON.stringify({ candidates: [
+    { ref: "c1", kind: "request", title: "发送新版方案", why: "张总要求周五前收到", owner: { who: "你", stated: true }, due: { date: null, time: null, phrase: null }, evidence: [{ material: 1, excerpt: "请周五前发新版方案" }] },
+    { ref: "c2", kind: "waiting", title: "等待小李确认预算", why: "预算要小李确认", owner: { who: "小李", stated: true }, due: { date: null, phrase: null }, waiting: { who: "小李", what: "确认预算" }, evidence: [{ material: 1, excerpt: "预算等小李确认" }] },
+    { ref: "c3", kind: "suggestion", title: "今天催小李确认预算", why: "预算确认影响周五交付", owner: { who: "你", stated: false }, due: { date: null, phrase: null }, evidence: [{ material: 1, excerpt: "预算等小李确认" }] },
+  ], reference_only: [] });
+  const browser = await openGoalBrowser(t, true, undefined, async () => answer); if (!browser) return null;
+  const frame = await pluginFrameBrowser(t, browser, "todo");
+  await browser.localHost.homeActionClient().invoke({ actor_id: "assistant", project_id: null, audience: "agent", permissions: [...TODO_ACTION_PERMISSIONS] }, todoOrganizeActions.extract,
+    { title: "整理：张总的邮件", materials: [{ title: "张总：新版方案", text: "小王你好，请周五前发新版方案，预算等小李确认。" }] });
+  await wide(browser); await openPlugin(browser, "todo");
+  await frame.waitFor("!document.querySelector('[data-todo-view=review]').hidden", 20_000);
+  await frame.evaluate("document.querySelector('[data-todo-view=review]').click()");
+  await frame.waitFor("document.querySelectorAll('[data-todo-candidate]').length === 3", 10_000);
+  return { browser, ...frame };
+}
+
+test("VUX-31: Todo's organize results keep the decision made when an earlier read of them answers late", { timeout: 120_000 }, async (t) => {
+  const page = await openTodoReview(t); if (!page) return;
+  const { browser, evaluate, waitFor } = page;
+  const pending = () => evaluate<number>("document.querySelectorAll('[data-todo-candidate-ignore]').length");
+  const hold = await holdReads(browser, ["*io.molis.work.todo/organize"], "Response");
+  try {
+    // A read of the results begins (the page was shown again); its answer is the results before any decision.
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    const stale = await hold.next("io.molis.work.todo/organize");
+    await evaluate("document.querySelector('[data-todo-candidate-ignore]').click()");
+    // Ignoring reads the results again, and that answer is the one that shows the decision.
+    const [, fresh] = await hold.every("io.molis.work.todo/organize", 2);
+    await hold.release(fresh!);
+    await waitFor("document.querySelectorAll('[data-todo-candidate-ignore]').length === 2", 10_000);
+    await hold.release(stale); await pause(800);
+    assert.equal(await pending(), 2, "the earlier read's late answer does not bring the ignored candidate back");
+    assert.equal(hold.seen.length, 2, JSON.stringify(hold.seen));
+  } finally { await hold.close(); }
+});
+
+test("VUX-31: Todo's reminders keep the one just acknowledged when an earlier read answers late", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { evaluate, waitFor } = await pluginFrameBrowser(t, browser, "todo");
+  const everything = { projectId: browser.projectId, everything: true, actor: "user" as const, actorId: "test" };
+  const store = openTodoStore(browser.homeDirectory);
+  try { for (const title of ["交报销单", "给妈妈打电话"]) store.create({ title, remind_at: new Date(Date.now() - 5 * 60_000).toISOString() }, everything); } finally { store.close(); }
+  await wide(browser); await openPlugin(browser, "todo");
+  await waitFor("document.querySelectorAll('[data-todo-reminder]').length === 2", 20_000);
+  const hold = await holdReads(browser, ["*io.molis.work.todo/reminders"], "Response");
+  try {
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    const stale = await hold.next("io.molis.work.todo/reminders");
+    await evaluate("document.querySelector('[data-todo-reminder-ack]').click()");
+    const [, fresh] = await hold.every("io.molis.work.todo/reminders", 2);
+    await hold.release(fresh!);
+    await waitFor("document.querySelectorAll('[data-todo-reminder]').length === 1", 10_000);
+    await hold.release(stale); await pause(800);
+    assert.equal(await evaluate("document.querySelectorAll('[data-todo-reminder]').length"), 1, "the earlier read's late answer does not bring the acknowledged reminder back");
   } finally { await hold.close(); }
 });

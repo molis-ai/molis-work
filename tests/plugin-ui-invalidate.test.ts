@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import test, { type TestContext } from "node:test";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { captureHostLog, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -50,7 +51,7 @@ async function viewRig(t: TestContext, probes: readonly ReturnType<typeof viewPr
   return { call, revision };
 }
 
-const outsideAnyCall = (run: () => void) => new Promise<void>((resolve, reject) => { setTimeout(() => { try { run(); resolve(); } catch (error) { reject(error); } }, 0); });
+const outsideAnyCall = (run: () => void) => new Promise<void>((resolve, reject) => { setTimeout(() => { try { resolve(run()); } catch (error) { reject(error); } }, 0); });
 
 test("PG061-01 PG061-02 a project plugin's own pages read again, from its action or a timer; start is quiet and other plugins' pages stay", { timeout: 60_000 }, async t => {
   const files = viewProbe("viewsone"), other = viewProbe("viewstwo"), { call, revision } = await viewRig(t, [files, other]);
@@ -67,7 +68,7 @@ test("PG061-01 PG061-02 a project plugin's own pages read again, from its action
   assert.equal(await revision(other), untouched, "PG061-02 another plugin's pages are not told to read again");
 });
 
-test("PG061-03 the call is bound to its activation: after a restart the old one is refused and the new one counts", { timeout: 60_000 }, async t => {
+test("PG061-03 the call is bound to its activation: after a restart the old one does nothing and the new one counts", { timeout: 60_000 }, async t => {
   const probe = viewProbe("viewsrestart"), { call, revision } = await viewRig(t, [probe]);
   await revision(probe); // a project plugin starts on its first request
   const old = probe.current();
@@ -75,7 +76,8 @@ test("PG061-03 the call is bound to its activation: after a restart the old one 
   assert.equal(restarted.status, 200, await restarted.clone().text());
   assert.equal(probe.contexts.length, 2);
   const before = await revision(probe);
-  assert.throws(() => old.invalidate(), { code: "ui_host.plugin_denied" });
+  // BL-411: the old activation is refused, and the refusal throws nothing into the timer that made it.
+  assert.equal(await outsideAnyCall(() => old.invalidate()), undefined);
   assert.equal(await revision(probe), before, "the refused call moves nothing");
   probe.current().invalidate();
   assert.notEqual(await revision(probe), before, "the running activation's call counts");
@@ -89,11 +91,13 @@ test("PG061-04 a plugin whose Manifest declares no view is refused", { timeout: 
   assert.equal(await revision(probe), before);
 });
 
-test("PG061-05 PG061-03 a Home instance moves the Home route's revision until it is disabled", { timeout: 60_000 }, async t => {
+test("PG061-05 PG061-03 BL411-04 a Home instance moves the Home route's revision until it is disabled", { timeout: 60_000 }, async t => {
   const probe = homeProbe("homeviews"), view = { contribution_id: `${probe.id}.panel`, plugin_id: probe.id, kind: "embedded" as const, label: "面板", slots: [] };
   probe.definition.manifest = { ...probe.definition.manifest, ui: { contributions: [view.contribution_id], views: [{ view_id: "panel", slot: "island", title: "面板" }] } };
   const start = probe.definition.start;
   probe.definition.start = async context => ({ ...await start(context), views: [{ descriptor: view, render: () => "<p>面板</p>" }] });
+  const entries: HostLogEntry[] = [];
+  t.after(captureHostLog(entries));
   const { host, request } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   await grantHomeProbe(host, probe);
   const route = (operation: string) => `/api/plugins/${probe.id}/${operation}`;
@@ -103,14 +107,17 @@ test("PG061-05 PG061-03 a Home instance moves the Home route's revision until it
   const after = await revision();
   assert.notEqual(after, before, "PG061-05 a Home instance's own pages read again");
   assert.equal((await request(route("disable"), { method: "POST", body: {} })).status, 200);
-  assert.throws(() => running.invalidate(), { code: "ui_host.plugin_denied" }, "PG061-03 a stopped activation is refused");
+  assert.equal(await outsideAnyCall(() => running.invalidate()), undefined, "PG061-03 BL411-04 a stopped activation is refused, and throws nothing into its timer");
   assert.equal((await request(route("enable"), { method: "POST", body: {} })).status, 200);
   assert.equal(await revision(), after, "the refused call moved nothing");
-  // Running again, it is the new activation that counts: the old one stays refused, so the revision can only move if it is not.
+  // Running again, it is the new activation that counts: the old one stays without effect, so the revision can only move if it is not.
   const again = probe.contexts.at(-1)!.services!.ui;
   assert.notEqual(again, running, "enabling starts another activation");
-  assert.throws(() => running.invalidate(), { code: "ui_host.plugin_denied" }, "PG061-03 an activation that stopped stays refused once another runs");
+  assert.equal(await outsideAnyCall(() => running.invalidate()), undefined, "PG061-03 an activation that stopped stays refused once another runs");
   assert.equal(await revision(), after, "and moves nothing");
   again.invalidate();
   assert.notEqual(await revision(), after, "the running activation's call counts");
+  assert.deepEqual(entries.filter(entry => entry.event === "stopped_service_call").map(entry => entry.fields),
+    [{ plugin_id: probe.id, install_id: host.homePlugins!.installation(probe.id)!.install_id, service: "ui", method: "invalidate" }],
+    "BL411-04 the Home logs the stopped instance's first call of the method, once");
 });

@@ -59,6 +59,7 @@ export const PAGES_EN: Record<string, string> = {
   "关闭": "Close",
   "导入已有文档": "Import existing documents",
   "导入文档": "Import documents",
+  "不支持拖入这种内容": "This kind of content can't be dropped here",
   "把已有文档带进 Pages，导入后可继续编辑。": "Bring existing documents into Pages and keep editing them.",
   "文档来自": "Source",
   "飞书 / Lark": "Feishu / Lark",

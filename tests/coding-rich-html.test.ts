@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, runWithLocale, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { CODING_CLIENT_FACTORY_SCRIPT, HISTORY_DIGEST_MARKER, codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
 import { renderRichText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
 import { agentHostCapabilities as agent, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -46,7 +46,7 @@ test("PG062-05, PG062-06: Coding's routes answer its page with the model's words
   ];
   const children = [{ subagent_id: "done", role_id: "writer", role_name: "子任务", state: "completed", task: "写测试", result: "子任务 **写好了**<img src=x onerror=bad()>", workspace_path: home },
     { subagent_id: "quiet", role_id: "writer", role_name: "子任务", state: "running", task: "等着", result: null, workspace_path: home }];
-  const host = () => ({ store, homeDirectory: home, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
+  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: home, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const values = args as ReadonlyArray<{ session_id?: string; run_id?: string }>;

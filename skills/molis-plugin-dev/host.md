@@ -188,6 +188,8 @@ Inbox 的 `GET/POST /api/inbox/pages` 由 Host 注入当前项目。POST 接收 
 
 缺一条或多一条都是启动失败，只影响自己。`stop` 不消耗崩溃恢复额度。
 
+停止以后（BL-411）：`stop` 一开始，这次激活就已撤下，钩子里调服务照常被拒、照常抛错，钩子可以据此知道哪些事已经做不了。钩子返回以后，插件留下的定时器、监听器再调 `services` 上的方法，服务照常拒绝，但不抛错：同步方法返回 `undefined`，异步方法返回一个永远不结束的 promise。宿主按安装与世代计数，每个方法第一次写一行 `stopped_service_call` 日志，只记插件、安装、服务和方法名。停止前发出、停止后才结束的调用照常给它自己的结果；在处理器还没返回的动作、消费场景或作业里调（停止前就在跑的那次调用，或重启后的新激活拿着旧激活的句柄调），被拒也照常抛错，那次调用的发起方会收到。所以漏清的回调不会让宿主进程退出，但仍要在 `stop` 一开始清掉会调服务的定时器和监听器：它们停用后白跑；要用返回值的同步方法（如 `storage.get`）拿到 `undefined`，插件自己接着用会出错。
+
 Text stats 是最小完整 app：一个必选输入口、一个 `navigator` 入口加一个 `stage` 视图、无存储、无事件。新端口消费者先抄它的声明形状，再抄 Diff 的 `input_groups`。默认连线把它的输入口接到 Files 的 `before` 快照（它的输入口声明 `default_source`）；默认连线现在只在随 Host 发布的插件之间生效：已安装的插件即使照抄 `default_source` 也不会自己接上（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议；2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行，改完之前仍按此）；不写 `default_source`，新插件的输入口也不会自己接上，要接就由人在成果库详情把某一版接给插件输入。端口何时投递见 [elements.md](elements.md)。
 
 Kernel `registerCapability` 是 Module/Host 的事（Goals、Agent Host），不是插件包自己登记一份。插件只 `requires` / `capabilities.consumes`，由 Host 注入 `services.capabilities.invoke`。宿主能力里登记成动作的（模型起草 `agent.draft-text.v1`、工作区读取、Git 的暂存与操作准备及两项读取），插件和调别的动作一样经 `services.actions.invoke` 调，按本插件自己的授权（起草要 `model:invoke`，Git 的暂存与操作要 `review:git-index`、`review:git-operation`）；宿主那边动作只走 `registerAction`，`register` / `registerCapability` 只收 typed，交错了直接拒绝（PG-035）。

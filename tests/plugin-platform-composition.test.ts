@@ -181,7 +181,8 @@ test('stopped activation event clients remain revoked after restart and bus clos
     await platform.start([{ definition: producer }, { definition: consumer }]);
     await platform.supervisor.restart(PRODUCER);
     const input = { event_type_id: EVENT, type_version: 1, payload: {} };
-    assert.throws(() => clients[0]!.publish(input), { code: 'actions.forbidden' });
+    // BL-411: the stopped activation's client is refused and, outside every call, throws nothing: no publish result comes back.
+    assert.equal(clients[0]!.publish(input), undefined);
     clients.at(-1)!.publish(input); await entered.promise;
     await platform.events.close();
     assert.throws(() => clients.at(-1)!.publish(input), { code: 'plugin.event_identity_invalid' });

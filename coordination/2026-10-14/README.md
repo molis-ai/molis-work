@@ -2837,3 +2837,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - #1084 的 `coding-interaction-html.test.ts`：已在本地提交 `9f8e03650`，下次合 main 时一起推。
 - 这两处都还没被统一验证发现，Codex 也没认领，所以由作者自己修，各自的 PR 里写一句。`coding-rich-html` 仍然留给 Codex。
 - §0 补了一句说明：修复分工只管 Codex 认领了的失败；作者自己先发现的，照常自己修，① 在 §3 里记上。
+- 22:00 更正：PG-038 按 ① 前一条消息撤回了本地补丁，两处都交给 Codex，作者不再动。① 不再让它改回来，§3 两行已改成「Codex 修」，并在 #1071、#1084 上留言供 Codex 认领。§0 那句改为二选一：作者自己修，或标出位置交给 Codex；① 在 §3 记清楚是哪一种。

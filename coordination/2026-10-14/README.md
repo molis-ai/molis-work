@@ -3521,3 +3521,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - `LINES.md` 加 §5：`ac-clients-1` 恢复时要带的 #1129 做法层面 6 条，以及 BL-455 (c) 指向字体皮肤语言书 §6.1。
 
 - 10-23 20:55：`ac-clients-1` 已停（Jelly #1145 在停令前已推，Cognia 未开工）。#1145（Jelly，资源变小）进队第 31 行，排在 #1129 后审；`ac-sc3` 开 #1146（Goals S4），进第 32 行，BL-501（写死提供方）统筹裁定归 `ac-platform`：宿主按能力在目录找提供方，`allowed_actions` 精确提供方不放宽。
+
+- 10-23 21:10：`ac-review` 一轮：#1139 修后可合（S-60 比 `NOT_GIVEN` 宽），统筹定 (a) 加行 + 完整性测试 + Home 执行器同检，作者 `ac-sandbox-sched` 修；#1083 修后可合（2 条），Codex 已认领。`ac-kernel` 开 #1147（PG-051 P2b，叠 #1138），统筹要求本 PR 去掉 Shelf 双作用域实例的「多个安装」误报。

@@ -1,6 +1,6 @@
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
-import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
+import { listProjectRoots, type ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import { DEMO_PROJECT_ID } from "./demo-seed.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { openProjectVersionStores } from "./project-version-stores.js";
@@ -34,7 +34,7 @@ const AT = {
 export function seedDemoPluginSurfaces(databasePath: string, projectId = DEMO_PROJECT_ID): void {
   const store = new LocalProjectDatabase(databasePath);
   try {
-    if (!store.goalsQuery.getBoard(projectId)) return;
+    if (!listProjectRoots(store.db).some(root => root.project_id === projectId)) return;
     const feed = createLocalFeedApplication(store.db);
     const sources = createLocalFeedSourceService(store.db, projectId);
     const rss = sources.register({ kind: "rss", definition_id: "solidot" }).source;

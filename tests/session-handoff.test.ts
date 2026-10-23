@@ -276,6 +276,7 @@ test("project Handoff web API keeps the editable draft, requires confirmation, a
   const goalId = "goal-handoff-web";
   const store = new LocalProjectDatabase(project.database_path);
   const coordinator = new GoalProjectApplication(store);
+  coordinator.projectOpened(project.project_id); // S8b: a new project's board is made by Goals when the project is first opened, as the Host does
   coordinator.goals.commands.createGoal(
     project.project_id,
     {

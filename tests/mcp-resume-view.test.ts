@@ -74,6 +74,7 @@ test("context_resolve restores Host focus outside the discovery window and write
     store = new LocalProjectDatabase(project.database_path);
     let tick = Date.parse("2026-09-10T00:00:00.000Z");
     const app = new GoalProjectApplication(store, () => new Date(tick++));
+    app.projectOpened(project.project_id); // S8b: a new project's board is made by Goals when the project is first opened, as the Host does
     const create = (goal_id: string, title: string) => app.goalEvents.createIntent({
       project_id: project.project_id, goal_id, title, actor_id: "focus-user", actor_kind: "user",
       idempotency_key: `focus-create-${goal_id}`, source_kind: "web",

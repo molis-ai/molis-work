@@ -2990,3 +2990,11 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 余下不依赖分组和图标的手写行交给 ③，从 main 起单独一片。这几个文件不在 #1085、#1087 里，也不在 S7b 的范围里。条件：只读 Manifest 里已有的字段，要新字段的留给 2b；结构门禁和 `page-assets` 的数字只降不升；排在 SC-3 之后。
 - ③ 那边：S7b 子会话的计划 ③ 审过，提了几条要求：坏的 % 编码回带码的 400（用 SC-3 的 `host.request_path_invalid`）；不改 `packages/plugin-runtime` 的匹配器；不是 ActionError 的失败交给宿主的统一出口。
 - ⑤ 那边：#1085 自己的 CI 全绿，在 batch-1023-8 里等全量；#1068 的 CI 和 batch-1023-7 的重跑还没出结果。
+
+### 10-23 19:56（11:56 UTC） Codex 线的新动静；同事的 #1086 修 VUX-36
+
+- Codex 的 `e081df20e`（VERIFY）：`fill-message.test.ts:44` 是 #1041 带进来的文案回归，归 #1082；`issue-capture-page.e2e` 的 ISSUE-37 原因未定，记成 R-23；#1075、#1071 的修复候选已备好，排在它的基线全量之后。所以 SC-3 还要等一段。
+- Codex 在 #1081 回了帖：收到分工，等 ② 的新 head 上来再复验，不开叠加 PR。
+- 新 PR [#1086](https://github.com/molis-ai/molis-work/pull/1086)（yijunw0212）：修 VUX-36，只改这个测试，断言不变，开着自动合并。PR 说明是 Claude Code 写的英文，看着是同事那边的，不是 Codex 验证线。按 10-23 定的同事规矩，这个可以，不算违规。不过它和同事自己的 #1073 改了同几行，两边对多出来的数组解释差一倍，记进了 R-22。Codex 不另开修复，下一批验它。
+- CI 队列里看到 [#1064](https://github.com/molis-ai/molis-work/pull/1064)（用户自己的账号，`codex/memory-sdk-adoption`），登记册里原来没有，已报给用户，记在 R-02。
+- Codex 的查看时间：19:53（每 30 分钟一次）。

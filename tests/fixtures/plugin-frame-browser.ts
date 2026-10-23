@@ -98,23 +98,32 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
         return{x:outer.x+box.x,y:outer.y+box.y};})()`);
       await browser.command("Input.dispatchMouseEvent", { type: "mouseMoved", x: offset.x + hover.x, y: offset.y + hover.y }, browser.sessionId);
     }
-    const point = await evaluate<{ x: number; y: number }>(`(async()=>{const deadline=Date.now()+10000;let last='Missing target';
-      while(Date.now()<deadline){const element=[...document.querySelectorAll(${JSON.stringify(target)})].find(node=>node.getClientRects().length);
-        if(element){element.scrollIntoView({block:'center',behavior:'instant'});
-          await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-          const box=element.getBoundingClientRect(),x=box.x+box.width/2;
-          const y=[box.y+box.height/2,box.top+8,box.bottom-8].find(y=>element.contains(document.elementFromPoint(x,y)));
-          if(element.isConnected&&box.width&&box.height&&!element.disabled&&y!==undefined)return{x,y};
-          last=JSON.stringify({target:element.outerHTML,box:box.toJSON()});}
-        else {const item=document.querySelector(${JSON.stringify(target)});last=JSON.stringify({target:${JSON.stringify(target)},hidden:item?.hidden,ancestors:item?[item,...(()=>{const a=[];let n=item.parentElement;while(n&&a.length<5){a.push(n);n=n.parentElement}return a})()].map(n=>({tag:n.tagName,class:n.className,hidden:n.hidden,display:getComputedStyle(n).display})):[]});}
-        await new Promise(resolve=>setTimeout(resolve,40));
-      }throw Error('Target is hidden, disabled or covered: '+last);})()`);
-    const frame = await browser.evaluate<{ x: number; y: number }>(`(()=>{${owner}
-      const frame=doc.querySelector(${JSON.stringify(selector)}), box=frame.getBoundingClientRect(), outer=owner?.getBoundingClientRect()??{x:0,y:0};
-      if(doc.elementFromPoint(box.x+${point.x},box.y+${point.y})!==frame)throw Error('Frame is covered');
-      if(owner&&document.elementFromPoint(outer.x+box.x+${point.x},outer.y+box.y+${point.y})!==owner)throw Error('Owner frame is covered');
-      return{x:outer.x+box.x,y:outer.y+box.y};})()`);
-    return { x: frame.x + point.x, y: frame.y + point.y };
+    const deadline = Date.now() + 10000; let covered: unknown;
+    while (Date.now() < deadline) {
+      const point = await evaluate<{ x: number; y: number }>(`(async()=>{const deadline=Date.now()+10000;let last='Missing target';
+        while(Date.now()<deadline){const element=[...document.querySelectorAll(${JSON.stringify(target)})].find(node=>node.getClientRects().length);
+          if(element){element.scrollIntoView({block:'center',behavior:'instant'});
+            await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+            const box=element.getBoundingClientRect(),x=box.x+box.width/2;
+            const y=[box.y+box.height/2,box.top+8,box.bottom-8].find(y=>element.contains(document.elementFromPoint(x,y)));
+            if(element.isConnected&&box.width&&box.height&&!element.disabled&&y!==undefined)return{x,y};
+            last=JSON.stringify({target:element.outerHTML,box:box.toJSON()});}
+          else {const item=document.querySelector(${JSON.stringify(target)});last=JSON.stringify({target:${JSON.stringify(target)},hidden:item?.hidden,ancestors:item?[item,...(()=>{const a=[];let n=item.parentElement;while(n&&a.length<5){a.push(n);n=n.parentElement}return a})()].map(n=>({tag:n.tagName,class:n.className,hidden:n.hidden,display:getComputedStyle(n).display})):[]});}
+          await new Promise(resolve=>setTimeout(resolve,40));
+        }throw Error('Target is hidden, disabled or covered: '+last);})()`);
+      const frame = await browser.evaluate<{ x: number; y: number; covered?: unknown }>(`(()=>{${owner}
+        const frame=doc.querySelector(${JSON.stringify(selector)}), box=frame.getBoundingClientRect(), outer=owner?.getBoundingClientRect()??{x:0,y:0};
+        const hit=doc.elementFromPoint(box.x+${point.x},box.y+${point.y});
+        if(hit!==frame)return{covered:{target:${JSON.stringify(target)},point:${JSON.stringify(point)},frame:box.toJSON(),hit:hit?.outerHTML.slice(0,600),viewport:[doc.defaultView.innerWidth,doc.defaultView.innerHeight]}};
+        const ownerHit=owner&&document.elementFromPoint(outer.x+box.x+${point.x},outer.y+box.y+${point.y});
+        if(owner&&ownerHit!==owner)return{covered:{owner:outer.toJSON(),hit:ownerHit?.outerHTML.slice(0,600)}};
+        return{x:outer.x+box.x,y:outer.y+box.y};})()`);
+      if (!frame.covered) return { x: frame.x + point.x, y: frame.y + point.y };
+      covered = frame.covered;
+      // The child can be ready before its owner finishes a tab switch or resize. Never dispatch through an overlay.
+      await new Promise(resolve => setTimeout(resolve, 40));
+    }
+    throw new Error("Frame is covered: " + JSON.stringify(covered));
   }
   async function click(target: string, clickCount = 1): Promise<void> {
     for (let count = 1; count <= clickCount; count++) {

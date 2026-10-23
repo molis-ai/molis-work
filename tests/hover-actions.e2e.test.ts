@@ -10,11 +10,11 @@ import { HOVER_HIDDEN, HOVER_RULES, hoverFocus, hoverShown, type HoverHidden, ty
 const PLUGINS = ["todo", "pages", "coding", "ppt", "workflows", "feed", "goals", "issues", "im", "shelf", "lingguang", "form"];
 const pause = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms));
 type Page = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
-// Installed only at the Workflows row's original tap point, with bounded passive records; read only on failure.
+// Installed only at the audited row's original tap point, with bounded passive records; read only on failure.
 const WORKFLOW_TAP_TRACE = `
-  if (row.matches('[data-wf-station]')) {
+  if (row.matches('[data-wf-station], [data-shelf-item]')) {
   const describe = node => node instanceof Element ? { tag: node.tagName, class: node.getAttribute('class'),
-    stationId: node.closest('[data-wf-station]')?.dataset.stationId, tabindex: node.getAttribute('tabindex'),
+    stationId: node.closest('[data-wf-station]')?.dataset.stationId, shelfItem: node.closest('[data-shelf-item]')?.dataset.shelfItem, tabindex: node.getAttribute('tabindex'),
     draggable: node.getAttribute('draggable'), sameStation: node.closest('[data-wf-station]') === row } : null;
   const ancestry = node => { const chain = []; for (let up = node; up && chain.length < 24; up = up.parentElement) {
     const style = getComputedStyle(up); chain.push({ ...describe(up), opacity: style.opacity, visibility: style.visibility,
@@ -22,7 +22,7 @@ const WORKFLOW_TAP_TRACE = `
   } return chain; };
   const point = { x: box.x + Math.min(24, box.width / 4), y: box.y + box.height / 2 }, events = [];
   const snapshot = () => { const current = document.querySelector('[data-hover-audit="' + el.dataset.hoverAudit + '"]');
-    const station = document.querySelector('[data-station-id="' + CSS.escape(row.dataset.stationId) + '"]');
+    const station = row.dataset.shelfItem ? document.querySelector('[data-shelf-item="' + CSS.escape(row.dataset.shelfItem) + '"]') : document.querySelector('[data-station-id="' + CSS.escape(row.dataset.stationId) + '"]');
     return { point, sameControl: current === el, controlConnected: el.isConnected, sameStation: station === row,
       stationConnected: row.isConnected, stationId: row.dataset.stationId, rowRect: row.getBoundingClientRect().toJSON(),
       focusWithin: row.matches(':focus-within'), hover: row.matches(':hover'), active: describe(document.activeElement),
@@ -31,7 +31,7 @@ const WORKFLOW_TAP_TRACE = `
   const before = snapshot(), types = ['pointerdown', 'pointerup', 'pointermove', 'pointercancel', 'touchstart', 'touchend', 'touchmove', 'touchcancel',
     'mousedown', 'mouseup', 'click', 'focusin', 'focusout', 'dragstart', 'dragend', 'scroll'];
   const record = (event, phase) => { if (events.length >= 64 || !(event.target instanceof Element)
-    || !event.target.closest('[data-workflows]')) return;
+    || !event.target.closest('[data-workflows], [data-shelf]')) return;
     events.push({ type: event.type, phase, time: performance.now(), target: describe(event.target),
       path: event.composedPath().filter(node => node instanceof Element).slice(0, 12).map(describe),
       prevented: event.defaultPrevented, cancelable: event.cancelable, active: describe(document.activeElement),
@@ -122,7 +122,7 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
       const shelfSelector = name === "shelf" && page !== browser ? await evaluate<string>(`(()=>{const el=document.querySelector('[data-hover-audit="${item.index}"]');return '[data-shelf-item="'+el.closest('[data-shelf-item]').dataset.shelfItem+'"] [data-shelf-row-action="'+el.dataset.shelfRowAction+'"]';})()`) : null;
       const row = await evaluate<{ x: number; y: number } | null>(`(() => { const el = document.querySelector('[data-hover-audit="${item.index}"]');
         const row = el?.parentElement.closest('[tabindex="0"], li, [role=row], [role=option], [role=listitem]'); if (!row) return null; const box = row.getBoundingClientRect();
-        ${name === "workflows" ? WORKFLOW_TAP_TRACE : ""}
+        ${["workflows", "shelf"].includes(name) ? WORKFLOW_TAP_TRACE : ""}
         return { x: box.x + Math.min(24, box.width / 4), y: box.y + box.height / 2 }; })()`);
       const localRow = row && { ...row };
       if (row) {

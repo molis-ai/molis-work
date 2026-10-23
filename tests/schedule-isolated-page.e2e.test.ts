@@ -27,7 +27,10 @@ test("SYS-15 Schedule isolated page creates, edits, pauses, reopens, resumes and
   await child.waitFor("document.querySelector('[data-schedule-detail] h1')?.textContent==='Updated daily task' && !document.querySelector('[data-schedule-create-dialog]').open");
   await child.click('[data-schedule-task-enabled-action=false]');
   await child.waitFor("document.querySelector('[data-schedule-task-enabled-action=true]')");
-  await open(); await child.click('[data-schedule-row]');
+  await open();
+  // Reload may restore the selected task's detail, where the directory is intentionally collapsed.
+  await child.waitFor("document.querySelector('[data-schedule-task-enabled-action=true]') || document.querySelector('[data-schedule-row]')?.getClientRects().length");
+  if (!await child.evaluate("Boolean(document.querySelector('[data-schedule-task-enabled-action=true]'))")) await child.click('[data-schedule-row]');
   await child.waitFor("document.querySelector('[data-schedule-task-enabled-action=true]')");
   assert.equal((await browser.web.get<typeof tasks>(api + '/list')).tasks[0]!.enabled, false);
   await child.click('[data-schedule-task-enabled-action=true]');

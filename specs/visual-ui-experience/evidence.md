@@ -44,7 +44,7 @@
 | VUX-32 | 工程 | `issue-draft-preview.e2e`、`media-zoom-board.e2e`、`visual-mechanisms.e2e` | 未走 | 未做 | — |
 | VUX-33 | 工程 | `assistant-text-html.e2e`、`code-diff-reader.e2e`、`code-diff-scale.e2e`、`code-incremental-colour`、`code-incremental.e2e`、`code-rows-geometry.e2e`、`code-scale.e2e`、`coding-changeset-http`、`diff-patch`、`diff-plugin` | 未走 | 未做 | Assistant 40k 以上的代码图、CSS 缩放下制表约 2 px；Diff 插件不着色（着色器要先移进 SDK） |
 | VUX-34 | 人工 | `desktop-drag-regions.e2e` | 未走 | 未做 | macOS 真机的拖拽、全屏与缩放留白 |
-| VUX-35 | 工程 | `action-directory-pass`、`local-web-actions`、`pages-assistant-surfaces.e2e`、`style-has-scope` | 未走 | 未做 | 真实 Home 规模下的复测 |
+| VUX-35 | 工程 | `action-directory-pass`、`local-web-actions`、`pages-assistant-surfaces.e2e`、`style-has-scope` | 未走 | 未做 | 真实 Home 规模下的复测（第一百零八片试过：真实 Home 的拷贝要先采用记忆格式，main 上没有采用工具，停） |
 | VUX-36 | 工程 | `action-directory-pass`、`code-diff-scale.e2e`、`code-scale.e2e`、`code-turn-style.e2e`、`has-anchors.e2e`、`hidden-surfaces-quiet.e2e`、`plugin-market-upgrade.e2e`、`repeat-no-accumulation.e2e`、`assistant-repeat-no-accumulation.e2e`、`style-has-scope`、`visual-foundation` | 未走 | 未做 | 流式一轮从开始到结束的反复没量 |
 | VUX-37 | 工程 | `action-directory-pass` | 未走 | 未做 | — |
 | VUX-38 | 工程 | `style-custom-properties`（语义参数有声明） | 未走 | 未做 | 同源的其余部分靠门禁与共有组件守着（插件 SDK、包边界、`pnpm boundary:check`） |

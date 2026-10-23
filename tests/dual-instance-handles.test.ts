@@ -11,6 +11,7 @@ import { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contra
 import type { PluginBackgroundClient, PluginDefinition, PluginManifest, PluginMaterialsClient, PluginModelClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginOwnerFilesClient, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin-owner-files";
 import { openDualHome } from "./fixtures/dual-home.js";
+import { dualPlugin } from "./fixtures/dual-plugin.js";
 
 /**
  * DUAL-16, S-48 (specs/dual-instance-plugins U3): the two halves of a dual-instance plugin share `install_id` and differ in
@@ -143,7 +144,7 @@ const otherInstance = (error: unknown) => error instanceof Error && "code" in er
   && error.message.includes("另一个插件实例");
 
 test("DUAL-16, S-48: each half's private storage takes a write only from its own half's action", { timeout: 60_000 }, async t => {
-  const s = await openDualHome(t), { actions } = s.dual;
+  const s = await openDualHome(t, undefined, dualPlugin("dualprobe", true)), { actions } = s.dual;
   const context = await s.page();
   const homeStore = s.dual.services.home!.storage!, projectStore = s.dual.services.project!.storage!;
 
@@ -163,7 +164,7 @@ test("DUAL-16, S-48: each half's private storage takes a write only from its own
 });
 
 test("DUAL-16, S-48: the project half's events and actions handles refuse a call from the other half's action", { timeout: 60_000 }, async t => {
-  const s = await openDualHome(t), { actions } = s.dual;
+  const s = await openDualHome(t, undefined, dualPlugin("dualprobe", true)), { actions } = s.dual;
   const context = await s.page();
   const changed = { event_type_id: `${s.dual.id}.changed`, type_version: 1, payload: {} };
   // The Home half is given no events service (DUAL-05), so only the project half's handle can be held by the other half.

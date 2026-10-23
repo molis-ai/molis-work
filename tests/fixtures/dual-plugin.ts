@@ -20,14 +20,15 @@ type Share = Omit<PluginAppContribution, "kind">;
  * Each half keeps the services its Host gave it, so a test can see what the Home half was not given and use a handle after its half
  * stopped. `hold()` makes the next call of the `project` action wait in its handler until released, then check its authority again.
  * `inside(run)` makes the next call of the `home` or `project` action run `run` with its caller in its handler first, and fail with what it throws.
+ * With `writes`, `home` and `project` are commands: a query writes nothing (`pluginInvocationReadOnly`), so what `inside` writes needs one.
  */
-export function dualPlugin(name = "dualprobe") {
+export function dualPlugin(name = "dualprobe", writes = false) {
   const id = `io.molis.work.example.${name}`, read = `${name}:read`, changed = `${id}.changed`, view = `${id}.stage`;
-  const action = (suffix: string, half: Half, audiences: Array<"user" | "mcp" | "workflow">): HalfAction => ({ capability_id: `${name}.${suffix}`,
-    version: 1, operation: "query", action: { title: `${half} 一半的 ${suffix}`, description: `双实例的 ${half} 一半`, scope: half, permissions: [read],
-      kind: "query", audiences, subject_kinds: [], input_schema: { type: "object", additionalProperties: false, properties: { call: { type: "string" } } } } });
-  const actions = { home: action("home", "home", ["user", "mcp", "workflow"]), homeReach: action("home-reach", "home", ["user"]),
-    project: action("project", "project", ["user", "mcp", "workflow"]), reach: action("reach", "project", ["user"]) };
+  const action = (suffix: string, half: Half, audiences: Array<"user" | "mcp" | "workflow">, write = false): HalfAction => ({ capability_id: `${name}.${suffix}`,
+    version: 1, operation: write ? "command" : "query", action: { title: `${half} 一半的 ${suffix}`, description: `双实例的 ${half} 一半`, scope: half, permissions: [read],
+      kind: write ? "operation" : "query", audiences, subject_kinds: [], input_schema: { type: "object", additionalProperties: false, properties: { call: { type: "string" } } } } });
+  const actions = { home: action("home", "home", ["user", "mcp", "workflow"], writes), homeReach: action("home-reach", "home", ["user"]),
+    project: action("project", "project", ["user", "mcp", "workflow"], writes), reach: action("reach", "project", ["user"]) };
   const own = Object.values(actions);
   const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `dual-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],

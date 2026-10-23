@@ -56,7 +56,7 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "request";
     readonly owner: "character-terminal";
     readonly on: "window";
-    readonly detail: "PtySpawnRequest (services/runtime-host), or { panelId, sessionId, attachOnly }";
+    readonly detail: "PtySpawnRequest (services/runtime-host), or { panelId, attachOnly } for a run already started";
     readonly summary: "Attach the Character terminal to a process the Characters page spawned or found running.";
 }, {
     readonly name: "molis-work:character-terminal-reset";

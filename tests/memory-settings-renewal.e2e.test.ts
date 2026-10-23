@@ -37,7 +37,9 @@ async function enterDeadline(page: ChromePage, selector: string, year: number) {
 }
 
 // MEM-08/17/28/34: nonempty production page -> native date input -> HTTP -> SDK -> complete Home close/reopen.
-test("expired disabled memory renews by an explicit date, retries the same decision and retains its state after Home restart", { timeout: 180_000 }, async t => {
+for (const laterEdit of [false, true]) test(laterEdit
+  ? "a stale renewal retry shows the conflict and preserves a later edit after Home restart"
+  : "expired disabled memory renews by an explicit date, retries the same decision and retains its state after Home restart", { timeout: 180_000 }, async t => {
   const executable = locateTestChrome(); assert.ok(executable, "Chrome is required for the real renewal journey");
   const start = Date.now(); t.mock.timers.enable({ apis: ["Date"], now: start });
   let browser: ChromeHarness | undefined, directory: string | undefined;
@@ -75,14 +77,27 @@ test("expired disabled memory renews by an explicit date, retries the same decis
   const expiry = await page.evaluate<string>(`new Date(document.querySelector('${input}').value).toISOString()`);
   await page.click(row + " button[type=submit]"); await page.wait("document.querySelector('[data-memory-confirm-yes]')");
   await page.click("[data-memory-confirm-yes]"); await page.wait(`document.querySelector('${root} [data-memory-retry]')`);
+  const renewed = (await client.invoke(memoryActions.page, { scope: "project" })).items.find(one => one.memory_id === saved.memory_id)!;
+  if (laterEdit) await client.invoke(memoryActions.change, { action: "update", memory_id: saved.memory_id,
+    expected_version: renewed.version, text: "另一窗口已纠正，旧续期不能覆盖" });
+  const beforeRetry = (await client.invoke(memoryActions.page, { scope: "project" })).items.find(one => one.memory_id === saved.memory_id)!;
+  const historyBeforeRetry = (await client.invoke(memoryActions.history, { memory_id: saved.memory_id })).revisions;
   await page.click(root + " [data-memory-retry]");
-  await page.wait(`!document.querySelector('${root} [data-memory-retry]') && document.querySelector('${root} [data-memory-list]')?.getAttribute('aria-busy') === 'false'`);
+  if (laterEdit) {
+    await page.wait(`document.querySelector('${root} [data-memory-error]')?.checkVisibility() && document.querySelector('${root} [data-memory-error]').textContent.includes('记忆已变化')`);
+    assert.equal(await page.evaluate(`document.querySelector('${root} [data-memory-retry]')?.checkVisibility()`), true);
+    await page.screenshot(join(tmpdir(), "molis-memory-renewal-conflict-20261024.png"));
+  } else await page.wait(`!document.querySelector('${root} [data-memory-retry]') && document.querySelector('${root} [data-memory-list]')?.getAttribute('aria-busy') === 'false'`);
   assert.equal(deliveries.length, 2); assert.deepEqual(deliveries[0], deliveries[1]);
   assert.equal(deliveries[0]!.expected_version, disabled.version); assert.equal(deliveries[0]!.expires_at, expiry);
   const item = (await client.invoke(memoryActions.page, { scope: "project" })).items.find(one => one.memory_id === saved.memory_id)!;
-  assert.equal(item.expired, false); assert.equal(item.state, "disabled"); assert.equal(item.expires_at, expiry); assert.equal(item.version, disabled.version + 1);
-  assert.equal((await client.invoke(memoryActions.history, { memory_id: saved.memory_id })).revisions.length, 2);
-  const copy = String(await page.evaluate(`document.querySelector('${row}').textContent`)); assert.ok(copy.includes("停用")); assert.equal(copy.includes("已到期"), false);
+  assert.deepEqual(item, beforeRetry);
+  assert.equal(item.expired, false); assert.equal(item.state, "disabled"); assert.equal(item.expires_at, expiry); assert.equal(item.version, disabled.version + 1 + Number(laterEdit));
+  assert.deepEqual((await client.invoke(memoryActions.history, { memory_id: saved.memory_id })).revisions, historyBeforeRetry);
+  assert.equal(historyBeforeRetry.length, 2 + Number(laterEdit));
+  if (!laterEdit) {
+    const copy = String(await page.evaluate(`document.querySelector('${row}').textContent`)); assert.ok(copy.includes("停用")); assert.equal(copy.includes("已到期"), false);
+  }
   await page.command("Page.navigate", { url: "about:blank" }); await page.wait("location.href === 'about:blank'"); await env.close(); await env.host.close();
   const reopened = new MolisWorkLocalHost({ homeDirectory: env.home, completeText: null });
   let served: Awaited<ReturnType<typeof serveTestHost>> | undefined;

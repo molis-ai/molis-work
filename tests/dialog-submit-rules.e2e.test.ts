@@ -103,7 +103,7 @@ async function setUp(t: TestContext) {
     const child = id ? views[id] : undefined; if (!child) return null;
     await child.waitFor("document.querySelector('[data-work-surface]')"); return child;
   };
-  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1280, 900);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=zh&next=%2F` }, sessionId));
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
@@ -138,7 +138,7 @@ async function readDirect({ command, sessionId, navigate, origin }: Browser, vie
   }
   assert.ok(await evaluate(OVERLAY_OPEN), `${where}: the dialog opened`);
   await read(where, evaluate, view.point);
-  for (const type of ["rawKeyDown", "keyUp"] as const) await command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 }, sessionId);
+  for (const type of ["rawKeyDown", "keyUp"] as const) await command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await pause(300);
 }
 
@@ -256,7 +256,7 @@ async function submitAudit(browser: Browser) {
           if (!during.open) result.lost.push(`${where} (${how}): the confirmation closed before the Host answered ${sent.join(", ")}`);
           else {
             if (!during.busy) result.lost.push(`${where} (${how}): the confirmation does not show it is sending ${sent.join(", ")}`);
-            await Promise.all((["rawKeyDown", "keyUp"] as const).map((type) => command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 }, sessionId)));
+            await Promise.all((["rawKeyDown", "keyUp"] as const).map((type) => command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId)));
             await pause(150);
             if (!(await inspect<{ open: boolean }>(AFTER)).open) result.lost.push(`${where} (${how}): Esc closed the confirmation while ${sent.join(", ")} was out`);
           }
@@ -430,7 +430,7 @@ test("VUX-29: while a plugin's modal dialog is open the workbench outside its fr
   const browser = await openGoalBrowser(t, "seeded", seedLongChinese); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
   const view = await pluginFrameBrowser(t, browser, "todo");
-  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1280, 900);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));
   await command("Page.bringToFront", {}, sessionId);

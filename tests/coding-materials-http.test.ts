@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
@@ -50,7 +50,7 @@ test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.rea
     return actions;
   };
   const starts: AgentStartRequest[] = []; let created = 0;
-  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: knowledge(), actorId: "web-user",
+  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: knowledge(), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;

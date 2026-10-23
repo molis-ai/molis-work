@@ -993,11 +993,16 @@ function checkArtifactsOwnership(repositoryRoot) {
   if (!read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE") || !projectSchema.includes("ARTIFACTS_SCHEMA_SQL") || !projectSchema.includes("PROCESS_ITEMS_SCHEMA_SQL")) {
     errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must compose the Artifact owner schema");
   }
-  if (!coordinator.includes("ArtifactsModule") || !coordinator.includes("readonly artifacts: ArtifactsApplicationApi")) {
-    errors.push("apps/local-host/src/goal-project-application.ts: compatibility composition must expose the public Artifacts API");
+  // D3: the project's runtime opens the one pair of version stores, and Goals' composition does not open a second.
+  const versionStores = read("apps/local-host/src/project-version-stores.ts");
+  if (!versionStores.includes("ArtifactsModule") || !versionStores.includes("readonly artifacts: ArtifactsApplicationApi")) {
+    errors.push("apps/local-host/src/project-version-stores.ts: the project's version stores must expose the public Artifacts API");
+  }
+  if (/\b(?:ArtifactsModule|ProcessItemsModule)\b/u.test(coordinator)) {
+    errors.push("apps/local-host/src/goal-project-application.ts: Goals' composition must not open its own version stores");
   }
   const directArtifactSql = /\b(?:CREATE TABLE(?: IF NOT EXISTS)?|FROM|INTO|UPDATE|DELETE FROM)\s+(artifacts|artifact_versions)\b/giu;
-  for (const relativePath of ["apps/local-host/src/goal-project-application.ts"]) {
+  for (const relativePath of ["apps/local-host/src/goal-project-application.ts", "apps/local-host/src/project-version-stores.ts"]) {
     const source = read(relativePath);
     for (const match of source.matchAll(directArtifactSql)) {
       errors.push(`${relativePath}: direct ${match[1]} SQL must stay inside modules/artifacts`);

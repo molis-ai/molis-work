@@ -163,7 +163,7 @@ const ROUTES: RouteMaker[] = [
       const plan = execution.sessions.plan(projectId, record.session_id);
       const selection = typeof body.provider_id === "string" && typeof body.model_id === "string" ? { provider_id: body.provider_id, model_id: body.model_id } : undefined;
       const draft = await codingDraft(a.context, { purpose: "起草 git 提交说明", prompt: CODING_COMMIT_DRAFT.prompt_id,
-        material: commitDraftMaterial({ ...(plan?.confirmed ? { planTitle: plan.content.title } : {}), rounds }), ...(selection ? { model_selection: selection } : {}) }, beforeWrite);
+        material: commitDraftMaterial({ ...(plan?.confirmed ? { planTitle: plan.content.title } : {}), ...(execution.locale ? { locale: execution.locale } : {}), rounds }), ...(selection ? { model_selection: selection } : {}) }, beforeWrite);
       return { message: commitMessageFrom(draft.text), usage: draft.usage, rounds: rounds.map(round => round.number) };
     });
   },

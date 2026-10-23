@@ -238,19 +238,17 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Memory P0, user approved 2026-10-23: fixed-version command retries and per-item clear/import results.
-  // Original 1186501 -> 1189594 is +3093. Main #1055 independently adds 76 bytes; retain that base, not another allowance.
-  // User separately approved another 105 bytes on 2026-10-23 for memory-reference delivery status and stale-text clearing.
-  // Unknown-date rendering then saved 5 bytes: freeze the measured 1189770, not the approved 1189775 ceiling.
-  "/assets/molis-work-workbench.js": [1186577, 1189770],
-  // User separately approved 2026-10-23: stable original-input identity across Coding retries and continuations.
-  // Reusing the existing input sender and removing one unused local saved 16 bytes; only the remaining 738 are admitted.
-  "/assets/molis-work-plugins/coding.js": [374235, 374973],
+  // Memory P0, user approved 2026-10-23: workbench +3093 B and +105 B, then 5 B saved.
+  // Main #1041 independently adds 138 B to #1055's base; preserve only the approved net +3193 B.
+  "/assets/molis-work-workbench.js": [1186715, 1189908],
+  // User separately approved +738 B for Coding original-input identity, retries and continuations.
+  // Main #1069 independently adds 510 B; retain that new base without extending Memory's allowance.
+  "/assets/molis-work-plugins/coding.js": [374745, 375483],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.
-// User approved 2026-10-21 (specs/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
+// User approved 2026-10-21 (specs/archive/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
 // shared bridge (including the common UI helpers) once; the original 90325-byte estimate was not a ceiling.
 const APPROVED_NEW_ASSETS = {
   "/assets/molis-work-plugin-frame.js": 187120,

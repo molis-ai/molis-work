@@ -1,3 +1,4 @@
+import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { feedRuleActions } from "@molis-ai/molis-work-plugin-feed";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
@@ -143,12 +144,12 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
 /** The ports of the project's open runtime, built in the order the page needs them. */
 function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWorkProjectRuntime): ProjectRuntimeContext {
   const { localHost, hostReference, options } = context;
-  const { store, coordinator } = runtime;
+  const { store, coordinator, artifacts, processItems } = runtime;
   const feedOptions = projectFeedOptions(localHost, hostReference);
   const homeActions = bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
   const goalActions = bindGoalsWebActions(localHost.actionClient(hostReference), hostReference);
   const pluginServices = projectPluginServices(context);
-  const pluginPorts: CodingSurfacePorts = { ...pluginServices, routeCaller: () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS), store, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
+  const pluginPorts: CodingSurfacePorts = { ...pluginServices, routeCaller: () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS), store, artifacts, processItems, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
     actorId: LOCAL_PERSON_ACTOR_ID, escapeHtml: (value) => String(value) };
   const withoutView = { ...context, store, coordinator, feedOptions, homeActions, goalActions, pluginServices, pluginPorts };
   return { ...withoutView, readWebView: projectWebView(withoutView) };
@@ -267,16 +268,19 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     changed: () => { webViewCache.delete(options.databasePath); },
     actions: goalActions,
   }) },
-  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
+  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
     projectId: options.projectId, routePrefix: options.routePrefix ?? "",
     projectTitle: options.project?.display_name ?? "Molis Work",
     actions: userActions(ARTIFACT_ACTION_PERMISSIONS), controlToken,
+    homeDirectory: serverOptions.homeDirectory ?? resolveMolisWorkHome(),
+    offeredActions: original_file => userActions(ARTIFACT_ACTION_PERMISSIONS, { original_file }),
     ownerActions: permissions => userActions(permissions), // each 成果 type's owner previews its own versions (A4)
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
     projectWebView(context, { includeStageIds: true }), asPerson(context, WORK_ACTION_PERMISSIONS), context.controlToken, context.goalActions,
-    asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.coordinator, context.store, context.pluginServices) },
+    asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.coordinator, context.store,
+    { ...context.pluginServices, artifacts: context.pluginPorts.artifacts, processItems: context.pluginPorts.processItems }) },
 ];
 
 /** Inside the project's open runtime, tried in this order; the last entry answers every address the project does not have. */

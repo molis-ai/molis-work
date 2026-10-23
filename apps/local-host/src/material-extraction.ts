@@ -44,3 +44,26 @@ export function createMaterialExtractor(native: NativeMaterialOptions = {}): Mat
   };
 }
 export const extractMaterial: MaterialExtractor = createMaterialExtractor();
+
+/** No cap of its own: the whole text, as far as the reader's worker can hold it (its memory cap still stops a file it cannot). */
+const WHOLE: MaterialLimits = { maxBytes: Number.MAX_SAFE_INTEGER, maxCharacters: Number.MAX_SAFE_INTEGER, maxTextBytes: Number.MAX_SAFE_INTEGER, maxPages: Number.MAX_SAFE_INTEGER };
+const WHOLE_TIMEOUT_MS = 30 * 60_000;
+
+/**
+ * The whole text of a person's material, for the Host's own reading in onboarding (no limits, user 2026-10-22): text files decoded
+ * in full, HTML's visible text, every page of a PDF's text layer, a Word file's body as Markdown. Unlike the extractor above it takes
+ * no limits from its caller; a file its worker cannot hold fails with the worker's reason, by itself.
+ */
+export async function readWholeMaterial(source: MaterialSource, signal?: AbortSignal): Promise<MaterialExtraction> {
+  const extension = path.extname(source.file_name).toLowerCase(), options = { ...signal ? { signal } : {}, timeoutMs: WHOLE_TIMEOUT_MS };
+  if (!source.bytes.length) throw materialErrors.invalid_data("文件为空");
+  if (extension === ".html" || extension === ".htm") return runMaterialWorker<MaterialExtraction>("material-html-worker.js",
+    { kind: "extraction", bytes: new Uint8Array(source.bytes), extension, markdown: true, limits: WHOLE }, options, "HTML");
+  if (extension === ".pdf") return runMaterialWorker<MaterialExtraction>("material-pdf-worker.js", { bytes: new Uint8Array(source.bytes), limits: WHOLE }, options, "PDF");
+  if (extension === ".docx") {
+    const read = await runMaterialWorker<{ text: string }>("material-office-worker.js", { bytes: new Uint8Array(source.bytes), type: "docx" }, options, "文档");
+    return { text: read.text, extractor: "office-markdown", pages: [{ number: 1, text: read.text, method: "office-markdown", confidence: null }],
+      coverage: { status: read.text ? "sufficient" : "insufficient", truncated: false, processed_pages: 1, total_pages: 1, issues: [] } };
+  }
+  return extractMaterialText(source.bytes, extension, true, WHOLE);
+}

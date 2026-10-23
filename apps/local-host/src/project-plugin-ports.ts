@@ -35,7 +35,7 @@ export function ensureProjectPluginActions(source: ProjectPluginHost, reference:
   const { host, options } = source;
   const agents = () => source.agents();
   return host.withRuntime(reference, runtime => ensureProjectPlugins({
-    store: runtime.store, projectId: runtime.project_id, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: options.homeDirectory,
+    store: runtime.store, artifacts: runtime.artifacts, processItems: runtime.processItems, projectId: runtime.project_id, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: options.homeDirectory,
     capabilities: host.client(reference),
     actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: reference.project_id },
     ...(agents() ? { observeReviewSettlements: listener => observeReviewSettlements(agents()!.agentHost.reviews, runtime.project_id, listener) } : {}),

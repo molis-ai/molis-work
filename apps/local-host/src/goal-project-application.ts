@@ -2,10 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
-import { ArtifactsModule, ProcessItemsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
-import { builtinTypeDeclared } from "./declared-types.js";
-import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { GovernanceCollaborationModule, type GovernanceSqliteDatabase } from "@molis-ai/molis-work-module-governance-collaboration";
 import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import {
@@ -15,22 +12,7 @@ import {
   type PlanningMethodPack,
 } from "@molis-ai/molis-work-module-goals";
 import type { GoalEventAcknowledgementsApi, GoalsApplicationApi, GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
-import {
-  GoalTreeQueryApplication,
-  GoalTreeInputReader,
-  GoalTreeSubmissionApplication,
-  GoalTreeFactMaterializer,
-  GoalTreeMaterializationConflicts,
-  GoalTreeMaterializationApplication,
-  GoalTreeCheckApplication,
-  GoalTreeDecisionApplication,
-  GoalTreeDecisionFollowup,
-  GoalTreeDecisionNormalizer,
-  GoalEventApplication,
-  GoalReadApplication,
-  GoalDecisionAttentionSync,
-  GOALS_PLUGIN_ID,
-} from "@molis-ai/molis-work-plugin-goals";
+import { createGoalsApplication, GOALS_PLUGIN_ID, type GoalsApplication } from "@molis-ai/molis-work-plugin-goals";
 import { LocalProjectDatabase } from "./project-database.js";
 import { assertProjectPluginDatabase } from "./project-plugin-databases.js";
 import type { GoalRecord, ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -52,53 +34,24 @@ interface ActorWrite {
 }
 
 export class GoalProjectApplication {
-  readonly artifacts: ArtifactsApplicationApi;
-  /** Exchange data plugins record for each other, kept out of the 成果库 (specs/artifact-positioning A2). */
-  readonly processItems: ProcessItemsApplicationApi;
   private readonly goalsModule: GoalsModule;
   readonly governance: GovernanceApplicationApi;
   readonly goals: GoalsApplicationApi;
-  readonly goalEvents: GoalEventApplication;
+  readonly goalEvents: GoalsApplication["goalEvents"];
   readonly goalInputs: GoalInputBindingsApi;
   readonly goalAcknowledgements: GoalEventAcknowledgementsApi;
-  readonly goalQueries: GoalReadApplication;
-  readonly goalTree: GoalTreeQueryApplication;
-  readonly goalTreeInputs: GoalTreeInputReader;
-  readonly goalTreeSubmission: GoalTreeSubmissionApplication;
-  readonly goalTreeFacts: GoalTreeFactMaterializer;
-  readonly goalTreeConflicts: GoalTreeMaterializationConflicts;
-  readonly goalTreeMaterialization: GoalTreeMaterializationApplication;
-  readonly goalTreeDecisionInputs: GoalTreeDecisionNormalizer;
-  readonly goalTreeCheck: GoalTreeCheckApplication;
-  readonly goalTreeDecision: GoalTreeDecisionApplication;
-  readonly goalTreeDecisionFollowup: GoalTreeDecisionFollowup;
-  readonly goalDecisionAttention: GoalDecisionAttentionSync;
+  readonly goalQueries: GoalsApplication["goalQueries"];
+  readonly goalTree: GoalsApplication["goalTree"];
+  readonly goalTreeSubmission: GoalsApplication["goalTreeSubmission"];
+  readonly goalTreeCheck: GoalsApplication["goalTreeCheck"];
+  readonly goalTreeDecision: GoalsApplication["goalTreeDecision"];
+  readonly goalDecisionAttention: GoalsApplication["goalDecisionAttention"];
 
   constructor(
     readonly store: LocalProjectDatabase,
     private readonly clock: () => Date = () => new Date(),
     private readonly personalPlanningMethodPacks: readonly PlanningMethodPack[] | (() => readonly PlanningMethodPack[]) = [],
   ) {
-    const artifactsModule = new ArtifactsModule({
-      db: this.store.db as unknown as ArtifactsSqliteDatabase,
-      homeOwner: LOCAL_PERSON_ACTOR_ID,
-      now: () => this.clock().toISOString(),
-      appendEvent: (input) => this.store.appendEvent(input),
-      eventCursor: (projectId) => this.store.eventCursor(projectId),
-      declared: builtinTypeDeclared,
-    });
-    this.artifacts = {
-      query: artifactsModule.query,
-      commands: artifactsModule.commands,
-    };
-    const processItemsModule = new ProcessItemsModule({
-      db: this.store.db as unknown as ArtifactsSqliteDatabase,
-      now: () => this.clock().toISOString(),
-      appendEvent: (input) => this.store.appendEvent(input),
-      eventCursor: (projectId) => this.store.eventCursor(projectId),
-      declared: builtinTypeDeclared,
-    });
-    this.processItems = { query: processItemsModule.query, commands: processItemsModule.commands };
     const governanceModule = new GovernanceCollaborationModule({
       db: this.store.db as unknown as GovernanceSqliteDatabase,
       now: () => this.clock().toISOString(),
@@ -132,17 +85,6 @@ export class GoalProjectApplication {
       lifecycle: goalsModule.lifecycle,
       planning: goalsModule.planning,
     };
-    this.goalEvents = new GoalEventApplication({
-      query: goalsModule.query,
-      commands: goalsModule.commands,
-      events: goalsModule.events,
-      planning: goalsModule.planning,
-      recordTrustedDecision: (input) => this.governance.eventDecisions.record(input),
-    });
-    this.goalTree = new GoalTreeQueryApplication({
-      goals: this.goalsModule.query,
-      governance: this.governance,
-    });
     const attention = new AttentionModule(this.store.db, {
       exists: (projectId, subjectType, subjectId) => subjectType === "goal_decision"
         && this.goalsModule.query.getGoal(projectId, subjectId) !== null,
@@ -161,48 +103,18 @@ export class GoalProjectApplication {
         });
       },
     });
-    this.goalDecisionAttention = new GoalDecisionAttentionSync({
-      attention,
-      listProposals: (projectId) => this.goalTree.listGoalTreeProposals({ project_id: projectId }).proposals,
-      goalExists: (projectId, goalId) => this.goalsModule.query.getGoal(projectId, goalId) !== null,
+    // Goals composes its own classes from these ports (D3); the Host keeps only what its callers use.
+    const application = createGoalsApplication({
+      goals: { ...this.goals, query: goalsModule.query, events: goalsModule.events },
+      governance: this.governance, attention, clock: this.clock,
     });
-    this.goalTreeSubmission = new GoalTreeSubmissionApplication({
-      goals: { query: this.goalsModule.query, commands: this.goals.commands, planning: this.goals.planning },
-      governance: this.governance, query: this.goalTree, clock: this.clock,
-      attention: this.goalDecisionAttention,
-    });
-    this.goalTreeInputs = new GoalTreeInputReader({ commands: this.goals.commands });
-    this.goalTreeFacts = new GoalTreeFactMaterializer(
-      { commands: this.goals.commands, query: this.goalsModule.query },
-      this.goalTreeInputs,
-      (input) => this.goalEvents.createIntent(input),
-    );
-    this.goalTreeConflicts = new GoalTreeMaterializationConflicts({ query: this.goalsModule.query, planning: this.goals.planning },
-      this.governance, this.goalTreeInputs);
-    this.goalTreeMaterialization = new GoalTreeMaterializationApplication({
-      goals: this.goalsModule.query, transactions: this.governance.decisions, facts: this.goalTreeFacts,
-      conflicts: this.goalTreeConflicts,
-    });
-    this.goalTreeDecisionInputs = new GoalTreeDecisionNormalizer(this.governance.provenance);
-    this.goalTreeDecisionFollowup = new GoalTreeDecisionFollowup({
-      goals: { query: this.goalsModule.query, planning: this.goals.planning }, governance: this.governance,
-      query: this.goalTree, inputs: this.goalTreeInputs,
-    });
-    this.goalQueries = new GoalReadApplication(goalsModule.query, {
-      now: () => this.clock(),
-      goalTreeProposals: (projectId, rootGoalId) =>
-        this.goalTree.listGoalTreeProposals({ project_id: projectId, root_goal_id: rootGoalId }).proposals,
-    });
-    this.goalTreeDecision = new GoalTreeDecisionApplication({
-      goals: { ...this.goals, query: this.goalsModule.query }, governance: this.governance, query: this.goalTree,
-      inputs: this.goalTreeInputs, normalizer: this.goalTreeDecisionInputs, conflicts: this.goalTreeConflicts,
-      materialization: this.goalTreeMaterialization, followup: this.goalTreeDecisionFollowup, clock: this.clock,
-      attention: this.goalDecisionAttention,
-    });
-    this.goalTreeCheck = new GoalTreeCheckApplication({
-      goals: { query: this.goalsModule.query, planning: this.goals.planning }, governance: this.governance,
-      query: this.goalTree, materialization: this.goalTreeMaterialization, clock: this.clock,
-    });
+    this.goalEvents = application.goalEvents;
+    this.goalQueries = application.goalQueries;
+    this.goalTree = application.goalTree;
+    this.goalTreeSubmission = application.goalTreeSubmission;
+    this.goalTreeCheck = application.goalTreeCheck;
+    this.goalTreeDecision = application.goalTreeDecision;
+    this.goalDecisionAttention = application.goalDecisionAttention;
   }
 
   /**

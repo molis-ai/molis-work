@@ -11,7 +11,8 @@ import Database from "better-sqlite3";
 import {
   GoalsModule,
 } from "@molis-ai/molis-work-module-goals";
-import { GoalEventApplication } from "@molis-ai/molis-work-plugin-goals";
+import { createGoalsApplication } from "@molis-ai/molis-work-plugin-goals";
+import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 
@@ -62,12 +63,7 @@ function fixture(options: { human?: boolean } = {}) {
       ? [{ requirement_id: "human-signoff", statement: "用户亲自确认可以内部试用", human_decision_required: true }]
       : []),
   ];
-  new GoalEventApplication({
-    query: module.query,
-    commands: module.commands,
-    events: module.events,
-    planning: module.planning,
-  }).createIntent({
+  eventApp({ module, store }).createIntent({
     project_id: BOARD,
     goal_id: GOAL,
     title: "互动故事片段",
@@ -863,19 +859,22 @@ test("event pages keep server order without gaps or duplicates; bad cursor, limi
   }
 });
 
-function eventApp(module: GoalsModule<unknown>) {
-  return new GoalEventApplication({
-    query: module.query,
-    commands: module.commands,
-    events: module.events,
-    planning: module.planning,
-  });
+/** Goals composes its event application itself (PG094-07); these tests drive it over this fixture's library. */
+function eventApp({ module, store }: { module: GoalsModule<unknown>; store: LocalProjectDatabase }) {
+  const governance = new GovernanceCollaborationModule({ db: store.db });
+  return createGoalsApplication({
+    goals: { commands: module.commands, lifecycle: module.lifecycle, planning: module.planning, query: module.query, events: module.events },
+    governance: { provenance: governance.provenance, query: governance.query, records: governance.records, decisions: governance.decisions,
+      eventDecisions: governance.eventDecisions },
+    attention: new AttentionModule(store.db, { exists: () => false }),
+    clock: () => new Date(),
+  }).goalEvents;
 }
 
 test("bounded latest reports are the actual newest reports, not the first history page", () => {
   const data = fixture();
   try {
-    const app = eventApp(data.module);
+    const app = eventApp(data);
     app.configure({
       project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-latest",
       types: [storyDelivery(1)],
@@ -917,7 +916,7 @@ test("bounded latest reports are the actual newest reports, not the first histor
 test("Runtime supports on a human_decision criterion still leaves a user-confirmation gap", () => {
   const data = fixture();
   try {
-    const app = eventApp(data.module);
+    const app = eventApp(data);
     app.createIntent({
       project_id: BOARD,
       goal_id: "accepted-human",

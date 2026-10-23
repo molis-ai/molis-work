@@ -220,7 +220,7 @@ test("PG094-09: the Host serves Goals' declared routes by method and path; a bad
     assert.equal((await badEncoding.json() as { code?: string }).code, "host.request_path_invalid");
 
     // Expected change: the read is declared GET only, so a POST finds no route (it used to answer 400 for the body's fields).
-    const posted = await fetch(`${origin}${goalPath}/event-state`, { method: "POST", headers, body: JSON.stringify({ note: "不是读" }) });
+    const posted = await fetch(`${origin}${goalPath}/event-state`, { method: "POST", headers: { ...headers, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify({ note: "不是读" }) });
     assert.equal(posted.status, 404);
     await posted.body?.cancel();
 

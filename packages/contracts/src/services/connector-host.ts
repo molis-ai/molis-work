@@ -140,6 +140,22 @@ export interface ConnectorDirectoryEntry {
   readonly method_options?: readonly ConnectorMethodOption[];
 }
 
+/**
+ * How the Host sends a person's credential to one connection service for a plugin (`services.connections`, S-57): the one origin it
+ * is sent to, how it is written, and which kinds of connection hold a credential the Host can send (a CLI login keeps its secret in
+ * the CLI). A plugin names the service; the origin and the scheme are the platform's.
+ */
+export interface ConnectorRequestService {
+  readonly origin: string;
+  readonly credential: "bearer";
+  readonly auth_methods: readonly ("token" | "oauth")[];
+}
+
+/** The services a plugin's connection slot may name, GitHub first (spec repository-anti-corruption S0b-2, user decision 2026-10-20). */
+export const CONNECTOR_REQUEST_SERVICES: Readonly<Record<string, ConnectorRequestService>> = {
+  github: { origin: "https://api.github.com", credential: "bearer", auth_methods: ["token", "oauth"] },
+};
+
 /** A single account or API credential managed at Home scope. Never contains plaintext. */
 export type ConnectorConnectionAuthMethod = "oauth" | "token" | "cli" | "mcp" | "none";
 export type ConnectorConnectionState = "connected" | "reauth_required" | "disconnected";

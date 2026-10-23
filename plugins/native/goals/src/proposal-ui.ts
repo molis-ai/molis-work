@@ -203,19 +203,18 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
 return { renderGoalTreeProposalDecision, renderGoalTreeProposalList: (proposals: readonly GoalTreeProposalRecord[], view: GoalsProposalView) => renderProposalList(primitives, proposals, view) };
 }
 export type GoalsProposalRenderer = ReturnType<typeof createProposalRenderer>;
-export interface GoalsProposalUiModel {
-  primitives: GoalsProposalUiPrimitives;
-  proposal: GoalTreeProposalRecord;
-  view: GoalsProposalView;
-}
-type GoalsProposalListUiModel = Omit<GoalsProposalUiModel, "proposal"> & { proposals: readonly GoalTreeProposalRecord[] };
-export const goalsProposalUiContribution: UiContribution<GoalsProposalUiModel | GoalsProposalListUiModel> = {
+export type GoalsProposalUiModel = { primitives: GoalsProposalUiPrimitives } & (
+  | { kind: "decision"; args: Parameters<GoalsProposalRenderer["renderGoalTreeProposalDecision"]> }
+  | { kind: "list"; args: Parameters<GoalsProposalRenderer["renderGoalTreeProposalList"]> }
+);
+/** Which surface each renderer method mounts (W5-06): the shell builds its renderer from this, and the descriptor lists these. */
+export const GOALS_PROPOSAL_UI_SURFACES = { renderGoalTreeProposalDecision: "decision", renderGoalTreeProposalList: "list" } as const satisfies Record<keyof GoalsProposalRenderer, GoalsProposalUiModel["kind"]>;
+export const goalsProposalUiContribution: UiContribution<GoalsProposalUiModel> = {
   descriptor: { contribution_id: GOALS_PROPOSAL_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal tree proposal decision",
-    surfaces: ["decision", "list"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [] },
+    surfaces: Object.values(GOALS_PROPOSAL_UI_SURFACES).map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [] },
   render({ surface, model }) {
+    if (surface !== model.kind) throw new Error("Goals proposal surface does not match its model");
     const renderer = createProposalRenderer(model.primitives);
-    if (surface === "list" && "proposals" in model) return renderer.renderGoalTreeProposalList(model.proposals, model.view);
-    if (surface === "decision" && "proposal" in model) return renderer.renderGoalTreeProposalDecision(model.proposal, model.view);
-    throw new Error("Unknown Goals proposal surface");
+    return model.kind === "list" ? renderer.renderGoalTreeProposalList(...model.args) : renderer.renderGoalTreeProposalDecision(...model.args);
   },
 };

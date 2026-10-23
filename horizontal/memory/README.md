@@ -1,5 +1,16 @@
 # 平台记忆
 
+## M3 正式记忆管理页
+
+依 spec §9.4，`MemoryService.page` 由 `MemoryQueries` 复用当前 scope owner 与 SDK `page`；旧 `list` 的业务行为保留在同一查询职责，设置页不再调用它。页面只能由本人请求，owner 从可信 caller 和当前项目角色登记恢复，不从输入取得；开关 off 不挡本人管理。项目页包含项目及合法角色，角色选择不扩大到别的项目。
+
+每次请求只执行一个 owner 的一次 SDK page，共用一份 App 限额（缺省 40 条、最多 100 条、最多扫描 200 个记录槽，可由 Service ports 配置）。跨 owner 游标携固定查询及当前 owner 序列；开始及返还前比较当前序列，SDK 仍最终复核该页范围、条目和版本。游标不是许可，重启可以继续，范围或查询变化须重新开始。不建立缓存或分页表，不把 Node 目录枚举说成有界记录扫描。
+
+搜索与未分类筛选只过滤本次已授权页正文；没有命中且未穷尽时继续分页，不回退全库 list。跨 owner、后续页或存在正文/未分类后筛选时总数为 unknown；只有单 owner 首页完整且没有后筛选才能沿 SDK 报 exact。物理成本沿 SDK 当前诊断许可返回，unknown 不填 0。管理投影显示六类、真实状态、独立 expired 与 classification/null，不给旧未分类条目猜 common。四类自动形成与原 list DTO 不改变。
+
+正常、取消、范围撤回、固定 cursor 变化与跨重启通过真实 Node owner 的 `tests/memory-management-pages.test.ts`；Action/HTTP 入口及 overview 不全量读取由 `tests/memory-management-page-http.test.ts` 验证。首片不接批量操作、改类或候选分页。
+
+
 个人与项目记忆的平台服务：开关与策略、确定性写入门、召回编排、待认可的建议、最近变动与撤销、界面信号计数。记忆正文、版本、删除与作用域隔离都在 Prologue Memory（经 Agent Host），本服务不保存第二份正文，也不调用模型。
 
 包名：`@molis-ai/molis-work-service-memory`。工作区内部包，通过仓库构建和 Host 装配使用。

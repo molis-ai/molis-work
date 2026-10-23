@@ -1,5 +1,10 @@
 # 公共类型与协议
 
+## Memory 管理分页合同
+
+`services/memory` 新增 `memory.page@1` 与 `MemoryPageRequest/Response/MemoryManagementItem`，旧 `memory.list@2` 保持。管理请求没有 owner；六种管理类别不扩大写入/形成四类。响应的真实状态与 expired 分开，classification 缺失为 null，total 和物理成本用 exact/unknown 明示。`services/agent-host` 的 page DTO 复用 SDK 管理查询语义，只有 Adapter 翻译 scope、字段和成本；不建立另一个分页主人。
+
+
 让 Module、Host、Plugin 和 App 通过一致的输入输出协作。这里提供真实的公共类型、schema 和解析规则，而不是功能实现。
 
 包名：`@molis-ai/molis-work-contracts`。工作区内部包，通过仓库构建和 Host 装配使用。

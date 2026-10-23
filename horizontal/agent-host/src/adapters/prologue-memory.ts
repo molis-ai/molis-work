@@ -49,6 +49,14 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
       withCaller: next => facade(Object.freeze(structuredClone(next)), control),
       withExecution: next => facade(caller, next),
       list: (scope, owner) => call(async bound => (await bound.memory.list({ scope, owner })).map(memoryView)),
+      page: input => call(async bound => {
+        const { scan_limit, ...query } = input;
+        const page = await bound.memory.page({ ...query, ...(scan_limit === undefined ? {} : { scanLimit: scan_limit }) });
+        return { ...page, items: page.items.map(memoryView), cost: {
+          directory_entries: page.cost.directoryEntries, directory_enumerations: page.cost.directoryEnumerations,
+          directory_traversal: page.cost.directoryTraversal, metadata_reads: page.cost.metadataReads, body_reads: page.cost.bodyReads,
+        } };
+      }),
       write: input => call(async bound => memoryView(await bound.memory.write({ scope: input.scope, owner: input.owner, text: input.text,
         origin: input.origin, idempotencyKey: input.operation_id, ...(input.signal ? { signal: input.signal } : {}),
         ...(input.tags ? { tags: input.tags } : {}), ...(input.meta ? { meta: toSdkMemoryMeta(input.meta) } : {}) }))),

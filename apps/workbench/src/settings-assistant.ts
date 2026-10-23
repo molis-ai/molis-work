@@ -243,10 +243,11 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   (async () => {
     try {
       const personal = await molisWorkRequest("/api/memory/overview?scope=personal");
-      const parts = [L("个人记忆") + " " + ((personal.counts && personal.counts.personal) || 0) + " " + L("条")];
+      const quantity = body => body.total.kind === "exact" ? body.total.value + " " + L("条") : L("总数未知");
+      const parts = [L("个人记忆") + " " + quantity(personal)];
       if (project) {
         const own = await molisWorkRequest("/projects/" + encodeURIComponent(project) + "/api/memory/overview?scope=project");
-        parts.push(L("这个项目的记忆") + " " + ((own.counts && own.counts.project) || 0) + " " + L("条"));
+        parts.push(L("这个项目的记忆") + " " + quantity(own));
       }
       const waiting = (personal.candidates || []).length;
       if (waiting) parts.push(L("等你认可") + " " + waiting + " " + L("条"));

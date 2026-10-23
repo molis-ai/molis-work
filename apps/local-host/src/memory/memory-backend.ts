@@ -22,6 +22,10 @@ export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapabilit
   return {
     withCaller: next => prologueMemoryBackend(source, control, Object.freeze(structuredClone(next))),
     list: async (scope, owner) => (await (await store()).list(prologueScope(scope), owner)).map(view),
+    page: async input => {
+      const page = await (await store()).page({ ...input, scope: prologueScope(input.scope) });
+      return { ...page, items: page.items.map(view) };
+    },
     write: async input => view(await (await store()).write({ ...input, scope: prologueScope(input.scope) })),
     update: async input => view(await (await store()).update({ ...input, scope: prologueScope(input.scope) })),
     setMeta: async input => view(await (await store()).setMeta({ ...input, scope: prologueScope(input.scope) })),

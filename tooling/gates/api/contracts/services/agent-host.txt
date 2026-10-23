@@ -525,6 +525,7 @@ export interface AgentMemoryCapability {
     withCaller(caller: AgentMemoryCaller): AgentMemoryCapability;
     withExecution?(control: AgentMemoryExecutionControl): AgentMemoryCapability;
     list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
+    page(input: AgentMemoryPageQuery): Promise<AgentMemoryPage>;
     write(input: {
         scope: AgentMemoryEntry["scope"];
         owner: string;
@@ -791,6 +792,47 @@ export interface AgentMemoryMeta {
 export interface AgentMemoryMutation {
     expected_version: number;
     operation_id: string;
+    signal?: AbortSignal;
+}
+
+export interface AgentMemoryPage {
+    items: AgentMemoryEntry[];
+    cursor?: string;
+    exhausted: boolean;
+    stopped: "end" | "limit" | "scan-limit" | "unknown";
+    total: {
+        kind: "exact";
+        value: number;
+    } | {
+        kind: "unknown";
+    };
+    scanned: number | "unknown";
+    cost: {
+        directory_entries: number | "unknown";
+        directory_enumerations: number | "unknown";
+        directory_traversal: "full" | "bounded" | "unknown";
+        metadata_reads: number | "unknown";
+        body_reads: number | "unknown";
+    };
+}
+
+export interface AgentMemoryPageQuery {
+    scope: AgentMemoryEntry["scope"];
+    owner: string;
+    filter?: {
+        namespace?: string | null;
+        scenes?: readonly string[];
+        kinds?: readonly string[];
+        lifecycles?: readonly string[];
+        extra?: Readonly<Record<string, readonly string[]>>;
+        sources?: readonly string[];
+        states?: readonly ("active" | "paused" | "disabled")[];
+        expired?: boolean;
+        tombstone?: boolean;
+    };
+    limit?: number;
+    scan_limit?: number;
+    cursor?: string;
     signal?: AbortSignal;
 }
 

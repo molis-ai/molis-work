@@ -244,6 +244,28 @@ export interface AgentMemoryScopePreview {
 export interface AgentMemoryClearResult {
   items: Array<{ memory_id: string; outcome: "completed" | "already-absent" | "conflict" | "not-executed" | "unknown"; version?: number }>;
 }
+/** Query permission is distinct from task reads. Owner is supplied by the trusted App scope resolver. */
+export interface AgentMemoryPageQuery {
+  scope: AgentMemoryEntry["scope"];
+  owner: string;
+  filter?: { namespace?: string | null; scenes?: readonly string[]; kinds?: readonly string[]; lifecycles?: readonly string[];
+    extra?: Readonly<Record<string, readonly string[]>>; sources?: readonly string[]; states?: readonly ("active" | "paused" | "disabled")[];
+    expired?: boolean; tombstone?: boolean };
+  limit?: number;
+  scan_limit?: number;
+  cursor?: string;
+  signal?: AbortSignal;
+}
+export interface AgentMemoryPage {
+  items: AgentMemoryEntry[];
+  cursor?: string;
+  exhausted: boolean;
+  stopped: "end" | "limit" | "scan-limit" | "unknown";
+  total: { kind: "exact"; value: number } | { kind: "unknown" };
+  scanned: number | "unknown";
+  cost: { directory_entries: number | "unknown"; directory_enumerations: number | "unknown";
+    directory_traversal: "full" | "bounded" | "unknown"; metadata_reads: number | "unknown"; body_reads: number | "unknown" };
+}
 type AgentMemoryLocation = { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string };
 type AgentCandidateLocation = { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string };
 
@@ -252,6 +274,7 @@ export interface AgentMemoryCapability {
   withCaller(caller: AgentMemoryCaller): AgentMemoryCapability;
   withExecution?(control: AgentMemoryExecutionControl): AgentMemoryCapability;
   list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
+  page(input: AgentMemoryPageQuery): Promise<AgentMemoryPage>;
   /** Append maps operation_id to SDK idempotencyKey; it has no synthetic expected version. */
   write(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta; operation_id: string; signal?: AbortSignal }): Promise<AgentMemoryEntry>;
   update(input: AgentMemoryLocation & AgentMemoryMutation & { change: AgentMemoryChange }): Promise<AgentMemoryEntry>;

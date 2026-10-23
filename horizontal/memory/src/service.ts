@@ -24,6 +24,8 @@ import {
   type MemoryLedgerPort,
   type MemoryListRequest,
   type MemoryListResponse,
+  type MemoryPageRequest,
+  type MemoryPageResponse,
   type MemoryMetaRecord,
   type MemoryPrefs,
   type MemoryPrefsView,
@@ -54,6 +56,7 @@ import { UNCHECKED, UNSAID, theirWords } from "./spoken.js";
 import { keywordScore, looksLikeInstruction, looksLikeSecret, recallKeywords, sameText, sameWords, similarity } from "./text.js";
 import { fromEntryMeta, restoredEntryFacts, toEntryMeta } from "./facts.js";
 import { newMemoryClassification } from "./classification.js";
+import { MemoryQueries, type MemoryPageLimits } from "./queries.js";
 import { MemoryScopeCommands, type Located } from "./scope-commands.js";
 import type { AgentMemoryMeta, AgentMemoryUseReceipt, AgentRecalledMemory, AgentMemorySourceRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -94,6 +97,7 @@ export interface MemoryServicePorts {
   now?: () => Date;
   newId?: () => string;
   timeZone?: string;
+  managementPages?: Partial<MemoryPageLimits>;
   projectTitle?(projectId: string): Promise<string | null>;
 }
 
@@ -137,6 +141,7 @@ export class MemoryService {
   private readonly learning: MemoryLearning;
   private readonly promotions: MemoryPromotion;
   private readonly maintenance: MemoryUpkeep;
+  private readonly queries: MemoryQueries;
 
   constructor(private readonly ports: MemoryServicePorts) {
     this.preferences = new MemoryPreferences(ports.ledger);
@@ -156,6 +161,8 @@ export class MemoryService {
       recordClear: (caller, scope, owner, removed, complete) => { this.recordChange(caller, { kind: "cleared", scope, owner, memory_id: null,
         text: "", by: "person", rule: null, reason: `${complete ? "清空" : "部分清空"}了 ${removed} 条`, undo: null }); },
     });
+    this.queries = new MemoryQueries({ backend: ports.backend, ledger: ports.ledger, scopes: this.scopeCommands, now: this.now,
+      limits: ports.managementPages, candidates: (caller, request) => this.candidates(caller, request) });
     this.learning = new MemoryLearning({ backend: ports.backend, ledger: ports.ledger, scopes: this.scopeCommands, operations: this.operations,
       offer: (caller, input) => this.offer(caller, input) });
   }
@@ -177,34 +184,8 @@ export class MemoryService {
 
   /* ---- reading ---- */
 
-  async list(caller: MemoryCaller, request: MemoryListRequest = {}): Promise<MemoryListResponse> {
-    const scopes = this.scopeCommands.scopesFor(caller, request.scope === "all" || !request.scope ? undefined : [request.scope]);
-    const items: MemoryItem[] = [];
-    let personal = 0, project = 0;
-    for (const where of scopes) {
-      if (!caller.person) {
-        const access = consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id);
-        if (!access.allowed) continue;
-      }
-      for (const located of await this.scopeCommands.located(caller, where.scope, where.owner)) {
-        if (!visibleTo(caller, located.meta)) continue;
-        if (where.scope === "personal") personal += 1; else project += 1;
-        const item = this.scopeCommands.item(located);
-        if (request.kinds?.length && !request.kinds.includes(item.kind)) continue;
-        if (request.sources?.length && !request.sources.includes(item.source)) continue;
-        if (request.states?.length && !request.states.includes(item.state)) continue;
-        if (request.query?.trim() && !item.text.toLowerCase().includes(request.query.trim().toLowerCase())) continue;
-        items.push(item);
-      }
-    }
-    items.sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""));
-    const weekAgo = this.now().getTime() - 7 * 24 * 60 * 60 * 1000;
-    const owners = new Set(scopes.map(where => `${where.scope}:${where.owner}`));
-    const auto_this_week = this.ports.ledger.changes(caller.actor_id, 500).filter(change => change.kind === "auto_kept" && change.state === "active"
-      && owners.has(`${change.scope}:${change.owner}`) && Date.parse(change.at) >= weekAgo).length;
-    const pending = (await this.candidates(caller, { scope: request.scope ?? "all" })).length;
-    return { items, counts: { personal, project, auto_this_week, pending } };
-  }
+  list(caller: MemoryCaller, request: MemoryListRequest = {}): Promise<MemoryListResponse> { return this.queries.list(caller, request); }
+  page(caller: MemoryCaller, request: MemoryPageRequest = {}): Promise<MemoryPageResponse> { return this.queries.page(caller, request); }
 
   async history(caller: MemoryCaller, memoryId: string): Promise<{ memory_id: string; revisions: MemoryRevision[] }> {
     const located = await this.scopeCommands.find(caller, memoryId);
@@ -641,7 +622,7 @@ export class MemoryService {
     for (const where of owners.values()) {
       if (!caller.person && !consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id).allowed) continue;
       const holder = anywhere ? { ...caller, project_id: where.project } : caller;
-      for (const record of await this.candidateRecords(holder, where.scope, where.owner)) {
+      for (const record of await this.queries.candidateRecords(holder, where.scope, where.owner)) {
         if (record.state !== "pending") continue;
         if (filter.work_id && record.work?.work_id !== filter.work_id) continue;
         if (Date.parse(record.created_at) < stale) { await this.settleCandidate(holder,record, "expired"); continue; }
@@ -664,7 +645,7 @@ export class MemoryService {
     const text = input.text.trim();
     if (!text || text.length > MAX_TEXT) throw memoryErrors.invalid(`记忆内容要在 1–${MAX_TEXT} 字之间`);
     if (looksLikeSecret(text)) throw memoryErrors.invalid("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
-    const earlier = await this.candidateRecords(caller, input.scope, where.owner);
+    const earlier = await this.queries.candidateRecords(caller, input.scope, where.owner);
     const work = caller.work ?? null;
     if (options.sources && !this.sourceAllowed(caller.actor_id, input.scope, where.owner, options.sources)) throw memoryErrors.forbidden("这份来源已遗忘，不能重新形成候选");
     const prior = options.combines ? (await this.ports.backend.withCaller(caller).candidates.list(input.scope, where.owner)).find(item => item.candidate_id === options.combines) : undefined;
@@ -711,7 +692,7 @@ export class MemoryService {
   async accept(caller: MemoryCaller, candidateId: string, input: { text?: string; expected_version?: number } = {}): Promise<{ candidate: MemoryCandidate; memory: MemoryItem | null }> {
     caller = this.operations.caller(caller);
     personOnly(caller, "只有本人能认可记忆建议");
-    const record = await this.ownCandidate(caller, candidateId);
+    const record = await this.queries.ownCandidate(caller, candidateId);
     this.preferences.assertEnabled(caller.actor_id, { ...record, project: record.project_id });
     if (record.state !== "pending" && !this.operations.find(caller, `accept:${candidateId}`)) throw memoryErrors.invalid(record.state === "accepted" ? "这条已经记住了" : "这条建议已经不在了");
     const text = typeof input.text === "string" && input.text.trim() ? input.text.trim() : record.text;
@@ -780,24 +761,11 @@ export class MemoryService {
   async discard(caller: MemoryCaller, candidateId: string, expectedVersion?: number): Promise<{ candidate: MemoryCandidate }> {
     caller = this.operations.caller(caller);
     personOnly(caller, "只有本人能拒绝记忆建议");
-    const record = await this.ownCandidate(caller, candidateId);
+    const record = await this.queries.ownCandidate(caller, candidateId);
     if (record.state !== "pending" && !this.operations.find(caller, `discarded:${candidateId}`)) throw memoryErrors.invalid("这条建议已经不在了");
     const original = this.operations.find(caller, `discarded:${candidateId}`);
     if (expectedVersion !== undefined && expectedVersion !== (original?.expected_version ?? record.version)) throw memoryErrors.conflict("建议已变化，请重新查看后再决定");
     return { candidate: candidateView(await this.settleCandidate(caller,record, "discarded")) };
-  }
-
-  /** Join the ledger's notes with the current candidate owner; reading never repairs missing facts. */
-  private async candidateRecords(caller: MemoryCaller, scope: MemoryScope, owner: string): Promise<MemoryCandidateRecord[]> {
-    const held = new Map((await this.ports.backend.withCaller(caller).candidates.list(scope, owner)).map(item => [item.candidate_id, item]));
-    const out: MemoryCandidateRecord[] = [];
-    for (const note of this.ports.ledger.candidates(caller.actor_id).filter(item => item.scope === scope && item.owner === owner)) {
-      const found = held.get(note.candidate_id);
-      if (!found) throw memoryErrors.not_found("记忆建议的原记录不可读；请核对存储后继续");
-      const state: MemoryCandidateRecord["state"] = found.state === "promoted" ? "accepted" : found.state;
-      out.push({ ...note, version: found.version, state, memory_id: found.memory_id ?? note.memory_id });
-    }
-    return out;
   }
 
   private async settleCandidate(caller: MemoryCaller, record: MemoryCandidateRecord, state: "discarded" | "expired"): Promise<MemoryCandidateRecord> {
@@ -1110,15 +1078,6 @@ export class MemoryService {
     if (purpose === "forget") await this.forgetSources(caller, where, [located.entry.memory_id]);
     await this.ports.backend.withCaller(caller).remove({ ...where, memory_id: located.entry.memory_id, ...this.operations.formal(caller, located, "purge") });
     this.ports.ledger.forget(located.entry.memory_id);
-  }
-
-  private async ownCandidate(caller: MemoryCaller, candidateId: string): Promise<MemoryCandidateRecord> {
-    const note = this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === candidateId);
-    if (!note) throw memoryErrors.not_found("没有这条建议");
-    const holder = caller.person && caller.project_id === null ? { ...caller, project_id: note.project_id } : caller;
-    const record = (await this.candidateRecords(holder, note.scope, note.owner)).find(item => item.candidate_id === candidateId);
-    if (!record) throw memoryErrors.not_found("没有这条建议");
-    return record;
   }
 
   private recordChange(caller: MemoryCaller, input: { kind: MemoryChangeKind; scope: MemoryScope; owner: string; memory_id: string | null; text: string;

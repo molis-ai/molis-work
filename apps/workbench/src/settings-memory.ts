@@ -6,6 +6,8 @@
 export function renderMemorySettings({ L, scope, projectId }: { L(text: string): string; scope: "personal" | "project"; projectId: string | null }): string {
   const personal = scope === "personal";
   const title = personal ? L("记忆") : L("项目记忆");
+  const filter = (key: string, label: string, choices: readonly (readonly [string, string])[]) =>
+    `<select class="mw-select" data-memory-filter="${key}" aria-label="${L(label)}">${choices.map(([value, text]) => `<option value="${value}">${L(text)}</option>`).join("")}</select>`;
   const lead = personal
     ? L("你的偏好和习惯：助理、Agent 工作、插件和界面推荐都会用到，在所有项目里生效。每一条都能看到从哪来、最近用在哪，可以修改、停用或删除。")
     : L("这个项目的约定、背景和经验：只在这个项目里使用。和“项目说明”不同，它按相关性参考，不是必须遵守的规矩。");
@@ -22,9 +24,10 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
       <h2 id="memory-changes-title">${L("最近变动")}</h2>
       <ul class="memory-change-list" data-memory-changes></ul>
     </section>
-    <section class="settings-section memory-pairs" aria-labelledby="memory-pairs-title" data-memory-pairs-section hidden>
+    <section class="settings-section memory-pairs" aria-labelledby="memory-pairs-title" data-memory-pairs-section>
       <h2 id="memory-pairs-title">${L("可能重复或冲突")}</h2>
       <p class="settings-muted">${L("整理时发现的两两一对。选一条保留，另一条会停用（可以随时恢复）；都保留则不再提这一对。")}</p>
+      <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-pairs-read disabled>${L("查看可能重复或冲突")}</button>
       <ul class="memory-list" data-memory-pairs></ul>
     </section>
     <section class="settings-section memory-candidates" aria-labelledby="memory-candidates-title" data-memory-candidates-section hidden>
@@ -36,13 +39,22 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
       <div class="memory-items-head"><h2 id="memory-items-title">${personal ? L("我的记忆") : L("这个项目的记忆")}</h2>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-add>${L("添加")}</button></div>
       <div class="memory-toolbar" role="group" aria-label="${L("筛选记忆")}">
-        <select class="mw-select" data-memory-filter="kind" aria-label="${L("类别")}"><option value="">${L("全部类别")}</option><option value="preference">${L("偏好")}</option><option value="convention">${L("约定")}</option><option value="fact">${L("背景事实")}</option><option value="experience">${L("经验")}</option></select>
-        <select class="mw-select" data-memory-filter="source" aria-label="${L("来源")}"><option value="">${L("全部来源")}</option><option value="said">${L("你说的")}</option><option value="accepted">${L("你认可的")}</option><option value="auto">${L("自动记住")}</option><option value="manual">${L("手动添加")}</option><option value="imported">${L("导入")}</option><option value="plugin">${L("插件记下")}</option></select>
-        <select class="mw-select" data-memory-filter="state" aria-label="${L("状态")}"><option value="">${L("全部状态")}</option><option value="active">${L("生效")}</option><option value="disabled">${L("停用")}</option><option value="paused">${L("暂停")}</option></select>
-        <input class="mw-input memory-search" type="search" data-memory-filter="query" placeholder="${L("搜索记忆")}" aria-label="${L("搜索记忆")}">
+        ${filter("scene", "场景", [["", "全部场景"], ["coding", "Coding"], ["assistant", "助理"], ["common", "通用"], ["unclassified", "未分类"]])}
+        ${filter("kind", "类别", [["", "全部类别"], ["preference", "偏好"], ["convention", "约定"], ["fact", "背景事实"], ["experience", "经验"], ["habit", "习惯"], ["project-decision", "项目决策"]])}
+        ${filter("lifecycle", "保留时间", [["", "全部保留类型"], ["long-term", "长期"], ["short-term", "短期"], ["session", "会话内"]])}
+        ${filter("source", "来源", [["", "全部来源"], ["said", "你说的"], ["accepted", "你认可的"], ["auto", "自动记住"], ["manual", "手动添加"], ["imported", "导入"], ["plugin", "插件记下"]])}
+        ${filter("state", "状态", [["", "全部状态"], ["active", "生效"], ["disabled", "停用"], ["paused", "已暂停"]])}
+        ${filter("expired", "到期情况", [["", "全部期限"], ["true", "已到期"], ["false", "未到期"]])}
+        <input class="mw-input memory-search" type="search" maxlength="400" data-memory-filter="query" placeholder="${L("搜索记忆")}" aria-label="${L("搜索记忆")}">
       </div>
       <div class="memory-editor-slot" data-memory-new hidden></div>
       <ul class="memory-list" data-memory-list><li class="settings-muted">${L("正在读取…")}</li></ul>
+      <nav class="memory-toolbar" aria-label="${L("记忆分页")}">
+        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-previous disabled>${L("上一页")}</button>
+        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-next disabled>${L("下一页")}</button>
+        <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-memory-reload>${L("重新读取")}</button>
+        <span class="settings-muted" data-memory-page-status aria-live="polite"></span>
+      </nav>
     </section>
     <section class="settings-section memory-prefs" aria-labelledby="memory-form-title">
       <h2 id="memory-form-title">${L("怎么形成")}</h2>
@@ -95,6 +107,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const project = root.dataset.project || "";
     const base = (scope === "project" && project ? "/projects/" + encodeURIComponent(project) : "") + "/api/memory";
     const $ = (selector) => root.querySelector(selector);
+    const part = name => $("[data-memory-" + name + "]");
     const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined && text !== null) node.textContent = text; return node; };
     const button = (text, variant, label) => { const node = el("button", "mw-btn " + (variant || "mw-btn--ghost") + " mw-btn--sm", text); node.type = "button"; if (label) node.setAttribute("aria-label", label); return node; };
     // A step that cannot be undone asks first, in the catalog's alert dialog (never the browser's own prompt).
@@ -115,10 +128,11 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       root.append(dialog); dialog.showModal(); cancel.focus();
     });
     const KIND = { preference: "偏好", convention: "约定", fact: "背景事实", experience: "经验" };
+    const CLASS = { coding: "Coding", assistant: "助理", common: "通用", "long-term": "长期", "short-term": "短期", session: "会话内", habit: "习惯", "project-decision": "项目决策" };
     const SOURCE = { said: "你说的", accepted: "你认可的", auto: "自动记住", manual: "手动添加", imported: "导入", plugin: "插件记下" };
-    const STATE = { active: "生效", disabled: "停用", paused: "暂停" };
+    const STATE = { active: "生效", disabled: "停用", paused: "已暂停" };
     const CHANGE = { kept: "记住", auto_kept: "自动记住", replaced: "替换", auto_replaced: "自动替换", merged: "合并", edited: "修改", restored: "回到旧版本", moved: "改范围",
-      disabled: "停用", auto_disabled: "自动停用", enabled: "启用", paused: "暂停", resumed: "恢复", removed: "删除", accepted: "认可", imported: "导入", cleared: "清空" };
+      disabled: "停用", auto_disabled: "自动停用", enabled: "启用", paused: "已暂停", resumed: "恢复", removed: "删除", accepted: "认可", imported: "导入", cleared: "清空" };
     const day = (iso) => { const date = new Date(iso); return !iso || isNaN(date) ? "" : (date.getMonth() + 1) + "/" + date.getDate(); };
     const appliesText = (applies, itemScope) => {
       const parts = [];
@@ -131,9 +145,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       if (applies && applies.until) parts.push(L("到") + " " + applies.until.slice(0, 10));
       return parts.length ? parts.join(" · ") : L(itemScope === "character" ? "这个角色在本项目承担的工作" : scope === "project" ? "这个项目的所有工作" : "所有工作");
     };
-    let data = null, busy = false;
-    const filters = { kind: "", source: "", state: "", query: "" };
-    const error = $("[data-memory-error]");
+    let data = null, busy = false, reading = false, readFailed = false, reader, currentCursor, previous = [], pairsOpened = false, pairsReader;
+    const filters = { scene: "", kind: "", lifecycle: "", source: "", state: "", expired: "", query: "" };
+    const error = part("error");
     const board = () => document.querySelector("[data-settings-toast], [data-toast]");
     const toast = (text) => {
       const box = board();
@@ -160,8 +174,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       } catch (failure) { pendingCommands.set(command.id, command); paintRetries(); throw failure; }
     };
     function paintRetries() {
-      $("[data-memory-retries]").hidden = !pendingCommands.size;
-      const list = $("[data-memory-retry-list]"); list.replaceChildren();
+      part("retries").hidden = !pendingCommands.size;
+      const list = part("retry-list"); list.replaceChildren();
       for (const command of pendingCommands.values()) {
         const row = el("li", "memory-row"), copy = el("strong", "memory-row-copy", command.title);
         const retry = button(L("重试这次操作"), "mw-btn--secondary", L("重试这次操作") + "：" + command.title);
@@ -189,21 +203,61 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       catch (failure) { fail(failure); }
       finally { busy = false; }
     };
-    const load = async () => { data = await api("/overview?scope=" + scope); paint(); };
+    const pageInput = (cursor) => {
+      const filter = {};
+      for (const [key, plural] of [["kind", "kinds"], ["source", "sources"], ["state", "states"], ["lifecycle", "lifecycles"]]) {
+        if (filters[key]) filter[plural] = [filters[key]];
+      }
+      if (filters.scene === "unclassified") filter.unclassified = true;
+      else if (filters.scene) filter.scenes = [filters.scene];
+      if (filters.expired) filter.expired = filters.expired === "true";
+      return { scope, filter, ...(filters.query.trim() ? { query: filters.query.trim() } : {}), ...(cursor ? { cursor } : {}) };
+    };
+    const readPage = async (cursor, trail, overview = false) => {
+      reader?.abort();
+      const active = reader = new AbortController(), input = pageInput(cursor);
+      reading = true; readFailed = false; error.hidden = true; paintNavigation();
+      const request = path => molisWorkRequest(base + path, { signal: active.signal });
+      try {
+        const first = overview ? await request("/overview?scope=" + scope) : null;
+        const page = first && !Object.keys(input.filter).length && !input.query && !cursor ? first
+          : await request("/page?input=" + encodeURIComponent(JSON.stringify(input)));
+        if (reader !== active || !root.isConnected) return;
+        data = { ...data, ...first, ...page }; currentCursor = cursor; previous = trail;
+        paint();
+      } catch (failure) {
+        if (reader === active && root.isConnected) {
+          readFailed = true; fail(failure);
+          part("list").replaceChildren(el("li", "memory-empty settings-muted", L("读取未完成，请重新读取。")));
+        }
+      } finally {
+        if (reader === active) { reading = false; paintNavigation(); }
+      }
+    };
+    const load = async () => { await readPage(undefined, [], true); if (pairsOpened) await readPairs(); };
+
+    function paintNavigation() {
+      part("list").setAttribute("aria-busy", String(reading));
+      part("list").inert = reading || readFailed;
+      part("previous").disabled = reading || readFailed || !previous.length;
+      const next = part("next"); next.disabled = reading || readFailed || !data?.cursor || data.exhausted;
+      next.textContent = L(data && !data.items.length && !data.exhausted ? "继续查找" : "下一页");
+      part("reload").disabled = reading;
+      part("page-status").textContent = reading ? L("正在读取…") : readFailed ? L("读取未完成，请重新读取。") : !data ? ""
+        : L("本页显示") + " " + data.items.length + " · " + L(data.exhausted ? "已查完" : "尚未查完，可以继续查找。");
+    }
 
     function paintSummary() {
-      const counts = data.counts || {};
-      const total = scope === "project" ? counts.project : counts.personal;
-      const parts = [L(scope === "project" ? "项目记忆" : "个人记忆") + " " + (total || 0) + " " + L("条")];
-      if (counts.auto_this_week) parts.push(L("本周自动记住") + " " + counts.auto_this_week + " " + L("条"));
-      if (counts.pending) parts.push(counts.pending + " " + L("条等你认可"));
-      $("[data-memory-summary]").textContent = parts.join(" · ");
+      const parts = [L(scope === "project" ? "项目记忆" : "个人记忆") + " · " + (data.total.kind === "exact"
+        ? data.total.value + " " + L("条") : L("总数未知"))];
+      if (data.candidates?.length) parts.push(data.candidates.length + " " + L("条等你认可"));
+      part("summary").textContent = parts.join(" · ");
     }
 
     function paintChanges() {
       // What happened without the person's own hand here: automatic changes, and what works kept or forgot for them.
-      const list = $("[data-memory-changes]"), changes = (data.changes || []).filter((change) => change.by !== "person" || change.work).slice(0, 6);
-      $("[data-memory-changes-section]").hidden = !changes.length;
+      const list = part("changes"), changes = (data.changes || []).filter((change) => change.by !== "person" || change.work).slice(0, 6);
+      part("changes-section").hidden = !changes.length;
       list.replaceChildren();
       changes.forEach((change) => {
         const row = el("li", "memory-change" + (change.state === "undone" ? " is-undone" : ""));
@@ -224,8 +278,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     }
 
     function paintCandidates() {
-      const list = $("[data-memory-candidates]"), candidates = data.candidates || [];
-      $("[data-memory-candidates-section]").hidden = !candidates.length;
+      const list = part("candidates"), candidates = data.candidates || [];
+      part("candidates-section").hidden = !candidates.length;
       list.replaceChildren();
       candidates.forEach((candidate) => {
         const row = el("li", "memory-row memory-row--candidate"), submit = mutation();
@@ -315,38 +369,41 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     }
 
     function paintItems() {
-      const list = $("[data-memory-list]");
+      const list = part("list");
       list.replaceChildren();
-      const query = filters.query.trim().toLowerCase();
-      // A project's page also holds the memories of the Characters working in it: each labelled with its Character.
-      const mine = (item) => item.scope === scope || (scope === "project" && item.scope === "character");
-      const items = (data.items || []).filter(mine)
-        .filter((item) => (!filters.kind || item.kind === filters.kind) && (!filters.source || item.source === filters.source) && (!filters.state || item.state === filters.state)
-          && (!query || item.text.toLowerCase().includes(query)));
+      const items = data.items;
       if (!items.length) {
-        const empty = (data.items || []).some(mine);
-        list.append(el("li", "memory-empty settings-muted", empty ? L("没有符合筛选的记忆") : scope === "project"
+        const filtered = previous.length || Object.values(filters).some(Boolean);
+        list.append(el("li", "memory-empty settings-muted", !data.exhausted ? L("尚未查完，可以继续查找。") : filtered ? L("没有符合筛选的记忆") : scope === "project"
           ? L("这个项目还没有记忆：在项目的工作里说“记住……”，或点“添加”。") : L("还没有记住任何事：在对话里说“以后……”或“记住……”，或点“添加”。")));
         return;
       }
       items.forEach((item) => {
-        const row = el("li", "memory-row" + (item.state !== "active" ? " is-off" : "")), submit = mutation();
+        const row = el("li", "memory-row" + (item.state !== "active" || item.expired ? " is-off" : "")), submit = mutation();
         const change = values => submit("/change", { ...values, memory_id: item.memory_id, expected_version: item.version });
         row.dataset.memoryId = item.memory_id;
         const copy = el("div", "memory-row-copy");
         copy.append(el("strong", "memory-text", item.text));
         const meta = el("div", "memory-meta");
-        meta.append(el("span", "memory-tag", L(KIND[item.kind] || item.kind)));
+        meta.append(el("span", "memory-tag", L(KIND[item.kind] || CLASS[item.kind] || item.kind)));
+        const classification = item.classification;
+        meta.append(el("span", "memory-tag", classification
+          ? classification.scenes.map(scene => L(CLASS[scene] || scene)).concat(L(CLASS[classification.lifecycle] || classification.lifecycle)).join(" · ") : L("未分类")));
         if (item.scope === "character") meta.append(el("span", "memory-tag memory-tag--character", L("角色") + "「" + (item.character_title || item.character_id) + "」"));
         if (item.plugin_id) meta.append(el("span", "memory-tag", L("插件") + " " + item.plugin_id));
         meta.append(el("span", "memory-tag memory-tag--" + item.source, L(SOURCE[item.source] || item.source) + " " + day(item.created_at)));
         if (item.state !== "active") { const status = el("span", "memory-tag memory-tag--state", L(STATE[item.state]) + (item.state_reason ? " · " + item.state_reason : "")); status.dataset.mwState = item.state; meta.append(status); }
+        if (item.expired || item.expires_at) meta.append(el("span", "memory-tag", L(item.expired ? "已到期" : "有效至") + (item.expires_at ? " " + new Date(item.expires_at).toLocaleString() : "")));
         meta.append(el("span", "", L("适用") + "：" + appliesText(item.applies, item.scope)));
         meta.append(el("span", "", item.last_used ? L("最近参考轮次") + "：" + item.last_used.title + " · " + day(item.last_used.at) : L("暂无已确认参考")));
         copy.append(meta);
         const origin = el("details", "memory-origin"); origin.append(el("summary", "", L("出处")), el("p", "", item.origin));
         copy.append(origin);
         const actions = el("div", "memory-actions");
+        if (!KIND[item.kind]) {
+          actions.append(el("span", "settings-muted", L("此类别暂仅查看")));
+          row.append(copy, actions); list.append(row); return;
+        }
         const edit = button(L("修改"), "mw-btn--ghost", L("修改") + "：" + item.text);
         edit.addEventListener("click", () => {
           const editor = itemEditor(item, (value) => change({ action: "update", text: value.text, kind: value.kind, applies: value.applies }));
@@ -388,10 +445,27 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       });
     }
 
+    async function readPairs() {
+      pairsOpened = true; pairsReader?.abort();
+      const active = pairsReader = new AbortController(), open = part("pairs-read"), list = part("pairs");
+      open.disabled = true; open.textContent = L("正在读取…"); list.inert = true;
+      try {
+        const body = await molisWorkRequest(base + "/pairs?scope=" + scope, { signal: active.signal });
+        if (pairsReader === active && root.isConnected) { data.pairs = body.pairs; paintPairs(); }
+      } catch (failure) {
+        if (pairsReader === active && root.isConnected) { data.pairs = null; paintPairs(); fail(failure); }
+      } finally {
+        if (pairsReader === active) { pairsReader = null; open.disabled = false; open.textContent = L("重新读取"); list.inert = false; }
+      }
+    }
+
     function paintPairs() {
-      const list = $("[data-memory-pairs]"), pairs = data.pairs || [];
-      $("[data-memory-pairs-section]").hidden = !pairs.length;
+      const list = part("pairs"), pairs = data.pairs, open = part("pairs-read");
+      open.disabled = Boolean(pairsReader);
+      open.textContent = L(pairsReader ? "正在读取…" : pairsOpened ? "重新读取" : "查看可能重复或冲突");
       list.replaceChildren();
+      if (!pairs) return;
+      if (!pairs.length) list.append(el("li", "settings-muted", L("没有需要处理的")));
       pairs.forEach((pair) => {
         const row = el("li", "memory-row memory-row--pair");
         const copy = el("div", "memory-row-copy");
@@ -413,7 +487,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     }
 
     function paintUpkeep() {
-      const box = $("[data-memory-upkeep]"), last = data.last_upkeep;
+      const box = part("upkeep"), last = data.last_upkeep;
       if (!last) return;
       const done = [last.expired ? L("到期停用") + " " + last.expired : "", last.unused ? L("长期没用停用") + " " + last.unused : "", last.merged ? L("合并") + " " + last.merged : "",
         last.paused ? L("依据不在暂停") + " " + last.paused : "", last.pairs ? L("交给你选") + " " + last.pairs : ""].filter(Boolean).join(" · ");
@@ -422,20 +496,25 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
 
     function paint() {
       if (!data) return;
-      paintSummary(); paintChanges(); paintPairs(); paintCandidates(); paintItems(); paintPrefs(); paintUpkeep();
-      $("[data-memory-new]").hidden = true;
+      paintSummary(); paintChanges(); paintPairs(); paintCandidates(); paintItems(); paintPrefs(); paintUpkeep(); paintNavigation();
+      part("new").hidden = true;
     }
 
     root.querySelectorAll("[data-memory-filter]").forEach((control) => control.addEventListener(control.tagName === "INPUT" ? "input" : "change", () => {
-      filters[control.dataset.memoryFilter] = control.value; if (data) paintItems();
+      filters[control.dataset.memoryFilter] = control.value;
+      readPage(undefined, [], !data);
     }));
-    $("[data-memory-add]").addEventListener("click", () => {
-      const slot = $("[data-memory-new]"), write = mutation();
+    part("previous").addEventListener("click", () => readPage(previous.at(-1), previous.slice(0, -1)));
+    part("next").addEventListener("click", () => readPage(data.cursor, [...previous, currentCursor]));
+    part("reload").addEventListener("click", load);
+    part("pairs-read").addEventListener("click", readPairs);
+    part("add").addEventListener("click", () => {
+      const slot = part("new"), write = mutation();
       const editor = itemEditor(null, (value) => write("/items", { scope, text: value.text, kind: value.kind, applies: value.applies }));
       slot.replaceChildren(editor); slot.hidden = false; editor.querySelector("textarea").focus();
     });
-    $("[data-memory-upkeep-run]").addEventListener("click", () => run(() => api("/upkeep", {}), "整理好了，结果在最近变动里"));
-    $("[data-memory-export]").addEventListener("click", () => run(async () => {
+    part("upkeep-run").addEventListener("click", () => run(() => api("/upkeep", {}), "整理好了，结果在最近变动里"));
+    part("export").addEventListener("click", () => run(async () => {
       const body = await api("/export", { scope });
       const blob = new Blob([JSON.stringify(body.package, null, 2)], { type: "application/json" });
       const link = document.createElement("a");
@@ -445,7 +524,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       setTimeout(() => URL.revokeObjectURL(link.href), 1000);
     }, "已导出"));
     const importPackage = mutation();
-    $("[data-memory-import]").addEventListener("change", (event) => {
+    part("import").addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];
       event.target.value = "";
       if (!file) return;
@@ -456,7 +535,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       });
     });
     let clearPreview = null;
-    const clearButton = $("[data-memory-clear]"), resetClear = $("[data-memory-clear-reset]"), clearStatus = $("[data-memory-clear-status]");
+    const clearButton = part("clear"), resetClear = part("clear-reset"), clearStatus = part("clear-status");
     const showClear = (message) => {
       clearStatus.textContent = message; clearStatus.hidden = false;
       clearButton.textContent = L(clearPreview ? "重试本次清空" : "清空…"); resetClear.hidden = !clearPreview;

@@ -1,5 +1,10 @@
 # 本地应用装配中心
 
+## Memory 设置页的有界读取
+
+依 memory spec §9.4，`memory.page@1` 是本人管理 query；`GET /api/memory/page?input=<JSON>` 接收同一请求（无 owner），返回页字段及仅本页 Goal 名称。`/api/memory/overview` 保留 prefs/candidates/changes/last_upkeep，pairs:null 明确尚未读取；配对区由用户打开时单独 GET `/api/memory/pairs?scope=...` 调现有 Action，其查询不声称有界。正式记忆改为相同首 page，不调用全量 list，也不对未读正文收集 labels。前端筛选、搜索和下一页使用同一 page Action；cursor、unknown 和取消按 Service/SDK 原结果传回，不伪造总数。管理权限经当前 Action 和 Memory owner 求交，off 可管理不等于恢复任务召回。验证：`tests/memory-management-page-http.test.ts`。
+
+
 把数据库、业务 Modules、横向服务和 Plugins 接成同一个本地产品。CLI、MCP、Web 要执行真实项目操作时，经这里取得已装配的能力。
 
 包名：`@molis-ai/molis-work-app-local-host`。工作区内部包，通过仓库构建和 Host 装配使用。

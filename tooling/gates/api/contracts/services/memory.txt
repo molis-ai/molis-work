@@ -305,6 +305,14 @@ export interface MemoryListResponse {
     };
 }
 
+export interface MemoryManagementItem extends Omit<MemoryItem, "kind"> {
+    kind: MemoryManagementKind;
+    classification: NonNullable<AgentMemoryMeta["classification"]> | null;
+    expired: boolean;
+}
+
+export type MemoryManagementKind = MemoryKind | "habit" | "project-decision";
+
 export interface MemoryMetaRecord {
     memory_id: string;
     scope: MemoryScope;
@@ -321,6 +329,29 @@ export interface MemoryMetaRecord {
     plugin_id: string | null;
     created_at: string | null;
     updated_at: string | null;
+}
+
+export interface MemoryPageFilter {
+    scenes?: string[];
+    kinds?: MemoryManagementKind[];
+    lifecycles?: string[];
+    states?: MemoryState[];
+    sources?: MemorySource[];
+    expired?: boolean;
+    unclassified?: boolean;
+}
+
+export interface MemoryPageRequest {
+    scope?: MemoryScope;
+    character_id?: string;
+    filter?: MemoryPageFilter;
+    query?: string;
+    limit?: number;
+    cursor?: string;
+}
+
+export interface MemoryPageResponse extends Omit<AgentMemoryPage, "items"> {
+    items: MemoryManagementItem[];
 }
 
 export interface MemoryPair {
@@ -557,6 +588,7 @@ export interface MemoryWriteResult {
 export declare function isCompleteMemoryPrefs(value: unknown): value is MemoryPrefs;
 
 export declare const memoryActions: {
+    page: ActionDefinition<import("services/memory-queries").MemoryPageRequest, import("services/memory-queries").MemoryPageResponse>;
     recall: ActionDefinition<MemoryRecallRequest, MemoryRecallResponse>;
     list: ActionDefinition<MemoryListRequest, MemoryListResponse>;
     write: ActionDefinition<MemoryWriteRequest, MemoryWriteResult>;

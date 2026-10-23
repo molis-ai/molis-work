@@ -1,5 +1,10 @@
 # Agent Host
 
+## Memory 有界管理查询
+
+`AgentMemoryCapability.page` 只将当前 caller/ExecutionControl 下的 scope、owner、分类/状态/来源/期限过滤与 cursor 交 SDK `memory.page`，不先 hydrate/list。返回 canonical 条目、停止原因、exact/unknown 计数及真实/隐藏成本；snake_case 只作字段转换。查询范围许可与条目最终复核由 SDK 和现 App authority 承担，缺管理许可不查库，普通 task/explicit 许可不能冒充管理查询权。该页不写记忆、不增加索引。对应公开 Node 回归：`tests/memory-management-pages.test.ts`、`tests/memory-management-page-authority.test.ts`。
+
+
 ## Memory 维护命令边界
 
 依 spec §9.4，Memory Capability 的 `previewMutation` 只将带原版本与原操作号的 update/pause/disable/resume/remove 真实命令交同一 SDK management.preview，不写条目，不替代执行时的当前授权。`tombstone` 委托 SDK 逻辑 remove，返回实际条目版本与原操作重放结果；现 `remove` 仍委托物理 purge。两口沿原 caller/ExecutionControl，不增加第二写主人、查询授权或恢复账。App 的维护补账只接受实际 SDK 提交确认；缺失、同文或版本加一不能作为成功证明。验证使用公开 Adapter 与真实隔离 Node 存储，覆盖取消/撤权、原操作重放和后继版本冲突。

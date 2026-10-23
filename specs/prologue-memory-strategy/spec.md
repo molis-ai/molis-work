@@ -671,6 +671,8 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 
 现 overview 不得继续调用全量 list：保留偏好、候选、变化与配对，正式部分改为第一页，目标名称随每页实际条目解析。页面过滤变更重置游标，迟到响应不能覆盖新查询，失败命令单独保留。产品请求包含 scope、可选 character_id、filter、query、limit、cursor；filter 支持 scene/kind/lifecycle/state/source/expired 及明确的未分类选择。响应包含 items、cursor、exhausted、stopped、total（exact 或 unknown）与有界扫描成本投影；不给前端传全库再切片。正文搜索在已授权 SDK 页内推进，整次预算耗尽仍可继续；空 items 且未 exhausted 明确是“尚未查完”，不是“无结果”。沿 SDK 稳定游标顺序，不承诺全局最近更新。只有本次完整证明的授权匹配集合才给 exact；跨页最后一页、可见性过滤或正文过滤使总量不可证明时仍为 unknown，不能把已展示数量累加成快照总数，也不为每个分类另扫全库。Node 目录仍可能全量枚举，扫描槽上限不冒充底层目录 I/O 上限；成本默认按当前权限隐藏，未知不写零。
 
+配对区仍保留，但首次 overview 不调用会读取整 owner 正式库的现 `memory.pairs`：`pairs:null` 明确尚未加载，页面展示“查看可能重复或冲突”入口。本人打开后才经独立 GET `/api/memory/pairs?scope=...` 转现 Action 和当前调用者，原处理、保留双方及失败重试语义不变；普通正式页翻页/过滤不触发该扫描。配对区未加载不显示为零，不声称配对读取有界，也不为本片新增 SDK 精确读取桥。验收必须含非空 pending pair 的首屏，证明正式分页路径没有间接调用全库 list。
+
 管理投影增加 classification 或 null、独立 expired，并保留实际 state、来源、范围、适用条件、期限及真实使用记录。到期 active 不再伪装 disabled；旧未分类不补 common、不自动扩权，按明确分类筛选时不误命中。SDK 已声明六类与现自动形成四类不是同一清单：本片展示原实际分类，不扩大自动形成许可；可编辑六类及分类策略在下一片统一。候选、历史、撤销、导入导出和现固定清空入口保持；SDK 候选尚无 page，不能将其标成已完成分页。
 
 责任与允许路径：后端负责人修改 contracts 的 memory/agent-host-memory 合同、AgentHost Memory Adapter、Memory backend/scope 查询及 Service 薄入口、LocalHost memory backend/host 与同包 README；界面负责人只改现 settings-memory、memory 英文词典、必要的既有样式与 assistant 摘要消费者、Workbench README。统筹拥有 spec、聚合导出/快照、CI 清单、资源门禁与集成；共享文件不得并发修改。先冻结产品 DTO 与 Action，再并行后端实现和 UI 对接；本片使用依赖 #1064 的独立工作树与分支，避免修改正在验收的集成快照，父 PR 先合后再合本片；由统筹统一构建，相关用例按机器时段运行。接口行为变化按现合同规则升级，不混入无关重构。

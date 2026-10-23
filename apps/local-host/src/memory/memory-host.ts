@@ -11,6 +11,8 @@ import {
   type MemoryChangeRequest,
   type MemoryCandidateDecision,
   type MemoryListRequest,
+  type MemoryPageRequest,
+  type MemoryPageResponse,
   type MemoryPrefsWriteRequest,
   type MemoryRecallRequest,
   type MemoryScope,
@@ -134,6 +136,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const input = <T>(value: unknown) => (value ?? {}) as T;
   const bindings: ActionHandlerBinding[] = [
     { ...memoryActions.recall, handle: (context, value) => forCall(context).recall(caller(context), input<MemoryRecallRequest>(value), { beforeEffect: () => context.beforeEffect(), readMode: context.memory_read_mode ?? "task" }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
+    { ...memoryActions.page, handle: (context, value) => forCall(context).page(caller(context), input<MemoryPageRequest>(value)) },
     { ...memoryActions.list, handle: (context, value) => forCall(context).list(caller(context), input<MemoryListRequest>(value)) },
     { ...memoryActions.write, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).write(caller(context), input<MemoryWriteRequest>(value)); } },
     { ...memoryActions.change, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).change(caller(context), input<MemoryChangeRequest>(value)); } },
@@ -262,20 +265,28 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       const call = (definition: { capability_id: string; version: number }, input: unknown) =>
         client.invoke(context, { capability_id: definition.capability_id, version: definition.version, provider_id: MEMORY_PROVIDER_ID }, input);
       const scope = (value: unknown): MemoryScope | undefined => value === "project" || value === "personal" ? value : undefined;
-      // One read for a settings page: the scope's memories, switches, candidates and recent changes.
+      const pageLabels = async (page: MemoryPageResponse) => ({ goals: await subjectTitles(ports.localHost, ports.projectRef, "goal",
+        page.items.flatMap(item => item.applies.goal_ids ?? [])).catch(() => ({})) });
+      if (method === "GET" && parts.length === 1 && parts[0] === "page") {
+        const encoded = url.searchParams.get("input") ?? "{}";
+        if (encoded.length > 70000) throw memoryErrors.invalid("管理页查询超出限额");
+        let input: unknown;
+        try { input = JSON.parse(encoded); } catch { throw memoryErrors.invalid("管理页查询不是有效 JSON"); }
+        const page = await call(memoryActions.page, input) as MemoryPageResponse;
+        return { status: 200, body: { ...page, labels: await pageLabels(page) } };
+      }
+      // Side sections retain their contracts; formal memories use the same bounded page as subsequent requests.
       if (method === "GET" && parts.length === 1 && parts[0] === "overview") {
         const wanted = scope(url.searchParams.get("scope")) ?? (ports.projectRef ? "project" : "personal");
-        // A project's page also holds its Characters' memories, so it lists everything the person has there and shows those.
-        const [list, prefs, candidates, changes, pairs] = await Promise.all([
-          call(memoryActions.list, wanted === "project" ? {} : { scope: wanted }), call(memoryActions.prefs, { scope: wanted }),
-          call(memoryActions.candidates, { scope: wanted }), call(memoryActions.changes, { scope: wanted, limit: 30 }), call(memoryActions.pairs, { scope: wanted }),
+        const [page, prefs, candidates, changes] = await Promise.all([
+          call(memoryActions.page, { scope: wanted }), call(memoryActions.prefs, { scope: wanted }),
+          call(memoryActions.candidates, { scope: wanted }), call(memoryActions.changes, { scope: wanted, limit: 30 }),
         ]);
-        // Goals a memory is limited to, by name (read through the Goals plugin's own reader), so the page never shows bare ids.
-        const goalIds = ((list as { items?: Array<{ applies?: { goal_ids?: string[] } }> }).items ?? []).flatMap(item => item.applies?.goal_ids ?? []);
-        const goals = await subjectTitles(ports.localHost, ports.projectRef, "goal", goalIds).catch(() => ({}));
-        return { status: 200, body: { scope: wanted, ...(list as object), ...(prefs as object), ...(candidates as object), ...(changes as object), ...(pairs as object),
-          labels: { goals }, last_upkeep: memoryHostFor(ports.localHost)?.service.lastUpkeep(LOCAL_PERSON) ?? null } };
+        return { status: 200, body: { scope: wanted, ...(page as object), ...(prefs as object), ...(candidates as object), ...(changes as object), pairs: null,
+          labels: await pageLabels(page as MemoryPageResponse), last_upkeep: memoryHostFor(ports.localHost)?.service.lastUpkeep(LOCAL_PERSON) ?? null } };
       }
+      if (method === "GET" && parts.length === 1 && parts[0] === "pairs") return { status: 200,
+        body: await call(memoryActions.pairs, { scope: url.searchParams.get("scope") ?? (ports.projectRef ? "project" : "personal") }) };
       if (method === "GET" && parts.length === 3 && parts[0] === "items" && parts[2] === "history") return { status: 200, body: await call(memoryActions.history, { memory_id: parts[1] }) };
       if (method !== "POST") return null;
       if (parts.length === 1 && parts[0] === "recall") return { status: 200, body: await call(memoryActions.recall, body) };

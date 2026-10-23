@@ -16,13 +16,18 @@ const { renderMolisWorkProjectSettingsHub, renderMolisWorkSettingsStylesheet } =
 // not a substitute for the Service/SDK authority and CAS tests, and never starts a Home or calls a model.
 interface Request { path: string; body: Record<string, unknown>; key: string }
 const entry = (id: string, version: number, state = "active") => ({ memory_id: id, version, state,
-  text: `记忆 ${id}`, kind: "preference", source: "manual", scope: "project", applies: {}, origin: "本人", created_at: "2026-10-23T00:00:00Z" });
-async function open(t: TestContext, answer: (request: Request) => { status?: number; body: unknown }) {
+  text: `记忆 ${id}`, kind: "preference", source: "manual", scope: "project", applies: {}, origin: "本人", created_at: "2026-10-23T00:00:00Z",
+  classification: { scenes: ["common"], lifecycle: "long-term" }, expired: false, expires_at: null as string | null });
+interface PageInput { query?: string; cursor?: string; filter?: { kinds?: string[]; scenes?: string[]; states?: string[]; expired?: boolean; unclassified?: boolean } }
+const pageOf = (items: unknown[], extra: object = {}) => ({ items, exhausted: true, stopped: "end", total: { kind: "exact", value: items.length },
+  scanned: "unknown", cost: {}, labels: { goals: {} }, ...extra });
+async function open(t: TestContext, answer: (request: Request) => { status?: number; body: unknown }, pageAnswer?: (input: PageInput) => Promise<unknown>) {
   const chrome = locateTestChrome(); if (!chrome) { t.skip("Chrome is required"); return null; }
   const directory = await mkdtemp(join(tmpdir(), "memory-settings-cas-"));
   const calls: Request[] = [];
   const overview = { items: [entry("active", 7), entry("disabled", 11, "disabled"), entry("paused", 19, "paused")],
-    candidates: [{ candidate_id: "proposal", version: 13, text: "建议", kind: "preference" }], changes: [], pairs: [], prefs: {}, counts: { project: 3 } };
+    candidates: [{ candidate_id: "proposal", version: 13, text: "建议", kind: "preference" }], changes: [], pairs: null, prefs: {} };
+  const reads: PageInput[] = [];
   const project = { project_id: "project", display_name: "测试项目" };
   const view: MolisWorkWebView = {
     snapshot: { board: { project_id: "project", active_goal_id: null, created_at: "2026-10-23T00:00:00Z", updated_at: "2026-10-23T00:00:00Z" },
@@ -33,12 +38,18 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
   };
   const html = renderMolisWorkProjectSettingsHub(view, { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" }, [], "", false, "memory");
   const server = createServer(async (request, response) => {
-    const path = new URL(request.url!, "http://local").pathname;
+    const url = new URL(request.url!, "http://local"), path = url.pathname;
     if (path.endsWith(".css")) { response.setHeader("content-type", "text/css"); response.end(renderMolisWorkSettingsStylesheet()); return; }
     if (path.endsWith(".js")) { response.setHeader("content-type", "application/javascript"); response.end(); return; }
     if (!path.includes("/api/memory/")) { response.setHeader("content-type", "text/html; charset=utf-8"); response.end(html); return; }
     response.setHeader("content-type", "application/json");
-    if (path.endsWith("/overview")) { response.end(JSON.stringify(overview)); return; }
+    if (path.endsWith("/overview")) { response.end(JSON.stringify({ ...overview, ...pageOf(overview.items) })); return; }
+    if (path.endsWith("/pairs")) { response.end(JSON.stringify({ pairs: [] })); return; }
+    if (path.endsWith("/page")) {
+      const input: PageInput = JSON.parse(url.searchParams.get("input")!); reads.push(input);
+      const body = pageAnswer ? await pageAnswer(input) : pageOf(overview.items.filter(item => !input.query || item.text.includes(input.query)));
+      if (!response.destroyed) response.end(JSON.stringify(body)); return;
+    }
     if (path.endsWith("/history")) { response.end(JSON.stringify({ revisions: [{ version: 2, text: "旧版", at: "2026-10-22T00:00:00Z" }] })); return; }
     let raw = ""; for await (const chunk of request) raw += chunk;
     const call = { path, body: JSON.parse(raw || "{}"), key: String(request.headers["x-molis-work-idempotency-key"] || "") }; calls.push(call);
@@ -52,10 +63,71 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
   const page = await browser.page(); await page.viewport(1200, 1000);
   const reset = async () => { await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}/?visit=${calls.length}` }); await page.wait("document.querySelector('[data-memory-id=active]')"); };
   await reset();
-  return { page, calls, reset, overview, directory };
+  return { page, calls, reset, overview, directory, reads };
 }
 const item = (id = "active") => `[data-memory-id=${id}]`;
 const textButton = (label: string) => `button[aria-label^="${label}："]`;
+
+// MEM-PAGE-02/03: bounded read states and delayed HTTP are protocol fixtures; the real Home journey is separate.
+test("Memory page continues after an empty scan, preserves unknown totals and sends the server cursor with its filters", { timeout: 45_000 }, async t => {
+  const final = { ...entry("expired", 31), text: "临时周报约定", kind: "habit", classification: null,
+    expired: true, expires_at: "2026-01-01T00:00:00Z" };
+  const f = await open(t, () => ({ body: {} }), async input => input.cursor
+    ? pageOf([final, { ...entry("decision", 5), kind: "project-decision" }], { total: { kind: "unknown" } })
+    : pageOf([], { cursor: "fixed-query-page-2", exhausted: false, stopped: "unknown", total: { kind: "unknown" } }));
+  if (!f) return;
+  await f.page.fill("[data-memory-filter=query]", "周报");
+  await f.page.wait("document.querySelector('[data-memory-list]').textContent.includes('尚未查完') && !document.querySelector('[data-memory-next]').disabled");
+  assert.match(await f.page.evaluate<string>("document.querySelector('[data-memory-summary]').textContent"), /总数未知/);
+  assert.equal(await f.page.evaluate("document.querySelector('[data-memory-next]').textContent"), "继续查找");
+  await f.page.click("[data-memory-next]"); await f.page.wait("document.querySelector('[data-memory-id=expired]')");
+  assert.equal(f.reads.at(-1)?.cursor, "fixed-query-page-2"); assert.equal(f.reads.at(-1)?.query, "周报");
+  assert.match(await f.page.evaluate<string>("document.querySelector('[data-memory-summary]').textContent"), /总数未知/, "last page does not invent a total");
+  assert.equal(await f.page.evaluate("document.querySelector('[data-memory-next]').disabled"), true);
+  assert.match(await f.page.evaluate<string>("document.querySelector('[data-memory-id=expired] .memory-meta').textContent"), /未分类/);
+  assert.match(await f.page.evaluate<string>("document.querySelector('[data-memory-id=expired] .memory-meta').textContent"), /已到期/);
+  assert.equal(await f.page.evaluate("document.querySelector('[data-memory-id=expired] [data-mw-state=disabled]')"), null, "expiry is not a fabricated disabled state");
+  for (const id of ["expired", "decision"]) {
+    assert.match(await f.page.evaluate<string>(`document.querySelector('${item(id)} .memory-actions').textContent`), /此类别暂仅查看/);
+    assert.equal(await f.page.evaluate(`document.querySelector('${item(id)} button, ${item(id)} select')`), null,
+      "display-only SDK categories never enter the four-category editor or its write actions");
+  }
+  assert.equal(f.calls.length, 0);
+});
+
+test("Memory filter changes reject a late page and reset navigation without reusing its cursor", { timeout: 45_000 }, async t => {
+  let entered!: () => void, release!: () => void;
+  const started = new Promise<void>(resolve => { entered = resolve; }), barrier = new Promise<void>(resolve => { release = resolve; });
+  const f = await open(t, () => ({ body: {} }), async input => {
+    if (input.query === "旧查询") { entered(); await barrier; return pageOf([entry("late", 1)], { cursor: "wrong-cursor", exhausted: false }); }
+    return pageOf([entry("current", 2)]);
+  });
+  if (!f) return;
+  t.after(release);
+  await f.page.fill("[data-memory-filter=query]", "旧查询"); await started;
+  await f.page.fill("[data-memory-filter=query]", "新查询"); await f.page.wait("document.querySelector('[data-memory-id=current]')");
+  release();
+  await f.page.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert.equal(await f.page.evaluate("document.querySelector('[data-memory-id=late]')"), null);
+  assert.equal(await f.page.evaluate("document.querySelector('[data-memory-previous]').disabled && document.querySelector('[data-memory-next]').disabled"), true);
+  assert.equal(f.reads.at(-1)?.cursor, undefined);
+});
+
+test("A failed page read does not claim an empty library and reload retries the same filter without a write", { timeout: 45_000 }, async t => {
+  const f = await open(t, () => ({ body: {} })); if (!f) return;
+  const network = (offline: boolean) => f.page.command("Network.emulateNetworkConditions", { offline, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  await network(true);
+  try {
+    await f.page.fill("[data-memory-filter=query]", "记忆 active");
+    await f.page.wait("document.querySelector('[data-memory-page-status]').textContent.includes('读取未完成')");
+    assert.match(await f.page.evaluate<string>("document.querySelector('[data-memory-list]').textContent"), /读取未完成/);
+    assert.equal(await f.page.evaluate("document.querySelector('[data-memory-next]').disabled"), true);
+  } finally { await network(false); }
+  await f.page.click("[data-memory-reload]"); await f.page.wait("document.querySelector('[data-memory-id=active]')");
+  assert.equal(f.reads.at(-1)?.query, "记忆 active");
+  assert.equal(await f.page.evaluate("document.querySelectorAll('[data-memory-id]').length"), 1);
+  assert.equal(f.calls.length, 0);
+});
 
 test("Memory settings sends the displayed formal/candidate version for every existing-record decision", { timeout: 90_000 }, async t => {
   const f = await open(t, () => ({ body: {} })); if (!f) return;

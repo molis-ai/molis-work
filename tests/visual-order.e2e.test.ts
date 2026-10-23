@@ -10,7 +10,7 @@ import { ORDER_SKIP as SKIP, orderAudit } from "./fixtures/order-audit.js";
 // height, on one line, one gap apart.
 // Light at 1440 reads every page; dark, compact density and a touch phone read the pages whose layout they change.
 
-const PAGES = ["goals", "todo", "pages", "ppt", "workflows", "lingguang", "form", "dataset", "inbox", "images", "sessions", "feed", "issues",
+const PAGES = ["goals", "todo", "pages", "ppt", "workflows", "lingguang", "form", "dataset", "inbox", "images", "feed", "issues",
   "jelly", "coding", "alchemist", "artifacts", "cognia", "diff", "files", "git", "schedule", "text-stats", "plugin-builder"];
 // What light at 1440 also opens and reads: the header's create on the pages where it opens a new item's editor or the dialog
 // that asks for it in place (the others create in a sheet, or have none), and the Pages template list.
@@ -18,7 +18,7 @@ const OPENS = [
   ...["pages", "ppt", "workflows", "lingguang", "form", "dataset", "images", "alchemist", "cognia", "schedule"].map((page) => ["create", ".plugin-stage-chrome .tree-create", page]),
   ["templates", "[data-pages-templates]", "pages"],
 ];
-const MODE_PAGES = ["goals", "pages", "lingguang", "inbox", "sessions", "feed", "jelly", "coding"];
+const MODE_PAGES = ["goals", "pages", "lingguang", "inbox", "feed", "jelly", "coding"];
 const MODES = [
   { name: "light", width: 1440, height: 900, dark: false, compact: false, touch: false, pages: PAGES },
   { name: "dark", width: 1440, height: 900, dark: true, compact: false, touch: false, pages: MODE_PAGES },

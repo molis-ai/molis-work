@@ -3,7 +3,6 @@ import { COGNIA_EN } from "@molis-ai/molis-work-plugin-cognia";
 import { IMAGES_EN } from "@molis-ai/molis-work-plugin-images";
 import { JELLY_EN } from "@molis-ai/molis-work-plugin-jelly";
 import { GOALS_PROPOSAL_EN } from "@molis-ai/molis-work-plugin-goals";
-import { WORK_EN } from "@molis-ai/molis-work-plugin-work";
 import { ARTIFACT_EN } from "@molis-ai/molis-work-plugin-artifacts";
 import { SHELF_EN } from "@molis-ai/molis-work-plugin-shelf";
 import { FUNCTIONS_EN } from "../functions/en.js";
@@ -232,11 +231,7 @@ export const EN: Record<string, string> = {
   "当天": "Today",
   "当天的事件": "Today's events",
   "这件事": "This item",
-  "对着这件事说一句": "Say something about this item",
-  "说一句": "Say something",
-  "收起对话": "Close conversation",
   "收起详情": "Close detail",
-  "带着这件事说一句": "Say something about this item",
   "打开 Session": "Open Session",
   "今天还没有事件走进来": "Nothing arrived today yet",
   "这一天没有事件": "Nothing on this day",
@@ -254,10 +249,8 @@ export const EN: Record<string, string> = {
   "个人事件": "Personal event",
   "组织事件": "Org event",
   "重新授权": "Reconnect",
-  "问问怎么回事": "Ask what happened",
   "接着做": "Continue",
   "做完了": "Done",
-  "说一句会打开这条工作对应的 Session。首页不另开一套聊天。": "Saying something opens the Session for this work. Home does not start a separate chat.",
   "月历": "Calendar",
   "上个月": "Previous month",
   "下个月": "Next month",
@@ -1480,7 +1473,6 @@ export const EN: Record<string, string> = {
   "退回补全": "Send the completion back",
   "项目已改名为“": "Project renamed to “",
   "项目默认与当前 Goal 规则在下方独立维护": "Project defaults and extra Goal rules are maintained separately below",
-  ...WORK_EN,
   ...TERMINAL_EN,
 };
 

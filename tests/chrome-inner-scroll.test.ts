@@ -61,7 +61,7 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.match(workbench, /feed-stage-list \.goal-collection-empty \{ margin: 0; padding: 8px 8px 12px 24px;/);
   // No region draws a scrollbar; one design-system rule hides them all (tests/scrollbars-hidden.test.ts).
   assert.ok(workbench.includes("@media not (forced-colors:active){*{scrollbar-width:none}*::-webkit-scrollbar{display:none;width:0;height:0}}"));
-  assert.ok(workbench.includes(":is(.tree-scroll, .project-record-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: none; height: auto; min-height: 0; overflow: visible;"));
+  assert.ok(workbench.includes(":is(.tree-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: none; height: auto; min-height: 0; overflow: visible;"));
   assert.doesNotMatch(workbench, /\.directory-shortcuts/);
   // Soft Workbench home: shortcuts are rows in the margin list, under 回到手边的内容.
   assert.ok(workbench.includes(".immersive-home :is(.home-quick, .home-shortcuts) { list-style: none; margin: 0; padding: 0; }"));
@@ -95,7 +95,6 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.match(workbench, /grid-template-rows: var\(--desktop-titlebar-height\) minmax\(0, 1fr\)/);
   assert.doesNotMatch(workbench, /\.immersive-titlebar > \.workspace-chrome \{/);
   assert.match(workbench, /\[data-board-view="list"\]\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
-  assert.match(workbench, /\.session-stage-shell\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
   assert.match(workbench, /\.plugin-stage-shell\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
   assert.match(workbench, /\.plugin-stage-list \.mw-dir-row-wrap:has\(\.is-selected\)::before,[\s\S]*content: none; display: none; width: 0;/);
   // Bar insets and the back button's optical pull snapped to the 4/8 scale in the visual refinement
@@ -105,12 +104,10 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.match(workbench, /\.plugin-stage-detail-bar > \.feed-detail-kicker \{[\s\S]*margin: 0;/);
   assert.match(workbench, /\.plugin-stage-detail-bar > h1 \{[\s\S]*font-size: 13px;/);
   assert.match(workbench, /\.plugin-stage-back \{[\s\S]*margin-left: -8px;/);
-  assert.match(workbench, /\.session-stage-bar \{[\s\S]*padding: 8px 16px 8px 24px;/);
-  assert.match(workbench, /\.session-stage-back \{[\s\S]*margin-left: -8px;/);
-  assert.match(workbench, /body\.immersive-workbench \.goal-node-toolbar,[\s\S]*body\.immersive-workbench \.plugin-stage-detail-bar,[\s\S]*body\.immersive-workbench \.session-stage-bar \{ min-height: 32px; padding: 4px 12px; gap: 8px; \}/);
+  assert.match(workbench, /body\.immersive-workbench \.goal-node-toolbar,[\s\S]*body\.immersive-workbench \.plugin-stage-detail-bar \{ min-height: 32px; padding: 4px 12px; gap: 8px; \}/);
   assert.match(workbench, /plugin-stage-workspace \.artifact-detail,[\s\S]*plugin-stage-workspace \.artifact-empty \{ max-width: none; margin: 0; \}/);
   assert.doesNotMatch(workbench, /plugin-stage-workspace \.artifact-empty \{ max-width: 800px; margin: 24px auto; \}/);
-  assert.match(workbench, /immersive-plugin-stage > \.session-stage-shell[\s\S]*?padding: 0;/);
+  assert.match(workbench, /immersive-plugin-stage > \.plugin-stage-shell[\s\S]*?padding: 0;/);
   assert.match(workbench, /body\.immersive-workbench\[data-native-desktop="true"\] \[data-titlebar-tabs\] \.tab-scroll \{ flex: 0 1 auto; width: max-content; min-width: 0; \}/);
   assert.match(workbench, /body\.immersive-workbench\[data-native-desktop="true"\] \.tab-strip \.tab-strip-spacer \{ flex: 1 1 48px; min-width: 48px;/);
   assert.match(workbench, /html\[data-native-desktop="true"\] body\.immersive-workbench \.immersive-titlebar/);

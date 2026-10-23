@@ -236,8 +236,8 @@ export const SETTINGS_STYLES = `
   .settings-connector-whoami { margin: 0; font-size: 13px; }
   .settings-paths { margin: 0; padding: 0 0 16px 48px; display: grid; gap: 4px; }
   .settings-paths > div { min-width: 0; display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; }
-  .settings-paths dt, .project-db-details dt, .diagnostics-summary dt, .runtime-plan-meta dt { color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); }
-  .settings-paths dd, .project-db-details dd, .diagnostics-summary dd, .runtime-plan-meta dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--ink-soft); font-size: 12px; }
+  .settings-paths dt, .diagnostics-summary dt, .runtime-plan-meta dt { color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); }
+  .settings-paths dd, .diagnostics-summary dd, .runtime-plan-meta dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--ink-soft); font-size: 12px; }
   .settings-footnote { max-width: 72ch; margin: 24px 0 0; color: var(--muted); font-size: 12px; }
   .settings-footnote code { padding: 1px 4px; border: 1px solid var(--line); border-radius: 3px; color: var(--ink-soft); background: var(--rail); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .settings-empty { padding: 32px 0 32px; color: var(--muted); }
@@ -248,7 +248,7 @@ export const SETTINGS_STYLES = `
   .settings-action-section > div > p, .settings-import-row > div > p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
   .inline-settings-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
   .inline-settings-form > label:first-child { min-width: 0; display: grid; gap: 4px; color: var(--ink-soft); font-size: 12px; font-weight: var(--weight-control, 500); }
-  .inline-settings-form input[type=text], .project-record-tools input { width: 100%; min-height: var(--control-h); padding: 0 12px; border: 1px solid var(--control-input); border-radius: var(--radius-control); color: var(--ink); background: var(--paper); }
+  .inline-settings-form input[type=text] { width: 100%; min-height: var(--control-h); padding: 0 12px; border: 1px solid var(--control-input); border-radius: var(--radius-control); color: var(--ink); background: var(--paper); }
   .inline-settings-form .inline-confirm { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; cursor: pointer; }
   .inline-settings-form .settings-form-error { grid-column: 1 / -1; }
   .settings-form-error { margin: 0; color: var(--red); font-size: 12px; }
@@ -261,18 +261,6 @@ export const SETTINGS_STYLES = `
   .project-delete-dialog .runtime-plan-body > p:first-child { margin: 0; }
   .project-delete-dialog .settings-form-error { margin-top: 12px; }
   .project-delete-dialog header p { overflow-wrap: anywhere; }
-  .project-record-tools { margin: -8px 0 16px 48px; display: flex; gap: 8px; }
-  .project-record-tools details { min-width: min(100%, 280px); }
-  .project-record-tools summary { min-height: 32px; padding: 0 8px; display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 400; cursor: pointer; list-style: none; }
-  .project-record-tools summary::-webkit-details-marker { display: none; }
-  .project-record-tools summary svg:last-child { font-size: 11px; }
-  .project-record-tools details[open] summary svg:last-child { transform: rotate(180deg); }
-  .project-record-tools form, .project-db-details { width: min(100%, 440px); margin: 4px 0 0; padding: 12px; border: 1px solid var(--line); background: var(--rail); }
-  .project-record-tools form { display: grid; gap: 8px; }
-  .project-record-tools form label { display: grid; gap: 4px; color: var(--ink-soft); font-size: 12px; font-weight: var(--weight-control, 500); }
-  .project-record-tools form button { justify-self: end; }
-  .project-db-details { display: grid; gap: 8px; }
-  .project-db-details > div { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 8px; }
   .connection-settings-section { margin-top: 32px; padding-top: 32px; border-top: 1px solid var(--line-strong); }
   .connection-settings-heading { max-width: 72ch; margin-bottom: 8px; }
   .connection-settings-heading h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
@@ -362,7 +350,6 @@ export const SETTINGS_STYLES = `
     .settings-action-section, .settings-import-row { grid-template-columns: 1fr; gap: 16px; }
     .inline-settings-form { grid-template-columns: 1fr; }
     .inline-settings-form .inline-confirm, .inline-settings-form .settings-form-error { grid-column: 1; }
-    .project-record-tools { margin-left: 0; flex-wrap: wrap; }
     .connection-record-tools { margin-left: 0; flex-wrap: wrap; }
     .workspace-project-list { margin-left: 0; }
     .workspace-project-list li { align-items: flex-start; flex-direction: column; }
@@ -376,7 +363,7 @@ export const SETTINGS_STYLES = `
     .runtime-plan-shell { max-height: 100vh; height: 100%; }
     .runtime-change-list li { grid-template-columns: 1fr; gap: 4px; }
     .launcher-section li > span:first-child { grid-template-columns: 20px 42px minmax(0, 1fr); }
-    .inline-settings-form input[type=text], .project-record-tools input { font-size: 16px; }
+    .inline-settings-form input[type=text] { font-size: 16px; }
   }
   @media (max-width: 520px) {
     .preference-options--density { grid-template-columns: 1fr; }

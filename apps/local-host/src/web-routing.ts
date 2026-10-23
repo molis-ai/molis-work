@@ -47,8 +47,6 @@ export async function resolveWebRequest(
       || pathname.startsWith("/settings/")
       || pathname === "/capabilities"
       || pathname.startsWith("/capabilities/")
-      || pathname === "/sessions"
-      || pathname === "/workspaces"
       || pathname.startsWith("/desktop/")
     ) {
       return { kind: "catalog_index", projects };

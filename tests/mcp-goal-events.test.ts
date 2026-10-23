@@ -1,7 +1,6 @@
 // R-KERNEL-OWNER-01: this refusal comes from session authorship in the Kernel; missing Runtime identity remains an MCP refusal.
 import { managementGoals } from "./goal-management-caller.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { rejectSessionReportIndex } from "./fixtures/session-secondary-failure.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
@@ -9,7 +8,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { molisWorkHostProjectReference, createMolisWorkLocalHost, LocalProjectDatabase, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
@@ -226,59 +224,6 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
       databasePath: project.database_path, projectId: project.project_id,
     }), false), project_id).invoke(goalsActions.snapshot, {});
     assert.equal("claims" in persisted || "runs" in persisted, false, "the retired claim/run protocol has no state");
-  } finally {
-    await mcp?.close();
-    await host.close();
-    catalog.close();
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
-
-test("event report stays persisted when secondary Session indexing fails", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-event-activity-"));
-  const homeDirectory = join(directory, "home");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  const host = createMolisWorkLocalHost();
-  let mcp: MolisWorkServer | undefined;
-  try {
-    const project = await catalog.createProject({ display_name: "事件活动", actor_id: "user" });
-    await grantGoalsMcp(homeDirectory, project);
-    const registry = await openWorkSessionRegistry({ homeDirectory });
-    let sessionId: string;
-    try {
-      sessionId = registry.explicitlyLinkSession({
-        runtime_id: "codex", native_runtime_session_id: "thread-events-activity",
-        actor_id: "user", user_confirmed: true, project_id: project.project_id,
-      }).session_id;
-    } finally { registry.close(); }
-    mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, projectId: project.project_id,
-      webBaseUrl: "http://127.0.0.1:4173",
-    }, {
-      homeDirectory,
-      runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-events-activity", host_declares_stable: true },
-    }, host);
-    const project_id = project.project_id;
-    const created = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
-      title: "记录事件活动", idempotency_key: "intent-activity",
-    }));
-    const goal_id = created.goal.goal_id as string;
-    await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
-      goal_id, expected_version: 0, idempotency_key: "cfg-activity", types: [localType()],
-    });
-    const restoreSessionIndex = rejectSessionReportIndex(homeDirectory);
-    const reported = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.report__v1", {
-      goal_id, idempotency_key: "report-activity",
-      events: [{ type_id: "story-delivery", type_version: 1, title: "已记录", fields: { piece: "洞穴" } }],
-    })) as ReportGoalEventsResult;
-    assert.equal(reported.events[0]?.payload.piece, "洞穴");
-    restoreSessionIndex();
-    const listed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v2", { goal_id }));
-    assert.equal(listed.events.filter((item: { kind: string }) => item.kind === "report").length, 1);
-    const inspect = await openWorkSessionRegistry({ homeDirectory });
-    try {
-      assert.equal(inspect.events(sessionId).filter((event) => event.source_id === "molis_work_v1_action_goals.events.report__v1:report-activity").length, 0);
-    } finally { inspect.close(); }
   } finally {
     await mcp?.close();
     await host.close();

@@ -126,7 +126,7 @@ test("reminder recovery through Host and HTTP uses current authorization and can
 
 test("Schedule reminder recovery can be cancelled and re-reviewed after reinstall in a narrow browser", { timeout: 60_000 }, async t => {
   const ownerPlugin = scheduledOwnerPlugin();
-  const b = await openGoalBrowser(t, true, seedDemoBoard, null, undefined, undefined, undefined, {}, { project: [ownerPlugin.definition] }); if (!b) return;
+  const b = await openGoalBrowser(t, true, seedDemoBoard, null, undefined, undefined, {}, { project: [ownerPlugin.definition] }); if (!b) return;
   const { store, origin, projectId, command, sessionId, navigate } = b;
   const { click, evaluate, waitFor } = await pluginFrameBrowser(t, b, "schedule");
   const ref = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId: projectId! });

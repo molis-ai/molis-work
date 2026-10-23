@@ -19,7 +19,7 @@ test("unknown registered scenes can be authored in the real editor, retain missi
     async evaluate(_key, record, input) { inputs.push(input); return { primitive: "noul", noul: 0.9, choice: null,
       score: null, legend: null, probabilities: {}, confidence: null, model: record.model }; },
   } };
-  const browser = await openGoalBrowser(t, "seeded", undefined, null, undefined, functions); if (!browser) return;
+  const browser = await openGoalBrowser(t, "seeded", undefined, null, functions); if (!browser) return;
   const { localHost, store, projectId, homeDirectory, command, sessionId, evaluate, waitFor, click, navigate, reloadPage, origin, web } = browser;
   assert.ok(localHost); assert.ok(projectId);
   const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });

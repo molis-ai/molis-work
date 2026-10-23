@@ -10,4 +10,5 @@ export const bindingErrors = defineErrorCodes("work.context", {
   stable_identity_required: "invalid",
   identity_required: "invalid",
   idempotency_key_required: "invalid",
+  project_relation_missing: "invalid",
 });

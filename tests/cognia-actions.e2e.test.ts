@@ -12,7 +12,7 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 for (const width of [1440, 390]) test(`SYS-15 Cognia ${width}px: directory preview, import, synthesize, review and fixed citation through actual UI`, { timeout: 90_000 }, async t => {
   let chosen: string | null = null, picks = 0, pickerPrompt = "";
-  const browser = await openGoalBrowser(t, true, undefined, async prompt => { assert.match(prompt, /ORIGINAL_EVIDENCE/); assert.doesNotMatch(prompt, /UPDATED_EVIDENCE/); return "# 已核对的知识\n保留来源中的原始事实 [S1]"; }, undefined, undefined, undefined, { chooseDirectory: async prompt => { picks++; pickerPrompt = prompt ?? ""; return chosen ? { status: "picked", path: chosen } : { status: "cancelled" }; } }); if (!browser) return;
+  const browser = await openGoalBrowser(t, true, undefined, async prompt => { assert.match(prompt, /ORIGINAL_EVIDENCE/); assert.doesNotMatch(prompt, /UPDATED_EVIDENCE/); return "# 已核对的知识\n保留来源中的原始事实 [S1]"; }, undefined, undefined, { chooseDirectory: async prompt => { picks++; pickerPrompt = prompt ?? ""; return chosen ? { status: "picked", path: chosen } : { status: "cancelled" }; } }); if (!browser) return;
   const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "cognia");
   const read = () => { const store = openCogniaStore(homeDirectory); try { return { materials: store.materials(), drafts: store.drafts() }; } finally { store.close(); } };

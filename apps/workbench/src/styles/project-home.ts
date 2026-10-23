@@ -190,50 +190,9 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-offers-result pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 140px; overflow: auto; }
   @media (pointer: coarse) { .immersive-home :is([data-home-offer], [data-home-offers-reload], [data-home-events-reload], [data-home-open-target]) { min-height: 44px; } }
   .immersive-home .home-detail__act .mw-btn { --control-h: 28px; --control-pad-x: 9px; font-size: 12px; }
-  .immersive-home .home-detail__act [data-home-open-talk] { flex: none; margin-left: auto; }
-
-  .immersive-home .home-talk {
-    position: absolute; z-index: 28; display: none;
-    width: 320px; max-height: min(420px, calc(100% - 24px));
-    flex-direction: column; overflow: hidden;
-    border-radius: 16px; background: var(--paper);
-    box-shadow: var(--shadow); color: var(--ink);
-  }
-  .immersive-home[data-dock="open"] .home-talk { display: flex; animation: craft-rise var(--dur-move) var(--ease-quint); }
   @media (prefers-reduced-motion: reduce) {
     .immersive-home .home-erow { transition: none; }
-    .immersive-home[data-dock="open"] .home-talk { animation: none; }
   }
-  .immersive-home .home-talk[hidden] { display: none !important; }
-  .immersive-home .home-talk__head {
-    flex: none; display: flex; align-items: center; gap: 8px;
-    padding: 12px 12px 12px 16px; border-bottom: 1px solid var(--line);
-  }
-  .immersive-home .home-talk__head b { font-weight: var(--weight-control, 500); }
-  .immersive-home .home-talk__head span { color: var(--faint); font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .immersive-home .home-talk__head .mw-btn { margin-left: auto; }
-  .immersive-home .home-talk__body { flex: 1; min-height: 0; overflow: auto; padding: 16px; color: var(--ink-soft); line-height: 1.6; }
-  .immersive-home .home-talk-targets { margin: 0 0 12px; }
-  .immersive-home .home-talk-target { display: flex; align-items: center; gap: 8px; padding: 8px 0; cursor: pointer; }
-  .immersive-home .home-talk-target span { display: grid; gap: 4px; min-width: 0; }
-  .immersive-home .home-talk-target b { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
-  .immersive-home .home-talk-target small { color: var(--muted); font-size: 12px; }
-  .immersive-home .home-talk-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-  .immersive-home .home-talk-context { margin: 12px 0; font-size: 12px; }
-  .immersive-home .home-talk-context summary { cursor: pointer; color: var(--muted); }
-  .immersive-home .home-talk-context pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; max-height: 180px; overflow: auto; }
-  .immersive-home .home-talk-status { margin: 12px 0 0; }
-  .immersive-home .home-talk-error { color: var(--red); margin: 8px 0 0; }
-  .immersive-home .home-talk-destination { margin: 0; overflow-wrap: anywhere; }
-  @media (pointer: coarse) {
-    .immersive-home .home-talk :is(.mw-btn, .home-talk-target) { min-height: 44px; }
-    .immersive-home .home-talk__compose .mw-textarea { font-size: 16px; }
-  }
-  .immersive-home .home-talk__compose {
-    flex: none; display: flex; gap: 8px; align-items: flex-end;
-    padding: 12px; border-top: 1px solid var(--line);
-  }
-  .immersive-home .home-talk__compose .mw-textarea { min-height: 36px; max-height: 96px; }
 
   .immersive-home .home-enter { opacity: 0; transform: translateY(7px); }
   .immersive-home .home-enter.is-in {
@@ -314,7 +273,6 @@ export const PROJECT_HOME_STYLES = `
     .immersive-home .home-margin { margin-top: 24px; }
     .immersive-home .home-launch { display: block; }
     .immersive-home :is(.home-quick, .home-shortcuts) { display: block; }
-    .immersive-home .home-talk { width: auto; }
   }
   @media (pointer: coarse) {
     .immersive-home :is(.home-quick__item, .home-shortcut-main) { min-height: 56px; }

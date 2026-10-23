@@ -46,11 +46,6 @@ const DESKTOP_RUNTIME_RECIPES: Record<NamedDesktopRuntimeKind, DesktopRuntimeRec
   "grok-build": { command: "grok", resumeArgs: (sessionId) => ["--resume", sessionId] },
 };
 
-export function desktopRuntimeTitle(runtimeKind: string): string {
-  if (runtimeKind === "generic") return "自定义命令";
-  return isNamedDesktopRuntimeKind(runtimeKind) ? RUNTIME_DISPLAY_NAMES[runtimeKind] : runtimeKind;
-}
-
 export function desktopLaunchSpec(input: {
   runtime_kind: string;
   command?: string;

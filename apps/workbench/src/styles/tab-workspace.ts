@@ -55,10 +55,6 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-pane-body > .goal-canvas-shell[data-board-view="list"] { background: var(--paper); }
   body.immersive-workbench .tab-pane-body > .desktop-work-surface:not(.immersive-home) { background: var(--paper); padding: 0; }
   body.immersive-workbench .tab-pane-body > .feed-workbench { background: var(--canvas); }
-  body.immersive-workbench .tab-pane-body > .project-operation-surface { overflow: hidden; padding: 0; }
-  body.immersive-workbench .tab-pane-body > .project-operation-surface .session-stage { height: 100%; max-width: none; margin: 0; }
-  body.immersive-workbench .tab-pane-body > .project-operation-surface-empty,
-  body.immersive-workbench .tab-pane-body > .project-operation-surface > .project-operation-surface-empty { height: 100%; display: grid; place-content: center; }
   body.immersive-workbench .tab-pane-body > .immersive-artifact-surface { padding: 8px 24px 32px; }
   body.immersive-workbench .tab-pane-body [data-work-surface="inbox"] .feed-detail-empty { display: grid; place-items: center; align-content: center; width: 100%; min-height: 100%; margin: 0; padding: 48px 24px; border-radius: 0; background: transparent; box-shadow: none; color: var(--muted); text-align: center; }
   body.immersive-workbench .tab-pane-body [data-work-surface="inbox"] .feed-detail-empty svg { width: 20px; height: 20px; color: var(--faint); stroke-width: 1.6; }

@@ -375,7 +375,7 @@ test("Feed suggestions retain an explicit manual Inbox override", () => {
   const illegal = host.render({
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "persisted-detail",
-    model: persistedDetail({ suggested_behavior_ids: ["invented.behavior", "home.talk"] }),
+    model: persistedDetail({ suggested_behavior_ids: ["invented.behavior", "invented.other"] }),
   });
   assert.match(illegal, /data-feed-action="inbox"/);
 

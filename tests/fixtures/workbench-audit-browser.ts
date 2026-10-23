@@ -36,7 +36,7 @@ const RESPONSE_BARRIERS = `(() => {
 
 export async function openAuditBrowser(t: TestContext): Promise<AuditBrowser | null> {
   let browser: AuditBrowser | null = null;
-  browser = await openGoalBrowser(t, true, undefined, null, undefined, undefined, () => browser ? {
+  browser = await openGoalBrowser(t, true, undefined, null, undefined, () => browser ? {
     workspace_id: "audit-workspace", canonical_path: join(browser.homeDirectory, "audit-workspace"), realpath_verified: true, display_name: "Audit workspace",
   } : null);
   if (!browser) return null;

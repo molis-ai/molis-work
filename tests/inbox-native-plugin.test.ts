@@ -194,7 +194,7 @@ test("Inbox recommends an action while preserving the person's other choices", (
   });
   const illegal = entry({
     entry_id: "entry-illegal",
-    suggested_behavior_ids: ["invented.behavior", "home.talk"],
+    suggested_behavior_ids: ["invented.behavior", "invented.other"],
   });
   const defaults = host.render({
     contribution_id: INBOX_UI_CONTRIBUTION_ID,

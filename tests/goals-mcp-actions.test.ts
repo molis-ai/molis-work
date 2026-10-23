@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, LocalMcpServer, molisWorkHostProjectReference, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, LocalMcpServer, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -39,16 +39,7 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
   let pending: Promise<Awaited<ReturnType<typeof sdk.callTool>>> | undefined;
   try {
     await withCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({ context, project_id: project.project_id, actor_id: "user", user_confirmed: true }));
-    const registry = await openWorkSessionRegistry({ homeDirectory: home });
-    const sessionId = registry.explicitlyLinkSession({ runtime_id: context.runtime_id, native_runtime_session_id: session,
-      actor_id: "user", user_confirmed: true, project_id: project.project_id }).session_id;
-    registry.appendEvent({ session_id: sessionId, source: "molis_work", kind: "status",
-      source_id: "before-goals-mcp", content: "Existing Session history" });
-    // SC-1 / PG-081: Goals retain the Session author without changing its record or existing history.
-    const sessionBefore = registry.get(sessionId);
-    const eventsBefore = registry.events(sessionId);
-    registry.close();
-    // The Session history MCP must replay is written through the action client. The typed door is the local person.
+    // The history MCP must replay is written through the action client. The typed door is the local person.
     const input = { goal_id: "HISTORICAL-GOAL", title: "迁移前目标", outcome: "保留回执", idempotency_key: "historical-create" };
     const sessionCaller = { actor_id: clientId, audit_actor_id: auditActor, actor_kind: "runtime" as const, runtime_session_id: session,
       audience: "mcp" as const, project_id: project.project_id, permissions: ["goals:read", "goals:write"] };
@@ -166,11 +157,6 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
       assert.ok(JSON.parse(await management.callTool(aliases.list, {})).goals.some((goal: { goal_id: string }) => goal.goal_id === input.goal_id));
       await assert.rejects(management.callTool(aliases.create, { ...input, database_path: project.database_path, actor_id: "user" }), { code: "actions.input_invalid" });
     } finally { await management.close(); }
-    const inspect = await openWorkSessionRegistry({ homeDirectory: home });
-    try {
-      assert.deepEqual(inspect.get(sessionId), sessionBefore, "MCP calls leave the complete Session record unchanged");
-      assert.deepEqual(inspect.events(sessionId), eventsBefore, "MCP calls preserve existing Session events without adding any");
-    } finally { inspect.close(); }
   } finally {
     release?.(); await pending?.catch(() => undefined); await sdk.close();
     await served.close(); await host.close(); await rm(home, { recursive: true, force: true });

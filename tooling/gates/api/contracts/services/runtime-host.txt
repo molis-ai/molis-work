@@ -12,7 +12,6 @@ export interface PtyHostHandlers {
 
 export interface PtySpawnRequest {
     panelId: string;
-    sessionId?: string | null;
     command?: string;
     args?: string[];
     cwd?: string | null;

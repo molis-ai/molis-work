@@ -77,7 +77,7 @@ Goals 与成果（Artifacts）是两个内置插件，各自拥有自己的事�
 
 当前本地 Goal 工作使用一套事件协议。Goals 保存意图、笔记、类型版本、报告、当前约定与要求，并决定显式收尾的完成效果；Governance 保存可信用户决定与有限树提案。Native Goals 组合用例和界面，Host 提供已绑定项目、Session 身份与同库事务，MCP/Web 不另算工作状态。普通记录不要求先建立规划。
 
-旧 Claim/Run/Evidence/Review 连同历史表、迁移与展示已于 2026-10-05 删除；Goal 历史就是事件记录加 Goals 日志。真实 Session、Runtime 进程和终端仍由 Work/Runtime Host 负责。当前调用合同见 [Goals](../modules/goals.md)、[Governance](../modules/governance-collaboration.md) 和 [Runtime](../runtime.md)。
+旧 Claim/Run/Evidence/Review 连同历史表、迁移与展示已于 2026-10-05 删除；Goal 历史就是事件记录加 Goals 日志。Runtime 进程和终端由 Runtime Host 与终端工作区负责（Sessions 已下线，重做见 BL-177）。当前调用合同见 [Goals](../modules/goals.md)、[Governance](../modules/governance-collaboration.md) 和 [Runtime](../runtime.md)。
 
 ## 6. Local 与 Server
 

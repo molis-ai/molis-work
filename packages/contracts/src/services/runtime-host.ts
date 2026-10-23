@@ -70,8 +70,6 @@ export interface RuntimeHostApi {
 
 export interface PtySpawnRequest {
   panelId: string;
-  /** Business correlation only; Runtime Host never reads or persists it. */
-  sessionId?: string | null;
   command?: string;
   args?: string[];
   cwd?: string | null;

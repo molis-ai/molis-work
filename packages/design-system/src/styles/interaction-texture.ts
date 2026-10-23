@@ -6,10 +6,10 @@ import { HIDDEN_SCROLLBAR_STYLES } from "./scrollbars.js";
  * Structure, density and component ownership stay with the existing layers. */
 
 /** Menus, popovers and compact dialogs that share one raised-surface recipe. */
-const RAISED_SURFACE = ":is(.navigator-project-menu-popover, .tree-filter, .global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog, .tui-menu, .source-filter-menu > .source-filter-row, .feed-filter-panel, .project-record-filter-menu > div)";
+const RAISED_SURFACE = ":is(.navigator-project-menu-popover, .tree-filter, .global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .tui-menu, .source-filter-menu > .source-filter-row, .feed-filter-panel)";
 
 /** Modals that dim the app behind them. */
-const SCRIMMED = ":is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog)";
+const SCRIMMED = ":is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog)";
 
 
 export const INTERACTION_TEXTURE_STYLES = `
@@ -101,7 +101,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   body.immersive-workbench .plugin-stage-chrome .tree-create svg { color: var(--plugin-tint, var(--muted)); }
 
   /* Directory rows: press feedback, and a current row that reads as selected, not merely hovered. */
-  body.immersive-workbench .tree-pane :is(.tree-entry, .desktop-module-item, .project-record-row, .feed-list-item, .source-list-item, .mw-dir-row):active {
+  body.immersive-workbench .tree-pane :is(.tree-entry, .desktop-module-item, .feed-list-item, .source-list-item, .mw-dir-row):active {
     background: var(--nav-press);
   }
   body.immersive-workbench .immersive-workspace .tree-pane .directory-list-row.is-selected {
@@ -140,8 +140,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   body ${SCRIMMED}::backdrop,
   body.immersive-workbench ${SCRIMMED}::backdrop,
   html[data-resolved-theme="dark"] body.immersive-workbench ${SCRIMMED}::backdrop,
-  body.immersive-workbench dialog:is([data-create-dialog], [data-feed-sources-dialog], [data-session-add-dialog],
-           [data-session-relations-dialog], [data-frame-picker])::backdrop {
+  body.immersive-workbench dialog:is([data-create-dialog], [data-feed-sources-dialog], [data-frame-picker])::backdrop {
     background: var(--scrim);
     backdrop-filter: none;
   }
@@ -332,8 +331,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   }
 
   /* Directory empty states share one calm block instead of six paddings and three alignments. */
-  body.immersive-workbench .tree-pane :is(.feed-list-empty, .source-list-empty, .project-record-empty,
-        .artifact-empty, .goal-collection-empty, .tree-filter-empty) {
+  body.immersive-workbench .tree-pane :is(.feed-list-empty, .source-list-empty, .artifact-empty, .goal-collection-empty, .tree-filter-empty) {
     margin: 0;
     padding: 16px 12px;
     border: 0;
@@ -344,13 +342,13 @@ export const INTERACTION_TEXTURE_STYLES = `
     line-height: 1.6;
     text-align: left;
   }
-  body.immersive-workbench .tree-pane :is(.feed-list-empty, .source-list-empty, .project-record-empty) strong {
+  body.immersive-workbench .tree-pane :is(.feed-list-empty, .source-list-empty) strong {
     display: block;
     color: var(--ink-soft);
     font-size: 12px;
     font-weight: var(--weight-control, 500);
   }
-  body.immersive-workbench .tree-pane :is(.feed-list-empty, .source-list-empty, .project-record-empty) > svg {
+  body.immersive-workbench .tree-pane :is(.feed-list-empty, .source-list-empty) > svg {
     display: block;
     width: var(--icon-md);
     height: var(--icon-md);

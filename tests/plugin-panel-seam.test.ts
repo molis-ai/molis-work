@@ -60,7 +60,7 @@ test("运行中的插件给出面板时，它就出现在目录里", () => {
   const panel = '<div data-coding-panel>会话列表</div>';
   const view = {
     ...baseView(),
-    enabled_plugins: ["goals", "sessions", "inbox", "feed", "artifacts", "coding"],
+    enabled_plugins: ["goals", "inbox", "feed", "artifacts", "coding"],
     plugin_panels: { coding: panel },
   } as MolisWorkWebView;
   const html = renderMolisWorkWeb(view);
@@ -72,7 +72,7 @@ test("面板只影响给出它的那个插件，别的照旧", () => {
   const before = renderMolisWorkWeb(baseView());
   const view = {
     ...baseView(),
-    enabled_plugins: ["goals", "sessions", "inbox", "feed", "artifacts", "coding"],
+    enabled_plugins: ["goals", "inbox", "feed", "artifacts", "coding"],
     plugin_panels: { coding: "<div data-coding-panel></div>" },
   } as MolisWorkWebView;
   const html = renderMolisWorkWeb(view);

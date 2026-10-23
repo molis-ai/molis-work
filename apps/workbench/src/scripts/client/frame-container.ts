@@ -16,7 +16,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   if (!tabsEl || !shell || !surfaceEl || !canvasEl || !worldEl) return noop;
   const toRoute = typeof route === "function" ? route : (pathname) => pathname;
   const storageKey = () => "molis-work-frame-container:" + (getProjectId() || "board");
-  const kindLabel = (kind) => ({ session: L("会话"), feed: "Feed", inbox: "Inbox", artifact: L("成果") }[kind] || kind);
+  const kindLabel = (kind) => ({ feed: "Feed", inbox: "Inbox", artifact: L("成果") }[kind] || kind);
   let openIds = [];
   let curTab = LIST_TAB;
   let lastBoard = LIST_TAB;
@@ -141,36 +141,6 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       body.replaceChildren(...reading.childNodes);
     } else body.replaceChildren(reading);
   };
-  const loadSessionBody = async (body, block) => {
-    const payload=await molisWorkRequest(toRoute("/api/sessions/"+encodeURIComponent(block.itemId)+"/content"),{fallback:L("无法打开这个内容")});
-    const article = document.createElement("article");
-    article.className = "frame-reading";
-    article.dataset.frameReading = "session";
-    const events = Array.isArray(payload.events)
-      ? payload.events.filter((event) => String(event.content || "").trim() || ["tool", "artifact", "terminal_output", "user_message", "runtime_message"].includes(event.kind))
-      : [];
-    if (!events.length) {
-      const empty = document.createElement("p");
-      empty.className = "frame-block-status";
-      empty.textContent = payload.native_error?.message || L("还没有可显示的执行内容");
-      article.append(empty);
-      body.replaceChildren(article);
-      return;
-    }
-    const list = document.createElement("ol");
-    list.className = "frame-session-events";
-    events.slice(0, 16).forEach((event) => {
-      const item = document.createElement("li");
-      const label = document.createElement("strong");
-      label.textContent = event.label || event.kind || "";
-      const text = document.createElement("span");
-      text.textContent = String(event.content || "").slice(0, 400);
-      item.append(label, text);
-      list.append(item);
-    });
-    article.append(list);
-    body.replaceChildren(article);
-  };
   const fillBody = async (article, block, force) => {
     const body = article?.querySelector("[data-frame-block-body]");
     if (!body || !block) return;
@@ -187,7 +157,6 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       if (block.kind === "inbox") loadInboxBody(body, block);
       else if (block.kind === "feed") await loadFeedBody(body, block);
       else if (block.kind === "artifact") await loadArtifactBody(body, block);
-      else if (block.kind === "session") await loadSessionBody(body, block);
       else {
         const fallback = document.createElement("p");
         fallback.textContent = block.caption || kindLabel(block.kind);
@@ -405,7 +374,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   };
   const readAsset = (target) => {
     if (!target?.closest) return null;
-    if (target.closest("[data-tree-toggle], [data-directory-back], [data-work-surface-open], [data-open-session-add], [data-feed-filter-trigger], [data-feed-filter-panel], [data-container-tabs], [data-frame-block]")) return null;
+    if (target.closest("[data-tree-toggle], [data-directory-back], [data-work-surface-open], [data-feed-filter-trigger], [data-feed-filter-panel], [data-container-tabs], [data-frame-block]")) return null;
     const row = target.closest("[data-frame-asset]");
     if (!row) return null;
     return {
@@ -492,7 +461,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const assets = new Map();
     document.querySelectorAll("[data-frame-asset]").forEach((row) => {
       const asset = readAsset(row);
-      if (asset?.id && ["feed", "inbox", "session", "artifact"].includes(asset.kind)) assets.set(asset.kind + ":" + asset.id, asset);
+      if (asset?.id && ["feed", "inbox", "artifact"].includes(asset.kind)) assets.set(asset.kind + ":" + asset.id, asset);
     });
     pickItems = [...assets.values()];
     pickQuery.value = ""; pickerKind.value = "all";

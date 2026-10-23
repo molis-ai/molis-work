@@ -8,8 +8,6 @@ export { renderHomePluginPage } from "./home-plugin-page.js";
 export { homeToolKeysScript } from "./home-plugin-navigation.js";
 export type { ArtifactBrowserUiModel } from "@molis-ai/molis-work-plugin-artifacts";
 export { isProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
-export { PROJECT_OPERATIONS_STYLES, PROJECT_OPERATIONS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-work";
-export type { ProjectOperationsProject, ProjectOperationsData, ProjectOperationsSlice, ProjectSessionRecord, ProjectWorkspaceRecord } from "@molis-ai/molis-work-plugin-work";
 export {
   activeOutgoingDependsOn,
   allGoalViews,

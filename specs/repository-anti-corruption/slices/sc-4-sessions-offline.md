@@ -1,6 +1,6 @@
 # SC-4：Sessions 下线
 
-状态：2026-10-23 起草，实施中（分支 `migrate/sessions-sc4-offline`，叠在 SC-3 的 #1113 上）；第 1 节的保留机制由统筹转用户确认，确认前代码里不写任何读旧数据、迁移或兼容逻辑。
+状态：2026-10-23 已实现，待评审与统筹集成批（分支 `migrate/sessions-sc4-offline`，叠在 SC-3 的 #1113 上）；第 1 节的保留机制由统筹转用户确认，确认前代码里不写任何读旧数据、迁移或兼容逻辑。
 
 依据：用户 2026-10-18 定 Sessions 这一轮只做清理、重做另开需求（BL-177）；2026-10-23 定 D2（首页「说一句」随 Sessions 下线，入口一起删）、D6 方案 A（见第 1 节）。对应 `privileges.md` 的 PG-081、PG-082 收尾。总计划与清点在协调分支 `notes/sessions-cleanup-plan.md`、`notes/sessions-cleanup-inventory.md`。
 
@@ -45,5 +45,5 @@
 - **RAC-215**　工作区设置（选目录、关联、修复、解除）和 Goal 终端面板照常工作，路由路径不变；`POST /api/workspaces/:id/sessions` 与 `/api/sessions*` 不再存在（404）。
 - **RAC-216**　动作合同快照少 `sessions.*` 18 行与 `home.talk.prepare` 1 行，其余不变；公开 API 快照随删除的导出变小。
 - **RAC-217**　钉选、导轨、primitive、标签、全局搜索、画布、目标页里不再有 `sessions`。
-- **RAC-218**　门禁数字只降：巨大单元少 5 个以上、`registerProvider` 少 2 行、点名内置插件包名的文件数降、冻结名单少一项。
+- **RAC-218**　门禁数字只降（对 SC-3 的 #1113 分支）：巨大单元 117 → 112，点名内置插件包名的文件数 317 → 298，宿主入口 `export *` 11 → 10，模块导出的 Repository/Store 8 → 6，以内置插件命名的宿主文件 10 → 9，测试引用包内部 448 → 442，浏览器脚本里的裸 `fetch` 50 → 40，冻结的旧路径插件名单少 `sessions` 一项；`registerProvider(` 行数不变（17，原先在测试里的几行随用例一起删）。`pnpm health:check` 自己保证只降。
 - **RAC-219**　PRODUCT.md、SSOT、HOME-DATA、GLOSSARY 和产品运营文档都写「Sessions 已下线，重做见 BL-177」。

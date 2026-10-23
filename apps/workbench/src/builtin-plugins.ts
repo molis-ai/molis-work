@@ -24,7 +24,6 @@ import { registration as scheduleRegistration } from "@molis-ai/molis-work-plugi
 import { registration as shelfRegistration } from "@molis-ai/molis-work-plugin-shelf/registration";
 import { registration as textStatsRegistration } from "@molis-ai/molis-work-plugin-text-stats/registration";
 import { registration as todoRegistration } from "@molis-ai/molis-work-plugin-todo/registration";
-import { registration as workRegistration } from "@molis-ai/molis-work-plugin-work/registration";
 import { registration as workflowsRegistration } from "@molis-ai/molis-work-plugin-workflows/registration";
 
 /** Every plugin this build ships, in catalog order: the shared build composition for the catalog and the UI resources. */
@@ -35,7 +34,6 @@ export const BUILTIN_PLUGIN_CATALOG: readonly PluginRegistration[] = [
   imagesRegistration,
   jellyRegistration,
   goalsRegistration,
-  workRegistration,
   inboxRegistration,
   scheduleRegistration,
   feedRegistration,

@@ -1,12 +1,14 @@
-# 私人会话与工作上下文
+# 私人工作上下文
 
-保存 Session 身份、私人内容引用、恢复/handoff 状态及 Runtime 项目绑定语义，使会话能在正确项目中继续。
+保存 Runtime 项目绑定语义：一个 Runtime 工作入口或工作目录属于哪个项目，使外部 Runtime 能在正确项目中继续。
 
 包名：`@molis-ai/molis-work-module-private-work-context`。工作区内部包，通过仓库构建和 Host 装配使用。
 
+Sessions 插件已下线（SC-4）：Session 身份、消息、内容引用、交接与会话目录的实现都已删除，本包只剩 Runtime 项目绑定。Sessions 重做见 `specs/BACKLOG.md` 的 BL-177。
+
 ## 一次典型调用
 
-应用通常通过 Local Host 的 openWorkSessionRegistry 打开 Registry。直接装配 MolisWorkSessionRegistry.open 时必须提供 createLedger，并复用事务连接；跨模块关联交给 Ledger，私人内容仍由本模块维护。
+Host 在项目编目处调用 `createRuntimeContextModule`，在同一数据库连接里装配绑定、创建并绑定、拒绝建议与清理服务；跨模块关联交给 Context Ledger，本包不另建关系表。
 
 ## 从哪里读代码
 
@@ -14,19 +16,15 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/session-registry.ts](src/session-registry.ts) | Registry 与资源生命周期 |
-| [src/content-store.ts](src/content-store.ts) | 加密内容引用 |
-| [src/session-surfaces.ts](src/session-surfaces.ts) | 终端面板与 Runtime 绑定写入时记下的会话 |
-| [src/project-binding-commands.ts](src/project-binding-commands.ts) | 项目绑定命令 |
 | [src/runtime-context-module.ts](src/runtime-context-module.ts) | 项目绑定、创建与清理服务的装配 |
-
-可对照现有调用方 [apps/local-host/src/session-registry.ts](../../apps/local-host/src/session-registry.ts) 阅读装配方式。
+| [src/project-binding-commands.ts](src/project-binding-commands.ts) | 项目绑定命令 |
+| [src/project-resolution.ts](src/project-resolution.ts) | 把 Runtime 工作入口解析到已绑定的项目 |
+| [src/context-binding-references.ts](src/context-binding-references.ts) | 绑定与项目之间的 Ledger 关系 |
+| [src/context-bindings.ts](src/context-bindings.ts) | 绑定、建议与拒绝记录的表 |
 
 ## 接入与边界
 
-私人的恢复包不会自动发布为 Artifact 或 Team 内容。历史未知 Project/Goal revision 保持未知。环境变量解析和 Runtime 进程启动由 Host 完成。
-
-由 Local Host 装配数据库与协作端口；跨 Module 协作使用公开 Contract，不从另一 Module 深层导入实现。完整依赖见 [package.json](package.json)。
+由 Local Host 装配数据库与协作端口；跨 Module 协作使用公开 Contract，不从另一 Module 深层导入实现。完整依赖见 [package.json](package.json)。环境变量解析和 Runtime 进程启动由 Host 完成。
 
 ## 本地开发
 
@@ -37,28 +35,26 @@ pnpm --filter @molis-ai/molis-work-module-private-work-context typecheck
 pnpm --filter @molis-ai/molis-work-module-private-work-context build
 ```
 
-已有行为示例与回归：[private-work-context-module.test.ts](../../tests/private-work-context-module.test.ts)、[session-associations-atomic.test.ts](../../tests/session-associations-atomic.test.ts)。完成上述构建后运行：
+已有行为示例与回归：[runtime-binding-ledger.test.ts](../../tests/runtime-binding-ledger.test.ts)、[runtime-context-entry.test.ts](../../tests/runtime-context-entry.test.ts)。完成上述构建后运行：
 
 ```bash
-node scripts/run-tests.mjs tests/private-work-context-module.test.ts tests/session-associations-atomic.test.ts
+node scripts/run-tests.mjs tests/runtime-binding-ledger.test.ts tests/runtime-context-entry.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
 ## 开发要求
 
-- 负责：私人 Session、内容引用、工作目录关联、恢复与交接事实。
-- 不负责：执行 Run、Goal、Artifact、Runtime 进程句柄。
+- 负责：Runtime 工作入口与项目的绑定关系、建议与拒绝记录、绑定语义的错误码。
+- 不负责：Session 与消息（已下线）、执行 Run、Goal、Artifact、Runtime 进程句柄。
 - 公开入口：`@molis-ai/molis-work-module-private-work-context`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/private-work-context`。
-- 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)）。
 - 不变量：
   - Runtime 项目绑定由 `createRuntimeContextModule` 在同一连接内装配；Repository 不对包外导出，Host 只提供项目创建与补偿端口，并调用绑定、创建并绑定及清理服务。
-  - 默认只在本机；私人恢复包不自动发布为 Artifact 或 Team 内容，共享必须由用户显式发布。
   - 关系事实只存在 Context Ledger，不另建关系表；打开时必须提供 `createLedger` 并复用事务连接。
-  - 终端面板与 Runtime 绑定在写入时记下会话（读取时不再搬运）；面板的绑定与面板共用一个会话。
-  - 项目被删除时，Home 里属于这个项目的 Session 记录由本模块自己清：`sessionsProjectData` 是它的声明（标签与 `purgeSessionsProject`，宿主与 Functions 的声明一起列出）。Session 靠 Ledger 边 `work.project` 属于项目，由 Ledger 的查询找出；清除先在一个事务里经 Ledger 取消这些 Session 与交接包的关联边（Ledger 只追加，已取消的边留在历史里，只有 id、没有内容），删这些 Session 的事件、交接、消息请求，提交；再在第二个写事务里把内容块目录里所有没有行引用的块删掉（扫全部块，不只是这个项目的行引用过的；文件删除不在第一个事务里，提交失败不会留下指着已删内容的行；某一块删除失败、两个事务之间进程中断、或第二个事务拿不到写锁时，行已删、清除报错，留下的块没有行引用它，重试时这个项目的行已不在，第二个事务照样扫描全部块，所以会把它收走；某一块删不掉不拦住其余的块）；任何一张带 `content_ref` 列的表都算引用它的块，新增这样的表不需要另改清除；本模块不对 Ledger 的表写 SQL；只读已存在的库文件，不创建，版本不符照常拒绝，重复运行没有副作用。别的项目的 Session 和移到别处的 Session 不动。事件正文在写入锁里存（`SessionEventRepository.append` 用 IMMEDIATE 事务，和交接、消息一样）：内容按文本寻址、可被多行共用，清除在写锁里核对并删掉没有行引用的块，所以不会删掉另一个进程正要引用的块。示例项目的「重建」不调用这一步（Session 跟着保留的面板与 Runtime 绑定留下）。
-- 新 Session 的目录关联只提供项目建议，即使目录只关联一个项目也不取得连接；只有本 Session 的已确认绑定可恢复连接，显式解绑后不能由目录建议复活。
-- 改动后必跑：`node scripts/run-tests.mjs tests/private-work-context-module.test.ts tests/session-handoff.test.ts tests/session-directory.test.ts tests/session-content-privacy.test.ts tests/project-deletion-owners.test.ts tests/session-project-binding-router.test.ts tests/project-catalog.test.ts tests/mcp.test.ts`
+  - 项目关系缺失时拒绝（`work.context.project_relation_missing`），不猜测绑定。
+  - 本包不打开 `<home>/sessions/`：那是已下线 Sessions 的旧存储，只由 Host 的存储登记（备份与卸载清理仍认得它）持有，删除要在备份副本上另做（SC-5）。
+- 改动后必跑：`node scripts/run-tests.mjs tests/runtime-binding-ledger.test.ts tests/runtime-context-entry.test.ts tests/session-project-binding-router.test.ts tests/project-deletion-owners.test.ts`（构建后）。
 - 相关手册：[docs/modules/private-work-context.md](../../docs/modules/private-work-context.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
@@ -72,4 +68,4 @@ node scripts/run-tests.mjs tests/private-work-context-module.test.ts tests/sessi
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
-当前 Session、消息和交接错误使用 `work.session.*`、`work.sessions.*` 或 `work.handoff.*`；业务关系、动作 ID 和数据库文件名沿用各自合同。已经写入的历史错误由防腐维护步骤处理，不在读取时翻译旧码。
+绑定的错误使用 `work.context.*`；业务关系、动作 ID 和数据库文件名沿用各自合同。

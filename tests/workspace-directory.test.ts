@@ -5,15 +5,6 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
-import { PROJECT_OPERATIONS_STYLES } from "@molis-ai/molis-work-plugin-work";
-
-test("Session and workspace row states render one status frame", () => {
-  assert.doesNotMatch(PROJECT_OPERATIONS_STYLES, /\.project-record-row \.directory-row-state/);
-  assert.doesNotMatch(PROJECT_OPERATIONS_STYLES, /\.project-record-state\s*\{/);
-  // Craft finish: selection is a flat --nav-active fill; only floating layers cast shadows.
-  assert.match(PROJECT_OPERATIONS_STYLES, /\.project-record-directory \.project-record-row\.is-selected \{ color: var\(--ink\); background: var\(--nav-active\); box-shadow: none; \}/);
-});
 
 test("workspace directory canonicalizes symlinks, keeps monorepo paths distinct, and never creates defaults", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-workspace-directory-"));
@@ -69,60 +60,3 @@ test("workspace directory canonicalizes symlinks, keeps monorepo paths distinct,
     await rm(directory, { recursive: true, force: true });
   }
 });
-
-test("workspace Session reassignment is project isolated and preserves Session identity", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-workspace-sessions-"));
-  const home = path.join(directory, ".molis-work");
-  const previous = path.join(directory, "previous");
-  const next = path.join(directory, "next");
-  await mkdir(previous, { recursive: true });
-  await mkdir(next, { recursive: true });
-  const registry = await openWorkSessionRegistry({ homeDirectory: home });
-  try {
-    const first = registry.createSession({
-      runtime_id: "claude-code",
-      actor_id: "user",
-      user_confirmed: true,
-      project_id: "project-a",
-      workspace_id: "workspace-previous",
-      workspace_path: previous,
-      title: "目标 Session",
-    });
-    const otherProject = registry.createSession({
-      runtime_id: "claude-code",
-      actor_id: "user",
-      user_confirmed: true,
-      project_id: "project-b",
-      workspace_id: "workspace-previous",
-      workspace_path: previous,
-      title: "其他项目 Session",
-    });
-    assert.throws(() => registry.reassignWorkspaceSessions({
-      project_id: "project-a",
-      actor_id: "user",
-      user_confirmed: false,
-      previous_workspace_path: previous,
-      workspace_id: "workspace-next",
-      workspace_path: next,
-    }), /明确确认/);
-
-    const changed = registry.reassignWorkspaceSessions({
-      project_id: "project-a",
-      actor_id: "user",
-      user_confirmed: true,
-      previous_workspace_id: "workspace-previous",
-      previous_workspace_path: previous,
-      workspace_id: "workspace-next",
-      workspace_path: next,
-    });
-    assert.deepEqual(changed.map((session) => session.session_id), [first.session_id]);
-    assert.equal(registry.get(first.session_id).workspace_path, next);
-    assert.equal(registry.get(first.session_id).workspace_id, "workspace-next");
-    assert.equal(registry.get(otherProject.session_id).workspace_path, previous);
-    assert.equal(registry.get(otherProject.session_id).workspace_id, "workspace-previous");
-  } finally {
-    registry.close();
-    await rm(directory, { recursive: true, force: true });
-  }
-});
-import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

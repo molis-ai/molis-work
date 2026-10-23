@@ -28,12 +28,12 @@ const scrollProbe = (chromeSelector: string, scrollerSelector: string) => `(() =
   };
 })()`;
 
-test("Window chrome stays put while chooser, settings, Feed, Sessions and Goals scroll inside their containers", { timeout: 90_000 }, async t => {
+test("Window chrome stays put while chooser, settings, Feed, Artifacts and Goals scroll inside their containers", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  for (const plugin_id of ["feed", "sessions", "artifacts"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "scroll-test" });
+  for (const plugin_id of ["feed", "artifacts"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "scroll-test" });
   catalog.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const expectContained = async (chrome: string, scroller: string) => {
@@ -136,12 +136,6 @@ test("Window chrome stays put while chooser, settings, Feed, Sessions and Goals 
   await expectContained(".immersive-titlebar", ".feed-stage-tree");
   await expectContained("[data-workspace-chrome]", ".feed-stage-tree");
   await expectContained(".workbench-bar", ".feed-stage-tree");
-
-  await click('[data-plugin-strip] [data-plugin-id="sessions"]');
-  await waitFor("document.body.dataset.desktopSurface === 'sessions' && document.querySelector('[data-session-stage-list]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
-  await expectContained(".immersive-titlebar", "[data-session-stage-list]");
-  await expectContained("[data-workspace-chrome]", "[data-session-stage-list]");
-  await expectContained(".workbench-bar", "[data-session-stage-list]");
 
   await click('[data-plugin-strip] [data-plugin-id="artifacts"]');
   await waitFor("document.body.dataset.desktopSurface === 'artifacts' && document.querySelector('[data-artifact-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");

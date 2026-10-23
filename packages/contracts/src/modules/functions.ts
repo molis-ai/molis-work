@@ -12,7 +12,6 @@ export const FUNCTIONS_EVALUATE_CAPABILITY_ID = "functions.evaluate";
 export const HOME_DOCK_SCENE_ID = "home.dock";
 export const FEED_CAPTURE_SCENE_ID = "feed.capture";
 export const INBOX_NEXT_SCENE_ID = "inbox.next";
-export const HOME_TALK_BEHAVIOR_ID = "home.talk";
 export const HOME_CONTINUE_BEHAVIOR_ID = "home.continue";
 export const HOME_ASK_BEHAVIOR_ID = "home.ask";
 export const INBOX_DONE_BEHAVIOR_ID = "inbox.done";
@@ -261,7 +260,7 @@ export function filterSuggestedBehaviorIds(
 ): string[] {
   const offeredSet = new Set(offered);
   const allowedSet = new Set(allowed);
-  if (!choice || !offeredSet.has(choice) || !allowedSet.has(choice) || choice === HOME_TALK_BEHAVIOR_ID) {
+  if (!choice || !offeredSet.has(choice) || !allowedSet.has(choice)) {
     return [];
   }
   return [choice];
@@ -309,7 +308,6 @@ export const FUNCTION_AUTHORING_SUBJECTS: readonly FunctionAuthoringSubject[] = 
   { subject_kind: "inbox_entry", title: "Inbox" },
   { subject_kind: "source", title: "来源出错" },
   { subject_kind: "home_event", title: "首页事件" },
-  { subject_kind: "session", title: "Session" },
   { subject_kind: "mcp_invoke", title: "Agent" },
 ];
 

@@ -300,12 +300,11 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
     await import("@molis-ai/molis-work-app-workbench");
 
   // "functions" may still be saved on older projects; rule authoring moved to Capabilities, so it has no rail entry.
-  const everything = ["jelly", "goals", "sessions", "todo", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "alchemist", "artifacts"];
+  const everything = ["jelly", "goals", "todo", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "alchemist", "artifacts"];
   assert.deepEqual(
     railEntries(everything).map((entry) => [entry.id, entry.label, entry.glyph]),
     [
       ["goals", "Goals", "target"],
-      ["sessions", "Sessions", "terminal"],
       ["todo", "待办", "list"],
       ["inbox", "Inbox", "inbox"],
       ["jelly", "Jelly", "calendar"],
@@ -345,7 +344,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   // should be a decision somebody made, not something that arrives with a merge.
   assert.deepEqual([...PROJECT_SCOPED_PLUGIN_IDS].sort(),
     // The workspace Plugin was retired: browsing roots come from project settings actions (action-architecture migration).
-    ["artifacts", "coding", "diff", "feed", "files", "git", "goals", "inbox", "schedule", "sessions",
+    ["artifacts", "coding", "diff", "feed", "files", "git", "goals", "inbox", "schedule",
       "text-stats"]);
   assert.deepEqual(
     railEntries(["coding"]).map((entry) => [entry.id, entry.label, entry.glyph]),

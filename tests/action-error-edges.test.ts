@@ -12,10 +12,8 @@ import { actionMcpToolName, createActionMcpPorts, handleMcpMessage, molisWorkAct
 import {
   ActionError,
   bindActionClient,
-  resolveActionSubject,
   type ActionCallContext,
   type ActionClient,
-  type ActionSubject,
   type BoundActionClient,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -37,7 +35,7 @@ import { serveNativeHttp } from "./fixtures/native-http.js";
 // Not every such edge saw a TodoError on origin/main, though: Todo's subject reader (`todo.search.subject`) already raised `new ActionError("todo.not_found")`.
 // So each test below says which kind it is. Changed by this slice (each fails when Todo's errors are put back to the origin/main shape): the MCP action port,
 // the Host's own MCP server, the Home dock's execute route, and the move that placement asks Todo to make. Unchanged, pinned because the slice rewrote the
-// errors they read: placement's read of a Todo that is gone, and the Home dock's talk/prepare. (The edges that read a failure by shape, such as the action
+// errors it reads: placement's read of a Todo that is gone. (The edges that read a failure by shape, such as the action
 // gateway, did not change and have no test here.)
 
 function todoHost(t: { after(fn: () => void): void }) {
@@ -116,18 +114,6 @@ test("W3-02-G1-03 Home dock execute preserves the Todo owner's not_found kind an
   try {
     const execute = await server.post("/api/home/actions/execute", "{}");
     assert.deepEqual([execute.status, execute.body.code, execute.body.error], [404, "todo.not_found", "找不到这件待办，可能已被删除"]);
-  } finally { await server.close(); }
-});
-
-test("W3-02-G1-03 Home dock talk/prepare preserves a missing Todo's code and answers 404", async t => {
-  // Preparation begins with the real subject reader, whose refusal reaches the same common HTTP exit.
-  const { service, caller } = todoHost(t);
-  const reading: BoundActionClient = { discover: async () => [], invoke: async (_definition, input) =>
-    await resolveActionSubject(service, caller("user"), (input as { subject: ActionSubject }).subject) as never };
-  const server = await serveNativeHttp((request, response, url) => handleHomeDockJudgmentHttp(request, response, url, { actions: reading, invalidateWebView: () => undefined }));
-  try {
-    const prepare = await server.post("/api/home/talk/prepare", JSON.stringify({ subject: { kind: "todo_item", id: "no-such-todo" } }));
-    assert.deepEqual([prepare.status, prepare.body.code, prepare.body.error], [404, "todo.not_found", "这件待办已删除，或不在当前范围内"]);
   } finally { await server.close(); }
 });
 

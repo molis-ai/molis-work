@@ -38,7 +38,7 @@
 // not reported dead.
 // Limit (known, not closed): wrappers are matched by name, not by scope. In a browser program the names the other files define
 // are shared, and they win over a function of the same name that a file defines itself: apps/workbench/src/settings-memory.ts has
-// `button(text, variant, label)` that never translates, and reads as the shared `button(action, label)` of home-talk.ts, so its
+// `button(text, variant, label)` that never translates, and reads as the shared `button(action, label)` another file defines, so its
 // 13 calls `button("mw-btn--secondary")` are recorded as translator calls (the file scanned alone has none). A key without Chinese
 // is ignored by every rule, so today that changes nothing. What it could do: a Chinese literal passed to such a helper at an index
 // the shared one translates would be asked for an English text although the helper never shows it. Closing it takes name

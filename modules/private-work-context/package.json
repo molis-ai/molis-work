@@ -2,7 +2,7 @@
   "name": "@molis-ai/molis-work-module-private-work-context",
   "version": "0.0.0",
   "private": true,
-  "description": "Private Session, content reference, workspace association, resume, and handoff facts.",
+  "description": "Runtime context bindings: which project a Runtime work entry or workspace belongs to.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {

@@ -101,7 +101,7 @@ export class DemoProjectLifecycle {
       await fs.rename(stagingDirectory, projectDirectory);
       resetPromoted = true;
       // A rebuilt demo starts without what the owners kept for the old one, except what only a running Molis Work can clear
-      // and what stays valid for the project that stays: the Sessions its kept panels and Runtime bindings name.
+      // and what stays valid for the project that stays (the owners that declare `survivesRebuild`).
       left = await this.owners.clearAll(project.project_id, { leaveElsewhere: true, rebuild: true });
       await this.seedDemoExtras(project.project_id, project.database_path, actorId);
       updated = await this.commit(() => {

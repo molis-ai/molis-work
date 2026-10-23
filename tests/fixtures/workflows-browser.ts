@@ -7,7 +7,7 @@ import { pluginFrameBrowser } from "./plugin-frame-browser.js";
 
 export async function openWorkflowsBrowser(t: TestContext, { open = true, chromeArgs }: { open?: boolean; chromeArgs?: readonly string[] } = {}) {
   assert.ok(locateTestChrome(), "Chrome is required for the Workflows ownership regression");
-  const browser = await openGoalBrowser(t, "seeded", undefined, null, undefined, undefined, undefined, {}, undefined, chromeArgs);
+  const browser = await openGoalBrowser(t, "seeded", undefined, null, undefined, undefined, {}, undefined, chromeArgs);
   assert.ok(browser, "Chrome is required for the Workflows ownership regression");
   const frame = await pluginFrameBrowser(t, browser, "workflows");
   const path = `/projects/${browser.projectId}/api/plugins/io.molis.work.native.workflows/workflows`;

@@ -196,7 +196,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     ? document.querySelector("[data-goal-frame-surface]") : tab ? topLevelSurface(tab.plugin) : null;
   const titleForItem = (plugin, itemId, fallback) => {
     if (plugin === "goals") return visibleGoals()?.find((item) => item.goal.goal_id === itemId)?.goal.title || fallback || itemId;
-    const row = document.querySelector('[data-operation-select="' + CSS.escape(itemId) + '"], [data-feed-entry-id="' + CSS.escape(itemId) + '"], [data-inbox-row][data-inbox-entry-id="' + CSS.escape(itemId) + '"]');
+    const row = document.querySelector('[data-feed-entry-id="' + CSS.escape(itemId) + '"], [data-inbox-row][data-inbox-entry-id="' + CSS.escape(itemId) + '"]');
     return row?.getAttribute("data-frame-asset-title") || row?.querySelector("strong")?.textContent?.trim() || fallback || itemId;
   };
   let loadingGoalId = null;
@@ -204,7 +204,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const surface = topLevelSurface(plugin);
     if (!surface) return;
     surface.setAttribute("data-expanded", "false");
-    const workspace = surface.querySelector(".plugin-stage-workspace, [data-session-stage-workspace], [data-artifact-stage-workspace], [data-schedule-stage-workspace]");
+    const workspace = surface.querySelector(".plugin-stage-workspace, [data-artifact-stage-workspace], [data-schedule-stage-workspace]");
     if (workspace) workspace.hidden = true;
     surface.querySelectorAll(".is-selected").forEach((row) => {
       row.classList.remove("is-selected");
@@ -318,24 +318,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab.plugin === "feed" && tab.feedTask) setFeedTask?.(tab.feedTask, false);
     if (tab.plugin === "feed" && tab.kind === "item" && tab.itemId) selectFeedItem?.(tab.itemId, false, true, false);
     if (tab.plugin === "inbox" && tab.kind === "item" && tab.itemId) selectInboxEntry?.(tab.itemId, false);
-    if (tab.plugin === "sessions" && tab.kind === "item" && tab.itemId) {
-      // Select directly: a synthetic row click re-enters openItem through the capture listener and loops apply().
-      const surface = topLevelSurface("sessions");
-      surface?.setAttribute("data-expanded", "true");
-      const workspace = surface?.querySelector("[data-session-stage-workspace]");
-      if (workspace) workspace.hidden = false;
-      surface?.querySelectorAll("[data-operation-detail]").forEach((detail) => {
-        detail.hidden = detail.dataset.detailId !== tab.itemId;
-      });
-      document.querySelectorAll('[data-operation-directory="sessions"] [data-operation-row]').forEach((row) => {
-        const active = row.dataset.recordId === tab.itemId;
-        row.classList.toggle("is-selected", active);
-        row.setAttribute("aria-selected", String(active));
-        const button = row.matches("[data-operation-select]") ? row : row.querySelector("[data-operation-select]");
-        if (button) button.tabIndex = active ? 0 : -1;
-      });
-      surface?.querySelector('[data-operation-detail]:not([hidden]) [data-session-content-load]')?.click();
-    }
   };
   const mount = (pane, node) => {
     const body = panesEl.querySelector('[data-tab-pane="' + pane.id + '"] [data-tab-pane-body]');

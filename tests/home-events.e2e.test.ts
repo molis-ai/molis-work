@@ -81,10 +81,6 @@ test("an unknown plugin owns its Home event, context and real action; failure an
     await waitFor("document.querySelector('[data-home-detail-body]')?.textContent.includes('刷新后的插件原文')", 12000);
     assert.ok(await evaluate<number>("window.__homeReadCount") >= 2);
     await capture("desktop-plugin-event");
-    await click('[data-home-open-talk]');
-    await waitFor("document.querySelector('[data-home-talk-body]')?.textContent.includes('当前项目还没有可接收消息的会话')");
-    assert.match(await evaluate<string>("document.querySelector('.home-talk-context').textContent"), /刷新后的插件原文/);
-    await click('[data-home-close-talk]');
     await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
     await command("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 }, sessionId);
     assert.ok(await evaluate<number>("document.querySelector('[data-home-offer]').getBoundingClientRect().height") >= 44);

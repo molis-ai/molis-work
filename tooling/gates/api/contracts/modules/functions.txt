@@ -190,8 +190,6 @@ export declare const HOME_CONTINUE_BEHAVIOR_ID = "home.continue";
 
 export declare const HOME_DOCK_SCENE_ID = "home.dock";
 
-export declare const HOME_TALK_BEHAVIOR_ID = "home.talk";
-
 export declare const INBOX_ADMIT_BEHAVIOR_ID = "inbox.admit";
 
 export declare const INBOX_COMPOSE_BEHAVIOR_ID = "inbox.compose";

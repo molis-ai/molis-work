@@ -36,7 +36,7 @@ test("native preparation saves exact files and provenance in Characters' own run
   assert.deepEqual(first.spawn, { panelId: `character-${input.request_id}`, attachOnly: true });
   assert.equal(spawned[0].args?.length, 1); assert.match(spawned[0].args![0]!, /CHARACTER.md/); assert.match(spawned[0].args![0]!, /Use my verifier/);
   assert.equal(first.run.status, "dispatched"); assert.match(first.run.status_message!, /已派发/); assert.deepEqual(first.run.reference, ref);
-  assert.equal(existsSync(join(home, "sessions")), false, "nothing is written to the Sessions registry");
+  assert.equal(existsSync(join(home, "sessions")), false, "nothing creates the retired sessions store");
   const stored = storedRuns(home, "user", "board"), record = stored.byPanel(first.run.panel_id)!; stored.close();
   assert.deepEqual({ ...record, bundle_path: undefined }, { run: first.run, owner_actor_id: "user", project_id: "board", character_id: "c", task: "Use my verifier",
     workspace_id: "ws", runtime_id: "codex", bundle_path: undefined });
@@ -68,16 +68,12 @@ test("five native invocations keep the entire prompt in a single argument withou
   assert.deepEqual(characterNativeArgs("opencode", "/workspace", prompt), ["/workspace", "--prompt", prompt]);
 });
 
-test("server-dispatched native PTY reads the saved bundle, shows its output without recording it, reattaches and stops on request", {timeout:15_000}, async t => {
+test("server-dispatched native PTY reads the saved bundle, shows its output, reattaches and stops on request", {timeout:15_000}, async t => {
   const home=mkdtempSync(join(tmpdir(),"character-pty-"));
   const command=join(home,"fixture-agent");
   writeFileSync(command,'#!/usr/bin/env node\nconst fs=require("fs"),path=require("path");const guide=process.argv[2].match(/"([^\\"]+\\/CHARACTER\\.md)"/)[1];const root=path.dirname(guide);console.log("FIXTURE_OUTPUT:"+fs.readFileSync(path.join(root,"rules/1.md"),"utf8"));setInterval(()=>{},1000);',{mode:0o700});
-  const server=createServer(),recorded:string[]=[];
-  // The recorder hooks only see processes started with a session id; a Character run has none, so they stay silent.
-  const pty=attachMolisWorkPtySocket(server,'fixture-control-token-123456789',{
-    onData(panelId){recorded.push(`data:${panelId}`);},
-    onExit(panelId){recorded.push(`exit:${panelId}`);},
-  });
+  const server=createServer();
+  const pty=attachMolisWorkPtySocket(server,'fixture-control-token-123456789');
   t.after(async()=>{pty.killAll();await new Promise<void>(resolve=>server.close(()=>resolve()));rmSync(home,{recursive:true,force:true});});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
   const ports=characterNativeExecution({home,actorId:'user',projectId:'b',workspaces:async()=>[{workspace_id:'w',canonical_path:home,display_name:'fixture',realpath_verified:true}],spawn:request=>pty.spawn(request),executable:()=>command});
@@ -93,7 +89,6 @@ test("server-dispatched native PTY reads the saved bundle, shows its output with
   assert.equal(pty.alive(started.run.panel_id),true);
   const again=await ports.launch(content,ref,input);assert.deepEqual(again,started);assert.equal(pty.spawn(again.spawn).attached,true);
   pty.kill(started.run.panel_id);assert.equal(pty.alive(started.run.panel_id),false);
-  assert.deepEqual(recorded,[],'neither output nor exit of a Character run is recorded');
   const after=await ports.launch(content,ref,input);assert.deepEqual(pty.spawn(after.spawn),{attached:false,started:false,replay:''});
   assert.deepEqual(await ports.runs('c'),[started.run],'the run stays listed after its process is gone');
 });

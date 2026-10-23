@@ -49,7 +49,6 @@ import {
   createWorkbenchGoalsRelationRenderer,
   createWorkbenchGoalsStatusRenderer,
   createWorkbenchGoalsTreeRenderer,
-  renderProjectOperations,
   renderPagesContribution,
   renderFormContribution,
   renderDatasetContribution,
@@ -347,7 +346,6 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderIconSprite, clientI18nScript, dataJson, prefixLocalLinks, renderWorkbenchDocument,
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer, renderGoalProposals: (view) => renderGoalTreeProposalList(view.snapshot.goal_tree_proposals, view),
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
-    renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
     renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface,
   });

@@ -9,7 +9,7 @@ import { ProjectsModule, createProjectsSchema } from "@molis-ai/molis-work-modul
 
 /** What Projects is told exists: five plugins, and Inbox enabled with Feed (the Host derives the real one from its catalog). */
 const shipped: ProjectPluginRegistry = {
-  has: (pluginId) => ["goals", "sessions", "inbox", "feed", "artifacts"].includes(pluginId),
+  has: (pluginId) => ["goals", "todo", "inbox", "feed", "artifacts"].includes(pluginId),
   companions: (pluginId) => pluginId === "feed" ? ["inbox"] : [],
 };
 

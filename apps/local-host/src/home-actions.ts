@@ -1,4 +1,3 @@
-import { homeTalkActions, createHomeTalkHandlers } from "./home-talk-actions.js";
 import { homeOfferActions, createHomeOfferHandlers, type HomeActionOffer } from "./home-offer-actions.js";
 import { callerDirectory, prepareSubjectOffers } from "./contextual/contextual-service.js";
 import { homeEventActions, createHomeEventHandlers } from "./home-event-actions.js";
@@ -48,7 +47,6 @@ const define = <I, O>(id: string, title: string, description: string, operation:
 });
 export const homeActions = {
   ...homeEventActions,
-  ...homeTalkActions,
   ...homeOfferActions,
   readJudgment: define<Record<string, never>, HomeJudgmentState>("home.judgment.read", "首页判断规则", "读取这个项目首页判断现在用的判断规则、可以选用的已发布规则、可交给判断的能力和当前绑定；只读，不调用模型。", "query", empty, {
     type: "object", properties: { function_key: { type: ["string", "null"] }, functions: { type: "array", items: { type: "object", properties: { function_key: text, name: text }, required: ["function_key", "name"] } },
@@ -176,7 +174,6 @@ export function homeActionProvider(home: string, projectId: string, services: In
   });
   return { provider: { provider_id: "system.home", title: "首页", kind: "system", project_id: projectId },
     definitions: Object.values(homeActions), scenes: [homeDockScene], scene_handlers: [handler], handlers: [
-      ...createHomeTalkHandlers(projectId, services.actions),
       ...createHomeOfferHandlers(services.actions),
       ...createHomeEventHandlers(services.actions, homeActions.recommendations),
       bind(homeActions.readJudgment, async (_input, caller) => {

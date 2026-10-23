@@ -10,7 +10,6 @@ export function createTabWorkspaceOps(titles) {
   const pluginTitle = (plugin) => (titles && titles[plugin]) || ({
     home: "项目首页",
     goals: "Goals",
-    sessions: "Sessions",
     inbox: "Inbox",
     schedule: "Schedule",
     feed: "Feed",

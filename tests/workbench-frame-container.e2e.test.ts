@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, DEMO_PROJECT_ID, openWorkSessionRegistry, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
@@ -10,7 +10,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, store, projectId, homeDirectory } = browser;
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  for (const plugin_id of ["sessions", "feed", "inbox", "artifacts"] as const) {
+  for (const plugin_id of ["feed", "inbox", "artifacts"] as const) {
     catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "frame-container" });
   }
   catalog.close();
@@ -33,26 +33,6 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
     producer: { plugin_id: "example.writer", plugin_version: "1.0.0", binding_signature: "fixture" },
     content: { kind: "inline", payload: { text: "Frame artifact" } }, metadata: {},
   });
-  const registry = await openWorkSessionRegistry({ homeDirectory });
-  const session = registry.createSession({
-    runtime_id: "codex",
-    project_id: projectId!,
-    current_goal_id: "CORE",
-    title: "核对 Frame 引用卡片",
-    user_confirmed: true,
-    actor_id: "frame-container",
-  });
-  registry.appendEvent({
-    session_id: session.session_id,
-    source: "molis_work_tui",
-    kind: "user_message",
-    source_id: "frame-session-note",
-    source_order: 1,
-    occurred_at: now,
-    content: "核对 Frame 里的执行记录",
-    metadata: {},
-  });
-  registry.close();
   const before = store.snapshot(DEMO_PROJECT_ID);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -76,14 +56,9 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await evaluate("document.querySelector('[data-graph-node][data-goal-id=\"CORE\"] [data-graph-frame]').click()");
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-item-id=CORE][aria-current]')");
   assert.equal(await evaluate("document.querySelectorAll('[data-titlebar-tabs] .tab-item[data-item-id=CORE]').length"), 1);
-  await waitFor("Boolean(document.querySelector('[data-operation-select=\"" + session.session_id + "\"]'))");
-  await evaluate("document.querySelector('[data-operation-select=\"" + session.session_id + "\"]').click()");
-  await waitFor("document.querySelectorAll('[data-frame-block]').length === 1");
-  assert.match(await evaluate<string>("document.querySelector('[data-frame-block]').textContent || ''"), /核对 Frame 引用卡片/);
-  assert.equal(await evaluate("document.querySelector('[data-work-surface=sessions]').hidden"), true);
   await waitFor("Boolean(document.querySelector('[data-feed-item-id=\"" + feedItem.item.item_id + "\"]'))");
   await evaluate("document.querySelector('[data-feed-item-id=\"" + feedItem.item.item_id + "\"]').click()");
-  await waitFor("document.querySelectorAll('[data-frame-block]').length === 2");
+  await waitFor("document.querySelectorAll('[data-frame-block]').length === 1");
   assert.match(await evaluate<string>("[...document.querySelectorAll('[data-frame-block]')].map(block => block.textContent).join(' ')"), /核对 Frame 的 Feed 条目/);
   assert.equal(await evaluate("document.querySelector('[data-work-surface=feed]').hidden"), true);
   await evaluate(`(() => {
@@ -94,12 +69,12 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
     });
     canvas.dispatchEvent(event);
   })()`);
-  await waitFor("document.querySelectorAll('[data-frame-block]').length === 3");
+  await waitFor("document.querySelectorAll('[data-frame-block]').length === 2");
   assert.match(await evaluate<string>("[...document.querySelectorAll('[data-frame-block]')].map(block => block.textContent).join(' ')"), /Frame artifact/);
   assert.equal(await evaluate("document.querySelector('[data-work-surface=artifacts]').hidden"), true);
   await waitFor("Boolean(document.querySelector('[data-inbox-directory] [data-frame-asset=inbox][data-frame-asset-id=\"" + inbox.entry.entry_id + "\"]'))");
   await evaluate("document.querySelector('[data-inbox-directory] [data-frame-asset=inbox][data-frame-asset-id=\"" + inbox.entry.entry_id + "\"]').click()");
-  await waitFor("document.querySelectorAll('[data-frame-block]').length === 4");
+  await waitFor("document.querySelectorAll('[data-frame-block]').length === 3");
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && !document.querySelector('[data-work-surface=feed]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-goal-frame-surface]').hidden"), true);
@@ -107,7 +82,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
   await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]').click()");
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-item-id=CORE][aria-current]') && !document.querySelector('[data-goal-frame-surface]').hidden");
-  assert.equal(await evaluate("document.querySelectorAll('[data-frame-block]').length"), 4);
+  assert.equal(await evaluate("document.querySelectorAll('[data-frame-block]').length"), 3);
   await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=feed] > p').click()");
   await waitFor("document.querySelector('[data-frame-block].is-expanded .frame-reading .feed-rich-content')");
   assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded').textContent || ''"), /只验证引用/);
@@ -118,9 +93,6 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await waitFor("document.querySelector('[data-frame-block].is-expanded .frame-reading .artifact-facts')");
   assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded').textContent || ''"), /example\.note/);
   assert.equal(await evaluate("document.querySelector('[data-frame-block].is-expanded .artifact-actions, [data-frame-block].is-expanded .artifact-raw')"), null);
-  await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=session]').click()");
-  await waitFor("Boolean(document.querySelector('[data-frame-block].is-expanded .frame-reading .frame-session-events')) && document.querySelector('[data-frame-block].is-expanded').textContent.includes('核对 Frame 里的执行记录')");
-  assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded').textContent || ''"), /终端仍在 Goal 工作框/);
   await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=inbox]').click()");
   await waitFor("document.querySelector('[data-frame-block].is-expanded [data-frame-reading=inbox]')");
   assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded').textContent || ''"), /你手工加入/);
@@ -134,15 +106,10 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
     canvas.dispatchEvent(event);
   })()`);
   await waitFor("document.querySelector('[data-toast]').classList.contains('is-visible') && document.querySelector('[data-toast]').textContent.includes('Goal 留在主画布')");
-  assert.equal(await evaluate("document.querySelectorAll('[data-frame-block]').length"), 4);
+  assert.equal(await evaluate("document.querySelectorAll('[data-frame-block]').length"), 3);
   await evaluate("document.querySelector('.tree-node[data-select-goal=CORE]').dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window,detail:1}));document.querySelector('.tree-node[data-select-goal=CORE]').dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window,detail:2}))");
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' && !document.querySelector('[data-goal-frame-surface]').hidden && document.querySelector('.tab-item[data-plugin=goals][data-item-id=CORE][aria-current]')");
   assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]') != null"), true);
-  await click('[data-plugin-strip] [data-plugin-id="sessions"]');
-  await waitFor("document.body.dataset.desktopSurface === 'sessions' && !document.querySelector('[data-work-surface=sessions]').hidden");
-  await click('[data-operation-select="' + session.session_id + '"]');
-  assert.equal(await evaluate("document.querySelector('[data-work-surface=sessions]').hidden"), false);
-  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "sessions");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]')");
   await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE] [data-tab-close]').click()");
@@ -162,7 +129,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]')");
   await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]').click()");
-  await waitFor("document.querySelectorAll('[data-frame-block]').length === 4");
+  await waitFor("document.querySelectorAll('[data-frame-block]').length === 3");
   assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).goals, before.goals);
   assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).runs, before.runs);
 });

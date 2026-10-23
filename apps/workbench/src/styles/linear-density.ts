@@ -42,7 +42,7 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .plugin-section { position: relative; }
   body.immersive-workbench .plugin-section > .immersive-plugin-link { min-height: var(--dir-row-h); }
   body.immersive-workbench .plugin-section.is-expanded > .plugin-section-body > .desktop-directory-panel:not([hidden]) > [data-directory-list-actions] { min-height: var(--control-h); }
-  body.immersive-workbench .tree-pane :is(.tree-filter, .project-record-filter-menu > div, .feed-filter-panel, .source-filter-menu > .source-filter-row) {
+  body.immersive-workbench .tree-pane :is(.tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row) {
     top: calc(var(--dir-row-h) + var(--control-h) + 4px); left: 8px; right: 8px; width: auto; box-sizing: border-box;
   }
   body.immersive-workbench .immersive-plugin-link { min-height: var(--dir-row-h); gap: 8px; padding: 0 8px 0 8px; }
@@ -87,12 +87,8 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .tab-item[data-pinned] { width: 28px; min-width: 28px; max-width: 28px; }
   body.immersive-workbench :is(.tab-split-button, .tab-add-button) { width: 26px; height: 26px; }
   body.immersive-workbench .tab-pane-close { top: 4px; width: 22px; height: 26px; }
-  body.immersive-workbench .immersive-plugin-stage > .desktop-work-surface:not(.session-stage-shell, .plugin-stage-shell, .immersive-home) { padding: 16px clamp(14px, 3%, 28px); }
-  body.immersive-workbench .immersive-plugin-stage > :is(.session-stage-shell, .plugin-stage-shell) { padding: 0; overflow: hidden; }
-  body.immersive-workbench .tab-pane-body > .project-operation-surface { padding: 0; overflow: hidden; }
-  body.immersive-workbench .session-stage-bar { min-height: 48px; padding: 8px 16px; }
-  body.immersive-workbench .session-stage-bar h1 { font-size: 15px; }
-  body.immersive-workbench .session-execution-toolbar { min-height: 32px; padding: 4px 16px; }
+  body.immersive-workbench .immersive-plugin-stage > .desktop-work-surface:not(.plugin-stage-shell, .immersive-home) { padding: 16px clamp(14px, 3%, 28px); }
+  body.immersive-workbench .immersive-plugin-stage > .plugin-stage-shell { padding: 0; overflow: hidden; }
   body.immersive-workbench .plugin-market-body { padding: 16px clamp(16px, 3%, 28px) 32px; }
   body.immersive-workbench .plugin-market-heading h1 { font-size: 24px; }
   body.immersive-workbench .plugin-market-list article { min-height: 48px; padding: 8px; }
@@ -176,13 +172,11 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .frame-goal-summary > p { margin: 4px 0 8px; font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
   body.immersive-workbench .frame-goal-actions { gap: 8px; }
   body.immersive-workbench .goal-node-toolbar,
-  body.immersive-workbench .plugin-stage-detail-bar,
-  body.immersive-workbench .session-stage-bar { min-height: 32px; padding: 4px 12px; gap: 8px; }
+  body.immersive-workbench .plugin-stage-detail-bar { min-height: 32px; padding: 4px 12px; gap: 8px; }
   body.immersive-workbench .goal-node-heading h1 { font-size: 13px; line-height: 1.3; }
   body.immersive-workbench .goal-node-toolbar button:not([data-tui-empty-add]),
   body.immersive-workbench .goal-details-toggle,
-  body.immersive-workbench .plugin-stage-back,
-  body.immersive-workbench .session-stage-back { height: 26px; width: 26px; }
+  body.immersive-workbench .plugin-stage-back { height: 26px; width: 26px; }
   body.immersive-workbench .goal-workspace-hero { padding: 8px 12px; }
   body.immersive-workbench .goal-info-popover > summary { min-height: 28px; padding: 4px 12px; }
   body.immersive-workbench .plugin-stage-detail-bar > h1 { font-size: 13px; line-height: 1.3; }
@@ -201,15 +195,12 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .goal-event-document .reader-content,
   body.immersive-workbench .goal-event-document .event-form { padding: 12px 16px 24px; }
   body.immersive-workbench .goal-event-document .event p { line-height: 1.6; }
-  body.immersive-workbench :is(.form-actions, .event-form-actions, .feed-reader-footer, .project-operation-dialog) { --control-h: 32px; }
+  body.immersive-workbench :is(.form-actions, .event-form-actions, .feed-reader-footer) { --control-h: 32px; }
   body.immersive-workbench .form-actions > button,
   body.immersive-workbench .goal-event-document .event-form button[type=submit] { min-height: 32px; }
-  body.immersive-workbench dialog:is([data-session-relations-dialog], [data-session-handoff-dialog]) {
-    inset: var(--tab-strip-h) 0 0 auto; height: calc(100dvh - var(--tab-strip-h)); max-height: calc(100dvh - var(--tab-strip-h));
-  }
-  body.immersive-workbench dialog:is([data-create-dialog], [data-session-add-dialog], [data-session-relations-dialog], [data-frame-picker]) :is(h2, .feed-task-dialog-shell h2) { font-size: 15px; }
-  body.immersive-workbench dialog:is([data-create-dialog], [data-session-add-dialog], [data-session-relations-dialog], [data-frame-picker]) header button[data-dialog-close] { width: 28px; height: 28px; }
-  body.immersive-workbench dialog:is([data-create-dialog], [data-session-add-dialog], [data-session-relations-dialog], [data-frame-picker]) :is(.dialog-body, .feed-task-dialog-body) { padding: 12px 16px; }
+  body.immersive-workbench dialog:is([data-create-dialog], [data-frame-picker]) :is(h2, .feed-task-dialog-shell h2) { font-size: 15px; }
+  body.immersive-workbench dialog:is([data-create-dialog], [data-frame-picker]) header button[data-dialog-close] { width: 28px; height: 28px; }
+  body.immersive-workbench dialog:is([data-create-dialog], [data-frame-picker]) :is(.dialog-body, .feed-task-dialog-body) { padding: 12px 16px; }
   :is(body.project-preferences-page, .settings-stage), body.settings-page { --control-h: 32px; }
   @media (max-width: 1050px) {
     body.immersive-workbench { --immersive-sidebar-width: 220px; }
@@ -246,8 +237,7 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench .frame-goal-actions button { min-height: 44px; }
     body.immersive-workbench .goal-node-toolbar button,
     body.immersive-workbench .goal-details-toggle,
-    body.immersive-workbench .plugin-stage-back,
-    body.immersive-workbench .session-stage-back { width: 44px; height: 44px; min-height: 44px; }
+    body.immersive-workbench .plugin-stage-back { width: 44px; height: 44px; min-height: 44px; }
     body.immersive-workbench .feed-stage-entry {
       height: auto; min-height: 44px;
       grid-template-columns: minmax(0, 1fr) max-content;
@@ -260,8 +250,8 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench .feed-reader-footer .feed-detail-actions button { min-height: 44px; }
     body.immersive-workbench .form-actions > button,
     body.immersive-workbench .goal-event-document .event-form button[type=submit] { min-height: 44px; }
-    body.immersive-workbench :is(.form-actions, .event-form-actions, .feed-reader-footer, .project-operation-dialog) { --control-h: 44px; }
-    body.immersive-workbench dialog:is([data-create-dialog], [data-session-add-dialog], [data-session-relations-dialog], [data-frame-picker]) header button[data-dialog-close] { width: 44px; height: 44px; }
+    body.immersive-workbench :is(.form-actions, .event-form-actions, .feed-reader-footer) { --control-h: 44px; }
+    body.immersive-workbench dialog:is([data-create-dialog], [data-frame-picker]) header button[data-dialog-close] { width: 44px; height: 44px; }
   }
   @media (max-width: 600px) {
     body.immersive-workbench .plugin-rail .personal-account { min-height: 44px; height: 44px; }

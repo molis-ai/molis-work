@@ -628,10 +628,6 @@ export const GOAL_CANVAS_STYLES = `
   .frame-reading dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
   .frame-reading .artifact-facts { display: grid; gap: 8px; margin: 0; font-size: 13px; line-height: 1.6; }
   .frame-reading .artifact-facts p { margin: 0; }
-  .frame-session-events { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-  .frame-session-events li { display: grid; gap: 4px; padding: 0; border: 0; }
-  .frame-session-events strong { font-size: 11px; font-weight: var(--weight-control, 500); color: var(--muted); }
-  .frame-session-events span { overflow-wrap: anywhere; }
   .goal-frame-tools { z-index: 6; }
   @media (prefers-reduced-motion: no-preference) {
     .goal-node-workspace:not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }

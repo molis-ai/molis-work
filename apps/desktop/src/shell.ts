@@ -21,7 +21,8 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
     window.dispatchEvent(new CustomEvent("molis-shelf-notice",{detail:{message}}));
     const toast=document.querySelector("[data-settings-toast], [data-toast]");
     if(!toast||!globalThis.molisWorkRequest?.toast)return;
-    globalThis.molisWorkRequest.toast(toast,null,message,{ms:5000});
+    const display=message.split("\\n").map(line=>globalThis.L?.(line)??line).join("\\n");
+    globalThis.molisWorkRequest.toast(toast,null,display,{ms:5000});
     if(partial===true){toast.setAttribute("data-mw-state","partial");toast.classList.remove("is-error");}
   };
   globalThis.molisWorkShelfRefresh=()=>{

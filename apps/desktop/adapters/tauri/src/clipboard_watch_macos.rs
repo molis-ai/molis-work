@@ -81,14 +81,10 @@ fn take(app: &AppHandle, cargo: Cargo) {
     // Files copied elsewhere go straight to materials; they never take a
     // clipboard slot, same as DropAgent.
     if !cargo.files.is_empty() {
-        for path in &cargo.files {
-            match shelf_http::admit_file(path) {
-                Ok(receipt) => {
-                    receipt.into_item_id(|message| crate::shelf_notice(app, message, true));
-                }
-                Err(error) => eprintln!("Molis Work 没能收下复制的文件：{error}"),
-            }
-        }
+        shelf_http::notify_admissions(
+            cargo.files.iter().map(|path| shelf_http::admit_file(path)),
+            |message, partial| crate::shelf_notice(app, message, partial, 0),
+        );
         return;
     }
     let Some(text) = cargo

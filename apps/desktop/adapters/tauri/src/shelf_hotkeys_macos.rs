@@ -378,39 +378,8 @@ fn on_files() {
             };
             return Err(failure.message(&capture_label));
         }
-        let mut admitted = 0usize;
-        let mut warning = None;
-        let mut last_error = None;
-        for path in paths {
-            match shelf_http::admit_file(&path) {
-                Ok(receipt) => {
-                    receipt.into_item_id(|message| warning = Some(message));
-                    admitted += 1;
-                }
-                Err(error) => last_error = Some(error),
-            }
-        }
-        finish_capture(admitted, warning, last_error)
+        shelf_http::collect_admissions(paths.iter().map(|path| shelf_http::admit_file(path))).1
     });
-}
-
-fn finish_capture(
-    admitted: usize,
-    warning: Option<&'static str>,
-    last_error: Option<String>,
-) -> Result<Option<&'static str>, String> {
-    if admitted == 0 {
-        Err(last_error.unwrap_or_else(|| shelf_hotkeys::FILES_EMPTY.to_string()))
-    } else if let Some(error) = last_error {
-        let mut message = format!("已收下 {admitted} 项，另有文件未收下：{error}");
-        if let Some(warning) = warning {
-            message.push('\n');
-            message.push_str(warning);
-        }
-        Err(message)
-    } else {
-        Ok(warning)
-    }
 }
 
 fn admit_page(url: &str, title: &str) -> Result<(), String> {
@@ -683,14 +652,7 @@ fn show_notice(message: &str, partial: bool) {
         return;
     };
     show_shelf(&window);
-    let encoded = serde_json::to_string(message).unwrap_or_else(|_| "\"\"".into());
-    let script = format!(
-        r#"(() => {{
-          const notice = globalThis.molisWorkShelfNotice;
-          if (typeof notice === "function") setTimeout(() => notice({encoded}, {partial}), 80);
-        }})();"#
-    );
-    let _ = window.eval(&script);
+    crate::shelf_notice(&host.app, message, partial, 80);
 }
 
 #[allow(dead_code)]
@@ -711,34 +673,5 @@ fn unregister() {
             let _ = UnregisterEventHotKey(host.files_ref);
             host.files_ref = ptr::null_mut();
         }
-    }
-}
-
-#[cfg(test)]
-mod capture_tests {
-    use super::finish_capture;
-
-    // PG-026-S1-S3-2: real batch failures remain errors, without hiding a saved copy's warning.
-    #[test]
-    fn batch_feedback_preserves_success_and_failure_outcomes() {
-        let warning = "副本已收下，但未能登记原件";
-        assert_eq!(finish_capture(2, None, None), Ok(None));
-        assert_eq!(finish_capture(2, Some(warning), None), Ok(Some(warning)));
-        assert_eq!(
-            finish_capture(1, Some(warning), Some("读取失败".into())),
-            Err(format!("已收下 1 项，另有文件未收下：读取失败\n{warning}"))
-        );
-        assert_eq!(
-            finish_capture(1, None, Some("读取失败".into())),
-            Err("已收下 1 项，另有文件未收下：读取失败".into())
-        );
-        assert_eq!(
-            finish_capture(0, None, Some("读取失败".into())),
-            Err("读取失败".into())
-        );
-        assert_eq!(
-            finish_capture(0, None, None),
-            Err(crate::shelf_hotkeys::FILES_EMPTY.into())
-        );
     }
 }

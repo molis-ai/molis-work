@@ -45,6 +45,56 @@ impl AdmitReceipt {
     }
 }
 
+/// Collect a complete native batch before choosing its one visible outcome.
+pub fn collect_admissions(
+    admissions: impl IntoIterator<Item = Result<AdmitReceipt, String>>,
+) -> (Vec<String>, Result<Option<&'static str>, String>) {
+    let mut admitted = Vec::new();
+    let mut warning = None;
+    let mut last_error = None;
+    for admission in admissions {
+        match admission {
+            Ok(receipt) => admitted.push(receipt.into_item_id(|message| warning = Some(message))),
+            Err(error) => last_error = Some(error),
+        }
+    }
+    let feedback = finish_capture(admitted.len(), warning, last_error);
+    (admitted, feedback)
+}
+
+/// Background entry points notify once, after every result; a later warning cannot replace an error.
+pub fn notify_admissions(
+    admissions: impl IntoIterator<Item = Result<AdmitReceipt, String>>,
+    notify: impl FnOnce(&str, bool),
+) -> Vec<String> {
+    let (admitted, feedback) = collect_admissions(admissions);
+    match feedback {
+        Ok(Some(message)) => notify(message, true),
+        Err(error) => notify(&error, false),
+        Ok(None) => {}
+    }
+    admitted
+}
+
+fn finish_capture(
+    admitted: usize,
+    warning: Option<&'static str>,
+    last_error: Option<String>,
+) -> Result<Option<&'static str>, String> {
+    if admitted == 0 {
+        Err(last_error.unwrap_or_else(|| crate::shelf_hotkeys::FILES_EMPTY.to_string()))
+    } else if let Some(error) = last_error {
+        let mut message = format!("已收下 {admitted} 项，另有文件未收下：{error}");
+        if let Some(warning) = warning {
+            message.push('\n');
+            message.push_str(warning);
+        }
+        Err(message)
+    } else {
+        Ok(warning)
+    }
+}
+
 pub fn admit_file(path: &Path) -> Result<AdmitReceipt, String> {
     if path.is_dir() {
         return admit_folder(path);
@@ -489,8 +539,8 @@ fn encode_base64(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        encode_base64, folder_entries, http_payload, parse_admit_receipt, parse_wheel_gates,
-        percent_encode_path,
+        encode_base64, finish_capture, folder_entries, http_payload, notify_admissions,
+        parse_admit_receipt, parse_wheel_gates, percent_encode_path,
     };
     use std::fs;
     use std::path::PathBuf;
@@ -521,6 +571,102 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    // PG-026-S1-S3-2: real batch failures remain errors, without hiding a saved copy's warning.
+    #[test]
+    fn batch_feedback_preserves_success_and_failure_outcomes() {
+        let warning = "副本已收下，但未能登记原件";
+        assert_eq!(finish_capture(2, None, None), Ok(None));
+        assert_eq!(finish_capture(2, Some(warning), None), Ok(Some(warning)));
+        assert_eq!(
+            finish_capture(1, Some(warning), Some("读取失败".into())),
+            Err(format!("已收下 1 项，另有文件未收下：读取失败\n{warning}"))
+        );
+        assert_eq!(
+            finish_capture(1, None, Some("读取失败".into())),
+            Err("已收下 1 项，另有文件未收下：读取失败".into())
+        );
+        assert_eq!(
+            finish_capture(0, None, Some("读取失败".into())),
+            Err("读取失败".into())
+        );
+        assert_eq!(
+            finish_capture(0, None, None),
+            Err(crate::shelf_hotkeys::FILES_EMPTY.into())
+        );
+    }
+
+    // PG-026-S1-S3-6: wheel and clipboard share this exact production notifier, in either result order.
+    #[test]
+    fn batch_notice_keeps_failure_priority_regardless_of_admission_order() {
+        let warning = "副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。";
+        for reversed in [false, true] {
+            let mut admissions = vec![
+                parse_admit_receipt(
+                    r#"{"item":{"item_id":"saved-copy"},"original_registered":false}"#.into(),
+                ),
+                Err("读取失败".into()),
+            ];
+            if reversed {
+                admissions.reverse();
+            }
+            let mut notices = Vec::new();
+            let ids = notify_admissions(admissions, |message, partial| {
+                notices.push((message.to_string(), partial))
+            });
+            assert_eq!(ids, ["saved-copy"]);
+            assert_eq!(
+                notices,
+                [(
+                    format!("已收下 1 项，另有文件未收下：读取失败\n{warning}"),
+                    false
+                )]
+            );
+        }
+    }
+
+    // PG-026-S1-S3-6: no error means silent success or a single partial; all failures still notify once as errors.
+    #[test]
+    fn batch_notice_preserves_ids_and_notifies_only_when_needed() {
+        let mut notices = Vec::new();
+        let ids = notify_admissions(
+            [
+                parse_admit_receipt(
+                    r#"{"item":{"item_id":"registered"},"original_registered":true}"#.into(),
+                ),
+                parse_admit_receipt(r#"{"item":{"item_id":"copy-only"}}"#.into()),
+            ],
+            |message, partial| notices.push((message.to_string(), partial)),
+        );
+        assert_eq!(ids, ["registered", "copy-only"]);
+        assert!(notices.is_empty());
+        let ids = notify_admissions(
+            [
+                parse_admit_receipt(
+                    r#"{"item":{"item_id":"first"},"original_registered":false}"#.into(),
+                ),
+                parse_admit_receipt(
+                    r#"{"item":{"item_id":"second"},"original_registered":false}"#.into(),
+                ),
+            ],
+            |message, partial| notices.push((message.to_string(), partial)),
+        );
+        assert_eq!(ids, ["first", "second"]);
+        assert_eq!(
+            notices,
+            [(
+                "副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。".into(),
+                true
+            )]
+        );
+        notices.clear();
+        assert!(notify_admissions(
+            [Err("第一个失败".into()), Err("最后一个失败".into())],
+            |message, partial| notices.push((message.to_string(), partial))
+        )
+        .is_empty());
+        assert_eq!(notices, [("最后一个失败".into(), false)]);
     }
 
     // PG-026-S1-S3-1/2: execute the parser and the same consumer used by all native admission paths.

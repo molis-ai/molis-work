@@ -51,7 +51,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 25 | [#1137](https://github.com/molis-ai/molis-work/pull/1137) | W5-03/04 Images 片：客户端打包成 TS；`images.js` 21,670→19,915 B | 和 #1129、#1132 在 `page-assets.json` 撞相邻行，后合的解 | `full` 非空（deletes-code），进下一批 | 头 `c0d39defa`；`ac-review` 排队审（顺带改了错误模型测试的源码扫描范围，要看没放宽） |
 | 26 | [#1138](https://github.com/molis-ai/molis-work/pull/1138) | PG-051 P2a：Agent 声明停用后按「未运行」保留、重启恢复、卸载才删（新 Home 库 `agent-declarations`） | #1124 已合 | `full` 非空（contracts），进下一批 | 头 `36c0771cb`；`ac-review` 排队审 |
 | 27 | [#1139](https://github.com/molis-ai/molis-work/pull/1139) | PG-017 P0：`sandboxServicesFor` 一张映射；不给的服务一声明就以 `sandbox.service_not_given` 拒绝；S-60 一行 | **叠在 #1119 上**；S 号连续要 #1117、#1119 先合 | `full` 为空 | `ac-review` 排队审；改了安全不变量，合前看 Security invariants |
-| 28 | [#1140](https://github.com/molis-ai/molis-work/pull/1140) | SC-4 残留：BL-485/486/488（Codex 会话适配器、合同里的 `session_id`、模块描述） | 叠在 #1130（第三层）；**草稿**，#1113 合入且 #1130 改投 main 后再转 ready | 待重算 | 统筹转了草稿，先不审 |
+| 28 | ~~#1140~~ | SC-4 残留：BL-485/486/488 | 作者已关闭（第三层）；分支 `migrate/sessions-sc4b-runtime-leftovers`（`259a5fc84`）留着，#1113 合入且 #1130 改投 main 后合 main 再重开新 PR | — | 不在队里 |
 | 29 | [#1141](https://github.com/molis-ai/molis-work/pull/1141) | 评审修复线（合并 Agent 派）：#902 Home 待办批量「移到」菜单补 menu 语义与单一 Tab 停点（只改 todo 插件 UI + 新 e2e） | — | `full` 为空 | 草稿；头 `ab8a43768`；等 `ac-review` 一轮；负责人 review-fix-owner |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 收尾时合 main、转 ready |
 

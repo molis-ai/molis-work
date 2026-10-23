@@ -2,6 +2,11 @@ import { pathLabel } from "@molis-ai/molis-work-contracts/modules/workspace-arti
 
 import type { GitChange, GitHead, GitStatus } from "@molis-ai/molis-work-plugin-sdk";
 
+import { GIT_MESSAGES } from "./messages.js";
+
+/** A host sentence, written in Chinese from its template; the page recognizes it and says it in its own language (`sentences.ts`). */
+const said = (key: keyof typeof GIT_MESSAGES, values: Record<string, string | number>) => GIT_MESSAGES[key].zh.replace(/\{(\w+)\}/g, (_all, name: string) => String(values[name]));
+
 /**
  * What the Git surface shows.
  *
@@ -41,7 +46,7 @@ export interface GitProjectionInput {
 export interface GitView {
   phase: GitPhase;
   head: string;
-  /** Rendered as "领先 2 · 落后 1", or empty when there is no upstream. */
+  /** Rendered as "origin/main：领先 2 · 落后 1", or empty when there is no upstream; a host sentence the page says again. */
   tracking: string;
   staged: readonly GitListItem[];
   changes: readonly GitListItem[];
@@ -117,18 +122,18 @@ function item(kind: GitListKind, change: GitChange): GitListItem {
 
 export function headLabel(head: GitHead): string {
   if (head.kind === "branch") return head.name;
-  if (head.kind === "unborn") return `${head.name}（还没有提交）`;
-  return `游离于 ${head.commit.slice(0, 8)}`;
+  if (head.kind === "unborn") return said("git.host.head-unborn", { name: head.name });
+  return said("git.host.head-detached", { commit: head.commit.slice(0, 8) });
 }
 
 function trackingLabel(status: GitStatus): string {
   const upstream = status.upstream;
   if (upstream === undefined) return "";
-  if (upstream.ahead === 0 && upstream.behind === 0) return `与 ${upstream.name} 同步`;
-  const parts: string[] = [];
-  if (upstream.ahead > 0) parts.push(`领先 ${upstream.ahead}`);
-  if (upstream.behind > 0) parts.push(`落后 ${upstream.behind}`);
-  return `${upstream.name}：${parts.join(" · ")}`;
+  const { name: upstreamName, ahead, behind } = upstream;
+  if (ahead > 0 && behind > 0) return said("git.host.tracking-both", { upstream: upstreamName, ahead, behind });
+  if (ahead > 0) return said("git.host.tracking-ahead", { upstream: upstreamName, ahead });
+  if (behind > 0) return said("git.host.tracking-behind", { upstream: upstreamName, behind });
+  return said("git.host.tracking-synced", { upstream: upstreamName });
 }
 
 function messageFor(phase: GitPhase): string {

@@ -85,7 +85,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
       workspace=value.workspace.workspace_id;selected=value.selected;reopen.hidden=!selected;
       await showReviews();if(!active(epoch))return;
       await loadSource();if(!active(epoch))return;
-      const view=value.view;notice.textContent=view.phase==='ready'?[view.head,view.tracking,view.message&&S(view.message)].filter(Boolean).join(' · '):S(view.message);
+      const view=value.view;notice.textContent=view.phase==='ready'?[S(view.head),S(view.tracking),view.message&&S(view.message)].filter(Boolean).join(' · '):S(view.message);
       for(const [label,items,side,state] of [[L('git.group.conflicts'),view.conflicts,'worktree','conflict'],[L('git.group.staged'),view.staged,'index','staged'],[L('git.group.unstaged'),view.changes,'worktree','unstaged']]){
         if(!items.length)continue;
         const group=document.createElement('section'),heading=document.createElement('h4');heading.textContent=label+' · '+items.length;heading.dataset.mwState=state;group.append(heading);

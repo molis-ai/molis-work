@@ -3,6 +3,7 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import type { ContextSource, ContextSourceKind, ImportFile, ContextFileMetadata } from "./context-onboarding-store.js";
+import { isStagedDigest } from "./context-onboarding-staging.js";
 
 const CONTEXT_DIRECTORY_KINDS = ["downloads", "documents", "desktop", "custom"] as const;
 const KINDS: ContextSourceKind[] = ["files", "directory", ...CONTEXT_DIRECTORY_KINDS, "browser", "gmail", "chat"];
@@ -13,12 +14,22 @@ function relativePath(value: unknown): string {
     || value.split("/").some(part => !part || part === ".." || part.startsWith(".") || ["node_modules", "vendor", "dist", "build"].includes(part))) throw new Error("文件范围无效");
   return value;
 }
+/** A file's place in its source, as the person chose it: a relative path of a kind onboarding reads. */
+export function contextFilePath(value: unknown): string {
+  const path = relativePath(value);
+  if (!supportedContextFile(path)) throw new Error("文件类型无效");
+  return path;
+}
 export function includedContextFiles(source: ContextSource): ContextFileMetadata[] {
   return (source.metadata?.files ?? []).filter(file => !(source.excluded ?? []).some(path => file.path === path || file.path.startsWith(path + "/")));
 }
+/**
+ * The person's sources for a round, checked for shape. There is no count or size limit (user 2026-10-22): files are uploaded one by
+ * one into the journey's staging and named here by digest; reading queues them and says how far it is.
+ */
 export function contextSources(value: unknown): ContextSource[] {
   if (!Array.isArray(value) || value.length > KINDS.length) throw new Error("来源清单无效");
-  const seen = new Set<string>(); let totalBytes = 0, totalFiles = 0;
+  const seen = new Set<string>();
   return value.map((raw: unknown) => {
     if (!raw || typeof raw !== "object") throw new Error("来源无效");
     const source = raw as Record<string, unknown>;
@@ -27,7 +38,7 @@ export function contextSources(value: unknown): ContextSource[] {
     const result: ContextSource = { kind: source.kind as ContextSourceKind, selected: source.selected === true };
     for (const key of ["path", "text", "url", "connection_id"] as const) {
       if (source[key] !== undefined) {
-        if (typeof source[key] !== "string" || (source[key] as string).length > (key === "text" ? 100_000 : 4096)) throw new Error("来源范围过长或无效");
+        if (typeof source[key] !== "string" || (key !== "text" && (source[key] as string).length > 4096)) throw new Error("来源范围过长或无效");
         result[key] = source[key] as string;
       }
     }
@@ -39,7 +50,7 @@ export function contextSources(value: unknown): ContextSource[] {
     if (result.kind === "gmail") result.days = source.days === 7 ? 7 : 30;
     if (source.metadata !== undefined) {
       const metadata = source.metadata as Record<string, unknown>;
-      if (!metadata || !Array.isArray(metadata.files) || metadata.files.length > 200) throw new Error("文件预览无效");
+      if (!metadata || !Array.isArray(metadata.files)) throw new Error("文件预览无效");
       const paths = new Set<string>();
       result.metadata = { files: metadata.files.map((file: ContextFileMetadata) => {
         const path = relativePath(file?.path);
@@ -48,22 +59,21 @@ export function contextSources(value: unknown): ContextSource[] {
       }), skipped: Number.isSafeInteger(metadata.skipped) && Number(metadata.skipped) >= 0 ? Number(metadata.skipped) : 0, truncated: metadata.truncated === true };
     }
     if (source.excluded !== undefined) {
-      if (!Array.isArray(source.excluded) || source.excluded.length > 400) throw new Error("排除范围无效");
+      if (!Array.isArray(source.excluded)) throw new Error("排除范围无效");
       result.excluded = [...new Set(source.excluded.map(relativePath))];
     }
     if (source.files !== undefined) {
-      if (!Array.isArray(source.files) || source.files.length > 200) throw new Error("每次最多选择 200 份文件");
+      if (!Array.isArray(source.files)) throw new Error("文件清单无效");
       const paths = new Set<string>();
       result.files = source.files.map((file: ImportFile) => {
         const path = relativePath(file?.path);
         if (paths.has(path) || !supportedContextFile(path)) throw new Error("文件类型无效或重复");
         paths.add(path);
         if ((isContextDirectory(result.kind) || result.metadata) && !includedContextFiles(result).some(f => f.path === path)) throw new Error("文件不在本次预览选定范围内");
-        if (typeof file.reason === "string" && file.reason.length <= 600 && file.data === undefined) return { path, reason: file.reason };
-        if (typeof file.data !== "string" || file.data.length > 28_000_000 || file.data.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(file.data)) throw new Error("文件内容无效");
-        if (result.selected) { totalFiles++; totalBytes += Buffer.from(file.data, "base64").length; }
-        if (totalFiles > 200 || totalBytes > 50_000_000) throw new Error("本次最多 200 份文件、总大小 50 MB，请缩小选择");
-        return { path, data: file.data };
+        if (typeof file.reason === "string" && file.reason.length <= 600 && file.staged === undefined) return { path, reason: file.reason };
+        // Only a digest of this journey's staging names a file; its bytes came through the upload route, never in the selection.
+        if (!isStagedDigest(file.staged)) throw new Error("文件内容无效，请重新选择这份文件");
+        return { path, staged: file.staged };
       });
     }
     return result;
@@ -72,7 +82,7 @@ export function contextSources(value: unknown): ContextSource[] {
 export async function readContextSource(home: string, source: ContextSource): Promise<{ name: string; locator: string; files: ImportFile[] }> {
   if (source.kind === "browser") {
     if (!source.text?.trim()) throw new Error("请粘贴要整理的网页正文");
-    return { name: "浏览器内容", locator: "upload", files: [{ path: "网页内容.md", data: Buffer.from(`# 网页内容\n\n${source.url ? `原网址：${source.url}\n\n` : ""}${source.text}`).toString("base64") }] };
+    return { name: "浏览器内容", locator: "upload", files: [{ path: "网页内容.md", bytes: Buffer.from(`# 网页内容\n\n${source.url ? `原网址：${source.url}\n\n` : ""}${source.text}`) }] };
   }
   if (source.kind === "gmail") return readOnboardingGmail(home, source);
   if (!source.files?.length) throw new Error(isContextDirectory(source.kind) ? "请返回预览，在应用中读取已选文件" : "请选择要整理的文件");
@@ -134,7 +144,7 @@ export async function readOnboardingGmail(home: string, source: ContextSource, f
       const body = messageText(payload).trim();
       if (!body) { files.push({ path: `${item.id}.md`, reason: "没有可读取的邮件正文，附件未读取" }); continue; }
       const origin = `https://mail.google.com/mail/u/?authuser=${encodeURIComponent(connection.account_label ?? "")}#all/${item.id}`;
-      files.push({ path: `${item.id}.md`, data: Buffer.from(`# ${header("subject") || "无主题邮件"}\n\n发件人：${header("from")}\n时间：${header("date")}\n原邮件：${origin}\n\n${body}`).toString("base64") });
+      files.push({ path: `${item.id}.md`, bytes: Buffer.from(`# ${header("subject") || "无主题邮件"}\n\n发件人：${header("from")}\n时间：${header("date")}\n原邮件：${origin}\n\n${body}`) });
     }
     assertConnection();
     return { name: `Gmail · ${connection.account_label ?? connection.display_name}`, locator: "upload", files };

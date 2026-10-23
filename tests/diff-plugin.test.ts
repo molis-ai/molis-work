@@ -307,3 +307,27 @@ test("没有可比的内容时是共用的空态块：标记、说了什么、�
   assert.match(mismatch, /^<section class="diff" data-phase="unavailable" data-group="snapshots"><ul class="diff-notices"><li>两侧来自不同的工作目录<\/li><\/ul><div class="mw-empty">/);
   assert.doesNotMatch(waiting + gone + mismatch, /diff-empty|diff-recovery/);
 });
+
+// VUX-33: the Diff plugin draws plain rows on the server — it has no colouring of its own and no client script, so it has no
+// per-line cap either. Colouring (and the 40,000-character rule, one long line plain while the rest are coloured a slice a frame)
+// is the Coding change reader's: it paints the rows this HTML gives it (`createCodingCodePaint().paintRows`, tests/code-diff-scale.e2e.test.ts).
+// What the plugin owes that painter is a whole line: one 120,000-character line in an otherwise normal diff comes out whole, once,
+// beside normal rows, with nothing cut and no notice, and it costs no more than the same text in normal lines.
+test("VUX-33: one 120,000-character line in a normal diff (under the line-pair budget) reaches the rows whole, with no cap, no notice and no colouring", () => {
+  const normal = Array.from({ length: 400 }, (_, index) => `  const value${index} = compute(${index}); // ${index}`);
+  let minified = ""; while (minified.length < 120_000) minified += 'function a1(b,c){return b+c*"x"/2}var q={k:1,"s":[1,2,3]};';
+  const after = normal.map((line, index) => index % 10 === 3 ? line.replace("compute", "measure") : line).toSpliced(200, 0, minified);
+  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, files: [{ path: "a.ts", kind: "modified", added_lines: 41, removed_lines: 40, diff: "",
+    review: { review_id: "v", before_text: normal.join("\n") + "\n", after_text: after.join("\n") + "\n", decision: "approved", execution: "applied" } }] },
+  source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
+  const primitives = { escape: (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), text: pageText("zh"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
+  const started = performance.now();
+  const html = renderDiff({ view, route_prefix: "", primitives, line_feedback: true, fold_context: 3, sides: false });
+  const spent = performance.now() - started;
+  assert.ok(!view.partial, "the long line does not make the comparison partial");
+  assert.ok(!view.coarse, "nor coarse");
+  assert.equal(view.rows.filter((row) => row.text.length === minified.length).length, 1, "the whole line is one row");
+  assert.equal(html.split(minified.replace(/"/g, "&quot;")).length - 1, 1, "and it is written whole, once");
+  assert.doesNotMatch(html, /tok-/, "the plugin colours nothing: that is the reader's painter");
+  assert.ok(spent < 1_000, `rendering ${html.length} characters took ${Math.round(spent)} ms`);
+});

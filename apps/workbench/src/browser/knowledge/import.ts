@@ -227,7 +227,7 @@ export function bindKnowledgeImport(root: HTMLElement): void {
   const accept = (target: HTMLElement, opens: boolean) => {
     target.addEventListener("dragover", event => { if (event.dataTransfer?.types.includes("Files")) event.preventDefault(); });
     const mark: DropMark = on => drop.classList.toggle("is-over", on);
-    window.molisDropZone?.(target, mark);
+    window.molisDropZone?.(target, mark, undefined, L("不支持拖入这种内容"));
     target.addEventListener("drop", event => {
       if (!event.dataTransfer?.items.length || !event.dataTransfer.types.includes("Files")) return;
       event.preventDefault();

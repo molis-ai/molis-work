@@ -34,7 +34,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 13 | [#1119](https://github.com/molis-ai/molis-work/pull/1119) | BL-395 整片：沙箱项目库语句跑在宿主能杀的子进程里（时间、内存、结果、递归上限；S-59，改 S-46） | **#1117 先合**（S 号连续的门禁要 S-58 在 main 上） | `full` 非空（shared-core、spans-packages，219 文件），进下一批 | 头 `a699e421c`；子进程已补齐、BL-480 已删；`ac-review` 排队审；改了安全不变量，合前看 Security invariants |
 | 14 | [#1120](https://github.com/molis-ai/molis-work/pull/1120) | R5：Feed/Functions 入口不再导出 Repository/Store、PG-010 首页规则目标按声明找、两包巨大单元 | — | `full` 非空（shared-core、storage、spans-packages、deletes-code，141 文件），进下一批 | 头 `0cd8cc7b6`；`ac-review` 一轮「修后可合」，修复已推（19:37Z：CHECKLIST 路径、HOME-DATA、巨大单元、RAC-176 回归等）；**等二轮确认**；合并 Agent 已起批-1023-14（Full suite run 40021912725） |
 | 15 | [#1121](https://github.com/molis-ai/molis-work/pull/1121) | R8 第 1 批：agent 宿主会话间消息与后台命令 7 条 typed 改成只给插件的动作（BL-365） | — | `full` 非空（shared core，205 文件），进下一批 | 头 `d63657e40`；`ac-review` 一轮修后可合（Coding 路由丢了请求防护），Codex 已修并**二轮：可合**；改动作，合前确认动作快照已刷新；#1148 叠在它上面 |
-| 17 | [#1123](https://github.com/molis-ai/molis-work/pull/1123) | PG-039～042 核对；宿主项目时钟不再自带进程内唤醒处理器 | — | `full` 为空（103 文件） | 头 `71281ccb4`；`ac-review` 排队审 |
 | 19 | [#1129](https://github.com/molis-ai/molis-work/pull/1129) | W5-03/04 Todo 片（样板）：客户端打包成 TS、稳定翻译键；`todo.js` 61,976→54,090 B | — | `full` 非空（assembly、deletes-code，102 文件），进下一批 | 头 `ed3b374f4`；`ac-review` 优先审（后面 5 片照它做） |
 | 20 | [#1130](https://github.com/molis-ai/molis-work/pull/1130) | SC-4：Sessions 下线（删 Work 包、Session 模块部分、首页「说一句」；PG-081、PG-082 收尾；D6 方案 A 用户 10-23 已确认） | **叠在 #1113 上**，#1113 先合 | `full` 非空（855 文件），进集成批 | 头 `06600841f`；`ac-review` 排队审；作者在改「待用户确认」措辞，之后接 BL-485/486/488 |
 | 21 | [#1131](https://github.com/molis-ai/molis-work/pull/1131) | BL-481：删 `PluginWakeupIndex` 与无安装的 `register()`，测试搬到按安装的拥有者 | **叠在 #1123 上**，#1123 先合 | `full` 为空 | `ac-review` 排队审 |
@@ -77,3 +76,4 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1118 | `f8d1e5ba9` | 10-23 20:40 UTC |
 | #1136 | `15b656648` | 10-23 21:33 UTC |
 | #1113 | `587a5ea58` | 10-23 21:34 UTC |
+| #1123 | `b3f2f4b18` | 10-23 21:35 UTC |

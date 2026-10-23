@@ -1,6 +1,6 @@
 # 防腐加速期：高风险、潜在问题与延后事项
 
-状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 21:00 本地时间）。
+状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 21:15 本地时间）。
 - 用户 10-23 定：「优先完成防腐的工程开发，维护一个文档记录高风险和潜在问题，先完成工程开发，后续统一处理重度任务，测试任务」。
 - 又补一句：在有限的槽位里优先开发，不要让 VPN 断掉，维持当前机器负载，剩余事项用文档记清楚。
 - 各会话不直接改这份文件。要记的事，要么发给 ①，要么写在 PR 正文的「本机延后验证」一节，由 ① 收进来。
@@ -101,7 +101,7 @@
 | R-06 | Sessions 清理 SC-4 要动 120 到 160 个文件，和 Goals S7b/S4、SC-3 可能改到同一批文件 | 冲突；在集成批里难分清是谁的问题 | 排在 SC-1 到 SC-3 之后，单独进批 | ③ | 做 SC-4 时 |
 | R-07 | 偶发的用例：`workbench-deferred-clients.e2e`、`busy-feedback`（batch-1023-4 里重试才过）；`coding-workbench.e2e`、`stream-text.e2e`（BL-412 记的重试才过）；`code-scale.e2e` 的帧耗时；batch-1023-4 里 `workspace-read-one-id` 是事先料到会红的，修在 #1068 的 571b4e807 | 集成批的结果有噪音 | ⑤ 维护已知红名单，现在是 0 个 | ⑤ | 统一窗口 |
 | R-08 | #1051（Shelf S2） | Shelf | ⑩ 本机 26 个 Shelf 用例里失败的 3 个，以及拿基线的对比 | 已合 main（head `3e7d4e6b3`，含 `a259350ac`），对 main 不冲突，PR 的 CI 全过（含 Verify）；⑩ 核对过 batch-1023-5 里的冲突解法。和 #1066、#1068 仍互相冲突（R-16），排在它们后面合；验证：被 Codex 这一批排除，等它们合了再验 |
-| R-09 | 叠着的 PR：#1068 叠在 #1066 上；#1083（Shelf S4）叠在 #1076 上，#1076 又叠在 #1051 上，是第三层（#1063 已合） | 改基线时会冲突 | 不叠第三层。#1083 是 ① 10-23 认可的例外：下面两层都已到合并阶段（#1051 批过，#1076 ⑩ 审过、进了 batch-1023-7）。它们合进 main 之前，#1083 不再推新提交；合了以后在 #1083 上合进 main（不 force push），让 diff 只剩 S4，再交 ⑤ 组批 | ⑤ | 持续 |
+| R-09 | 叠着的 PR：#1068 叠在 #1066 上；#1083（Shelf S4）叠在 #1076 上，#1076 又叠在 #1051 上，是第三层；#1084（PG-062 S4b）带着 #1067、#1071、#1079 的提交，是第四层（#1063 已合） | 改基线时会冲突 | 不叠第三层。#1083 是 ① 10-23 认可的例外：下面两层都已到合并阶段（#1051 批过，#1076 ⑩ 审过、进了 batch-1023-7）。它们合进 main 之前，#1083 不再推新提交；合了以后在 #1083 上合进 main（不 force push），让 diff 只剩 S4，再交 ⑤ 组批。#1084 同样处理：按 #1067 → #1071 → #1079 → #1084 的顺序合，前面几层合完之前它不推新提交，评审只看 S4b 自己的部分（`--base 7c0b311cf`） | ⑤ | 持续 |
 | R-10 | Alchemist 和插件创作台不迁移，防腐收尾后删掉重做，连同 studio replay 的 CI 作业 | 防腐期间改共享代码，还要顾着它们 | 备份分支 `backup/alchemist-plugin-builder-2026-10-21`；BL-376、BL-377 | ① | 防腐收尾 |
 | R-11 | ② 的两张会话卡一直没开：C8-3（`task_3f6b811d`）、Goals S9（`task_96c0cd34`） | 这两片停着 | 等用户点开；不开，就由 ① 排进 ② 的队列 | 用户、① | 下次排队时 |
 | R-12 | #1074（BL-411）留下的路由缺口，② 选了不改代码：插件自己写的路由如果先 await 别的、停止落在中间以后才调服务，这个 HTTP 请求一直不答（以前答 403）。SDK 的 `bindPluginActionRoute` 同步调服务，不受影响 | 插件自写的异步路由在停用、撤权时会挂住请求，客户端只能等超时 | 根治：把路由分派也记成一次「调用」，要改 plugin-runtime 的作用域。① 定为 BL-403，由 ② 在 #1074 里加 BACKLOG 行 | ② | S0b-2、W5-06 之后，排进 ② 的队列 |
@@ -123,7 +123,7 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 | #1063（Goals S6）——已合 main `24156e6b8` | ③，⑤ 合 main | ⑤ 在本机合 #1048 和 main 之后的构建与相关用例 | batch-1023-4 过（除事先料到的 `workspace-read-one-id`）；⑤ 合了 main 重推，CI 12 过、产品子集在跑；验证：非浏览器定向过（`7c6b0657e`：打开项目时补对、被拒的库），`workspace-read-one-id` 4/4；浏览器、全量和门禁还没跑完 |
 | #1066（Git G5） | ③ | 同上 | batch-1023-4 过；⑤ 合了 main 重推，CI 12 过、产品子集在跑；验证：非浏览器定向过（`7c6b0657e`：工作区操作和工作树）；浏览器、全量和门禁还没跑完 |
 | #1068（Git、Files 订阅 `host.workspace.changed@1`） | ③，叠在 #1066 上 | 本机相关用例 | CI 全过；等 #1066 合了再合；验证：非浏览器定向过（`7c6b0657e`：生产事件和权限边界）；浏览器、全量和门禁还没跑完 |
-| #1067（PG-062 第 2 片） | PG-038 | ⑤ 在本机合 main 之后的验证 | CI 在跑（6 过、6 在跑）；验证：红（定向，`VERIFY-2026-10-23` `0bf6f3502`）：`tests/coding-rich-html.test.ts` 的 PG062-05/06 读 `/runs/talk/report` 得 400。Codex 归为测试夹具缺陷：#1048 之后成果、过程项端口必填，新测试没像旧报告测试那样传 `openProjectVersionStores(store)`，生产入口两项都传了。修法是补夹具，HTML、语言、指纹和动作直调的断言都保留。Codex 已在 PR 上认领，作者线先不重复修 |
+| #1067（PG-062 第 2 片） | PG-038 | ⑤ 在本机合 main 之后的验证 | CI 在跑（6 过、6 在跑）；验证：红（定向，`VERIFY-2026-10-23` `0bf6f3502`）：`tests/coding-rich-html.test.ts` 的 PG062-05/06 读 `/runs/talk/report` 得 400。Codex 归为测试夹具缺陷：#1048 之后成果、过程项端口必填，新测试没像旧报告测试那样传 `openProjectVersionStores(store)`，生产入口两项都传了。修法是补夹具，HTML、语言、指纹和动作直调的断言都保留。Codex 已在 PR 上认领。21:15 #1067 排在合并队列第一位，① 定不拉出队列：合进 main 以后这个文件就在 main 上，由 Codex 照它认领的从 main 单开 PR 修；⑤ 把它记进已知红名单，修复合入后划掉；作者线和 ⑤ 都不修这一处 |
 | #1071（PG-038 S3，SDK `/diff-view`） | PG-038 | 合 main 之后的本机验证 | CI 在跑；验证：被排除，和 #1067、#1066/#1068 冲突（R-16），等 #1067 合了合 main 再验 |
 | #1051（Shelf S2） | Shelf | ⑩ 本机 26 个 Shelf 用例里失败的 3 个，以及拿基线的对比 | 和 main 冲突，CI 没跑；先 rebase（R-08）；验证：被排除，和 #1066/#1068 冲突（R-16），等它们合了再验 |
 | #1074（BL-411、BL-368） | ② | rebase 之后最后一次本机构建、测试和门禁（bl411-final，已撤）；affected-tests 选中的 125 个用例。`full` 为空，不进批；不动合同、SDK、Manifest 和门禁，没有构建 | CI 在跑；已合过一次 main（没有 force push）。留下的缺口见 R-12、R-13；验证：`plugin-stopped-services` 5/5、双实例与生命周期的定向文件都过了，只读评审没找到 R-12、R-13 之外的 P1。`tests/plugin-project-database.test.ts` 红在「已装插件的 Home 库」清单多出 `artifacts`，停止后的拒绝与零写入用例过了，不是 BL-411 的问题，见 R-18。R-12、R-13 单独看 |
@@ -135,6 +135,7 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 | #1077（删 BL-410，BL-412、BL-413 接回表格） | ⑤ | 纯文档；门禁交 PR CI | 新开，不进批 |
 | #1082（修 #1041 带进 main 的 4 份红，R-18） | ⑤ | `full` 为空，不进批；靠 PR CI | 新开，CI 绿了 ⑤ 就合；Codex 下一批验 |
 | #1083（Shelf S4：演示种子走 `shelf.sample.seed`，删 `shelf-actions.ts`，Shelf 移出混合名单，PG-026-S1、PG-090 标已做） | Shelf，⑩ 评审 | 本机只跑了 `secrets:check`。只看 S4，`full` 命中 assembly；整条叠放命中 shared-core、assembly、spans-packages、deletes-code，等 #1051、#1076 合了由 ⑤ 组批 | 新开，head `564c6395a`，叠在 #1076 上（R-09 的例外）。Shelf 留下的两处不算新风险：Manifest 的 `kind: "native"` 和 `always_on` 归 PG-004、PG-007 阶段 4（②）；宿主替 Shelf 拼设置节（`web-catalog.ts` 的 `renderCatalogPluginSettings`）已在 PG-072 里。Shelf S2～S4 到这里都交出去了。验证：等下面两层合了再进 Codex 的批 |
+| #1084（PG-062 S4b：Coding 用 `actionCardView` 和 `services.interaction` 自己画卡片和下一步，删宿主的 `decorateCodingResult`、`codingNextSteps`、`codingRouteHooks.afterDispatch`） | PG-038，⑩ 评审 | 只算本片（`--base 7c0b311cf`）：选出 522 个文件，其中 47 个浏览器用例，含新的 `tests/coding-interaction-html.test.ts` 和改写的 `tests/coding-next-steps.test.ts`；`full` 命中 spans-packages（local-host、workbench、coding）。整条分支对 main：652 个文件，命中 shared-core、spans-packages、deletes-code，进集成批 | 新开，head `63c848e97`，带着 #1067、#1071、#1079 的提交（R-09 的例外）。给 S4a 的服务补了一处语言取法：路由不在调用里时，取页面请求的语言 `pageLocale`，S-56 的说明同步改了；#1079 单独先合也没问题，因为 #1084 之前没有路由用这项服务。验证：等前面几层合了再进 Codex 的批 |
 
 ## 4. 要用户本人做的
 

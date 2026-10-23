@@ -24,7 +24,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 - **`privileges.md` 的「状态」列不在片里改**：PR 正文写一节「privileges.md 状态」，逐行写 PG 号和合入后该写的状态，统筹合入后统一改。要改 PG 行的描述本身（缺口说错了），同样写进这一节。
 - BACKLOG：本片做完的 BL 行在本 PR 里删掉；新 BL 行用分到的号。
 - 合同：改了 contracts 或 SDK 的公开 API 跑 `pnpm api:update`；改了动作跑 `pnpm build` 再 `pnpm actions:update`；PR 里写对调用方（工作流程步骤与绑定、MCP 工具名、Skill）的影响，形状变了按 `docs/system/CONTRACT-CHANGES.md` 升版本。
-- 新增兼容或迁移逻辑、改门禁本身（脚本、`limits.json`、CI）、改信任边界（`always_on`、默认连线的同意、安装确认）、页面资源一次涨超过 10 KB 或新增资源、动真实 Home：**停下来问统筹**，不自己定。
+- 新增兼容或迁移逻辑、改门禁本身（脚本、`limits.json`、CI）、改信任边界（`always_on`、默认连线的同意、安装确认）、页面资源一次涨超过 10 KB 或新增资源、动真实 Home：**停下来问统筹**，不自己定。统筹按用户 10-23 的决策授权定：优先不留隐患、保证功能友好可用，其余按统筹推荐；真实 Home、发版、凭据、取消 CI 仍问用户。
 - 不为变绿而跳过、放宽或删除断言；时限只能按慢机倍数调大，写注释。
 
 ## 3. 推送前只做必需的（用户 10-23 定：先完成工程开发，重活与测试后面统一做）

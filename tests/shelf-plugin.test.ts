@@ -476,6 +476,66 @@ test("Shelf declares its routes in its manifest, relative to the plugin's own pr
   assert.deepEqual(routes.filter((route) => route.path.startsWith("/api/")).map((route) => route.route_id), []);
 });
 
+test("PG-026-S4-01 PG-026-S4-02 demo HTTP restores samples and preserves a successful project when sample restoration fails", { timeout: 60_000 }, async t => {
+  const homeDirectory = await mkdtemp(join(tmpdir(), "shelf-demo-http-"));
+  const token = "shelf-plugin-http-token-01234567890123";
+  const server = createMolisWorkWebServer({ homeDirectory, controlToken: token });
+  t.after(async () => {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await rm(homeDirectory, { recursive: true, force: true });
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  const origin = `http://127.0.0.1:${address.port}`, shelf = origin + "/api/plugins/io.molis.work.shelf/";
+  const post = (url: string, body: object) => fetch(url, { method: "POST", headers: {
+    origin, "content-type": "application/json", "x-molis-work-control-token": token,
+    "x-molis-work-idempotency-key": crypto.randomUUID(),
+  }, body: JSON.stringify(body) });
+  const snapshot = async () => {
+    const response = await fetch(shelf); assert.equal(response.status, 200);
+    return await response.json() as { materials: Array<{ item_id: string; name: string }> };
+  };
+  const demo = (action: string, user_confirmed = true) => post(origin + "/api/settings/demo", { action, user_confirmed });
+  const projects = async () => await (await fetch(origin + "/api/settings/projects")).json() as { projects: Array<{ project_id: string }> };
+  const initialProjects = await projects();
+  assert.equal((await demo("create", false)).status, 400);
+  assert.deepEqual(await projects(), initialProjects, "an unconfirmed operation creates no project");
+  assert.equal((await snapshot()).materials[0]?.name, "试用示例.pdf", "the real Home installation is active");
+  for (const action of ["create", "reset"]) {
+    const before = await snapshot();
+    const removed = await post(shelf + `items/${before.materials[0]!.item_id}/delete`, {});
+    assert.equal(removed.status, 200, "the actual Shelf write grant is available");
+    assert.equal((await snapshot()).materials.length, 0);
+    const response = await demo(action);
+    assert.equal(response.status, 200);
+    const result = await response.json() as { status: string; project: { project_id: string }; warning?: string };
+    assert.equal(result.status, action === "create" ? "created" : "reset");
+    assert.equal(result.warning, undefined);
+    assert.ok((await projects()).projects.some(project => project.project_id === result.project.project_id));
+    assert.equal((await snapshot()).materials[0]?.name, "试用示例.pdf", "a swallowed forbidden error cannot restore the deleted sample");
+  }
+  const catalog = join(homeDirectory, "shelf", "catalog.json");
+  for (const action of ["create", "reset"]) {
+    const saved = readFileSync(catalog);
+    try {
+      await writeFile(catalog, "{broken-shelf-catalog");
+      const response = await demo(action);
+      assert.equal(response.status, 200, "sample corruption cannot turn a committed project into a reported failure");
+      const result = await response.json() as { status: string; project: { project_id: string }; message: string; warning?: string; error?: string };
+      assert.equal(result.status, action === "create" ? "existing" : "reset");
+      assert.equal(result.message, action === "create" ? "示例项目已经存在" : "示例项目已重建；用户项目未修改");
+      assert.equal(result.warning, "Shelf 示例未能恢复，请在 Shelf 中查看后重试。");
+      assert.equal(result.error, undefined);
+      assert.doesNotMatch(JSON.stringify(result), /broken-shelf-catalog|SyntaxError|Unexpected|catalog\.json/);
+      assert.ok((await projects()).projects.some(project => project.project_id === result.project.project_id));
+    } finally { await writeFile(catalog, saved); }
+    const recovered = await demo(action);
+    assert.equal(recovered.status, 200);
+    assert.equal((await recovered.json() as { warning?: string }).warning, undefined);
+    assert.equal((await snapshot()).materials[0]?.name, "试用示例.pdf");
+  }
+});
+
 test("the Shelf plugin routes admit, extract, and do not expose origin paths", async (t) => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-shelf-http-"));
   const agentSetting = process.env.MOLIS_WORK_SHELF_AGENT;

@@ -22,6 +22,24 @@
 | U6 | Shelf 格里 DropAgent 自己的动作栏 | 界面不动，这些动作同时登记进动作池 |
 | U7 | 下一步 | 先写需求书，用户看过再动代码 |
 
+### Shelf S4 收尾：演示示例恢复（2026-10-23 评审修订）
+
+本片沿用 PG-026-S1/S4 范围，只收尾删除宿主文件客户端之后的真实入口，不改变整条左右互动需求的完成状态。演示项目的创建或重建先在项目目录内完成，释放目录后再经当前 HTTP 调用者的安装授权执行 `shelf.sample.seed`；不直接写 Shelf 文件。`seedDemoHomeSamples` 仍只省略未安装、未运行、未授权三种情况，其余错误由 HTTP 入口处理。
+
+项目本身失败时保留原 HTTP 失败；项目已成功而 Shelf 示例恢复异常时返回 200，保留 `status`、`project` 与成功 `message`，附固定 `warning`「Shelf 示例未能恢复，请在 Shelf 中查看后重试。」及英文，不把内部错误文字带给页面。宿主用 `hostLog.warn` 记录 `projects/demo_sample_failed` 和动作、项目编号。
+
+页面复用 `data-demo-error` 的 alert 区域显示成功消息与 warning，提供普通「刷新」链接，其自身点击处理调用 `location.reload()`；此时保持操作按钮禁用，不执行 450 ms 自动刷新。无 warning 的成功继续自动刷新，项目失败仍可重试。
+
+本片验收编号只归 S4，不新增统筹 RAC：
+
+| 编号 | 可观察结果 | 验证 |
+| --- | --- | --- |
+| PG-026-S4-01 | 真实 HTTP 首次激活 Shelf、删除示例后，分别 create/reset 能恢复示例，不能被吞掉的 forbidden 伪造通过 | `tests/shelf-plugin.test.ts` |
+| PG-026-S4-02 | 临时 Home 的 Shelf 目录 JSON 损坏时，两个操作仍报告已成功的项目和固定 warning，项目真实存在；恢复文件后再操作不再警告；未确认的项目操作仍失败 | `tests/shelf-plugin.test.ts` |
+| PG-026-S4-03 | 独立测试浏览器里 warning 超过 450 ms 仍存在、操作按钮禁用、手动刷新后项目存在；正常成功自动刷新 | `tests/project-settings-navigation.e2e.test.ts` |
+
+ownerFiles 拒绝继续由既有 SHF-IO 测试证明；测试替身收敛留 PG-026 后续，不新增绕过作用域的公开测试端口。
+
 ## 2. 现状（2026-10-09 按 origin/main 11878059 重新核对）
 
 | 部分 | 事实 | 对本需求的意义 |

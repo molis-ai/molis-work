@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-Owner 经 Host Capability `schedule.register` 挂一条 job，并事先把唤醒 handler 放进 `PluginWakeupIndex`。Host timer 调用 `ScheduleService.tick`；到期后 index 按 `plugin_id + capability_id` 叫醒，写入收据，再计算下一次 `next_due_at`。漏打的 interval 合并成一次叫醒。
+Owner 经 `services.scheduler` 在自己的事务里挂一条 job（主人由平台从安装取），并事先把唤醒 handler 放进 `PluginWakeupIndex`。Host timer 调用 `ScheduleService.tick`；到期后 index 按 `plugin_id + capability_id` 叫醒，写入收据，再计算下一次 `next_due_at`。漏打的 interval 合并成一次叫醒。
 
 ## 从哪里读代码
 

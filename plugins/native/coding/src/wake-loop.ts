@@ -129,7 +129,7 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
   const wakeLoop = (_api: Capabilities, execution: Execution, runtimeId: string, recovery = false) => jobs.wake(execution, runtimeId, recovery);
   /** The person gives the wait up: a request it waited on is withdrawn, a queued round's project work item goes. */
   const cancel = async (api: Capabilities, record: CodingSessionRecord, view: CodingWaitView, beforeWrite?: CodingBeforeWrite) => {
-    for (const one of view.wait.conditions) if (one.kind === "envelope") await api.invoke(agent.cancelMessage, [record.runtime_id, one.ref]).catch(() => undefined);
+    for (const one of view.wait.conditions) if (one.kind === "envelope") await hostActions().invoke(agent.cancelMessage, [record.runtime_id, one.ref]).catch(() => undefined);
     const queued = queuedOf(view.wait.wait_id);
     if (view.wait.by === "app" && queued) await api.invoke(agent.releaseProjectRound, [record.runtime_id, queued.work_id, "用户取消了等待"]).catch(() => undefined);
     // An open wait is cancelled; one over whose step is held for the person gives the step back.

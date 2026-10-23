@@ -149,6 +149,8 @@ export interface PluginHostServices {
   readonly imageGeneration?: import("./plugin-image-generation.js").PluginImageGenerationClient;
   /** Host material readers, each declared on its own: materials:read, materials:fetch, materials:fetch_local, materials:original. */
   readonly materials?: PluginMaterialsClient;
+  /** Requests through the accounts the person bound to the Manifest's connection slots, when it declares `connections:use` (S-57). */
+  readonly connections?: import("./plugin-connections.js").PluginConnectionsClient;
   /** A person-authorized directory, only when the Manifest declares directory:read; the Host never lets the Plugin name an absolute path. */
   readonly directory?: import("./plugin-directory.js").PluginDirectoryService;
   /** Project artifact services are absent from Home activations. */
@@ -333,6 +335,8 @@ export interface PluginManifest {
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
   /** The plugin's own tables, by scope (PG-020, specs/plugin-project-database). */
   databases?: import("./plugin-database.js").PluginManifestDatabases;
+  /** v2: places where the plugin may use an account the person binds, with `connections:use` (`services.connections`, S-57). */
+  connections?: import("./plugin-connections.js").PluginConnectionsDeclaration;
   /** v2: kept jobs and commands the platform may wake for this installation. */
   background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[]; wakeups?: readonly import("./plugin-scheduler.js").PluginWakeupDeclaration[] };
   /** Complete, callable capabilities registered with the system action service. */
@@ -500,7 +504,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

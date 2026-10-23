@@ -1,17 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compareRunChangeSet, renderDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-diff";
+import { compareRunChangeSet, DIFF_LABELS } from "@molis-ai/molis-work-plugin-diff";
+import { renderDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { mkdir, writeFile } from "node:fs/promises";
 import { coding, openCoding } from "./fixtures/coding-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
-import { pageText } from "./fixtures/page-text.js";
+import { diffPageText } from "./fixtures/diff-page-text.js";
 
 // DFP-03; specs/visual-ui-experience VUX-33: code and its changes keep one row geometry. In Coding's change reader, five-digit line
 // numbers sit in the same columns as the code beside them, stay put while a long line scrolls under them and are left out of
 // a copy; 并排 is a real two-column view whose halves stay level and wrap; switching keeps the line being read where it was.
 
 const escape = (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const primitives = { escape, text: pageText("zh"), icon: (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>` };
+const primitives = { escape, text: diffPageText("zh"), icon: (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>` };
 
 /** One write to `big.ts`: 10,040 lines, two changed near line 10,010 (one of them far wider than the reader), one added. */
 function bigWrite() {
@@ -21,7 +22,7 @@ function bigWrite() {
   const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-big", applied: true, files: [{ path: "big.ts", kind: "modified", added_lines: 3, removed_lines: 2, diff: "",
     review: { review_id: "review-big", before_text: before.join("\n") + "\n", after_text: after.join("\n") + "\n", decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
-  const html = (mode: "unified" | "split") => renderDiff({ view: { ...view, mode }, primitives, line_feedback: true, fold_context: 3, sides: false });
+  const html = (mode: "unified" | "split") => renderDiff({ labels: DIFF_LABELS, view: { ...view, mode }, primitives, line_feedback: true, fold_context: 3, sides: false });
   return { html, patch: unifiedPatch(view.rows, { path: "big.ts" }) };
 }
 

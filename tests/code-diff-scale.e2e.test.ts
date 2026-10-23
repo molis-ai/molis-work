@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { codeTokens, diffRowTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
-import { compareRunChangeSet, renderDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-diff";
+import { compareRunChangeSet, DIFF_LABELS } from "@molis-ai/molis-work-plugin-diff";
+import { renderDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { coding, openCoding } from "./fixtures/coding-browser.js";
-import { pageText } from "./fixtures/page-text.js";
+import { diffPageText } from "./fixtures/diff-page-text.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { expensiveHasSelectors } from "./fixtures/style-invalidation.js";
 
@@ -14,7 +15,7 @@ import { expensiveHasSelectors } from "./fixtures/style-invalidation.js";
 // coloured change makes one node put in it restyle the whole reader.
 
 const escape = (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const primitives = { escape, text: pageText("zh"), icon: (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>` };
+const primitives = { escape, text: diffPageText("zh"), icon: (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>` };
 const LINE = (index: number) => index === 0 ? "" : index % 7 === 0 ? `/** step ${index}: a note */` : `  const value${index} = compute(${index}, "text-${index}"); // ${index}`;
 const lines = Array.from({ length: 2_000 }, (_, index) => LINE(index));
 let minified = ""; while (minified.length < 120_000) minified += 'function a1(b,c){return b+c*"x"/2}var q={k:1,"s":[1,2,3]};';
@@ -42,7 +43,7 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
     review: { review_id: "review-large", before_text: BEFORE, after_text: AFTER, decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
   const file = { path: "large.ts", kind: "modified", added_lines: 202, removed_lines: 200, review: { decision: "approved", execution: "applied" } };
-  const body = { html: renderDiff({ view: { ...view, mode: "unified" }, primitives, line_feedback: true, fold_context: 3, sides: false }), change: { files: [file] },
+  const body = { html: renderDiff({ labels: DIFF_LABELS, view: { ...view, mode: "unified" }, primitives, line_feedback: true, fold_context: 3, sides: false }), change: { files: [file] },
     reference: { artifact_id: "artifact-large", version: 1 }, saved_at: "2026-10-21T00:00:00.000Z", view_mode: "write", net_groups: [], output: null, patch: unifiedPatch(view.rows, { path: "large.ts" }) };
   await evaluate(`fakes.push({method:'GET',path:'layout=',body:${JSON.stringify(body)}})`);
   await evaluate("localStorage.setItem('molis-coding-diff-layout', 'unified')");

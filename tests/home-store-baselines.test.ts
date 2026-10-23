@@ -9,8 +9,9 @@ import { CHARACTERS_STORE_BASELINE, openCharacters } from "@molis-ai/molis-work-
 import { ALCHEMIST_SEARCH_BASELINE, MolisWorkLocalHost, homeStores } from "@molis-ai/molis-work-app-local-host";
 
 /** Stores past their first baseline: the memory ledger without its first facts table, the assistant without its memory candidates,
- * Functions with one scene binding per scene and project (keyed by project_id), Form answers that always keep their questions. */
-const STORE_VERSIONS: Record<string, number> = { connectors: 2, pages: 2, memory: 3, assistant: 2, functions: 3, form: 2 };
+ * Functions with one scene binding per scene and project (keyed by project_id), Form answers that always keep their questions,
+ * Characters with its own native runs (Sessions cleanup SC-2). */
+const STORE_VERSIONS: Record<string, number> = { connectors: 2, pages: 2, memory: 3, assistant: 2, functions: 3, form: 2, characters: 2 };
 /** Baseline tables a real Home had not created yet (made on first use); the one-time stamping run created them empty. */
 const LAZY_TABLES: Record<string, string[]> = { connectors: ["connector_authorization_results"] };
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
@@ -82,11 +83,11 @@ test("the Characters store refuses tables without a version and a newer version,
   const unversioned = store("unversioned", "CREATE TABLE character_drafts (id TEXT PRIMARY KEY, body TEXT); INSERT INTO character_drafts VALUES ('old', '旧草稿');");
   assert.throws(() => openCharacters(unversioned, "actor"), mismatch);
   assert.deepEqual(state(unversioned), { version: 0, rows: 1 }, "the unversioned store keeps its row and is not stamped");
-  const newer = store("newer", `${CHARACTERS_STORE_BASELINE.schema} PRAGMA user_version = 2;`);
+  const newer = store("newer", `${CHARACTERS_STORE_BASELINE.schema} PRAGMA user_version = 3;`);
   assert.throws(() => openCharacters(newer, "actor"), mismatch);
-  assert.deepEqual(state(newer), { version: 2, rows: 0 });
+  assert.deepEqual(state(newer), { version: 3, rows: 0 });
   const fresh = openCharacters(join(home, "fresh"), "actor");
   try { assert.deepEqual(fresh.service.list(), []); } finally { fresh.close(); }
-  assert.deepEqual(state(join(home, "fresh")), { version: 1, rows: 0 });
+  assert.deepEqual(state(join(home, "fresh")), { version: 2, rows: 0 });
   openCharacters(join(home, "fresh"), "actor").close();
 });

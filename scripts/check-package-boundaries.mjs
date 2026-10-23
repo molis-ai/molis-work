@@ -608,8 +608,12 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   }
   const webGoals = read("apps/local-host/src/web-request.ts");
   const httpContext = read("plugins/native/goals/src/http/types.ts");
-  if (!webGoals.includes("actions: goalActions") || !httpContext.includes("actions: BoundActionClient")
-    || /\b(?:commands|query|lifecycle|planning):/u.test(httpContext)) {
+  // Goals' declared routes (PG094-09) are handed the person's BoundActionClient per request by whoever mounts them, and see it as
+  // `actions` in their context; no port, as a field or as a method, is a domain one. A route context's `query` is the request's
+  // query string (a string map), not the Goals query port. When S9 drops the Host rewrite this rule follows the new mount (BL-386).
+  if (!webGoals.includes("actions: () => goalActions")
+    || !httpContext.includes("actions(request: PluginRouteRequest): BoundActionClient") || !httpContext.includes("actions: BoundActionClient")
+    || /\b(?:commands|query|lifecycle|planning)\s*\(|\b(?:commands|lifecycle|planning)\??:|\bquery\??:(?!\s*Readonly<Record<string, string>>)/u.test(httpContext)) {
     errors.push("Goals HTTP business operations must consume BoundActionClient without direct domain ports");
   }
   // `relations` left the retired list when the workbench redesign brought Goal

@@ -149,7 +149,8 @@ test("W2-18-WFSAVE-02: a real CAS failure retains A's latest edits across B, reo
   });
   try { await editor.reloadPage(); await Promise.all(answers); } finally { stopLeaving(); }
   assert.ok(leaving.every(type => type === "beforeunload"));
-  if (await editor.frame.evaluate("document.querySelector('[data-workflows=workbench]').hidden")) await editor.click("[data-plugin-strip] [data-plugin-id=workflows]");
+  // The Host's DOM is ready before the reloaded opaque editor has an execution context.
+  await editor.click("[data-plugin-strip] [data-plugin-id=workflows]");
   await editor.surfaceReady("workflows");
   await editor.frame.waitFor(`document.querySelector('[data-wf-open="${editor.a.workflow_id}"]')`);
   if (await editor.frame.evaluate("document.querySelector('.wf-editor')?.dataset.id") !== editor.a.workflow_id) await editor.frame.click(`[data-wf-open="${editor.a.workflow_id}"]`);

@@ -1,6 +1,7 @@
 import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
 import { renderRichText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
+import { codingChangeHtml } from "./change-html.js";
 import { HISTORY_DIGEST_MARKER } from "./continuation.js";
 import { renderCodingReport } from "./ui.js";
 import { codingText } from "./words.js";
@@ -20,10 +21,12 @@ type PageBody = {
 
 /**
  * What Coding's page receives over a route, with the model's words drawn as sanitized rich text by the SDK (PG-062): a round's
- * turns, a subagent's result and a report. Only a route's answer gets it, after a round's fingerprint is taken, so a model,
- * a workflow or MCP reading the same action gets the words alone. The body is the call's own, filled in as it is.
+ * turns, a subagent's result and a report; and a round's change read as a comparison with the SDK's `/diff-view`
+ * (`change-html.ts`). Only a route's answer gets it, after a round's fingerprint is taken, so a model, a workflow or MCP reading
+ * the same action gets the words and the change alone. The body is the call's own, filled in as it is.
  */
-export function codingPageHtml<T>(body: T, locale: ActionLocale | undefined): T {
+export function codingPageHtml<T>(body: T, request: { route_id: string; query: Readonly<Record<string, string>> }, locale: ActionLocale | undefined): T {
+  codingChangeHtml(body, request, locale);
   const page = body as PageBody | undefined;
   if (Array.isArray(page?.runs)) for (const run of page.runs) {
     // Recovery reports also list runs, but carry receipt facts rather than turns.

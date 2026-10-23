@@ -238,19 +238,17 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // A refused step in plain words (user 2026-10-23 ⑤, slice 110): the Assistant's step detail says the sort of failure and
-  // each field with the rule it broke, from the Host's classification, and folds the runtime's own text under 原始说明. The
-  // eleven sorts and four rules are words the page must hold: 1189644 → 1190721 (+1077). The fold's two rules ship in each
-  // sheet that carries the Assistant's process styles: +232 each.
-  "/assets/molis-work-workbench.js": [1189644, 1190721],
-  "/assets/molis-work-workbench.css": [1614322, 1614554],
-  "/assets/molis-work-settings.css": [995885, 996117],
-  "/assets/molis-work-arrival.css": [705437, 705669],
+  // Shelf S3: the host's /api/shelf is gone, so the computer-use panel uses the plugin's own route.
+  // The previously approved +31 bytes are rebased onto main after #1115: 1190694 → 1190725.
+  "/assets/molis-work-workbench.js": [1190694, 1190725],
+  // Shelf S3: the folder cap is 32 MB (was 64); the panel explains it before uploading. 76264 → 76438 (+174).
+  "/assets/molis-work-plugins/shelf.js": [76264, 76438],
   // SYS-15/S-47 (#1018 review): a page's link channel no longer navigates the owner document; a settings address opens
   // the settings surface in place through the shell's registered settings channel, and a pane keeps its one relay. The
   // four host settings paths left the whitelist while the page's own `openSettings` and the relay stayed (+263:
   // 191104 → 191367, gzip 61710). Packing the page smaller buys only a few dozen bytes, at the cost of the one place a
-  // page could still have moved the owner's window; the page is frozen again once this PR lands.
+  // page could still have moved the owner's window; the page is frozen again once this PR lands. Rebased onto main
+  // abc052bcb while the PR merged main: the merge-base budget is 191104, the measured pack is 191367.
   "/assets/molis-work-plugin-frame.js": [191104, 191367],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

@@ -1,6 +1,6 @@
 # 防腐加速期：高风险、潜在问题与延后事项
 
-状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 19:50 本地时间）。
+状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 20:15 本地时间）。
 - 用户 10-23 定：「优先完成防腐的工程开发，维护一个文档记录高风险和潜在问题，先完成工程开发，后续统一处理重度任务，测试任务」。
 - 又补一句：在有限的槽位里优先开发，不要让 VPN 断掉，维持当前机器负载，剩余事项用文档记清楚。
 - 各会话不直接改这份文件。要记的事，要么发给 ①，要么写在 PR 正文的「本机延后验证」一节，由 ① 收进来。
@@ -110,6 +110,7 @@
 | R-15 | 手写路由不 catch：#1018 写法的 Home 插件路由（`routes: … async handle(request)`，不经 SDK 的 `bindPluginActionRoute`）抛出不带错误码的错误时，落到宿主的通用句子「请求未能完成，请重试」，状态和错误码都丢了。Shelf 在 #1076 里已改成用 SDK 的 `actionErrorResponse` 自己答；别的插件还没查 | 用户只看到通用报错；调用方拿不到错误码，没法按类别处理 | 根治放在平台：Plugin Runtime 的路由分派统一 catch，交给 SDK 的 `actionErrorResponse` 答，插件不用各写 catch；顺带列一遍现存的手写路由。BL-404，和 BL-403 一起做 | ② | BL-403 一起 |
 | R-16 | 候选 PR 之间在枢纽文件上互相冲突（`VERIFY-2026-10-23` 用 `git merge-tree` 逐对核对）：#1071 和 #1067 冲在 `apps/local-host/src/coding-surface.ts`，和 #1066、#1068 冲在 `specs/repository-anti-corruption/privileges.md`；#1051 和 #1066、#1068 冲在 `privileges.md`、`tests/builtin-plugin-assembly-gate.test.ts`、`tooling/gates/baseline.json`，和 #1068 冲在 `specs/BACKLOG.md`。每个单独对 main 都不冲突 | 这两个 PR（以及叠在 #1051 上的 #1076）进不了同一个验证批；合并顺序不对会一串返工 | 按顺序合：#1066 → #1068，#1067 → #1071；#1051、#1076 在 #1066、#1068 之后合 main 再进批。被排除的 PR 合完 main 后，由 Codex 在下一批验证 | ⑤ | 合并时 |
 | R-17 | 删除项目时不清 `character_runs`（#1080 之后角色运行记在角色库里）。旧行为也没清，因为会话记录没有 `project_id` | 删掉的项目在角色库里留下运行记录 | 以后让 Characters 在 `ProjectDeletionService` 里声明自己要清的数据，单开一片，BL-385（③ 取号，行在 #1080 的 `fcec150fb`） | ③ | SC 系列之后 |
+| R-18 | main 上 #1041（yijunw0212，VUX 第 101 片）留下几处本地红，CI 产品子集不含这几个文件，所以 main 的 CI 是绿的（`VERIFY-2026-10-23` `0bf6f3502`）。① `tests/host-pages-error-model.test.ts`：`DOCUMENT_STATUS` 精确状态表缺 `original_not_offered: 400`；`apps/local-host/src/artifact-document-import.ts:120` 的 `new Error("not a file")` 被「入口不抛裸 Error」扫描命中。下一行的 catch 已经转成现有错误码，不是已证实的 500 泄漏。② `tests/personal-plugins-review-fixes.test.ts`、`tests/plugin-project-database.test.ts`：Home 存储的精确清单多出 `artifacts`，还要和 main 实跑对比 | 本地跑全量或这几个文件时 main 本身就红，容易被算到在途 PR 头上 | Codex 从 main 单独开分支和 PR 修①：补状态表，非普通文件直接走现有错误工厂，消息、HTTP 400 和精确断言都保留。② 等 main 对比的结果再定。修复 PR 交 ⑤ 审合；同事的 PR 合之前看一眼 main（用户 10-23 定） | Codex 修，⑤ 合 | 下一批之前 |
 
 ## 3. 延后的重活与测试（按 PR）
 
@@ -120,13 +121,16 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 | #1063（Goals S6） | ③，⑤ 合 main | ⑤ 在本机合 #1048 和 main 之后的构建与相关用例 | batch-1023-4 过（除事先料到的 `workspace-read-one-id`）；⑤ 合了 main 重推，CI 12 过、产品子集在跑；验证：已进 Codex 集成批（head `093f70581`），构建和用例还没跑 |
 | #1066（Git G5） | ③ | 同上 | batch-1023-4 过；⑤ 合了 main 重推，CI 12 过、产品子集在跑；验证：已进 Codex 集成批（head `cf884362e`），还没跑 |
 | #1068（Git、Files 订阅 `host.workspace.changed@1`） | ③，叠在 #1066 上 | 本机相关用例 | CI 全过；等 #1066 合了再合；验证：已进 Codex 集成批（head `571b4e807`，排在 #1066 后），还没跑 |
-| #1067（PG-062 第 2 片） | PG-038 | ⑤ 在本机合 main 之后的验证 | CI 在跑（6 过、6 在跑）；验证：已进 Codex 集成批（head `dfd917c3a`），还没跑 |
+| #1067（PG-062 第 2 片） | PG-038 | ⑤ 在本机合 main 之后的验证 | CI 在跑（6 过、6 在跑）；验证：红（定向，`VERIFY-2026-10-23` `0bf6f3502`）：`tests/coding-rich-html.test.ts` 的 PG062-05/06 读 `/runs/talk/report` 得 400。Codex 归为测试夹具缺陷：#1048 之后成果、过程项端口必填，新测试没像旧报告测试那样传 `openProjectVersionStores(store)`，生产入口两项都传了。修法是补夹具，HTML、语言、指纹和动作直调的断言都保留。Codex 已在 PR 上认领，作者线先不重复修 |
 | #1071（PG-038 S3，SDK `/diff-view`） | PG-038 | 合 main 之后的本机验证 | CI 在跑；验证：被排除，和 #1067、#1066/#1068 冲突（R-16），等 #1067 合了合 main 再验 |
 | #1051（Shelf S2） | Shelf | ⑩ 本机 26 个 Shelf 用例里失败的 3 个，以及拿基线的对比 | 和 main 冲突，CI 没跑；先 rebase（R-08）；验证：被排除，和 #1066/#1068 冲突（R-16），等它们合了再验 |
-| #1074（BL-411、BL-368） | ② | rebase 之后最后一次本机构建、测试和门禁（bl411-final，已撤）；affected-tests 选中的 125 个用例。`full` 为空，不进批；不动合同、SDK、Manifest 和门禁，没有构建 | CI 在跑；已合过一次 main（没有 force push）。留下的缺口见 R-12、R-13；验证：已进 Codex 集成批（head `0d32cff50`），还没跑；R-12、R-13 单独看 |
-| #1075（Sessions 清理 SC-1，PG-081） | ③ | 本机相关用例的最后一轮 | CI 9 过、4 在跑；验证：已进 Codex 集成批（head `917ff927b`），还没跑 |
+| #1074（BL-411、BL-368） | ② | rebase 之后最后一次本机构建、测试和门禁（bl411-final，已撤）；affected-tests 选中的 125 个用例。`full` 为空，不进批；不动合同、SDK、Manifest 和门禁，没有构建 | CI 在跑；已合过一次 main（没有 force push）。留下的缺口见 R-12、R-13；验证：`plugin-stopped-services` 5/5、双实例与生命周期的定向文件都过了，只读评审没找到 R-12、R-13 之外的 P1。`tests/plugin-project-database.test.ts` 红在「已装插件的 Home 库」清单多出 `artifacts`，停止后的拒绝与零写入用例过了，不是 BL-411 的问题，见 R-18。R-12、R-13 单独看 |
+| #1075（Sessions 清理 SC-1，PG-081） | ③ | 本机相关用例的最后一轮 | CI 9 过、4 在跑；验证：红（定向，`0bf6f3502`）：`tests/goals-mcp-actions.test.ts:133` 还在断言 MCP 写 Goal 时把 Session 的 `current_goal_id` 改掉，下一行还在等旧的会话活动事件。这是 SC-1（D4）删掉这条写路径以后，这个用例没跟着改。修法是断言 Session 和事件前后都没变；Goal 原事件、审计作者、幂等、权限和撤权的检查一条不放宽。Codex 已在 PR 上认领，作者线先不重复修 |
 | #1076（Shelf S3，路由只由插件声明、删宿主 `/api/shelf`） | Shelf，⑩ 评审 | 本机 84 个选中文件只跑完 68 个（负载 221 时叫停）：11 个失败，其中 4 个已修但修后没重跑（`shelf-project-results-http`、`action-cross-entry` T5、`shelf-owner-files` PG-026-S2-2、`shelf-jelly-cognia-images-error-model`）；6 个原因不明，多半是高负载下超时（`shelf-ai-host`、`images-concurrency`、`images-mcp`、`coding-product-http`、`coding-material-consumption`、`security-invariants-plugin-pages` 的 ECONNRESET）；1 个环境问题（`shelf-material-extraction`，本机 Swift 编译 Vision 帮助程序失败）；16 个没跑（列表在 PR 正文）。另外没跑：`boundary:check`、健康门禁、`page-assets --base`（合 main 后没重建，workbench 的数是推算的）、`test:security`、浏览器用例与截图、`native-checks`（`shelf_http.rs` 改了） | 叠在 #1051 上；`full` 非空（shared-core、assembly、spans-packages、deletes-code，选中 518 个文件），等 #1051 合了进集成批。三个审批项 ① 10-23 已裁决（见 README）；验证：没进批（Codex 拿到的登记册版本里它还没编号；又叠在被排除的 #1051 上），等 #1051 再验；⑩ 评审过了，交 ⑤ 组批，评审时在 `e854df567` 修了 CI 的 rustfmt 和巨大单元两处红，并把两条被放宽的断言恢复原样 |
 | #1080（Sessions 清理 SC-2：角色运行记进角色库，库 v1 → v2） | ③，⑩ 评审 | 本机只构建和刷新快照。没跑：affected-tests 选中的 149 个文件，其中直接相关的 `characters-native-execution`、`characters-maintenance-v2`（新增）、`characters-schema`、`home-store-baselines`、`characters-actions`、`action-contract-snapshot`，以及浏览器用例 `security-invariants-plugin-terminals.e2e`；`boundary:check`、健康门禁（含 store-versions、table-owners）、`verify-release-versions`、截图 | `full` 非空（shared-core、storage、spans-packages），进集成批；没进 Codex 这一批（开 PR 晚于它固定代码）。留下的事见 R-04、R-05、R-17 |
+| #1079（PG-062 S4a，插件交互渲染服务 `services.interaction`，S-56） | PG-038 | 选中的 300 个文件（284 个非浏览器、16 个浏览器，含新的 `tests/security-invariants-plugin-interaction.test.ts`）；`health:check --base`、`boundary:check`、`page-assets:check`、`test:contracts`、`test:security`。`full` 命中 shared-core、spans-packages，进集成批。`home-plugin-executor.ts`、`plugin-sandbox` 的 `worker.ts` 没有测试经导入图到达；沙箱用例只在 macOS 跑 | 新开；本机只跑了构建、`api:update`、`secrets:check`。不含 #1067、#1071，文件不重叠；S4b 在它之后另开。验证：Codex 下一批 |
+| #1081（S0b-2，`services.connections`：插件经平台用本人的服务账号发请求，S-57） | ② | 选中的 529 个文件，`--wide` 另多出 94 个；网关错误类用例（`platform-action-errors`、`action-availability-kind`、`action-gateway`）；`health:check --base`（起跑后按 pid 停了）、`boundary:check`、`verify-release-versions`、`test:security` 全集；创作台网络门回归 `tests/agent-built-plugins-network.test.ts`，用来证明改成共用 `public-https.ts` 以后行为不变。`full` 命中 shared-core、spans-packages，进集成批。有 4 个新文件，导入图上没有测试到达 | 新开；本机构建、`api:update`、`actions:update`、`secrets:check` 都跑了，新安全用例 6/6 通过（之后只把 S-56 改名为 S-57，没重跑）。验证：Codex 下一批 |
+| #1077（删 BL-410，BL-412、BL-413 接回表格） | ⑤ | 纯文档；门禁交 PR CI | 新开，不进批 |
 
 ## 4. 要用户本人做的
 

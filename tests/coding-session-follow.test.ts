@@ -117,7 +117,7 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
 type HeldWait = { session_id: string; wait: AgentCollaborationWait; continuation: AgentContinuationView };
 async function codingJobs() {
   const root = mkdtempSync(join(tmpdir(), "coding-jobs-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(root); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = codingSessions(store), now = () => new Date().toISOString();
   // No Agent session yet: the activation has nothing to recover, so the only loop is one a round asks for.
   await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "s", title: "会话", runtime_id: "prologue", at: now() });

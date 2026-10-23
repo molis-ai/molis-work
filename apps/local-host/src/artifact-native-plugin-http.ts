@@ -1,11 +1,16 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { createWriteStream } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pipeline } from "node:stream/promises";
 import { logPreviewFailure } from "./host-log.js";
 import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_READABLE_FILE } from "@molis-ai/molis-work-plugin-pages";
-import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { BoundActionClient, HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import {
-  artifactsErrors, documentErrors, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf,
+  ARTIFACTS_PLUGIN_ID, artifactsErrors, documentErrors, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf, openArtifactOriginal,
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { artifactWorkbench, artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, type ArtifactTypeDeclaration } from "@molis-ai/molis-work-app-workbench";
@@ -22,6 +27,9 @@ export interface ArtifactHttpContext {
   readonly routePrefix: string;
   readonly projectTitle: string;
   readonly actions: BoundActionClient;
+  readonly homeDirectory: string;
+  /** The person's 成果库 actions for one import that comes with a file the Host received (`ActionCallContext.original_file`). */
+  readonly offeredActions: (file: HostOfferedOriginalFile) => BoundActionClient;
   /** A type owner's actions, bound with the permissions its preview declares (A4). */
   readonly ownerActions?: (permissions: readonly string[]) => BoundActionClient;
   readonly controlToken: string;
@@ -70,6 +78,36 @@ export function renderGoalArtifactContext(embeds: GoalArtifactEmbed[]): string {
     typeTitles: Object.fromEntries([...artifactTypeDeclarations()].map(([type, declaration]) => [type, declaration.title])) });
 }
 
+/** The name the page sends with a raw original (percent-encoded UTF-8): one file name, no path. */
+function offeredFilename(raw: string | undefined): string {
+  let name = "";
+  try { name = decodeURIComponent(raw ?? "").trim(); } catch { name = ""; }
+  if (!name || name.length > 255 || /[\\/\u0000-\u001f]/u.test(name)) throw documentErrors.filename_invalid("文件名无效");
+  return name;
+}
+
+/**
+ * A file of any size, sent as the raw body (the person chose it in the page): the Host keeps it in its own temporary file and offers
+ * that one to the 成果库's import, which keeps it inline up to 6 MB and in its store above (onboarding limits, 2026-10-22).
+ */
+async function importRawOriginal(request: IncomingMessage, response: ServerResponse, context: ArtifactHttpContext): Promise<void> {
+  const filename = offeredFilename(requestHeader(request, "x-molis-work-filename"));
+  const mime = (requestHeader(request, "content-type") ?? "application/octet-stream").split(";")[0]!.trim().toLowerCase() || "application/octet-stream";
+  const directory = await mkdtemp(join(tmpdir(), "molis-artifact-original-"));
+  try {
+    const path = join(directory, "original");
+    await pipeline(request, createWriteStream(path, { flags: "wx" }));
+    const input: ArtifactFileImport = { source: "file", filename, original_file: { filename, mime },
+      ...new URL(request.url ?? "/", "http://host").searchParams.get("allow_model_download") === "true" ? { allow_model_download: true } : {} };
+    const answer = async (on_progress?: (event: ActionProgressEvent) => void) => {
+      const saved = await context.offeredActions({ path, install_id: ARTIFACTS_PLUGIN_ID }).invoke(artifactsActions.importFile, input, undefined, on_progress ? { on_progress } : undefined);
+      return { status: saved.reused ? 200 : 201, body: { ...saved, url: context.routePrefix + artifactVersionPath(saved), warnings: saved.warnings.map(warning => L(warning)) } };
+    };
+    if (requestHeader(request, "accept")?.includes("application/x-ndjson")) await answerPluginRouteStream(response, emit => answer(emit), () => undefined);
+    else { const result = await answer(); sendLocalWebJson(response, result.status, result.body); }
+  } finally { await rm(directory, { recursive: true, force: true }); }
+}
+
 /** HTTP composition only: Artifact application owns routing and exact-version reads. */
 export function createLocalArtifactHttp() {
   return async function handleArtifactNativePluginHttp(
@@ -100,6 +138,7 @@ export function createLocalArtifactHttp() {
         sendLocalWebJson(response, result.status, result.body);
         return true;
       }
+      if (pathname === "/api/artifacts/import/original" && request.method === "POST") { await importRawOriginal(request, response, context); return true; }
       // Which document services are connected, for an import dialog outside the 成果库 (the side panel's 资料, specs/project-knowledge §8.1).
       if (pathname === "/api/artifacts/import/sources" && request.method === "GET") {
         sendLocalWebJson(response, 200, await context.actions.invoke(artifactsActions.importSources, {}));
@@ -145,11 +184,12 @@ export function createLocalArtifactHttp() {
         const view = await context.actions.invoke(artifactsActions.browser, { reference: route.reference,
           supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1 }] });
         const file = importedFileOf(view.selected);
-        if (!file) throw artifactsErrors.file_missing("这个版本没有可取回的文件");
+        const stream = file?.stored ? await openArtifactOriginal(context.homeDirectory, context.projectId, file.stored) : null;
+        if (!file || (file.stored && !stream)) throw artifactsErrors.file_missing("这个版本没有可取回的文件");
         response.writeHead(200, { "content-type": file.mime, "cache-control": "no-store", "x-content-type-options": "nosniff",
           "content-security-policy": "default-src 'none'; sandbox",
           "content-disposition": `${file.inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.filename)}` });
-        response.end(file.bytes);
+        if (file.stored) await pipeline(stream!, response); else response.end(file.bytes);
         return true;
       }
       if (route.kind === "export") {
@@ -179,7 +219,7 @@ export function createLocalArtifactHttp() {
       // 「从这一版继续」 (A4b): who declares it for this type; Pages only for an imported file it can read.
       const selected = view.selected, file = importedDocumentFile(selected);
       const continuers = selected && selected.availability === "available" && selected.lifecycle_state !== "archived" ? (artifactContinuers().get(selected.artifact_type_id) ?? [])
-        .filter(item => !file || item.plugin_id !== PAGES_PLUGIN_ID || PAGES_READABLE_FILE.test(file.filename)).map(item => ({ plugin_id: item.plugin_id, plugin_title: item.plugin_title })) : [];
+        .filter(item => !file || item.plugin_id !== PAGES_PLUGIN_ID || (file.stored ? Boolean(file.text?.trim()) : PAGES_READABLE_FILE.test(file.filename))).map(item => ({ plugin_id: item.plugin_id, plugin_title: item.plugin_title })) : [];
       const reference = view.selected ? { artifact_id: view.selected.artifact_id, version: view.selected.version } : null;
       const goals = reference && route.kind === "detail" ? await context.actions.invoke(artifactsActions.links, { reference }) : undefined;
       // Documents and other objects that link to this version (五.1), each answered by its own plugin; one that cannot answer is left out.

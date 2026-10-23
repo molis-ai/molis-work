@@ -184,6 +184,7 @@ export interface UiRequestFailure extends Error {
 export interface UiRequestInit {
     readonly method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     readonly body?: unknown;
+    readonly file?: Blob;
     readonly as?: "json" | "text" | "response";
     readonly accept?: readonly number[];
     readonly key?: string;

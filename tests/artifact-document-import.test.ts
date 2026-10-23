@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -9,7 +9,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import {
-  artifactAnalysisContext, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument,
+  artifactAnalysisContext, artifactOriginalPath, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument,
   type ArtifactDocumentImportPorts, type ImportedArtifactDocument,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -54,7 +54,7 @@ async function fixture(t: test.TestContext) {
   });
   // The 成果 surface as the workbench reads it; a person's direct visit is redirected into the workbench (checked below).
   const get = (path: string, extraHeaders: Record<string, string> = {}) => fetch(origin + path, { headers: { "accept-language": "zh", "x-molis-work-fragment": "artifact-workbench", ...extraHeaders } });
-  return { store, coordinator, library, post, rawPost, get, headers, origin, restart: async () => { await stop(); await start(); } };
+  return { store, coordinator, library, post, rawPost, get, headers, origin, directory, restart: async () => { await stop(); await start(); } };
 }
 
 test("document file HTTP import registers, previews, exports, reuses and survives restart", async t => {
@@ -492,4 +492,71 @@ test("PMAT-47 Office, OpenDocument, EPUB and RTF files are read as Markdown; an 
   const image = await imported("空白.png", "image/png", blankPng());
   assert.equal(image.content, "");
   assert.match(image.warnings.join("\n"), /^(?:图片里没有识别出文字|这台电脑不能识别文字（需要 macOS 的文字识别组件）)，只保存了原件；Agent 只能看到它的名字。$/u);
+});
+
+// Onboarding limits (user 2026-10-22, ONB-LIM-01): an original over the inline 6 MB is sent as the raw body, offered to the 成果库 by
+// the Host, kept in its store by digest, and handed back whole; without an offered file an import without bytes is refused.
+test("ONB-LIM-01 an original over 6 MB is kept in the 成果库's store by digest and downloads whole", async t => {
+  const { library, post, origin, directory, headers } = await fixture(t);
+  const bytes = Buffer.alloc(7_000_001, 7); bytes.write("%PDF-1.4 not really", 0);
+  const raw = { ...headers(), "content-type": "application/octet-stream", "x-molis-work-filename": encodeURIComponent("大文件.bin") };
+  const response = await fetch(origin + "/api/artifacts/import/original", { method: "POST", headers: raw, body: bytes });
+  assert.equal(response.status, 201, await response.clone().text());
+  const imported = await response.json() as { artifact_id: string; version: number; reused: boolean };
+  const artifact = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, imported);
+  const original = (artifact!.payload as { original_file: Record<string, unknown> }).original_file;
+  assert.equal(original.data_base64, undefined, "the bytes are not in the version's record");
+  assert.equal(original.size_bytes, bytes.length);
+  assert.match(String(original.sha256), /^[0-9a-f]{64}$/u);
+  assert.deepEqual(await readFile(artifactOriginalPath(directory, DEMO_PROJECT_ID, String(original.sha256))), bytes);
+  const file = await fetch(`${origin}/api/artifacts/${encodeURIComponent(imported.artifact_id)}/versions/${imported.version}/file`, { headers: { "accept-language": "zh" } });
+  assert.equal(file.status, 200);
+  assert.deepEqual(Buffer.from(await file.arrayBuffer()), bytes);
+  // The same bytes again reuse the version; a small one through the same route stays inline.
+  const again = await fetch(origin + "/api/artifacts/import/original", { method: "POST", headers: { ...raw, "x-molis-work-idempotency-key": randomUUID() }, body: bytes });
+  assert.equal(((await again.json()) as { reused: boolean }).reused, true);
+  const small = await fetch(origin + "/api/artifacts/import/original", { method: "POST", headers: { ...headers(), "content-type": "application/octet-stream", "x-molis-work-filename": "small.bin" }, body: Buffer.from("tiny") });
+  const smallVersion = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, await small.json() as { artifact_id: string; version: number });
+  assert.equal((smallVersion!.payload as { original_file: { data_base64: string } }).original_file.data_base64, Buffer.from("tiny").toString("base64"));
+  // No file offered: an original without its bytes is refused, whoever asks.
+  const refused = await post({ source: "file", filename: "x.bin", original_file: { filename: "x.bin", mime: "application/octet-stream" } });
+  assert.equal(refused.status, 400);
+  assert.equal(((await refused.json()) as { code: string }).code, "artifacts.document.original_not_offered");
+  // A name with a path in it is refused before anything is read.
+  const named = await fetch(origin + "/api/artifacts/import/original", { method: "POST", headers: { ...headers(), "content-type": "application/octet-stream", "x-molis-work-filename": encodeURIComponent("../x.bin") }, body: Buffer.from("x") });
+  assert.equal(named.status, 400);
+});
+
+// S-55: the 成果库 reads a file the Host was given only from the call's trusted context; nothing in a request names one for it.
+test("S-55 an import reads no file the request names: a path header, a body field or a digest that is not one is refused", async t => {
+  const { post, origin, headers, directory } = await fixture(t);
+  const secret = join(directory, "secret.txt"); await writeFile(secret, "SECRET");
+  const named = await fetch(origin + "/api/artifacts/import", { method: "POST", headers: { ...headers(), "sec-molis-work-original-path": encodeURIComponent(secret) },
+    body: JSON.stringify({ source: "file", filename: "secret.bin", original_file: { filename: "secret.bin", mime: "application/octet-stream" } }) });
+  assert.equal(named.status, 400);
+  assert.equal(((await named.json()) as { code: string }).code, "artifacts.document.original_not_offered");
+  const field = await post({ source: "file", filename: "secret.bin", original_file: { filename: "secret.bin", mime: "application/octet-stream", path: secret } });
+  assert.equal(field.status, 400, "a path in the input is not a field the import takes");
+  assert.throws(() => artifactOriginalPath(directory, DEMO_PROJECT_ID, "../../secret.txt"), /invalid original digest/);
+});
+
+// A file too big to hold in memory (review 2026-10-22): the original is still kept whole in the store and the import says its text was
+// not read, instead of failing on Node's 2 GiB read limit.
+test("ONB-LIM-08 an original over 2 GB is kept whole without its text, and the import says so instead of failing", async t => {
+  const { library } = await fixture(t);
+  const stored = { sha256: "a".repeat(64), size_bytes: 3_000_000_000 };
+  let readText = 0;
+  const ports: ArtifactDocumentImportPorts = {
+    projectId: DEMO_PROJECT_ID, actorId: "fixture-owner", ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: "/projects/current", artifacts: library.artifacts,
+    readExternal: async () => { throw new Error("a file import reads no external document"); },
+    readHtml: () => { throw new Error("a file import of a video reads no HTML"); },
+    readFileText: async () => { readText++; return { text: "never", warnings: [] }; },
+    offered: { size_bytes: stored.size_bytes, store: async () => stored,
+      read: async () => { throw Object.assign(new RangeError("File size (3000000000) is greater than 2 GiB"), { code: "ERR_FS_FILE_TOO_LARGE" }); } },
+  };
+  const result = await importArtifactDocument({ source: "file", filename: "录像.mov", original_file: { filename: "录像.mov", mime: "video/quicktime" } }, ports);
+  assert.equal(readText, 0, "no text is read from bytes the Host could not hold");
+  assert.deepEqual(result.warnings, ["文件超过 2 GB，没有读取正文；原件完整保存。"]);
+  const original = (library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)!.payload as { original_file: Record<string, unknown> }).original_file;
+  assert.deepEqual([original.sha256, original.size_bytes], [stored.sha256, stored.size_bytes]);
 });

@@ -158,7 +158,9 @@ test("managed projects have immutable identities, duplicate names, and isolated 
 
       const firstStore = new LocalProjectDatabase(first.database_path);
       try {
-        new GoalProjectApplication(firstStore).goals.commands.createGoal(
+        const application = new GoalProjectApplication(firstStore);
+        application.projectOpened(first.project_id); // S8b: a new project's board is made by Goals when the project is first opened
+        application.goals.commands.createGoal(
           first.project_id,
           {
             goal_id: "only-first",
@@ -184,6 +186,7 @@ test("managed projects have immutable identities, duplicate names, and isolated 
       }
       const secondStore = new LocalProjectDatabase(second.database_path);
       try {
+        new GoalProjectApplication(secondStore).projectOpened(second.project_id);
         assert.equal(secondStore.snapshot(second.project_id).goals.length, 0);
       } finally {
         secondStore.close();

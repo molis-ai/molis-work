@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import type { DeleteProjectInput as DeleteMolisWorkProjectInput, ProjectDeletionResult as MolisWorkProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
 import { managedProjectDirectory } from "./project-file-paths.js";
-import { validateManagedBoard } from "./managed-project-database.js";
+import { validateManagedProject } from "./managed-project-database.js";
 import type { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import type { ProjectDeletedPort } from "./project-deleted-hooks.js";
 import {
@@ -61,7 +61,7 @@ export class DemoProjectLifecycle {
       const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
       this.demo.seed(stagedDatabasePath, record.project_id);
       seedDemoPluginSurfaces(stagedDatabasePath, record.project_id);
-      validateManagedBoard(stagedDatabasePath, record.project_id);
+      validateManagedProject(stagedDatabasePath, record.project_id);
       await fs.rename(stagingDirectory, projectDirectory);
       promoted = true;
       await this.commit(() => this.projects.lifecycle.register(record, "project.demo_created", actorId));
@@ -95,7 +95,7 @@ export class DemoProjectLifecycle {
       const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
       this.demo.seed(stagedDatabasePath, project.project_id);
       seedDemoPluginSurfaces(stagedDatabasePath, project.project_id);
-      validateManagedBoard(stagedDatabasePath, project.project_id);
+      validateManagedProject(stagedDatabasePath, project.project_id);
       await fs.rename(projectDirectory, backupDirectory);
       previousMoved = true;
       await fs.rename(stagingDirectory, projectDirectory);

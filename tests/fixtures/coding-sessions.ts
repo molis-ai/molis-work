@@ -14,5 +14,5 @@ export const noEffect = async (): Promise<void> => {};
  * beyond the library's own.
  */
 export function codingSessions(store: Pick<LocalProjectDatabase, "db" | "path">): CodingSessionStore {
-  return new CodingSessionStore(openPluginProjectLibrary({ db: store.db, path: store.path }, codingManifest, () => {}, "coding-test-seed").client);
+  return new CodingSessionStore(openPluginProjectLibrary({ db: store.db, path: store.path }, codingManifest, () => {}, { install_id: "coding-test-seed", installation_generation: "1" }).client);
 }

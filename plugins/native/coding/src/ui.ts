@@ -1,10 +1,11 @@
 import { codingUsageSummary } from "./usage.js";
+import { CODING_SESSION_MARKS } from "./session-marks.js";
 import type {
   UiContribution,
   UiContributionDescriptor,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { renderButton, renderDirectoryRow, renderDirectoryPanel, renderDirectoryHeading, renderSidebar } from "@molis-ai/molis-work-design-system";
+import { renderButton, renderDirectoryPanel, renderDirectoryHeading, renderSidebar } from "@molis-ai/molis-work-design-system";
 import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CodingIdentityView } from "./identity.js";
 import {
@@ -12,7 +13,6 @@ import {
   groupByGoal,
   type CodingDirectoryFilter,
   type CodingSessionEntry,
-  type CodingSessionState,
   type CodingToolAvailability,
 } from "./projection.js";
 
@@ -70,20 +70,6 @@ export const codingUiDescriptor: UiContributionDescriptor = {
   slots: [],
 };
 
-/** How a session's state reads. Status is an icon plus family-coloured text, never a pill. */
-const STATE_MARK: Record<CodingSessionState, { icon: string; tone: string; label: string }> = {
-  "idle": { icon: "message", tone: "idle", label: "coding.state.idle" },
-  "running": { icon: "activity", tone: "progress", label: "coding.state.running" },
-  "paused": { icon: "pause", tone: "attention", label: "coding.state.paused" },
-  "waiting-answer": { icon: "question", tone: "attention", label: "coding.state.waiting-answer" },
-  "waiting-approval": { icon: "circle-alert", tone: "attention", label: "coding.state.waiting-approval" },
-  "failed": { icon: "alert", tone: "blocked", label: "coding.state.failed" },
-  "stopped": { icon: "blocked", tone: "idle", label: "coding.state.stopped" },
-  "cancelled": { icon: "x", tone: "idle", label: "coding.state.cancelled" },
-  "reconcile-required": { icon: "circle-alert", tone: "attention", label: "coding.state.reconcile-required" },
-  "queued": { icon: "clock", tone: "attention", label: "coding.state.queued" },
-  "done": { icon: "check", tone: "done", label: "coding.state.done" },
-};
 
 export const codingUiContribution: UiContribution<CodingUiModel> = {
   descriptor: codingUiDescriptor,
@@ -118,7 +104,7 @@ export function renderCodingDirectory(model: CodingUiModel): string {
   const faces = CODING_DIRECTORY_FACES.map((face) => `<button type="button" class="mw-toggle coding-face" data-coding-face="${face.face}" aria-pressed="${face.face === model.face}" title="${p.escape(p.text(face.label))}" aria-label="${p.escape(p.text(face.label))}">${p.icon(face.icon)}</button>`).join("");
   const filters = (["all", "running", "needs-you"] as const).map((filter) => `<button type="button" class="mw-toggle coding-filter" data-coding-filter="${filter}" aria-pressed="${filter === model.filter}">${p.escape(filterLabel(filter, p))}</button>`).join("");
   const groups = groupByGoal(filterSessions(model.sessions, model.filter))
-    .map((group) => renderGroup(group.goal_id, group.title, group.entries, p))
+    .map((group) => renderCodingSessionGroup(group.goal_id, group.goal_id === null ? p.text("coding.directory.no-goal") : group.title, group.entries, p))
     .join("");
   return renderSidebar({className:"coding-directory",attrs:{"data-coding-directory":"","data-coding-current-face":model.face},
     body: renderDirectoryPanel({pluginId:"coding",embedded:true,label:faceLabel(model.face, p),listLabel:p.text("coding.directory.list"),listRole:"none",
@@ -147,21 +133,23 @@ export function renderCodingDirectory(model: CodingUiModel): string {
     })});
 }
 
-function renderGroup(
-  goalId: string | null,
-  title: string,
-  entries: readonly CodingSessionEntry[],
-  p: CodingUiPrimitives,
-): string {
-  const rows = entries.map((entry) => {
-    const mark = STATE_MARK[entry.state];
-    return renderDirectoryRow({ title: entry.title, caption: p.text(mark.label), count: p.formatDate(entry.updated_at),
-      density: "meta", icon: "message", className: "coding-session-row", href: `#session-${entry.session_id}`,
-      attrs: { "data-coding-session": entry.session_id } });
-  }).join("");
+/**
+ * One session's row, the same row the page's live list draws over it (client.ts `renderDirectory`): its title and time, then its
+ * state in words with the state ring, so the first paint already has the ring and nothing moves when the list takes over.
+ */
+export function renderCodingSessionRow(entry: CodingSessionEntry, p: CodingUiPrimitives): string {
+  const mark = CODING_SESSION_MARKS[entry.state], id = p.escape(entry.session_id);
+  return `<a class="mw-dir-row mw-dir-row--meta coding-session-row" href="#session-${p.escape(encodeURIComponent(entry.session_id))}" data-coding-session="${id}" aria-current="false">`
+    + `<span class="mw-dir-row__icon">${p.icon(CODING_DIRECTORY_FACES[0].icon)}</span><span class="mw-dir-row__copy"><span class="mw-dir-row__headline">`
+    + `<strong class="coding-session-title" title="${p.escape(entry.title)}">${p.escape(entry.title)}</strong><time class="mw-dir-row__count coding-session-time" datetime="${p.escape(entry.updated_at)}">${p.escape(p.formatDate(entry.updated_at))}</time></span>`
+    + `<small class="coding-session-state" data-state="${p.escape(entry.state)}" data-mw-state="${mark.ring}">${p.escape(p.text(mark.label))}</small></span></a>`;
+}
+
+/** A Goal's sessions under its heading (or the real group of sessions with no Goal). */
+export function renderCodingSessionGroup(goalId: string | null, title: string, entries: readonly CodingSessionEntry[], p: CodingUiPrimitives): string {
   return `<section class="coding-session-group"${goalId === null ? "" : ` data-coding-goal="${p.escape(goalId)}"`}>
     ${renderDirectoryHeading(title)}
-    ${rows}
+    ${entries.map((entry) => renderCodingSessionRow(entry, p)).join("")}
   </section>`;
 }
 

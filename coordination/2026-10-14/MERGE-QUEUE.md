@@ -28,7 +28,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | --- | --- | --- | --- | --- | --- |
 | 4 | [#1098](https://github.com/molis-ai/molis-work/pull/1098) | W5-06 第 2b 片：视图声明分组、新建、首页起点、设置图标 | #1087 | 下一批（和 #1107 同批） | 叠在 #1087 上 |
 | 5 | [#1107](https://github.com/molis-ai/molis-work/pull/1107) | W5-06 第 3 片：项目级 Runtime 实例的舞台 | #1098 | 同 #1098 | 叠在 #1098 上；`ac-review` 一轮：**可合**（[评论](https://github.com/molis-ai/molis-work/pull/1107)） |
-| 6 | [#1076](https://github.com/molis-ai/molis-work/pull/1076) | Shelf S3：路由只由插件声明 | #1099（放行键对它合入后的 main 重算） | 下一批（和 #1083、#1112） | Codex 在整理冲突 |
 | 7 | [#1083](https://github.com/molis-ai/molis-work/pull/1083) | Shelf S4 | #1076 | 同 #1076 | 叠着 #1076；Verify 红的唯一原因是 `error-owners.json` 的 `apps/local-host/src/shelf-*` |
 | 8 | [#1112](https://github.com/molis-ai/molis-work/pull/1112) | W5-06 余项第一片（草稿） | 排在 #1076、#1099 之后 | 同 #1076 | `ac-review` 一轮：修后可合，2 条交 Codex（[评论](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6370952389)）；统筹裁定规格板选 (b)、补 RAC-80～84（[裁定](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6371157480)）；Codex 合 main、重量 page-assets、转 ready |
 | 9 | [#1113](https://github.com/molis-ai/molis-work/pull/1113) | Sessions 清理 SC-3（PG-082） | — | `full` 非空（assembly、spans-packages），和 #1076、#1083、#1112 同批或下一批 | 头 `a959f8469`，已合 main；`ac-review` 在审 |
@@ -70,3 +69,4 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1115 | `acc71ae473` | 10-23 18:39 UTC |
 | #1122 | `c68071cdc` | 10-23 19:46 UTC |
 | #1124 | `e8e79e53e` | 10-23 20:07 UTC |
+| #1076 | `38111ce61` | 10-23 20:30 UTC |

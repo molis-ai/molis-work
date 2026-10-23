@@ -1,9 +1,9 @@
 {
   "giantUnits": 120,
   "giant": {
-    "file apps/local-host/src/assistant/assistant-service.ts": 1863,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1868,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1504,
+      "lines": 1515,
       "methods": 91
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
@@ -30,7 +30,7 @@
       "lines": 273,
       "methods": 41
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 228,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 225,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 167,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 191,
@@ -40,7 +40,7 @@
     "file apps/workbench/src/i18n/en.ts": 3323,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 285,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2032,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2047,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 955,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1966,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
@@ -54,10 +54,10 @@
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 217,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 958,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 965,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
-      "lines": 589,
-      "methods": 19
+      "lines": 602,
+      "methods": 18
     },
     "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 363,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
@@ -69,10 +69,10 @@
       "lines": 361,
       "methods": 18
     },
-    "file horizontal/memory/src/service.ts": 1160,
+    "file horizontal/memory/src/service.ts": 1259,
     "class horizontal/memory/src/service.ts#MemoryService": {
-      "lines": 1027,
-      "methods": 48
+      "lines": 1079,
+      "methods": 51
     },
     "class horizontal/placement/src/index.ts#PlacementService": {
       "lines": 399,
@@ -135,12 +135,12 @@
       "lines": 287,
       "methods": 29
     },
-    "file modules/shelf/src/store.ts": 1081,
+    "file modules/shelf/src/store.ts": 1067,
     "class modules/shelf/src/store.ts#ShelfStore": {
-      "lines": 678,
-      "methods": 32
+      "lines": 666,
+      "methods": 31
     },
-    "function modules/shelf/src/store.ts#runJob": 184,
+    "function modules/shelf/src/store.ts#runJob": 183,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 753,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
@@ -451,7 +451,7 @@
     "tests/workspace-git-read.test.ts": 1,
     "tests/workspace-production-events.test.ts": 1
   },
-  "vendoredPrologueSdk": 2,
+  "vendoredPrologueSdk": 1,
   "schemaPatches": 0,
   "compatMarkerTotal": 8,
   "compatMarkers": {
@@ -713,7 +713,7 @@
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 10,
+  "hostPluginFilesTotal": 9,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
@@ -723,7 +723,6 @@
     "apps/local-host/src/inbox-actions.ts#actions": 1,
     "apps/local-host/src/inbox-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/shelf-actions.ts#actions": 1,
-    "apps/local-host/src/shelf-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/work-actions.ts#actions": 1
   },
   "registerProviderSitesTotal": 17,
@@ -741,12 +740,12 @@
     "apps/local-host/src/project-host.ts#register-provider": 4,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 3,
+  "hybridPluginsTotal": 2,
   "hybridPlugins": {
     "coding#host-files": 1,
-    "shelf#host-files": 2
+    "shelf#host-files": 1
   },
-  "pluginOutsideMentionsTotal": 315,
+  "pluginOutsideMentionsTotal": 313,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 11,
     "artifacts#outside-files": 20,
@@ -768,7 +767,7 @@
     "plugin-builder#outside-files": 18,
     "ppt#outside-files": 7,
     "schedule#outside-files": 11,
-    "shelf#outside-files": 14,
+    "shelf#outside-files": 12,
     "text-stats#outside-files": 7,
     "todo#outside-files": 7,
     "work#outside-files": 22,
@@ -1123,7 +1122,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 478,
+  "explicitAnyTotal": 480,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1226,6 +1225,7 @@
     "tests/mcp-access-browser.test.ts": 1,
     "tests/mcp-action-settings.test.ts": 6,
     "tests/memory-agent-runs.test.ts": 2,
+    "tests/memory-learning.test.ts": 2,
     "tests/model-thinking.test.ts": 2,
     "tests/pages-cross-module.test.ts": 1,
     "tests/pages-input-rules.test.ts": 3,

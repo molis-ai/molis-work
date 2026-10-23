@@ -37,10 +37,15 @@ test("every AI recipe preserves source identity, uses frozen copies, and stores 
     assert.match(Buffer.from(input.files.read(copy)!).toString("utf8"), /12 万元/);
     return { text: input.recipe === "extract_structure" && input.option_id === "json" ? '{"amount":120000}' : "# 摘要\n\n总价 12 万元。", execution: shelfTestReceipt };
   });
-  const store = openHostShelfStore(home, { disabled: true }, materials, ai);
   const origin = join(home, "报价.md"); writeFileSync(origin, "总价 12 万元。");
+  // The platform keeps the original (Shelf S3): here only the first copy has one, read back so each run compares it first.
+  const registered = new Set<string>();
+  const store = openHostShelfStore(home, { disabled: true }, { ...materials, readOriginal: async (itemId: string) => {
+    if (!registered.has(itemId)) throw Object.assign(new Error("没有登记原件"), { code: "material.original.not_registered" });
+    return { bytes: readFileSync(origin) };
+  } }, ai);
   const original = readFileSync(origin), hash = createHash("sha256").update(original).digest("hex");
-  const one = await store.admit({ filename: "报价.md", bytes: original, origin_realpath: origin });
+  const one = await store.admit({ filename: "报价.md", bytes: original }); registered.add(one.item_id);
   const two = await store.admit({ filename: "补充.md", bytes: Buffer.from("人力 12 万元。") });
   for (const recipe of SHELF_RECIPES.filter(recipe => recipe.requires_agent)) {
     for (const choice of recipe.choices) {

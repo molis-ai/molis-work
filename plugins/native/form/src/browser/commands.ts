@@ -1,6 +1,6 @@
 import type { FormQuestionType } from "@molis-ai/molis-work-contracts/modules/form";
 import type { Reflow } from "@molis-ai/molis-work-design-system";
-import { arrive, download } from "./dom.js";
+import { arrive } from "./dom.js";
 import { renderPreview } from "./fields.js";
 import { openFillPage } from "./fill-page.js";
 import { closeEditor, fillEditor, loadList, remember } from "./list.js";
@@ -234,7 +234,7 @@ const exportFile = async (page: FormPage, target: Element, tail: string, type: s
   await save(page);
   const sel = open(page);
   const file = await page.request<FormFile>("GET", path(sel.id, tail));
-  download(file.filename, new Blob([file.content], { type }));
+  await page.host.download(new Blob([file.content], { type }), file.filename);
   placed({ verb: "exported", title: sel.title, file: { name: file.filename, format: format(file) } });
 };
 

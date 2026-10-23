@@ -142,7 +142,7 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/inbox" },
   { method: "GET", path: "/api/home/dock-judgment" },
   { method: "GET", path: "/api/home/actions/choices" },
-  { method: "GET", path: "/api/schedule" },
+  { method: "GET", path: "/api/plugins/io.molis.work.schedule/list" },
   { method: "GET", path: "/api/feed" },
   { method: "GET", path: "/api/capsule" },
   { method: "GET", path: "/api/panels" },

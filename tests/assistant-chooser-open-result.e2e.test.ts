@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
 
@@ -38,6 +39,7 @@ test("VUX-12: a result made from the project chooser opens on its project's page
   const address = model.address(); assert.ok(address && typeof address !== "string");
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const todo = await pluginFrameBrowser(t, browser, "todo");
   await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => {
     const connection = withConnectorConnections(homeDirectory, (store) => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机 HTTP 模型", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] });
@@ -53,7 +55,8 @@ test("VUX-12: a result made from the project chooser opens on its project's page
   await navigate(() => evaluate(`document.querySelector(${JSON.stringify(step)}).click()`));
   await waitFor(`location.pathname === ${JSON.stringify(`/projects/${projectId}/`)}`, 20_000);
   // The to-do the assistant made, open in the plugin that owns it.
-  await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-todo-field=title]')?.value === '订读书会的场地'", 20_000);
+  await waitFor("document.body.dataset.desktopSurface === 'todo'", 20_000);
+  await todo.waitFor("document.querySelector('[data-todo-field=title]')?.value === '订读书会的场地'", 20_000);
   await navigate(() => command("Page.navigate", { url: "javascript:history.back()" }, sessionId).catch(() => evaluate("history.back()")));
   await waitFor("document.querySelector('.chooser')", 20_000);
 });

@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -16,6 +17,7 @@ test("W3-B1: a passage selected in the right panel is put at the cursor of the P
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
+  const child=await pluginFrameBrowser(t,browser,"pages");
   const store = openPagesStore(homeDirectory);
   const left = store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
   const right = store.create({ project_id: projectId!, title: "访谈记录", body: { type: "doc", content: [paragraph("用户说：离线也要能记下想法。")] } });
@@ -25,11 +27,11 @@ test("W3-B1: a passage selected in the right panel is put at the cursor of the P
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "document.addEventListener('molis:surface-landing', (event) => { window.lastLanding = event.detail; });" }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${left.id}` }, sessionId));
-  await waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
+  await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
 
   // Untouched, the landing is the end of the document; once the person is in it, it is the cursor.
   await waitFor("window.lastLanding?.position === 'end'");
-  await evaluate(`(() => {
+  await child.evaluate(`(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = [...editor.querySelectorAll('p')].find(node => node.textContent === '先完成核心体验。').firstChild;
     const range = document.createRange(); range.setStart(text, 3); range.collapse(true);
@@ -59,12 +61,12 @@ test("W3-B1: a passage selected in the right panel is put at the cursor of the P
   await evaluate(`[...document.querySelectorAll(${JSON.stringify(attach)})].find(node => node.textContent.includes('插入到光标处')).click()`);
 
   // The preview stands at the landing, in Pages; nothing is written before the person confirms.
-  await waitFor("document.querySelector('.pages-landing-preview')?.textContent === '离线也要能记下想法'", 10_000);
-  assert.equal(await evaluate<string>(editorText), "先完成核心体验。再安排发布。", "the document is unchanged under the preview");
+  await child.waitFor("document.querySelector('.pages-landing-preview')?.textContent === '离线也要能记下想法'", 10_000);
+  assert.equal(await child.evaluate<string>(editorText), "先完成核心体验。再安排发布。", "the document is unchanged under the preview");
   await capture("2-preview-at-landing");
-  await evaluate(`[...document.querySelectorAll('.pages-pop .mw-btn--primary')].find(node => node.textContent === '放进去').click()`);
-  await waitFor(`${editorText} === '先完成离线也要能记下想法核心体验。再安排发布。'`, 10_000);
-  assert.equal(await evaluate<boolean>("document.querySelector('.pages-landing-preview') === null"), true, "the preview is gone");
+  await child.evaluate(`[...document.querySelectorAll('.pages-pop .mw-btn--primary')].find(node => node.textContent === '放进去').click()`);
+  await child.waitFor(`${editorText} === '先完成离线也要能记下想法核心体验。再安排发布。'`, 10_000);
+  assert.equal(await child.evaluate<boolean>("document.querySelector('.pages-landing-preview') === null"), true, "the preview is gone");
   await capture("3-written");
   const saved = openPagesStore(homeDirectory);
   try { assert.match(JSON.stringify(saved.get(left.id, projectId!).body), /先完成离线也要能记下想法核心体验。/u); } finally { saved.close(); }

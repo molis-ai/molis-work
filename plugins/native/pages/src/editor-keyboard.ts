@@ -243,15 +243,16 @@ function verticalArrow(direction: -1 | 1): Command {
   };
 }
 
-function tabKey(direction: -1 | 1): Command {
-  const code = direction > 0 ? insertCodeIndent : removeCodeIndent;
-  const list = direction > 0 ? indentListItem : outdentListItem;
-  const nest = direction > 0 ? indentUnderPrevious : outdentFromContainer;
-  return (state, dispatch, current) => {
-    if (current && cellNav(current, direction)) return true;
+function tabKey(dir: -1 | 1): Command {
+  const code = dir > 0 ? insertCodeIndent : removeCodeIndent;
+  const list = dir > 0 ? indentListItem : outdentListItem;
+  const nest = dir > 0 ? indentUnderPrevious : outdentFromContainer;
+  return (state, dispatch, view) => {
+    if (view && !view.hasFocus()) return false;
+    if (view && cellNav(view, dir)) return true;
     if (code(state, dispatch)) return true;
     if (list(state, dispatch)) return true;
-    const hover = current ? hoverKey.getState(current.state) : null;
+    const hover = view ? hoverKey.getState(view.state) : null;
     const changed = nest(state, hover && hover.anchor >= 0 ? hover.anchor : -1, hover && hover.head >= 0 ? hover.head : -1);
     if (changed && dispatch) dispatch(changed.setMeta(hoverKey, { span: null }).scrollIntoView());
     return true;

@@ -119,3 +119,33 @@ test("PMAT-12 receipts are kept 30 days and go with a deleted project", async t 
   assert.equal(clearKnowledgeProject(f.home, "a"), 0, "no cards, but the receipts are cleared with the project");
   assert.equal(f.cards.receipts("a", { limit: 10, offset: 0 }).total, 0);
 });
+
+for (const mode of ["read", "mixed"] as const) {
+  test(`SYS-03 six concurrent ${mode} calls share one 60000-character round budget`, async t => {
+    const budget = new RoundBudget(), f = await fixture(t, budget);
+    f.pages.set("p1", { id: "p1", title: "并发读取", body: Array.from({ length: 30 }, () => "x".repeat(400)).join("\n"), version: 1 });
+    const allChecked = Promise.withResolvers<void>();
+    let checks = 0;
+    const access = { ...f.access(round("parallel")), beforeEffect: async () => {
+      if (++checks === 6) allChecked.resolve();
+      await allChecked.promise;
+    } };
+    const subject = { kind: "page", id: "p1" };
+    const results = await Promise.all(Array.from({ length: 6 }, (_, i) => mode === "mixed" && i % 2
+      ? f.knowledge.grep(access, { subjects: [subject], pattern: "x", context_lines: 0, limit: 30 }).then(result => ({ chars: result.matches.reduce((sum, hit) => sum + [hit.text, ...hit.before, ...hit.after].join("\n").length, 0), left: result.round_chars_left }))
+      : f.knowledge.read(access, { subject, max_chars: 12_000 }).then(result => ({ chars: result.text.length, left: result.round_chars_left }))));
+    assert.equal(results.reduce((sum, result) => sum + result.chars, 0), 60_000);
+    assert.deepEqual(results.map(result => result.left).sort((a, b) => a! - b!), [0, 0, 12_000, 24_000, 36_000, 48_000]);
+    assert.equal(budget.left("parallel"), 0);
+    assert.equal(f.cards.receipts("a", { limit: 10, offset: 0 }).receipts.reduce((sum, receipt) => sum + receipt.chars, 0), 60_000);
+  });
+}
+
+test("SYS-03 a rejected read leaves its round's full budget for the next valid read", async t => {
+  const budget = new RoundBudget(), f = await fixture(t, budget);
+  const access = f.access(round("rejected"));
+  await assert.rejects(f.knowledge.read({ ...access, beforeEffect: async () => { throw new ActionError("actions.revoked", "已撤权"); } }, { subject: { kind: "page", id: "p1" } }), { code: "actions.revoked" });
+  assert.equal(budget.left("rejected"), 60_000);
+  assert.equal(f.cards.receipts("a", { limit: 10, offset: 0 }).total, 0);
+  assert.equal((await f.knowledge.read(access, { subject: { kind: "page", id: "p1" } })).round_chars_left, 60_000 - "试用手册".length);
+});

@@ -16,6 +16,7 @@ import { timelineRoutes } from "./routes-timeline.js";
 import { writersRoutes } from "./routes-writers.js";
 import type { CodingSessionStore } from "./store.js";
 import { codingZh } from "./words.js";
+import { startCodingObservation } from "./observation-job.js";
 
 export { stopCodingSurface } from "./route-activation.js";
 export { planContinuesAfterTalk } from "./routes-timeline.js";
@@ -65,5 +66,6 @@ export function codingSurface(context: PluginStartContext, sessions: CodingSessi
   const routes = [writersRoutes, changesetsRoutes, goalsRoutes, setupRoutes, sessionsRoutes, timelineRoutes, delegationsRoutes, cardsRoutes].flatMap(group => group(activation));
   // The work-executor roles have no route: they answer through the handlers just made.
   codingExecutor(activation);
+  startCodingObservation(activation);
   return { routes, actions };
 }

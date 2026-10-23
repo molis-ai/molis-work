@@ -1,4 +1,4 @@
-import type { UiSideContext } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiSideContext, UiPageMessage } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PagesCommentThread } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { CommentSideHost, CommentDraft, CommentElements, CommentOpening, CommentStatus, CommentCommandResult, PendingCommentCommand } from "./comment-browser-types.js";
 import { commentErrorMessage } from "./comment-browser-types.js";
@@ -108,7 +108,7 @@ export function mountComments(host: CommentSideHost): void {
   });
   const commands=new Map<string,PendingCommentCommand>();
   // Asked under the current context; one the page refused as asked under an older context (nothing ran) is asked again.
-  const ask=(request_id: string,waiting: PendingCommentCommand)=>{waiting.stale=false;waiting.epoch=epoch;parent.postMessage({type:'molis:side-context-command',context_epoch:epoch,command:{...waiting.value,request_id}},location.origin);};
+  const ask=(request_id: string,waiting: PendingCommentCommand)=>{waiting.stale=false;waiting.epoch=epoch;host.messages.send({type:'molis:side-context-command',context_epoch:epoch,command:{...waiting.value,request_id}});};
   const command=(value: object)=>new Promise<CommentCommandResult>((resolve,reject)=>{
     const request_id=crypto.randomUUID(),timeout=window.setTimeout(()=>{commands.delete(request_id);reject(new Error(L('文档未响应，请重新打开评论面板')));},10000);
     const waiting={resolve,reject,timeout,page:context!.object_ref.id,value,epoch};commands.set(request_id,waiting);ask(request_id,waiting);
@@ -124,8 +124,8 @@ export function mountComments(host: CommentSideHost): void {
   };
   const paintMode=()=>{for(const node of root.querySelectorAll<HTMLElement>('[data-comment-mode]'))node.setAttribute('aria-pressed',String(node.dataset.commentMode===mode));q('discussion').hidden=mode!=='comments';q('notes').hidden=mode!=='notes';q('form').hidden=mode!=='comments'||!context;};
   for(const node of root.querySelectorAll<HTMLElement>('[data-comment-mode]'))node.addEventListener('click',()=>{mode=node.dataset.commentMode!;paintMode();if(mode==='notes')void notes();});
-  addEventListener('message',event=>{
-    if(event.source!==parent||event.origin!==location.origin)return;const data=event.data;
+  host.messages.listen(message=>{
+    const data=message as UiPageMessage & { context_epoch: number; context: UiSideContext|null; target: CommentOpening; request_id: string; object_id: string; stale?: boolean; error?: string } & CommentCommandResult;
     if(data?.type==='molis:side-context'){
       if(data.context_epoch<epoch)return;const id=context?.object_ref.id;context=data.context;epoch=data.context_epoch;
       if(context?.plugin_id!=='io.molis.work.pages')context=null;
@@ -139,5 +139,5 @@ export function mountComments(host: CommentSideHost): void {
       commands.delete(data.request_id);clearTimeout(waiting.timeout);data.error?waiting.reject(new Error(data.error)):waiting.resolve(data);
     }
   });
-  parent.postMessage({type:'molis:side-ready'},location.origin);
+  host.messages.send({type:'molis:side-ready'});
 }

@@ -27,6 +27,8 @@ Tauri 工程、配置和资源已集中在本包的 `src-tauri/`，启动占位�
 
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。
 
+桌面启动、原生命令分发及 Shelf 后台请求先用随机 challenge 和 Home 控制密钥验证本地服务的 HMAC 响应。后台请求复用已验证的 TCP 连接再发送令牌和内容；端口上的任意 HTTP 服务不能冒充本 Home。原生 PTY 已移除，终端仍走工作台的 WebSocket PTY。对应 SYS-14 的 Rust/HTTP 负向用例证明协议拒绝，原生 WebKit 实操单列验收。
+
 ## 产品启动与打包
 
 `launchers/` 保存 CLI、MCP、Web 的最终产品启动装配；它使用根产品 manifest 的依赖，由根 `tsconfig.json` 编译到原来的 `dist/cli`、`dist/mcp`、`dist/web`。协议实现仍在 CLI/MCP App，业务装配仍在 Local Host。

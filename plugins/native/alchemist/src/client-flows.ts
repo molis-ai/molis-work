@@ -66,7 +66,7 @@ await api('/directions/'+enc(d.id),{title:f.get('title'),description:f.get('desc
 }
 if(name==='archive-direction'||name==='restore-direction'){
 const archived=name==='archive-direction';
-if(archived&&!confirm(L('归档这个方向？相关点子和研究记录会保留。')))return;
+if(archived&&!await host.confirm(L('归档这个方向？相关点子和研究记录会保留。')))return;
 await api('/directions/'+enc(focus.id)+'/status',{status:archived?'archived':'active'},'PATCH');
 await load();closeDetail();return;
 }
@@ -95,6 +95,6 @@ if(name==='resolve'){await api('/annotations/'+enc(el.dataset.id)+'/resolve',{})
 if(name==='taste'){show('添加判断偏好',field('标题','title',{required:true})+field('偏好内容','statement',{area:true,required:true,max:1000})+field('适用范围','appliesTo',{area:true,required:true,max:500})+field('例外（每行一条）','exceptions',{area:true}),'保存偏好',async f=>{await api('/memory/taste',{title:f.get('title'),statement:f.get('statement'),appliesTo:f.get('appliesTo'),exceptions:lines(f.get('exceptions'))});closeAfterSubmit();await open({kind:'settings'},false);});return;}
 if(name==='disable-taste'||name==='disable-playbook'){await api('/memory/'+(name==='disable-taste'?'taste':'playbook')+'/'+enc(el.dataset.id)+'/disable',{});await open({kind:'settings'},false);return;}
 if(name==='activity'){await open({kind:'activity'});return;}
-if(name==='export-json'||name==='export-zip'){const response=await life.fetch(base+'/workspace/export?format='+name.slice(7),{method:'POST',headers:headers()});if(!response.ok)throw new Error(L('导出失败，请重试。'));const bytes=await response.blob();life.assertCurrent();const link=document.createElement('a');link.href=URL.createObjectURL(bytes);life.own(()=>URL.revokeObjectURL(link.href));link.download='alchemist-'+new Date().toISOString().slice(0,10)+'.'+name.slice(7);link.click();life.timeout(()=>URL.revokeObjectURL(link.href),1000);notice(L('导出已生成。'));return;}
+if(name==='export-json'||name==='export-zip'){const response=await life.fetch(base+'/workspace/export?format='+name.slice(7),{method:'POST',headers:headers()});if(!response.ok)throw new Error(L('导出失败，请重试。'));const bytes=await response.blob();life.assertCurrent();await host.download(bytes,'alchemist-'+new Date().toISOString().slice(0,10)+'.'+name.slice(7));notice(L('导出已生成。'));return;}
 }
 `;

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { execFileSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -30,10 +31,15 @@ const HAN_IN = (selector: string) => `(() => {
 
 test("VUX-40: Goals statuses, Jelly's fixed category and the Files, Git, Diff and Text Stats pages speak English in English", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { evaluate, waitFor, navigate, command, sessionId, origin, projectId } = browser;
+  const { navigate, command, sessionId, origin, projectId } = browser;
+  const views = Object.fromEntries(await Promise.all(["jelly", "files", "git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
+  let active: Pick<typeof browser, "evaluate" | "waitFor"> = browser;
+  const evaluate: typeof browser.evaluate = (...args) => active.evaluate(...args);
+  const waitFor: typeof browser.waitFor = (...args) => active.waitFor(...args);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const open = async (plugin: string, ready: string) => {
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=${plugin}` }, sessionId));
+    active = views[plugin] ?? browser;
     await waitFor(ready, 30_000);
   };
   // Each page's own words: where they are and when it has drawn them.
@@ -62,7 +68,12 @@ test("VUX-40: Goals statuses, Jelly's fixed category and the Files, Git, Diff an
 
 test("VUX-40: with a real repository, Git's changes, branches, commit and conflict tools and the Files reader speak English", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { evaluate, waitFor, click, navigate, command, sessionId, origin, projectId, homeDirectory } = browser;
+  const { navigate, command, sessionId, origin, projectId, homeDirectory } = browser;
+  const views = Object.fromEntries(await Promise.all(["files", "git"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
+  let active: Pick<typeof browser, "evaluate" | "waitFor" | "click"> = browser;
+  const evaluate: typeof browser.evaluate = (...args) => active.evaluate(...args);
+  const waitFor: typeof browser.waitFor = (...args) => active.waitFor(...args);
+  const click: typeof browser.click = (...args) => active.click(...args);
   // A repository with one commit, one staged change and one that is not, so every list and the source-control tools show.
   const repo = join(homeDirectory, "english-repo");
   await mkdir(repo, { recursive: true });
@@ -87,6 +98,7 @@ test("VUX-40: with a real repository, Git's changes, branches, commit and confli
   await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('english-repo')");
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=git` }, sessionId));
+  active = views.git!;
   await waitFor("document.querySelector('[data-companion=git] [data-git-sc]:not([hidden])') && document.querySelectorAll('[data-companion=git] [data-git-path]').length === 2", 30_000);
   // The branch form, the PR form and one change opened: what they say is the page's too.
   await click("[data-companion=git] [data-git-branch-toggle]");
@@ -110,6 +122,7 @@ test("VUX-40: with a real repository, Git's changes, branches, commit and confli
   assert.deepEqual(await evaluate<string[]>(HAN_IN("[data-companion=git]")), [], "Git in English, with a rename open");
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=files` }, sessionId));
+  active = views.files!;
   await waitFor("document.querySelectorAll('[data-companion=files] [data-file-path]').length >= 2", 30_000);
   await click(`[data-companion=files] [data-file-path='${JSON.stringify(["notes.md"])}']`);
   await waitFor("!document.querySelector('[data-companion=files] [data-files-text]').hidden", 20_000);
@@ -120,6 +133,7 @@ test("VUX-40: with a real repository, Git's changes, branches, commit and confli
 /** Chinese in the markup the Host sent for `selector` (text, every attribute and template contents, shown or not). */
 const HAN_IN_MARKUP = (url: string, selector: string) => `(async () => {
   const page = new DOMParser().parseFromString(await (await fetch(${JSON.stringify(url)})).text(), 'text/html');
+  for (const node of page.querySelectorAll('script[data-plugin-document]')) { const parsed = new DOMParser().parseFromString(JSON.parse(node.textContent), 'text/html'); node.parentElement.replaceWith(...parsed.body.childNodes); }
   const out = [], han = /[\\u4e00-\\u9fff]/, scopes = [...page.querySelectorAll(${JSON.stringify(selector)})];
   for (const t of [...scopes.flatMap((scope) => [...scope.querySelectorAll('template')])]) scopes.push(t.content);
   for (const scope of scopes) {
@@ -132,7 +146,11 @@ const HAN_IN_MARKUP = (url: string, selector: string) => `(async () => {
 
 test("VUX-40: the Coding page, its own script's words and Coding settings speak English in English", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { evaluate, waitFor, navigate, command, sessionId, origin, projectId } = browser;
+  const { navigate, command, sessionId, origin, projectId } = browser;
+  const views = Object.fromEntries(await Promise.all(["jelly", "files", "git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
+  let active: Pick<typeof browser, "evaluate" | "waitFor"> = browser;
+  const evaluate: typeof browser.evaluate = (...args) => active.evaluate(...args);
+  const waitFor: typeof browser.waitFor = (...args) => active.waitFor(...args);
   const coding = `${origin}/projects/${projectId}/?openPlugin=coding`, settings = `${origin}/settings/coding-settings?project=${projectId}`;
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   const zh = await evaluate<{ found: boolean; han: string[] }>(HAN_IN_MARKUP(coding, "[data-coding-workbench]"));
@@ -146,6 +164,7 @@ test("VUX-40: the Coding page, its own script's words and Coding settings speak 
   assert.equal(inSettings.han.length, 1, "the current project line is there, in English");
   // Coding's own script fills the page in English too: the session list, the composer's controls and the results column.
   await navigate(() => command("Page.navigate", { url: coding }, sessionId));
+  active = views.coding!;
   await waitFor("document.querySelector('[data-coding-workbench] [data-coding-model] option')", 30_000);
   assert.deepEqual(await evaluate(HAN_IN("[data-coding-workbench]")), [], "Coding with no session open, in English");
   assert.ok((await evaluate<string>("document.querySelector('[data-coding-workbench] .coding-start').textContent")).includes("Write code with an Agent"));

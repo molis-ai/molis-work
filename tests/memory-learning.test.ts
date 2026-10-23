@@ -38,7 +38,7 @@ test("a wish said once is only suggested; said again in another work it is kept 
   assert.match(waiting!.hold_reason!, /只在一项工作里出现过/);
   assert.equal((await service.list(person)).items.length, 0, "nothing kept yet");
 
-  // A second work, the person says it again in their own words: repeated → kept automatically (preferences, conventions, lessons only).
+  // A second work, the person says it again in their own words: repeated → kept automatically (preferences and conventions only).
   const secondSaid = ["周报草稿", "风险还是要放在最前面，上次也是这么说的"];
   const second = await service.learnFromWork(inWork("work-2", "周报 9/30"), { said: secondSaid,
     proposals: [{ ...riskFirst, quote: "风险还是要放在最前面", same_as: waiting!.candidate_id }] });
@@ -46,7 +46,7 @@ test("a wish said once is only suggested; said again in another work it is kept 
   const [kept] = (await service.list(person)).items;
   assert.equal(kept!.source, "auto");
   assert.equal(kept!.basis, "repeated");
-  assert.deepEqual(kept!.approved_by, { by: "policy", policy: "memory.write-gate", version: 1 });
+  assert.deepEqual(kept!.approved_by, { by: "policy", policy: "memory.write-gate", version: 2 });
   assert.match(kept!.origin, new RegExp(`^${MEMORY_GATE_RULE}`));
   assert.equal((await service.candidates(person, { scope: "project" })).length, 0, "the suggestion was settled by the promotion");
   const [change] = service.changes(person, { scope: "project" });
@@ -89,6 +89,27 @@ test("only once, only inferred, a background fact, words the person never said, 
   service.savePrefs(person, "project", { learn_from_work: false });
   service.savePrefs(person, "personal", { learn_from_work: false });
   assert.equal(service.worthLearning(inWork("work-7", "x"), ["以后周报都用要点"]), false);
+});
+
+// MEM-12: independent repetition verifies a source; it does not make an experience eligible for automatic approval.
+test("an experience repeated in two works stays the same pending candidate until the person accepts it", { timeout: 60_000 }, async t => {
+  const { service } = await memoryHome(t);
+  const proposal = { text: "预热缓存后发布告警通常更少", kind: "experience" as const, scope: "project" as const, basis: "explicit" as const, quote: "预热缓存后发布告警通常更少" };
+  const first = await service.learnFromWork(inWork("experience-1", "首次复盘"), { said: ["记住这个经验：预热缓存后发布告警通常更少"], proposals: [proposal] });
+  assert.equal(first[0]!.outcome, "candidate");
+  assert.match(first[0]!.reason, /经验.*认可/);
+  assert.doesNotMatch(first[0]!.reason, /会自动记住/);
+  const second = await service.learnFromWork(inWork("experience-2", "第二次复盘"), { said: ["下次也参考这个经验，预热缓存后发布告警通常更少"], proposals: [proposal] });
+  assert.equal(second[0]!.outcome, "candidate");
+  assert.equal(second[0]!.candidate_id, first[0]!.candidate_id);
+  assert.match(second[0]!.reason, /经验.*认可/);
+  assert.deepEqual((await service.list(person, { scope: "project" })).items, []);
+  const waiting = await service.candidates(person, { scope: "project" });
+  assert.equal(waiting.length, 1);
+  assert.equal(waiting[0]!.state, "pending");
+  const accepted = await service.accept(person, waiting[0]!.candidate_id);
+  assert.equal(accepted.memory!.kind, "experience");
+  assert.deepEqual(accepted.memory!.approved_by, { by: "person" });
 });
 
 test("the drawing-out sends the registered instruction and the person's words, reads the checked structure, and hands it to the gate; a malformed answer writes nothing", { timeout: 60_000 }, async t => {

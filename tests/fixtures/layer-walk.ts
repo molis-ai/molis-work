@@ -14,7 +14,7 @@ import { OVERLAY_AFTER, OVERLAY_BEFORE, OVERLAY_OPEN, type OverlayLayer } from "
  */
 const triggersOf = (names: string[], verbs: string) => String.raw`(() => {
   const OPENS = /新建|新增|创建|添加|重命名|改名|删除|移除|归档${verbs}/, NAMES = ${JSON.stringify(names)};
-  const stage = document.querySelector('[data-plugin-stage]');
+  const stage = document.querySelector('[data-plugin-stage]') ?? document.querySelector('body > [data-work-surface]');
   const shown = (el) => { const box = el.getBoundingClientRect(); if (!box.width || !box.height) return false;
     const style = getComputedStyle(el); return style.visibility !== 'hidden' && !el.closest('[hidden], [inert], [aria-hidden=true]')
       && box.right > 0 && box.bottom > 0 && box.left < innerWidth && box.top < innerHeight; };
@@ -62,6 +62,7 @@ export interface LayerWalkBrowser {
   waitFor: (expression: string, timeout?: number) => Promise<unknown>;
   sessionId: string;
   origin: string;
+  content?(path: string): Promise<{ evaluate: Evaluate; waitFor: LayerWalkBrowser["waitFor"]; point(selector: string): Promise<{ x: number; y: number }> } | null>;
 }
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -72,8 +73,10 @@ const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * that a button asks for a dialog with. Returns the browser's own dialogs that were answered No.
  */
 export async function walkLayers(browser: LayerWalkBrowser, screens: Array<[where: string, path: string]>, names: string[], shell: Set<string>,
-  read: (where: string) => Promise<void>, log: (line: string) => void = () => undefined, moreVerbs: string[] = []): Promise<string[]> {
-  const { evaluate, command, navigate, waitFor, sessionId, origin } = browser;
+  read: (where: string, evaluate: Evaluate) => Promise<void>, log: (line: string) => void = () => undefined, moreVerbs: string[] = []): Promise<string[]> {
+  const { command, navigate, sessionId, origin } = browser;
+  let active: Pick<LayerWalkBrowser, "evaluate" | "waitFor"> & {point?: (selector: string) => Promise<{x: number; y: number}>} = browser;
+  const evaluate: Evaluate = (...args) => active.evaluate(...args);
   const verbs = moreVerbs.map((verb) => `|${verb}`).join("");
   const TRIGGERS = triggersOf(names, verbs), LAYER_ITEMS = layerItems(verbs);
   const native: string[] = [];
@@ -88,21 +91,21 @@ export async function walkLayers(browser: LayerWalkBrowser, screens: Array<[wher
     await navigate(() => command("Page.navigate", { url: origin + path }, sessionId));
     // A tab another browser job put behind it runs no frames.
     await command("Page.bringToFront", {}, sessionId);
-    await waitFor("document.readyState === 'complete'", 20_000);
+    await active.waitFor("document.readyState === 'complete'", 20_000);
     await pause(1500);
     // A browser's own confirm cannot be read, and would hold the page: it is counted and answered No.
     await evaluate("for (const name of ['confirm', 'alert', 'prompt']) window[name] = () => { (window.__cnNative ??= []).push(name); return name === 'confirm' ? false : null; }");
   };
   const scoped = async (where: string) => {
     await evaluate("document.querySelector('[data-ov-layer]')?.setAttribute('data-audit-scope', '')");
-    try { await read(where); } finally { await evaluate("document.querySelectorAll('[data-audit-scope]').forEach((el) => el.removeAttribute('data-audit-scope'))"); }
+    try { await read(where, evaluate); } finally { await evaluate("document.querySelectorAll('[data-audit-scope]').forEach((el) => el.removeAttribute('data-audit-scope'))"); }
   };
   // Presses what the selector finds and returns the layer that came up.
   const raise = async (selector: string, button: "left" | "right" = "left"): Promise<OverlayLayer | null> => {
     const point = await evaluate<{ x: number; y: number } | null>(pointOf(selector));
     if (!point) return null;
     await evaluate(OVERLAY_BEFORE);
-    await press(point, button);
+    await press(active.point ? await active.point("[data-ov-active]") : point, button);
     await pause(700);
     return evaluate<OverlayLayer | null>(OVERLAY_OPEN);
   };
@@ -116,11 +119,14 @@ export async function walkLayers(browser: LayerWalkBrowser, screens: Array<[wher
       await pause(300);
     }
     native.push(...(await evaluate<string[] | undefined>("window.__cnNative?.splice(0)") ?? []).map((name) => `${url} ${name}`));
-    return !(await evaluate<{ open: boolean }>(OVERLAY_AFTER)).open && await evaluate<string>("location.href") === url;
+    return !(await evaluate<{ open: boolean }>(OVERLAY_AFTER)).open && await browser.evaluate<string>("location.href") === url;
   };
   for (const [screen, path] of screens) {
-    await open(path);
-    const url = await evaluate<string>("location.href");
+    active = browser; await open(path);
+    const content = await browser.content?.(path);
+    for (const view of content ? [browser, content] : [browser]) {
+    active = view;
+    const url = await browser.evaluate<string>("location.href");
     let fresh = true;
     const triggers = (await evaluate<Trigger[]>(TRIGGERS)).filter((trigger) => !trigger.shell || !shell.has(trigger.key));
     for (const trigger of triggers) if (trigger.shell) shell.add(trigger.key);
@@ -145,6 +151,7 @@ export async function walkLayers(browser: LayerWalkBrowser, screens: Array<[wher
         if (dialog) await scoped(`${where} › 「${item}」`);
         fresh = await close(url);
       }
+    }
     }
   }
   return native;

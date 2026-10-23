@@ -1,3 +1,5 @@
+import { pluginRouteControl } from "./plugin-route-control.js";
+import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -18,15 +20,17 @@ export async function handlePlacementHttp(request: IncomingMessage, response: Se
     else if (route === "goals") sendJson(response, 200, await client.invoke(placementGoalActions.goals, { project_id: url.searchParams.get("project_id") ?? "" }));
     else {
       const body = await readBody(request) as Record<string, unknown>;
-      const result = route === "describe" ? await client.invoke(placementActions.describe, { object: body.object as PlacedObject })
+      const page = pluginPageRequest(request);
+      const control = page ? pluginRouteControl(page.signal, page.assertCurrent) : undefined;
+      const result = route === "describe" ? await client.invoke(placementActions.describe, { object: page ? page.ownedObject(body.object as PlacedObject) : body.object as PlacedObject }, control)
         : route === "link" ? await client.invoke(placementActions.link, { object: body.object as PlacedObject, project_id: String(body.project_id ?? "") })
         : route === "unlink" ? await client.invoke(placementActions.unlink, { key: String(body.key ?? "") })
         : route === "move" ? await client.invoke(placementActions.move, { object: body.object as PlacedObject, to_project_id: String(body.to_project_id ?? "") })
         : route === "copy" ? await client.invoke(placementActions.copy, { object: body.object as PlacedObject, to_project_id: String(body.to_project_id ?? ""), request_id: String(body.request_id ?? "") })
         : route === "bind-goal" ? await client.invoke(placementGoalActions.bindGoal, { object: body.object as PlacedObject, project_id: String(body.project_id ?? ""), goal_id: String(body.goal_id ?? "") })
         : route === "create" ? await client.invoke(placementGoalActions.create, body as unknown as PlacementCreateRequest)
-        : await client.invoke(placementActions.convert, body as unknown as PlacementConvertRequest);
-      sendJson(response, 200, result);
+        : await client.invoke(placementActions.convert, { ...body as unknown as PlacementConvertRequest, ...(page ? { source: page.ownedObject(body.source as PlacedObject) } : {}) }, control);
+      page?.assertCurrent(); sendJson(response, 200, result);
     }
   } catch (error) {
     const failure = actionErrorResponse(error);

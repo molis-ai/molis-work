@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, type WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -23,7 +23,7 @@ async function within(name: string, operation: Promise<unknown>) {
 }
 
 /** An isolated Host behind the actual desktop HTTP composition. No store writes or grant shortcuts. */
-export async function serveHomeRuntime(t: TestContext, options: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]> = {}) {
+export async function serveHomeRuntime(t: TestContext, options: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]> = {}, webOptions: Pick<WebServerOptions, "chooseDirectory"> = {}) {
   const home = options.homeDirectory ?? await mkdtemp(join(tmpdir(), "home-runtime-"));
   let host: MolisWorkLocalHost | undefined, server: ReturnType<ReturnType<typeof createDesktopWebHost>> | undefined;
   t.after(async () => {
@@ -40,7 +40,7 @@ export async function serveHomeRuntime(t: TestContext, options: NonNullable<Cons
   });
   host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, ...options });
   const token = randomUUID();
-  server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token });
+  server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token, ...webOptions });
   await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`, web = new LocalHostHttpClient({ origin, controlToken: token });

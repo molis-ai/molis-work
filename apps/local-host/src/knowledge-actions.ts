@@ -68,9 +68,9 @@ const CARD_SCHEMA = { type: "object", properties: { title: { type: "string" }, b
 export function knowledgeModelWriter(homeDirectory: string): KnowledgeWriter | null {
   const generate = hostTextGeneration({ homeDirectory });
   if (!generate) return null;
-  return async input => {
+  return async (input, signal) => {
     const result = await generate(resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_ORGANIZE, JSON.stringify(input)), KNOWLEDGE_ORGANIZE.prompt_id), {
-      structured: { mode: "local", name: "knowledge_card", schema: CARD_SCHEMA as never }, timeoutMs: 120_000, maxOutputTokens: 4000 });
+      structured: { mode: "local", name: "knowledge_card", schema: CARD_SCHEMA as never }, signal, timeoutMs: 120_000, maxOutputTokens: 4000 });
     const draft = result.structured as KnowledgeDraft | undefined;
     if (!draft || typeof draft !== "object") throw new Error("模型没有给出合格式的卡片");
     return draft;
@@ -176,7 +176,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
       definitions: [...Object.values(knowledgeActions), ...Object.values(knowledgeManageActions)], handlers },
     organizer,
     changed,
-    projectDeleted: projectId => { clearTimeout(timers.get(projectId)); timers.delete(projectId); store.removeProject(projectId); },
+    projectDeleted: projectId => { clearTimeout(timers.get(projectId)); timers.delete(projectId); organizer.removeProject(projectId); store.removeProject(projectId); },
     tally: (projectId, views) => service.tally(projectId, views),
     catalog: (projectId, views, words) => service.catalog(projectId, views, words),
     close: async () => {

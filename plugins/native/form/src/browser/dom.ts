@@ -28,10 +28,3 @@ export const arrive = (node: HTMLElement | null) => {
   node.classList.add("is-arriving");
   return node;
 };
-
-export const download = (name: string, blob: Blob) => {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url; link.download = name; link.click();
-  URL.revokeObjectURL(url);
-};

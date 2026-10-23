@@ -1,12 +1,12 @@
 # Schedule 定时任务入口
 
-列出人手创建的对话态定时任务、其他插件登记的闹钟，以及下次叫醒时间和上次收据。对话任务到点后在自己的对话里跑一轮只读 Agent。插件通用提醒由 Schedule 保存，到点由 Host 投递到 Inbox，无须打开 Builder 或运行插件代码。
+列出人手创建的对话态定时任务、其他插件登记的闹钟，以及下次叫醒时间和上次收据。对话任务到点后在自己的对话里跑一轮只读 Agent。插件通用提醒由 Schedule 保存，通过公共通知服务投递到 Inbox；后台在正式 Plugin Runtime 中运行，无须打开任何页面。
 
 包名：`@molis-ai/molis-work-plugin-schedule`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
-Host 把任务和 job 记录交给 UI contribution；HTTP 路由表拥有 `/api/schedule` 匹配，Host 注入 list / create / setEnabled。其他插件登记仍走 Host Capability `schedule.register`。
+Host 把任务和 job 记录交给隔离页中的 UI contribution；Plugin Runtime 按 Manifest 在 `/api/plugins/io.molis.work.schedule` 挂载路由，调用同一份任务动作。其他插件用公共 `services.scheduler` 登记自己的动作闹钟，或消费 `reminders.add/cancel` 与 `schedules.add/cancel`。旧 typed `schedule.register` 入口已删除。
 
 ## 从哪里读代码
 
@@ -25,13 +25,13 @@ Host 把任务和 job 记录交给 UI contribution；HTTP 路由表拥有 `/api/
 | [src/route-handlers.ts](src/route-handlers.ts) | 创建、打开、暂停用例 |
 | [src/client.ts](src/client.ts) | 工作台选择、创建与暂停 |
 
-可对照现有调用方 [apps/workbench/src/schedule-projection-ui.ts](../../../apps/workbench/src/schedule-projection-ui.ts) 与 [apps/local-host/src/schedule-native-plugin-http.ts](../../../apps/local-host/src/schedule-native-plugin-http.ts)。
+可对照现有调用方 [apps/workbench/src/schedule-projection-ui.ts](../../../apps/workbench/src/schedule-projection-ui.ts) 与 [src/plugin.ts](src/plugin.ts)。
 
 ## 接入与边界
 
-不导入 Feed / Goals 实现。提醒通过 Host 注入的同库投递端口写入 Inbox；人手任务走本插件 HTTP，其他插件自有业务闹钟仍由 Scheduler 叫醒它们自己的 Capability。本地 Web 没开时闹钟不响。
+不导入 Feed / Goals 实现，也不接收数据库连接、安装仓库或专用宿主端口。工厂只使用 `services.project_database`、`scheduler`、`installations`、`notifications`、`agents`、`background` 与公开动作目录。业务记录与闹钟、通知通过同一个项目库事务提交；安装身份取网关和公共安装目录。宿主进程停止期间不执行闹钟。
 
-通用提醒由 Host 以 `schedule.reminders` 系统提供方注册，保持已有安装不依赖启用可选对话页面的行为；公开声明见 `REMINDER_ACTIONS`。对话任务仍由本插件 Manifest 注册，并遵循项目启停规则。
+任务、提醒与定时操作均由 Schedule 的 Manifest 注册，采用同一启停规则。新项目通过普通插件 membership 默认启用；关闭 Schedule 会一起暂停页面和后台，重开同一安装沿原身份恢复，重装不能接管旧任务。现有项目不会在读取时自动补启用。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。
 
@@ -55,19 +55,19 @@ node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversati
 - 负责：对话式定时任务、安装级通用提醒和定时操作、单次执行状态、其他插件登记的闹钟列表、收据与暂停。
 - 不负责：Feed 与 Goal 事实、cron 表达式、闹钟主人的执行实现。
 - 公开入口：`@molis-ai/molis-work-plugin-schedule`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：本包通过合同使用 Runtime 服务，不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 失败都是 `ActionError`：码是 `schedule.<原因>`（`scheduleErrors`）；状态只由 kind 推出，本插件没有错误类和状态表。Scheduler 服务的 `schedulerErrors` 在本插件的动作边界（`scheduleFailure`）换成 `schedule.job_not_found` 或 `schedule.job_invalid`，不带着 Scheduler 的码出去；`actions.ts` 的 `bind`、`reminder-actions.ts`、`operation-actions.ts` 的五处包装各由 `tests/feed-inbox-schedule-error-model.test.ts` 用服务公开的错误声明和真实的 Scheduler 驱动，去掉任何一处都会失败。宿主为提醒做的安装检查（`apps/local-host/src/schedule-reminders.ts`）在插件安装不存在、不是运行态或属于别的插件时，同样抛 `schedule.job_invalid`（400），由 `tests/schedule-reminder-recovery.test.ts` 的真实 Host 用例钉住。
+  - 失败都是 `ActionError`：码是 `schedule.<原因>`（`scheduleErrors`）；状态只由 kind 推出，本插件没有错误类和状态表。Scheduler 服务的 `schedulerErrors` 在本插件的动作边界（`scheduleFailure`）换成 `schedule.job_not_found` 或 `schedule.job_invalid`，不带着 Scheduler 的码出去；`actions.ts` 的 `bind`、`reminder-actions.ts`、`operation-actions.ts` 的五处包装各由 `tests/feed-inbox-schedule-error-model.test.ts` 用服务公开的错误声明和真实的 Scheduler 驱动，去掉任何一处都会失败。`runtime-installations.ts` 经公共安装目录检查提醒所属的安装和世代；安装不存在、停用或属于其他插件时拒绝，真实 Runtime 用例见 `tests/schedule-reminder-recovery.test.ts`。
   - 其他插件自有业务闹钟由 Scheduler 叫醒它们自己的能力；通用提醒由本插件拥有，使用 `reminders.add/cancel`，同一插件重装不能接管旧安装的提醒。
   - 提醒同时绑定安装 ID 与 Runtime 安装世代；重装复用存储 ID 也不能取消或投递旧世代提醒，投递失败并记下原因，提醒保留。
-  - 重装前设下的提醒在详情核对内容、当前安装版本与发布方后，经公开 `schedule.reminders.recover` 明确恢复。预期安装 ID/世代只防止过期确认，实际目标由 Host 重新读取；普通启用不补权。恢复沿用原 job、时间、收据和固定间隔，过期补提醒一次，不运行插件代码；重复确认不能重新开启后来暂停的任务。
+  - 重装前设下的提醒在详情核对内容、当前安装版本与发布方后，经公开 `schedule.reminders.recover` 明确恢复。预期安装 ID/世代只防止过期确认，实际目标由公共安装目录重新读取；普通启用不补权。恢复沿用原 job、时间、收据和固定间隔，过期补提醒一次，不运行插件代码；重复确认不能重新开启后来暂停的任务。
   - 提醒的 daily/weekly 是固定 24 小时/7 天间隔；创建、取消与 Scheduler job 同库事务，Inbox 投递与一次性消费也在同一事务内复查 lease。
   - 对话任务到点在自己的对话里跑一轮只读 Agent；提示词正文随目录条目声明。
-  - `schedules.add/cancel` 由 Schedule 的 `schedule.operations` 系统提供方拥有，实际 operation 仍由当前安装执行。首次派出前持久化 pending/running；只有尚未派出的 pending 能自动等待新唤醒，已派出结果未知时暂停，不能自动重放。
+  - `schedules.add/cancel` 由 Schedule 的 Runtime 实例拥有，实际 operation 仍由当前安装执行。首次派出前持久化 pending/running；只有尚未派出的 pending 能自动等待新唤醒，已派出结果未知时暂停，不能自动重放。
   - 执行入口注册不补跑任务。每次派出使用本次 Scheduler lease 和当前安装世代；结果、Inbox 与单次执行终态同事务提交。失败/未知不能报告成功；撤销后的迟到结果不能写业务状态或 Inbox。
   - `schedule.operations.recover` 只供具有管理权限的调用方使用，显式 `plugin: false`。确认校验原输入/历史 revision 和当前安装 ID、世代、版本；未知结果不能用普通恢复隐式重跑。retry/skip 保留核对历史，确认本身不运行插件；一次性任务跳过后结束。
   - 本地 Web 宿主没运行时闹钟不响。
-  - 新建对话任务时不检查就绪（W2-18 决定 3，2026-10-09）：没有文字模型或项目没绑定已核对的工作区，「新建定时任务」对话框给一句提示、仍允许创建，到点才会叫醒失败。`schedule.tasks.readiness`（查询，`schedule:read`，返回 `{ model, workspace }`）由 Host 端口回答，Host 的 `scheduledTaskReadiness`（`apps/local-host/src/schedule-task-runner.ts`）答两样：项目的已核对工作区（与到点执行的 runner 同一个来源、同一个核对）和是否配置了文字模型（读模型目录的元数据、不解密凭据；runner 本身查的是 Prologue 运行时是否已登记、模型留给 Prologue 开跑时解析，所以这一项是替身，提示是提醒不是保证）；没有这个端口的 Host 报 `actions.unredeemed`。对话框每次点「新建」时读一次，读不到就不提示；编辑已有任务不提示。答案只算给发出它的那一次打开：关掉后再开编辑、或再开新建，迟到的旧答案不会显示在后一次里（`tests/schedule-readiness.test.ts`）。两条提示各带一个普通链接：模型指向 `/settings/models`，工作区指向本项目的 `/settings/workspaces`（工作目录设置）；设置盖在页面上、模态对话框会压住它，所以点链接时先关掉对话框。提示是 `.mw-alert`（网格，用 `div`，和设计系统的 alert 一致，`<p>` 的默认外边距会把两条提示撑开），句子和链接装在同一个 `<span>` 里，链接才跟在句末、点击区只是它自己的字；直接放在提示下它会单独占一行并撑满整行。链接不换行（`white-space:nowrap`），窄对话框里整条挪到下一行，不在词中间断开。新建对话框开着时收到 `molis-work:model-ready`（模型设置报告第一个能用的模型，见 `skills/molis-prologue-ai/SKILL.md`），按同一个打开编号重读一次，模型提示随之消失；对话框关着或在编辑时不读（`tests/schedule-readiness.test.ts`；浏览器里的动线 `tests/model-ready-surfaces.e2e.test.ts`）。
+  - 新建对话任务时不检查就绪（W2-18 决定 3，2026-10-09）：没有文字模型或项目没绑定已核对的工作区，「新建定时任务」对话框给一句提示、仍允许创建，到点才会叫醒失败。`schedule.tasks.readiness`（查询，`schedule:read`，返回 `{ model, workspace }`）通过公开工作区查询与 `services.model.availability()` 读取元数据，不解密凭据、不启动模型；实际唤醒由公共 Agent 服务再次检查工作区和运行环境，所以提示不是执行保证。对话框每次点「新建」时读一次，读不到就不提示；编辑已有任务不提示。答案只算给发出它的那一次打开：关掉后再开编辑、或再开新建，迟到的旧答案不会显示在后一次里（`tests/schedule-readiness.test.ts`）。两条提示各带一个普通链接：模型指向 `/settings/models`，工作区指向本项目的 `/settings/workspaces`（工作目录设置）；设置盖在页面上、模态对话框会压住它，所以点链接时先关掉对话框。提示是 `.mw-alert`（网格，用 `div`，和设计系统的 alert 一致，`<p>` 的默认外边距会把两条提示撑开），句子和链接装在同一个 `<span>` 里，链接才跟在句末、点击区只是它自己的字；直接放在提示下它会单独占一行并撑满整行。链接不换行（`white-space:nowrap`），窄对话框里整条挪到下一行，不在词中间断开。新建对话框开着时收到 `molis-work:model-ready`（模型设置报告第一个能用的模型，见 `skills/molis-prologue-ai/SKILL.md`），按同一个打开编号重读一次，模型提示随之消失；对话框关着或在编辑时不读（`tests/schedule-readiness.test.ts`；浏览器里的动线 `tests/model-ready-surfaces.e2e.test.ts`）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/schedule-plugin.test.ts tests/schedule-actions.test.ts tests/schedule-conversation-tasks.test.ts tests/schedule-task-runner.test.ts tests/agent-built-plugins-reminders.test.ts tests/schedule-reminder-recovery.test.ts tests/schedule-operations.test.ts tests/schedule-operation-recovery.test.ts tests/schedule-readiness.test.ts tests/plugin-client-served.test.ts tests/feed-inbox-schedule-error-model.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/plugin-small-ux.e2e.test.ts tests/cross-plugin-recovery.e2e.test.ts tests/model-ready-surfaces.e2e.test.ts`
 - 相关手册：[docs/horizontal/scheduler.md](../../../docs/horizontal/scheduler.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
@@ -84,3 +84,7 @@ node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversati
 - Migration Goals: `goal-reorg-f2`
 
 对话任务的 runner 消费 Scheduler 执行控制，授权从本次唤醒的当前 lease 来，不能沿用创建动作的临时回调。等待前后复查任务版本和启停，暂停、归档或变更后的迟到结果不追加助手回复或失败说明；Host 把同一检查传入 Prologue 派出前门禁并取消原运行。
+
+页面以公共 `host.view.readDocument()` 刷新自己的服务端投影；宿主在读取前后复核页面授权，只返回该贡献内容。实际新建、编辑、暂停、重开、恢复、归档见 [schedule-isolated-page.e2e.test.ts](../../../tests/schedule-isolated-page.e2e.test.ts)。
+
+后台接入与关闭验证：`tests/schedule-runtime-lifecycle.test.ts`、`tests/schedule-runtime-delivery.test.ts`、`tests/schedule-resident-runtime.test.ts`。前两者检查真实 Runtime 启停、身份、通知和重启恢复；驻留测试用真实时钟入口证明不打开页面也会执行，以及服务关闭、项目关闭和删除均取消在途依赖，不留迟到结果。公共服务的跨安装、跨项目、事务回滚、query 转写、撤权与强制退出恢复分别见 `tests/security-invariants-plugin-scheduler.test.ts`、`tests/security-invariants-plugin-dependencies.test.ts`、`tests/security-invariants-plugin-notifications.test.ts`。

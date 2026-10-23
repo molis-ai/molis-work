@@ -16,7 +16,7 @@ Owner 经 Host Capability `schedule.register` 挂一条 job，并事先把唤醒
 | --- | --- |
 | [src/index.ts](src/index.ts) | 表结构、WakeupIndex、ScheduleService、Capability 注册 |
 
-可对照现有调用方 [apps/local-host/src/schedule-runtime.ts](../../apps/local-host/src/schedule-runtime.ts)。
+可对照现有调用方 [apps/local-host/src/project-clock.ts](../../apps/local-host/src/project-clock.ts)。
 
 ## 接入与边界
 
@@ -47,7 +47,7 @@ node scripts/run-tests.mjs tests/scheduler.test.ts tests/schedule-plugin.test.ts
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：合同、公共执行生命周期（来自 plugin-sdk）与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 到点只叫一次；once 与 interval 由 Schedule 插件的 job 模型解释。
-  - 插件不能替别人登记：`schedule.*` 的主人只取自可信调用里的插件（`registerScheduleCapabilities` 的处理器读 `invocation.plugin`），输入不带也不读 `plugin_id`；没有插件身份、安装已停止的调用被拒绝（`tests/scheduler.test.ts`、`tests/scheduler-plugin-identity.test.ts`）；没有注册处理器的能力不能挂闹钟。
+  - 插件通过公共 `services.scheduler` 与本插件数据库事务登记闹钟，安装身份和项目由 Runtime 绑定，输入不读取 `plugin_id`；结束的事务、另一插件与另一项目的句柄、停用的安装均拒绝。唤醒只走 Manifest 声明的动作与现行动作网关（`tests/security-invariants-plugin-scheduler.test.ts`、`tests/scheduler-plugin-identity.test.ts`）。
   - 不执行业务，只叫醒闹钟主人自己的能力。
 - 改动后必跑：`node scripts/run-tests.mjs tests/scheduler.test.ts tests/scheduler-plugin-identity.test.ts tests/schedule-conversation-tasks.test.ts`
 - 相关手册：[docs/horizontal/scheduler.md](../../docs/horizontal/scheduler.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

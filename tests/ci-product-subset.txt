@@ -472,4 +472,9 @@ tests/security-invariants-activation-jobs.test.ts
 
 tests/connector-status.test.ts
 tests/connector-consumer-usages.test.ts
+
+# SYS-01/02/03: material exclusion, deletion and round budget through production owners.
+tests/knowledge-cards.test.ts
+tests/knowledge-reads.test.ts
+tests/security-invariants-knowledge-lifecycle.test.ts
 tests/canonical-json-value.test.ts

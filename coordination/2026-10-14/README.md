@@ -3010,3 +3010,18 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 2b 里不删那两处手写行，合进去以后由 ③ 删；
   - 顺序是 #1081 的 P1 → BL-403 + BL-404 → 2b。
 - 两边都在 19:5x 断在 `ERR_PROXY_TUNNEL` 上（代理拒绝了隧道）。① 20:03 试过，到 Anthropic 和 GitHub 都通了，负载 5，所以是临时的。已经发消息让两边接着做；② 那边要先看 #1081 的构建还在不在。
+
+### 10-23 20:05（12:05 UTC） Codex 的固定基线对照（`e191d14cf`）；ISSUE-37 交 Codex 定位
+
+- 固定的 main `a259350ac` 在干净工作树里装好、构建好，跑了 10 个失败文件：5 个过，5 个和集成红在同一处。`coding-rich-html` 在那份 main 里还没有，没法比。健康门禁 `--base origin/main` 只跑了一次，退出码 0。
+- 和 main 一样红的（main 本来就有）：
+  - `host-pages-error-model`、`personal-plugins-review-fixes`、`plugin-project-database`、`fill-message` → #1082；
+  - `issue-capture-page.e2e` 的 ISSUE-37 → R-23。
+- 只在集成上红的：
+  - `goals-mcp-actions`、`session-workspace.e2e` → #1075 的叠加修复已构建、定向跑过，马上交 ⑤ 和 ⑩；
+  - `coding-rich-html` → #1067 已在 main 上，Codex 从 main 补夹具；
+  - VUX-36 → 集成 480 → 602，main 480 → 480，Codex 又排了一次单文件重跑，#1086 的解释还没证实。
+- 偶发的：`busy-feedback` 单独重跑 2/2 过，归成时序；R-19 的两份 CLI 安全用例在全量和 main 上都过，包装器分不出三种失败的缺口还在。
+- 各 PR 的结论：#1063、#1066、#1068、#1074 过；#1067、#1075 红（原因见上）；#1071、#1051 因为和别的候选冲突被排除，没验。
+- **① 裁 ISSUE-37：Codex 定位。** 浏览器用例只有它那台机器能跑。先加诊断（请求数、输入、草稿状态），不延长超时，不改「放弃」的行为。是测试准备条件的缺陷，就从 main 修，只改测试；是产品问题，就把证据交回 ①，由 ① 定谁修（Issues 插件在 SSOT 里归 @yijunw0212）。排在 #1075 的叠加 PR 和 `coding-rich-html` 之后。
+- 19:56 那节说 ISSUE-37 可能和同事的 #1073 有关，这条撤回：固定的 main 里没有 #1073，照样红。

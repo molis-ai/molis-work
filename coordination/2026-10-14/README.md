@@ -3411,3 +3411,11 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 用户 10-23 授权启动子会话。第一批 7 条线照 18:20 一节的派单启动：`ac-kernel`（Opus high）、`ac-feed-fn`、`ac-snapshot`、`ac-clients-1`、`ac-sandbox-sched`（Sonnet xhigh）、`ac-errors`、`ac-giants`（Sonnet high）。
 - `ac-sc3` 完成：SC-3 开了 [#1113](https://github.com/molis-ai/molis-work/pull/1113)（头 `a959f8469`，已合 main 解 7 个文件冲突），`full` 非空（assembly、spans-packages，选中 203 个文件），交 `ac-review`。
 - #1099 已合（`5248af758`，17:27 UTC）；MERGE-QUEUE.md 跟着改。
+
+### 10-23 18:55 UTC　节流：同时最多两条开发线（用户 10-23）
+
+- 用户：一次开太多会话，电脑 CPU 扛不住，要一个个来。18:40 启动的 7 个会话里，6 个从没收到派单（0 条消息、空闲、不占 CPU），只有 `ac-kernel` 跑起来了。
+- 规矩：**同时最多两条开发线在跑**，另加评审会话 `ac-review`（只读）和 Codex。一条线做完，统筹再往下一个空会话里发派单（派单原文同 18:20 一节的表）。
+- 现在在跑：`ac-sc3`（SC-4，叠在 #1113 上）、`ac-kernel`（R7→W5-09→R8）。排队顺序：`ac-feed-fn`（R5，Inbox/Feed 前置）→ `ac-sandbox-sched`（BL-395、PG-039～042）→ `ac-clients-1`（W5-03/04）→ `ac-errors`（W5-13）→ `ac-giants`（W5-10）→ `ac-snapshot`（W5-16）。
+- 开发会话的派单里加一句：构建只构建改到的包，测试只跑直接相关的几个文件、`--jobs 2` 以内，不起浏览器批次。
+- 评审：#1107 一轮可合；#1112 修后可合（2 条交 Codex），统筹裁定规格板选 (b)、补 RAC-80～84。batch-1023-12 全绿。

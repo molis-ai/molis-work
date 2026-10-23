@@ -7,8 +7,8 @@ import { WORK_EXECUTOR_ROLES, workExecutorRoleOf, type ActionCallContext, type A
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { codingManifest, codingRouteActions, DEFAULT_SESSION_TITLE } from "@molis-ai/molis-work-plugin-coding";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { codingProductHost } from "./fixtures/coding-product-host.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
@@ -165,4 +165,21 @@ test("W5-01-CODING-77..81 a round the Assistant starts is the page's round: same
   const asked = await page(unread.session_id);
   assert.equal(asked.status, 200, JSON.stringify(asked.body));
   assert.equal(asked.body.configuration, null);
+
+  // Stopping is a durable SDK settlement, not only a transient page projection.
+  const system = ensureSystemAgentService(f.host, f.home), adapter = system.agentHost.adapter("prologue");
+  assert.deepEqual(adapter.diagnostics?.().ledger_failures, []);
+  assert.ok(read.runtime_session_id);
+  const stoppedRef = { session_id: read.runtime_session_id, run_id };
+  const supplementRef = { session_id: read.runtime_session_id, input_id: String(steered.receipt!.input_id) };
+  assert.equal((await adapter.inputs?.read?.(supplementRef))?.state, "queued", "the unread supplement returns to its owning queue");
+  await f.host.close();
+  const reopened = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
+  try {
+    const restoredSystem = ensureSystemAgentService(reopened, f.home, withMolisWorkProjectCatalog); await restoredSystem.ready;
+    const restored = restoredSystem.agentHost.adapter("prologue");
+    assert.equal((await restored.read(stoppedRef)).phase, "stopped");
+    assert.equal((await restored.inputs?.read?.(supplementRef))?.state, "queued");
+    assert.deepEqual(restored.diagnostics?.().ledger_failures, []);
+  } finally { await reopened.close(); }
 });

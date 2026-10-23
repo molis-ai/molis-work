@@ -564,8 +564,8 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
         // the run actually ends. Repeated clicks reuse the first request.
         return at.stopping.current ??= (async () => {
           await deps.index.update(input.session_id, index => { index.attempts[at.attemptIndex]!.stop_intent = reason; });
-          actionController.abort();
-          control.stop(reason);
+          // The accepted Run owns its terminal settlement after this control invocation returns.
+          deps.effects.detach(() => { actionController.abort(); control.stop(reason); });
         })().catch(error => { at.stopping.current = undefined; throw error; });
       },
       pause: () => control.pause(), resume: () => control.resume(),

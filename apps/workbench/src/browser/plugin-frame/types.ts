@@ -66,7 +66,7 @@ export type FrameUp =
   | { type: "embed-layout"; id: number; box: {x: number; y: number; width: number; height: number} | null }
   | { type: "embed-close"; id: number }
   | FrameRequest | ContextUp | PresentationMessage | { type: "ready" } | { type: "failed"; message: string }
-  | { type: "interaction" } | { type: "read-document"; id: number } | { type: "refresh-shell" }
+  | { type: "interaction" } | { type: "modal"; open: boolean } | { type: "read-document"; id: number } | { type: "refresh-shell" }
   | { type: "make-todo"; id: number; input: {title: string; sources: Array<{kind: string; title: string; excerpt: string; reason: string; subject: {kind: string; id: string}; open: {surface: string; id: string}}> } }
   | { type: "copy"; id: number; text: string }
   | { type: "draft"; id: number; key: string; value?: string | null }

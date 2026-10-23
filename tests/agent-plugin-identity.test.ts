@@ -29,7 +29,7 @@ test("real Plugin executor binds unknown Agent declarations and rejects forged o
   const home = await mkdtemp(join(tmpdir(), "plugin-agent-identity-"));
   const project = { project_id: "board", storage_key: join(home, "project.sqlite") };
   const store = new LocalProjectDatabase(project.storage_key), artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
-  const local = new LocalHost({ runtimeFactory: { open: () => ({ project_id: project.project_id, store, coordinator: { artifacts } }), close: () => {} } });
+  const local = new LocalHost({ runtimeFactory: { open: () => ({ project_id: project.project_id, store, artifacts }), close: () => {} } });
   let modelCalls = 0;
   t.mock.method(globalThis, "fetch", async () => { modelCalls++; return cogniaModelResponse("Original owner result"); });
   const composition = composeAgentHost({ localHost: { registerCapability: local.register.bind(local), registerAction: local.registerAction.bind(local), client: local.client.bind(local) } as any,

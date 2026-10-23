@@ -49,7 +49,7 @@ async function fixture(t: test.TestContext, permissions: readonly string[]) {
   await host.withProject(refA, runtime => runtime.coordinator.initializeBoard({ project_id: "pa", actor_id: "owner", idempotency_key: "a" }));
   await host.withProject(refB, runtime => runtime.coordinator.initializeBoard({ project_id: "pb", actor_id: "owner", idempotency_key: "b" }));
   const a = bindActionClient(host.actionClient(refA), () => callerA), b = bindActionClient(host.actionClient(refB), () => callerB);
-  const versions = (ref: typeof refA, project: string, artifactId: string) => host.withProject(ref, runtime => runtime.coordinator.artifacts.query.listArtifactVersions(project, artifactId));
+  const versions = (ref: typeof refA, project: string, artifactId: string) => host.withProject(ref, runtime => runtime.artifacts.query.listArtifactVersions(project, artifactId));
   // The same project as another actor of the Home: a workflow, an Agent or an MCP client.
   const as = (ref: typeof refA, project: string, actor_id: string, audience: ActionCallContext["audience"]) =>
     bindActionClient(host.actionClient(ref), () => ({ ...callerA, project_id: project, actor_id, audience }));

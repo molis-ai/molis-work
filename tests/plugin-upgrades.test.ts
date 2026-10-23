@@ -13,7 +13,7 @@ import {
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import { CODING_PLUGIN_ID, createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, codingRouteHooks, handleProjectPluginHttp, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, codingRouteHooks, handleProjectPluginHttp, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -152,6 +152,7 @@ test("a bundled plugin's older install moves up when the project starts, so the 
     });
     const ports = {
       store,
+      ...openProjectVersionStores(store),
       projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID),
       actorId: "market-test",
       escapeHtml: String,
@@ -198,7 +199,7 @@ for (const shape of ["above the build's version", "at the build's version with a
         grants: currentDefinition.manifest.permissions.filter(item => item.required).map(item => item.permission),
       }).install;
       const ports = {
-        store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "follow-test",
+        store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "follow-test",
         escapeHtml: String, translate: String, workspaces: [],
       };
       const { response, recorded } = recordedResponse();

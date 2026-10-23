@@ -29,7 +29,7 @@ export function pluginNotificationsFor(manifest: PluginManifest, context: Plugin
     if (!scope || scope.caller.project_id !== projectId || pluginInvocationReadOnly(scope)) {
       throw new ActionError("actions.forbidden", "通知投递需要当前项目中的可写插件调用");
     }
-    assertCapturedPluginActionCurrent(scope, context.install_id);
+    assertCapturedPluginActionCurrent(scope, context);
     if ("scene" in scope || "definition" in scope && (scope.definition.action.scheduling !== "concurrent" || !scope.definition.action.permissions.includes("notifications:write"))
       || "job" in scope && !scope.caller.permissions.includes("notifications:write")) throw new ActionError("actions.forbidden", "通知投递需要可等待的并行动作");
   };

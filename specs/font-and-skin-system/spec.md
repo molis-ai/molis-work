@@ -140,7 +140,7 @@ Home 级字体/皮肤选择、入口侧语言偏好，以及首期不提供项�
 2. 平台与插件自己写、但没接翻译的界面：Agent 操作审批卡（`apps/workbench/src/agent-review-surface.ts` 与 `apps/workbench/src/scripts/client/agent-review.ts`，整块没有 `L`）；Characters 的页面、导入对话框和脚本（CHR-1 后归工作台：`apps/workbench/src/characters/` 的 `ui.ts`、`import-ui.ts` 与 `apps/workbench/src/browser/characters/` 的脚本，约 230 句）与原生终端的提示（`apps/workbench/src/character-terminal-client.ts`）；提示词设置里的「组成角色：…」。
 3. 按中文词序拼句、夹全角标点：`L("关闭") + "：" + 标题` 一类拼接在英文里成了「Close：…」，约 70 处（`assistant-island.ts` 22、`settings-memory.ts` 10、`todo/src/client.ts` 8、`settings-assistant.ts` 6 最多）。应整句一个键带参数（FSS-39「不按中文词序拼接」）；连接器卡片的可访问名称已改作样例（`{name}，{action}` → “{name}, {action}”）。
 
-4. 同一个中文键在不同主人那里意思不同，合并进一本英文词典后后写的覆盖先写的：Pages 曾把「复制」译成「Duplicate」，覆盖助理代码块与整条回复的 Copy。2026-10-22 的 [SYS-48](../system-review-fixes/spec.md) 将 Pages 块操作改用独立中文键「创建副本」，保留 Duplicate；剪贴板的「复制」恢复 Copy。翻译冲突的门禁按中文键计数、只许减少，但不会拦住已有键的覆盖；其余按主人迁移稳定键的工作仍属于本书。
+4. 同一个中文键在不同主人那里意思不同，合并进一本英文词典后后写的覆盖先写的：Pages 曾把「复制」译成「Duplicate」，覆盖助理代码块与整条回复的 Copy。2026-10-22 的 [SYS-48](../archive/system-review-fixes/spec.md) 将 Pages 块操作改用独立中文键「创建副本」，保留 Duplicate；剪贴板的「复制」恢复 Copy。翻译冲突的门禁按中文键计数、只许减少，但不会拦住已有键的覆盖；其余按主人迁移稳定键的工作仍属于本书。
 
 **检查的盲区（FSS-06、FSS-37 要补）：** 翻译检查只认字面量调用，`L(变量)`、函数返回再翻的中文、查表后再 `L`、请求失败的 `fallback` 文案（`molisWorkRequest` 原样显示）都看不出缺英文。实走时扫「源码中文字面量不在任何词典里」得到约 200 处候选，含交给模型的话和样例数据，要逐一分主人。可补的做法：把 `fallback` 算作翻译位置；在页面实走里断言英文下没有中文（扣除人写的内容与声明文字）——`tests/english-surfaces.e2e.test.ts` 与 `tests/english-walkthrough.e2e.test.ts` 可作起点。
 

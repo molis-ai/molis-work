@@ -1,7 +1,10 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { ActionError, defineErrorCodes, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginJobControl, PluginJobDeclaration, PluginKeptJob } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { assertCapturedPluginActionCurrent, currentPluginInvocation, lastBegunPluginInvocation, pluginActionChecked, pluginInvocationReadOnly, runInPluginJob } from "./action-scope.js";
+import {
+  assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance, lastBegunPluginInvocation, pluginActionChecked, pluginInvocationReadOnly, runInPluginJob,
+  type PluginInstance,
+} from "./action-scope.js";
 
 export const backgroundErrors = defineErrorCodes("plugin", {
   background_action_required: "forbidden", background_undeclared: "forbidden", background_job_origin: "forbidden", background_job_unchecked: "forbidden",
@@ -11,8 +14,7 @@ export const backgroundErrors = defineErrorCodes("plugin", {
 const SWEEP_MS = 200;
 
 /** What the Host tells one activation's jobs (PG-038). */
-export interface ActivationJobGate {
-  readonly install_id: string;
+export interface ActivationJobGate extends PluginInstance {
   /** Who the installation acts as in this activation, the Host's word: a job's calls are the installation's, never its caller's. */
   readonly actor_id: string;
   /** The activation's project: a project instance's own; none for a Home instance. */
@@ -52,10 +54,10 @@ export function createActivationJobs(gate: ActivationJobGate) {
       if (!window.getStore()?.open) throw backgroundErrors.background_job_origin("后台作业只能在本插件的命令、激活的 start() 或另一个后台作业里登记");
       return { project: gate.project_id ?? null };
     }
-    if (scope.install_id !== gate.install_id) throw backgroundErrors.background_job_origin("这次调用属于另一个插件安装，不能为本插件登记后台作业");
+    if (!inPluginInstance(scope, gate)) throw backgroundErrors.background_job_origin("这次调用属于另一个插件实例，不能为本插件登记后台作业");
     if ("job" in scope) {
       // A job stopped since (cancelled, its project closed or deleted) keeps no successor: its own checks answer first.
-      assertCapturedPluginActionCurrent(scope, gate.install_id);
+      assertCapturedPluginActionCurrent(scope, gate);
       return { project: scope.caller.project_id, begun: scope.begun };
     }
     if (!("definition" in scope) || scope.definition.operation !== "command" || pluginInvocationReadOnly(scope)) {
@@ -63,7 +65,7 @@ export function createActivationJobs(gate: ActivationJobGate) {
     }
     if (!pluginActionChecked(scope)) throw backgroundErrors.background_job_unchecked("这次调用还没有通过最后一次授权检查，不能登记后台作业");
     // Having passed once is not enough: a call cancelled or revoked since its check keeps nothing.
-    assertCapturedPluginActionCurrent(scope, gate.install_id);
+    assertCapturedPluginActionCurrent(scope, gate);
     return { project: scope.caller.project_id, begun: scope.begun };
   };
   const keep = (job: string, work: (control: PluginJobControl) => Promise<void>): PluginKeptJob => {
@@ -90,7 +92,7 @@ export function createActivationJobs(gate: ActivationJobGate) {
       ...(project ? { project_id: project } : {}) });
     jobs.set(controller, { project, check });
     if (!timer) { timer = setInterval(sweep, SWEEP_MS); timer.unref?.(); }
-    const run = () => runInPluginJob({ install_id: gate.install_id, job, caller, ...(begun === undefined ? {} : { begun }) }, () => work(control));
+    const run = () => runInPluginJob({ install_id: gate.install_id, installation_generation: gate.installation_generation, job, caller, ...(begun === undefined ? {} : { begun }) }, () => work(control));
     const stopped = new Promise<never>((_, reject) => controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true }));
     const pending = Promise.resolve().then(() => { check(); return gate.operation ? gate.operation(run) : run(); });
     const done = Promise.race([pending, stopped]).finally(() => {

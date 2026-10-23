@@ -10,7 +10,7 @@ const caller: ActionExecutionContext = { actor_id: "owner", project_id: null, au
 const image = { name: "截图.png", data_url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a7x8AAAAASUVORK5CYII=" };
 
 test("ISSUE-14 ISSUE-15 drafts preserve six images and original words; concurrent confirmation creates exactly once", async t => {
-  const home = await mkdtemp(join(tmpdir(), "issue-capture-")), db = openPluginDatabase(home, ISSUES_DATABASE, () => {}, "issues-test");
+  const home = await mkdtemp(join(tmpdir(), "issue-capture-")), db = openPluginDatabase(home, ISSUES_DATABASE, () => {}, { install_id: "issues-test", installation_generation: "1" });
   t.after(async () => { db.close(); await rm(home, { recursive: true, force: true }); });
   const store = new IssueStore(db.client, "owner"), drafts = new IssueCaptures(store), draft_id = crypto.randomUUID();
   const original = { draft_id, description: "  切换页面以后，输入没了。\n", images: Array.from({ length: 6 }, (_, index) => ({ ...image, name: `${index}.png` })) };
@@ -26,7 +26,7 @@ test("ISSUE-14 ISSUE-15 drafts preserve six images and original words; concurren
 });
 
 test("ISSUE-15 cancelling while confirmation waits or restarting an activation rejects the stale draft", async t => {
-  const home = await mkdtemp(join(tmpdir(), "issue-cancel-")), db = openPluginDatabase(home, ISSUES_DATABASE, () => {}, "issues-test");
+  const home = await mkdtemp(join(tmpdir(), "issue-cancel-")), db = openPluginDatabase(home, ISSUES_DATABASE, () => {}, { install_id: "issues-test", installation_generation: "1" });
   t.after(async () => { db.close(); await rm(home, { recursive: true, force: true }); });
   const store = new IssueStore(db.client, "owner"), drafts = new IssueCaptures(store), draft_id = crypto.randomUUID();
   await drafts.prepare({ draft_id, description: "原文", images: [image] }, caller);
@@ -42,7 +42,7 @@ test("ISSUE-15 cancelling while confirmation waits or restarting an activation r
 });
 
 test("ISSUE-36 ISSUE-39 a capture always creates the draft's record and keeps the page the person reported", async t => {
-  const home = await mkdtemp(join(tmpdir(), "issue-capture-page-")), db = openPluginDatabase(home, ISSUES_DATABASE, () => {}, "issues-test");
+  const home = await mkdtemp(join(tmpdir(), "issue-capture-page-")), db = openPluginDatabase(home, ISSUES_DATABASE, () => {}, { install_id: "issues-test", installation_generation: "1" });
   t.after(async () => { db.close(); await rm(home, { recursive: true, force: true }); });
   const store = new IssueStore(db.client, "owner"), drafts = new IssueCaptures(store);
   const existing = await store.create({ title: "已有记录", type: "experience", description: "原文" }, { ...caller, audience: "user" });
@@ -58,7 +58,7 @@ test("ISSUE-36 ISSUE-39 a capture always creates the draft's record and keeps th
 });
 
 test("ISSUE-37 drafts left behind by a page that is gone never lock the person out: the oldest idle one makes room", async t => {
-  const home = await mkdtemp(join(tmpdir(), "issue-drafts-")), db = openPluginDatabase(home, ISSUES_DATABASE, () => {}, "issues-test");
+  const home = await mkdtemp(join(tmpdir(), "issue-drafts-")), db = openPluginDatabase(home, ISSUES_DATABASE, () => {}, { install_id: "issues-test", installation_generation: "1" });
   t.after(async () => { db.close(); await rm(home, { recursive: true, force: true }); });
   const store = new IssueStore(db.client, "owner"), drafts = new IssueCaptures(store);
   const ids = Array.from({ length: 9 }, () => crypto.randomUUID());
@@ -71,7 +71,7 @@ test("ISSUE-37 drafts left behind by a page that is gone never lock the person o
 });
 
 test("ISSUE-38 discard takes back only a record nobody changed since it was made", async t => {
-  const home = await mkdtemp(join(tmpdir(), "issue-discard-")), db = openPluginDatabase(home, ISSUES_DATABASE, () => {}, "issues-test");
+  const home = await mkdtemp(join(tmpdir(), "issue-discard-")), db = openPluginDatabase(home, ISSUES_DATABASE, () => {}, { install_id: "issues-test", installation_generation: "1" });
   t.after(async () => { db.close(); await rm(home, { recursive: true, force: true }); });
   const store = new IssueStore(db.client, "owner");
   const fresh = await store.create({ title: "刚记录", type: "bug", description: "原文" }, caller);

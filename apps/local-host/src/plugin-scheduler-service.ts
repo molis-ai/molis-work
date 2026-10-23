@@ -20,7 +20,7 @@ export function pluginSchedulerFor(manifest: PluginManifest, context: PluginStar
     activation.current([permission]);
     const scope = currentPluginInvocation();
     if (scope && scope.caller.project_id !== ports.plugin_caller.project_id) throw new ActionError("actions.forbidden", "调用不属于此调度器的项目");
-    assertCapturedPluginActionCurrent(scope, context.install_id);
+    assertCapturedPluginActionCurrent(scope, context);
     if (permission === "schedule:write" && pluginInvocationReadOnly(scope)) throw new ActionError("actions.forbidden", "只读调用不能修改闹钟");
   };
   const owned = (jobId: string) => {

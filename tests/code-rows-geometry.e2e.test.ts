@@ -18,7 +18,7 @@ function write() {
   const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-rows", applied: true, files: [{ path: "rows.ts", kind: "modified", added_lines: 4, removed_lines: 3, diff: "",
     review: { review_id: "review-rows", before_text: BEFORE, after_text: AFTER, decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
-  const html = (mode: "unified" | "split") => renderDiff({ view: { ...view, mode }, route_prefix: "", primitives, line_feedback: true, fold_context: 3, sides: false });
+  const html = (mode: "unified" | "split") => renderDiff({ view: { ...view, mode }, primitives, line_feedback: true, fold_context: 3, sides: false });
   return { html, patch: unifiedPatch(view.rows, { path: "rows.ts" }) };
 }
 

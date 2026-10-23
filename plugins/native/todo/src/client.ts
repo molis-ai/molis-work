@@ -2,7 +2,7 @@ import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platfo
 import { parseTodoQuickText } from "./quick-parse.js";
 
 /** Todo workbench client: views, quick entry, inline completion, batch changes, the detail editor and undo.
- * Saving failures block navigation and follow-up writes; explicit reload/delete may discard. Pending input survives outside refreshes.
+ * Saving failures block navigation and follow-up writes; explicit reload/delete may discard. Pending input survives outside refreshes. `loadBatches` keeps the newest read only: an earlier read of the organize results answering late would bring back a candidate already decided (tests/late-list-responses.e2e.test.ts).
  * `markView` scrolls only the narrow view-tab strip, sideways: `scrollIntoView` would scroll the list as well and put an organize result opened by its id back off the screen (tests/todo.e2e.test.ts, tests/narrow-lists.e2e.test.ts).
  * `todoObject` and `todoMaterial`: the resident Assistant hears about a todo through its page message (spec 8.3 of the Assistant), with the todo as the object and its details as material; handing over needs a real click here, anything else is only offered to the person. (The script is served as written and its bytes are budgeted in tooling/gates/page-assets.json, so a comment that belongs to no single line lives here.) */
 export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
@@ -442,7 +442,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
 
   // ---------- reminders ----------
   let reminders = [];
-  let reminderSeq = 0;
+  let reminderSeq = 0, batchSeq = 0;
   const laterOptions = () => {
     const now = new Date();
     const at = (hours, minutes, dayOffset) => { const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset, hours, minutes); return d; };
@@ -671,7 +671,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   };
   const loadBatches = async () => {
-    const payload = await request("GET", "/organize");
+    const seq = ++batchSeq, payload = await request("GET", "/organize"); if (seq !== batchSeq) return;
     batches = payload.batches || [];
     const waiting = batches.reduce((sum, batch) => sum + batch.candidates.filter((candidate) => !candidate.decision).length, 0);
     reviewToggle.hidden = !batches.length && view !== "review";

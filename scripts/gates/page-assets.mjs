@@ -239,9 +239,9 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // Memory operation retries and truthful usage states: the user approved +3093 B, then +105 B. Equivalent reuse saved
-  // another 5 B, so the remaining net ceiling is +3193 B. Main 5248af758 includes the independent VUX changes;
+  // another 5 B, so the remaining net ceiling is +3193 B. Main e8e79e53 includes the independent VUX changes;
   // retain only Memory's existing allowance, with the integrated build measured before delivery.
-  "/assets/molis-work-workbench.js": [1190716, 1193909],
+  "/assets/molis-work-workbench.js": [1190694, 1193887],
   // Stable original-input identity: +738 B approved, tightened by 21 B of equivalent reuse to +717 B.
   // VUX-12's +137 B is already in main's 375409 B base, not an extra Memory allowance.
   "/assets/molis-work-plugins/coding.js": [375409, 376126],

@@ -3287,3 +3287,15 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 新开的 [#1109](https://github.com/molis-ai/molis-work/pull/1109)（Git 上游改成字段，`git.state@2`）和 [#1110](https://github.com/molis-ai/molis-work/pull/1110)（字体与皮肤 spec 的需求）是同事 VUX 线的第 111 片，和对应的需求文档，落实 #1102 里的决定 ⑥⑦⑧，不是 Codex 开的，不归防腐线管。
 - 23:59：#1080（Sessions SC-2，Characters 库 1 → 2）已合入 main，提交 `15a46ad56`，没有改 AGENTS.md，T1 引的行号照旧有效。真实 Home 的 v1 → v2 维护照旧归用户（R-04）。
 
+### 10-24 00:01（16:01 UTC） batch-1023-10 最终 0 失败；batch-1023-11 开跑
+- [batch-1023-10](https://github.com/molis-ai/molis-work/actions/runs/39972250383) 跑完，最终 0 个失败（⑤ 写进 `known-red-main.md`）：
+  - R-25 的两份 Esc 用例都转绿。
+  - R-26 的第 138 行也过了，这一批不含 #1103。
+  - 另有 3 份重试才过，记进偶发：`cross-plugin-recovery.e2e`、`cognia-actions.e2e`、`resident-management-actions`。
+- 合并顺序：
+  - #1076 先合，再合 #1099：两个 PR 都动 workbench.js 的放行起点，#1099 还和 main 有冲突。#1076 合入后，⑤ 给 #1099 并 main、按实测写字节数。之后照旧 #1099 → #1100 → #1087 → #1098 → #1107。
+  - #1071、#1103 在合并队列里。
+  - #1084 等 #1071 合入后并 main。
+- batch-1023-11（run 39982678940，main + #1096 + #1093）在跑。没有新红，⑤ 就合这两个；#1093 合并前先手看 Security invariants。
+- #1108（同事的 VUX 片）在队列里显示 UNMERGEABLE。那是同事的 PR，⑤ 和 ① 都不动。
+- batch-1023-10 的 16 个分片都跑完了。run 页面还显示 queued，是因为最后那个汇总作业 `Full suite` 从 15:54 UTC 起一直在等 runner（R-21 的拥堵）。分片结果是 ⑤ 下结论的依据，不受影响；这个作业谁也没有取消。

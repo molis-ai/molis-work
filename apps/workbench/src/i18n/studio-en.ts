@@ -10,6 +10,7 @@ import { BOARD_EN } from "./board-en.js";
  * name the studio's package (the assembly gate counts the files that do).
  */
 export const STUDIO_EN: Record<string, string> = {
+  "：": ": ",
   ...PLUGIN_COMPONENTS_EN,
   ...BOARD_EN,
   // The stage: header, composer, tabs.

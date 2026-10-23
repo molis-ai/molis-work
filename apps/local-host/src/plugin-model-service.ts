@@ -39,7 +39,7 @@ const unavailable = (reason: string): ActionAvailability => ({ available: false,
  * A call sends only instructions the calling definition carries: the register also keeps other installations' and not-running ones
  * (PG-051 Q1 b), which are not this one's to send.
  */
-export function createPluginModelPort(home: PluginPlatformHome, carried: readonly InstructionPrompt[]): PluginModelPort {
+export function createPluginModelPort(home: PluginPlatformHome, carried: readonly Pick<InstructionPrompt, "owner_id" | "prompt_id">[]): PluginModelPort {
   const carries = (instruction: InstructionPrompt) => carried.some(item => item.owner_id === instruction.owner_id && item.prompt_id === instruction.prompt_id);
   const configured = (selection?: PluginModelSelection) => hostTextGeneration({ homeDirectory: home.directory, selection });
   return {

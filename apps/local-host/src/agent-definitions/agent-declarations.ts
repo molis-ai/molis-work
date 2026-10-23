@@ -33,6 +33,16 @@ export class AgentDeclarations {
       .run(installId, registration.owner_id, JSON.stringify(registration), this.now().toISOString());
   }
 
+  /** Whether the installation has a declaration remembered for an owner. */
+  has(installId: string, ownerId: string): boolean {
+    return this.db.prepare("SELECT 1 FROM install_declarations WHERE install_id = ? AND owner_id = ?").get(installId, ownerId) !== undefined;
+  }
+
+  /** Forget the installation's declaration for one owner: its newer version declares nothing. */
+  forgetOwner(installId: string, ownerId: string): void {
+    this.db.prepare("DELETE FROM install_declarations WHERE install_id = ? AND owner_id = ?").run(installId, ownerId);
+  }
+
   /** Forget an uninstalled installation; returns the owners it had declared for. */
   forget(installId: string): string[] {
     const owners = this.db.prepare("SELECT owner_id FROM install_declarations WHERE install_id = ?").all(installId).map(row => String(row.owner_id));

@@ -2696,3 +2696,17 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - ③ 的 S7b、S4 等 #1048、#1063 合入后再开，不叠第三层。在这之前，先做不碰 Goals 的片（Schedule/Inbox、Sessions 清理、Feed、C9），挑和在途 PR 文件不重叠的。
   - #1051 的 main 合并由作者 Shelf 子会话自己做，一个分支只有一个人写，⑩ 不碰。做完再继续 S3。
   - batch-1023-3 不等 #1051，先跑 #1049、#1065。
+- **10-23 ① 批 ③ 的 Sessions 清理计划**（PG-081、BL-177；计划和清点在 ① 的笔记目录，`sessions-cleanup-plan.md`、`sessions-cleanup-inventory.md`）。分五片：SC-1 停止写会话注册表；SC-2 Characters 自己记运行；SC-3 工作区、面板、终端挪进宿主和工作台（PG-082）；SC-4 删掉 Sessions；SC-5 处理存量数据。
+  - D1：SC-3 由 ③ 做，② 看东西放到哪里。
+  - D2：首页「说一句」（`home.talk.prepare`）随 Sessions 一起下，入口按钮一起删。依据：它只列出 Sessions 的会话、给会话发消息，Sessions 没了它就没有对象，用户 10-18 定的「这一轮只清理，重做另开需求」覆盖它。BL-177 里写明「说一句」是重做的一部分。
+  - D3：方案 A。Characters 在自己的库里记运行，不再录终端输出，`characters.runs` 去掉 `output` 升到 v2。`characters.sqlite` 是整份基线，所以要升到 v2，并照 #867 带演练测试和一条维护项。在真实 Home 上执行归用户。
+  - D4：面板、MCP、PTY 三处写入都删，连同 `session_registry`、`session_focus`。
+  - D5：`modules/private-work-context` 先不改名，改名记 BL-383。
+  - D6：原则上批方案 A。`<home>/sessions/` 在 `home-stores.ts` 里登记成已退役的库，只供备份和 `--purge-user-data`。命名照实写，不为避开兼容标记计数挑字眼。它是存量数据的保留机制，要先写进 anti-corruption 的保留机制并请用户确认；删真实 Home 数据先弹窗问用户（10-18 已定）。① 今天就报给用户，确认要在 SC-4 之前回来，不挡 SC-1 到 SC-3。
+  - D7：`/api/goals/:id/panels` 不改名，记 BL-384，跟 W6-01 一起做。
+  - D8：门禁不动。搬进新文件的巨大函数，每块都要拆到阈值以下（新文件从 0 开始）。
+  - 顺序：
+    1. SC-1、SC-2 现在开工，可以并行，但不写同一批文件：`character-native-execution.ts`、`characters-host.ts`、`modules/characters` 归 SC-2；`tui-recorder.ts` 在 SC-2 合入后才删。SC-2 开 PR 前，在 #1048 合入后的 main 上整理（#1048 改了 `characters-host.ts`）。
+    2. SC-3 在 #1049 合入后开工。
+    3. #1048、#1063 合入后，③ 先做 Goals S7b，再做 S4；SC-3 和它们的文件不重叠才交给子会话同时做。
+    4. SC-4 进批，和 SC-5 都要等用户回复 D6。

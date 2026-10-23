@@ -6,6 +6,7 @@ import type { UiPageActions } from "@molis-ai/molis-work-contracts/platform/ui";
 import { childMessages } from "./messages.js";
 import { pageFiles } from "./files.js";
 import { childTerminal } from "./terminal.js";
+import { pageConfirmBox } from "./confirm-box.js";
 import { pageDialogs } from "./dialogs.js";
 import { childView, collapsePage, pageSelection } from "./view.js";
 import { childDrafts } from "./drafts.js";
@@ -66,7 +67,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const select = pageSelection(root, scope, config.searchRow);
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
   const host: FrameHost & UiPageActions & Record<string, unknown> = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
-    ...pageDialogs(scope, L), drafts: childDrafts(port, scope),
+    ...pageDialogs(scope, L), confirmBox: pageConfirmBox(scope, L), drafts: childDrafts(port, scope),
     reviews: childReviews(port, scope), view: childView(port, scope), workspaces: childWorkspaces(port, scope),
     ...pageFiles(port, scope, globalThis.molisWorkRequest, copyText),
     ...(config.nativeFiles ? { nativeFiles: childNativeFiles(port, scope) } : {}),

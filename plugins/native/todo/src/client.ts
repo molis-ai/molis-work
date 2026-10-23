@@ -185,14 +185,12 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     detailNote.textContent = text || "";
     detailNote.classList.toggle("is-error", Boolean(error));
   };
-  const ask = (message, okLabel) => new Promise((resolve) => {
-    confirmBox.querySelector("[data-confirm-text]").textContent = message;
-    confirmBox.querySelector("[data-confirm-ok]").textContent = okLabel;
-    confirmBox.returnValue = "cancel";
-    const onClose = () => { confirmBox.removeEventListener("close", onClose); resolve(confirmBox.returnValue === "ok"); };
-    confirmBox.addEventListener("close", onClose);
-    confirmBox.showModal();
-  });
+  // The shared box (host.confirmBox): with a run function the request goes out inside it and a refusal is said there.
+  const ask = (message, okLabel, run) => {
+    const ok = confirmBox.querySelector("[data-confirm-ok]");
+    confirmBox.querySelector("[data-confirm-text]").textContent = message; ok.textContent = okLabel;
+    return host.confirmBox(confirmBox, ok, run);
+  };
 
   // What the Assistant sees when the person turns to it: the open todo, its revision and unsaved input.
   const publishContext = () => {
@@ -1173,11 +1171,12 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (button.matches("[data-todo-delete]")) {
         button.closest("details").open = false;
-        if (!await ask(L("永久删除「{title}」？删除后不能撤销，修改记录也会一起删掉。").replace("{title}", selected.title), L("删除"))) return;
-        clearTimeout(saveTimer); saveTimer = 0;
-        if (saving) await saving.catch(() => {});
         const title = selected.title;
-        await post(selected, "/delete");
+        if (!await ask(L("永久删除「{title}」？删除后不能撤销，修改记录也会一起删掉。").replace("{title}", title), L("删除"), async () => {
+          clearTimeout(saveTimer); saveTimer = 0;
+          if (saving) await saving.catch(() => {});
+          try { await post(selected, "/delete"); } catch (error) { if (error.code === "todo.conflict") void load().catch(() => {}); throw error; }
+        })) return;
         dirtyKeys = new Set();
         await closeDetail();
         await load();

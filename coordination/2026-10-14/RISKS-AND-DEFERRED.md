@@ -1,6 +1,6 @@
 # 防腐加速期：高风险、潜在问题与延后事项
 
-状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 19:14 北京时间，11:14 UTC；18:40 以后几节日志的时间标签有更正，见 README 18:55 一节）。
+状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 19:21 北京时间，11:21 UTC；18:40 以后几节日志的时间标签有更正，见 README 18:55 一节）。
 - 用户 10-23 定：「优先完成防腐的工程开发，维护一个文档记录高风险和潜在问题，先完成工程开发，后续统一处理重度任务，测试任务」。
 - 又补一句：在有限的槽位里优先开发，不要让 VPN 断掉，维持当前机器负载，剩余事项用文档记清楚。
 - 各会话不直接改这份文件。要记的事，要么发给 ①，要么写在 PR 正文的「本机延后验证」一节，由 ① 收进来。
@@ -144,6 +144,7 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 | #1082（修 #1041 带进 main 的 4 份红，R-18） | ⑤ | `full` 为空，不进批；靠 PR CI | 新开，CI 绿了 ⑤ 就合；Codex 下一批验 |
 | #1083（Shelf S4：演示种子走 `shelf.sample.seed`，删 `shelf-actions.ts`，Shelf 移出混合名单，PG-026-S1、PG-090 标已做） | Shelf，⑩ 评审 | 本机只跑了 `secrets:check`。只看 S4，`full` 命中 assembly；整条叠放命中 shared-core、assembly、spans-packages、deletes-code，等 #1051、#1076 合了由 ⑤ 组批 | 新开，head `564c6395a`，叠在 #1076 上（R-09 的例外）。Shelf 留下的两处不算新风险：Manifest 的 `kind: "native"` 和 `always_on` 归 PG-004、PG-007 阶段 4（②）；宿主替 Shelf 拼设置节（`web-catalog.ts` 的 `renderCatalogPluginSettings`）已在 PG-072 里。Shelf S2～S4 到这里都交出去了。⑩ 审过「可合」，往本分支推了测试夹具 `42aebcbfd`（没动产品代码）；同步合并 `67d1dd96b`（S3 `af7544506` 合进来）留在 Shelf 本地不推（照 ⑤ 的分工）：#1051、#1076 合进 main 以后，⑤ 在本分支上合 #1076 的最终 head 和 main，再组批；在那之前 S3、S4 都不再推。验证：等下面两层合了再进 Codex 的批，以最新 head 为准 |
 | #1084（PG-062 S4b：Coding 用 `actionCardView` 和 `services.interaction` 自己画卡片和下一步，删宿主的 `decorateCodingResult`、`codingNextSteps`、`codingRouteHooks.afterDispatch`） | PG-038，⑩ 评审 | 只算本片（`--base 7c0b311cf`）：选出 522 个文件，其中 47 个浏览器用例，含新的 `tests/coding-interaction-html.test.ts` 和改写的 `tests/coding-next-steps.test.ts`；`full` 命中 spans-packages（local-host、workbench、coding）。整条分支对 main：652 个文件，命中 shared-core、spans-packages、deletes-code，进集成批 | 新开，head `63c848e97`，带着 #1067、#1071、#1079 的提交（R-09 的例外）。给 S4a 的服务补了一处语言取法：路由不在调用里时，取页面请求的语言 `pageLocale`，S-56 的说明同步改了；#1079 单独先合也没问题，因为 #1084 之前没有路由用这项服务。验证：等前面几层合了再进 Codex 的批 作者自己发现 `tests/coding-interaction-html.test.ts` 漏了同一个夹具，第 52 行；作者撤回了本地补丁 `9f8e03650`（没推过），交给 **Codex 修**，等前几层合完再开叠加 PR |
+| #1085（W5-06 第 1 片：UiHost 按贡献声明的 slot 挂（`mountDeclared`），删 11 个 Goals 挂载转接文件和 9 张 surface→slot 表；`goals-page-renderer.ts` 改名 `shell-page-renderer.ts`；BL-350、BL-356 写进 BACKLOG） | ② | `full` 命中 assembly、spans-packages、deletes-code，进 ⑤ 的批次。改了门禁 `check-package-boundaries.mjs` 的提案检查：旧的只看子串 `host.mount(`，新的钉住 `ui-composition.ts` 里 `createSurfaceRenderers<…>(workbenchUiHost, GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES)` 那一行，反例测试照样断言拒绝。① 19:21 审过，不算放宽。改名的相似度是 98%，health 门禁按 git 的改名带过两个巨大函数的记录 | 新开，head `a483bb7c9`；本机跑了构建和快照刷新（Swift 原生构建用 ④ 记的 `swiftc` 包装绕过 CLT 16.2 的问题，只加在命令的 PATH 上）。没跑 `boundary:check` 和 `health:check --base`，以 CI 的 Gates 和批次为准。新正则要求这个调用写在一行里，格式化折行会误报（只会挡住、不会放过）。验证：Codex 下一批 |
 
 ## 4. 要用户本人做的
 

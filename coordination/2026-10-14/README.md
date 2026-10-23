@@ -2911,3 +2911,15 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - **⑤**：为了让 Full suite 一次只跑一个，⑤ 先停了 batch-1023-7 的 run。完成的两片保留，batch-1023-6 跑完后只重跑没完成的片，batch-1023-8 排在后面。
 - **②**：W5-06 第 1 片做完一整片再推一次、开 PR。⑩ 手上没有要推的。
 
+### 10-23 19:21（11:21 UTC） #1085（W5-06 第 1 片）的门禁改动批了
+
+- ② 开了 [#1085](https://github.com/molis-ai/molis-work/pull/1085)，交给 ⑤；它的 `full` 命中 assembly、spans-packages、deletes-code，要进批次。② 照缓推通知只推了这一次，没贴 full-suite label。
+- ② 改了门禁 `check-package-boundaries.mjs` 的提案检查，请 ① 定。① 读了 diff，批了，不算放宽：
+  - 旧检查只看 `goals-proposal-ui.ts` 里有没有子串 `host.mount(`，这个文件这次删了。
+  - 新检查钉住 `ui-composition.ts` 里调用 `createSurfaceRenderers` 的那一行，宿主（`workbenchUiHost`）和提案贡献都写死；`createSurfaceRenderers` 只经 `mountDeclared` 挂。
+  - 反例测试（bypassed）照样断言「must mount」。
+- 另外核了两处：
+  - `goals-page-renderer.ts` → `shell-page-renderer.ts` 是 98% 相似度的改名。health 门禁按 git 识别的改名把巨大单元的记录带过去，两个巨大函数不会被当成新增。
+  - 活文档里没有指向旧文件名的链接。
+- 风险记在 §3：本机没跑 `boundary:check` 和 `health:check --base`，以 CI 和批次为准。
+

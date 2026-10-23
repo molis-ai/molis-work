@@ -106,9 +106,8 @@ export { countGoalDecisions } from "./decision-groups.js";
 
 export { buildGoalsDocumentCollection, type GoalsDocumentCollectionView } from "./document-collection.js";
 export type { GoalsDocumentReadPorts } from "./document-read-ports.js";
-export { handleGoalsWebHttp } from "./http/index.js";
-export { handleGoalEventDecisionHttp } from "./http/event-decisions.js";
-export type { GoalsHttpContext } from "./http/types.js";
+export { goalsRoutes } from "./http/index.js";
+export type { GoalsRoutePorts } from "./http/types.js";
 export { GOALS_PLUGIN_ID, GOALS_PROJECT_PLUGIN_ID, goalsManifest } from "./manifest.js";
 export { GOALS_PROJECT_DATABASE } from "./project-database.js";
 export { GOALS_SETTINGS_UI_CONTRIBUTION_ID, goalsSettingsUiContribution, goalsSettingsUiDescriptor } from "./settings-ui.js";

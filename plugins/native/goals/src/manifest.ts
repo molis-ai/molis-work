@@ -1,5 +1,5 @@
 import { actionPermissionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginManifest, PluginRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { GOALS_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
 import { GOALS_TREE_UI_CONTRIBUTION_ID } from "./tree-ui.js";
 import { GOALS_ACTIONS } from "./actions.js";
@@ -9,6 +9,40 @@ import { GOALS_PROJECT_DATABASE } from "./project-database.js";
 export const GOALS_PLUGIN_ID = "io.molis.work.goals";
 /** What the project database stores for this Plugin. */
 export const GOALS_PROJECT_PLUGIN_ID = "goals";
+
+/** The nine writes to a Goal's event document, each its own route (`goals.event-configure` …). */
+const GOALS_EVENT_WRITES = ["event-configure", "event-report", "event-progress", "event-concern", "event-decision-request",
+  "event-agree", "event-close", "event-resume", "event-note"] as const;
+
+/**
+ * The page's Goals operations, one handler each in `goalsRoutes` (PG094-09). Until Goals runs on the Plugin Runtime supervisor (PG-094 S9)
+ * the Host serves them at their old address, `/api` and the path, instead of under `/api/plugins/<plugin_id>`.
+ */
+const GOALS_ROUTES: PluginRouteDeclaration[] = [
+  { route_id: "goals.create", method: "POST", path: "/goals" },
+  { route_id: "goals.directory", method: "GET", path: "/goals/directory" },
+  { route_id: "goals.policy-save", method: "POST", path: "/policy-bindings" },
+  { route_id: "goals.guidance-read", method: "GET", path: "/project-guidance" },
+  { route_id: "goals.guidance-add", method: "POST", path: "/project-guidance" },
+  { route_id: "goals.guidance-update", method: "PATCH", path: "/project-guidance/:guidanceId" },
+  { route_id: "goals.relation-add", method: "POST", path: "/goals/:goalId/relations" },
+  { route_id: "goals.relation-deactivate", method: "POST", path: "/relations/:relationId/deactivate" },
+  { route_id: "goals.active", method: "POST", path: "/goals/:goalId/active" },
+  { route_id: "goals.archive", method: "POST", path: "/goals/:goalId/archive" },
+  { route_id: "goals.trash", method: "POST", path: "/goals/:goalId/trash" },
+  { route_id: "goals.tree-decide", method: "POST", path: "/goal-tree-proposals/:proposalId/decision" },
+  { route_id: "goals.history-read", method: "GET", path: "/goals/:goalId/history/:itemId" },
+  { route_id: "goals.event-read", method: "GET", path: "/goals/:goalId/events/:eventId" },
+  { route_id: "goals.event-state", method: "GET", path: "/goals/:goalId/event-state" },
+  { route_id: "goals.event-timeline", method: "GET", path: "/goals/:goalId/event-timeline" },
+  ...GOALS_EVENT_WRITES.map((write): PluginRouteDeclaration => ({ route_id: `goals.${write}`, method: "POST", path: `/goals/:goalId/${write}` })),
+  { route_id: "goals.event-decision", method: "POST", path: "/goals/:goalId/event-decision" },
+  { route_id: "goals.deliverables-read", method: "GET", path: "/goals/:goalId/deliverables" },
+  { route_id: "goals.deliverables-write", method: "POST", path: "/goals/:goalId/deliverables" },
+  { route_id: "goals.artifact-inputs-read", method: "GET", path: "/goals/:goalId/artifact-inputs" },
+  { route_id: "goals.artifact-inputs-write", method: "POST", path: "/goals/:goalId/artifact-inputs" },
+  { route_id: "goals.inputs", method: "POST", path: "/goals/:goalId/inputs" },
+];
 
 /**
  * Declarative placement for this first-party Plugin.
@@ -34,6 +68,7 @@ export const goalsManifest: PluginManifest = {
   actions: [...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS],
   artifacts: { produces: [], consumes: [] },
   databases: { project: GOALS_PROJECT_DATABASE },
+  routes: GOALS_ROUTES,
   ui: {
     contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_SETTINGS_UI_CONTRIBUTION_ID],
     views: [

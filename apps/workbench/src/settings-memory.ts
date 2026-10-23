@@ -1,3 +1,5 @@
+import { renderMemoryClassSettings, MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT } from "./settings-memory-classes.js";
+
 /**
  * The memory settings page (specs/archive/memory-system §10): 个人 → 记忆 in the global settings, and 项目记忆 in a project's
  * settings. Both are the same page in a different scope; everything it shows and changes goes through `/api/memory/*`,
@@ -72,6 +74,7 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
       ${prefRow(L, "consumers.plugin", L("插件"), L("插件只能读到偏好和约定，不会读到背景事实。"))}
       ${prefRow(L, "consumers.mcp", L("外部 AI 客户端"), personal ? L("通过 MCP 连接的客户端。个人记忆默认不开放。") : L("通过 MCP 连接的客户端，只读。"))}
     </section>
+    ${renderMemoryClassSettings(L)}
     <section class="settings-section memory-data" aria-labelledby="memory-data-title">
       <h2 id="memory-data-title">${L("整理与数据")}</h2>
       <div class="settings-setting-row"><span class="setting-copy"><strong>${L("整理")}</strong><span data-memory-upkeep>${L("每天整理一次：到期和长期没用到的停用，重复的自动记忆合并，依据不在的暂停。")}</span></span>
@@ -159,6 +162,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     // The reason shows at the top of the page and, since the action may be far below it, in the toast where the person is.
     const fail = (failure) => { molisWorkRequest.show(error, failure); error.hidden = false; if (board()) molisWorkRequest.toast(board(), failure, undefined, { ms: 5000 }); };
     const api = (path, payload) => molisWorkRequest(base + path, { body: payload });
+    const paintClasses = (${MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT})(root, L, () => data?.prefs, async rules => {
+      await api("/prefs", { scope, prefs: { class_restrictions: rules } }); await load();
+    });
     const pendingCommands = new Map();
     const commandTitle = (path, payload) => {
       const actions = { reclassify: "纠正分类", update: "修改", disable: "停用", enable: "启用", remove: "删除", move: "改范围", restore: "回到旧版本", items: "添加", import: "导入", undo: "撤销", accept: "认可", discard: "不用" };
@@ -516,6 +522,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         box.checked = Boolean(value);
         box.disabled = false;
       });
+      paintClasses();
     }
 
     async function readPairs() {

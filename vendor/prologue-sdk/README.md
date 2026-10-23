@@ -4,13 +4,13 @@
 
 目录里现在有这些东西：
 
-- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,340,202 字节），SHA-256 `119feb645c13f6d7ec1f288e42f0b68d95031e268826ca014da2c26346394bb1`。来源为 Prologue [#94](https://github.com/molis-ai/molis-prologue/pull/94) 的干净提交 `f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512`，已合 main `d94a99fb3d3cd33c95cd97393c4d1949366ffa81`，整树一致，无补丁。包含此前 Memory CAS/分类管理、可信来源/晋升/采用、有界地址、过期管理及混合输入原件。本片固定候选替换目标与版本，task 只补缺或逐字相同，suggestedBasis 与正式依据分开，inferred 不自动晋升。候选 shape5 同创建输入核对意图，实际旧 #93 包五个相关入口零提交拒绝，磁盘不变；旧无字段候选可继续管理，普通取消及显式 purge 语义不变。
+- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,357,865 字节），SHA-256 `01366516fc80127028d6faeeec0f081fa947e896da74bdcd89d723504e5bd225`。来源为 Prologue [#95](https://github.com/molis-ai/molis-prologue/pull/95) 的干净提交 `a875be89c2186e79ecf35bf0867a8bac20da1887`，已合 main `00e424b401b97aa16ae3151b146b0eadafef2ecb`，整树一致，无补丁。包含此前 Memory P0 能力，并在最后提交与实际 Node 网络派发前复核同次精确请求的当前许可；候选替换同时核 canonical-before。Molis 动态分类需装配同步检查口；Tauri 尚无最终原生桥，带此附加约束时在 IPC 前明确不可用。存储 shape 和已提交恢复语义不变。
 - 保留主干在途包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz` 及来源记录；当前依赖为上述 memory-p0。已核对 `2c7feba5` 是 `f4bbbd88` 的祖先，主干采用的 #53、#58、#59、#60 全部包含。
 - 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
-- `patch-history.json`：已删除的 26 份历史补丁和 31 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
+- `patch-history.json`：已删除的 26 份历史补丁和 32 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
 - 本文件。
 
-该 head 的完整 `pnpm quality`、干净安装消费者和新旧包兼容专项通过。制包环境为 macOS arm64、Node 24.19.0、pnpm 11.9.0；实际 Node 与仓库声明的 24.14.0 有差异。本次未作独立逐字节重建，不宣称完成 Molis 采用、模型收益或用户验收。Molis 集成与严格 baseline 切换状态以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) §13 为准。
+该 head 的完整 `pnpm quality`、干净安装真实 Node/本机 HTTP 消费者通过。补充回归的一份来源夹具先在原 main 复现 5 项失败，修复后 10/10；原失败记录保留，其余 46 文件证据对应未变生产源码。制包环境为 macOS arm64、Node 24.14.0、pnpm 11.9.0，匹配上游声明；本次实际 tgz 已独立离线安装并运行公开消费者，773 个非 manifest 文件与构建树逐字节一致，package.json 仅末尾换行不同。未作独立重复构建，不宣称完成 Molis 采用、模型收益或用户验收。Molis 集成与严格 baseline 切换状态以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) §13 为准。
 
 ## 上一份主线依赖：retry-waiting（2026-10-23）
 
@@ -392,7 +392,7 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 26 份补丁（合计 2,791,897 字节）是历史包的重建材料。重建当前包用不着它们（当前包不加任何补丁），按决定从树里删掉；Git 历史不改写。记录在 [`patch-history.json`](patch-history.json)：
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
-- `packagesWithoutPatch`：31 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
+- `packagesWithoutPatch`：32 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
 - `upstream`：41 个 Prologue 提交于 2026-10-23 对 main `2c7feba5a6ea85e81e4a263671fb5e68f536d86a`（上游仓库已改名 `molis-ai/molis-prologue`）逐项核对；除三个已替换的过渡包来源 `08b84296`、`923e5a40`、`4007a93c` 以外，均为 main 祖先。这三个过渡提交自身不在 main，记录如实保留。`21cdfbf8`、`d4a2f41b`是Molis仓库提交，不是Prologue提交。
 
 怎么取回并核对：

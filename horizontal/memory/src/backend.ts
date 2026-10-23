@@ -40,6 +40,7 @@ export interface MemoryCandidatePort {
   form(input: MemoryFormationInput): Promise<AgentMemoryFormationResult>;
   propose(input: Scoped<Parameters<AgentMemoryCandidateCapability["propose"]>[0]>): Promise<MemoryBackendCandidate>;
   list(scope: MemoryScope, owner: string): Promise<MemoryBackendCandidate[]>;
+  get(input: Scoped<Parameters<AgentMemoryCandidateCapability["get"]>[0]>): Promise<MemoryBackendCandidate | undefined>;
   accept(input: Candidate & { text?: string; origin?: string; meta?: AgentMemoryMeta }): Promise<MemoryBackendEntry>;
   promote(input: Candidate & { policy: string; version: number; origin?: string; meta?: AgentMemoryMeta }): Promise<MemoryBackendEntry>;
   settleInto(input: { scope: MemoryScope; owner: string; candidate_id: string; candidate_expected_version: number;

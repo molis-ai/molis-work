@@ -125,7 +125,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     },
     authority: async (work, origin) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output, origin?.source !== "card"), service.delegation(work),
-      (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
+      (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), () => service.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
       view => service.noteDispatched(work, view), () => {
         const snapshot = store.rounds(work.work_id).at(-1)?.context;
         return snapshot ? { url: null, title: snapshot.source.title ?? snapshot.source.surface, provenance: "client_reported" } : undefined;

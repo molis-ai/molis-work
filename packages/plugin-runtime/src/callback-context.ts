@@ -12,5 +12,6 @@ export function pluginCallbackContext<C extends ActionCallContext>(caller: C): C
     ...(caller.assistant_reply ? { assistant_reply: structuredClone(caller.assistant_reply) } : {}),
   };
   Reflect.deleteProperty(view, "host_plugin");
+  Reflect.deleteProperty(view, "runtime_memory");
   return view;
 }

@@ -78,6 +78,24 @@ test("offline Home adoption preserves SDK identities and real ledger history, th
   const after = ledgerState(f.home); assert.equal(after.version, 4); assert.deepEqual(after.marker, before.marker);
   assert.deepEqual(after.revisions, before.revisions); assert.deepEqual(after.changes, before.changes); assert.deepEqual(after.pairs, before.pairs);
   assert.ok(after.prefs.every(row => { const prefs = JSON.parse(String(row.body)); return prefs.enabled && prefs.task_recall && prefs.auto === false && prefs.consumers.ui === false; }));
+  // MEM-CLASS-03: the temporary ledger-4/eight-field Home is reverified by the real SDK before publication.
+  const records = openMemoryLedger({ homeDirectory: f.home });
+  for (const row of after.prefs) {
+    const { class_restrictions: _restrictions, ...eight } = JSON.parse(String(row.body));
+    records.savePrefs(String(row.actor_id), String(row.key), eight);
+  }
+  records.close();
+  const reverified = await adoptMemoryHome({ homeDirectory: f.home });
+  assert.equal(reverified.outcome, "completed"); assert.equal(reverified.verification, "complete");
+  assert.equal(reverified.items.adopted, 0); assert.equal(reverified.items.current, 2);
+  assert.deepEqual(ledgerState(f.home), after);
+  const current = openMemoryLedger({ homeDirectory: f.home });
+  for (const row of after.prefs) current.savePrefs(String(row.actor_id), String(row.key), { ...JSON.parse(String(row.body)),
+    class_restrictions: [{ selector: { consumer: "agent", current_scene: "coding", kind: "convention" }, read: "off", form: "off" }] });
+  current.close();
+  const restricted = ledgerState(f.home);
+  assert.equal((await adoptMemoryHome({ homeDirectory: f.home })).outcome, "completed");
+  assert.deepEqual(ledgerState(f.home), restricted, "real SDK verification cannot clear already adopted restriction rules");
   const adapter = await createPrologueNodeAdapter({ app, storageRoot: f.storageRoot, memory: options,
     modelConfiguration: async () => { assert.fail("maintenance must not resolve a model"); } });
   try {

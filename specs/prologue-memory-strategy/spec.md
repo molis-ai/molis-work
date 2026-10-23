@@ -420,6 +420,8 @@ P1 的 import 使用有界批次，先完整校验该批，再在 Host 可证明
 
 以下是已授权方案的实施取值，仍需实现和行为验证；不改变 §4～§8 的权限与责任边界。
 
+分类权限分开后，非本人形成上下文的同文/相似去重与每工作最多三条待审，仅基于本轮获准使用的 canonical 候选。不可见候选不得借 App 账注正文或计数推断，不能为去重提升权限；获准集合仍严格执行同文、三条上限与重启重放限制，不删除任何 MEM 验收。内部候选查询用 SDK 现有 get 窄口区分明确拒权和真实缺失：仅 MEMORY_SCOPE_DENIED 排除不可见项，原件真实缺失、损坏及其它存储错误仍拒绝且不修账。固定 scope/owner/id 与取消信号贯穿查询；本人完整管理保持原严格完整性检查，不将过滤结果当成原件不存在。
+
 | 项目 | 首期取值 / 操作合同 |
 | --- | --- |
 | 场景 | `coding`、`assistant`、`common`；common 只向显式许可的使用方开放。可信 consumer 与 scene 分开，不能从模型参数决定 |
@@ -705,6 +707,32 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 
 允许路径为 contracts 正式管理类型/change/历史 DTO 及现 action/HTTP 调用版本，horizontal/memory 的 classification/service/facts/shapes/history/operations 等当前职责、现设置页及词典、对应 README 和定向测试；公共快照、资源清单与本 spec 由统筹维护。SDK 包、锁文件、偏好矩阵和原件/取消实现不在本片。先用真实 Node/SQLite/HTTP 验六类、旧未分类、期限三态、CAS/原操作重试/补账重启/当前授权及六类往返，再实操非空设置页的修改、过滤、历史和失败恢复。构建/浏览器排单槽；资源增长另行实测审批，不沿用上一片额度。
 
+#### M3 第三片：已声明分类的读与形成限制
+
+本片依赖 #1111，闭合现个人/项目设置页按使用方、当前场景和记忆分类分别限制读取与自动形成的路径，对应 MEM-13、17、24、26、27、34、39、40。复用现 prefs、Run attempt、SDK taxonomy/matrix/authorize 和 SourcePort；SDK 无需新增槽、矩阵引擎或存储。App 声明的基础许可仍拥有“没有匹配默认关闭”，本片只在其上加用户限制，不给分类授予 scope/owner/namespace 权限。不新增表、通用规则表达式、任意矩阵设计器或自动形成类别；已声明六类管理与现四类自动形成继续分开。
+
+公共偏好增加必填第九字段 `class_restrictions: MemoryClassRestriction[]`。每条为 `selector: { consumer, current_scene, scene?, kind?, lifecycle? }`、`read: "inherit" | "explicit-only" | "off"`、`form: "inherit" | "off"`；consumer 使用现五类，场景为 coding/assistant/common，kind 使用现六类正式类别，lifecycle 为 session/short-term/long-term。selector 的 consumer/current_scene 精确匹配，可选维度省略表示不限定；场景只匹配当前场景适用的分类，不从未知值猜 common。具体 scene/lifecycle 不命中缺分类条目，不限定该维度的规则仍覆盖它。重复 selector、未知字段/值拒绝；重叠命中 read 取 off > explicit-only > inherit，form 取 off > inherit，不受顺序影响。一次 prefs 更新中的规则数组完整替换本 profile 的规则，省略时保持；项目沿现有效 profile 继承，四预设保持细分规则。prefs read/write 动作升 v3，并同步所有调用和快照。
+
+read 与 form 各自计算，不能把新 read 限制塞进同时用于形成资格的 `consumerAccess`。explicit-only 停止 task/resident，保留原本授权的显式回忆；off 拒绝对应正式读取。本人管理查看/删除不受 read 影响。form off 拒绝非本人候选、自动提炼和策略晋升，不阻止原门允许的本人显式保存/接受或插件自有命名空间的显式保存；旧 enabled/consumer/plugin/来源与证据门照常求交，不因本片放开。提炼上下文中的正式记忆也须满足 read，不能借 formation context 读取已关闭分类；候选上下文按其形成权限检查。
+
+形成先生成真实新建与 replacement 槽，再按完整 kind/classification 过滤，空槽走现 trigger:none，提炼次数为零。提炼上下文准备后、实际派发前、返回登记/晋升前及 SDK 最终提交都核当前规则；自动替换同时检查原分类与目标分类的 form，不能借改类绕开关闭。SDK authorize 使用实际 canonical target/before 的分类，不信模型的类别声明；单纯 query 授权不能代替逐条和派发前检查。所有本次可能读取的分类都已关闭时，自动路径应 skip，不扫描正文。
+
+Run 沿现 `memory_context` 固定 `class_restrictions: { personal: [...], project: [...] }` 的有效值，Character 使用可信项目的同一设置；同时保留 App taxonomy/policy 的版本事实。本片的限制解释版属于 App policy 版本，快照保存真实限制值；不把版本号伪称每次偏好修改的递增序号，也不靠一个版本引用在重启后读取新设置。Host 生成快照，不收模型/动作传入的权限。执行取冻结限制 ∩ 当前限制 ∩ 原授权：关闭立即生效；当前设置重开最多恢复启动时已有许可，起初关闭的旧 Run 仍关闭，不增加历史限制账本。旧 attempt 缺快照时相关恢复明确不可用，须新开 Run 捕获；不能默认空数组。后台学习从已核验 trigger.run_id 对应的原 attempt 恢复快照，不借最新 Run 的配置。现 Run 只读投影、App backend 的可信 caller 和 SDK authority 还原同时携带这份数据，不另建策略账本。
+
+通用 Agent Memory Action 与 SDK 内置记忆工具使用同一轮冻结限制。AgentHost 在装配 action tools / gateway 前捕获原 `memory` recipe，经既有 `AgentStartAuthority.actions` 窄口传给 Host；Host 用原插件、项目和已核验 Session 绑定只读 `ActionCallContext.runtime_memory`，Memory owner 消费该上下文，不能从动作参数、当前设置或 Session 的最新 attempt 补出身份。内部 agent 调用缺原 recipe 或 Session 时拒绝记忆操作，不回落到 management/common。目录发现仍按原 Action grant；快照不授予任何权限，不写第二份持久状态。 同一原 caller 经插件 wrapper/delegate 时仍保持该限制，不按中途 audience 放宽；同插件嵌套动作的 Host 身份投影保留原 runtime 字段，插件可见 callback view 移除快照，避免共享可变对象。真正改为安装自身身份的 dependency 调用保留原插件权限合同，不借用 Run 身份。 点击原 Run 建议时使用已经核验的原 Run 只读投影（`class_restrictions` 与 `memory_scene`），两者来自既有持久 memory_context；缺任一字段时相关记忆调用明确不可用，不重新捕获当前设置。验证必须走生产 composeAgentHost、原 grant 和真实 SDK 工具循环：旧 Run 初始 read off，首个本机模型请求等待时重开，通用 memory.list 结果与后续模型请求仍无哨兵正文；新 Run 才能获得重开后的读取许可。该路径本身需要模型请求，不把总 HTTP 为零作为这个反例的断言。
+
+运行时只认严格九字段；新 Home 明确保存空限制数组。旧六/八字段只在现离线采用入口转换，保留所有 actor/key/profile 与原开关值，已有九字段原样保留，不因重试清空规则。现 storage 维护口允许 SQLite ledger 3 或已采用的临时 ledger 4 进入同一 adopting → SDK 核验 → ledger 4 完成流程；采用快照的 version 反映实际 SQLite 版本，不引入 ledger 5。正常启动检查全部已存 profile，不只两份顶层默认；缺字段或部分采用必须在 SDK 初始化前拒绝且零修补写。只操作明确的隔离副本，原 origin、历史、原件与完整备份保留；失败仍阻断，回退沿现完整副本合同。
+
+责任与允许路径：偏好/形成负责人拥有 contracts 的 memory 限制 DTO/校验/动作版本、horizontal/memory 的 prefs/preferences/learning/formation 与相关 README/测试；采用负责人拥有 LocalHost memory-adoption/home-adoption、storage memory-ledger-adoption 与该 owner 的 profile 枚举窄口及采用测试。统筹拥有 AgentHost Run/索引/公开投影、LocalHost runtime-policy/backend/来源的跨模块接线，现设置页/词典、spec、公共快照、资源及集成。共享文件按单一主人接线；构建/浏览器保持机器单槽。续期/批量不混入此 PR。真实 Node 反例已证明现 SDK 在最后异步 Host 检查期间撤权仍可发送旧正文，且 replacement 候选未检查原分类；必须先独立交付 Prologue 的最终授权修复（对应 `docs/slices/memory-strategy.md` 的 S2/S3 最终授权合同），再由统筹更新本片的唯一 vendor 包与锁文件接入。SDK 代码不复制进 Molis；包接入是该已复现 P0 阻塞的依赖，不扩大分类功能或放宽门禁。
+
+App authority 新增同步 `assertCurrent` 窄口，复用同一 `permitted` 规则读取当前 owner/prefs，并与本次请求的原 Run 快照求交；它不能授予异步 authorize 尚未给出的许可。可信调用/Run 身份分别保存在既有 ALS 本次帧内，同步检查不跨调用借用最新 caller 或授权结果。SDK 将异步授权产生的精确请求 fence 带到实际写入/网络派发前，检查 target 及 canonical before；没有安装该同步能力的其他 SDK App 不宣称具备等待期间实时撤权保障。Molis 每次 Memory 操作的异步 beforeEffect 移到 authority 检查之前，最终 storage 包装只同步检查本次执行令牌，避免在 SDK 的最终分类检查之后再引入异步窗口。非 Memory 的 Session/Run 写入仍保留原 beforeEffect；prepare/record 回调仍按原完整门执行。拒绝、取消或重启均不新增正文、候选或历史；真实网络计数必须为零，不以失败回执替代。
+
+- **MEM-CLASS-01**：真实 Service/SDK/Node/SQLite 完成可写不自动读、可读不自动形成、仅本人保存自动读、Coding 与助理不同限制；明确读/form 分离、六类/多场景/未知分类不扩权，旧总开关与插件/项目/角色门仍有效。
+- **MEM-CLASS-02**：真实 extractor/模型派发屏障下收紧规则，观察零后续提炼/写入/注入；Run 起初关闭而当前重开时仍关闭；起初允许、当前关闭时立即拒绝，重开最多恢复原许可；下一个 Run 可采用新设置。旧触发 Run 的后台学习、关闭重开和取消交错均按原快照与当前权限求交；零允许槽没有提炼请求。
+- **MEM-CLASS-03**：隔离非空设置页选择使用方/场景/分类，分别保存读取与形成限制；刷新和重启保持，失败可见且不显示保存成功；现逐条纠正/分页/候选/历史入口仍可用。采用真实旧六/八字段副本保留所有关闭选择，九字段重试不清规则，旧格式正常启动拒绝且存储不变。
+
+只证明以上路径，不能代称全部 M3、真实模型收益或用户验收；会话管理、固定批量、旧格式往返/到期续期与最终 B2 继续按原 P0 依赖完成。
+
 #### M2 期限与往返保留
 
 候选自有 expiresAt 只管等待决定截止；Molis 在既有候选记录保存内部 formal_expires_at（null 表示明确无固定期限，缺省表示原意图未知），公开候选投影不暴露它。提议前在既有无正文操作身份中冻结 formal_expires_at 标量，区分缺省、null 和绝对时间；SDK 已保存而候选账失败后的同操作重试不得更换正式期限，不把正文或完整 meta 写入该身份标记。接受/纠正保留原正式期限和 canonical 分类/session/namespace；SDK 继续复核候选期限及同操作已提交补账，不自动续期。
@@ -908,7 +936,17 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 | M3 正式管理首片验证 | 独立树本地 `4494b05ec`、整合父 `11d3ae19f` 后为 `0140a2614`；整体 build、health 对父及 main `d7077301f`、边界、API 与 Action 快照通过。真实 Service/HTTP 分页和授权通过；实际非空页面完成 43 条个人记忆跨页、4 条项目记忆、暂停角色、到期/未分类、配对显式加载及两次处理/编辑，正式全量 list 调用 0；六组中英/尺寸/主题和 20/20 CAS/读取失败恢复通过 | 页面夹具最初错误等待重定向 query、把隐藏缓存当当前页及使用不存在的项目助理路由，均按真实入口修正，保留失败日志；仅证明覆盖路径，不代表用户验收或完整 M3。资源实测 workbench 1,196,274 B，相对父 +3,437 B；复用 34 处选择器节省 316 B 后，用户于 2026-10-24 明确批准本片一次性增长，按准确父基线登记，资源门复验通过。其它 26 份资源未变；Draft #1101 仍依赖 #1064 及合并后的最终集成验证。改类/矩阵/固定批量及最终首期验收仍继续 |
 | M3 正式分类纠正第二片 | 依赖管理分页首片 `5c961120a`；在现编辑器纠正六类正式记忆、场景与长期/短期期限，正文和分类原子更新。未操作分类控件保留未知值，显式移除未知值需确认；同一操作号经原 ledger 同步绑定整次 change 的目标、动作及观察版本，覆盖异步定位/提交交错，保留删除补账。整体 build、health 对父分支、边界、API/Action 快照与 85 项后端验证通过；原 HTTP 运行受沙箱 loopback 限制的失败保留，正常授权环境原两项通过。真实页面 23 项 CAS/读取恢复与 2 项分类旅程通过；原生键鼠输入本地截止时间后，HTTP、SDK 与完整关闭重开同一 Home 均保持绝对期限及停用状态，日志 `/private/tmp/memory-classification-deadline-browser-lifecycle-20261024.log`。独立深度评审两项 P2 已收束，无新增阻塞 | 早期浏览器重启夹具失败均保留，使用现有 `openTestHome/close` 生命周期修正，未改权限或断言。workbench 实测 1,201,909 B，相对分页首片增加 5,635 B；已复用现编辑器/确认框/分类显示；用户于 2026-10-24 明确批准本片 +5,635 B，按父片准确基线登记并复验资源门。前片 +3,437 B 已独立批准与提交。实现已由 `83e7fa2cf` 推送为 Draft #1111，依赖 #1101；尚未进入 main，旧格式/到期续期、会话分类、矩阵开关、固定批量和最终 P0 验收继续按原范围推进 |
 | S2 / S3 / M2 / M3 / I0 | 按 §9.3 核对可信来源/候选门、异步召回/Context、产品管理与真实 SDK 接入的可并行边界；统筹负责共享装配、包及最终集成 | P0 全部行为、干净包/真实 Host、成对 B2 质量与成本、最终 App 实操及用户验收仍待完成 |
+| M3 分类限制第三片本地进度（2026-10-24） | 九字段 prefs、原 Run 限制快照、当前规则求交、形成槽过滤、旧配置显式采用及设置界面已有本地实现。结构/边界健康检查对父 `8e929a733` 通过，公开 DTO 快照同步；尚未整体构建或运行本片标准回归。独立评审发现并修补助手工具未持有本轮快照、跨范围读取后撤权及全关闭仍扫描正文的 App 接线 | Prologue 的 canonical-before、最终目标撤权及每跳网络派发反例已在真实 Node 先红后绿，独立评审两项 P2 已关闭；新 SDK 仍在本地，完整 quality/干净包排队中。Molis 已接同步 exact caller/request 复核与 Memory effect 等待顺序，公开拒绝保持 MEMORY_SCOPE_DENIED，增加真实 Run 身份漂移反例。进一步补齐通用 Agent Memory Action、插件 wrapper 与原 Run 建议的冻结限制，并隔离插件可见 callback；生产组合反例及身份回归已写，尚待构建实跑。这些消费接线仅健康门通过，不能当作产品通过。未提交、未推送，实际资源尚未计量；此前两笔批准不覆盖本片。依赖 #1064、#1101、#1111，仍不可合并 |
 
 交付按可独立验收部分拆 PR：C0/Q0 合同、工具与冻结结果先行；S1 第一片单独交付版本检查、并发写入与恢复；M1 第一片单独交付有效配置采用与启动保护。两仓实现 PR 分别依赖各自 C0/Q0 父 PR，后续分类、形成、召回和界面按 §9.3 依赖继续拆分；父 PR 进入 main 后再合并子 PR，不将 stacked 分支合并视为进入 main。此处持续补充 PR 和最终 head 的验证结果；未操作真实 Home，也未发布。
 
-下一批继续沿现有任务分片：S1 已交付业务 key 与 SDK 分类管理分页，条目级 disabled/恢复已由 #67 交付；跨候选及 Molis 历史的完整遗忘仍须收束；分类计数遵守 MEM-08：能证明完整的查询给 exact，跨页或扫描未完成明确 unknown，不伪造完整统计。S2 首片先闭合可信来源到持久待审候选，S3 接有界召回与最终回执。Molis 采用新 SDK 前必须提高下一严格格式基线：当前 ledger 3 无法阻止同样识别 3 的 M1 旧程序。管理调用复用现有可信执行上下文，后台 Run 复用 Session owner index，缺绑定拒绝；不创建全局 currentCaller。真实生产切换仍依赖 S1～S3 与 M1 完整产物，界面分页/统计不得先用前端切片代替 SDK 查询。
+2026-10-24 重新核对当前入口后的剩余顺序如下，替代此处早期“下一批”叙述，不改变 §9.3 的任务归属、范围或验收。前表较早失败保留其发生时的事实；最新 head 的修复与验证单列，不能把历史失败或局部通过当作当前整体结论。
+
+1. **统筹先收束现有依赖链。** #1064 `c41646320` 的发送等待修复已推送，原首轮断言和相关 102 项通过；完整 1,396 文件回归仍在运行，已发现声明打包缺失、创作台 HTTPS 夹具失配，以及引导页英文进度展示等待超时（该文件 8/9）；前两项独立修复等待构建验证；引导页英文翻译已改为当前批/总批（4/8、1/6），原测试仍等待总批在前，隔离集成树已按语言修正并保留数值/进度条/布局/超时，尚待浏览器复验。main 前移至 `3f715261f` 后的冲突已在隔离集成树处理，未推送；完整回归、正常 CI、评审与准确资源预算通过后，按 #1064 → #1101 → #1111 合并。分类限制第三片完成精确撤权反例及 SDK 依赖后再交付。
+2. **M3 固定分类批量管理。** 复用现 `previewScope/clearScope` 的授权、固定版本与回执，补有界分类集合的停用/遗忘和页面确认。现整范围清空不算分类批量完成。验收预览后新增不受影响、版本冲突、撤权、取消、部分完成/unknown 及按原预览重试；不得重新执行动态查询扩大对象。
+3. **S1/M3 明确续期，然后保护旧数据往返。** 当前改类只覆盖未到期、非 Session 条目；先补本人对原 ref/版本明确决定新期限的 SDK/产品入口，再补旧 v1/缺分类导入与旧历史/撤销决定。复用现采用、历史和 CAS，不加静默读取兼容。到期不得借读取、接受、恢复或撤销自动延长，未知事实保留，故障重试及重启不覆盖后继版本。SDK 通用 history/restore 和历史正文迁移仍留 P1。
+4. **M2/M3 Session 分类管理。** 由可信 Session 主人提供绑定和生命周期决定，再接现分类界面；不能接受任意业务输入自报 Session。验证 active/archive/unarchive/purge、原期限、跨会话拒绝和重启；Run 完成不当作 Session 结束。
+5. **M2 Coding 自动形成接线。** 当前 Coding 已有 `memoryForAgentRun` 读取与 canonical 原件桥，但生产 `learnFromRound → learnLater` 仍只接 Assistant work；不能写成 Coding 只差最终测试。独立补 Coding 完成到现学习队列的可信 Run/来源入口，复用同一形成服务及执行核。依赖分类快照和来源授权；验证无信号零调用、原件去重、取消/撤回/删除、后台继续与重启迟到结果拒绝。
+6. **I0 最终产物与收益验收。** 上述行为及共同 SDK 包稳定后，Coding/助理分别完成非空的形成、接受、最终 Context、查看、纠正/改类/关闭、撤销、遗忘与重启旅程，并覆盖候选/历史/使用/配对的清理和旧来源不复活。B2 先固定干净生产/工具/包并预检，再在明确付费预算内按 §9.2、§9.5 运行；保留失败及全部成本，提交人工质量复核和用户实操，不用离线显式召回或脚本模型代替收益及用户验收。
+
+分类批量、可信 Session 管理和 Coding 形成可在各自依赖具备后分工推进；共享 DTO、SDK 包/锁文件和集成仍由统筹单一接线。所有 P0 继续保留，不因当前切片通过而删除后续能力；未操作真实 Home，未发布，未新增付费调用。

@@ -31,7 +31,7 @@ test("an Agent run receives the Host memory recipe frozen into its role; no reci
           skills: [], mcp_tools: [], host_tools: [...request.role.host_tools], text_materials: [], budget: null, directory: { canonical_path: "/tmp/ws", realpath_verified: true } } };
     },
   } as never);
-  const pinned = { pinned: [], consumer: "agent", current_scene: "coding", scopes: [{ scope: "user" as const, owner: LOCAL_PERSON_ACTOR_ID }],
+  const pinned = { class_restrictions: { policy_version: 2 as const, taxonomy_version: 1 as const, personal: [], project: [] }, pinned: [], consumer: "agent", current_scene: "coding", scopes: [{ scope: "user" as const, owner: LOCAL_PERSON_ACTOR_ID }],
     task: true, skip: false, budget_tokens: 800, budget_chars: 3000, receipt_id: "recall-1", omitted: [] };
   const asked: string[] = [];
   const authority = { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: ["/tmp/ws"],

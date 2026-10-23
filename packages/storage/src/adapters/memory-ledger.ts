@@ -7,11 +7,11 @@ import type {
   MemoryScope,
   MemoryUseRecord,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
+import { homeSqlitePath, openHomeSqliteDatabase, openReadOnlyHomeSqlite } from "../home-sqlite.js";
 import { isDeepStrictEqual } from "node:util";
 import { createMemoryLedgerRetention } from "./memory-ledger-retention.js";
 import type { HomeStoreDeclaration } from "../home-stores.js";
-import { applySqliteBaseline, type SqliteBaseline } from "../sqlite-baseline.js";
+import { applySqliteBaseline, SqliteSchemaVersionError, type SqliteBaseline } from "../sqlite-baseline.js";
 
 /**
  * The Host's memory ledger (specs/archive/memory-system §5.1): what the platform knows around Prologue memory entries —
@@ -60,6 +60,18 @@ CREATE TABLE memory_markers (
 ` };
 
 const parse = <T>(row: Record<string, unknown> | undefined): T | null => row ? JSON.parse(String(row.body)) as T : null;
+
+/** Startup inspects every stored profile before opening a writer; missing stores and other versions are never repaired. */
+export function readMemoryLedgerProfiles(options: { homeDirectory: string }): readonly { actor_id: string; key: string; prefs: unknown }[] {
+  const db = openReadOnlyHomeSqlite(options.homeDirectory, MEMORY_LEDGER_STORE);
+  try {
+    const found = Number(db.prepare("PRAGMA user_version").get()!.user_version);
+    if (found !== MEMORY_LEDGER_BASELINE.version) throw new SqliteSchemaVersionError(
+      homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), found, MEMORY_LEDGER_BASELINE.version);
+    return db.prepare("SELECT actor_id, key, body FROM memory_prefs ORDER BY actor_id, key").all()
+      .map(row => ({ actor_id: String(row.actor_id), key: String(row.key), prefs: JSON.parse(String(row.body)) as unknown }));
+  } finally { db.close(); }
+}
 
 export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedgerPort {
   const db = openHomeSqliteDatabase(options.homeDirectory, MEMORY_LEDGER_STORE);

@@ -15,7 +15,7 @@ export interface PrologueMemoryBinding {
   context(caller: AgentMemoryCaller): MemoryCallerContext;
   run<T>(caller: AgentMemoryCaller, work: () => Promise<T>, formation?: AgentMemoryFormationContext, validateContext?: () => Promise<void>): Promise<T>;
 }
-export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEffects, "call">, binding: PrologueMemoryBinding): {
+export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEffects, "memory">, binding: PrologueMemoryBinding): {
   capability: AgentMemoryCapability;
 } {
   type Entry = AgentMemoryEntry;
@@ -42,7 +42,7 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
       if (!caller) return Promise.reject(agentErrors.capability_unavailable("记忆调用缺少可信身份绑定"));
       return binding.run(caller, () => {
         const operation = () => work(runtime.bindMemory(binding.context(caller)));
-        return (control ? effects.call(control, operation) : operation()).catch(error => { throw memoryPromotionFailure(error); });
+        return (control ? effects.memory(control, operation) : operation()).catch(error => { throw memoryPromotionFailure(error); });
       }, formation, validateContext);
     };
     return {
@@ -110,6 +110,15 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
           text: input.text, origin: input.origin, ...(input.tags ? { tags: input.tags } : {}), ...(input.meta ? { meta: toSdkMemoryMeta(input.meta) } : {}),
           ...(input.sources ? { sources: input.sources.map(source => ({ eventId: source.event_id, version: source.version })) } : {}) }, mutation(input)))),
         list: (scope, owner) => call(async bound => (await bound.candidates.list({ scope, owner })).map(candidateView)),
+        get: ({ scope, owner, candidate_id, signal }) => call(async bound => {
+          signal?.throwIfAborted();
+          await bound.candidates.hydrate([{ scope, owner }]);
+          signal?.throwIfAborted();
+          const found = await bound.candidates.get(ref("memory-candidate", candidate_id));
+          signal?.throwIfAborted();
+          if (found && (found.scope !== scope || found.owner !== owner)) throw agentErrors.capability_unavailable("候选不属于指定范围");
+          return found && candidateView(found);
+        }),
         accept: input => call(async bound => memoryView(await bound.candidates.accept(await candidate(bound, input), mutation(input), {
           ...(input.text !== undefined ? { text: input.text } : {}), ...(input.origin !== undefined ? { origin: input.origin } : {}),
           ...(input.meta ? { meta: toSdkMemoryMeta(input.meta) } : {}) }))),

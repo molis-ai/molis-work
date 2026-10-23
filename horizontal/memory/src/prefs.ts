@@ -1,4 +1,5 @@
-import { MEMORY_CONSUMERS, MEMORY_KINDS, type MemoryConsumer, type MemoryKind, type MemoryPrefs, type MemoryPreset, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_CONSUMERS, MEMORY_KINDS, isMemoryClassRestrictions, type MemoryConsumer, type MemoryKind, type MemoryPrefs, type MemoryPreset, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import { memoryErrors } from "./errors.js";
 
 /**
  * The assisted base switches; Home creation explicitly persists reviewed instead. Completing a stored override
@@ -8,7 +9,7 @@ export function defaultPrefs(scope: MemoryScope, preset: "reviewed" | "assisted"
   return {
     enabled: true, task_recall: true, form: true, auto: preset === "assisted", learn_from_work: true, learn_from_ui: true,
     consumers: { assistant: true, agent: true, ui: true, plugin: true, mcp: scope === "project" },
-    plugins: {},
+    plugins: {}, class_restrictions: [],
   };
 }
 
@@ -22,11 +23,15 @@ export const projectPrefsKey = (projectId: string) => `project:${projectId}`;
 
 export { isCompleteMemoryPrefs as isCompletePrefs } from "@molis-ai/molis-work-contracts/services/memory";
 
-/** A stored (possibly partial or older) record, completed with the defaults; unknown keys are dropped. */
+/** Merge current preference layers; startup/adoption owns validation of stored profile completeness. */
 export function completePrefs(scope: MemoryScope, ...layers: Array<Partial<MemoryPrefs> | null | undefined>): MemoryPrefs {
   const out = defaultPrefs(scope);
   for (const layer of layers) {
     if (!layer) continue;
+    if (Object.hasOwn(layer, "class_restrictions")) {
+      if (!isMemoryClassRestrictions(layer.class_restrictions)) throw memoryErrors.invalid("记忆分类限制含未知字段、取值或重复选择条件");
+      out.class_restrictions = structuredClone(layer.class_restrictions);
+    }
     for (const key of ["enabled", "task_recall", "form", "auto", "learn_from_work", "learn_from_ui"] as const) if (typeof layer[key] === "boolean") out[key] = layer[key]!;
     if (layer.consumers && typeof layer.consumers === "object") for (const consumer of MEMORY_CONSUMERS)
       if (typeof layer.consumers[consumer] === "boolean") out.consumers[consumer] = layer.consumers[consumer];

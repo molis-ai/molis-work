@@ -7,7 +7,7 @@ import { MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_STORE } from "./memory-ledger.js"
 
 export interface MemoryLedgerAdoptionProfile { readonly actor_id: string; readonly key: string; readonly prefs: MemoryPrefs }
 export interface MemoryLedgerAdoptionSnapshot {
-  readonly version: 3;
+  readonly version: 3 | 4;
   readonly profiles: readonly { readonly actor_id: string; readonly key: string; readonly prefs: unknown }[];
   readonly adoptions: readonly { readonly actor_id: string; readonly at: string; readonly body: unknown }[];
   readonly owners: readonly { readonly scope: MemoryScope; readonly owner: string; readonly project_id: string | null }[];
@@ -19,12 +19,12 @@ function conflict(message: string): never {
 
 function snapshot(db: DatabaseSync, path: string): MemoryLedgerAdoptionSnapshot {
   const found = Number(db.prepare("PRAGMA user_version").get()!.user_version);
-  if (found !== 3) throw new SqliteSchemaVersionError(path, found, 3);
+  if (found !== 3 && found !== 4) throw new SqliteSchemaVersionError(path, found, MEMORY_LEDGER_BASELINE.version);
   if (!isDeepStrictEqual(describeSqliteSchema(db), describeSqliteBaseline(MEMORY_LEDGER_BASELINE))) {
     conflict("记忆账本结构不符合可采用的旧格式");
   }
   return {
-    version: 3,
+    version: found,
     profiles: db.prepare("SELECT actor_id, key, body FROM memory_prefs ORDER BY actor_id, key").all()
       .map(row => ({ actor_id: String(row.actor_id), key: String(row.key), prefs: JSON.parse(String(row.body)) as unknown })),
     adoptions: db.prepare("SELECT actor_id, at, body FROM memory_markers WHERE key='strategy-adoption' ORDER BY actor_id").all()
@@ -88,7 +88,7 @@ export function beginMemoryLedgerAdoption(input: { homeDirectory: string; snapsh
 export function completeMemoryLedgerAdoption(input: { homeDirectory: string; snapshot: MemoryLedgerAdoptionSnapshot; profiles: readonly MemoryLedgerAdoptionProfile[] }): void {
   change(input, db => {
     const keys = (rows: readonly { actor_id: string; key: string }[]) => rows.map(row => JSON.stringify([row.actor_id, row.key])).sort();
-    if (input.profiles.some(profile => !isCompleteMemoryPrefs(profile.prefs))) conflict("采用结果必须是完整的八字段设置");
+    if (input.profiles.some(profile => !isCompleteMemoryPrefs(profile.prefs))) conflict("采用结果必须是完整的九字段设置");
     if (!isDeepStrictEqual(keys(input.profiles), keys(input.snapshot.profiles))) conflict("采用结果必须保留全部原设置身份");
     if (!input.snapshot.adoptions.length) conflict("记忆采用尚未开始");
     for (const marker of input.snapshot.adoptions) {

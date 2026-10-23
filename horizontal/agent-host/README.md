@@ -43,6 +43,8 @@ Host 可注入版本化 `memory.promotion`，Adapter 将候选、来源、正式
 
 SDK 仍拥有来源、权限、期限、取消与正式 CAS 门。App 的回执必须保持原 operation、候选原版本、policy/version 和实际 memory/version；Adapter 不伪造成功，也不证明 App 的历史事务已实际可撤销。已提交而 record 未完成时，SDK 的 `MEMORY_PROMOTION_RECORD_PENDING` 映为 `agent.memory_promotion_record_pending`（conflict），保留`operation_id` 与无正文 `committed: { memory_id, version }`，可用完整原请求重试，不能报成零写入。未装完整晋升实例仍不可用。
 
+分类限制依赖 SDK 最终授权 fence：App 在 `memory.assertCurrent` 同步核本次 target/before 的当前规则，可信 caller 使用各自调用/原 attempt 的 ALS 帧，不借另一个 Run 的最新快照。它只能收紧已完成的异步授权。Memory 专用 effect 帧将异步 `beforeEffect` 放在 authority 检查之前，最终 Host storage 包装只同步核执行令牌，避免分类检查后再等待；普通 Session/Run 写入和晋升 prepare/record 保留原完整门。真实 Node 在每次实际网络派发前执行该 fence；没有安装同步 App 检查时不承诺等待期间即时撤权。专项包含目标分类撤权后重启无候选及发送前关闭后零 HTTP；本片尚待新 SDK 包集成验证。
+
 `AgentTurnSteer` 和 `AgentQueuedInput` 仅复制 SDK 可证明的 `acceptedAtMs` 为可选 `accepted_at_ms`，不把新 Run 或读取时刻当作原件时间；旧记录未知就省略。steer 的 `source` 同样从 SDK 原件投影，app 映为 host，peer 保持 peer，不凭 user-role 判断本人。carry、取消与重启不另造输入身份。
 
 SourcePort 也只接 AgentHost 的 snake_case 引用、身份与短期正文快照，调用方来自同一可信绑定；来源内容不由模型自报。当前产品通过 SDK form/extractor 复用唯一 HostTextGeneration 提炼；来源与候选持久化仍由 SDK 核验。此桥不接第二模型循环或第二来源/历史表。回归使用公开 Node Adapter 与隔离真实存储，覆盖创建、替换、hold、故障补账、撤权及取消。
@@ -165,3 +167,5 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 `readOriginalInput(ref)` 从该 Session attempt 读取首原件的精确正文、作者、身份和首次时间；`accepted_run` 则指向同原件最近一次已接受且未 refused 的直接尝试（排除 `frozen.continued_from`）。拒绝且未建立 Run 的尝试不阻挡后续真实重试，派生继续不能让失败原件取得学习资格。来源消费方仍检查定位 Run 的当前状态、Session owner、工作和权限；缺失或未接受不从拼接任务恢复。原时间和身份不因读取、继续或重试变化，不扫描 SDK 历史，不增加正文存储；Source Port 的 App 规则见记忆策略 §9.4。
 
 `inputs.read(ref)` 先由 SDK 同 Session 的有界 InputBook 定位，再读该 Run 的原输入回执。当前 queued/withdrawn 优先于旧回执；未落定的直接补充仅可检查该 Session 唯一当前活跃 Run，记录缺失或已裁剪保持未知，不扫描历史。该定位不赋予读取或形成许可，产品 SourcePort 仍逐次核当前来源主人和用途。
+
+通用 Agent Memory Action 和 SDK 内置工具共用同轮 recipe。AgentHost 在创建 action tools / gateway 前捕获快照，经现 actions Port 交 Host 绑定原插件与 Session；缺快照时 Memory 拒绝，不从 Session 最新 attempt 补权。真实生产组合回归见 `tests/agent-memory-action-class-policy.test.ts`。

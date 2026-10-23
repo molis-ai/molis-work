@@ -1,10 +1,18 @@
 import type { MemoryCandidate } from "@molis-ai/molis-work-contracts/services/memory";
 import type { AssistantMemoryCandidate } from "@molis-ai/molis-work-contracts/services/assistant";
-import type { AgentMemorySourceSnapshot, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemorySourceSnapshot, AgentMemoryTools, AgentRecalledMemory } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { assistantErrors } from "./assistant-errors.js";
 import type { StoredWork } from "./assistant-store.js";
+
+/** The Assistant acting for the person in one work (or the person themselves, for the settings and the panel). */
+export function assistantMemoryCaller(actorId: string, work: StoredWork | null, projectId: string | null, person = false): MemoryCaller {
+  return { actor_id: actorId, project_id: work ? work.project_ref?.project_id ?? null : projectId, consumer: "assistant",
+    ...(work ? { work: { work_id: work.work_id, title: work.title } } : {}), ...(person ? { person: true } : {}),
+    // The Character carrying this work: its own memories come along, and only in its work.
+    ...(work?.character && work.project_ref ? { character: { id: work.character.artifact_id, title: work.character.title } } : {}) };
+}
 
 interface AssistantMemoryToolsInput {
   memory: MemoryService;
@@ -12,7 +20,8 @@ interface AssistantMemoryToolsInput {
   work: StoredWork;
   /** The work's project, when it has one. */
   projectId: string | null;
-  caller: MemoryCaller;
+  /** Prepared for this exact round, before Host.start assembles its tools. */
+  recipe: AgentRecalledMemory | null | undefined;
   /** What the person typed in this work, one message each: the Runtime-owned originals and the supplements they sent them (`typedWords`), including the accepted Run before its display round exists. Words the Host, the Assistant or a page wrote are not among them. */
   spoken(): Promise<readonly AgentMemorySourceSnapshot[]>;
 }
@@ -24,19 +33,22 @@ interface AssistantMemoryToolsInput {
  * work's brief) is given neither: it can read what is kept, and suggest.
  */
 export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMemoryTools | undefined {
-  const { memory, work, projectId, caller } = input;
+  const { memory, work, projectId, recipe } = input;
+  if (!work.session_id || !recipe?.class_restrictions) return undefined;
+  const caller: MemoryCaller = { ...assistantMemoryCaller(input.actorId, work, projectId), session_id: work.session_id,
+    current_scene: recipe.current_scene, class_restrictions: structuredClone(recipe.class_restrictions) };
   const personal = memory.prefsFor(input.actorId, "personal", null), project = projectId ? memory.prefsFor(input.actorId, "project", projectId) : null;
   if (!(personal.enabled && personal.form) && !(project?.enabled && project.form)) return undefined;
   // Suggesting is its own switch per scope: a project's work suggests for that project only where the person allows it.
   const mayPropose = (personal.enabled && personal.form && personal.learn_from_work) || (!!project?.enabled && project.form && project.learn_from_work);
   const propose: AgentMemoryTools["propose"] = async request => {
     const sources = await input.spoken();
-    await memory.propose({ ...caller, source_use: "explicit" }, { scope: request.scope, text: request.text, kind: request.scope === "project" ? "convention" : "preference", applies: request.applies.trim() ? { task: request.applies.trim().slice(0, 200) } : {},
+    const candidate = await memory.propose({ ...caller, source_use: "explicit" }, { scope: request.scope, text: request.text, kind: request.scope === "project" ? "convention" : "preference", applies: request.applies.trim() ? { task: request.applies.trim().slice(0, 200) } : {},
       basis: "inferred", why: request.why, from: "work" }, sources.length ? { sources: sources.map(({ event_id, version }) => ({ event_id, version })) } : {});
-    return { candidate_id: "", note: "已作为建议放在工作面板，等用户认可；在他认可前不会生效。" };
+    return { candidate_id: candidate.candidate_id, note: "已作为建议放在工作面板，等用户认可；在他认可前不会生效。" };
   };
   return {
-    ...(mayPropose ? { propose: async request => { const made = await propose(request); const latest = (await memory.candidates(caller, { work_id: work.work_id })).at(-1); return { ...made, candidate_id: latest?.candidate_id ?? "" }; } } : {}),
+    ...(mayPropose ? { propose } : {}),
     ...(work.delegated_by ? {} : { remember: async (request: Parameters<NonNullable<AgentMemoryTools["remember"]>>[0]) => {
       if (request.scope === "project" && !projectId) throw assistantErrors.scope("这是个人工作，没有项目；只能记为个人偏好");
       if (request.scope === "character" && !caller.character) throw assistantErrors.scope("这一轮不是由某个角色承担的，不能记为角色记忆");

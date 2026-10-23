@@ -47,6 +47,7 @@ import {
   type MemoryWriteResult,
 } from "@molis-ai/molis-work-contracts/services/memory";
 import { consumerAccess, CONSUMER_LABELS } from "./prefs.js";
+import { memoryRunRecipe, type MemoryRunRecipe } from "./run-recipe.js";
 import { MemoryPreferences } from "./preferences.js";
 import { MemoryOperations } from "./operations.js";
 import { MemoryUpkeep } from "./upkeep.js";
@@ -71,6 +72,8 @@ import type { MemoryBackendEntry, MemoryBackendPort, MemoryBackendCandidate } fr
 
 /** Who is asking, from the trusted Host context. Never read from input. */
 export interface MemoryCaller {
+  /** Host-owned policy of the original Run; never accepted from an Action input. */
+  readonly class_restrictions?: AgentRecalledMemory["class_restrictions"];
   actor_id: string;
   /** A trusted logical invocation; retries retain it and any persisted child operation identities. */
   operation_id?: string;
@@ -277,21 +280,8 @@ export class MemoryService {
   }
 
   /** Build a trusted recipe without reading memory bodies or recording unconfirmed use. */
-  async forRun(caller: MemoryCaller, request: MemoryRecallRequest, options: { skip?: boolean; budgetTokens?: number } = {}): Promise<(AgentRecalledMemory & {
-    receipt_id: string; omitted: Array<{ memory_id: string; reason: "budget" | "limit" | "conflict" }>;
-  }) | null> {
-    const places = this.scopeCommands.scopesFor(caller, request.scopes);
-    const automatic = !options.skip && places.some(where => consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id, "task").allowed);
-    const plugin = caller.plugin_id ?? request.situation?.plugin_id;
-    const facts = { ...(plugin ? { plugins: [plugin] } : {}),
-      ...(request.situation?.object_kind ? { object_kinds: [request.situation.object_kind] } : {}),
-      ...(request.situation?.goal_id ? { goals: [request.situation.goal_id] } : {}) };
-    return { pinned: [], consumer: caller.consumer, usage: { title: useTitle(caller, request.used_for), ...(caller.work ? { work_id: caller.work.work_id } : {}) },
-      current_scene: caller.current_scene ?? (caller.plugin_id === "io.molis.work.coding" ? "coding" : caller.consumer === "assistant" ? "assistant" : "common"),
-      scopes: places.map(where => ({ scope: where.scope === "personal" ? "user" : where.scope, owner: where.owner })),
-      task: automatic, skip: !automatic, budget_tokens: options.budgetTokens ?? 800,
-      budget_chars: Math.max(100, Math.min(4000, request.budget_chars ?? 3000)),
-      ...(Object.keys(facts).length ? { facts } : {}), receipt_id: `recall-${this.newId()}`, omitted: [] };
+  async forRun(caller: MemoryCaller, request: MemoryRecallRequest, options: { skip?: boolean; budgetTokens?: number } = {}): Promise<MemoryRunRecipe | null> {
+    return memoryRunRecipe(caller, request, options, { scopes: this.scopeCommands, preferences: this.preferences, newId: () => this.newId() });
   }
 
   /* ---- writing ---- */
@@ -612,7 +602,7 @@ export class MemoryService {
 
   /**
    * Suggest keeping something the person did not ask for (spec §6.1): a candidate only, until they accept it. The
-   * first version's rules hold: one suggestion of the same text ever, at most three waiting per work, never what is kept.
+   * In the authorized canonical candidate set: suggest the same text once, at most three waiting per work, never what is kept.
    */
   async propose(caller: MemoryCaller, input: { scope: MemoryScope; text: string; kind: MemoryKind; applies?: MemoryApplies; basis: MemoryBasis; why: string;
     from: MemoryCandidate["from"]; hold_reason?: string | null; supersedes?: string | null; evidence?: MemoryEvidenceInput[] }, options: { gate?: boolean; classificationMeta?: Pick<AgentMemoryMeta, "classification" | "session_ref" | "namespace">; formal_expires_at?: string | null; sources?: readonly AgentMemorySourceRef[]; combines?: string } = {}): Promise<MemoryCandidate> {
@@ -623,10 +613,12 @@ export class MemoryService {
     const text = input.text.trim();
     if (!text || text.length > MAX_TEXT) throw memoryErrors.invalid(`记忆内容要在 1–${MAX_TEXT} 字之间`);
     if (looksLikeSecret(text)) throw memoryErrors.invalid("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
-    const earlier = await this.queries.candidateRecords(caller, input.scope, where.owner);
+    // Candidate context is internal formation work; formal reads and the proposal retain the original caller.
+    const candidateCaller: MemoryCaller = { ...caller, purpose: "management", source_use: caller.source_use === "learning" ? "learning" : "explicit" };
+    const earlier = await this.queries.candidateRecords(candidateCaller, input.scope, where.owner, { formation: true });
     const work = caller.work ?? null;
     if (options.sources && !this.sourceAllowed(caller.actor_id, input.scope, where.owner, options.sources)) throw memoryErrors.forbidden("这份来源已遗忘，不能重新形成候选");
-    const prior = options.combines ? (await this.ports.backend.withCaller(caller).candidates.list(input.scope, where.owner)).find(item => item.candidate_id === options.combines) : undefined;
+    const prior = options.combines ? (await this.ports.backend.withCaller(candidateCaller).candidates.list(input.scope, where.owner)).find(item => item.candidate_id === options.combines) : undefined;
     const combines = prior?.state === "pending" && prior.sources?.length && options.sources
       && prior.sources.every(old => options.sources!.some(ref => ref.event_id === old.event_id && ref.version === old.version))
       && options.sources.some(ref => !prior.sources!.some(old => old.event_id === ref.event_id))

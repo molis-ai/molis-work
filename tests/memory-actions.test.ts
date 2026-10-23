@@ -17,7 +17,18 @@ import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-per
 import { assistantAuthority, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 
 const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
-const agent: ActionCallContext = { actor_id: "agent:coding-1", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [...MEMORY_PERMISSIONS] };
+const agentIdentity: ActionCallContext = { actor_id: "agent:coding-1", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [...MEMORY_PERMISSIONS] };
+
+// This Host-side action fixture issues the session identity and freezes the real service's recipe before any action.
+async function agentCaller(host: MolisWorkLocalHost): Promise<ActionCallContext> {
+  const session_id = crypto.randomUUID(), plugin_id = "io.molis.work.coding";
+  const recipe = await memoryHostFor(host)!.service.forRun({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null,
+    consumer: "agent", plugin_id, current_scene: "coding", session_id }, { query: "总结一下" });
+  assert.ok(recipe);
+  assert.equal(recipe.current_scene, "coding");
+  return { ...agentIdentity, runtime_session_id: session_id,
+    runtime_memory: { plugin_id, current_scene: recipe.current_scene, class_restrictions: structuredClone(recipe.class_restrictions) } };
+}
 
 // Keep the real policy and journal; the Home owner is registered before any memory command.
 function currentMemory(localHost: MolisWorkLocalHost): NonNullable<PrologueNodeAdapterOptions["memory"]> {
@@ -53,8 +64,10 @@ test("the production learning Host queues original identities only, and respects
   const text = "以后周报都把风险放最前面";
   // This is the trusted Host fixture; the SDK attempt, not the display round, owns the original.
   const original_input = { input_id: crypto.randomUUID(), text, written_by: "person" as const, occurred_at: new Date().toISOString() };
+  const recipe = await memory.service.forRun({ actor_id: owner.actor_id, project_id: owner.project_id, consumer: "assistant", session_id: session.session_id }, { query: text });
+  assert.ok(recipe);
   const run = await adapter.start({ ...owner, session, task: text, workspace: "none", role_id: "assistant", original_input,
-    role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
+    role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [], memory: recipe } });
   store.addRound(work.work_id, { run_id: run.ref.run_id, text, materials: [], context: null, started_at: new Date().toISOString() });
   const until = async (read: () => boolean | Promise<boolean>) => { for (let i = 0; i < 400; i++) { if (await read()) return; await new Promise(resolve => setTimeout(resolve, 20)); } assert.fail("production learning did not settle"); };
   await until(async () => (await adapter.read(run.ref)).phase === "completed");
@@ -90,6 +103,7 @@ test("memory is one system.memory provider in the shared directory: the person m
   assert.ok(memoryHostFor(host), "registered with the Agent service of this Home");
   assert.ok(LOCAL_OWNER_PERMISSIONS.includes("memory:recall") && LOCAL_OWNER_PERMISSIONS.includes("memory:configure"), "the person holds every memory permission");
   const client = host.homeActionClient();
+  const agent = await agentCaller(host);
   const views = await client.discover(person);
   const memoryViews = views.filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID);
   assert.deepEqual(memoryViews.map(view => view.capability_id).sort(), ["memory.candidates.accept", "memory.candidates.discard", "memory.candidates.list", "memory.change", "memory.changes.list",
@@ -111,6 +125,9 @@ test("memory is one system.memory provider in the shared directory: the person m
   // The person's page recalls as the interface consumer; an agent as Agent work.
   const recalled = await asAgent.invoke(memoryActions.recall, { query: "总结一下", used_for: "Coding 工作" });
   assert.deepEqual(recalled.items.map(item => item.text), ["回答用要点列表"]);
+  const agentList = await asAgent.invoke(memoryActions.list, {});
+  assert.deepEqual(agentList.items.map(item => item.text), ["回答用要点列表"]);
+  assert.deepEqual(agentList.counts, { personal: 1, project: 0, auto_this_week: null, pending: null });
   const personalPrefs = await asPerson.invoke(memoryActions.prefs, { scope: "personal" });
   await asPerson.invoke(memoryActions.savePrefs, { scope: "personal", prefs: { consumers: { ...personalPrefs.prefs.consumers, agent: false } } });
   const off = await asAgent.invoke(memoryActions.recall, { query: "总结一下" });
@@ -147,12 +164,53 @@ test("memory is one system.memory provider in the shared directory: the person m
   assert.equal(signal.state, "counted");
 });
 
+test("an agent can propose and deduplicate with reads closed, but only the person can manage the candidate", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-memory-proposal-context-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
+  const client = host.homeActionClient(), asPerson = bindActionClient(client, () => person);
+  const readOff = { selector: { consumer: "agent" as const, current_scene: "coding" as const }, read: "off" as const, form: "inherit" as const };
+  await asPerson.invoke(memoryActions.savePrefs, { scope: "personal", prefs: { learn_from_work: false, class_restrictions: [readOff] } });
+  const agent = await agentCaller(host), asAgent = bindActionClient(client, () => agent);
+  const input = { scope: "personal" as const, text: "回答用要点列表", said: "回答用要点列表" };
+  const result = await asAgent.invoke(memoryActions.write, input);
+  assert.equal(result.outcome, "candidate"); assert.equal(result.memory, null);
+  assert.ok(result.candidate);
+  const candidate = result.candidate;
+  assert.deepEqual((await asPerson.invoke(memoryActions.candidates, {})).candidates.map(item => item.candidate_id), [candidate.candidate_id]);
+  const personList = await asPerson.invoke(memoryActions.list, {});
+  assert.deepEqual(personList.items, []);
+  assert.deepEqual(personList.counts, { personal: 0, project: 0, auto_this_week: 0, pending: 1 });
+  assert.deepEqual(await asAgent.invoke(memoryActions.list, {}), { items: [],
+    counts: { personal: 0, project: 0, auto_this_week: null, pending: null } }, "task lists do not query candidate management counts");
+  await assert.rejects(asAgent.invoke(memoryActions.write, input), /已经建议过/);
+  assert.deepEqual((await asPerson.invoke(memoryActions.candidates, {})).candidates.map(item => item.candidate_id), [candidate.candidate_id]);
+  await assert.rejects(asAgent.invoke(memoryActions.candidates, {}));
+  await assert.rejects(asAgent.invoke(memoryActions.accept, { candidate_id: candidate.candidate_id, expected_version: candidate.version }));
+  await assert.rejects(asAgent.invoke(memoryActions.discard, { candidate_id: candidate.candidate_id, expected_version: candidate.version }));
+  const kept = await asPerson.invoke(memoryActions.accept, { candidate_id: candidate.candidate_id, expected_version: candidate.version });
+  assert.ok(kept.memory);
+  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items.map(item => [item.text, item.source]), [[input.text, "accepted"]]);
+  assert.deepEqual(await asAgent.invoke(memoryActions.list, {}), { items: [],
+    counts: { personal: 0, project: 0, auto_this_week: null, pending: null } }, "formal counts respect the original read restriction");
+  assert.deepEqual((await asAgent.invoke(memoryActions.recall, { query: "总结一下" })).items, [], "candidate context grants no formal read access");
+
+  await asPerson.invoke(memoryActions.savePrefs, { scope: "personal", prefs: { class_restrictions: [{ ...readOff, form: "off" }] } });
+  const before = { candidates: await asPerson.invoke(memoryActions.candidates, {}), changes: await asPerson.invoke(memoryActions.changes, {}),
+    items: (await asPerson.invoke(memoryActions.list, {})).items };
+  await assert.rejects(asAgent.invoke(memoryActions.write, { ...input, text: "回复先说结论", said: "回复先说结论" }));
+  assert.deepEqual(await asPerson.invoke(memoryActions.candidates, {}), before.candidates);
+  assert.deepEqual(await asPerson.invoke(memoryActions.changes, {}), before.changes);
+  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items, before.items);
+});
+
 test("memory.recall cancelled while it waits for the store settles nothing: no receipts, nothing shown as 最近用于", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-recall-cancel-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const service = memoryHostFor(host)!.service;
   const client = host.homeActionClient();
+  const agent = await agentCaller(host);
   const asAgent = bindActionClient(client, () => agent), asPerson = bindActionClient(client, () => person);
   await asPerson.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表" });
   const recallRef = { capability_id: memoryActions.recall.capability_id, version: 2, provider_id: MEMORY_PROVIDER_ID };
@@ -174,6 +232,29 @@ test("memory.recall cancelled while it waits for the store settles nothing: no r
   // Not stopped: the receipt is written as before.
   const recalled = await asAgent.invoke(memoryActions.recall, { query: "总结一下" });
   assert.deepEqual(service.uses({ receipt_id: recalled.receipt_id }).map(use => use.state), ["returned"]);
+});
+
+test("an agent without its original memory snapshot is refused without changing entries, candidates or receipts", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-memory-missing-recipe-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
+  const client = host.homeActionClient(), asPerson = bindActionClient(client, () => person);
+  const agent = await agentCaller(host), service = memoryHostFor(host)!.service;
+  await asPerson.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表" });
+  const before = { items: (await asPerson.invoke(memoryActions.list, {})).items,
+    candidates: await asPerson.invoke(memoryActions.candidates, {}), changes: await asPerson.invoke(memoryActions.changes, {}), uses: service.uses({}) };
+  const missingSnapshot = { ...agent }; delete missingSnapshot.runtime_memory;
+  const missingSession = { ...agent }; delete missingSession.runtime_session_id;
+  for (const caller of [agentIdentity, missingSnapshot, missingSession]) {
+    const unavailable = (error: unknown) => { assert.equal((error as { code?: string }).code, "memory.unavailable"); return true; };
+    await assert.rejects(client.invoke(caller, memoryActions.list, {}), unavailable);
+    await assert.rejects(client.invoke(caller, memoryActions.recall, { query: "总结一下" }), unavailable);
+    await assert.rejects(client.invoke(caller, memoryActions.write, { scope: "personal", text: "回答更简短", said: "回答更简短" }), unavailable);
+  }
+  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items, before.items);
+  assert.deepEqual(await asPerson.invoke(memoryActions.candidates, {}), before.candidates);
+  assert.deepEqual(await asPerson.invoke(memoryActions.changes, {}), before.changes);
+  assert.deepEqual(service.uses({}), before.uses);
 });
 
 // Observe the actual bound capability without replacing its caller or final execution guard.

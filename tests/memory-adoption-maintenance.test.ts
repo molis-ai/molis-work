@@ -12,8 +12,9 @@ import { homeSqlitePath, inspectMemoryLedgerAdoption, MEMORY_LEDGER_BASELINE, ME
 
 const full: MemoryPrefs = { enabled: true, task_recall: true, form: false, auto: true, learn_from_work: false, learn_from_ui: true,
   consumers: { assistant: false, agent: true, ui: true, plugin: true, mcp: false },
-  plugins: { blocked: { allowed: false, kinds: ["preference"] }, limited: { allowed: true, kinds: ["convention"] } } };
-const { enabled: _enabled, task_recall: _taskRecall, ...six } = full;
+  plugins: { blocked: { allowed: false, kinds: ["preference"] }, limited: { allowed: true, kinds: ["convention"] } }, class_restrictions: [] };
+const { class_restrictions: _restrictions, ...eight } = full;
+const { enabled: _enabled, task_recall: _taskRecall, ...six } = eight;
 const done = { outcome: "completed", items: [], issues: [], exhausted: true } as const;
 
 function scratch(t: TestContext) {
@@ -35,7 +36,7 @@ function seed(home: string) {
     if (!db.prepare("SELECT name FROM sqlite_master WHERE name='memory_prefs'").get()) db.exec(MEMORY_LEDGER_BASELINE.schema);
     db.exec("PRAGMA user_version=3");
     for (const key of ["personal", "project-default", "project:off", "project:manual"]) {
-      const prefs = key === "project:off" ? { ...full, enabled: false } : key === "project:manual" ? { ...full, task_recall: false, auto: false } : six;
+      const prefs = key === "project:off" ? { ...eight, enabled: false } : key === "project:manual" ? { ...eight, task_recall: false, auto: false } : six;
       db.prepare("INSERT OR REPLACE INTO memory_prefs VALUES (?,?,?)").run(LOCAL_PERSON_ACTOR_ID, key, JSON.stringify(prefs));
     }
     db.prepare("INSERT OR REPLACE INTO memory_markers VALUES (?,?,?,?)")
@@ -205,4 +206,58 @@ test("an adoption issue remains incomplete even if a faulty page says completed 
   assert.equal(calls, 3); assert.equal(result.outcome, "incomplete");
   assert.equal(result.verification, "complete"); assert.equal(state(home).version, 3);
   assert.equal(state(home).marker.origin, "adopting");
+});
+
+// MEM-CLASS-03: the already-adopted SQLite format uses the same barrier and retains every actor's existing choices.
+test("ledger 4 adoption adds only the missing restriction field and repeated adoption keeps current rules and all identities", async t => {
+  const { home } = scratch(t); seed(home);
+  const restricted: MemoryPrefs = { ...full, class_restrictions: [
+    { selector: { consumer: "agent", current_scene: "coding", kind: "convention" }, read: "explicit-only", form: "off" },
+  ] };
+  withDb(home, db => {
+    db.exec("PRAGMA user_version=4");
+    db.prepare("UPDATE memory_prefs SET body=? WHERE key='personal'").run(JSON.stringify({ ...eight, enabled: false, task_recall: false }));
+    db.prepare("UPDATE memory_prefs SET body=? WHERE key='project-default'").run(JSON.stringify(eight));
+    db.prepare("INSERT INTO memory_prefs VALUES (?,?,?)").run("another-person", "project:retained", JSON.stringify(restricted));
+    db.prepare("INSERT INTO memory_markers VALUES (?,?,?,?)").run("another-person", "strategy-adoption", "other-before", JSON.stringify({ origin: "new-home", retained: "other" }));
+  });
+  const before = state(home), snapshot = inspectMemoryLedgerAdoption({ homeDirectory: home });
+  assert.equal(snapshot.version, 4);
+  let expected: typeof snapshot.profiles | undefined;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let verified = 0;
+    const result = await adoptMemoryHome({ homeDirectory: home, open: async input => {
+      assert.deepEqual(input.profiles.find(row => row.actor_id === "another-person")!.prefs, restricted);
+      assert.deepEqual(input.profiles.find(row => row.key === "personal")!.prefs, { ...full, enabled: false, task_recall: false });
+      if (expected) assert.deepEqual(input.profiles, expected);
+      expected = input.profiles;
+      return bridge({ verify: async () => {
+        verified++;
+        const blocked = inspectMemoryLedgerAdoption({ homeDirectory: home });
+        assert.equal(blocked.version, 4);
+        assert.ok(blocked.adoptions.every(marker => (marker.body as { origin: string }).origin === "adopting"));
+        assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), { code: "memory.unavailable" });
+        return { outcome: "complete", exhausted: true };
+      } });
+    } });
+    assert.equal(result.outcome, "completed"); assert.equal(verified, 1);
+    const adopted = inspectMemoryLedgerAdoption({ homeDirectory: home });
+    assert.equal(adopted.version, 4); assert.deepEqual(adopted.profiles, expected);
+    assert.deepEqual(adopted.adoptions, snapshot.adoptions);
+    assert.deepEqual(state(home).revisions, before.revisions);
+    assert.deepEqual(state(home).changes, before.changes); assert.deepEqual(state(home).pairs, before.pairs);
+  }
+});
+
+for (const interruption of ["cancelled", "incomplete"] as const) test(`ledger 4 ${interruption} verification keeps the barrier and unmodified profiles`, async t => {
+  const { home } = scratch(t); seed(home);
+  withDb(home, db => db.exec("PRAGMA user_version=4"));
+  const before = state(home);
+  const result = await adoptMemoryHome({ homeDirectory: home, open: async () => bridge({
+    verify: async () => ({ outcome: interruption, exhausted: true }),
+  }) });
+  assert.equal(result.outcome, interruption);
+  assert.equal(state(home).version, 4); assert.equal(state(home).marker.origin, "adopting");
+  assert.deepEqual(state(home).prefs, before.prefs);
+  assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), { code: "memory.unavailable" });
 });

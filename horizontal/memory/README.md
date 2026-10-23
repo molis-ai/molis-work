@@ -120,9 +120,11 @@ recreate 撤销按原 changeId 在现 operation marker 中保留短创建号；�
 | 文件 | 用途 |
 | --- | --- |
 | [src/service.ts](src/service.ts) | `MemoryService`：列出、召回、写入门、修改与移动、候选、最近变动与撤销、界面信号、整理与维护 |
+| [src/run-recipe.ts](src/run-recipe.ts) | `forRun` 的可信 recipe 构造：当前场景、读取预检、分类限制快照、事实、使用标题及预算；不读正文、不记使用 |
 | [src/scope-commands.ts](src/scope-commands.ts) | 授权范围读取与视图、固定清空、当前格式导出/导入；导入复用 Service 写门 |
 | [src/prefs.ts](src/prefs.ts) | 开关的默认值、四预设配方、补全与使用方权限 |
 | [src/preferences.ts](src/preferences.ts) | 有效偏好读写、项目继承与助理设置映射；持久化仍经原 ledger |
+| [src/class-restrictions.ts](src/class-restrictions.ts) | 当前使用方、场景与 canonical 分类的只收紧匹配；读取与自动形成分别判断 |
 | [src/policy.ts](src/policy.ts) | 自动批准规则版本与低风险类型门；只决定自动提议是否仍需本人认可 |
 | [src/text.ts](src/text.ts) | 召回关键词、同文判断（`sameWords`：同样的话，由 `fold` 折叠后相等；`sameText`：去掉标点的粗略相等，只用来给建议去重）、秘密形状与像指令的文字（确定性规则） |
 | [src/spoken.ts](src/spoken.ts) | `theirWords`：记作“用户亲口说的”（来源 `said`）的核对，内容是不是本人写过的某一整条消息（只容许 `fold` 的差别：大小写、全角半角、引号样式、空白和最后一个句号），记下来的是那条消息本身；`quotedFrom`：引文是不是本人说过的一段话（工作结束时提炼出的建议用它区分“明说”和“推断”，不决定“亲口说的”） |
@@ -134,6 +136,12 @@ recreate 撤销按原 changeId 在现 operation marker 中保留短创建号；�
 使用方只经 `memory.*` 动作或 Host 进程内的服务调用；使用方身份来自可信调用上下文（受众），不从输入读。插件只能读到被允许的类别（服务里的规则；动作目录今天不向插件提供记忆，见 [CALL-CHAINS §8](../../docs/system/CALL-CHAINS.md)）；外部 AI 客户端只能召回，要本人授权，默认读不到个人记忆。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。
+
+分类限制由现偏好持有：新默认给 `class_restrictions: []`，本 profile 更新省略数组时保持、显式数组时完整替换，四预设保留细分限制。项目沿现完整有效 profile 继承；清空项目数组不会清空项目默认或其它项目。规则保存先严格校验，再复制到结果，调用方后续改动数组不能修改已经接受的设置；重复选择条件、未知字段/值在保存前拒绝。
+
+`memoryClassReadAllowed` 与 `memoryClassFormationAllowed` 是独立的纯限制计算，均接收规则、可信 consumer/current_scene 与 canonical kind/classification。多场景条目只匹配本次 current_scene 或 common 且条目实际具有的 scene，缺分类不猜 common。read 的 explicit-only 禁止 task/resident；form 不受 read 限制影响。返回 true 只表示未被这组规则关闭，调用方仍须求交当前旧权限、Run 冻结规则与实时规则；本人管理及显式保存的适用范围由调用链决定，不由匹配器授予。对应公共入口单测为 `tests/memory-class-restrictions.test.ts`，生产授权/形成与真实持久化另由集成验证覆盖。
+
+`memoryClassReadPossible` 在 Run 计划与 SDK 查询门共用，先合并当前与冻结规则，再判断当前声明分类和未分类是否仍有可读目标；全部关闭时不开始自动读取。它不读取库、不把未知分类映射为 common，也不取代逐条授权。形成按完整新建槽和 replacement 槽过滤；替换同时检查原分类与目标分类，派发前复核固定上下文和槽，返回登记前再次检查。正式提炼上下文走 task 读取门，候选上下文独立经过形成门。工程回归分别在 `tests/memory-class-runtime-policy.test.ts` 与 `tests/memory-class-formation.test.ts`，后者使用 SDK Node 与 SQLite；真实调用链执行后才可报告对应路径通过。
 
 ## 本地开发
 
@@ -149,6 +157,12 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 范围与验收以 [spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定) 为准。沿现学习队列，自动学习只经 SDK `candidates.form` 调用一次登记的 Host 提炼并写候选；人工提议仍使用现公开提议口。无长期信号时返回 skipped，不读取来源、不调用模型。明确表达复用 `spoken.theirWords` 的整条消息规则，重复只数独立来源。模型引用、工作/Run/job 数量和旧无来源候选不构成自动批准。
 
 形成前由本包读取同一份当前授权上下文（最多 30 条正式、20 条待审），冻结个人/项目的新建槽与跨类别替换槽。正式上下文按当前 task 读取许可取得；已过期、暂停、停用或不在当前场景可见范围的条目不进入提炼上下文，也不生成替换槽。管理页面仍可按原管理许可查看它们，不清期限或重分类。待审上下文沿候选管理审阅许可，并再次求交当前形成/学习开关、场景、私有命名空间和有效期，仅服务本轮去重与来源合并，不冒充正式 task 召回许可。关闭任务召回而仍允许形成时，不读取正式上下文，仍可形成新候选。目标类别复用当前 consumer 与插件的 explicit 许可求交；默认 Coding 仅提供 preference/convention，明确授权其它类别后才增加相应槽，不因一个未授权类别阻断全部合法形成。每种当前允许类别可新建三条，App 明确配置最多 144 槽；提炼每轮仍最多三条，原文上下文只传一次。替换槽保留原目标与读取时版本，接受只能走同一目标的 `settleInto`；目标丢失或后继编辑不得改成新建或追最新版本。只有与本次整条本人原话对应的旧 explicit 待审候选可贡献其 SDK 已确认来源，最终仍由 SourcePort 重读；不把其它待审来源送入模型。
+
+显式提议的候选去重、限额与来源合并查询使用内部 management 副本，保留原 actor、项目、Session、插件、场景、Run 分类快照与取消信号；学习来源保留 learning，其余标为本次 explicit 提议。只有候选上下文按形成权限读取，要求当前与原 Run 共同允许；learn_from_work 仅约束 learning。正式读取与最终候选提议继续使用原 caller，Agent 不因此取得候选管理、接受或删除入口。验收覆盖 read off/form on 的真实 Action 提议、去重与本人接受，以及形成关闭、原快照缺失和 Agent 管理拒绝。
+
+`memory.list@4` 的非本人调用只读取当前合法可见的正式项，personal/project 计数也来自这些正式项；pending 与 auto_this_week 返回 null，表示本次未查询管理计数，不表示零。本人管理仍查询并返回原实际计数。正式列表不因旁账中不可见的候选而失败，也不借内部 management 副本扩大权限。助理提议工具直接返回本次 Service.propose 的候选 ID，不再通过全范围候选回读或最后一条猜测结果；并发提议各自保留自己的回执。
+
+内部非本人提议仅在本轮获准使用的 canonical 候选集合上做同文/相似去重与每工作三条上限，不借不可见项的 App 账注正文或计数推断。列表未返回的账注引用由固定 scope/owner/id 的 SDK get 复核：仅明确 MEMORY_SCOPE_DENIED 可排除；真实缺失、损坏及其它存储错误继续拒绝，不修账、不重建正文。查询保持取消信号与当前∩冻结权限，本人管理仍采用严格完整性检查。重启重放不能绕过获准集合的去重或使缺失原件复活；本片不增加 store/cache。
 
 每次实际模型派发前沿同一公开读取口复核这份固定上下文的权限、状态及原版本；变化即拒绝派发，不替换正文、目标或期望版本。该回调只活在当前调用，不进模型或持久记录。
 

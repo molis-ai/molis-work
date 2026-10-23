@@ -15,12 +15,10 @@
 
 ## 在途 PR 自带的红（不算 main 的红；按登记册 §0 由 Codex 修）
 
+10-23 20:10 UTC 统筹删四行：R-25 的 `write-checkers-settings.e2e`、`project-settings-navigation.e2e`（修复 #1099、#1100 已合，#1087 已合 `327c7c201`；batch-1023-12 全绿）；`health-gates-api-snapshot`（#1096 带 #1104 的修复合入 `01a875af0`）；`goal-event-http`（#1093 带 #1105 的修复合入 `8b8ee3131`）。之后这份名单由 Codex 维护（登记册 §2.0 R-07）。
+
 | 文件 | 带进来的 PR | 原因类别 | 谁修 | 依据 |
 | --- | --- | --- | --- | --- |
-| `write-checkers-settings.e2e` | #1087（R-25：main 上 `apps/workbench/src/scripts/client/initialization.ts:184` 的旧判断 `!feedFilterPanel?.hidden` 在没有 Feed 筛选面板时为真，每次 Esc 都被 preventDefault；#1087 改成只在启用 Feed 时画 Feed 舞台，问题露出来） | 产品回归（① 10-23 核定，登记册 `6071f6678`） | ② 的修复 #1099（`af455c18e`，改成 `feedFilterPanel?.hidden === false`），⑤ 已评审可合；同类三处在 #1100（`babb48e55`）；#1099 + #1100 + #1085 + #1087 组 batch-1023-10（① 10-23 定，与 batch-1023-9 分开跑）证实转绿后再合 #1087。batch-1023-10 已转绿（3/3），#1099、#1100、#1087 合入后删行 |  batch-1023-8 片 1，重试也红；batch-1023-7 通过（3/3），同一 Chrome 155.0.8059.39。PA-40 的 `:92`：删除确认框按「取消」关一次后再打开，按 Esc 不关，焦点停在框里的「取消」 |
-| `project-settings-navigation.e2e` | #1087（同 R-25） | 同上 | 同上（batch-1023-10 转绿，4/4） | batch-1023-8 片 16，重试也红；batch-1023-7 通过（4/4）。「project general settings…」的 `:83`：项目删除框按「取消」关一次后再打开，按 Esc 不关，焦点停在 `data-project-delete-cancel` |
-| `health-gates-api-snapshot` | #1096（`4898e94ff`） | 测试缺陷（被 #1096 暴露）：用例 `:384` 按 `/[A-Z][A-Za-z0-9_$]*/g` 切词，从快照新行 `isCodedFailure` 中间截出 `CodedFailure`，正好撞上 `packages/plugin-sdk/src/errors.ts:32` 没导出的同名 interface，`:387` 报「提到了却没有快照带着」 | 已修：Codex 的 #1104（正则加左边界 `(?<![A-Za-z0-9_$])`）合进 `feat/bl403-route-dispatch`（`5cf8033ce`），在 batch-1023-11 里看；#1096 合入后删行 | batch-1023-9 片 10，重试也红 |
-| `goal-event-http` | #1093（`5f4675143`） | 测试缺陷：#1093 新加的 PG094-09 `:224`，对只声明 GET 的 `/api/goals/:id/event-state` 发 POST 期望 404，实际 400。这个 POST 没带一次性操作键，在路由匹配之前就被入口拒绝（`请求缺少有效的一次性操作键`，S-03） | 已修：Codex 的 #1105（只给这个 POST 补键，404 断言不变）合进 `claude/competent-ellis-b4c6c2`（`d343b5cf5`），在 batch-1023-11 里看；#1093 合入后删行 | batch-1023-9 片 14，重试也红 |
 
 #1071 已于 2026-10-24 01:10 合入 main（`2fa107bae`），`coding-change-html` 已删行。#1084 带着 #1071（#1067 已在 main），所以 batch-1023-8 预计也会红这几份，另加 #1084 自己的 `coding-interaction-html`（Codex 认领）。`coding-interaction-html` 已由 Codex 的 #1106（夹具补 `openProjectVersionStores`）修好，合进 `feat/pg062-s4b-coding-interaction`（`fed6efec9`）；#1084 合入后从机读清单删掉。
 
@@ -87,11 +85,7 @@ tests/workbench-deferred-clients.e2e.test.ts
 在途 PR 自带、已认领的（只用来比批次结果，比 main 时不用）：
 
 ```
-tests/write-checkers-settings.e2e.test.ts
-tests/project-settings-navigation.e2e.test.ts
 tests/coding-interaction-html.test.ts
-tests/health-gates-api-snapshot.test.ts
-tests/goal-event-http.test.ts
 ```
 
 ## 依据的 run

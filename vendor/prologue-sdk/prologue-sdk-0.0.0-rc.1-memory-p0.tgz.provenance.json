@@ -9,11 +9,11 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "5cd21c84bdf36ba206fa58413e3dfc33f571146f",
+    "commit": "37c8886e22b7a93852c93d73e52b9b2f1bf0ac34",
     "mergedUpstream": {
-      "pullRequest": 90,
-      "head": "5cd21c84bdf36ba206fa58413e3dfc33f571146f",
-      "merge": "1986fec70ee8bedf16bb3d8387ecc39ec0c06635",
+      "pullRequest": 91,
+      "head": "37c8886e22b7a93852c93d73e52b9b2f1bf0ac34",
+      "merge": "8b5f18c87ebf57f5c1bfd7e5940d3e71138a1325",
       "note": "Main tree equals the verified PR head; no local SDK patch."
     },
     "dirty": false,
@@ -22,9 +22,9 @@
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1336780,
-    "sha256": "1b2268437ffc7f2d51a6de546237e52d248fd026975e0c1511ee472c0d2a668e",
-    "integrity": "sha512-g/6cgPz3Pt7tv54HpFFMx6gag0pygX5us8TPXgTZFqpcQWAczl7qw6KzzqEcG74zy2rsnHYfablq2Wh4bD68Mg=="
+    "bytes": 1336980,
+    "sha256": "ac3957b5151a040cbbeaddef34d6330522c1d1375da0216e038826ecd93989f9",
+    "integrity": "sha512-6Hk8IhpbBjb/JTdywHtLK3PnwktrawLFeSIwUiy5O7L4PVO+pDiw6Slb+WiEnPB65mX7KUIDdtdByGTQb2hCxg=="
   },
   "build": {
     "node": "24.19.0",
@@ -37,6 +37,6 @@
       "Copy the verified package to the Molis vendor path"
     ],
     "packedOn": "2026-10-23",
-    "note": "Clean PR #90 head; complete quality including 684 stable tests, clean installed SDK real HTTP/Node queue/carry/reopen, Rust and the original 10 input-time tests passed. Session.locateInput reads the existing bounded input book and returns queued, withdrawn or an exact Run without history scans or writes. Missing, trimmed and unsettled direct inputs remain unknown. Not a release or Molis acceptance; no byte-identical independent rebuild claimed. Actual Node24.19.0 differs from declared24.14.0."
+    "note": "Clean PR #91 head; complete quality including 684 stable tests, clean installed SDK and Rust passed; 218 related tests passed and seven new regressions failed before the fix. Expired formal memories may only be paused or disabled under current management authority, retention and CAS; no resume, read, TTL clearing or extension bypass. Not a release or Molis acceptance; no byte-identical independent rebuild claimed. Actual Node24.19.0 differs from declared24.14.0."
   }
 }

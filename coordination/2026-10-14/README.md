@@ -2741,3 +2741,13 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 比批准方案多一条细化：只在所有调用之外才吞掉拒绝，处理器还没结束的照常抛。① 认可：吞掉会把调用挂住或给出假成功。
 - 插件自写路由的停止缺口取号 BL-403（① 的 400–409 段；main 上已有 400–402，在途 PR 只有 #784 用了 400），由 ② 在 #1074 里加 BACKLOG 行。登记 R-12、R-13。
 - `sync_with_base_branch` 在借用的工作树里合错地方，登记 R-14，已通知各会话改用 `git merge origin/main`。
+
+### 10-23 18:40 Shelf S3（#1076）的三个审批项、BL-404
+
+- Shelf 开了 #1076（S3，叠在 #1051 上），交 ⑩ 评审；`full` 非空，等 #1051 合了进集成批。⑩ 核对了 ⑤ 在 batch-1023-5 里给 #1051 解的冲突，无误。
+- ① 裁决：
+  1. 页面资源两项批准：`shelf.js` +174（文件夹 32 MB 的提示）、`workbench.js` +31（电脑使用改走插件路由），都在 10 KB 以内，理由和省法都写了。数字以 CI 的 page-assets 实测为准，实测增长不超过 workbench +64、shelf.js +256 都算在批准里；删 slice 101 用完的三条正确。
+  2. 密钥扫描放行表加确切值 `shelf-knowledge-test-control-token-1234567`，按例外批准：它在分支历史 `431c2847` 里，去掉要改写已推的提交、得 force push（红线）；值是合成的测试令牌，现行写法已改成计数串。放行表头「只收已在 main 上的」不改，例外写在这一条的说明里。
+  3. Shelf 目录 v1 → v2 不进 CHECKLIST 第 3 节的表（表的范围点名排除了 `shelf/catalog.json`，`verify-release-versions` 也不核对表外的 JSON）；改为在第 4.3 节维护八下加子项，发布说明的「兼容与升级」发版时写。登记 R-05。
+- Shelf 报的新风险：手写路由不 catch，错误落到宿主的通用句子。登记 R-15，根治放在 Plugin Runtime 的路由分派，取号 BL-404 给 ②，和 BL-403 一起做（main 和在途 PR 上 403、404 都没人用）。
+

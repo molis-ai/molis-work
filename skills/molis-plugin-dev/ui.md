@@ -18,7 +18,8 @@
 - **反馈可见**：按下有回弹，保存后新记录可见（上浮进入），成功提示短暂出现后淡出，失败提示留下直到下次成功。
 - **Toast 只有一种**：用设计系统的 `.mw-toast`（服务端用 `renderToast`）；成功或失败设 `data-mw-state`（`done`、`failed`）带标记，失败加 `is-error` 会轻摇一次；撤销或下一步是 `.mw-toast__action`。插件只写它放在哪里（居中用 `inset-inline: 0` 加 `margin-inline: auto`，不用 `transform`），不写颜色、圆角和动效。
 - **共有机制直接用，不自己写**（组件板「视觉机制」有样例，工作台与侧栏页面都带着）：哪里都不画滚动条，设计系统一条规则管全部页面，插件不写 `scrollbar-width`、`scrollbar-color`、`::-webkit-scrollbar`（`tests/scrollbars-hidden.test.ts` 拦）；放不下的横向条（标签、chip、视图切换）标 `data-overflow-fade`，只在真有更多的一侧淡出；复制按钮调 `window.molisCopy(button, 文本, { done: "已复制", failed: "复制失败" })`，剪贴板真的收下才显示「已复制」、宽度不跳（只有图标的按钮换成对勾或叉，文字由读屏读出），返回是否成功，失败时再告诉人怎么手动复制；可折叠的明细写成 `<details class="mw-collapsible"><summary>…</summary><div class="mw-collapsible__body">…</div></details>`，按自然高度展开、途中反向接着走；会变的数字（计时、计数、序号）写成 `<span class="mw-num" data-num-ghost="取值范围里最宽的值">值</span>`，数字等宽，位数变化和字体切换都不推旁边的控件；会一直长的对话或日志用 `window.molisFollow(滚动容器)` 管滚动：到底就跟着，人往上滚、按键或选字就停，新内容来了调 `pin()`、「回到最新」调 `toLatest()`、跳到某张卡之前调 `release()`，切到另一段对话时放回记下的位置用 `restore(top)`、新对话用 `resume()`，客户端卸载时 `lifetime.own(() => follow.dispose())`；同一个容器只有一个主人，后来的调用者拿到的是同一个，它传的 `onChange` 不生效；页面自己的滚动不会被当成人的操作，不自己判断离底多少像素；很长的列表画完后调 `window.molisShowMore(列表, { key, label: "再显示 {n} 项", keep })`，先给前五项、其余收在一个按钮后面（只多一项就直接显示），`keep` 标出必须一直看得见的项（失败），人点开后同一个 `key` 重画也保持展开。
-- **流式的代码块原地长**：边写边显示的回复用 `window.molisStreamText(容器, html, { reveal, grow })`；代码块交给 `grow`，用 Coding 的 `growCodeTokens` 从变了的那一行起着色（写的时候就是最后一行），块、复制按钮、已着色的片段和人打开的折叠都留着，复制取现在的原文；不要每次整块换掉、从头着色（1,000 行一次 19.5 ms，原地长 3.7 ms）。Diff 按块读：块里一行按首字符算，像文件头的行也是内容。
+- **流式的代码块原地长**：边写边显示的回复用 `window.molisStreamText(容器, html, { reveal, grow })`；代码块交给 `grow`，用插件 SDK 的 `growCodeTokens`（`@molis-ai/molis-work-plugin-sdk/highlight`）从变了的那一行起着色（写的时候就是最后一行），块、复制按钮、已着色的片段和人打开的折叠都留着，复制取现在的原文；不要每次整块换掉、从头着色（1,000 行一次 19.5 ms，原地长 3.7 ms）。Diff 按块读：块里一行按首字符算，像文件头的行也是内容。
+- **外来的文字用 SDK 显示和脱敏**：订阅、网页、模型回答这类不可信的文字，用 `@molis-ai/molis-work-plugin-sdk/rich-text` 的 `renderRichText` 显示成 Markdown 加白名单 HTML（结果一律清洗过，链接只留 http(s)），列表行和摘要用 `richPlainText`；这个子路径要的 `marked` 与 `sanitize-html` 由插件自己写进 `package.json`。把外来的文字交给模型或显示回屏幕之前，先过 SDK 根入口的 `redactSecrets` 遮住贴进来的密钥。不自己写第二套解析、清洗或着色。
 - **窄屏可用**：可点目标约 44px，列表行在窄屏把操作换到下一行；工具条放不下时名称收成图标（名称仍是可访问名称）。
 - **悬停才出现的操作，键盘和触控也拿得到**：行里平时藏起、指针停上去才出现的按钮，同一条规则也要写 `:focus-within`（焦点进到行里就出现），并在 `@media (hover: none)` 里一直显示；只有选中后才出现的（选中即点一下）可以不写。键盘停点之外的按钮（如标签上的关闭）在行上用 `aria-keyshortcuts` 写明等价的键。
 - **被截的名字找得回来**：名称、路径、摘要可以用省略号或限定行数截短，但要放在能按下或能移到的控件或行里，平台的提示会在指针停留、键盘聚焦和触控按住时给出全文；不给被截的文字另写 `title` 或自己的提示，错误、状态与操作的标签不截在没有控件包着的地方。
@@ -41,7 +42,7 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 
 ### 侧栏标签（`side`）
 
-需要随当前文档变化的侧栏，在 view 上声明 `context_binding: "focused-object"`。复用工作台给出的对象上下文，不自行追踪全局选中项：接收 `molis:side-context` 和递增的 `context_epoch`，启动时发 `molis:side-ready`，发回编辑器的请求携带所收 epoch。只信任宿主父窗口、同源和当前绑定对象；业务读写仍走对象所有者的动作授权。收起保持收起，选中的普通工具不因换文档被抢走。Pages 评论与备注使用这条协议，详情见 [统一规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
+需要随当前文档变化的侧栏，在 view 上声明 `context_binding: "focused-object"`。复用工作台给出的对象上下文，不自行追踪全局选中项：经 `host.messages` 接收 `molis:side-context` 和递增的 `context_epoch`，启动时发 `molis:side-ready`，发回编辑器的请求携带所收 epoch。隔离页面使用宿主绑定的通道和当前对象，不读取父窗口；业务读写仍走对象所有者的动作授权。收起保持收起，选中的普通工具不因换文档被抢走。Pages 评论与备注使用这条协议，详情见 [统一规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
 
 - 声明：`ui.views` 里写 `{ view_id, slot: "side", title, contribution_id, icon }`；contribution 的 surface 目标是 `workbench.side`（格式 `declarative-html`）。插件在项目里启用才出现，停用或卸载就撤下，不留空标签。
 - Host 在 `/projects/<id>/side/<project_plugin_id>/<view_id>` 用独立文档渲染它，侧栏用同源 iframe 装载：引用工作台同一份样式表（随页面缓存，插件在舞台上怎样显示，这里就怎样显示），并运行插件的 `clientFactory`（多一个 `side: true`）。contribution 收到的 model 只有位置：`{ project_id, route_prefix, view_id }`，数据仍经插件自己的动作与路由读取。

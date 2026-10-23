@@ -75,7 +75,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 个 `package.json`、`project-plugins.ts`、`palette.ts`、`icons.ts`、`catalog.ts`，加 `coding-surface.ts`（宿主里写死的伙伴页渲染分支）、`demo-plugin-seed.ts`。原来还有 `workspace-plugin-bindings.ts`（13 行的默认连线表），W4-03 改为各输入口在 Manifest 里声明 `default_source`，宿主的 `plugin-default-bindings.ts` 只读声明。W5-02 PR-1a 起目录条目在包自己的 `registration.ts` 里、生成的 `builtin-plugins.ts` 不手写，这一项不再是包外一处（上面 11、12 两个数字还没按它重算）。另有 `plugins/native/coding`、`plugins/native/files` 两个包点名了它（嵌入声明和客户端），属于它与 Coding 的伙伴关系，不计。
 
-**个人（Home 级）插件**：在目录的实际 runtime 声明上由唯一 `HomePluginHost` 装配，Issue 已在这条路径；Home 与项目执行器共用 `services.database`、`services.model`、指令与可信提供方规则，Home 私有 KV 在完整 v2 安装库。现有 Form、Todo 等仍未迁移，不能把平台接线当成消费者迁移完成。现有样本 Shelf 靠宿主里手写的端口文件接上 Home 数据：按第 1 节同一条命令换成 shelf，包外有 17 个源码或配置文件点名它，宿主里仍有 `shelf-actions.ts`（项目一半读这个人的架子、存进成果库；它的 Home 一半与模型调用从 Shelf S2 起是 Runtime 的 Home 实例，路由与项目动作从 S3 起是插件自己的，`shelf-native-plugin-http.ts` 已删；这类 `*-native-plugin-http.ts` 新文件已被门禁拦住）。Characters 原来也是这样的样本；2026-10-08 已定它不再是 Runtime 插件、并进宿主（[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 第 5.4 节），所以不再作为新插件的样本（CHR-1 已做，2026-10-22）。Home 当前接线与工程证据按防腐 spec §10.2 核对；后续迁移仍逐插件推进。
+**个人（Home 级）插件**：在目录的实际 runtime 声明上由唯一 `HomePluginHost` 装配，Issue 已在这条路径；Home 与项目执行器共用 `services.database`、`services.model`、指令与可信提供方规则，Home 私有 KV 在完整 v2 安装库。现有 Form、Todo 等仍未迁移，不能把平台接线当成消费者迁移完成。现有样本 Shelf 靠宿主里手写的端口文件接上 Home 数据：按第 1 节同一条命令换成 shelf，包外有 17 个源码或配置文件点名它，宿主里仍有 `shelf-actions.ts`（只剩演示数据的种子在用；它的动作与模型调用从 Shelf S2 起是 Runtime 实例，路由从 S3 起是插件自己的，`shelf-native-plugin-http.ts` 已删；这类 `*-native-plugin-http.ts` 新文件已被门禁拦住）。Characters 原来也是这样的样本；2026-10-08 已定它不再是 Runtime 插件、并进宿主（[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 第 5.4 节），所以不再作为新插件的样本（CHR-1 已做，2026-10-22）。Home 当前接线与工程证据按防腐 spec §10.2 核对；后续迁移仍逐插件推进。
 
 **目标：1（外加 2）。** 新增一个内置插件 = 自己的包 + `scripts/workspace-packages.mjs` 一条登记，外加门禁名单一行和 SSOT 一行。其余由声明产生，下面五项都做到才是 1：
 
@@ -295,7 +295,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | X-3 | 记忆作用域登记（并入 W4-08 的边界规则） | 3.9 的 10 处降到 3 处 | — |
 | X-4 | 外部 Runtime 描述表 | 3.12 的 6–15 处降到 2 处 | — |
 | X-5 | 项目库基线由各 owner 包声明的 SQL 汇总，版本由声明推出 | `project-database-schema.ts` 不再逐个 import；Module 和插件加表不碰宿主 | F2、F4 |
-| X-6 | 插件按 Manifest 声明订阅、发布者不是运行中插件的事件（10-22 ① 定）。两种来源：宿主事件（宿主自己发，定向投给一个安装；第一条 `host.review.settled@1` 已做，S-54）；领域事件（构建期插件与 Module 写进项目库事件流的事件，按声明订阅，未做，沿用宿主事件的声明与接收写法） | 构建期插件发的事件也能触发规则；宿主不再为某个插件手写结算回调（PG-044） | F5 |
+| X-6 | 插件按 Manifest 声明订阅、发布者不是运行中插件的事件（10-22 ① 定）。两种来源：宿主事件（宿主自己发，定向投给一个安装，或广播给持有类型表登记权限的安装；`host.review.settled@1`（定向）与 `host.workspace.changed@1`（广播，`workspace:read`）已做，S-54）；领域事件（构建期插件与 Module 写进项目库事件流的事件，按声明订阅，未做，沿用宿主事件的声明与接收写法） | 构建期插件发的事件也能触发规则；宿主不再为某个插件手写结算回调（PG-044） | F5 |
 | X-7 | 入口调用者解析集中：Web、MCP 入口和宿主各处不再直接写 `LOCAL_PERSON_ACTOR_ID`，入口只调一个解析函数（与 W2-07「5 个 MCP 连接工具的身份取自可信会话」同方向，但只覆盖 MCP 的一部分） | F4 的身份常量 33 处降到 1 处 | F4 |
 
 这些都只是建议：X-1 是把路线图普查里已有的一条写进 W5-02，X-2 到 X-7 是新增的，都要用户同意并入路线。没有写进路线之前，上面带 X 的「目标」不算承诺。

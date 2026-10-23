@@ -1,5 +1,5 @@
 import type { PluginDatabase, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { pluginStatementGuard } from "@molis-ai/molis-work-plugin-runtime";
+import { pluginStatementGuard, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { pluginDatabaseClient, type PluginDatabaseConnection } from "./plugin-database-client.js";
 import { openPluginTables } from "./project-plugin-databases.js";
@@ -20,7 +20,7 @@ export interface ProjectLibrary {
  * interleave with, and reads through a second, read-only connection of the same library. node:sqlite is never opened on the file:
  * two SQLite libraries in one process release each other's POSIX locks when either closes a connection.
  */
-export function openPluginProjectLibrary(library: ProjectLibrary, manifest: PluginManifest, authorize: (permission: string) => void, installId: string): {
+export function openPluginProjectLibrary(library: ProjectLibrary, manifest: PluginManifest, authorize: (permission: string) => void, instance: PluginInstance): {
   client: PluginDatabase; reader: PluginDatabaseConnection; close(): void;
 } {
   const declaration = manifest.databases?.project;
@@ -34,7 +34,7 @@ export function openPluginProjectLibrary(library: ProjectLibrary, manifest: Plug
     const reader: PluginDatabaseConnection = storage.db;
     const reads = pluginStatementGuard(reader, record), writes = pluginStatementGuard(library.db, record);
     const client = pluginDatabaseClient({ reader, writer: library.db, inTransaction: () => library.db.inTransaction === true,
-      check: (connection, sql, parameters, mode) => (connection === reader ? reads : writes)(sql, parameters, mode) }, declaration, authorize, installId, () => closed);
+      check: (connection, sql, parameters, mode) => (connection === reader ? reads : writes)(sql, parameters, mode) }, declaration, authorize, instance, () => closed);
     return { client, reader, close() { if (!closed) { closed = true; storage.close(); } } };
   } catch (error) { storage.close(); throw error; }
 }

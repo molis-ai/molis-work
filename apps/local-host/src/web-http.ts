@@ -1,3 +1,4 @@
+import { currentCallId } from "@molis-ai/molis-work-kernel";
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -5,6 +6,7 @@ import { isLoopbackHostname, loopbackHost } from "@molis-ai/molis-work-contracts
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { L } from "./web-locale.js";
 import { withRecordedCallId } from "./call-id-response.js";
+import { hostLog } from "./host-log.js";
 import { hostErrors } from "./host-errors.js";
 
 /**
@@ -32,6 +34,14 @@ export function sendLocalWebJson(response: ServerResponse, status: number, value
     ...answer.headers,
   });
   response.end(JSON.stringify(answer.body));
+}
+
+/** Unexpected route failures retain a diagnostic call id, never their raw message or stack. */
+export function sendUnhandledWebError(response: ServerResponse, error: unknown): void {
+  hostLog.error("web", "request_failed", error);
+  const failed = error instanceof ActionError ? error : new ActionError("actions.execution_failed", L("请求未能完成，请重试。"));
+  const answer = actionErrorResponse(failed);
+  sendLocalWebJson(response, answer.status, { ...answer.body, diagnostic_id: currentCallId() });
 }
 
 export type LocalMutationState = "in_flight" | "complete";
@@ -63,7 +73,8 @@ export function requestHost(request: IncomingMessage): string | null {
  */
 export function refuseForeignRequest(request: IncomingMessage, response: ServerResponse): boolean {
   response.setHeader("x-frame-options", "SAMEORIGIN");
-  if (requestHost(request)) return false;
+  const opaqueFrame = requestHeader(request, "sec-fetch-dest") === "iframe" && requestHeader(request, "sec-fetch-site") === "cross-site";
+  if (requestHost(request) && !opaqueFrame) return false;
   refuse(response);
   return true;
 }

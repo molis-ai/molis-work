@@ -5,7 +5,6 @@ export { codingResultDocumentHandler } from "./results-document.js";
 export { codingOutputReferences, codingOutputs } from "./outputs.js";
 export { codingFollowUps, CODING_NEXT_STEP, type CodingFollowUpRun } from "./next-steps.js";
 export { codingContinuation, originalTask, requestText, CONTINUATION_MARKER, MENTIONS_MARKER } from "./continuation.js";
-export { codeTokens, codeLanguage, diffRowTokens, growCodeTokens, type CodeColouring } from "./highlight.js";
 export { createCodingCodePaint } from "./code-paint-client.js";
 export { commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
 export { planTask } from "./plans.js";

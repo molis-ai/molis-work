@@ -3,7 +3,8 @@ import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs"
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
+import { DatabaseSync } from "node:sqlite";
+import { captureHostLog, type HostLogEntry, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -157,4 +158,47 @@ test("PART-12 a project's library has the checks of any plugin library: SELECT-o
   await assert.rejects(f.invoke(write, { text: "revoked" }, "a", authority), { code: "actions.forbidden" });
   probe.read = noteTexts;
   assert.deepEqual(await f.invoke(read, {}, "a"), ["row"], "nothing refused was written");
+});
+
+for (const method of ["get", "all"] as const) {
+  test(`SYS-06 a Home transaction's ${method} refuses CTE writes and still reads its own writes`, async t => {
+    const f = partitionHome(t);
+    await f.ready();
+    await f.invoke(write, { text: "original" }, "a");
+    probe.write = async (database, _text, caller) => {
+      for (const statement of ["DELETE FROM notes RETURNING text", "UPDATE notes SET text='changed' RETURNING text", "INSERT INTO notes(text) VALUES('extra') RETURNING text"]) {
+        await assert.rejects(database.transaction(caller.beforeEffect, tx => {
+          tx.run("INSERT INTO notes(text) VALUES (?)", ["rolled-back"]);
+          tx[method]("WITH unused AS (SELECT 1) " + statement);
+        }), /readonly/u);
+      }
+      await database.transaction(caller.beforeEffect, tx => {
+        tx.run("INSERT INTO notes(text) VALUES (?)", ["kept"]);
+        assert.equal(tx.get("WITH current AS (SELECT text FROM notes) SELECT count(*) AS n FROM current")!.n, 2);
+        assert.deepEqual(tx.all("SELECT text FROM notes ORDER BY id").map(row => row.text), ["original", "kept"]);
+        tx.run("UPDATE notes SET text=? WHERE text=?", ["updated", "kept"]);
+      });
+    };
+    await f.invoke(write, { text: "unused" }, "a");
+    assert.deepEqual(await f.invoke(read, {}, "a"), ["original", "updated"], "rejected statements and their earlier transaction writes left no changes");
+  });
+}
+
+
+test("SYS-39 a rollback failure is logged without replacing the original operation error", async t => {
+  const f = partitionHome(t); await f.ready();
+  const entries: HostLogEntry[] = [], restore = captureHostLog(entries); t.after(restore);
+  const failure = new Error("original write failed"), rollbackFailure = new Error("rollback acknowledgement failed");
+  const exec = DatabaseSync.prototype.exec;
+  t.mock.method(DatabaseSync.prototype, "exec", function(this: DatabaseSync, sql: string) {
+    exec.call(this, sql);
+    if (sql === "ROLLBACK") throw rollbackFailure;
+  });
+  probe.write = async (database, text, caller) => database.transaction(caller.beforeEffect, tx => {
+    tx.run("INSERT INTO notes (text) VALUES (?)", [text]); throw failure;
+  });
+  await assert.rejects(f.invoke(write, { text: "not stored" }, "p1"), error => error === failure);
+  assert.deepEqual(await f.invoke(read, {}, "p1"), []);
+  assert.deepEqual(entries.filter(entry => entry.event === "rollback_failed").map(entry => entry.error), [{ name: "Error" }]);
+  assert.equal(JSON.stringify(entries).includes(rollbackFailure.message), false);
 });

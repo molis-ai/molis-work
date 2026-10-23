@@ -1,3 +1,4 @@
+import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { imagesActions, IMAGES_ACTION_PERMISSIONS } from "./actions.js";
 import type { PluginManifest, PluginRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { IMAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/images";
@@ -29,8 +30,7 @@ export const imagesManifest: PluginManifest = {
   permissions: [
     ...IMAGES_ACTION_PERMISSIONS.map(permission => ({ permission, required: false, reason: "图片动作" })),
     { permission: "storage:private", required: true, reason: "保存生图配置、项目生成记录和本机图片" },
-    { permission: "shelf:write", required: false, reason: "将选中的图片保存到 Shelf" },
-    ...["shelf:read", "materials:read"].map(permission => ({ permission, required: false, reason: "放进 Shelf" })),
+    ...SHELF_ADMIT_ACTION.action.permissions.map(permission => ({ permission, required: false, reason: "将选中的图片保存到 Shelf" })),
   ],
   capabilities: { provides: [], consumes: ["shelf.items.admit"] },
   artifacts: { produces: [], consumes: [] },

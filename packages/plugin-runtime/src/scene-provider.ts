@@ -1,15 +1,16 @@
 import {
   ActionError, type ActionAvailability, type ActionCallContext, type ActionSceneDefinition, type ActionSceneHandlerBinding,
 } from "@molis-ai/molis-work-contracts/platform/actions";
-import { runInPluginScene } from "./action-scope.js";
+import { runInPluginScene, type PluginInstance } from "./action-scope.js";
 import { pluginCallbackContext } from "./callback-context.js";
 
 /** Every plugin scene callback has its own declared purpose; only the Kernel supplies its execution control. */
-export function pluginSceneHandler(declaration: ActionSceneDefinition, handler: ActionSceneHandlerBinding, installId: string,
+export function pluginSceneHandler(declaration: ActionSceneDefinition, handler: ActionSceneHandlerBinding, instance: PluginInstance,
   grantAvailability: (permissions: readonly string[], own?: (context: ActionCallContext) => ActionAvailability) => (context: ActionCallContext) => ActionAvailability,
 ): ActionSceneHandlerBinding {
   const within = <C extends ActionCallContext, T>(caller: C, read_only: boolean, handle: (copy: C) => T): T =>
-    runInPluginScene({ install_id: installId, scene: declaration, read_only, caller }, () => handle(pluginCallbackContext(caller)));
+    runInPluginScene({ install_id: instance.install_id, installation_generation: instance.installation_generation, scene: declaration, read_only, caller },
+      () => handle(pluginCallbackContext(caller)));
   const configuration = grantAvailability(declaration.configuration_permissions ?? []);
   return { ...handler,
     bindings: caller => within(caller, true, copy => handler.bindings(copy)),

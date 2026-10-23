@@ -1,3 +1,4 @@
+import { scheduledOwnerPlugin } from "./fixtures/schedule-runtime.js";
 import { createFeedCaptureTrigger, feedCaptureScene } from "@molis-ai/molis-work-plugin-feed";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -10,9 +11,7 @@ import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-cli
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService,
   createLocalFeedConnectorSync, createLocalFeedSourceScheduler, listFeedSourceCatalog, scheduleServiceFor, projectActionAvailability, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
-import { createScheduleReminders, getScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
-import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { reminderActions, SCHEDULE_PLUGIN_ID, getScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger, inboxActions, inboxNextScene, inboxSceneBindingId } from "@molis-ai/molis-work-plugin-inbox";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -219,45 +218,31 @@ test("a plugin reminder gets the saved Inbox next step like every other arrival,
     },
   } };
   const policy = projectActionAvailability(async (_options, run) => run(catalog as unknown as Parameters<typeof run>[0]), home);
-  const host = new MolisWorkLocalHost({ homeDirectory: home, functions, actionAvailability: policy, sceneAvailability: policy });
+  const owner = scheduledOwnerPlugin();
+  const host = new MolisWorkLocalHost({ homeDirectory: home, functions, actionAvailability: policy, sceneAvailability: policy, pluginFixtures: { project: [owner.definition] } });
   const history = () => withFunctionsService(home, service => service.listJudgments(), functions);
   try {
     await host.actionClient(reference).invoke(caller, inboxActions.writeJudgment, { function_key: "system_pick_inbox_next" });
     const runtime = await host.withProject(reference, runtime => runtime);
     const feed = createLocalFeedApplication(runtime.store.db);
-    const installedAt = "2026-01-01T00:00:00.000Z";
-    const installation: PluginInstanceRecord = { install_id: "install-1", installation_generation: "install-1@" + installedAt, plugin_id: "io.molis.work.generated.a",
-      version: "1.0.0", publisher_id: "test", publisher_signature: "test", manifest_digest: "test", deployment: "local", selected_entrypoint: "./plugin.mjs",
-      grants: ["storage:private"], execution: "sandbox", state: "running", recovery_count: 0, last_error_code: null, installed_at: installedAt, updated_at: installedAt,
-      uninstalled_at: null, retain_private_data: false };
-    new SqlitePluginRuntimeRepository(runtime.store.db).save(installation);
-    // The Host already opened this project, so scheduleServiceFor returns the service it cached with the real clock and ignores a
-    // clock passed here. The fixture therefore keeps its own times next to the real now: each tick happens now, and each reminder
-    // is added before its time and falls due before that tick, so the lease a tick takes is judged by the same clock.
-    const minutes = (count: number) => count * 60_000;
-    let clock = Date.now() - minutes(60);
-    const schedule = scheduleServiceFor(runtime.store.db, () => new Date(clock));
-    const reminders = createScheduleReminders({ db: runtime.store.db, projectId: runtime.project_id, schedule, now: () => clock,
-      describe: identity => ({ title: "论语日课", link: "/plugins/" + identity.pluginId, generation: installation.installation_generation }) });
-    const plugin = { projectId: runtime.project_id, installationId: installation.install_id, pluginId: installation.plugin_id, namespace: "installed" as const };
+    const schedule = scheduleServiceFor(runtime.store.db), reminders = owner.actions(project.project_id);
+    const due = new Date(Date.now() + 60_000);
     const entryOf = (text: string) => {
-      const item = feed.snapshot(runtime.project_id).feed_items.find(row => row.source_id === "plugin-reminders" && row.summary === text)!;
+      const item = feed.snapshot(runtime.project_id).feed_items.find(row => row.source_id === "plugin-notifications:" + SCHEDULE_PLUGIN_ID && row.summary === text)!;
       return feed.listInboxEntries(runtime.project_id).find(entry => entry.subject_id === item.item_id)!;
     };
 
-    reminders.add(plugin, { at: new Date(clock + minutes(30)).toISOString(), text: "复习《学而》" });
-    clock = Date.now();
-    await schedule.tick(new Date(clock));
+    await reminders.invoke(reminderActions.add, { at: due.toISOString(), text: "复习《学而》" });
+    await schedule.tick(new Date(due.getTime() + 1_000));
     const first = entryOf("复习《学而》");
     assert.equal(first.status, "open");
     assert.equal(history().filter(record => record.subject.id === first.entry_id).length, 1, "the reminder's Inbox entry got its next-step judgment");
     assert.deepEqual(history().find(record => record.subject.id === first.entry_id)!.suggested_behavior_ids, ["inbox.done"]);
 
     failure = true;
-    clock = Date.now() - minutes(20);
-    const second = reminders.add(plugin, { at: new Date(clock + minutes(10)).toISOString(), text: "复习《为政》" });
-    clock = Date.now();
-    await schedule.tick(new Date(clock));
+    const secondDue = new Date(Date.now() + 120_000);
+    const second = await reminders.invoke(reminderActions.add, { at: secondDue.toISOString(), text: "复习《为政》" });
+    await schedule.tick(new Date(secondDue.getTime() + 1_000));
     assert.equal(entryOf("复习《为政》").status, "open", "a judgment failure does not take the reminder out of the Inbox");
     assert.equal(getScheduleReminder(runtime.store.db, second.reminderId), null, "the one-off reminder was consumed by its delivery");
     assert.ok(inputs.length >= 2, "the failing judgment was attempted");

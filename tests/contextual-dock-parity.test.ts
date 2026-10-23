@@ -19,7 +19,7 @@ import { prepareSubjectOffers } from "../apps/local-host/dist/contextual/context
  */
 test("the Dock and the contextual service see one set: same offers and keys, the rule recommends among them, the run is the same", async () => {
   const home = await mkdtemp(join(tmpdir(), "contextual-dock-parity-"));
-  const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
+  const databasePath = join(home, "project.db");
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...HOME_ACTION_PERMISSIONS, "inbox:write", ...GOALS_ACTION_PERMISSIONS] };
   const options: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: {
@@ -28,6 +28,7 @@ test("the Dock and the contextual service see one set: same offers and keys, the
     },
   } };
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions: options });
+  seedDemoBoard(databasePath);
   try {
     const runtime = await host.withProject(reference, runtime => runtime);
     const feed = createLocalFeedApplication(runtime.store.db);

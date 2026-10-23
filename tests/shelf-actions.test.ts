@@ -8,7 +8,7 @@ import { SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTIONS, SHELF_R
 import { createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, openHostShelfStore, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 
-test("the personal Shelf is a Home action provider; clipboard, settings and local paths stay with the local user", { timeout: 60_000 }, async () => {
+test("SYS-15-F1 the personal Shelf runs in Home Runtime; clipboard, settings and local paths stay with the local user", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "shelf-actions-"));
   const previous = process.env.MOLIS_WORK_SHELF_AGENT;
   process.env.MOLIS_WORK_SHELF_AGENT = "off";
@@ -16,7 +16,7 @@ test("the personal Shelf is a Home action provider; clipboard, settings and loca
   const user: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS };
   const client = host.homeActionClient(), bound = bindActionClient(client, () => user);
   try {
-    const directory = (await client.discover(user)).filter(row => row.provider.plugin_id === "io.molis.work.shelf");
+    const directory = (await client.discover(user)).filter(row => row.provider.plugin_id === "io.molis.work.shelf" && row.action.scope === "home");
     assert.deepEqual(directory.map(row => row.capability_id).sort(), SHELF_ACTIONS.map(row => row.capability_id).sort());
     assert.ok(directory.every(row => row.action.scope === "home" && row.action.scheduling === "concurrent"));
 
@@ -64,13 +64,13 @@ test("the personal Shelf is a Home action provider; clipboard, settings and loca
     const database = join(home, "project.sqlite");
     seedDemoBoard(database);
     const project = molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID });
-    const owner: ActionCallContext = { actor_id: "web-user", project_id: DEMO_PROJECT_ID, audience: "user", permissions: ["artifact:read", "artifacts:read", "artifacts:write", "storage:private", "shelf:read"] };
+    const owner: ActionCallContext = { actor_id: "web-user", project_id: DEMO_PROJECT_ID, audience: "user", permissions: [...SHELF_ACTION_PERMISSIONS, "artifact:read", "artifacts:read", "artifacts:write", "storage:private", "actions:invoke"] };
     const scoped = (await host.actionClient(project).discover(owner)).filter(row => row.provider.plugin_id === "io.molis.work.shelf" && row.action.scope === "project");
-    // No Host-assembled provider is left (Shelf S3): every project-scoped row is the Runtime instance's, under the plugin id.
-    assert.deepEqual(scoped.filter(row => row.provider.plugin_install_id === undefined).map(row => row.capability_id), []);
-    const runtime = scoped.filter(row => row.provider.plugin_install_id !== undefined);
-    assert.ok(runtime.every(row => row.provider.provider_id === "io.molis.work.shelf"));
-    assert.deepEqual(runtime.map(row => row.capability_id).sort(), [...SHELF_RUNTIME_ACTIONS, ...SHELF_PROJECT_ACTIONS].map(row => row.capability_id).sort());
+    assert.ok(scoped.every(row => row.provider.plugin_install_id), "both halves are real Runtime installations");
+    const homeInstall = (await host.homePlugins!.ready()).runtime.list().find(row => row.plugin_id === "io.molis.work.shelf")!;
+    assert.deepEqual(scoped.filter(row => row.provider.plugin_install_id === homeInstall.install_id && !row.provider.project_id).map(row => row.capability_id).sort(), SHELF_PROJECT_ACTIONS.map(row => row.capability_id).sort());
+    const runtime = scoped.filter(row => row.provider.project_id === DEMO_PROJECT_ID);
+    assert.deepEqual(runtime.map(row => row.capability_id).sort(), SHELF_RUNTIME_ACTIONS.map(row => row.capability_id).sort());
     assert.ok(runtime.every(row => row.availability.available));
     // Owner-bound: another identity cannot read results into this person's Shelf.
     const other = await host.actionClient(project).discover({ ...owner, actor_id: "runtime:other", audience: "mcp" });

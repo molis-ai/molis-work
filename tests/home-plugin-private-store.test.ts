@@ -1,3 +1,4 @@
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,6 +10,7 @@ import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime"
 import type { PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { ISSUES_PLUGIN_ID } from "@molis-ai/molis-work-plugin-issues";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const runtimePath = (home: string) => join(home, "plugin-runtime", "plugin-runtime.db");
@@ -23,6 +25,7 @@ function readStore(path: string) {
 // W3-06-F-05: independent nonempty v1 facts, also used to label a damaged v2 that lacks KV. No production baseline constructs the fixture.
 async function rejectedStore(version: 1 | 2) {
   const home = await mkdtemp(join(tmpdir(), "home-runtime-version-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   await mkdir(join(home, "plugin-runtime"));
   const db = new DatabaseSync(runtimePath(home));
   try {
@@ -49,6 +52,8 @@ for (const version of [1, 2] as const) {
     const page = await request(`/projects/${one.project_id}`);
     assert.equal(page.status, 200, await page.clone().text());
     const html = await page.text();
+    assert.equal([...html.matchAll(/data-work-surface="issues"/gu)].length, 1, "the unavailable Runtime stage owns the only Issues page");
+    assert.doesNotMatch(html, /<form\b[^>]*\bdata-issue-composer\b/u, "Manifest fallback must not revive the unavailable plugin");
     assert.match(html, /data-home-plugin-unavailable/u);
     assert.match(html, /查看插件状态/u);
     const own = await request(`/api/plugins/${ISSUES_PLUGIN_ID}/state`);
@@ -61,6 +66,28 @@ for (const version of [1, 2] as const) {
     assert.deepEqual(readStore(runtimePath(home)), before);
   });
 }
+
+test("W5-01-HOME-STAGE-01 Home stage remains single through Runtime disable and re-enable", { timeout: 60_000 }, async t => {
+  const { host, project, request } = await serveHomeRuntime(t);
+  const one = await project("Home stage has one Runtime owner");
+  const platform = await host.homePlugins!.ready();
+  const install = host.homePlugins!.installation(ISSUES_PLUGIN_ID)!;
+  const page = async () => {
+    const response = await request(`/projects/${one.project_id}`);
+    assert.equal(response.status, 200, await response.clone().text());
+    const html = await response.text();
+    assert.equal([...html.matchAll(/data-work-surface="issues"/gu)].length, 1);
+    return html + pluginDocuments(html).join("");
+  };
+  assert.match(await page(), /<form\b[^>]*\bdata-issue-composer\b/u);
+  platform.supervisor.revoke(ISSUES_PLUGIN_ID);
+  await platform.runtime.stop(install.install_id);
+  const unavailable = await page();
+  assert.match(unavailable, /data-home-plugin-unavailable/u);
+  assert.doesNotMatch(unavailable, /<form\b[^>]*\bdata-issue-composer\b/u);
+  await platform.supervisor.enable(ISSUES_PLUGIN_ID);
+  assert.match(await page(), /<form\b[^>]*\bdata-issue-composer\b/u);
+});
 
 test("W3-06-F-04 Home KV survives shutdown, isolates installs and rejects an interleaved stale update from another connection", { timeout: 60_000 }, async t => {
   const first = homeProbe("firstkv"), other = homeProbe("otherkv");
@@ -84,7 +111,6 @@ test("W3-06-F-04 Home KV survives shutdown, isolates installs and rejects an int
   assert.equal(host.homePlugins!.installations().length, 0);
   // Opening another Host is allowed only after the old execution owner has closed.
   await host.close();
-  const { MolisWorkLocalHost } = await import("@molis-ai/molis-work-app-local-host");
   const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [first.definition, other.definition] } });
   try {
     await restarted.homePlugins!.ready();

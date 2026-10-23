@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -44,6 +45,7 @@ async function shelfBesidePages(t: TestContext) {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return null;
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
+  const pages=await pluginFrameBrowser(t,browser,"pages"), shelf=await pluginFrameBrowser(t,browser,"shelf",'[data-side-body="plugin:shelf/side"] iframe');
   const store = openPagesStore(homeDirectory);
   const left = (() => { try { return store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } }); } finally { store.close(); } })();
   const capture = async (name: string) => {
@@ -54,10 +56,10 @@ async function shelfBesidePages(t: TestContext) {
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "if (window.top === window) document.addEventListener('molis:surface-landing', (event) => { window.lastLanding = event.detail; });" }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${left.id}` }, sessionId));
-  await waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
+  await pages.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
 
   // The cursor on the left is where a thing in hand on the right would go.
-  await evaluate(`(() => {
+  await pages.evaluate(`(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = [...editor.querySelectorAll('p')].find(node => node.textContent === '先完成核心体验。').firstChild;
     const range = document.createRange(); range.setStart(text, 3); range.collapse(true);
@@ -86,24 +88,27 @@ async function shelfBesidePages(t: TestContext) {
       } catch (error) { answer.error = String(error); throw error; }
     }; })()`);
   await evaluate(`document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: ${JSON.stringify(SHELF_TAB)}, target: { item: ${JSON.stringify(item.item_id)} } } }))`);
-  await waitFor(`Boolean(${SHELF}?.contentDocument?.querySelector('[data-shelf-read] .shelf-reading')?.textContent.includes(${JSON.stringify(MATERIAL)}))`, 20_000);
+  await shelf.waitFor(`Boolean(document.querySelector('[data-shelf-read] .shelf-reading')?.textContent.includes(${JSON.stringify(MATERIAL)}))`, 20_000);
 
   // AC-S04: selected in the side tab, the bar stands beside the passage in that tab's own document, with its actions.
-  const selectInShelf = `(() => { const doc = ${SHELF}.contentDocument, body = doc.querySelector('[data-shelf-read] .shelf-reading');
+  const selectInShelf = async () => { await shelf.evaluate(`(() => { const doc = document, body = doc.querySelector('[data-shelf-read] .shelf-reading');
     const walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT); let node; while ((node = walker.nextNode()) && !node.textContent.includes('离线也要能'));
     const start = node.textContent.indexOf('离线'), range = doc.createRange(); range.setStart(node, start); range.setEnd(node, start + 9);
-    const selection = doc.getSelection(); selection.removeAllRanges(); selection.addRange(range); doc.dispatchEvent(new Event('selectionchange')); })()`;
-  return { ...browser, item, selectInShelf, capture };
+    const selection = doc.getSelection(); selection.removeAllRanges(); selection.addRange(range); doc.dispatchEvent(new Event('selectionchange')); })()`);
+
+  };
+  return { ...browser, item, selectInShelf, capture, pages, shelf };
 }
 
 test("W3-C AC-S04: a passage selected in Shelf's side tab is in hand there; the bar follows to the left and goes when the panel closes", { timeout: 150_000 }, async (t) => {
   const fixture = await shelfBesidePages(t);
   if (!fixture) return;
-  const { evaluate, waitFor, item, selectInShelf, capture } = fixture;
-  await evaluate(selectInShelf);
+  const { evaluate, waitFor, item, selectInShelf, capture, pages, shelf } = fixture;
+  await selectInShelf();
   await noteSceneOnTimeout(t, evaluate, waitFor(`Boolean(${SHELF}.contentDocument.querySelector(${JSON.stringify(`${BAR} .mw-btn[data-key]`)}))`, 15_000));
+  const selectionRect = await shelf.evaluate("getSelection().getRangeAt(0).getBoundingClientRect().toJSON()");
   const placed = await evaluate<{ inTop: boolean; inView: boolean; beside: boolean }>(`(() => { const doc = ${SHELF}.contentDocument, bar = doc.querySelector(${JSON.stringify(BAR)}).getBoundingClientRect();
-    const passage = doc.getSelection().getRangeAt(0).getBoundingClientRect();
+    const selected = ${JSON.stringify(selectionRect)}, frame = doc.querySelector('iframe[data-plugin-frame]').getBoundingClientRect(), passage = {top: frame.top + selected.top, bottom: frame.top + selected.bottom};
     return { inTop: Boolean(document.querySelector(${JSON.stringify(BAR)})), inView: bar.left >= 0 && bar.right <= doc.defaultView.innerWidth && bar.top >= 0,
       beside: Math.min(Math.abs(bar.top - passage.bottom), Math.abs(passage.top - bar.bottom)) < 48 }; })()`);
   assert.deepEqual(placed, { inTop: false, inView: true, beside: true }, "the side tab's document draws the bar, beside the passage; the top document draws none");
@@ -118,8 +123,8 @@ test("W3-C AC-S04: a passage selected in Shelf's side tab is in hand there; the 
   await capture("1-bar-beside-shelf-passage");
 
   // Back on the left: a selection there takes the bar to the left; the side tab's goes.
-  await evaluate(`(() => { const doc = ${SHELF}.contentDocument; doc.getSelection().removeAllRanges(); doc.dispatchEvent(new Event('selectionchange'));
-    const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
+  await shelf.evaluate("getSelection().removeAllRanges(); document.dispatchEvent(new Event('selectionchange'));");
+  await pages.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = [...editor.querySelectorAll('p')].find(node => node.textContent === '再安排发布。').firstChild;
     const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, text.length);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
@@ -127,7 +132,7 @@ test("W3-C AC-S04: a passage selected in Shelf's side tab is in hand there; the 
   await capture("2-bar-back-on-the-left");
 
   // In hand on the right again (the left's bar goes), then the panel closed: the bar goes with it.
-  await evaluate(selectInShelf);
+  await selectInShelf();
   await noteSceneOnTimeout(t, evaluate, waitFor(`Boolean(${SHELF}.contentDocument.querySelector(${JSON.stringify(`${BAR} .mw-btn[data-key]`)})) && !document.querySelector(${JSON.stringify(BAR)})`, 15_000));
   await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
   await waitFor(`document.body.dataset.sideOpen === 'false' && !${SHELF}.contentDocument.querySelector(${JSON.stringify(BAR)}) && !document.querySelector(${JSON.stringify(BAR)})`, 10_000);
@@ -136,15 +141,14 @@ test("W3-C AC-S04: a passage selected in Shelf's side tab is in hand there; the 
 test("W3-C2: hovering 「插入到光标处」 on the side tab's own bar, or in its 「更多」 menu, flashes the landing on the left", { timeout: 150_000 }, async (t) => {
   const fixture = await shelfBesidePages(t);
   if (!fixture) return;
-  const { command, sessionId, evaluate, waitFor, selectInShelf } = fixture;
+  const { command, sessionId, evaluate, waitFor, selectInShelf, pages } = fixture;
   // Pages draws its flash line only for a person who has not asked for reduced motion.
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
   // Every flash asked of the top document, and every flash line Pages draws there.
-  await evaluate(`(() => { window.flashAsked = 0; window.flashLines = 0;
-    document.addEventListener('molis:surface-landing-flash', () => { window.flashAsked += 1; }, true);
-    new MutationObserver((records) => { for (const record of records) for (const node of record.addedNodes) if (node.classList?.contains('pages-landing-flash')) window.flashLines += 1; })
+  await evaluate("window.flashAsked = 0; document.addEventListener('molis:surface-landing-flash', () => { window.flashAsked += 1; }, true);");
+  await pages.evaluate(`(() => { window.flashLines = 0; new MutationObserver((records) => { for (const record of records) for (const node of record.addedNodes) if (node.classList?.contains('pages-landing-flash')) window.flashLines += 1; })
       .observe(document.body, { childList: true, subtree: true }); })()`);
-  await evaluate(selectInShelf);
+  await selectInShelf();
   const offer = (scope: string) => `[...${SHELF}.contentDocument.querySelectorAll(${JSON.stringify(`${scope} [data-key^='attach.']`)})].find(node => node.textContent.includes('插入到光标处'))`;
   const onBar = offer(".mw-ctx:not(.mw-ctx--static):not([hidden])"), inMenu = offer(".mw-ctx-menu");
   await waitFor(`${onBar} !== undefined`, 15_000);
@@ -158,8 +162,9 @@ test("W3-C2: hovering 「插入到光标处」 on the side tab's own bar, or in 
   const away = () => command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 700, y: 700 }, sessionId);
 
   await moveTo(onBar);
-  await waitFor("window.flashAsked === 1 && window.flashLines === 1", 5_000);
-  await waitFor("document.querySelector('.pages-landing-flash') === null", 5_000);
+  await waitFor("window.flashAsked === 1", 5_000);
+  await pages.waitFor("window.flashLines === 1", 5_000);
+  await pages.waitFor("document.querySelector('.pages-landing-flash') === null", 5_000);
   await away();
 
   // The same offer in the tab's 「更多」 menu.
@@ -167,6 +172,7 @@ test("W3-C2: hovering 「插入到光标处」 on the side tab's own bar, or in 
   for (const type of ["mousePressed", "mouseReleased"]) await command("Input.dispatchMouseEvent", { type, x: more.x, y: more.y, button: "left", clickCount: 1 }, sessionId);
   await waitFor(`${inMenu} !== undefined`, 5_000);
   await moveTo(inMenu);
-  await waitFor("window.flashAsked === 2 && window.flashLines === 2", 5_000);
-  assert.equal(await evaluate<string>("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), "先完成核心体验。再安排发布。", "a flash writes nothing");
+  await waitFor("window.flashAsked === 2", 5_000);
+  await pages.waitFor("window.flashLines === 2", 5_000);
+  assert.equal(await pages.evaluate<string>("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), "先完成核心体验。再安排发布。", "a flash writes nothing");
 });

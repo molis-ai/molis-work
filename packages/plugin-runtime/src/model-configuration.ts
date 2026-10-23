@@ -1,6 +1,6 @@
 import { ActionError, defineErrorCodes, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest, PluginModelConfigurationClient, PluginModelConfigurationDeclaration, PluginModelConfigurationInput, PluginModelConfigurationView, PluginModelSelection } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { currentPluginAction, type PluginActionScope } from "./action-scope.js";
+import { currentPluginAction, inPluginInstance, type PluginActionScope } from "./action-scope.js";
 import type { PluginModelGate } from "./model-service.js";
 
 const errors = defineErrorCodes("plugin", { model_configuration_action_required: "forbidden" });
@@ -29,7 +29,7 @@ export function createPluginModelConfigurationClient(manifest: PluginManifest, d
   const requireAction = (kind: "read" | "save") => {
     const scope = currentPluginAction(), expected = declaration.actions[kind];
     const action = manifest.actions?.find(item => item.capability_id === expected.capability_id && item.version === expected.version);
-    if (!scope || scope.install_id !== gate.install_id || scope.definition.capability_id !== expected.capability_id
+    if (!scope || !inPluginInstance(scope, gate) || scope.definition.capability_id !== expected.capability_id
       || scope.definition.version !== expected.version || !action || action.operation !== (kind === "read" ? "query" : "command")) {
       throw errors.model_configuration_action_required("模型设置只能在本插件由宿主绑定的设置动作里访问");
     }
@@ -42,7 +42,7 @@ export function createPluginModelConfigurationClient(manifest: PluginManifest, d
       gate.assertActive(); gate.requireGrant("storage:private"); gate.requireGrant("model:invoke");
       const scope = currentPluginAction();
       if (scope) {
-        if (scope.install_id !== gate.install_id) throw errors.model_configuration_action_required("不能从另一个插件的动作读取模型选择");
+        if (!inPluginInstance(scope, gate)) throw errors.model_configuration_action_required("不能从另一个插件的动作读取模型选择");
         // Selection is also read by availability, which the caller authority check itself evaluates.
         // Model execution checks current authority through beforeEffect after reading this metadata.
         checkScope(scope);

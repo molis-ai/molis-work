@@ -98,11 +98,11 @@ async function listenDispatcher(
 
 // W4-11: the Home's one store registry. The pinned list is what a Home holds today; a new store is added here on purpose.
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
-  assert.deepEqual(homeStores().stores.map(store => store.path), ["projects", "logs", "backups", "sessions", "plugin-runtime", "assistant",
+  assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["projects", "logs", "backups", "sessions", "shelf", "plugin-runtime", "assistant",
     "placement", "agent-definitions", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "functions", "characters", "memory", "search", "knowledge", "feed", "server",
-    "issues", "cognia", "images", "jelly", "shelf", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "agent-runtime", "runtime-config-backups",
+    "issues", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "cache", "git-operation-details.json", "config/onboarding.json",
-    "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"]);
+    "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"].sort());
 });
 
 test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正删掉", async () => {
@@ -160,7 +160,8 @@ test("Schedule、Sources 和 Coding 都有自己的目录面", () => {
 test("灵光在岛上，不在侧栏轨；Manifest 声明 island 槽", () => {
   assert.equal(UI_VIEW_SLOTS.includes("island"), true);
   parsePluginManifest(lingguangManifest);
-  assert.equal(lingguangManifest.ui.views?.[0]?.slot, "island");
+  // #901 (PRR-12) put the stage view first; a view is placed by its slot, not its position in the list.
+  assert.equal(lingguangManifest.ui.views?.find((view) => view.view_id === "island")?.slot, "island");
   const enabled = ["goals", "lingguang", "pages"] as const;
   assert.equal(railEntries([...enabled]).some((entry) => entry.id === "lingguang"), false);
   assert.deepEqual(islandEntries([...enabled]).map((entry) => entry.id), ["lingguang"]);

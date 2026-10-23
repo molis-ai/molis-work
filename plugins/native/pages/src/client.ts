@@ -74,10 +74,10 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     return path + (path.includes("?") ? "&" : "?") + "project_id=" + encodeURIComponent(id);
   };
   const pageUrl = (id, tail) => api + "/" + encodeURIComponent(id) + (tail || "");
-  const request = async (method, path, body, more) => {
+  const request = async (method, path, body) => {
     const payloadBody = body === undefined ? undefined : { ...body, project_id: projectId() };
     const response = await fetch(route(withProject(path)), {
-      method, headers: headers(), ...more,
+      method, headers: headers(),
       body: payloadBody === undefined || method === "GET" ? undefined : JSON.stringify(payloadBody),
     });
     const payload = await response.json().catch(() => ({}));
@@ -105,20 +105,21 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     confirmDialog.addEventListener("close", onClose);
     confirmDialog.showModal();
   });
-  const askName = (message, initial) => new Promise((resolve) => {
+  const askName = (message, initial, save) => new Promise((resolve) => {
     if (!nameDialog) { resolve(null); return; }
-    const input = nameDialog.querySelector("[data-name-input]");
-    nameDialog.querySelector("[data-name-label]").textContent = message;
-    input.value = initial || "";
-    nameDialog.returnValue = "cancel";
-    const onClose = () => {
-      nameDialog.removeEventListener("close", onClose);
-      resolve(nameDialog.returnValue === "ok" ? input.value : null);
+    const input = nameDialog.querySelector("[data-name-input]"), ok = nameDialog.querySelector("[data-name-ok]"), bad = nameDialog.querySelector("[data-name-error]");
+    nameDialog.querySelector("[data-name-label]").textContent = message; input.value = initial || ""; bad.hidden = true; nameDialog.returnValue = "cancel"; let busy = false;
+    nameDialog.onclose = () => { nameDialog.onclose = nameDialog.oncancel = null; resolve(nameDialog.returnValue === "ok" ? input.value : null); };
+    nameDialog.oncancel = (event) => { if (busy) event.preventDefault(); };
+    nameDialog.querySelector("[data-name-cancel]").onclick = () => { if (!busy) nameDialog.close("cancel"); };
+    nameDialog.querySelector("form").onsubmit = async (event) => {
+      event.preventDefault();
+      if (busy) return;
+      busy = true; bad.hidden = true; ok.setAttribute("data-loading", ""); ok.insertAdjacentHTML("afterbegin", '<span class="mw-spinner" aria-hidden="true"></span>');
+      try { await save(input.value); nameDialog.close("ok"); } catch (error) { bad.textContent = error.message; bad.hidden = false; input.focus(); }
+      finally { busy = false; ok.removeAttribute("data-loading"); ok.querySelector(".mw-spinner").remove(); }
     };
-    nameDialog.addEventListener("close", onClose);
-    nameDialog.showModal();
-    input.focus();
-    input.select();
+    nameDialog.showModal(); input.focus(); input.select();
   });
   const formatTime = (value) => {
     if (!value) return "";
@@ -218,8 +219,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const loadGoals = async () => {
     try {
-      const response = await fetch(route("/api/board"), { headers: headers() });
-      const payload = await response.json().catch(() => ({}));
+      const payload = await host.invokeAction({ capability_id: "goals.collection.read", version: 2 }, {});
       goals = (payload.goals || []).map((item) => ({
         id: item.goal?.goal_id || item.goal_id || "",
         title: item.goal?.title || item.title || "",
@@ -243,7 +243,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (text) context.draft_text = text.slice(0, 20000);
       }
     }
-    bench.setAttribute("data-assistant-context", JSON.stringify(context)); landing.report();
+    bench.setAttribute("data-assistant-context", JSON.stringify(context)); landing.report(); closingBlank();
   };
   // What the person has in hand here, for the bar and the Assistant (specs/archive/contextual-interaction §4): the editor's
   // focus around this document, nothing for one it cannot show. Pages reports its own focus, so a list row's selection is not part of it.
@@ -669,7 +669,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     do { await save(); } while (sel && (saveTimer || dirty));
   };
   const saveOpen = (id) => sel?.id === id && (saveTimer || dirty) && persist();
-  const commentOpen = Editor.bindComments({ workbench: bench, persistCurrent: persist, showNote, translate: L, get selected() { return sel; }, get editor() { return editor; }, get unshowable() { return unshowable; }, get dirty() { return dirty || Boolean(saveTimer); } });
+  const commentOpen = Editor.bindComments({ workbench: bench, messages: host.messages, persistCurrent: persist, showNote, translate: L, get selected() { return sel; }, get editor() { return editor; }, get unshowable() { return unshowable; }, get dirty() { return dirty || Boolean(saveTimer); } });
   // Shown again (item tab, reload): the workbench took its name off when it hid it, so name it again.
   const revealEditor = () => {
     bench.setAttribute("data-expanded", "true");
@@ -721,27 +721,13 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const markdown = format === "md";
     const content = markdown ? "# " + (sel.title || L("无标题")) + "\\n\\n" + Editor.toMarkdown(body) : htmlDocument(body);
     const blob = new Blob([content], { type: markdown ? "text/markdown;charset=utf-8" : "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = safeName(sel.title) + (markdown ? ".md" : ".html");
-    link.click();
-    URL.revokeObjectURL(url);
-    placed({ verb: "exported", title: sel.title, file: { name: link.download, format: markdown ? "Markdown" : L("网页") } });
+    void host.download(blob, safeName(sel.title) + (markdown ? ".md" : ".html")).catch(error => showNote(error.message, true));
+    placed({ verb: "exported", title: sel.title, file: { name: safeName(sel.title) + (markdown ? ".md" : ".html"), format: markdown ? "Markdown" : L("网页") } });
   };
   const printDocument = () => {
     assertReadable(); if (!sel || !Editor) return;
-    const frame = document.createElement("iframe");
-    frame.setAttribute("aria-hidden", "true");
-    frame.style.cssText = "position:fixed;width:0;height:0;border:0;right:0;bottom:0";
-    document.body.append(frame);
-    frame.srcdoc = htmlDocument(editor ? Editor.getDoc(editor) : sel.body);
-    frame.addEventListener("load", () => {
-      frame.contentWindow.focus();
-      frame.contentWindow.print();
-      placed({ verb: "printed", title: sel?.title || "" });
-      setTimeout(() => frame.remove(), 1000);
-    }, { once: true });
+    host.printDocument(htmlDocument(editor ? Editor.getDoc(editor) : sel.body));
+    placed({ verb: "printed", title: sel.title });
   };
   const escapeHtml = (value) => String(value ?? "")
     .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
@@ -923,9 +909,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         stop(event);
         const folder = folders.find((item) => item.id === folderRename.dataset.pagesFolderRename);
         if (!folder) return;
-        const title = await askName(L("文件夹名称"), folder.title);
+        const title = await askName(L("文件夹名称"), folder.title, (title) => request("POST", api + "/folders/" + encodeURIComponent(folder.id), { title }));
         if (title == null) return;
-        await request("POST", api + "/folders/" + encodeURIComponent(folder.id), { title });
         await loadList();
         return;
       }
@@ -955,9 +940,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-pages-new-folder]")) {
         closeCreate();
-        const title = await askName(L("文件夹名称"), "");
+        const title = await askName(L("文件夹名称"), "", (title) => request("POST", api + "/folders", { title }));
         if (title == null) return;
-        await request("POST", api + "/folders", { title });
         await loadList();
         return;
       }

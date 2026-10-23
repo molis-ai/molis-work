@@ -1,4 +1,5 @@
-import { randomBytes } from "node:crypto";
+import type { ServerResponse } from "node:http";
+import { createHmac, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { resolveConfiguredHome } from "./product-home.js";
@@ -30,4 +31,14 @@ export function resolveWebControlToken(options: {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${token}\n`, { encoding: "utf8", mode: 0o600 });
   return token;
+}
+
+/** SYS-14: a fresh challenge authenticates these exact health bytes without disclosing the Home key. */
+export function sendWebHealth(response: ServerResponse, status: number, payload: unknown, token: string, challenge: string | null): void {
+  if (challenge !== null && !/^[A-Za-z0-9_-]{43}$/.test(challenge)) { response.writeHead(400); response.end(); return; }
+  const body = JSON.stringify(payload);
+  const proof = challenge === null ? undefined : createHmac("sha256", token).update(challenge + "\n").update(body).digest("base64url");
+  response.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store",
+    "content-length": Buffer.byteLength(body), ...(proof ? { "x-molis-work-proof": proof } : {}) });
+  response.end(body);
 }

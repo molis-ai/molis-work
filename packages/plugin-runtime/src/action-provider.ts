@@ -1,6 +1,7 @@
 import { type ActionAvailability, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginContribution, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { runInPluginAction } from "./action-scope.js";
+import { pluginActionAvailability } from "./action-availability.js";
+import { runInPluginAction, type PluginInstance } from "./action-scope.js";
 import { pluginSceneHandler } from "./scene-provider.js";
 import { pluginCallbackContext } from "./callback-context.js";
 
@@ -9,9 +10,11 @@ import { pluginCallbackContext } from "./callback-context.js";
  * the install runs and holds the grants that action needs. `state` reads the install as it is at the moment of each call.
  * `providerId` is the id the registration carries: the installation id unless the Host says otherwise (a plugin that ships
  * with the Host registers under its plugin_id); `plugin_install_id` always names the installation whose grants it reads.
+ * `instance` is the activation's record as it started: its calls run as that instance, and only its services serve them.
  */
-export function pluginActionProvider(manifest: PluginManifest, contribution: PluginContribution, installId: string, providerId: string, projectId: string | undefined,
+export function pluginActionProvider(manifest: PluginManifest, contribution: PluginContribution, instance: PluginInstance, providerId: string, projectId: string | undefined,
   state: { record(): PluginInstanceRecord | null; live(): boolean }): ActionProviderRegistration {
+  const installId = instance.install_id, { installation_generation } = instance;
   const grantAvailability = (permissions: readonly string[], own?: (context: ActionCallContext) => ActionAvailability) =>
     (context: ActionCallContext): ActionAvailability => {
       const grants = state.record()?.grants ?? [];
@@ -27,13 +30,13 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
       // returning is one way it passes its last authority check (`PluginActionScope.checked`).
       return { ...h, handle: (context, input) => {
         const checked = { passed: false }, view = pluginCallbackContext(context), before = view.beforeEffect;
-        return runInPluginAction({ install_id: installId, definition, caller: context, checked },
+        return runInPluginAction({ install_id: installId, installation_generation, definition, caller: context, checked },
           () => h.handle(before ? { ...view, beforeEffect: async () => { await before(); checked.passed = true; } } : view, input));
-      }, availability: grantAvailability(definition.action.permissions, h.availability) };
+      }, availability: grantAvailability(definition.action.permissions, h.availability ? caller => pluginActionAvailability(instance, definition, caller, h.availability!) : undefined) };
     }),
     scenes: manifest.action_scenes ?? [], scene_handlers: (contribution.action_scenes ?? []).map(h => {
       const declaration = manifest.action_scenes!.find(d => d.scene_id === h.scene_id && d.version === h.version)!;
-      return pluginSceneHandler(declaration, h, installId, grantAvailability);
+      return pluginSceneHandler(declaration, h, instance, grantAvailability);
     }),
     availability: () => {
       const current = state.record();

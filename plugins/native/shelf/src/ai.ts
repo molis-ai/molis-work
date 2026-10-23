@@ -29,8 +29,9 @@ export function shelfAiPorts(model: PluginModelClient, materials: ShelfMaterialP
   const status = (selection?: ShelfModelSelection | null): ShelfAiStatus => {
     const choices = model.choices().map(({ provider_id, model_id, label, vision }) => ({ provider_id, model_id, label, vision }));
     const selected = selection ? choices.find(choice => choice.provider_id === selection.provider_id && choice.model_id === selection.model_id) : choices[0];
-    return { choices, available: !!selected, selected: selected ? { provider_id: selected.provider_id, model_id: selected.model_id } : null,
-      reason: selected ? null : unavailable().message };
+    const state = model.availability(selection ?? undefined);
+    return { choices, available: !!selected && state.available, selected: selected ? { provider_id: selected.provider_id, model_id: selected.model_id } : null,
+      reason: state.available && selected ? null : state.available ? unavailable().message : state.reason };
   };
   return { status, async generate(input, control) {
     let validateBinding = () => {};

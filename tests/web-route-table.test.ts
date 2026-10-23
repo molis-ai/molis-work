@@ -130,7 +130,7 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/alchemist" },
   { method: "GET", path: "/api/shelf" },
   // Shelf's positive path is its Runtime route (Shelf S3); the short route above is only the removed alias.
-  { method: "GET", path: "/api/plugins/io.molis.work.shelf/snapshot" },
+  { method: "GET", path: "/api/plugins/io.molis.work.shelf/" },
   { method: "GET", path: "/api/memory/" },
   { method: "GET", path: "/api/memory/items" },
   { method: "GET", path: "/api/memory/overview" },
@@ -144,7 +144,7 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/inbox" },
   { method: "GET", path: "/api/home/dock-judgment" },
   { method: "GET", path: "/api/home/actions/choices" },
-  { method: "GET", path: "/api/schedule" },
+  { method: "GET", path: "/api/plugins/io.molis.work.schedule/list" },
   { method: "GET", path: "/api/feed" },
   { method: "GET", path: "/api/capsule" },
   { method: "GET", path: "/api/panels" },

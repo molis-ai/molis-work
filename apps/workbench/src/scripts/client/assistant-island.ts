@@ -1,5 +1,5 @@
 import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT, ASSISTANT_PLACER_SCRIPT } from "./assistant-stage.js";
-import { codeLanguage, codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-coding";
+import { codeLanguage, codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { assistantCodeColours, createAssistantCodeGrow } from "./assistant-code-grow.js";
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
@@ -14,7 +14,7 @@ import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-
 import { ASSISTANT_REPLY_KIND } from "@molis-ai/molis-work-contracts/services/contextual";
 import { ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { renderAssistantTextHtml, renderAssistantReviewHtml } from "../../assistant-text-html.js";
-// The existing Coding tokenizer is consumed here on the Host, never serialized into the Assistant's browser script.
+// The SDK's tokenizer is consumed here on the Host, never serialized into the Assistant's browser script.
 const assistantGrownTokens = assistantCodeColours(growCodeTokens, codeTokens);
 export const assistantTextHtml = (text: string, objects: AssistantWorkView["objects"], say: (text: string) => string): string =>
   renderAssistantTextHtml(text, { objects, say, language: codeLanguage, tokens: assistantGrownTokens });
@@ -380,9 +380,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   // The side panel claims the request (preventDefault); unclaimed, the object opens in its own surface as before.
   const sidePanelHere = () => document.body.hasAttribute("data-side-open");
   const sidePreview = (target) => !document.dispatchEvent(new CustomEvent("molis:side-open", { detail: { tab: "files", target, focus: false }, cancelable: true }));
+  // Where it cannot open in place (the project chooser has no tabs), an item opens on its project's page.
+  const openOnItsPage = (open, title, where) => { const url = new URL("/projects/" + encodeURIComponent(where) + "/", location.origin), desktop = new URLSearchParams(location.search).get("desktop");
+    url.searchParams.set("openPlugin", open.surface); url.searchParams.set("openItem", open.id); url.searchParams.set("openTitle", title); if (desktop) url.searchParams.set("desktop", desktop); location.assign(url.pathname + url.search); };
   const showObject = (object) => {
     if (sidePreview({ subject: object.subject, title: object.title, open: object.open })) return;
-    if (object.open && host.openItem) host.openItem(object.open.surface, object.open.id, object.title);
+    if (object.open && host.openItem) host.openItem(object.open.surface, object.open.id, object.title); else if (object.open) openOnItsPage(object.open, object.title, (view && view.work.scope.project_id) || "personal");
   };
 
   /* The Host draws text and code from raw words; only reading interactions live here. A copy answers on its button through
@@ -520,7 +523,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const surf = material.source && material.source.surface && material.source.surface !== "page" ? material.source.surface : "";
     const named = material.object && surf ? { subject: { kind: material.object.kind, id: material.object.id }, title: material.object.title || title, open: { surface:surf, id: material.object.id } } : null;
     // A file's or a page's own words can only be previewed in the side panel; there is nowhere else to open them.
-    const open = named && host.openItem ? () => showObject(named)
+    const open = named ? () => showObject(named)
       : material.kind === "file" && material.text && sidePanelHere() ? () => { sidePreview({ preview: { title, media_type: "text/plain", text: material.text } }); }
       : readBack(material, title) || readImage(material, title);
     const chip = el(open ? "button" : "span", "assistant-attachment" + (material.draft ? " is-draft" : ""));
@@ -715,7 +718,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (detail) node.title = detail;
     return node;
   };
-  const openObject = (object) => object.open && host.openItem ? async () => showObject(object) : null;
+  const openObject = (object) => object.open ? async () => showObject(object) : null;
   // A thing that is gone may come back named only by its id: the person never saw that id, so it reads as “this item”.
   const objectTitle = (object) => object.title && object.title !== object.subject.id ? object.title : L("这项内容");
   const objectCard = (object, tone, openLabel) => {
@@ -1265,9 +1268,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           try {
             const report = await api("/works/" + encodeURIComponent(work.work_id) + "/recovery");
             const OUTCOMES = { completed: "已发生", failed: "失败，没有发生", "not-dispatched": "没有执行", unknown: "结果未知，请到原处核对" };
-            const list = el("ul", "assistant-recovery");
+            const list = el("ul", "assistant-recovery"), closes = [];
             report.rounds.forEach((round) => {
-              round.operations.forEach((op) => list.append(el("li", "", op.summary + " — " + L(OUTCOMES[op.outcome] || op.outcome))));
+              round.operations.forEach((op) => { const item = el("li", "", op.summary + " — " + L(OUTCOMES[op.outcome] || op.outcome)); item.dataset.state = op.outcome; list.append(item); });
               if (!round.operations.length) list.append(el("li", "", L("这一轮没有记录到任何操作")));
               round.blockers.forEach((why) => list.append(el("li", "assistant-muted", why)));
               if (round.can_close) {
@@ -1277,10 +1280,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
                   try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/recovery", "POST", { run_id: round.run_id, version: round.version }); render(); }
                   catch (error) { showError(error); }
                 });
-                list.append(close);
+                closes.push(close);
               }
             });
-            check.replaceWith(list);
+            check.replaceWith(list, ...closes);
           } catch (error) { showError(error); }
         });
         box.append(check);
@@ -1417,10 +1420,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           void settleNotice({ notice_id: notice.notice_id }, "seen");
           const where = notice.open.project_id || "personal", here = project ? project.id : "personal";
           if (where === here && host.openItem) { host.openItem(notice.open.surface, notice.open.id, notice.open.title); return; }
-          const url = new URL("/projects/" + encodeURIComponent(where) + "/", location.origin);
-          url.searchParams.set("openPlugin", notice.open.surface); url.searchParams.set("openItem", notice.open.id); url.searchParams.set("openTitle", notice.open.title);
-          const desktop = new URLSearchParams(location.search).get("desktop"); if (desktop) url.searchParams.set("desktop", desktop);
-          location.assign(url.pathname + url.search);
+          openOnItsPage(notice.open, notice.open.title, where);
           return;
         }
         await switchTo(notice.work_id); setPanel(true); void settleNotice({ work_id: notice.work_id }, "seen");
@@ -1675,7 +1675,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     try { capabilityRows = ((await api("/capabilities")).capabilities || []).filter((row) => row.enabled); } catch { capabilityRows = []; }
     return capabilityRows;
   };
-  let methodRows = null;
+  let methodRows = null, slashSeq = 0;
   const loadMethodRows = async () => {
     if (methodRows) return methodRows;
     try { methodRows = (await api("/methods")).methods || []; } catch { methodRows = []; }
@@ -1684,11 +1684,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const slashOpen = () => startPop && !startPop.hidden && startPop.dataset.mode === "slash";
   async function setSlash(query) {
     if (!startPop) return;
-    const q = String(query || "").trim().toLowerCase();
+    const q = String(query || "").trim().toLowerCase(), mine = ++slashSeq;
     const starters = startersFor().filter((starter) => !q || starter.label.toLowerCase().includes(q));
     const rows = (await loadCapabilityRows()).filter((row) => !q || [row.title, row.provider, row.description].some((text) => String(text || "").toLowerCase().includes(q))).slice(0, 8);
     const methods = (await loadMethodRows()).filter((row) => !q || [row.name, row.plugin_title, row.summary].some((text) => String(text || "").toLowerCase().includes(q))).slice(0, 5);
-    if (!String(input.value || "").startsWith("/")) return;
+    if (mine !== slashSeq || !String(input.value || "").startsWith("/")) return;
     startPop.dataset.mode = "slash";
     startPop.hidden = false;
     startPop.replaceChildren(el("p", "assistant-popover-title", L("用一个方法或能力，或这样开始")));

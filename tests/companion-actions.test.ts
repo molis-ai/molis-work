@@ -82,7 +82,7 @@ test("headless runtime companions are discovered and called by the official MCP 
     await writeMcpActionGrant(home, countGrant);
     catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "owner" });
     assert.equal((await reader.callTool({ name: countName, arguments: { text: "no" } })).isError, true);
-    await assert.rejects(client.invoke(caller, textStatsActions.count, { text: "no" }), { code: "actions.plugin_disabled" });
+    await assert.rejects(client.invoke(caller, textStatsActions.count, { text: "no" }), { code: "actions.plugin_unavailable" });
     assert.equal((await readMcpToolPreference(home)).action_grants?.length, 5, "disabling retains exact references");
     catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "owner" });
     await reader.close();

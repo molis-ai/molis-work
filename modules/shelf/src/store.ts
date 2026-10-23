@@ -1,3 +1,4 @@
+import { isConcealedClipboard, isHttpUrl, clipFingerprint, clipTitleFor } from "./clipboard.js";
 import { createHash, randomBytes } from "node:crypto";
 import path from "node:path";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
@@ -126,8 +127,8 @@ export class ShelfStore {
   private readonly probe: ShelfRuntimeProbe;
 
   /**
-   * Shelf's own data is read and written only through `files`; `root` names the folder behind it for the snapshot, or is empty where the
-   * runtime keeps that folder to itself. The folders are created by the first write that needs them.
+   * Shelf's own data is read and written only through `files`; `root` is the real folder behind it, named in the snapshot and nowhere
+   * else (a job's model reads its frozen copies through `files` too). The folders are created by the first write that needs them.
    */
   constructor(readonly root: string, private readonly files: PluginOwnerFilesClient, probe: ShelfRuntimeProbe = {}, private readonly materials: ShelfMaterialPorts = {}, private readonly ai?: ShelfAiPorts) {
     this.probe = probe;
@@ -225,40 +226,8 @@ export class ShelfStore {
       const bytes = Buffer.from(input.bytes);
       if (!bytes.byteLength) throw shelfErrors.empty_file("没有可加入的文件内容");
       if (bytes.byteLength > 32 * 1024 * 1024) throw shelfErrors.too_large("文件超过 32 MB");
-      return publicItem(this.shelve(writer, catalog, input, safeFilename(input.filename), bytes, preparedPreview));
+      return publicItem(shelveItem(writer, catalog, input, safeFilename(input.filename), bytes, preparedPreview));
     });
-  }
-
-  /** Writes the copy and puts its row first in the catalog, saved by the same write. */
-  private shelve(writer: PluginOwnerFilesWriter, catalog: CatalogFile, input: ShelfAdmitInput, filename: string, bytes: Buffer, preparedPreview?: string | null): StoredItem {
-    const kind = classify(filename, input.mime ?? "");
-    const itemId = this.id("item");
-    const relative = `files/${itemId}/${filename}`;
-    writer.writeFile(relative, bytes, "create");
-    const item: StoredItem = {
-      item_id: itemId,
-      ...(input.artifact_source ? { artifact_source: structuredClone(input.artifact_source) } : {}),
-      group: "material",
-      kind,
-      name: filename,
-      relative_path: relative,
-      mime: input.mime || mimeFor(kind, filename),
-      size_bytes: bytes.byteLength,
-      origin_hash: sha256(bytes),
-      hidden: false,
-      created_at: now(),
-      source_item_id: null,
-      source_item_ids: [],
-      job_id: null,
-      preview_text: preparedPreview ?? previewFor(kind, bytes),
-      status: "done",
-      failure_reason: null,
-      children: [],
-    };
-    catalog.items.unshift(item);
-    catalog.seeded_sample = true;
-    saveCatalog(writer, catalog);
-    return item;
   }
 
   /**
@@ -368,21 +337,13 @@ export class ShelfStore {
     });
   }
 
-  /** The sample on a shelf that never had one and holds nothing, laid down by the start-up writer: reading the shelf writes nothing. */
-  seedFirstRun(writer: PluginOwnerFilesWriter): void {
-    const catalog = this.catalogFrom(writer);
-    if (catalog.seeded_sample || catalog.items.length > 0) return;
-    const bytes = Buffer.from(createExtractablePdf(SAMPLE_PDF_TEXT));
-    this.shelve(writer, catalog, { filename: SAMPLE_NAME, bytes, mime: "application/pdf" }, SAMPLE_NAME, bytes, SAMPLE_PDF_TEXT);
-  }
-
   async seedSample(): Promise<ShelfItemRecord> {
     const bytes = Buffer.from(createExtractablePdf(SAMPLE_PDF_TEXT));
     return this.files.write((writer) => {
       const catalog = this.catalogFrom(writer);
       const existing = catalog.items.find((item) => item.name === SAMPLE_NAME && item.group === "material" && !item.hidden);
       if (existing) return publicItem(existing);
-      return publicItem(this.shelve(writer, catalog, { filename: SAMPLE_NAME, bytes, mime: "application/pdf" }, SAMPLE_NAME, bytes, SAMPLE_PDF_TEXT));
+      return publicItem(shelveItem(writer, catalog, { filename: SAMPLE_NAME, bytes, mime: "application/pdf" }, SAMPLE_NAME, bytes, SAMPLE_PDF_TEXT));
     });
   }
 
@@ -862,16 +823,51 @@ export class ShelfStore {
   }
 }
 
-/** `root` names the folder behind `files` in the snapshot; the Host that supplies both keeps them the same place. */
-export function openShelfStore(root: string, files: PluginOwnerFilesClient, probe: ShelfRuntimeProbe = {}, materials: ShelfMaterialPorts = {}, ai?: ShelfAiPorts): ShelfStore {
-  return new ShelfStore(root, files, probe, materials, ai);
+/** Writes the copy and puts its row first in the catalog, saved by the same write. */
+function shelveItem(writer: PluginOwnerFilesWriter, catalog: CatalogFile, input: ShelfAdmitInput, filename: string, bytes: Buffer, preparedPreview?: string | null): StoredItem {
+  const kind = classify(filename, input.mime ?? "");
+  const itemId = `item_${Date.now().toString(36)}_${randomBytes(4).toString("hex")}`;
+  const relative = `files/${itemId}/${filename}`;
+  writer.writeFile(relative, bytes, "create");
+  const item: StoredItem = {
+    item_id: itemId,
+    ...(input.artifact_source ? { artifact_source: structuredClone(input.artifact_source) } : {}),
+    group: "material",
+    kind,
+    name: filename,
+    relative_path: relative,
+    mime: input.mime || mimeFor(kind, filename),
+    size_bytes: bytes.byteLength,
+    origin_hash: sha256(bytes),
+    hidden: false,
+    created_at: now(),
+    source_item_id: null,
+    source_item_ids: [],
+    job_id: null,
+    preview_text: preparedPreview ?? previewFor(kind, bytes),
+    status: "done",
+    failure_reason: null,
+    children: [],
+  };
+  catalog.items.unshift(item);
+  catalog.seeded_sample = true;
+  saveCatalog(writer, catalog);
+  return item;
 }
 
-/** The instance's start-up initializer: the sample goes on a new shelf once (`ShelfStore.seedFirstRun`). */
-export function seedShelfFirstRun(writer: PluginOwnerFilesWriter): void {
-  const files: PluginOwnerFilesClient = { stat: relative => writer.stat(relative), read: relative => writer.read(relative), list: relative => writer.list(relative),
-    write: () => Promise.reject(shelfErrors.invalid("首次示例只用启动时的写入")), location: () => { throw shelfErrors.invalid("首次示例只用启动时的写入"); } };
-  new ShelfStore("", files).seedFirstRun(writer);
+
+/** Creates the initial personal example before queries run, preserving every existing item. */
+export function initializeShelfFiles(writer: PluginOwnerFilesWriter): void {
+  const existing = writer.read(CATALOG_FILE);
+  const catalog = existing ? readCurrentCatalog(JSON.parse(Buffer.from(existing).toString("utf8")), CATALOG_FILE) : emptyCatalog();
+  if (catalog.seeded_sample || catalog.items.length) return;
+  const bytes = Buffer.from(createExtractablePdf(SAMPLE_PDF_TEXT));
+  shelveItem(writer, catalog, { filename: SAMPLE_NAME, bytes, mime: "application/pdf" }, SAMPLE_NAME, bytes, SAMPLE_PDF_TEXT);
+}
+
+/** `root` is the real folder behind `files`; the Host that supplies both keeps them the same place. */
+export function openShelfStore(root: string, files: PluginOwnerFilesClient, probe: ShelfRuntimeProbe = {}, materials: ShelfMaterialPorts = {}, ai?: ShelfAiPorts): ShelfStore {
+  return new ShelfStore(root, files, probe, materials, ai);
 }
 
 async function beforeShelfEffect(control?: ShelfExecutionControl): Promise<void> {
@@ -883,22 +879,8 @@ export function hashBytes(bytes: Uint8Array): string {
   return sha256(Buffer.from(bytes));
 }
 
-export function isConcealedClipboard(types: readonly string[] = []): boolean {
-  return types.some((type) => /org\.nspasteboard\.(concealedtype|autogeneratedtype|transienttype)/iu.test(type));
-}
 
-export function isHttpUrl(text: string): boolean {
-  try {
-    const protocol = new URL(text.trim()).protocol;
-    return protocol === "http:" || protocol === "https:";
-  } catch {
-    return false;
-  }
-}
 
-export function clipFingerprint(kind: "text" | "url", body: string): string {
-  return kind === "url" ? `u:${body}` : `t:${sha256(Buffer.from(body, "utf8"))}`;
-}
 
 export function isEditableShelfItem(item: { kind: ShelfItemKind; name: string; size_bytes: number }): boolean {
   if (item.size_bytes > MAX_EDIT_BYTES) return false;
@@ -911,20 +893,6 @@ export function isEditableShelfItem(item: { kind: ShelfItemKind; name: string; s
   return TEXT_EDIT_EXTENSIONS.has(ext);
 }
 
-export function clipTitleFor(kind: "text" | "url", body: string): string {
-  if (kind === "url") {
-    try {
-      const host = new URL(body).hostname;
-      if (host) return host;
-    } catch {
-      /* fall through to text title */
-    }
-  }
-  const line = body.replace(/\s+/gu, " ").trim();
-  if (!line) return "文本";
-  if (line.length <= 40) return line;
-  return `${line.slice(0, 40).trim()}…`;
-}
 
 function publicItem(item: StoredItem): ShelfItemRecord {
   return { ...item };

@@ -56,6 +56,10 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
   "coding.control-run": { definition: { ...define("runs.control", "控制编码轮次", "回答提问、补充要求（可指向要纠正的那条）、撤回还没交给模型的补充、暂停、继续或停止正在进行的一轮，或把它从下一次模型调用起换到另一个已配置的模型", "command",
       codingRunControlInput, [], LOCAL), version: 7 },
     toInput: request => controlInput({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
+  // Starting a parked round now keeps its follower, a job only a checked command may keep (PG-038).
+  "coding.queued-round": { definition: define("runs.queued", "现在开始或放弃等待", "停在等待上的会话：现在就开始下一轮（这个等待由你接手），或放弃这个等待", "command",
+      closed({ ...session, action: { enum: ["start", "cancel"] } }), ["artifact:read", "storage:private"], LOCAL, { cost: "metered" }, "concurrent"),
+    toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
   "coding.read-report": { definition: define("reports.read", "读取执行报告", "读取一轮的固定报告；没有固定版本时按这一轮的记录生成预览", "query",
       closed({ ...round, fixed: { type: "boolean" } }, ["session_id", "run_id"]), ["artifact:read"], READS),
     toInput: request => ({ ...fromRequest(request), ...(request.query.fixed === "1" ? { fixed: true } : {}) }),

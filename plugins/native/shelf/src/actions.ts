@@ -18,7 +18,7 @@ const item = record(["item_id", "group", "kind", "name", "mime", "size_bytes", "
 const job = record(["job_id", "recipe", "status", "item_ids", "created_at"]);
 const itemId = object({ item_id: id });
 // A write reads the shelf it changes; the files service asks each action for the permission of what it does.
-const read = ["shelf:read"], write = ["shelf:read", "shelf:write"];
+const read = ["shelf:read"], write = [...read, "shelf:write"];
 // The personal store belongs to the Home: Shelf's Home instance offers these, each project's instance the project ones.
 /** Clipboard history, device settings and the local folder path stay with the person at this computer. */
 const LOCAL: readonly ActionAudience[] = ["user"];
@@ -43,6 +43,7 @@ const AI_RECIPES = [...SHELF_RECIPES, SHELF_SHORTCUT_RECIPE].filter(recipe => re
 export type { ShelfAdmitActionInput };
 export interface ShelfTextView { item_id: string; title: string; text: string; content_hash: string; fingerprint: string }
 export const shelfActions = {
+  terminal: define<Record<string, never>, { panelId: string }>("terminal.open", "打开置物架终端", "在置物架副本目录打开本机 Agent", "command", object({}), object({ panelId: id }), [...read, "terminal:run"], LOCAL),
   snapshot: define<Record<string, never>, ShelfSnapshot>("snapshot", "读取置物架面板",
     "读取置物架全部状态，含剪贴板历史、设备设置与本机目录，仅供本机界面使用", "query", object({}), { type: "object", required: ["materials", "results", "clipboard"] }, read, LOCAL),
   list: define<Record<string, never>, { materials: ShelfItemRecord[]; results: ShelfItemRecord[]; running_jobs: ShelfJobRecord[] }>("items.list", "Shelf 材料列表",
@@ -85,7 +86,7 @@ export const shelfActions = {
     object({ clip: { anyOf: [record(["clip_id", "kind", "title", "body"]), { type: "null" }] } }), write, LOCAL),
   deleteClip: define<{ clip_id: string }, { deleted: true }>("clipboard.delete", "删除剪贴板记录", "删除一条剪贴板历史", "command", object({ clip_id: id }), object({ deleted: { const: true } }), write, LOCAL),
   clipToMaterial: define<{ clip_id: string }, { item: ShelfItemRecord }>("clipboard.material", "剪贴板放进 Shelf", "把一条剪贴板历史放进置物架", "command", object({ clip_id: id }), object({ item }),
-    [...write, "materials:fetch", "materials:fetch_local"], LOCAL),
+    [...write, "materials:read", "materials:fetch", "materials:fetch_local"], LOCAL),
   searchEntries: shelfSearchEntriesAction,
   subject: shelfSubjectAction,
   files: shelfFileEntriesAction,
@@ -191,7 +192,7 @@ export interface ShelfMaterialPreview { payload: import("@molis-ai/molis-work-co
 function defineProject<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   output: ActionSchema, permissions: readonly string[]): ActionDefinition<I, O> {
   return { capability_id: `shelf.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
-    scope: "project", audiences: LOCAL, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output } };
+    scope: "project", scheduling: "concurrent", audiences: LOCAL, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output } };
 }
 const material = object({ title: text, text, content_hash: text, source: { type: "object", required: ["item_id"] } });
 export const shelfProjectActions = {
@@ -200,7 +201,7 @@ export const shelfProjectActions = {
   saveMaterial: defineProject<{ item_id: string; expected_fingerprint: string }, { reference: { artifact_id: string; version: number }; title: string }>("material.save", "存到项目资料",
     "按已预览的指纹把 Shelf 文字存进当前项目的资料（成果库里的一份导入文档，项目里的 Agent 都能找到）；内容变化时拒绝", "command",
     object({ item_id: id, expected_fingerprint: { type: "string", minLength: 1 } }),
-    object({ reference: object({ artifact_id: id, version: { type: "integer", minimum: 1 } }), title: text }), [...read, "artifacts:read", "artifacts:write"]),
+    object({ reference: object({ artifact_id: id, version: { type: "integer", minimum: 1 } }), title: text }), [...read, "artifacts:read", "artifacts:write", "actions:invoke"]),
 };
 export const SHELF_PROJECT_ACTIONS: readonly ActionDefinition[] = Object.values(shelfProjectActions);
 export const SHELF_PROJECT_ACTION_PERMISSIONS = [...new Set(SHELF_PROJECT_ACTIONS.flatMap(definition => definition.action.permissions))];

@@ -1,26 +1,30 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { openPptStore } from "@molis-ai/molis-work-plugin-ppt";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
+// SYS-15-V1: record restoration reaches the existing row-based client inside its isolated document.
+
 for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, save conflicts and publication recovery`,{timeout:100_000},async t=>{
   const browser=await openGoalBrowser(t,true,undefined,null);if(!browser)return;
-  const {command,sessionId,evaluate,waitFor,navigate,click,reloadPage,origin,projectId,homeDirectory}=browser;
+  const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "ppt");
   const read=()=>{const store=openPptStore(homeDirectory);try{return store.list(projectId!);}finally{store.close();}};
   const idle=()=>waitFor("document.querySelector('[data-ppt=workbench]').getAttribute('aria-busy') === 'false'");
   const saved=()=>waitFor("document.querySelector('[data-ppt-editor-status]').textContent.endsWith('已保存')");
   const input=async(selector:string,value:string)=>evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   const open=async()=>{
-    await waitFor("document.querySelector('[data-plugin-id=ppt]')");
-    if(await evaluate('document.body.dataset.desktopSurface')!=='ppt'){
-      await click('[data-plugin-strip] [data-plugin-id=ppt]');
+    await browser.waitFor("document.querySelector('[data-plugin-id=ppt]')");
+    if(await browser.evaluate('document.body.dataset.desktopSurface')!=='ppt'){
+      await browser.click('[data-plugin-strip] [data-plugin-id=ppt]');
     }
-    await waitFor("document.body.dataset.desktopSurface === 'ppt'");
+    await browser.waitFor("document.body.dataset.desktopSurface === 'ppt'");
   };
   const output=reviewEvidenceUrl("action-service/");await mkdir(output,{recursive:true});
   const screenshot=async(name:string)=>{
@@ -48,7 +52,7 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   await click('[data-ppt-slide-list] .ppt-slide-row:last-child [data-slide-remove]');await idle();await saved();assert.equal(read()[0]!.slides.length,2);
   // A delayed real save response cannot erase edits made while it is in flight.
   await evaluate(`(()=>{const original=window.fetch;window.pptSaveRequests=0;window.fetch=async(url,init)=>{
-    const response=await original(url,init);if(init?.method==='POST'&&new URL(url,location.href).pathname.endsWith('/api/plugins/io.molis.work.ppt/ppt/${id}')){
+    const response=await original(url,init);if(init?.method==='POST'&&new URL(url,${JSON.stringify(origin)}).pathname.endsWith('/api/plugins/io.molis.work.ppt/ppt/${id}')){
       window.pptSaveRequests++;if(window.pptSaveRequests===1)await new Promise(resolve=>window.releasePptSave=resolve);
     }return response;};window.restorePptFetch=()=>window.fetch=original;})()`);
   await input('[data-ppt-title]','第一次编辑');await waitFor("typeof window.releasePptSave === 'function'");
@@ -56,7 +60,9 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   await evaluate('window.releasePptSave()');await saved();assert.equal(read()[0]!.title,'季度回顾');assert.equal(read()[0]!.slides[0]!.notes,'新的备注\n第二行');
   assert.equal(await evaluate('window.pptSaveRequests'),2);await evaluate('window.restorePptFetch()');
   await evaluate("document.querySelector('.ppt-workspace').scrollTop=0");await screenshot('editor');
-  const downloads=join(homeDirectory,'exports');await mkdir(downloads);await command('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads});
+  const downloads=join(homeDirectory,'exports'), downloadEvents: unknown[]=[];await mkdir(downloads);
+  t.after(browser.on('Browser.downloadWillBegin',event=>downloadEvents.push(event)));
+  await command('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads,eventsEnabled:true});
   const moreClick = async (selector: string) => {
     if (!await evaluate("document.querySelector('[data-ppt-stage-workspace] .plugin-stage-more:not(.ppt-export-menu)').open")) await click('[data-ppt-stage-workspace] .plugin-stage-more:not(.ppt-export-menu) > summary');
     await click(selector);
@@ -70,7 +76,7 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   const pptxDeadline=Date.now()+4000;let pptx:Buffer|null=null;
   // Chrome creates the file before it writes it: a download is there once it has bytes and no partial file is left.
   while(!pptx){try{pptx=await readFile(join(downloads,'季度回顾.pptx'));if(!pptx.length||existsSync(join(downloads,'季度回顾.pptx.crdownload')))pptx=null;}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
-    if(!pptx){if(Date.now()>pptxDeadline)throw new Error('PPT PowerPoint download missing');await new Promise(resolve=>setTimeout(resolve,50));}}
+    if(!pptx){if(Date.now()>pptxDeadline)throw new Error('PPT PowerPoint download missing: '+JSON.stringify({files:await readdir(downloads),downloadEvents,note:await evaluate("document.querySelector('[data-ppt-note]').textContent")}));await new Promise(resolve=>setTimeout(resolve,50));}}
   assert.equal(pptx.subarray(0,2).toString('latin1'),'PK','a PowerPoint file is a zip package');
   assert.ok(pptx.includes(Buffer.from('ppt/slides/slide1.xml')),'it carries slide parts');
   await exportClick('json');await idle();
@@ -82,7 +88,7 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   const other=openPptStore(homeDirectory);try{other.update(id,{description:'远端修改'},projectId!);}finally{other.close();}
   const remoteVersion=read()[0]!.version;
   await input('[data-ppt-title]','不能丢失的本地标题');await waitFor("document.querySelector('[data-ppt-editor-status]').textContent.endsWith('保存失败')");
-  for(const selector of ['[data-ppt-artifact-bar]','[data-ppt-export]','[data-ppt-back]']){if(selector==='[data-ppt-export]') await moreClick(selector); else await click(selector);await idle();}
+  for(const selector of ['[data-ppt-artifact-bar]','[data-ppt-export]','[data-ppt-back]']){if(selector==='[data-ppt-export]') await exportClick('pptx'); else await click(selector);await idle();}
   assert.equal(read()[0]!.version,remoteVersion);assert.equal(read()[0]!.artifact_version,0);
   assert.equal(await evaluate("document.querySelector('[data-ppt-title]').value"),'不能丢失的本地标题');
   assert.equal(await evaluate("document.querySelector('[data-ppt-stage-workspace]').hidden"),false);await screenshot('conflict');

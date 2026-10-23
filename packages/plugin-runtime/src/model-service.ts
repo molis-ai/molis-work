@@ -1,7 +1,7 @@
 import { ActionError, defineErrorCodes, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isInstructedPrompt, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { PLUGIN_MODEL_LIMITS, pluginErrors, type PluginManifest, type PluginModelClient, type PluginModelAvailability, type PluginModelRequest, type PluginModelResult, type PluginModelSelection, type PluginModelImage, type PluginModelChoice, type PluginModelFailure } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { currentPluginAction } from "./action-scope.js";
+import { currentPluginAction, inPluginInstance, type PluginInstance } from "./action-scope.js";
 
 /** Sending a request to the model: the action declares it, the installation holds it. */
 const MODEL_INVOKE = "model:invoke";
@@ -54,8 +54,7 @@ export interface PluginModelPort {
 }
 
 /** What the executor says of the running instance: whether it is still the one that runs, and what it holds. */
-export interface PluginModelGate {
-  readonly install_id: string;
+export interface PluginModelGate extends PluginInstance {
   /** Throws once the instance is stopped, disabled, uninstalled or replaced. */
   assertActive(): void;
   /** Throws when the installation does not hold the permission (now, not as it was at start). */
@@ -93,7 +92,7 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
     choices(): readonly PluginModelChoice[] {
       gate.assertActive(); requireRead();
       const scope = currentPluginAction();
-      if (scope && scope.install_id !== gate.install_id) throw pluginModelErrors.model_action_required("不能读取另一插件的模型服务");
+      if (scope && !inPluginInstance(scope, gate)) throw pluginModelErrors.model_action_required("不能读取另一插件的模型服务");
       scope?.caller.signal?.throwIfAborted();
       return port.choices().map(row => ({ ...row }));
     },
@@ -104,7 +103,7 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
     },
     async complete(prompt: InstructedPrompt, request: PluginModelRequest = {}): Promise<PluginModelResult> {
       const scope = currentPluginAction();
-      if (!scope || scope.install_id !== gate.install_id) throw pluginModelErrors.model_action_required("模型只能在本插件自己的动作里调用，不能在启动、路由、定时器或别的插件的动作里调用");
+      if (!scope || !inPluginInstance(scope, gate)) throw pluginModelErrors.model_action_required("模型只能在本插件自己的动作里调用，不能在启动、路由、定时器或别的插件的动作里调用");
       const { definition, caller } = scope;
       if (!definition.action.permissions.includes(MODEL_INVOKE)) throw pluginModelErrors.model_permission_undeclared(`动作 ${definition.capability_id} 没有声明 ${MODEL_INVOKE}`);
       if (definition.action.scheduling !== "concurrent") throw pluginModelErrors.model_action_not_concurrent(`动作 ${definition.capability_id} 要等模型，必须声明 scheduling: "concurrent"`);

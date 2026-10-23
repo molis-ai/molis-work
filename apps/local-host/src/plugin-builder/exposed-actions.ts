@@ -9,6 +9,7 @@
 import { ActionError, type ActionAvailability, type ActionDefinition, type ActionExecutionContext, type ActionExecutionPolicy, type ActionHandlerBinding, type ActionSchema } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import { runInPluginAction, type PluginInstance } from '@molis-ai/molis-work-plugin-runtime';
 import type { ProjectActions } from './catalog.js';
 import { latestCapability, type CapabilityExecution } from './capabilities.js';
 
@@ -55,12 +56,12 @@ export interface InstalledPluginActions {
   dispose(): void;
 }
 
-export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRelease, call: InstalledOperationCall, availability?: () => ActionAvailability): InstalledPluginActions {
+export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRelease, call: InstalledOperationCall, availability?: () => ActionAvailability, plugin?: PluginInstance): InstalledPluginActions {
   const providerId = 'plugin:' + release.pluginId, title = release.design.title;
   const definitions: ActionDefinition[] = release.design.contract.operations.map(operation => ({
     capability_id: exposedActionId(release, operation.id), version: release.version, provider_id: providerId,
     operation: operation.kind === 'query' ? 'query' : 'command',
-    action: { title: title + ' · ' + (operation.description || operation.id), description: '插件「' + title + '」的功能：' + (operation.description || operation.id),
+    action: { local_id: operation.id, title: title + ' · ' + (operation.description || operation.id), description: '插件「' + title + '」的功能：' + (operation.description || operation.id),
       kind: operation.kind === 'query' ? 'query' : 'operation', scope: 'project', scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'], permissions: [], subject_kinds: [],
       input_schema: operation.input as unknown as ActionSchema, output_schema: operation.output as unknown as ActionSchema },
   }));
@@ -97,8 +98,13 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
         if (previous?.cost === cost) return;
         // Per-operation replacement preserves unrelated in-flight calls and their registration tokens.
         previous?.dispose(); registrations.delete(operationId);
-        const unregister = actions.registry.registerProvider({ provider: { provider_id: providerId, title, kind: 'plugin', plugin_id: release.pluginId, project_id: actions.project_id },
-          definitions: [{ ...definition, action: { ...definition.action, execution: { cost } } }], handlers: [handlers[index]!], ...(availability ? { availability } : {}) });
+        const unregister = actions.registry.registerProvider({ provider: { provider_id: providerId, title, kind: 'plugin', plugin_id: release.pluginId, project_id: actions.project_id, ...(plugin ? { plugin_install_id: plugin.install_id } : {}) },
+          definitions: [{ ...definition, action: { ...definition.action, execution: { cost } } }],
+          // The target owns the private write; its Runtime scope retains the original caller checks.
+          handlers: [{ ...handlers[index]!, handle: (caller, input) => {
+            const execute = () => handlers[index]!.handle(caller, input);
+            return plugin ? runInPluginAction({ install_id: plugin.install_id, installation_generation: plugin.installation_generation, definition, caller }, execute) : execute();
+          } }], ...(availability ? { availability } : {}) });
         registrations.set(operationId, { cost, dispose: unregister }); changed = true;
       });
     } catch (error) { dispose(); throw error; }

@@ -180,7 +180,7 @@ test("Files 订阅的事件 id 和发布方导出的是同一个", () => {
 test("PG061-FILES-01 a Coding or Git event makes Files' own pages read again; a delivery no longer current moves nothing, and nothing else calls it", async () => {
   // C6: the Host's `onWorkspaceChanged` port is gone; Files moves its own revision through `services.ui.invalidate()` (PG-061).
   let invalidated = 0;
-  const context: PluginStartContext = { install_id: "files-invalidate", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
+  const context: PluginStartContext = { install_id: "files-invalidate", installation_generation: "1", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
     deployment: "local", grants: filesManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user",
     requireGrant: () => {}, services: { ui: { register: () => {}, unregister: () => {}, invalidate: () => { invalidated++; } } } };
   const plugin = createFilesPlugin({ readable: () => true }), contribution = await plugin.start(context);
@@ -212,7 +212,7 @@ test("S18-FILES-RETRY a refused workspace transition retries persistence and eve
     const actions = bindActionClient(service, () => caller);
     let refuse = true, persistenceCalls = 0;
     const rejected = () => { throw new ActionError("actions.forbidden", "transition was refused"); };
-    const context: PluginStartContext = { install_id: "files-retry", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
+    const context: PluginStartContext = { install_id: "files-retry", installation_generation: "1", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
       deployment: "local", grants: filesManifest.permissions.map(item => item.permission), project_id: caller.project_id, actor_id: caller.actor_id,
       requireGrant: () => {}, services: {
         ui: { register: () => {}, unregister: () => {} },

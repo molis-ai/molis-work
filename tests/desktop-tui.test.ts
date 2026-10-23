@@ -12,7 +12,7 @@ import { desktopAdvancePrompt, desktopLaunchSpec, desktopPanelEnv } from "@molis
 import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
 
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, MolisWorkLocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 import { NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-app-desktop";
@@ -699,7 +699,9 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktop, /molis-work:tui-collapse/);
     assert.match(desktop, /\*::-webkit-scrollbar\{display:none/);
     assert.match(desktop, /在这个 Goal 上打开终端/);
-    assert.match(desktop, /querySelector\("\[data-tree-resizer\]"\)/);
+    // #994 gathered the page's lookups behind one `q`; the tree resizer is still found in the page's own document.
+    assert.match(desktop, /const q = \(selector\) => document\.querySelector\(selector\);/);
+    assert.match(desktop, /const treeResizer = q\("\[data-tree-resizer\]"\);/);
     assert.match(desktop, /treeWidth: parseFloat\(workspace\.style\.getPropertyValue\("--tree-width"\)\)/);
     assert.match(desktop, /\.workspace\.is-desktop-tui \{ grid-template-columns: var\(--tree-width, 240px\)/);
     assert.match(desktop, /class="immersive-workspace is-desktop-tui is-plugin-directory-empty"/);
@@ -1833,6 +1835,7 @@ test("isolated PTY PATH can start Grok Build help", async (t) => {
 
 test("Codex resume launch records host session on the same Goal panel", async () => {
   const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-desktop-resume-"));
+  await new MolisWorkLocalHost({ homeDirectory, completeText: null }).close();
   const workspace = join(homeDirectory, "repo");
   mkdirSync(workspace);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });

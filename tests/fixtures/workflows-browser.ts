@@ -3,11 +3,13 @@ import type { TestContext } from "node:test";
 import { openWorkflowsStore, type Workflow } from "@molis-ai/molis-work-plugin-workflows";
 import { locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { openGoalBrowser } from "./goal-browser.js";
+import { pluginFrameBrowser } from "./plugin-frame-browser.js";
 
-export async function openWorkflowsBrowser(t: TestContext, { open = true } = {}) {
+export async function openWorkflowsBrowser(t: TestContext, { open = true, chromeArgs }: { open?: boolean; chromeArgs?: readonly string[] } = {}) {
   assert.ok(locateTestChrome(), "Chrome is required for the Workflows ownership regression");
-  const browser = await openGoalBrowser(t, "seeded", undefined, null);
+  const browser = await openGoalBrowser(t, "seeded", undefined, null, undefined, undefined, undefined, {}, undefined, chromeArgs);
   assert.ok(browser, "Chrome is required for the Workflows ownership regression");
+  const frame = await pluginFrameBrowser(t, browser, "workflows");
   const path = `/projects/${browser.projectId}/api/plugins/io.molis.work.native.workflows/workflows`;
   const a = (await browser.web.post<{ workflow: Workflow }>(path, {
     title: "流程 A 的材料", chain: { stations: [{ plugin: "feed" }], links: [] },
@@ -26,9 +28,9 @@ export async function openWorkflowsBrowser(t: TestContext, { open = true } = {})
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/` }, browser.sessionId));
   if (open) {
     await browser.click("[data-plugin-strip] [data-plugin-id=workflows]");
-    await browser.waitFor(`document.querySelector('[data-wf-open="${a.workflow_id}"]')`);
-    await browser.click(`[data-wf-open="${a.workflow_id}"]`);
-    await browser.waitFor(`document.querySelector('.wf-editor')?.dataset.id === '${a.workflow_id}'`);
+    await frame.waitFor(`document.querySelector('[data-wf-open="${a.workflow_id}"]')`);
+    await frame.click(`[data-wf-open="${a.workflow_id}"]`);
+    await frame.waitFor(`document.querySelector('.wf-editor')?.dataset.id === '${a.workflow_id}'`);
   }
-  return { ...browser, a: store.get(a.workflow_id, browser.projectId!), b: store.get(b.workflow_id, browser.projectId!), saved: (id: string) => store.get(id, browser.projectId!) };
+  return { ...browser, frame, a: store.get(a.workflow_id, browser.projectId!), b: store.get(b.workflow_id, browser.projectId!), saved: (id: string) => store.get(id, browser.projectId!) };
 }

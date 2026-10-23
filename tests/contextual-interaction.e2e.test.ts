@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -16,6 +17,7 @@ const ACTION = `${BAR} .mw-btn[data-key]`;
 const MORE = `${BAR} [data-more]`;
 /** Catches the plan the Host answers with, so the bar can be compared with it (W2-03). */
 const CAPTURE_PLAN = `(() => { const original = window.fetch; window.fetch = async (...args) => { const response = await original(...args);
+  if (String(args[0]).includes('/api/assistant/cards')) window.contextPlaced={status:response.status,...await response.clone().json()};
   if (String(args[0]).includes('/api/contextual/candidates')) response.clone().json().then(body => { window.__contextPlan = body.plan; }, () => undefined); return response; }; })()`;
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
 const FIRST = "用户留存下降已经持续三个月。";
@@ -30,16 +32,17 @@ for (const width of [1440, 390]) {
     const browser = await openGoalBrowser(t, true, undefined, async prompt => { prompts.push(prompt); await gate; return "主因是上手困难：新用户第一周难以完成有价值的操作。"; });
     if (!browser) return;
     const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const child=await pluginFrameBrowser(t,browser,"pages");
+  await command("Page.addScriptToEvaluateOnNewDocument",{source:CAPTURE_PLAN},sessionId);
     await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
     const setup = openPagesStore(homeDirectory);
     const page = (() => { try { return setup.create({ project_id: projectId!, title: "留存分析", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND), paragraph(THIRD)] } }); } finally { setup.close(); } })();
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
-    await waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(THIRD)})`);
+    await child.waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(THIRD)})`);
     assert.equal(await evaluate("document.querySelector('.mw-ctx').hidden"), true, "nothing in hand, nothing offered");
-    await evaluate(CAPTURE_PLAN);
 
-    const selectParagraph = (index: number) => evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
+    const selectParagraph = (index: number) => child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
       const text = editor.querySelectorAll('p')[${index}].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, text.length);
       const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
     // As many of the plan's first actions as the bar has room for: three in a wide window; in a narrow one at most two, and what
@@ -82,11 +85,12 @@ for (const width of [1440, 390]) {
     else {
       await click(MORE);
       await waitFor("document.querySelector('.mw-ctx-menu')");
-      await evaluate(`[...document.querySelectorAll('.mw-ctx-menu button')].find(button => button.textContent.includes('改得更简洁')).click()`);
+      await evaluate(`[...document.querySelectorAll('.mw-ctx-menu button')].find(button => button.textContent.includes('改得更简洁')).dataset.testChoice="true"`);
+      await click("[data-test-choice]");
     }
-    await waitFor("document.querySelector('.pages-focus-frozen') && document.querySelector('.mw-ctx-panel .pages-pop:not([hidden])')?.textContent.includes('正在处理')");
-    await waitFor(`${JSON.stringify(SECOND)}.startsWith(document.querySelector('.pages-focus-frozen')?.textContent || '-')`);
-    if (width === 1440) assert.equal(await evaluate("Boolean(document.activeElement?.closest('[data-pages-editor]'))"), true, "the bar never takes the focus from the editor");
+    await child.waitFor("document.querySelector('.pages-focus-frozen') && document.querySelector('.pages-pop:not([hidden])')?.textContent.includes('正在处理')");
+    await child.waitFor(`${JSON.stringify(SECOND)}.startsWith(document.querySelector('.pages-focus-frozen')?.textContent || '-')`);
+    if (width === 1440) assert.equal(await child.evaluate("Boolean(document.activeElement?.closest('[data-pages-editor]'))"), true, "the bar never takes the focus from the editor");
     for (let tries = 0; prompts.length === 0 && tries < 200; tries++) await new Promise(resolve => setTimeout(resolve, 25));
     assert.equal(prompts.length, 1);
     assert.match(prompts[0]!, /上手困难/, "the prepared input carries the text that was in hand");
@@ -96,14 +100,14 @@ for (const width of [1440, 390]) {
     const firstContext = await evaluate<string>("window.__contextPlan.context_id");
     await selectParagraph(0);
     await waitFor(`window.__contextPlan.context_id !== ${JSON.stringify(firstContext)} && ${shown}`);
-    assert.equal(await evaluate("Boolean(document.querySelector('.mw-ctx-panel .pages-pop:not([hidden])'))"), true, "the waited-for result stays when something else is selected");
+    assert.equal(await child.evaluate("Boolean(document.querySelector('.pages-pop:not([hidden])'))"), true, "the waited-for result stays when something else is selected");
     release();
-    await waitFor("document.querySelector('.pages-pop:not([hidden]) textarea')?.value.includes('主因是上手困难：')");
-    await evaluate(`[...document.querySelectorAll('.pages-pop button')].find(button => button.textContent.trim() === '替换').click()`);
-    await waitFor(`(() => { const ps = [...document.querySelectorAll('[data-pages-editor] .ProseMirror p')].map(p => p.textContent);
+    await child.waitFor("document.querySelector('.pages-pop:not([hidden]) textarea')?.value.includes('主因是上手困难：')");
+    await child.evaluate(`[...document.querySelectorAll('.pages-pop button')].find(button => button.textContent.trim() === '替换').click()`);
+    await child.waitFor(`(() => { const ps = [...document.querySelectorAll('[data-pages-editor] .ProseMirror p')].map(p => p.textContent);
       return ps[0] === ${JSON.stringify(FIRST)} && ps[1] === '主因是上手困难：新用户第一周难以完成有价值的操作。' && ps[2] === ${JSON.stringify(THIRD)}; })()`);
-    await waitFor("!document.querySelector('.mw-ctx-panel')");
-    await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
+    await child.waitFor("!document.querySelector('.pages-pop:not([hidden])')");
+    await child.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
     const saved = openPagesStore(homeDirectory);
     try {
       const body = JSON.stringify(saved.get(page.id, projectId!).body);
@@ -122,12 +126,14 @@ test("contextual actions: a result the person did not accept writes nothing; an 
   const browser = await openGoalBrowser(t, true, undefined, async () => "候选文字");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const child=await pluginFrameBrowser(t,browser,"pages");
+  await command("Page.addScriptToEvaluateOnNewDocument",{source:CAPTURE_PLAN},sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const setup = openPagesStore(homeDirectory);
   const page = (() => { try { return setup.create({ project_id: projectId!, title: "草稿", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
-  await evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
+  await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
+  await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[1].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, 10);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
   await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length === 3`);
@@ -137,35 +143,44 @@ test("contextual actions: a result the person did not accept writes nothing; an 
     return { groups: [...menu.querySelectorAll('.mw-ctx-menu__label')].map(p => p.textContent), all: menu.querySelectorAll('button[role=menuitem]').length }; })()`);
   assert.ok(menu.groups.includes("全部操作（不依赖推荐）"), menu.groups.join(","));
   assert.ok(menu.all >= 8);
-  await evaluate(`[...document.querySelectorAll('.mw-ctx-menu button')].find(button => button.textContent.includes('改得更正式')).click()`);
-  await waitFor("document.querySelector('.pages-pop:not([hidden]) textarea')?.value === '候选文字'");
+  await evaluate(`[...document.querySelectorAll('.mw-ctx-menu button')].find(button => button.textContent.includes('改得更正式')).dataset.testChoice="true"`);
+  await click("[data-test-choice]");
+  await child.waitFor("document.querySelector('.pages-pop:not([hidden]) textarea')?.value === '候选文字'");
   // The frozen text is edited before accepting: nothing is written anywhere.
   // The person clicks into the frozen text (the editor takes focus) and types a character there.
-  await evaluate(`(() => { document.querySelector('[data-pages-editor] .ProseMirror').focus(); const frozen = document.querySelector('.pages-focus-frozen'); const text = frozen.firstChild; const range = document.createRange();
+  await child.evaluate(`(() => { document.querySelector('[data-pages-editor] .ProseMirror').focus(); const frozen = document.querySelector('.pages-focus-frozen'); const text = frozen.firstChild; const range = document.createRange();
     range.setStart(text, 1); range.setEnd(text, 1); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); })()`);
   await command("Input.insertText", { text: "改" }, sessionId);
-  await evaluate(`[...document.querySelectorAll('.pages-pop button')].find(button => button.textContent.trim() === '替换').click()`);
-  await waitFor("document.querySelector('.pages-pop .pages-pop-error')?.textContent.includes('没有写入')");
-  assert.equal(await evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent.includes('候选文字')"), false);
+  await child.evaluate(`[...document.querySelectorAll('.pages-pop button')].find(button => button.textContent.trim() === '替换').click()`);
+  await child.waitFor("document.querySelector('.pages-pop .pages-pop-error')?.textContent.includes('没有写入')");
+  assert.equal(await child.evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent.includes('候选文字')"), false);
   // Leaving the document: the bar goes away. The pointer goes to the back button first, as a person's does; while it rests
   // on the bar, a lapsing context is kept until it leaves (spec §13.3).
   await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 40, y: 120 }, sessionId);
-  await evaluate(`document.querySelector('[data-pages-back]')?.click()`);
-  await waitFor("document.querySelector('.mw-ctx').hidden && !document.querySelector('.mw-ctx-panel')");
+  await child.evaluate(`document.querySelector('[data-pages-back]')?.click()`);
+  await waitFor("document.querySelector('.mw-ctx').hidden");
+  await child.waitFor("!document.querySelector('.pages-pop:not([hidden])')");
 });
 
-test("P2: a word is looked up in the search palette; a write goes to the Assistant as a card; a Goal's own text offers Goals actions", { timeout: 150_000 }, async t => {
+test("SYS-52 P2: a word is looked up in the search palette; a write goes to the Assistant as a card; a Goal's own text offers Goals actions", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, async () => "候选文字");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const child=await pluginFrameBrowser(t,browser,"pages");
+  await command("Page.addScriptToEvaluateOnNewDocument",{source:CAPTURE_PLAN},sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const setup = openPagesStore(homeDirectory);
   const page = (() => { try { return setup.create({ project_id: projectId!, title: "术语表", body: { type: "doc", content: [paragraph("“激活”指新用户在第一周内完成至少一次有价值的操作。"), paragraph(SECOND)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
-  const select = (index: number, from: number, to?: number) => evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
+  await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
+  await child.evaluate("document.addEventListener('molis:surface-focus', event => window.contextualFocus = event.detail)");
+  const select = async (index: number, from: number, to?: number) => {
+    await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[${index}].firstChild; const range = document.createRange(); range.setStart(text, ${from}); range.setEnd(text, ${to === undefined ? "text.length" : to});
-    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
+    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); window.expectedContextText = selection.toString(); document.dispatchEvent(new Event('selectionchange')); })()`);
+    await child.waitFor("window.contextualFocus?.targets.map(part => part.text).join('\\n\\n') === window.expectedContextText");
+    return child.evaluate<string>("contextualFocus.context_id");
+  };
 
   // A word: looked up across the project, in the workbench's own search palette.
   await select(0, 1, 3);
@@ -175,14 +190,15 @@ test("P2: a word is looked up in the search palette; a write goes to the Assista
   await evaluate(`document.querySelector('[data-global-search-close]')?.click()`);
 
   // A write: prepared as a card in an Assistant work, which opens; nothing is written before the person runs it.
-  await select(1, 0);
-  await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length > 0`, 8000);
+  const passageContext = await select(1, 0);
+  await waitFor(`window.__contextPlan?.context_id === ${JSON.stringify(passageContext)} && document.querySelector(${JSON.stringify(MORE)})`, 8000);
   await click(MORE);
   // On the bar or under 更多, wherever the rules put it.
   await waitFor(`[...document.querySelectorAll(${JSON.stringify(ACTION + ", .mw-ctx-menu button")})].some(button => button.textContent.startsWith('拆成目标步骤'))`);
-  const placed = await evaluate<{ status: number; work_id?: string }>(`new Promise(resolve => { const original = window.fetch;
-    window.fetch = async (url, options) => { const response = await original(url, options); if (String(url).includes('/api/assistant/cards')) { const copy = response.clone(); resolve({ status: response.status, ...(await copy.json().catch(() => ({}))) }); } return response; };
-    [...document.querySelectorAll(${JSON.stringify(ACTION + ", .mw-ctx-menu button")})].find(button => button.textContent.startsWith('拆成目标步骤')).click(); })`);
+  await evaluate(`[...document.querySelectorAll(${JSON.stringify(ACTION + ", .mw-ctx-menu button")})].find(button => button.textContent.startsWith('拆成目标步骤')).dataset.testChoice="true"`);
+  await click("[data-test-choice]");
+  await waitFor("window.contextPlaced");
+  const placed=await evaluate<{status:number;work_id?:string}>("window.contextPlaced");
   assert.equal(placed.status, 200);
   assert.ok(placed.work_id);
   await waitFor("document.querySelector('[data-assistant-panel]') && !document.querySelector('[data-assistant-panel]').hidden && document.querySelector('[data-assistant-work-title]')?.textContent === '拆成目标步骤'", 8000);
@@ -203,12 +219,14 @@ test("contextual actions: a command that cannot run keeps its name on one line a
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const child=await pluginFrameBrowser(t,browser,"pages");
+  await command("Page.addScriptToEvaluateOnNewDocument",{source:CAPTURE_PLAN},sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const setup = openPagesStore(homeDirectory);
   const page = (() => { try { return setup.create({ project_id: projectId!, title: "草稿", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
-  await evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
+  await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
+  await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[1].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, 10);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
   await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length > 0`, 8000);

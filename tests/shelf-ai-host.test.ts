@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdtemp, readdir, rm } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -54,7 +54,12 @@ async function fixture(run: (f: {
   finally {
     await host.close(); await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); });
     catalog.close(); resetSecretStoreCache(); if (old === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = old;
-    await rm(home, { recursive: true, force: true });
+    // Revoked work cannot mutate its frozen input. Only this fixture restores temporary directory access for deletion.
+    const unlock = async (folder: string): Promise<void> => {
+      await chmod(folder, 0o700);
+      for (const entry of await readdir(folder, { withFileTypes: true })) if (entry.isDirectory()) await unlock(join(folder, entry.name));
+    };
+    await unlock(home); await rm(home, { recursive: true, force: true });
   }
 }
 

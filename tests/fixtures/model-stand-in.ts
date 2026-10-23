@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import { endingReviewReply } from "./ending-review.js";
+import { asideReply } from "./ending-review.js";
 
 /**
  * A model provider on 127.0.0.1 that speaks the OpenAI chat-completions shape and accepts exactly one key.
@@ -10,7 +10,7 @@ export interface ModelStandIn {
   /** `http://127.0.0.1:<port>/v1`, what a person pastes into Base URL. */
   readonly baseUrl: string;
   readonly origin: string;
-  /** One entry per request the provider received: which model was asked and which key was offered. */
+  /** Foreground requests, excluding the Home's registered ending review and knowledge organization. */
   readonly requests: { model: string; offeredKey: string }[];
   close(): Promise<void>;
 }
@@ -22,10 +22,10 @@ export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK")
     for await (const chunk of request) body += chunk;
     const offeredKey = String(request.headers.authorization ?? "").replace(/^Bearer /, "");
     const payload = body ? JSON.parse(body) as { model?: string; stream?: boolean } : {};
-    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
-    const review = endingReviewReply(body), content = review ?? reply;
+    // The Home's registered background calls get their own valid answer, without consuming a foreground request.
+    const aside = asideReply(body), content = aside ?? reply;
     if (request.method !== "POST" || request.url !== "/v1/chat/completions") { response.writeHead(404).end(); return; }
-    if (!review) requests.push({ model: String(payload.model ?? ""), offeredKey });
+    if (aside === undefined) requests.push({ model: String(payload.model ?? ""), offeredKey });
     if (offeredKey !== acceptedKey) {
       response.writeHead(401, { "content-type": "application/json" });
       response.end(JSON.stringify({ error: { message: "invalid api key" } }));

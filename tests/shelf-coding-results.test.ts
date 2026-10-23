@@ -104,6 +104,6 @@ test("W5-01-CODING-12 the host no longer composes the boundary: no file, no Shel
     assert.ok(!assembly.includes(name), `project-plugins.ts still mentions ${name}`);
   }
   const ports = readFileSync(join(REPOSITORY, "plugins/native/shelf/src/runtime-actions.ts"), "utf8");
-  const declaration = ports.slice(ports.indexOf("export interface ShelfResultPorts"), ports.indexOf("\n}", ports.indexOf("export interface ShelfResultPorts")));
-  assert.deepEqual([...declaration.matchAll(/^\s+(\w+)\(/gmu)].map(row => row[1]), ["projectPath", "receive"], "the host gives Shelf only where the pages are and where a copy is admitted");
+  assert.doesNotMatch(ports, /ShelfResultPorts|projectPath\(/, "the plugin needs no host-composed ports");
+  assert.match(ports, /services\.actions\.dependencies\.invoke/, "the project instance delivers through the public action service");
 });

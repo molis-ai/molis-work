@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -8,6 +10,7 @@ import type { PluginOwnerFilesClient, PluginOwnerFilesWriter } from "@molis-ai/m
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { SHELF_ACTION_PERMISSIONS, SHELF_OWNER_FILES, SHELF_PLUGIN_ID, shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { MolisWorkLocalHost, openHostShelfFiles, openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
 
 /** PG-026 (specs/repository-anti-corruption/privileges.md): Shelf keeps its files through the owner-files client, over the entries it declares. */
@@ -189,8 +192,8 @@ test("PG-026-S1-9 a cancel decides on the run's row as its write finds it: a run
     const host = openHostShelfFiles(home);
     let open!: () => void;
     const turn = new Promise<void>(resolve => { open = resolve; });
-    const files: PluginOwnerFilesClient = { stat: relative => host.stat(relative), read: relative => host.read(relative), list: relative => host.list(relative),
-      location: () => host.location(), write: <Result>(run: (writer: PluginOwnerFilesWriter) => Result) => turn.then(() => host.write(run)) };
+    const files: PluginOwnerFilesClient = { rootPath: () => host.rootPath(), stat: relative => host.stat(relative), read: relative => host.read(relative), list: relative => host.list(relative),
+      write: <Result>(run: (writer: PluginOwnerFilesWriter) => Result) => turn.then(() => host.write(run)) };
     await host.write(writer => writer.replaceFileAtomic("catalog.json", running));
     const cancelling = openShelfStore(root, files, { disabled: true }).cancelJob(jobId);
     // The run finishes after the cancel read its row and before the cancel's write lands.
@@ -202,4 +205,31 @@ test("PG-026-S1-9 a cancel decides on the run's row as its write finds it: a run
     assert.equal(row?.status, "succeeded", "a finished run is not rewritten as cancelled");
     assert.ok(row?.result_item_id, "the finished run still points at its result");
   });
+});
+
+const LOCAL_PAGE = `<html><head><title>本机页面</title></head><body><article><p>${"这是一个只在本机提供的页面，正文足够长，用来检查读取。".repeat(6)}</p></article></body></html>`;
+
+test("PG-026-S2-2 the Home instance reads a page on this machine through the local-page reader; the local network, https to this machine and the Host's own port keep the link alone", { timeout: 60_000 }, async t => {
+  const hits: string[] = [];
+  const page = createServer((request, response) => {
+    hits.push(request.url ?? ""); response.writeHead(200, { "content-type": "text/html; charset=utf-8" }); response.end(LOCAL_PAGE);
+  });
+  await new Promise<void>(resolve => page.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise<void>(resolve => { page.closeAllConnections(); page.close(() => resolve()); }));
+  const port = (page.address() as AddressInfo).port, { home, host, origin } = await serveHomeRuntime(t);
+  const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS }));
+  const shelve = async (url: string) => {
+    const { item } = await actions.invoke(shelfActions.admit, { text: url });
+    return openHostShelfStore(home).readFile(item.item_id).bytes.toString();
+  };
+  for (const url of [`http://127.0.0.1:${port}/page`, `http://localhost:${port}/page`]) assert.match(await shelve(url), /只在本机提供/, url);
+  assert.deepEqual(hits, ["/page", "/page"], "plain http to this machine is read once each");
+  // Any other address goes to the public reader, which refuses the local network; the local-page reader refuses the Host's own port.
+  for (const url of ["http://192.168.1.10/", "http://10.0.0.5/", "http://169.254.169.254/latest/meta-data/", `https://127.0.0.1:${port}/page`,
+    `https://localhost:${port}/page`, `${origin}/api/settings/models`]) {
+    const copy = await shelve(url);
+    assert.ok(copy.includes(url), `${url} keeps its link`);
+    assert.match(copy, /没有抓到正文/, `${url} has no body`);
+  }
+  assert.equal(hits.length, 2, "none of them reached the page server");
 });

@@ -64,14 +64,10 @@ export {
   SHELF_JOB_TIMEOUT_MS,
   CLIPBOARD_LIMIT,
   ShelfStore,
-  clipFingerprint,
-  clipTitleFor,
   hashBytes,
-  isConcealedClipboard,
-  isHttpUrl,
   isEditableShelfItem,
   openShelfStore,
-  seedShelfFirstRun,
+  initializeShelfFiles,
 } from "./store.js";
 export {
   CARBON_CMD_KEY,
@@ -123,3 +119,5 @@ export {
   shortcutOutputName,
   shortcutSlotId,
 } from "./settings.js";
+
+export { isConcealedClipboard, isHttpUrl, clipFingerprint, clipTitleFor } from "./clipboard.js";

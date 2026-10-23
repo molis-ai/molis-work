@@ -74,5 +74,5 @@ export function ownerFilePaths(home: string, declaration: PluginOwnerFilesDeclar
     if (stat && expected && (expected === "file" ? !stat.isFile() : !stat.isDirectory())) throw unsafeOwnerFile();
     return { ...target, stat };
   };
-  return { inspect, directories, location: join(root, declaration.store_name) };
+  return { inspect, directories };
 }

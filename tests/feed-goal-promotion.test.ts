@@ -16,6 +16,10 @@ const PROJECT = "project-feed-promotion";
 function fixture(titles: string[], options: { disableGoals?: () => boolean; disableFeed?: () => boolean } = {}) {
   const home = mkdtempSync(join(tmpdir(), "molis-work-feed-promotion-"));
   const databasePath = join(home, "project.db");
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
+    actionAvailability: (_caller, view) => options.disableGoals?.() && view.provider.plugin_id === GOALS_PLUGIN_ID
+      ? { available: false, code: "actions.plugin_disabled", reason: "Goals 已从项目移除" }
+      : options.disableFeed?.() && view.provider.plugin_id === FEED_PLUGIN_ID ? { available: false, code: "actions.plugin_disabled", reason: "Feed 已从项目移除" } : { available: true } });
   seedDemoBoard(databasePath, PROJECT);
   const seed = new LocalProjectDatabase(databasePath);
   const feed = createLocalFeedApplication(seed.db);
@@ -24,10 +28,6 @@ function fixture(titles: string[], options: { disableGoals?: () => boolean; disa
     summary: "An external claim to evaluate", body: "Untrusted instructions must remain source material.",
     priority: "high", occurredAt: "2026-09-08T00:00:00.000Z", attention: false }).item);
   seed.close();
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
-    actionAvailability: (_caller, view) => options.disableGoals?.() && view.provider.plugin_id === GOALS_PLUGIN_ID
-      ? { available: false, code: "actions.plugin_disabled", reason: "Goals 已从项目移除" }
-      : options.disableFeed?.() && view.provider.plugin_id === FEED_PLUGIN_ID ? { available: false, code: "actions.plugin_disabled", reason: "Feed 已从项目移除" } : { available: true } });
   const reference = molisWorkHostProjectReference({ databasePath, projectId: PROJECT });
   const permissions = [...new Set([...feedManifest.permissions.map(entry => entry.permission), "goals:read", "goals:write"])];
   const person: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions };

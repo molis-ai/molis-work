@@ -18,13 +18,10 @@ export interface PluginOwnerFilesWriter extends PluginOwnerFilesReader {
   setAccess(relative: string, access: "readonly" | "readwrite"): void;
 }
 export interface PluginOwnerFilesClient extends PluginOwnerFilesReader {
+  /** Location of this owner's declared root; grants no additional file access. */
+  rootPath(): string;
   /** The callback must finish synchronously. Its writer expires on return or throw. */
   write<Result>(run: (writer: PluginOwnerFilesWriter) => Result): Promise<Result>;
-  /**
-   * The folder behind these files, asked like a read. It is for the desktop shell and the terminal to open; the plugin itself reads
-   * and writes only through this client (PG-113 in specs/repository-anti-corruption/privileges.md).
-   */
-  location(): string;
 }
 export interface PluginOwnerFilesDeclaration {
   readonly store_name: string;

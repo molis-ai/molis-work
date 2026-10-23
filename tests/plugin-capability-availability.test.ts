@@ -34,7 +34,7 @@ test("removing a dependency during a real nested Host call blocks the caller's s
   const caller = { actor_id: "owner", project_id: project.project_id, audience: "user" as const, permissions: [] };
   const actions = bindActionClient(host.actionClient(project), () => caller);
   const capabilities = createPluginCapabilityClient({ ...filesManifest, capabilities: { provides: [], consumes: [definition.capability_id] } }, host.client(project));
-  const context: PluginStartContext = { install_id: "fixture", plugin_id: "io.molis.work.example.waiting", version: "1.0.0", deployment: "local", grants: [], actor_id: caller.actor_id,
+  const context: PluginStartContext = { install_id: "fixture", installation_generation: "1", plugin_id: "io.molis.work.example.waiting", version: "1.0.0", deployment: "local", grants: [], actor_id: caller.actor_id,
     services: { actions, capabilities,
       artifacts: { read: () => { throw new Error("No Artifact reads expected"); }, publish: () => { throw new Error("No Artifact writes expected"); } },
       ui: { register: () => { throw new Error("No UI expected"); }, unregister: () => {} } },
@@ -67,7 +67,7 @@ test("a plugin query does not discover every action on each read; a command stil
   const client = host.actionClient(project);
   let discovered = 0;
   const actions = bindActionClient({ ...client, discover: async (who) => { discovered++; return client.discover(who); } }, () => caller);
-  const context: PluginStartContext = { install_id: "fixture", plugin_id: "io.molis.work.example.reads", version: "1.0.0", deployment: "local", grants: [], actor_id: caller.actor_id,
+  const context: PluginStartContext = { install_id: "fixture", installation_generation: "1", plugin_id: "io.molis.work.example.reads", version: "1.0.0", deployment: "local", grants: [], actor_id: caller.actor_id,
     services: { actions, artifacts: { read: () => { throw new Error("No Artifact reads expected"); }, publish: () => { throw new Error("No Artifact writes expected"); } },
       ui: { register: () => { throw new Error("No UI expected"); }, unregister: () => {} } },
     requireGrant: () => { throw new Error("No grant is declared"); } };

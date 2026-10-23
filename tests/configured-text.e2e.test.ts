@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
@@ -41,7 +42,12 @@ for (const width of [1440, 390]) {
     const modelUrl = `http://127.0.0.1:${address.port}/v1`;
     const browser = await openGoalBrowser(t, true);
     if (!browser) return;
-    const { homeDirectory: home, command, sessionId, navigate, origin, controlToken, projectId, waitFor, click, evaluate } = browser;
+    const { homeDirectory: home, command, sessionId, navigate, origin, controlToken, projectId } = browser;
+    const views = {lingguang: await pluginFrameBrowser(t,browser,"lingguang"), jelly: await pluginFrameBrowser(t,browser,"jelly")};
+    let active: Pick<typeof browser,"evaluate" | "waitFor" | "click"> = browser;
+    const evaluate: typeof browser.evaluate = (...args) => active.evaluate(...args);
+    const waitFor: typeof browser.waitFor = (...args) => active.waitFor(...args);
+    const click: typeof browser.click = (...args) => active.click(...args);
     // W5-01-JMC-01: configuration and inference use the live Runtime HTTP routes.
     const jelly = async <T>(path: string, body?: unknown): Promise<T> => {
       const response = await fetch(`${origin}/api/plugins/io.molis.work.jelly${path}`, {
@@ -75,6 +81,7 @@ for (const width of [1440, 390]) {
     await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')");
     await click('[data-plugin-picker-popover] [data-plugin-id=lingguang]');
     await waitFor("document.body.dataset.desktopSurface === 'lingguang'");
+    active = views.lingguang;
     await click('[data-lingguang-capture]');
     await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'");
     await evaluate(`(() => { const body = document.querySelector('[data-lingguang-body]'); body.value='记录窗边的光'; body.dispatchEvent(new InputEvent('input',{bubbles:true})); })()`);
@@ -86,8 +93,10 @@ for (const width of [1440, 390]) {
     assert.deepEqual(received, ["a-model"]);
     await jelly("/model-settings", { provider_id: "a", model_id: "a-model" });
     withConnectorConnections(home, store => store.disconnect(firstConnection));
+    active = browser;
     await click('[data-plugin-strip] [data-plugin-id=jelly]');
     await waitFor("document.body.dataset.desktopSurface === 'jelly'");
+    active = views.jelly;
     await click('[data-jelly-more]');
     await click('[data-jelly-model]');
     await waitFor("document.querySelector('[data-jelly-model-status]')?.textContent.includes('选择仍保留')");
@@ -107,6 +116,7 @@ for (const width of [1440, 390]) {
     assert.equal(planned.method, "model");
     assert.equal(planned.plan.actions[0]!.title, "从同一角度再拍一张窗边的照片。");
     assert.deepEqual(received, ["a-model", "b-model"]);
+    active = browser;
     await navigate(() => command("Page.navigate", { url: `${origin}/settings/models?provider=a` }, sessionId));
     await waitFor("document.querySelector('[data-model-connection]')?.selectedOptions[0]?.textContent.includes('连接不可用')");
     assert.equal(await evaluate("document.querySelector('[data-model-connection]').value"), firstConnection);

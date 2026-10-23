@@ -26,7 +26,7 @@ const personCaller = (projectId: string): ActionCallContext => ({ actor_id: LOCA
 
 test("an action client asked not to prepare the project calls Goals without starting any Runtime plugin", async () => {
   const directory = await mkdtemp(join(tmpdir(), "goals-unprepared-client-"));
-  const host = createMolisWorkLocalHost({ completeText: null });
+  const host = createMolisWorkLocalHost({ homeDirectory: directory, completeText: null });
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: "unprepared" });
   const caller = personCaller("unprepared");
   const providers = async (client: ReturnType<typeof host.actionClient>) => new Set((await client.discover(caller)).map(view => view.provider.provider_id));

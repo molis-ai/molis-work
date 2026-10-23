@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -86,15 +86,6 @@ test("SHF-IO-S04 no scope, wrong action operation, missing declared/caller permi
   other.behavior.read = () => client.list("documents");
   await assert.rejects(actions.invoke(other.caller(), other.writeAction, {}), { code: "actions.forbidden" });
   await assert.rejects(actions.invoke(other.caller(), other.readAction, {}), { code: "actions.forbidden" });
-  // The folder behind the files is asked like a read (PG-113): not outside an action, not by an action without the read permission,
-  // not by another installation; asking it creates nothing.
-  assert.throws(() => client.location(), { code: "actions.forbidden" });
-  probe.behavior.write = files => files.location();
-  await assert.rejects(actions.invoke(probe.caller(), probe.writeAction, {}), { code: "actions.forbidden" });
-  other.behavior.read = () => client.location();
-  await assert.rejects(actions.invoke(other.caller(), other.readAction, {}), { code: "actions.forbidden" });
-  probe.behavior.read = files => files.location();
-  assert.equal(await actions.invoke(probe.caller(), probe.readAction, {}), join(realpathSync(home), probe.owner_files.store_name));
   assert.equal(existsSync(join(home, probe.owner_files.store_name)), false);
 });
 
@@ -202,11 +193,6 @@ test("SHF-IO-S02 SHF-IO-S07 stop callback loses file authority and upgrade canno
   const probe = ownerFilesProbe(), { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.entry()] } });
   const { platform, install } = await grantOwnerFiles(host, probe), run = ownerFileActions(host, probe);
   await run.write(writer => writer.writeFile("catalog.json", Buffer.from("keep"), "create"));
-  // A stopped instance's handle no longer says where the files are, even inside the same installation's next action.
-  const old = probe.client();
-  await grantOwnerFiles(host, probe);
-  probe.behavior.read = () => old.location();
-  await assert.rejects(host.homeActionClient().invoke(probe.caller(), probe.readAction, {}), { code: "actions.forbidden" });
   let stopChecked = false;
   probe.behavior.stop = async context => {
     await assert.rejects(context.services!.ownerFiles!.write(writer => writer.removeTree("catalog.json")));

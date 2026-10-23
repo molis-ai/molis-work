@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean, layoutFindings } from "./fixtures/layout-audit.js";
@@ -18,6 +19,8 @@ async function openPicker(t: TestContext, width = 1440, height = 900) {
   const b = await openGoalBrowser(t, "user");
   if (!b) return null;
   const { command, sessionId, evaluate, waitFor, origin, projectId } = b;
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory });
+  try { catalog.removeProjectPlugin({ project_id: projectId!, plugin_id: "schedule", actor_id: "browser-test" }); } finally { catalog.close(); }
   await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("Boolean(document.querySelector('[data-plugin-picker-toggle]')) && Boolean(document.querySelector('[data-plugin-tile]'))");
@@ -158,6 +161,7 @@ test("DOCK-06 removing asks once, then takes the plugin out in place; the pane s
   await press(`${tile("pages")} [data-dock-choice]`); await frames();
   await click(`${tile("pages")} > .plugin-rail-item`);
   await waitFor("document.body.dataset.desktopSurface === 'pages'");
+  await b.surfaceReady("pages");
   await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
   await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
   await press(`${tile("pages")} [data-plugin-toggle]`);

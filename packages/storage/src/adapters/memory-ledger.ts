@@ -20,7 +20,7 @@ import { applySqliteBaseline, type SqliteBaseline } from "../sqlite-baseline.js"
 export const MEMORY_LEDGER_STORE = "memory";
 
 /** The memory ledger's one current schema (repository-anti-corruption §4.1). */
-export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: 2, schema: `
+export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: 3, schema: `
 CREATE TABLE memory_revisions (
   memory_id TEXT NOT NULL, version INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (memory_id, version)
 );

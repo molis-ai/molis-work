@@ -11,10 +11,9 @@ import { openHostShelfFiles } from "@molis-ai/molis-work-app-local-host";
 import { ShelfStore } from "../modules/shelf/dist/store.js";
 import { SHELF_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
 import { createShelfRouteHandlers } from "@molis-ai/molis-work-plugin-shelf";
-import { ShelfPluginRouteTable } from "@molis-ai/molis-work-plugin-shelf";
 import { SHELF_STYLES } from "@molis-ai/molis-work-plugin-shelf";
 import { renderShelfWorkbench } from "@molis-ai/molis-work-plugin-shelf";
-import { directShelfActions } from "./shelf-direct-actions.js";
+import { directShelfActions, ShelfPluginRouteTable } from "./shelf-direct-actions.js";
 
 // The only stub is runtime availability, so client handoffs can be exercised
 // without installing or launching an agent. Storage and HTTP handlers are real.
@@ -57,7 +56,7 @@ async function openShelfBrowser(t: TestContext) {
   const script = `document.querySelector('[data-shelf=workbench]').hidden=false;
     window.molisWorkControlHeaders=()=>({'content-type':'application/json'});
     window.mountShelf=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
-    window.bootShelf=()=>(${SHELF_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mountShelf,translate:(value,values)=>String(value).replace(/\\{([^}]+)\\}/g,(_,key)=>values?.[key]??key)});bootShelf();`;
+    window.bootShelf=()=>(${SHELF_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mountShelf,copyText:text=>navigator.clipboard.writeText(text),translate:(value,values)=>String(value).replace(/\\{([^}]+)\\}/g,(_,key)=>values?.[key]??key)});bootShelf();`;
   const server = createServer(async (request, response) => {
     const url = new URL(request.url || "/", "http://localhost");
     requests.push(`${request.method} ${url.pathname}`);
@@ -69,7 +68,7 @@ async function openShelfBrowser(t: TestContext) {
       const bytes = Buffer.concat(chunks);
       const result = await routes.handle({ method: request.method === "POST" ? "POST" : "GET", pathname: url.pathname, query: url.searchParams, body: bytes.length ? JSON.parse(bytes.toString("utf8")) : {} });
       if (!result) { response.writeHead(404); response.end(); return; }
-      if (request.method === "GET" && url.pathname === "/api/plugins/io.molis.work.shelf/snapshot" && delayNextRead) { const wait = delayNextRead; delayNextRead = undefined; await wait(); }
+      if (request.method === "GET" && url.pathname === "/api/plugins/io.molis.work.shelf/" && delayNextRead) { const wait = delayNextRead; delayNextRead = undefined; await wait(); }
       if (request.method === "GET" && url.pathname.endsWith("/file") && delayNextFile) { const wait = delayNextFile; delayNextFile = undefined; await wait(); }
       response.writeHead(result.status, { "content-type": result.mime || "application/json; charset=utf-8", "cache-control": "no-store", ...result.headers });
       response.end(result.bytes ? Buffer.from(result.bytes) : JSON.stringify(result.body));
@@ -224,7 +223,7 @@ test("W2-18-SHELF-CACHE-01: owner edits invalidate same-ID text and an earlier f
 test("W2-18-SHELF-LIFETIME-01: a window event belongs to one live mount; a detached mount answers nothing", { timeout: 35_000 }, async t => {
   const browser = await openShelfBrowser(t); if (!browser) return;
   const { requests, evaluate } = browser;
-  const reads = () => requests.filter(request => request === "GET /api/plugins/io.molis.work.shelf/snapshot").length;
+  const reads = () => requests.filter(request => request === "GET /api/plugins/io.molis.work.shelf/").length;
   const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   await evaluate("window.shelfRoot=document.querySelector('[data-shelf=workbench]');window.shelfParent=shelfRoot.parentElement;shelfRoot.remove()");
   await pause(50);
@@ -242,7 +241,7 @@ test("Shelf keeps the latest snapshot and releases global handlers across hide, 
   const browser = await openShelfBrowser(t); if (!browser) return;
   const { shelf, requests, evaluate, waitFor, delaySnapshot } = browser;
   const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-  const reads = () => requests.filter(request => request === "GET /api/plugins/io.molis.work.shelf/snapshot").length;
+  const reads = () => requests.filter(request => request === "GET /api/plugins/io.molis.work.shelf/").length;
   const delayed = delaySnapshot();
   await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))"); await delayed.started;
   await shelf.admit({ filename: "更新后的材料.md", bytes: Buffer.from("# 最新内容"), mime: "text/markdown" });

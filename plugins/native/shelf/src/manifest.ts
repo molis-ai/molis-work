@@ -1,9 +1,9 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SHELF_UI_CONTRIBUTION_ID } from "./ui.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
-import { SHELF_RUNTIME_ACTIONS } from "./runtime-actions.js";
+import { SHELF_RUNTIME_ACTIONS, shelfReceiveCopy } from "./runtime-actions.js";
 import { SHELF_ACTIONS, SHELF_PROJECT_ACTIONS } from "./actions.js";
-import { SHELF_HOME_ROUTES, SHELF_MATERIAL_ROUTES } from "./routes.js";
+import { SHELF_HOME_ROUTES } from "./routes.js";
 import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
 
 export const SHELF_PLUGIN_ID = "io.molis.work.shelf";
@@ -11,9 +11,8 @@ export const SHELF_PLUGIN_ID = "io.molis.work.shelf";
 export const SHELF_PROJECT_PLUGIN_ID = "shelf";
 
 /**
- * Declarative placement for this first-party Plugin, a dual-instance one: the Home instance keeps the person's shelf, each
- * project's instance receives Coding results through Runtime grants and its durable input graph. Every permission is
- * required, as a dual-instance Manifest's must be.
+ * The personal Home instance and each project's result instance share this declaration (a dual-instance plugin): every
+ * permission is required, as a dual-instance Manifest's must be.
  */
 export const shelfManifest: PluginManifest = {
   schema_version: 2,
@@ -30,31 +29,33 @@ export const shelfManifest: PluginManifest = {
   permissions: [
     { permission: "storage:private", required: true, reason: "本机置物架文件与摘录" },
     { permission: "artifact:read", required: true, reason: "读取明确选择接收的 Coding 成果" },
-    { permission: "shelf:read", required: true, reason: "读取置物架里的副本、剪贴板历史与设置" },
-    { permission: "shelf:write", required: true, reason: "把副本、处理结果与设置写进置物架" },
-    { permission: "model:invoke", required: true, reason: "用你配置的模型处理所选材料" },
-    { permission: "materials:read", required: true, reason: "抽取 PDF、网页文件与图片里的文字" },
-    { permission: "materials:fetch", required: true, reason: "抓取放进置物架的公开网页" },
-    { permission: "materials:fetch_local", required: true, reason: "抓取放进置物架的本机网页" },
-    { permission: "materials:original", required: true, reason: "处理前核对你放进来的原文件有没有变" },
-    { permission: "artifacts:read", required: true, reason: "存到项目资料前读取项目里已有的那一份" },
-    { permission: "artifacts:write", required: true, reason: "把置物架里的文字存到项目资料" },
+    { permission: "shelf:read", required: true, reason: "读取置物架的副本和处理状态" },
+    { permission: "terminal:run", required: true, reason: "打开资料架对话终端" },
+    { permission: "shelf:write", required: true, reason: "添加和整理置物架副本" },
+    { permission: "materials:read", required: true, reason: "解析已选择的材料" },
+    { permission: "materials:fetch", required: true, reason: "获取已选择的网页内容" },
+    { permission: "materials:fetch_local", required: true, reason: "获取已选择的本机网页内容" },
+    { permission: "materials:original", required: true, reason: "处理前核对放进来的原文件有没有变" },
+    { permission: "model:invoke", required: true, reason: "按所选配方处理材料" },
+    { permission: "artifacts:read", required: true, reason: "读取项目成果" },
+    { permission: "artifacts:write", required: true, reason: "将副本保存到项目成果" },
+    { permission: "actions:invoke", required: true, reason: "调用已授权的成果与资料能力" },
+    { permission: "model:read", required: true, reason: "读取当前可用模型" },
   ],
   // The text of a Coding result comes from Coding itself (the plugin audience only); Shelf adds its own heading and source.
   capabilities: { provides: [], consumes: [codingResultDocument.capability_id] },
-  // The project instance offers the Coding-result actions and saving into the project; the Home instance the personal store's.
-  actions: [...SHELF_RUNTIME_ACTIONS, ...SHELF_PROJECT_ACTIONS, ...SHELF_ACTIONS],
+  // Each Runtime instance redeems only the actions it owns.
+  actions: [...SHELF_ACTIONS, ...SHELF_PROJECT_ACTIONS, shelfReceiveCopy, ...SHELF_RUNTIME_ACTIONS],
   artifacts: { produces: [], consumes: [{ artifact_type_id: "coding.report.v1", schema_version: 1 }] },
   // A Coding change set offered to Shelf is exchange data, not a 成果. What Shelf saves into a project is an imported document there.
   process_items: { produces: [], consumes: [{ artifact_type_id: "coding.changeset.v1", schema_version: 1 }] },
   ports: { inputs: [{ port: "coding-report", artifact_type_id: "coding.report.v1", schema_version: 1, optional: true, default_source: { plugin_id: "io.molis.work.coding", port: "report" } }, { port: "coding-changeset", artifact_type_id: "coding.changeset.v1", schema_version: 1, optional: true, default_source: { plugin_id: "io.molis.work.coding", port: "changeset" } }], outputs: [] },
-  // The project instance answers the Coding-result and project-material routes; the Home instance the panel's own.
+  // The project instance answers the Coding-result routes; the Home instance the panel's own, saving into a project included.
   routes: [
+    ...SHELF_HOME_ROUTES,
     { route_id: "shelf.project-results", method: "GET", path: "/project-results" },
     { route_id: "shelf.project-result-preview", method: "GET", path: "/project-result" },
     { route_id: "shelf.project-result-receive", method: "POST", path: "/project-result" },
-    ...SHELF_MATERIAL_ROUTES,
-    ...SHELF_HOME_ROUTES,
   ],
   ui: {
     contributions: [SHELF_UI_CONTRIBUTION_ID, SHELF_SETTINGS_UI_CONTRIBUTION_ID],

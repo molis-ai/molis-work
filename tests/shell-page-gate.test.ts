@@ -67,6 +67,12 @@ const exceptionOf = (address: string) => EXCEPTIONS.find(([pattern]) => pattern.
 /** The local addresses a page links to: href attributes and GET forms, without fragments and data or file endpoints. */
 function localLinks(html: string, base: string, origin: string): string[] {
   const found = new Set<string>();
+  // Isolated content is serialized, inert markup until the Host mounts its frame. Crawl those same links too.
+  for (const match of html.matchAll(/<script\b[^>]*\bdata-plugin-document(?:="[^"]*")?[^>]*>([\s\S]*?)<\/script>/g)) {
+    const content: unknown = JSON.parse(match[1]!);
+    assert.equal(typeof content, "string");
+    for (const link of localLinks(content as string, base, origin)) found.add(link);
+  }
   const add = (raw: string) => {
     if (!raw || raw.startsWith("#") || raw.startsWith("__") || /^(?:javascript|data|blob|mailto):/i.test(raw) || raw.includes("${") || raw.includes("' +")) return;
     let url: URL;
@@ -133,6 +139,8 @@ test("the workbench is one page: plugin content brings no page shell of its own"
 // Host workbench entrypoints and every other whole-page producer. A standalone page still needs an exception in
 // specs/shell-page-exceptions; a Home workbench entrypoint is checked above under the same rules as a project.
 const PAGE_PRODUCERS: Record<string, string> = {
+  "apps/workbench/src/browser/plugin-frame/document.ts": "Host-owned opaque iframe document for installed plugin content",
+  "apps/workbench/src/plugin-document-shell.ts": "Host-owned frame document for installed plugin views",
   "apps/workbench/src/document-shell.ts": "the workbench document itself",
   "apps/workbench/src/goals-page-renderer.ts": "the workbench",
   "apps/workbench/src/home-plugin-page.ts": "Home workbench: Host document and UI lifetime, Runtime plugin content only",
@@ -148,7 +156,6 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/primitive-catalog.ts": "开发规格板",
   "apps/workbench/src/condition-frame.ts": "开发规格板：条件与状态的框架页",
   "apps/workbench/src/assistant-board-frame.ts": "开发规格板：助理信息与任务的框架页",
-  "apps/local-host/src/plugin-builder/agent-surface.ts": "沙箱框里的文档：试用与已安装的生成插件",
   "packages/im-ui/src/page.ts": "协作服务",
   "plugins/native/form/src/fillpage.ts": "导出：问卷填写页文件",
   "plugins/native/jelly/src/markdown.ts": "导出：Jelly 的 HTML 文件",

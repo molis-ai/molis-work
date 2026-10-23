@@ -15,7 +15,7 @@ import {
   hashBytes,
   isConcealedClipboard,
   isEditableShelfItem,
-  seedShelfFirstRun,
+  initializeShelfFiles,
 } from "@molis-ai/molis-work-module-shelf";
 import { openHostShelfFiles, openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
 import {
@@ -81,7 +81,7 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 
 test("empty shelf seeds a real extractable sample PDF and keeps origin hash", async () => {
   await withHome(async (home) => {
-    await openHostShelfFiles(home).write(seedShelfFirstRun);
+    await openHostShelfFiles(home).write(initializeShelfFiles);
     const store = openHostShelfStore(home, NO_AGENT, { extract: extractMaterial });
     const snapshot = await store.snapshot();
     assert.equal(snapshot.materials.length, 1);
@@ -500,7 +500,7 @@ test("the Shelf plugin routes admit, extract, and do not expose origin paths", a
     "x-molis-work-control-token": token,
     "x-molis-work-idempotency-key": `shelf-http-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   });
-  const first = await (await fetch(`${origin}/api/plugins/io.molis.work.shelf/snapshot`)).json() as {
+  const first = await (await fetch(`${origin}/api/plugins/io.molis.work.shelf/`)).json() as {
     materials: Array<{ item_id: string; name: string; origin_hash: string; origin_realpath?: string }>;
     recipes: Array<{ recipe: string; available: boolean }>;
   };
@@ -534,7 +534,7 @@ test("the Shelf plugin routes admit, extract, and do not expose origin paths", a
     body: JSON.stringify({ text: "nope" }),
   });
   assert.equal(blocked.status, 400);
-  const still = await (await fetch(`${origin}/api/plugins/io.molis.work.shelf/snapshot`)).json() as { materials: Array<{ origin_hash: string }> };
+  const still = await (await fetch(`${origin}/api/plugins/io.molis.work.shelf/`)).json() as { materials: Array<{ origin_hash: string }> };
   assert.equal(still.materials[0]?.origin_hash, first.materials[0]?.origin_hash);
   const hidden = await fetch(`${origin}/api/plugins/io.molis.work.shelf/items/${encodeURIComponent(extracted.result.item_id)}/hide`, {
     method: "POST",
@@ -555,7 +555,7 @@ test("the Shelf plugin routes admit, extract, and do not expose origin paths", a
   assert.equal(removed.status, 200);
   const gone = await fetch(`${origin}/api/plugins/io.molis.work.shelf/items/${encodeURIComponent(extracted.result.item_id)}/file`);
   assert.equal(gone.status, 404);
-  const afterResultDelete = await (await fetch(`${origin}/api/plugins/io.molis.work.shelf/snapshot`)).json() as { materials: Array<{ origin_hash: string }>; results: unknown[] };
+  const afterResultDelete = await (await fetch(`${origin}/api/plugins/io.molis.work.shelf/`)).json() as { materials: Array<{ origin_hash: string }>; results: unknown[] };
   assert.equal(afterResultDelete.materials[0]?.origin_hash, first.materials[0]?.origin_hash);
   assert.equal(afterResultDelete.results.length, 0);
   const denied = await fetch(`${origin}/api/plugins/io.molis.work.shelf/jobs`, {

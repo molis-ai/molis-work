@@ -146,9 +146,10 @@
     },
     "git": {
       "paths": [
-        "apps/local-host/src/git-*"
+        "apps/local-host/src/git-*",
+        "packages/plugin-sdk/src/git-porcelain.ts"
       ],
-      "reason": "The Git plugin's Host side (worktrees, status, operations); its codes already start with git."
+      "reason": "The Git plugin's Host side (worktrees, status, operations) and the porcelain parse the SDK gives both the Host and the Git plugin; its codes already start with git."
     },
     "goals": {
       "paths": [
@@ -271,12 +272,6 @@
         "packages/plugin-sandbox/"
       ],
       "reason": "The plugin sandbox (SandboxError): its UPPER_CASE codes become sandbox.* (spec W3-02 J6)."
-    },
-    "schedule": {
-      "paths": [
-        "apps/local-host/src/schedule-*"
-      ],
-      "reason": "The Schedule plugin and the Host files that serve it (tasks, reminders, runner); its schedule_task_* snake codes become schedule.* (spec W3-02 E)."
     },
     "scheduler": {
       "paths": [

@@ -16,7 +16,7 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 // specs/prologue-adoption §4.6.10: the Host keeps the wait on the session's step; the plugin keeps the queued send and starts it once the step may go on.
 test("a round told to wait for another session's work waits on it, starts on its own when that work is done, waits for the person when it is not, can be given up, and a start refused (revoked, cancelled) writes nothing", { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-queued-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(root); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = codingSessions(store), at = new Date().toISOString();
   await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "a", title: "改标签格式", runtime_id: "prologue", at });
   await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "b", title: "标签加前缀", runtime_id: "prologue", at });

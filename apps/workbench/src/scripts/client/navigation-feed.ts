@@ -487,8 +487,10 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         }
         setFeedTask(selectedFeedTask, false);
         feedSourcesDialog?.querySelectorAll("[data-feed-config-section]").forEach(section => section.hidden = section.dataset.feedConfigSection !== feedConfigView);
-        if (!feedSourcesDialog?.hidden && feedConfigView === "rules") hydrateFeedRuleDrafts();
-        if (!feedSourcesDialog?.hidden && feedConfigView === "settings") void loadFeedConnections(feedSourcesDialog.querySelector('[data-feed-task-config]:not([hidden])'));
+        if (feedSourcesDialog?.hidden === false) {
+          if (feedConfigView === "rules") hydrateFeedRuleDrafts();
+          else if (feedConfigView === "settings") void loadFeedConnections(feedSourcesDialog.querySelector('[data-feed-task-config]:not([hidden])'));
+        }
         if (selectedId) selectFeedItem(selectedId, false, false, false);
         list.scrollTop = scrollTop;
         return true;

@@ -430,6 +430,7 @@ export const CODING_MESSAGES = {
   "coding.session.twin": { zh: "可能与「{title}」重复", en: "May duplicate “{title}”" },
   "coding.directory.goal-unavailable": { zh: "关联 Goal 暂不可用", en: "Linked Goal not available right now" },
   "coding.directory.no-goal": { zh: "未关联 Goal", en: "No Goal" },
+  "coding.board.sessions": { zh: "会话行 · 状态与状态环", en: "Session rows · state and state ring" },
   "coding.model.unavailable": { zh: "原模型暂不可用，请重新选择", en: "The original model is not available right now; choose again" },
   "coding.workspace.unavailable": { zh: "原工作区暂不可用，请重新选择", en: "The original workspace is not available right now; choose again" },
   "coding.workspace.choose-first": { zh: "选择已授权工作区后开始", en: "Choose a granted workspace to begin" },

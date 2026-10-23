@@ -24,6 +24,7 @@ import {
   pluginInvocationReadOnly,
   type PluginCapabilityPort,
   type PluginInstance,
+  type StoppedServiceCalls,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
@@ -37,6 +38,7 @@ import { pluginModelFor } from "./plugin-model-service.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService } from "./plugin-directory-service.js";
+import { servicesUntilStopped } from "./plugin-stopped-services.js";
 
 /** What the executor keeps of one started Plugin until it stops. */
 export interface HostSession {
@@ -53,10 +55,12 @@ type PluginUi = ReturnType<typeof createPluginUiClient>;
 /**
  * Everything the Host hands one Plugin when it starts: the identity it runs under and the services its Manifest declared.
  * The executor passes its options as they are at that moment (`attach` may have added the coordination services), and
- * keeps the session for the Plugin's `stop`.
+ * keeps the session for the Plugin's `stop`. Once the session is disposed, what the Plugin's code left running calls on those
+ * services does nothing and is counted in `stoppedCalls` (BL-411, `servicesUntilStopped`).
  */
-export function openHostSession(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext): HostSession {
-  let active = true;
+export function openHostSession(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext,
+  stoppedCalls: StoppedServiceCalls): HostSession {
+  let active = true, stopped = false;
   const ui = createPluginUiClient(options.ui, context, definition.manifest,
     { invalidate: () => options.invalidateView?.(context.plugin_id), active: () => active });
   let disposeArtifacts = () => {};
@@ -67,7 +71,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let withdrawAgentDefinitions: (() => void) | undefined;
   let withdrawCaller: (() => void) | undefined, withdrawPages: (() => void) | undefined;
   let directory: ReturnType<DirectoryGrantService["connect"]> | undefined;
-  const dispose = () => { active = false; withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); files?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
+  const dispose = () => { active = false; stopped = true; withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); files?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     const manifest = definition.manifest;
@@ -102,7 +106,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, project_id: options.project_id, actor_id: options.actor_id,
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
-    return { context: hosted, starting: run => background ? background.starting(run) : run(),
+    return { context: servicesUntilStopped(hosted, () => stopped, stoppedCalls), starting: run => background ? background.starting(run) : run(),
       revoke: () => { active = false; withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); }, dispose };
   } catch (error) {
     dispose();

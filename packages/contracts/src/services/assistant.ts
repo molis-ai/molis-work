@@ -1,7 +1,7 @@
 import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
 export type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
 import type { ContractDescriptor } from "../platform/package.js";
-import type { AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
+import type { AgentRetryWait, AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
 import type { AgentPendingQuestion, AgentQuestionReask } from "./agent-interaction.js";
 import type { AgentInputSend, AgentQueuedInput } from "./agent-inputs.js";
 import type { MemoryChange, MemoryScope } from "./memory.js";
@@ -333,6 +333,8 @@ export interface AssistantRound {
    */
   model?: { model_id: string; now?: string; window_tokens?: number };
   stop_reason?: string;
+  /** While a model call of this round waits to try again: when and why, as the runtime said (the page counts down to it). */
+  retry_wait?: AgentRetryWait;
   ended_at: string | null;
   /** The memories this round was given, and the ones that matched but did not fit (specs/archive/memory-system §7.3). Deleted ones are not listed. */
   memories_used?: { used: AssistantRoundMemory[]; omitted: Array<AssistantRoundMemory & { reason: "budget" | "limit" }> };

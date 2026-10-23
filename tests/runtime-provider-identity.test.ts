@@ -13,6 +13,7 @@ import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-wo
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, runPluginDevelopment, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 // A plugin that ships with the Host registers its actions under its plugin_id; every other plugin (generated, developed, third
 // party, a test fixture) under the id of its installation (user decision 2026-10-10, W3-06 Q1). The registration says which
@@ -237,6 +238,6 @@ test("W3-07-8-01 plugin dependencies resolve their actual provider and retain de
     host.platform.supervisor.revoke(BUILT_IN);
     await assert.rejects(client.invoke(DEPENDENCY, {}), { code: "actions.forbidden" });
     await host.platform.runtime.stop(host.installOf(BUILT_IN).install_id);
-    await assert.rejects(client.invoke(DEPENDENCY, {}), { code: "actions.forbidden" });
+    assert.equal(await within(client.invoke(DEPENDENCY, {})), PENDING, "BL-411: once stopped, the refusal throws nothing outside every call: the call never answers");
   } finally { host.store.close(); }
 }));

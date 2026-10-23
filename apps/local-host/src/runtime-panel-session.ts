@@ -1,34 +1,18 @@
 import type { MolisWorkRuntimeContextHost, RuntimePanelCatalogProvider } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { openWorkSessionRegistry } from "./session-registry.js";
-import { panelSessionInput } from "./panel-sessions.js";
 
-/** Link the late native identity using the same Desktop and Session owners. */
+/** Record a panel's late native Runtime identity in the Desktop panel catalog, so the panel can be resumed with it. */
 export function createRuntimePanelSessionLinker(ports: RuntimePanelCatalogProvider) {
   return async (host: MolisWorkRuntimeContextHost | null, nativeSessionId: string | null): Promise<void> => {
     const panelId = host?.panelId?.trim() || "";
     const runtimeSessionId = nativeSessionId?.trim() || "";
     if (!host || !panelId || !runtimeSessionId) return;
     await ports.withCatalog(host.homeDirectory, async (catalog) => {
-      const panel = catalog.aliasPanelSession({
+      catalog.aliasPanelSession({
         panel_id: panelId,
         runtime_id: host.runtimeContext.runtime_id,
         host_session_id: runtimeSessionId,
         actor_id: `desktop-panel:${panelId}`,
       });
-      const registry = await openWorkSessionRegistry({ homeDirectory: host.homeDirectory });
-      try {
-        // The panel just took its native identity; its Session records it with the panel.
-        const unified = registry.recordPanelSession(panelSessionInput(panel));
-        if (unified && unified.native_runtime_session_id !== runtimeSessionId) {
-          registry.linkNativeRuntimeSession({
-            session_id: unified.session_id,
-            runtime_id: panel.runtime_kind,
-            native_runtime_session_id: runtimeSessionId,
-            actor_id: `desktop-panel:${panelId}`,
-            surface_id: panel.panel_id,
-          });
-        }
-      } finally { registry.close(); }
     }).catch((error: unknown) => {
       if (ports.isMissingPanel(error)) return;
       throw error;

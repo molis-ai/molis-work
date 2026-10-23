@@ -70,8 +70,9 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
           readAgain();
         },
         onEvent: (event, delivery) => {
-          // A Run wrote, or invalidated what it had prepared; or an operation Git asked for has run (`host.review.settled@1`,
-          // sent only to this installation, S-54). Either way the working tree on screen may no longer be the one on disk.
+          // A Run wrote, or invalidated what it had prepared; a person-approved operation ran in the workspace, whoever asked
+          // (`host.workspace.changed@1`, BL-379); or one Git asked for has run (`host.review.settled@1`, sent only to this
+          // installation, S-54). Either way the working tree on screen may no longer be the one on disk.
           delivery.beforeEffect();
           if (event.event_type_id === HOST_REVIEW_SETTLED_EVENT) {
             const { workspace_id, operation_id, outcome } = event.payload as HostReviewSettledPayload;

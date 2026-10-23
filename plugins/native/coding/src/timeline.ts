@@ -96,10 +96,7 @@ export function createCodingTimeline(words: TimelineWords) {
     const all = text.replace(/\n$/, "").split("\n");
     return all.length <= limit ? { text: all.join("\n"), hidden: 0 } : { text: all.slice(0, limit).join("\n"), hidden: all.length - limit };
   };
-  const toolHint = (item: TimelineActivity): string => {
-    const hint = item.state === "failed" ? hintFor((item.output ?? "").trim()) : "";
-    return hint ? `<p class="coding-tool-hint">${escape(hint)}</p>` : "";
-  };
+  /** A step's one line (operation, object, result) and what came back behind it: the refusal in words over the raw output. */
   const drawRow = (item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[]) => {
     const kind = kindOf(item), result = outcome(item, ended, waiting, items);
     // Reasoning is prose, so its row previews the first line as text rather than as a code target.
@@ -108,14 +105,11 @@ export function createCodingTimeline(words: TimelineWords) {
     const until = item.name === "sleep-wait" && Number.isFinite(Date.parse(item.target)) ? L("coding.timeline.until", { time: new Date(item.target).toLocaleTimeString() }) : "";
     const what = until ? `<span class="coding-tool-preview">${escape(until)}</span>`
       : item.target ? `<code>${escape(item.target)}</code>` : first ? `<span class="coding-tool-preview">${escape(first)}</span>` : "";
-    const output = (item.output ?? "").trim();
-    const shown = output ? lines(output, item.name === "reasoning" ? 120 : 24) : null;
+    const output = (item.output ?? "").trim(), shown = output ? lines(output, item.name === "reasoning" ? 120 : 24) : null;
     const hidden = (shown?.hidden ?? 0) + (item.output_hidden_lines ?? 0);
-    const body = shown ? `${toolHint(item)}<pre class="coding-tool-output">${escape(shown.text)}${hidden ? `\n${L("coding.timeline.more-lines", { count: hidden })}` : ""}${item.output_truncated ? `\n${L("coding.timeline.truncated")}` : ""}</pre>` : "";
+    const text = shown ? `${shown.text}${hidden ? `\n${L("coding.timeline.more-lines", { count: hidden })}` : ""}${item.output_truncated ? `\n${L("coding.timeline.truncated")}` : ""}` : "";
     const head = `<span class="coding-tool-icon">${svg(kind.icon)}</span><span class="coding-tool-verb">${escape(kind.verb)}</span>${what}<span class="coding-tool-state" data-tone="${result.tone}">${mark(result.tone)}${result.label ? `<span>${escape(result.label)}</span>` : ""}</span>`;
-    return body
-      ? `<details class="coding-tool" data-tone="${result.tone}" data-kind="${escape(item.name)}" data-tool="${escape(item.call_id)}"><summary>${head}</summary>${body}</details>`
-      : `<div class="coding-tool" data-tone="${result.tone}" data-kind="${escape(item.name)}" data-tool="${escape(item.call_id)}"><div class="coding-tool-head">${head}</div></div>`;
+    return { head, text, hint: shown && item.state === "failed" ? hintFor(output) : "", tone: result.tone };
   };
   /** "Read 4 files · Ran 3 commands", or what is happening right now. */
   const sumText = (items: TimelineActivity[], ended: boolean, waiting: boolean) => {
@@ -136,34 +130,40 @@ export function createCodingTimeline(words: TimelineWords) {
     const failed = items.filter(item => outcome(item, ended, waiting, items).tone === "failed").length;
     return { live: false, waiting: false, text: parts.join(" · ") + (failed ? ` · ${L("coding.timeline.not-succeeded", { count: failed })}` : "") };
   };
-  const opened = new Map<string, boolean>();
-  /** Render a run of consecutive calls into `detail`, keeping the reader's open/closed choice across polls. */
+  // VUX-13: only the person opens or closes a fold, never a round streaming in or ending. Their choice is kept by group key and by
+  // step ("tool:" + call id), so a fold drawn again (another session and back) opens as they left it; `put` touches a node only when its words change.
+  const opened = new Map<string, boolean>(), drawn = new WeakMap<Element, string>(), rowsOf = new WeakMap<Element, Map<string, Element>>();
+  const remember = (node: Element, key: string) => { node.open = opened.get(key) ?? false; node.addEventListener("toggle", () => opened.set(key, node.open)); };
+  const put = (node: Element, value: string, write: (node: Element) => void) => { if (drawn.get(node) !== value) { drawn.set(node, value); write(node); } };
+  /** A step keeps one node by call id and changes in place (line, tone, output in the same <pre>), so what the person opened
+   * stays open, focused and scrolled; a step with nothing behind it is a plain line until something comes back. */
+  const placeRow = (known: Map<string, Element>, item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[]) => {
+    const row = drawRow(item, ended, waiting, items), fold = Boolean(row.text);
+    let node = known.get(item.call_id);
+    if (!node || (node.tagName === "DETAILS") !== fold) {
+      const fresh = document.createElement(fold ? "details" : "div"); fresh.className = "coding-tool"; fresh.dataset.tool = item.call_id; if (fold) remember(fresh, "tool:" + item.call_id);
+      fresh.innerHTML = fold ? '<summary></summary><div class="coding-tool-body"><p class="coding-tool-hint" hidden></p><pre class="coding-tool-output"></pre></div>' : '<div class="coding-tool-head"></div>';
+      node?.replaceWith(fresh); known.set(item.call_id, node = fresh);
+    }
+    node.dataset.tone = row.tone; node.dataset.kind = item.name; put(node.firstElementChild, row.head, line => { line.innerHTML = row.head; });
+    if (fold) { put(node.querySelector(".coding-tool-hint"), row.hint, hint => { hint.textContent = row.hint; hint.hidden = !row.hint; }); put(node.querySelector(".coding-tool-output"), row.text, pre => { pre.textContent = row.text; }); } return node;
+  };
+  /** Render a run of consecutive calls into `detail`: one summary line, the steps behind it, each node kept across polls. */
   const renderGroup = (detail: Element, items: TimelineActivity[], run: TimelineRun, latest: boolean) => {
     const ended = TERMINAL.includes(run.phase), waiting = latest && run.phase === "awaiting-review";
-    const key = detail.dataset.codingActivity ?? "";
-    if (!detail.dataset.bound) {
-      detail.dataset.bound = "true";
-      detail.addEventListener("toggle", () => { if (detail.dataset.rendering !== "true") opened.set(key, detail.open); });
-    }
-    const summary = sumText(items, ended, waiting);
+    if (!detail.dataset.bound) { detail.dataset.bound = "true"; remember(detail, detail.dataset.codingActivity ?? ""); }
     const signature = JSON.stringify([run.phase, latest, items.map(item => [item.call_id, item.state, item.target, (item.output ?? "").length, item.output_hidden_lines ?? 0])]);
-    if (detail.dataset.signature !== signature) {
-      detail.dataset.signature = signature;
-      detail.dataset.rendering = "true";
-      const head = `<span class="coding-tools-summary${summary.live ? " is-live" : summary.waiting ? " is-waiting" : ""}">${summary.live ? '<span class="mw-spinner" aria-hidden="true"></span>' : summary.waiting ? '<span data-mw-state="waiting" aria-hidden="true"></span>' : svg("activity")}<span>${escape(summary.text)}</span></span><span class="coding-tools-chevron" aria-hidden="true">${svg("chevron-right")}</span>`;
-      const summaryNode = detail.querySelector("summary") ?? detail.appendChild(document.createElement("summary"));
-      summaryNode.innerHTML = head;
-      let list = detail.querySelector(".coding-tool-list");
-      if (!list) { list = document.createElement("div"); list.className = "coding-tool-list"; detail.append(list); }
-      const openRows = new Set([...list.querySelectorAll("details.coding-tool[open]")].map((node: Element) => node.dataset.tool));
-      list.innerHTML = items.map(item => drawRow(item, ended, waiting, items)).join("");
-      list.querySelectorAll("details.coding-tool").forEach((node: Element) => { if (openRows.has(node.dataset.tool)) (node as Element).open = true; });
-      detail.dataset.live = String(summary.live);
-      const remembered = opened.get(key);
-      // Follow the work while it happens; afterwards keep it folded unless the reader opened it.
-      detail.open = remembered ?? (latest && !ended && items.length <= 6);
-      queueMicrotask(() => { delete detail.dataset.rendering; });
-    }
+    if (detail.dataset.signature === signature) return; detail.dataset.signature = signature;
+    const summary = sumText(items, ended, waiting);
+    const head = `<span class="coding-tools-summary${summary.live ? " is-live" : summary.waiting ? " is-waiting" : ""}">${summary.live ? '<span class="mw-spinner" aria-hidden="true"></span>' : summary.waiting ? '<span data-mw-state="waiting" aria-hidden="true"></span>' : ""}<span>${escape(summary.text)}</span></span>`;
+    put(detail.querySelector(":scope > summary") ?? detail.insertBefore(document.createElement("summary"), detail.firstChild), head, node => { node.innerHTML = head; });
+    let list = detail.querySelector(":scope > .coding-tool-list"); if (!list) { list = document.createElement("div"); list.className = "coding-tool-list"; detail.append(list); }
+    const known = rowsOf.get(detail) ?? new Map<string, Element>(), rows = items.map(item => placeRow(known, item, ended, waiting, items)); rowsOf.set(detail, known);
+    // New steps go after the ones standing; a node already in its place is never moved (moving it would drop its focus).
+    rows.forEach((row, at) => { if (list.children[at] !== row) list.insertBefore(row, list.children[at] ?? null); });
+    while (list.children.length > rows.length) list.lastElementChild.remove(); for (const [id, node] of known) if (!node.isConnected) known.delete(id);
+    // The group's words take the colour of a step that did not succeed, as the Assistant's do.
+    const tones = rows.map(row => row.dataset.tone); detail.dataset.state = tones.includes("failed") ? "failed" : tones.includes("unknown") ? "unknown" : "";
   };
   const duration = (from?: string | null, to?: string | null) => {
     if (!from) return "";

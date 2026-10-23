@@ -7,7 +7,7 @@ import { ActionError, type ActionCallContext, type ActionDefinition } from "@mol
 import type {
   PluginDatabaseDeclaration, PluginDefinition, PluginFilesDeclaration, PluginHostServices, PluginManifest,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { charactersProvider, createPluginPlatform, DEMO_PROJECT_ID, homeStores, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, charactersProvider, createPluginPlatform, DEMO_PROJECT_ID, homeStores, LocalProjectDatabase, seedDemoBoard, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { charactersActions, openCharacters } from "@molis-ai/molis-work-module-characters";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
@@ -325,19 +325,23 @@ test("S-18 action callback mutations cannot erase original cancellation, grants 
   assert.equal(written("storage", "mutated-late"), false);
 });
 
-test("S-18 stopped output clients cannot invalidate or retain outside an action, including after restart", async t => {
-  const fixture = await platform(t), { client, plugin, written, wiring } = fixture;
+test("S-18 BL411-05 stopped output clients cannot invalidate or retain outside an action, including after restart", async t => {
+  const fixture = await platform(t), { client, plugin, written, wiring } = fixture, entries: HostLogEntry[] = [];
+  t.after(captureHostLog(entries));
   await client.invoke(caller().context, plugin.output, { target: "storage", name: "before-stop" });
   const reference = wiring.outputReference(ID, "item"); assert.ok(reference);
   const old = plugin.services().outputs!;
   await fixture.stop();
   for (const phase of ["stopped", "restarted"] as const) {
     if (phase === "restarted") await fixture.restart();
-    assert.throws(() => old.invalidate("item", phase), { code: "actions.forbidden" });
-    assert.throws(() => old.retain(reference), { code: "actions.forbidden" });
+    // BL-411: outside every call the refusal throws nothing; that nothing was written or retained shows it was refused.
+    assert.equal(old.invalidate("item", phase), undefined);
+    assert.equal(old.retain(reference), undefined);
     assert.equal(written("invalidate", phase), false);
     assert.deepEqual(wiring.retained(ID), []);
   }
+  assert.deepEqual(entries.filter(entry => entry.event === "stopped_service_call" && entry.fields?.plugin_id === ID).map(entry => entry.fields?.method),
+    ["invalidate", "retain"], "BL411-05 the Host logs each refused method of the stopped activation once, though it was called in both phases");
   plugin.services().outputs!.invalidate("item", "current-activation");
   plugin.services().outputs!.retain(reference);
   assert.equal(written("invalidate", "current-activation"), true);

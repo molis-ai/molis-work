@@ -11,7 +11,7 @@ import { codingMethods } from "./methods.js";
 import { codingPrompts } from "./roles.js";
 import { codingSettingsContribution, codingUiView } from "./ui.js";
 import { CodingSessionStore, toDirectoryEntries } from "./store.js";
-import { codingSurface, stopCodingSurface } from "./routes.js";
+import { codingSurface } from "./routes.js";
 import { codingGoalTitles } from "./goal-titles.js";
 import { codingArtifactPreviewHandler } from "./artifact-preview.js";
 import { codingResultDocumentHandler } from "./results-document.js";
@@ -103,8 +103,8 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
         }),
       };
     },
+    // The rounds' followers and the wake loop are the activation's jobs: the platform stops them before this runs (PG-038).
     async stop(context: PluginStartContext): Promise<void> {
-      stopCodingSurface(context);
       await ports.onStop?.(context);
     },
     async health(context: PluginStartContext): Promise<{ ok: boolean; message: string }> {

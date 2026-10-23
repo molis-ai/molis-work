@@ -239,8 +239,8 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // Shelf S3: the host's /api/shelf is gone, so the computer-use panel uses the plugin's own route.
-  // The previously approved +31 bytes are rebased onto main after #1099: 1190716 → 1190747.
-  "/assets/molis-work-workbench.js": [1190716, 1190747],
+  // The previously approved +31 bytes are rebased onto main after #1115: 1190694 → 1190725.
+  "/assets/molis-work-workbench.js": [1190694, 1190725],
   // Shelf S3: the folder cap is 32 MB (was 64); the panel explains it before uploading. 76264 → 76438 (+174).
   "/assets/molis-work-plugins/shelf.js": [76264, 76438],
 };

@@ -27,7 +27,7 @@
 | VUX-15 | 工程 | `stream-text.e2e` | 第一次（第八十九片：回答的列表） | 未做 | — |
 | VUX-16 | 工程 | `assistant-attachment-chips.e2e`、`composer-steady.e2e`、`field-fit.e2e`、`form-question-reflow.e2e`、`lingguang-actions`、`soft-workbench-refinement` | 第一次（第八十九片：草稿在失败与重载后仍在） | 未做 | IM 长高后的位置（#919） |
 | VUX-17 | 工程 | `assistant-mention.e2e` | 未走 | 未做 | 「/」菜单与情境选择的候选归统一输入 |
-| VUX-18 | 工程 | `assistant-attachment-chips.e2e`、`board-assistant.e2e`、`drop-zone.e2e` | 未走 | 未做 | 不支持的拖入的样子 |
+| VUX-18 | 工程 | `assistant-attachment-chips.e2e`、`board-assistant.e2e`、`drop-zone.e2e` | 未走 | 未做 | 「处理中」仍由附件 owner 显示；真实 WKWebView 拖入 |
 | VUX-19 | 工程 | `artifact-clipboard.e2e`、`im-follow-copy.e2e`、`product-experience-polish.e2e`、`shelf-client-boundaries.e2e`、`visual-mechanisms.e2e`、`visual-review-consumers.e2e` | 未走 | 未做 | — |
 | VUX-20 | 工程 | `assistant-retry-countdown.e2e`、`prologue-stream` | 未走 | 未做 | 行为归 UIV/RCPT，它们的用例（如 `assistant-input-receipts.e2e`、`agent-input-delivery`）守着送达、失败与草稿；限流倒计时按运行时的时刻（第一百零一片）；真实服务的限流没有遇到 |
 | VUX-21 | 人工 | `form-question-reflow.e2e` | 未走 | 未做 | 咬合与回弹的观感 |
@@ -40,9 +40,9 @@
 | VUX-28 | 工程 | `keyboard-groups.e2e` | 未走 | 未做 | — |
 | VUX-29 | 工程 | `hover-actions.e2e`、`overlay-placement.e2e`、`dialog-submit-rules.e2e` | 未走 | 未做 | 只确认的对话框被拒时仍关上、说明在页面提示里；插件框架里的模态只把框架外设为 inert，遮罩没有盖到框架外 |
 | VUX-30 | 工程 | `chinese-walkthrough.e2e`、`english-walkthrough.e2e`、`narrow-surfaces.e2e`、`text-wrap.e2e` | 未走 | 未做 | — |
-| VUX-31 | 工程 | `busy-feedback.e2e`、`load-geometry.e2e`、`save-failure.e2e`、`stale-detail.e2e`、`late-list-responses.e2e` | 未走 | 未做 | 不是筛选、搜索、翻页的迟到读取（Jelly 命令后、Todo 提醒与批量）没有查 |
+| VUX-31 | 工程 | `busy-feedback.e2e`、`load-geometry.e2e`、`save-failure.e2e`、`stale-detail.e2e`、`late-list-responses.e2e`、`optimistic-failure.e2e` | 未走 | 未做 | Todo 的 `loadWorks`、Schedule 的 `refreshStage` 与 Goals、Workflows、Form、Images、Alchemist 的重读未逐处查 |
 | VUX-32 | 工程 | `issue-draft-preview.e2e`、`media-zoom-board.e2e`、`visual-mechanisms.e2e` | 未走 | 未做 | — |
-| VUX-33 | 工程 | `assistant-text-html.e2e`、`code-diff-reader.e2e`、`code-diff-scale.e2e`、`code-incremental-colour`、`code-incremental.e2e`、`code-rows-geometry.e2e`、`code-scale.e2e`、`coding-changeset-http`、`diff-patch`、`diff-plugin` | 未走 | 未做 | Assistant 40k 以上的代码图、CSS 缩放下制表约 2 px |
+| VUX-33 | 工程 | `assistant-text-html.e2e`、`code-diff-reader.e2e`、`code-diff-scale.e2e`、`code-incremental-colour`、`code-incremental.e2e`、`code-rows-geometry.e2e`、`code-scale.e2e`、`coding-changeset-http`、`diff-patch`、`diff-plugin` | 未走 | 未做 | Assistant 40k 以上的代码图、CSS 缩放下制表约 2 px；Diff 插件不着色（着色器要先移进 SDK） |
 | VUX-34 | 人工 | `desktop-drag-regions.e2e` | 未走 | 未做 | macOS 真机的拖拽、全屏与缩放留白 |
 | VUX-35 | 工程 | `action-directory-pass`、`local-web-actions`、`pages-assistant-surfaces.e2e`、`style-has-scope` | 未走 | 未做 | 真实 Home 规模下的复测 |
 | VUX-36 | 工程 | `action-directory-pass`、`code-diff-scale.e2e`、`code-scale.e2e`、`code-turn-style.e2e`、`has-anchors.e2e`、`hidden-surfaces-quiet.e2e`、`plugin-market-upgrade.e2e`、`repeat-no-accumulation.e2e`、`assistant-repeat-no-accumulation.e2e`、`style-has-scope`、`visual-foundation` | 未走 | 未做 | 流式一轮从开始到结束的反复没量 |

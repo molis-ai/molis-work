@@ -68,7 +68,7 @@ description: How to add or change an AI capability in Molis Work — anything th
    - Host 适配器经 `resolveModelPrompt(home, prompt, 插件 id)` 取有效正文（用户在设置“提示词”里改过就用用户版，并记一次使用）；插件的 `*_INSTRUCTIONS` 放进自己定义的 `instructions`（`PluginDefinition.instructions`），插件运行时由 Host 登记，调用只能发送定义里带的指令（PG-051）。
    - 不经 Agent Host 的 Agent（如插件创作台）也一样：Prompt 登记在同一处，运行时经端口取有效正文，版本里写出 `+user.<修订号>`。
    - 生成插件先按可信调用上下文选择安装发布版或创作构建，再解析该版本已声明的 prompt；不能先查 Home 设置登记来选择默认正文。安装版应用现有用户覆盖，创作试运行验证构建正文。多项目登记按安装隔离，用户覆盖仍按 Home/owner/prompt 共享；卸载一个安装不能移除其他安装的登记。
-5. **Agent 角色**（如需要）：Manifest `agent` 块声明 `execution`（缺省 read-only）、`prompts`（按角色列出，读者角色不要拿到写者提示词）、`host_tools`；提示词正文随插件包导出并在 `apps/workbench/src/plugin-catalog.ts` 的 `BUILTIN_PLUGIN_AGENTS` 可见；在 Prologue 上登记钩子一律 `forSession`。
+5. **Agent 角色**（如需要）：Manifest `agent` 块声明 `execution`（缺省 read-only）、`prompts`（按角色列出，读者角色不要拿到写者提示词）、`host_tools`；提示词正文放在插件定义的 `agent_prompts`（方法正文在 `agent_skills`），插件运行时由 Host 的 `registerPluginAgentDefinitions` 登记，设置「Prompt 与 Character」里看得见（PG-051）；在 Prologue 上登记钩子一律 `forSession`。
    - **角色版本跟着它实际拿到的工具走**（统筹 2026-10-19 裁定）：角色实际拿到的工具集变了就升这个角色的 `version`，经共用常量（现在是 `BUSINESS_HOST_TOOLS`）变的也算。改常量的同一个改动里，展开它的每个角色都升一版（现在是助理的 `assistant`、`assistant-delegated` 和 Todo 的 `organizer`），PR 里写出哪些角色多了或少了什么工具。冻结记录（`AgentRunView.frozen`）里有 `role_version` 也有 `host_tools`：版本不动、工具变了，按版本比前后两轮就以为角色没变，要逐项比工具列表才看得出来。
    - **说明怎样处理补充（`acknowledge-inputs`）**：展开 `BUSINESS_HOST_TOOLS` 的业务角色经这个常量自动带上；有目录的角色要自己在 `host_tools` 里列（Coding 里人直接对话的角色都列了，子任务的角色没列）。补充的编号只在列了它的一轮里给模型看。它只把 AI 自己说的怎样处理记在 SDK 的输入账上，不改账本：补充还是那条补充，事情做没做看工具回执，不看这句自称（`specs/ai-input-receipts` 3e-0）。
    - **`BUSINESS_HOST_TOOLS` 里还有 `board-wait`**（#661 加）：展开常量的业务角色都能登记等外面的结果，只能用它的 App 登记的只读外部检查器（第 7 步「等外面的结果」和其后一段）。

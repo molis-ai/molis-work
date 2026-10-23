@@ -3,20 +3,8 @@ import test from "node:test";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { createCogniaPlugin } from "@molis-ai/molis-work-plugin-cognia";
-import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
-import { createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
-import { createFormPlugin } from "@molis-ai/molis-work-plugin-form";
-import { createIssuesPlugin } from "@molis-ai/molis-work-plugin-issues";
-import { createJellyPlugin } from "@molis-ai/molis-work-plugin-jelly";
-import { createLingguangPlugin } from "@molis-ai/molis-work-plugin-lingguang";
-import { createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
-import { createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
-import { createSchedulePlugin } from "@molis-ai/molis-work-plugin-schedule";
-import { SHELF_INSTRUCTIONS, createHomeShelfPlugin, createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
-import { createTodoPlugin } from "@molis-ai/molis-work-plugin-todo";
-import { createWorkflowsPlugin } from "@molis-ai/molis-work-plugin-workflows";
+import { SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
+import { BUILTIN_DEFINITIONS } from "./fixtures/builtin-definitions.js";
 import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
 import { BUILTIN_INSTRUCTIONS, UNREGISTERED_MODEL_CALLS } from "../apps/local-host/src/agent-definitions/builtin-instructions.js";
 
@@ -36,13 +24,8 @@ const PLUGINS = readdirSync(join(ROOT, "plugins/native")).flatMap(name => {
   try { return sources(`plugins/native/${name}/src`); } catch { return []; }
 });
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
-/**
- * The built-in plugins' definitions, each carrying its own instructions and Agent prompts, which the Host registers while it runs
- * (PG-051). A plugin missing here shows up below as instructions nobody registers.
- */
-const DEFINITIONS: readonly PluginDefinition[] = [createCogniaPlugin(), createCodingPlugin(), createDatasetPlugin(), createFormPlugin(), createIssuesPlugin(),
-  createJellyPlugin(), createLingguangPlugin(), createPagesPlugin(), createPptPlugin(), createSchedulePlugin(), createShelfPlugin(), createHomeShelfPlugin(),
-  createTodoPlugin(), createWorkflowsPlugin()];
+/** The built-in plugins' definitions, each carrying its own instructions and Agent prompts, which the Host registers while it runs (PG-051). */
+const DEFINITIONS = BUILTIN_DEFINITIONS;
 /** Every prompt that reaches the register: the Host's own at start, and what each definition carries while it runs. */
 const registeredPrompts = () => new Map([
   ...builtinRegistrations().flatMap(owner => owner.prompts.map(prompt => [`${owner.owner_id}/${prompt.prompt_id}`, prompt] as const)),

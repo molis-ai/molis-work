@@ -1,24 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
-import { createSchedulePlugin } from "@molis-ai/molis-work-plugin-schedule";
-import { createTodoPlugin } from "@molis-ai/molis-work-plugin-todo";
-import { BUILDER_PLUGIN_ID } from "@molis-ai/molis-work-plugin-builder";
+import { BUILTIN_DEFINITIONS, BUILTIN_WITHOUT_DEFINITION } from "./fixtures/builtin-definitions.js";
 
 /**
  * A Manifest names its prompts and methods; the plugin's definition ships their bodies beside it (`agent_prompts`, `agent_skills`,
  * PG-051). A declared prompt without a body starts an Agent with an empty role, and nothing fails until someone reads the transcript.
- * Plugin Builder's Agents are the platform's own (PG-051 Q2), registered by the Host, so it is not among them.
+ * The other way round is as quiet: the Host registers `agent_prompts` only for a definition whose Manifest has an `agent` block, so
+ * texts shipped without one never reach the person's settings.
  */
-const AGENT_DEFINITIONS: readonly PluginDefinition[] = [createCodingPlugin(), createSchedulePlugin(), createTodoPlugin()];
+
+test("RAC-192 the built-in definitions and the plugins without one are the whole catalog", () => {
+  const listed = [...new Set(BUILTIN_DEFINITIONS.map(definition => definition.manifest.plugin_id)), ...Object.keys(BUILTIN_WITHOUT_DEFINITION)].sort();
+  assert.deepEqual(listed, BUILTIN_PLUGIN_CATALOG.map(entry => entry.manifest.plugin_id).sort(), "a new built-in plugin is added to tests/fixtures/builtin-definitions.ts");
+});
 
 test("RAC-192 every built-in Agent declaration's definition ships a body for each prompt and method it names", () => {
-  const declaring = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.agent !== undefined && entry.manifest.plugin_id !== BUILDER_PLUGIN_ID)
-    .map(entry => entry.manifest.plugin_id).sort();
-  assert.deepEqual(AGENT_DEFINITIONS.map(definition => definition.manifest.plugin_id).sort(), declaring, "every built-in plugin with an Agent block is checked here");
-  for (const definition of AGENT_DEFINITIONS) {
+  const declaring = BUILTIN_DEFINITIONS.filter(definition => definition.manifest.agent !== undefined);
+  assert.ok(declaring.length >= 3, "Coding, Schedule and Todo declare Agents");
+  for (const definition of declaring) {
     const declared = definition.manifest.agent!, id = definition.manifest.plugin_id;
     const body = (prompt: string, version?: number) => definition.agent_prompts?.find(p => p.prompt_id === prompt && (version === undefined || p.version === version))?.body.trim();
     for (const prompt of declared.prompts) assert.ok(body(prompt.prompt_id, prompt.version), `${id} declares prompt ${prompt.prompt_id}@${prompt.version} without a body`);
@@ -28,5 +28,13 @@ test("RAC-192 every built-in Agent declaration's definition ships a body for eac
       const method = definition.agent_skills?.find(s => s.skill_id === skill.skill_id && s.version === skill.version);
       assert.ok(method?.body.trim(), `${id} declares method ${skill.skill_id}@${skill.version} without a body`);
     }
+  }
+});
+
+test("RAC-192 a built-in definition whose Manifest declares no Agent ships no Agent texts", () => {
+  for (const definition of BUILTIN_DEFINITIONS.filter(item => item.manifest.agent === undefined)) {
+    const id = definition.manifest.plugin_id;
+    assert.deepEqual(definition.agent_prompts ?? [], [], `${id} ships Agent prompts without declaring an Agent`);
+    assert.deepEqual(definition.agent_skills ?? [], [], `${id} ships Agent methods without declaring an Agent`);
   }
 });

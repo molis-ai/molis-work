@@ -62,7 +62,7 @@ Coding 每次发送明确冻结 60 轮执行预算；固定计划按步骤计算
 
 Directory candidates and browsing preferences come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md). Files/Git consume `projectSettingsCapabilities.browsingWorkspace`; Coding consumes `workspaces` and keeps its execution directory per session. Manage directories in Project Settings → Workspaces.
 
-短草稿（提交说明、接续摘要）的固定指令归 `src/prompts.ts`，通过共同目录登记并支持用户覆盖。`agent.draft-text.v1` 只传 `prompt` id、材料和所选模型；Host 使用原调用插件身份解析，不能在业务输入声明 owner。材料裁剪、摘要降级及提交前的用户审阅仍由 Coding 负责。相关回归：`tests/coding-commit-draft.test.ts`、`tests/coding-history-summary-http.test.ts`、`tests/prompt-registration.test.ts`。
+短草稿（提交说明、接续摘要）的固定指令归 `src/prompts.ts`，由 Coding 的插件定义（`PluginDefinition.instructions`）携带，Coding 运行时登记，支持用户覆盖（PG-051）。`agent.draft-text.v1` 只传 `prompt` id、材料和所选模型；Host 使用原调用插件身份解析，不能在业务输入声明 owner。材料裁剪、摘要降级及提交前的用户审阅仍由 Coding 负责。相关回归：`tests/coding-commit-draft.test.ts`、`tests/coding-history-summary-http.test.ts`、`tests/prompt-registration.test.ts`。
 
 ## 开发要求
 

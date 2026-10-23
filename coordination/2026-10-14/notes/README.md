@@ -5,6 +5,7 @@
 - **原样拷来，没改**：有的笔记里写「交 ① 批」「待 ① 审」，那是写的时候的状态。批没批、后来怎么定的，看协调日志 `../README.md` 同一天的记录，和对应 PR 的评论。
 - **行号以写的时候的 main 为准**：开工前对着现在的代码再核一遍。
 - **拷之前扫过**：没有密钥、令牌、私钥、JWT，也没有钥匙串命令。提到「真实 Home」的地方都是流程，没有数据。
+- **10-24 重拷两份**：`migration-line-not-done-1024.md`（B 节）和 `w506-pr-body.md`，③ 推送以后改过，按新版又拷了一次。`w506-pr-body.md` 就是 #1112 的正文，以 PR 页面为准。
 - **一处更正**：迁移线清单 A 表第 1 行说 #1093 的门禁提交 `d656dab32`「找不到 ① 的批复」。① 10-24 已经在 #1093 上批了，评论 6369582610。
 
 ## 两条线的清单（先读这两份）
@@ -12,7 +13,7 @@
 | 文件 | 内容 |
 | --- | --- |
 | `platform-handover-1024.md` | 平台线（②）还没做的：在途 PR、排好的片、BACKLOG 与 PG 行，每条都配了笔记 |
-| `migration-line-not-done-1024.md` | 迁移线（③）还没做的：在途 PR、本机没推的两条分支、没开工的片、PG 行、要用户本人做的 |
+| `migration-line-not-done-1024.md` | 迁移线（③）还没做的：在途 PR、交接时推上去的两条分支（SC-3、#1112）、没开工的片、PG 行、要用户本人做的 |
 
 ## 按题目
 
@@ -41,8 +42,8 @@
 | Sessions 清理计划 | `sessions-cleanup-plan.md` | ③，10-23 | SC-3～SC-5，D1～D8 |
 | Sessions 谁在用 | `sessions-cleanup-inventory.md` | ③，10-23 | SC-4 |
 | SC-3 交接 | `sessions-sc3-brief.md` | ③，10-23 | SC-3 |
-| SC-3 的 PR 正文 | `sc3-pr-body.md` | ③，10-24 | 本机没推的 `migrate/sessions-sc3-terminal-workspaces` |
-| W5-06 余项的 PR 正文 | `w506-pr-body.md` | ③，10-24 | 本机没推的 `migrate/w5-06-shell-plugin-rows`、BL-388 |
+| SC-3 的 PR 正文 | `sc3-pr-body.md` | ③，10-24 | `migrate/sessions-sc3-terminal-workspaces`（已推，没开 PR） |
+| W5-06 余项的 PR 正文 | `w506-pr-body.md` | ③，10-24 | #1112（`migrate/w5-06-shell-plugin-rows`）、BL-388 |
 | BL-387 页面那一半 | `w506-bl387-page-half.md` | ③，10-23 | BL-387 |
 | Shelf S4 交接 | `shelf-s4-handover.md` | ③，10-23 | #1083 |
 | 迁插件的通用规矩 | `migration-subagent-rules.md` | ③，10-20 | Feed、Inbox 等迁到 Runtime |

@@ -1,3 +1,11 @@
+## 状态（草稿，2026-10-24 交接给 yijunw0212）
+
+- 防腐线 10-24 交接给 yijunw0212。③ 开这个 PR 是为了让分支有个落脚处，开完就停手，后面的事归接手人。
+- base 是 main，**不叠在别的 PR 上**。分支从 `9ad4b12db` 切出，**还没合 main**。对 main `8f49a77ff` 预览合并，有两个文件冲突：`specs/BACKLOG.md`（新加的 BL-387、BL-388 两行），`tooling/gates/page-assets.json`（`molis-work-workbench.js` 的字节数）。
+- 合完 main 要在合并结果上重新 `pnpm workspace:build`，再跑 `node scripts/gates/page-assets.mjs --update --base origin/main`。下面写的 1186715 → 1186532 是对旧 main 量的，不能直接用。
+- `full` 命中 assembly、spans-packages，要进集成批次（见文末「本机延后验证」）。
+- 下一片：BL-387 页面那一半。等 ② 的 #1098（W5-06 第 2b 片）和这个 PR 都合入后，从 main 另开分支做，不加在这个 PR 上。BL-388 等 2b 的运行时目录。
+
 ## 做了什么（W5-06 余项第一片，PG-060）
 
 工作台外壳里三处按插件名手写的表，改成读插件 Manifest 里已有的字段（① 10-23 分片：只读现有字段，加字段归 ② 的 2b）。

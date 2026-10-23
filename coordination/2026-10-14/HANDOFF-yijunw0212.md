@@ -35,7 +35,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 - **旁支**：
   - #1083 等 #1076；
   - #1084 不依赖别的；
-  - ③ 本机的两条分支（下表第 11、12 行）推上去以后再排。
+  - ③ 的两条分支（下表第 11、12 行）10-24 已推。#1112 也改 `workbench.js` 的字节数（变小），排在 #1076、#1099 之后合，它们的放行键就不用再算一次。SC-3 那条合完 main、开了 PR 再排。
 - **最后**：#784。
 
 | 序 | PR | 内容（线） | 现在 | 下一步 | 依赖 |
@@ -50,8 +50,8 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 8 | [#1107](https://github.com/molis-ai/molis-work/pull/1107) | 项目级 Runtime 实例的舞台由运行中的实例画（W5-06 第 3 片，含 BL-430 的行，②） | 头 `84319f0ba`，叠在 #1098 上 | 同上。评审只需再看 `4330585a5` 那条注释改动 | #1098 |
 | 9 | [#1084](https://github.com/molis-ai/molis-work/pull/1084) | Coding 的问题卡、建议卡改经 `services.interaction`（PG-062 S4b，③） | 头 `fed6efec9`（含 Codex 的 #1106），DIRTY。#1071 squash 合入以后，有 5 个文件冲突 | 1. 按 squash 感知的方式合 main。具体提交：#1071 的最终头 `26c0757a8`，squash 前的 main `15a46ad56`，squash 提交 `2fa107bae`。<br>2. 本 PR 加了 S-56，合入前手看 Security invariants。<br>3. 进集成批。<br>4. 合入后从已知红里删掉 `coding-interaction-html` | — |
 | 10 | [#1083](https://github.com/molis-ai/molis-work/pull/1083) | Shelf S4：演示种子走动作，Shelf 移出 HYBRID 名单（③） | 头 `42aebcbfd`，内容叠着 #1076，DIRTY | 1. 按 squash 感知的方式，合 #1076 的最终头和 main。<br>2. 删掉 `tooling/gates/error-owners.json` 里的 `apps/local-host/src/shelf-*`。这是 Verify 红的唯一原因。<br>3. 在 `tests/shelf-owner-files.test.ts` 加上 ⑩ 要的那句说明。<br>4. 进集成批。<br>③ 本机的 `67d1dd96b` 已经过时，不用 | #1076 |
-| 11 | （未开）`migrate/sessions-sc3-terminal-workspaces` | SC-3：终端与项目目录离开 Work 包（PG-082，③） | ③ 本机已提交 `e1771b511`（含 SC-1 的提交），**还没推**。推送要用户在 ③ 的会话里点头 | 1. 推上去以后合 main，开 PR，正文用 `notes/sc3-pr-body.md`。<br>2. 正文的「本机延后验证」一节还空着，要补 | — |
-| 12 | （未开）`migrate/w5-06-shell-plugin-rows` | W5-06 余项第一片：外壳三处按插件手写的表改读 Manifest（PG-060，③） | ③ 本机的 `b4597815d`、`0c0c0039d`，**还没推**。<br>这条分支里有 BL-387、BL-388 两行 BACKLOG：② 问的「BL-387 在 main 上没有行」，答案就是行在这里，推上去合入就有了 | 1. 推上去以后开 PR，正文用 `notes/w506-pr-body.md`。<br>2. `full` 命中 assembly、spans-packages，进集成批 | — |
+| 11 | （没开 PR）`migrate/sessions-sc3-terminal-workspaces` | SC-3：终端与项目目录离开 Work 包（PG-082，③） | 已推到远端同名分支（用户 10-24 批准推送，没有 force push），头 `e1771b511`（含 SC-1 的提交，merge-base `a259350ac`）。**没开 PR，还没合 main**。<br>对 main `8f49a77ff` 预览合并，有 7 个文件冲突：`ui-composition.ts`，Work 包的 `panels.ts`、`workspaces.ts`，`privileges.md`，两个测试，`error-owners.json` | 1. 合 main，解冲突。<br>2. 开 PR，正文用 `notes/sc3-pr-body.md`。<br>3. 正文的「本机延后验证」一节还空着，要补；看 `full` 定进不进集成批 | — |
+| 12 | [#1112](https://github.com/molis-ai/molis-work/pull/1112)（草稿） | W5-06 余项第一片：外壳三处按插件手写的表改读 Manifest（PG-060，③） | 头 `0c0c0039d`（在 `b4597815d` 上），base 是 main，不叠在别的 PR 上。DIRTY，**还没合 main**：对 main `8f49a77ff` 有两个文件冲突，`specs/BACKLOG.md`（新加的 BL-387、BL-388 两行）和 `tooling/gates/page-assets.json`（`workbench.js` 的字节数）。<br>这个 PR 带 BL-387、BL-388 两行 BACKLOG：② 问的「BL-387 在 main 上没有行」，答案就是行在这里，合入就有了。<br>PR 正文开头有一节「状态」，先读它 | 1. 合 main，在合并结果上重新 `pnpm workspace:build`，再跑 `node scripts/gates/page-assets.mjs --update --base origin/main`。正文里的 1186715 → 1186532 是对旧 main 量的，不能直接用。<br>2. `full` 命中 assembly、spans-packages，进集成批。<br>3. 转 ready 再合 | — |
 | 13 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（草稿，只有文档） | 头 `a1ffb2aca`，Gates 和 Verify 是旧 run 的红 | 1. 所有代码 PR 合完以后最后合。<br>2. 修 QA 的 PR 在正文写「修 QA-xxx」，并在本 PR 上逐条留评论记修到哪。<br>3. 收尾时合 main，转 ready，CI 绿就合 | 全部 |
 
 **不归防腐线、这份说明不管的 PR**
@@ -70,7 +70,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 ### 3.1 平台线（原 ②，Plugin Runtime 与平台服务）
 
 **W5-06（PG-060）收尾**
-- 页面那一半（BL-387）：页面改读 `creatableKinds`、`homeStarts`，删掉外壳里三张按插件手写的表，再删 PPT、Dataset、灵光其余的手写行。依赖 #1098 和第 2 节表里第 12 行的分支。BL-387 这一行在第 12 行的分支里。
+- 页面那一半（BL-387）：页面改读 `creatableKinds`、`homeStarts`，删掉外壳里三张按插件手写的表，再删 PPT、Dataset、灵光其余的手写行。依赖 #1098 和 #1112（第 2 节表第 12 行）。BL-387 这一行在 #1112 里。
 - Goals S11：删掉工作台手写的 Goals 舞台，等 W5-06 合完。
 - `shell-page-renderer.ts` 改函数名：留到 W5-10。
 
@@ -96,7 +96,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 **`privileges.md` 里还没关的 PG 行**：按阶段分好了组，见 `notes/platform-handover-1024.md` §5。
 
 **① 对 ② 两个问题的答复**
-- **BL-387 的行在哪**：在第 2 节表里第 12 行的分支里（`migrate/w5-06-shell-plugin-rows`，BL-387、BL-388 两行）。那条分支推上去、合入以后，main 上就有了。在那之前，别的 PR 别再拿这两个号。
+- **BL-387 的行在哪**：在 #1112 里（第 2 节表第 12 行，分支 `migrate/w5-06-shell-plugin-rows`，BL-387、BL-388 两行）。#1112 合入以后，main 上就有了。在那之前，别的 PR 别再拿这两个号。
 - **PG-003、018、019、048、050 能不能标「已做」**：可以。这五行的状态列只写了 PR 号，而 #741、#762、#743、#744、#846 ① 10-24 核过，都已合入。
   - 在下一个动 `privileges.md` 的 PR 里，把状态写成「已做」加 PR 号。
   - 改之前对一下：那一行描述的缺口，是不是整行都被那几个 PR 补上了。只补了一部分的，写清还剩什么，不标已做。
@@ -108,7 +108,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 | 序 | 片 | 依赖 |
 | --- | --- | --- |
-| 1 | BL-387 页面那一半（同 3.1） | #1098 和 `migrate/w5-06-shell-plugin-rows` 都合入 |
+| 1 | BL-387 页面那一半（同 3.1） | #1098 和 #1112 都合入 |
 | 2 | BL-388：`objectTabPlugins()` 改读运行时目录，开发中和第三方插件也算进去 | 平台线 W5-06 2b 的运行时目录 |
 | 3 | SC-4 Sessions 下线（PG-081、PG-082 收尾）：120～160 个文件。第一个提交先把 D6 的保留机制写进防腐 spec，单独进集成批（R-06） | SC-1～SC-3、#1048 都合入 |
 | 4 | SC-5 `<home>/sessions/` 的存量：只在隔离 Home 里写维护脚本并演练。**在真实 Home 上执行归用户本人**，删之前先弹窗问用户 | SC-4 |
@@ -218,13 +218,12 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 这些都在原来那台 Mac 上，接手人不需要它们：要的东西都在远端，或者已经拷进了本目录。列出来，是为了说清哪些还没收拾，收拾要用户定。
 
 - **会话**：① ② ③ ⑤ ⑩ 都停了，不开新片。
-  - ③ 在交接时还有两条分支没推（第 2 节表第 11、12 行）。推送卡在本机的自动审批上，要用户在 ③ 自己的会话里点头。
-  - 没推上去的话，那两片在接手人那里就没有。到时候按 `notes/sc3-pr-body.md`、`notes/w506-pr-body.md` 重做，或者请用户把分支推上去。
+  - ③ 交接时的两条分支 10-24 已推到远端同名分支（第 2 节表第 11、12 行；用户批准，没有 force push）。W5-06 余项开了草稿 PR #1112，SC-3 没开 PR。
 - **后台脚本**：
   - ⑤ 盯批次和自动排队的脚本，10-24 01:15（东京时间）前后已经按 pid 停了。
   - ① 盯 Codex 的脚本和 Monitor 也停了。
   - 没有取消任何 CI run。batch-1023-11 照常在跑。
-- **本地工作树**：大约 110 个。有 `batch-*`、`fx-*`、`pr-*`、`review-*`，各线的功能工作树，还有子代理的 `agent-*`。里面的提交都已推到远端，或者对应的 PR 已经合入。例外是 ③ 那两条没推的分支。清不清，等用户定。
+- **本地工作树**：大约 110 个。有 `batch-*`、`fx-*`、`pr-*`、`review-*`，各线的功能工作树，还有子代理的 `agent-*`。里面的提交都已推到远端，或者对应的 PR 已经合入。清不清，等用户定。
 - **远端的集成分支**：⑤ 留下的 `integration/batch-1019-2`、`1020-2`、`1023-5`～`1023-11`。
   - 用户 10-19 批过，评审线可以删自己的批次分支，条件是批里的 PR 都合入以后。
   - 现在 `1023-7`～`1023-11` 里还有没合的 PR，先别删。
@@ -268,9 +267,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 - 照交接说明 §2 的顺序合在途 PR。每个 PR 上都有一条中文的现状说明，先读它，再读 PR 的最新评论和 CI。
 - 合之前看一眼 main。叠放的 PR，等下层合入以后改投 main、再并一次 main。
 - 改了安全不变量的 PR（`docs/system/SECURITY-INVARIANTS.md` 或 `tests/security-invariants-*`），合并前人工看一眼「Security invariants」作业，它不挡合并。
-- 交接说明 §2 表里的第 11、12 行，是原机器上还没推的两条分支。
-  - 远端有同名分支，就照常收。
-  - 远端没有，就照 `notes/` 里的 PR 正文重做那两片。
+- 交接说明 §2 表里的第 11、12 行，是迁移线最后推上去的两片：SC-3 在远端分支上、还没开 PR；W5-06 余项是草稿 PR #1112。两条都要先合 main。
 - 第一件文档小事：PG-003、018、019、048、050 的状态改成「已做」加 PR 号。怎么核，见交接说明 §3.1。
 
 **四、每一片怎么做**

@@ -3348,3 +3348,11 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - §4 改写成交接后要用户定的三件事。
 - **原机器上的脚本**：① 盯 Codex 的脚本已经不在跑了，Monitor 也停了。没有取消任何 CI run，batch-1023-11 照常跑。
 
+### 10-24 01:06（17:06 UTC） ③ 的两条分支推上去了；W5-06 余项开了草稿 #1112
+
+- **推送**：用户 10-24 在 ③ 的会话里批准，两条分支推到远端同名分支，没有 force push。
+  - `migrate/sessions-sc3-terminal-workspaces` = `e1771b511`，没开 PR（用户只批了推送）。
+  - `migrate/w5-06-shell-plugin-rows` = `0c0c0039d`，草稿 PR [#1112](https://github.com/molis-ai/molis-work/pull/1112)，base 是 main。
+  - 两条都还没合 main。冲突与下一步写在交接说明 §2 第 11、12 行。
+- **BL-387、BL-388**：两行在 #1112 里，合入以后 main 上才有。
+- **改了的文档**：交接说明 §2、§3、§8、§9 里「没推」的说法；`notes/` 重拷了 ③ 后来改过的 `migration-line-not-done-1024.md` 和 `w506-pr-body.md`；登记册 §3 改了 W5-06 余项那一行、加了 SC-3 一行，§4 删了「两条分支没推」那一条。

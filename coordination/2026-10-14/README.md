@@ -2829,3 +2829,11 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - R-07 点名的五个浏览器文件首轮都过了。
   - 10:34Z 起在同一冻结树上跑全量：1352 个文件，同时 5 个，最多 2 个浏览器。
 - 已在 #1075 上告诉 Codex 新分工：两处都由它开叠加 PR 修。③、⑤、⑩、PG-038 已各自通知。
+
+### 10-23 21:50 作者自己发现的夹具漏项
+
+- PG-038 核夹具时发现，自己两份新的 HTTP 测试也漏了 `openProjectVersionStores(store)`，和 #1067 的 `coding-rich-html` 是同一类：
+  - #1071 的 `coding-change-html.test.ts`：#1067 合入后，给 #1071 合 main 时一并补上。
+  - #1084 的 `coding-interaction-html.test.ts`：已在本地提交 `9f8e03650`，下次合 main 时一起推。
+- 这两处都还没被统一验证发现，Codex 也没认领，所以由作者自己修，各自的 PR 里写一句。`coding-rich-html` 仍然留给 Codex。
+- §0 补了一句说明：修复分工只管 Codex 认领了的失败；作者自己先发现的，照常自己修，① 在 §3 里记上。

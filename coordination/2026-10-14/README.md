@@ -2684,3 +2684,15 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - **10-23 batch-1023-3 计划**：#1051 + #1049 + #1065，一起跑一次全量。
   - #1050 合入后，由 ⑩ 把 main 合进 #1051。
   - #1065 是 ⑩ 清已知红名单的一条：work-placement-journeys 改标题之前先等标题框出现，属测试缺陷。
+- **10-23 #1050 已合入**（8c620e0c3）。
+- **10-23 新开的 PR**：
+  - #1066 G5：宿主的 `git-*.ts` 改名为平台的工作区 Git 服务，Git 离开 HYBRID 名单。
+  - #1068 BL-379：Git、Files 订阅 `host.workspace.changed@1`，叠在 #1066 上。
+  - #1067 PG-062 第 2 片：Coding 页面上的模型文字由插件自己用 SDK `/rich-text` 画。
+  - #1063、#1066、#1067、#1068 在 batch-1023-4。
+  - ⑤ 纠正了 ⑩：要不要进集成批，看 `node scripts/affected-tests.mjs --base origin/main --json` 的 `full` 字段，移交时写明命中了哪几条规则。
+- **10-23 ① 定**：
+  - PG-044 改成「已做」，等 #1066、#1068 合入后，由 ③ 在下一个 PR 里改，② 看一眼。不为这个改批里 PR 的 head。
+  - ③ 的 S7b、S4 等 #1048、#1063 合入后再开，不叠第三层。在这之前，先做不碰 Goals 的片（Schedule/Inbox、Sessions 清理、Feed、C9），挑和在途 PR 文件不重叠的。
+  - #1051 的 main 合并由作者 Shelf 子会话自己做，一个分支只有一个人写，⑩ 不碰。做完再继续 S3。
+  - batch-1023-3 不等 #1051，先跑 #1049、#1065。

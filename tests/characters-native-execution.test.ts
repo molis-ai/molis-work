@@ -2,19 +2,24 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { SessionTuiRecorder } from "@molis-ai/molis-work-plugin-work";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { LocalProjectDatabase, seedDemoBoard, DEMO_PROJECT_ID, attachMolisWorkPtySocket, openWorkSessionRegistry, charactersProvider, handleCharactersHttp, type CharactersInvoke } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, seedDemoBoard, DEMO_PROJECT_ID, attachMolisWorkPtySocket, charactersProvider, handleCharactersHttp, type CharactersInvoke } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { CHARACTER_ACTION_PERMISSIONS, openCharacters, type CharactersActionPorts } from "@molis-ai/molis-work-module-characters";
+import { CHARACTER_ACTION_PERMISSIONS, openCharacterRuns, openCharacters, type CharactersActionPorts } from "@molis-ai/molis-work-module-characters";
 import type { CharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
 import { characterNativeExecution, characterNativeArgs } from "../apps/local-host/dist/character-native-execution.js";
 
-test("native preparation saves exact files and provenance, validates directories and never relaunches a repeated request", async t => {
+const storedRuns = (home: string, actorId: string, projectId: string) => {
+  const handle = openCharacterRuns(home, actorId, projectId);
+  return { list: (characterId: string) => handle.runs.list(characterId), byPanel: (panelId: string) => handle.runs.byPanel(panelId), close: () => handle.close() };
+};
+
+// Sessions cleanup SC-2 (D3): Characters records its runs in characters.sqlite; nothing goes to the Sessions registry and no output is kept.
+test("native preparation saves exact files and provenance in Characters' own runs, validates directories and never relaunches a repeated request", async t => {
   const home = mkdtempSync(join(tmpdir(), "character-native-")); t.after(() => rmSync(home, { recursive: true, force: true }));
   const content: CharacterContent = { character_id: "c", title: "Verifier", instructions: "Keep my edits", host_tools: null,
     source: { owner_actor_id: "user", draft_revision: 2 }, import_snapshot: { runtime_id: "codex", config_root: "/config", captured_at: "2026-09-23T00:00:00Z",
@@ -27,22 +32,34 @@ test("native preparation saves exact files and provenance, validates directories
   await assert.rejects(ports.launch(content, ref, { ...input, workspace_id: "unknown" }), /已绑定/);
   assert.deepEqual(await ports.runs("c"), []);
   const first = await ports.launch(content, ref, input);
-  assert.equal(spawned[0].command, "/known/codex"); assert.equal(first.spawn.attachOnly, true);
+  assert.equal(spawned[0].command, "/known/codex"); assert.equal(spawned[0].sessionId, undefined, "the process is not tied to a recorded session");
+  assert.deepEqual(first.spawn, { panelId: `character-${input.request_id}`, attachOnly: true });
   assert.equal(spawned[0].args?.length, 1); assert.match(spawned[0].args![0]!, /CHARACTER.md/); assert.match(spawned[0].args![0]!, /Use my verifier/);
-  const registry = await openWorkSessionRegistry({ homeDirectory: home });
-  const session = registry.get(first.run.session_id), path = session.metadata.character_bundle as string;
-  assert.deepEqual(session.metadata.character_reference, ref);
+  assert.equal(first.run.status, "dispatched"); assert.match(first.run.status_message!, /已派发/); assert.deepEqual(first.run.reference, ref);
+  assert.equal(existsSync(join(home, "sessions")), false, "nothing is written to the Sessions registry");
+  const stored = storedRuns(home, "user", "board"), record = stored.byPanel(first.run.panel_id)!; stored.close();
+  assert.deepEqual({ ...record, bundle_path: undefined }, { run: first.run, owner_actor_id: "user", project_id: "board", character_id: "c", task: "Use my verifier",
+    workspace_id: "ws", runtime_id: "codex", bundle_path: undefined });
+  const path = record.bundle_path;
   assert.equal(readFileSync(join(path, "rules/1.md"), "utf8"), "exact rule");
   assert.equal(readFileSync(join(path, "skills/1/refs/guide.md"), "utf8"), "complete resource");
   assert.deepEqual(readFileSync(join(path, "skills/1/asset.bin")), Buffer.from([0, 1, 2, 255]));
   assert.match(readFileSync(join(path, "CHARACTER.md"), "utf8"), /Keep my edits/);
-  registry.appendEvent({ session_id: session.session_id, source: "molis_work_tui", source_id: "out1", kind: "terminal_output", content: "actual output" });registry.close();
   const reopened = characterNativeExecution(options), replay = await reopened.launch(content, ref, input);
-  assert.equal(spawned.length, 1); assert.equal(replay.run.session_id, first.run.session_id); assert.equal(replay.spawn.attachOnly, true); assert.equal(replay.spawn.command, undefined);
-  assert.match((await reopened.runs("c"))[0]!.output, /actual output/);
+  assert.equal(spawned.length, 1); assert.deepEqual(replay, first, "a lost response only reattaches the same run");
+  assert.deepEqual(await reopened.runs("c"), [first.run]);
   await assert.rejects(reopened.launch(content, ref, { ...input, task: "different task" }), /其他任务/);
+  await assert.rejects(characterNativeExecution({ ...options, actorId: "other" }).launch(content, ref, input), /其他任务/, "another person cannot take over a panel");
   assert.deepEqual(await characterNativeExecution({ ...options, actorId: "other" }).runs("c"), []);
+  assert.deepEqual(await characterNativeExecution({ ...options, projectId: "elsewhere" }).runs("c"), []);
   await assert.rejects(characterNativeExecution({ ...options, executable: () => null }).launch(content, ref, input), /未发现对应/);
+  // A terminal that refuses the process leaves the run marked failed; the person starts a new request.
+  const failing = characterNativeExecution({ ...options, spawn: () => { throw new Error("pty refused"); } });
+  const refused = { ...input, request_id: "c1a2b3d4-4333-4222-b555-987654321013" };
+  await assert.rejects(failing.launch(content, ref, refused), /pty refused/);
+  const failed = (await ports.runs("c")).find(run => run.panel_id === `character-${refused.request_id}`)!;
+  assert.equal(failed.status, "failed"); assert.match(failed.status_message!, /原生进程启动失败：pty refused/);
+  assert.equal((await ports.runs("c")).length, 2); assert.equal(spawned.length, 1);
 });
 
 test("five native invocations keep the entire prompt in a single argument without bypass flags", () => {
@@ -51,32 +68,38 @@ test("five native invocations keep the entire prompt in a single argument withou
   assert.deepEqual(characterNativeArgs("opencode", "/workspace", prompt), ["/workspace", "--prompt", prompt]);
 });
 
-test("server-dispatched native PTY reads the saved bundle, records output, reattaches and persists explicit cancellation", {timeout:15_000}, async t => {
+test("server-dispatched native PTY reads the saved bundle, shows its output without recording it, reattaches and stops on request", {timeout:15_000}, async t => {
   const home=mkdtempSync(join(tmpdir(),"character-pty-"));
   const command=join(home,"fixture-agent");
   writeFileSync(command,'#!/usr/bin/env node\nconst fs=require("fs"),path=require("path");const guide=process.argv[2].match(/"([^\\"]+\\/CHARACTER\\.md)"/)[1];const root=path.dirname(guide);console.log("FIXTURE_OUTPUT:"+fs.readFileSync(path.join(root,"rules/1.md"),"utf8"));setInterval(()=>{},1000);',{mode:0o700});
-  const registry=await openWorkSessionRegistry({homeDirectory:home}),recorder=new SessionTuiRecorder(registry),server=createServer();
-  let output='';let received!:()=>void;
-  const printed=new Promise<void>(resolve=>{received=resolve;});
+  const server=createServer(),recorded:string[]=[];
+  // The recorder hooks only see processes started with a session id; a Character run has none, so they stay silent.
   const pty=attachMolisWorkPtySocket(server,'fixture-control-token-123456789',{
-    onData(panelId,sessionId,data){output+=data;recorder.recordOutput(panelId,sessionId,data);if(output.includes('FIXTURE_OUTPUT:EXACT_FROZEN_RULE'))received();},
-    onExit(panelId,sessionId,exit){recorder.recordExit(panelId,sessionId,exit);},
+    onData(panelId){recorded.push(`data:${panelId}`);},
+    onExit(panelId){recorded.push(`exit:${panelId}`);},
   });
-  t.after(async()=>{pty.killAll();recorder.close();registry.close();await new Promise<void>(resolve=>server.close(()=>resolve()));rmSync(home,{recursive:true,force:true});});
+  t.after(async()=>{pty.killAll();await new Promise<void>(resolve=>server.close(()=>resolve()));rmSync(home,{recursive:true,force:true});});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
   const ports=characterNativeExecution({home,actorId:'user',projectId:'b',workspaces:async()=>[{workspace_id:'w',canonical_path:home,display_name:'fixture',realpath_verified:true}],spawn:request=>pty.spawn(request),executable:()=>command});
   const content:CharacterContent={character_id:'c',title:'test',instructions:'',host_tools:null,source:{owner_actor_id:'user',draft_revision:1},import_snapshot:{runtime_id:'codex',config_root:home,captured_at:'2026-09-23T00:00:00Z',rules:[{path:join(home,'AGENTS.md'),scope:'global',content:'EXACT_FROZEN_RULE'}],skills:[]}};
   const input={workspace_id:'w',task:'fixture',request_id:'5e74e4c2-b296-476d-b52e-613ce3e1af76'},ref={artifact_id:'character:b:c',version:1};
-  const started=await ports.launch(content,ref,input);await printed;recorder.flush();
-  assert.equal(pty.alive(started.run.panel_id),true);assert.match((await ports.runs('c'))[0]!.output,/EXACT_FROZEN_RULE/);
-  const replay=await ports.launch(content,ref,input);assert.equal(replay.run.session_id,started.run.session_id);assert.equal(pty.spawn(replay.spawn).attached,true);
-  pty.kill(started.run.panel_id);recorder.flush();assert.equal(pty.alive(started.run.panel_id),false);
-  assert.ok(registry.events(started.run.session_id).some(e=>e.kind==='status' && e.metadata?.signal===15));
-  const after=await ports.launch(content,ref,input);assert.equal(pty.spawn(after.spawn).started,false);
+  const started=await ports.launch(content,ref,input);assert.equal(started.run.status,'dispatched');
+  // The terminal holds what the process printed while it runs: reattaching shows it.
+  let replay='';
+  for(const deadline=Date.now()+10_000;!replay.includes('FIXTURE_OUTPUT:EXACT_FROZEN_RULE');){
+    assert.ok(Date.now()<deadline,`no fixture output yet: ${JSON.stringify(replay)}`);
+    await new Promise(resolve=>setTimeout(resolve,50));replay=pty.spawn(started.spawn).replay;
+  }
+  assert.equal(pty.alive(started.run.panel_id),true);
+  const again=await ports.launch(content,ref,input);assert.deepEqual(again,started);assert.equal(pty.spawn(again.spawn).attached,true);
+  pty.kill(started.run.panel_id);assert.equal(pty.alive(started.run.panel_id),false);
+  assert.deepEqual(recorded,[],'neither output nor exit of a Character run is recorded');
+  const after=await ports.launch(content,ref,input);assert.deepEqual(pty.spawn(after.spawn),{attached:false,started:false,replay:''});
+  assert.deepEqual(await ports.runs('c'),[started.run],'the run stays listed after its process is gone');
 });
 
-// W2-18-CHARACTER-LAUNCH-01: the check after the Host's last await guards the actual files, session, event and dispatch.
-for (const phase of ["workspace", "final-check"] as const) test(`native Character revoked during ${phase} creates no bundle/session/event/process, and a fresh request recovers`, async t => {
+// W2-18-CHARACTER-LAUNCH-01: the check after the Host's last await guards the actual files, run record and dispatch.
+for (const phase of ["workspace", "final-check"] as const) test(`native Character revoked during ${phase} creates no bundle/run/process, and a fresh request recovers`, async t => {
   const home = mkdtempSync(join(tmpdir(), "character-final-control-")); t.after(() => rmSync(home, { recursive: true, force: true }));
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let valid = true, holding = true, spawned = 0;
   const barrier = async () => { if (holding) { entered.resolve(); await release.promise; } };
@@ -90,10 +113,10 @@ for (const phase of ["workspace", "final-check"] as const) test(`native Characte
   const pending = ports.launch(content, reference, input, { beforeStart: async () => { assert_current(); if (phase === "final-check") await barrier(); }, assert_current });
   const rejected = assert.rejects(pending, /withdrawn/); await entered.promise; valid = false; holding = false; release.resolve(); await rejected;
   assert.equal(spawned, 0); assert.equal(existsSync(join(home, "characters", "runs")), false);
-  const registry = await openWorkSessionRegistry({ homeDirectory: home }); try { assert.deepEqual(registry.list(), []); } finally { registry.close(); }
+  const stored = storedRuns(home, "owner", "project"); try { assert.deepEqual(stored.list("guarded"), [], "no run is recorded"); } finally { stored.close(); }
   valid = true; const accepted = await ports.launch(content, reference, input, { beforeStart: async () => {}, assert_current });
-  assert.equal(spawned, 1); assert.equal((await ports.launch(content, reference, input, { beforeStart: async () => {}, assert_current })).run.session_id, accepted.run.session_id);
-  assert.equal(spawned, 1, "lost response reattaches the original session");
+  assert.equal(spawned, 1); assert.equal((await ports.launch(content, reference, input, { beforeStart: async () => {}, assert_current })).run.run_id, accepted.run.run_id);
+  assert.equal(spawned, 1, "lost response reattaches the original run");
 });
 
 // W2-18-CHARACTER-LAUNCH-01: the Host's door and the Module's bound actions in the action service (CHR-1), actual publication/store/native owner, and recovery.

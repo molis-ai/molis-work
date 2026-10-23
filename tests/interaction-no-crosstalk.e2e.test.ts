@@ -224,6 +224,17 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
     }
   };
   const otherPage=await pluginFrameBrowser(t,{command,on:opened.on,evaluate:other,sessionId:tab},"coding");
+  await other(`(() => {
+    const records = []; window.__frameTrace = records;
+    const describe = node => node instanceof Element ? {tag:node.tagName,cls:node.className,data:{...node.dataset}} : {type:node?.nodeType};
+    const involved = node => node instanceof Element && (node.matches('iframe,[data-work-surface="coding"]') || node.querySelector('iframe[data-plugin-frame="coding"]'));
+    const record = (kind,node,extra={}) => { if(records.length<200)records.push({at:performance.now(),kind,node:describe(node),...extra}); };
+    for (const [prototype,key] of [[Element.prototype,'remove'],[Element.prototype,'append'],[Node.prototype,'appendChild'],[Node.prototype,'removeChild'],[Node.prototype,'insertBefore']]) {
+      const original=prototype[key];prototype[key]=function(...args){if(involved(this)||args.some(involved))record(key,this,{args:args.map(describe),stack:new Error().stack});return Reflect.apply(original,this,args);};
+    }
+    new MutationObserver(changes=>{for(const change of changes)if(involved(change.target)||[...change.removedNodes,...change.addedNodes].some(involved))record('mutation',change.target,{added:[...change.addedNodes].map(describe),removed:[...change.removedNodes].map(describe)});}).observe(document.body,{subtree:true,childList:true});
+    document.addEventListener('load',event=>{if(event.target instanceof HTMLIFrameElement)record('load',event.target);},true);
+  })()`);
   // The second tab picks the same session from Coding's list, the way a person would.
   assert.equal(await other("document.visibilityState"), "visible");
   await otherWaits(`document.querySelector('[data-plugin-strip] [data-plugin-id="coding"]')`);
@@ -231,7 +242,8 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
   // The list is drawn by the server first; the row is clicked once Coding's page script has loaded and listens.
   await otherPage.waitFor(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]') && !document.querySelector('[data-ui-client-state="loading"]')`);
   await otherPage.evaluate(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]').click()`);
-  await otherPage.waitFor(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(session)} && document.querySelector(${JSON.stringify(card(coding))})`);
+  await otherPage.waitFor(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(session)} && document.querySelector(${JSON.stringify(card(coding))})`).catch(async error => { t.diagnostic("AC08 FRAME TRACE " + JSON.stringify(await other("window.__frameTrace"))); throw error; });
+  t.diagnostic("AC08 FRAME TRACE " + JSON.stringify(await other("window.__frameTrace")));
   // Its request to answer waits in its page until released; the reply is kept for the assertions. Every read of the session that
   // starts after the reply waits until `__rereads()`, and is counted once the page has drawn from it: its JSON taken, and the page's own
   // code after that run.

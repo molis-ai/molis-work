@@ -1,0 +1,52 @@
+name: AC08 page lifecycle diagnostic
+on:
+  push:
+    branches: [feature/pr-ac08-linux-diagnostics]
+permissions:
+  contents: read
+concurrency:
+  group: pr-ac08-linux-diagnostics
+  cancel-in-progress: true
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MOLIS_WORK_TEST_JOBS: 2
+      MOLIS_WORK_TEST_BROWSER_JOBS: 1
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Install pnpm
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
+        with:
+          version: "0.12.19"
+          enable-cache: false
+      - name: Build
+        run: pnpm build
+      - name: Chrome and fonts
+        run: |
+          chrome="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$chrome"
+          "$chrome" --version
+          printf '#!/bin/sh\nexec "%s" --no-sandbox "$@"\n' "$chrome" > "$RUNNER_TEMP/chrome-ci"
+          chmod +x "$RUNNER_TEMP/chrome-ci"
+          echo "MOLIS_WORK_TEST_CHROME=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
+          echo "MOLIS_WORK_BROWSER_PATH=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends fonts-wqy-zenhei
+      - name: Observe repeated second-tab lifecycle
+        run: |
+          result=0
+          for attempt in 1 2 3 4 5 6; do
+            echo "AC08 attempt $attempt"
+            node scripts/run-tests.mjs --verbose --test-name-pattern='AC-08' tests/interaction-no-crosstalk.e2e.test.ts || result=1
+          done
+          exit "$result"

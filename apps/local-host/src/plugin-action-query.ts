@@ -1,6 +1,6 @@
 import { ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { currentPluginAction } from "@molis-ai/molis-work-plugin-runtime";
+import { currentPluginAction, inPluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginActionProvider } from "./plugin-action-provider.js";
 
 /**
@@ -27,7 +27,7 @@ export async function invokePluginQuery<Output>(context: PluginStartContext, man
   options: { client: ActionClient; project_id?: string; assertActive(): void }, reference: ActionReference, input: unknown): Promise<Output> {
   const ref = checkedReference(reference);
   const scope = currentPluginAction();
-  if (!scope || scope.install_id !== context.install_id || !scope.caller.retainAuthority) throw new ActionError("actions.forbidden", "查询委托只能由本插件正在执行的动作发起");
+  if (!scope || !inPluginInstance(scope, context) || !scope.caller.retainAuthority) throw new ActionError("actions.forbidden", "查询委托只能由本插件正在执行的动作发起");
   if (options.project_id !== undefined && scope.caller.project_id !== options.project_id) throw new ActionError("actions.scope_mismatch", "查询所在的项目与插件实例不一致");
   if (!manifest.capabilities.consumes.includes(ref.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项动作");
   const original = scope.caller, declared = new Set(manifest.permissions.map(item => item.permission));

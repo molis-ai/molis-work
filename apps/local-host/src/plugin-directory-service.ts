@@ -3,7 +3,7 @@ import { isAbsolute, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDirectoryGrant, PluginDirectoryService } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
-import { assertCapturedPluginActionCurrent, currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
+import { assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { pickLocalDirectory } from "./directory-picker.js";
 import { readGrantedDirectory } from "./plugin-directory-read.js";
@@ -12,7 +12,7 @@ export const DIRECTORY_READ_PERMISSION = "directory:read";
 const GRANT_MS = 30 * 60_000;
 const MAX_GRANTS = 32;
 type Selection = { plugin_id: string; project_id: string | null; actor_id: string };
-type Binding = Selection & { install_id: string; name: string; assertCurrent(): void };
+type Binding = Selection & { install_id: string; installation_generation: string; name: string; assertCurrent(): void };
 type Grant = PluginDirectoryGrant & { binding: Binding; project_id: string | null; actor_id: string };
 export type DirectorySelection = typeof pickLocalDirectory;
 
@@ -45,13 +45,13 @@ export function directoryForHome(homeDirectory: string): DirectoryGrantService {
         for (const [id, grant] of grants) if (grant.binding === binding) grants.delete(id);
       }, client: { read: async (request, signal) => {
         const invocation = currentPluginInvocation();
-        if (!invocation || invocation.install_id !== binding.install_id) return { outcome: "denied" };
+        if (!invocation || !inPluginInstance(invocation, binding)) return { outcome: "denied" };
         sweep();
         const grant = grants.get(request.grant_id);
         if (!grant || grant.binding !== binding || grant.actor_id !== invocation.caller.actor_id || grant.project_id !== invocation.caller.project_id) return { outcome: "denied" };
         const check = () => {
           signal?.throwIfAborted(); assertCurrent();
-          assertCapturedPluginActionCurrent(invocation, binding.install_id);
+          assertCapturedPluginActionCurrent(invocation, binding);
           if (grants.get(grant.grant_id) !== grant || Date.parse(grant.expires_at) <= Date.now()) throw denied();
         };
         check(); const result = await readGrantedDirectory(grant.root, request, check); check(); return result;

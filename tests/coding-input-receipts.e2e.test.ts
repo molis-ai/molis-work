@@ -78,7 +78,9 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   await fill(`${coding} [data-coding-task]`, "登录流程哪里用了旧接口？");
   await waitFor(`!document.querySelector('${coding} [data-coding-send]').disabled`);
   await click(`${coding} [data-coding-send]`);
-  await waitFor(`!document.querySelector('${coding} [data-coding-mode]').hidden && !document.querySelector('${coding} [data-coding-stop]').hidden`, 30_000);
+  // The round shows as running before the call that started it has returned (its receipt is still checked); the button reads
+  // 「正在提交…」 until then, and the stop button is held with it (BL-410).
+  await waitFor(`!document.querySelector('${coding} [data-coding-mode]').hidden && !document.querySelector('${coding} [data-coding-stop]').hidden && !document.querySelector('${coding} [data-coding-stop]').disabled`, 30_000);
   assert.equal(await evaluate<string>(`document.querySelector('${coding} [data-coding-send]').textContent`), "发送");
   assert.equal(await evaluate<boolean>(`(() => { const stop = document.querySelector('${coding} [data-coding-stop]').getBoundingClientRect(), send = document.querySelector('${coding} [data-coding-send]').getBoundingClientRect(); return Math.abs((stop.top + stop.bottom) - (send.top + send.bottom)) < 8; })()`), true, "the modes fit on the composer's row: stopping stays beside them");
 

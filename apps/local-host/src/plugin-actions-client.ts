@@ -88,7 +88,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
         if (!action) throw new ActionError("actions.forbidden", "插件未声明提供此动作");
         for (const permission of action.action.permissions) context.requireGrant(permission);
       }
-      assertCapturedPluginActionCurrent(outer, context.install_id);
+      assertCapturedPluginActionCurrent(outer, context);
     };
     return {
       actor_id: outer?.caller.actor_id ?? options.actor_id, project_id: projectId,
@@ -110,7 +110,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       options.assertActive();
       for (const permission of requiredPermissions ?? []) context.requireGrant(permission);
       for (const permission of definition.action?.permissions ?? []) context.requireGrant(permission);
-      assertCapturedPluginActionCurrent(outer, context.install_id);
+      assertCapturedPluginActionCurrent(outer, context);
     };
     return {
       actor_id: options.actor_id, actor_kind: "user", project_id: projectId, audience: "plugin", permissions: context.grants,
@@ -142,7 +142,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     const check = (permissions: readonly string[] = []) => {
       options.assertActive();
       for (const permission of [...definition.action.permissions, ...(delegates ? [] : permissions)]) context.requireGrant(permission);
-      assertCapturedPluginActionCurrent(outer, context.install_id);
+      assertCapturedPluginActionCurrent(outer, context);
     };
     return bindActionClient(scope.client, () => ({ ...caller, ...offered(scope), query_only: pluginInvocationReadOnly(outer) ?? caller.query_only,
       validate_authority: async reference => {

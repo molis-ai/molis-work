@@ -791,6 +791,12 @@ export interface AgentRecoveryReport {
     }>;
 }
 
+export interface AgentRetryWait {
+    until: string;
+    reason: "rate-limited" | "unavailable" | "not-sent";
+    attempt: number;
+}
+
 export interface AgentReviewDecisionInput {
     review_id: string;
     decision: "approve" | "reject";
@@ -953,6 +959,7 @@ export interface AgentRunView {
     todo?: readonly AgentTodoItem[];
     turn_changes?: readonly AgentTurnChanges[];
     sleeping_until?: string;
+    retry_wait?: AgentRetryWait;
     model_switch?: {
         now?: string;
         requested?: string;

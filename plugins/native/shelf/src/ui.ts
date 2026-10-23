@@ -155,7 +155,7 @@ function renderDropOverlay(p: ShelfUiPrimitives): string {
 }
 
 /** DropAgent colours the group's type mark and keeps the label neutral. */
-function stageFold(label: string, id: "materials" | "results" | "clipboard", count: number, body: string): string {
+export function stageFold(label: string, id: "materials" | "results" | "clipboard", count: number, body: string): string {
   const mark = id === "clipboard"
     ? { glyph: SHELF_GLYPH.clipboard, tone: "ochre" }
     : id === "results"
@@ -190,7 +190,7 @@ function renderShelfName(name: string, escape: (value: unknown) => string): stri
   return `<span class="shelf-name"><span class="shelf-name__stem">${escape(match[1])}</span><span class="shelf-name__ext">${escape(match[2])}</span></span>`;
 }
 
-function renderRow(item: ShelfItemRecord, selected: boolean, p: ShelfUiPrimitives): string {
+export function renderRow(item: ShelfItemRecord, selected: boolean, p: ShelfUiPrimitives): string {
   const tone = toneForKind(item.kind, item.group);
   const failed = item.status === "failed";
   const when = item.group === "result" && !failed ? clockLabel(item.created_at) : "";

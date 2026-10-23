@@ -238,13 +238,24 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Onboarding without limits (slice 101, user 2026-10-22): the 资料导入 sends a non-text file over 6 MB as the raw body of the 成果库's
-  // original route, its name in a header. 26516 → 26900 (+384).
-  "/assets/molis-work-knowledge.js": [26516, 26900],
-  // Onboarding without limits (slice 101): the shared request client sends a Blob as a raw body. It is bundled into the
-  // workbench and the isolated plugin frame: 1186577 → 1186715 (+138) and 187730 → 187841 (+111).
-  "/assets/molis-work-workbench.js": [1186577, 1186715],
-  "/assets/molis-work-plugin-frame.js": [187730, 187841],
+  // VUX slices 102–107 together (specs/visual-ui-experience §8). Workbench script 1186715 → 1189644 (+2929): the rate-limit
+  // countdown (+1178), the drop zone's third state "不支持" with its reason badge (+1459), ⌘↵ no longer answering a
+  // questionnaire twice (+214), and a stopped round followed until it has ended (+78, slice 108). The plugin frame 187841 → 190815 (+2974): the same drop zone (+1418) and the shared confirm box
+  // that sends inside the open dialog plus the modal cover around the frame (+1556); the five plugins that used their own
+  // copy of the box shrank (form −94, issues −138, pages −82 net, ppt −88, todo −17 net). Three stylesheets +347 each: the
+  // countdown's tabular digits (+133), the Coding timeline's half of the shared processFold (+98) and the modal cover (+116),
+  // arrival.css less the Coding fold rules it no longer carries. Coding +527: rows kept in place by call id instead of an
+  // innerHTML rebuild. Jelly +102 and Todo's batch sequence: the newest read of their state wins. Workflows +131: Esc and the
+  // close mark no longer close its dialog while it sends. Knowledge and Pages: the drop zone's reason text (+40, +85).
+  "/assets/molis-work-workbench.js": [1186715, 1189644],
+  "/assets/molis-work-plugin-frame.js": [187841, 190815],
+  "/assets/molis-work-workbench.css": [1614004, 1614351],
+  "/assets/molis-work-settings.css": [995567, 995914],
+  "/assets/molis-work-arrival.css": [705242, 705437],
+  "/assets/molis-work-plugins/coding.js": [374745, 375272],
+  "/assets/molis-work-plugins/jelly.js": [91337, 91439],
+  "/assets/molis-work-plugins/workflows.js": [81774, 81905],
+  "/assets/molis-work-knowledge.js": [26900, 26940],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

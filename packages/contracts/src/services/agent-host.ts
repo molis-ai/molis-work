@@ -77,6 +77,7 @@ export type {
   AgentCommandOutput,
   AgentTodoItem,
   AgentRunView,
+  AgentRetryWait,
   AgentTurnChanges,
   AgentSessionView,
   AgentSessionStatus,

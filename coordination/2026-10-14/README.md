@@ -3419,3 +3419,10 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 现在在跑：`ac-sc3`（SC-4，叠在 #1113 上）、`ac-kernel`（R7→W5-09→R8）。排队顺序：`ac-feed-fn`（R5，Inbox/Feed 前置）→ `ac-sandbox-sched`（BL-395、PG-039～042）→ `ac-clients-1`（W5-03/04）→ `ac-errors`（W5-13）→ `ac-giants`（W5-10）→ `ac-snapshot`（W5-16）。
 - 开发会话的派单里加一句：构建只构建改到的包，测试只跑直接相关的几个文件、`--jobs 2` 以内，不起浏览器批次。
 - 评审：#1107 一轮可合；#1112 修后可合（2 条交 Codex），统筹裁定规格板选 (b)、补 RAC-80～84。batch-1023-12 全绿。
+
+### 10-23 19:05 UTC　账目与归属
+
+- 开了 [#1115](https://github.com/molis-ai/molis-work/pull/1115)：`privileges.md` 的 PG-003、018、019、048、050 标已做，状态写法补「已做（#NNN）」「不迁／不做（用户 MM-DD）」两种。纯文档，进合并清单。
+- 登记册加 §2.0「接手后的归属」：每条风险写了主人与关闭条件；R-12、R-15、R-18、R-22、R-27 关；新增 R-28（本机 CPU，最多两条开发线）、R-29（`privileges.md` 枢纽，由统筹批量改）。
+- #1100：Codex 合 main 到 `6150cd77e`，二轮可合，等 CI。
+- **派单调整**（Codex 阶段三十二提醒）：记忆线的在途 PR #1059、#1064、#1101、#1111 改 `horizontal/memory`。`ac-giants` 派单时 R4c 去掉 `horizontal/memory`，只做 placement、search、listener-host、im-ui；memory 的巨大单元等记忆链合完再排。

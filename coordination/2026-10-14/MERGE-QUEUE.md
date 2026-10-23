@@ -25,7 +25,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 | 序 | PR | 内容 | 依赖 | 批 | 现状（统筹最后核对 10-23 18:55 UTC） |
 | --- | --- | --- | --- | --- | --- |
-| 1 | [#1100](https://github.com/molis-ai/molis-work/pull/1100) | R-25 同类三处 | #1099（已合） | batch-1023-12 **全绿**（Linux 1338/1338，`context-card-in-work.e2e` 重试才过） | Codex 在合 main（`navigation-feed.ts` 巨大单元 956→958，按最小等价写法修）；必须在 #1087 之前合 |
+| 1 | [#1100](https://github.com/molis-ai/molis-work/pull/1100) | R-25 同类三处 | #1099（已合） | batch-1023-12 全绿 | 头 `6150cd77e`（Codex 合 main，workbench.js 1190694）；**Codex 二轮：可合**（[评论](https://github.com/molis-ai/molis-work/pull/1100#issuecomment-6371207273)）；等这个头的 CI 绿就可合；必须在 #1087 之前合 |
 | 2 | [#1087](https://github.com/molis-ai/molis-work/pull/1087) | W5-06 第 2 片：舞台页按 Manifest views 挂 | #1099、#1100 | batch-1023-12 | 合入后从 `known-red-main.md` 删 R-25 两行（统筹做） |
 | 3 | [#1084](https://github.com/molis-ai/molis-work/pull/1084) | PG-062 S4b：Coding 卡片经 `services.interaction` | — | batch-1023-12 | DIRTY，Codex 在合 main；改了 S-56，看 Security invariants |
 | 4 | [#1098](https://github.com/molis-ai/molis-work/pull/1098) | W5-06 第 2b 片：视图声明分组、新建、首页起点、设置图标 | #1087 | 下一批（和 #1107 同批） | 叠在 #1087 上 |
@@ -34,6 +34,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 7 | [#1083](https://github.com/molis-ai/molis-work/pull/1083) | Shelf S4 | #1076 | 同 #1076 | 叠着 #1076；Verify 红的唯一原因是 `error-owners.json` 的 `apps/local-host/src/shelf-*` |
 | 8 | [#1112](https://github.com/molis-ai/molis-work/pull/1112) | W5-06 余项第一片（草稿） | 排在 #1076、#1099 之后 | 同 #1076 | `ac-review` 一轮：修后可合，2 条交 Codex（[评论](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6370952389)）；统筹裁定规格板选 (b)、补 RAC-80～84（[裁定](https://github.com/molis-ai/molis-work/pull/1112#issuecomment-6371157480)）；Codex 合 main、重量 page-assets、转 ready |
 | 9 | [#1113](https://github.com/molis-ai/molis-work/pull/1113) | Sessions 清理 SC-3（PG-082） | — | `full` 非空（assembly、spans-packages），和 #1076、#1083、#1112 同批或下一批 | 头 `a959f8469`，已合 main；`ac-review` 在审 |
+| 10 | [#1115](https://github.com/molis-ai/molis-work/pull/1115) | privileges.md：PG-003、018、019、048、050 标已做（统筹的账） | — | `full` 为空 | 纯文档；Verify 绿就可合，不必等评审 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 收尾时合 main、转 ready |
 
 新开的开发片 PR 由统筹按依赖插进本表。

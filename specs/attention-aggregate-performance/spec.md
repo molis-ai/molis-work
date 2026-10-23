@@ -41,6 +41,8 @@ VUX-27 的原准备只等待 DOM 存在，但插件文档在桥接完成前仍�
 
 ## 验证与交付
 
+旧 head `2b28ca2bb` 的全量第 7 分片在 `workbench-deferred-clients.e2e.test.ts` 连续两次未等到 Pages 的资源重试按钮，其余分片仍在继续。原测试在 DevTools 接入隔离 iframe 后才拦截资源，资源可能已完成加载。Chrome 155 的延迟接入负对照在干净 `f8c9b4246` 和本分支均复现相同失败：拦截前 editor 已加载，父页面已为 ready，因而不会出现重试按钮。修正只在测试服务器拦截 editor 请求并返回 503，点击重试前恢复真实资源响应；补充断言确认错误请求确实发生，原挂载、重试、保留页面和资源只加载一次的断言全部保留。未修改产品行为、等待上限或公共浏览器接入时序。修正后的完整文件在干净基线和本分支的独立 Chrome 155 中各 3/3 通过，健康门禁通过；日志在 `validation/deferred-{baseline-server-fixed,server-fixed,health}.log`，负对照在 `deferred-baseline-negative.log` 和 `deferred-chrome155-probe.log`，Linux 全量仍待最终 head 验证。
+
 主线在 2026-10-23 合入 #1086（`df7a3bdba`），同样修正 VUX-36 的首次轮询测量时点，与本分支的通知准备相冲突。组合保留本分支对种子通知的确认、已读及显式 attention 刷新，同时保留主线在预热与测量中各跨过一次 15 秒自然轮询；45 次切换、GC 和计数阈值不变。组合后的整体构建、11 个文件 72 项测试及包边界通过，包含两个相关浏览器文件、Functions 生命周期、attention 聚合及自动合并的插件数据库用例；证据在 `validation/main1086-{build,tests,boundary}.log`。已启动的 `2b28ca2bb` 全量先跑完，不能将其结果当作新合并提交的通过；下一轮全量等待这一轮结束后再启动。
 
 先整体 `pnpm build`，用独立子进程运行真实 Web Host 与 HTTP 负载客户端，Home、端口与凭据均为临时测试数据，模型关闭。每项目启用 Coding/Goals，准备等待中的会话及已完成会话；查询必须返回应见任务且排除已完成项。基线和修复使用相同种子副本，保留测量与代表性完整回答，每次回答逐项校验，结束关闭自己的进程和数据目录。

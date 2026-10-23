@@ -6,8 +6,8 @@ import test from "node:test";
 
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  GoalProjectApplication,
   LocalProjectDatabase,
+  openProjectVersionStores,
 } from "@molis-ai/molis-work-app-local-host";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -75,7 +75,7 @@ test("W5-01-PAGES-02 Host 路由里的项目与 query/body 不一致时，发布
     for (const project of [first, second]) {
       const database = new LocalProjectDatabase(project.database_path);
       try {
-        const artifacts = new GoalProjectApplication(database).artifacts.query;
+        const artifacts = openProjectVersionStores(database).artifacts.query;
         assert.equal(artifacts.getArtifactVersion(project.project_id, { artifact_id: `pages-${page.id}`, version: 1 }), null);
       } finally {
         database.close();
@@ -98,7 +98,7 @@ test("W5-01-PAGES-02 Host 路由里的项目与 query/body 不一致时，发布
     assert.equal(published.artifact.version, 2);
     const database = new LocalProjectDatabase(first.database_path);
     try {
-      const found = new GoalProjectApplication(database).artifacts.query.getArtifactVersion(first.project_id, {
+      const found = openProjectVersionStores(database).artifacts.query.getArtifactVersion(first.project_id, {
         artifact_id: published.artifact.artifact_id,
         version: 2,
       });

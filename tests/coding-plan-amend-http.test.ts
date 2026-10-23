@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
@@ -29,7 +29,7 @@ test("plan changes are checked, applied through the Host's revise action, and to
     { ...agentInputActions.send, handle: async (_caller, input) => { const sent = input as { text: string; source?: string; run_id: string };
       assert.equal(sent.source, "host"); assert.equal(sent.run_id, "r");
       if (steerFails) throw new Error("run is not accepting input"); steers.push(sent.text); return { input_id: "steer-1", replayed: false, delivered: "run" }; } }] });
-  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", escapeHtml: String, translate: (s: string) => s,
+  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", escapeHtml: String, translate: (s: string) => s,
     capabilities: { async invoke<I, O>(definition: { capability_id: string }, _args: I): Promise<O> {
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [ref] } as O;
       if (definition.capability_id === agent.readRun.capability_id) return { ref, phase: "running", step_board: board } as O;

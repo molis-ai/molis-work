@@ -12,6 +12,7 @@ import {
   codingDirectoryPanel,
   releaseProjectPlugins,
   seedDemoBoard,
+  openProjectVersionStores,
 } from "@molis-ai/molis-work-app-local-host";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
@@ -33,6 +34,7 @@ function project(directory: string) {
 function ports(store: LocalProjectDatabase, titles: Readonly<Record<string, string>> = {}) {
   return {
     store,
+    ...openProjectVersionStores(store),
     projectId: DEMO_PROJECT_ID, actions: fakeGoalDirectory(pluginActions(store, DEMO_PROJECT_ID), () => titles),
     actorId: "web-user",
     escapeHtml,

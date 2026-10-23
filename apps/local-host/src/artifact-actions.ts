@@ -1,6 +1,6 @@
 import { LOCAL_PERSON_ACTOR_ID, type ActionClient, type ActionProviderRegistration, type FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import { logPreviewFailure } from "./host-log.js";
-import { artifactsManifest, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACTS_PLUGIN_ID, artifactsManifest, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import { readProjectReference } from "./project-file-reference.js";
@@ -17,7 +17,7 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
     provider,
     definitions: artifactsManifest.actions!,
     handlers: createArtifactActionHandlers({
-      projectId: runtime.project_id, artifacts: runtime.coordinator.artifacts,
+      projectId: runtime.project_id, artifacts: runtime.artifacts,
       ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.project_id }).query,
       goalTitle: goalId => runtime.coordinator.goalQueries.getGoal(runtime.project_id, goalId)?.title ?? null,
       typeTitle: typeId => artifactTypeDeclarations().get(typeId)?.title ?? null,
@@ -41,7 +41,9 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
       importConnections: () => documentImportConnections(home),
       importDocument: (input, caller) => runWithMolisWorkHome(home, () => importLocalArtifactDocument({ ...input }, {
         projectId: runtime.project_id, actorId: caller.actor_id, ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: `/projects/${encodeURIComponent(runtime.project_id)}`,
-        artifacts: runtime.coordinator.artifacts, signal: caller.signal,
+        artifacts: runtime.artifacts, signal: caller.signal,
+        // A file the Host was given for this import: only on the person's own call, and only one offered to the 成果库 itself.
+        ...input.source === "file" && caller.audience === "user" && caller.original_file?.install_id === ARTIFACTS_PLUGIN_ID ? { offeredPath: caller.original_file.path } : {},
         // Downloading the speech model is the person's own yes: an Agent, MCP client, workflow or plugin passing true downloads nothing (S-39, PMAT-48).
         allowModelDownload: caller.audience === "user" && input.source === "file" && input.allow_model_download === true,
         ...caller.on_progress ? { onProgress: caller.on_progress } : {},

@@ -21,7 +21,7 @@ function bigWrite() {
   const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-big", applied: true, files: [{ path: "big.ts", kind: "modified", added_lines: 3, removed_lines: 2, diff: "",
     review: { review_id: "review-big", before_text: before.join("\n") + "\n", after_text: after.join("\n") + "\n", decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
-  const html = (mode: "unified" | "split") => renderDiff({ view: { ...view, mode }, route_prefix: "", primitives, line_feedback: true, fold_context: 3, sides: false });
+  const html = (mode: "unified" | "split") => renderDiff({ view: { ...view, mode }, primitives, line_feedback: true, fold_context: 3, sides: false });
   return { html, patch: unifiedPatch(view.rows, { path: "big.ts" }) };
 }
 

@@ -61,6 +61,7 @@ export { LocalProjectDatabase } from "./project-database.js";
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
 export * from "./goal-project-application.js";
+export { openProjectVersionStores, type ProjectVersionStores } from "./project-version-stores.js";
 
 export * from "./web-locale.js";
 
@@ -222,6 +223,8 @@ export { createSearchEvidenceRuntime, type SearchEvidenceRuntime } from "./searc
 // Home stores' one current schema each (repository-anti-corruption §4.1); compared with the stores' fixtures by tests/home-store-baselines.test.ts.
 export { CONNECTORS_BASELINE } from "./connectors-store.js";
 export { CONTEXT_ONBOARDING_BASELINE } from "./context-onboarding-store.js";
+// An onboarding round run with the caller's own ports (a stub model), for checking the page while it organizes.
+export { startContextJourney, waitContextJourney } from "./context-onboarding-service.js";
 export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definitions.js";
 export { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
 export { PLACEMENT_BASELINE } from "./placement-actions.js";

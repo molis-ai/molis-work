@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, GoalProjectApplication, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, openProjectVersionStores, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
@@ -13,7 +13,7 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
   for(const plugin_id of ["feed","sessions","artifacts"])catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:"content-test"});
   catalog.close();
-  const app=new GoalProjectApplication(b.store);
+  const app=openProjectVersionStores(b.store);
   app.artifacts.commands.registerVersion({...pinnedArtifact("工作台阅读体验检查与修复记录"),project_id:DEMO_PROJECT_ID,actor_id:"content-test",artifact_id:"reading-report",version:1,artifact_type_id:"io.example.report",schema_version:1,producer:{plugin_id:"io.example.writer",plugin_version:"1.0.0",binding_signature:"fixture"},content:{kind:"inline",payload:{title:"工作台阅读体验检查与修复记录",findings:Array.from({length:60},(_,i)=>({title:`第 ${i+1} 项检查`,detail:"保留阅读位置与动作入口，让长内容在所属组件内滚动。"}))}},metadata:{review:"组件内阅读"}});
   const source=createLocalFeedSourceService(b.store.db,DEMO_PROJECT_ID).register({kind:"web_query",query:"交互检查"}).source;
   const item=createLocalFeedApplication(b.store.db).ingestItem({source,externalId:"long-reading",title:"请确认工作台在矮窗口和上下分屏中的阅读体验：标题、处理动作与上下文应当保持清晰可达",summary:"核对真实长内容。",body:"需要保留原消息。",occurredAt:new Date().toISOString(),attention:false}).item;

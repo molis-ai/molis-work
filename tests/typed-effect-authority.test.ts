@@ -58,7 +58,7 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
   } };
   const actions = { registry: home.host.actionRegistry(project.reference), client: home.host.actionClient(project.reference, false), project_id: project.project_id };
   const runtime = await home.host.withProject(project.reference, owner => new PluginRuntime(undefined, new PluginHostExecutor({
-    actions, project_id: project.project_id, actor_id: "typed-owner", artifacts: owner.coordinator.artifacts, processItems: owner.coordinator.processItems,
+    actions, project_id: project.project_id, actor_id: "typed-owner", artifacts: owner.artifacts, processItems: owner.processItems,
     ui: new UiHost(), capabilities: home.host.client(project.reference),
     privateStorageFor: () => { throw new Error("This consumer declares no private storage"); },
   }), { actions }));

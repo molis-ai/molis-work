@@ -703,8 +703,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-attachment-order.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-attachment-order.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz
 
   horizontal/connector-host:
     dependencies:
@@ -1043,6 +1043,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1289,6 +1292,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1762,8 +1768,8 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-attachment-order.tgz':
-    resolution: {integrity: sha512-koQXQxDHY7svUgjxp2VtQJxOwGMdEIzcUgR/yobMwiLNFaEsw5Vm/JF6fUmYqwfU20L/fhd+MXklAjL3LLXKMw==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-attachment-order.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz':
+    resolution: {integrity: sha512-PeJD7Rp6vKAykGzQpxfALojVLIFaWWiqcdW8YXOwU+t+gE/INsJVT6x0IGjBVZAqN3rQMaTYEJLLPZksyrtxAA==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':
@@ -3530,7 +3536,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-attachment-order.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

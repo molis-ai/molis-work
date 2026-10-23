@@ -313,4 +313,10 @@ export const GIT_MESSAGES = {
   "git.host.push-unconfirmed": { zh: "推送结果未确认；请核对以上远端，不要直接重试：{reason}", en: "The push result isn't confirmed. Check the remotes above and don't just retry: {reason}" },
   "git.host.conflict-write-unconfirmed": { zh: "冲突正文已开始写入，但完成结果未确认；请核对文件与暂存区：{reason}", en: "Writing the conflicted text started but its result isn't confirmed. Check the file and the index: {reason}" },
   "git.host.read-unsupported": { zh: "工作区内容不能作为完整文本差异读取：{reason}", en: "The working tree content can't be read as a full text difference: {reason}" },
+  "git.host.head-unborn": { zh: "{name}（还没有提交）", en: "{name} (no commits yet)" },
+  "git.host.head-detached": { zh: "游离于 {commit}", en: "Detached at {commit}" },
+  "git.host.tracking-synced": { zh: "与 {upstream} 同步", en: "Up to date with {upstream}" },
+  "git.host.tracking-both": { zh: "{upstream}：领先 {ahead} · 落后 {behind}", en: "{upstream}: {ahead} ahead · {behind} behind" },
+  "git.host.tracking-ahead": { zh: "{upstream}：领先 {ahead}", en: "{upstream}: {ahead} ahead" },
+  "git.host.tracking-behind": { zh: "{upstream}：落后 {behind}", en: "{upstream}: {behind} behind" },
 } as const;

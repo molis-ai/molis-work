@@ -29,6 +29,8 @@ PG-094 的最后两步：
 
 ## 3. S8 另一半
 
+**已实现为独立一片（分支 `migrate/goals-s8b-library-identity`，叠在 #1146 上），以 `goals-s8b-library-identity.md` 为准，本节留作背景；实现与本节的差别：开发门不改（它是显式建根行和看板的调用方，和管理入口的 `initialize` 同类，S9 改调动作）；看板只在库「有根行却没看板」时由打开项目建，没有根行的新库仍由 `goals.board.initialize` 一并建根行和看板，所以管理入口的第一次调用仍是 `replayed: false`。**
+
 **要改什么**（四个文件，加一个测试清单项）：
 
 | 位置 | 现在 | 改成 |

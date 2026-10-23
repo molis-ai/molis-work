@@ -3243,3 +3243,12 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - #1081：⑤ 手查了四片，都绿，已进合并队列。队里还有 #1085、#1080，以及同事的 #1102。
 - `18aef8028` 还没推到 #1098，① 又催了一次。
 
+### 10-23 23:29（15:29 UTC） Codex 三个叠加修复都已交付，① 核过
+- 读了 Codex 的阶段二十五到二十七（`67b8fa171`、`18aaeff38`、`06f28a30c`），三个 PR 都按 ① 的裁定修，都只改测试：
+  - [#1104](https://github.com/molis-ai/molis-work/pull/1104) 修 #1096：正则加左边界，断言照旧保留，反例的证据在 VERIFY 里。
+  - [#1105](https://github.com/molis-ai/molis-work/pull/1105) 修 #1093：400 来自路由之前的一次性键检查，只给那个 POST 补键，404 断言不变。
+  - [#1106](https://github.com/molis-ai/molis-work/pull/1106) 修 #1084：夹具补上 `openProjectVersionStores`。
+- Codex 都没合并、没往作者分支推、没取消 CI。三个叠加 PR 都交 ⑤/⑩ 审，⑤ 合进各自作者分支。之后 ⑤ 用修好的 head 把 #1096 和 #1093 重组成一批（全量）；#1084 照旧排在 #1071 后面。
+- [#1108](https://github.com/molis-ai/molis-work/pull/1108)（yijunw0212，`feature/vux-refusal-details`，base main）是同事 VUX 线的第 110 片，落实 #1102 里的「决定 ⑤」，标题里的「(⑤)」指那条决定，不是 ⑤ 会话。它不归防腐线管，没撞号。
+- #1085 已合入 main（`288eb424c`），#1087 因此冲突，② 要并一次 main。batch-1023-10（run 39972250383）还有 5 片在排队。
+

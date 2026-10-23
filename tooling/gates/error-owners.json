@@ -126,6 +126,12 @@
       ],
       "reason": "Contextual ranking's Host side (service, judgment, HTTP edge); its codes already start with contextual."
     },
+    "diff": {
+      "paths": [
+        "packages/plugin-sdk/src/unified-diff.ts"
+      ],
+      "reason": "The unified-diff parse the SDK's /diff-view gives Diff, Coding and third-party plugins, moved out of the Diff plugin (PG-062); its codes already start with diff."
+    },
     "feed": {
       "paths": [
         "modules/feed/",

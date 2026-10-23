@@ -11,7 +11,7 @@
 | 线 | 现在 | 之后（按先后） | 管的 PG 行 |
 | --- | --- | --- | --- |
 | `ac-kernel`（Opus high） | R7 #1117、W5-09 #1118、R8 第 1 批 #1121、PG-051 P1 #1124 | PG-051 P2 → R8 其余批次（typed 140 处改动作、BL-364）→ agent-host 巨大单元 → 平台线排好的片 1～5（BL-430、BL-350、BL-356、BL-366、BL-394） | PG-029、030、035、051；之后 PG-045 |
-| `ac-sc3`（Sonnet xhigh） | SC-3 #1113、SC-4 #1130 | BL-485/486/488（叠在 #1130）→ BL-385 → BL-383、BL-384 改名 → SC-5 维护脚本（只在一次性 Home 演练；真实 Home 归用户）→ 迁移线 Goals S4、S8 余半、S9（连 BL-386）、S10～S12 | PG-081、082、053、086（运行记录随 SC 收尾核掉）；之后 PG-094（PG094-06～14）、021、033、031、012 的 Goals 个人规划一半 |
+| `ac-sc3`（Sonnet xhigh） | SC-3 #1113、SC-4 #1130 | Goals S4（PG094-06，RAC-250～259、BL-500～504，10-23 20:55 派）→ #1113 合入后：重开 BL-485/486/488（分支 `migrate/sessions-sc4b-runtime-leftovers`）→ BL-385 → BL-383、BL-384 改名 → SC-5 维护脚本（只在一次性 Home 演练；真实 Home 归用户）→ 迁移线 Goals S4、S8 余半、S9（连 BL-386）、S10～S12 | PG-081、082、053、086（运行记录随 SC 收尾核掉）；之后 PG-094（PG094-06～14）、021、033、031、012 的 Goals 个人规划一半 |
 | `ac-sandbox-sched`（Sonnet xhigh） | BL-395 #1119、PG-039～042 #1123、BL-481 #1131 | PG-017 组：设计稿 #1134（统筹已定）→ P0 映射与带码拒绝 → P1 模型与指令（PG-051 P2 之后）→ P2 连接与材料（不联网）→ P3 后台 → BL-492 材料允许域名 → PG-022/102/103/104 声明进 Manifest → BL-490/491 → BL-493（PG-001 之后）；W5-17 在 #1113 合入后插进来 → Feed/Inbox 迁到 Runtime（PG-093、089 余半、040 余半、034、046、057、080、087，PG-010 余项） | PG-017、022、102、103、104、039～042；之后 Feed/Inbox 一组 |
 | `ac-clients-1`（Sonnet xhigh，**10-23 20:30 起暂停**：PR 积压，20:35 已按停；#1129 合入后续 Jelly、Cognia、灵光、R11） | W5-03/04：Todo #1129、Issues #1132、Images #1137 | Jelly → Images → Cognia → 灵光 → R11（PG-063/064，统筹已定方案）→ 第二组 Dataset、PPT、Form、Workflows、Pages（RAC-150～169、BL-460～464） | PG-055、056、063、064、070、071、100（灵光片顺手改 `fateLabel`） |
 | `ac-review`（Sonnet xhigh，只读） | 一轮评审 | — | — |

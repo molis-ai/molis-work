@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { LocalHost, LocalProjectDatabase, PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginManifest, PluginPrivateStorage, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
@@ -28,7 +27,6 @@ const manifest = (extra: Partial<PluginManifest> = {}, permissions: PluginManife
 const permission = (name: string, required: boolean) => ({ permission: name, required, reason: "probe" });
 const declaring = (extra: Partial<SandboxDeclarations> = {}, manifestExtra: Partial<PluginManifest> = {}, permissions: PluginManifest["permissions"] = []): SandboxDeclarations =>
   ({ manifest: manifest(manifestExtra, permissions), ...extra });
-const BACKGROUND_ACTION = { capability_id: "example.sbx.job", version: 1, operation: "command", background_job: { label: "probe" } } as unknown as ActionDefinition;
 
 test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not given is refused with a code, naming the service", () => {
   const asks: Array<[string, SandboxDeclarations, readonly string[]]> = [
@@ -40,7 +38,7 @@ test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not gi
     ["materials", declaring({}, {}, [permission("materials:fetch_local", true)]), []],
     ["materials", declaring({}, {}, [permission("materials:original", false)]), ["materials:original"]],
     ["background", declaring({}, { background: { jobs: [{ job_id: "probe" } as never] } }), []],
-    ["background", declaring({}, { actions: [{ action: BACKGROUND_ACTION } as never] }), []],
+    ["background", declaring({}, { actions: [{ action: { background_job: { label: "probe" } } } as never] }), []],
     ["agent", declaring({ agent_prompts: [{ prompt_id: "probe", version: 1, body: "probe", layer: "role" }] }), []],
     ["agent", declaring({ methods: [{ method_id: "probe", version: 1 } as never] }), []],
     ["agent", declaring({}, { agent: { roles: [], prompts: [] } }), []],

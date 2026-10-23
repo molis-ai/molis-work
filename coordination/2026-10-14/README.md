@@ -3490,3 +3490,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 ### 10-23 19:15 UTC 统筹
 
 - 用户告知：合并 Agent 也在修评审意见。现在可能修同一个 PR 的有 Codex、合并 Agent、作者会话三方，MERGE-QUEUE §1 加第 7 条「一个 PR 同一时间只有一个修复者」：先在 PR 上留「修复认领」再改，有认领的不碰，统筹退回作者时替作者认领，2 小时没推送可收回。#1119 已替 `ac-sandbox-sched` 留认领。
+
+### 10-23 19:45 UTC 统筹
+
+- #1129（W5-03/04 Todo 样板）开出，交 `ac-review` 优先审，评审分「做法层面」与「本片」两类，前者转作者在后续片一起改。BL-455（Todo 余下 TODO_EN 等 VUX ⑥）要求作者先查是否真被挡，没人做就并进后面的片做掉。
+- R11（PG-063/064，去掉工作台的 `data-make-todo`）统筹定 ①：Inbox/灵光按钮改成通用来源对象，走 contextual 现成的 intake 路径（`todo.items.create` 已声明 intake），Todo 自己记来源；先复用 `ContextActionChosen` 的 subject 形状，只在真缺时扩合同（不留旧字段）；`open` 只收平台内部打开引用；新 DOM 事件登记；工作台里不再出现 Todo 字段名；动线一步建好、来源可点回。单开 PR，排在灵光 TS 片之后，RAC-135～137。
+- #1124 一轮可合；#1119 补齐子进程（S-59），排在 #1117 之后；#1118 的 Rust 红是 desktop 文件时间戳用例抖动（PR 不碰 Rust），已排失败作业重跑；#1120 的发版表路径红已由合并 Agent 派的 fixer 认领。

@@ -15,7 +15,7 @@ import { gitActions, gitManifest, GIT_ACTIONS } from "@molis-ai/molis-work-plugi
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDefinition, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_WORKSPACE_CHANGED_EVENT, type PluginDefinition, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DEMO_PROJECT_ID, HOST_PROVIDER_ID, LocalProjectDatabase, MolisWorkLocalHost, PluginHostExecutor, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
@@ -289,8 +289,10 @@ test("Files, Git and Coding read the linked folder through the one action in a r
 
 test("a Home that installed Files, Git and Coding before the read permission existed follows the new Manifest and holds it, without asking", () => {
   for (const manifest of [filesManifest, gitManifest, codingManifest] as readonly PluginManifest[]) {
-    // The Manifest as the Home last saw it: no read permission, no read dependency on any action, no read id consumed.
+    // The Manifest as the Home last saw it: no read permission, no read dependency on any action, no read id consumed, and no
+    // subscription to the Host's workspace broadcast, which needs that permission (BL-379).
     const before: PluginManifest = { ...manifest, permissions: manifest.permissions.filter(item => item.permission !== "workspace:read"),
+      ...(manifest.events ? { events: { ...manifest.events, subscribes: manifest.events.subscribes.filter(item => item.event_type_id !== HOST_WORKSPACE_CHANGED_EVENT) } } : {}),
       actions: (manifest.actions ?? []).map(({ action, ...rest }) => {
         const { required_actions: _required, ...kept } = action;
         return { ...rest, action: { ...kept, permissions: action.permissions.filter(permission => permission !== "workspace:read") } };

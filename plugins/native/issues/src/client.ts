@@ -39,7 +39,8 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
       // A write that lost its answer may have happened: say so instead of inviting a blind repeat.
       throw new Error(L(/(update|delete|capture|discard|run|name-draft)$/.test(path) ? '没收到结果，可能已经生效，请刷新列表核对。' : '连接中断，请稍后重试。'));
     }
-    if (!response.ok) throw Object.assign(new Error(L(result.error || '操作失败，请重试')), { status: response.status, code: result.code });
+    // A read the Host's router refuses (403) is a permission matter or a plugin turned off, not an item that is gone.
+    if (!response.ok) throw Object.assign(new Error((body === undefined && host.readRefusal?.(response.status, result.code)) || L(result.error || '操作失败，请重试')), { status: response.status, code: result.code });
     return result;
   };
   const read = id => api('read?id=' + encodeURIComponent(id));
@@ -200,9 +201,9 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     if (typeof id !== 'string') return;
     gone.hidden = true;
     run(() => open(id).catch(error => {
-      if (error.status !== 404) throw error;
+      if (error.status !== 404 && error.status !== 403) throw error;
       root.dispatchEvent(new CustomEvent('molis-work:item-unreadable', { bubbles: true, detail: { itemId: id } }));
-      if (!quiet) { gone.textContent = error.message; gone.hidden = false; }
+      if (!quiet || error.status === 403) { gone.textContent = error.message; gone.hidden = false; }
     }));
   });
   scope.listen(window, 'beforeunload', event => {

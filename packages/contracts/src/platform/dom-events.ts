@@ -244,7 +244,7 @@ export const DOM_EVENTS = [
   {
     name: "molis-work:item-unreadable", kind: "request", owner: "context-actions", on: "element", bubbles: true,
     detail: "{ itemId }",
-    summary: "A plugin surface could not read the item the workbench asked it to show (molis-work:select-item): it is gone. The surface says so on itself; the workbench does not name the surface after the item, so the Assistant does not carry it as what the person is looking at. Raised from the surface root and bubbling.",
+    summary: "A plugin surface could not read the item the workbench asked it to show (molis-work:select-item): it is gone, or the plugin is refused the read (no permission, or the project turned the plugin off). The surface says which on itself; the workbench does not name the surface after the item, so the Assistant does not carry it as what the person is looking at. Raised from the surface root and bubbling.",
   },
   {
     name: "molis-work:knowledge-pick", kind: "request", owner: "knowledge-picker", on: "document",

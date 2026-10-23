@@ -21,7 +21,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 | 序 | 片 | 号段 | 现状 |
 | --- | --- | --- | --- |
-| C1 | W5-13 收尾：宿主日志与吞掉的错误 | RAC-110～119，BL-445～449 | 待开工 |
+| C1 | W5-13 收尾：宿主日志与吞掉的错误 | RAC-110～119，BL-445～449 | Codex 已领取；按 §1 排在当前修复、二轮与测试之后。届时创建独立 Session，从 server+cli 区域开始；尚未写源码、未开 PR |
 | C2 | W5-16：`molis-work home snapshot` 与恢复 | RAC-100～109，BL-440～444 | 待开工 |
 | C3 | W5-10 的一部分：官方集成与横向服务的巨大单元 | RAC-120～129 里的 RAC-124～129，BL-452～454 | 待开工 |
 

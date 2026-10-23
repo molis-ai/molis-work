@@ -3426,3 +3426,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 登记册加 §2.0「接手后的归属」：每条风险写了主人与关闭条件；R-12、R-15、R-18、R-22、R-27 关；新增 R-28（本机 CPU，最多两条开发线）、R-29（`privileges.md` 枢纽，由统筹批量改）。
 - #1100：Codex 合 main 到 `6150cd77e`，二轮可合，等 CI。
 - **派单调整**（Codex 阶段三十二提醒）：记忆线的在途 PR #1059、#1064、#1101、#1111 改 `horizontal/memory`。`ac-giants` 派单时 R4c 去掉 `horizontal/memory`，只做 placement、search、listener-host、im-ui；memory 的巨大单元等记忆链合完再排。
+
+### 10-23 19:25 UTC　D6 用户确认；清理工作树
+
+- **SC-4 的 D6 保留机制**：用户 10-23 在统筹会话弹窗里选「确认方案 A（推荐）」：`<home>/sessions/` 只在 `home-stores.ts` 留一条退役登记（owner 改 `apps/local-host`），只供备份和 `uninstall --purge-user-data` 用；不写读取、迁移、兼容代码；真实 Home 做完 SC-5 维护后删这条登记。已转告 `ac-sc3`（SC-4 分支 `migrate/sessions-sc4-offline`，叠在 #1113 上，第 1 个提交 `06d04ee68`）。
+- **清理**（用户 10-23：及时清理处理完的工作树与会话）：删了 6 个干净、提交已在 main 或远端的旧工作树（`/private/tmp/pr-review-1023/main`、`review-1014`、`docs-review-1014-drift`、`line-adoption-w406`、`line-interaction`、`line-interaction-ac08`）和两个已合入的本地分支（`docs/review-1014-drift`、`refactor/w4-06-prologue-node`）。别的线（VUX、采用、情境、回执）、Codex 的 `.codex/worktrees`、`/private/tmp/handoff/` 一律没动。
+- 以后每个开发片合入后，统筹删它的工作树、归档它的会话（会话还要接下一片的除外）。

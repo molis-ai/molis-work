@@ -1,8 +1,8 @@
-import type { DatabaseSync } from "node:sqlite";
 import type { AgentDefinitionRegistration } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { applySqliteBaseline, openHomeSqliteDatabase, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 const AGENT_DECLARATIONS_STORE = "agent-declarations";
+type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 
 /**
  * Each installation's last registered Agent declaration (PG-051 Q1 b): the register shows a plugin that is not running from it, so

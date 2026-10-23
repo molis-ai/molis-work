@@ -137,9 +137,9 @@ export function createLocalGoalsReadHttp(ports: {
           workspaces: catalog.listWorkspaceDirectory(options.project!.project_id),
         })) : null;
         if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden };
-        // Ask the running Coding Plugin for its own directory panel. A Plugin
-        // that is not running, or that fails, simply contributes nothing and the
-        // shell renders exactly as before.
+        // The project's Runtime draws its plugins' panels and stages; one that is not running gets the unavailable shell (W5-06).
+        // Only the fixture server (one database, no project catalog: `fixtureWebBoardOptions`) has no project here; no Runtime
+        // runs there, so the shell draws the declared stages from the catalog.
         if (store && projectConfiguration !== null) {
           if (!pluginServices) throw new Error("项目插件缺少统一动作服务装配");
           const surfacePorts = {

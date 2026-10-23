@@ -162,6 +162,7 @@
 | R-30 | 新：桌面壳 Rust 用例 `context_directory_files::tests::replacement_with_same_size_and_mtime_is_rejected` 在 CI 上偶发失败（#1118 不碰 Rust 也红，main 同作业绿），按时间戳精度抖动 | Codex：查是不是同一秒内两次写入导致 mtime 相同、判据依赖时序；能修就修测试的时间设定，修不了按 `tests/quarantine.json` 规则登记（owner 与到期日） | 修好或登记隔离后关 |
 | R-31 | 新：一轮评审只有一个 `ac-review` 会话，队里常压 6～8 个 PR，合并被评审卡住 | 统筹：按依赖排评审先后（样板片、被叠的下层优先）；纯文档与核对类 PR（`full` 为空）不等评审直接合；队列超过 8 个时再开第二个只读评审会话 | 防腐收尾时关 |
 | R-32 | 新：还没关的 PG 行约 90 条，在跑的线只覆盖一部分；漏派就会留尾巴 | 统筹：同目录 `LINES.md` 给每一条没关的行指了线和先后，脚本核过一条不漏；每合一片、每开一条线都更新它 | `privileges.md` 没有没关的行时关 |
+| R-33 | 新：main 上 `tests/agent-built-plugins-checks.test.ts` 自 #1079 起在 macOS 上红（生成项目的 `sdk.d.ts` 有相对 import），Linux CI 不跑，没人发现；说明「只在 macOS 跑的用例」没有人定期看 | Codex：C0 修；并在 W6-05 最终回归里跑一遍 macOS 专有用例 | 修好且 W6-05 跑过后关 |
 
 
 | 编号 | 风险 | 影响 | 现状与缓解 | 谁跟 | 何时处理 |

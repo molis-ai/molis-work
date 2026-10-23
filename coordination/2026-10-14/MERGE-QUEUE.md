@@ -50,6 +50,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 24 | [#1134](https://github.com/molis-ai/molis-work/pull/1134) | PG-017 组设计稿：沙箱插件经 broker 拿宿主服务（只加 slices 文档） | — | `full` 为空 | 统筹已审定（[评论](https://github.com/molis-ai/molis-work/pull/1134)）；纯文档，Verify 绿即可合 |
 | 25 | [#1137](https://github.com/molis-ai/molis-work/pull/1137) | W5-03/04 Images 片：客户端打包成 TS；`images.js` 21,670→19,915 B | 和 #1129、#1132 在 `page-assets.json` 撞相邻行，后合的解 | `full` 非空（deletes-code），进下一批 | 头 `c0d39defa`；`ac-review` 排队审（顺带改了错误模型测试的源码扫描范围，要看没放宽） |
 | 26 | [#1138](https://github.com/molis-ai/molis-work/pull/1138) | PG-051 P2a：Agent 声明停用后按「未运行」保留、重启恢复、卸载才删（新 Home 库 `agent-declarations`） | #1124 已合 | `full` 非空（contracts），进下一批 | 头 `36c0771cb`；`ac-review` 排队审 |
+| 27 | [#1139](https://github.com/molis-ai/molis-work/pull/1139) | PG-017 P0：`sandboxServicesFor` 一张映射；不给的服务一声明就以 `sandbox.service_not_given` 拒绝；S-60 一行 | **叠在 #1119 上**；S 号连续要 #1117、#1119 先合 | `full` 为空 | `ac-review` 排队审；改了安全不变量，合前看 Security invariants |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 收尾时合 main、转 ready |
 
 新开的开发片 PR 由统筹按依赖插进本表。

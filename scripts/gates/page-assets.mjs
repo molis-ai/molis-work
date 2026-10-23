@@ -238,24 +238,23 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // VUX slices 102–107 together (specs/visual-ui-experience §8). Workbench script 1186715 → 1189644 (+2929): the rate-limit
-  // countdown (+1178), the drop zone's third state "不支持" with its reason badge (+1459), ⌘↵ no longer answering a
-  // questionnaire twice (+214), and a stopped round followed until it has ended (+78, slice 108). The plugin frame 187841 → 190815 (+2974): the same drop zone (+1418) and the shared confirm box
-  // that sends inside the open dialog plus the modal cover around the frame (+1556); the five plugins that used their own
-  // copy of the box shrank (form −94, issues −138, pages −82 net, ppt −88, todo −17 net). Three stylesheets +347 each: the
-  // countdown's tabular digits (+133), the Coding timeline's half of the shared processFold (+98) and the modal cover (+116),
-  // arrival.css less the Coding fold rules it no longer carries. Coding +527: rows kept in place by call id instead of an
-  // innerHTML rebuild. Jelly +102 and Todo's batch sequence: the newest read of their state wins. Workflows +131: Esc and the
-  // close mark no longer close its dialog while it sends. Knowledge and Pages: the drop zone's reason text (+40, +85).
-  "/assets/molis-work-workbench.js": [1186715, 1189644],
-  "/assets/molis-work-plugin-frame.js": [187841, 190815],
-  "/assets/molis-work-workbench.css": [1614004, 1614351],
-  "/assets/molis-work-settings.css": [995567, 995914],
-  "/assets/molis-work-arrival.css": [705242, 705437],
-  "/assets/molis-work-plugins/coding.js": [374745, 375272],
-  "/assets/molis-work-plugins/jelly.js": [91337, 91439],
-  "/assets/molis-work-plugins/workflows.js": [81774, 81905],
-  "/assets/molis-work-knowledge.js": [26900, 26940],
+  // A refused read and a partial add (VUX-12, slice 109). The isolated frame lends `host.readRefusal(status, code)`, the
+  // one sentence for a read the router refused (403 `actions.*`: no permission, or the project turned the plugin off), and
+  // eight plugins put it where their missing-item words go and tell the workbench the item cannot be read: 190815 → 191104
+  // (+289), alchemist 52330 → 52556 (+226), coding 375272 → 375409 (+137), issues 24064 → 24145 (+81), jelly 91439 → 91650
+  // (+211), lingguang 25866 → 26094 (+228), pages 49027 → 49137 (+110), todo 61888 → 61976 (+88), workflows 81905 → 82031
+  // (+126). The Shelf tries every file of a multi-file add, names the ones that did not go in with why, and retries just
+  // those: 74969 → 76264 (+1295).
+  "/assets/molis-work-plugin-frame.js": [190815, 191104],
+  "/assets/molis-work-plugins/alchemist.js": [52330, 52556],
+  "/assets/molis-work-plugins/coding.js": [375272, 375409],
+  "/assets/molis-work-plugins/issues.js": [24064, 24145],
+  "/assets/molis-work-plugins/jelly.js": [91439, 91650],
+  "/assets/molis-work-plugins/lingguang.js": [25866, 26094],
+  "/assets/molis-work-plugins/pages.js": [49027, 49137],
+  "/assets/molis-work-plugins/shelf.js": [74969, 76264],
+  "/assets/molis-work-plugins/todo.js": [61888, 61976],
+  "/assets/molis-work-plugins/workflows.js": [81905, 82031],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

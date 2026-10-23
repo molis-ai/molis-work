@@ -165,6 +165,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
   - 处理器在外部等待之后、保存之前调用 `beforeWrite()`；owner binder 保留 owner、依赖、安装和 Runtime grant，最终复用原 execution fence，不能借新目录登记继续旧调用。
   - `availability()` 只读检查声明过的宿主能力，不代表给定参数一定能执行。
   - 包是 private，包名不等于已发布到 npm 的承诺。
+  - 操作卡给人读的样子只有一份：`actionCardView`（`src/action-cards.ts`），助理和保管卡的插件都用它，插件再交给 `services.interaction.cardHtml` 画（PG-062）。
   - 系统搜索的来源协议（`defineSearchEntriesAction`、`bindSearchEntriesHandler`）与 Host 用的是同一份合同，插件照此声明即可被搜到，不需要 Host 改名单。没有“查询时再搜”的来源（`defineSearchQueryAction` 已按决定 19 删除）。
   - 宿主自己运行的插件调模型用 `context.services.model`（类型 `PluginModelClient`、`PluginModelRequest`、`PluginModelResult`，限额 `PLUGIN_MODEL_LIMITS`），指令用 SDK 导出的 `defineInstructionPrompt`、`instructed`（W3-06 E）；`PluginDefinition.instructions` 是没有目录条目的插件登记自己指令的地方。规则和错误码在 `packages/plugin-runtime` 与 `docs/platform/PROLOGUE-AI.md` 第 4 节，这里只导出类型和两个帮手。
   - 平台合同里给插件作者用的 `define…Action`、`bind…Handler`、`with…` 辅助函数都从这里导出：到期提醒、情境片段推荐、成果库的预览/固定/比较/继续/被引用、`withActionEffect`。新增一个辅助函数而没有导出，`tests/plugin-sdk-exports.test.ts` 会失败；确实不该给插件用的，在那个测试的 `NOT_FOR_PLUGINS` 里写明理由。

@@ -121,12 +121,15 @@ export interface SandboxSdk {
     all(sql: string, parameters?: SandboxSqlValue[]): Promise<SandboxSqlRow[]>;
     transaction(statements: SandboxSqlStatement[]): Promise<Array<{ changes: number }>>;
   };
+  /** The platform's question card, action card and next-step row as html, in the call's language (`services.interaction`); nothing to declare. */
+  interaction: import('./plugin-interaction.js').PluginInteractionClient;
 }
 
 export type SandboxOperations = Record<string, (input: SandboxJson, sdk: SandboxSdk) => Promise<SandboxJson>>;
 export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list'
   | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
-  | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction';
+  | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction'
+  | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
 /** Only one active operation per channel. Every host request belongs to that invocation. */
 export type SandboxWorkerMessage =

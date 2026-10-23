@@ -135,12 +135,12 @@
       "lines": 287,
       "methods": 29
     },
-    "file modules/shelf/src/store.ts": 1081,
+    "file modules/shelf/src/store.ts": 1067,
     "class modules/shelf/src/store.ts#ShelfStore": {
-      "lines": 678,
-      "methods": 32
+      "lines": 666,
+      "methods": 31
     },
-    "function modules/shelf/src/store.ts#runJob": 184,
+    "function modules/shelf/src/store.ts#runJob": 183,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 753,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,

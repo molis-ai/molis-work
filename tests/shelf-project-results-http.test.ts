@@ -32,10 +32,12 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
     producer:{plugin_id:'io.molis.work.coding',plugin_version:'1.20.0',binding_signature:'official-coding-binding'},
     content:{kind:'inline' as const,payload:{title:'已固定的原报告',run_id:'run-original',source:{session_id:'session-original'},body_markdown:'## 完整原文\r\n含 ``` 与 <script>，不重新请求模型。\n最后一行🌲'}}};
   const original=library.artifacts.commands.registerVersion(input).artifact;
-  const shelf=openHostShelfStore(home,{disabled:true}); const before=(await shelf.snapshot()).materials.length;
+  const shelf=openHostShelfStore(home,{disabled:true});
   const base='/api/plugins/io.molis.work.shelf',path=base+'/project-result';
   const read=()=>request(path+'?artifact_id='+encodeURIComponent(reference.artifact_id)+'&version=1');
   const catalog=await request(base+'/project-results'); assert.equal(catalog.status,200,JSON.stringify(catalog.body)); assert.equal(catalog.body.results.length,1);
+  // The first plugin request starts the Home instance, which places the first-run sample (D6): count the shelf after that.
+  const before=(await shelf.snapshot()).materials.length;
   const preview=await read(); assert.equal(preview.status,200); assert.ok(preview.body.text.endsWith(input.content.payload.body_markdown));
   assert.equal((await shelf.snapshot()).materials.length,before,'reading candidates does not admit copies');
   const confirmation={reference,expected_fingerprint:preview.body.fingerprint,text:'forged body',source:{artifact_id:'forged'}};

@@ -39,7 +39,7 @@ test("every toast on a product page is the one toast", () => {
   assert.match(css, /\.mw-toast \{[^}]*background: var\(--tip-bg, var\(--action\)\)/);
   assert.match(css, /@keyframes mw-toast-in \{ from \{ opacity: 0; transform: translateY\(12px\) scale\(\.97\); \} \}/);
   assert.doesNotMatch(css, /\.toast \{[^}]*translate\(-50%/, "the Workbench's toast is centred by inset, so its arrival cannot fight its placement");
-  for (const file of ["apps/workbench/src/goals-page-renderer.ts", "apps/workbench/src/settings-renderer.ts", "apps/workbench/src/project-settings-pages.ts", "apps/workbench/src/assistant-board-frame.ts", "plugins/native/issues/src/ui.ts", "plugins/native/workflows/src/ui.ts"])
+  for (const file of ["apps/workbench/src/shell-page-renderer.ts", "apps/workbench/src/settings-renderer.ts", "apps/workbench/src/project-settings-pages.ts", "apps/workbench/src/assistant-board-frame.ts", "plugins/native/issues/src/ui.ts", "plugins/native/workflows/src/ui.ts"])
     assert.match(readFileSync(new URL(file, root), "utf8"), /class="mw-toast /, `${file} renders the one toast`);
   assert.match(readFileSync(new URL("apps/workbench/src/scripts/client/placement.ts", root), "utf8"), /"mw-toast placement-toast"/, "a completion card is the one toast");
 });

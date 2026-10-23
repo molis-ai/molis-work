@@ -152,12 +152,16 @@ test("ISSUE-02 ISSUE-04 revoked installation cannot commit a queued write or kee
     await entered.promise;
     await platform.runtime.stop(install.install_id);
     platform.runtime.grant(install.install_id, ["issues:read", "storage:private"]); release.resolve(); await refusal;
-    // BL-411: the Host routes requests to the running activation only. Held directly, the stopped activation's route calls through
-    // its refused client outside every call, so it never answers (it used to answer 403); the Host logs the refused call, and the
-    // list below shows the write did not land.
-    assert.equal(await within(oldRoute!.handle({ method: "POST", pathname: "/create", actor_id: LOCAL_PERSON_ACTOR_ID, params: {}, query: {}, body: input })), PENDING);
-    assert.ok(logged.some(entry => entry.event === "stopped_service_call" && entry.fields?.plugin_id === ISSUES_PLUGIN_ID
-      && entry.fields.install_id === install.install_id && entry.fields.service === "actions" && entry.fields.method === "invoke"));
+    // BL-403: the Host routes requests to the running activation only. Held directly, the stopped activation's route is refused by
+    // the Runtime with 403 before its handler runs, so nothing calls the refused client (no log line), and the list below shows the
+    // write did not land.
+    const answer = await within(oldRoute!.handle({ method: "POST", pathname: "/create", actor_id: LOCAL_PERSON_ACTOR_ID, params: {}, query: {}, body: input }));
+    assert.notEqual(answer, PENDING);
+    const { value } = answer as { value: { status: number; body: { code: string } } };
+    assert.equal(value.status, 403);
+    assert.equal(value.body.code, "actions.forbidden");
+    assert.ok(!logged.some(entry => entry.event === "stopped_service_call" && entry.fields?.plugin_id === ISSUES_PLUGIN_ID
+      && entry.fields.service === "actions" && entry.fields.method === "invoke"));
     platform.runtime.grant(install.install_id, ["issues:read", "issues:write", "storage:private"]); await platform.runtime.start(install.install_id);
     const list = await host.homeActionClient().invoke(user, issuesActions.list, {}) as { items: Issue[] };
     assert.equal(list.items.length, 0);

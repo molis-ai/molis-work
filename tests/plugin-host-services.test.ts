@@ -535,6 +535,7 @@ test("W5-01-D1-06: a process item port keeps its own version sequence: selecting
 
 // W3-02-F-INTEGRATION: C's owner binding and foreign-IO refusal survive the migration of Shelf's own declared errors.
 test("Shelf's Runtime action wraps an outside IO error before the SDK route can trust its forged code or diagnostic id", async () => {
+  // Shelf's personal actions are its Home half's; this project's half redeems only the Coding-result ones.
   const rig = harness(() => [], true);
   let reads = 0;
   rig.artifacts.query.getArtifactVersion = () => {

@@ -1,4 +1,4 @@
-import { currentPluginInvocation, pluginInvocationOpen, type PluginInstance } from "./action-scope.js";
+import { insideOpenPluginCall, type PluginInstance } from "./action-scope.js";
 
 /**
  * BL-411: what one activation's services do for code the plugin left running after the activation stopped. A timer or a
@@ -9,9 +9,9 @@ import { currentPluginInvocation, pluginInvocationOpen, type PluginInstance } fr
  * every call still under way goes to the service as before and is refused as before, but the refusal throws nothing: a
  * synchronous method returns `undefined`, an asynchronous one a promise that never settles, and `noted` hears of the call. A call
  * that succeeds (a read no gate refuses) returns what it returns. While the activation runs, and while its `stop` hook runs, every
- * error reaches the plugin as it did. So does every error of a call made inside an action, scene or job whose handler still runs
- * (`pluginInvocationOpen`), whichever instance's it is: that call's caller hears it, and a call left waiting or a write that did
- * nothing reported as done would mislead it. A call made before the activation stopped keeps its own outcome even when it settles
+ * error reaches the plugin as it did. So does every error of a call made inside an action, scene or job whose handler still runs,
+ * or inside a route still open (BL-403; `insideOpenPluginCall`), whichever instance's it is: that call's caller hears it, and a call
+ * left waiting or a write that did nothing reported as done would mislead it. A call made before the activation stopped keeps its own outcome even when it settles
  * after. Returned handles and the arguments a service hands a callback (a transaction, a writer, a job's control) are not
  * wrapped: what they refuse goes back into the service's own promise.
  */
@@ -73,7 +73,7 @@ function inertMembers(target: object, path: string, guard: Guard, copies: WeakMa
 
 function inertMethod(method: Function, owner: object, call: StoppedServiceCall, guard: Guard) {
   return (...args: unknown[]): unknown => {
-    if (!guard.stopped() || insideOpenCall()) return Reflect.apply(method, owner, args);
+    if (!guard.stopped() || insideOpenPluginCall()) return Reflect.apply(method, owner, args);
     let result: unknown;
     try { result = Reflect.apply(method, owner, args); }
     catch { guard.noted(call); return undefined; }
@@ -81,12 +81,6 @@ function inertMethod(method: Function, owner: object, call: StoppedServiceCall, 
     return Promise.resolve(result).catch(() => { guard.noted(call); return new Promise<never>(() => undefined); });
   };
 }
-
-/** Whether the calling code runs for an action, scene or job whose handler has not yet settled. */
-const insideOpenCall = () => {
-  const scope = currentPluginInvocation();
-  return !!scope && pluginInvocationOpen(scope);
-};
 
 /** Own and inherited members, the nearest first (a class's methods sit on its prototype), without `constructor`. */
 function members(target: object): Map<string, PropertyDescriptor> {

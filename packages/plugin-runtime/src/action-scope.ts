@@ -65,14 +65,24 @@ export function lastBegunPluginInvocation(): number {
 
 const place = (begun: number | undefined) => begun ?? running.getStore()?.begun ?? ++lastBegun;
 
-/** Scopes whose handler has returned, thrown or settled (`pluginInvocationOpen`). */
-const ended = new WeakSet<PluginInvocationScope>();
+/**
+ * A route an activation offers is a call of its own (BL-403), with no caller of its own for a service to ask: `currentPluginInvocation`
+ * still reads it as outside every action, and only `insideOpenPluginCall` sees it. It is open until its handler settles or the
+ * activation that offered it is withdrawn (`endPluginRoute`), whichever comes first.
+ */
+export interface PluginRouteCall {
+  readonly route_id: string;
+}
+const routes = new AsyncLocalStorage<PluginRouteCall>();
+
+/** Calls whose handler has returned, thrown or settled (`pluginInvocationOpen`), and routes ended before theirs did. */
+const ended = new WeakSet<object>();
 
 /** Runs `handle` in `scope`; once what it returned settles, the call is over for whatever it left running. */
-function runOpen<T>(scope: PluginInvocationScope, handle: () => T): T {
+function runOpen<S extends object, T>(store: AsyncLocalStorage<S>, scope: S, handle: () => T): T {
   const end = () => { ended.add(scope); };
   let result: T;
-  try { result = running.run(scope, handle); } catch (error) { end(); throw error; }
+  try { result = store.run(scope, handle); } catch (error) { end(); throw error; }
   if (typeof (result as { then?: unknown } | null | undefined)?.then === "function") void (result as PromiseLike<unknown>).then(end, end);
   else end();
   return result;
@@ -86,9 +96,28 @@ export function pluginInvocationOpen(scope: PluginInvocationScope): boolean {
   return !ended.has(scope);
 }
 
+/** Runs a route's handler as the call `route` (`PluginRouteCall`). */
+export function runInPluginRoute<T>(route: PluginRouteCall, handle: () => T): T {
+  return runOpen(routes, route, handle);
+}
+
+/** Ends the call `route` before its handler settles: the activation that offered the route was withdrawn. */
+export function endPluginRoute(route: PluginRouteCall): void {
+  ended.add(route);
+}
+
+/**
+ * Whether the calling code runs for a call still under way: an action, scene or job whose handler has not yet settled
+ * (`pluginInvocationOpen`), or a route that is still open (`PluginRouteCall`), whichever instance's it is.
+ */
+export function insideOpenPluginCall(): boolean {
+  const scope = running.getStore(), route = routes.getStore();
+  return (!!scope && !ended.has(scope)) || (!!route && !ended.has(route));
+}
+
 /** Scene callbacks retain their real declaration and control, never an invented action. */
 export function runInPluginScene<T>(scope: Omit<PluginSceneScope, "begun">, handle: () => T): T {
-  return runOpen({ ...scope, begun: place(undefined) }, handle);
+  return runOpen(running, { ...scope, begun: place(undefined) }, handle);
 }
 
 /** Common authority for services and nested calls, whether the caller is an action or a scene callback. */
@@ -109,21 +138,21 @@ export function pluginInvocationReadOnly(scope: PluginInvocationScope | undefine
  * background job) passes that call's `begun` along.
  */
 export function runInPluginAction<T>(scope: Omit<PluginActionScope, "begun"> & { readonly begun?: number }, handle: () => T): T {
-  return runOpen({ ...scope, begun: place(scope.begun) }, handle);
+  return runOpen(running, { ...scope, begun: place(scope.begun) }, handle);
 }
 
 /** Runs a job's work in its own scope: services ask the job's checks, never those of the call that kept it. */
 export function runInPluginJob<T>(scope: Omit<PluginJobScope, "begun"> & { readonly begun?: number }, handle: () => T): T {
-  return runOpen({ ...scope, begun: place(scope.begun) }, handle);
+  return runOpen(running, { ...scope, begun: place(scope.begun) }, handle);
 }
 
 /**
  * Runs what the Runtime does on its own behalf (starting or stopping a Plugin, delivering an event or an input change) outside
- * every action. Otherwise it keeps the scope of whichever action set it off: a subscriber would answer to the publisher's
+ * every action and route. Otherwise it keeps the scope of whichever call set it off: a subscriber would answer to the publisher's
  * caller, and a timer set up in a lazily started Plugin's `start` would answer to it for good.
  */
 export function outsidePluginAction<T>(run: () => T): T {
-  return running.exit(run);
+  return running.exit(() => routes.exit(run));
 }
 
 /** The action the calling code is running for, or nothing outside every action (`start`, a route, a timer set up elsewhere). */

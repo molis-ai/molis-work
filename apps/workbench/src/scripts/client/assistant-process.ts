@@ -73,7 +73,7 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     if (run.length === 1) { const one = line(round, run[0]); keep(one, put); placed.add(one); return; }
     // The steps sit in one body, so the group opens to its natural height like every collapsible (disclosure.ts).
     const box = keyed(round, "data-entry", "g:" + anchor, () => { const box = el("details", "assistant-steps"); box.append(el("summary", "assistant-steps-summary"), el("div", "assistant-steps-body")); return box; });
-    box.dataset.state = run.some((item) => item.state === "started") ? "started" : run.some((item) => item.state === "failed" || item.state === "unknown") ? "failed" : "completed";
+    box.dataset.state = run.some((item) => item.state === "started") ? "started" : run.some((item) => item.state === "failed") ? "failed" : run.some((item) => item.state === "unknown") ? "unknown" : "completed";
     setText(box.firstElementChild, summary(run));
     const body = box.lastElementChild, inBody = placer(body);
     const lines = run.map((item) => line(round, item));

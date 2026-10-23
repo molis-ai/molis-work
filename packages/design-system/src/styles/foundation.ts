@@ -13,6 +13,7 @@ export const FOUNDATION_STYLES = `  :root {
     --terminal-faint: #92929b;
     --terminal-border: #303036;
     --terminal-selection: #4a3d36;
+    --danger: var(--red);
     --danger-action: var(--red);
     --danger-action-ink: var(--page);
     --font: ${FONT_STACK};

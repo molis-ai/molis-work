@@ -253,9 +253,9 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [994568, 995994],
   "/assets/molis-work-arrival.css": [704663, 706089],
   "/assets/molis-work-workbench.css": [1612954, 1614339],
-  // Roving focus: child-list parents only affect their own group; added subtrees and attribute changes still visit descendant groups.
-  // The mutation-kind branch adds 39 bytes to main, which already includes the independent kanban reduction.
-  "/assets/molis-work-workbench.js": [1182906, 1182945],
+  // VUX-39/VUX-12 (slice 96): an interrupted round's check list marks each outcome with its tone and puts the close after the list, not in it;
+  // a group of steps whose only open outcome is unknown says so instead of failure. 1182945 → 1183038 (+93).
+  "/assets/molis-work-workbench.js": [1182945, 1183038],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

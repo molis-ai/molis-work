@@ -4,6 +4,7 @@ import {
 } from "@molis-ai/molis-work-design-system";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./scripts/client/assistant-island.js";
+import { ATTENTION_FACTORY_SCRIPT } from "./scripts/client/attention.js";
 import { renderWorkbenchBar } from "./immersive-shell.js";
 
 /**
@@ -11,7 +12,7 @@ import { renderWorkbenchBar } from "./immersive-shell.js";
  * `/__ui/catalog/assistant` that the board's 助理信息与任务 section loads in an iframe. The resident Assistant is the shipped
  * island in the bar the workbench composes, with its panel, tabs and list of works, the side pane's six groups, the round's
  * steps, the composer, the context strip and the attachment path. What it reads is simulated: a stand-in for the Host
- * (`src/browser/board/assistant-frame.ts`) answers `/api/assistant` from fixed works (`assistant-board-samples.ts`) that the
+ * (`src/browser/board/assistant-frame.ts`) answers `/api/assistant` and the page's attention read from fixed works (`assistant-board-samples.ts`) that the
  * Host has drawn as it draws a real answer, refuses every write, and keeps the island's per-viewer state in memory, so the
  * frame never reaches a real work or changes what the workbench remembers on this computer.
  */
@@ -73,7 +74,8 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
   <script>${ASSISTANT_FRAME_SCRIPT}</script>
   <script>(board => board.start((${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.L, route: board.route, headers: () => ({}), project: board.project,
     showToast: board.toast, openItem: board.openItem, pluginTitle: (plugin) => plugin, receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.L),
-    interaction: (client => (root, host) => client(root, { references: () => Promise.resolve({ items: [] }), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})) })))(globalThis.molisBoardAssistant);</script>
+    interaction: (client => (root, host) => client(root, { references: () => Promise.resolve({ items: [] }), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})) })))(globalThis.molisBoardAssistant);
+  (board => (${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.L, projectId: board.project.id, openItem: board.openItem, route: board.route }))(globalThis.molisBoardAssistant);</script>
 </body>
 </html>`;
 }

@@ -8,8 +8,8 @@
  *   island shows a failure. In memory it keeps a work's unsent text, takes the answer to the sample question (the round goes
  *   on to its end), closes the interrupted round once it is checked, and settles the bell's notices — so the success path
  *   is on the board beside the failure.
- * - The bell's notices come as the page's attention read brings them (`molis-work:attention`), again whenever the island
- *   asks for a fresh read.
+ * - The bell's notices come through the page's own attention reader, which the frame runs as the workbench does: the
+ *   stand-in answers its `/api/attention` read with the samples' notices and no background tasks.
  * - Every other request to `/api/` is refused too: nothing in the frame reaches the real Host.
  * - The island's per-viewer memory (`molis.assistant.*`: the open work, its tabs, drafts) is kept in memory, so the frame never
  *   changes what the workbench on this computer remembers; theme and density stay the page's own.
@@ -70,9 +70,6 @@ const moveOn = (id: string, next: View) => {
   waiting.delete(id);
   return json(copy(next));
 };
-const attention = () => document.dispatchEvent(new CustomEvent("molis-work:attention", {
-  detail: { background_tasks: null, notices: copy(S.notices), plugin_events_pending: 0, board_cursor: null, started: performance.now() } }));
-document.addEventListener("molis-work:attention-refresh", () => setTimeout(attention, 0));
 
 const READS: Record<string, () => unknown> = {
   works: () => ({ works: copy(S.works) }), notices: () => ({ notices: copy(S.notices) }), characters: () => ({ characters: [] }),
@@ -101,9 +98,12 @@ function answer(url: URL, method: string, body: string | null, signal?: AbortSig
   }
   return refuse();
 }
-// The frame reaches nothing real: the stand-in answers the Assistant's reads and drafts, and refuses every other request.
+// The frame reaches nothing real: the stand-in answers the Assistant's reads and drafts and the attention read, and refuses every other request.
 window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
   const url = new URL(input instanceof Request ? input.url : String(input), location.href), method = (init?.method ?? "GET").toUpperCase();
+  if (url.origin === location.origin && url.pathname === PREFIX + "/api/attention" && method === "GET") {
+    return Promise.resolve(json({ background_tasks: [], notices: copy(S.notices), plugin_events_pending: 0, board_cursor: null }));
+  }
   if (url.origin === location.origin && url.pathname.startsWith(PREFIX + "/api/assistant/")) return Promise.resolve(answer(url, method, typeof init?.body === "string" ? init.body : null, init?.signal));
   return Promise.resolve(refuse());
 };
@@ -140,7 +140,6 @@ one("[data-asst-attach]").addEventListener("click", () => {
   /** Opens the panel on the starting work (or a new one) the way a page asks the Assistant to open. */
   start(island: unknown) {
     document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail: data.current ? { work_id: data.current } : { new: true } }));
-    attention();
     return island;
   },
 };

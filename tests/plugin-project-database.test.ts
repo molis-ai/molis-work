@@ -283,7 +283,7 @@ test("every shipped plugin's Home library is registered to that plugin, at the b
   const shipped = BUILTIN_PLUGIN_CATALOG.flatMap(entry => [
     ...entry.home_store ? [{ path: entry.home_store.path, owner: entry.manifest.plugin_id, baseline: entry.home_store.library?.baseline }] : [],
     ...entry.runtime?.database ? [{ path: entry.runtime.database.store_name, owner: entry.manifest.plugin_id, baseline: entry.runtime.database }] : []]);
-  assert.deepEqual(shipped.map(store => store.path).sort(), ["cognia", "dataset", "form", "images", "issues", "jelly", "lingguang", "pages", "ppt", "shelf", "todo", "workflows"]);
+  assert.deepEqual(shipped.map(store => store.path).sort(), ["artifacts", "cognia", "dataset", "form", "images", "issues", "jelly", "lingguang", "pages", "ppt", "shelf", "todo", "workflows"]);
   for (const { path, owner, baseline } of shipped) {
     const store = homeStores().get(path);
     assert.equal(store?.owner, owner, path);

@@ -5,7 +5,7 @@ import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/pl
 import { projectsCapabilities, projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { workspaceReadActions, type WorkspaceFileQuery, type WorkspaceGitQuery, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { readConflictFile, readGitSummary, readPullRequestSupport } from "./git-operations.js";
+import { readConflictFile, readGitSummary, readPullRequestSupport } from "./workspace-git-operations.js";
 import { readWorkspaceGit } from "./workspace-git.js";
 import { readWorkspaceFile } from "./workspace-files.js";
 import type { LocalHost } from "./local-host.js";

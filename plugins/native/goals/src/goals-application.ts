@@ -48,7 +48,10 @@ export function createGoalsApplication(ports: GoalsApplicationPorts) {
     governance, query: goalTree, inputs, normalizer: new GoalTreeDecisionNormalizer(governance.provenance), conflicts, materialization, followup, clock,
     attention: goalDecisionAttention });
   const goalTreeCheck = new GoalTreeCheckApplication({ goals: { query: goals.query, planning: goals.planning }, governance, query: goalTree, materialization, clock });
-  return { goalEvents, goalQueries, goalTree, goalTreeSubmission, goalTreeCheck, goalTreeDecision, goalDecisionAttention };
+  // Each proposal write settles its own Goal's decision reminder. What drifted while the project was closed (a restored copy,
+  // maintenance, a status set from Inbox) catches up once when it opens, not on every request (PG-033 step 1, PG094-08).
+  const projectOpened = (projectId: string) => { if (goals.query.getBoard(projectId)) goalDecisionAttention.reconcile(projectId); };
+  return { goalEvents, goalQueries, goalTree, goalTreeSubmission, goalTreeCheck, goalTreeDecision, goalDecisionAttention, projectOpened };
 }
 
 export type GoalsApplication = ReturnType<typeof createGoalsApplication>;

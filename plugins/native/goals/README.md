@@ -9,7 +9,7 @@ Status: `partial`。插件合同：`@molis-ai/molis-work-contracts/platform/plug
 
 ## 一次典型调用
 
-Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在包内组装自己的应用（内部类不从 `index.ts` 导出）。其中 `goalEvents` 连接创建、普通笔记、类型与要求、上报、决定、收尾和明确继续；`goalQueries` 提供项目指导和历史读取。HTTP handler 与 UI contribution 将同一当前事实交给各 App，目录和正文无需重建旧 Claim/Run 动作状态。
+Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在包内组装自己的应用（内部类不从 `index.ts` 导出）。其中 `goalEvents` 连接创建、普通笔记、类型与要求、上报、决定、收尾和明确继续；`goalQueries` 提供项目指导和历史读取。提案的提交与决定写完后各自结算对应 Goal 的决定提醒（Inbox 只读这条引用）；项目打开时 `projectOpened` 补对一次，页面请求与 Inbox 列表不再对账。HTTP handler 与 UI contribution 将同一当前事实交给各 App，目录和正文无需重建旧 Claim/Run 动作状态。
 
 ## 从哪里读代码
 

@@ -20,13 +20,11 @@ export interface McpResumeFacts {
 export function buildMcpResumeView(
   facts: McpResumeFacts,
   explicitGoalId: string | null,
-  sessionGoalId: string | null,
 ) {
   const goalsById = new Map(facts.goals.map((goal) => [goal.goal_id, goal]));
-  const preferred = [
-    { goal_id: explicitGoalId, source: "host_focus" },
-    { goal_id: sessionGoalId, source: "session_focus" },
-  ].find((candidate) => candidate.goal_id && goalsById.has(candidate.goal_id));
+  const preferred = explicitGoalId && goalsById.has(explicitGoalId)
+    ? { goal_id: explicitGoalId, source: "host_focus" }
+    : undefined;
   const ordered = [...facts.goals].sort((left, right) => {
     const rank = (goal: McpResumeGoal): number => {
       if (goal.work_status === "open" && goal.pending_decision_count > 0) return 0;
@@ -40,7 +38,7 @@ export function buildMcpResumeView(
       || left.goal_id.localeCompare(right.goal_id);
   });
   const focused = preferred
-    ? goalsById.get(preferred.goal_id!)!
+    ? goalsById.get(preferred.goal_id)!
     : ordered[0] ?? null;
   const source = preferred?.source ?? (focused ? "project_recovery_order" : null);
   const nextGoals = ordered

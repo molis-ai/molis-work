@@ -6,12 +6,11 @@ import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@m
 import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsActions, readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals";
 import { createMcpRuntimeContextHandlers, createMcpContextPresenter, handleMcpMessage,
-  mcpRuntimeSessionActivity, MCP_SERVER_INFO as SERVER_INFO,
+  MCP_SERVER_INFO as SERVER_INFO,
   createActionMcpPorts, isPlatformMcpTool, isRuntimeContextMcpTool, molisWorkActionToolName,
   type McpToolResult, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
-import { RuntimeSessionHost } from "./runtime-session.js";
 import { RuntimeProjectConnection } from "./runtime-project-connection.js";
 import { runtimeContextHostFromEnvironment } from "./runtime-context.js";
 import { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
@@ -48,7 +47,6 @@ export class LocalMcpServer {
     }
   }
   private readonly contextTools: ReturnType<typeof createMcpRuntimeContextHandlers>;
-  private readonly runtimeSessions: RuntimeSessionHost;
   private readonly linkPanelSession: ReturnType<typeof createRuntimePanelSessionLinker>;
   private readonly localHost: MolisWorkLocalHost;
   private readonly ownsLocalHost: boolean;
@@ -81,7 +79,6 @@ export class LocalMcpServer {
         contextSignal: () => this.transportLifetime.signal,
         readGuidance: async () => (await this.contextActions()).invoke(goalsActions.guidanceRead, {}),
         readResumeFacts: async (_connection, focusGoalIds) => readGoalResumeFacts(await this.contextActions(), focusGoalIds),
-        readSession: (host, boundProjectId) => this.runtimeSessions.read(host, boundProjectId),
       }),
     });
     this.runtimeContextHost =
@@ -106,7 +103,6 @@ export class LocalMcpServer {
       })),
       isMissingPanel: (error) => error instanceof ActionError && error.code === "catalog.panel_not_found",
     });
-    this.runtimeSessions = new RuntimeSessionHost();
   }
 
   /**
@@ -249,11 +245,7 @@ export class LocalMcpServer {
       // A Home action called from a bound project still runs in that project's context (e.g. a judgment records where it was asked).
       const runtimeCall = this.runtimeContextHost ? callContext : undefined;
       const actions = await this.authorizedActions(runtimeCall);
-      const result = await actions.ports.callTool(name, arguments_, callContext);
-      if (entry.action && this.runtimeConnection === connection && typeof result !== "string" && result.structuredContent) {
-        await this.recordRuntimeSessionActivity(entry.action.capability_id, name, arguments_, result.structuredContent, callContext);
-      }
-      return result;
+      return actions.ports.callTool(name, arguments_, callContext);
     }
     const contextHandler = lookupContextTool(this.contextTools, name);
     if (contextHandler) return contextHandler(arguments_ ?? {}, callContext);
@@ -263,21 +255,6 @@ export class LocalMcpServer {
         home: this.runtimeContextHost?.homeDirectory ?? resolveMolisWorkHome(),
         origin: this.actionServiceUrl ?? readProductEnv("WEB_URL") ?? DEFAULT_RESIDENT_HOST_URL,
         signal: this.transportLifetime.signal } } : {}) }, name, arguments_);
-  }
-
-  private async recordRuntimeSessionActivity(
-    capabilityId: string,
-    name: string,
-    arguments_: Record<string, unknown>,
-    result: Record<string, unknown>,
-    callContext: MolisWorkMcpToolCallContext,
-  ): Promise<void> {
-    const host = this.runtimeContextHost;
-    if (this.audience !== "runtime" || !host?.homeDirectory || !this.runtimeConnection) return;
-    const activity = mcpRuntimeSessionActivity(capabilityId, name, arguments_, result);
-    if (!activity) return;
-    const activeHost = this.requireRuntimeContextHost(callContext);
-    await this.runtimeSessions.record(activity, activeHost, this.runtimeConnection.projectId);
   }
 
   private requireRuntimeContextHost(context: MolisWorkMcpToolCallContext = EMPTY_TOOL_CALL_CONTEXT): MolisWorkRuntimeContextHost {

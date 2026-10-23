@@ -227,7 +227,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
 | --- | --- | --- |
 | Agent 中途问人 | 角色 `host_tools` 带 `ask-user` → Runtime 级配置的题型 `hostQuestionTypes()` 与种类 `hostReferenceKinds()`（`horizontal/agent-host/src/adapters/prologue-node-port.ts` 交给 SDK）→ Run 停在 `awaiting_input` → `agentQuestionHtml` 画卡 → 页面读回字段、`questionAnswer` → Run 的控制动作 → Runtime 逐题检查，退回 `agent.answer_invalid` 与 `problems`，`questionErrors` 写成字段旁的一行 | `tests/agent-question-types.test.ts`、`tests/agent-typed-questions.test.ts`、`tests/interaction-examples.test.ts` |
 | 对象引用题 | 种类从内置 Manifest 的搜索来源与主体读取算出 → 模型只能问这些种类（`askUserReferenceKinds`）→ 卡在人打字时调 `search.references` → 交给 Run 前宿主以会话主人的身份重读（S-26），用主人此刻的标题 | `tests/agent-reference-questions.test.ts`、`tests/security-invariants-object-references.test.ts` |
-| 建议一步（操作卡） | 有冻结 `action_tools` 的一轮，`host_tools` 带 `suggest-action` → 建议进 `AgentRunView.offers`，不执行 → 调用方用插件 SDK 的 `draftActionCard` 落成卡、`runActionCard` 执行（只经 `agent.offers.run.v1`，S-29）、`sweepActionCard` 标出失效 | `tests/action-cards.test.ts`、`tests/agent-host-offers.test.ts`、`tests/security-invariants-agent-suggestions.test.ts` |
+| 建议一步（操作卡） | 有冻结 `action_tools` 的一轮，`host_tools` 带 `suggest-action` → 建议进 `AgentRunView.offers`，不执行 → 调用方用插件 SDK 的 `draftActionCard` 落成卡、`runActionCard` 执行（只经 `agent.offers.run.v1`，S-29）、`sweepActionCard` 标出失效；插件自己的页面用 `actionCardView` 得到人读的卡，交给 `services.interaction` 画卡和下一步行（S-56） | `tests/action-cards.test.ts`、`tests/agent-host-offers.test.ts`、`tests/security-invariants-agent-suggestions.test.ts` |
 | 不跑 Agent 的动作先问 | 动作返回 `{ status: "needs_input", interaction }` → 宿主在插件路由上画同一张卡（`apps/local-host/src/plugin-interaction-answer.ts`）→ 带着回答再调一次 → 插件用 `questionProblems` 检查，与 Runtime 同一套规则 | `tests/form-draft-questions.test.ts`、`tests/plugin-interaction-answer.test.ts`、`tests/question-rules-consistency.test.ts` |
 
 三个代表性例子（spec §15.8）：
@@ -263,7 +263,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
   | 文字补全的默认 | 120 秒，`max_output_tokens` 5000 | `apps/local-host/src/host-complete-text.ts` |
   | Runtime 插件的 `services.model` | 默认 120 秒、至多 600 秒；5000、至多 12000 个输出 token | `PLUGIN_MODEL_LIMITS`（`packages/contracts/src/platform/plugin-model.ts`） |
   | 生成插件的 `model.generate` | 110 秒 | `apps/local-host/src/plugin-builder/model.ts` |
-  | Shelf 的自动处理 | 600 秒、12000 个输出 token | `apps/local-host/src/shelf-ai.ts` |
+  | Shelf 的自动处理 | 600 秒、12000 个输出 token | `plugins/native/shelf/src/ai.ts`（Home 实例经 `services.model`） |
   | Cognia 与 Alchemist | 180 秒（Alchemist 4096 个输出 token） | `plugins/native/cognia/src/plugin.ts`、`apps/local-host/src/alchemist-prologue.ts` |
   | 项目上手 | 180 秒 | `apps/local-host/src/context-onboarding-service.ts` |
   | Agent 轮次的每次模型调用 | 默认 180 秒；预算里的 `max_duration_ms` 优先 | `horizontal/agent-host/src/adapters/prologue-run.ts`（`MODEL_CALL_TIMEOUT_MS`） |

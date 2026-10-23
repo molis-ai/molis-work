@@ -135,12 +135,12 @@
       "lines": 287,
       "methods": 29
     },
-    "file modules/shelf/src/store.ts": 1119,
+    "file modules/shelf/src/store.ts": 1081,
     "class modules/shelf/src/store.ts#ShelfStore": {
-      "lines": 708,
-      "methods": 34
+      "lines": 678,
+      "methods": 32
     },
-    "function modules/shelf/src/store.ts#runJob": 197,
+    "function modules/shelf/src/store.ts#runJob": 184,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 753,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
@@ -233,7 +233,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 449,
+  "testInternalImports": 448,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -415,7 +415,7 @@
     "tests/schedule-operations.test.ts": 1,
     "tests/search-evidence-runtime.test.ts": 1,
     "tests/secret-store-keychain-retry.test.ts": 1,
-    "tests/shelf-ai-host.test.ts": 4,
+    "tests/shelf-ai-host.test.ts": 3,
     "tests/shelf-client-boundaries.e2e.test.ts": 1,
     "tests/shelf-material-extraction.test.ts": 3,
     "tests/shelf-plugin.test.ts": 1,
@@ -741,12 +741,12 @@
     "apps/local-host/src/project-host.ts#register-provider": 4,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 4,
+  "hybridPluginsTotal": 3,
   "hybridPlugins": {
     "coding#host-files": 1,
-    "shelf#host-files": 3
+    "shelf#host-files": 2
   },
-  "pluginOutsideMentionsTotal": 335,
+  "pluginOutsideMentionsTotal": 333,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
@@ -768,7 +768,7 @@
     "plugin-builder#outside-files": 18,
     "ppt#outside-files": 8,
     "schedule#outside-files": 11,
-    "shelf#outside-files": 16,
+    "shelf#outside-files": 14,
     "text-stats#outside-files": 7,
     "todo#outside-files": 7,
     "work#outside-files": 23,

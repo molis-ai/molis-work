@@ -2868,6 +2868,7 @@ export interface PluginHostServices {
     readonly artifacts?: PluginArtifactClient;
     readonly processItems?: PluginProcessItemClient;
     readonly ui: PluginUiClient;
+    readonly interaction?: import("platform/plugin-interaction").PluginInteractionClient;
     readonly events?: PluginEventsClient;
     readonly inputs?: PluginInputsClient;
     readonly outputs?: PluginOutputsClient;
@@ -3035,6 +3036,29 @@ export interface PluginIntegrationContribution {
     signal_adapter: RawEventAdapter;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionHandlerBinding[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
+}
+
+export interface PluginInteractionClient {
+    questionHtml(question: AgentPendingQuestion, options?: {
+        readonly reask?: boolean;
+    }): Promise<string>;
+    cardHtml(card: AssistantCard, options?: {
+        readonly redo?: boolean;
+    }): Promise<string>;
+    nextStepsHtml(input: PluginInteractionNextSteps): Promise<string>;
+}
+
+export interface PluginInteractionNextSteps {
+    readonly questions: readonly AgentPendingQuestion[];
+    readonly cards: readonly AssistantCard[];
+    readonly finished?: boolean;
+    readonly follow_ups?: readonly PluginInteractionStep[];
+}
+
+export interface PluginInteractionStep {
+    readonly id: string;
+    readonly label: string;
+    readonly source: string;
 }
 
 export interface PluginJobControl {
@@ -3651,7 +3675,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };

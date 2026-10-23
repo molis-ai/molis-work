@@ -20,7 +20,7 @@ export { fillMessage } from "./message-text.js";
 export { redactSecrets } from "./redact-secrets.js";
 export { questionAnswer } from "./question-answers.js";
 export { QUESTION_REASK, questionDraftMaterial } from "./question-drafts.js";
-export { cardSubject, draftActionCard, runActionCard, dismissActionCard, sweepActionCard, type ActionCard, type ActionCardStatus, type ActionCardPorts, type ActionCardRefusal, type CardStore, type CardAuthority } from "./action-cards.js";
+export { actionCardView, cardSubject, draftActionCard, runActionCard, dismissActionCard, sweepActionCard, type ActionCard, type ActionCardStatus, type ActionCardPorts, type ActionCardRefusal, type CardStore, type CardAuthority } from "./action-cards.js";
 export { cardInputValues, instantIn, wallClockIn } from "./card-values.js";
 /** The rules of a question set and its answer, for a plugin that asks without an Agent run; the same verdicts as the Agent runtime's. */
 export { QUESTION_LIMITS, questionProblems, questionSetFlaw } from "./question-rules.js";

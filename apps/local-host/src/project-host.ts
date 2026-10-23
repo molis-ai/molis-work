@@ -172,7 +172,7 @@ export class MolisWorkLocalHost {
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
             add(goalsActionProvider(runtime, personalMethods, this.actionClient(reference)));
             add(workActionProvider(reference.project_id, this.sessions, this.actionClient(reference)));
-            add(projectWorkspaceActionProvider(reference.project_id, this.sessions, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined));
+            add(projectWorkspaceActionProvider(reference.project_id, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined));
             add(artifactActionProvider(runtime, options, this.actionClient(reference)));
             for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) add(provider);
             add(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions }, feed));

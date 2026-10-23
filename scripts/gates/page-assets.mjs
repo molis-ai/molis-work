@@ -239,12 +239,12 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // Memory operation retries and truthful usage states: the user approved +3093 B, then +105 B. Equivalent reuse saved
-  // another 5 B, so the remaining net ceiling is +3193 B. Main d7077301f already includes VUX 102–108; this admission
-  // preserves only the existing Memory allowance on that base, measured again after merging both implementations.
+  // another 5 B, so the remaining net ceiling is +3193 B. Main cdb47255d includes the independent VUX changes;
+  // retain only Memory's existing allowance, with the integrated build measured before delivery.
   "/assets/molis-work-workbench.js": [1189644, 1192837],
-  // Stable original-input identity, including failed-send retries and derived continuations: the user approved +738 B.
-  // Reuse in the existing sender saved 21 B; keep the tightened +717 B net ceiling on the new main base.
-  "/assets/molis-work-plugins/coding.js": [375272, 375989],
+  // Stable original-input identity: +738 B approved, tightened by 21 B of equivalent reuse to +717 B.
+  // VUX-12's +137 B is already in main's 375409 B base, not an extra Memory allowance.
+  "/assets/molis-work-plugins/coding.js": [375409, 376126],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentMemoryCapability, AgentMemoryUseReceipt, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentMemoryUseReceipt, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ActionError, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -25,7 +25,8 @@ import type { MolisWorkLocalHost } from "../project-host.js";
 import { learnFromQueuedWork } from "./memory-learning.js";
 import { assistantMemorySources, type AssistantMemoryLearningRequest } from "../assistant/assistant-memory-sources.js";
 import { runUpkeep, subjectTitles } from "./memory-upkeep.js";
-import { memoryCallService, memoryCaller, memoryCommandBody } from "./memory-effect.js";
+import { controlledMemoryService, memoryCallService, memoryCaller, memoryCommandBody } from "./memory-effect.js";
+import { memorySources } from "./memory-sources.js";
 import { hostLog } from "../host-log.js";
 import { prologueMemoryBackend } from "./memory-backend.js";
 import type { MemoryRuntimePolicyOwner } from "./memory-runtime-policy.js";
@@ -45,6 +46,9 @@ const RUNTIME = "prologue";
 interface MemoryHost {
   readonly service: MemoryService;
   readonly policy: MemoryRuntimePolicyOwner;
+  withExecution(control: AgentMemoryExecutionControl): MemoryService;
+  /** The same SourcePort, restricted to the Assistant's fixed Host installation. */
+  readonly checkAssistantSources: ReturnType<typeof memorySources>["check"];
   /** Who the call is for, from its trusted context: the consumer from the audience, never from input. */
   caller(context: ActionCallContext, work?: { work_id: string; title: string } | null): MemoryCaller;
   /**
@@ -127,7 +131,8 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     return memory;
   };
   const backend = prologueMemoryBackend(store);
-  const service = new MemoryService({ backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) });
+  const servicePorts = { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) };
+  const service = new MemoryService(servicePorts);
   const forCall = (context: ActionExecutionContext) => memoryCallService(context, { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) },
     control => prologueMemoryBackend(store, control), () => !closed);
   const caller = memoryCaller;
@@ -215,6 +220,12 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const deletion = registerMemoryProjectDeletion({ ...ports, backend, ledger, alive: () => !closed });
   const host: MemoryHost = {
     service,
+    withExecution: control => controlledMemoryService(servicePorts,
+      current => prologueMemoryBackend(store, current), {
+        beforeEffect: () => control.beforeEffect(),
+        assert_current: () => { if (closed || ports.localHost.lifecycle() !== "running") throw memoryErrors.unavailable("原记忆服务已关闭"); control.assert_current(); },
+      }),
+    checkAssistantSources: (caller, request) => assistantSources.check(caller, request),
     policy: {
       alive: () => !closed,
       prefsFor: (scope, projectId) => service.prefsFor(LOCAL_PERSON, scope, projectId),
@@ -237,6 +248,11 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     },
     close: () => { closed = true; dispose(); ledger.close(); hosts.delete(ports.localHost); },
   };
+  const assistantSources = memorySources(ports.homeDirectory, () => closed ? undefined : {
+    adapter: ports.agentHost.adapter(RUNTIME), policy: host.policy,
+    sourceAllowed: (actor, scope, owner, refs) => service.sourceAllowed(actor, scope, owner, refs),
+    sessionAllowed: async owner => owner.actor_id === LOCAL_PERSON && owner.plugin_id === ASSISTANT_PLUGIN_ID && owner.install_id === ASSISTANT_INSTALL_ID,
+  });
   hosts.set(ports.localHost, { home: ports.homeDirectory, host });
   return host;
 }

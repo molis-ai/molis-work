@@ -6,7 +6,7 @@ import { recordAssistantResultCard } from "./assistant-result-card.js";
 import { controlAssistantWork } from "./assistant-work-control.js";
 import { AssistantFollowUps, type AssistantFollowUpPorts } from "./assistant-followups.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentDelegation, AgentDocumentCapability, AgentMemoryExecutionControl, AgentMemoryTools, AgentScheduleCapability, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError, requireSynchronous, actionResultSubject, isSubjectReader, type HostOfferedOriginalInput, type ActionSubjectContext, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { describeReview } from "./assistant-review-words.js";
@@ -40,7 +40,8 @@ import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/se
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { CodingExecutor, dispatchControl, type CodingControl, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
 import { AssistantInputs, exactRevision, inputsOf, queuedInputs, readAssistantInputs, memoryLearningSources, withdrawInput, type AssistantMemorySourceRef, type SendIntent } from "./assistant-inputs.js";
-import { memoryInputSnapshots } from "../memory/memory-source-identity.js";
+import { memoryInputSnapshots, memoryInputSource } from "../memory/memory-source-identity.js";
+import type { memorySources } from "../memory/memory-sources.js";
 import { startOfToday } from "./assistant-usage-ledger.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./assistant-landing.js";
@@ -80,7 +81,8 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   /** Methods Plugins offer for business work, as registered with the Host; bodies only by id and version. */
   methods?: { list(): AgentMethodView[]; read(ownerId: string, skillId: string, version?: number): AgentMethodRegistration };
   /** The platform memory of this Home (specs/archive/memory-system). Absent: the Assistant keeps and recalls nothing. */
-  memory?(): MemoryService | undefined;
+  memory?(control?: AgentMemoryExecutionControl): MemoryService | undefined;
+  memorySources?: Pick<ReturnType<typeof memorySources>, "check">;
   /** A round of a work finished: the platform memory may draw out what is worth keeping from the person's own words. */
   learnFromRound?(input: { work: StoredWork; said: string[]; run_id: string; sources: AssistantMemorySourceRef[] }): void;
 }
@@ -342,6 +344,7 @@ export class AssistantService {
   private readonly chosenMemory = new Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>();
   /** Where the person's words to a round under way go: its open question, or a supplement. */
   private readonly inputs = new AssistantInputs(MAX_TEXT);
+  private readonly memorySourceWithdrawals = new Set<(eventId: string) => void>();
   /** Sub-tasks this person's works hand out, and what they hand back. */
   private readonly delegations: AssistantDelegations;
   readonly offers: AssistantOffers;
@@ -714,7 +717,8 @@ export class AssistantService {
   async control(workId: string, control: AssistantControl): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
     if (control?.kind === "withdraw") {
-      await withdrawInput(work, this.store.rounds(work.work_id), control, { coding: () => this.coding(work), runtime: async () => inputsOf((await this.ports.host()).adapter(RUNTIME)) });
+      await withdrawInput(work, this.store.rounds(work.work_id), control, { coding: () => this.coding(work), runtime: async () => inputsOf((await this.ports.host()).adapter(RUNTIME)),
+        beforeWithdraw: (session_id, input_id) => { const source = memoryInputSource({ actor_id: this.actorId, session_id, input_id, kind: "supplement" }); for (const cancel of this.memorySourceWithdrawals) cancel(source.event_id); } });
     } else await controlAssistantWork(work, control, { store: this.store, actorId: this.actorId, continuations: this.continuations, delegations: this.delegations,
       host: () => this.ports.host(), coding: work => this.coding(work), latest: (host, work) => this.latestRun(host, work), cancelSetups: this.ports.cancelSetups, retainSetups: this.ports.retainSetups });
     return this.read(workId);
@@ -1720,7 +1724,8 @@ export class AssistantService {
     const memory = this.ports.memory?.();
     if (!memory) return undefined;
     const projectId = work.project_ref?.project_id ?? null;
-    return assistantMemoryTools({ memory, actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId),
+    return assistantMemoryTools({ memory, controlled: control => this.ports.memory?.(control), sources: this.ports.memorySources, currentWork: () => this.store.get(this.actorId, work.work_id), actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId),
+      onSourceWithdrawal: listener => { this.memorySourceWithdrawals.add(listener); return () => { this.memorySourceWithdrawals.delete(listener); }; },
       spoken: async () => memoryInputSnapshots(this.actorId, (await Promise.resolve().then(() => this.assistantPart(this.store.get(this.actorId, work.work_id))).catch(() => null))?.sourceViews ?? []) });
   }
 

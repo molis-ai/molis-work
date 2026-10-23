@@ -16,6 +16,8 @@ Home Runtime 渲染工作台页面时，同时交回已声明 stage 的 contribu
 
 助理本人初始输入由受保护发送入口交给可信 caller，再经 AgentHost 固定在现 Session attempt；业务正文不能声明作者。人工记住与完成学习只读 Runtime 的原件及未撤回补充，初始原件跨接续按原引用去重，不从展示轮次或 `starting` 推断。无来源的旧调用仍可运行，但不补作本人；页面、重新提问、Host 与委托输入保持派生。范围及后续 SDK 补充时间依赖见 [记忆策略 §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)。
 
+助理记忆工具必须携带 Host 本次执行的 signal 与操作号，通过现受控 MemoryService 写入。正式 Host 提交前重读实际采用的 canonical 原件，同步复核停止/暂停、工作身份、权限与遗忘屏障；ledger 同步写也受同一控制。明确保存只绑定实际匹配的本人原件。已校验作用域的补充撤回会同步取消采用它的在途调用，结束即解绑，不影响无关来源；已提交效果不因撤回伪报零写。定向回归 `tests/memory-review-remember-cancellation.test.ts` 覆盖正常、停止、暂停、撤回与撤权的交错及重开结果。
+
 Web 工厂自建 Host 时，`server.close(callback)` 在自有 Host 和目录连接关闭后才调用回调；调用方应等待它，再退出或清理 Home。传入的借用 Host 仍由嵌入者负责 `await host.close()`。
 
 ## 一次典型调用

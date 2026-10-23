@@ -28,6 +28,8 @@ adapter 只报告事实并执行已批准的工作。
 
 ## 记忆晋升与可信原件桥
 
+`AgentMemoryTools` 的保存、建议、查询与停用回调必须接收本次可信执行控制。gateway 保留实际工具/Run 的取消信号，并为一次执行生成固定操作号；模型参数或 tool-call id 不授予操作身份。LocalHost 将此控制贯穿实际 Host 提交与 ledger，未提供控制的旧直接调用拒绝；不新增跨重启工具重放保证。
+
 形成沿 `memory.candidates.form` 委托同一 SDK 候选主人；Host extractor 只在既有 `memory-extractor` 槽执行一次提炼。固定 slots、replacement 原版本与 canonical 来源由 SDK 校验，Adapter 仅投影 snake case，不产生候选或批准。已有记忆（最多 30）及待审候选（最多 20）的授权展示快照随这次 ALS 调用传给 extractor，正文只传一次，不成为来源证明，不存第二份账；快照不能替代后续来源、权限、期限与目标 CAS。进程内 `validate_context` 与 caller/context 分开保存在本次 ALS 中，在真实模型 before_dispatch 前复核原 ref/version 与当前读取许可，不序列化、不落盘、不发模型；`none` 零调用。逐项 created/replayed/rejected/unknown、部分成功、取消和未知用量完整返回。正常返回的 reported usage 先交 SDK，再由来源与实际存储门拒绝迟到写入；Host 自身拒绝结果或取消竞速尚未交回结果时，usage 保持 unknown，不推算为零。`trigger:none` 委托 SDK 零来源/模型读取；缺 extractor 明确 unavailable。验证使用公开 Adapter、真实 Node 存储与本机 HTTP，不宣称真实模型质量已验收。
 
 补充原件证明由 Host 绑定实际 install、Action 和 `send.<input_id>`；无证明的 Action 输入按 host 来源处理，不因自报 person 升权。混合输入的 raw 原件只原位保存，外层正文仍是唯一模型材料；初始输入与补充输入的证明用途隔离，不能互换。Adapter 只投影已核验原件，不从组合正文或分隔符反推本人原话。

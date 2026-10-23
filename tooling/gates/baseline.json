@@ -59,7 +59,7 @@
       "lines": 602,
       "methods": 18
     },
-    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 356,
+    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 350,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
       "lines": 381,
       "methods": 12
@@ -693,7 +693,7 @@
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },
-  "typedCapabilitiesTotal": 92,
+  "typedCapabilitiesTotal": 90,
   "typedCapabilities": {
     "apps/local-host/src/agent-host-composition.ts#register-calls": 1,
     "apps/local-host/src/local-host.ts#type-refs": 5,
@@ -706,8 +706,8 @@
     "packages/contracts/src/platform/actions.ts#type-refs": 1,
     "packages/contracts/src/platform/app-host.ts#type-refs": 4,
     "packages/contracts/src/platform/plugin.ts#type-refs": 1,
-    "packages/contracts/src/services/agent-host.ts#type-refs": 13,
-    "packages/contracts/src/services/agent-host.ts#without-action": 13,
+    "packages/contracts/src/services/agent-host.ts#type-refs": 12,
+    "packages/contracts/src/services/agent-host.ts#without-action": 12,
     "packages/kernel/src/action-service.ts#register-calls": 1,
     "packages/kernel/src/index.ts#type-refs": 5,
     "packages/kernel/src/index.ts#register-calls": 2,

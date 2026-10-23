@@ -73,13 +73,14 @@ const writers = new WeakSet<object>();
  * the agent Host, so one table answers both the actions and the typed capabilities still left (the real handlers are tested in
  * tests/agent-host-actions.test.ts). `answer` gives what an action returns for its input; actions the test serves itself are `served`.
  */
-export function fakeAgentHostActions(actions: ReturnType<typeof pluginActions>, answer: (definition: ActionDefinition, input: unknown) => unknown, served: readonly ActionDefinition[] = []) {
+export function fakeAgentHostActions(actions: ReturnType<typeof pluginActions>, answer: (definition: ActionDefinition, input: unknown, options: { signal?: AbortSignal }) => unknown,
+  served: readonly ActionDefinition[] = []) {
   if (agentHosts.has(actions.registry)) return actions;
   agentHosts.add(actions.registry);
   const definitions = (Object.values(agentHostCapabilities).filter((definition): definition is ActionDefinition<never, unknown> => "action" in definition && definition.action !== undefined) as ActionDefinition[])
     .filter(definition => !served.some(own => own.capability_id === definition.capability_id));
   actions.registry.registerProvider({ provider: { provider_id: "agent-host-fixture", title: "Agent 宿主", kind: "system" }, definitions,
-    handlers: definitions.map(definition => ({ ...definition, handle: async (_caller: ActionCallContext, input: unknown) => completeView(definition, await answer(definition, input)) })) });
+    handlers: definitions.map(definition => ({ ...definition, handle: async (caller: ActionCallContext, input: unknown) => completeView(definition, await answer(definition, input, { signal: caller.signal })) })) });
   return actions;
 }
 const agentHosts = new WeakSet<object>();
@@ -104,6 +105,7 @@ const runView = (value: unknown) => isRecord(value) ? { ...RUN_VIEW, ...value } 
 function completeView(definition: ActionDefinition, value: unknown): unknown {
   switch (definition.capability_id) {
     case agentHostCapabilities.readRun.capability_id: return runView(value);
+    case agentHostCapabilities.waitRun.capability_id: return isRecord(value) ? { ...value, view: runView(value.view) } : value;
     case agentHostCapabilities.readSession.capability_id:
       return isRecord(value) ? { ...SESSION_VIEW, ...value, latest_run: value.latest_run ? runView(value.latest_run) : null } : value;
     case agentHostCapabilities.startRun.capability_id: return isRecord(value) ? { frozen: {}, ...value } : value;

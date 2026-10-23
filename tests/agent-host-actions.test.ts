@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { LocalProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities as agent, type AgentRuntimeAdapter, type AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { callerPlugin, startPlugin } from "./fixtures/plugin-callers.js";
@@ -255,20 +255,24 @@ const SIX = [agent.controlRun, agent.readCommandOutput, agent.inspectRecovery, a
 const READS = [agent.readSession, agent.readRun, agent.readRunReviews, agent.listSubagents, agent.prepareRewind];
 const recovery = { session_id: "s1", blockers: [], runs: [{ run_id: "r1", version: 1, live: false, waiting: 0, can_close: true, blockers: [], operations: [] }] };
 
-async function roundsSetup(t: TestContext) {
+async function roundsSetup(t: TestContext, home = false) {
   const directory = await mkdtemp(join(tmpdir(), "agent-host-rounds-"));
-  const localHost = new MolisWorkLocalHost();
+  // With a Home the Host keeps its call log, which RAC-181 reads.
+  const localHost = home ? new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }) : new MolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: PROJECT });
-  const composition = composeAgentHost({ localHost, workspaceFor: () => null });
-  const seen: Array<[string, unknown[]]> = [], owner: { current?: Record<string, string> } = {};
+  // A Host with a Home owns its Agent service; the fixture's Runtime is registered on it either way.
+  const composition = home ? localHost.ensureAgentService(directory, () => composeAgentHost({ localHost, homeDirectory: directory, workspaceFor: () => null }))
+    : composeAgentHost({ localHost, workspaceFor: () => null });
+  const seen: Array<[string, unknown[]]> = [], owner: { current?: Record<string, string> } = {}, observers = new Set<(view: never) => void>();
   const unused = async (): Promise<never> => { throw new Error("Not used by this fixture"); };
   const answer = <T>(name: string, value: (args: unknown[]) => T) => async (...args: unknown[]) => { seen.push([name, args]); return value(args); };
   composition.agentHost.register({
     descriptor: { runtime_id: RUNTIME, display_name: "Rounds fixture", provider_version: "1", capabilities: emptyCapabilityMatrix() },
     async health() { return { ok: true, status: "ready", message: "ready" }; },
     createSession: unused, start: unused,
-    read: answer("read", args => ({ ref: args[0], phase: "completed", frozen: {}, turns: [], activity: [], usage: {}, awaiting_input: [], started_at: "2026-10-23T00:00:00.000Z", ended_at: null })),
-    observe() { throw new Error("Not used by this fixture"); },
+    read: answer("read", args => ({ ...ROUND_VIEW, ref: args[0] })),
+    // A round that keeps running: the view is published once, as the Runtime does to a new observer, and never changes.
+    observe(run: unknown, listener: (view: never) => void) { seen.push(["observe", [run]]); observers.add(listener); listener({ ...ROUND_VIEW, ref: run } as never); return () => { observers.delete(listener); }; },
     readSession: async (session: { runtime_id: string; session_id: string }) => ({ session, owner: owner.current, title: "Rounds", runs: [{ session_id: "s1", run_id: "r1" }], latest_run: null }) as never,
     control: answer("control", () => undefined),
     readCommandOutput: answer("command", args => ({ ref: args[1], command: "node --test", exit_code: 0, stdout: "ok", stderr: "", truncated: false })),
@@ -277,13 +281,15 @@ async function roundsSetup(t: TestContext) {
     subagents: { list: answer("subagents", () => []), cancel: answer("cancel", () => undefined) },
   } as AgentRuntimeAdapter);
   const store = new LocalProjectDatabase(join(directory, "plugins.sqlite"));
-  const consumer = callerPlugin("rounds", "project", {}, [...SIX, ...READS].map(definition => definition.capability_id));
+  const consumer = callerPlugin("rounds", "project", {}, [...SIX, ...READS, agent.waitRun].map(definition => definition.capability_id));
   const bystander = callerPlugin("rounds-bystander", "project");
   await startPlugin(localHost, reference, store, consumer, { actorId: "web-user" });
   await startPlugin(localHost, reference, store, bystander, { actorId: "web-user" });
-  t.after(async () => { composition.dispose(); store.close(); await localHost.closeProject(reference); await localHost.close(); await rm(directory, { recursive: true, force: true }); });
-  return { localHost, reference, seen, owner, consumer, bystander };
+  t.after(async () => { if (!home) composition.dispose(); store.close(); await localHost.closeProject(reference); await localHost.close(); await rm(directory, { recursive: true, force: true }); });
+  return { localHost, reference, seen, owner, consumer, bystander, observers };
 }
+const ROUND_VIEW = { ref: { session_id: "s1", run_id: "r1" }, phase: "running", frozen: {}, turns: [], activity: [], usage: { tokens: { input: 0, output: 0 } }, awaiting_input: [],
+  started_at: "2026-10-23T00:00:00.000Z", ended_at: null };
 
 test("RAC-199 a round's controls, receipts, recovery, checkpoints and subtasks are plugin-only actions on the caller's own session", async t => {
   for (const definition of SIX as ActionDefinition[]) assert.deepEqual([definition.action.scope, definition.action.audiences, definition.action.permissions], ["project", ["plugin"], []], definition.capability_id);
@@ -338,7 +344,7 @@ test("RAC-180 reading a session, its rounds, reviews and subtasks, and preparing
   const mine = { project_id: PROJECT, plugin_id: consumer.id, install_id: consumer.context(PROJECT).install_id, actor_id: "web-user" };
   owner.current = mine;
   assert.deepEqual((await actions.invoke(agent.readSession, [session])).runs, [run]);
-  assert.equal((await actions.invoke(agent.readRun, [session, run])).phase, "completed");
+  assert.equal((await actions.invoke(agent.readRun, [session, run])).phase, "running");
   assert.deepEqual(await actions.invoke(agent.readRunReviews, [session, run]), []);
   assert.deepEqual(await actions.invoke(agent.listSubagents, [session, run]), []);
   // A rewind is prepared only for a role that edits files; this plugin declares none, so it is refused past the session check.
@@ -366,4 +372,67 @@ test("RAC-180 reading a session, its rounds, reviews and subtasks, and preparing
   await assert.rejects(actions.invoke(agent.readRun, [session, run, "someone-else"] as never), { code: "actions.input_invalid" });
   await assert.rejects(actions.invoke(agent.prepareRewind, [session, "checkpoint", "reader", "someone-else"] as never), { code: "actions.input_invalid" });
   assert.equal(seen.length, before, "no refused call reached the Runtime");
+});
+
+/*
+ * R8 waitRun (RAC-181, coordinator 10-23): following a round is a concurrent, plugin-only query on the caller's own session. A wait
+ * that reaches its time answers the round as it is, a success that leaves no row in the call log; only a caller that cancels its own
+ * wait leaves the code-only row every cancelled call leaves. Each installation holds at most 8 waits at a time.
+ */
+test("RAC-181 following a round is a concurrent plugin-only query on the caller's own session, held to 8 waits per installation", async t => {
+  const definition = agent.waitRun as ActionDefinition;
+  assert.deepEqual([definition.operation, definition.action.scope, definition.action.audiences, definition.action.permissions, definition.action.scheduling, definition.action.execution],
+    ["query", "project", ["plugin"], [], "concurrent", { timeout_ms: 30_000 }]);
+  const { localHost, reference, seen, owner, consumer, bystander, observers } = await roundsSetup(t, true), actions = consumer.actions(PROJECT);
+  const session = { runtime_id: RUNTIME, session_id: "s1" }, run = { session_id: "s1", run_id: "r1" };
+  const mine = { project_id: PROJECT, plugin_id: consumer.id, install_id: consumer.context(PROJECT).install_id, actor_id: "web-user" };
+  owner.current = mine;
+  const rows = () => localHost.callLog!.list(PROJECT).filter(row => row.capability_id === agent.waitRun.capability_id);
+  const waitFor = (since: string | null, timeoutMs: number, signal?: AbortSignal) =>
+    actions.invoke(agent.waitRun, [session, run, since, timeoutMs], { signal, beforeEffect: async () => {} });
+
+  const first = await waitFor(null, 0);
+  assert.equal(first.view.phase, "running");
+  // Nothing changed within the wait: the same round comes back, as a success, and the call log keeps no row of it.
+  const quiet = await waitFor(first.version, 50);
+  assert.equal(quiet.version, first.version, "a wait that reached its time answers the round as it is");
+  assert.deepEqual(rows(), [], "an answered wait, changed or not, leaves no row");
+  assert.equal(observers.size, 0, "each answered wait let go of the round");
+  // A caller that cancels its own wait: refused, the round let go, and the one code-only row a cancelled call leaves.
+  const cancelled = new AbortController(), pending = waitFor(first.version, 25_000, cancelled.signal);
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(observers.size, 1);
+  cancelled.abort(new ActionError("actions.cancelled", "page closed"));
+  await assert.rejects(pending);
+  assert.equal(observers.size, 0, "the cancelled wait let go of the round");
+  assert.deepEqual(rows().map(row => [row.ok, row.code, row.message]), [[false, "actions.cancelled", undefined]], "only the cancelled wait left a row, with its code alone");
+
+  // Eight waits at a time per installation; the ninth is refused before it follows anything, and a place given back is taken again.
+  const held = Array.from({ length: 8 }, () => new AbortController()), open = held.map(control => waitFor(first.version, 25_000, control.signal).catch(() => undefined));
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(observers.size, 8);
+  const followed = seen.filter(([name]) => name === "observe").length;
+  await assert.rejects(waitFor(first.version, 25_000), { code: "agent.wait_limit_reached" });
+  assert.equal(seen.filter(([name]) => name === "observe").length, followed, "the refused wait followed nothing");
+  held[0]!.abort(); await open[0];
+  assert.equal((await waitFor(null, 0)).view.phase, "running", "a place given back is taken again");
+  for (const control of held) control.abort();
+  await Promise.all(open);
+  assert.equal(observers.size, 0);
+
+  const before = seen.length;
+  // Another plugin's session, another project's, another install's, another person's: refused as unknown, and nothing is followed.
+  for (const other of [{ ...mine, plugin_id: bystander.id }, { ...mine, project_id: "project-b" }, { ...mine, install_id: "another-install" }, { ...mine, actor_id: "someone-else" }]) {
+    owner.current = other;
+    await assert.rejects(waitFor(null, 0), { code: "agent.session_unknown" }, JSON.stringify(other));
+  }
+  owner.current = mine;
+  await assert.rejects(actions.invoke(agent.waitRun, [session, { session_id: "s1", run_id: "elsewhere" }, null, 0]), { code: "agent.run_unknown" });
+  await assert.rejects(bystander.actions(PROJECT).invoke(agent.waitRun, [session, run, null, 0]), { code: "actions.forbidden" });
+  for (const audience of ["user", "agent", "workflow", "mcp"] as const)
+    await assert.rejects(localHost.actionClient(reference).invoke(person(audience), agent.waitRun, [session, run, null, 0]), { code: "actions.forbidden" }, audience);
+  for (const timeoutMs of [25_001, -1, 1.5])
+    await assert.rejects(actions.invoke(agent.waitRun, [session, run, null, timeoutMs]), { code: "actions.input_invalid" }, String(timeoutMs));
+  await assert.rejects(actions.invoke(agent.waitRun, [session, run, null, 0, "someone-else"] as never), { code: "actions.input_invalid" });
+  assert.equal(seen.length, before, "no refused wait reached the Runtime");
 });

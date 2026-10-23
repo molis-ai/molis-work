@@ -47,7 +47,9 @@ const follow = (a: CodingActivation, execution: CodingExecution, sessionId: stri
     const api = context.services!.capabilities!, { run } = round;
     let since: string | null = null;
     for (;;) {
-      const waited: { version: string; view: AgentRunView } = await api.invoke(agent.waitRun, [session, run, since, 25_000], { signal: control.signal });
+      // As the installation (R8): the job's signal ends the wait, and its check drops an answer that arrives after the job lost its authority.
+      const waited: { version: string; view: AgentRunView } = await context.services!.actions!.invoke(agent.waitRun, [session, run, since, 25_000],
+        { signal: control.signal, beforeEffect: control.beforeEffect });
       control.signal.throwIfAborted();
       const view = waited.view;
       since = waited.version;

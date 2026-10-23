@@ -178,8 +178,8 @@ const ROUTES: RouteMaker[] = [
       if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const since = typeof request.query?.since === "string" && request.query.since ? request.query.since : null;
-      const wait = Math.min(Math.max(Number(request.query?.timeout ?? 20_000) || 0, 0), 25_000);
-      const result = await api!.invoke(agent.waitRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "coding.field.run", 200) }, since, wait]);
+      const wait = Math.min(Math.max(Math.trunc(Number(request.query?.timeout ?? 20_000)) || 0, 0), 25_000);
+      const result = await codingActions(a.context, beforeWrite).invoke(agent.waitRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "coding.field.run", 200) }, since, wait]);
       return { version: result.version, runs: (await runsWithCards(a.context, api!, record, [result.view], beforeWrite)).map(codingRunForDisplay) };
     });
   },

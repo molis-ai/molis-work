@@ -1588,7 +1588,7 @@ export declare const agentHostCapabilities: {
     readonly startRun: ActionDefinition<[runtimeId: string, input: AgentStartInput], AgentRunHandle>;
     readonly readRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>;
     readonly draftText: ActionDefinition<AgentDraftTextRequest, AgentDraftTextResult>;
-    readonly waitRun: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, since: string | null, timeoutMs: number], {
+    readonly waitRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, since: string | null, timeoutMs: number], {
         version: string;
         view: AgentRunView;
     }>;

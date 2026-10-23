@@ -178,9 +178,9 @@ PR 等 #1121 合入再开，不开第三层。
   - `agent-plugin-identity` 里三处拒绝换了把关的地方，都还是拒绝：调用选项里伪造的 `plugin_caller` 被插件 SDK 丢掉，会话建成插件自己的（测试改成断言归属是自己的）；宿主没绑定安装的 SDK 没有调用者，由动作服务按 `actions.forbidden` 拒；停止中的安装，调用由 SDK（「已停止」）或动作服务（「没有宿主发出的有效身份」）拒。
   - 测试夹具：`withFakeAgentHost` 让 Coding 测试的假 Agent Host 同时回答这些动作；动作服务两头都校验，所以假回答缺的顶层字段由夹具补中性值（`completeView`）。
 
-BL-364 剩 13 条。
+BL-364 剩 13 条（`waitRun` 转完剩 12 条，见 §10）。
 
-## 10. `waitRun` 一批（计划，只写了规格，待统筹裁定 §10.3）
+## 10. `waitRun` 一批（统筹 10-23 裁定，已做）
 
 `agent.run.wait.v1` 是第 3 批留下的唯一一条读会话、跑轮次的 typed 条目，归规矩 2：等待要么是 `concurrent` 的动作，带上限、可取消、写前 `beforeEffect`，要么拆成「开始等」加「查结果」。验收编号 RAC-181。
 
@@ -219,17 +219,19 @@ BL-364 剩 13 条。
   - `follow` 改经 `context.services.actions`，带作业的 `signal` 和 `control.beforeEffect`。作业持有的是安装的权限，插件停用时作业的 `signal` 结束等待，和现在一样。
 - **夹具**：`withFakeAgentHost` 自动多答这一条，Coding 测试里的假 `waitRun` 回答由 `completeView` 补齐顶层字段。
 
-### 10.3 待统筹裁定
+### 10.3 统筹 10-23 裁
 
-1. **取消的长轮询会不会在调用记录里留行。**
-   - 现在 `wait` 一行不留。改成查询以后，动作服务把被取消、超时的读当作失败的读，会留一行只有错误码的诊断行（`action-call-log.ts`：读只在失败时留行）。
-   - 每关一次页面、每开下一轮让旧的 `follow` 作业停下，就多一行「agent.run.wait 已取消」。
-   - 方案：
-     - ①（推荐）调用记录不给「调用方自己取消的、`concurrent` 的查询」留行，超时与被拒的照留。改的是 `action-call-log.ts` 的 `recordedOperation`，不碰门禁和信任边界，但它是平台行为，所以先问。
-     - ② 接受这些行。
-     - ③ 保留 `operation: "wait"`，给 `wait` 的动作补上 `admitPluginCall` 和可用性检查。这要改 `checkActionAvailability` 的早退，属于动线上的授权检查，要过评审。
-2. **`wait` 的特殊待遇以后还留不留。** 这一条转完，仓库里就没有 `operation: "wait"` 的条目了，`action-metadata.ts`、`local-host.ts`、`action-call-log.ts`、`typed-call-settlement.ts` 里的 `wait` 分支都成了空转。推荐同一个 PR 删掉，`HostCapabilityOperation` 去掉 `"wait"`：这是合同变化，跑 `pnpm api:update`，写影响。也可以另记一条 BL，以后再删。
-3. **并发上限。** 每个开着的页面同时挂一个长轮询，每个会话一个 `follow`。动作服务没有「同时进行的调用数」这种上限，只有每分钟次数（`max_calls_per_minute`）。推荐这一批不加：观察只在内存里，一次等待最多 25 秒，开了几个页面就挂几个。以后要加，是动作服务的新策略，另起。
+整体形状照 §10.2：一条只给插件的 `concurrent` 查询，不拆。
+
+1. **调用记录不开例外。**
+   - 调用方自己取消的 `waitRun` 照平台对取消调用的通用规则办，留一行只有错误码的诊断行。不为一条动作在调用记录里开例外：会悄悄漏掉一些调用的记录本身就是隐患。
+   - 防噪声靠语义：等满 `timeoutMs` 回答的是正常的「还在跑」，回最新的视图，算成功、不算取消，所以只有真被调用方取消的才留行。这一点要有测试钉住。
+2. **`wait` 分支在转 `awaitContinuations` 的 PR 里删，不留兼容期。**
+   - 统筹原裁「同 PR 删」。实现时发现 `agent.collaboration.await.v1`（`awaitContinuations`）也是 `operation: "wait"`，`waitRun` 转完以后平台的 `wait` 分支仍有人用，§10.2 原稿「没有 `wait` 条目了」的前提不对。
+   - 统筹 10-23 改裁（①）：这个 PR 保留这些分支，第 3 批不并入 `awaitContinuations`。转 `awaitContinuations` 的同一个 PR 删掉它们，记在 BL-364，去掉的条件是「collaboration.await 已转成动作，`operation: "wait"` 没有使用者了」。
+3. **并发不留隐患。**
+   - 动作服务对 `concurrent` 动作没有按调用者或按安装的同时进行数上限，只有每分钟次数（`max_calls_per_minute`）。
+   - 所以 `waitRun` 自己限：每个安装同时最多 8 个等待，再来的按 `agent.wait_limit_reached` 拒（`defineErrorCodes("agent", …)`，种类 `rate_limited`），带拒绝用例。等待结束（回答、取消、出错）就让出名额。
 
 ### 10.4 验收（RAC-181）
 
@@ -239,6 +241,21 @@ BL-364 剩 13 条。
   - 不属于这条会话的一轮：`agent.run_unknown`。
   - 不消费它的插件，人、Agent、工作流、MCP：`actions.forbidden`。
   - 输入里带身份字段，`timeoutMs` 超过 25 000、为负数或不是整数：`actions.input_invalid`。
-- 等待中被取消：拒绝，观察被放开（`agent-run-wait` 已有的放开断言改走动作）。
+- 等待中被取消：拒绝，观察被放开（`agent-run-wait` 已有的放开断言改走动作），调用记录留一行只有错误码的诊断行。
+- 等满 `timeoutMs`：正常回答最新的视图，调用记录不留行。
+- 同一个安装同时第 9 个等待：`agent.wait_limit_reached`，运行时没被观察；前面一个结束后再等，成功。
 - 等待中被撤权：拿不到视图。
 - `coding.live` 与 `follow` 的现有用例照旧通过。
+
+### 10.5 做了什么
+
+- **合同**：`waitRun` 是只给插件的 `concurrent` 查询，带 `execution: { timeout_ms: 30_000 }`。输入 `[sessionRef, runRef, since, timeoutMs]`，`timeoutMs` 是 0～25 000 的整数，超出由 schema 拒；输出 `{ version, view }`，`view` 用 `runViewOutput`。
+- **宿主**：
+  - 等待本身搬到 `horizontal/agent-host/src/run-wait.ts`（`waitForRunChange`、`runViewVersion`），每个安装的并发名额也在这里（`installationWaits(8)`，超了 `agent.wait_limit_reached`，种类 `rate_limited`）。
+  - 处理器：没有插件调用者就拒 → `requireRun` → 占名额 → 等 → `beforeEffect()` 与 `assertAuthorityCurrent()` → 回答；不管怎样结束都让出名额。
+- **Coding**：`coding.live` 改经 `codingActions(context, beforeWrite)`，`timeout` 先取整再夹到 25 000；`follow` 改经 `services.actions`，带作业的 `signal` 与 `beforeEffect`。
+- **`wait` 分支**：`awaitContinuations` 还在用，这个 PR 不删（§10.3②，统筹 10-23 改裁①），随转它的 PR 一起删。
+- **测试**：
+  - RAC-181（`tests/agent-host-actions.test.ts`）：等满时间回答原样、调用记录不留行；调用方取消，调用记录留一行只有 `actions.cancelled` 的诊断行；第 9 个等待被拒、没观察任何东西，让出一个名额后再等成功；别的插件、项目、安装、人的会话按「找不到」拒；不属于这条会话的一轮按 `agent.run_unknown` 拒；人、Agent、工作流、MCP 一律 `actions.forbidden`；`timeoutMs` 超上限、为负、不是整数，以及多带身份项，都是 `actions.input_invalid`；被拒的等待没碰运行时。
+  - `agent-run-wait` 的两条照旧，调用改带插件调用者。
+  - 夹具 `fakeAgentHostActions` 把调用的 `signal` 交给假回答，`coding-session-follow` 的「插件停用即取消等待」靠它照旧成立。

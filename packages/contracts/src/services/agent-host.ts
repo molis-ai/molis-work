@@ -526,14 +526,18 @@ export const agentHostCapabilities = {
         usage: { anyOf: [{ type: "null" }, { type: "object", required: ["input", "output"], additionalProperties: false, properties: { input: { type: "integer", minimum: 0 }, output: { type: "integer", minimum: 0 } } }] } } } },
   } as ActionDefinition<AgentDraftTextRequest, AgentDraftTextResult>,
   /**
-   * Resolves once the run's view differs from the version the caller holds, or at the timeout (at most 25 s).
-   * How a surface follows a live round as it happens instead of rereading it on a timer; nothing is replayed.
+   * Resolves once the run's view differs from the version the caller holds, or at the timeout (at most 25 s) with the latest view:
+   * a round still running is an answer, not a failure. How a surface follows a live round as it happens instead of rereading it on
+   * a timer; nothing is replayed. Concurrent, beside the project's queue; the Host stops it at 30 s whatever it does.
    */
   waitRun: {
-    capability_id: "agent.run.wait.v1",
-    version: 1,
-    operation: "wait",
-  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, since: string | null, timeoutMs: number], { version: string; view: AgentRunView }>,
+    capability_id: "agent.run.wait.v1", version: 1, operation: "query",
+    action: { title: "等一轮执行变化", description: "自己会话里的一轮有了变化就回答，最多等 25 秒；到时还没变就回答它现在的样子。", kind: "query", ...pluginOnly,
+      scheduling: "concurrent", execution: { timeout_ms: 30_000 },
+      input_schema: { type: "array", minItems: 4, maxItems: 4, additionalItems: false,
+        items: [sessionRef, runRef, { type: ["string", "null"], maxLength: 200 }, { type: "integer", minimum: 0, maximum: 25_000 }] },
+      output_schema: { type: "object", required: ["version", "view"], additionalProperties: false, properties: { version: { type: "string" }, view: runViewOutput } } },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, since: string | null, timeoutMs: number], { version: string; view: AgentRunView }>,
   controlRun: {
     capability_id: "agent.run.control.v1", version: 1, operation: "command",
     action: { title: "控制一轮执行", description: "暂停、继续、停下或取消自己会话的一轮，换它之后用的模型，或回答它停下来问的问题。", kind: "operation", ...pluginOnly,

@@ -5,7 +5,7 @@ import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/pl
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, type GitOperationRecord, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { MolisWorkLocalHost } from "./project-host.js";
-import { prepareGitOperation } from "./git-operations.js";
+import { prepareGitOperation } from "./workspace-git-operations.js";
 import { prepareGitIndex } from "./workspace-git-index.js";
 import { reviewAuthority } from "./plugin-callers.js";
 

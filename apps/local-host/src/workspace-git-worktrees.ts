@@ -9,12 +9,12 @@ import type { WriterFileTarget, WriterWorktree } from "@molis-ai/molis-work-cont
 const SAFE_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 const BRANCH_PREFIX = "molis-work/writer/";
 
-const gitWorktreeErrors = defineErrorCodes("git", {
+const gitWorktreeErrors = defineErrorCodes("workspace_git.worktree", {
   unavailable: "invalid",
   not_a_repository: "invalid",
   failed: "invalid",
-  worktree_not_owned: "invalid",
-  worktree_dirty: "invalid",
+  not_owned: "invalid",
+  dirty: "invalid",
 });
 
 export interface GitWorktreePort {
@@ -82,7 +82,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
   async function ensureDirectory(directory: string) {
     await mkdir(directory).catch(error => { if (error.code !== "EEXIST") throw error; });
     if (!(await lstat(directory)).isDirectory() || await realpath(directory) !== directory) {
-      throw gitWorktreeErrors.worktree_not_owned("写入者目录来源不明确，不能跟随替换目录或符号链接");
+      throw gitWorktreeErrors.not_owned("写入者目录来源不明确，不能跟随替换目录或符号链接");
     }
   }
 
@@ -93,7 +93,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
     const ctx = await context();
     await noFilters(ctx.root);
     if (await git(ctx.root, ["status", "--ignore-submodules=dirty", "--porcelain=v1", "-z", "--untracked-files=all"])) {
-      throw gitWorktreeErrors.worktree_dirty("主工作区有未提交内容，不能仅从 HEAD 分叉而遗漏当前工作；请先确定可用的提交起点");
+      throw gitWorktreeErrors.dirty("主工作区有未提交内容，不能仅从 HEAD 分叉而遗漏当前工作；请先确定可用的提交起点");
     }
     return { worktree_id: slotId, branch: BRANCH_PREFIX + slotId, base_commit: ctx.head, directory: path.relative(ctx.root, path.join(ctx.directory, slotId)) };
   }
@@ -102,17 +102,17 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
     const id = row.branch?.slice(BRANCH_PREFIX.length) ?? "";
     if (!row.branch?.startsWith(BRANCH_PREFIX) || !SAFE_NAME.test(id)
       || row.directory !== path.join(ctx.directory, id)) {
-      throw gitWorktreeErrors.worktree_not_owned("工作树目录或分支不属于这个写入者");
+      throw gitWorktreeErrors.not_owned("工作树目录或分支不属于这个写入者");
     }
     let origin: { version: number; owner: string; base: string };
     try { origin = JSON.parse(await git(ctx.root, ["config", "--local", "--get", metadataKey(row.branch)])); }
-    catch { throw gitWorktreeErrors.worktree_not_owned("工作树缺少原始来源，不能猜测基线或接管"); }
+    catch { throw gitWorktreeErrors.not_owned("工作树缺少原始来源，不能猜测基线或接管"); }
     if (origin?.version !== 1 || origin.owner !== ctx.root || !/^[0-9a-f]{40,64}$/u.test(origin.base)) {
-      throw gitWorktreeErrors.worktree_not_owned("工作树原始来源不属于当前工作区");
+      throw gitWorktreeErrors.not_owned("工作树原始来源不属于当前工作区");
     }
     if (!(await lstat(row.directory)).isDirectory() || await realpath(row.directory) !== row.directory
       || (await git(row.directory, ["rev-parse", "--show-toplevel"])).trimEnd() !== row.directory) {
-      throw gitWorktreeErrors.worktree_not_owned("工作树目录已变化，需要核对原目录");
+      throw gitWorktreeErrors.not_owned("工作树目录已变化，需要核对原目录");
     }
     await git(row.directory, ["cat-file", "-e", `${origin.base}^{commit}`]);
     return { worktree_id: id, branch: row.branch, base_commit: origin.base, directory: path.relative(ctx.root, row.directory) };
@@ -122,14 +122,14 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
     const ctx = await context();
     const expected = path.join(ctx.directory, worktree.worktree_id);
     if (!SAFE_NAME.test(worktree.worktree_id) || path.resolve(ctx.root, worktree.directory) !== expected) {
-      throw gitWorktreeErrors.worktree_not_owned("请求的目录不属于当前写入者");
+      throw gitWorktreeErrors.not_owned("请求的目录不属于当前写入者");
     }
     const rows = registeredWorktrees(await git(ctx.root, ["worktree", "list", "--porcelain", "-z"]));
     const row = rows.find(entry => entry.directory === expected);
-    if (!row) throw gitWorktreeErrors.worktree_not_owned("原工作树已不在 Git 登记中");
+    if (!row) throw gitWorktreeErrors.not_owned("原工作树已不在 Git 登记中");
     const actual = await readOwned(ctx, row);
     if (actual.branch !== worktree.branch || actual.base_commit !== worktree.base_commit) {
-      throw gitWorktreeErrors.worktree_not_owned("工作树分支或原基线与请求不符");
+      throw gitWorktreeErrors.not_owned("工作树分支或原基线与请求不符");
     }
     return { ctx, directory: expected };
   }
@@ -164,7 +164,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
         if (path.dirname(row.directory) !== ctx.directory) continue;
         try { owned.push(await readOwned(ctx, row)); }
         catch (error) {
-          if (!(error instanceof ActionError) || error.code !== "git.worktree_not_owned") throw error;
+          if (!(error instanceof ActionError) || error.code !== "workspace_git.worktree.not_owned") throw error;
           unavailable.push({ directory: path.relative(ctx.root, row.directory), branch: row.branch ?? null, reason: error.message });
         }
       }
@@ -190,7 +190,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
       const { ctx, directory } = await owned(worktree);
       await noFilters(directory);
       if (await git(directory, ["status", "--ignore-submodules=dirty", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"])) {
-        throw gitWorktreeErrors.worktree_dirty("工作树仍有未提交或未跟踪内容，已保留目录；请先保存成果");
+        throw gitWorktreeErrors.dirty("工作树仍有未提交或未跟踪内容，已保留目录；请先保存成果");
       }
       await git(ctx.root, ["worktree", "remove", "--", directory]);
       // Retain the branch and its base metadata: clean commits may not have been integrated yet.

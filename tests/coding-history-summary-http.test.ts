@@ -25,7 +25,7 @@ const run = (index: number, task: string, over: Record<string, unknown> = {}) =>
 
 test("整理前面的对话由模型写摘要：接着上次的摘要写，宿主事实附在后面，用量计入会话；模型写不成时改用宿主记录并说明", { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-history-summary-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(root); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = codingSessions(store);
   await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "long", title: "长会话", runtime_id: "prologue", at: new Date().toISOString() });
   await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "long", "sdk", new Date().toISOString());
@@ -107,7 +107,7 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
 
 test("a round whose digest the model is still writing runs beside the project's queue, and a call withdrawn meanwhile starts nothing", { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-digest-queue-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(root); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = codingSessions(store);
   await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "long", title: "长会话", runtime_id: "prologue", at: new Date().toISOString() });
   await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "long", "sdk", new Date().toISOString());
@@ -203,7 +203,7 @@ test("a round whose digest the model is still writing runs beside the project's 
 
 test("PG035-07 with model:invoke switched off Coding's two drafts are refused with a code, not a 500, and the rest of Coding works", { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-draft-grant-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(root); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = codingSessions(store);
   await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "long", title: "长会话", runtime_id: "prologue", at: new Date().toISOString() });
   await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "long", "sdk", new Date().toISOString());

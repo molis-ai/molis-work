@@ -1,3 +1,4 @@
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import { pagesTestPorts } from "./fixtures/pages-actions.js";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -542,16 +543,18 @@ test("Pages 是个人插件，不进项目启用名单", () => {
 });
 
 test("工作台 HTML 挂上 Pages 舞台和编辑器内核脚本", () => {
-  const html = renderMolisWorkWeb(emptyView());
+  const owner = renderMolisWorkWeb(emptyView());
+  const html = owner + pluginDocuments(owner).join("\n");
   assert.match(html, /data-plugin-id="pages"/);
   assert.match(html, /data-pages="workbench"/);
   assert.match(html, /data-pages-editor/);
   assert.match(html, /data-pages-confirm/);
   // The editor kernel loads with Pages' own client when its surface opens, not with every page (#150).
   assert.doesNotMatch(html, /molis-work-pages-editor\.js/);
-  assert.match(renderMolisWorkWorkbenchClientScript(), /\["pages","pages",\["\/assets\/molis-work-pages-editor\.js"\]\]/);
+  assert.match(renderMolisWorkWorkbenchClientScript(), /\["pages","io\.molis\.work\.pages","pages",\["\/assets\/molis-work-pages-editor\.js"\]/);
   assert.ok(pluginWorkbenchClientAsset("pages"), "Pages' client is served on its own");
-  const pages = html.slice(html.indexOf('data-pages="workbench"'), html.indexOf("data-pages-confirm"));
+  const contents = pluginDocuments(owner).join("\n");
+  const pages = contents.slice(contents.indexOf('data-pages="workbench"'), contents.indexOf("data-pages-confirm"));
   assert.match(pages, /还没有文档/);
   assert.match(pages, /mw-empty__mark[\s\S]*#icon-note/);
   assert.match(html, /data-pages-title data-plain-field/);
@@ -1807,10 +1810,10 @@ test("Cmd+/ 打开光标所在块的菜单，Tab 留在编辑器里", () => {
   assert.match(editor, /Tab: tabKey\(1\)/);
   assert.match(editor, /"Shift-Tab": tabKey\(-1\)/);
   const tab = editor.slice(editor.indexOf("function tabKey("));
-  assert.match(tab, /direction > 0 \? insertCodeIndent : removeCodeIndent/);
-  assert.match(tab, /direction > 0 \? indentListItem : outdentListItem/);
-  assert.match(tab, /direction > 0 \? indentUnderPrevious : outdentFromContainer/);
-  const cell = tab.indexOf("cellNav(current, direction)");
+  assert.match(tab, /dir > 0 \? insertCodeIndent : removeCodeIndent/);
+  assert.match(tab, /dir > 0 \? indentListItem : outdentListItem/);
+  assert.match(tab, /dir > 0 \? indentUnderPrevious : outdentFromContainer/);
+  const cell = tab.indexOf("cellNav(view, dir)");
   const code = tab.indexOf("code(state, dispatch)");
   const list = tab.indexOf("list(state, dispatch)");
   const nest = tab.indexOf("nest(state,");

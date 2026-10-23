@@ -56,6 +56,8 @@ export type ProjectPluginId = string;
  */
 export interface ProjectPluginRegistry {
   has(pluginId: ProjectPluginId): boolean;
+  /** Initial memberships for a new project; never applied when reading or reopening an existing project. */
+  initial?(): readonly ProjectPluginId[];
   /** Plugins that must be enabled together with this one. */
   companions(pluginId: ProjectPluginId): readonly ProjectPluginId[];
   /** Always-on plugins a project may hide. Absent means none are personal. */

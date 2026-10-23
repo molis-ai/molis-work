@@ -12,7 +12,7 @@ import { GOALS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-goals";
 
 test("system configuration writes Home, Inbox and existing Feed rules through their original owners with concurrency checks", async () => {
   const home = await mkdtemp(join(tmpdir(), "native-scene-config-"));
-  const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
+  const databasePath = join(home, "project.db");
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const functions: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: { async evaluate(_key, record) {
     return { primitive: record.primitive, choice: "inbox.done", noul: null, score: null, legend: null, probabilities: {}, confidence: null, model: record.model };
@@ -20,6 +20,7 @@ test("system configuration writes Home, Inbox and existing Feed rules through th
   let unavailable = false;
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions, actionAvailability: (_caller, action) => unavailable && action.action.kind === "judgment"
     ? { available: false, code: "fixture.disconnected", reason: "判断连接断开" } : { available: true } });
+  seedDemoBoard(databasePath);
   const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user",
     permissions: [...HOME_ACTION_PERMISSIONS, ...GOALS_ACTION_PERMISSIONS, "functions:manage", "functions:invoke", "feed:read", "feed:write", "inbox:read", "inbox:write"] };
   const actions = bindActionClient(host.actionClient(reference), () => caller);

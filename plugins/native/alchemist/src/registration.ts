@@ -1,4 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { createApp } from "./studio/server/app.js";
 import { ALCHEMIST_PROJECT_PLUGIN_ID, ALCHEMIST_INSTRUCTIONS, alchemistManifest, ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_STYLES, alchemistUiContribution } from "./index.js";
 
 /**
@@ -12,6 +13,9 @@ export const registration: PluginRegistration = {
   personal: true,
   summary: "写下方向，炼成可比较的卡再决定。",
   workbench: {
+    pageRequests: createApp(undefined, { invoke: () => Promise.reject(new Error("Route catalog only")) }).routes
+      .filter(route => route.method !== "ALL" && !route.path.includes("*"))
+      .map(route => ({ method: route.method, path: "/api/alchemist/studio" + route.path })),
     order: 15,
     contributions: [alchemistUiContribution],
     stylesheet: ALCHEMIST_STYLES,

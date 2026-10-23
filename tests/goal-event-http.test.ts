@@ -28,6 +28,7 @@ function listen(server: Server): Promise<string> {
 
 test("HTTP event APIs persist intent, blank planning, typed reports, decisions and closure through SQLite restart", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-"));
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -147,6 +148,7 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
 
 test("HTTP event-close rejects unknown kind without recording an event", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-kind-"));
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -195,6 +197,7 @@ test("HTTP event-close rejects unknown kind without recording an event", async (
 
 test("HTTP writes persist typed reports, scoped concerns and closure through the public event routes", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-write-"));
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -301,6 +304,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
 
 test("HTTP progress uses the Goal cursor and legal field ids stay content", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-cursor-"));
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -437,6 +441,7 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
 
 test("HTTP draft route is gone; event owners and historical drafts stay unchanged", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-draft-"));
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -502,6 +507,7 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
 
 test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs readable", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-definition-"));
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -571,6 +577,7 @@ test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs reada
 
 test("HTTP event-agree rejects unknown fields and omitted agreement version with no write", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-agree-"));
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -618,6 +625,7 @@ test("HTTP event-agree rejects unknown fields and omitted agreement version with
 
 test("HTTP outcome replacement expires all current supports; stale agreement_change approval has no write", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-expire-"));
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -750,6 +758,7 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
 
 test("HTTP create receipt has no retired state aliases and covers requirements and relations", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-create-"));
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -913,6 +922,7 @@ test("onboarding initialize receipt has no retired aliases and persists onboardi
 
 test("HTTP goal-tree decisions replay the original result with a stable business key", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-tree-retry-"));
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -1015,6 +1025,7 @@ test("HTTP goal-tree decisions replay the original result with a stable business
 
 test("HTTP goal-tree reject prefills displayed relation conflict and keeps the submitted reason", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-tree-conflict-"));
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);

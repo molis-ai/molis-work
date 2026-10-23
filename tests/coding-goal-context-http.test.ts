@@ -1,3 +1,4 @@
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -19,7 +20,7 @@ function codingHostFixture(root: string) {
   let sdkSessions = 0;
   let captured: HostPluginCaller | undefined;
   let heldProgress: { enter(): void; wait: Promise<void> } | undefined;
-  const host = new MolisWorkLocalHost({ actionAvailability: (caller, action) => { if (caller.audience === "plugin" && action.capability_id === goalPluginActions.contract.capability_id) captured = caller.host_plugin; if (heldProgress && caller.audience === "plugin" && action.capability_id === goalPluginActions.progress.capability_id && caller.allowed_actions?.some(ref => ref.capability_id === action.capability_id && ref.provider_id)) {
+  const host = new MolisWorkLocalHost({ actionAvailability: (caller, action) => { if (caller.audience === "plugin" && action.capability_id === goalPluginActions.contract.capability_id) captured = caller.host_plugin; if (heldProgress && caller.audience === "plugin" && action.capability_id === goalPluginActions.progress.capability_id && caller.allowed_capability_ids?.includes(action.capability_id)) {
       const held = heldProgress; heldProgress = undefined; held.enter(); return held.wait.then(() => ({ available: true as const }));
     } return { available: true }; }, homeDirectory: root, workspacesFor: () => [{ workspace_id: "work", canonical_path: root, display_name: "fixture", realpath_verified: true }] });
   // A Host with a Home composes its own Agent service (and registers its agent.* capabilities); the Home is what gives Coding's
@@ -98,6 +99,7 @@ async function rejectStoppedGoalProgress(host: MolisWorkLocalHost, ref: ReturnTy
 
 test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable context, and keeps original report ownership after reassociation and restart", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-goal-context-")), databasePath = join(root, "project.db");
+  await new MolisWorkLocalHost({ homeDirectory: root, completeText: null }).close();
   seedDemoBoard(databasePath); await seedConfiguredModels(root);
   const ref = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const { host, starts, runs, sessionCount, codingCaller, holdProgress } = codingHostFixture(root);
@@ -112,7 +114,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     store, artifacts, processItems, projectId: DEMO_PROJECT_ID, actorId: "web-user",
     capabilities: host.client(ref), homeDirectory: root,
     escapeHtml: value => String(value), translate: value => value,
-  }, codingRouteHooks)).catch(error => { response.writeHead(500); response.end(JSON.stringify({ error: String(error) })); }); });
+  }, codingRouteHooks)).catch(error => { const refused = actionErrorResponse(error); response.writeHead(refused.status); response.end(JSON.stringify(refused.body)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const request = async (path: string, method = "GET", body?: unknown) => {

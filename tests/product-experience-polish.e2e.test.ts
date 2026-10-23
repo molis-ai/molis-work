@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
+import { openProjectVersionStores } from '@molis-ai/molis-work-app-local-host';
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
@@ -12,6 +13,7 @@ test('Product journeys: discover tools, create from empty states, save and recov
   const b = await openGoalBrowser(t, 'seeded'); if (!b) return;
   try {
   const { origin, projectId, command, sessionId, navigate, evaluate, click, waitFor, reloadPage } = b;
+  const views = Object.fromEntries(await Promise.all(["dataset", "form", "ppt", "lingguang", "cognia", "pages"].map(async id => [id, await pluginFrameBrowser(t, b, id)])));
   await mkdir(shots, { recursive: true });
   const size = (width: number, height = 900) => command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
   const shot = async (name: string) => {
@@ -24,7 +26,7 @@ test('Product journeys: discover tools, create from empty states, save and recov
     await click(`[data-plugin-strip] [data-plugin-id="${plugin}"], [data-global-menu] [data-plugin-id="${plugin}"]`);
     await waitFor(`document.body.dataset.desktopSurface === '${plugin === 'goals' ? 'goal' : plugin}'`, 12_000);
   };
-  const input = async (selector: string, value: string) => evaluate(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.focus(); input.value = ${JSON.stringify(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  const input = async (selector: string, value: string) => (views[selector.match(/data-(dataset|form|ppt|lingguang|cognia)-/)?.[1] ?? ""] ?? b).evaluate(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.focus(); input.value = ${JSON.stringify(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await size(1440);
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-home-day]')");
@@ -51,57 +53,57 @@ test('Product journeys: discover tools, create from empty states, save and recov
   await shot('search-tools');
   await click('[data-global-search-id=dataset]');
   await waitFor("document.body.dataset.desktopSurface === 'dataset'");
-  await click('[data-dataset-empty] [data-dataset-new]');
-  await waitFor("!document.querySelector('[data-dataset-stage-workspace]').hidden && document.querySelector('[data-dataset=workbench]').getAttribute('aria-busy') === 'false'");
+  await views.dataset.click('[data-dataset-empty] [data-dataset-new]');
+  await views.dataset.waitFor("!document.querySelector('[data-dataset-stage-workspace]').hidden && document.querySelector('[data-dataset=workbench]').getAttribute('aria-busy') === 'false'");
   await input('[data-dataset-title]', '产品体验验证');
-  await waitFor("document.querySelector('[data-dataset-editor-status]').textContent === '已保存'");
-  await click('[data-dataset-stage-workspace] .plugin-stage-more > summary');
-  assert.equal(await evaluate("document.querySelector('[data-dataset-export-csv]').getBoundingClientRect().width > 0"), true);
+  await views.dataset.waitFor("document.querySelector('[data-dataset-editor-status]').textContent === '已保存'");
+  await views.dataset.click('[data-dataset-stage-workspace] .plugin-stage-more > summary');
+  assert.equal(await views.dataset.evaluate("document.querySelector('[data-dataset-export-csv]').getBoundingClientRect().width > 0"), true);
   await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' }, sessionId);
   await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' }, sessionId);
-  assert.equal(await evaluate("document.querySelector('[data-dataset-stage-workspace] .plugin-stage-more').open"), false);
+  assert.equal(await views.dataset.evaluate("document.querySelector('[data-dataset-stage-workspace] .plugin-stage-more').open"), false);
   await shot('dataset-desktop');
   for (const [plugin, attr] of [['form', 'new'], ['ppt', 'new']] as const) {
     await open(plugin);
-    await click(`[data-${plugin}-empty] [data-${plugin}-${attr}]`);
-    await waitFor(`!document.querySelector('[data-${plugin}-stage-workspace]').hidden`);
+    await views[plugin].click(`[data-${plugin}-empty] [data-${plugin}-${attr}]`);
+    await views[plugin].waitFor(`!document.querySelector('[data-${plugin}-stage-workspace]').hidden`);
     await shot(`${plugin}-desktop`);
   }
   await open('lingguang');
-  await click('[data-lingguang-empty] [data-lingguang-capture]');
-  await waitFor("!document.querySelector('[data-lingguang-stage-workspace]').hidden");
+  await views.lingguang.click('[data-lingguang-empty] [data-lingguang-capture]');
+  await views.lingguang.waitFor("!document.querySelector('[data-lingguang-stage-workspace]').hidden");
   await input('[data-lingguang-body]', '这一笔需要真实保存');
-  await waitFor("document.querySelector('[data-lingguang-save-status]').textContent === '已保存'");
+  await views.lingguang.waitFor("document.querySelector('[data-lingguang-save-status]').textContent === '已保存'");
   // An actual failed HTTP save must leave the draft available and offer recovery.
   await evaluate(`(() => { const original = window.fetch; window.restorePolishFetch = () => window.fetch = original; window.fetch = (url, init) => init?.method === 'POST' && String(url).includes('/api/plugins/io.molis.work.lingguang/sparks/') ? Promise.resolve(new Response(JSON.stringify({ error: '保存暂时失败' }), { status: 503, headers: { 'content-type': 'application/json' } })) : original(url, init); })()`);
   await input('[data-lingguang-body]', '失败后这一笔也要保留');
-  await waitFor("document.querySelector('[data-lingguang-save-status]').textContent === '保存失败'");
-  assert.equal(await evaluate("document.querySelector('[data-lingguang-body]').value"), '失败后这一笔也要保留');
+  await views.lingguang.waitFor("document.querySelector('[data-lingguang-save-status]').textContent === '保存失败'");
+  assert.equal(await views.lingguang.evaluate("document.querySelector('[data-lingguang-body]').value"), '失败后这一笔也要保留');
   await shot('save-recovery');
   await evaluate('window.restorePolishFetch()');
-  await click('[data-lingguang-save-retry]');
-  await waitFor("document.querySelector('[data-lingguang-save-status]').textContent === '已保存'");
-  await click('[data-lingguang-back]');
-  await click('[data-lingguang-id]');
-  assert.equal(await evaluate("document.querySelector('[data-lingguang-body]').value"), '失败后这一笔也要保留');
-  assert.equal(await evaluate("document.querySelector('dialog[data-lingguang-dispatch]') === null"), true);
+  await views.lingguang.click('[data-lingguang-save-retry]');
+  await views.lingguang.waitFor("document.querySelector('[data-lingguang-save-status]').textContent === '已保存'");
+  await views.lingguang.click('[data-lingguang-back]');
+  await views.lingguang.click('[data-lingguang-id]');
+  assert.equal(await views.lingguang.evaluate("document.querySelector('[data-lingguang-body]').value"), '失败后这一笔也要保留');
+  assert.equal(await views.lingguang.evaluate("document.querySelector('dialog[data-lingguang-dispatch]') === null"), true);
   await command('Browser.grantPermissions', { origin, permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite'] });
-  await click('[data-lingguang-dispatch-current]');
+  await views.lingguang.click('[data-lingguang-dispatch-current]');
   // VUX-19: the icon button answers with a check in its own box once the clipboard took the text.
-  await waitFor("document.querySelector('[data-lingguang-dispatch-current]').dataset.copy === 'done' && document.querySelector('[data-lingguang-dispatch-current] [data-copy-face=done] use')?.getAttribute('href') === '#icon-check'");
+  await views.lingguang.waitFor("document.querySelector('[data-lingguang-dispatch-current]').dataset.copy === 'done' && document.querySelector('[data-lingguang-dispatch-current] [data-copy-face=done] use')?.getAttribute('href') === '#icon-check'");
   assert.match(await evaluate<string>('navigator.clipboard.readText()'), /失败后这一笔也要保留/);
   await open('market');
   await waitFor("!document.querySelector('[data-market-open=cognia]').hidden");
   await shot('market-desktop');
   await click('[data-market-open=cognia]');
   await waitFor("document.body.dataset.desktopSurface === 'cognia'");
-  await waitFor("document.querySelector('[data-cognia-rows] .cognia-empty')");
+  await views.cognia.waitFor("document.querySelector('[data-cognia-rows] .cognia-empty')");
   await input('[data-cognia-search]', '没有这份资料');
-  await waitFor("document.querySelector('[data-cognia-rows]').textContent.includes('没有符合条件的资料')");
-  await click('[data-cognia-action=clear-filters]');
-  await waitFor("document.querySelector('[data-cognia-rows]').textContent.includes('把已有的知识带进来')");
+  await views.cognia.waitFor("document.querySelector('[data-cognia-rows]').textContent.includes('没有符合条件的资料')");
+  await views.cognia.click('[data-cognia-action=clear-filters]');
+  await views.cognia.waitFor("document.querySelector('[data-cognia-rows]').textContent.includes('把已有的知识带进来')");
   await shot('cognia-desktop');
-  await click('[data-cognia-action=model-settings]');
+  await views.cognia.click('[data-cognia-action=model-settings]');
   await waitFor("document.querySelector('[data-work-surface=settings] [data-model-settings]') || document.querySelector('[data-directory-panel=settings] [data-settings-section=models][aria-current]')", 10_000);
   await open('home');
   await click('[data-home-day]:last-child');
@@ -134,7 +136,7 @@ test('Artifact tabs restore the exact item after switching, reload and split', {
   const b = await openGoalBrowser(t, 'seeded'); if (!b) return;
   try {
   const { origin, projectId, command, sessionId, navigate, evaluate, click, waitFor, reloadPage } = b;
-  const app = new GoalProjectApplication(b.store);
+  const app = openProjectVersionStores(b.store);
   for (const id of ['polish/a', 'polish-b']) app.artifacts.commands.registerVersion({ ...pinnedArtifact(`验证 ${id}`),
     project_id: projectId!, actor_id: 'polish-test', artifact_id: id, version: 1,
     artifact_type_id: 'io.molis.work.document', schema_version: 1,
@@ -170,24 +172,28 @@ test('Artifact tabs restore the exact item after switching, reload and split', {
 test('Search opens an owner record in the visible split pane without creating a false item tab', { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, 'seeded'); if (!b) return;
   const { origin, projectId, command, sessionId, navigate, evaluate, click, waitFor } = b;
+  const dataset = await pluginFrameBrowser(t, b, "dataset");
   await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click('[data-plugin-strip] [data-plugin-id=dataset]');
-  await click('[data-dataset-empty] [data-dataset-new]');
-  await waitFor("!document.querySelector('[data-dataset-stage-workspace]').hidden && document.querySelector('[data-dataset=workbench]').getAttribute('aria-busy') === 'false'");
-  await evaluate("(() => { const el = document.querySelector('[data-dataset-title]'); el.value = '分屏查找这份数据'; el.dispatchEvent(new Event('input', {bubbles:true})); })()");
-  await waitFor("document.querySelector('[data-dataset-editor-status]').textContent === '已保存'");
-  assert.equal(await evaluate("document.querySelector('[data-dataset-id] strong').textContent"), '分屏查找这份数据');
-  const id = await evaluate<string>("document.querySelector('[data-dataset-id]').dataset.datasetId");
+  await dataset.click('[data-dataset-empty] [data-dataset-new]');
+  await dataset.waitFor("!document.querySelector('[data-dataset-stage-workspace]').hidden && document.querySelector('[data-dataset=workbench]').getAttribute('aria-busy') === 'false'");
+  await dataset.evaluate("(() => { const el = document.querySelector('[data-dataset-title]'); el.value = '分屏查找这份数据'; el.dispatchEvent(new Event('input', {bubbles:true})); })()");
+  await dataset.waitFor("document.querySelector('[data-dataset-editor-status]').textContent === '已保存'");
+  assert.equal(await dataset.evaluate("document.querySelector('[data-dataset-id] strong').textContent"), '分屏查找这份数据');
+  const id = await dataset.evaluate<string>("document.querySelector('[data-dataset-id]').dataset.datasetId");
   await click('[data-plugin-id=home]');
   await click('[data-tab-split]'); await click('[data-layout-split=right]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
   const targetPane = await evaluate<string>("document.querySelector('.tab-pane.is-focused').dataset.tabPane");
+  const ownerFrame = `iframe.tab-content-frame[data-pane-owner="${targetPane}"]:not([hidden])`;
+  const pane = await pluginFrameBrowser(t, b, "dataset", ownerFrame);
   await click('[data-global-search-open]');
   await evaluate("(() => { const el = document.querySelector('[data-global-search]'); el.value = '分屏查找这份数据'; el.dispatchEvent(new Event('input', {bubbles:true})); })()");
   // Content results come from the system search, so they arrive after the request, not with the keystroke.
   await waitFor(`Boolean(document.querySelector('[data-global-search-id="${id}"]'))`);
   await click(`[data-global-search-id="${id}"]`);
-  await waitFor(`[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].some(frame => frame.dataset.paneOwner === ${JSON.stringify(targetPane)} && frame.contentDocument?.querySelector('[data-dataset-title]')?.value === '分屏查找这份数据' && !frame.contentDocument.querySelector('[data-dataset-stage-workspace]').hidden)`, 20_000);
+  await waitFor(`document.querySelector(${JSON.stringify(ownerFrame)})`, 20_000);
+  await pane.waitFor("document.querySelector('[data-dataset-title]')?.value === '分屏查找这份数据' && !document.querySelector('[data-dataset-stage-workspace]').hidden", 20_000);
   assert.equal(await evaluate("document.querySelectorAll('.tab-item[data-plugin=dataset][data-item-id]').length"), 0);
 });

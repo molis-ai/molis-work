@@ -34,6 +34,7 @@ process.env.MOLIS_WORK_SECRET_BACKEND = "file";
 delete process.env.MOLIS_WORK_ENCRYPTION_KEY;
 const { MolisWorkLocalHost, molisWorkHostProjectReference, LocalProjectDatabase, GoalProjectApplication } = await import("@molis-ai/molis-work-app-local-host");
 
+const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
 const databasePath = join(directory, "project.sqlite"), projectId = "continuity-qa", goalId = "mobile-handoff";
 const db = new LocalProjectDatabase(databasePath), app = new GoalProjectApplication(db);
 try {
@@ -47,7 +48,6 @@ try {
     metadata: { title: "跨设备接续 · 操作说明" }, scope: "team_project", team_share_authorized: true,
   });
 } finally { db.close(); }
-const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
 const ref = molisWorkHostProjectReference({ projectId, databasePath });
 const factory: ActionFactory = ({ memberId, projectId, validate, signal }) => {
   const client = host.actionClient(ref);

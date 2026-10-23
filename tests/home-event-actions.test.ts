@@ -70,7 +70,9 @@ test("native event providers project original Feed, Inbox, source state and proj
   const { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, createLocalFeedApplication, createLocalFeedSourceService } = await import("@molis-ai/molis-work-app-local-host");
   const { createFeedEvidenceContentStore } = await import("@molis-ai/molis-work-module-feed");
   const { runWithMolisWorkHome } = await import("@molis-ai/molis-work-storage");
-  const home = await mkdtemp(join(tmpdir(), "native-home-events-")); const databasePath = join(home, "project.db"); seedDemoBoard(databasePath, caller.project_id!);
+  const home = await mkdtemp(join(tmpdir(), "native-home-events-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const databasePath = join(home, "project.db"); seedDemoBoard(databasePath, caller.project_id!);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: caller.project_id! });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   const owner = { ...caller, permissions: ["home:read", "feed:read", "inbox:read", "goals:read", "sessions:read"] };

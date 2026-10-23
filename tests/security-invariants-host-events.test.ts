@@ -5,15 +5,15 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
-  HOST_EVENT_SOURCE, HOST_REVIEW_SETTLED_EVENT,
-  type PluginDefinition, type PluginEventDeliveryContext, type PluginEventDeliveryFailure, type PluginEventRecord,
-  type PluginEventSubscribeDeclaration, type PluginHostServices, type PluginManifest,
+  HOST_EVENT_SOURCE, HOST_REVIEW_SETTLED_EVENT, HOST_WORKSPACE_CHANGED_EVENT,
+  type PluginAppContribution, type PluginDefinition, type PluginEventDeliveryContext, type PluginEventDeliveryFailure, type PluginEventRecord,
+  type PluginEventSubscribeDeclaration, type PluginHostServices, type PluginManifest, type PluginPermissionDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, observeReviewSettlements, reviewSettlementForwarder, seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { currentPluginAction, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { currentPluginAction, PluginHostEvents, type PluginHostEventsLifecycle, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -21,17 +21,22 @@ import { deferred } from "./fixtures/home-runtime.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
 // S-54: a host event (X-6) goes only to the installation it is addressed to — for `host.review.settled@1`, the one that asked for
-// the review — and only while that very activation runs, is enabled and subscribes in its current Manifest. It is not stored,
-// never starts a plugin, is never replayed, and runs outside any action as the subscriber itself.
+// the review — or, for a broadcast such as `host.workspace.changed@1`, to each installation of the project that holds the type's
+// permission, declared and granted; and only while that very activation runs, is enabled and subscribes in its current Manifest.
+// It is not stored, never starts a plugin, is never replayed, and runs outside any action as the subscriber itself.
 
 const A = "io.molis.work.example.hostasker", B = "io.molis.work.example.hostbystander", C = "io.molis.work.example.hostdeaf";
+const W = "io.molis.work.example.hostwatcher", V = "io.molis.work.example.hostviewer", R = "io.molis.work.example.hostreader";
 const SETTLED: PluginEventSubscribeDeclaration = { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1 };
+const CHANGED: PluginEventSubscribeDeclaration = { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1 };
+const READ: PluginPermissionDeclaration = { permission: "workspace:read", required: false, reason: "工作区变了就重读" };
 const OWNER: ActionCallContext = { actor_id: "owner", project_id: DEMO_PROJECT_ID, audience: "user", permissions: [] };
 
-function manifestFor(pluginId: string, subscribes: PluginEventSubscribeDeclaration[], actions: ActionDefinition[] = []): PluginManifest {
+function manifestFor(pluginId: string, subscribes: PluginEventSubscribeDeclaration[], actions: ActionDefinition[] = [],
+  permissions: PluginPermissionDeclaration[] = []): PluginManifest {
   return { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${pluginId.split(".").at(-1)}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
-    permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+    permissions, capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     events: { publishes: [{ event_type_id: `${pluginId}.noted`, type_version: 1 }], subscribes }, actions, upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
 }
 
@@ -39,7 +44,7 @@ function manifestFor(pluginId: string, subscribes: PluginEventSubscribeDeclarati
  * A plugin that records what it hears. Each start is one activation; its `stop` ends it, as the Host withdraws the caller an
  * activation asked with (PG-009), so an authority taken from it stops holding once it stops, is disabled or reinstalled.
  */
-function probe(pluginId: string, subscribes: PluginEventSubscribeDeclaration[]) {
+function probe(pluginId: string, subscribes: PluginEventSubscribeDeclaration[], permissions: PluginPermissionDeclaration[] = []) {
   const settleNow: ActionDefinition<{ review_id: string }, boolean> = { capability_id: `${pluginId}.settle-now`, version: 1, operation: "command",
     action: { scope: "project", audiences: ["user"], permissions: [], subject_kinds: [], title: "结算一项审查", description: "结算一项审查",
       kind: "operation", input_schema: { type: "object", additionalProperties: false, required: ["review_id"], properties: { review_id: { type: "string" } } },
@@ -55,7 +60,7 @@ function probe(pluginId: string, subscribes: PluginEventSubscribeDeclaration[]) 
     stopping: undefined as Promise<unknown> | undefined,
   };
   // It publishes an event of its own, so it holds the event client a plugin publishes through (X6-03).
-  const definition: PluginDefinition = { manifest: manifestFor(pluginId, subscribes, [settleNow]),
+  const definition: PluginDefinition = { manifest: manifestFor(pluginId, subscribes, [settleNow], permissions),
     event_types: [{ event_type_id: `${pluginId}.noted`, type_version: 1, validate: (payload: unknown) => payload }], async start(context) {
     state.starts += 1; state.activation = { live: true }; state.services = context.services;
     return { kind: "app" as const, views: [], actions: [{ ...settleNow, handle: (_caller: ActionCallContext, input: unknown) => { state.inside?.((input as { review_id: string }).review_id); return true; } }],
@@ -68,8 +73,14 @@ function probe(pluginId: string, subscribes: PluginEventSubscribeDeclaration[]) 
   return { definition, settleNow, state, heard: () => state.heard.map(item => item.record) };
 }
 
-/** The project platform the Host builds, a review queue, and the settlement forwarder the Host wires between them. */
-async function platform(t: TestContext) {
+/** A plugin that rereads a workspace when it changes: it subscribes to `host.workspace.changed@1` and declares `workspace:read`. */
+const watcher = (pluginId: string) => probe(pluginId, [CHANGED], [READ]);
+
+/**
+ * The project platform the Host builds, a review queue, and the settlement forwarder the Host wires between them. `extra` are
+ * started with the three probes every test has, each as a bundled plugin, so it holds every permission it declares.
+ */
+async function platform(t: TestContext, extra: ReturnType<typeof probe>[] = []) {
   const home = mkdtempSync(join(tmpdir(), "host-events-")), file = join(home, "project.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID), privateStorage = new SqlitePluginPrivateStorage(store.db);
@@ -89,24 +100,29 @@ async function platform(t: TestContext) {
       for (const instance of running.runtime.list()) if (instance.state === "running") await running.runtime.stop(instance.install_id);
     } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
   });
-  const asker = probe(A, [SETTLED]), bystander = probe(B, [SETTLED]), deaf = probe(C, []);
-  const report = await running.start([asker, bystander, deaf].map(item => ({ definition: item.definition, bundled: true })));
-  assert.deepEqual(report.running.toSorted(), [A, B, C].toSorted(), JSON.stringify(report));
+  const asker = probe(A, [SETTLED]), bystander = probe(B, [SETTLED]), deaf = probe(C, []), all = [asker, bystander, deaf, ...extra];
+  const report = await running.start(all.map(item => ({ definition: item.definition, bundled: true })));
+  assert.deepEqual(report.running.toSorted(), all.map(item => item.definition.manifest.plugin_id).toSorted(), JSON.stringify(report));
   const installOf = (pluginId: string) => running.runtime.list().find(install => install.plugin_id === pluginId)!;
   let counter = 0;
-  /** A plugin operation `who` asks for now, approved by a person and handed to its execution owner. */
-  const ask = (who: ReturnType<typeof probe>, projectId = DEMO_PROJECT_ID) => {
+  /** A plugin operation `who` asks for now, still waiting for a person. */
+  const request = (who: ReturnType<typeof probe>, projectId = DEMO_PROJECT_ID, expiresAt: string | null = null) => {
     const reviewId = `review-${++counter}`, pluginId = who.definition.manifest.plugin_id, asked = who.state.activation;
     queue.request({ review_id: reviewId, run: null, project_id: projectId, plugin_id: pluginId, kind: "tool-operation",
       operation: { kind: "git-operation", operation_id: `operation-${counter}`, workspace_id: "w" },
-      document: { kind: "tool-operation", tool: "git-commit", summary: "提交暂存区", fields: [] }, requested_at: "2026-10-22T00:00:00Z", expires_at: null },
+      document: { kind: "tool-operation", tool: "git-commit", summary: "提交暂存区", fields: [] }, requested_at: "2026-10-22T00:00:00Z", expires_at: expiresAt },
     { plugin_id: pluginId, install_id: installOf(pluginId).install_id, holds: () => asked.live });
+    return reviewId;
+  };
+  /** A plugin operation `who` asks for now, approved by a person and handed to its execution owner. */
+  const ask = (who: ReturnType<typeof probe>, projectId = DEMO_PROJECT_ID) => {
+    const reviewId = request(who, projectId);
     queue.decide({ review_id: reviewId, decision: "approve", actor_id: "owner" });
     queue.consumeApproval(reviewId);
     return reviewId;
   };
   const settled = async () => { await running.hostEvents.drain(); };
-  return { running, queue, asker, bystander, deaf, ask, settled, failures, installOf, client: actions.client, db: store.db };
+  return { running, queue, asker, bystander, deaf, request, ask, settled, failures, installOf, client: actions.client, db: store.db };
 }
 
 test("X6-01 S-54 a settled review goes only to the installation that asked for it, never to another subscriber or another project", async t => {
@@ -257,7 +273,8 @@ test("X6-05 S-54 a crashing installation gets nothing queued for it, even while 
 });
 
 test("X6-06 S-54 an Agent's own change and a review restored from history send nothing to anyone", async t => {
-  const { queue, asker, bystander, deaf, settled } = await platform(t);
+  const watching = watcher(W);
+  const { queue, asker, bystander, deaf, settled } = await platform(t, [watching]);
   queue.request({ review_id: "agent-own", run: { run_id: "run-1", session_id: "s-1" }, project_id: DEMO_PROJECT_ID, plugin_id: A, kind: "command",
     document: { kind: "command", command: "npm", args: ["test"], cwd: ".", timeout_ms: 30000, env_allowlist: ["PATH"] }, requested_at: "2026-10-22T00:00:00Z", expires_at: null });
   queue.decide({ review_id: "agent-own", decision: "approve", actor_id: "owner" });
@@ -271,7 +288,8 @@ test("X6-06 S-54 an Agent's own change and a review restored from history send n
   queue.restoreDecision({ ...restored, review_id: "restored-later" }, { status: "approved", decided_by: "owner", decided_at: "2026-10-22T00:00:00Z", note: null });
   queue.uncertain("restored-later", "重启后才确认");
   await settled();
-  for (const item of [asker, bystander, deaf]) assert.deepEqual(item.heard(), [], item.definition.manifest.plugin_id);
+  // The restored ones ran in an earlier process, before anything running now started: no workspace change to announce either.
+  for (const item of [asker, bystander, deaf, watching]) assert.deepEqual(item.heard(), [], item.definition.manifest.plugin_id);
 });
 
 test("X6-07 S-54 a settlement inside an action is delivered outside it, as the subscriber itself; a failing handler changes nothing", async t => {
@@ -293,4 +311,190 @@ test("X6-07 S-54 a settlement inside an action is delivered outside it, as the s
   // Not retried.
   await settled();
   assert.equal(asker.heard().length, 1);
+});
+
+test("X6-05 S-54 a workspace change is not kept for a stopped, disabled or reinstalled subscriber, and never starts one", async t => {
+  const watching = watcher(W);
+  const { running, queue, asker, ask, settled, installOf } = await platform(t, [watching]);
+  const install = () => installOf(W).install_id;
+  // Stopped.
+  await running.runtime.stop(install());
+  const starts = watching.state.starts;
+  queue.settle(ask(asker), { ok: true });
+  await settled();
+  assert.equal(watching.state.starts, starts, "never started for a broadcast");
+  await running.runtime.start(install());
+  await settled();
+  assert.deepEqual(watching.heard(), [], "nor replayed once it runs again");
+  // Disabled.
+  running.supervisor.revoke(W);
+  queue.settle(ask(asker), { ok: true });
+  await settled();
+  await running.supervisor.enable(W);
+  await settled();
+  assert.deepEqual(watching.heard(), [], "enabling again replays nothing");
+  // Queued, then reinstalled before dispatch: the first handler holds the queue, the second waits behind it.
+  const entered = deferred(), release = deferred();
+  watching.state.handle = async () => { entered.resolve(); await release.promise; };
+  queue.settle(ask(asker), { ok: true });
+  queue.settle(ask(asker), { ok: true });
+  await entered.promise;
+  watching.state.handle = undefined;
+  await running.runtime.stop(install());
+  await running.runtime.uninstall(install());
+  running.runtime.install({ definition: watching.definition, deployment: "local", grants: [], bundled: true });
+  await running.runtime.start(install());
+  release.resolve();
+  await settled();
+  assert.equal(watching.heard().length, 1, "the second was queued for the installation before the reinstall");
+});
+
+test("X6-08 S-54 a workspace change goes only to a subscriber that holds workspace:read, declared and granted", async t => {
+  const watching = watcher(W), switchedOff = watcher(V);
+  const { running, queue, asker, ask, settled, installOf } = await platform(t, [watching, switchedOff]);
+  // The person switched the optional permission off: still declared, no longer granted.
+  const off = installOf(V).install_id;
+  await running.runtime.stop(off);
+  running.runtime.grant(off, []);
+  await running.runtime.start(off);
+  assert.deepEqual(installOf(V).grants, []);
+  queue.settle(ask(asker), { ok: true });
+  await settled();
+  assert.deepEqual(watching.heard().map(record => record.event_type_id), [HOST_WORKSPACE_CHANGED_EVENT]);
+  assert.deepEqual(switchedOff.heard(), [], "declared but not granted");
+});
+
+test("X6-08 S-54 a workspace change queued while its subscriber held workspace:read is dropped at dispatch once the grant or the declaration is gone", async () => {
+  // A running installation whose grants and current Manifest the test changes between queueing and dispatch: a real one cannot
+  // change its grants while it runs (`state_invalid`), but the delivery must not rely on that.
+  const subscriber = { grants: [READ.permission], permissions: [READ], heard: [] as string[] };
+  let hold: { entered: ReturnType<typeof deferred>; release: ReturnType<typeof deferred> } | undefined;
+  const contribution: PluginAppContribution = { kind: "app", async onEvent(record) {
+    subscriber.heard.push(record.event_id);
+    const held = hold;
+    hold = undefined;
+    if (held) { held.entered.resolve(); await held.release.promise; }
+  } };
+  const manifest = manifestFor(W, [CHANGED]);
+  const lifecycle: PluginHostEventsLifecycle = {
+    manifest: () => ({ ...manifest, permissions: subscriber.permissions }),
+    contract: () => ({ plugin_id: W, publishes: new Map(), subscribes: [{ ...CHANGED, from_plugin_ids: new Set<string>() }] }),
+    generation: () => 1,
+    installation: () => ({ install_id: "install-w", installation_generation: "generation-1", version: "1.0.0", running: true, grants: subscriber.grants }),
+    enabledPluginIds: () => [W],
+    ensureStarted: async () => undefined,
+    contribution: () => contribution,
+  };
+  let counter = 0;
+  const events = new PluginHostEvents({ projectId: DEMO_PROJECT_ID, lifecycle, createId: () => `event-${++counter}` });
+  const send = () => events.broadcast({ event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1, payload: { workspace_id: "w", cause: "plugin-operation" } });
+  const withdrawnWhileQueued = async (withdraw: () => void) => {
+    const held = hold = { entered: deferred(), release: deferred() }, before = subscriber.heard.length;
+    assert.equal(send(), 1);
+    await held.entered.promise;
+    assert.equal(send(), 1, "queued behind the first while it still holds the permission");
+    withdraw();
+    held.release.resolve();
+    await events.drain();
+    assert.equal(subscriber.heard.length, before + 1, "the second is dropped at dispatch");
+  };
+  await withdrawnWhileQueued(() => { subscriber.grants = []; });
+  assert.equal(send(), 0, "nothing is queued while the grant is gone");
+  subscriber.grants = [READ.permission];
+  await withdrawnWhileQueued(() => { subscriber.permissions = []; });
+  assert.equal(send(), 0, "nor while the current Manifest no longer declares it");
+  assert.equal(subscriber.heard.length, 2, "in each round only the event dispatched before the withdrawal");
+});
+
+test("X6-09 S-54 a workspace change reaches no installation that does not subscribe to it, and none for another project's write", async t => {
+  const watching = watcher(W), reader = probe(R, [SETTLED], [READ]);
+  const { queue, asker, bystander, deaf, ask, settled } = await platform(t, [watching, reader]);
+  queue.settle(ask(asker, "another-project"), { ok: true });
+  await settled();
+  assert.deepEqual(watching.heard(), [], "another project's write is not this project's to announce");
+  queue.settle(ask(bystander), { ok: true });
+  await settled();
+  assert.equal(watching.heard().length, 1);
+  assert.deepEqual(reader.heard(), [], "holds workspace:read, but subscribes only to settlements of its own reviews");
+  assert.deepEqual(bystander.heard().map(record => record.event_type_id), [HOST_REVIEW_SETTLED_EVENT], "the asker hears its own settlement only");
+  assert.deepEqual(asker.heard(), []);
+  assert.deepEqual(deaf.heard(), []);
+});
+
+test("X6-10 S-54 a workspace change names only the workspace and the cause: no review, operation, outcome, asker or correlation", async t => {
+  const first = watcher(W), second = watcher(V);
+  const { running, queue, asker, ask, settled, installOf, db } = await platform(t, [first, second]);
+  const reviewId = ask(asker);
+  queue.settle(reviewId, { ok: false, error: "失败" });
+  await settled();
+  const [mine, theirs] = [first, second].map(item => { assert.equal(item.heard().length, 1); return item.heard()[0]!; });
+  for (const record of [mine!, theirs!]) {
+    assert.equal(record.event_type_id, HOST_WORKSPACE_CHANGED_EVENT);
+    assert.deepEqual(Object.keys(record.payload as object).toSorted(), ["cause", "workspace_id"]);
+    assert.deepEqual(record.payload, { workspace_id: "w", cause: "plugin-operation" });
+    assert.equal(record.correlation_id, null, "a review id would say which review it was");
+    assert.equal(record.source_plugin_id, HOST_EVENT_SOURCE);
+    assert.equal(record.source_install_id, HOST_EVENT_SOURCE);
+    assert.equal(record.sequence, 0, "not in the event log");
+    for (const secret of [reviewId, reviewId.replace("review-", "operation-"), A, "failed", "失败"]) {
+      assert.equal(JSON.stringify(record).includes(secret), false, secret);
+    }
+  }
+  assert.notEqual(mine!.event_id, theirs!.event_id, "each installation gets a delivery of its own");
+  const heard = first.state.heard[0]!;
+  assert.equal(heard.context.install_id, installOf(W).install_id);
+  assert.equal(heard.context.actor_id, `plugin:${W}`, "as the subscriber itself");
+  assert.equal(heard.action, undefined, "outside every action");
+  assert.deepEqual(running.events.log(DEMO_PROJECT_ID).filter(record => record.event_type_id.startsWith("host.")), []);
+  assert.deepEqual(db.prepare("SELECT event_id FROM plugin_events WHERE event_type_id LIKE 'host.%'").all(), []);
+});
+
+test("X6-11 S-54 the type table fixes how a host event is sent: a settlement is never broadcast, a workspace change never addressed", async t => {
+  const { running, installOf } = await platform(t);
+  const events = running.hostEvents;
+  assert.throws(() => events.broadcast({ event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1, payload: {} }),
+    { code: "plugin.event_type_invalid", message: /宿主事件 host\.review\.settled@1 只发给指定的安装，不能广播/ });
+  assert.throws(() => events.notify({ plugin_id: A, install_id: installOf(A).install_id }, { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1, payload: {} }),
+    { code: "plugin.event_type_invalid", message: /宿主事件 host\.workspace\.changed@1 是广播，不能定向发给一个安装/ });
+  assert.throws(() => events.broadcast({ event_type_id: "host.workspace.other", type_version: 1, payload: {} }),
+    { code: "plugin.event_type_invalid", message: /宿主没有事件 host\.workspace\.other@1/ });
+  assert.throws(() => events.broadcast({ event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 2, payload: {} }),
+    { code: "plugin.event_type_invalid", message: /宿主没有事件 host\.workspace\.changed@2/ });
+});
+
+test("X6-12 S-54 every settled workspace operation is announced, whatever its outcome and whether its asker still runs; one that never ran is not", async t => {
+  const watching = watcher(W);
+  const { running, queue, asker, request, ask, settled, installOf } = await platform(t, [watching]);
+  queue.settle(ask(asker), { ok: true });
+  queue.settle(ask(asker), { ok: false, error: "失败" });
+  queue.uncertain(ask(asker), "结果未确认");
+  await settled();
+  assert.equal(watching.heard().length, 3, "a failed or unknown operation may have written part of its change");
+  assert.equal(asker.heard().length, 3, "and the asker hears each of its own settlements");
+  // Rejected, withdrawn or expired: decided without running, so never settled.
+  const rejected = request(asker), cancelled = request(asker), expired = request(asker, DEMO_PROJECT_ID, "2000-01-01T00:00:00Z");
+  queue.decide({ review_id: rejected, decision: "reject", actor_id: "owner" });
+  queue.cancel(cancelled, "已撤回");
+  assert.equal(queue.receipt(expired)?.status, "expired");
+  for (const reviewId of [rejected, cancelled, expired]) assert.throws(() => queue.settle(reviewId, { ok: true }), { message: /没有消费过批准的操作不能记录执行结果/ });
+  await settled();
+  assert.equal(watching.heard().length, 3);
+  // The asker stopped after asking: the operation ran all the same, so the others still hear of it, and the asker does not.
+  const afterStop = ask(asker);
+  await running.runtime.stop(installOf(A).install_id);
+  queue.settle(afterStop, { ok: true });
+  await settled();
+  assert.equal(watching.heard().length, 4);
+  assert.equal(asker.heard().length, 3);
+});
+
+test("X6-13 S-54 a Manifest that subscribes to a workspace change must declare workspace:read", () => {
+  const parse = (subscribes: PluginEventSubscribeDeclaration[], permissions: PluginPermissionDeclaration[]) =>
+    parsePluginManifest({ ...manifestFor(A, [], [], permissions), events: { publishes: [], subscribes } } as PluginManifest);
+  assert.doesNotThrow(() => parse([CHANGED], [READ]));
+  assert.doesNotThrow(() => parse([CHANGED], [{ ...READ, required: true }]));
+  for (const permissions of [[], [{ ...READ, permission: "workspace:write" }]]) {
+    assert.throws(() => parse([CHANGED], permissions), { code: "plugin.declaration_invalid", message: /订阅宿主事件 host\.workspace\.changed@1 要声明权限 workspace:read/ });
+  }
+  assert.doesNotThrow(() => parse([SETTLED], []), "an addressed host event asks for no permission of its own");
 });

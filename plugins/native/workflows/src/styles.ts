@@ -109,11 +109,13 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-issues > span { min-width: 0; overflow-wrap: anywhere; }
 
   [data-workflows="workbench"] .wf-station__tools {
-    position: absolute; left: 50%; top: calc(100% + 4px); transform: translate(-50%, -3px); display: flex; gap: 4px; padding: 4px;
+    position: absolute; left: 50%; top: calc(100% + 4px); transform: translate(-50%, 0); display: flex; gap: 4px; padding: 4px;
     border: 1px solid var(--line); border-radius: 8px; background: var(--paper); box-shadow: var(--shadow-raised);
-    opacity: 0; pointer-events: none; transition: opacity var(--wf-edge), transform var(--wf-edge); z-index: 2;
+    transition: opacity var(--wf-edge), transform var(--wf-edge); z-index: 2;
   }
-  [data-workflows="workbench"] .wf-station:hover .wf-station__tools, [data-workflows="workbench"] .wf-station:focus-within .wf-station__tools { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  @media (hover: hover) and (pointer: fine) {
+    [data-workflows="workbench"] .wf-station:not(:hover, :focus-within) .wf-station__tools { opacity: 0; transform: translate(-50%, -3px); pointer-events: none; }
+  }
   [data-workflows="workbench"] .wf-chain.is-dragging .wf-station__tools { opacity: 0; pointer-events: none; }
   [data-workflows="workbench"] .wf-tool { display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; transition: background-color var(--wf-hover), color var(--wf-hover); }
   [data-workflows="workbench"] .wf-tool:hover { background: var(--nav-hover); color: var(--ink); }

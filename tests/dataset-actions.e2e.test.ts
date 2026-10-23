@@ -5,12 +5,15 @@ import { join } from "node:path";
 import { openDatasetStore, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 for (const width of [1440, 390]) test(`W5-01-DATASET-03: Dataset ${width}px: edit, CSV, save ordering, conflict, versions, explicit AI and publication`, { timeout: 90_000 }, async t => {
   let modelCalls = 0;
   const browser = await openGoalBrowser(t, true, undefined, async prompt => { modelCalls++; assert.match(prompt, /截止时间/); return "截止日期"; }); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "dataset");
+  const { evaluate, waitFor, click } = child;
   const read = () => { const store = openDatasetStore(homeDirectory); try { return store.list(projectId!); } finally { store.close(); } };
   const idle = () => waitFor("document.querySelector('[data-dataset=workbench]').getAttribute('aria-busy') === 'false'");
   const input = async (selector: string, value: string) => {
@@ -18,11 +21,11 @@ for (const width of [1440, 390]) test(`W5-01-DATASET-03: Dataset ${width}px: edi
   };
   const saved = () => waitFor("document.querySelector('[data-dataset-editor-status]').textContent === '已保存'");
   const open = async () => {
-    await waitFor("document.querySelector('[data-plugin-id=dataset]')");
-    if (await evaluate("document.body.dataset.desktopSurface") !== "dataset") {
-      await click('[data-plugin-strip] [data-plugin-id=dataset]');
+    await browser.waitFor("document.querySelector('[data-plugin-id=dataset]')");
+    if (await browser.evaluate("document.body.dataset.desktopSurface") !== "dataset") {
+      await browser.click('[data-plugin-strip] [data-plugin-id=dataset]');
     }
-    await waitFor("document.body.dataset.desktopSurface === 'dataset'");
+    await browser.waitFor("document.body.dataset.desktopSurface === 'dataset'");
   };
   await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -46,7 +49,7 @@ for (const width of [1440, 390]) test(`W5-01-DATASET-03: Dataset ${width}px: edi
   await evaluate(`(() => { const original = window.fetch; window.datasetSaveRequests = 0;
     window.fetch = async (url, init) => {
       const response = await original(url, init);
-      if (init?.method === 'POST' && new URL(url, location.href).pathname.endsWith('/api/plugins/io.molis.work.dataset/datasets/${id}')) {
+      if (init?.method === 'POST' && new URL(url, ${JSON.stringify(origin)}).pathname.endsWith('/api/plugins/io.molis.work.dataset/datasets/${id}')) {
         window.datasetSaveRequests++;
         if (window.datasetSaveRequests === 1) await new Promise(resolve => { window.releaseDatasetSave = resolve; });
       }
@@ -125,16 +128,16 @@ for (const width of [1440, 390]) test(`W5-01-DATASET-03: Dataset ${width}px: edi
   assert.equal(read()[0]!.description, '发布中继续编辑');
   assert.equal(await evaluate("document.querySelector('[data-dataset-stage-workspace]').scrollLeft"), 0, 'toolbar scrolling must not shift the editor');
   // Scope spoofing is rejected by the real HTTP adapter, before any business mutation.
-  const denied = await evaluate<{status:number}>(`fetch((document.body.dataset.routePrefix||'') + '/api/plugins/io.molis.work.dataset/datasets?project_id=${projectId}', {method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({project_id:'other-project', title:'must not exist'})}).then(r=>({status:r.status}))`);
+  const denied = await browser.evaluate<{status:number}>(`fetch((document.body.dataset.routePrefix||'') + '/api/plugins/io.molis.work.dataset/datasets?project_id=${projectId}', {method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({project_id:'other-project', title:'must not exist'})}).then(r=>({status:r.status}))`);
   assert.equal(denied.status, 403); assert.equal(read().length, 1);
   // The short native route is gone, with no compatibility alias: the Runtime route is the only one.
-  const oldRoute = await evaluate<{status:number}>(`fetch((document.body.dataset.routePrefix||'') + '/api/dataset?project_id=${projectId}').then(r=>({status:r.status}))`);
+  const oldRoute = await browser.evaluate<{status:number}>(`fetch((document.body.dataset.routePrefix||'') + '/api/dataset?project_id=${projectId}').then(r=>({status:r.status}))`);
   assert.equal(oldRoute.status, 404);
   // The dataset being edited comes back by itself (specs/archive/page-interaction-flow: a plugin's page reopens the record that was open in it after a reload).
   await reloadPage(); await open(); await waitFor("document.querySelector('[data-dataset-title]')?.getClientRects().length > 0");
   await idle(); assert.equal(read()[0]!.artifact_version, 1);
   assert.equal(await evaluate("document.querySelectorAll('[data-dataset-row]').length"), 2);
-  assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'));
+  assert.ok((await browser.evaluate('document.documentElement.scrollWidth <= window.innerWidth') && await evaluate('document.documentElement.scrollWidth <= window.innerWidth')));
   assert.ok(await evaluate("document.querySelector('.dataset-table-wrap').getBoundingClientRect().height > 100"), 'table rows must not collapse in the flex workspace');
   assert.ok(await evaluate("document.querySelector('[data-column-name]').getBoundingClientRect().width >= 100"), 'column names remain readable on narrow screens');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
@@ -143,11 +146,13 @@ for (const width of [1440, 390]) test(`W5-01-DATASET-03: Dataset ${width}px: edi
 
 test('W5-01-DATASET-03: Dataset without a model disables AI while local creation and column edits still work', {timeout:45_000}, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
-  const {command, sessionId, navigate, waitFor, evaluate, click, origin, projectId} = browser;
+  const { command, sessionId, navigate, origin, projectId } = browser;
+  const child = await pluginFrameBrowser(t, browser, "dataset");
+  const { evaluate, waitFor, click } = child;
   await command('Emulation.setDeviceMetricsOverride', {width:1440, height:950, deviceScaleFactor:1, mobile:false}, sessionId);
   await navigate(() => command('Page.navigate', {url:`${origin}/projects/${projectId}/?openPlugin=dataset`}, sessionId));
-  await waitFor("document.querySelector('[data-plugin-id=dataset]')");
-  if (await evaluate('document.body.dataset.desktopSurface') !== 'dataset') await click('[data-plugin-strip] [data-plugin-id=dataset]');
+  await browser.waitFor("document.querySelector('[data-plugin-id=dataset]')");
+  if (await browser.evaluate('document.body.dataset.desktopSurface') !== 'dataset') await browser.click('[data-plugin-strip] [data-plugin-id=dataset]');
   await click('[data-dataset-new]'); await waitFor("document.querySelector('[data-dataset=workbench]').getAttribute('aria-busy') === 'false'");
   await click('.dataset-assist > summary');
   assert.equal(await evaluate("document.querySelector('[data-dataset-generate-ai]').disabled"), true);

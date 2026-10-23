@@ -55,8 +55,8 @@ export interface PluginProjectLibraries {
  * (W5-01-RPC-01): the platform stops the background executions the installation accepted in the project (PG-038), then its library of
  * the project is closed and refused to every call already under way, then its own `purge` begins. Once that has settled the project's
  * library is removed, and only then may a call begun after the deletion open it again (specs/plugin-project-partition §2.5). A plugin
- * with background work and no data of a project gets a step of its own that only stops that work; the confirmation dialog does not
- * list it.
+ * with background work and no data of a project gets a step of its own that only stops that work; the confirmation lists
+ * the work that will stop.
  */
 export function registerPluginProjectCleanup(home: string, runtime: PluginRuntime, entries: readonly PluginProjectCleanupEntry[],
   libraries: PluginProjectLibraries): () => void {
@@ -70,7 +70,7 @@ export function registerPluginProjectCleanup(home: string, runtime: PluginRuntim
       return record;
     };
     if (!owner) {
-      return hasPluginBackground(entry.definition) ? [hooks.register({ id: `plugin-background:${pluginId}`, label: null, clear(projectId) { stopBackground(projectId); } })] : [];
+      return hasPluginBackground(entry.definition) ? [hooks.register({ id: `plugin-background:${pluginId}`, label: "{name} 的后台工作（将停止）", label_values: { name: entry.definition.manifest.name }, clear(projectId) { stopBackground(projectId); } })] : [];
     }
     const partitioned = entry.database?.partition === "project" ? entry.database.store_name : undefined;
     return [hooks.register({

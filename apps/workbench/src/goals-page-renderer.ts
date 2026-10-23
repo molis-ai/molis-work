@@ -1,5 +1,7 @@
-import { deferredSurfaceClients } from "./plugin-workbench.js";
+import { renderPluginFrameSurface } from "./plugin-frame.js";
+import { pluginSurfaceClients, deferredSurfaceClients } from "./plugin-workbench.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
 import type { UiContribution, UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionView, type GoalCollectionModel } from "@molis-ai/molis-work-plugin-goals";
@@ -15,11 +17,23 @@ import { renderRuntimePlanDialog } from "./settings-appearance.js";
 import { knowledgeClientTag } from "./settings-knowledge.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 function projectSideTabs(enabled: readonly string[], routePrefix: string) {
-  const home = homePluginSideTabs();
+  const home = homePluginSideTabs(routePrefix);
   return [...home, ...sideEntries(enabled).filter(side => !home.some(tab => tab.key === `${side.project_plugin_id}/${side.view_id}`))
     .map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title, ...(side.context_binding ? { contextOwner: side.plugin_id, contextSurface: side.project_plugin_id } : {}), icon: (side.icon ?? "package") as PageIcon, order: side.order,
       src: `${routePrefix}/side/${encodeURIComponent(side.project_plugin_id)}/${encodeURIComponent(side.view_id)}` }))];
 }
+function deferredSurfaces(L: Translate, enabledPlugins: readonly string[], hiddenPlugins: readonly string[] | undefined, panePlugin: string | undefined) {
+  const deferredIds = new Set(deferredSurfaceClients().map(client => client.id));
+  const isolatedIds = new Set(pluginSurfaceClients().map(client => client.id));
+  return (html: string): string => {
+    const match = html.match(/^(\s*<([a-z][a-z0-9-]*)\b[^>]*data-work-surface="([^"]+)"[^>]*>)([\s\S]*)(<\/\2>\s*)$/);
+    if (!match || !deferredIds.has(match[3]!)) return html;
+    if (panePlugin && panePlugin !== match[3]) return match[1]!.replace(/>$/, ' data-pane-placeholder>') + match[5];
+    if (!isolatedIds.has(match[3]!)) return match[1]!.replace(/>$/, ' data-deferred-surface>') + '<template data-deferred-content>' + match[4] + '</template>' + match[5];
+    return renderPluginFrameSurface(html, match[3]!, L(BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === match[3])?.manifest.name ?? match[3]!), true, listPluginSettingsNavItems(enabledPlugins, hiddenPlugins).some(item => item.section_id === match[3]));
+  };
+}
+
 type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";
 export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extends GoalCollectionView<TItem> {
   /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
@@ -192,13 +206,7 @@ function renderMolisWorkWeb(
     : null, projectOperationsData);
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins, view.hidden_plugins)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
-  const deferredIds = new Set(deferredSurfaceClients().map(client => client.id));
-  const defer = (html: string): string => {
-    const match = html.match(/^(\s*<([a-z][a-z0-9-]*)\b[^>]*data-work-surface="([^"]+)"[^>]*>)([\s\S]*)(<\/\2>\s*)$/);
-    if (!match || !deferredIds.has(match[3]!)) return html;
-    if (view.pane_plugin && view.pane_plugin !== match[3]) return match[1]!.replace(/>$/, ' data-pane-placeholder>') + match[5];
-    return match[1]!.replace(/>$/, ' data-deferred-surface>') + '<template data-deferred-content>' + match[4] + '</template>' + match[5];
-  };
+  const defer = deferredSurfaces(L, enabledPlugins, view.hidden_plugins, view.pane_plugin);
   const pluginEnabled = (id: string) => enabledPlugins.includes(id);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
   const directoryEmpty = initialDesktopDirectory === "root";

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
@@ -86,7 +86,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   const browser = await openGoalBrowser(t, "user");
   if (!browser) return;
   const { store, projectId, command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
-  const app = new GoalProjectApplication(store);
+  const app = openProjectVersionStores(store);
   for (const version of [1, 2]) app.artifacts.commands.registerVersion({ ...pinnedArtifact(version === 1 ? "Original result" : "Revised result", { kind: "item", id: "review-note" }, String(version)),
     project_id: projectId!, actor_id: "fixture", artifact_id: "review-note", version,
     artifact_type_id: "example.note", schema_version: 1,
@@ -122,8 +122,8 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   await waitFor("document.querySelector('[data-market-add=feed]').textContent === '移除'");
   assert.equal(await evaluate("document.querySelector('[data-market-add=inbox]').textContent"), "移除");
   const list = await evaluate<{ project_id: string; plugins: string[] }[]>("fetch('/api/settings/project-plugins').then(r=>r.json()).then(r=>r.projects)");
-  assert.deepEqual(list.find(item => item.project_id === projectId)!.plugins, ["goals"]);
-  assert.deepEqual(list.find(item => item.project_id === otherId)!.plugins, ["feed", "goals", "inbox"]);
+  assert.deepEqual(list.find(item => item.project_id === projectId)!.plugins, ["goals", "schedule"]);
+  assert.deepEqual(list.find(item => item.project_id === otherId)!.plugins, ["feed", "goals", "inbox", "schedule"]);
   await evaluate(`(()=>{const s=document.querySelector('[data-market-project]');s.value=${JSON.stringify(projectId)};s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   // This project: the page changes in place (the switcher's entry wakes, nothing is loaded again).
   await evaluate("window.__stayedOnPage = true");

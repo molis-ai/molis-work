@@ -13,6 +13,7 @@ const deferred = <T>() => { let resolve!: (value: T) => void; const promise = ne
 
 test("W2-18-WORK-RECEIPT-01: Session message actions persist actual acceptance after revocation without returning or resending", { timeout: 45_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "session-message-actions-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const started = deferred<void>(), response = deferred<unknown>();

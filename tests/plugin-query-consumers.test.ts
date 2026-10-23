@@ -14,6 +14,7 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 
 test("Feed reads and warm Web projections use each owner's current authority, retain exact content, and recover without altering original records", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "plugin-query-consumers-")), databasePath = join(home, "project.sqlite");
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   seedDemoBoard(databasePath);
   const disabled = new Set<string>();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
@@ -82,6 +83,7 @@ test("Feed reads and warm Web projections use each owner's current authority, re
 for (const phase of ["dispatch", "response"] as const) {
   test(`information proposals retain dependency authority during model ${phase} waits`, { timeout: 30_000 }, async () => {
     const home = await mkdtemp(join(tmpdir(), "information-authority-")), databasePath = join(home, "project.sqlite");
+    await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
     seedDemoBoard(databasePath);
     let disabled = false, dispatched = 0, pause = true;
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();

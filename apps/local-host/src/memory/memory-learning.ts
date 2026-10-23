@@ -1,6 +1,9 @@
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { MEMORY_KINDS } from "@molis-ai/molis-work-contracts/services/memory";
-import type { MemoryCaller, MemoryLearned, MemoryProposal, MemoryService } from "@molis-ai/molis-work-service-memory";
+import { memoryErrors, type MemoryBackendPort, type MemoryCaller, type MemoryLearned, type MemoryProposal, type MemoryService } from "@molis-ai/molis-work-service-memory";
+import type { AgentMemoryExecutionControl, AgentRuntimeAdapter, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { assistantMemorySources } from "../assistant/assistant-memory-sources.js";
+import { controlledMemoryService } from "./memory-effect.js";
 import { MEMORY_EXTRACT } from "../agent-definitions/system-prompts.js";
 import { resolveModelPrompt } from "../agent-definitions/instructions.js";
 import { hostTextGeneration, type HostTextGeneration } from "../host-complete-text.js";
@@ -34,9 +37,8 @@ const PROPOSALS_SCHEMA = {
 } as const;
 
 /**
- * `stillWanted` says whether the work's project still exists: a round queued, or a model still thinking, when the project
- * is deleted must not write what the deletion cleared. It is asked before the model is and again before anything is
- * written.
+ * `stillWanted` rechecks the work's current source and permission to learn. The Host also binds the actual SDK and
+ * ledger writes to that invocation; checking here alone cannot protect a later asynchronous write.
  */
 export async function learnFromWork(service: MemoryService, homeDirectory: string, request: MemoryLearningRequest,
   generate: HostTextGeneration | undefined = hostTextGeneration({ homeDirectory }),
@@ -44,8 +46,9 @@ export async function learnFromWork(service: MemoryService, homeDirectory: strin
   const said = request.said.map(text => text.trim()).filter(Boolean).slice(-6).map(text => text.slice(0, 1500));
   if (!service.worthLearning(request.caller, said)) return { ran: false, reason: "这一轮没有值得学习的表态，或没有允许从工作里学习", learned: [] };
   if (!generate) return { ran: false, reason: "没有可用的文字模型", learned: [] };
-  if (!await stillWanted()) return { ran: false, reason: "这项工作所在的项目已经删除", learned: [] };
+  if (!await stillWanted()) return { ran: false, reason: "原始输入或学习权限已变化，什么都没有记", learned: [] };
   const context = await service.learningContext(request.caller);
+  if (!await stillWanted()) return { ran: false, reason: "原始输入或学习权限已变化，什么都没有记", learned: [] };
   const data = JSON.stringify({
     有项目: Boolean(request.caller.project_id),
     工作: request.caller.work?.title ?? null,
@@ -55,9 +58,38 @@ export async function learnFromWork(service: MemoryService, homeDirectory: strin
   });
   const result = await generate(resolveModelPrompt(homeDirectory, instructed(MEMORY_EXTRACT, data), "memory.extract"), {
     structured: { mode: "local", name: "memory_proposals", schema: PROPOSALS_SCHEMA as never }, timeoutMs: 120_000, maxOutputTokens: 1500,
+    beforeDispatch: async () => { if (!await stillWanted()) throw memoryErrors.forbidden("原始输入或学习权限已变化，停止提炼"); },
   });
   const proposals = (result.structured as { candidates?: MemoryProposal[] } | undefined)?.candidates;
   if (!Array.isArray(proposals)) return { ran: true, reason: "模型没有给出合格式的提议，什么都没有记", learned: [] };
-  if (!await stillWanted()) return { ran: true, reason: "项目在提炼时被删除了，什么都没有记", learned: [] };
+  if (!await stillWanted()) return { ran: true, reason: "原始输入或学习权限已变化，什么都没有记", learned: [] };
   return { ran: true, reason: "已提炼", learned: await service.learnFromWork(request.caller, { said, proposals }) };
+}
+
+/** The existing queue's one learning invocation, with fresh owner checks through each actual SDK write. */
+export async function learnFromQueuedWork(home: string, task: Pick<AgentScheduledTask, "key" | "session_id" | "payload">, input: {
+  adapter: AgentRuntimeAdapter;
+  service: MemoryService;
+  ports: ConstructorParameters<typeof MemoryService>[0];
+  backend(control: AgentMemoryExecutionControl): MemoryBackendPort;
+  alive(): boolean;
+  projectExists?(id: string): Promise<boolean | null>;
+}, generate?: HostTextGeneration): Promise<{ ran: boolean; reason: string; learned: MemoryLearned[] }> {
+  const originals = await assistantMemorySources(home, input.adapter, task);
+  if (!originals) return { ran: false, reason: "原始输入已失效或无法核验，没有提炼", learned: [] };
+  const { caller, said } = originals.request;
+  const assertCurrent = () => {
+    if (!input.alive() || !input.service.worthLearning(caller, said)) throw memoryErrors.forbidden("原工作或学习权限已失效");
+  };
+  const stillWanted = async () => {
+    if (!input.alive() || !input.service.worthLearning(caller, said)) return false;
+    if (caller.project_id && await input.projectExists?.(caller.project_id).catch(() => null) !== true) return false;
+    return await originals.current() && input.alive() && input.service.worthLearning(caller, said);
+  };
+  if (!await stillWanted()) return { ran: false, reason: "原始输入或学习权限已变化，没有提炼", learned: [] };
+  const controlled = controlledMemoryService(input.ports, input.backend, {
+    assert_current: assertCurrent,
+    beforeEffect: async () => { if (!await stillWanted()) throw memoryErrors.forbidden("原始输入或学习权限已变化，停止记忆写入"); },
+  });
+  return learnFromWork(controlled, home, originals.request, generate, stillWanted);
 }

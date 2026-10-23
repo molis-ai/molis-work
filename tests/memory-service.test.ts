@@ -273,10 +273,10 @@ test("automatic writes follow the gate table, show in recent changes with their 
     evidence: [{ kind: "said", text: "风险放最前面", at: new Date().toISOString() }] });
   assert.equal(auto.outcome, "written");
   assert.equal(auto.memory!.source, "auto");
-  assert.deepEqual(auto.memory!.approved_by, { by: "policy", policy: "memory.write-gate", version: 1 });
+  assert.deepEqual(auto.memory!.approved_by, { by: "policy", policy: "memory.write-gate", version: 2 });
   // It went in as a promotion in Prologue's candidate box: the box wrote the approver on the entry, not the Host.
   assert.deepEqual((await env.raw().candidates.list("project", "project-a")).map(item => [item.state, item.memory_id]), [["promoted", auto.memory!.memory_id]]);
-  assert.deepEqual((await env.raw().list("project", "project-a"))[0]!.meta.approved_by, { by: "policy", policy: "memory.write-gate", version: 1 });
+  assert.deepEqual((await env.raw().list("project", "project-a"))[0]!.meta.approved_by, { by: "policy", policy: "memory.write-gate", version: 2 });
   assert.match(auto.memory!.origin, new RegExp(`^${MEMORY_GATE_RULE}`));
   const [change] = memory.changes(person(), { scope: "project" });
   assert.equal(change!.kind, "auto_kept");
@@ -301,6 +301,45 @@ test("automatic writes follow the gate table, show in recent changes with their 
   assert.deepEqual(env.ledger().revisions(auto.memory!.memory_id), []);
   // Only the person undoes.
   await assert.rejects(memory.undo(assistant(), change!.change_id), /只有本人/);
+});
+
+// MEM-12: an experience needs the person's decision even when repeated; approval does not erase history or undo safety.
+test("repeated experience waits across restart, then a person's acceptance replaces the entry and retires its automatic undo", { timeout: 60_000 }, async t => {
+  const env = await memoryHome(t);
+  const memory = await env.open();
+  const automatic = await memory.offer(assistant(), { scope: "project", text: "发布前先检查告警", kind: "convention", basis: "repeated", why: "两次明确约定", from: "extraction" });
+  const held = await memory.offer(assistant(), { scope: "project", text: "缓存预热通常能减少发布告警", kind: "experience", basis: "repeated", why: "两次项目复盘提到", from: "extraction", supersedes: automatic.memory!.memory_id });
+  assert.equal(held.outcome, "candidate");
+  assert.match(held.reason, /经验.*认可/);
+  assert.equal(held.memory, null);
+  assert.deepEqual((await env.raw().list("project", "project-a")).map(item => item.text), ["发布前先检查告警"], "a candidate never overwrites the formal entry");
+  assert.equal((await memory.history(person(), automatic.memory!.memory_id)).revisions.length, 1);
+
+  await env.close();
+  const reopened = await env.open();
+  const [pending] = await reopened.candidates(person(), { scope: "project" });
+  assert.equal(pending!.candidate_id, held.candidate!.candidate_id);
+  assert.equal(pending!.state, "pending");
+  await assert.rejects(reopened.accept(assistant(), pending!.candidate_id), /只有本人/);
+  const accepted = await reopened.accept(person(), pending!.candidate_id);
+  assert.equal(accepted.memory!.memory_id, automatic.memory!.memory_id);
+  assert.equal(accepted.memory!.kind, "experience");
+  assert.equal(accepted.memory!.source, "accepted");
+  assert.deepEqual(accepted.memory!.approved_by, { by: "person" });
+  assert.deepEqual((await reopened.history(person(), accepted.memory!.memory_id)).revisions.map(item => [item.kind, item.text]), [
+    ["convention", "发布前先检查告警"], ["experience", "缓存预热通常能减少发布告警"],
+  ]);
+  await assert.rejects(reopened.undo(person(), automatic.change_id!), /不能撤销/);
+  assert.ok((await reopened.recall(assistant(), { query: "缓存预热 发布告警" })).items.some(item => item.memory_id === accepted.memory!.memory_id));
+
+  await env.close();
+  const final = await env.open();
+  assert.equal((await final.list(person(), { scope: "project" })).items[0]!.source, "accepted");
+  assert.equal((await final.history(person(), accepted.memory!.memory_id)).revisions.length, 2);
+  final.savePrefs(person(), "project", { form: false });
+  const manual = await final.write(person(), { scope: "project", text: "重启后先确认服务的缓存状态", kind: "experience" });
+  assert.equal(manual.outcome, "written", "turning off formation still permits the person's explicit save");
+  assert.equal(manual.memory!.source, "manual");
 });
 
 test("recall is scoped, filtered and bounded, honours each consumer's switch, and records where each memory was used", { timeout: 60_000 }, async t => {

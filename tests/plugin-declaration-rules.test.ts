@@ -351,9 +351,9 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
   { rule: "a route path twice under another id", manifest: declarationManifest({ routes: [route(), route({ route_id: "example.again" })] }), expected: "路由路径重复：GET /items" },
   { rule: "a route permission the Manifest never declared", manifest: declarationManifest({ routes: [route({ permission: "storage:private" })] }), expected: "路由 example.list 要求未声明的权限 storage:private" },
   // RAC-21 / RAC-37: explicit limits may reach 45,000,000 bytes, preserving Cognia batch uploads (user decision 2026-10-17).
-  { rule: "a route body limit within the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 45_000_000 })] }), expected: "" },
-  { rule: "a route body limit past the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 45_000_001 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 45000000 字节）" },
-  { rule: "a route body limit that is not a whole positive number", manifest: declarationManifest({ routes: [route({ max_body_bytes: 0.5 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 45000000 字节）" },
+  { rule: "a route body limit within the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 96 * 1024 * 1024 })] }), expected: "" },
+  { rule: "a route body limit past the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 96 * 1024 * 1024 + 1 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 100663296 字节）" },
+  { rule: "a route body limit that is not a whole positive number", manifest: declarationManifest({ routes: [route({ max_body_bytes: 0.5 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 100663296 字节）" },
   // required capabilities
   { rule: "a conforming requirement", manifest: declarationManifest({ capabilities: { provides: [], consumes: ["projects.read.v1"] }, requires: [requirement()] }), expected: "" },
   { rule: "a requirement without a capability id", manifest: declarationManifest({ requires: [requirement({ capability_id: undefined })] }), expected: "依赖缺少 Capability ID" },
@@ -594,7 +594,7 @@ const SHAPE_RULES: ReadonlyArray<{ rule: string; input: unknown; code: ManifestC
   { rule: "embedded plugins naming something that is not a plugin id", input: declarationManifest({ ui: { contributions: [], embedded_plugins: ["other"] } }), code: "plugin.manifest_invalid", message: "ui.embedded_plugins 必须为不含自身、重复项或首尾空白的 Plugin ID" },
   { rule: "background that is not an object", input: declarationManifest({ background: [] }), code: "plugin.declaration_invalid", message: "background 必须为对象" },
   { rule: "background with a field it does not know", input: declarationManifest({ background: { jobs: [JOB], extra: 1 } }), code: "plugin.declaration_invalid", message: "background 不认这些字段：extra" },
-  { rule: "background without jobs", input: declarationManifest({ background: { jobs: [] } }), code: "plugin.declaration_invalid", message: "background.jobs 必须是至少有一项的数组" },
+  { rule: "background without jobs", input: declarationManifest({ background: { jobs: [] } }), code: "plugin.declaration_invalid", message: "background.jobs 或 background.wakeups 至少要声明一项" },
   { rule: "a job_id that is not a lowercase name", input: declarationManifest({ background: { jobs: [{ ...JOB, job_id: "Follow" }] } }), code: "plugin.declaration_invalid", message: "后台作业的 job_id 必须是小写字母开头、只含小写字母、数字和连字符的名字" },
   { rule: "a job declared twice", input: declarationManifest({ background: { jobs: [JOB, JOB] } }), code: "plugin.declaration_invalid", message: "后台作业重复：follow" },
   { rule: "a job with a field it does not know", input: declarationManifest({ background: { jobs: [{ ...JOB, schedule: "hourly" }] } }), code: "plugin.declaration_invalid", message: "后台作业 follow 不认这些字段：schedule" },

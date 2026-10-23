@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -10,16 +11,17 @@ for (const width of [1440, 390]) {
   test(`Pages ${width}px: interrupted publication survives reload, resumes its original snapshot and keeps later edits`, { timeout: 90_000 }, async t => {
     const browser = await openGoalBrowser(t, true, undefined, null);
     if (!browser) return;
-    const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory, store: project } = browser;
+    const {evaluate, waitFor, click} = await pluginFrameBrowser(t, browser, "pages");
+    const { command, sessionId, navigate, origin, projectId, homeDirectory, store: project } = browser;
     await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
     const openPages = async () => {
       await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
-      await waitFor("document.querySelector('[data-plugin-id=pages]')");
-      if (await evaluate("document.body.dataset.desktopSurface") !== "pages") {
-        await click('[data-plugin-strip] [data-plugin-id=pages]');
+      await browser.waitFor("document.querySelector('[data-plugin-id=pages]')");
+      if (await browser.evaluate("document.body.dataset.desktopSurface") !== "pages") {
+        await browser.click('[data-plugin-strip] [data-plugin-id=pages]');
       }
-      await waitFor("document.body.dataset.desktopSurface === 'pages'");
+      await browser.waitFor("document.body.dataset.desktopSurface === 'pages'");
     };
     await openPages(); await click('[data-pages-new]');
     await waitFor("document.querySelector('[data-pages-editor] .ProseMirror')");

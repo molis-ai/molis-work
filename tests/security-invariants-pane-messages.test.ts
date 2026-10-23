@@ -111,7 +111,7 @@ test("S-30 the page takes a side view's message only from this origin and from t
 test("S-30 a side view hands the page only the events on the one list; any other name is dropped", () => {
   class CustomEvent { constructor(readonly type: string, readonly init: { detail: unknown }) {} }
   const forwarded = vm.runInNewContext(SIDE_FORWARD_SCRIPT, { CustomEvent }) as { names: string[]; event(name: unknown, detail: unknown): CustomEvent | null };
-  assert.deepEqual([...forwarded.names], ["molis:placement-convert", "molis:placement-request", "molis:placement-result"]);
+  assert.deepEqual([...forwarded.names], ["molis:surface-interaction", "molis:placement-convert", "molis:placement-request", "molis:placement-result"]);
   const made = forwarded.event("molis:placement-result", { verb: "received" });
   assert.equal(made?.type, "molis:placement-result");
   assert.deepEqual(made?.init.detail, { verb: "received" });

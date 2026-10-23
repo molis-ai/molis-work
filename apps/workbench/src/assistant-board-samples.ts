@@ -1,5 +1,7 @@
-import type { AssistantActivity, AssistantRound, AssistantWork, AssistantWorkSurroundings, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
-import { BOARD_PROJECT, act, boardFinishedWorks, boardView, boardWork, round, type Iso } from "./assistant-board-works.js";
+import type { AssistantActivity, AssistantNotice, AssistantRecovery, AssistantRound, AssistantWork, AssistantWorkSurroundings, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import {
+  BOARD_PROJECT, act, boardAnswered, boardDelegatedWorks, boardFinishedWorks, boardInterruptedWork, boardNotices, boardView, boardWork, round, type Iso,
+} from "./assistant-board-works.js";
 
 /**
  * The fixed works of the component board's Assistant frame (specs/visual-ui-experience VUX-39, VUX-08/09/13): what the Host
@@ -16,6 +18,13 @@ export interface AssistantBoardSamples {
   surroundings: Record<string, AssistantWorkSurroundings>;
   /** What the board's 「推进一步」 shows next for a running work: its following views, in order. */
   next: Record<string, AssistantWorkView[]>;
+  /** What a work becomes once the person answers its question, or closes its interrupted round after checking it. */
+  answered: Record<string, AssistantWorkView>;
+  closed: Record<string, AssistantWorkView>;
+  /** What an interrupted round really did, as the runtime's receipts show it. */
+  recovery: Record<string, AssistantRecovery>;
+  /** What the bell holds when the frame opens. */
+  notices: AssistantNotice[];
 }
 
 const PLAN_REPLY = "周五上午 10:00 大家都空，我准备好了日程，等你确认后再创建 🗓️。\n\n- 时长 45 分钟，只看首次使用\n- 议程放在「试用复盘议程 v1」里\n\n通讯录没有授权给我，参加的人请你在确认时核对一下。";
@@ -63,6 +72,7 @@ function planWork(at: Iso): { view: AssistantWorkView; surroundings: AssistantWo
       { job_id: "j-dataset", work_id: work.work_id, title: "Dataset · 导入试用问卷", state: "failed", started_at: at(44), ended_at: at(40) },
     ],
     usage: { tokens: 18200, rounds: 2, budget_tokens: null },
+    delegated: [{ work_id: "board-sub-interviews", title: "汇总试用访谈", state: "running", follow_ups: 1 }, { work_id: "board-sub-survey", title: "整理问卷里的首次导入问题", state: "completed", follow_ups: 0 }],
   });
   const surroundings: AssistantWorkSurroundings = {
     environment: { scope: { kind: "project", project_id: BOARD_PROJECT.id, title: BOARD_PROJECT.title } },
@@ -117,14 +127,19 @@ function codingWork(at: Iso): { views: AssistantWorkView[]; surroundings: Assist
 /** The samples as the Host would answer them `now`: times are relative, so a finished work is still fresh when the frame opens. */
 export function assistantBoardSamples(now: number): AssistantBoardSamples {
   const at: Iso = (minutesAgo) => new Date(now - minutesAgo * 60_000).toISOString();
-  const plan = planWork(at), coding = codingWork(at), rest = boardFinishedWorks(at);
-  const views = [coding.views[0]!, plan.view, ...rest];
+  const plan = planWork(at), coding = codingWork(at), rest = boardFinishedWorks(at), cut = boardInterruptedWork(at);
+  const others = [...rest, cut.view, ...boardDelegatedWorks(at, plan.view.work)];
+  const views = [coding.views[0]!, plan.view, ...others];
   return {
     project: { ...BOARD_PROJECT },
     works: views.map((view) => view.work),
     views: Object.fromEntries(views.map((view) => [view.work.work_id, view])),
     surroundings: { [plan.view.work.work_id]: plan.surroundings, [coding.views[0]!.work.work_id]: coding.surroundings,
-      ...Object.fromEntries(rest.map((view) => [view.work.work_id, { ...plan.surroundings, connections: [], tools: { executor: "assistant" as const, callable: [], unavailable: [] } }])) },
+      ...Object.fromEntries(others.map((view) => [view.work.work_id, { ...plan.surroundings, connections: [], tools: { executor: "assistant" as const, callable: [], unavailable: [] } }])) },
     next: { [coding.views[0]!.work.work_id]: coding.views.slice(1) },
+    answered: { [rest[0]!.work.work_id]: boardAnswered(at, rest[0]!) },
+    closed: { [cut.view.work.work_id]: cut.closed },
+    recovery: { [cut.view.work.work_id]: cut.recovery },
+    notices: boardNotices(at),
   };
 }

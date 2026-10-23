@@ -14,7 +14,7 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 test("however many pages poll the Coding directory at once, one read runs and at most one waits; a request mid-read gets the next read", { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-state-coalesce-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(root); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = codingSessions(store);
   for (const id of ["a", "b", "c"]) {
     await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: `会话 ${id}`, runtime_id: "prologue", at: new Date().toISOString() });
@@ -61,9 +61,9 @@ test("however many pages poll the Coding directory at once, one read runs and at
     assert.deepEqual(batches.map(batch => [...batch].sort()), [["sdk-a", "sdk-b", "sdk-c"]]);
     const byId = Object.fromEntries(first.body.sessions.map((session: { session_id: string }) => [session.session_id, session]));
     assert.equal(byId.a.state, "waiting-approval");
-    // Who holds the open plan steps travels with the row, and is kept for lists that read the store directly.
+    // SYS15-Q1: query projections carry current plan holders without changing the stored session.
     assert.deepEqual(byId.a.steps, { mine: 1, subtasks: 1, unowned: 0 });
-    assert.deepEqual(sessions.stepsOf(DEMO_PROJECT_ID, "a"), { mine: 1, subtasks: 1, unowned: 0 });
+    assert.equal(sessions.stepsOf(DEMO_PROJECT_ID, "a"), null);
     assert.equal(byId.b.steps, undefined);
     assert.equal(byId.b.state, "idle"); assert.equal(byId.b.checkpoint_busy, true);
     assert.equal(byId.c.state, "reconcile-required", "an unreadable session is never shown as safe to continue");
@@ -76,6 +76,7 @@ test("however many pages poll the Coding directory at once, one read runs and at
     // A request after the others have been answered starts a fresh read.
     await state();
     assert.equal(reads, 3);
+    assert.equal(sessions.stepsOf(DEMO_PROJECT_ID, "a"), null, "polling never persists the projected steps");
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -93,7 +94,7 @@ const PLUGIN = "/api/plugins/io.molis.work.coding";
 
 async function harness(initial: Entry[]) {
   const root = mkdtempSync(join(tmpdir(), "coding-runtime-choice-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(root); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = codingSessions(store);
   const calls: Array<[string, unknown]> = [];
   const world = { runtimes: initial, noLetters: false, created: 0 };

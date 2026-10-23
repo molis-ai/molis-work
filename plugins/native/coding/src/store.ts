@@ -28,7 +28,7 @@ export interface CodingSessionRecord {
 }
 
 /** Unfinished plan steps by who holds them: the person, subtasks, no one. */
-interface CodingStepHolders { mine: number; subtasks: number; unowned: number }
+export interface CodingStepHolders { mine: number; subtasks: number; unowned: number }
 
 export interface CreateCodingSessionInput {
   project_id: string;

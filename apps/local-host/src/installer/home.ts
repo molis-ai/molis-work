@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { homeSqlitePath, MEMORY_LEDGER_STORE } from "@molis-ai/molis-work-storage";
 import { SCHEMA_VERSION, INSTALLER_ID } from "./home-contract.js";
 import type { MolisWorkHomeInstallOptions, MolisWorkHomeInstallResult, MolisWorkHomeInstallStatus, MolisWorkHomeInstallStep, TextMutation, PromotedRelease, InstallManifest } from "./home-contract.js";
 import { inspectSource, safeReleaseName } from "./home-source.js";
@@ -8,8 +9,9 @@ import { inspectRelease, createRelease, promoteRelease, rollbackPromotedRelease 
 import { ensureDirectory, writeOwnedText, readOwnedJson, replaceOwnedJson, pathState, rollbackTextMutations } from "./home-files.js";
 import { launcherSource } from "./home-launcher.js";
 import { resolveConfiguredHome } from "../product-home.js";
+import { prepareMemoryHome } from "../memory/memory-adoption.js";
 
-/** Installs only App-owned files; Runtime configuration is a separate explicit operation. */
+/** Installs App-owned files and initializes a new Home's memory prefs; external Runtime configuration is separate. */
 
 export async function installMolisWorkHome(
   options: MolisWorkHomeInstallOptions,
@@ -30,12 +32,11 @@ export async function installMolisWorkHome(
   const removedPaths: string[] = [];
   const mutations: TextMutation[] = [];
   let promoted: PromotedRelease | null = null;
+  let initializedMemory = false;
 
   try {
-    await ensureDirectory(homeDirectory);
-    await Promise.all(
-      [releasesDirectory, configDirectory, binDirectory, projectDirectory, logsDirectory].map(ensureDirectory),
-    );
+    initializedMemory = await prepareInstallHome(homeDirectory, [releasesDirectory, configDirectory, binDirectory, projectDirectory, logsDirectory]);
+    if (initializedMemory) writtenPaths.push(homeSqlitePath(homeDirectory, MEMORY_LEDGER_STORE));
 
     const existingRelease = await inspectRelease(
       releaseDirectory,
@@ -145,7 +146,7 @@ export async function installMolisWorkHome(
       launchers,
       next_steps: {
         message:
-          `Molis Work 只完成了本体安装；没有创建项目，也没有修改 Runtime 配置或用户项目文件。Runtime 接入、项目设置和 Web 常驻服务必须通过后续单独的显式流程完成。接入 Codex / Claude Code 后需要新开 Session，因为 Runtime 只在 Session 启动时读取 MCP 与 Skill 清单，当前对话不会动态出现新工具。重开后说「继续用 Molis Work」；Molis Work 会展示当前目录以前用过的项目并请你确认，不会把普通选择偷偷设成目录默认。${status === "unchanged" ? "" : " 如果此前已启用常驻 Web 服务，请先执行 service status；返回 needs_repair 时执行 service_install_command，不要先执行 service_restart_command；返回 running 或 unhealthy 且仅需加载新内容时，才执行 service_restart_command。安装器不会静默终止未知进程。"}`,
+          `Molis Work 已完成本体安装${initializedMemory ? "，并为新 Home 初始化了需确认后记住的记忆偏好" : ""}；没有创建项目，也没有修改外部 Runtime 配置或用户项目文件。Runtime 接入、项目设置和 Web 常驻服务必须通过后续单独的显式流程完成。接入 Codex / Claude Code 后需要新开 Session，因为 Runtime 只在 Session 启动时读取 MCP 与 Skill 清单，当前对话不会动态出现新工具。重开后说「继续用 Molis Work」；Molis Work 会展示当前目录以前用过的项目并请你确认，不会把普通选择偷偷设成目录默认。${status === "unchanged" ? "" : " 如果此前已启用常驻 Web 服务，请先执行 service status；返回 needs_repair 时执行 service_install_command，不要先执行 service_restart_command；返回 running 或 unhealthy 且仅需加载新内容时，才执行 service_restart_command。安装器不会静默终止未知进程。"}`,
         web_command: [launchers.web, "--home", homeDirectory],
         service_install_command: [launchers.cli, "service", "install", "--home", homeDirectory, "--confirm"],
         service_restart_command: [launchers.cli, "service", "restart", "--home", homeDirectory, "--confirm"],
@@ -159,6 +160,14 @@ export async function installMolisWorkHome(
     if (promoted) await rollbackPromotedRelease(promoted);
     throw error;
   }
+}
+
+/** A failed installation keeps complete Home prefs; only the program files belong to release rollback. */
+async function prepareInstallHome(homeDirectory: string, directories: readonly string[]): Promise<boolean> {
+  await ensureDirectory(homeDirectory);
+  const initializedMemory = (await fs.readdir(homeDirectory)).length === 0 && prepareMemoryHome(homeDirectory);
+  await Promise.all(directories.map(ensureDirectory));
+  return initializedMemory;
 }
 
 async function runStep(options: MolisWorkHomeInstallOptions, step: MolisWorkHomeInstallStep): Promise<void> {

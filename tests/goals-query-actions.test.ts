@@ -126,8 +126,9 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
 
 test("query contracts read the completion, human requirements and event payloads of projects with earlier history", async () => {
   for (const kind of goalEventHistoryKinds) {
-    const fixture = materializeGoalEventHistory(kind);
-    const host = new MolisWorkLocalHost({ homeDirectory: fixture.directory, completeText: null });
+    const home = await mkdtemp(join(tmpdir(), `goals-query-history-${kind}-`));
+    const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+    const fixture = materializeGoalEventHistory(kind, home);
     const ref = molisWorkHostProjectReference({ databasePath: fixture.path, projectId: "goalboard-v1-demo" });
     const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "migration-reader", audience: "user",
       project_id: ref.project_id, permissions: ["goals:read"] }));

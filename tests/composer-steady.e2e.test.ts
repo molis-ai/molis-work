@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
@@ -24,7 +25,12 @@ const GEOMETRY = `(() => { const box = (node) => { const b = node.getBoundingCli
 
 async function oneRound(t: test.TestContext, width: number, locale: "zh" | "en") {
   const browser = await openGoalBrowser(t, true); if (!browser) return null;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "coding");
+  let active: Pick<typeof browser,"evaluate"|"waitFor"|"click"> = browser;
+  const evaluate: typeof browser.evaluate = (...args) => active.evaluate(...args);
+  const waitFor: typeof browser.waitFor = (...args) => active.waitFor(...args);
+  const click: typeof browser.click = (...args) => active.click(...args);
   const model = await assistantTextModel(t, homeDirectory, "这一段写完了。", { pieces: 2, pause: 100 });
   const workspace = join(homeDirectory, "steady");
   await mkdir(workspace, { recursive: true }); await writeFile(join(workspace, "note.txt"), "x\n");
@@ -41,6 +47,7 @@ async function oneRound(t: test.TestContext, width: number, locale: "zh" | "en")
   await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('steady')");
   await click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
+  active = child;
   await click(`${coding} [data-coding-new]`);
   await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 1`);
   await fill(`${coding} [data-coding-model]`, JSON.stringify(["local-only", "fixture-model"]));
@@ -48,11 +55,12 @@ async function oneRound(t: test.TestContext, width: number, locale: "zh" | "en")
   await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await fill(`${coding} [data-coding-task]`, "写一段");
   await waitFor(`!document.querySelector('${coding} [data-coding-send]').disabled`);
+  await evaluate("document.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))");
   const ready = await evaluate<Geometry>(GEOMETRY);
   await click(`${coding} [data-coding-send]`);
   await waitFor(`[...document.querySelectorAll('${coding} [data-coding-turns] [data-kind="assistant"]')].some(node => node.textContent.includes('第一段')) && document.querySelector('${coding} [data-coding-stop]').getClientRects().length > 0`, 60_000);
   const running = await evaluate<Geometry>(GEOMETRY);
-  return { browser, model, ready, running, ended: async () => {
+  return { browser: {...browser,...child}, model, ready, running, ended: async () => {
     model.finish();
     await waitFor(`!document.querySelector('${coding} [data-coding-stop]').getClientRects().length && !document.querySelector('${coding} [data-coding-mode]').getClientRects().length`, 60_000);
     return evaluate<Geometry>(GEOMETRY);
@@ -68,8 +76,8 @@ test("VUX-16: the box and send stay put through a round; pause and stop join sen
   assert.ok(running.cut.some((text) => text.includes("fixture-model")), `the model's name gives way first: ${JSON.stringify(running.cut)}`);
   assert.ok(!running.cut.some((text) => text === "讨论"), "the way of working stays whole");
   // The shortened model reads whole under the pointer, through the page's one tip.
-  const at = await evaluate<number[]>(`(() => { const b = document.querySelector('${coding} .mw-select-picker:has([data-coding-model]) .mw-select-picker__trigger').getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; })()`);
-  await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: at[0], y: at[1] }, sessionId);
+  const at = await round.browser.point(`${coding} .mw-select-picker:has([data-coding-model]) .mw-select-picker__trigger`);
+  await command("Input.dispatchMouseEvent", {type:"mouseMoved", ...at}, sessionId);
   await waitFor("document.querySelector('.craft-tip[data-shown]')?.textContent.includes('fixture-model')", 5_000);
   const ended = await round.ended();
   assert.equal(ended.rows, 1);
@@ -131,6 +139,8 @@ test("VUX-16: the discussion's send stays at the composer's corner when the stat
   await waitFor(`${im}?.querySelector('[data-name-form] input')`, 30_000);
   await evaluate(`(() => { const form = ${im}.querySelector('[data-name-form]'); form.querySelector('input').value = '读者'; form.requestSubmit(); })()`);
   await waitFor(`${im}?.querySelector('[data-conversations]')?.hidden === false && ${im}.querySelector('#im-group-input')`, 30_000);
+  await waitFor(`${im}?.querySelector('[data-composer="group"] .im-send')?.getBoundingClientRect().width > 0 && ${im}.querySelector('#im-group-input')?.getBoundingClientRect().height > 0`);
+  await evaluate(`${im}.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))`);
   type Place = { send: number[]; field: number[]; form: number[]; outside: boolean };
   const place = () => evaluate<Place>(`(() => { const doc = ${im}, form = doc.querySelector('[data-composer="group"]'), box = (node) => { const b = node.getBoundingClientRect(); return [b.x, b.y, b.width, b.height].map(Math.round); };
     const f = form.getBoundingClientRect(), s = doc.querySelector('[data-composer="group"] .im-send').getBoundingClientRect();

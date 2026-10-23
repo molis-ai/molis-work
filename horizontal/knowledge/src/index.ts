@@ -257,11 +257,12 @@ export class KnowledgeService {
     if (!range) throw knowledgeErrors.anchor_unknown("这份资料现在没有这个分节，先用 knowledge.outline 重新看它的结构", { anchor: input.anchor ?? null, revision: context.revision });
     const start = range.start + (input.offset ?? 0);
     if (start > range.end) throw knowledgeErrors.invalid("读取位置超出了这一段的长度", { offset: input.offset ?? 0, length: range.end - range.start });
+    await access.beforeEffect?.();
     const round = roundOf(access.caller), left = this.budget.left(round), asked = Math.min(KNOWLEDGE_READ_MAX_CHARS, input.max_chars ?? KNOWLEDGE_READ_DEFAULT_CHARS);
     const until = input.max_lines === undefined ? range.end : Math.min(range.end, afterLines(lines, start, input.max_lines, context.content.length));
     const end = Math.min(until, start + Math.min(asked, left ?? asked));
     const text = context.content.slice(start, end);
-    await this.receipt(access, [{ context, via: "read", chars: text.length }]);
+    this.receipt(access, [{ context, via: "read", chars: text.length }]);
     this.budget.spend(round, text.length);
     const startLine = lineAt(lines, start);
     return { subject: context.subject, ref: knowledgeRef(context.subject, "allow"), revision: context.revision, title: context.title, layer: "original", text, start, end,
@@ -290,6 +291,7 @@ export class KnowledgeService {
     const read = await Promise.all(subjects.map(subject => this.owner(access, subject, knowledgeActions.grep).then(context => ({ context }), (error: unknown) => ({ error }))));
     let left = input.limit ?? DEFAULT_GREP_LIMIT;
     // Lines found are original text: they count toward the round's fill, and the rest is left with `more`. Counts are not text.
+    await access.beforeEffect?.();
     const round = roundOf(access.caller), fill = lines ? this.budget.left(round) : null;
     let chars = 0;
     const given: Array<{ context: ActionSubjectContext; via: "grep"; chars: number }> = [];
@@ -311,7 +313,7 @@ export class KnowledgeService {
       given.push({ context: outcome.context, via: "grep", chars: taken });
     });
     result.found.sort((a, b) => b.lines - a.lines);
-    await this.receipt(access, given);
+    this.receipt(access, given);
     this.budget.spend(round, chars);
     const roundLeft = lines ? fill : this.budget.left(round);
     return { ...result, round_chars_left: roundLeft === null ? null : roundLeft - chars };
@@ -351,10 +353,8 @@ export class KnowledgeService {
   }
 
   /** Who got original text of which piece, written once the call is still current right before it (PMAT-12). */
-  private async receipt(access: KnowledgeAccess, reads: Array<{ context: ActionSubjectContext; via: "read" | "grep"; chars: number }>): Promise<void> {
+  private receipt(access: KnowledgeAccess, reads: Array<{ context: ActionSubjectContext; via: "read" | "grep"; chars: number }>): void {
     const given = reads.filter(item => item.chars > 0);
-    if (!given.length) return;
-    await access.beforeEffect?.();
     const { caller } = access, at = (this.options.clock?.() ?? new Date()).toISOString();
     for (const { context, via, chars } of given) {
       this.options.cards.addReceipt({ project_id: caller.project_id!, at, subject: context.subject, revision: context.revision, via, chars, actor_id: caller.actor_id,

@@ -16,15 +16,15 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   const hereTitle = () => here() === "personal" ? L("个人空间") : (host.projectTitle ? L("项目「{name}」", { name: host.projectTitle }) : L("当前项目"));
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined && text !== null) value.textContent = text; if (className) value.className = className; return value; };
   const ghost = (text) => { const value = node("button", text, "mw-btn mw-btn--ghost mw-btn--sm"); value.type = "button"; return value; };
-  const api=(path,body)=>molisWorkRequest(route("/api/placement/"+path),{body,fallback:L("暂时处理不了，请稍后重试")});
+  const api=(path,body,page)=>molisWorkRequest(route("/api/placement/"+path),{body,...(page?{headers:{"x-molis-context-page":page}}:{}),fallback:L("暂时处理不了，请稍后重试")});
   let spaces = null;
   const loadSpaces = async () => { if (!spaces) spaces = (await api("spaces")).spaces || []; return spaces; };
   const cache = new Map();
   const keyOf = (object) => object.kind + ":" + object.id + ":" + (object.project_id || "");
-  const describe = async (object, fresh) => {
-    const key = keyOf(object), held = cache.get(key);
+  const describe = async (object, fresh, page) => {
+    const key = (page || "") + keyOf(object), held = cache.get(key);
     if (!fresh && held && Date.now() - held.at < 15000) return held.value;
-    const value = await api("describe", { object });
+    const value = page ? await molisWorkRequest(route("/api/placement/describe"), {body:{object},headers:{"x-molis-plugin-page":page}}) : await api("describe", { object });
     cache.set(key, { at: Date.now(), value });
     return value;
   };
@@ -68,6 +68,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     if (event.target && event.target.closest && event.target.closest(".placement-toasts")) return;
     region.querySelectorAll(".placement-toast:not(.placement-toast--error)").forEach((item) => item.remove());
   };
+  window.addEventListener("molis:surface-interaction", settle);
   document.addEventListener("input", settle, true);
   document.addEventListener("pointerdown", settle, true);
   // A card's buttons never sit on the stage's own controls (a composer's send button on a phone): when one would cover a
@@ -184,7 +185,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     if (!to) { card(L("没有可以存放的位置"), L("请在个人空间或项目里操作。"), [], "error"); return; }
     try {
       const result = await api("convert", { source, to: detail.goal ? { goal: true } : { station: detail.station }, to_project_id: to, request_id: detail.request_id || crypto.randomUUID(),
-        ...(detail.payload ? { payload: detail.payload } : {}) });
+        ...(detail.payload ? { payload: detail.payload } : {}) }, detail.page_id);
       invalidate(); repaint();
       card(named(detail.goal ? L("已建成 Goal") : L("已转成"), result.title), [L("存到 {place}", { place: result.location.title }), detail.note || L("原来的内容不变，新内容里记着它从哪里来")].filter(Boolean).join(" · "),
         result.open ? [{ label: L("打开"), primary: true, run: () => openObject(result.open, result.title) }] : [], "done");
@@ -228,7 +229,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     bar.append(where, access, links, saved);
     slot.append(bar);
     let view = null;
-    try { view = await describe(object, false); } catch (error) { if(slot.isConnected&&slot.dataset.placementPainted===signature){where.textContent=L("位置读不到");const note=node("p",undefined,"placement-read-error");molisWorkRequest.show(note,error);slot.append(note);}return; }
+    try { view = await describe(object, false, slot.closest("[data-plugin-page]")?.dataset.pluginPage); } catch (error) { if(slot.isConnected&&slot.dataset.placementPainted===signature){where.textContent=L("位置读不到");const note=node("p",undefined,"placement-read-error");molisWorkRequest.show(note,error);slot.append(note);}return; }
     if (slot.dataset.placementPainted !== signature) return;
     const location = view.location;
     where.textContent = location ? location.title : L("位置读不到");
@@ -248,11 +249,17 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     closePanel();
     // Measured now: the bar may be repainted (and this node replaced) while the description loads.
     const rect = anchor.getBoundingClientRect();
+    let left = rect.left, bottom = rect.bottom, owner = anchor.ownerDocument.defaultView;
+    while (owner && owner !== window) {
+      const frame = owner.frameElement; if (!frame) break;
+      const box = frame.getBoundingClientRect(); left += box.left; bottom += box.top;
+      owner = frame.ownerDocument.defaultView;
+    }
     const view = await describe(object, true);
     panel = node("section", undefined, "placement-panel mw-menu");
     panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", L("放在哪里"));
-    panel.style.left = Math.max(8, Math.min(rect.left, innerWidth - 400)) + "px";
-    panel.style.top = Math.min(rect.bottom + 8, innerHeight - 120) + "px";
+    panel.style.left = Math.max(8, Math.min(left, innerWidth - 400)) + "px";
+    panel.style.top = Math.min(bottom + 8, innerHeight - 120) + "px";
     panel.append(node("h2", view.title, "placement-panel-title"));
     if (view.state !== "ok") panel.append(node("p", view.reason || L("暂时读不到"), "placement-panel-warning"));
     const facts = node("dl", undefined, "placement-panel-facts");
@@ -624,5 +631,5 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   window.addEventListener("molis:assistant-effect", () => { invalidate(); repaint(); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { invalidate(); repaint(); } });
   repaint();
-  return { describe, openObject, repaint, card };
+  return { describe, openObject, repaint, card, paintBar, paintTargets };
 }`;

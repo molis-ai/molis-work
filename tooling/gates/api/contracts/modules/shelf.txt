@@ -46,7 +46,7 @@ export interface ShelfAiPorts {
         }[];
     }, control: ShelfExecutionControl): Promise<{
         text: string;
-        execution: BoundedInferenceReceipt;
+        execution?: BoundedInferenceReceipt;
         coverage?: readonly string[];
         validateResult?(): void;
     }>;

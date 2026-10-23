@@ -14,6 +14,7 @@ import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-h
 
 test("Inbox consumes a registered judgment, retains the original binding and history across restart, and rejects stale results", async () => {
   const home = await mkdtemp(join(tmpdir(), "inbox-action-scene-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] };
@@ -155,6 +156,7 @@ test("Inbox consumes a registered judgment, retains the original binding and his
 
 test("admission actions wait for the Inbox next-step judgment beside the project's queue, not on it", async () => {
   const home = await mkdtemp(join(tmpdir(), "inbox-admission-queue-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "feed:read", "feed:write", "inbox:write"] };

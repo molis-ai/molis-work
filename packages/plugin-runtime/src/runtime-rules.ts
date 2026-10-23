@@ -36,6 +36,13 @@ export function assertRequiredGrants(manifest: PluginManifest, grants: readonly 
   }
 }
 
+/** Normal recovery never releases quarantine; only the explicit lifecycle operation admits that state. */
+export function assertRecoverableState(record: PluginInstanceRecord, releaseQuarantine: boolean): void {
+  if (record.state !== (releaseQuarantine ? "quarantined" : "crashed")) {
+    throw pluginErrors.state_invalid(releaseQuarantine ? "只有 quarantined Plugin 可以显式解除隔离" : "只有 crashed Plugin 可以恢复");
+  }
+}
+
 export function installIdentity(manifest: PluginManifest): string {
   return `plugin-install-${createHash("sha256")
     .update(`${manifest.plugin_id}\u0000${manifest.publisher.signature}`)

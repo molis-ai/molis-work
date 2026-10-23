@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
+  MolisWorkLocalHost,
   RuntimeIntegrationService,
   type RuntimeIntegrationServiceOptions,
   type SupportedRuntimeId,
@@ -26,6 +27,7 @@ async function withFixture<T>(run: (fixture: Fixture) => Promise<T>): Promise<T>
   const directory = await mkdtemp(join(tmpdir(), "molis-work-runtime-integration-"));
   try {
     const home = join(directory, "molis-work-home");
+    await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
     const userHome = join(directory, "user-home");
     const release = join(home, "releases", "molis-work-test");
     const skillSource = join(release, "skills", "goal-advance");

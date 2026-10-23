@@ -15,6 +15,7 @@ const PROJECT = "project-handoff";
 
 test("a handoff is delivered once: a lost race delivers nothing and a retry re-sends the saved result without asking the model again", { timeout: 120_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "workflows-handoff-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const dbPath = join(home, "project.db");
   seedDemoBoard(dbPath, PROJECT);
   const db = new LocalProjectDatabase(dbPath);
@@ -78,6 +79,7 @@ test("a handoff is delivered once: a lost race delivers nothing and a retry re-s
 
 for (const stage of ["preparation", "response"] as const) test(`workflow AI revocation during ${stage} prevents dispatch or commit and allows authorized recovery`, { timeout: 30_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "workflow-ai-authority-")), dbPath = join(home, "project.db");
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   seedDemoBoard(dbPath, PROJECT);
   const db = new LocalProjectDatabase(dbPath);
   const source = createLocalFeedSourceService(db.db, PROJECT).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;

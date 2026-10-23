@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-// Tests live with the Issue owner so the Host does not gain another plugin-specific assembly path.
+// Exercise the public owner and shared discovery without a plugin-specific Host assembly path.
 import test, { type TestContext } from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -8,7 +8,7 @@ import { ensureStorageSpace, personalStorageSpace, type AggregateReplicaContext 
 import type { SyncEvent } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 import { openPluginDatabase } from "@molis-ai/molis-work-app-local-host";
 import { ISSUES_DATABASE, IssueStore, issuesManifest, openIssuesSyncStore } from "@molis-ai/molis-work-plugin-issues";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, builtinSyncBindings } from "@molis-ai/molis-work-app-workbench";
 
 const caller = {
   actor_id: "alice", project_id: null, audience: "user" as const,
@@ -17,8 +17,14 @@ const caller = {
 
 test("Issue owns its sync factory in the built-in plugin declaration", () => {
   const entry = BUILTIN_PLUGIN_CATALOG.find(row => row.manifest.plugin_id === issuesManifest.plugin_id);
-  assert.equal(entry?.sync?.open, openIssuesSyncStore);
-  assert.equal(entry?.sync?.scope, "home");
+  assert.equal(entry?.sync?.issues?.scope, "home");
+  const binding = entry?.sync?.issues;
+  assert.ok(binding && binding.scope === "home");
+  assert.equal(binding.open, openIssuesSyncStore);
+  const discovered = builtinSyncBindings().filter(row => row.entry.manifest.plugin_id === issuesManifest.plugin_id);
+  assert.equal(discovered.length, 1);
+  assert.equal(discovered[0]!.collection.id, "issues");
+  assert.equal(discovered[0]!.binding, binding);
 });
 
 function fixture(t: TestContext) {

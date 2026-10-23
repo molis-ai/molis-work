@@ -497,3 +497,5 @@ tests/security-invariants-activation-jobs.test.ts
 tests/connector-status.test.ts
 tests/connector-consumer-usages.test.ts
 tests/canonical-json-value.test.ts
+tests/feed-rule-replication.test.ts
+tests/issues-replication.test.ts

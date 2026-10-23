@@ -1,5 +1,17 @@
 # personal 合并后的三项质量修复
 
+## 2026-10-24 原 personal 同步测试清理
+
+状态：基于原版 `2174a9216` 清理测试，未合并后续 main；只改测试位置、夹具与声明检查，不改产品源码或真实 Home。
+
+用户要求移除两份过时测试文件。Feed 与 Issues 的包内 `tests/replication.test.ts` 分别迁为统一测试入口下的 `tests/feed-rule-replication.test.ts`、`tests/issues-replication.test.ts`，保留原有八项业务验证，并加入 CI 产品子集。统一运行器默认只发现根 `tests/` 下的测试，此迁移让这些检查进入日常全量。
+
+Feed 使用当前公开数据库声明、`project_root` 与外键校验，仍验证首次日志安装前已有规则、逐项修改/删除、无回传与拒绝覆盖。Issues 按集合 ID 检查工厂，并验证统一发现结果；原图片、版本前提、账号隔离与删除验证保留。
+
+清理前：整体构建与 Worker 43/43 项通过；同步专项 50 文件中 48 通过，340/345 项通过、无跳过。五项失败均在上述两份文件，独立复跑可重复；清理后定向三文件 11/11 项通过，同范围扩大回归 50/50 文件、345/345 项通过、无跳过或自动复跑。严格健康门禁对清理前 `2174a9216` 通过，包边界 73 包 / 265 边无错误，未改快查基线或门禁规则。日志：`/private/tmp/molis-personal-sync-cleanup-suite.log`、`/private/tmp/molis-personal-sync-cleanup-health.log`、`/private/tmp/molis-personal-sync-cleanup-boundaries.log`。本轮只验证同步专项，不宣称全仓全量或真实云端/双电脑通过；没有提交、推送或云端部署。
+
+## 2026-10-22 三项修复记录
+
 状态：三项修复已实现并通过定向验证（2026-10-22）。基于 `b2f21b110`，只处理用户确认的三个遗留问题，不合并新 main、不发布、不访问真实 Home；扩大回归的三组基线失败保留如下。
 
 ## 验收标准

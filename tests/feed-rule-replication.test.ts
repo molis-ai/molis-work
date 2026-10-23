@@ -3,18 +3,23 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { bindDatabaseSpace, personalStorageSpace } from "@molis-ai/molis-work-storage";
-import { createFeedRuleReplica, installFeedReplication } from "../src/replication.js";
-import { FeedOutRuleStore } from "../src/out-rules.js";
+import { createFeedRuleReplica, installFeedReplication, FeedOutRuleStore, FEED_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-feed";
 
 const space = personalStorageSpace("http://127.0.0.1:8787", "work", "alice");
 const projectId = "project-one";
 const context = { spaceId: space.spaceId, projectId, title: "项目", authorize: () => {} };
 
-function fixture() {
+function database() {
   const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE boards(project_id TEXT PRIMARY KEY)");
-  db.prepare("INSERT INTO boards(project_id) VALUES (?)").run(projectId);
+  db.exec("PRAGMA foreign_keys=ON; CREATE TABLE project_root(project_id TEXT PRIMARY KEY)");
+  db.prepare("INSERT INTO project_root(project_id) VALUES (?)").run(projectId);
+  db.exec(FEED_PROJECT_DATABASE.schema);
   db.exec(replicaSchemaSql('feed'));bindDatabaseSpace(db, space);
+  return db;
+}
+
+function fixture() {
+  const db = database();
   installFeedReplication(db, projectId);
   const rules = new FeedOutRuleStore(db);
   const replica = createFeedRuleReplica(db, context);
@@ -91,11 +96,8 @@ test("Feed rule edits and deletion produce independent deltas", () => {
 });
 
 test("first Feed sync installation seeds rules created before the journal existed", () => {
-  const db = new DatabaseSync(":memory:");
+  const db = database();
   try {
-    db.exec("CREATE TABLE boards(project_id TEXT PRIMARY KEY)");
-    db.prepare("INSERT INTO boards(project_id) VALUES (?)").run(projectId);
-    db.exec(replicaSchemaSql('feed'));bindDatabaseSpace(db, space);
     const rule = new FeedOutRuleStore(db).create(projectId, { name: "旧设备上的规则", match: { contains: "消息" } });
     installFeedReplication(db, projectId);
     const replica = createFeedRuleReplica(db, context);

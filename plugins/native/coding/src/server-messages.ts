@@ -226,7 +226,6 @@ export const CODING_SERVER_MESSAGES = {
   "coding.server.record-unreadable": { zh: "此会话的执行记录暂时无法读取，不能将未知结果当作已完成。原会话与草稿已保留，请稍后重试。", en: "This session's run record can't be read right now, so an unknown result won't count as done. The session and draft are kept; try again shortly." },
   "coding.server.role-unavailable": { zh: "这个执行方式尚未接通", en: "This way of working isn't connected yet" },
   "coding.server.start-unknown": { zh: "读不到这一轮是怎样开始的", en: "Can't read how this turn was started" },
-  "coding.server.instance-stopped": { zh: "原 Coding 实例已停止", en: "The original Coding instance has stopped" },
   "coding.server.entry-unassembled": { zh: "Coding 执行入口尚未装配", en: "Coding's entry point isn't set up yet" },
   "coding.server.caller-mismatch": { zh: "调用者与当前插件入口不一致", en: "The caller doesn't match this plugin's entry point" },
   "coding.server.no-actions": { zh: "宿主未提供系统动作调用入口", en: "The Host gave no way to call system actions" },

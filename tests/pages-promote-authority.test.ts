@@ -36,7 +36,7 @@ function runtimeFor(home: string, db: ReturnType<typeof openHomeSqliteDatabase>,
   };
   const none = bindActionClient(new ActionService(), () => ({ actor_id: "owner", project_id: "a", audience: "user", permissions: [] }));
   const actions: PluginActionClient = { ...none, invokeQuery: async () => { throw new ActionError("actions.dependency_missing", "unused"); } };
-  const context: PluginStartContext = { install_id: "pages-test", plugin_id: "io.molis.work.pages", version: "0.0.0", deployment: "local",
+  const context: PluginStartContext = { install_id: "pages-test", installation_generation: "1", plugin_id: "io.molis.work.pages", version: "0.0.0", deployment: "local",
     grants: [], project_id: "a", services: { database, artifacts, actions }, requireGrant: () => {} };
   return { context, published: () => published, home };
 }

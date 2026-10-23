@@ -8,7 +8,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { openPptStore } from "@molis-ai/molis-work-plugin-ppt";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 
 // Every MCP client here starts its own Host process, which takes several seconds on a loaded Linux CI runner (30–45 s for the
 // whole test at two files at once): the budget only stops a hang, it is not a speed check.
@@ -49,8 +49,8 @@ test("PPT standard MCP shares exports, concurrent edits and fixed publication ac
     const recovered=await call(restarted,'promote',{id,expected_version:presentation.version});
     assert.equal(recovered.recovered,true);assert.equal(recovered.artifact.version,1);assert.equal(recovered.presentation.title,'Later edit');
     const project=new LocalProjectDatabase(join(home,'a.sqlite'));
-    try{const owner=new GoalProjectApplication(project);assert.equal((owner.artifacts.query.getArtifactVersion('a',recovered.artifact)!.payload as any).title,snapshotTitle);
-      assert.equal(owner.artifacts.query.getArtifactVersion('a',{...recovered.artifact,version:2}),null);
+    try{const library=openProjectVersionStores(project);assert.equal((library.artifacts.query.getArtifactVersion('a',recovered.artifact)!.payload as any).title,snapshotTitle);
+      assert.equal(library.artifacts.query.getArtifactVersion('a',{...recovered.artifact,version:2}),null);
     }finally{project.close();}
     const store=openPptStore(home);try{assert.deepEqual(store.get(id,'a'),recovered.presentation);}finally{store.close();}
     const exported=await call(reader,'export',{id});assert.deepEqual(JSON.parse(exported.content),recovered.presentation);

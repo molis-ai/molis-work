@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { isAbsolute, resolve } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest, PluginOwnerFilesClient, PluginStartContext, PluginTerminalClient } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
+import { assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 
 const hosts = new Map<string, MolisWorkPtyHost>();
@@ -23,12 +23,12 @@ export function pluginTerminalFor(home: string, manifest: PluginManifest, contex
   const panels = new Map<string, MolisWorkPtyHost>();
   const client = Object.freeze<PluginTerminalClient>({ async open(input) {
     const scope = currentPluginInvocation();
-    if (!scope || scope.install_id !== context.install_id || !("definition" in scope) || scope.definition.operation !== "command"
+    if (!scope || !inPluginInstance(scope, context) || !("definition" in scope) || scope.definition.operation !== "command"
       || pluginInvocationReadOnly(scope) || scope.caller.audience !== "user" || !scope.definition.action.permissions.includes(permission))
       throw new ActionError("actions.forbidden", "交互终端只能由当前页面的授权动作启动");
     if (!/^[a-z][a-z0-9-]{0,63}$/u.test(input.key) || !isAbsolute(input.command) || input.command.includes("\0")
       || !input.title.trim() || input.title.length > 120) throw new ActionError("actions.input_invalid", "终端启动参数无效");
-    const check = () => { assertActive(); context.requireGrant(permission); assertCapturedPluginActionCurrent(scope, context.install_id); };
+    const check = () => { assertActive(); context.requireGrant(permission); assertCapturedPluginActionCurrent(scope, context); };
     check(); await scope.caller.beforeEffect(); check();
     const host = hosts.get(resolve(home));
     if (!host) throw new ActionError("actions.unavailable", "终端宿主尚未连接");

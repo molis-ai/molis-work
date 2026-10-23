@@ -2,7 +2,7 @@ import { AsyncResource } from "node:async_hooks";
 import { ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginActionDirectory, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
+import { assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { checkedReference } from "./plugin-action-query.js";
 import { pluginActionView } from "./plugin-action-provider.js";
@@ -18,11 +18,11 @@ export function pluginActionDependencies(context: PluginStartContext, manifest: 
     // A nested target runs under its own installation. The originating plugin's checks still use its own services.
     const check = AsyncResource.bind((_reference?: ActionReference, permissions?: readonly string[]) => {
       options.assertActive(); context.requireGrant(permission);
-      if (!scope || "scene" in scope || scope.install_id !== context.install_id || options.project_id !== undefined && scope.caller.project_id !== options.project_id) {
+      if (!scope || "scene" in scope || !inPluginInstance(scope, context) || options.project_id !== undefined && scope.caller.project_id !== options.project_id) {
         throw new ActionError("actions.forbidden", "动态动作只能由当前安装的动作或后台作业调用");
       }
       for (const required of permissions ?? []) context.requireGrant(required);
-      assertCapturedPluginActionCurrent(scope, context.install_id);
+      assertCapturedPluginActionCurrent(scope, context);
       control?.signal?.throwIfAborted(); requireSynchronous(control?.assert_authority_current?.());
     });
     check();

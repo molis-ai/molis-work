@@ -29,8 +29,9 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
   const prepared = await browser.web.post<{ executable: string }>(api + "/execution", { reference: published.reference });
   assert.equal(prepared.executable, await realpath(join(bin, "codex")), "the native process must use this test fixture");
   const input = { reference: published.reference, workspace_id: workspace.workspace_id, task: "Verify the isolated terminal", request_id: randomUUID() };
-  const launched = await browser.web.post<{ run: { session_id: string; panel_id: string }; spawn: Record<string, unknown> }>(api + "/execution/native", input);
-  assert.equal(launched.spawn.command, undefined); assert.equal(launched.spawn.cwd, undefined);
+  const launched = await browser.web.post<{ run: { run_id: string; panel_id: string; status: string }; spawn: Record<string, unknown> }>(api + "/execution/native", input);
+  // SC-2: the page gets the panel to attach to and nothing it could start a process with.
+  assert.deepEqual(launched.spawn, { panelId: launched.run.panel_id, attachOnly: true }); assert.equal(launched.run.status, "dispatched");
   const received: Record<string, unknown>[] = [];
   await browser.command("Network.enable", {}, browser.sessionId);
   t.after(browser.on("Network.webSocketFrameReceived", params => {
@@ -52,7 +53,7 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
     await child.evaluate("document.querySelector('[data-character-terminal]').scrollIntoView({block:'center',behavior:'instant'})");
     if (running) {
       try { await child.waitFor("document.querySelector('[data-character-terminal] .xterm-rows')?.textContent.includes('ISOLATED_TERMINAL_READY')"); }
-      catch (error) { throw new Error(JSON.stringify({ received, page: await child.evaluate("({ output: document.querySelector('[data-character-terminal] .xterm-rows')?.textContent, status: document.querySelector('[data-character-terminal-status]')?.textContent, saved: document.querySelector('[data-character-run-output]')?.textContent, viewport: [innerWidth,innerHeight], terminal: document.querySelector('[data-character-terminal]')?.getBoundingClientRect().toJSON(), rows: [...document.querySelectorAll('.xterm-rows')].map(node=>({text:node.textContent,box:node.getBoundingClientRect().toJSON()})) })") }), { cause: error }); }
+      catch (error) { throw new Error(JSON.stringify({ received, page: await child.evaluate("({ output: document.querySelector('[data-character-terminal] .xterm-rows')?.textContent, status: document.querySelector('[data-character-terminal-status]')?.textContent, viewport: [innerWidth,innerHeight], terminal: document.querySelector('[data-character-terminal]')?.getBoundingClientRect().toJSON(), rows: [...document.querySelectorAll('.xterm-rows')].map(node=>({text:node.textContent,box:node.getBoundingClientRect().toJSON()})) })") }), { cause: error }); }
     }
   };
   await open();
@@ -62,13 +63,15 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
   await child.waitFor("document.querySelector('[data-character-terminal] .xterm-rows').textContent.includes('TYPED_THROUGH_RESTRICTED_CHANNEL')");
   await open();
   await child.waitFor("document.querySelector('[data-character-terminal] .xterm-rows').textContent.includes('TYPED_THROUGH_RESTRICTED_CHANNEL')");
-  const replay = await browser.web.post<{ run: { session_id: string } }>(api + "/execution/native", input);
-  assert.equal(replay.run.session_id, launched.run.session_id);
+  const replay = await browser.web.post<{ run: { run_id: string } }>(api + "/execution/native", input);
+  assert.equal(replay.run.run_id, launched.run.run_id);
   await child.click('[data-character-terminal-stop]');
   await child.waitFor("document.querySelector('[data-character-terminal-status]').textContent.includes('进程已结束')");
   await open(false);
   await child.waitFor("document.querySelector('[data-character-terminal-status]').textContent.includes('进程未运行')");
-  assert.match(await child.evaluate<string>("document.querySelector('[data-character-run-output]').textContent"), /TYPED_THROUGH_RESTRICTED_CHANNEL/);
+  // SC-2 (D3): the terminal's output is not kept; the run itself stays listed.
+  assert.equal(await child.evaluate<boolean>("document.querySelector('[data-character-run-output]') === null"), true);
+  assert.equal(await child.evaluate<boolean>("document.querySelector('[data-characters]').textContent.includes('TYPED_THROUGH_RESTRICTED_CHANNEL')"), false);
 });
 
 test("SYS-15-F2/F3 Shelf isolated page copies owned files through the shell and reopens its actual terminal", { timeout: 90_000 }, async t => {

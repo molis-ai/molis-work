@@ -69,7 +69,6 @@ export function desktopLaunchSpec(input: {
 export function desktopPanelEnv(input: {
   homeDirectory: string;
   runtimeId: string;
-  sessionId?: string | null;
   panelId: string;
   workContextId: string;
   goalId: string;
@@ -80,7 +79,6 @@ export function desktopPanelEnv(input: {
     MOLIS_WORK_HOME: input.homeDirectory,
     MOLIS_WORK_MCP_AUDIENCE: "runtime",
     MOLIS_WORK_RUNTIME_ID: input.runtimeId,
-    ...(input.sessionId?.trim() ? { MOLIS_WORK_SESSION_ID: input.sessionId.trim() } : {}),
     MOLIS_WORK_WORK_CONTEXT_ID: input.workContextId,
     MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
     MOLIS_WORK_PANEL_ID: input.panelId,

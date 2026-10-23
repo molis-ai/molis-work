@@ -50,7 +50,10 @@ test("ISSUE-38 undo takes a new record back and returns the words to an empty co
   const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
   await v.chord(); await v.composerFocused();
-  await v.type("保存按钮点了没反应"); await v.send();
+  await v.type("保存按钮点了没反应");
+  // Focus can arrive before the picture draft is ready; Undo also shows its toast before its picture write finishes.
+  await v.until("d.hasFocus() && d.activeElement === $('[data-issue-composer] [name=description]') && $('[data-issue-composer] [name=description]').value === '保存按钮点了没反应' && !$('[data-issue-submit]').disabled");
+  await v.send();
   await v.until("!$('[data-issue-toast]').hidden && $('[data-issue-toast-action]').textContent === '撤销'", 20_000);
   assert.equal((await v.list()).items.length, 1);
   await v.press("[data-issue-toast-action]");
@@ -58,6 +61,7 @@ test("ISSUE-38 undo takes a new record back and returns the words to an empty co
   assert.equal((await v.list()).items.length, 0);
   assert.equal(await v.ask("$('[data-issue-composer] [name=description]').value"), "保存按钮点了没反应");
   // A record changed after it was made is not taken back by an undo.
+  await v.until("d.hasFocus() && d.activeElement === $('[data-issue-composer] [name=description]') && $('[data-issue-composer] [name=description]').value === '保存按钮点了没反应' && !$('[data-issue-submit]').disabled");
   await v.send(); await v.until("$('[data-issue-toast-action]').textContent === '撤销'", 20_000);
   const [record] = (await v.list()).items;
   await v.api("/api/plugins/io.molis.work.issues/update", { id: record!.id, expected_version: 1, title: "后来改过" });
@@ -112,7 +116,9 @@ test("ISSUE-37 abandoning an unfinished capture keeps nothing", { timeout: 90_00
   const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
   await v.chord(); await v.composerFocused();
-  await v.type("这条不要了"); await v.send();
+  await v.type("这条不要了");
+  await v.until("d.hasFocus() && d.activeElement === $('[data-issue-composer] [name=description]') && $('[data-issue-composer] [name=description]').value === '这条不要了' && !$('[data-issue-submit]').disabled");
+  await v.send();
   await v.until("$('[data-state=attention]')", 20_000); await v.press("[data-state=attention]"); await v.press("[data-issue-cancel]");
   await v.until("$('[data-issue-dialog]').open");
   await v.press("[data-issue-dialog] [value=confirm]");

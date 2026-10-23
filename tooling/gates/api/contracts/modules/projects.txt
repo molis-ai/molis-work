@@ -198,13 +198,11 @@ export declare const projectWorkspaceActions: {
         workspace_path: string;
     }, {
         workspace: ProjectWorkspaceDirectoryRecord;
-        updated_session_count: number;
     }>;
     unlink: ActionDefinition<{
         workspace_id: string;
     }, {
         changed: boolean;
-        updated_session_count: number;
     }>;
 };
 

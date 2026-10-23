@@ -21,7 +21,7 @@ Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在�
 | [src/goal-query-application.ts](src/goal-query-application.ts) | 目标读取 |
 | [src/goal-tree-decision.ts](src/goal-tree-decision.ts) | 目标树确认 |
 | [src/document-collection.ts](src/document-collection.ts) | 文档列表投影 |
-| [src/http/index.ts](src/http/index.ts) | Web 操作入口 |
+| [src/http/index.ts](src/http/index.ts) | 页面操作的路由处理 `goalsRoutes`：[src/manifest.ts](src/manifest.ts) 的 `routes` 每声明一条，这里一个处理（PG094-09）；PG-094 S9 之前宿主在旧地址 `/api/<路径>` 上经通用分发器调它们 |
 
 可对照现有调用方 [apps/local-host/src/goal-project-application.ts](../../../apps/local-host/src/goal-project-application.ts) 阅读装配方式。
 

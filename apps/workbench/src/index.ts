@@ -117,7 +117,7 @@ export type { ProjectSettingsFoldId } from "./project-settings-folds.js";
 export { createWorkbenchRenderer, type WorkbenchRendererPorts, type WorkbenchRenderer } from "./renderer.js";
 export { renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog } from "./primitive-catalog.js";
 export { parseConditionFrame, renderMolisWorkConditionsSpecimen } from "./condition-frame.js";
-export { parseAssistantFrame, renderMolisWorkAssistantSpecimen } from "./assistant-board-frame.js";
+export { parseAssistantFrame, renderMolisWorkAssistantSpecimen, type AssistantFrameOptions } from "./assistant-board-frame.js";
 export { assistantBoardSamples } from "./assistant-board-samples.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
 export type * from "./capsule-view.js";

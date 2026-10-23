@@ -19,16 +19,6 @@ export {
   type ChangeSetSource,
 } from "./changeset.js";
 export {
-  countChangedLines,
-  hunkRows,
-  parseUnifiedDiff,
-  type UnifiedHunk,
-} from "./unified.js";
-export {
-  unifiedPatch,
-  type UnifiedPatchFile,
-} from "./patch.js";
-export {
   compareChangeSet,
   compareRunChangeSet,
   compareSnapshots,
@@ -56,16 +46,16 @@ export {
   diffManifest,
 } from "./manifest.js";
 export {
+  DIFF_LABELS,
   DIFF_UI_CONTRIBUTION_ID,
   diffUiContribution,
   diffUiDescriptor,
-  renderDiff,
   type DiffUiModel,
   type DiffUiPrimitives,
 } from "./ui.js";
 export { createDiffPlugin, type DiffPluginPorts } from "./plugin.js";
 
 export { DIFF_STYLES } from "./styles.js";
-export { DIFF_MESSAGES } from "./messages.js";
+export { DIFF_MESSAGES, DIFF_TEMPLATES } from "./messages.js";
 
 export { diffActions, DIFF_ACTIONS } from "./actions.js";

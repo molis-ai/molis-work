@@ -140,8 +140,8 @@ export const PAGES_IMPORT_CLIENT_SCRIPT = String.raw`
   importFilesInput.addEventListener("change", () => { void prepareImport([...importFilesInput.files]); });
   importAll.addEventListener("change", () => { importChecks().forEach((input) => { input.checked = importAll.checked; }); syncImportControls(); });
   importDocuments.addEventListener("change", syncImportControls);
-  importDrop.addEventListener("dragover", (event) => { event.preventDefault(); });
-  window.molisDropZone?.(importDrop, (on) => importDrop.classList.toggle("is-dragover", on));
+  importDrop.addEventListener("dragover", (event) => { if (event.dataTransfer?.types.includes("Files")) event.preventDefault(); });
+  window.molisDropZone?.(importDrop, (on) => importDrop.classList.toggle("is-dragover", on), undefined, L("不支持拖入这种内容"));
   importDrop.addEventListener("drop", (event) => {
     event.preventDefault(); event.stopPropagation();
     if (event.dataTransfer) void prepareImport([...event.dataTransfer.files]);

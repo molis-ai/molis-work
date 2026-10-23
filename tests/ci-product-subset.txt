@@ -405,7 +405,6 @@ tests/list-silent-refresh.test.ts
 tests/local-host-checkpoint.test.ts
 tests/mcp-protocol.test.ts
 tests/package-dev-requirements.test.ts
-tests/panel-sessions.test.ts
 tests/personal-artifact-owner.test.ts
 tests/planning-engine.test.ts
 tests/plugin-interaction-answer.test.ts

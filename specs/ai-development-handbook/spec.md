@@ -33,7 +33,7 @@
 | [#777](https://github.com/molis-ai/molis-work/pull/777) | `claude/handbook-coding-run` @ `b2d69387d` | §9.5「Coding 小跑结果」：holdFinish 不设；BL-176 那行改为指向 prologue#53。只改文档 | 已合入 `8b9df4e7a` |
 | [#819](https://github.com/molis-ai/molis-work/pull/819) | `claude/bl149-issue-naming` @ `5a8a6fa51` | BL-149：Issue 自己起标题，不再经助理（`specs/issue-home-v0/spec.md` ISSUE-50～53） | 已合入 `c679dc172`。10-20 已补定向 10 文件 / 80 项，含真实设置保存、重读和 480px 中英截图；随后完整 CI 通过。原 MiniMax 小样本评测未重跑，不等于本人验收 |
 | [#825](https://github.com/molis-ai/molis-work/pull/825) | `claude/qa-021-rac-trace` @ `65275d89e` | 修 QA-021：防腐的 RAC-44、55、60 逐部分指向证明 | 已合入 `202625fde` |
-| [prologue#53](https://github.com/molis-ai/prologue/pull/53) | `fix/ask-user-answered-key` @ `b0858ea5b` | `ask-user` 答过的结果不再用 `pending` 键（BL-176） | 仍 OPEN，保留原评审与换包协调条件。[#814](https://github.com/molis-ai/molis-work/pull/814) 的 `a51607fb` 不含它；后续换包 [#887](https://github.com/molis-ai/molis-work/pull/887) 已合入 `96bca9792`，`753dbae8` 带上游 #54～57，明确不含 #53。本交接 #828 已合入 `3ba9185d7`；#53 仍是未带入的上游后续，不能把 #887 当作它已落地 |
+| [prologue#53](https://github.com/molis-ai/molis-prologue/pull/53) | `fix/ask-user-answered-key` @ `b0858ea5b` | `ask-user` 答过的结果不再用 `pending` 键（BL-176） | 已于 2026-10-20 合入上游 main（`023a45a5`）。[#814](https://github.com/molis-ai/molis-work/pull/814) 的 `a51607fb`、[#887](https://github.com/molis-ai/molis-work/pull/887) 的 `753dbae8` 都不含它；随 `retry-waiting` 那次换包（Prologue `2c7feba5`）带入，Molis 的断言已改成 `answered`。本交接 #828 已合入 `3ba9185d7` |
 
 **分支与工作树**
 - **已删**：

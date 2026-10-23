@@ -3541,3 +3541,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-23 23:35：#1131 已合（BL-481，PG-039 全做完），本地分支 `claude/ac-sched-wakeups` 已删（头在 #1123 里）。#1150（Codex，Shelf S3 原件登记部分成功提示）进队第 35 行、交 `ac-review`。BL-492 在分支 `claude/ac-bl492-material-domains`（`c6e26f8ee`，未开 PR）；统筹裁 198.18/15：只对带名单的读取、域名过名单后按正常地址，IP 字面量仍拒，无名单读取不变，S-10 表写明用户 09-27 的决定并补双向测试。
 
 - 10-23 23:50：#1150 一轮修后可合（1 条，Codex 修）。本地推送未开 PR：`ac-sc3` S8b（`migrate/goals-s8b-library-identity`，`4c1ac510f`，新项目只建根行、Goals 首次打开时建看板）；`ac-kernel` R8 第 3 批第二段（`841850541`，等 #1121）。
+
+- 10-23 23:58：waitRun（R8 第 3 批 slice §10）统筹裁：一个并发、只给插件的查询动作；调用方取消照平台通用规则记，不给单个动作开调用记录例外，等到 timeoutMs 返回正常的「仍在跑」不算取消；同 PR 删平台不用的 wait 分支；并发等待若动作服务没有现成上限，就每安装 8 个、超出带码拒绝并测拒绝。

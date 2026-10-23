@@ -18,6 +18,7 @@ import {
   type HostLogEntry,
 } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 // W3-06 D: a plugin the Host runs in a project's platform can have a library in the Home, through the one service main has for
 // it, `services.database`, when the Host's own start list declares one for it (`PluginPlatformEntry.database`). Nothing the
@@ -115,10 +116,6 @@ function inspect<T>(home: string, name: string, read: (db: DatabaseSync) => T): 
 }
 const rows = (home: string, name: string) => inspect(home, name, db => db.prepare("SELECT text FROM notes ORDER BY id").all().map(row => (row as { text: string }).text));
 const noteInto = (database: PluginDatabase, text: string) => database.transaction(async () => {}, tx => tx.run("INSERT INTO notes (text) VALUES (?)", [text]));
-const PENDING = Symbol("pending");
-/** What a promise came to within a moment: its value, its error, or still nothing. */
-const within = (promise: Promise<unknown>) => Promise.race([promise.then(value => ({ value }), (error: unknown) => ({ error })),
-  new Promise(resolve => { setTimeout(resolve, 50, PENDING); })]);
 
 test("a start-list entry that declares a database gives its plugin services.database: the library is made at the declared baseline when the plugin starts, under the name the entry gave, and the plugin writes through transaction(beforeEffect, …)",
   withDirectory(async directory => {

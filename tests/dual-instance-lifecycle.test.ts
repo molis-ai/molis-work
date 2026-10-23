@@ -40,8 +40,7 @@ test("DUAL-13 switching the Home half off and on leaves the project half's handl
   assert.equal(s.home.host.homePlugins!.installation(s.dual.id)?.state, "running");
   const newHome = s.dual.services.home!.storage!;
   assert.notEqual(newHome, oldHome, "the restarted half is given new handles");
-  assert.equal(newHome.get("kept"), "home", "its data outlives the stop");
-  assert.equal(newHome.get("kept"), "home", "BL411-05 the stopped half's write did not reach the running one");
+  assert.equal(newHome.get("kept"), "home", "its data outlives the stop, and BL411-05 the stopped half's write did not reach the running one");
   assert.equal(oldHome.get("kept"), undefined, "the old handle does not come back with the restart");
   assert.equal(projectStore.get("kept"), "project");
 });

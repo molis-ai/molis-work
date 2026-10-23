@@ -62,22 +62,6 @@ export function runtimeSessionHostSignalsFromEnvironment(
   };
 }
 
-export function sessionSignalsForHost(host: MolisWorkRuntimeContextHost): RuntimeSessionHostSignals {
-  const stableId = host.runtimeContext.stable_work_context_id?.trim() || null;
-  const hostWorkContextId = host.hostWorkContextId?.trim()
-    || (host.panelId && stableId === host.panelId ? stableId : null);
-  return {
-    runtime_id: host.runtimeContext.runtime_id,
-    molis_work_session_id: host.molisWorkSessionId?.trim() || null,
-    native_runtime_session_id: host.nativeRuntimeSessionId?.trim()
-      || (hostWorkContextId ? null : stableId),
-    surface_id: host.panelId?.trim() || null,
-    goal_id: host.goalId?.trim() || null,
-    runtime_context: host.runtimeContext,
-    project_suggestion_clues: [...(host.projectSuggestionClues ?? [])],
-  };
-}
-
 function stableRuntimeSessionId(runtimeId: string, environment: NodeJS.ProcessEnv): string | null {
   if (runtimeId === "codex") return environment.CODEX_THREAD_ID?.trim() || null;
   if (runtimeId === "claude-code") {

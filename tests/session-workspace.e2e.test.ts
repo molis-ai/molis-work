@@ -401,20 +401,17 @@ test("fallback journey preserves TUI content, honest capability limits, workspac
       { workspace_path: repairedPath, user_confirmed: true },
     );
     assert.equal(repairResponse.status, 200, await repairResponse.clone().text());
-    const repaired = await repairResponse.json() as {
-      workspace: { workspace_id: string; canonical_path: string };
-      updated_session_count: number;
-    };
-    assert.ok(repaired.updated_session_count >= 4);
+    const repaired = await repairResponse.json() as { workspace: { workspace_id: string; canonical_path: string } };
+    // Sessions are retired (BL-177): repair (v2) moves the folder relation only and leaves every Session where it was.
+    assert.equal(Object.hasOwn(repaired, "updated_session_count"), false);
     await access(firstPath);
     await access(repairedPath);
 
     const reopened = await openWorkSessionRegistry({ homeDirectory: home });
     try {
-      assert.equal(reopened.get(created.session.session_id).workspace_path, repaired.workspace.canonical_path);
-      assert.equal(reopened.get(sent.destination_session.session_id).workspace_path, repaired.workspace.canonical_path);
+      assert.equal(reopened.get(created.session.session_id).workspace_path, workspace.canonical_path);
+      assert.equal(reopened.get(sent.destination_session.session_id).workspace_path, workspace.canonical_path);
       assert.equal(reopened.events(created.session.session_id)[0]?.content, marker);
-      assert.equal(new Set(reopened.list({ workspace_id: repaired.workspace.workspace_id }).map((item) => item.session_id)).size, repaired.updated_session_count);
     } finally {
       reopened.close();
     }

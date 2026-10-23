@@ -7,10 +7,9 @@ export { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 export { SUPPORTED_RUNTIME_IDS, isSupportedRuntimeId } from "./installer/runtime-integration-contract.js";
 export type { SupportedRuntimeId, RuntimeIntegrationAction, RuntimeConnectionState, RuntimeIntegrationDetection, RuntimeIntegrationChange, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResultStatus, RuntimeIntegrationResult, RuntimeIntegrationValidationContext, RuntimeIntegrationServiceOptions } from "./installer/runtime-integration-contract.js";
 export { openWorkSessionRegistry } from "./session-registry.js";
-export { RuntimeSessionHost } from "./runtime-session.js";
 export { RuntimeProjectConnection } from "./runtime-project-connection.js";
 export { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
-export { runtimeContextHostFromEnvironment, runtimeSessionHostSignalsFromEnvironment, sessionSignalsForHost } from "./runtime-context.js";
+export { runtimeContextHostFromEnvironment, runtimeSessionHostSignalsFromEnvironment } from "./runtime-context.js";
 export type { MolisWorkRuntimeContextHost } from "./runtime-context.js";
 export { prepareLocalProjectStorage } from "./project-storage.js";
 export { PluginHostExecutor } from "./plugin-executor.js";
@@ -164,7 +163,6 @@ export { sendLocalWebJson, sendUnhandledWebError, readLocalWebBody, authorizeLoc
 export { createLocalWebAssets } from "./web-assets.js";
 
 export * from "./web-session.js";
-export { panelSessionInput, recordDesktopPanelSessions } from "./panel-sessions.js";
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 export { assembleMcpCatalog, findAssembledMcpTool } from "./mcp-catalog.js";
 export { readMcpToolPreference } from "./mcp-settings-store.js";

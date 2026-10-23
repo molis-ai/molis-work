@@ -37,7 +37,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 13 | [#1119](https://github.com/molis-ai/molis-work/pull/1119) | BL-395 整片：沙箱项目库语句跑在宿主能杀的子进程里（时间、内存、结果、递归上限；S-59，改 S-46） | **#1117 先合**（S 号连续的门禁要 S-58 在 main 上） | `full` 非空（shared-core、spans-packages，219 文件），进下一批 | 头 `a699e421c`；子进程已补齐、BL-480 已删；`ac-review` 排队审；改了安全不变量，合前看 Security invariants |
 | 14 | [#1120](https://github.com/molis-ai/molis-work/pull/1120) | R5：Feed/Functions 入口不再导出 Repository/Store、PG-010 首页规则目标按声明找、两包巨大单元 | — | `full` 非空（shared-core、storage、spans-packages、deletes-code，141 文件），进下一批 | 头 `c0356cd09`；`ac-review` 在审 |
 | 15 | [#1121](https://github.com/molis-ai/molis-work/pull/1121) | R8 第 1 批：agent 宿主会话间消息与后台命令 7 条 typed 改成只给插件的动作（BL-365） | — | `full` 非空（shared core，205 文件），进下一批 | 头 `332cbac3e`；`ac-review` 排队审；改动作，合前确认动作快照已刷新 |
-| 16 | [#1122](https://github.com/molis-ai/molis-work/pull/1122) | PG-051 设计稿：Agent 定义只留一条登记路（只加 slices 文档） | — | `full` 为空 | 统筹已裁定 Q1=(b)、Q2=推荐（[评论](https://github.com/molis-ai/molis-work/pull/1122)）；纯文档，Verify 绿即可合 |
 | 17 | [#1123](https://github.com/molis-ai/molis-work/pull/1123) | PG-039～042 核对；宿主项目时钟不再自带进程内唤醒处理器 | — | `full` 为空（103 文件） | 头 `71281ccb4`；`ac-review` 排队审 |
 | 18 | [#1124](https://github.com/molis-ai/molis-work/pull/1124) | PG-051 P1：运行中的插件定义登记 Agent 块的角色与 Prompt（V-05，RAC-191） | #1122（设计稿，可先后无关） | `full` 为空（138 文件） | 头 `826be3f82`；`ac-review` 一轮：**可合**，0 条挡合并、6 条建议（[评论](https://github.com/molis-ai/molis-work/pull/1124#issuecomment-6372756714)）；Verify 绿即可合 |
 | 19 | [#1129](https://github.com/molis-ai/molis-work/pull/1129) | W5-03/04 Todo 片（样板）：客户端打包成 TS、稳定翻译键；`todo.js` 61,976→54,090 B | — | `full` 非空（assembly、deletes-code，102 文件），进下一批 | 头 `ed3b374f4`；`ac-review` 优先审（后面 5 片照它做） |
@@ -57,3 +56,4 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1087 | `327c7c201` | 10-23 18:17 UTC |
 | #1084 | `3f715261f` | 10-23 18:19 UTC |
 | #1115 | `acc71ae473` | 10-23 18:39 UTC |
+| #1122 | `c68071cdc` | 10-23 19:46 UTC |

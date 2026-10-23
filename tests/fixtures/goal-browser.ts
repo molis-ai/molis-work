@@ -85,7 +85,10 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       await rm(`${databasePath}-shm`, { force: true });
       seed(databasePath, projectId);
     }
-  } else seed(databasePath);
+  } else {
+    await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
+    seed(databasePath);
+  }
   store = new LocalProjectDatabase(databasePath);
   localHost = completion === undefined && !runtimeSessionTransport && !functions && !workspaceFor && !pluginFixtures ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, runtimeSessionTransport, functions, workspaceFor, pluginFixtures,
     ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });

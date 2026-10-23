@@ -102,6 +102,7 @@ for (const mode of ['cancelled', 'revoked', 'withdrawn'] as const) test(`install
 
 test('W3-07-8-02 PG-006 a real sandbox reaches the Goal actions through the production broker only as itself: an identity in its input is refused, and its progress is its own', { skip: process.platform !== 'darwin', timeout: 30_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'goal-sandbox-authority-')), databasePath = join(directory, 'project.db');
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   seedDemoBoard(databasePath);
   const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }), ref = molisWorkHostProjectReference({ projectId: DEMO_PROJECT_ID, databasePath });
   const goal_id = 'SANDBOX-GOAL', ids = [goalPluginActions.contract, goalPluginActions.state, goalPluginActions.progress, goalPluginActions.receipt].map(item => item.capability_id);
@@ -148,6 +149,7 @@ test('W3-07-8-02 PG-006 a real sandbox reaches the Goal actions through the prod
 
 test('PG006-01 PG006-02 PG006-03 PG006-04 PG006-05 S-15 a sandbox reaches a Goal action only when it declared it and the person approved it; a withdrawn approval, another installation or another project is refused, and no refusal writes', { skip: process.platform !== 'darwin', timeout: 30_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'goal-sandbox-grants-')), databasePath = join(directory, 'project.db'), otherPath = join(directory, 'other.db');
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   seedDemoBoard(databasePath); seedDemoBoard(otherPath, 'other-project');
   const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
   const ref = molisWorkHostProjectReference({ projectId: DEMO_PROJECT_ID, databasePath }), otherRef = molisWorkHostProjectReference({ projectId: 'other-project', databasePath: otherPath });

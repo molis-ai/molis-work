@@ -12,6 +12,7 @@ import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plu
 
 async function setup(t: test.TestContext, completeText: HostCompleteText | null = null, generated?: () => void) {
   const home = await mkdtemp(join(tmpdir(), "workflow-stop-effects-")), databasePath = join(home, "project.db");
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   seedDemoBoard(databasePath);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText });

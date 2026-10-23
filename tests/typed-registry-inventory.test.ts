@@ -23,6 +23,7 @@ const keys = (entries: readonly HostCapabilityDescriptor[]) => entries.filter(en
 
 test("W3-07-9-01: the assembled Host registers only the remaining internal services and exposes Goals through actions", async () => {
   const home = await mkdtemp(join(tmpdir(), "typed-registry-inventory-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const databasePath = join(home, "project.db");
   seedDemoBoard(databasePath);
   const ref = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });

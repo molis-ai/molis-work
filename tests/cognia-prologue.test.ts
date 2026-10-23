@@ -22,6 +22,7 @@ import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/
 function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
   const home = mkdtempSync(join(tmpdir(), "cognia-prologue-"));
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
   mkdirSync(join(home, "projects"));
   const db = new LocalSqliteStorage(join(home, "projects", "catalog.db"));
   const metadata = new LocalCatalogMetadata(db.db); metadata.create(); metadata.initialize(CATALOG_OWNER, CATALOG_SCHEMA_VERSION); createModelProviderTables(db.db); db.close();
@@ -33,7 +34,6 @@ function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "model-api", displayName: "Cognia account", token: "cognia-fixture-secret" }));
   withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", endpoint));
   models(store => { store.upsert({ credential_ref: connection.credential_ref!, provider_id: "cognia-test", display_name: "Cognia model", base_url: endpoint, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] }); });
-  const host = new MolisWorkLocalHost({ homeDirectory: home });
   ensureSystemAgentService(host, home);
   const bound = bindActionClient(host.homeActionClient(), () => ({ actor_id: "trusted-cognia-user", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS }));
   t.after(async () => { await host.close(); if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); rmSync(home, { recursive: true, force: true }); });

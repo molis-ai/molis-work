@@ -5,7 +5,7 @@ import { constants, promises as fs, type Stats } from "node:fs";
 import path from "node:path";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { parseFilePath, type GitOperation, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-git";
+import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { runWorkspaceGit, statusWithoutHelpers } from "./workspace-git.js";
 
 /**

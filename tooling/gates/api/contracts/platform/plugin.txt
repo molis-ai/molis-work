@@ -2140,12 +2140,11 @@ export declare const HOME_OPEN_TARGET_SCHEMA: {
 
 export declare const HOST_EVENT_SOURCE = "host";
 
-export declare const HOST_EVENT_TYPES: readonly [{
-    readonly event_type_id: "host.review.settled";
-    readonly type_version: 1;
-}];
+export declare const HOST_EVENT_TYPES: readonly HostEventType[];
 
 export declare const HOST_REVIEW_SETTLED_EVENT = "host.review.settled";
+
+export declare const HOST_WORKSPACE_CHANGED_EVENT = "host.workspace.changed";
 
 export interface HomeBackgroundTask {
     id: string;
@@ -2235,6 +2234,13 @@ export interface HomeStoreDeclaration {
     };
 }
 
+export interface HostEventType {
+    readonly event_type_id: string;
+    readonly type_version: number;
+    readonly delivery: "addressed" | "broadcast";
+    readonly permission?: string;
+}
+
 export interface HostOfferedOriginalFile {
     readonly path: string;
     readonly install_id: string;
@@ -2246,6 +2252,11 @@ export interface HostReviewSettledPayload {
     operation_id: string;
     workspace_id: string;
     outcome: "succeeded" | "failed" | "unknown";
+}
+
+export interface HostWorkspaceChangedPayload {
+    workspace_id: string;
+    cause: "plugin-operation";
 }
 
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
@@ -4664,6 +4675,8 @@ export declare function fileContentOf(input: {
 
 export declare function fileEntriesPage(entries: readonly FileEntry[], input: FileEntriesInput): FileEntriesPage;
 
+export declare function hostEventType(eventTypeId: string, typeVersion: number): HostEventType | undefined;
+
 export declare function isActionErrorKind(value: unknown): value is ActionErrorKind;
 
 export declare function isArtifactCompareAction(action: {
@@ -4700,8 +4713,6 @@ export declare function isFileEntriesSource(action: {
     input_type?: string;
     output_type?: string;
 }): boolean;
-
-export declare function isHostEventType(eventTypeId: string, typeVersion: number): boolean;
 
 export declare function isObjectCopier(action: {
     input_type?: string;

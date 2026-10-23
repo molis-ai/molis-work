@@ -9,6 +9,8 @@ export { inspectActionDeclarations, isHomeAggregateQuery } from "./action-declar
 export { inspectActionCrossReferences } from "./action-cross-references.js";
 /** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */
 export { DIFF_STEP_BUDGET, splitLines, joinLines, reconstructSides, compareTexts, textDiffRow, alignSplitRows } from "./text-diff.js";
+/** `git status --porcelain=v1 -z --branch` read into a working-tree status; the Host's workspace Git service and the Git plugin read it with this one parse. */
+export { parsePorcelainStatus, type GitStatus, type GitChange, type GitHead, type GitUpstream, type PorcelainInput } from "./git-porcelain.js";
 /** A message's `{name}` values filled in, with `{count|one|other}` for a word that agrees with a number. */
 export { fillMessage } from "./message-text.js";
 /**

@@ -10,6 +10,7 @@ import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime"
 import type { PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { ISSUES_PLUGIN_ID } from "@molis-ai/molis-work-plugin-issues";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const runtimePath = (home: string) => join(home, "plugin-runtime", "plugin-runtime.db");
@@ -24,6 +25,7 @@ function readStore(path: string) {
 // W3-06-F-05: independent nonempty v1 facts, also used to label a damaged v2 that lacks KV. No production baseline constructs the fixture.
 async function rejectedStore(version: 1 | 2) {
   const home = await mkdtemp(join(tmpdir(), "home-runtime-version-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   await mkdir(join(home, "plugin-runtime"));
   const db = new DatabaseSync(runtimePath(home));
   try {
@@ -109,7 +111,6 @@ test("W3-06-F-04 Home KV survives shutdown, isolates installs and rejects an int
   assert.equal(host.homePlugins!.installations().length, 0);
   // Opening another Host is allowed only after the old execution owner has closed.
   await host.close();
-  const { MolisWorkLocalHost } = await import("@molis-ai/molis-work-app-local-host");
   const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [first.definition, other.definition] } });
   try {
     await restarted.homePlugins!.ready();

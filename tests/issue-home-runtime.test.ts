@@ -31,6 +31,7 @@ function attachedPng() {
 
 test("ISSUE-01 failed Home initialization preserves its database and only explicit concurrent retries recover it", async () => {
   const home = await mkdtemp(join(tmpdir(), "issue-start-retry-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const directory = join(home, "plugin-runtime"), path = join(directory, "plugin-runtime.db");
   await mkdir(directory);
   const broken = new DatabaseSync(path); broken.exec("PRAGMA user_version=9"); broken.close();

@@ -218,7 +218,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
     }
   }
   problems.push(...inspectPortDeclarations(parsed.ports, parsed.plugin_id));
-  problems.push(...inspectEventDeclarations(parsed.plugin_id, parsed.events));
+  problems.push(...inspectEventDeclarations(parsed.plugin_id, parsed.events, declaredPermissions));
   problems.push(...inspectAgentDeclaration(
     parsed.agent,
     (parsed.ports?.inputs ?? []).map((input) => input.port),

@@ -13,7 +13,7 @@ import {
   defaultShelfHotKeys,
   parseSettingsWriteBody,
 } from "@molis-ai/molis-work-module-shelf";
-import { openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
 import {
   SHELF_SETTINGS_CLIENT_SCRIPT,
   SHELF_SETTINGS_UI_CONTRIBUTION_ID,
@@ -380,6 +380,7 @@ test("Connectors settings page is a Host global section, not a plugin settings-p
 
 test("Shelf drop-wheel preference persists through the store and HTTP settings page", async (t) => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-plugin-settings-http-"));
+  await new MolisWorkLocalHost({ homeDirectory, completeText: null }).close();
   const store = openHostShelfStore(homeDirectory);
   assert.equal(store.settings().drop_wheel_enabled, true);
   assert.equal((await store.saveSettings({ drop_wheel_enabled: false })).drop_wheel_enabled, false);

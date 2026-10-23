@@ -27,7 +27,7 @@
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 194,
     "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 186,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
-      "lines": 278,
+      "lines": 273,
       "methods": 41
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 228,
@@ -758,7 +758,7 @@
     "feed#outside-files": 35,
     "files#outside-files": 8,
     "form#outside-files": 8,
-    "git#outside-files": 10,
+    "git#outside-files": 8,
     "goals#outside-files": 58,
     "images#outside-files": 6,
     "inbox#outside-files": 17,
@@ -1355,7 +1355,7 @@
     "orderDependent": [],
     "nested": []
   },
-  "errorSubclassTotal": 28,
+  "errorSubclassTotal": 27,
   "errorSubclasses": {
     "apps/local-host/src/assistant/assistant-coding.ts": 1,
     "apps/local-host/src/browser/cdp.ts": 1,
@@ -1378,7 +1378,6 @@
     "plugins/native/alchemist/src/studio/server/services/decision-workspace.ts": 1,
     "plugins/native/alchemist/src/studio/server/services/idea-card-actions.ts": 1,
     "plugins/native/alchemist/src/studio/server/sources/http-source-client.ts": 1,
-    "plugins/native/git/src/status.ts": 1,
     "plugins/native/plugin-builder/src/agent-authoring.ts": 1,
     "plugins/official-integrations/catalog/src/http.ts": 1,
     "plugins/official-integrations/catalog/src/notion-oauth.ts": 1,

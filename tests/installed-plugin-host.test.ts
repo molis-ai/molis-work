@@ -55,7 +55,9 @@ async function publishedFixture(home: string, name: string, lookup = false, secr
 }
 
 test('Host discovery and invocation refresh generated cost without rewriting installed identity or running its capabilities', mac, async () => {
-  const home = await mkdtemp(join(tmpdir(), 'installed-public-policy-')), fixture = await publishedFixture(home, 'project', true);
+  const home = await mkdtemp(join(tmpdir(), 'installed-public-policy-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project', true);
   const reader = callerPlugin('costreader', 'project');
   const host = new MolisWorkLocalHost({ homeDirectory: home, pluginFixtures: { project: [reader.definition] } }), client = host.actionClient(fixture.ref);
   let dispose = () => {}, calls = 0;
@@ -126,6 +128,7 @@ test('an in-flight catalog inspection cannot restore generated registrations aft
 
 test('SYS-15-S1 Host alone restores installed actions and scheduled operations, retains data across restart and leaves authoring untouched', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-headless-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const fixture = await publishedFixture(home, 'project'), { release, ref } = fixture;
   let host = new MolisWorkLocalHost({ homeDirectory: home });
   const action = (operation: string) => ({ capability_id: exposedActionId(release, operation), version: 1, provider_id: 'plugin:' + release.pluginId });
@@ -159,7 +162,9 @@ test('SYS-15-S1 Host alone restores installed actions and scheduled operations, 
 });
 
 test('explicitly disabled installations stay disabled after Host restart and only an explicit enable restores discovery', mac, async () => {
-  const home = await mkdtemp(join(tmpdir(), 'installed-disabled-')), fixture = await publishedFixture(home, 'project');
+  const home = await mkdtemp(join(tmpdir(), 'installed-disabled-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project');
   let host = new MolisWorkLocalHost({ homeDirectory: home });
   const control = () => host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
     actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: DEMO_PROJECT_ID } }));
@@ -229,7 +234,9 @@ async function hostWithProject(home: string, fixture: Awaited<ReturnType<typeof 
 }
 
 test('a disabled installation switches versions and stays disabled, before and after a restart, and enable starts the version it is on', mac, async () => {
-  const home = await mkdtemp(join(tmpdir(), 'installed-disabled-upgrade-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  const home = await mkdtemp(join(tmpdir(), 'installed-disabled-upgrade-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const stateOnDisk = () => { const closed = new LocalProjectDatabase(fixture.databasePath); try { const record = new SqlitePluginRuntimeRepository(closed.db).get(fixture.install.install_id); return record && { state: record.state, version: record.version }; } finally { closed.close(); } };
   const rows = (installed: Awaited<ReturnType<typeof rig.control>>) => installed.installations().map(({ state, version }) => ({ state, version }));
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
@@ -277,7 +284,9 @@ test('a disabled installation switches versions and stays disabled, before and a
 });
 
 test('a version of a disabled installation that needs more permission asks for them, and its approval moves with it', mac, async () => {
-  const home = await mkdtemp(join(tmpdir(), 'installed-disabled-consent-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  const home = await mkdtemp(join(tmpdir(), 'installed-disabled-consent-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   try {
     const installed = await rig.control();
     await installed.lifecycle('disable', fixture.release);
@@ -290,7 +299,9 @@ test('a version of a disabled installation that needs more permission asks for t
 });
 
 test('a quarantined installation is refused a version switch with a reason, before anything is asked of the Supervisor', mac, async () => {
-  const home = await mkdtemp(join(tmpdir(), 'installed-quarantined-')), fixture = await publishedFixture(home, 'project');
+  const home = await mkdtemp(join(tmpdir(), 'installed-quarantined-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project');
   const database = new LocalProjectDatabase(fixture.databasePath);
   new SqlitePluginRuntimeRepository(database.db).save({ ...fixture.install, state: 'quarantined' }); database.close();
   const rig = await hostWithProject(home, fixture);
@@ -306,7 +317,9 @@ test('a quarantined installation is refused a version switch with a reason, befo
 });
 
 test('an install that cannot start leaves nothing behind: no secrets, no approval, no crashed record, and it can be tried again', mac, async () => {
-  const home = await mkdtemp(join(tmpdir(), 'installed-failed-install-')), fixture = await publishedFixture(home, 'project', false, ['weather']), rig = await hostWithProject(home, fixture);
+  const home = await mkdtemp(join(tmpdir(), 'installed-failed-install-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project', false, ['weather']), rig = await hostWithProject(home, fixture);
   const secret = { name: 'weather', header: 'X-Api-Key', value: 'k-123' }, approvalKey = 'plugin-builder:agent-studio:approved:' + fixture.release.pluginId;
   const working = await readFile(fixture.release.bundlePath, 'utf8');
   try {
@@ -333,7 +346,9 @@ test('an install that cannot start leaves nothing behind: no secrets, no approva
 });
 
 test('a reinstall that cannot read the data an uninstall kept is refused until the person agrees to drop it, and a failed one gives the data back', mac, async () => {
-  const home = await mkdtemp(join(tmpdir(), 'installed-discard-kept-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  const home = await mkdtemp(join(tmpdir(), 'installed-discard-kept-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
   const working = await readFile(fixture.release.bundlePath, 'utf8');
   const only = (installed: Awaited<ReturnType<typeof rig.control>>, release: AgentRelease) => installed.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ builds: [], releases: [release] }));
@@ -362,7 +377,9 @@ test('a reinstall that cannot read the data an uninstall kept is refused until t
 });
 
 test('an install that fails over kept data puts the uninstalled record back exactly as it was, so the next install is still asked', mac, async () => {
-  const home = await mkdtemp(join(tmpdir(), 'installed-failed-over-kept-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  const home = await mkdtemp(join(tmpdir(), 'installed-failed-over-kept-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
   const working = await readFile(fixture.release.bundlePath, 'utf8'), broken = "throw new Error('broken bundle');";
   const only = (installed: Awaited<ReturnType<typeof rig.control>>, ...releases: AgentRelease[]) => installed.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ builds: [], releases }));
@@ -407,7 +424,9 @@ test('an install that fails over kept data puts the uninstalled record back exac
 });
 
 test('when taking back a failed install fails too, the person is told about both', mac, async () => {
-  const home = await mkdtemp(join(tmpdir(), 'installed-failed-cleanup-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  const home = await mkdtemp(join(tmpdir(), 'installed-failed-cleanup-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   try {
     const installed = await rig.control(), runtime = installed.platform.runtime, abandon = runtime.abandonInstall.bind(runtime), start = installed.platform.start;
     await installed.lifecycle('uninstall', fixture.release, { keepData: true });
@@ -423,7 +442,9 @@ test('when taking back a failed install fails too, the person is told about both
 });
 
 test('an install that fails after another install replaced it leaves that install alone: its data, secrets, approval, actions and running code', mac, async () => {
-  const home = await mkdtemp(join(tmpdir(), 'installed-failed-replaced-')), fixture = await publishedFixture(home, 'project', false, ['weather']), rig = await hostWithProject(home, fixture);
+  const home = await mkdtemp(join(tmpdir(), 'installed-failed-replaced-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project', false, ['weather']), rig = await hostWithProject(home, fixture);
   const action = (operation: string) => ({ capability_id: exposedActionId(fixture.release, operation), version: 1, provider_id: 'plugin:' + fixture.release.pluginId });
   const secret = { name: 'weather', header: 'X-Api-Key', value: 'k-123' }, approvalKey = 'plugin-builder:agent-studio:approved:' + fixture.release.pluginId;
   try {
@@ -462,7 +483,9 @@ test('an install that fails after another install replaced it leaves that instal
 });
 
 test('a first-ever install that fails after the person uninstalled it and installed again leaves that install alone: its data, secrets, approval, actions and running code', mac, async () => {
-  const home = await mkdtemp(join(tmpdir(), 'installed-first-failed-replaced-')), fixture = await publishedFixture(home, 'project', false, ['weather'], true), rig = await hostWithProject(home, fixture);
+  const home = await mkdtemp(join(tmpdir(), 'installed-first-failed-replaced-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project', false, ['weather'], true), rig = await hostWithProject(home, fixture);
   const action = (operation: string) => ({ capability_id: exposedActionId(fixture.release, operation), version: 1, provider_id: 'plugin:' + fixture.release.pluginId });
   const secret = { name: 'weather', header: 'X-Api-Key', value: 'k-123' }, approvalKey = 'plugin-builder:agent-studio:approved:' + fixture.release.pluginId;
   try {
@@ -500,7 +523,9 @@ test('a first-ever install that fails after the person uninstalled it and instal
 });
 
 test('an install that fails over kept data does not undo the person\'s choice to discard that data while it was starting', mac, async () => {
-  const home = await mkdtemp(join(tmpdir(), 'installed-failed-discarded-')), fixture = await publishedFixture(home, 'project', false, ['weather']), rig = await hostWithProject(home, fixture);
+  const home = await mkdtemp(join(tmpdir(), 'installed-failed-discarded-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project', false, ['weather']), rig = await hostWithProject(home, fixture);
   const action = (operation: string) => ({ capability_id: exposedActionId(fixture.release, operation), version: 1, provider_id: 'plugin:' + fixture.release.pluginId });
   const rows = () => rig.host.withProject(fixture.ref, runtime => new SqlitePluginPrivateStorage(runtime.store.db).snapshotInstallationData(fixture.install.install_id));
   try {
@@ -530,7 +555,9 @@ test('an install that fails over kept data does not undo the person\'s choice to
 });
 
 test('after an uninstall the newer published version can be installed again, with the kept data or without it', mac, async () => {
-  const home = await mkdtemp(join(tmpdir(), 'installed-reinstall-newer-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
+  const home = await mkdtemp(join(tmpdir(), 'installed-reinstall-newer-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
   try {
     const installed = await rig.control(), client = rig.host.actionClient(fixture.ref);
@@ -589,7 +616,9 @@ test('a failing installed plugin is recorded with its own reason at startup, not
 });
 
 test('closing a project releases every owner and closes its database even when one release fails, and still reports the failure', { ...mac, timeout: 90_000 }, async () => {
-  const home = await mkdtemp(join(tmpdir(), 'installed-close-failure-')), fixture = await publishedFixture(home, 'project');
+  const home = await mkdtemp(join(tmpdir(), 'installed-close-failure-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project');
   let closedReferences = 0;
   const host = new MolisWorkLocalHost({ homeDirectory: home, onRuntimeClose: () => { closedReferences++; } });
   try {

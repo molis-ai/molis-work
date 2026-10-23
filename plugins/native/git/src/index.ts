@@ -12,17 +12,7 @@ export const packageDescriptor = {
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export {
-  GitStatusError,
   headLabel,
-  parsePorcelainStatus,
-  type GitChange,
-  type GitEntryState,
-  type GitHead,
-  type GitStatus,
-  type GitUpstream,
-  type PorcelainInput,
-} from "./status.js";
-export {
   projectGit,
   type GitListItem,
   type GitListKind,

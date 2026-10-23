@@ -584,15 +584,15 @@ export class LocalHost<Runtime> {
     return this.state;
   }
 
+  /** Current project states, owned by the caller; listing projects never copies the capability directory. */
+  projects(): LocalHostStatus["projects"] {
+    return [...this.entries.values()]
+      .map((entry) => ({ ...entry.reference, state: entry.state }))
+      .sort((left, right) => left.storage_key.localeCompare(right.storage_key));
+  }
+
   status(): LocalHostStatus {
-    return {
-      instance_id: this.instanceId,
-      state: this.state,
-      projects: [...this.entries.values()]
-        .map((entry) => ({ ...entry.reference, state: entry.state }))
-        .sort((left, right) => left.storage_key.localeCompare(right.storage_key)),
-      capabilities: structuredClone(this.capabilities.descriptors()), // the registry's are frozen and shared; a status is the caller's own
-    };
+    return snapshotStatus(this);
   }
 
   async closeProject(referenceOrStorageKey: LocalHostProjectReference | string): Promise<boolean> {
@@ -670,4 +670,14 @@ export class LocalHost<Runtime> {
   private assertRunning(): void {
     if (this.state !== "running") throw hostErrors.closed("Local Host 已关闭");
   }
+}
+
+/** Full diagnostic snapshot; project-only readers use projects() so they do not pay for this copy. */
+function snapshotStatus<Runtime>(host: LocalHost<Runtime>): LocalHostStatus {
+  return {
+    instance_id: host.instanceId,
+    state: host.lifecycle(),
+    projects: host.projects(),
+    capabilities: structuredClone(host.capabilities.descriptors()), // the registry's are frozen and shared; a status is the caller's own
+  };
 }

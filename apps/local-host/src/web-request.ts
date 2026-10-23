@@ -20,10 +20,11 @@ import type { RuntimeIntegrationService } from "./installer/runtime-integration.
 import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { WebServerOptions, FeedSchedulerRuntime, ResolvedWebRequest } from "./web-types.js";
 import type { LocalWebComposition } from "./web-composition.js";
-import { sendLocalWebJson as sendJson, readLocalWebBody as readBody, requestHeader } from "./web-http.js";
+import { sendLocalWebJson as sendJson, requestHeader } from "./web-http.js";
+import { dispatchDeclaredPluginRoutes } from "./plugin-route-operations.js";
 import { L } from "./web-locale.js";
 import fs from "node:fs";
-import { handleGoalsWebHttp, goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, goalsManifest, goalsRoutes } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import type { SessionRuntimeResources } from "./web-session.js";
@@ -260,13 +261,17 @@ const capsuleRoute: WebRoute<ProjectRuntimeContext> = { id: "capsule", handle: a
 /** Goals' and 成果's own HTTP and pages; the Goal page is tried last, before the 404. */
 const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "project-reference", handle: context => handleLocalProjectReferenceHttp(context.request, context.response, context.url, asPerson(context, ARTIFACT_ACTION_PERMISSIONS)) },
-  { id: "goals", handle: ({ request, response, url, options, webViewCache, goalActions }) => handleGoalsWebHttp({
-    method: request.method, pathname: url.pathname, search: url.searchParams,
-    readBody: () => readBody(request), respond: (status, body) => sendJson(response, status, body),
-    options, idempotencyHeader: requestHeader(request, "x-molis-work-idempotency-key"),
-    changed: () => { webViewCache.delete(options.databasePath); },
-    actions: goalActions,
-  }) },
+  // Goals' declared routes at their old address, `/api` and the route's path, until Goals runs on the Plugin Runtime supervisor: S9
+  // deletes this rewrite and the page calls the plugin prefix (BL-386). Goals has no Runtime installation yet, so no grants to read.
+  { id: "goals", handle: ({ request, response, url, options, webViewCache, goalActions, pluginPorts }) => url.pathname.startsWith("/api/")
+    && dispatchDeclaredPluginRoutes({
+      manifest: goalsManifest, path: url.pathname.slice("/api".length), actor_id: pluginPorts.actorId, granted: [],
+      bindings: goalsRoutes({
+        actions: () => goalActions, routePrefix: () => options.routePrefix,
+        idempotencyKey: () => requestHeader(request, "x-molis-work-idempotency-key"),
+        changed: () => { webViewCache.delete(options.databasePath); },
+      }),
+    }, request, response, url) },
   { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
     projectId: options.projectId, routePrefix: options.routePrefix ?? "",
     projectTitle: options.project?.display_name ?? "Molis Work",

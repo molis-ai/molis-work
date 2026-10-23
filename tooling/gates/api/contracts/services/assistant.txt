@@ -31,8 +31,17 @@ export interface AssistantActivity {
     capability_id?: string;
     reason?: "not-authorized" | "declined" | "interrupted" | "unavailable";
     detail?: string;
+    failure?: AssistantActivityFailure;
     answer?: string;
     sequence?: number;
+}
+
+export interface AssistantActivityFailure {
+    kind: ActionErrorKind;
+    fields?: {
+        path: string;
+        rule: string;
+    }[];
 }
 
 export interface AssistantBackgroundJob {

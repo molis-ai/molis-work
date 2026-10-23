@@ -15,6 +15,9 @@ test("VUX-27: a Home plugin's page fades its strip, and a strip drawn after load
   await command("Emulation.setDeviceMetricsOverride", { width: 360, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/plugins/todo` }, sessionId));
   await waitFor("document.querySelector('.todo-views[data-overflow-fade]')", 20_000);
+  // The opaque document exists before its bridge reveals the plugin; a hidden strip has two zero widths.
+  await waitFor("document.querySelector('.todo-views').clientWidth > 0", 20_000);
+  await evaluate("document.fonts.ready.then(() => undefined)");
   const strip = await evaluate<{ more: number; fade: string | null }>("(() => { const node = document.querySelector('.todo-views'); return { more: node.scrollWidth - node.clientWidth, fade: node.dataset.more ?? null }; })()");
   assert.ok(strip.more > 1, `the views do not fit at 360 px (${strip.more} px more)`);
   await waitFor("document.querySelector('.todo-views').dataset.more === 'end'", 5_000);

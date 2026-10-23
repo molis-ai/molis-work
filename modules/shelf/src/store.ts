@@ -126,8 +126,8 @@ export class ShelfStore {
   private readonly probe: ShelfRuntimeProbe;
 
   /**
-   * Shelf's own data is read and written only through `files`; `root` is the real folder behind it, kept for the snapshot and the one place
-   * an outside tool is handed a path (the frozen job input). The folders are created by the first write that needs them.
+   * Shelf's own data is read and written only through `files`; `root` is the real folder behind it, named in the snapshot and nowhere
+   * else (a job's model reads its frozen copies through `files` too). The folders are created by the first write that needs them.
    */
   constructor(readonly root: string, private readonly files: PluginOwnerFilesClient, probe: ShelfRuntimeProbe = {}, private readonly materials: ShelfMaterialPorts = {}, private readonly ai?: ShelfAiPorts) {
     this.probe = probe;
@@ -163,7 +163,7 @@ export class ShelfStore {
   }
 
   async snapshot(): Promise<ShelfSnapshot> {
-    const catalog = await this.ensureSample(this.readCatalog());
+    const catalog = this.readCatalog();
     const visible = (group: StoredItem["group"]) =>
       catalog.items.filter((item) => item.group === group && !item.hidden).map(publicItem);
     const settings = normalizeSettings(catalog.settings);
@@ -418,8 +418,6 @@ export class ShelfStore {
     const jobRoot = `jobs/${jobId}`;
     const inputRoot = `${jobRoot}/input`;
     const outputRoot = `${jobRoot}/output`;
-    // The one real path an outside tool is handed: the model reads the frozen copies in this folder.
-    const inputDir = path.join(this.root, "jobs", jobId, "input");
     const outputName = shortcut
       ? shortcutOutputName(items[0].name, shortcut.name)
       : shelfRecipeOutputName(spec.recipe, items[0].kind, optionId);
@@ -496,7 +494,7 @@ export class ShelfStore {
       let output: string;
       if (spec.requires_agent) {
         const result = await lifetime.wait(this.ai!.generate({ recipe: spec.recipe as Exclude<ShelfRecipeId, "extract_text">,
-          option_id: optionId, ...(shortcut ? { shortcut_prompt: shortcut.prompt } : {}), selection: ai.selected!, root: inputDir,
+          option_id: optionId, ...(shortcut ? { shortcut_prompt: shortcut.prompt } : {}), selection: ai.selected!, files: this.files, root: inputRoot,
           sources: items.map((item, index) => ({ relative_path: workNames[index], name: item.name, kind: item.kind, mime: item.mime })),
         }, { signal: lifetime.signal, beforeEffect: beforeCommit }));
         validateResult = result.validateResult;
@@ -519,31 +517,26 @@ export class ShelfStore {
         }
         output = parts.join("\n\n");
       }
-      await this.files.write((writer) => {
+      // Output, result and the finished row are one write, checked again inside it: a write waits its turn, so a cancel may land first.
+      return await this.files.write((writer) => {
+        lifetime.assertActive(); assertCurrent(); validateResult?.();
         writer.replaceFileAtomic(outputFile, Buffer.from(output));
         appendEvent(writer, jobRoot, "写入 output/");
-        unlockDirectories(writer, inputRoot);
+        const catalog = this.catalogFrom(writer);
+        const result = this.fileResult(writer, catalog, { outputFile, outputName, jobId, sourceItemIds: items.map((item) => item.item_id), status: "done", coverage: materialCoverage });
+        const finished: ShelfJobRecord = {
+          ...running,
+          ...(execution ? { execution } : {}),
+          ...(materialCoverage?.length ? { material_coverage: materialCoverage } : {}),
+          status: "succeeded",
+          result_item_id: result.item_id,
+          finished_at: now(),
+        };
+        catalog.jobs = catalog.jobs.map((job) => job.job_id === jobId ? finished : job);
+        saveCatalog(writer, catalog);
+        return { job: finished, result, origin_hash: items[0].origin_hash };
       });
-      const result = await this.storeResult({
-        outputFile,
-        outputName,
-        jobId,
-        sourceItemIds: items.map((item) => item.item_id),
-        status: "done",
-        coverage: materialCoverage,
-      });
-      const finished: ShelfJobRecord = {
-        ...running,
-        ...(execution ? { execution } : {}),
-        ...(materialCoverage?.length ? { material_coverage: materialCoverage } : {}),
-        status: "succeeded",
-        result_item_id: result.item_id,
-        finished_at: now(),
-      };
-      await this.update((next) => { next.jobs = next.jobs.map((job) => job.job_id === jobId ? finished : job); });
-      return { job: finished, result, origin_hash: items[0].origin_hash };
     } catch (error) {
-      await this.unlock(inputRoot);
       await beforeCommit();
       if (isShelfFailure(error) && error.code === "shelf.configuration_changed") throw error;
       const cancelled = isShelfFailure(error) && error.code === "shelf.cancelled";
@@ -555,29 +548,18 @@ export class ShelfStore {
         error: cancelled ? null : reason,
         finished_at: now(),
       };
-      await this.update((next) => { next.jobs = next.jobs.map((job) => job.job_id === jobId ? closed : job); });
-      // A cancel leaves the shelf as it was; a failure leaves a row saying why.
-      if (!cancelled) {
-        await this.storeResult({
-          outputFile: null,
-          outputName,
-          jobId,
-          sourceItemIds: items.map((item) => item.item_id),
-          status: "failed",
-          failureReason: reason,
-        });
-      }
+      // A cancel leaves the shelf as it was; a failure leaves a row saying why, in the same write as the closed job.
+      await this.files.write((writer) => {
+        const catalog = this.catalogFrom(writer);
+        catalog.jobs = catalog.jobs.map((job) => job.job_id === jobId ? closed : job);
+        if (!cancelled) this.fileResult(writer, catalog, { outputFile: null, outputName, jobId, sourceItemIds: items.map((item) => item.item_id), status: "failed", failureReason: reason });
+        saveCatalog(writer, catalog);
+      });
       throw isShelfFailure(error) ? error : shelfErrors.job_failed(reason);
     } finally {
       activeJobs.delete(key);
       lifetime.dispose();
-      await this.unlock(inputRoot);
     }
-  }
-
-  /** Puts the job's copied inputs back to writable folders, so cleanup later can remove them. */
-  private unlock(inputRoot: string): Promise<void> {
-    return this.files.write((writer) => { unlockDirectories(writer, inputRoot); });
   }
 
   private requireRecipe(recipe: ShelfRecipeId) {
@@ -590,9 +572,9 @@ export class ShelfStore {
 
   /**
    * The deliverable becomes a shelf copy of its own, so results survive job
-   * cleanup. An authorized failure files its reason, without exposing an invalid partial result.
+   * cleanup. An authorized failure files its reason, without exposing an invalid partial result. The caller saves `catalog`.
    */
-  private storeResult(options: {
+  private fileResult(writer: PluginOwnerFilesWriter, catalog: CatalogFile, options: {
     outputFile: string | null;
     outputName: string;
     jobId: string;
@@ -600,45 +582,41 @@ export class ShelfStore {
     status: "done" | "failed";
     failureReason?: string | null;
     coverage?: readonly string[];
-  }): Promise<ShelfItemRecord> {
-    return this.files.write((writer) => {
-      const catalog = this.catalogFrom(writer);
-      const taken = catalog.items.filter((item) => item.group === "result").map((item) => item.name);
-      const name = uniqueTitle(options.outputName, taken);
-      const resultId = this.id("item");
-      const kind = resultKind(name);
-      let relative = "";
-      let bytes: Buffer | null = null;
-      if (options.outputFile && writer.stat(options.outputFile)) {
-        relative = `files/${resultId}/${name}`;
-        writer.copyFile(options.outputFile, relative);
-        bytes = readShelfCopy(writer, relative);
-      }
-      const result: StoredItem = {
-        item_id: resultId,
-        group: "result",
-        kind,
-        name,
-        relative_path: relative,
-        mime: resultMime(name),
-        size_bytes: bytes?.byteLength ?? 0,
-        origin_hash: bytes ? sha256(bytes) : "",
-        hidden: false,
-        created_at: now(),
-        source_item_id: options.sourceItemIds[0] ?? null,
-        source_item_ids: [...options.sourceItemIds],
-        job_id: options.jobId,
-        preview_text: bytes ? previewFor(kind, bytes) : null,
-        children: [],
-        status: options.status,
-        failure_reason: options.failureReason ?? null,
-        ...(options.coverage?.length ? { material_coverage: options.coverage } : {}),
-        origin_realpath: null,
-      };
-      catalog.items.unshift(result);
-      saveCatalog(writer, catalog);
-      return publicItem(result);
-    });
+  }): ShelfItemRecord {
+    const taken = catalog.items.filter((item) => item.group === "result").map((item) => item.name);
+    const name = uniqueTitle(options.outputName, taken);
+    const resultId = this.id("item");
+    const kind = resultKind(name);
+    let relative = "";
+    let bytes: Buffer | null = null;
+    if (options.outputFile && writer.stat(options.outputFile)) {
+      relative = `files/${resultId}/${name}`;
+      writer.copyFile(options.outputFile, relative);
+      bytes = readShelfCopy(writer, relative);
+    }
+    const result: StoredItem = {
+      item_id: resultId,
+      group: "result",
+      kind,
+      name,
+      relative_path: relative,
+      mime: resultMime(name),
+      size_bytes: bytes?.byteLength ?? 0,
+      origin_hash: bytes ? sha256(bytes) : "",
+      hidden: false,
+      created_at: now(),
+      source_item_id: options.sourceItemIds[0] ?? null,
+      source_item_ids: [...options.sourceItemIds],
+      job_id: options.jobId,
+      preview_text: bytes ? previewFor(kind, bytes) : null,
+      children: [],
+      status: options.status,
+      failure_reason: options.failureReason ?? null,
+      ...(options.coverage?.length ? { material_coverage: options.coverage } : {}),
+      origin_realpath: null,
+    };
+    catalog.items.unshift(result);
+    return publicItem(result);
   }
 
   /** Stop a run from another request; the materials stay, no result is filed. */
@@ -766,14 +744,6 @@ export class ShelfStore {
     const item = this.requireItem(this.readCatalog(), itemId);
     if (!item.relative_path) throw shelfErrors.missing_output("这次没有生成文件");
     return { item: publicItem(item), bytes: readShelfCopy(this.files, item.relative_path) };
-  }
-
-  private async ensureSample(catalog: CatalogFile): Promise<CatalogFile> {
-    if (catalog.seeded_sample || catalog.items.length > 0) {
-      return catalog;
-    }
-    await this.seedSample();
-    return this.readCatalog();
   }
 
   /** A file hashes its bytes; a folder hashes every path and file under it. */
@@ -1029,23 +999,15 @@ function uniqueTitle(preferred: string, taken: readonly string[]): string {
 }
 
 /**
- * `input/` is the frozen source copy consumed by the Host. The
- * folder itself is locked only while the job runs, so ordinary cleanup later
- * still works; the files stay read-only.
+ * `input/` is the frozen source copy the job reads: its files are read-only. Its folders stay writable, so cleanup works even after a
+ * cancelled or revoked call, which may write nothing more; what the job reads is checked against its hash before every commit.
  */
 function freezeReadOnly(writer: PluginOwnerFilesWriter, target: string): void {
   const stat = writer.stat(target);
   if (!stat) return;
   if (stat.kind === "directory") {
     for (const entry of writer.list(target)) freezeReadOnly(writer, `${target}/${entry.name}`);
-  }
-  writer.setAccess(target, "readonly");
-}
-
-function unlockDirectories(writer: PluginOwnerFilesWriter, target: string): void {
-  if (writer.stat(target)?.kind !== "directory") return;
-  writer.setAccess(target, "readwrite");
-  for (const entry of writer.list(target)) unlockDirectories(writer, `${target}/${entry.name}`);
+  } else writer.setAccess(target, "readonly");
 }
 
 function thawTree(writer: PluginOwnerFilesWriter, target: string): void {

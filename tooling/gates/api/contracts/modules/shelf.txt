@@ -37,6 +37,7 @@ export interface ShelfAiPorts {
         option_id: string | null;
         shortcut_prompt?: string;
         selection: ShelfModelSelection;
+        files: PluginOwnerFilesReader;
         root: string;
         sources: readonly {
             relative_path: string;

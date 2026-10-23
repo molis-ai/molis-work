@@ -7,6 +7,7 @@ import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { filesProbe, filesProject, grantFiles } from "./fixtures/plugin-files.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 test("S-15 RAC-45 RAC-46 Home files preserve existing bytes and reopen; read never creates a directory and create never overwrites", async t => {
   const probe = filesProbe(), entry = { definition: probe.definition, files: probe.files };
@@ -24,7 +25,8 @@ test("S-15 RAC-45 RAC-46 Home files preserve existing bytes and reopen; read nev
   writeFileSync(join(directory, ".DS_Store"), "Finder metadata");
   assert.deepEqual(client.list(), ["existing.png", "new.bin"]);
   await host.close();
-  assert.throws(() => client.read("existing.png"));
+  // BL-411: the closed Home's client is refused and, outside every call, throws nothing: no bytes, not even null.
+  assert.equal(client.read("existing.png"), undefined);
   const reopened = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [entry] } });
   try {
     await reopened.homePlugins!.ready();
@@ -114,7 +116,8 @@ for (const invalidation of ["cancel", "caller-revoke", "stop", "revoke", "restar
         await platform.runtime.stop(install.install_id);
         if (invalidation === "revoke") platform.runtime.grant(install.install_id, ["storage:private", probe.read]);
         if (invalidation === "restart") await platform.supervisor.restart(probe.id);
-        await assert.rejects(old.create({ beforeEffect: async () => {} }, "escaped.bin", Buffer.from("stale")));
+        // BL-411: outside every call the stopped activation's client is refused and throws nothing: the call never answers.
+        assert.equal(await within(old.create({ beforeEffect: async () => {} }, "escaped.bin", Buffer.from("stale"))), PENDING);
       }
     } finally { release.resolve(); }
     await refused;
@@ -146,7 +149,8 @@ test("S-15 S-18 RAC-45 RAC-48 stop revokes files before awaiting plugin cleanup;
   const next = platform.runtime.install({ definition: probe.definition, deployment: "local", grants: ["storage:private", probe.read] }).install;
   await platform.runtime.start(next.install_id);
   assert.notEqual(next.installation_generation, install.installation_generation);
-  await assert.rejects(old.create({ beforeEffect: async () => {} }, "old.bin", Buffer.from("old")));
+  // BL-411: outside every call the stopped activation's client is refused and throws nothing: the call never answers.
+  assert.equal(await within(old.create({ beforeEffect: async () => {} }, "old.bin", Buffer.from("old"))), PENDING);
   await assert.rejects(probe.client().create({ beforeEffect: async () => {} }, "new.bin", Buffer.from("ungranted")), { code: "actions.forbidden" });
   assert.equal(existsSync(join(home, probe.files.store_name)), false);
 });
@@ -176,7 +180,9 @@ test("S-15 RAC-45 RAC-49 project Runtime uses the same file service and upgrade 
   const old = probe.client(), next = filesProbe("project-files", "project", "1.1.0");
   await item.platform.upgrade(probe.id, next.definition);
   assert.equal(next.preflight.length, 1); assert.equal(next.preflight[0]!.services?.files, undefined);
-  await assert.rejects(old.create({ beforeEffect: async () => {} }, "old.bin", Buffer.from("old")));
+  // BL-411: outside every call the replaced activation's client is refused and throws nothing: the call never answers, and no file is written.
+  assert.equal(await within(old.create({ beforeEffect: async () => {} }, "old.bin", Buffer.from("old"))), PENDING);
+  assert.equal(existsSync(join(home, probe.files.store_name, "assets", "old.bin")), false);
   assert.equal(next.contexts.at(-1)?.services?.files, undefined, "another definition with the same id cannot claim the old trusted entry");
 });
 

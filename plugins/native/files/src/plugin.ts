@@ -62,8 +62,10 @@ export function createFilesPlugin(ports: FilesPluginPorts = {}): PluginDefinitio
           return { ref: { view_id: "tree", object_id: objectId }, title: objectId };
         },
         onEvent: (_event, delivery) => {
-          // Coding wrote, or Git moved the working tree. Either way what is on
-          // screen may no longer match the disk, so Files' own pages read again
+          // Coding wrote, Git moved the working tree, or the Host ran a
+          // person-approved operation in the workspace, whoever asked for it
+          // (`host.workspace.changed@1`, BL-379). Either way what is on screen
+          // may no longer match the disk, so Files' own pages read again
           // (PG-061). Only from a delivery: Files keeps no timer or watcher that
           // could call it once this activation has stopped (BL-411).
           delivery.beforeEffect();

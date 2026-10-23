@@ -13,6 +13,7 @@ import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 const rejected = { code: "agent.session_unknown" };
 async function terminal(adapter: any, ref: any): Promise<AgentRunView> {
@@ -93,7 +94,8 @@ test("real Plugin executor binds unknown Agent declarations and rejects forged o
       await assert.rejects(api.invoke(agent.readSession, [session]), /已停止/);
       releaseQueue(); await holding; await queuedRejected;
     } finally { releaseQueue(); releaseStop(); await stopping; }
-    await assert.rejects(api.invoke(agent.readSession, [session]), /已停止/);
+    // BL-411: once the stop hook returned, outside every call the handle is refused and its call never settles.
+    assert.equal(await within(api.invoke(agent.readSession, [session])), PENDING);
     assert.equal(modelCalls, 1, "rejected calls never dispatch another model");
   } finally {
     await runtime.stop(first.install_id).catch(() => {}); await runtime.stop(second.install_id).catch(() => {});

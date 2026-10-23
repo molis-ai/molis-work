@@ -3268,3 +3268,7 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - ⑤ 拆出 `copy-checks.ts`，修掉了巨大单元那处红（`2f8d53886`）。
   - 但 #1085 也改了 `plugins/native/shelf/README.md`，两边冲突，CI 没法跑。① 已请 ⑤ 再并一次 main。
 
+### 10-23 23:48（15:48 UTC） #1076 的冲突解掉了
+- ⑤ 并了 main，head `99a4d7019`：Shelf README 那一行两边的改动都保留了，baseline 只有变小的数。现在可合，在等检查。
+- 合并队列里有 #1071、#1080、#1081、#1103。#1084 等 #1071 合入；batch-1023-10 还剩第 15、16 片。
+

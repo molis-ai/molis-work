@@ -2998,3 +2998,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 新 PR [#1086](https://github.com/molis-ai/molis-work/pull/1086)（yijunw0212）：修 VUX-36，只改这个测试，断言不变，开着自动合并。PR 说明是 Claude Code 写的英文，看着是同事那边的，不是 Codex 验证线。按 10-23 定的同事规矩，这个可以，不算违规。不过它和同事自己的 #1073 改了同几行，两边对多出来的数组解释差一倍，记进了 R-22。Codex 不另开修复，下一批验它。
 - CI 队列里看到 [#1064](https://github.com/molis-ai/molis-work/pull/1064)（用户自己的账号，`codex/memory-sdk-adoption`），登记册里原来没有，已报给用户，记在 R-02。
 - Codex 的查看时间：19:53（每 30 分钟一次）。
+- 补记：上一节的登记册改动第一次没写进去（脚本被 shell 截住了），这次补上了。同时并入 Codex 的 `2c02f2271`：它的全量跑完了，1352 个文件里 1342 个过、10 个红。10 个红都已经有归属：VUX-36 归 #1086；`goals-mcp-actions`、`session-workspace` 归 #1075 的叠加 PR；`fill-message`、`host-pages-error-model`、`personal-plugins-review-fixes`、`plugin-project-database` 归 #1082（R-18）；`coding-rich-html` 归 #1067 合入后的夹具修复；`issue-capture-page` 记成 R-23；`busy-feedback` 记在 R-07，正在单独重跑。6 个文件含跳过项：没给真实账号和模型凭据，跳过不算通过。接下来 Codex 拿固定的 main `a259350ac` 做失败对照。

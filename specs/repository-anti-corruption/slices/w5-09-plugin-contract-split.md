@@ -1,6 +1,6 @@
 # W5-09 余项：`platform/plugin.ts` 的热点按领域拆开（纯搬移）
 
-状态：开发完成、等评审（2026-10-23，防腐线 ac-kernel 片）；纯搬移，由公开 API 快照与逐条语句比对守住，全量交统一验证窗口。
+状态：一轮可合，Codex 已认领并补修文档建议（2026-10-23）；纯搬移，由公开 API 快照与逐条语句比对守住，全量交统一验证窗口。
 
 ## 1. 目标
 
@@ -25,9 +25,9 @@
 | 编号 | 内容 | 证据 |
 | --- | --- | --- |
 | RAC-185 | 公开 API 不变：`node scripts/gates/api-snapshot.mjs` 与快照一致，`tooling/gates/api/` 没有改动 | 门禁输出 |
-| RAC-186 | 纯搬移：拆分前 `plugin.ts` 的 43 条顶层语句（不算 import 与转出）与拆分后四个文件的语句逐字相同 | 拆分脚本与比对写在 PR 正文 |
+| RAC-186 | 纯搬移：拆分前 `plugin.ts` 的 43 条顶层语句（不算 import 与转出）与拆分后四个文件的语句逐字相同，连同前导注释；95 个具名导出与原 19 条转出保持一致 | PR 正文提供可复跑的 TypeScript AST 比对命令 |
 | RAC-187 | 门禁数字不变或变小（typed 引用、合同纯度、巨大单元） | `node scripts/check-health-gates.mjs --base origin/main` |
 
 ## 4. 对调用方的影响
 
-没有：类型、值、子路径都不变，只是声明换了文件。文档里指向「Manifest 类型在 `plugin.ts`」的地方改成新文件（`packages/contracts/README.md`、`docs/system/CONTRACT-CHANGES.md`、`docs/system/PARALLEL-DEVELOPMENT.md` 的枢纽表）；`skills/molis-plugin-dev/elements.md` 与 `docs/platform/PLUGIN-PLATFORM.md` 在途 PR 正在改，合入后统一改一句。
+没有：类型、值、子路径都不变，只是声明换了文件。文档里指向 Manifest 定义的地方改成 `plugin-manifest.ts`（`packages/contracts/README.md`、`docs/system/CONTRACT-CHANGES.md`、`docs/system/PARALLEL-DEVELOPMENT.md` 的枢纽表、`skills/molis-plugin-dev/elements.md` 与 `docs/platform/PLUGIN-PLATFORM.md`）；外部作者仍从公开的 `platform/plugin` 子路径导入，不新增深层入口。两处测试注释写全 `apps/local-host/src/plugin-host-services.ts`，明确说的是宿主实现，不是本片新拆出的同名合同文件。

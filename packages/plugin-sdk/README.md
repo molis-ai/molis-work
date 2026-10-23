@@ -50,13 +50,13 @@ SDK 不包含 Runtime 或业务 Store。Manifest 解析与版本比较、动作�
 
 Manifest、定义与 Runtime 拒绝共用 `ActionError`；作者捕获 SDK 导出的 `ActionError` 并检查现行 `plugin.*` 码。原因声明 `pluginErrors` 在 contracts 的 `platform/plugin` 公开子路径，SDK 与 Runtime 读取同一份；不再导出 Manifest、Definition 或 Runtime 专有错误类。
 
-工作区依赖：只有 `@molis-ai/molis-work-contracts`。Plugin SDK 属于公共发布面（外部作者装的只有 contracts 与 SDK），不依赖任何私有包：边界规则 `public-sdk-private-dependency` 在 `pnpm boundary:check` 里拦住（源码 import 与 `package.json` 声明的依赖都查），`tests/plugin-sample.e2e.test.ts` 只用打包后的 contracts 与 SDK 离线安装，在本机再兜一层。`createExecutionLifetime`（及 `ExecutionLifetime`、`ExecutionLifetimeOptions`）是 SDK 自己的实现（`src/execution-lifetime.ts`），不是转出；SDK 同时是平台自己的公共运行时底座：内核、宿主、调度服务、Shelf 模块和沙箱都直接从这里取，所以改它按共享核心对待（要跑全量）。第三方运行依赖只有 `/rich-text` 子路径要的 `marked` 与 `sanitize-html`，写成可选 peer 依赖：作者的项目只装 contracts 与 SDK 就能离线装好，用 `/rich-text` 的插件自己加这两个依赖（工作台、宿主就是这样）。见 [package.json](package.json)。
+工作区依赖：只有 `@molis-ai/molis-work-contracts`。Plugin SDK 属于公共发布面（外部作者装的只有 contracts 与 SDK），不依赖任何私有包：边界规则 `public-sdk-private-dependency` 在 `pnpm boundary:check` 里拦住（源码 import 与 `package.json` 声明的依赖都查），`tests/plugin-sample.e2e.test.ts` 只用打包后的 contracts 与 SDK 离线安装，在本机再兜一层。`createExecutionLifetime`（及 `ExecutionLifetime`、`ExecutionLifetimeOptions`）是 SDK 自己的实现（`src/execution-lifetime.ts`），不是转出；SDK 同时是平台自己的公共运行时底座：内核、宿主、调度服务、Shelf 模块和沙箱都直接从这里取，所以改它按共享核心对待（要跑全量）。第三方运行依赖只有 `/rich-text` 子路径要的 `marked` 与 `sanitize-html`，写成可选 peer 依赖：作者的项目只装 contracts 与 SDK 就能离线装好，用 `/rich-text` 的插件自己加这两个依赖（工作台、Coding 就是这样）。见 [package.json](package.json)。
 
 可从[本地 Plugin 示例](../../examples/plugin-sample/README.md)开始：示例使用 context.services 存取私人状态、发布 Artifact 并注册 UI，完整授权和开发步骤见开发指南。
 
 ## 富文本子路径 `/rich-text`
 
-`@molis-ai/molis-work-plugin-sdk/rich-text` 的 `renderRichText`、`richPlainText` 要用 Markdown 解析器和 HTML 消毒器。SDK 把这两个包写成可选 peer 依赖，不替你装：用这个子路径的插件在自己的 `package.json` 里加 `marked@^18.0.11` 和 `sanitize-html@^2.17.7`（范围与 SDK 的 `peerDependencies` 相同；TypeScript 项目另加开发依赖 `@types/sanitize-html`）。没加就导入 `/rich-text`，加载时会报找不到模块；SDK 根入口和 `/highlight` 不加载这两个包，不用装。工作台和宿主声明的就是这两个范围，`tests/plugin-sdk-subpaths.test.ts` 核对 README、peer 范围和它们三处一致。
+`@molis-ai/molis-work-plugin-sdk/rich-text` 的 `renderRichText`、`richPlainText` 要用 Markdown 解析器和 HTML 消毒器。SDK 把这两个包写成可选 peer 依赖，不替你装：用这个子路径的插件在自己的 `package.json` 里加 `marked@^18.0.11` 和 `sanitize-html@^2.17.7`（范围与 SDK 的 `peerDependencies` 相同；TypeScript 项目另加开发依赖 `@types/sanitize-html`）。没加就导入 `/rich-text`，加载时会报找不到模块；SDK 根入口和 `/highlight` 不加载这两个包，不用装。工作台和 Coding 声明的就是这两个范围，`tests/plugin-sdk-subpaths.test.ts` 核对 README、peer 范围与仓库里每个导入 `/rich-text` 的包一致。
 
 ## 动作与判断消费场景
 

@@ -12,6 +12,7 @@ import {
 import { FOUNDATION_SPECIMEN_STYLES, renderFoundationSection } from "./foundation-specimens.js";
 import { CONDITIONS_SECTION_STYLES, renderConditionsSection } from "./condition-specimens.js";
 import { ASSISTANT_SECTION_STYLES, renderAssistantBoardSection } from "./assistant-board-specimens.js";
+import { PLUGIN_ROWS_SECTION_STYLES, renderPluginRowsSection } from "./board-plugin-rows.js";
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
 
@@ -113,6 +114,8 @@ const BAR_SPECIMEN_SCRIPT = `
 const SPECIMEN_SCRIPT = `
 (() => {
   document.addEventListener("click", (event) => {
+    const language = event.target.closest("[data-board-lang]");
+    if (language && !language.classList.contains("is-current")) { const url = new URL(location.href); url.searchParams.set("lang", language.dataset.boardLang); location.assign(url.href); return; }
     const copy = event.target.closest("[data-catalog-copy]");
     if (copy) window.molisCopy?.(copy, () => copy.dataset.catalogCopy === "ok" ? "Molis Work" : Promise.reject(new Error("refused")));
   });
@@ -155,8 +158,15 @@ const SPECIMEN_SCRIPT = `
   });
 })();`;
 
-/** `say` is the page's translator: the conditions section is written through it (the older sections are Chinese only). */
-export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Record<string, string | number>) => string = (text) => text): string {
+/**
+ * `say` is the page's translator and `lang` its language, which the board's own switch picks: the conditions, Assistant and
+ * plugin-row sections are written through it and their frames start in it (the older sections are Chinese only).
+ */
+export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Record<string, string | number>) => string = (text) => text, lang: "zh" | "en" = "zh"): string {
+  const languages = renderToggleGroup({
+    label: say("界面语言"),
+    items: [["zh", "中文"], ["en", "English"]].map(([value, label]) => ({ value: value!, label: label!, current: value === lang, attrs: { "data-board-lang": value! } })),
+  });
   const themes = renderToggleGroup({
     label: "主题",
     items: [
@@ -166,17 +176,17 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
     ],
   });
   const catalog = renderPrimitiveCatalog()
-    .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a></nav>`)
-    .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say)}\n    ${renderAssistantBoardSection(say)}\n    ${renderBarSection()}\n  </div>\n  <script>`);
+    .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#plugin-rows" title="${say("插件行视图")}">${say("插件行视图")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a></nav>`)
+    .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderBarSection()}\n  </div>\n  <script>`);
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="${lang === "en" ? "en" : "zh-CN"}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>组件板 · Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-settings.css">
-  <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}</style>
+  <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}${PLUGIN_ROWS_SECTION_STYLES}.mw-catalog-top__tools{display:flex;flex-wrap:wrap;gap:8px}</style>
 </head>
 <body class="mw-catalog-page settings-page">
   ${renderIconSprite()}
@@ -185,7 +195,7 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
       <h1>Molis Work 组件板</h1>
       <p>Soft Workbench · 真实生产组件与组合 · HTML Slot 契约。开发工具，不进用户导航。</p>
     </div>
-    ${themes}
+    <div class="mw-catalog-top__tools">${languages}${themes}</div>
   </header>
   ${catalog}
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>

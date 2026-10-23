@@ -1,5 +1,5 @@
 import type { MolisWorkRuntimeContextHost, RuntimeProjectConnectionState } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { MolisWorkRuntimeContextResolution, RuntimeSessionReadResult } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { MolisWorkRuntimeContextResolution } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mcpWebUrl } from "./goal-presentation.js";
@@ -12,8 +12,6 @@ export interface McpContextPresentationPorts {
   connection: RuntimeProjectConnectionState;
   readGuidance(connection: ProjectConnection): Promise<ProjectGuidanceView>;
   readResumeFacts(connection: ProjectConnection, focusGoalIds: readonly string[]): Promise<McpResumeFacts>;
-  /** `boundProjectId`: the Runtime was just bound to this project; its binding's Session is written before the read. */
-  readSession(host: MolisWorkRuntimeContextHost, boundProjectId: string | null): Promise<RuntimeSessionReadResult>;
   createError: McpPresentationErrorFactory;
   contextSignal?(): AbortSignal;
 }
@@ -23,7 +21,6 @@ export function createMcpContextPresenter(ports: McpContextPresentationPorts) {
   return async function presentResolution(
     resolution: MolisWorkRuntimeContextResolution,
     host: MolisWorkRuntimeContextHost,
-    bound: boolean = false,
   ): Promise<string> {
     const contextSignal = ports.contextSignal?.();
     const webBaseUrl = host.webBaseUrl ?? "http://127.0.0.1:4173";
@@ -46,16 +43,13 @@ export function createMcpContextPresenter(ports: McpContextPresentationPorts) {
     const guidance = connection ? await readOptional(() => ports.readGuidance(connection)) : { value: null };
     checkContext();
     const projectGuidance = guidance.value;
-    const { sessionRegistry, sessionGoalId } = await ports.readSession(host, bound ? connection?.project_id ?? null : null);
-    checkContext();
     const hostFocus = host.goalId?.trim() || null;
-    const sessionFocus = sessionGoalId?.trim() || null;
-    const facts = connection ? await readOptional(() => ports.readResumeFacts(connection, uniqueFocusGoalIds(hostFocus, sessionFocus))) : { value: null };
+    const facts = connection ? await readOptional(() => ports.readResumeFacts(connection, hostFocus ? [hostFocus] : [])) : { value: null };
     checkContext();
-    const resume = connection ? facts.value ? buildMcpResumeView(facts.value, hostFocus, sessionFocus) : null
+    const resume = connection ? facts.value ? buildMcpResumeView(facts.value, hostFocus) : null
       : { focus: null, next_goals: [] };
     return JSON.stringify({
-      ...resolution, connection, session_registry: sessionRegistry, project_guidance: projectGuidance,
+      ...resolution, connection, project_guidance: projectGuidance,
       runtime_prompt_prefix: projectGuidance?.runtime_prompt_prefix ?? null, resume,
       ...(guidance.error ? { project_guidance_error: guidance.error } : {}),
       ...(facts.error ? { resume_error: facts.error } : {}),
@@ -69,14 +63,4 @@ async function readOptional<T>(read: () => Promise<T>): Promise<{ value: T | nul
     if (!(error instanceof ActionError) || ["mcp.context_changed", "actions.cancelled", "actions.scope_mismatch", "actions.transport_invalid"].includes(error.code)) throw error;
     return { value: null, error: { code: error.code, message: error.message } };
   }
-}
-
-function uniqueFocusGoalIds(...ids: Array<string | null>): string[] {
-  const result: string[] = [];
-  for (const id of ids) {
-    if (!id || result.includes(id)) continue;
-    result.push(id);
-    if (result.length === 2) break;
-  }
-  return result;
 }

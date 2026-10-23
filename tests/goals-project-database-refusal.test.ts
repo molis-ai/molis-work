@@ -109,6 +109,8 @@ const cases = [
   { change: "its ledger row names another publisher", sql: `UPDATE plugin_project_databases SET publisher_signature = 'someone-else' WHERE plugin_id = '${GOALS_PLUGIN_ID}'`, code: "plugin.project_database.publisher_mismatch" },
   { change: "one of its tables gained a column", sql: "ALTER TABLE goals ADD COLUMN added_by_hand TEXT", code: "plugin.project_database.shape_mismatch" },
   { change: "its board has the name column version 7 gave it", sql: "ALTER TABLE boards ADD COLUMN title TEXT", code: "plugin.project_database.shape_mismatch" },
+  // Goals' own reads would fail on this one, so nothing the Host does while it opens the project may read Goals' tables.
+  { change: "one of its tables is gone", sql: "PRAGMA foreign_keys = OFF; DROP TABLE goal_tree_proposals", code: "plugin.project_database.shape_mismatch" },
 ];
 
 for (const { change, sql, code } of cases) {

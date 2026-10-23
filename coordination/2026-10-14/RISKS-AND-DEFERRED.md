@@ -1,6 +1,6 @@
 # 防腐加速期：高风险、潜在问题与延后事项
 
-状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 21:15 本地时间）。
+状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 21:35 本地时间）。
 - 用户 10-23 定：「优先完成防腐的工程开发，维护一个文档记录高风险和潜在问题，先完成工程开发，后续统一处理重度任务，测试任务」。
 - 又补一句：在有限的槽位里优先开发，不要让 VPN 断掉，维持当前机器负载，剩余事项用文档记清楚。
 - 各会话不直接改这份文件。要记的事，要么发给 ①，要么写在 PR 正文的「本机延后验证」一节，由 ① 收进来。
@@ -19,6 +19,12 @@
 - 这份文件和 `README.md` 只由 ① 改，一改就提交并推送到上面的分支，不攒着。提交说明写改了哪一节。这个分支上不改代码。
 - 在别的机器上做验证的接手者（用户 10-23 定：Codex 在另一台机器上跑统一验证）不改这两个文件。结果写进同目录自己的文件 `VERIFY-<日期>.md`，写完一段就提交推送；推之前 `git pull --rebase` 这个分支，只变基自己还没推的提交，不 force push。
 - ① 每次动这份文件之前先 fetch 这个分支，看到新的或改过的 `VERIFY-*.md`，就把结果并进 §3（每个 PR 的「状态」列）和 §2（新风险），在 `README.md` 记一笔，注明来自哪份 `VERIFY` 文件。`VERIFY` 文件留着不删，作原始记录。
+
+**统一验证发现的失败由谁修（用户 10-23 21:30 定）**
+- **PR 自己的改动引起的失败**：交给 Codex 修。它从作者分支开一个叠加 PR，目标就是作者分支，不推作者分支。这期间作者线不动同一处，也不 rebase、不 force push 作者分支；作者线自己的其他改动照常推。叠加 PR 由 ⑤（或 ⑩）审，审过由 ⑤ 合进作者分支，然后作者 PR 照常走合并。作者 PR 要是先合进了 main，叠加 PR 改投 main（合并时删分支，GitHub 会自动改投；没改投就由 ⑤ 手动改）。
+- **main 本身的红**：Codex 动手前先查在途 PR（含 ⑤ 的修复 PR）和 ⑤ 的已知红名单，没人在修才从 main 开 PR。这台机器上的会话碰到 main 的红，也要先看 `VERIFY-*.md` 和 PR 留言里有没有 Codex 的认领，有就不修。
+- **认领**：Codex 认领一处，就在对应 PR 上留言写明，同时写进 `VERIFY` 文件；开了修复 PR，就在原 PR 上贴链接。① 把认领并进 §3 对应行，写「Codex 修」。
+- Codex 仍然不合 PR，不推别人的分支。修的只是简单问题；要改产品行为、合同或门禁的，写进 `VERIFY` 交 ① 裁决。
 
 **统一验证窗口怎么跑（§1 的触发条件满足时）**
 1. 从 main 开一个集成分支和工作树，把 §3 里还没合的 PR 按顺序合进去：
@@ -127,7 +133,7 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 | #1071（PG-038 S3，SDK `/diff-view`） | PG-038 | 合 main 之后的本机验证 | CI 在跑；验证：被排除，和 #1067、#1066/#1068 冲突（R-16），等 #1067 合了合 main 再验 |
 | #1051（Shelf S2） | Shelf | ⑩ 本机 26 个 Shelf 用例里失败的 3 个，以及拿基线的对比 | 和 main 冲突，CI 没跑；先 rebase（R-08）；验证：被排除，和 #1066/#1068 冲突（R-16），等它们合了再验 |
 | #1074（BL-411、BL-368） | ② | rebase 之后最后一次本机构建、测试和门禁（bl411-final，已撤）；affected-tests 选中的 125 个用例。`full` 为空，不进批；不动合同、SDK、Manifest 和门禁，没有构建 | CI 在跑；已合过一次 main（没有 force push）。留下的缺口见 R-12、R-13；验证：`plugin-stopped-services` 5/5、双实例与生命周期的定向文件都过了，只读评审没找到 R-12、R-13 之外的 P1。`tests/plugin-project-database.test.ts` 红在「已装插件的 Home 库」清单多出 `artifacts`，停止后的拒绝与零写入用例过了，不是 BL-411 的问题，见 R-18。R-12、R-13 单独看 |
-| #1075（Sessions 清理 SC-1，PG-081） | ③ | 本机相关用例的最后一轮 | CI 9 过、4 在跑；验证：红（定向，`0bf6f3502`）：`tests/goals-mcp-actions.test.ts:133` 还在断言 MCP 写 Goal 时把 Session 的 `current_goal_id` 改掉，下一行还在等旧的会话活动事件。这是 SC-1（D4）删掉这条写路径以后，这个用例没跟着改。修法是断言 Session 和事件前后都没变；Goal 原事件、审计作者、幂等、权限和撤权的检查一条不放宽。Codex 已在 PR 上认领，作者线先不重复修 |
+| #1075（Sessions 清理 SC-1，PG-081） | ③ | 本机相关用例的最后一轮 | CI 9 过、4 在跑；验证：两处红，都是 SC-1 的预期变化没同步进用例，按 §0 由 **Codex 修**：它开目标是 `migrate/sessions-sc1-stop-writes` 的叠加 PR，③ 不动这两处。① `tests/goals-mcp-actions.test.ts:133`（定向，`0bf6f3502`）：还在断言 MCP 写 Goal 时把 Session 的 `current_goal_id` 改掉，下一行还在等旧的会话活动事件。修法是断言 Session 和事件前后都没变；Goal 原事件、审计作者、幂等、权限和撤权的检查一条不放宽。② `tests/session-workspace.e2e.test.ts:413`（浏览器，`f0500dc81`）：修复目录关系以后，Session 原样存着 `/var/folders/...`，新断言却拿目录登记里的规范路径 `/private/var/folders/...` 去比，在 macOS 上红。修法是 repair 之前读回完整的 Session 和事件快照，操作之后和原值比，不用 realpath 抹平可能的改写 |
 | #1076（Shelf S3，路由只由插件声明、删宿主 `/api/shelf`） | Shelf，⑩ 评审 | 本机 84 个选中文件只跑完 68 个（负载 221 时叫停）：11 个失败，其中 4 个已修但修后没重跑（`shelf-project-results-http`、`action-cross-entry` T5、`shelf-owner-files` PG-026-S2-2、`shelf-jelly-cognia-images-error-model`）；6 个原因不明，多半是高负载下超时（`shelf-ai-host`、`images-concurrency`、`images-mcp`、`coding-product-http`、`coding-material-consumption`、`security-invariants-plugin-pages` 的 ECONNRESET）；1 个环境问题（`shelf-material-extraction`，本机 Swift 编译 Vision 帮助程序失败）；16 个没跑（列表在 PR 正文）。另外没跑：`boundary:check`、健康门禁、`page-assets --base`（合 main 后没重建，workbench 的数是推算的）、`test:security`、浏览器用例与截图、`native-checks`（`shelf_http.rs` 改了） | 叠在 #1051 上；`full` 非空（shared-core、assembly、spans-packages、deletes-code，选中 518 个文件），等 #1051 合了进集成批。三个审批项 ① 10-23 已裁决（见 README）；验证：没进批（Codex 拿到的登记册版本里它还没编号；又叠在被排除的 #1051 上），等 #1051 再验；⑩ 评审过了，交 ⑤ 组批，评审时在 `e854df567` 修了 CI 的 rustfmt 和巨大单元两处红，并把两条被放宽的断言恢复原样 |
 | #1080（Sessions 清理 SC-2：角色运行记进角色库，库 v1 → v2） | ③，⑩ 评审 | 本机只构建和刷新快照。没跑：affected-tests 选中的 149 个文件，其中直接相关的 `characters-native-execution`、`characters-maintenance-v2`（新增）、`characters-schema`、`home-store-baselines`、`characters-actions`、`action-contract-snapshot`，以及浏览器用例 `security-invariants-plugin-terminals.e2e`；`boundary:check`、健康门禁（含 store-versions、table-owners）、`verify-release-versions`、截图 | `full` 非空（shared-core、storage、spans-packages），进集成批；没进 Codex 这一批（开 PR 晚于它固定代码）。留下的事见 R-04、R-05、R-17 |
 | #1079（PG-062 S4a，插件交互渲染服务 `services.interaction`，S-56） | PG-038 | 选中的 300 个文件（284 个非浏览器、16 个浏览器，含新的 `tests/security-invariants-plugin-interaction.test.ts`）；`health:check --base`、`boundary:check`、`page-assets:check`、`test:contracts`、`test:security`。`full` 命中 shared-core、spans-packages，进集成批。`home-plugin-executor.ts`、`plugin-sandbox` 的 `worker.ts` 没有测试经导入图到达；沙箱用例只在 macOS 跑 | 新开；本机只跑了构建、`api:update`、`secrets:check`。不含 #1067、#1071，文件不重叠；S4b 在它之后另开。验证：Codex 下一批 |

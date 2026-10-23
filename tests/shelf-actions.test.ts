@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -21,7 +21,7 @@ test("SYS-15-F1 the personal Shelf runs in Home Runtime; clipboard, settings and
     assert.ok(directory.every(row => row.action.scope === "home" && row.action.scheduling === "concurrent"));
 
     // The panel's writes and an Agent's writes land in the same store the HTTP panel reads.
-    const { item } = await bound.invoke(a.admit, { text: "会议纪要：周三前定稿", title: "纪要", capture_pages: false });
+    const { item } = await bound.invoke(a.admit, { text: "会议纪要：周三前定稿", title: "纪要"});
     const agent = bindActionClient(client, () => ({ ...user, actor_id: "agent:writer", audience: "agent" }));
     assert.deepEqual((await agent.invoke(a.readText, { item_id: item.item_id })).text, "会议纪要：周三前定稿");
     const edited = (await agent.invoke(a.edit, { item_id: item.item_id, text: "会议纪要：周五前定稿" })).item;
@@ -31,14 +31,12 @@ test("SYS-15-F1 the personal Shelf runs in Home Runtime; clipboard, settings and
     assert.deepEqual(Object.keys(listed).sort(), ["materials", "results", "running_jobs"], "the shared list carries no clipboard, settings or root path");
     assert.ok(listed.materials.some(row => row.item_id === item.item_id));
 
-    // Only the local interface may register a real path: the store would hash that file before each run.
-    await writeFile(join(home, "secret.txt"), "private");
+    // No caller names a real path any more: admitting takes bytes only, and the original is the platform's (`shelf.items.original`, local only).
     const upload = { filename: "a.txt", bytes_base64: Buffer.from("private").toString("base64"), origin_realpath: join(home, "secret.txt") };
-    await assert.rejects(agent.invoke(a.admit, upload), { code: "actions.forbidden" });
-    assert.ok((await bound.invoke(a.admit, upload)).item.item_id);
+    await assert.rejects(bound.invoke(a.admit, upload), { code: "actions.input_invalid" });
     await assert.rejects(bound.invoke(a.admit, {}), { code: "shelf.invalid" });
 
-    for (const local of [a.snapshot, a.clip, a.settings, a.saveSettings, a.file, a.admitFolder, a.sample, a.deleteClip, a.clipToMaterial, a.clipboardSearchEntries]) {
+    for (const local of [a.snapshot, a.clip, a.settings, a.saveSettings, a.file, a.admitFolder, a.original, a.sample, a.deleteClip, a.clipToMaterial, a.clipboardSearchEntries]) {
       await assert.rejects(client.invoke({ ...user, audience: "agent" }, local, {}), (error: { code?: string }) => error.code === "actions.forbidden",
         `${local.capability_id} must not be callable by an Agent`);
     }
@@ -62,7 +60,7 @@ test("SYS-15-F1 the personal Shelf runs in Home Runtime; clipboard, settings and
     await bound.invoke(a.hide, { item_id: item.item_id });
     assert.ok(!(await bound.invoke(a.list, {})).materials.some(row => row.item_id === item.item_id));
 
-    // In a project, the Host adds the save-as-material pair and the Runtime instance redeems its own declared actions.
+    // In a project, the Runtime instance's project half redeems its own declared actions, the save-as-material pair among them.
     const database = join(home, "project.sqlite");
     seedDemoBoard(database);
     const project = molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID });

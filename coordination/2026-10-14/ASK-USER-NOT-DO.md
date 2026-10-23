@@ -6,3 +6,9 @@
 | --- | --- | --- | --- | --- |
 | 沙箱插件永远不给 `ownerFiles` | PG-017（及 PG-103） | 不做 | 合同是宿主文件系统的根路径加 writer 回调，过不了有界 JSON；沙箱没有文件写权，也不该知道宿主路径。沙箱插件用 `files`（PG-102/104 合成后经 broker 给）存自己的文件 | 未问 |
 | 沙箱插件不给材料的 `fetch_local`、`original` | PG-017 | 不做 | `fetch_local` 读本机页面，等于让沙箱探本机网络；`original` 的句柄是宿主文件。联网读取在 BL-492 的允许域名之后给 | 未问 |
+
+## 要用户定的其他事项（真实 Home、发版等，同样攒批问）
+
+| 项 | 来自 | 推荐 | 说明 | 问过 |
+| --- | --- | --- | --- | --- |
+| 真实 Home 的项目目录维护（catalog v23） | W5-17（`ac-sandbox-sched`，分支 `claude/ac-w517-catalog-paths`，未开 PR） | 先在真实 Home 的拷贝上跑 `list`，再约一个维护时段：停 4207 → 跑 `rewrite --maintenance-window` → 更新 main → 启动 | W5-17 删 `projects.database_path`，合入后真实 Home 不经维护就不能跑新 main。统筹在 W5-17 合入**前**问；没定时段之前 W5-17 不合 | 未问 |

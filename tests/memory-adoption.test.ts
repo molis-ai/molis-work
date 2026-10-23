@@ -15,7 +15,7 @@ const person: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "pro
 const worker: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "agent" };
 const automatic = { scope: "project" as const, text: "周报把风险放在前面", kind: "convention" as const,
   basis: "repeated" as const, why: "两项独立工作中重复提出", from: "extraction" as const };
-const originalPrefs = { form: true, auto: true, learn_from_work: true, learn_from_ui: true,
+const originalPrefs = { enabled: true, task_recall: true, form: true, auto: true, learn_from_work: true, learn_from_ui: true,
   consumers: { assistant: true, agent: true, ui: true, plugin: true, mcp: false }, plugins: {} };
 
 function scratch(t: TestContext) {
@@ -100,7 +100,7 @@ function files(directory: string): Record<string, string> {
 }
 
 // MEM-24/MEM-40: three supported product entrances plus late Home binding refuse before SDK writes or inference binding.
-for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partial-prefs"] as const) {
+for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partial-prefs", "six-field-prefs"] as const) {
   test(`an existing Home with ${shape} is refused without interpreting it as a new user`, async t => {
     const home = scratch(t);
     mkdirSync(join(home, "agent-runtime")); writeFileSync(join(home, "agent-runtime", "existing"), "keep SDK bytes");
@@ -110,6 +110,11 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
       if (shape === "partial-prefs") {
         ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", { auto: true });
         ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", originalPrefs);
+      }
+      if (shape === "six-field-prefs") {
+        const { enabled: _enabled, task_recall: _task, ...prior } = originalPrefs;
+        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", prior);
+        ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", prior);
       }
       ledger.close();
       if (shape === "wrong-version") { const db = new DatabaseSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)); db.exec("PRAGMA user_version = 2"); db.close(); }

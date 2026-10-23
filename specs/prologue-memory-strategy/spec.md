@@ -444,6 +444,18 @@ P1 的 import 使用有界批次，先完整校验该批，再在 Host 可证明
 
 验收使用隔离 Home 上的真实 MemoryService、Node SDK 后端和 ledger：重复经验仍为待审候选，重启后由本人接受才成为正式记忆，历史与读取可见；既有自动变更的撤销仍可用，人工接受不会被旧自动撤销覆盖。偏好/约定自动晋升、关闭自动形成、手动保存及插件边界的原回归保持。按该包 README 的定向命令验证，不调用外部模型；本片不宣称完成 SDK 分类采用或矩阵管理。
 
+#### M1 配置片：四预设与真实服务门（待严格采用后发布）
+
+本片把四预设接入现有 `memory.prefs.write`、MemoryService 和可信 Host 入口；不更换 SDK、不提供尚未接线的分类管理 UI。持久真值只有 `enabled`、`task_recall` 和原有 form/auto/learn_from_work/learn_from_ui/consumers/plugins。preset 是本人一次保存时展开的配方，不另存 preset 状态：off 只关闭 enabled、保留其余选择；manual 写 enabled=true、form=false、auto=false、task_recall=false；reviewed 写 true/true/false/true；assisted 写 true/true/true/true。后三者也保留原学习细项、使用方与插件限制。
+
+可信新 Home 初始化完整 reviewed 配置；现有采用标记的 origin 和已经物化的六字段决定旧配置，维护时只补 enabled=true、task_recall=true，原 auto/关闭设置不重算。缺字段不等于新用户；现行完整配置检查拒绝缺字段，运行时不迁移。此片只能保持 draft，随 M2 最新 SDK 和 MemoryLedger 的下一次严格 baseline 一起采用、合入发布：仅 marker 或新字段不能阻止已发行旧 App 忽略 off/manual。不得先单独发布新控制或先发布新 baseline 配旧 SDK；真实 Home 不在本片操作范围。
+
+调用链仍是共同 Action → MemoryService → Agent Host → SDK。`memory.prefs.read/write` 升为版本 2；写请求恰选 prefs 部分修改或 preset 配方。`memory.recall` 输入不增加 readMode；可信 `ActionCallContext.memory_read_mode` 仅由 Host 提供，缺省 task。个人 `/api/memory/recall` 是真实用户触发的显式回忆，沿原 Action 授权/取消路径固定 explicit；Agent、助理 forRun、contextual 自动推荐和 MCP 模型工具调用仍为 task，不能凭工具名、audience、query 或 used_for 自称用户显式意图。
+
+MEM-24 的配置验收：off 在 SDK 读取前停止任务/显式 recall 和非本人列表，不产生新正文/候选或恢复；本人仍可管理读取、历史、导出、丢弃候选、彻底删除与清空，撤销中的清除仍可用。manual 停止自动形成/工作及界面学习/任务 recall，保留本人保存、接受候选和授权显式回忆；旧 form=false 不变 off。reviewed 保持候选待认可，assisted 仍受 v2 低风险白名单、独立来源及原开关约束。导入、修改/移动、恢复、接受、撤销恢复、配对与维护都过同一总门，不能成为 off 的写旁路；关闭某一范围不影响其他获准范围。现有 character 配置输入沿可信角色绑定解析所属项目，读写同一项目 profile；不生成 character 专属配置，也不移除已有入口。
+
+允许修改本节、horizontal/memory 的配置职责/服务门及 README、contracts 的 memory 合同与 ActionCallContext 单个可信字段、memory-host 既有 prefs/recall 透传及 HTTP 路由、助理记忆工具门、相关定向测试和官方生成的 API/动作快照。配置职责提取为内部 MemoryPreferences，不新建 Port 或第二写主人。使用隔离 Home 的真实 Service、Node SDK、持久 ledger 和公共 Action/HTTP 证明四配方、原限制保留、重启、候选接受/历史/撤销/导出导入/删除；检查业务输入不能伪造 explicit、MCP/contextual 的 task 路径仍被 manual 拦截。按 README 必跑集合回归；新 SDK 的最终提交门、来源/分类采用及 token 回执留给 M2，不能用本片结果宣称完整 P0 已完成。
+
 ### 9.5 Q0 基线记录与证据边界
 
 本轮固定的 B1 为 Molis `f6b2ff4bfba4f7ceb5aeaf95495a5e41fe85ea10`，实际使用 `attachment-order` SDK 包，上游来源 `753dbae8359e56a74397d030af4d18abf402d5b5`。Prologue 的实现起点是 `f481d53726b3a896a525386d8e93225f6091e947`，两者不能当作同一版本。B0 在相同初始材料和任务下关闭记忆；B2 只在新生产路径可运行后测量，缺席不是零成本。必要时补“新 SDK + 原 Molis 配方”的归因对照，区分 SDK 既有修复与新记忆策略的收益，不把其差异全部归功于本方案。

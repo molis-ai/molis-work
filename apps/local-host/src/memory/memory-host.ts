@@ -10,7 +10,7 @@ import {
   memoryActions,
   type MemoryChangeRequest,
   type MemoryListRequest,
-  type MemoryPrefs,
+  type MemoryPrefsWriteRequest,
   type MemoryRecallRequest,
   type MemoryScope,
   type MemorySignalReport,
@@ -114,7 +114,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const caller = memoryCaller;
   const input = <T>(value: unknown) => (value ?? {}) as T;
   const bindings: ActionHandlerBinding[] = [
-    { ...memoryActions.recall, handle: (context, value) => forCall(context).recall(caller(context), input<MemoryRecallRequest>(value), { beforeEffect: () => context.beforeEffect() }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
+    { ...memoryActions.recall, handle: (context, value) => forCall(context).recall(caller(context), input<MemoryRecallRequest>(value), { beforeEffect: () => context.beforeEffect(), readMode: context.memory_read_mode ?? "task" }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
     { ...memoryActions.list, handle: (context, value) => forCall(context).list(caller(context), input<MemoryListRequest>(value)) },
     { ...memoryActions.write, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).write(caller(context), input<MemoryWriteRequest>(value)); } },
     { ...memoryActions.change, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).change(caller(context), input<MemoryChangeRequest>(value)); } },
@@ -126,8 +126,8 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     { ...memoryActions.changes, handle: (context, value) => ({ changes: forCall(context).changes(caller(context), input(value)) }) },
     { ...memoryActions.undo, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).undo(caller(context), input<{ change_id: string }>(value).change_id); } },
     { ...memoryActions.prefs, handle: (context, value) => forCall(context).prefs(caller(context), input<{ scope?: MemoryScope }>(value).scope) },
-    { ...memoryActions.savePrefs, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope?: MemoryScope; prefs: Partial<MemoryPrefs> }>(value);
-      return forCall(context).savePrefs(caller(context), request.scope, request.prefs); } },
+    { ...memoryActions.savePrefs, handle: async (context, value) => { await context.beforeEffect(); const request = input<MemoryPrefsWriteRequest>(value);
+      return forCall(context).savePrefs(caller(context), request.scope, request.preset ?? request.prefs); } },
     { ...memoryActions.signal, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).signal(caller(context), input<MemorySignalReport>(value)); } },
     { ...memoryActions.pairs, handle: async (context, value) => { return { pairs: await forCall(context).pairs(caller(context), input(value)) }; } },
     { ...memoryActions.resolvePair, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ pair_id: string; keep: "a" | "b" | "both" }>(value);
@@ -301,7 +301,8 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       if (!memoryHostFor(ports.localHost)) return { status: 503, body: { error: "记忆服务还没有就绪，请稍后再试", code: "memory.unavailable" } };
       const parts = pathname.slice("/api/memory/".length).split("/").map(decodeURIComponent);
       const client = ports.projectRef ? ports.localHost.actionClient(ports.projectRef) : ports.localHost.homeActionClient();
-      const context = await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS);
+      const context = { ...await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS),
+        ...(method === "POST" && parts.length === 1 && parts[0] === "recall" ? { memory_read_mode: "explicit" as const } : {}) };
       const call = (definition: { capability_id: string; version: number }, input: unknown) =>
         client.invoke(context, { capability_id: definition.capability_id, version: definition.version, provider_id: MEMORY_PROVIDER_ID }, input);
       const scope = (value: unknown): MemoryScope | undefined => value === "project" || value === "personal" ? value : undefined;
@@ -321,6 +322,7 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       }
       if (method === "GET" && parts.length === 3 && parts[0] === "items" && parts[2] === "history") return { status: 200, body: await call(memoryActions.history, { memory_id: parts[1] }) };
       if (method !== "POST") return null;
+      if (parts.length === 1 && parts[0] === "recall") return { status: 200, body: await call(memoryActions.recall, body) };
       if (parts.length === 1 && parts[0] === "items") return { status: 200, body: await call(memoryActions.write, body) };
       if (parts.length === 1 && parts[0] === "change") return { status: 200, body: await call(memoryActions.change, body) };
       if (parts.length === 1 && parts[0] === "prefs") return { status: 200, body: await call(memoryActions.savePrefs, body) };

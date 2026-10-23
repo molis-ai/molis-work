@@ -111,8 +111,8 @@ memory.import	1	system.memory	command	operation	home	write	-	user	memory:export	
 memory.list	1	system.memory	query	query	home	read	-	agent,user	memory:read	-	-	-	1ac220317487	6bec60b91a55	5e0374458cf9
 memory.pairs.list	1	system.memory	query	query	home	read	-	user	memory:read	-	-	-	8fae6285b822	983c812a2083	-
 memory.pairs.resolve	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	29218ac07da5	8cee623341f8	-
-memory.prefs.read	1	system.memory	query	query	home	read	-	user	memory:configure	-	-	-	f0c071b0cd86	a9a489fc4758	-
-memory.prefs.write	1	system.memory	command	operation	home	write	-	user	memory:configure	-	-	-	a8abc68b0bcf	a9a489fc4758	-
+memory.prefs.read	2	system.memory	query	query	home	read	-	user	memory:configure	-	-	-	f0c071b0cd86	759a1c9b88e6	-
+memory.prefs.write	2	system.memory	command	operation	home	write	-	user	memory:configure	-	-	-	64085bdbe4bf	759a1c9b88e6	-
 memory.recall	1	system.memory	query	query	home	read	concurrent	agent,mcp,user,workflow	memory:recall	-	-	-	11820371c2c9	7e70781adb8e	5e0374458cf9
 memory.scope.clear	1	system.memory	command	operation	home	irreversible	-	user	memory:configure	-	-	-	52e3e9d11900	6ee8d1e61d06	-
 memory.scope.preview	1	system.memory	query	query	home	read	-	user	memory:configure	-	-	-	fa7432c0eaf4	ea5329a82ead	-

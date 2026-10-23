@@ -26,9 +26,9 @@ interface AssistantMemoryToolsInput {
 export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMemoryTools | undefined {
   const { memory, work, projectId, caller } = input;
   const personal = memory.prefsFor(input.actorId, "personal", null), project = projectId ? memory.prefsFor(input.actorId, "project", projectId) : null;
-  if (!personal.form && !project?.form) return undefined;
+  if (!(personal.enabled && personal.form) && !(project?.enabled && project.form)) return undefined;
   // Suggesting is its own switch per scope: a project's work suggests for that project only where the person allows it.
-  const mayPropose = (personal.form && personal.learn_from_work) || (!!project?.form && project.learn_from_work);
+  const mayPropose = (personal.enabled && personal.form && personal.learn_from_work) || (!!project?.enabled && project.form && project.learn_from_work);
   const propose: AgentMemoryTools["propose"] = async request => {
     await memory.propose(caller, { scope: request.scope, text: request.text, kind: request.scope === "project" ? "convention" : "preference", applies: request.applies.trim() ? { task: request.applies.trim().slice(0, 200) } : {},
       basis: "inferred", why: request.why, from: "work" });

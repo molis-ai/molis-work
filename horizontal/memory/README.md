@@ -47,6 +47,10 @@ Molis 在配置中声明分类、读写矩阵、保留策略、候选限额、�
 
 本片不增加持久配置或 SDK 适配口。分类字典、四预设及矩阵随 M2 真实装配完成，不能把 `form=false` 当成 off，也不能把泛用 agent 身份当成 coding 场景。验证覆盖真实候选、接受、历史、撤销、重启及下面列出的记忆回归，不将配置声明当成已接通的管理能力。
 
+### M1 配置片：四预设
+
+短合同见 [spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)。本片将 off/manual/reviewed/assisted 展开为实际的 enabled/task_recall 与原六字段，服务读取和全部写入口共同消费。preset 不另存，细项开关不会被配方覆盖；off 保留管理读取与删除，manual 保留本人保存和可信 Host 的显式回忆。新字段启用依赖 M2 的严格格式采用，当前不能独立合入发布，不能让旧 App 忽略关闭选择。
+
 ## 一次典型调用
 
 助理的一轮开始前，Host 以“助理”这个使用方调用 `MemoryService.recall`：服务按用户的开关确定能读哪些范围（个人、当前项目），从 Prologue Memory 读出条目，结合 Host 记下的类别、适用情境、状态和有效期逐条过滤，用中文两字片段与英文词打分，按上限与字数预算取用，把用上的和因预算没带上的都记成使用回执（设置里显示“最近用于”）。用户说“以后都……”时，`write` 经写入门：开关、秘密形状、像指令的文字、范围、重复与冲突，最后才写入 Prologue Memory 并记一条“最近变动”。
@@ -58,7 +62,8 @@ Molis 在配置中声明分类、读写矩阵、保留策略、候选限额、�
 | 文件 | 用途 |
 | --- | --- |
 | [src/service.ts](src/service.ts) | `MemoryService`：列出、召回、写入门、修改与移动、候选、最近变动与撤销、界面信号、整理与维护 |
-| [src/prefs.ts](src/prefs.ts) | 开关的默认值、补全与使用方权限 |
+| [src/prefs.ts](src/prefs.ts) | 开关的默认值、四预设配方、补全与使用方权限 |
+| [src/preferences.ts](src/preferences.ts) | 有效偏好读写、项目继承与助理设置映射；持久化仍经原 ledger |
 | [src/policy.ts](src/policy.ts) | 自动批准规则版本与低风险类型门；只决定自动提议是否仍需本人认可 |
 | [src/text.ts](src/text.ts) | 召回关键词、同文判断（`sameWords`：同样的话，由 `fold` 折叠后相等；`sameText`：去掉标点的粗略相等，只用来给建议去重）、秘密形状与像指令的文字（确定性规则） |
 | [src/spoken.ts](src/spoken.ts) | `theirWords`：记作“用户亲口说的”（来源 `said`）的核对，内容是不是本人写过的某一整条消息（只容许 `fold` 的差别：大小写、全角半角、引号样式、空白和最后一个句号），记下来的是那条消息本身；`quotedFrom`：引文是不是本人说过的一段话（工作结束时提炼出的建议用它区分“明说”和“推断”，不决定“亲口说的”） |
@@ -106,7 +111,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
   - 召回的使用回执（最近用于）是这次调用的副作用：调用被取消或撤权后不写（`recall` 在写回执前走调用自己的 `beforeEffect`）。
   - 项目被删除时 `purgeProjectMemories` 清掉该项目及其角色的记忆（存储里的条目与候选）和账本里与之相关的一切（修订、使用、变动、候选记录、成对提示、开关、界面计数）；角色的范围从账本记下的所有者（写入记忆时才记下）和候选记录上的项目找到，所以只有建议、没有写过记忆的角色也清得掉；Home 里没有 Agent 运行环境时 `backend` 为 null，只清账本；不需要预览指纹确认，删除项目就是本人的确认。
   - 个人记忆的出处不写项目里的工作名；个人记忆只归本人。
-- 改动后必跑：`node scripts/run-tests.mjs tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-upkeep.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/memory-presets.test.ts tests/memory-adoption.test.ts tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-upkeep.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
 - 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

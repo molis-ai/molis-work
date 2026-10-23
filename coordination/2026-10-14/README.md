@@ -3474,3 +3474,10 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - #1084 已合（`3f715261f`）：PG-062 收口，#1115 里标已做（#1024、#1049、#1067、#1071、#1079、#1084）；#1115 合了 main，PG-060 记在途片（#1098、#1107、#1112；BL-387、388、430、Goals S11 未开）。
 - #1117 红只有一个原因：新测试 `tests/security-invariants-trusted-user-action.test.ts` 没被 `SECURITY-INVARIANTS.md` 点名；已叫 `ac-kernel` 补 S-58 行并合 main。
 - 用户 10-23：独立开发片可以派给 Codex。新开 `CODEX-TASKS.md`：C1 W5-13 收尾、C2 W5-16 Home 快照、C3 W5-10 的官方集成与横向服务（设计系统那份留给 `ac-giants`）。号段沿用原派单；Codex 的 PR 一轮与二轮都由 `ac-review` 做，修意见由 Codex 自己做。排队会话 `ac-errors`、`ac-snapshot` 没收到过派单，归档、删工作树。
+
+### 10-23 18:50 UTC 统筹
+
+- #1115 已合（`acc71ae47`）：privileges.md 现在 §3 表 已做 14、不做 5、未关 95（含 §8 重复行）。`ac-priv` 工作树与分支已删；下一批状态改动另开 `anticorr/privileges-status-2`。
+- #1118 一轮可合，等集成批。#1120（R5）开出，交 `ac-review`；`ac-feed-fn` 归档、工作树删。
+- #1119（BL-395）只做了行数/字节上限与拒递归 CTE，耗时与内存改记 BL-480「要用户定」——与用户 10-23「这一轮做完子进程执行」不符，已退回作者在同一 PR 补子进程执行（S-59）、删 BL-480。
+- 派出 `ac-clients-1`（W5-03/04，Todo 样板起）。在跑的 Claude 开发线：ac-kernel、ac-sc3、ac-sandbox-sched、ac-clients-1；排队：ac-giants（只剩设计系统）。

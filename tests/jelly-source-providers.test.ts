@@ -240,3 +240,56 @@ test("BL492-03 a redirect the server answers with is refused off the list before
     assert.deepEqual(looked, ["docs.example.com", "evil.example"]);
   } finally { t.mock.restoreAll(); syncBuiltinESMExports(); }
 });
+
+// The corporate fake-IP proxy (user decision 2026-09-27): a lookup answer in 198.18.0.0/15 is a normal address, but only for a read that carries
+// an allowed list and whose host name passed it. S-10's table still says the range is not public, and a read with no list keeps its fallback.
+const fakeIpLookup = (...addresses: string[]) => ({ async lookup() { return addresses.map(address => ({ address, family: 4 })); } });
+test("BL492-06 a read that carries a list takes a lookup answer in 198.18.0.0/15 as it is, without the trusted DNS; a read with no list still asks the trusted DNS", async () => {
+  let asked = 0;
+  const trustedDNS = async () => { asked++; return [{ address: "93.184.216.34", family: 4 }]; };
+  assert.deepEqual(await resolveMaterialPublicAddresses("docs.example.com", undefined, { ...fakeIpLookup("198.18.0.58", "198.19.255.254"), trustedDNS }, undefined, true),
+    [{ address: "198.18.0.58", family: 4 }, { address: "198.19.255.254", family: 4 }]);
+  assert.equal(asked, 0, "the answer was taken as it came");
+  assert.deepEqual(await resolveMaterialPublicAddresses("docs.example.com", undefined, { ...fakeIpLookup("198.18.0.58"), trustedDNS }), [{ address: "93.184.216.34", family: 4 }], "no list: the fallback, as before");
+  assert.equal(asked, 1);
+  assert.equal(isMaterialPublicAddress("198.18.0.58"), false, "S-10's table is untouched: the range is not public");
+});
+
+test("BL492-06 the exception is that range and no other: everything else reserved is still refused for a read that carries a list, mixed with fake-IP answers or alone", async () => {
+  const refused = (...addresses: string[]) => assert.rejects(resolveMaterialPublicAddresses("docs.example.com", undefined, fakeIpLookup(...addresses), undefined, true), refusal("material.source.private_address"), addresses.join(" "));
+  for (const other of ["198.51.100.7", "100.64.0.1", "10.0.0.5", "127.0.0.1", "169.254.1.1", "192.168.1.1", "172.16.0.1", "192.0.0.8", "0.0.0.0", "224.0.0.1"]) await refused(other);
+  // The range's neighbours are ordinary public addresses: they pass because they are public, not because of the exception.
+  for (const neighbour of ["198.17.255.255", "198.20.0.0"]) assert.equal(isMaterialPublicAddress(neighbour), true, neighbour);
+  assert.deepEqual((await resolveMaterialPublicAddresses("docs.example.com", undefined, fakeIpLookup("198.18.0.0", "198.19.255.255"), undefined, true)).map(item => item.address), ["198.18.0.0", "198.19.255.255"], "both ends of the range");
+  await refused("198.18.0.5", "10.0.0.5");
+  // The IPv6 block of the same proxy is not part of the decision: it is not taken directly, it is not public, and it is refused here.
+  await assert.rejects(resolveMaterialPublicAddresses("docs.example.com", undefined, { async lookup() { return [{ address: "fdfe:dcba:9876::1", family: 6 }]; }, async trustedDNS() { return [{ address: "fdfe:dcba:9876::1", family: 6 }]; } }, undefined, true),
+    refusal("material.source.private_address"));
+});
+
+test("BL492-07 a URL written as an IP address is refused, 198.18.x.x included, with a list or without", async () => {
+  for (const allowedHosts of [undefined, ["198.18.0.5"], ["docs.example.com"]]) {
+    await assert.rejects(fetchMaterialPublicBytes("https://198.18.0.5/", { ...(allowedHosts ? { allowedHosts } : {}) }), refusal("material.source.private_address"), JSON.stringify(allowedHosts));
+    await assert.rejects(fetchMaterialPublicBytes("https://198.19.7.7:8443/x", { ...(allowedHosts ? { allowedHosts } : {}) }), (error: unknown) => ["material.source.private_address", "material.source.invalid_url"].includes((error as { code?: string }).code ?? ""), "a non-default port is refused as well");
+  }
+});
+
+test("BL492-08 a list read of an approved name that the proxy answers with 198.18.x.x is made, pinned to that address; the same name off the list is not looked up at all", async t => {
+  const looked: string[] = [], pinned: string[] = [];
+  t.mock.method(dnsPromises, "lookup", async (hostname: string) => { looked.push(hostname); return [{ address: "198.18.0.77", family: 4 }]; });
+  t.mock.method(https, "request", (_target: URL, options: { lookup(hostname: string, options: { all?: boolean }, callback: (error: null, address: string, family: number) => void): void }, onResponse: (response: unknown) => void) => {
+    options.lookup("docs.example.com", {}, (_error, address) => pinned.push(address));
+    const body = Readable.from([Buffer.from("ok")]);
+    const response = Object.assign(body, { statusCode: 200, headers: { "content-type": "text/plain" }, destroy() { return body; } });
+    return { on() { return this; }, end() { queueMicrotask(() => onResponse(response)); }, destroy() {} };
+  });
+  syncBuiltinESMExports();
+  try {
+    const read = await fetchMaterialPublicBytes("https://docs.example.com/page", { allowedHosts: ["docs.example.com"] });
+    assert.equal(read.data.toString(), "ok");
+    assert.deepEqual(pinned, ["198.18.0.77"], "the connection goes to the address the proxy answered with");
+    looked.length = 0;
+    await assert.rejects(fetchMaterialPublicBytes("https://other.example.com/page", { allowedHosts: ["docs.example.com"] }), refusal(NOT_ALLOWED));
+    assert.deepEqual(looked, [], "the name that failed the list was never looked up, so the exception never applied to it");
+  } finally { t.mock.restoreAll(); syncBuiltinESMExports(); }
+});

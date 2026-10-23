@@ -15,6 +15,16 @@ export function isMaterialPublicAddress(address: string): boolean {
   const normalized = address.toLowerCase();
   return isIP(address) === 6 && /^[23][0-9a-f]{3}:/u.test(normalized) && !normalized.startsWith("2001:db8:") && !normalized.startsWith("2001::") && !normalized.startsWith("2001:0:") && !normalized.startsWith("2002:");
 }
+/**
+ * The corporate fake-IP proxy's block, 198.18.0.0/15 exactly (user decision 2026-09-27: plugins and Coding treat it as a normal address; the
+ * proxy is required, and a plugin still reaches only domains it was approved). Not public by S-10's table; only a read that carries an allowed
+ * list, once the host name passed the list, takes a lookup answer in it.
+ */
+function isFakeIpProxyAddress(address: string): boolean {
+  if (isIP(address) !== 4) return false;
+  const [a, b] = address.split(".").map(Number);
+  return a === 198 && (b === 18 || b === 19);
+}
 export interface MaterialPublicFetchOptions {
   maxBytes?: number; headers?: Record<string, string>; signal?: AbortSignal; beforeDispatch?(): void | Promise<void>;
   /** Exact host names (lowercase) the reader may contact: the first request and every redirect, before any lookup. Without it, every public host is allowed. */
@@ -108,15 +118,15 @@ async function trustedPublicDNS(hostname: string, signal?: AbortSignal): Promise
   dnsCache.set(hostname, { expires: Date.now() + 60000, addresses }); return addresses.map(value => ({ ...value }));
 }
 /** Resolver seams are test-only; HTTP requests never bind them. Private answers cannot opt into fallback. */
-export async function resolveMaterialPublicAddresses(hostname: string, signal?: AbortSignal, ports: MaterialSourceResolverPorts = {}, beforeDispatch?: () => void | Promise<void>): Promise<Address[]> {
+export async function resolveMaterialPublicAddresses(hostname: string, signal?: AbortSignal, ports: MaterialSourceResolverPorts = {}, beforeDispatch?: () => void | Promise<void>, fakeIpProxy = false): Promise<Address[]> {
   if (signal?.aborted) throw materialSourceErrors.cancelled("来源读取已取消");
   await beforeDispatch?.(); signal?.throwIfAborted();
   const system = await (ports.lookup ?? (value => lookup(value, { all: true, verbatim: true })))(hostname);
   await beforeDispatch?.(); signal?.throwIfAborted();
   let addresses = system;
-  if (system.length && system.every(value => proxySynthetic(value.address))) addresses = await (ports.trustedDNS ?? trustedPublicDNS)(hostname, signal);
+  if (system.length && system.every(value => proxySynthetic(value.address)) && !(fakeIpProxy && system.every(value => isFakeIpProxyAddress(value.address)))) addresses = await (ports.trustedDNS ?? trustedPublicDNS)(hostname, signal);
   if (signal?.aborted) throw materialSourceErrors.cancelled("来源读取已取消");
-  if (!addresses.length || addresses.some(value => isIP(value.address) !== value.family || !isMaterialPublicAddress(value.address))) throw materialSourceErrors.private_address("不能读取本机或内网地址");
+  if (!addresses.length || addresses.some(value => isIP(value.address) !== value.family || !(isMaterialPublicAddress(value.address) || (fakeIpProxy && isFakeIpProxyAddress(value.address))))) throw materialSourceErrors.private_address("不能读取本机或内网地址");
   return addresses;
 }
 /** Both wire bytes and decoded bytes are bounded, including servers ignoring identity encoding. */
@@ -141,7 +151,7 @@ export async function fetchMaterialPublicBytes(value: string, options: MaterialP
   const url = validateMaterialPublicURL(value); const maxBytes = options.maxBytes ?? 4_000_000;
   assertMaterialHostAllowed(url, options.allowedHosts);
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0 || maxBytes > 25 * 1024 * 1024) throw materialSourceErrors.invalid_limit("来源读取上限无效");
-  const addresses = await resolveMaterialPublicAddresses(url.hostname.replace(/^\[|\]$/gu, ""), options.signal, {}, options.beforeDispatch);
+  const addresses = await resolveMaterialPublicAddresses(url.hostname.replace(/^\[|\]$/gu, ""), options.signal, {}, options.beforeDispatch, options.allowedHosts !== undefined);
   const address = addresses[0]!;
   const headers: Record<string, string> = { accept: "text/html,text/plain,application/xhtml+xml,application/json", "accept-encoding": "identity", "user-agent": "MolisWork-Material/1.0" };
   // Site adapters can supply public representation headers, never credentials or cookies.

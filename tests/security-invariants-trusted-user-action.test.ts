@@ -28,7 +28,7 @@ function fixture(nested: (caller: ActionExecutionContext) => ActionCallContext) 
   return { service, targetSaw, outerSaw, run: (caller: ActionCallContext) => service.invoke(caller, { ...OUTER, provider_id: "owner" }, {}) };
 }
 
-test("RAC-180 S-XX a call made inside a running handler that writes its own user_action is refused before its handler runs", async () => {
+test("RAC-180 S-58 a call made inside a running handler that writes its own user_action is refused before its handler runs", async () => {
   const forged = fixture(caller => ({ ...caller, user_action: { ...fromPage, message_ref: "web:request:forged" } }));
   await assert.rejects(forged.run({ ...person, user_action: fromPage }), { code: "kernel.user_action_untrusted" });
   assert.deepEqual(forged.targetSaw, []);
@@ -38,7 +38,7 @@ test("RAC-180 S-XX a call made inside a running handler that writes its own user
   assert.deepEqual(added.targetSaw, []);
 });
 
-test("RAC-180 S-XX a nested call carries the handler's own user_action, or none", async () => {
+test("RAC-180 S-58 a nested call carries the handler's own user_action, or none", async () => {
   const inherited = fixture(caller => ({ ...caller, user_action: caller.user_action ? { ...caller.user_action } : undefined }));
   await inherited.run({ ...person, user_action: fromPage });
   assert.deepEqual(inherited.targetSaw, [fromPage]);
@@ -47,7 +47,7 @@ test("RAC-180 S-XX a nested call carries the handler's own user_action, or none"
   assert.deepEqual(dropped.targetSaw, [undefined]);
 });
 
-test("RAC-180 S-XX work a handler left behind after it returned cannot write a user_action either", async () => {
+test("RAC-180 S-58 work a handler left behind after it returned cannot write a user_action either", async () => {
   const service = new ActionService(), targetSaw: unknown[] = [];
   let later!: Promise<unknown>;
   const returned = Promise.withResolvers<void>();
@@ -126,7 +126,7 @@ function routeProbe() {
   return { id, definition, seen };
 }
 
-test("RAC-184 S-XX a page route gives the plugin's own action user_action with source web, one message per request; a delegated target sees the same", async t => {
+test("RAC-184 S-58 a page route gives the plugin's own action user_action with source web, one message per request; a delegated target sees the same", async t => {
   const probe = routeProbe();
   const s = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: { project: [probe.definition] } } });
   const project = await s.createProject("Trusted user action", []);

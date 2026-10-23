@@ -39,7 +39,7 @@
 
 ## 4. 安全不变量
 
-新增一条（号由统筹分配，测试名里暂写 `S-XX`，合入前换成正式号并在 `docs/system/SECURITY-INVARIANTS.md` 加行）：`user_action` 只由入口给；处理器作用域里的分发只能沿用或去掉，写了自己的拒绝；页面路由入口给 `web`。
+新增 S-58（统筹 2026-10-23 分配，`docs/system/SECURITY-INVARIANTS.md` 有行，测试名里写 `S-58`）：`user_action` 只由入口给；处理器作用域里的分发只能沿用或去掉，写了自己的拒绝；页面路由入口给 `web`。
 
 ## 5. 对调用方的影响
 

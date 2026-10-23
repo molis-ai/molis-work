@@ -1,6 +1,7 @@
 import type { PluginBoardSpecimen, PluginBoardSpecimenPorts } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { compareRunChangeSet } from "./comparison.js";
-import { renderDiff } from "./ui.js";
+import { DIFF_LABELS } from "./ui.js";
 
 /**
  * Diff's rows on the component board (specs/visual-ui-experience VUX-39): a round's change set of three files — one with a
@@ -22,5 +23,5 @@ export function diffBoardSpecimens(p: PluginBoardSpecimenPorts): readonly Plugin
       { path: "docs/auth.md", kind: "added", added_lines: 128, removed_lines: 0, diff: "" },
       { path: "auth/cookie-v1.ts", kind: "deleted", added_lines: 0, removed_lines: 1042, diff: "" },
     ] } });
-  return [{ id: "diff-files", place: "page", title: p.text("diff.board.files"), html: renderDiff({ view, primitives: p }) }];
+  return [{ id: "diff-files", place: "page", title: p.text("diff.board.files"), html: renderDiff({ view, primitives: p, labels: DIFF_LABELS }) }];
 }

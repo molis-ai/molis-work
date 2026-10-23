@@ -319,9 +319,9 @@ test("VUX-33: one 120,000-character line in a normal diff (under the line-pair b
   const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, files: [{ path: "a.ts", kind: "modified", added_lines: 41, removed_lines: 40, diff: "",
     review: { review_id: "v", before_text: normal.join("\n") + "\n", after_text: after.join("\n") + "\n", decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
-  const primitives = { escape: (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), text: pageText("zh"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
+  const primitives = { escape: (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), text: diffPageText("zh"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
   const started = performance.now();
-  const html = renderDiff({ view, route_prefix: "", primitives, line_feedback: true, fold_context: 3, sides: false });
+  const html = renderDiff({ labels: DIFF_LABELS, view, primitives, line_feedback: true, fold_context: 3, sides: false });
   const spent = performance.now() - started;
   assert.ok(!view.partial, "the long line does not make the comparison partial");
   assert.ok(!view.coarse, "nor coarse");

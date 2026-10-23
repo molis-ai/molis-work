@@ -31,13 +31,14 @@ export class MemoryQueries {
 
   async list(caller: MemoryCaller, request: MemoryListRequest = {}): Promise<MemoryListResponse> {
     const scopes = this.ports.scopes.scopesFor(caller, request.scope === "all" || !request.scope ? undefined : [request.scope]);
-    const items: MemoryItem[] = [];
+    const items: MemoryItem[] = [], readScopes: typeof scopes = [];
     let personal = 0, project = 0;
     for (const where of scopes) {
       if (!caller.person) {
         const access = consumerAccess(this.ports.scopes.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id);
         if (!access.allowed) continue;
       }
+      readScopes.push(where);
       for (const located of await this.ports.scopes.located(caller, where.scope, where.owner)) {
         if (!visibleTo(caller, located.meta)) continue;
         if (where.scope === "personal") personal += 1; else project += 1;
@@ -55,6 +56,9 @@ export class MemoryQueries {
     const auto_this_week = this.ports.ledger.changes(caller.actor_id, 500).filter(change => change.kind === "auto_kept" && change.state === "active"
       && owners.has(`${change.scope}:${change.owner}`) && Date.parse(change.at) >= weekAgo).length;
     const pending = (await this.ports.candidates(caller, { scope: request.scope ?? "all" })).length;
+    caller.signal?.throwIfAborted();
+    if (!caller.person && readScopes.some(where => !consumerAccess(this.ports.scopes.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id).allowed))
+      throw memoryErrors.forbidden("记忆读取权限已变化，请重新查看");
     return { items, counts: { personal, project, auto_this_week, pending } };
   }
 

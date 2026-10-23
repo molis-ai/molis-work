@@ -1012,19 +1012,19 @@ export interface AgentMemoryTools {
         said: string;
         kind?: "preference" | "convention" | "fact" | "experience";
         replaces?: string;
-    }): Promise<{
+    }, control: AgentMemoryToolControl): Promise<{
         memory_id: string;
         scope: "personal" | "project" | "character";
         applies: string;
         note?: string;
     }>;
-    list(): Promise<Array<{
+    list(control: AgentMemoryToolControl): Promise<Array<{
         memory_id: string;
         scope: "personal" | "project" | "character";
         text: string;
         origin: string;
     }>>;
-    forget?(memoryId: string): Promise<{
+    forget?(memoryId: string, control: AgentMemoryToolControl): Promise<{
         forgotten: boolean;
         note?: string;
     }>;
@@ -1033,7 +1033,7 @@ export interface AgentMemoryTools {
         scope: "personal" | "project";
         why: string;
         applies: string;
-    }): Promise<{
+    }, control: AgentMemoryToolControl): Promise<{
         candidate_id: string;
         note: string;
     }>;
@@ -2116,6 +2116,11 @@ type AgentMemoryLocation = {
     owner: string;
     memory_id: string;
 };
+
+interface AgentMemoryToolControl {
+    readonly operation_id: string;
+    readonly signal: AbortSignal;
+}
 
 interface AgentStartRequestFields {
     original_input?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentOriginalInputDraft;

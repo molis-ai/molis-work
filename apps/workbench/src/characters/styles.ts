@@ -17,7 +17,7 @@ export const CHARACTERS_STYLES = `
   .characters-run-modes > section { border-top: 1px solid var(--line); padding-top: 12px; }
   .characters-run-modes h3 { font-size: 15px; margin: 8px 0; }
   .characters-source-detail details { font-size: 12px; margin: 8px 0; }
-  .characters-source-detail pre, [data-character-run-output] { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 22rem; overflow: auto; font-size: 12px; line-height: 1.65; }
+  .characters-source-detail pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 22rem; overflow: auto; font-size: 12px; line-height: 1.65; }
   .characters-terminal { height: 420px; min-width: 0; overflow: hidden; position: relative; background: var(--paper); }
   .characters-terminal .tui-xterm { position: absolute; inset: 0; }
   .characters-terminal-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12px; }

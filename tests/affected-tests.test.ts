@@ -307,7 +307,7 @@ test("the UI line of a README is selected for a UI change and not for another, a
 });
 
 test("a UI change is told by the file's name and place: client, styles, a view, a renderer, a page, css, html, svg; not the host's web-request, a viewer or a pagination", () => {
-  const ui = ["client.ts", "client-views.ts", "styles.ts", "goals-page-renderer.ts", "panel.css", "client/menu.ts", "alpha-view.ts", "views.ts", "list-renderer.ts", "renderers.ts", "pages.ts", "alpha-page.ts", "shell.html", "icon.svg", "views/list.ts", "ui.ts", "styles/base.ts"];
+  const ui = ["client.ts", "client-views.ts", "styles.ts", "shell-page-renderer.ts", "panel.css", "client/menu.ts", "alpha-view.ts", "views.ts", "list-renderer.ts", "renderers.ts", "pages.ts", "alpha-page.ts", "shell.html", "icon.svg", "views/list.ts", "ui.ts", "styles/base.ts"];
   for (const name of ui) {
     const file = `plugins/native/alpha/src/${name}`;
     put(file, "export const X = 1;\n");
@@ -1163,7 +1163,7 @@ const ASSEMBLY = [
   "apps/local-host/src/project-host.ts", "apps/local-host/src/project-plugins.ts", "apps/local-host/src/local-host.ts", "apps/local-host/src/project-capabilities.ts",
   "apps/local-host/src/web-server.ts", "apps/local-host/src/web-request.ts", "apps/local-host/src/web-catalog.ts", "apps/local-host/src/mcp-server.ts",
   "apps/local-host/src/system-agent-service.ts", "apps/local-host/src/home-side.ts", "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/workbench-renderer.ts",
-  "apps/workbench/src/builtin-plugins.ts", "apps/workbench/src/browser-assets.ts", "apps/workbench/src/document-shell.ts", "apps/workbench/src/goals-page-renderer.ts",
+  "apps/workbench/src/builtin-plugins.ts", "apps/workbench/src/browser-assets.ts", "apps/workbench/src/document-shell.ts", "apps/workbench/src/shell-page-renderer.ts",
   "apps/workbench/src/immersive-shell.ts", "apps/workbench/src/page-assets.ts", "apps/workbench/src/plugin-catalog.ts", "apps/workbench/src/plugin-workbench.ts",
   "apps/workbench/src/renderer.ts", "apps/workbench/src/ui-composition.ts", "apps/workbench/src/scripts/client/initialization.ts",
   "apps/workbench/src/scripts/client/plugin-workbench.ts",
@@ -1222,7 +1222,7 @@ test("every file a README table of local-host or workbench calls 装配 or 组�
 const NAMED_BY_README: { file: string; readme: string; text: string }[] = [
   ...["project-host", "home-plugins", "local-host", "project-capabilities", "web-server", "mcp-server", "system-agent-service", "home-side", "goal-project-application"]
     .map((name) => ({ file: `apps/local-host/src/${name}.ts`, readme: "apps/local-host", text: `[src/${name}.ts](src/${name}.ts)` })),
-  ...["ui-composition", "goals-page-renderer", "home-plugin-page", "scripts/client/initialization", "browser-assets"]
+  ...["ui-composition", "shell-page-renderer", "home-plugin-page", "scripts/client/initialization", "browser-assets"]
     .map((name) => ({ file: `apps/workbench/src/${name}.ts`, readme: "apps/workbench", text: `[src/${name}.ts](src/${name}.ts)` })),
   ...["builtin-plugins", "plugin-catalog", "plugin-workbench"]
     .map((name) => ({ file: `apps/workbench/src/${name}.ts`, readme: "apps/workbench", text: `\`${name}.ts\`` })),
@@ -1246,7 +1246,7 @@ test("the assembly list is the README-named files, the hub-table files and the o
   const allText = [...readmes.values()].join("\n");
   for (const file of [...NOT_NAMED.hub, ...NOT_NAMED.judgment]) assert.equal(namedIn(allText, file), false, `a README names ${file}: it is not a hub-table or judgment file`);
   assert.ok(namedIn("`plugin-workbench.ts`", "apps/workbench/src/plugin-workbench.ts") && !namedIn("`plugin-workbench.ts`", "apps/workbench/src/scripts/client/plugin-workbench.ts"), "the two files of the same name are told apart");
-  assert.ok(namedIn("[src/renderer.ts](src/renderer.ts)", "apps/workbench/src/renderer.ts") && !namedIn("goals-page-renderer.ts", "apps/workbench/src/renderer.ts"), "a name inside a longer file name is not the file");
+  assert.ok(namedIn("[src/renderer.ts](src/renderer.ts)", "apps/workbench/src/renderer.ts") && !namedIn("shell-page-renderer.ts", "apps/workbench/src/renderer.ts"), "a name inside a longer file name is not the file");
   const parts = [...NAMED_BY_README.map((entry) => entry.file), ...NOT_NAMED.hub, ...NOT_NAMED.judgment];
   assert.equal(new Set(parts).size, parts.length, "no file is counted in two places");
   assert.deepEqual([...parts].sort(), [...ASSEMBLY].sort(), "the three groups are the whole list");

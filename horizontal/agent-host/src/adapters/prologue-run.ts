@@ -115,9 +115,9 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
   const gatewayForRun = input.action_gateway && client ? { ...input.action_gateway, client: { ...client,
     invoke: async (reference: ExactActionReference, value: unknown, signal?: AbortSignal) => { const result = await client.invoke(reference, value, signal); changesDone!.invoked.push(reference); return result; },
     ...(memory ? { memory: {
-      ...(memory.remember ? { remember: async (value: Parameters<NonNullable<typeof memory.remember>>[0]) => { const kept = await memory.remember!(value); memoryDone.keep += 1; return kept; } } : {}),
-      list: () => memory.list(),
-      ...(memory.forget ? { forget: async (id: string) => { const result = await memory.forget!(id); if (result.forgotten) memoryDone.forget += 1; return result; } } : {}),
+      ...(memory.remember ? { remember: async (...args: Parameters<NonNullable<typeof memory.remember>>) => { const kept = await memory.remember!(...args); memoryDone.keep += 1; return kept; } } : {}),
+      list: memory.list.bind(memory),
+      ...(memory.forget ? { forget: async (...args: Parameters<NonNullable<typeof memory.forget>>) => { const result = await memory.forget!(...args); if (result.forgotten) memoryDone.forget += 1; return result; } } : {}),
       ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
     } } : {}),
   } } : input.action_gateway;

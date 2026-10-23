@@ -117,7 +117,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const response = await lifetime.fetch(prefix + path, { method, cache:'no-store', signal,
       ...(method === 'GET' ? {} : { headers:molisWorkControlHeaders(), body:JSON.stringify(body ?? {}) }) });
     const result = await response.json();lifetime.assertCurrent(signal);
-    if (!response.ok) throw Object.assign(new Error(result.error || L('coding.error.request')),{code:result.code,details:result.details});
+    if (!response.ok) throw Object.assign(new Error((method === 'GET' && host.readRefusal?.(response.status, result.code)) || result.error || L('coding.error.request')),{code:result.code,details:result.details,status:response.status});
     return result;
   },ports={lifetime,q,api,current:()=>current,status,refresh:()=>readCurrent()};
   const ROLE_NAMES=Object.fromEntries(Object.entries({planner:'规划者',reader:'阅读者',reviewer:'评审者',coordinator:'协作',writers:'并行写入',builder:'构建者',writer:'改写者','coding-reader':'代码调查','coding-reviewer':'独立评审','coding-builder':'独立实现'}).map(([role,name])=>[role,L(name)]));
@@ -1104,7 +1104,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(data.error) status(data.error,true);
       if(fresh && offsets.has(id)) follow.restore(offsets.get(id));
       renderDirectory(); controls();
-    } catch(error) {if(!lifetime.alive)return; if(error.name!=='AbortError'&&current===id && ticket===generation){if(error.code==='coding.session_unknown')root.dispatchEvent(new CustomEvent('molis-work:item-unreadable',{bubbles:true,detail:{itemId:id}}));status(error.message,true);taskboard.fail(id,error.message);} }
+    } catch(error) {if(!lifetime.alive)return; if(error.name!=='AbortError'&&current===id && ticket===generation){if(error.code==='coding.session_unknown' || error.status===403)root.dispatchEvent(new CustomEvent('molis-work:item-unreadable',{bubbles:true,detail:{itemId:id}}));status(error.message,true);taskboard.fail(id,error.message);} }
     finally { if(ticket===generation) loading=false; }
   };
   const select = async(id) => {

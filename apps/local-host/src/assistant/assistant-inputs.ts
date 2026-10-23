@@ -80,7 +80,7 @@ export function inputsOf(adapter: { readonly inputs?: AgentInputsPort }): AgentI
  * or from the session where it waits. The runtime refuses one already read: the person sends a correction then.
  */
 export async function withdrawInput(work: StoredWork, rounds: ReadonlyArray<{ run_id: string }>, { run_id, input_id }: { run_id: string; input_id: string },
-  via: { coding(): Promise<{ withdraw(sessionId: string, runId: string, inputId: string): Promise<void> }>; runtime(): Promise<AgentInputsPort> }): Promise<void> {
+  via: { coding(): Promise<{ withdraw(sessionId: string, runId: string, inputId: string): Promise<void> }>; runtime(): Promise<AgentInputsPort>; beforeWithdraw(sessionId: string, inputId: string): void }): Promise<void> {
   if (typeof run_id !== "string" || !run_id || typeof input_id !== "string" || !input_id) throw assistantErrors.invalid("撤回要指明是哪一轮的哪一条补充");
   if (work.executor.kind === "coding") {
     if (!work.executor.session_id) throw assistantErrors.state("这项工作还没有交给 Coding 的补充");
@@ -89,6 +89,7 @@ export async function withdrawInput(work: StoredWork, rounds: ReadonlyArray<{ ru
   if (!work.session_id || !rounds.some(round => round.run_id === run_id)) throw assistantErrors.scope("这条补充不属于这项工作");
   const inputs = await via.runtime();
   if (!inputs.withdraw) throw assistantErrors.unsupported("当前运行时不能撤回补充");
+  via.beforeWithdraw(work.session_id, input_id);
   await inputs.withdraw({ session_id: work.session_id, run_id }, input_id);
 }
 

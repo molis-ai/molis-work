@@ -68,6 +68,10 @@ Molis 在配置中声明分类、读写矩阵、保留策略、候选限额、�
 
 SDK 已提交而 ledger 失败时不做删除补偿。现有 marker 只留动作、目标、原版本、时刻和无正文回执；重试必须带原完整请求，不从 marker 恢复正文，也不把后来版本改成原期望。历史、最近变动与完成回执在同一 ledger 事务落盘；后继修改使原提交不可证明时明确冲突，不能猜成功。清空预览将固定 refs、versions 和 SDK purge decision 存在同一 marker 中；部分失败保留逐项结果，重试不重新列出新目标。离线采用与真实 Host 授权由各自主人接线，本模块局部验证不代表 M2 或 P0 已完成。
 
+正式删除在任何异步来源或候选清理之前固定原确认版本，清理前后及原操作重试始终使用同一 purge 条件，不能改用后继版本。若旧版已留下与原确认版本不一致的 purge marker，升级后必须拒绝消费，保留原 marker 和待核对条目，不静默改写条件。来源抑制和关联候选可能已经清理，未知结果或中途失败不代表零副作用；候选 SDK 删除已提交但回应或 ledger 投影失败时，按现有候选删除 marker 重放并补齐投影，不能把当前列表中缺失当作清理已全部完成。未发生外部修改时原操作可继续完成；原确认之后有人编辑则拒绝删除其新版本，保留新正文、版本和历史。
+
+删除、撤销自动写入和跨范围移动在 SDK 已清除源条目而 ledger 清理失败时，按原操作继续清理历史、使用记录和变动正文。恢复先核对原决定与 purge 条件的动作、范围、版本和状态，原范围必须仍属于当前 caller；undo 在原记录仍存在及已完成返回时也检查原 caller 范围。Service 的 `beforeEffect` 沿现 Action control 接入，在候选列举后抑制来源、候选删除后清投影、正式删除后清账这三个边界重新检查 App 授权，实际 SQL 仍受同步的存活、取消和当前 authority 检查保护。SDK 的 `already-absent` 只证明当前不存在，不证明是原操作删掉的，也不提供 App 删除授权。undo 的 SDK 删除在事务外，ledger 的 forget 与 undone 回执在同一现有事务内提交；任一失败后都能用原操作重试。已完成操作保留原结果的幂等返回。`src/moves.ts` 拥有跨范围移动的完整生命周期，目标只来自原创建身份；已保存目标结果后的清理和完成重放不受 enabled 阻挡，保存或创建目标仍检查开关。旧 marker 没有结果时，必须以原版本完整快照重放原 SDK 创建并核对已有创建历史。目标已被后来编辑或无法核对时明确冲突，不创建第二副本、不把后来版本记成原创建。
+
 ### M2 维护提交后的补账
 
 沿 spec §9.4，维护先用同一 SDK 对固定的真实命令预检，再在现 revision history 准备原版本。现 operation marker 只保留步骤身份、原版本、历史指针和提交状态；原操作重试先恢复未完成步骤，再扫描当前条目，不把停用或缺失当成已记账。SDK 确认原 CAS 提交后，唯一 change、实际版本、历史与完成标记在同一 ledger 事务提交。后继编辑、未知回执、撤权、取消及遗忘屏障都不能被补账绕过。
@@ -117,6 +121,8 @@ recreate 撤销按原 changeId 在现 operation marker 中保留短创建号；�
 | [src/spoken.ts](src/spoken.ts) | `theirWords`：记作“用户亲口说的”（来源 `said`）的核对，内容是不是本人写过的某一整条消息（只容许 `fold` 的差别：大小写、全角半角、引号样式、空白和最后一个句号），记下来的是那条消息本身；`quotedFrom`：引文是不是本人说过的一段话（工作结束时提炼出的建议用它区分“明说”和“推断”，不决定“亲口说的”） |
 
 合同在 `@molis-ai/molis-work-contracts/services/memory`（`memory.*` 动作、旁表端口）。旁表由 `@molis-ai/molis-work-storage` 的 `openMemoryLedger` 实现；Host 装配（Prologue 后端、动作注册、`/api/memory/*`）在 [apps/local-host/src/memory/memory-host.ts](../../apps/local-host/src/memory/memory-host.ts)。
+
+`MemoryServicePorts.bindChangeTarget` 将 `change` 已授权定位的 scope、owner、project 同步交给当前 Host 控制，发生在变更记账和正式提交前；不返回正文，也不另查目标。助理受控工厂必传此口，用同一调用的最终检查覆盖实际目标撤权后的 SDK 提交与 ledger 写入；普通管理装配继续使用其现有 Action 控制。
 
 ## 接入与边界
 

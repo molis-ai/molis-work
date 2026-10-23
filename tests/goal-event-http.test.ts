@@ -195,6 +195,45 @@ test("HTTP event-close rejects unknown kind without recording an event", async (
   }
 });
 
+test("PG094-09: the Host serves Goals' declared routes by method and path; a bad encoding in one is the caller's 400, a read refuses a POST with 404", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-routes-"));
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
+  const databasePath = join(directory, "project.db");
+  const store = new LocalProjectDatabase(databasePath);
+  const app = new GoalProjectApplication(store);
+  app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-routes" });
+  const created = app.goalEvents.createIntent({
+    project_id: BOARD, title: "声明的路由", outcome: "按方法与路径找到处理",
+    actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-routes",
+  });
+  const goalPath = `/api/goals/${encodeURIComponent(created.goal.goal_id)}`;
+  const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const origin = await listen(server);
+  const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
+  try {
+    const read = await fetch(`${origin}${goalPath}/event-state`, { headers });
+    assert.equal(read.status, 200);
+    assert.equal((await read.json() as { owner: { kind: string } }).owner.kind, "event_work");
+
+    const badEncoding = await fetch(`${origin}/api/goals/%E0%A4%A/event-state`, { headers });
+    assert.equal(badEncoding.status, 400);
+    assert.equal((await badEncoding.json() as { code?: string }).code, "host.request_path_invalid");
+
+    // Expected change: the read is declared GET only, so a POST finds no route (it used to answer 400 for the body's fields).
+    const posted = await fetch(`${origin}${goalPath}/event-state`, { method: "POST", headers: { ...headers, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify({ note: "不是读" }) });
+    assert.equal(posted.status, 404);
+    await posted.body?.cancel();
+
+    // A bad encoding outside Goals' declared routes is not Goals' to refuse.
+    const elsewhere = await fetch(`${origin}/api/not-goals/%E0%A4%A`, { headers });
+    assert.doesNotMatch(await elsewhere.text(), /host\.request_path_invalid/);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    store.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("HTTP writes persist typed reports, scoped concerns and closure through the public event routes", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-write-"));
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();

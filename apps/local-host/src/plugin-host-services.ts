@@ -1,3 +1,4 @@
+import { pluginInteraction } from "./plugin-interaction.js";
 import { pluginNotificationsFor } from "./plugin-notification-service.js";
 import { pluginInstallationsFor } from "./plugin-installation-directory.js";
 import { pluginAgentsFor } from "./plugin-agent-service.js";
@@ -36,6 +37,7 @@ import type { PluginHostExecutorOptions } from "./plugin-executor.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
+import { pluginConnectionsFor } from "./plugin-connections-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService } from "./plugin-directory-service.js";
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
@@ -102,7 +104,8 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
       scheduler: scheduler?.client, agents: agents?.client,
       database: library?.client, project_database: projectLibrary?.client, files: files?.client, model: pluginModelFor(options.home, definition, context, assertActive),
-      materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), background: background?.client, directory: directory?.client });
+      materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), connections: pluginConnectionsFor(options.home, definition, context, assertActive),
+      background: background?.client, directory: directory?.client });
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, project_id: options.project_id, actor_id: options.actor_id,
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
@@ -169,6 +172,8 @@ interface SessionParts {
   /** The Host's text model, when the Manifest declares `model:read` or `model:invoke` and the Host runs the plugin itself (`pluginModelFor`); only `model:invoke` sends requests. */
   readonly model: PluginModelClient | undefined;
   readonly materials: ReturnType<typeof pluginMaterialsFor>;
+  /** Requests through the accounts the person bound to the Manifest's slots, only when it declares `connections:use` (`pluginConnectionsFor`). */
+  readonly connections: ReturnType<typeof pluginConnectionsFor>;
   readonly background: import("@molis-ai/molis-work-contracts/platform/plugin").PluginBackgroundClient | undefined;
   /** The person-authorized directory reader, only when the Manifest declares `directory:read`. */
   readonly directory: PluginDirectoryService | undefined;
@@ -192,6 +197,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       artifacts: artifactService.client,
       ...((manifest.process_items?.produces ?? []).length > 0 ? { processItems: artifactService.process } : {}),
       ui: ui.client,
+      interaction: pluginInteraction,
       ...(parts.database === undefined ? {} : { database: parts.database }),
       ...(parts.project_database === undefined ? {} : { project_database: parts.project_database }),
       ...(parts.scheduler === undefined ? {} : { scheduler: parts.scheduler }),
@@ -199,6 +205,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...(parts.files === undefined ? {} : { files: parts.files }),
       ...(parts.model === undefined ? {} : { model: parts.model }),
       ...(parts.materials === undefined ? {} : { materials: parts.materials }),
+      ...(parts.connections === undefined ? {} : { connections: parts.connections }),
       ...(parts.background === undefined ? {} : { background: parts.background }),
       ...(parts.directory === undefined ? {} : { directory: parts.directory }),
       ...coordinationServices(options, manifest, context, parts),

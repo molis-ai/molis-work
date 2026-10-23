@@ -251,11 +251,13 @@ export type GoalsTreeUiModel = { primitives: GoalsTreeUiPrimitives } & (
   | { kind: "refresh"; args: Parameters<GoalsTreeRenderer["renderGoalRefreshDirectory"]> }
   | { kind: "stage-list"; args: Parameters<GoalsTreeRenderer["renderGoalStageList"]> }
 );
+/** Which surface each renderer method mounts (W5-06): the shell builds its renderer from this, and the descriptor lists these. */
+export const GOALS_TREE_UI_SURFACES = { renderGoalRootEntry: "root-entry", renderGoalTree: "tree", renderTreeChrome: "chrome", renderGoalDirectory: "directory", renderGoalRefreshDirectory: "refresh", renderGoalStageList: "stage-list" } as const satisfies Record<keyof GoalsTreeRenderer, GoalsTreeUiModel["kind"]>;
 export const goalsTreeUiContribution: UiContribution<GoalsTreeUiModel> = {
   descriptor: {
     contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals",
     kind: "embedded", label: "Goal Tree",
-    surfaces: ["root-entry", "tree", "chrome", "directory", "refresh", "stage-list"].map(surface_id => ({ surface_id, target_slot_id: "workbench.directory", format: "declarative-html" })),
+    surfaces: Object.values(GOALS_TREE_UI_SURFACES).map(surface_id => ({ surface_id, target_slot_id: "workbench.directory", format: "declarative-html" })),
     slots: [],
   },
   render({ surface, model }) {

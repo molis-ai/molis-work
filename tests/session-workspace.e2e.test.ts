@@ -395,29 +395,30 @@ test("fallback journey preserves TUI content, honest capability limits, workspac
     assert.equal(sent.destination_session.native_runtime_session_id, null);
     assert.equal(sent.destination_session.workspace_id, workspace.workspace_id);
 
+    const readSessionSnapshot = async () => {
+      const sessions = await openWorkSessionRegistry({ homeDirectory: home });
+      try {
+        return [created.session.session_id, sent.destination_session.session_id].map(sessionId => ({
+          session: sessions.get(sessionId), events: sessions.events(sessionId),
+        }));
+      } finally { sessions.close(); }
+    };
+    const beforeRepair = await readSessionSnapshot();
     const repairResponse = await mutate(
       `${prefix}/api/workspaces/${encodeURIComponent(workspace.workspace_id)}/path`,
       "PATCH",
       { workspace_path: repairedPath, user_confirmed: true },
     );
     assert.equal(repairResponse.status, 200, await repairResponse.clone().text());
-    const repaired = await repairResponse.json() as {
-      workspace: { workspace_id: string; canonical_path: string };
-      updated_session_count: number;
-    };
-    assert.ok(repaired.updated_session_count >= 4);
+    const repaired = await repairResponse.json() as { workspace: { workspace_id: string; canonical_path: string } };
+    // SC-1 / PG-081 (BL-177): repair (v2) moves the folder relation only and leaves Session records and events unchanged.
+    assert.equal(Object.hasOwn(repaired, "updated_session_count"), false);
     await access(firstPath);
     await access(repairedPath);
 
-    const reopened = await openWorkSessionRegistry({ homeDirectory: home });
-    try {
-      assert.equal(reopened.get(created.session.session_id).workspace_path, repaired.workspace.canonical_path);
-      assert.equal(reopened.get(sent.destination_session.session_id).workspace_path, repaired.workspace.canonical_path);
-      assert.equal(reopened.events(created.session.session_id)[0]?.content, marker);
-      assert.equal(new Set(reopened.list({ workspace_id: repaired.workspace.workspace_id }).map((item) => item.session_id)).size, repaired.updated_session_count);
-    } finally {
-      reopened.close();
-    }
+    const afterRepair = await readSessionSnapshot();
+    assert.deepEqual(afterRepair, beforeRepair, "repair leaves both complete Sessions and their events unchanged");
+    assert.equal(afterRepair[0]?.events[0]?.content, marker);
   } finally {
     await close(server);
     await rm(directory, { recursive: true, force: true });

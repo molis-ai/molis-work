@@ -92,21 +92,35 @@ test("S-36 ASC-07 ASC-25 ASC-34: cancelling a CLI login kills its PTY and clears
 
 test("S-36 ASC-19 ASC-22: Host shutdown terminates its CLI login; restart keeps the installation and permits a fresh login", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), source = await createCliPackageFixture(t, home.home), actions = home.host.homeActionClient();
+  let stage = "prepare";
+  try {
   const prepared = await actions.invoke(caller, connectorCliActions.prepare, source.input) as Setup;
+  stage = "install";
   await actions.invoke(caller, connectorCliActions.install, { authorization_id: prepared.authorization_id });
   const start = (web: typeof home.web) => web.post<{ job_id: string }>("/api/settings/connectors/methods/cli/login", { service_id: "vercel", setup_id: prepared.authorization_id });
+  stage = "first-login";
   const job = await start(home.web);
+  stage = "first-prompt";
   await eventually(async () => (await home.web.post<{ output: string }>("/api/settings/connectors/methods/cli/job", { job_id: job.job_id })).output.includes("Enter fixture login:"), "first prompt");
   const id = readdirSync(installations(home.home))[0]!, directory = join(installations(home.home), id);
   const pid = Number(readFileSync(join(directory, ".home/login.pid"), "utf8")), downloads = source.downloads();
+  stage = "shutdown";
   await home.close(); await home.host.close();
   assert.throws(() => process.kill(pid, 0)); assert.equal(existsSync(directory), true);
+  stage = "restart";
   const restored = new MolisWorkLocalHost({ homeDirectory: home.home, completeText: null }), served = await serveTestHost(null, { home: home.home, host: restored });
   try {
+    stage = "restarted-login";
     const fresh = await start(served.web); assert.notEqual(fresh.job_id, job.job_id);
+    stage = "restarted-prompt";
     await eventually(async () => (await served.web.post<{ output: string }>("/api/settings/connectors/methods/cli/job", { job_id: fresh.job_id })).output.includes("Enter fixture login:"), "restarted prompt");
+    stage = "restarted-completion";
     await served.web.post("/api/settings/connectors/methods/cli/job", { job_id: fresh.job_id, input: "after-restart" });
     await eventually(async () => (await restored.homeActionClient().invoke(caller, connectorManagementActions.authorization, { authorization_id: prepared.authorization_id }) as Status).status === "connected", "fresh login completes the original request");
     assert.equal(source.downloads(), downloads); assert.equal(withConnectorConnections(home.home, store => store.list()).length, 1);
   } finally { await served.close(); await restored.close(); }
+  } catch (error) {
+    t.diagnostic(`R-19 cli-install ${JSON.stringify({ stage, downloads: source.downloads(), version_probe: source.versionProbeCounts() })}`);
+    throw error;
+  }
 });

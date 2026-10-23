@@ -214,10 +214,10 @@ export function withPreparedActions(client: ActionClient, prepare: (caller: Acti
 }
 
 /** Use the raw Host clients: preparing Home plugins here would make discovery during start wait on its own startup. */
-export function homePluginActions(host: Pick<import("./local-host.js").LocalHost<unknown>, "status" | "actionClient" | "homeActionClient">): ActionClient {
+export function homePluginActions(host: Pick<import("./local-host.js").LocalHost<unknown>, "projects" | "actionClient" | "homeActionClient">): ActionClient {
   const client = (caller: ActionCallContext) => {
     if (!caller.project_id) return host.homeActionClient();
-    const project = host.status().projects.find(row => row.project_id === caller.project_id && row.state !== "closing");
+    const project = host.projects().find(row => row.project_id === caller.project_id && row.state !== "closing");
     if (!project) throw new ActionError("actions.scope_mismatch", "查询委托缺少已打开的项目运行环境");
     return host.actionClient(project);
   };

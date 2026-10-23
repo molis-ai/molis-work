@@ -44,6 +44,6 @@ export function assistantConnectionCheckers(home: string, localHost: MolisWorkLo
   return [connectorSetupChecker(home, scope => withConnectionActions(home, localHost, scope, connectorManagementActions.authorization, async () => undefined)),
     connectorReadyChecker((scope, signal) => withConnectionActions(home, localHost, scope, connectorManagementActions.list, async (actions, work) => {
       const result = await actions.invoke({ capability_id: connectorManagementActions.list.capability_id, version: connectorManagementActions.list.version, provider_id: "system.connectors" }, {}, signal) as { connections: ManagedConnectorView[] };
-      return { connections: result.connections, paused: work.continuation_hold === "paused" };
+      return { connections: result.connections, paused: work.continuation_hold === "paused" || work.continuation_hold === "input" };
     }))];
 }

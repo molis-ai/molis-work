@@ -1,14 +1,23 @@
-import type {
-  UiRenderRequest,
-  UiSlotDescriptor,
-} from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, type ArtifactReferenceUiPrimitives } from "@molis-ai/molis-work-plugin-artifacts";
 import {
   FEED_UI_CONTRIBUTION_ID,
-  type FeedUiSurface,
   type FeedUiModel,
   type PersistedFeedDetailModel,
 } from "@molis-ai/molis-work-plugin-feed";
+import {
+  GOALS_CONTEXT_UI_CONTRIBUTION_ID, GOALS_CONTEXT_UI_SURFACES, type GoalsContextRenderer, type GoalsContextUiPrimitives,
+  GOALS_DIALOGS_UI_CONTRIBUTION_ID, GOALS_DIALOGS_UI_SURFACES, type GoalsDialogsRenderer, type GoalsDialogPrimitives,
+  GOALS_DOCUMENT_UI_CONTRIBUTION_ID, GOALS_DOCUMENT_UI_SURFACES, type GoalsDocumentRenderer, type GoalsDocumentUiPrimitives,
+  GOALS_FACTORS_UI_CONTRIBUTION_ID, GOALS_FACTORS_UI_SURFACE, type GoalsFactorsRenderer, type GoalsFactorsPrimitives,
+  GOALS_MOMENTUM_UI_CONTRIBUTION_ID, GOALS_MOMENTUM_UI_SURFACES, type GoalsMomentumRenderer, type GoalsMomentumUiPrimitives,
+  GOALS_PLANNING_UI_CONTRIBUTION_ID, GOALS_PLANNING_UI_SURFACES, type GoalsPlanningRenderer, type GoalsPlanningPrimitives,
+  GOALS_POLICY_UI_CONTRIBUTION_ID, GOALS_POLICY_UI_SURFACES, type GoalsPolicyRenderer, type GoalsPolicyUiPrimitives,
+  GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES, type GoalsProposalRenderer, type GoalsProposalUiPrimitives,
+  GOALS_RELATION_UI_CONTRIBUTION_ID, GOALS_RELATION_UI_SURFACES, type GoalsRelationRenderer, type GoalsRelationUiPrimitives,
+  GOALS_STATUS_UI_CONTRIBUTION_ID, GOALS_STATUS_UI_SURFACES, type GoalsStatusRenderer, type GoalsStatusPrimitives,
+  GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_TREE_UI_SURFACES, type GoalsTreeRenderer, type GoalsTreeUiPrimitives,
+} from "@molis-ai/molis-work-plugin-goals";
 import {
   INBOX_UI_CONTRIBUTION_ID,
   type InboxUiModel,
@@ -23,114 +32,23 @@ import {
   SHELF_SETTINGS_UI_CONTRIBUTION_ID,
   type ShelfSettingsUiModel,
 } from "@molis-ai/molis-work-plugin-shelf";
-import {
-  PAGES_UI_CONTRIBUTION_ID,
-  type PagesUiModel,
-  type PagesUiSurface,
-} from "@molis-ai/molis-work-plugin-pages";
-import {
-  FORM_UI_CONTRIBUTION_ID,
-  type FormUiModel,
-  type FormUiSurface,
-} from "@molis-ai/molis-work-plugin-form";
-import {
-  DATASET_UI_CONTRIBUTION_ID,
-  type DatasetUiModel,
-  type DatasetUiSurface,
-} from "@molis-ai/molis-work-plugin-dataset";
-import {
-  PPT_UI_CONTRIBUTION_ID,
-  type PptUiModel,
-  type PptUiSurface,
-} from "@molis-ai/molis-work-plugin-ppt";
-import {
-  ALCHEMIST_UI_CONTRIBUTION_ID,
-  type AlchemistUiModel,
-  type AlchemistUiSurface,
-} from "@molis-ai/molis-work-plugin-alchemist";
-import {
-  WORKFLOWS_UI_CONTRIBUTION_ID,
-  type WorkflowsUiModel,
-  type WorkflowsUiSurface,
-} from "@molis-ai/molis-work-plugin-workflows";
 import { WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
-import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { UiHost, createSurfaceRenderer, createSurfaceRenderers } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 import { createArtifactWorkbenchRenderer } from "./artifact-ui.js";
-import { createGoalsContextWorkbenchRenderer } from "./goals-context-ui.js";
-import { createGoalsDialogsWorkbenchRenderer } from "./goals-dialogs-ui.js";
-import { createGoalsDocumentWorkbenchRenderer } from "./goals-document-ui.js";
-import { createGoalsFactorsWorkbenchRenderer } from "./goals-factors-ui.js";
-import { createGoalsMomentumWorkbenchRenderer } from "./goals-momentum-ui.js";
-import { createGoalsPlanningWorkbenchRenderer } from "./goals-planning-ui.js";
-import { createGoalsPolicyWorkbenchRenderer } from "./goals-policy-ui.js";
-import { createGoalsProposalWorkbenchRenderer } from "./goals-proposal-ui.js";
-import { createGoalsRelationWorkbenchRenderer } from "./goals-relation-ui.js";
-import { createGoalsStatusWorkbenchRenderer } from "./goals-status-ui.js";
-import { createGoalsTreeWorkbenchRenderer } from "./goals-tree-ui.js";
 import { createWorkSessionRenderer } from "./work-ui.js";
 
 export { WORKBENCH_UI_SLOTS, renderWorkbenchDocument } from "./document-shell.js";
 import { WORKBENCH_UI_SLOTS } from "./document-shell.js";
 
 
-const INBOX_SURFACE_SLOTS: Readonly<Record<InboxUiSurface, UiSlotDescriptor>> = {
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-};
-
-const SCHEDULE_SURFACE_SLOTS: Readonly<Record<ScheduleUiSurface, UiSlotDescriptor>> = {
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-};
-
-
-const PAGES_SURFACE_SLOTS: Readonly<Record<PagesUiSurface, UiSlotDescriptor>> = {
-  comments: WORKBENCH_UI_SLOTS.side,
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-};
-
-const FORM_SURFACE_SLOTS: Readonly<Record<FormUiSurface, UiSlotDescriptor>> = {
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-};
-
-const DATASET_SURFACE_SLOTS: Readonly<Record<DatasetUiSurface, UiSlotDescriptor>> = {
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-};
-
-const PPT_SURFACE_SLOTS: Readonly<Record<PptUiSurface, UiSlotDescriptor>> = {
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-};
-
-const ALCHEMIST_SURFACE_SLOTS: Readonly<Record<AlchemistUiSurface, UiSlotDescriptor>> = {
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-};
-
-const WORKFLOWS_SURFACE_SLOTS: Readonly<Record<WorkflowsUiSurface, UiSlotDescriptor>> = {
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-};
-
-const FEED_SURFACE_SLOTS: Readonly<Record<FeedUiSurface, UiSlotDescriptor>> = {
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-  "workbench-fragment": WORKBENCH_UI_SLOTS.main,
-  "source-directory": WORKBENCH_UI_SLOTS.directory,
-  "source-workbench": WORKBENCH_UI_SLOTS.main,
-  overlays: WORKBENCH_UI_SLOTS.overlay,
-  "persisted-detail": WORKBENCH_UI_SLOTS.main,
-  "frame-block": WORKBENCH_UI_SLOTS.main,
-};
-
-
-/** Shared Workbench composition root. Product renderers never import a Plugin implementation directly. */
+/**
+ * Shared Workbench composition root. Product renderers never import a Plugin implementation directly. The host offers
+ * the five workbench slots, and every surface is mounted in the slot its contribution declares (W5-06): no
+ * surface→slot table and no per-plugin mount adapter lives here.
+ */
 export function createWorkbenchUiHost(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): UiHost {
-  const host = new UiHost();
+  const host = new UiHost({ slots: Object.values(WORKBENCH_UI_SLOTS) });
   for (const pack of packs) {
     for (const contribution of pack.contributions) host.register(contribution);
   }
@@ -140,187 +58,58 @@ export function createWorkbenchUiHost(packs: readonly BuiltinPluginWorkbenchPack
 const workbenchUiHost = createWorkbenchUiHost();
 
 
-export const createWorkbenchGoalsProposalRenderer = createGoalsProposalWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
+// The Goals renderers the shell still calls by name (until Goals S11 and W5-10); each method mounts the surface the
+// plugin's own map names.
+export const createWorkbenchGoalsProposalRenderer = createSurfaceRenderers<GoalsProposalRenderer, GoalsProposalUiPrimitives>(workbenchUiHost, GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES);
+export const createWorkbenchGoalsPolicyRenderer = createSurfaceRenderers<GoalsPolicyRenderer, GoalsPolicyUiPrimitives>(workbenchUiHost, GOALS_POLICY_UI_CONTRIBUTION_ID, GOALS_POLICY_UI_SURFACES);
+export const createWorkbenchGoalsRelationRenderer = createSurfaceRenderers<GoalsRelationRenderer, GoalsRelationUiPrimitives>(workbenchUiHost, GOALS_RELATION_UI_CONTRIBUTION_ID, GOALS_RELATION_UI_SURFACES);
+export const createWorkbenchGoalsTreeRenderer = createSurfaceRenderers<GoalsTreeRenderer, GoalsTreeUiPrimitives>(workbenchUiHost, GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_TREE_UI_SURFACES);
+export const createWorkbenchGoalsMomentumRenderer = createSurfaceRenderers<GoalsMomentumRenderer, GoalsMomentumUiPrimitives>(workbenchUiHost, GOALS_MOMENTUM_UI_CONTRIBUTION_ID, GOALS_MOMENTUM_UI_SURFACES);
+export const createWorkbenchGoalsDocumentRenderer = createSurfaceRenderers<GoalsDocumentRenderer, GoalsDocumentUiPrimitives>(workbenchUiHost, GOALS_DOCUMENT_UI_CONTRIBUTION_ID, GOALS_DOCUMENT_UI_SURFACES);
+export const createWorkbenchGoalsContextRenderer = createSurfaceRenderers<GoalsContextRenderer, GoalsContextUiPrimitives>(workbenchUiHost, GOALS_CONTEXT_UI_CONTRIBUTION_ID, GOALS_CONTEXT_UI_SURFACES);
+export const createWorkbenchGoalsPlanningRenderer = createSurfaceRenderers<GoalsPlanningRenderer, GoalsPlanningPrimitives>(workbenchUiHost, GOALS_PLANNING_UI_CONTRIBUTION_ID, GOALS_PLANNING_UI_SURFACES);
+export const createWorkbenchGoalsStatusRenderer = createSurfaceRenderers<GoalsStatusRenderer, GoalsStatusPrimitives>(workbenchUiHost, GOALS_STATUS_UI_CONTRIBUTION_ID, GOALS_STATUS_UI_SURFACES);
+export const createWorkbenchGoalsFactorsRenderer = createSurfaceRenderer<GoalsFactorsRenderer, GoalsFactorsPrimitives>(workbenchUiHost, GOALS_FACTORS_UI_CONTRIBUTION_ID, GOALS_FACTORS_UI_SURFACE);
+export const createWorkbenchGoalsDialogsRenderer = createSurfaceRenderers<GoalsDialogsRenderer, GoalsDialogPrimitives>(workbenchUiHost, GOALS_DIALOGS_UI_CONTRIBUTION_ID, GOALS_DIALOGS_UI_SURFACES);
 
-export const createWorkbenchGoalsPolicyRenderer = createGoalsPolicyWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
-
-
-export const createWorkbenchGoalsRelationRenderer = createGoalsRelationWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
-
-export const createWorkbenchGoalsTreeRenderer = createGoalsTreeWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.directory);
-
-export const createWorkbenchGoalsMomentumRenderer = createGoalsMomentumWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
-
-export const createWorkbenchGoalsDocumentRenderer = createGoalsDocumentWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
-
-export const createWorkbenchGoalsContextRenderer = createGoalsContextWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
-
-export const createWorkbenchGoalsPlanningRenderer = createGoalsPlanningWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
-
-export const createWorkbenchGoalsStatusRenderer = createGoalsStatusWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
-
-export const createWorkbenchGoalsFactorsRenderer = createGoalsFactorsWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
-
-export const createWorkbenchGoalsDialogsRenderer = createGoalsDialogsWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.overlay);
-
-export const artifactWorkbench = createArtifactWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS);
+export const artifactWorkbench = createArtifactWorkbenchRenderer(workbenchUiHost);
 
 export function createArtifactReferenceRenderer(primitives: ArtifactReferenceUiPrimitives) {
-  return (value: string, label = value): string => workbenchUiHost.mount({
-    slot: WORKBENCH_UI_SLOTS.main,
-    contribution: {
-      contribution_id: ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID,
-      surface: "reference",
-      model: { value, label, primitives },
-    },
-  }).html;
+  return (value: string, label = value): string => renderWorkbenchContribution(ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, "reference", { value, label, primitives });
 }
 
-export const renderProjectOperations = createWorkSessionRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS);
+export const renderProjectOperations = createWorkSessionRenderer(workbenchUiHost);
 
-export const renderWorkTerminal = (model: WorkTerminalUiModel): string => workbenchUiHost.mount({
-  slot: WORKBENCH_UI_SLOTS.main,
-  contribution: { contribution_id: WORK_TERMINAL_UI_CONTRIBUTION_ID, surface: "terminal", model },
-}).html;
+export const renderWorkTerminal = (model: WorkTerminalUiModel): string => renderWorkbenchContribution(WORK_TERMINAL_UI_CONTRIBUTION_ID, "terminal", model);
+
+/** Mount one surface of a registered contribution in the slot the contribution declares for it. */
+export function renderWorkbenchContribution(contributionId: string, surface: string, model: unknown): string {
+  return workbenchUiHost.mountDeclared({ contribution_id: contributionId, surface, model }).html;
+}
 
 export function renderFeedContribution(
   surface: UiRenderRequest<FeedUiModel | PersistedFeedDetailModel>["surface"],
   model: FeedUiModel | PersistedFeedDetailModel,
 ): string {
-  return workbenchUiHost.mount({
-    slot: FEED_SURFACE_SLOTS[surface as FeedUiSurface],
-    contribution: {
-      contribution_id: FEED_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
+  return renderWorkbenchContribution(FEED_UI_CONTRIBUTION_ID, surface, model);
 }
 
-export function renderInboxContribution(
-  surface: InboxUiSurface,
-  model: InboxUiModel,
-): string {
-  return workbenchUiHost.mount({
-    slot: INBOX_SURFACE_SLOTS[surface],
-    contribution: {
-      contribution_id: INBOX_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
+export function renderInboxContribution(surface: InboxUiSurface, model: InboxUiModel): string {
+  return renderWorkbenchContribution(INBOX_UI_CONTRIBUTION_ID, surface, model);
 }
 
-export function renderScheduleContribution(
-  surface: ScheduleUiSurface,
-  model: ScheduleUiModel,
-): string {
-  return workbenchUiHost.mount({
-    slot: SCHEDULE_SURFACE_SLOTS[surface],
-    contribution: {
-      contribution_id: SCHEDULE_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
+export function renderScheduleContribution(surface: ScheduleUiSurface, model: ScheduleUiModel): string {
+  return renderWorkbenchContribution(SCHEDULE_UI_CONTRIBUTION_ID, surface, model);
 }
 
-
-export function renderPagesContribution(
-  surface: PagesUiSurface,
-  model: PagesUiModel,
-): string {
-  return workbenchUiHost.mount({
-    slot: PAGES_SURFACE_SLOTS[surface],
-    contribution: {
-      contribution_id: PAGES_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
-}
-
-export function renderFormContribution(
-  surface: FormUiSurface,
-  model: FormUiModel,
-): string {
-  return workbenchUiHost.mount({
-    slot: FORM_SURFACE_SLOTS[surface],
-    contribution: {
-      contribution_id: FORM_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
-}
-
-export function renderDatasetContribution(
-  surface: DatasetUiSurface,
-  model: DatasetUiModel,
-): string {
-  return workbenchUiHost.mount({
-    slot: DATASET_SURFACE_SLOTS[surface],
-    contribution: {
-      contribution_id: DATASET_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
-}
-
-export function renderPptContribution(
-  surface: PptUiSurface,
-  model: PptUiModel,
-): string {
-  return workbenchUiHost.mount({
-    slot: PPT_SURFACE_SLOTS[surface],
-    contribution: {
-      contribution_id: PPT_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
-}
-
-export function renderAlchemistContribution(
-  surface: AlchemistUiSurface,
-  model: AlchemistUiModel,
-): string {
-  return workbenchUiHost.mount({
-    slot: ALCHEMIST_SURFACE_SLOTS[surface],
-    contribution: {
-      contribution_id: ALCHEMIST_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
-}
-
-export function renderWorkflowsContribution(
-  surface: WorkflowsUiSurface,
-  model: WorkflowsUiModel,
-): string {
-  return workbenchUiHost.mount({
-    slot: WORKFLOWS_SURFACE_SLOTS[surface],
-    contribution: {
-      contribution_id: WORKFLOWS_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
-}
-
+/** The settings page asks for the settings slot itself: a contribution whose `settings` surface targets another slot is refused. */
 export function renderPluginSettingsContribution(
   contributionId: string,
   model: unknown,
 ): string {
   return workbenchUiHost.mount({
     slot: WORKBENCH_UI_SLOTS.settings,
-    contribution: {
-      contribution_id: contributionId,
-      surface: "settings",
-      model,
-    },
+    contribution: { contribution_id: contributionId, surface: "settings", model },
   }).html;
 }
 

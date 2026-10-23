@@ -1,6 +1,6 @@
 # 防腐加速期：高风险、潜在问题与延后事项
 
-状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 19:20 本地时间）。
+状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 19:30 本地时间）。
 - 用户 10-23 定：「优先完成防腐的工程开发，维护一个文档记录高风险和潜在问题，先完成工程开发，后续统一处理重度任务，测试任务」。
 - 又补一句：在有限的槽位里优先开发，不要让 VPN 断掉，维持当前机器负载，剩余事项用文档记清楚。
 - 各会话不直接改这份文件。要记的事，要么发给 ①，要么写在 PR 正文的「本机延后验证」一节，由 ① 收进来。
@@ -96,7 +96,7 @@
 | R-01 | 延后了本机验证：合并只靠 CI 和 CI 集成批，本机的相关用例不跑，浏览器用例本来就暂停着 | 回归晚发现；统一窗口里一次冒出几个失败，难分清是谁的 | 每个 PR 在 §3 记一行延后清单；窗口里按 PR 分组跑，再拿基线比 | ① ⑤ | 统一窗口 |
 | R-02 | yijunw0212 账号在协调之外开 PR、自己合（它合过我们的 #1049，10-23 又合了 #1069、#1070 换 vendored Prologue）。用户 10-23 确认：是认识的同事，在并行开发 | 共享核心会在我们的批之外变；BL 号可能撞（它占了 BL-412、BL-413） | 不另做处理，只做两件事：取号前查 main 和在途 PR；⑤ 每次合并前看一眼 main 新进的提交 | ① ⑤ | 持续（已定） |
 | R-03 | 机器负载和代理。10-23 上午负载 68 → 137（两个测试槽位各跑 6 个文件，加上 Chrome 的 72 个进程、别的项目的开发服务器和部署）；下午 17 点前后一个开发构建（4 个并行 tsc）叠在一个 6 并发的测试上，负载冲到 215、314。代理（127.0.0.1:17890）10-23 断过两次，每次所有会话都停在报错上 | 所有线一起停；负载再高可能像 10-19 一样整机重启 | `heavy.sh` 里测试默认 3 并发、构建默认同时 2 个包（`pnpm_config_workspace_concurrency=2`），验证类只占 1 个槽位；17:40 负载已回到 61、两个槽位都空。断线后由 ① 逐个恢复。别的项目的进程不归我们管，不动 | ① | 持续 |
-| R-04 | Characters 的库 `characters/characters.sqlite` 从 v1 升到 v2（Sessions 清理 SC-2，#1080），新构建拒绝 v1 的库；`characters.runs`、`characters.launch` 升到 v2，输出里没有旧的 `session_id` 和 `output` 了 | 用户的真实 Home 装新版之前必须先维护一次；动作只给 user，唯一调用方是「设置 › 角色」页面，没有工作流、MCP 或 Skill 引用 | 维护脚本 `tests/fixtures/characters-maintenance-v2.sql`，演练用例 `tests/characters-maintenance-v2.test.ts`，防腐 spec §4.1 和 CHECKLIST 第 3 节的表已改到 2；还要在 CHECKLIST 第 4.3 节维护八下加子项（已让 ③ 补）。和装新构建同一步做，动真实 Home 之前问用户 | ③、用户 | 下一次真实 Home 维护 |
+| R-04 | Characters 的库 `characters/characters.sqlite` 从 v1 升到 v2（Sessions 清理 SC-2，#1080），新构建拒绝 v1 的库；`characters.runs`、`characters.launch` 升到 v2，输出里没有旧的 `session_id` 和 `output` 了 | 用户的真实 Home 装新版之前必须先维护一次；动作只给 user，唯一调用方是「设置 › 角色」页面，没有工作流、MCP 或 Skill 引用 | 维护脚本 `tests/fixtures/characters-maintenance-v2.sql`，演练用例 `tests/characters-maintenance-v2.test.ts`，防腐 spec §4.1 和 CHECKLIST 第 3 节的表已改到 2；CHECKLIST 第 4.3 节维护八下的子项也已加（#1080 `fcec150fb`）。和装新构建同一步做，动真实 Home 之前问用户 | ③、用户 | 下一次真实 Home 维护 |
 | R-05 | 真实 Home 维护在积压：BL-126（维护六收尾）、BL-413（项目库 v8 → v9）、Characters v2、Sessions 数据删除（SC-5，删之前弹窗问用户，用户 10-23 已同意方案 A；会话库 `sessions.db` 里以前的角色运行记录不迁到新库——跨库迁移要走保留机制、经用户确认——并进 SC-5，D6 列清单时一起列给用户），以及可清除的角色包目录 `characters/runs/character-*/`（HOME-DATA 已登记为 purge）、Characters v2（R-04）、Shelf 目录 `shelf/catalog.json` 1 → 2（#1076，工具 `tests/fixtures/shelf-catalog-maintenance.mjs`，只在临时 Home 演练过；记在 CHECKLIST 第 4.3 节维护八，发布说明的「兼容与升级」要写） | 装新版前要一起做；漏一项，新版就打不开库 | 在一个维护窗口里排完；这台 Mac 上没有真实 Home | 用户 | 发版前 |
 | R-06 | Sessions 清理 SC-4 要动 120 到 160 个文件，和 Goals S7b/S4、SC-3 可能改到同一批文件 | 冲突；在集成批里难分清是谁的问题 | 排在 SC-1 到 SC-3 之后，单独进批 | ③ | 做 SC-4 时 |
 | R-07 | 偶发的用例：`workbench-deferred-clients.e2e`、`busy-feedback`（batch-1023-4 里重试才过）；`coding-workbench.e2e`、`stream-text.e2e`（BL-412 记的重试才过）；`code-scale.e2e` 的帧耗时；batch-1023-4 里 `workspace-read-one-id` 是事先料到会红的，修在 #1068 的 571b4e807 | 集成批的结果有噪音 | ⑤ 维护已知红名单，现在是 0 个 | ⑤ | 统一窗口 |
@@ -109,7 +109,7 @@
 | R-14 | 工具风险：在借用的工作树里，`mcp__ccd_host__sync_with_base_branch` 合进的是会话原来的工作树，不是当前所在的。② 10-23 碰上一次，在 `feat/project-library-l1b` 上留下 39 个冲突，已经 abort，分支回到 cdcda41b1，没有残留 | 合错分支；没注意到就会把冲突或别的改动推上去 | 在借用的工作树里不用这个工具，自己 `git merge origin/main`。① 已通知各开发和评审会话 | 全体 | 持续 |
 | R-15 | 手写路由不 catch：#1018 写法的 Home 插件路由（`routes: … async handle(request)`，不经 SDK 的 `bindPluginActionRoute`）抛出不带错误码的错误时，落到宿主的通用句子「请求未能完成，请重试」，状态和错误码都丢了。Shelf 在 #1076 里已改成用 SDK 的 `actionErrorResponse` 自己答；别的插件还没查 | 用户只看到通用报错；调用方拿不到错误码，没法按类别处理 | 根治放在平台：Plugin Runtime 的路由分派统一 catch，交给 SDK 的 `actionErrorResponse` 答，插件不用各写 catch；顺带列一遍现存的手写路由。BL-404，和 BL-403 一起做 | ② | BL-403 一起 |
 | R-16 | 候选 PR 之间在枢纽文件上互相冲突（`VERIFY-2026-10-23` 用 `git merge-tree` 逐对核对）：#1071 和 #1067 冲在 `apps/local-host/src/coding-surface.ts`，和 #1066、#1068 冲在 `specs/repository-anti-corruption/privileges.md`；#1051 和 #1066、#1068 冲在 `privileges.md`、`tests/builtin-plugin-assembly-gate.test.ts`、`tooling/gates/baseline.json`，和 #1068 冲在 `specs/BACKLOG.md`。每个单独对 main 都不冲突 | 这两个 PR（以及叠在 #1051 上的 #1076）进不了同一个验证批；合并顺序不对会一串返工 | 按顺序合：#1066 → #1068，#1067 → #1071；#1051、#1076 在 #1066、#1068 之后合 main 再进批。被排除的 PR 合完 main 后，由 Codex 在下一批验证 | ⑤ | 合并时 |
-| R-17 | 删除项目时不清 `character_runs`（#1080 之后角色运行记在角色库里）。旧行为也没清，因为会话记录没有 `project_id` | 删掉的项目在角色库里留下运行记录 | 以后让 Characters 在 `ProjectDeletionService` 里声明自己要清的数据，单开一片；BL 号由 ③ 在自己的 370–389 段里取（先查 main 和在途 PR） | ③ | SC 系列之后 |
+| R-17 | 删除项目时不清 `character_runs`（#1080 之后角色运行记在角色库里）。旧行为也没清，因为会话记录没有 `project_id` | 删掉的项目在角色库里留下运行记录 | 以后让 Characters 在 `ProjectDeletionService` 里声明自己要清的数据，单开一片，BL-385（③ 取号，行在 #1080 的 `fcec150fb`） | ③ | SC 系列之后 |
 
 ## 3. 延后的重活与测试（按 PR）
 

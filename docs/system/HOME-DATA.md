@@ -160,7 +160,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 
 Sessions 插件下线（SC-4）后，没有任何代码打开 `sessions/sessions.db` 或 `sessions/content/`：库里的表（`session_meta`、`sessions`、`session_messages`、`session_events`、`session_handoffs`）与加密内容块是旧数据，留在原处，不读、不迁移、不转换。它们仍登记在 `apps/local-host/src/home-stores.ts`（owner 是 `apps/local-host`），所以备份照旧包含、`uninstall --purge-user-data` 照旧删除整个 `sessions/`。
 
-删除项目不再有 `sessions` 所有者：旧库里属于被删项目的 Session 记录不会被清（已接受的遗留，随旧库留到 SC-5）。SC-5 才会在备份副本上清理 `<home>/sessions/`，需要用户逐步批准；真实 Home 不在本片动。Sessions 重做时的数据形状另议（BL-177），不沿用这个库。
+删除项目不再有 `sessions` 所有者：旧库里属于被删项目的 Session 记录不会被清（已接受的遗留，随旧库留到 SC-5）。SC-5 的工具是 `scripts/retired-sessions-store.mjs`（`report` 只读列出，`remove` 默认空跑、`--apply` 要带目录的绝对路径作确认），先在备份拷贝上列出，需要用户逐步批准；真实 Home 上执行归用户本人，做法见 `docs/releases/CHECKLIST.md` 第 4.3 节。Sessions 重做时的数据形状另议（BL-177），不沿用这个库。
 
 ### 4.4 `placement/placement.db`、`assistant/assistant.db`、`server/server.sqlite`
 

@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-Owner 经 `services.scheduler` 在自己的事务里挂一条 job（主人由平台从安装取），并事先把唤醒 handler 放进 `PluginWakeupIndex`。Host timer 调用 `ScheduleService.tick`；到期后 index 按 `plugin_id + capability_id` 叫醒，写入收据，再计算下一次 `next_due_at`。漏打的 interval 合并成一次叫醒。
+插件经 `services.scheduler` 挂一条 job（`registerAction`），唤醒就是它自己 Manifest `background.wakeups` 声明的一个动作；登记时记下安装、安装代次和动作版本（`schedule_action_bindings`）。激活经 `connectActionOwner` 接上这个安装的动作网关。Host timer 调用 `ScheduleService.tick`；到期后认领任务，重查这个安装还在不在、代次和授权变没变，再经网关调它的动作，写入收据，计算下一次 `next_due_at`。安装停了、重装了、撤权了，到点的任务原样留着不跑。漏打的 interval 合并成一次叫醒。宿主不为任何插件登记处理器：没有安装的 `register()`（只配 `PluginWakeupIndex` 里的进程内处理器）只有测试在用，宿主的项目时钟（`apps/local-host/src/project-clock.ts`）不带它，BL-481 要删。
 
 ## 从哪里读代码
 
@@ -14,13 +14,14 @@ Owner 经 `services.scheduler` 在自己的事务里挂一条 job（主人由平
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | 表结构、WakeupIndex、ScheduleService、Capability 注册 |
+| [src/index.ts](src/index.ts) | 表结构、ScheduleService、进程内处理器 `PluginWakeupIndex`（测试用） |
+| [src/action-wakeups.ts](src/action-wakeups.ts) | 安装绑定与动作拥有者：到点经安装的动作网关送达 |
 
 可对照现有调用方 [apps/local-host/src/project-clock.ts](../../apps/local-host/src/project-clock.ts)。
 
 ## 接入与边界
 
-不拥有 cron 表达式、Automation rule、Feed 来源意图或 Action 参数。插件不能替别人登记：`schedule.*` 的主人是调用的插件，由 Scheduler 的处理器从可信调用（`HostCapabilityInvocation.plugin`）读取，输入里没有 `plugin_id`，写了也不读，任何输入形状都改不了；没有插件身份的调用（含 Host 自己的客户端）和已停止的安装一律拒绝。Host 的插件端口不认识 `schedule.` 这个名字。未注册 handler 的 capability 不能挂闹钟。
+不拥有 cron 表达式、Automation rule、Feed 来源意图或 Action 参数。插件不能替别人登记：`pluginSchedulerFor` 从激活使用的 Manifest 取 `plugin_id`，绑定当前安装、代次与声明的唤醒动作；写入器覆盖登记输入中的主人字段，调用方不能改用别人的身份。读取、写入和到点投递都复查安装与授权，已停止的安装拒绝。生产插件只用 `services.scheduler`，宿主项目时钟不带进程内索引；没有安装绑定的直接 `register()` 被拒绝（`scheduler.handler_missing`）。进程内 handler 的测试路径仍由 BL-481 负责删除。
 
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用它的执行生命周期）。
 

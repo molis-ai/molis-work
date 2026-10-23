@@ -39,5 +39,5 @@
 - RAC-112：通过。生产 dispatchCli 的成功输出/返回码/参数、同步抛错与延后拒绝均通过；原 CLI 协议与存储副作用回归保持。
 - 上述五个直接文件首次运行全部通过：5 + 3 + 1 + 2 + 3 = 14 项，0 失败、0 跳过。离线安装、整体构建、完整 merge-base health、boundary 通过；health 的 console 28→21，其余受控数字没有增加。
 - 新改生产入口及新测试/夹具的定向 Biome 检查通过；包含已有 CLI 测试时仍报其原有 `captureCli` 的一处 console（基线已记录，未新增），不称 lint 全绿。
-- `affected-tests --base origin/main --json`：`full=[]`，选出 15 个非浏览器文件，未覆盖列表为空；只执行上述直接五个。其余十个文件及产品子集清单补入留给统筹统一窗口，详细清单列在 PR。未跑全量、浏览器或真实 Home，不改变 C1 整体状态。一次性 server 测试目录已清理。
+- `affected-tests --base origin/main --json`：`full=[]`，最终选出 26 个非浏览器文件，未覆盖列表为空（刷新生成 baseline 前为 15 个，新增的 11 个为基线文件读者）。只执行上述直接五个；其余 21 个文件及产品子集清单补入留给统筹统一窗口，详细清单列在 PR。未跑全量、浏览器或真实 Home，不改变 C1 整体状态。一次性 server 测试目录已清理。
 - 最终 head、提交范围 secrets、基线刷新与 CI/评审状态在 PR 中记录；一轮和二轮均交 ac-review，作者负责修意见。

@@ -8,13 +8,15 @@ import type { PluginDefinition, PluginManifest, PluginOutputsClient } from "@mol
 import { FILE_SNAPSHOT_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { createDiffPlugin, DIFF_PLUGIN_ID, diffActions, renderDiff, type DiffView } from "@molis-ai/molis-work-plugin-diff";
+import { createDiffPlugin, DIFF_LABELS, DIFF_PLUGIN_ID, diffActions, type DiffView } from "@molis-ai/molis-work-plugin-diff";
+import { renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { createTextStatsPlugin, TEXT_STATS_PLUGIN_ID, textStatsActions, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
 import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { pageText } from "./fixtures/page-text.js";
+import { diffPageText } from "./fixtures/diff-page-text.js";
 
 // specs/repository-anti-corruption/privileges.md PG-062 (C7, the plugin half): Diff and Text Stats draw their own `/state` answer for a
 // page, in the page's language, with their own words; the Host no longer decorates their route results.
@@ -24,6 +26,8 @@ const type = { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1 };
 const snapshot = (text: string) => ({ workspace: { workspace_id: "ws", name: "Project" }, path: ["a.ts"], text });
 /** What the Host drew before: the page's translator, the design system's escape and icons. */
 const pagePrimitives = (locale: ActionLocale) => ({ escape: escapeHtml, text: pageText(locale), icon: (name: string) => icon(name as Parameters<typeof icon>[0]) });
+/** The same for Diff: its sentences with values in them matched to its messages first, as the Host's Diff renderer did. */
+const diffPrimitives = (locale: ActionLocale) => ({ ...pagePrimitives(locale), text: diffPageText(locale) });
 
 const source: PluginDefinition & { outputs?: PluginOutputsClient } = {
   manifest: {
@@ -83,14 +87,14 @@ test("PG062-01, PG062-02: a page's diff.state and text-stats.state carry the plu
       assert.equal(stats.html, renderTextStats({ view: stats.view, primitives: pagePrimitives(locale) }));
       assert.match(stats.html, /mw-empty[\s\S]*#icon-hash/);
       const diff = await project.invoke<{ view: DiffView; html: string }>(diffState, { locale });
-      assert.equal(diff.html, renderDiff({ view: diff.view, primitives: pagePrimitives(locale) }));
+      assert.equal(diff.html, renderDiff({ labels: DIFF_LABELS, view: diff.view, primitives: diffPrimitives(locale) }));
       assert.match(diff.html, /#icon-git-compare/);
     }
     project.pinBefore("original <b>\n"); project.publish("changed <b>\n");
     for (const locale of ["zh", "en"] as const) {
       const diff = await project.invoke<{ view: DiffView; html: string }>(diffState, { locale });
       assert.equal(diff.view.phase, "ready");
-      assert.equal(diff.html, renderDiff({ view: diff.view, primitives: pagePrimitives(locale) }), `diff.state draws the same comparison the Host drew (${locale})`);
+      assert.equal(diff.html, renderDiff({ labels: DIFF_LABELS, view: diff.view, primitives: diffPrimitives(locale) }), `diff.state draws the same comparison the Host drew (${locale})`);
       assert.match(diff.html, /original &lt;b&gt;/); assert.doesNotMatch(diff.html, /original <b>/, "a line's text is escaped");
       const stats = await project.invoke<{ view: TextStatsView; html: string }>(statsState, { locale });
       assert.equal(stats.view.phase, "ready");

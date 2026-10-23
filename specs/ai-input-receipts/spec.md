@@ -89,7 +89,7 @@
 - **页面。**
   - Goal 页「来自对话的输入」显示四样：待确认、AI 说、会话来源、挂着的提议「等你决定」。
   - 新的页面请求用 `molisWorkRequest`（照 `plugins/native/goals/src/event-document-deliverables.ts`）。
-  - 新路由 `plugins/native/goals/src/http/conversation-inputs.ts` 要在 PR 里点名，好让 ③ 并进 S7b。
+  - S3-2 的新路由直接写成 PluginRouteBinding（`goalsRoutes` 的一条，照 `plugins/native/goals/src/http/inputs.ts`），并在 Manifest 里声明（`plugins/native/goals/src/manifest.ts` 的路由表），PR 里点名（① 10-23 定，不再等 S7b）。
 - **验收编号。**
   - RCPT-384：提议写边、Goal 不变、同一条再提会回放。
   - RCPT-385：能挂的提议与被拒的几种。

@@ -290,6 +290,25 @@ Host 尚未启动时，原生启动/恢复提示读取随发行物从同一 owne
 
 新旧发布合同不能长期混读；旧字段读取只在这次维护转换中存在，不搬进 SDK、Runtime 或启动 loader。真实 Home 安装切换需独立维护授权和一致备份，开发先用隔离 Home/发布副本。缺发布权限或不能自动转换的安装必须明确列为阻塞，不能用静默旧格式分支或“仅新插件支持”降低完整覆盖目标。
 
+### 7.4 动作文字与结果摘要（FSS-40、FSS-41；2026-10-23 用户决定，暂不实现）
+
+用户 2026-10-23 在视觉细节目标里定了三条：⑥ 先于 ⑦；⑥ 用「键 + 语言文件」（本方案 §4.2 的方向，不在动作声明里并排写各语言）；⑦ 的数量由指向输出的指针给出，不改业务输出、不升动作版本。同日定为只写需求、先不实现。下面是实现时要注意的现状与接缝，不是已建成的机制。
+
+**⑥ 语言文件怎样随插件走**
+
+- Manifest 为每种语言声明一个包内路径（如 `resources/locales/en.json`），校验与入口文件同一份 `assertPluginPackagePath`（[package-verification.ts](../../packages/plugin-runtime/src/package-verification.ts)），包里缺文件即拒装。现行 Manifest 唯一的文件字段是 `entrypoints[].entrypoint`，这是合同改动，按 [合同变化规则](../../docs/system/CONTRACT-CHANGES.md) 刷新 API 与动作快照。
+- 现行发行物只存 `{manifest, module_source}`（[release-artifacts.ts](../../packages/plugin-runtime/src/release-artifacts.ts) 的 `createPluginRuntimeReleaseArtifact`），装好后包里的别的文件读不到。语言文件要进发行物（解析后的内容随发行物签名与指纹走），内置插件的发行物构建（[native-plugin-release-artifact.ts](../../apps/local-host/src/native-plugin-release-artifact.ts)）同样读各插件的 `resources/locales/`。内置插件现在的 `PluginRegistration.messages` 与工作台 `*_EN` 词典是另一条路，切换后删掉，不留两份。
+- 键由能力 id 导出（`action.<capability_id>.title|description|summary`），不另起名字；声明里的原文仍是默认语言，模型、MCP 工具说明与回执用它。
+- 宿主按（插件、语言）解析一次，缓存键带语言；语言来自入口：页面请求用 `pageLocale()`（[web-locale.ts](../../apps/local-host/src/web-locale.ts)），动作里用执行上下文的 `locale`。助理步骤行的目标名现在在 `presentActivity`（[assistant-service.ts](../../apps/local-host/src/assistant/assistant-service.ts)）里按动作标题取，缓存不分语言，要改成按轮次的语言取。
+- 要换成按语言取的表面：助理步骤行与结果卡（[assistant-result-card.ts](../../apps/local-host/src/assistant/assistant-result-card.ts)）、助理的能力目录说明（[assistant-directory.ts](../../apps/local-host/src/assistant/assistant-directory.ts) 给模型的那份不换）、设置 › 助理的能力列表、能力库（[capabilities.ts](../../apps/workbench/src/capabilities.ts)）、对外授权的工具标题与调用记录。逐处列清单后在英文实走里断言（§6.1 的检查盲区）。
+
+**⑦ 结果摘要**
+
+- 现行 `ActionResultView`（[action-result.ts](../../packages/contracts/src/platform/action-result.ts)）有 `summary`、`title_pointer`、`text_pointer`、`link`，只有标量变成可见文字。⑦ 加一个数量指针：指向数字就取数字，指向数组就取长度，别的类型或取不到时不出这一句。摘要文字用 ⑥ 的键（`action.<capability_id>.summary`，带 `{count}` 与复数写法），默认原文留在声明里。
+- `result_view` 只是展示声明，不是输出 schema：加数量指针不改输出、不升动作版本；动作合同快照里如有这一列，按快照规则刷新。
+- 摘要随原执行保存（`ActionResultPresentation` 现行做法：存当时的有界快照，不按新的 provider 重算），但存的是键、参数与默认原文，显示时按当前语言成句，切换语言不改保存的事实。
+- 首批 Coding、Pages、Todo、Files：先列各自写入类动作的输出里哪个字段是「改了几项」，没有现成字段的不硬造指针，记为缺口交给主人。
+
 ## 8. 个人助理 Skill 与动作
 
 推荐内置 `molis-interface-design` Skill，发布正文与少量文件格式/字体/校验参考；Soft Workbench/Folio 是数据与风格参考，入口不复制 schema 或规则。Skill 可用现有 `methods` 读取机制，不在本任务顺便改名整个 Skill 合同。所引用资料由当前工具实际返回；助理依靠结构化投影读写文件，不获得 Home 的任意写权限。

@@ -1,32 +1,27 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { respondGoalsFailure } from "./failure.js";
+import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { goalsFailure, goalsRoute } from "./failure.js";
 import { randomUUID } from "node:crypto";
 import { goalsActions } from "../actions.js";
-import type { GoalsHttpContext } from "./types.js";
+import type { GoalsRoutePorts } from "./types.js";
 
-export async function handleGoalEventDecisionHttp(context: GoalsHttpContext): Promise<boolean> {
-  const match = context.pathname.match(/^\/api\/goals\/([^/]+)\/event-decision$/);
-  if (context.method !== "POST" || !match) return false;
-  const body = await context.readBody();
-  const allowed = new Set([
-    "idempotency_key", "request_id", "selected_option_id", "conclusion",
-    "accepts_requirements", "effects", "authorized_change", "scope",
-  ]);
-  const unexpected = Object.keys(body).filter((key) => !allowed.has(key));
-  if (unexpected.length) {
-    respondGoalsFailure(context, { code: "goals.event_http.unexpected_field", message: `不能使用未许可字段：${unexpected.join("、")}`, details: { fields: unexpected } });
-    return true;
-  }
-  const conclusion = typeof body.conclusion === "string" ? body.conclusion.trim() : "";
-  if (!conclusion) {
-    respondGoalsFailure(context, new ActionError("actions.input_invalid", "用户决定需要结论"));
-    return true;
-  }
-  const goalId = decodeURIComponent(match[1]);
-  const idempotencyKey = String(body.idempotency_key ?? context.idempotencyHeader ?? `web-event-decision-${randomUUID()}`);
-  try {
+/** `goals.event-decision`: the person's own conclusion on a Goal, from the page. */
+export function goalEventDecisionRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
+  return [goalsRoute("goals.event-decision", ports, async (context) => {
+    const body = context.body;
+    const allowed = new Set([
+      "idempotency_key", "request_id", "selected_option_id", "conclusion",
+      "accepts_requirements", "effects", "authorized_change", "scope",
+    ]);
+    const unexpected = Object.keys(body).filter((key) => !allowed.has(key));
+    if (unexpected.length) {
+      return goalsFailure({ code: "goals.event_http.unexpected_field", message: `不能使用未许可字段：${unexpected.join("、")}`, details: { fields: unexpected } });
+    }
+    const conclusion = typeof body.conclusion === "string" ? body.conclusion.trim() : "";
+    if (!conclusion) return goalsFailure(new ActionError("actions.input_invalid", "用户决定需要结论"));
+    const idempotencyKey = String(body.idempotency_key ?? context.idempotencyHeader ?? `web-event-decision-${randomUUID()}`);
     const result = await context.actions.invoke(goalsActions.decide, {
-      goal_id: goalId,
+      goal_id: context.params.goalId!,
       idempotency_key: idempotencyKey,
       request_id: typeof body.request_id === "string" ? body.request_id : undefined,
       selected_option_id: typeof body.selected_option_id === "string" ? body.selected_option_id : undefined,
@@ -39,7 +34,6 @@ export async function handleGoalEventDecisionHttp(context: GoalsHttpContext): Pr
       scope: body.scope && typeof body.scope === "object" ? body.scope as Record<string, unknown> as never : undefined,
     });
     context.changed();
-    context.respond(200, result);
-  } catch (error) { return respondGoalsFailure(context, error); }
-  return true;
+    return { status: 200, body: result };
+  })];
 }

@@ -2814,6 +2814,7 @@ export interface PluginExecutor {
     validateUpgrade?(definition: PluginDefinition, context: PluginUpgradeContext, from: PluginInstanceRecord): Promise<void>;
     capturePrivateData?(installId: string): Promise<unknown> | unknown;
     restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
+    uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
 }
 
 export interface PluginExecutorHandle {

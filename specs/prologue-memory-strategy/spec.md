@@ -972,3 +972,23 @@ CI 独立片最终交付：#1149 已经正常队列合入 main `afaa4fea354003e7
 灵光失败继续保持未解决：旧基线整文件一次 16/16，冻结 53b5 的原两例一次 1/2；后续确定性 bundle/hover 交错均未重现原症状。无布局读取的稀疏探针最后保留第二完整旅程，三次均通过；首次 capture 当场取得 child trusted click、POST/GET 完成、父子 expanded=true 与公开 Store 新增一条，原生窗口与模拟视口仍不一致。未满足“无 click/无 POST”的尺寸对照条件，未做对照或产品修改，也不将成功重跑当作原失败关闭。证据 `/private/tmp/molis-lingguang-sparse-ultra-wwh6oce_/README.md`；最终共享全套门仍未通过。
 
 后续独立片检查点：Prologue #96 已按私仓既定本地门禁合入 main `d46e76c61d06dbb9bcd6ca6a2f7fcb1b5acc1e11`，clean head `15c38aed`；quality 684 项、Memory 680 项、干净包安装/重开及旧 SDK 拒绝 shape 8 均通过。Molis 续期的本地采用另在独立树，未混进 #1064 当前 SDK。分页 #1101 的本地父集成与 23 文件核心回归通过；实测 workbench `1193918 → 1197355`，沿用户原批准净增 3437 B 登记，其余 26 资源不变。分类纠正 #1111 的新父仅完成本地集成/静态检查，后续构建与浏览器仍待完成；父子未进入 main 不记已交付。
+
+### M2 整包导入的固定输入身份（2026-10-24，本地工程验证通过，待统筹审查集成）
+
+本片落实 MEM-03/20 的同一操作重试：已有逐项 SDK/ledger 回执会固定开始过的子操作，但导入中途失败时，尚未开始的后续条目没有原包约束。目标是本人以同一操作号恢复时，只能继续原范围和原有序有效输入，不能替换、增删或调换后续条目；保持原逐项拒绝、部分结果、duplicate 与 append 的重开恢复，不把整个导入改成原子写入。
+
+复用 `readPackage` 的完整 v2 校验和规范化，在第一次异步派发前取与调用方引用隔离的有效条目及调用身份快照（保留原取消信号）；对象键序不构成差异，条目及语义数组顺序保持。通过现 `MemoryOperations` marker 与同一 ledger 事务绑定可信 scope/owner 及整包摘要，涵盖正文、类别、原出处、规范化来源/依据、期限、适用条件、分类扩展、Session 引用和 namespace。摘要仅是业务重试输入身份，不是流程/源码校验，也不存正文副本或 encoded request。新绑定与已有第 0 子操作检测同事务；没有整包身份但已有第 0 子操作的在途调用拒绝猜测原包，不全表扫描、不把后来提供的包当原件。取消/授权仍沿现写门，原已提交事实不撤销。
+
+允许改动 `horizontal/memory` 的现导入/规范化/操作职责及 README、本 spec、现 `memory-service-cas` 与必要 HTTP 回归；不改 SDK、UI、包锁、资源门、数据库结构或公开动作。硬边界是原输入/操作身份及现权限；Backend/ledger 仍可替换，调用方提供当前 v2 包及操作号，用户在现入口选择文件；没有新增配置或用户决定。旧 v1/缺分类的显式采用属于另一片。
+
+验收先用真实 SDK+SQLite 复现 A 完成、B 写前失败、C 未开始后换 C 能落盘的红例，再证明换包拒绝且 SDK/ledger 零新增；原包重开准确完成一次。相关回归覆盖长度/顺序和嵌套事实变化、等价键序、等待后修改原引用、旧在途缺身份拒绝、同操作并发不同包，以及既有 duplicate/new append、逐项拒绝与部分结果。构建和定向测试只按机器槽排队；当前本地实现已按该合同接入，验证结果另记，不据源码宣称通过。
+
+首轮红例（未修复）：基于同一 `ecec96b98` 且三份相关源码逐字相同的已构建公开包，机器槽内正式 runner 跑外置真实 SDK/SQLite 单例，0/1、exit 1、无取消/跳过。A 完成、B 在 SDK write 前故障、C 无子操作 marker；关闭重开后同操作换 C，raw SDK 实际包含 A、B、新 C（version 1），零新增断言失败。日志 `/private/tmp/molis-memory-import-whole-package-red.log`；永久用例已加入现 CAS 文件，生产源码尚未修改。证据只证明此重试缺口，不涉及最终 App 或用户验收。
+
+统筹核实的独立 CI 补记（保留此前失败）：#1064 head `ecec96b981027709f60fa3e0c7899ca3e38f242f` 的正常 CI `40037655100` 所有适用任务通过。Linux 两片 artifact 各 218/218，失败、flaky、timeout、skipped、not-run、quarantine 均为 0；实际并集 436、交集 0，与 manifest 完全一致。测试合并提交 `93e91802c90c808b37948b32f11377a25b7ff677` 已核 parents 为 `afaa4fea3` + `ecec96b98`；原 15/8 分钟预算不变，非浏览器阶段分别 7.7/7.6 分钟。证据 `/private/tmp/molis-ci1064-ecec-linux-coverage-20261024.json` 与 `/private/tmp/molis-ci1064-ecec-product-subset-{1,2}/report.json`。当前 review/threads 为空不代表最终验收；灵光旧全套 1398/1399 的失败仍未关闭，也不以此 CI 结果替代本片导入修复的验证。
+
+交错反例补记：同一已构建父包的三个真实 SDK/SQLite 用例均红（0/3），分别观察到 await 后改 `applies.task` 真进入 SDK、竞争整包写入替换条目、改 `caller.character.id` 后第二项写入另一合法 owner，日志 `/private/tmp/molis-memory-import-interleaving-red.log`。本地首次完整构建通过；首轮定向 5/6，唯一未闭合为 Character 嵌套身份引用，日志 `/private/tmp/molis-memory-import-identity-targeted.log`。随后复用现分页入口的 signal 分离及 identity 深复制方式修复，不以 SDK 权限拒绝替代原 owner 固定。
+
+本片最终本地证据：最后的 Character 身份修复后，Memory 包真实构建通过；公开 SDK/SQLite 六个定向反例 6/6、零取消/跳过通过，日志 `/private/tmp/molis-memory-import-identity-owner-targeted.log`。此前完整 build 通过，最终两行身份修复以受影响包重建及整树无 emit 类型检查覆盖，不表述为最终源码再次完整 build。README 必跑 18 文件加 CAS/期限往返/分类三文件的首轮为 17/21，CAS 85/85、新导入六例及原逐项拒绝/duplicate/append/取消/恢复均通过；另外四文件因本树缺 `better-sqlite3@12.8.0` native binding 而失败（HTTP 项目初始化随之返回 500），原日志 `/private/tmp/molis-memory-import-identity-regression.log` 保留。补齐同版本、同 Node 24 ABI 的本机已构建依赖后，只重跑四个环境失败文件，23/23、零失败/重试/取消/跳过通过，日志 `/private/tmp/molis-memory-import-identity-environment-recheck.log`；不将分批结果改写成一次完整批次通过。
+
+最终 `tsc --noEmit`、health（对当前父 `ecec96b98` 的 merge-base）、boundary、diff 检查通过，日志分别 `/private/tmp/molis-memory-import-identity-{types,health,boundary}.log`。生产改动仅在现 shapes/operations/scope-commands 三文件，现 README/spec/CAS 同步；未改 SDK、锁文件、UI、表结构、公开 API 或资源额度。无最终 App/浏览器实操、无全量、未发布；上述只支持本片工程验证，统筹深审与父集成另行处理。

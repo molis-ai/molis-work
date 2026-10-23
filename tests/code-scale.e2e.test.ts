@@ -56,10 +56,11 @@ test("SYS-49/VUX-33: a large block reads at once and is coloured a slice a frame
       return (${createCodingCodePaint.toString()})(tokensOf, (last, text, language, tokens) => { const next = grow(last, text, language, tokens); window.grown += text.length - (next.starts[next.from] ?? text.length); return next; }, (hint) => hint); })();
     window.block = () => { document.querySelector('#scale')?.remove(); const pre = document.body.appendChild(document.createElement('pre')); pre.id = 'scale'; return pre.appendChild(document.createElement('code')); };`);
   const text = textOf(300_000);
-  const first = await evaluate<{ coloured: boolean; reads: boolean; ms: number }>(`(() => { window.text = ${JSON.stringify(text)}; window.code = block(); steps.length = 0;
-    const start = performance.now(), coloured = paint.paintInto(code, text, 'ts'); return { coloured, reads: code.textContent === text, ms: performance.now() - start }; })()`);
+  const first = await evaluate<{ coloured: boolean; reads: boolean; ms: number; spans: number }>(`(() => { window.text = ${JSON.stringify(text)}; window.code = block(); steps.length = 0;
+    const start = performance.now(), coloured = paint.paintInto(code, text, 'ts'); return { coloured, reads: code.textContent === text, ms: performance.now() - start, spans:code.querySelectorAll('[class^=tok-]').length }; })()`);
   assert.deepEqual([first.coloured, first.reads], [true, true], "past the old 40,000-character cap it is coloured, and reads whole from the start");
   assert.ok(first.ms < 50, `the first slice is a frame's work: ${first.ms} ms`);
+  assert.equal(first.spans, 0, "SYS-49: large text reads immediately; the first colouring slice waits for its own frame");
   // Done when the slices end on what colouring it whole gives.
   await waitFor("matchesColour(code, text)", 30_000);
   const steps = await evaluate<number[]>("steps.slice()");
@@ -88,6 +89,7 @@ test("SYS-49/VUX-33: a large block reads at once and is coloured a slice a frame
   assert.ok(await evaluate<number>("grown") <= left + 17_000, "the slices stop with the block gone");
   // Past the new cap the block stays text.
   assert.equal(await evaluate<boolean>(`(() => { const code = block(), big = text + text; code.textContent = big; return paint.paintInto(code, big, 'ts') === false && code.childNodes.length === 1; })()`), true);
+  assert.equal(await evaluate<boolean>(`(() => { const code = block(); return paint.paintInto(code, 'const value = 1;', 'ts') && !!code.querySelector('.tok-keyword'); })()`), true, "small blocks still colour synchronously");
 });
 
 test("VUX-33: Coding reopens a turn with a large code block as text at once and coloured whole", { timeout: 240_000 }, async (t) => {

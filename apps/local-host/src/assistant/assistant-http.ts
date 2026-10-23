@@ -117,9 +117,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     pages: () => ports.pages(),
     // The platform memory, registered with this Home's Agent service (the Assistant is one of its consumers).
     memory: () => memoryHostFor(ports.localHost)?.service,
-    learnFromRound: ({ work, said, run_id }) => {
-      void memoryHostFor(ports.localHost)?.learnLater({ caller: { actor_id: WEB_ACTOR, project_id: work.project_ref?.project_id ?? null, consumer: "assistant",
-        work: { work_id: work.work_id, title: work.title } }, said, key: `${work.work_id}:${run_id}`, session_id: work.session_id ?? null })
+    learnFromRound: ({ work, sources, run_id }) => {
+      if (!work.session_id) return;
+      void memoryHostFor(ports.localHost)?.learnLater({ actor_id: WEB_ACTOR, work_id: work.work_id, run_id, session_id: work.session_id, sources })
         .catch(error => console.warn("[memory] 没有排上提炼", error));
     },
     authority: async (work, origin) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),

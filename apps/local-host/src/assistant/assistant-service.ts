@@ -38,7 +38,7 @@ import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { CodingExecutor, dispatchControl, type CodingControl, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
-import { AssistantInputs, exactRevision, inputsOf, queuedInputs, typedWords, withdrawInput, type SendIntent } from "./assistant-inputs.js";
+import { AssistantInputs, exactRevision, inputsOf, queuedInputs, memoryLearningSources, typedWords, withdrawInput, type AssistantMemorySourceRef, type SendIntent } from "./assistant-inputs.js";
 import { startOfToday } from "./assistant-usage-ledger.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./assistant-landing.js";
@@ -80,7 +80,7 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   /** The platform memory of this Home (specs/archive/memory-system). Absent: the Assistant keeps and recalls nothing. */
   memory?(): MemoryService | undefined;
   /** A round of a work finished: the platform memory may draw out what is worth keeping from the person's own words. */
-  learnFromRound?(input: { work: StoredWork; said: string[]; run_id: string }): void;
+  learnFromRound?(input: { work: StoredWork; said: string[]; run_id: string; sources: AssistantMemorySourceRef[] }): void;
 }
 
 /** Where a Send came from: the page's own project, when there is one. Only used to scope a new work. */
@@ -412,7 +412,7 @@ export class AssistantService {
     // What the person said in this work may hold a standing wish worth keeping: the platform memory decides (a sub-task's
     // words are the delegating work's, not the person's, so it never learns from those).
     if (state === "completed" && before !== "completed" && !work.delegated_by && round !== "none")
-      void this.assistantPart(work).then(part => part.rounds, () => []).then(views => this.ports.learnFromRound?.({ work, said: typedWords(this.store.rounds(work.work_id), views).slice(-6), run_id: round }));
+      void this.assistantPart(work).then(part => part.rounds, () => []).then(views => this.ports.learnFromRound?.({ work, run_id: round, ...memoryLearningSources(this.store.rounds(work.work_id), views) }));
   }
 
   /** Open notices, each saying whether one of the person's rules holds it here and now (on this surface). */

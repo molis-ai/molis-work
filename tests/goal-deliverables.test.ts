@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MolisWorkLocalHost, DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -18,7 +18,7 @@ test("a Goal records, lists and removes deliverables from the 成果库, and its
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
-  const coordinator = new GoalProjectApplication(store);
+  const library = openProjectVersionStores(store);
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -27,7 +27,7 @@ test("a Goal records, lists and removes deliverables from the 成果库, and its
   t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); store.close(); await rm(directory, { recursive: true, force: true }); });
   await (await fetch(origin + "/health")).text();
   const goalId = "V1";
-  const register = (artifact_id: string, version: number, title: string) => coordinator.artifacts.commands.registerVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user",
+  const register = (artifact_id: string, version: number, title: string) => library.artifacts.commands.registerVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user",
     artifact_id, version, artifact_type_id: "io.molis.work.pages.document", schema_version: 1,
     producer: { plugin_id: "io.molis.work.pages", plugin_version: "1.0.0", binding_signature: "official-pages-binding" },
     content: { kind: "inline", payload: { title, body: { type: "doc", content: [] } } }, ...pinnedArtifact(title, { kind: "pages_document", id: artifact_id }, String(version)),
@@ -53,12 +53,12 @@ test("a Goal records, lists and removes deliverables from the 成果库, and its
   assert.match(page, /v2 · 交付物/);
 
   // An archived version cannot be handed in; removing keeps the 成果 and leaves no active deliverable.
-  coordinator.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", artifact_id: "pages-plan", version: 1 });
+  library.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", artifact_id: "pages-plan", version: 1 });
   assert.equal((await post({ reference: { artifact_id: "pages-plan", version: 1 }, delivered: true })).status, 400);
   assert.equal((await post({ reference: { artifact_id: "missing", version: 1 }, delivered: true })).status, 400);
   assert.equal((await (await post({ reference: { artifact_id: "pages-plan", version: 2 }, delivered: false })).json() as { removed: boolean }).removed, true);
   assert.deepEqual((await (await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/deliverables`)).json() as { deliverables: unknown[] }).deliverables, []);
-  assert.ok(coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "pages-plan", version: 2 }), "the 成果 itself is untouched");
+  assert.ok(library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "pages-plan", version: 2 }), "the 成果 itself is untouched");
 });
 
 // A5b: a Goal's own material is pinned on the spot by its owner, and the new version is handed in.
@@ -68,7 +68,7 @@ test("a Goal pins a bound document on the spot through Pages and hands in the ne
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
-  const coordinator = new GoalProjectApplication(store);
+  const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -96,7 +96,7 @@ test("a Goal pins a bound document on the spot through Pages and hands in the ne
   const deliverable = (await pinned.json() as { deliverable: { reference: { artifact_id: string; version: number }; title: string } }).deliverable;
   assert.deepEqual(deliverable.reference, { artifact_id: `pages-${document.id}`, version: 1 });
   assert.equal(deliverable.title, "交付方案");
-  const version = coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, deliverable.reference)!;
+  const version = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, deliverable.reference)!;
   assert.deepEqual(version.origin, { kind: "pinned", subject, revision: String(document.version) }, "the version records the document and the revision it pins");
   const after = await (await fetch(deliverables)).json() as { deliverables: Array<{ reference: { version: number } }> };
   assert.deepEqual(after.deliverables.map(item => item.reference.version), [1]);
@@ -107,5 +107,5 @@ test("a Goal pins a bound document on the spot through Pages and hands in the ne
   const unknown = await fetch(deliverables, { method: "POST", headers: headers(), body: JSON.stringify({ subject: { kind: "note", id: "n-1" }, delivered: true }) });
   // No owner declares a pin for this kind: the platform code, whose kind (not_found) gives the status (W3-02).
   assert.deepEqual([unknown.status, (await unknown.json() as { code: string }).code], [404, "actions.subject_unavailable"]);
-  assert.equal(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID).filter(item => item.artifact_id === `pages-${document.id}`).length, 1);
+  assert.equal(library.artifacts.query.listArtifacts(DEMO_PROJECT_ID).filter(item => item.artifact_id === `pages-${document.id}`).length, 1);
 });

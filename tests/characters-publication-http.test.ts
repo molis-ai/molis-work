@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalProjectDatabase, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { freezeProjectCharacter } from "../apps/local-host/dist/characters-host.js";
 import { renderCharacters, renderMolisWorkCharactersClientScript } from "@molis-ai/molis-work-app-workbench";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
@@ -25,7 +25,7 @@ test("Character manager publishes confirmed personal drafts through real project
     const address = server.address(); assert.ok(address && typeof address !== "string"); return `http://127.0.0.1:${address.port}`;
   };
   let origin = await start();
-  const database = new LocalProjectDatabase(first.database_path), artifacts = new GoalProjectApplication(database).artifacts.query;
+  const database = new LocalProjectDatabase(first.database_path), artifacts = openProjectVersionStores(database).artifacts.query;
   t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); database.close(); rmSync(home, { recursive: true, force: true }); });
   const request = async (project: string, method: string, path: string, body?: unknown, authorized = true) => {
     const response = await fetch(`${origin}/projects/${project}/api/plugins/io.molis.work.characters${path}`, {

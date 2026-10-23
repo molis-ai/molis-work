@@ -114,7 +114,7 @@ for (const invalidation of ["cancel", "revoke", "publication", "provider"] as co
   // The Host's last synchronous check before each effect: a revoked caller is refused there.
   const service = new ActionService(undefined, { assertCurrent: () => { if (!valid) throw new ActionError("actions.forbidden", "original Character caller revoked"); } });
   // RAC-63: the handlers are the Module's, built from these ports; the Host's provider binds them and writes the 成果库 for each call.
-  const registration = charactersProvider({ project_id: DEMO_PROJECT_ID, coordinator: { artifacts, processItems } }, actionPorts);
+  const registration = charactersProvider({ project_id: DEMO_PROJECT_ID, artifacts, processItems }, actionPorts);
   const handlers = registration.handlers!.map(binding => binding.capability_id !== "characters.launch" ? binding : {
     ...binding, handle: async (caller: ActionExecutionContext, input: unknown) => { try { return await binding.handle(caller, input); } finally { finished.resolve(); } } });
   const register = () => service.registerProvider({ ...registration, handlers });

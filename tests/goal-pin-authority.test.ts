@@ -24,7 +24,7 @@ for (const role of [goalsDeliverableActions, goalsArtifactInputActions]) for (co
       const client = host.actionClient(ref), abort = new AbortController();
       const actions = bindActionClient(client, () => user);
       try {
-        const app = await host.withProject(ref, runtime => runtime.coordinator);
+        const { coordinator: app, artifacts } = await host.withProject(ref, runtime => runtime);
         app.initializeBoard({ project_id: "board", actor_id: user.actor_id, idempotency_key: "board" });
         await actions.invoke(goalsActions.create, { goal_id: "G1", title: "Delivery", outcome: "Pinned result", requirements: [{ requirement_id: "delivered", statement: "Ready" }], idempotency_key: "goal" });
         if (interruption === "archive_goal") {
@@ -50,7 +50,7 @@ for (const role of [goalsDeliverableActions, goalsArtifactInputActions]) for (co
         const caller: ActionCallContext = { ...user, actor_id: "mcp:pin-fixture", actor_kind: "runtime", runtime_session_id: "pin-session", audience: "mcp", signal: abort.signal,
           assert_authority_current: assertGrant,
           validate_authority: async target => {
-            const committed = app.artifacts.query.getArtifactVersion("board", { artifact_id: artifactId, version: 1 }) !== null;
+            const committed = artifacts.query.getArtifactVersion("board", { artifact_id: artifactId, version: 1 }) !== null;
             if (!holding && (phase === "before_dispatch" ? target.capability_id === pagesActions.artifactPin.capability_id
               : target.capability_id === role.pin.capability_id && committed && pagesReturned())) {
               holding = true; reached(); await gate;
@@ -60,7 +60,7 @@ for (const role of [goalsDeliverableActions, goalsArtifactInputActions]) for (co
         const pending = client.invoke(caller, role.pin, { goal_id: "G1", subject });
         const settled = pending.then(() => "completed", () => "refused");
         assert.equal(await Promise.race([barrier.then(() => "barrier"), settled]), "barrier", "the parent must check again after the owner's async return");
-        const fixedAtBarrier = app.artifacts.query.listArtifactVersions("board", artifactId);
+        const fixedAtBarrier = artifacts.query.listArtifactVersions("board", artifactId);
         assert.equal(fixedAtBarrier.length, phase === "after_pin" ? 1 : 0);
         if (interruption === "revoke_parent") parentAllowed = false;
         if (interruption === "cancel") abort.abort(new ActionError("actions.cancelled", "Cancelled"));
@@ -77,14 +77,14 @@ for (const role of [goalsDeliverableActions, goalsArtifactInputActions]) for (co
           const listed = await client.invoke(user, role.list, { goal_id: "G1" }) as { deliverables?: unknown[]; inputs?: unknown[] };
           assert.deepEqual(listed.deliverables ?? listed.inputs, []);
         }
-        const versions = app.artifacts.query.listArtifactVersions("board", artifactId);
+        const versions = artifacts.query.listArtifactVersions("board", artifactId);
         assert.deepEqual(versions.map(row => row.version), phase === "after_pin" ? [1] : []);
         if (phase === "after_pin" && interruption !== "archive_goal") {
           parentAllowed = true; disabled = false;
           const input = { goal_id: "G1", reference: { artifact_id: artifactId, version: 1 } };
           await client.invoke(user, role.add, input);
           assert.equal((await client.invoke(user, role.add, input) as { replayed: boolean }).replayed, true);
-          assert.deepEqual(app.artifacts.query.listArtifactVersions("board", artifactId).map(row => row.version), [1], "recovering the committed owner version does not pin it again");
+          assert.deepEqual(artifacts.query.listArtifactVersions("board", artifactId).map(row => row.version), [1], "recovering the committed owner version does not pin it again");
         }
       } finally { release(); await host.close(); await rm(home, { recursive: true, force: true }); }
     });

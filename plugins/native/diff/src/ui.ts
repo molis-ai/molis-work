@@ -19,7 +19,6 @@ export interface DiffUiPrimitives {
 }
 
 export interface DiffUiModel {
-  readonly route_prefix: string;
   readonly view: DiffView;
   readonly primitives: DiffUiPrimitives;
   readonly line_feedback?: boolean;
@@ -87,8 +86,8 @@ export function renderDiff(model: DiffUiModel): string {
       : `<section class="diff" ${state}>${header}${noticeHtml}${files}${empty("")}</section>`;
   }
   const body = view.mode === "split" ? renderSplit(view.rows, model) : renderUnified(view.rows, model);
-  return `<section class="diff" data-phase="ready" data-group="${escape(view.group ?? "none")}" data-mode="${escape(view.mode)}"`
-    + ` data-route="${escape(model.route_prefix)}">${header}${noticeHtml}${renderFileList(model)}${body}</section>`;
+  return `<section class="diff" data-phase="ready" data-group="${escape(view.group ?? "none")}" data-mode="${escape(view.mode)}">`
+    + `${header}${noticeHtml}${renderFileList(model)}${body}</section>`;
 }
 
 function renderFileList(model: DiffUiModel): string {

@@ -4,7 +4,7 @@ import test from "node:test";
 
 import { PERSONAL_PLUGIN_IDS, railEntries } from "@molis-ai/molis-work-app-workbench";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { GoalProjectApplication, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome } from "./fixtures/test-home.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
@@ -260,7 +260,7 @@ test("一次实例按每段衔接走完 Feed → Inbox → Pages → 灵光，�
 
 test("成果库里的一版可以作为一次运行的起点，带着 owner 预览的正文；成果只能作为第一站", async t => {
   await withProject(t, async ({ call, db, projectId: PROJECT }) => {
-    new GoalProjectApplication(db).artifacts.commands.registerVersion({ project_id: PROJECT, actor_id: "web-user", artifact_id: "pages-brief", version: 1,
+    openProjectVersionStores(db).artifacts.commands.registerVersion({ project_id: PROJECT, actor_id: "web-user", artifact_id: "pages-brief", version: 1,
       artifact_type_id: "io.molis.work.pages.document", schema_version: 1,
       producer: { plugin_id: "io.molis.work.pages", plugin_version: "1.0.0", binding_signature: "official-pages-binding" },
       content: { kind: "inline", payload: { title: "需求说明", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "范围与验收" }] }] } } },

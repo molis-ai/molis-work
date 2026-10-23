@@ -4,12 +4,12 @@
     "/assets/inter-latin-variable.woff2": 48256,
     "/assets/molis-work-arrival.css": 705708,
     "/assets/molis-work-capabilities.js": 54350,
-    "/assets/molis-work-knowledge.js": 26305,
+    "/assets/molis-work-knowledge.js": 26516,
     "/assets/molis-work-pages-editor.js": 710427,
-    "/assets/molis-work-plugin-frame.js": 187115,
+    "/assets/molis-work-plugin-frame.js": 187730,
     "/assets/molis-work-plugins/alchemist.js": 52330,
     "/assets/molis-work-plugins/characters.js": 28443,
-    "/assets/molis-work-plugins/coding.js": 374235,
+    "/assets/molis-work-plugins/coding.js": 374745,
     "/assets/molis-work-plugins/cognia.js": 24090,
     "/assets/molis-work-plugins/dataset.js": 25517,
     "/assets/molis-work-plugins/form.js": 30276,
@@ -17,7 +17,7 @@
     "/assets/molis-work-plugins/issues.js": 24202,
     "/assets/molis-work-plugins/jelly.js": 91337,
     "/assets/molis-work-plugins/lingguang.js": 25866,
-    "/assets/molis-work-plugins/pages.js": 48446,
+    "/assets/molis-work-plugins/pages.js": 49109,
     "/assets/molis-work-plugins/plugin-builder.js": 116132,
     "/assets/molis-work-plugins/ppt.js": 30668,
     "/assets/molis-work-plugins/schedule.js": 16407,
@@ -26,7 +26,7 @@
     "/assets/molis-work-plugins/workflows.js": 81774,
     "/assets/molis-work-settings.css": 995567,
     "/assets/molis-work-workbench.css": 1614004,
-    "/assets/molis-work-workbench.js": 1186501,
+    "/assets/molis-work-workbench.js": 1186577,
     "/assets/noto-sans-sc-400.woff2": 1141536
   }
 }

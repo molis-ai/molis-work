@@ -19,7 +19,7 @@ export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMe
         goals: runtime.coordinator.goalQueries, inputs: runtime.coordinator.goalInputs, eventWork: runtime.coordinator.goalEvents },
       readGoal: goalId => runtime.coordinator.goalQueries.getGoal(runtime.project_id, goalId),
       readContract: goalId => runtime.coordinator.goalQueries.readGoalContract(runtime.project_id, goalId),
-      deliverables: { readArtifact: reference => runtime.coordinator.artifacts.query.getArtifactVersion(runtime.project_id, reference),
+      deliverables: { readArtifact: reference => runtime.artifacts.query.getArtifactVersion(runtime.project_id, reference),
         ledger: createContextLedger(runtime.store.db, { authorize: access => access.scope.kind === "personal" && access.scope.id === runtime.project_id }),
         pin: async (caller, subject) => (await pinActionSubject(client, caller, subject)).artifact, pinnableKinds: caller => pinnableSubjectKinds(client, caller) },
       history: {

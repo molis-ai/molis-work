@@ -1,8 +1,7 @@
 import { createSchedulePlugin } from "@molis-ai/molis-work-plugin-schedule";
 import { scheduleServiceFor } from "./project-clock.js";
 import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
-import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ProjectVersionStores } from "./project-version-stores.js";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
@@ -31,6 +30,9 @@ export interface ProjectPluginPorts {
   /** Settled person-reviewed plugin operations, sent to the installation that asked as `host.review.settled@1` (X-6). */
   observeReviewSettlements?: ObserveReviewSettlements;
   store: LocalProjectDatabase;
+  /** The library's 成果库 and process items: the runtime's one pair, which the platform writes through too (D3). */
+  artifacts: ProjectVersionStores["artifacts"];
+  processItems: ProjectVersionStores["processItems"];
   projectId: string;
   actorId: string;
   /** Directories bound to this project. Empty means none is bound yet. */
@@ -126,15 +128,13 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
   const record: ProjectPluginState = { platform: null };
   try {
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
-    const artifacts = new ArtifactsModule({ db: ports.store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, appendEvent: event => ports.store.appendEvent(event), eventCursor: projectId => ports.store.eventCursor(projectId) });
-    const processItems = new ProcessItemsModule({ db: ports.store.db, appendEvent: event => ports.store.appendEvent(event), eventCursor: projectId => ports.store.eventCursor(projectId) });
     const platform = createPluginPlatform({ scheduler: scheduleServiceFor(ports.store.db),
       project_id: ports.projectId,
       actor_id: ports.actorId,
       db: ports.store.db,
       journal: ports.store,
-      artifacts,
-      processItems,
+      artifacts: ports.artifacts,
+      processItems: ports.processItems,
       ui: new UiHost(),
       privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest),
       capturePrivateData: installId => storage.snapshotInstallationData(installId),

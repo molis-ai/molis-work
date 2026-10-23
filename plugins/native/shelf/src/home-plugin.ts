@@ -26,8 +26,9 @@ function shelfMaterialPorts(materials: PluginMaterialsClient): ShelfMaterialPort
 /**
  * The store's methods as the actions call them; each call opens the store fresh, so it reads the current agent PATH.
  * Availability is asked outside any action (a workflow listing its steps asks it inside its own), where Shelf's files cannot be
- * read: it answers from the model choice the last action read or saved (this instance is the files' only writer), and before any
- * has, from whether any model is configured.
+ * read: it answers from the model choice the last action read or saved (only this instance's actions save that choice; the project
+ * half's receive and the demo seed still write items through the Host's files client until Shelf S4), and before any has, from
+ * whether any model is configured.
  */
 export function shelfStorePorts(store: () => ShelfStore, availability: (selection: ShelfModelSelection | null) => ActionAvailability): ShelfActionPorts {
   let selection: ShelfModelSelection | null = null;

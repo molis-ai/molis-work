@@ -634,4 +634,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "允许 {plugin} 为项目 {project} 关联目录？\n{path}": "Allow {plugin} to link this folder to project {project}?\n{path}",
   "项目连接失败": "Couldn't connect to the project",
   "{name}，{action}": "{name}, {action}",
+  // The start-up page words a todo candidate (it read them from Todo's dictionary before Todo had its own keys).
+  "（原文“{phrase}”）": " (as written: “{phrase}”)",
+  "在等 {who}": "Waiting on {who}",
 };

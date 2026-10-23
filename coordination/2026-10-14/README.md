@@ -3203,3 +3203,13 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - #1085 不在 R-25 的链上，CI 绿了照常排队合。⑤ 一度停了它的自动排队，已请它恢复。
 - ⑤ 已把 batch-1023-10 在本地重组好，等 batch-1023-9 跑完再推。
 
+### 10-23 22:44（14:44 UTC） batch-1023-9 两处确认失败交 Codex 叠加修；#1103 开出；#1081 合了 main；本机 Swift 构建问题进表（R-27）
+- 并进 VERIFY 阶段二十二、二十三：batch-1023-9（run 39964995417）还在跑，已确认两处失败，首跑和自动重试都红。
+  - #1096：`health-gates-api-snapshot` 把 `isCodedFailure` 中间的 `CodedFailure` 当成漏带的声明。① 定为测试切词缺陷：只认完整标识符，断言保留。Codex 开叠加 PR，目标是 `feat/bl403-route-dispatch`。
+  - #1093：PG094-09 的 POST 要 404 得 400。① 定：断言不改；Codex 先读 400 出在哪一处，统一检查拒的就修测试输入，路由后拒的就改产品；要动合同或统一检查先回 ①。Codex 开叠加 PR，目标是 `claude/competent-ellis-b4c6c2`。PR 只在 BACKLOG 和 main 冲突，由作者那边合 main。
+  - 两个叠加 PR 合进作者分支以后，⑤ 用修好的 head 重组批次。batch-1023-10 照原安排在 batch-9 之后推。
+- R-26：Codex 开了 #1103（只改第 137 行的等待，+1/-1），4/4，`full` 为空，不进集成批，交 ⑤/⑩ 审。生产的并发窗口照旧延后。
+- #1081：② 合 main，推 `bfd386479`。碰到了代码冲突，但两份复验用例都在 `test:security` 里，由 CI 的 Security invariants 作业跑，⑤ 照 R-24 手看，Codex 不重跑。batch-8 已经跑过 #1079 和 #1081 的组合，⑤ 对一下两次冲突解法，一致就 merge-only。
+- 已合入 main：#1079（`6d0f46b39`）、#1097（`dd9ac5b6f`）、#1051（`cdb47255d`）。R-19、R-08 都不关。
+- R-27：CLT 16.2 的 `SwiftBridging` 重复定义，本机整体构建停在 local-host 的 Swift 步骤。不挡开发，修不修由用户定，§4 已加一行。
+

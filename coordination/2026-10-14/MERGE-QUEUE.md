@@ -37,6 +37,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 14 | [#1120](https://github.com/molis-ai/molis-work/pull/1120) | R5：Feed/Functions 入口不再导出 Repository/Store、PG-010 首页规则目标按声明找、两包巨大单元 | — | `full` 非空（shared-core、storage、spans-packages、deletes-code，141 文件），进下一批 | 头 `c0356cd09`；`ac-review` 在审 |
 | 15 | [#1121](https://github.com/molis-ai/molis-work/pull/1121) | R8 第 1 批：agent 宿主会话间消息与后台命令 7 条 typed 改成只给插件的动作（BL-365） | — | `full` 非空（shared core，205 文件），进下一批 | 头 `332cbac3e`；`ac-review` 排队审；改动作，合前确认动作快照已刷新 |
 | 16 | [#1122](https://github.com/molis-ai/molis-work/pull/1122) | PG-051 设计稿：Agent 定义只留一条登记路（只加 slices 文档） | — | `full` 为空 | 统筹已裁定 Q1=(b)、Q2=推荐（[评论](https://github.com/molis-ai/molis-work/pull/1122)）；纯文档，Verify 绿即可合 |
+| 17 | [#1123](https://github.com/molis-ai/molis-work/pull/1123) | PG-039～042 核对；宿主项目时钟不再自带进程内唤醒处理器 | — | `full` 为空（103 文件） | 头 `71281ccb4`；`ac-review` 排队审 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 收尾时合 main、转 ready |
 
 新开的开发片 PR 由统筹按依赖插进本表。

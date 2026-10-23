@@ -1,3 +1,4 @@
+import { scanTree, workingTreeSnapshot, isProductSource } from "../scripts/gates/translations.mjs";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -10,11 +11,13 @@ const BROWSER = join(SRC, "browser");
 const browserFiles = () => readdirSync(BROWSER).map(file => join(BROWSER, file));
 
 test("RAC-138 every word the Issue page says has a stable key with both languages, and none is a Chinese key", () => {
-  const used = new Set<string>();
+  const scan = scanTree(workingTreeSnapshot(process.cwd()), isProductSource);
+  const calls = scan.calls.filter(call => call.file === join(SRC, "ui.ts") || call.file.startsWith(BROWSER + "/"));
+  assert.deepEqual(calls.filter(call => /\p{Script=Han}/u.test(call.key)), [], "the real scanner covers the UI and browser translation entry points");
+  assert.ok(calls.some(call => call.file === join(SRC, "ui.ts") && call.callee === "L"), "the view-model L translator is included");
+  const used = new Set<string>(calls.map(call => call.key));
   for (const file of [join(SRC, "ui.ts"), ...browserFiles()]) {
     const source = readFileSync(file, "utf8");
-    for (const match of source.matchAll(/"(issues(?:\.[a-z0-9_-]+)+)"/gu)) used.add(match[1]!);
-    assert.doesNotMatch(source, /\bL\("[^"]*[一-鿿]/u, `${file} calls the translator with a Chinese key`);
     assert.doesNotMatch(source, /data-issue-i18n/u, `${file} still marks static controls for runtime translation`);
   }
   assert.deepEqual([...used].filter(key => !(key in ISSUES_MESSAGES)), [], "every key the page asks for is defined");

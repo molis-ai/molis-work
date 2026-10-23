@@ -112,7 +112,7 @@ export function installCapture(page: IssuesPage): void {
     } catch (error) {
       if (isAbort(error) || !live()) return;
       // The answer was lost on the way back: the record may be there already.
-      if (statusOf(error) === undefined) {
+      if (codeOf(error) === "ui_host.outcome_unknown" || codeOf(error) === "ui_host.invalid_response") {
         const already = await page.read(item.id).catch(() => null);
         if (already) { saved(item, already); return; }
       }

@@ -1,41 +1,26 @@
+import type { UiClientScope, UiClientTranslate, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { Issue, IssueCursor, IssueImage, IssueSummary } from "../store.js";
 
 export type { Issue, IssueCursor, IssueImage, IssueSummary };
-export type Translate = (key: string, values?: Record<string, string | number>) => string;
+export type Translate = UiClientTranslate;
 
-/** The view's lifetime, from the browser Host's mount scope: what is started with it ends with it. */
-export interface Scope {
-  readonly alive: boolean;
-  readonly signal: AbortSignal;
-  readonly fetch: (input: string, init: object) => Promise<Response>;
-  assertCurrent(signal?: AbortSignal): void;
-  own(cleanup: () => void): () => void;
+/** The common request lifetime plus the mounted page's event and timer ownership. */
+export interface Scope extends UiClientScope {
   listen(target: EventTarget, name: string, callback: (event: Event) => void, capture?: boolean): () => void;
   timeout(callback: () => void, delay: number): number;
   clearTimeout(id: number | undefined): void;
-  frame(callback: () => void): number;
-  whenVisible(start: () => (() => void) | void): () => void;
 }
 
 /** The page the person was on, as the shell reports it: a report, never proof of what was on screen. */
 export interface PageReport { readonly url: string; readonly title: string }
 
 /** What the workbench hands the Issue page's client. */
-export interface IssuesHost {
-  readonly root?: HTMLElement;
-  readonly translate?: Translate;
-  route(path: string): string;
+export type IssuesHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>,
+  "root" | "translate" | "route" | "pluginRoute" | "pluginId" | "drafts" | "confirmBox" | "readRefusal"> & {
   mountPluginClient(root: HTMLElement): Scope | null;
   status?(state: string): void;
   page?(): PageReport | null | undefined;
-  readonly drafts: { read(key: string): Promise<string | null>; write(key: string, value: string): Promise<void> };
-  /** The shared confirmation box: with `run` the request goes out inside the open dialog and a refusal is said there. */
-  confirmBox(dialog: HTMLDialogElement, ok: HTMLElement, run?: () => Promise<unknown>): Promise<boolean>;
-  readRefusal?(status: number, code: unknown): string;
-}
-
-/** A failed request: the Host's plain Error with its `code` and HTTP `status`; `undefined` status for a lost answer. */
-export type Failure = Error & { status?: number; code?: string };
+};
 
 export type CaptureState = "organizing" | "attention";
 /** A capture that has not become a record yet: the words and pictures, and where it stands. */

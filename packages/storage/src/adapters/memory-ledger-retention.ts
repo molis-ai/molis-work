@@ -3,7 +3,7 @@ import type { openHomeSqliteDatabase } from "../home-sqlite.js";
 
 /** Purge ledger copies and fence late receipts in the ledger's existing transaction. */
 export function createMemoryLedgerRetention(db: ReturnType<typeof openHomeSqliteDatabase>, transaction: MemoryLedgerPort["transaction"]):
-  Pick<MemoryLedgerPort, "forget" | "forgetScopes"> & { assertNotForgotten(memoryId: string): void } {
+  Pick<MemoryLedgerPort, "forget" | "forgetScopes"> & { assertNotForgotten(memoryId: string): void; isForgotten(memoryId: string): boolean } {
   // A purged SDK identity is never reused. This existing marker carries no body and survives scope cleanup.
   const forgottenKey = (memoryId: string) => `memory-forgotten:${memoryId}`;
   const isForgotten = (memoryId: string) => !!db.prepare("SELECT 1 FROM memory_markers WHERE actor_id='' AND key=?").get(forgottenKey(memoryId));
@@ -12,6 +12,7 @@ export function createMemoryLedgerRetention(db: ReturnType<typeof openHomeSqlite
   };
   return {
     assertNotForgotten,
+    isForgotten,
     forget: memoryId => transaction(() => {
       db.prepare("INSERT OR IGNORE INTO memory_markers(actor_id,key,at,body) VALUES ('',?,?,?)")
         .run(forgottenKey(memoryId), new Date().toISOString(), JSON.stringify({ memory_id: memoryId, state: "forgotten" }));

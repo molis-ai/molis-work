@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type PendingAnswer, type QueuedTask, type Runtime, type MemoryAuthority } from "@prologue/sdk";
+import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type PendingAnswer, type QueuedTask, type Runtime } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
@@ -20,6 +20,7 @@ import type { PrologueAdapterOptions, PrologueRuntimePort } from "./prologue.js"
 import { agentErrors } from "../errors.js";
 import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type NodeHost, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
+import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 
 /**
  * The runtime the Node composition makes, and the port it hands the adapter (W4-06 split these out of
@@ -30,12 +31,12 @@ import type { SessionIndexStore } from "./prologue-session-index.js";
 export const SUBAGENT_DEFAULT_TURNS = 20;
 
 /** The Prologue runtime on the Node host, with the Host's limits, posture and the rules every round runs under. */
-export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAuthority: MemoryAuthority) {
+export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>) {
   return createRuntime({
     app: options.app,
     host,
-    memoryAuthority,
-    ...(options.memory?.sources ? { memorySources: options.memory.sources } : {}),
+    memoryAuthority: memoryAccess.authority,
+    ...(memoryAccess.sources ? { memorySources: memoryAccess.sources } : {}),
     // Before each child a round dispatches, the Host asks that round's own check again (specs/prologue-adoption §4.6.10).
     collaborationHost: createCollaborationHost(dispatchChecks),
     // What a step may wait on outside the runtime: the Host's checkers, each look checked again against the round (prologue-checkers.ts).

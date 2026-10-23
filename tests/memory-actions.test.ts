@@ -148,7 +148,7 @@ test("memory.recall cancelled while it waits for the store settles nothing: no r
 
   // Not stopped: the receipt is written as before.
   const recalled = await asAgent.invoke(memoryActions.recall, { query: "总结一下" });
-  assert.deepEqual(service.uses({ receipt_id: recalled.receipt_id }).map(use => use.state), ["used"]);
+  assert.deepEqual(service.uses({ receipt_id: recalled.receipt_id }).map(use => use.state), ["returned"]);
 });
 
 // Observe the actual bound capability without replacing its caller or final execution guard.

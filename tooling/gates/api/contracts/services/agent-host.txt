@@ -713,6 +713,7 @@ export interface AgentMemoryRecallFact {
             form: "entry" | "excerpt" | "summary";
         }>;
     }>;
+    recording_error?: "memory.receipt_unrecorded";
 }
 
 export interface AgentMemoryScopePreview {
@@ -790,6 +791,23 @@ export interface AgentMemoryTools {
         candidate_id: string;
         note: string;
     }>;
+}
+
+export interface AgentMemoryUseReceipt {
+    run: {
+        session_id: string;
+        run_id: string;
+    };
+    owner: {
+        actor_id?: string;
+        project_id: string;
+        plugin_id: string;
+        install_id: string;
+    };
+    started_at: string;
+    consumer: string;
+    usage?: AgentRecalledMemory["usage"];
+    contexts: NonNullable<AgentMemoryRecallFact["contexts"]>;
 }
 
 export interface AgentMessageAttachment {
@@ -884,6 +902,10 @@ export interface AgentRecalledMemory {
         plugins?: string[];
         object_kinds?: string[];
         goals?: string[];
+    };
+    usage?: {
+        title: string;
+        work_id?: string;
     };
     receipt_id?: string;
 }

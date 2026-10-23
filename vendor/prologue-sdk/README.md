@@ -4,7 +4,7 @@
 
 目录里现在有这些东西：
 
-- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,328,632 字节），SHA-256 `b6f06de6fa9de1d4557f4e75b37e60e6b065456d6e9c95df62bcb97ae741c2a3`。来源为 Prologue [#84](https://github.com/molis-ai/molis-prologue/pull/84) 的干净代码提交 `c8c7b4dac41175484bd1964352780d289ae49fa9`。最终 head `bc32dcb00c457e42cf7b46a13003ca2d9af2192f` 已合 main `1e6b4d3ce8807ba9c8310ccdd7fb37e81375fc1a`，整树一致；相对制包提交只改包外根文档一句，SDK 与打包输入未变，无补丁。含 Memory CAS/分类管理、可信来源与召回、显式离线 `adoptStorage`、Run 适用性事实及长操作地址修复。
+- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,333,791 字节），SHA-256 `902d109b51d1a323b56a2e5ebb539fa7f82a7e00cdad7a8c6d79067aeb7b02f0`。来源为 Prologue [#87](https://github.com/molis-ai/molis-prologue/pull/87) 的干净提交 `1fb84f3f6ca26e578c948d8e11eff57f453dbf41`，已合 main `4299d70405ef28dcf54bf34a952d7cf4161caf03`，整树一致，无补丁。含 Memory CAS/分类管理、可信来源与召回、显式离线 `adoptStorage`、Run 适用性事实、长操作地址修复及版本化策略晋升/撤销准备回执、App 晋升回调的安全错误转换。
 
 该 head 的完整 `pnpm quality`、干净安装消费者和新旧包兼容专项通过。制包环境为 macOS arm64、Node 24.19.0、pnpm 11.9.0；实际 Node 与仓库声明的 24.14.0 有差异。本次未作独立逐字节重建，不宣称完成 Molis 采用、模型收益或用户验收。Molis 集成与严格 baseline 切换状态以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) §13 为准。
 

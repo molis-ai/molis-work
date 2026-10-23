@@ -130,6 +130,39 @@ test("only recorded character membership authorizes a task; background sessions 
   f.projects.delete("a"); assert.equal(await f.options.callerForSession(view.owner, session.session_id), undefined);
 });
 
+test("a trusted current Character can start with an empty scope without blocking other recall scopes", async t => {
+  const f = await fixture(t), owner = characterOwner("a", "reviewer");
+  const caller = { ...task, character_id: "reviewer" };
+  const request = { appId: "io.molis.work", context: { consumer: "agent", currentScene: "common", purpose: "task" as const },
+    scopes: [{ scope: "project" as const, owner: "a" }, { scope: "character" as const, owner }], readMode: "task" as const, filter: {} };
+  assert.deepEqual(f.ledger.owners("a"), []);
+  assert.equal((await f.options.authorizeRecall(caller, request)).allowed, true);
+  assert.deepEqual(await f.bound(caller).recall({ scope: "character", owner, text: "Review" }), []);
+  for (const other of [{ ...caller, character_id: "different" }, { ...caller, character_id: undefined }, { ...caller, project_id: "b" }]) {
+    assert.equal((await f.options.authorizeRecall(other, request)).allowed, false);
+  }
+  f.ledger.noteOwner({ scope: "character", owner, project_id: "a", title: "Conflicting owner", subject: "different" });
+  assert.equal((await f.options.authorizeRecall(caller, request)).allowed, false);
+});
+
+test("global personal candidate management binds each ledger-owned project without widening task callers", async t => {
+  const f = await fixture(t), global = { ...person, project_id: null };
+  const propose = (project_id: string, text: string) => f.service.propose({ ...person, project_id },
+    { scope: "project", text, kind: "convention", basis: "explicit", why: "Person proposed", from: "work" });
+  const a = await propose("a", "Use pnpm"), b = await propose("b", "Use npm");
+  assert.deepEqual((await f.service.candidates(global, { scope: "all", anywhere: true })).map(one => one.candidate_id).sort(), [a.candidate_id, b.candidate_id].sort());
+  await assert.rejects(f.service.candidates(task, { scope: "all", anywhere: true }), { code: "MEMORY_SCOPE_DENIED" },
+    "a task caller cannot turn the global management option into a candidate read grant");
+  await assert.rejects(f.service.accept({ ...person, project_id: "b" }, a.candidate_id, { expected_version: a.version }));
+  const accepted = await f.service.accept(global, a.candidate_id, { expected_version: a.version });
+  assert.equal(accepted.memory?.project_id, "a");
+  assert.equal((await f.service.discard(global, b.candidate_id, b.version)).candidate.state, "discarded");
+  await f.reopen();
+  assert.deepEqual(await f.service.candidates(global, { scope: "all", anywhere: true }), []);
+  assert.equal((await f.bound().list("project", "a"))[0]?.text, "Use pnpm");
+  assert.deepEqual(await f.bound({ ...person, project_id: "b" }).list("project", "b"), []);
+});
+
 test("an app or session scope cannot reuse a recorded character owner", async t => {
   const f = await fixture(t), owner = characterOwner("a", "reviewer");
   f.ledger.noteOwner({ scope: "character", owner, project_id: "a", title: "Reviewer", subject: "reviewer" });
@@ -207,4 +240,36 @@ test("demo cleanup keeps its operation after a failed dispatch and starts a new 
   await f.save("new-demo"); await projectDeletedHooksFor(f.home).clear("memory", "a");
   assert.notDeepEqual(f.ledger.marker(person.actor_id, "memory-project-delete:a")?.body, { operation_id: first.operation_id, complete: true });
   assert.deepEqual(await f.bound().list("project", "a"), []);
+});
+
+
+test("candidate sources resolve through the same trusted caller and foreign or absent bindings read no originals", async t => {
+  const f = await fixture(t), calls: string[] = [];
+  let sourceCurrent = true;
+  const original = { eventId: "person-input", version: "1", speaker: { kind: "person" as const, id: person.actor_id },
+    derivation: "original" as const, occurredAtMs: 1000, text: "For this project use pnpm." };
+  f.options.sources = {
+    async resolve(caller, request) {
+      assert.equal(caller.actor_id, person.actor_id); assert.equal(caller.project_id, "a"); assert.equal(caller.person, true);
+      assert.equal(request.context.consumer, "ui"); assert.equal(request.target.owner, "a");
+      calls.push("resolve"); return sourceCurrent ? [original] : [];
+    },
+    async check(caller, request) {
+      assert.equal(caller.actor_id, person.actor_id); assert.equal(caller.project_id, "a");
+      calls.push("check"); return sourceCurrent && request.identities.every(one => one.eventId === original.eventId && one.version === original.version);
+    },
+  };
+  await f.reopen();
+  const proposal = { scope: "project" as const, owner: "a", text: "Use pnpm", origin: "person", meta,
+    sources: [{ event_id: original.eventId, version: original.version }], expected_version: 0 as const, operation_id: "bound-source" };
+  const candidate = await f.bound().candidates.propose(proposal);
+  assert.deepEqual(candidate.sources?.map(one => [one.event_id, one.version, one.speaker.kind]), [[original.eventId, "1", "person"]]);
+  assert.ok(calls.includes("resolve")); assert.ok(calls.includes("check"));
+  const before = calls.length;
+  await assert.rejects(f.adapter.memory!.candidates.propose({ ...proposal, operation_id: "no-caller" }));
+  await assert.rejects(f.bound({ ...person, project_id: "b" }).candidates.propose({ ...proposal, operation_id: "foreign-caller" }));
+  assert.equal(calls.length, before, "rejected identities never ask the source owner for text");
+  sourceCurrent = false;
+  await assert.rejects(f.bound().candidates.propose({ ...proposal, operation_id: "withdrawn" }), { code: "MEMORY_NOT_ACCEPTED" });
+  assert.deepEqual((await f.bound().candidates.list("project", "a")).map(one => one.candidate_id), [candidate.candidate_id]);
 });

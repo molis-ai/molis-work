@@ -118,6 +118,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       if (statusOnly && attempt !== last) continue;
       runs.push({ ref: { run_id: attempt.run_id, session_id: id }, frozen: attempt.frozen,
         started_at: attempt.started_at, task: attempt.task,
+        ...(attempt.memory_context ? { memory_context: attempt.memory_context } : {}),
         ...(attempt.stop_intent ? { stop_intent: attempt.stop_intent } : {}),
         ...(attempt.stop_reason ? { stop_reason: attempt.stop_reason } : {}),
         ...(attempt.timing ? { timing: attempt.timing } : {}),

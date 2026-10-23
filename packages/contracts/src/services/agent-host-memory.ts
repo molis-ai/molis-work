@@ -74,6 +74,8 @@ export interface AgentRecalledMemory {
   budget_chars: number;
   /** Trusted applicability facts, independently of model/search query input. */
   facts?: { plugins?: string[]; object_kinds?: string[]; goals?: string[] };
+  /** Host display provenance, persisted with the attempt and never sent as model input. */
+  usage?: { title: string; work_id?: string };
   /** App ledger correlation only; SDK per-retrieval/per-request receipts remain distinct. */
   receipt_id?: string;
 }
@@ -93,6 +95,19 @@ export interface AgentMemoryRecallFact {
     tokens: number; budget_tokens: number; basis: "conservative-estimate" | "provider-reported";
     references: Array<{ receipt_id: string; memory_id: string; version: number }>;
     parts: Array<{ index: number; tokens: number; form: "entry" | "excerpt" | "summary" }> }>;
+  /** The Run facts remain available when the App's recent-reference projection could not be saved. */
+  recording_error?: "memory.receipt_unrecorded";
+}
+
+/** A body-free projection from an owned Run, never a model/Action-supplied command. */
+export interface AgentMemoryUseReceipt {
+  run: { session_id: string; run_id: string };
+  owner: { actor_id?: string; project_id: string; plugin_id: string; install_id: string };
+  /** Persisted round time, not a claim about the exact network-dispatch time. */
+  started_at: string;
+  consumer: string;
+  usage?: AgentRecalledMemory["usage"];
+  contexts: NonNullable<AgentMemoryRecallFact["contexts"]>;
 }
 
 /** A document parser the App supplies to the runtime (the SDK ships none): bounded text, or a failure — never empty text. */

@@ -35,7 +35,7 @@ const POLICY: Options["policy"] = {
   },
   matrix: { default: { actions: ["manage-read", "delete"], formation: [] },
     rows: SCENES.map(scene => ({ id: scene, selector: { scenes: [scene], consumers: [...MEMORY_CONSUMERS] },
-      actions: ACTIONS, formation: [], read: { modes: ["explicit", "task", "resident"], visible: { scenes: scene === "common" ? ["common"] : [scene, "common"] } },
+      actions: ACTIONS, formation: [], read: { modes: ["explicit", "task", "resident"], unclassifiedModes: ["explicit", "task"], visible: { scenes: scene === "common" ? ["common"] : [scene, "common"] } },
       write: { approval: "person-or-policy", classes: { scenes: [...SCENES] } },
     })),
   },
@@ -65,7 +65,7 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     const recorded = state.owner.owners(caller.project_id).find(row => row.scope === "character" && row.owner === target.owner);
     if (state.deletion) return !!recorded || state.owner.candidateOwners(caller.project_id).some(row => row.scope === "character" && row.owner === target.owner);
     if (caller.person === true) return !!recorded;
-    return !!caller.character_id && !!recorded && recorded.subject === caller.character_id
+    return !!caller.character_id && (!recorded || recorded.subject === caller.character_id)
       && target.owner === characterOwner(caller.project_id, caller.character_id);
   };
   const namespaceAllowed = (caller: AgentMemoryCaller, namespace?: string | null) => !namespace || caller.person === true || namespace === caller.plugin_id;

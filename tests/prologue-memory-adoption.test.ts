@@ -6,9 +6,10 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { adoptMemoryHome } from "@molis-ai/molis-work-app-local-host";
+import { adoptMemoryHome, memoryRuntimePolicy, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { createPrologueNodeAdapter, openPrologueMemoryAdoption } from "@molis-ai/molis-work-service-agent-host";
-import { homeSqlitePath, MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_STORE } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_STORE, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { currentMemoryOptions } from "./fixtures/current-memory.ts";
 
 // Historical row fixtures enter through the SDK's public storage owner, never its private decoder or OS format.
@@ -88,6 +89,40 @@ test("offline Home adoption preserves SDK identities and real ledger history, th
     assert.equal(candidates.length, 1); assert.equal(candidates[0]!.candidate_id, candidate.id); assert.equal(candidates[0]!.version, 1);
     assert.equal(candidates[0]!.state, "accepted"); assert.equal(candidates[0]!.memory_id, original.id);
   } finally { await adapter.close(); }
+});
+
+// MEM-19/26: the adopted body stays unclassified; the production policy owns its explicit opt-in.
+test("production task reads retain adopted unclassified memory without losing current scope, expiry or off gates", async t => {
+  const f = scratch(t); ledger(f.home);
+  await seed(f.storageRoot, [original,
+    { ...original, id: "old.expired", meta: { ...original.meta, expiresAtMs: 500 } },
+    { ...original, id: "old.private", meta: { ...original.meta, namespace: "io.example.other" } },
+  ].map(value => ({ kind: "memories" as const, shape: 2, value })));
+  assert.equal((await adoptMemoryHome({ homeDirectory: f.home })).outcome, "completed");
+  const records = openMemoryLedger({ homeDirectory: f.home });
+  let service!: MemoryService;
+  const policy = memoryRuntimePolicy(() => ({ alive: () => true, prefsFor: (scope, project) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, project),
+    owners: project => records.owners(project), candidateOwners: project => records.candidateOwners(project),
+    projectExists: async () => false, deletingProject: () => undefined }));
+  const openRuntime = () => createPrologueNodeAdapter({ app, storageRoot: f.storageRoot, memory: policy,
+    modelConfiguration: async () => { assert.fail("adopted reads do not use a model"); } });
+  let adapter = await openRuntime();
+  service = new MemoryService({ ledger: records, backend: prologueMemoryBackend(async () => adapter.memory!) });
+  const reader = { ...caller, person: false, consumer: "agent", current_scene: "common", purpose: "task" } as const;
+  const query = { ...scope, text: "publication checklist" };
+  try {
+    for (let pass = 0; pass < 2; pass++) {
+      const hits = await adapter.memory!.withCaller(reader).recall(query);
+      assert.deepEqual(hits.map(hit => hit.entry.memory_id), [original.id]);
+      assert.equal(hits[0]!.entry.version, original.version); assert.deepEqual(hits[0]!.entry.meta, original.meta);
+      assert.equal(hits[0]!.entry.text, original.text); assert.equal(hits[0]!.entry.meta.classification, undefined);
+      await assert.rejects(adapter.memory!.withCaller({ ...reader, actor_id: "foreign" }).recall(query), { code: "MEMORY_SCOPE_DENIED" });
+      if (pass === 0) { await adapter.close(); adapter = await openRuntime(); }
+    }
+    service.savePrefs({ ...caller, current_scene: "common" }, "personal", "off");
+    await assert.rejects(adapter.memory!.withCaller(reader).recall(query), { code: "MEMORY_SCOPE_DENIED" });
+    assert.equal((await adapter.memory!.withCaller({ ...caller, current_scene: "common" }).list(scope.scope, scope.owner)).length, 3);
+  } finally { await adapter.close(); records.close(); }
 });
 
 test("an unresolved old reservation blocks real Home completion without rewriting its ledger history", async t => {

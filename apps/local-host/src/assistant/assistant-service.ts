@@ -34,6 +34,7 @@ import { AssistantJobs, JOB_FOLLOW_MS } from "./assistant-jobs.js";
 import { declaredUndo } from "../action-undo.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { assistantCandidate, assistantMemoryTools } from "./assistant-memory-tools.js";
+import { assistantMemoryTrail } from "./assistant-memory-trail.js";
 import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
@@ -1359,9 +1360,7 @@ export class AssistantService {
         return host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: prepared.materials, materials, tokens_left: left }), authority);
       });
     } catch (error) {
-      // No round exists: what its recall was given went into none, and nothing it would have told is told.
-      const receipt = this.recalled.get(work.work_id);
-      if (receipt) this.ports.memory?.()?.settleUses(receipt, { injected: [], omitted: (this.chosenMemory.get(work.work_id)?.pinned ?? []).map(item => item.memory_id), unavailable: [] });
+      // A recipe alone has no usage effect. Only the Runtime can report actual Context dispatch.
       this.recalled.delete(work.work_id); this.chosenMemory.delete(work.work_id); this.starting.delete(work.work_id);
       throw error;
     }
@@ -1759,22 +1758,14 @@ export class AssistantService {
     const receipts = new Map(stored.filter(round => round.memory_receipt).map(round => [round.run_id, round.memory_receipt!]));
     if (receipts.size || facts.size) {
       const items = new Map((await memory.list(caller, { scope: "all" }).catch(() => ({ items: [] as MemoryItem[] }))).items.map(item => [item.memory_id, item]));
-      const view = (id: string) => { const item = items.get(id); return item ? { memory_id: id, scope: item.scope, text: item.text, origin: item.origin } : null; };
-      const present = <T,>(list: Array<T | null>): T[] => list.filter((item): item is T => item !== null);
       for (const round of rounds) {
         const fact = facts.get(round.run_id), receipt = receipts.get(round.run_id);
-        let used: NonNullable<AssistantRound["memories_used"]>["used"], omitted: NonNullable<AssistantRound["memories_used"]>["omitted"];
         if (fact) {
-          // The runtime's own facts: what went into the model and what did not fit. Deleted ones are gone from both.
-          if (receipt) memory.settleUses(receipt, { injected: fact.injected.map(one => one.memory_id), omitted: fact.omitted.map(one => one.memory_id), unavailable: fact.unavailable });
-          used = present(fact.injected.map(one => view(one.memory_id)));
-          omitted = present(fact.omitted.map(one => { const item = view(one.memory_id); return item ? { ...item, reason: "budget" as const } : null; }));
-        } else if (receipt) {
-          const uses = memory.uses({ receipt_id: receipt });
-          used = present(uses.filter(use => use.state === "used").map(use => view(use.memory_id)));
-          omitted = present(uses.filter(use => use.state === "omitted").map(use => { const item = view(use.memory_id); return item ? { ...item, reason: "budget" as const } : null; }));
-        } else continue;
-        if (used.length || omitted.length) round.memories_used = { used, omitted };
+          const trail = assistantMemoryTrail(fact, items);
+          if (trail) round.memories_used = trail;
+        } else if (receipt && memory.uses({ receipt_id: receipt }).some(use => use.state === "used")) {
+          round.memories_used = { used: [], omitted: [], unverified: true };
+        }
       }
     }
     return { changes: memory.changes(caller, { scope: "all", work_id: work.work_id, limit: 20 }) };

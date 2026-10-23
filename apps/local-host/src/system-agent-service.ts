@@ -13,7 +13,7 @@ import type { ModelProviderStore } from "./model-provider-store.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
-import { memoryHostFor, registerMemoryHost } from "./memory/memory-host.js";
+import { memoryHostFor, recordMemoryUsage, registerMemoryHost } from "./memory/memory-host.js";
 import { memoryRuntimePolicy } from "./memory/memory-runtime-policy.js";
 import { browserSurfacesFor } from "./browser/browser-surfaces.js";
 import { computerSurfacesFor } from "./computer/computer-surfaces.js";
@@ -60,6 +60,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
       prologue: {
         storageRoot: agentRuntimeDirectory(storageHome),
         memory: memoryRuntimePolicy(() => memoryHostFor(localHost)?.policy),
+        memoryUsage: receipt => recordMemoryUsage(localHost, receipt),
         // The question types every surface that shows a run's questions can draw (specs/ai-interaction-experience D8).
         questionTypes: hostQuestionTypes(),
         // The kinds a reference question may ask for, so the model names one the person can find (T2, AC-28-1).
@@ -104,7 +105,10 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     owner.release = () => { unbind(); unbindBuilder(); };
     owners.set(localHost, owner);
     const dispose = service.dispose.bind(service);
-    service.dispose = () => { owner.release?.(); owners.delete(localHost); memory.close(); return dispose(); };
+    service.dispose = async () => {
+      owner.release?.(); owners.delete(localHost);
+      try { await dispose(); } finally { memory.close(); }
+    };
     return service;
   });
 }

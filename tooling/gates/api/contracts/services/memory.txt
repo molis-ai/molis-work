@@ -506,7 +506,15 @@ export interface MemoryUseRecord {
     consumer: MemoryConsumer;
     title: string;
     work_id: string | null;
-    state: "used" | "omitted";
+    state: "used" | "returned" | "omitted" | "not-dispatched" | "dispatched-or-unknown" | "response-observed";
+    source?: "recall" | "run-context";
+    run?: {
+        session_id: string;
+        run_id: string;
+    };
+    memory_version?: number;
+    evidence_call_id?: string;
+    time_basis?: "run-start";
 }
 
 export interface MemoryWriteRequest {

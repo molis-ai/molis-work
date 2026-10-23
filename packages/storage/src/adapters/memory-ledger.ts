@@ -115,12 +115,22 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
     }),
     recordUses: uses => ledger.transaction(() => {
       for (const use of uses) {
-        retention.assertNotForgotten(use.memory_id);
+        // A late multi-reference receipt must not resurrect a forgotten entry or hide the other entries' facts.
+        if (retention.isForgotten(use.memory_id)) continue;
+        const before = parse<MemoryUseRecord>(db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND receipt_id=?").get(use.memory_id, use.receipt_id));
+        if (before?.source === "run-context") {
+          if (use.source !== "run-context" || !isDeepStrictEqual([before.run, before.memory_version, before.at, before.consumer, before.work_id],
+            [use.run, use.memory_version, use.at, use.consumer, use.work_id])) {
+            throw Object.assign(new Error("同一记忆回执的执行与版本不能被替换"), { code: "memory.conflict" });
+          }
+          const rank = (state: MemoryUseRecord["state"]) => state === "response-observed" ? 3 : state === "dispatched-or-unknown" ? 2 : 1;
+          if (rank(before.state) >= rank(use.state)) continue;
+        }
         db.prepare("INSERT INTO memory_uses(memory_id,receipt_id,at,work_id,state,body) VALUES (?,?,?,?,?,?) ON CONFLICT(memory_id,receipt_id) DO UPDATE SET at=excluded.at, state=excluded.state, body=excluded.body")
           .run(use.memory_id, use.receipt_id, use.at, use.work_id, use.state, JSON.stringify(use));
       }
     }),
-    lastUse: memoryId => parse<MemoryUseRecord>(db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND state='used' ORDER BY at DESC, rowid DESC LIMIT 1").get(memoryId)),
+    lastUse: memoryId => parse<MemoryUseRecord>(db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND state='response-observed' ORDER BY at DESC, rowid DESC LIMIT 1").get(memoryId)),
     uses: filter => {
       const where: string[] = [], values: string[] = [];
       if (filter.receipt_id) { where.push("receipt_id=?"); values.push(filter.receipt_id); }

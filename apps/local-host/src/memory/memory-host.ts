@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentMemoryCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryCapability, AgentMemoryUseReceipt, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ActionError, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
@@ -58,6 +59,21 @@ const hosts = new WeakMap<MolisWorkLocalHost, { home: string; host: MemoryHost }
 
 export function memoryHostFor(localHost: MolisWorkLocalHost): MemoryHost | undefined {
   return hosts.get(localHost)?.host;
+}
+
+/** Only the Runtime's persisted session owner may report usage; deleted projects stay forgotten. */
+export async function recordMemoryUsage(localHost: MolisWorkLocalHost, receipt: AgentMemoryUseReceipt): Promise<void> {
+  const host = memoryHostFor(localHost);
+  if (!host || !host.policy.alive()) throw memoryErrors.unavailable("记忆使用记录暂不可保存");
+  if (receipt.owner.actor_id !== LOCAL_PERSON) throw memoryErrors.forbidden("记忆回执不属于当前使用者");
+  const personal = receipt.owner.project_id === ASSISTANT_PERSONAL_OWNER && receipt.owner.plugin_id === ASSISTANT_PLUGIN_ID
+    && receipt.owner.install_id === ASSISTANT_INSTALL_ID;
+  if (!personal) {
+    const exists = await host.policy.projectExists(receipt.owner.project_id);
+    if (exists === false) return;
+    if (exists !== true) throw memoryErrors.unavailable("记忆回执所属项目暂不可核实");
+  }
+  host.service.settleUses(receipt);
 }
 
 interface MemoryHostPorts {

@@ -372,10 +372,10 @@ test("recall is scoped, filtered and bounded, honours each consumer's switch, an
   const tight = await memory.recall(assistant(), { query: "写作", budget_chars: 300 });
   assert.ok(tight.omitted.some(item => item.reason === "budget"));
   const used = memory.uses({ receipt_id: tight.receipt_id });
-  assert.deepEqual(new Set(used.map(item => item.state)), new Set(["used", "omitted"]));
-  // 最近用于: the work it was used in.
+  assert.deepEqual(new Set(used.map(item => item.state)), new Set(["returned", "omitted"]));
+  // Returning a recall result is not proof that it entered a model request.
   const listed = (await memory.list(person())).items.find(item => item.memory_id === tight.items[0]!.memory_id)!;
-  assert.equal(listed.last_used?.title, "工作「季度复盘」");
+  assert.equal(listed.last_used, null);
 });
 
 test("deleting a memory leaves nothing behind: not in the store, the ledger, recent changes, uses, or after a restart", { timeout: 60_000 }, async t => {
@@ -537,7 +537,7 @@ test("a recall cancelled before it settles records no receipts: the receipts are
   assert.deepEqual(memory.uses({}), [], "a cancelled or revoked recall leaves no 最近用于");
   const recalled = await memory.recall(assistant(), { query: "总结一下" }, { beforeEffect: async () => undefined });
   assert.equal(recalled.items.length, 1);
-  assert.deepEqual(memory.uses({ receipt_id: recalled.receipt_id }).map(use => use.state), ["used"]);
+  assert.deepEqual(memory.uses({ receipt_id: recalled.receipt_id }).map(use => use.state), ["returned"]);
 });
 
 test("the Assistant can only switch a memory off, recorded as its own and takeable back; editing and deleting for good stay the person's", { timeout: 60_000 }, async t => {

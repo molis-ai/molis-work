@@ -335,10 +335,11 @@ export interface AssistantRound {
   stop_reason?: string;
   ended_at: string | null;
   /** The memories this round was given, and the ones that matched but did not fit (specs/archive/memory-system §7.3). Deleted ones are not listed. */
-  memories_used?: { used: AssistantRoundMemory[]; omitted: Array<AssistantRoundMemory & { reason: "budget" | "limit" }> };
+  memories_used?: { used: AssistantRoundMemory[]; omitted: Array<AssistantRoundMemory & { reason: "budget" | "limit" }>;
+    uncertain?: AssistantRoundMemory[]; unverified?: true; recording_error?: "memory.receipt_unrecorded" };
 }
 
-export interface AssistantRoundMemory { memory_id: string; scope: MemoryScope; text: string; origin: string }
+export interface AssistantRoundMemory { memory_id: string; scope: MemoryScope; text: string; origin: string; version?: number; content_changed?: true }
 
 /** An effect held for the person's decision in this work, exactly as the Runtime will execute it. */
 export interface AssistantPendingReview {

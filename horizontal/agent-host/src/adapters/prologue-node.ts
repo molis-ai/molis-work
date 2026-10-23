@@ -124,7 +124,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   // Bound to the runtime once it exists; nothing is looked at before a wait is registered.
   const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id,
     owner: async id => (await index.read(id).catch(() => undefined))?.owner });
-  const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) }, checks.checkers, memoryAuthority.authority);
+  const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) }, checks.checkers, memoryAuthority);
   checks.open();
   surfaceHost = options.surfaces ? createPrologueSurfaces(() => runtime, options.surfaces, ref => readResourceText(runtime, ref)) : undefined;
   // Sites the person allowed earlier, as approvals the person can take back at once (not as rules fixed at start).
@@ -191,6 +191,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       return started;
     }) },
     modelConfiguration: options.modelConfiguration,
+    ...(options.memoryUsage ? { memoryUsage: options.memoryUsage } : {}),
     stopHeld: runId => { const queue = state.heldLabels.get(runId); const next = queue?.shift(); if (queue && !queue.length) state.heldLabels.delete(runId); return next; },
     // Judged when the run ends, from its facts: held for only announcing, and nothing called after that.
     endedOnPromise: (runId, sessionId) => endedOnPromise(state, runId, sessionId),

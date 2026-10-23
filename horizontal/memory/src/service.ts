@@ -43,6 +43,7 @@ import {
 import { consumerAccess, CONSUMER_LABELS } from "./prefs.js";
 import { MemoryPreferences } from "./preferences.js";
 import { MemoryOperations } from "./operations.js";
+import { memoryUses } from "./usage.js";
 import { automaticMemoryHold, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
 import { memoryErrors } from "./errors.js";
 import { applies, disownAutomatic, isExpired, personOnly, placeOf, visibleTo } from "./places.js";
@@ -52,7 +53,7 @@ import { keywordScore, looksLikeInstruction, looksLikeSecret, recallKeywords, sa
 import { fromEntryMeta, toEntryMeta } from "./facts.js";
 import { newMemoryClassification } from "./classification.js";
 import { MemoryScopeCommands, type Located } from "./scope-commands.js";
-import type { AgentMemoryMeta, AgentRecalledMemory } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryMeta, AgentMemoryUseReceipt, AgentRecalledMemory } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 export { applies, characterOwner } from "./places.js";
 
@@ -260,8 +261,8 @@ export class MemoryService {
     if (ranked.some(({ located }) => !consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, located), caller.consumer, caller.plugin_id, options.readMode).allowed))
       throw memoryErrors.off("读取期间记忆开关已改变，请按当前设置重试");
     this.ports.ledger.recordUses([
-      ...items.map((item): MemoryUseRecord => ({ memory_id: item.memory_id, receipt_id, at, consumer: caller.consumer, title, work_id, state: "used" })),
-      ...omitted.map((item): MemoryUseRecord => ({ memory_id: item.memory_id, receipt_id, at, consumer: caller.consumer, title, work_id, state: "omitted" })),
+      ...items.map((item): MemoryUseRecord => ({ memory_id: item.memory_id, memory_version: item.version, receipt_id, at, consumer: caller.consumer, title, work_id, source: "recall", state: "returned" })),
+      ...omitted.map((item): MemoryUseRecord => ({ memory_id: item.memory_id, receipt_id, at, consumer: caller.consumer, title, work_id, source: "recall", state: "omitted" })),
     ]);
     const partlyOff = offScopes.length ? `你关掉了“${CONSUMER_LABELS[caller.consumer]}”使用${offScopes.join("和")}` : null;
     return { state: "ok", reason: partlyOff, items, omitted, method: "keyword-cjk", receipt_id };
@@ -272,14 +273,9 @@ export class MemoryService {
     return this.ports.ledger.uses({ ...filter, limit: 200 });
   }
 
-  /**
-   * A run's own facts settle its receipt (spec §8.2 S5): what the runtime left out for room, or found gone at start,
-   * was not used — 最近用于 follows what really went into the work.
-   */
-  settleUses(receiptId: string, fact: { injected: readonly string[]; omitted: readonly string[]; unavailable: readonly string[] }): void {
-    const uses = this.ports.ledger.uses({ receipt_id: receiptId, limit: 200 });
-    const changed = uses.filter(use => fact.omitted.includes(use.memory_id) || fact.unavailable.includes(use.memory_id)).map(use => ({ ...use, state: "omitted" as const }));
-    if (changed.length) this.ports.ledger.recordUses(changed);
+  /** Trusted AgentHost callback only: selection alone never proves dispatch or model adoption. */
+  settleUses(receipt: AgentMemoryUseReceipt): void {
+    this.ports.ledger.recordUses(memoryUses(receipt));
   }
 
   /** Build a trusted recipe without reading memory bodies or recording unconfirmed use. */
@@ -292,7 +288,7 @@ export class MemoryService {
     const facts = { ...(plugin ? { plugins: [plugin] } : {}),
       ...(request.situation?.object_kind ? { object_kinds: [request.situation.object_kind] } : {}),
       ...(request.situation?.goal_id ? { goals: [request.situation.goal_id] } : {}) };
-    return { pinned: [], consumer: caller.consumer,
+    return { pinned: [], consumer: caller.consumer, usage: { title: useTitle(caller, request.used_for), ...(caller.work ? { work_id: caller.work.work_id } : {}) },
       current_scene: caller.current_scene ?? (caller.plugin_id === "io.molis.work.coding" ? "coding" : caller.consumer === "assistant" ? "assistant" : "common"),
       scopes: places.map(where => ({ scope: where.scope === "personal" ? "user" : where.scope, owner: where.owner })),
       task: automatic, skip: !automatic, budget_tokens: options.budgetTokens ?? 800,
@@ -318,7 +314,8 @@ export class MemoryService {
       const rule = prefs.plugins[caller.plugin_id];
       if (!prefs.consumers.plugin || rule?.allowed === false) throw memoryErrors.forbidden("用户没有允许这个插件使用记忆");
       return this.commit(caller, { scope: request.scope, text: request.text, kind: request.kind ?? "preference", applies: request.applies ?? {}, expires_at: request.expires_at ?? null,
-        classificationMeta: newMemoryClassification(caller, request.expires_at ?? null), source: "plugin", basis: "explicit", evidence: [], approved_by: { by: "policy", policy: `plugin:${caller.plugin_id}`, version: 1 } });
+        classificationMeta: newMemoryClassification(caller, request.expires_at ?? null), source: "plugin", basis: "explicit", evidence: [],
+        approved_by: { by: "policy", policy: `plugin:${caller.plugin_id}`, version: 1 }, ...(request.replaces ? { replaces: request.replaces } : {}) });
     }
     if (!caller.person && !said) throw memoryErrors.invalid("记住一件事要附上用户的原话（said）；用户没有明确要求时，用建议（等用户认可）而不是直接记");
     return this.commit(caller, {
@@ -422,6 +419,7 @@ export class MemoryService {
     }
     // Approved by a policy rather than the person: the write gate's (automatic) or a plugin's install-time grant (its own namespace).
     const automatic = input.source === "auto" || input.source === "plugin";
+    const requiresPromotion = input.source === "auto";
     const policy = input.approved_by.by === "policy" ? input.approved_by : { by: "policy" as const, policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION };
     const rule = input.source === "plugin" ? `插件「${caller.plugin_id ?? "?"}」记下` : MEMORY_GATE_RULE;
     if (where.scope === "character" && caller.character) this.ports.ledger.noteOwner({ scope: "character", owner: where.owner, project_id: where.project, title: caller.character.title, subject: caller.character.id });
@@ -429,7 +427,7 @@ export class MemoryService {
       const before = this.operations.formal(caller, target, "replace").expected_version;
       const meta: MemoryMetaRecord = { ...target.meta, kind: input.kind, applies: input.applies, source: input.source, basis: input.basis, approved_by: input.approved_by,
         evidence: [...new Map([...target.meta.evidence, ...input.evidence].map(item => [JSON.stringify(item), item])).values()].slice(-6), expires_at: input.expires_at ?? target.meta.expires_at, updated_at: at };
-      const updated = automatic
+      const updated = requiresPromotion
         ? await this.settleByPolicy(caller, { ...input, policy }, where, target.entry, text, meta)
         : await this.ports.backend.withCaller(caller).update({ scope: input.scope, owner: where.owner, memory_id: target.entry.memory_id,
           ...this.operations.formal(caller, target, "replace"), change: { text, meta: toEntryMeta(meta, target.entry.meta) } });
@@ -448,10 +446,9 @@ export class MemoryService {
     const origin = input.origin ?? await this.originFor(caller, input.scope, input.source, { said: input.said, why: input.why, at });
     const facts = { kind: input.kind, source: input.source, basis: input.basis, evidence: input.evidence.slice(-6), applies: input.applies, expires_at: input.expires_at,
       approved_by: input.approved_by, plugin_id: input.retainedMeta?.namespace ?? (caller.consumer === "plugin" ? caller.plugin_id ?? null : null) };
-    // The text and its facts go into Prologue in one write: there is never an entry without them. An automatic one goes
-    // in only as a promotion by the gate's policy (Prologue records the approver): the model never approves itself.
+    // Learned content needs promotion; a trusted plugin's own namespace uses its existing save grant.
     const creation = this.operations.begin(caller, "append", { kind: "append", scope: input.scope, owner: where.owner });
-    const candidate = automatic ? await this.policyCandidate(caller, input, where, text, origin, toEntryMeta(facts, input.retainedMeta ?? input.classificationMeta)) : undefined;
+    const candidate = requiresPromotion ? await this.policyCandidate(caller, input, where, text, origin, toEntryMeta(facts, input.retainedMeta ?? input.classificationMeta)) : undefined;
     const entry = candidate
       ? await this.ports.backend.withCaller(caller).candidates.promote({ scope: input.scope, owner: where.owner, candidate_id: candidate.candidate_id,
         ...this.operations.condition(caller, `promote:${candidate.candidate_id}`, { kind: "promote", scope: input.scope, owner: where.owner,
@@ -607,10 +604,11 @@ export class MemoryService {
     const out: MemoryCandidate[] = [];
     for (const where of owners.values()) {
       if (!caller.person && !consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id).allowed) continue;
-      for (const record of await this.candidateRecords(caller, where.scope, where.owner)) {
+      const holder = anywhere ? { ...caller, project_id: where.project } : caller;
+      for (const record of await this.candidateRecords(holder, where.scope, where.owner)) {
         if (record.state !== "pending") continue;
         if (filter.work_id && record.work?.work_id !== filter.work_id) continue;
-        if (Date.parse(record.created_at) < stale) { await this.settleCandidate(caller,record, "expired"); continue; }
+        if (Date.parse(record.created_at) < stale) { await this.settleCandidate(holder,record, "expired"); continue; }
         out.push(candidateView(record));
       }
     }
@@ -755,7 +753,7 @@ export class MemoryService {
   }
 
   private async settleCandidate(caller: MemoryCaller, record: MemoryCandidateRecord, state: "discarded" | "expired"): Promise<MemoryCandidateRecord> {
-    caller = this.operations.caller(caller);
+    caller = this.operations.caller(caller.person && caller.project_id === null ? { ...caller, project_id: record.project_id } : caller);
     const where = { scope: record.scope, owner: record.owner, candidate_id: record.candidate_id, ...this.operations.candidate(caller, record, state) };
     const settled = state === "discarded" ? await this.ports.backend.withCaller(caller).candidates.discard(where) : await this.ports.backend.withCaller(caller).candidates.expire(where);
     const next: MemoryCandidateRecord = { ...record, state, version: settled.version };
@@ -1153,7 +1151,8 @@ export class MemoryService {
   private async ownCandidate(caller: MemoryCaller, candidateId: string): Promise<MemoryCandidateRecord> {
     const note = this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === candidateId);
     if (!note) throw memoryErrors.not_found("没有这条建议");
-    const record = (await this.candidateRecords(caller, note.scope, note.owner)).find(item => item.candidate_id === candidateId);
+    const holder = caller.person && caller.project_id === null ? { ...caller, project_id: note.project_id } : caller;
+    const record = (await this.candidateRecords(holder, note.scope, note.owner)).find(item => item.candidate_id === candidateId);
     if (!record) throw memoryErrors.not_found("没有这条建议");
     return record;
   }

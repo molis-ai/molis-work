@@ -20,6 +20,8 @@ Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副
 编码任务的业务含义、模型选择、凭据，以及批准决定本身——那是用户在宿主审查面里做的。
 adapter 只报告事实并执行已批准的工作。
 
+记忆使用投影由可选 `memoryUsage` Host 回调接收真实 SDK Context 回执，保留原 Session/Run、条目版本、retrieval receipt 与模型 call。`prepared` 不算派发；`dispatched-or-unknown` 与 `response-observed` 分开，后者也不证明模型采用。回调失败只报告 `memory.receipt_unrecorded`，不重发模型；读取原 Run 可再交同一事实，关闭 Runtime 时等待在途投影。历史事件到只读视图由 `prologue-restored-session.ts` 持有，SDK 存储读取与原不可恢复控制不变。验证：`tests/prologue-memory-run-context.test.ts` 使用真实 Node/SQLite/本机 HTTP 覆盖 ledger 故障、原 Run 重读和零网络补账；`tests/memory-use-receipts.test.ts` 覆盖单调摘要与遗忘屏障。
+
 ## 插件怎么够到它
 
 有界模型结果由 SDK `collectRun` 从同一 Run 收集；Host 的 `completeTextResult` 返回原引用、终态、实际模型和 typed usage，并可显式请求结构校验或观察文字/用量进度。失败保留可用的运行回执，不自动重试格式。公共模型绑定、Coding 草稿、Cognia 的具体例子见 [AI 手册](../../docs/platform/PROLOGUE-AI.md)。

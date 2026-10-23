@@ -648,8 +648,14 @@ export interface MemoryUseRecord {
   consumer: MemoryConsumer;
   title: string;
   work_id: string | null;
-  /** used: it went into the work; omitted: it matched but did not fit. */
-  state: "used" | "omitted";
+  /** Older used rows have no dispatch evidence; returned means only the recall caller received a selection. */
+  state: "used" | "returned" | "omitted" | "not-dispatched" | "dispatched-or-unknown" | "response-observed";
+  source?: "recall" | "run-context";
+  /** Summary evidence only. The Run owns its complete per-call history. */
+  run?: { session_id: string; run_id: string };
+  memory_version?: number;
+  evidence_call_id?: string;
+  time_basis?: "run-start";
 }
 
 export interface MemoryLedgerPort {

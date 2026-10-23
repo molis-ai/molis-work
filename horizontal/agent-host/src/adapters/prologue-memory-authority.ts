@@ -9,7 +9,10 @@ import type { SessionIndexStore } from "./prologue-session-index.js";
 /** App policy and live grants; SDK types occur only at this SDK adapter boundary. */
 export interface PrologueMemoryOptions {
   policy: MemoryPolicyConfig;
-  sources?: MemorySourcePort;
+  sources?: {
+    resolve(caller: AgentMemoryCaller, request: Parameters<MemorySourcePort["resolve"]>[0]): ReturnType<MemorySourcePort["resolve"]>;
+    check(caller: AgentMemoryCaller, request: Parameters<MemorySourcePort["check"]>[0]): ReturnType<MemorySourcePort["check"]>;
+  };
   authorize(caller: AgentMemoryCaller, requests: Parameters<MemoryAuthority["authorize"]>[0]): Promise<boolean>;
   authorizeRecall(caller: AgentMemoryCaller, request: Parameters<NonNullable<MemoryAuthority["authorizeRecall"]>>[0]): ReturnType<NonNullable<MemoryAuthority["authorizeRecall"]>>;
   authorizeManagement(caller: AgentMemoryCaller, request: Parameters<NonNullable<MemoryAuthority["authorizeManagement"]>>[0]): ReturnType<NonNullable<MemoryAuthority["authorizeManagement"]>>;
@@ -18,9 +21,10 @@ export interface PrologueMemoryOptions {
 }
 
 export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | undefined, index: SessionIndexStore): {
-  authority: MemoryAuthority; binding: PrologueMemoryBinding;
+  authority: MemoryAuthority; binding: PrologueMemoryBinding; sources?: MemorySourcePort;
 } {
   const calls = new AsyncLocalStorage<AgentMemoryCaller>();
+  const sourcePort = options?.sources;
   const context = (caller: AgentMemoryCaller): MemoryCallerContext => {
     if (!caller.actor_id || !caller.consumer || !caller.current_scene) throw agentErrors.capability_unavailable("记忆调用缺少可信身份或场景");
     return { consumer: caller.consumer, currentScene: caller.current_scene, purpose: caller.purpose,
@@ -48,6 +52,16 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
   };
   return {
     binding: { context, run: (caller, work) => calls.run(Object.freeze(structuredClone(caller)), work) },
+    ...(sourcePort ? { sources: {
+      async resolve(request: Parameters<MemorySourcePort["resolve"]>[0]) {
+        const caller = await callerFor(request.context);
+        return caller ? sourcePort.resolve(caller, request) : [];
+      },
+      async check(request: Parameters<MemorySourcePort["check"]>[0]) {
+        const caller = await callerFor(request.context);
+        return caller ? sourcePort.check(caller, request) : false;
+      },
+    } } : {}),
     authority: {
       async authorize(requests) {
         if (!options) return false;

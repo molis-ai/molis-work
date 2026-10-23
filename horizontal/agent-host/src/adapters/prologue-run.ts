@@ -324,6 +324,7 @@ async function recordAttempt(deps: RunDeps, input: PrologueStartInput, attempt: 
   const intent = structuredClone({ ...attempt, ...(input.memory ? { memory_context: {
     consumer: input.memory.consumer, current_scene: input.memory.current_scene,
     ...(input.memory.facts ? { facts: input.memory.facts } : {}),
+    ...(input.memory.usage ? { usage: input.memory.usage } : {}),
   } } : {}) });
   await input.beforeStart?.(); requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成");
   let attemptIndex = -1;

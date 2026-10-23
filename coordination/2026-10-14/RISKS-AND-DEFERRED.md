@@ -1,6 +1,6 @@
 # 防腐加速期：高风险、潜在问题与延后事项
 
-状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 20:50 本地时间）。
+状态：2026-10-23 起生效，① 一人维护；每次改动都立即推送到 origin（最近更新 2026-10-23 21:00 本地时间）。
 - 用户 10-23 定：「优先完成防腐的工程开发，维护一个文档记录高风险和潜在问题，先完成工程开发，后续统一处理重度任务，测试任务」。
 - 又补一句：在有限的槽位里优先开发，不要让 VPN 断掉，维持当前机器负载，剩余事项用文档记清楚。
 - 各会话不直接改这份文件。要记的事，要么发给 ①，要么写在 PR 正文的「本机延后验证」一节，由 ① 收进来。
@@ -101,7 +101,7 @@
 | R-06 | Sessions 清理 SC-4 要动 120 到 160 个文件，和 Goals S7b/S4、SC-3 可能改到同一批文件 | 冲突；在集成批里难分清是谁的问题 | 排在 SC-1 到 SC-3 之后，单独进批 | ③ | 做 SC-4 时 |
 | R-07 | 偶发的用例：`workbench-deferred-clients.e2e`、`busy-feedback`（batch-1023-4 里重试才过）；`coding-workbench.e2e`、`stream-text.e2e`（BL-412 记的重试才过）；`code-scale.e2e` 的帧耗时；batch-1023-4 里 `workspace-read-one-id` 是事先料到会红的，修在 #1068 的 571b4e807 | 集成批的结果有噪音 | ⑤ 维护已知红名单，现在是 0 个 | ⑤ | 统一窗口 |
 | R-08 | #1051（Shelf S2） | Shelf | ⑩ 本机 26 个 Shelf 用例里失败的 3 个，以及拿基线的对比 | 已合 main（head `3e7d4e6b3`，含 `a259350ac`），对 main 不冲突，PR 的 CI 全过（含 Verify）；⑩ 核对过 batch-1023-5 里的冲突解法。和 #1066、#1068 仍互相冲突（R-16），排在它们后面合；验证：被 Codex 这一批排除，等它们合了再验 |
-| R-09 | 叠着的 PR：#1068 叠在 #1066 上；#1063 刚从 #1048 上挪下来 | 改基线时会冲突 | 不叠第三层 | ⑤ | 持续 |
+| R-09 | 叠着的 PR：#1068 叠在 #1066 上；#1083（Shelf S4）叠在 #1076 上，#1076 又叠在 #1051 上，是第三层（#1063 已合） | 改基线时会冲突 | 不叠第三层。#1083 是 ① 10-23 认可的例外：下面两层都已到合并阶段（#1051 批过，#1076 ⑩ 审过、进了 batch-1023-7）。它们合进 main 之前，#1083 不再推新提交；合了以后在 #1083 上合进 main（不 force push），让 diff 只剩 S4，再交 ⑤ 组批 | ⑤ | 持续 |
 | R-10 | Alchemist 和插件创作台不迁移，防腐收尾后删掉重做，连同 studio replay 的 CI 作业 | 防腐期间改共享代码，还要顾着它们 | 备份分支 `backup/alchemist-plugin-builder-2026-10-21`；BL-376、BL-377 | ① | 防腐收尾 |
 | R-11 | ② 的两张会话卡一直没开：C8-3（`task_3f6b811d`）、Goals S9（`task_96c0cd34`） | 这两片停着 | 等用户点开；不开，就由 ① 排进 ② 的队列 | 用户、① | 下次排队时 |
 | R-12 | #1074（BL-411）留下的路由缺口，② 选了不改代码：插件自己写的路由如果先 await 别的、停止落在中间以后才调服务，这个 HTTP 请求一直不答（以前答 403）。SDK 的 `bindPluginActionRoute` 同步调服务，不受影响 | 插件自写的异步路由在停用、撤权时会挂住请求，客户端只能等超时 | 根治：把路由分派也记成一次「调用」，要改 plugin-runtime 的作用域。① 定为 BL-403，由 ② 在 #1074 里加 BACKLOG 行 | ② | S0b-2、W5-06 之后，排进 ② 的队列 |
@@ -134,6 +134,7 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 | #1081（S0b-2，`services.connections`：插件经平台用本人的服务账号发请求，S-57） | ② | 选中的 529 个文件，`--wide` 另多出 94 个；网关错误类用例（`platform-action-errors`、`action-availability-kind`、`action-gateway`）；`health:check --base`（起跑后按 pid 停了）、`boundary:check`、`verify-release-versions`、`test:security` 全集；创作台网络门回归 `tests/agent-built-plugins-network.test.ts`，用来证明改成共用 `public-https.ts` 以后行为不变。`full` 命中 shared-core、spans-packages，进集成批。有 4 个新文件，导入图上没有测试到达 | 新开；本机构建、`api:update`、`actions:update`、`secrets:check` 都跑了，新安全用例 6/6 通过（之后只把 S-56 改名为 S-57，没重跑）。验证：Codex 下一批 |
 | #1077（删 BL-410，BL-412、BL-413 接回表格） | ⑤ | 纯文档；门禁交 PR CI | 新开，不进批 |
 | #1082（修 #1041 带进 main 的 4 份红，R-18） | ⑤ | `full` 为空，不进批；靠 PR CI | 新开，CI 绿了 ⑤ 就合；Codex 下一批验 |
+| #1083（Shelf S4：演示种子走 `shelf.sample.seed`，删 `shelf-actions.ts`，Shelf 移出混合名单，PG-026-S1、PG-090 标已做） | Shelf，⑩ 评审 | 本机只跑了 `secrets:check`。只看 S4，`full` 命中 assembly；整条叠放命中 shared-core、assembly、spans-packages、deletes-code，等 #1051、#1076 合了由 ⑤ 组批 | 新开，head `564c6395a`，叠在 #1076 上（R-09 的例外）。Shelf 留下的两处不算新风险：Manifest 的 `kind: "native"` 和 `always_on` 归 PG-004、PG-007 阶段 4（②）；宿主替 Shelf 拼设置节（`web-catalog.ts` 的 `renderCatalogPluginSettings`）已在 PG-072 里。Shelf S2～S4 到这里都交出去了。验证：等下面两层合了再进 Codex 的批 |
 
 ## 4. 要用户本人做的
 

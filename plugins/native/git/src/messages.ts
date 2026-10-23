@@ -315,8 +315,8 @@ export const GIT_MESSAGES = {
   "git.host.read-unsupported": { zh: "工作区内容不能作为完整文本差异读取：{reason}", en: "The working tree content can't be read as a full text difference: {reason}" },
   "git.host.head-unborn": { zh: "{name}（还没有提交）", en: "{name} (no commits yet)" },
   "git.host.head-detached": { zh: "游离于 {commit}", en: "Detached at {commit}" },
-  "git.host.tracking-synced": { zh: "与 {upstream} 同步", en: "Up to date with {upstream}" },
-  "git.host.tracking-both": { zh: "{upstream}：领先 {ahead} · 落后 {behind}", en: "{upstream}: {ahead} ahead · {behind} behind" },
-  "git.host.tracking-ahead": { zh: "{upstream}：领先 {ahead}", en: "{upstream}: {ahead} ahead" },
-  "git.host.tracking-behind": { zh: "{upstream}：落后 {behind}", en: "{upstream}: {behind} behind" },
+  "git.upstream.synced": { zh: "与 {upstream} 同步", en: "Up to date with {upstream}" },
+  "git.upstream.both": { zh: "{upstream}：领先 {ahead} · 落后 {behind}", en: "{upstream}: {ahead} ahead · {behind} behind" },
+  "git.upstream.ahead": { zh: "{upstream}：领先 {ahead}", en: "{upstream}: {ahead} ahead" },
+  "git.upstream.behind": { zh: "{upstream}：落后 {behind}", en: "{upstream}: {behind} behind" },
 } as const;

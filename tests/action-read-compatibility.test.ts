@@ -24,7 +24,7 @@ const unavailableInFixture: Record<string, string> = {
   "git.operations@1": "actions.dependency_missing",
   "git.pr-support@1": "actions.dependency_missing",
   "git.results@1": "actions.dependency_missing",
-  "git.state@1": "actions.dependency_missing",
+  "git.state@2": "actions.dependency_missing",
   "git.summary@1": "actions.dependency_missing",
 };
 

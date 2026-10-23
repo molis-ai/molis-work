@@ -1,11 +1,7 @@
-import type { UiRequest, UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
+import type {} from "@molis-ai/molis-work-plugin-sdk";
+import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
 import type { TodoClientHost, TodoRequest, Translate } from "./types.js";
-
-/** The page's one request helper (packages/ui-host request-client, W3-10): control headers, one origin, plain Errors with `code`. */
-declare const molisWorkRequest: UiRequest;
-
-const PLUGIN_ROUTES = "/api/plugins/io.molis.work.todo";
 
 /** The todos a write's answer names, so works that relate to them read them again. */
 const changedItems = (payload: unknown): TodoItem[] => {
@@ -19,14 +15,14 @@ const changedItems = (payload: unknown): TodoItem[] => {
  */
 export function todoRequest(host: TodoClientHost, L: Translate, changed: (item: TodoItem) => void): TodoRequest {
   return async <T>(method: "GET" | "POST", path: string, body?: Record<string, unknown>) => {
-    const url = host.route(path.startsWith("/api/") ? path : PLUGIN_ROUTES + path);
+    const url = path.startsWith("/api/") ? host.route(path) : host.pluginRoute(path);
     try {
       const payload = await molisWorkRequest<T>(url, { method, ...(body === undefined || method === "GET" ? {} : { body }), fallback: L("todo.error.request") });
       if (method === "POST") changedItems(payload).forEach(changed);
       return payload;
     } catch (error) {
       const failure = error as UiRequestFailure;
-      const refusal = method === "GET" ? host.readRefusal?.(failure.status, failure.code) : "";
+      const refusal = method === "GET" ? host.readRefusal(failure.status, failure.code) : "";
       if (refusal) failure.message = refusal;
       throw failure;
     }

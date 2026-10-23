@@ -1,15 +1,13 @@
 /**
  * English for the Chinese words Todo still says without its own stable keys: the titles and choices its action schemas declare,
- * the home events and search results it writes, and the quick-entry words, which the Host translates by their Chinese text; and a
- * few common words other owners read from here. The page itself (`ui.ts`, `browser/`) speaks through `messages.ts`.
+ * the home events, search results and project-data labels it writes, which the Host translates by their Chinese text.
+ * The page itself (`ui.ts`, `browser/`) speaks through `messages.ts`.
  * Placeholders stay as written.
  */
 export const TODO_EN: Readonly<Record<string, string>> = {
   "放在这个项目里的待办": "Todos placed in this project",
   "待办": "Todo",
   "放在": "Put in",
-  "查看": "View",
-  "取消选择": "Clear selection",
   "要做什么": "What to do",
   "状态": "Status",
   "在等谁": "Waiting on",
@@ -33,24 +31,13 @@ export const TODO_EN: Readonly<Record<string, string>> = {
   "这个项目": "This project",
   "暂未归类": "Not placed yet",
   "今天截止": "Due today",
-  "周日": "Sun",
-  "周一": "Mon",
-  "周二": "Tue",
-  "周三": "Wed",
-  "周四": "Thu",
-  "周五": "Fri",
-  "周六": "Sat",
   "今天": "Today",
-  "明天": "Tomorrow",
-  "昨天": "Yesterday",
   "其他项目": "Other projects",
   "截止": "Due",
   "计划": "Planned",
-  "提醒": "Remind",
   "等待中": "Waiting",
   "未安排": "Unscheduled",
   "即将到期": "Upcoming",
-  "在等": "Waiting on",
   "手动": "Manual",
   "材料": "Material",
   "助理": "Assistant",
@@ -61,9 +48,7 @@ export const TODO_EN: Readonly<Record<string, string>> = {
   "已完成的动作": "Done",
   "草稿": "Draft",
   "助理工作": "Assistant work",
-  "你": "You",
   "到了时间的提醒": "Reminders due",
-  "稍后": "Later",
   "知道了": "Got it",
   "要你处理": "Asked of you",
   "你的承诺": "Your promise",
@@ -73,10 +58,6 @@ export const TODO_EN: Readonly<Record<string, string>> = {
   "已合并": "Merged",
   "已更新": "Updated",
   "已忽略": "Ignored",
-  "、": ", ",
-  "，": ", ",
-  "：": ": ",
-  "；": "; ",
   "别人": "someone",
   "忽略": "Ignore",
   "等你确认": "Needs your approval",

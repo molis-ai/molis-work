@@ -6,9 +6,9 @@
 
 所有动作由插件的 `actions.ts` 声明，`scope: "home"`。Todo 是 Plugin Runtime 上的 Home 级插件（`src/plugin.ts` 的 `createTodoPlugin`，目录条目 `runtime: { scope: "home" }`，库由宿主的 Home 库服务按 `TODO_DATABASE` 打开）：没有项目时也能用。调用方在项目里时只看到个人、暂未归类和这个项目的待办；跨项目的“所有项目”只对用户本人的界面（`audience: "user"`）开放，助理、工作流和 MCP 看不到。HTTP 是 Manifest 声明的路由（`/api/plugins/io.molis.work.todo/…`，每条经 `bindPluginActionRoute` 转成一个动作），只转参数：身份由 Host 绑定，项目只来自页面路径 `/projects/<id>/api/plugins/io.molis.work.todo/…`（宿主核对项目存在且显示 Todo，见 SECURITY-INVARIANTS S-31），请求体里的 `project_id` 被丢掉。
 
-页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/todo-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂，`--minify`）；`src/client.ts` 的 `TODO_CLIENT_FACTORY_SCRIPT` 只读这个包。页面状态在一个 `TodoPage` 对象里（`page.ts`），列表、提醒、整理审阅、详情、快速输入各是一个部件，在启动时把自己的操作装到这个对象上；按钮是 `commands.ts` 里按顺序匹配的命令表；请求只经工作台的 `molisWorkRequest`（`request.ts`），不直接 `fetch`。
+页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/todo-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂，`--minify`）；`src/client.ts` 的 `TODO_CLIENT_FACTORY_SCRIPT` 只读这个包。页面状态在一个 `TodoPage` 对象里（`page.ts`），列表、提醒、整理审阅、详情、快速输入各是一个部件，在启动时把自己的操作装到这个对象上；按钮是 `commands.ts` 里按顺序匹配的命令表；请求只经工作台的 `molisWorkRequest`（`request.ts`），不直接 `fetch`。Todo 与 Form 从公共 `platform/ui` 的 `UiPluginClientHost` 取实际字段，宿主同合同类型检查；`pluginId` 与 `pluginRoute` 来自 Manifest 和当前项目，`route` 只处理平台路径。esbuild 是包的直接开发依赖，版本与根相同；升级后的资源增长仍须按资源规则评审。
 
-页面上的字是稳定键（`todo.<区域>.<名称>`），中英文都在 `src/messages.ts`，登记在 `registration.ts` 的 `messages`，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `TODO_EN` 只剩别的主人还按中文原文翻译的词（动作输入的标题、首页事项、搜索词），新页面文字一律加稳定键。
+页面上的字是稳定键（`todo.<区域>.<名称>`），中英文都在 `src/messages.ts`，登记在 `registration.ts` 的 `messages`，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `TODO_EN` 只保留 Todo 交给宿主按中文原文翻译的动态声明（动作 schema 字段与选项、首页事项、搜索结果、项目数据标签），新页面文字一律加稳定键。
 
 - Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`

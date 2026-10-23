@@ -1,20 +1,18 @@
-import type { UiRequest, UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
+import type {} from "@molis-ai/molis-work-plugin-sdk";
+import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { FormClientHost, FormFailure, FormRequest } from "./types.js";
-
-/** The page's one request helper (packages/ui-host request-client, W3-10): control headers, one origin, plain Errors with `code`. */
-declare const molisWorkRequest: UiRequest;
 
 /** Requests to this project's Forms routes; `path` follows `/forms`, the Manifest's routes in this project's Runtime. */
 export function formRequest(host: FormClientHost): FormRequest {
   const L = host.translate;
-  const projectId = () => (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
+  const projectId = () => host.projectId();
   const withProject = (path: string) => {
     const id = projectId();
     if (!id) throw new Error(L("缺少项目"));
     return path + (path.includes("?") ? "&" : "?") + "project_id=" + encodeURIComponent(id);
   };
   return async <T>(method: "GET" | "POST", path: string, body?: Record<string, unknown>) => {
-    const url = withProject(host.route("/api/plugins/io.molis.work.form/forms" + path));
+    const url = withProject(host.pluginRoute("/forms" + path));
     try {
       return await molisWorkRequest<T>(url, { method, ...(body === undefined || method === "GET" ? {} : { body: { ...body, project_id: projectId() } }), fallback: L("问卷请求失败") });
     } catch (error) {

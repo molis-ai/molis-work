@@ -49,12 +49,12 @@ export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
   };
   // The personal space is a location, not a project: there Todo is the personal view (personal and unplaced todos).
   const projectId = () => {
-    const current = (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
+    const current = host.projectId();
     return current === PERSONAL_SPACE_PROJECT_ID ? "" : current;
   };
   // Where a todo sits, in the workbench's words: 个人空间, 项目「名称」 (暂未归类 is the personal space, not sorted yet).
   const hereName = () => {
-    const title = typeof host.projectTitle === "function" ? host.projectTitle() : host.projectTitle;
+    const title = host.projectTitle();
     return title ? L("todo.place.project-named", { name: title }) : L("todo.place.this-project");
   };
   const placeName = (value: string) => (value === "project" ? hereName() : value === "personal" ? L("todo.place.personal") : L("todo.place.unassigned"));
@@ -126,7 +126,7 @@ export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
   };
   // What the Assistant sees when the person turns to it: the open todo, its revision and unsaved input.
   const publishContext = () => {
-    const context: Record<string, unknown> = { plugin_id: "io.molis.work.todo", surface_title: L("todo.page.title") };
+    const context: Record<string, unknown> = { plugin_id: host.pluginId, surface_title: L("todo.page.title") };
     if (state.selected) {
       context.object = { kind: "todo_item", id: state.selected.id, version: state.selected.revision, title: page.field("title").value || state.selected.title };
       if (state.dirtyKeys.size || state.saveTimer) context.unsaved = true;

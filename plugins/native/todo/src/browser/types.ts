@@ -1,20 +1,12 @@
 import type { TodoBatch, TodoCandidate, TodoChange, TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
 
-export type Translate = (key: string, values?: Record<string, string | number>) => string;
+export type { UiClientTranslate as Translate } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiClientTranslate as Translate, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 
-/** What the workbench hands a plugin page's client: its translator, the project, its route prefix and the shared confirmation box. */
-export interface TodoClientHost {
-  readonly translate: Translate;
-  readonly route: (path: string) => string;
-  readonly projectId?: string | (() => string);
-  readonly projectTitle?: string | (() => string);
-  /** The words for a read the person's project refuses (a plugin switched off here), when the status and code say so. */
-  readonly readRefusal?: (status: number, code: unknown) => string;
-  /** The shared confirmation box: with `run` the request goes out inside the open dialog and a refusal is said there. */
-  readonly confirmBox: (dialog: HTMLDialogElement, ok: HTMLElement, run?: () => Promise<unknown>) => Promise<boolean>;
-}
+export type TodoClientHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>,
+  "translate" | "route" | "pluginRoute" | "pluginId" | "projectId" | "projectTitle" | "readRefusal" | "confirmBox">;
 
-/** One request to the Todo routes; `path` follows `/api/plugins/io.molis.work.todo`, or is a full `/api/…` path. */
+/** One request to the Todo routes; `path` is relative to the current plugin, or is a full `/api/…` path. */
 export type TodoRequest = <T>(method: "GET" | "POST", path: string, body?: Record<string, unknown>) => Promise<T>;
 
 export type TodoFlag = "overdue" | "due_today" | "planned_past" | "planned_today" | "stale";
@@ -50,7 +42,7 @@ export interface AssistantWork {
 
 /** What a button remembers to undo the last change (one change, or a whole batch). */
 export type UndoTarget = { change_id: string } | { batch_id: string };
-/** Where "查看" goes after a todo was written down in a view the person is not looking at. */
+/** Where `todo.note.view` goes after a todo was written down in a view the person is not looking at. */
 export interface NoteView { readonly key: string; readonly id: string }
 export interface NoteOptions { error?: boolean; undo?: UndoTarget | null; view?: NoteView }
 

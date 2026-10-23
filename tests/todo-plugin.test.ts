@@ -1,3 +1,4 @@
+import { scanTree, workingTreeSnapshot, isProductSource } from "../scripts/gates/translations.mjs";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
@@ -9,11 +10,12 @@ import {
   TODO_ACTION_PERMISSIONS,
   TODO_CLIENT_FACTORY_SCRIPT,
   TODO_MESSAGES,
+  TODO_EN,
   TODO_PROJECT_PLUGIN_ID,
   todoManifest,
   todoOrganizeActions,
 } from "@molis-ai/molis-work-plugin-todo";
-import { homeStores, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { L, runWithLocale, homeStores, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 import { manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -46,7 +48,7 @@ test("RAC-131 a project's page mounts the Todo stage once, from the Home runtime
   assert.ok(client, "Todo's client is served on its own");
   assert.doesNotThrow(() => new Function(client));
   assert.match(client, /data-todo=workbench/);
-  assert.match(TODO_CLIENT_FACTORY_SCRIPT, /提醒我/, "the quick-entry reader is in the bundle");
+  assert.match(TODO_CLIENT_FACTORY_SCRIPT, /大后天/, "the quick-entry reader is in the bundle");
   assert.doesNotMatch(TODO_CLIENT_FACTORY_SCRIPT, /window\.confirm|window\.alert|window\.prompt/);
   assert.match(TODO_CLIENT_FACTORY_SCRIPT, /data-assistant-context/);
   assert.match(TODO_CLIENT_FACTORY_SCRIPT, /molis:assistant-effect/);
@@ -54,13 +56,10 @@ test("RAC-131 a project's page mounts the Todo stage once, from the Home runtime
 });
 
 test("RAC-130 every word the Todo page says has a stable key with both languages, and none is a Chinese key", () => {
-  const files = [join("plugins/native/todo/src", "ui.ts"), ...readdirSync("plugins/native/todo/src/browser").map(file => join("plugins/native/todo/src/browser", file))];
-  const used = new Set<string>();
-  for (const file of files) {
-    const source = readFileSync(file, "utf8");
-    for (const match of source.matchAll(/"(todo\.[a-z0-9_-]+(?:\.[a-z0-9_-]+)+)"/gu)) used.add(match[1]!);
-    assert.doesNotMatch(source, /(?:\bL|p\.text)\("[^"]*[\u4e00-\u9fff]/u, `${file} calls the translator with a Chinese key`);
-  }
+  const scan = scanTree(workingTreeSnapshot(process.cwd()), isProductSource);
+  const calls = scan.calls.filter(call => call.file === "plugins/native/todo/src/ui.ts" || call.file.startsWith("plugins/native/todo/src/browser/"));
+  assert.deepEqual(calls.filter(call => /\p{Script=Han}/u.test(call.key)), [], "the gate sees no Chinese translator keys, including aliases and embedded programs");
+  const used = new Set<string>(calls.map(call => call.key));
   const missing = [...used].filter(key => !(key in TODO_MESSAGES));
   assert.deepEqual(missing, []);
   for (const [key, text] of Object.entries(TODO_MESSAGES)) {
@@ -69,6 +68,38 @@ test("RAC-130 every word the Todo page says has a stable key with both languages
     assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
   }
   assert.ok(used.size > 200, "the page's keys were found");
+  const dynamicOwners = new Set(["actions.ts", "organize-actions.ts", "home-events.ts", "search.ts", "project-data.ts"].map(file => "plugins/native/todo/src/" + file));
+  for (const key of Object.keys(TODO_EN)) {
+    assert.ok(scan.calls.some(call => call.key === key && call.file.startsWith("plugins/native/todo/"))
+      || scan.files.some(file => dynamicOwners.has(file.file) && file.mentions.has(key)), `${key} must have a Todo translator or an existing dynamic declaration owner`);
+  }
+  const removed = ["取消选择", "周日", "周一", "周二", "周三", "周四", "周五", "周六", "昨天", "：", "查看", "明天", "提醒", "在等", "你", "稍后", "、", "，", "；"];
+  assert.deepEqual(removed.filter(key => key in TODO_EN), [], "foreign and unused keys cannot return to Todo's dynamic dictionary");
+  assert.deepEqual([...scan.missing.keys()], [], "moving shared words cannot leave another owner's live call untranslated");
+});
+
+test("RAC-134 stable Todo words keep the formerly displayed English after the global dictionary overrides", () => {
+  // Migration reference: the served EN on f8d1e5ba, including its final Object.assign(...GAP_EN).
+  // These differed from TODO_EN's own values; copying that dictionary alone changed what people saw.
+  const displayed = {
+    "todo.status.open": "To process",
+    "todo.status.doing": "Active",
+    "todo.status.done": "Completed",
+    "todo.field.status": "State",
+    "todo.field.notes": "Description",
+    "todo.action.complete": "Completed",
+    "todo.review.kind-suggestion": "Recommendation",
+    "todo.review.collapse": "Collapse all",
+    "todo.save.unsaved": "Unsaved",
+    "todo.history.created": "Create",
+    "todo.view.unscheduled": "Not scheduled",
+    "todo.view.review": "Waiting for your decision",
+    "todo.detail.more-actions": "More",
+    "todo.link.relation": "Relationships"
+  };
+  runWithLocale("en", () => {
+    for (const [key, expected] of Object.entries(displayed)) assert.equal(L(key), expected, key);
+  });
 });
 
 test("RAC-132 the Todo page asks the Host only through the shared request helper, and its browser code is typed", () => {

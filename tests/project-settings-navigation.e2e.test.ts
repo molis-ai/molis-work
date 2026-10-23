@@ -134,7 +134,7 @@ test("project general settings persist a rename, cancel safely, and retry deleti
   })()`);
   await click('[data-project-delete-dialog] button[type=submit]');
   // The browser lost the answer, so the page cannot know whether the project was deleted, and says so (W3-10: no browser English, no guess).
-  await waitFor("document.querySelector('[data-project-delete-error]').textContent.includes('不知道这次操作有没有完成')");
+  await waitFor("!document.querySelector('[data-project-delete-error]').hidden && !document.querySelector('[data-project-delete-dialog] button[type=submit]').disabled && document.querySelector('[data-project-delete-error]').textContent.includes('不知道这次操作有没有完成')");
   assert.equal((await fetch(origin + prefix + "/settings/general")).status, 404);
   await navigate(() => click('[data-project-delete-dialog] button[type=submit]'));
   assert.equal(await evaluate("location.pathname + location.search"), "/?desktop=1");

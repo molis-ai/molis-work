@@ -1,34 +1,27 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { respondGoalsFailure } from "./failure.js";
+import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { goalsFailure, goalsRoute } from "./failure.js";
 import { goalsActions } from "../actions.js";
 import type { GoalTreeProposalDecideInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import type { GoalsHttpContext } from "./types.js";
+import type { GoalsRoutePorts } from "./types.js";
 
-export async function handleGoalDecisionsHttp(context: GoalsHttpContext): Promise<boolean> {
-  const goalTreeProposalMatch = context.pathname.match(
-    /^\/api\/goal-tree-proposals\/([^/]+)\/decision$/,
-  );
-  if (context.method === "POST" && goalTreeProposalMatch) {
-    const body = await context.readBody();
+/** `goals.tree-decide`: the person's decision on a proposed change to the Goal tree, item by item or the whole proposal. */
+export function goalDecisionRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
+  return [goalsRoute("goals.tree-decide", ports, async (context) => {
+    const body = context.body;
     if (body.decisions != null && !Array.isArray(body.decisions)) {
-      respondGoalsFailure(context, new ActionError("actions.input_invalid", "decisions 必须是条目决定列表"));
-      return true;
+      return goalsFailure(new ActionError("actions.input_invalid", "decisions 必须是条目决定列表"));
     }
-    try {
-      const proposalId = decodeURIComponent(goalTreeProposalMatch[1]);
-      const confirmsWholeProposal = body.confirm_all_pending === true;
-      const idempotencyKey = String(body.idempotency_key ?? context.idempotencyHeader ?? "");
-      const reason = typeof body.reason === "string" ? body.reason.trim() : "";
-      const result = await context.actions.invoke(goalsActions.treeDecide, {
-        proposal_id: proposalId,
-        ...(body.decisions == null ? {} : { decisions: body.decisions as GoalTreeProposalDecideInput["decisions"] }),
-        ...(reason ? { reason } : {}),
-        confirm_all_pending: confirmsWholeProposal,
-        idempotency_key: idempotencyKey,
-      });
-      context.respond( 200, result);
-    } catch (error) { return respondGoalsFailure(context, error); }
-    return true;
-  }
-  return false;
+    const confirmsWholeProposal = body.confirm_all_pending === true;
+    const idempotencyKey = String(body.idempotency_key ?? context.idempotencyHeader ?? "");
+    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    const result = await context.actions.invoke(goalsActions.treeDecide, {
+      proposal_id: context.params.proposalId!,
+      ...(body.decisions == null ? {} : { decisions: body.decisions as GoalTreeProposalDecideInput["decisions"] }),
+      ...(reason ? { reason } : {}),
+      confirm_all_pending: confirmsWholeProposal,
+      idempotency_key: idempotencyKey,
+    });
+    return { status: 200, body: result };
+  })];
 }

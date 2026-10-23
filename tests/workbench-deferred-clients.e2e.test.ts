@@ -48,10 +48,15 @@ test("registered clients mount on demand, retry resources and retain their origi
   const { evaluate, click, waitFor, command, sessionId, navigate } = browser;
   const views=Object.fromEntries(await Promise.all(pluginSurfaceClients().map(async pack=>[pack.id,await pluginFrameBrowser(t,browser,pack.id)])));
   const child=views.pages!;
-  const sessions = new Set<string>(); let blocked = [browser.origin + "/assets/molis-work-pages-editor.js"];
-  t.after(browser.on("Target.detachedFromTarget", params => { sessions.delete(String(params.sessionId)); }));
-  await pluginFrameInitScript(t, browser, "", async session => {
-    sessions.add(session); await command("Network.enable", {}, session); await command("Network.setBlockedURLs", { urls: blocked }, session);
+  // An isolated child can request its assets before DevTools attaches; fail at the server instead.
+  const handlers = browser.server.listeners("request");
+  browser.server.removeAllListeners("request");
+  let failEditor = true, failedRequests = 0;
+  browser.server.on("request", (request, response) => {
+    if (failEditor && request.url === "/assets/molis-work-pages-editor.js") {
+      failedRequests++;
+      response.writeHead(503); response.end();
+    } else for (const handler of handlers) handler.call(browser.server, request, response);
   });
   await navigate(() => command("Page.navigate", { url: browser.origin + "/projects/" + browser.projectId + "/" }, sessionId));
   assert.equal(await evaluate("typeof window.MolisWorkPagesEditor"), "undefined");
@@ -59,9 +64,9 @@ test("registered clients mount on demand, retry resources and retain their origi
   assert.ok(await evaluate<number>("document.querySelectorAll('[data-plugin-document]').length") > 10);
   await click('[data-plugin-strip] [data-plugin-id="pages"]');
   await waitFor("document.querySelector('[data-work-surface=pages] [data-ui-client-retry]')");
+  assert.ok(failedRequests > 0, "the editor resource failed before the retry was offered");
   assert.equal(await evaluate("document.querySelector('[data-work-surface=pages]').inert"), false);
-  blocked = [];
-  await Promise.all([...sessions].map(session => command("Network.setBlockedURLs", { urls: blocked }, session)));
+  failEditor = false;
   await click('[data-work-surface=pages] [data-ui-client-retry]');
   await waitFor("document.querySelector('[data-work-surface=pages]').dataset.uiClientState === 'ready'");
   assert.equal(await child.evaluate("typeof window.MolisWorkPagesEditor.mount"), "function");

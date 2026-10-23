@@ -2,8 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { Agent, createServer } from 'node:https';
-import { connect as tlsConnect } from 'node:tls';
+import { createServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
@@ -69,16 +68,15 @@ test('an approved https request goes out with the saved secret, comes back bound
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
     const port = (server.address() as AddressInfo).port;
     try {
-      // Reach the local test server as if it were the approved site on 443; the connection still asks our lookup.
-      const agent = new Agent({ ca: cert });
-      (agent as unknown as { createConnection(options: object, callback: unknown): unknown }).createConnection = (options: object) => tlsConnect({ ...options, port });
+      // Reach the local test server as if it were the approved site: its port and certificate, on a connection of its own that still asks our lookup.
+      const testServer = { port, ca: cert };
       // W2-18-UPGRADE-SECRETS-01: the same sealed-store staging used by a version switch feeds the actual HTTPS header.
       const privateValues = new Map<string, string>(), storage = { get: (key: string) => privateValues.get(key) ?? null,
         set: (key: string, value: string) => { privateValues.set(key, value); }, delete: (key: string) => privateValues.delete(key) };
       const secrets = pluginSecrets(dir, 'p', storage), pluginId = 'io.molis.work.generated.weather';
       secrets.save(pluginId, { name: 'weather', header: 'Authorization', value: 'Bearer previous' });
       const changed = secrets.stage!(pluginId, [{ name: 'weather', header: 'Authorization', value: 'Bearer s3cret' }]); changed.apply();
-      const network = hostNetwork({ reach: () => 'all', lookup: lookupTo('127.0.0.1'), allowAddress: () => true, agent,
+      const network = hostNetwork({ reach: () => 'all', lookup: lookupTo('127.0.0.1'), allowAddress: () => true, testServer,
         secret: (plugin, reference) => secrets.resolve(plugin, reference) });
       const ok = await network.request(context(), { url: 'https://api.weather.example/today', headers: { Accept: 'application/json', Cookie: 'x=1', Authorization: 'forged' }, secretRefs: ['weather'] }, { ...approved, secretRefs: ['weather'] });
       assert.deepEqual(undated(ok), { status: 200, headers: { 'content-type': 'application/json' }, body: '{"temperature":21}' }, 'no cookies come back');
@@ -87,12 +85,12 @@ test('an approved https request goes out with the saved secret, comes back bound
       assert.equal(seen.length, 2, 'the redirect was not followed');
       await assert.rejects(network.request(context(), { url: 'https://api.weather.example/huge' }, approved), /超过 1MB/);
       // The same connection path refuses a private address when the address policy is the real one.
-      const strict = hostNetwork({ reach: () => 'all', lookup: lookupTo('127.0.0.1'), agent });
+      const strict = hostNetwork({ reach: () => 'all', lookup: lookupTo('127.0.0.1'), testServer });
       await assert.rejects(strict.request(context(), { url: 'https://api.weather.example/today' }, approved), /不能访问本机或内网地址/);
       assert.equal(seen.length, 3, 'nothing reached the server for the refused request');
       for (const phase of ['secret', 'dns'] as const) {
         const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let allowed = true;
-        const guarded = hostNetwork({ reach: () => 'all', allowAddress: () => true, agent,
+        const guarded = hostNetwork({ reach: () => 'all', allowAddress: () => true, testServer,
           secret: async () => { if (phase === 'secret') { entered.resolve(); await release.promise; } return { header: 'Authorization', value: 'Bearer s3cret' }; },
           lookup: (_host, callback) => { entered.resolve(); void release.promise.then(() => callback(null, [{ address: '127.0.0.1', family: 4 }])); } });
         const pending = guarded.request({ identity: { projectId: 'p', installationId: 'i', pluginId: 'plugin', namespace: 'installed' }, operationId: 'request',
@@ -102,7 +100,6 @@ test('an approved https request goes out with the saved secret, comes back bound
         await entered.promise; allowed = false; release.resolve(); await rejected;
         assert.equal(seen.length, 3, `revocation during ${phase} resolution prevents the outgoing request`);
       }
-      agent.destroy();
     } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
   } finally { await rm(dir, { recursive: true, force: true }); }
 });

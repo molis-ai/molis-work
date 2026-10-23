@@ -50,7 +50,10 @@ export function boardFinishedWorks(at: Iso): AssistantWorkView[] {
   })]);
   const failed = boardView(boardWork(at, "board-digest", "整理上周的 Feed 摘要", "failed", 25, { scope: { kind: "personal" }, scope_title: undefined }), [round(at, "run-digest-1", 30, {
     text: "把上周 Feed 里和试用有关的整理成摘要", phase: "failed", stop_reason: "模型服务暂时不可用", model: { model_id: "MiniMax-M2" },
-    activity: [act("c-d1", "read", "Feed · 读取条目", "completed", { capability_id: "feed.items.read", sequence: 1 }), act("c-d2", "read", "Feed · 读取全文", "failed", { capability_id: "feed.items.content", detail: "来源返回 503", sequence: 2 })],
+    activity: [act("c-d1", "read", "Feed · 读取条目", "completed", { capability_id: "feed.items.read", sequence: 1 }), act("c-d2", "read", "Feed · 读取全文", "failed", { capability_id: "feed.items.content", detail: "来源返回 503", sequence: 2 }),
+      // A refusal the platform classified (user 2026-10-23 ⑤): said in plain words, the runtime's own text one fold down.
+      act("c-d3", "change", "Pages · 新建摘要文档", "failed", { capability_id: "pages.docs.create", sequence: 3, failure: { kind: "invalid", fields: [{ path: "/", rule: "additionalProperties" }] },
+        detail: 'Hook "molis-action-gateway-pages" blocked "change-reversible": actions.input_invalid: 输入不符合能力合同：/ additionalProperties' })],
   })]);
   const stopped = boardView(boardWork(at, "board-deps", "检查依赖更新", "stopped", 70), [round(at, "run-deps-1", 75, {
     text: "看看哪些依赖可以升级", phase: "stopped", stop_reason: "你停止了这一轮",

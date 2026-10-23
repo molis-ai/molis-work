@@ -355,12 +355,12 @@ function sourceFiles(directory: string): string[] {
 }
 const read = (path: string): string => readFileSync(join(REPOSITORY, path), "utf8");
 
-/** The owners' server-side sources: their plugin, module and the Host files that serve them (the browser programs are strings inside `*client*.ts` and are not read). */
+/** The owners' server-side sources: their plugin, module and the Host files that serve them (the browser programs, strings inside `*client*.ts` or typed files under `src/browser/`, are not read). */
 function ownerSources(): string[] {
   const hostFiles = readdirSync(join(REPOSITORY, "apps/local-host/src")).filter(name => /^(?:shelf|jelly|cognia|images|material)-.*\.ts$/u.test(name))
     .map(name => `apps/local-host/src/${name}`);
   return [...["plugins/native/shelf/src", "modules/shelf/src", "plugins/native/jelly/src", "plugins/native/cognia/src", "plugins/native/images/src"]
-    .flatMap(directory => sourceFiles(join(REPOSITORY, directory)).map(path => relative(REPOSITORY, path))).filter(path => !/client/u.test(path.split("/").at(-1)!)), ...hostFiles];
+    .flatMap(directory => sourceFiles(join(REPOSITORY, directory)).map(path => relative(REPOSITORY, path))).filter(path => !/client/u.test(path.split("/").at(-1)!) && !path.includes("/src/browser/")), ...hostFiles];
 }
 
 test("no error class, no route-error mapper, no mapError and no readBody is left in the owners' sources", () => {

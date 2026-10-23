@@ -258,12 +258,15 @@ function placedEntries(enabled: readonly ProjectPluginId[], slot: "navigator" | 
 /** The views that open a plugin from the rail: its directory entries, then the personal islands. */
 const openingViews = (enabled: readonly ProjectPluginId[]) => [...placedViews(enabled, "navigator"), ...placedViews(enabled, "island")];
 
-/** What can be made new from a Goal with the enabled plugins (their views' `creates`), in rail order (W5-06 2b, BL-387). */
+/**
+ * What can be made new from a Goal with the enabled plugins (their views' `creates`; W5-06 2b, BL-387): the directory views by
+ * their `order`, then the islands. Not the rail's order, which puts the islands first.
+ */
 export function creatableKinds(enabled: readonly ProjectPluginId[]): PluginCreatableKind[] {
   return openingViews(enabled).flatMap(({ id, view }) => view.creates ? [{ id, station: view.creates.station, title: view.creates.title }] : []);
 }
 
-/** The project home's ways to start with the enabled plugins (their views' `start`), in rail order (W5-06 2b, BL-387). */
+/** The project home's ways to start with the enabled plugins (their views' `start`), in the same order as `creatableKinds`. */
 export function homeStarts(enabled: readonly ProjectPluginId[]): PluginHomeStart[] {
   return openingViews(enabled).flatMap(({ id, view }) => view.start
     ? [{ id, title: view.start.title, hint: view.start.hint, glyph: view.start.icon ?? view.icon ?? "package" }] : []);

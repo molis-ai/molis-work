@@ -19,12 +19,16 @@ interface PluginSettingsNavItem {
 
 /**
  * The icon each settings page's Manifest view names (W5-06 2b), by contribution, whether or not a project shows the plugin:
- * a page is also found by its own URL. A name the Host does not know is left out, and the page shows `settings`.
+ * a page is also found by its own URL. A name the Host does not know is left out, and the page shows `settings`. Both the
+ * catalog and the icon set are fixed when the package is built, so the map is made once, on first use.
  */
+let settingsIcons: ReadonlyMap<string, MolisWorkIcon> | undefined;
 function declaredSettingsIcons(): ReadonlyMap<string, MolisWorkIcon> {
+  if (settingsIcons) return settingsIcons;
   const known = new Set<string>(registeredIconNames());
-  return new Map(settingsEntries([...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS])
+  settingsIcons = new Map(settingsEntries([...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS])
     .flatMap((view) => view.icon && known.has(view.icon) ? [[view.contribution_id, view.icon as MolisWorkIcon] as const] : []));
+  return settingsIcons;
 }
 
 export function pluginSettingsNavItemsFrom(

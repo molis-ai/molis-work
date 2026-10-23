@@ -117,15 +117,16 @@ test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view 
       assert.equal(heading, group ? HEADINGS[group] : "更多", `${tile} sits under the group its view names`);
     }
   }
-  // The declarations keep the groups the shell used to list by name.
-  const members = (heading: string) => sections.find(section => section.heading === heading)!.tiles.filter(id => !BACKBONE.has(id)).sort();
-  assert.deepEqual(members("推进"), ["schedule", "workflows"]);
-  assert.deepEqual(members("写与做"), ["artifacts", "dataset", "form", "images", "pages", "ppt"]);
-  assert.deepEqual(members("个人"), ["cognia", "jelly", "lingguang", "todo"]);
+  // The declarations keep the groups the shell used to list by name. Within a group an island comes first (灵光 leads 个人),
+  // then the views by their `order`, then by plugin id (UiViewRegistry): Workflows (25) before Schedule (35), and Artifacts
+  // before Images at 60 — as main drew them, since the old table's ids only chose the members.
+  const members = (heading: string) => sections.find(section => section.heading === heading)!.tiles.filter(id => !BACKBONE.has(id));
+  assert.deepEqual(members("推进"), ["workflows", "schedule"]);
+  assert.deepEqual(members("写与做"), ["pages", "form", "dataset", "ppt", "artifacts", "images"]);
+  assert.deepEqual(members("个人"), ["lingguang", "todo", "jelly", "cognia"]);
   assert.deepEqual(members("研究"), ["alchemist"]);
   assert.deepEqual(members("编码"), ["coding"]);
   assert.ok(members("更多").includes("files"), "a plugin whose view names no group is under 更多");
-  assert.equal(sections.find(section => section.heading === "个人")!.tiles[0], "lingguang", "an island leads the group its view names");
 });
 
 // ---- settings icons -----------------------------------------------------------------------------------------------------
@@ -145,7 +146,7 @@ test("RAC-77 W5-06-PLACE-03 a settings page's icon is its view's, also when foun
 
 // ---- making new and starting --------------------------------------------------------------------------------------------
 
-test("RAC-78 W5-06-PLACE-04 what a project can make new comes from the views that declare it, in rail order", () => {
+test("RAC-78 W5-06-PLACE-04 what a project can make new comes from the views that declare it, directory views by order, then islands", () => {
   const all = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
   assert.deepEqual(creatableKinds(all), [
     { id: "pages", station: "pages", title: "文档" },
@@ -157,7 +158,7 @@ test("RAC-78 W5-06-PLACE-04 what a project can make new comes from the views tha
   assert.deepEqual(creatableKinds(["goals"]), []);
 });
 
-test("RAC-78 W5-06-PLACE-04 the project home's ways to start come from the views that declare them, in rail order", () => {
+test("RAC-78 W5-06-PLACE-04 the project home's ways to start come from the views that declare them, in the same order", () => {
   const all = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
   assert.deepEqual(homeStarts(all), [
     { id: "goals", title: "推进一个目标", hint: "明确要做成什么，接着往下走。", glyph: "target" },

@@ -19,6 +19,7 @@ interface ScopePorts {
   newId: () => string;
   timeZone?: string;
   importEntry(caller: MemoryCaller, scope: MemoryScope, entry: MemoryExportPackage["entries"][number], origin: string): Promise<MemoryWriteResult>;
+  beforeForget(caller: MemoryCaller, scope: MemoryScope, owner: string, ids: readonly string[]): Promise<void>;
   recordClear(caller: MemoryCaller, scope: MemoryScope, owner: string, removed: number, complete: boolean): void;
 }
 
@@ -116,6 +117,7 @@ export class MemoryScopeCommands {
     }
     const items: MemoryClearResult["items"] = [];
     for (const [index, part] of preview.parts.entries()) {
+      await this.ports.beforeForget({ ...caller, operation_id: part.operation_id }, part.scope, part.owner, part.items.map(item => item.memory_id));
       const result = await backend.clearScope({ scope: part.scope, owner: part.owner, preview: part,
         operation_id: part.operation_id, ...(caller.signal ? { signal: caller.signal } : {}) });
       items.push(...result.items.map(item => ({ memory_id: item.memory_id, outcome: item.outcome })));

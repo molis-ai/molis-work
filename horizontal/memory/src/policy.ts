@@ -3,7 +3,7 @@ import { memoryErrors } from "./errors.js";
 
 /** New automatic changes record this rule; an existing entry keeps the version that approved it. */
 export const MEMORY_GATE_POLICY = "memory.write-gate";
-export const MEMORY_GATE_VERSION = 2;
+export const MEMORY_GATE_VERSION = 3;
 export const MEMORY_GATE_RULE = `自动记住 · 规则 v${MEMORY_GATE_VERSION}`;
 
 /** Read-side unknown facts cannot enter formation as asserted evidence. */

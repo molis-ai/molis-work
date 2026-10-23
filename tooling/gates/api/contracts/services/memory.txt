@@ -70,6 +70,7 @@ export interface MemoryCandidateDecision {
 }
 
 export interface MemoryCandidateRecord extends MemoryCandidate {
+    source_refs?: readonly import("services/agent-host-memory").AgentMemorySourceRef[];
     formal_expires_at?: string | null;
     actor_id: string;
     owner: string;

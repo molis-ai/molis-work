@@ -22,7 +22,7 @@ export interface MemoryRuntimePolicyOwner {
 
 const CODING = "io.molis.work.coding";
 const SCENES = ["coding", "assistant", "common"] as const;
-const ACTIONS = ["save", "propose", "accept", "read", "manage-read", "delete"] as const;
+const ACTIONS = ["save", "propose", "accept", "promote", "read", "manage-read", "delete"] as const;
 
 /** The App's declared classification, intersected below with the person's live scope switches. */
 const POLICY: Options["policy"] = {
@@ -87,7 +87,9 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     const { prefs, allowed } = preferences(caller, request.target, state.owner,
       request.readMode === "explicit" && caller.person === true ? "explicit" : "task");
     if (request.action === "read" || request.action === "manage-read") return allowed;
-    if (!prefs.enabled || request.action === "promote") return false;
+    if (!prefs.enabled) return false;
+    if (request.action === "promote") return prefs.form && prefs.learn_from_work && prefs.auto
+      && preferences(caller, request.target, state.owner, "explicit").allowed;
     if (caller.person === true && caller.purpose === "management") return true;
     if (!prefs.form || request.action === "accept" || !preferences(caller, request.target, state.owner, "explicit").allowed) return false;
     // Plugins write only their own namespace; shared explicit statements are admitted by MemoryService's source gate.

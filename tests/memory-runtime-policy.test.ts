@@ -12,8 +12,8 @@ import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 
-const person: AgentMemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "a", consumer: "ui", person: true, current_scene: "common", purpose: "management" };
-const task: AgentMemoryCaller = { ...person, consumer: "agent", person: false, purpose: "task" };
+const person: AgentMemoryCaller & { consumer: "ui"; current_scene: string } = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "a", consumer: "ui", person: true, current_scene: "common", purpose: "management" };
+const task: AgentMemoryCaller & { consumer: "agent"; current_scene: string } = { ...person, consumer: "agent", person: false, purpose: "task" };
 const meta: AgentMemoryMeta = { kind: "convention", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["common"], lifecycle: "long-term" } };
 
 async function fixture(t: TestContext) {
@@ -35,7 +35,7 @@ async function fixture(t: TestContext) {
   let adapter = await open();
   service = new MemoryService({ ledger, backend: prologueMemoryBackend(async () => adapter.memory!) });
   t.after(async () => { await adapter.close(); ledger.close(); rmSync(home, { recursive: true, force: true }); assert.equal(network, 0); });
-  return { home, ledger, service, options, projects, owner, get adapter() { return adapter; }, bound: (caller = person) => adapter.memory!.withCaller(caller),
+  return { home, ledger, service, options, projects, owner, get adapter() { return adapter; }, bound: (caller: AgentMemoryCaller = person) => adapter.memory!.withCaller(caller),
     save: (id: string, extra: Partial<AgentMemoryMeta> = {}) => adapter.memory!.withCaller(person).write({ scope: "project", owner: "a", text: `Convention ${id}`, origin: "person", operation_id: id, meta: { ...meta, ...extra } }),
     reopen: async () => { await adapter.close(); adapter = await open(); }, closeOwner: () => { alive = false; }, unregister: () => { registered = false; },
     projectCheck: (check: (id: string) => Promise<boolean>) => { projectCheck = check; } };
@@ -246,24 +246,24 @@ test("demo cleanup keeps its operation after a failed dispatch and starts a new 
 test("candidate sources resolve through the same trusted caller and foreign or absent bindings read no originals", async t => {
   const f = await fixture(t), calls: string[] = [];
   let sourceCurrent = true;
-  const original = { eventId: "person-input", version: "1", speaker: { kind: "person" as const, id: person.actor_id },
-    derivation: "original" as const, occurredAtMs: 1000, text: "For this project use pnpm." };
+  const original = { event_id: "person-input", version: "1", speaker: { kind: "person" as const, id: person.actor_id },
+    derivation: "original" as const, occurred_at_ms: 1000, text: "For this project use pnpm." };
   f.options.sources = {
     async resolve(caller, request) {
       assert.equal(caller.actor_id, person.actor_id); assert.equal(caller.project_id, "a"); assert.equal(caller.person, true);
-      assert.equal(request.context.consumer, "ui"); assert.equal(request.target.owner, "a");
+      assert.equal(caller.consumer, "ui"); assert.equal(request.target.owner, "a");
       calls.push("resolve"); return sourceCurrent ? [original] : [];
     },
     async check(caller, request) {
       assert.equal(caller.actor_id, person.actor_id); assert.equal(caller.project_id, "a");
-      calls.push("check"); return sourceCurrent && request.identities.every(one => one.eventId === original.eventId && one.version === original.version);
+      calls.push("check"); return sourceCurrent && request.identities.every(one => one.event_id === original.event_id && one.version === original.version);
     },
   };
   await f.reopen();
   const proposal = { scope: "project" as const, owner: "a", text: "Use pnpm", origin: "person", meta,
-    sources: [{ event_id: original.eventId, version: original.version }], expected_version: 0 as const, operation_id: "bound-source" };
+    sources: [{ event_id: original.event_id, version: original.version }], expected_version: 0 as const, operation_id: "bound-source" };
   const candidate = await f.bound().candidates.propose(proposal);
-  assert.deepEqual(candidate.sources?.map(one => [one.event_id, one.version, one.speaker.kind]), [[original.eventId, "1", "person"]]);
+  assert.deepEqual(candidate.sources?.map(one => [one.event_id, one.version, one.speaker.kind]), [[original.event_id, "1", "person"]]);
   assert.ok(calls.includes("resolve")); assert.ok(calls.includes("check"));
   const before = calls.length;
   await assert.rejects(f.adapter.memory!.candidates.propose({ ...proposal, operation_id: "no-caller" }));

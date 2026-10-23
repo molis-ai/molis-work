@@ -31,6 +31,20 @@ export class MemoryOperations {
     return caller.operation_id ? caller : { ...caller, operation_id: this.newId() };
   }
 
+  /** A multi-step command retains short identities without sending its parent or step key to the SDK. */
+  child(caller: MemoryCaller, step: string): MemoryCaller {
+    const parent = this.caller(caller);
+    const key = `${PREFIX}${parent.operation_id}:step:${step}`;
+    const operation_id = this.ledger.transaction(() => {
+      const saved = this.ledger.marker(parent.actor_id, key)?.body as { operation_id: string } | undefined;
+      if (saved) return saved.operation_id;
+      const operation_id = this.newId();
+      this.ledger.setMarker(parent.actor_id, key, { parent_operation_id: parent.operation_id, step, operation_id }, this.now().toISOString());
+      return operation_id;
+    });
+    return { ...parent, operation_id };
+  }
+
   find(caller: MemoryCaller, key: string): OperationMark | undefined {
     if (!caller.operation_id) return undefined;
     return this.ledger.marker(caller.actor_id, `${PREFIX}${caller.operation_id}:${key}`)?.body as OperationMark | undefined;

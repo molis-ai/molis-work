@@ -2,13 +2,23 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import type { MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
-import { memoryServiceHome, observeMemoryBackend } from "./fixtures/memory-service-home.js";
+import { memoryServiceHome, observeMemoryBackend, originalMemorySources } from "./fixtures/memory-service-home.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readerOutcome } from "../apps/local-host/dist/memory/memory-upkeep.js";
 
-const memoryHome = (t: Parameters<typeof memoryServiceHome>[0], clock: { now: Date }) => memoryServiceHome(t, {
-  projects: ["project-a"], now: () => clock.now,
-});
+async function memoryHome(t: Parameters<typeof memoryServiceHome>[0], clock: { now: Date }) {
+  const originals = originalMemorySources(["project-a"], () => clock.now.getTime());
+  const env = await memoryServiceHome(t, { projects: ["project-a"], now: () => clock.now, sources: originals.port });
+  return { ...env, async automatic(memory: MemoryService, operation: string, scope: "personal" | "project", text: string, kind: "preference" | "convention") {
+    memory.savePrefs(person(), scope, "assisted");
+    const sources = [originals.add(`${operation}:input-1`, text), originals.add(`${operation}:input-2`, text)];
+    const [result] = await memory.learnFromWork({ ...assistant(operation), operation_id: operation }, {
+      said: sources.map(source => source.text), sources, proposals: [{ text, kind, scope, basis: "explicit", quote: text }],
+    });
+    assert.equal(result!.outcome, "written", "upkeep starts with a real source-bound SDK promotion");
+    return (await memory.list(person(), { scope })).items.find(item => item.memory_id === result!.memory_id)!;
+  } };
+}
 
 const person = (project: string | null = "project-a"): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project, consumer: "ui", person: true });
 const assistant = (work = "work-1"): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "assistant", work: { work_id: work, title: work } });
@@ -87,22 +97,23 @@ test("export has a version and no secrets or absolute paths; importing twice add
 test("upkeep switches off expired and long-unused automatic memories, merges automatic duplicates, hands the person's own to them, and every step is undoable", { timeout: 60_000 }, async t => {
   const clock = { now: new Date("2026-09-30T08:00:00.000Z") };
   const env = await memoryHome(t, clock);
-  const memory = await env.open();
+  let memory = await env.open();
   const expiring = (await memory.write(person(), { scope: "personal", text: "九月底前周报发给王总", expires_at: "2026-10-01T00:00:00.000Z" })).memory!;
-  const auto1 = (await memory.offer(assistant("work-1"), { scope: "project", text: "周报把风险放在最前面", kind: "convention", basis: "repeated", why: "两次", from: "extraction" })).memory!;
+  const auto1 = await env.automatic(memory, "work-1", "project", "周报把风险放在最前面", "convention");
   const auto2 = (await memory.offer(assistant("work-2"), { scope: "project", text: "周报把风险放在最前面。", kind: "convention", basis: "repeated", why: "两次", from: "extraction" }));
   assert.equal(auto2.outcome, "duplicate", "the gate already refuses an exact repeat");
-  const auto3 = (await memory.offer(assistant("work-3"), { scope: "project", text: "周报要把风险放到最前面", kind: "convention", basis: "repeated", why: "两次", from: "extraction" })).memory!;
+  const auto3 = await env.automatic(memory, "work-3", "project", "周报要把风险放到最前面", "convention");
   const said1 = (await keep(memory, assistant(), { scope: "personal", text: "回答用要点列表", said: "回答用要点列表" })).memory!;
   const said2 = (await memory.write(person(), { scope: "personal", text: "回答要用要点列表" })).memory!;
-  const oldAuto = (await memory.offer(assistant("work-4"), { scope: "personal", text: "邮件落款写全名", kind: "preference", basis: "repeated", why: "两次", from: "extraction" })).memory!;
+  const oldAuto = await env.automatic(memory, "work-4", "personal", "邮件落款写全名", "preference");
 
   // Advance the shared Service/Node clock 91 days beyond the stored creation times: automatic values unused for 90 days are disabled.
   const written = (await memory.list(person(), { scope: "all" })).items;
   assert.ok(written.some(item => item.memory_id === oldAuto.memory_id) && written.some(item => item.memory_id === auto1.memory_id));
   clock.now = new Date(Math.max(...written.map(item => { assert.ok(item.created_at, "new writes have a known creation time"); return Date.parse(item.created_at); })) + 91 * 86_400_000);
   // The model finds the near-duplicates (their wording differs too much for the character-pair rule).
-  const report = await memory.upkeep(person(null), { projects: ["project-a"], tidy: async entries => ({ duplicates: ([[auto1.memory_id, auto3.memory_id], [said1.memory_id, said2.memory_id]] as Array<[string, string]>)
+  const maintenance = { ...person(null), operation_id: "581868a5-78c4-4c1a-883f-67734cba5c23" };
+  const report = await memory.upkeep(maintenance, { projects: ["project-a"], tidy: async entries => ({ duplicates: ([[auto1.memory_id, auto3.memory_id], [said1.memory_id, said2.memory_id]] as Array<[string, string]>)
     .filter(([a, b]) => entries.some(item => item.memory_id === a) && entries.some(item => item.memory_id === b)), conflicts: [] }) });
   assert.equal(report.expired, 1);
   assert.equal(report.unused, 2, "automatic ones unused for 90 days (the older survivor of the merge and the e-mail one)");
@@ -113,6 +124,17 @@ test("upkeep switches off expired and long-unused automatic memories, merges aut
   assert.equal(personal.find(item => item.memory_id === oldAuto.memory_id)!.state_reason, "90 天没有用到");
   assert.ok(!personal.some(item => item.memory_id === auto3.memory_id), "the newer automatic duplicate was merged into the older one");
   assert.ok(personal.some(item => item.memory_id === auto1.memory_id));
+  const survivor = personal.find(item => item.memory_id === auto1.memory_id)!;
+  assert.equal(survivor.state, "disabled");
+  assert.equal(survivor.version, 3, "one merge update followed by one conditional disable");
+  assert.deepEqual(survivor.evidence, [...auto1.evidence, ...auto3.evidence], "disabling retains all merged provenance");
+  const beforeRetry = memory.changes(person(), { limit: 50 });
+  await env.close();
+  memory = await env.open();
+  const retry = await memory.upkeep(maintenance, { projects: ["project-a"] });
+  assert.deepEqual([retry.expired, retry.unused, retry.merged], [0, 0, 0]);
+  assert.deepEqual((await memory.list(person())).items.find(item => item.memory_id === auto1.memory_id), survivor);
+  assert.deepEqual(memory.changes(person(), { limit: 50 }), beforeRetry, "the same operation after restart does not add changes");
   // The person's own words are never merged: the pair goes to them.
   const pairs = await memory.pairs(person());
   assert.deepEqual(pairs.map(pair => [pair.kind, [pair.a.memory_id, pair.b.memory_id].sort().join()]), [["duplicate", [said1.memory_id, said2.memory_id].sort().join()]]);
@@ -132,11 +154,103 @@ test("upkeep switches off expired and long-unused automatic memories, merges aut
   assert.deepEqual([quiet.expired, quiet.merged], [0, 0]);
 });
 
+test("upkeep retains short child operations for a long parent when a merge is retried after restart", { timeout: 60_000 }, async t => {
+  const clock = { now: new Date("2026-09-30T08:00:00.000Z") };
+  const env = await memoryHome(t, clock);
+  let memory = await env.open();
+  const keep = await env.automatic(memory, "merge-keep", "project", "发布前先跑全量回归", "convention");
+  const drop = await env.automatic(memory, "merge-drop", "project", "发布之前先跑全量回归", "convention");
+  clock.now = new Date(Math.max(Date.parse(keep.created_at!), Date.parse(drop.created_at!)) + 91 * 86_400_000);
+  const maintenance = { ...person(), operation_id: "m".repeat(200) };
+  const calls: Array<{ kind: string; operation_id: string; expected_version: number }> = [];
+  let failRemoval = true;
+  const controlled = () => new MemoryService({ ledger: env.ledger(), timeZone: "Asia/Shanghai", now: () => clock.now,
+    backend: observeMemoryBackend(env.raw(), bound => ({ ...bound,
+      update: async input => { calls.push({ kind: "update", operation_id: input.operation_id, expected_version: input.expected_version }); return bound.update(input); },
+      disable: async input => { calls.push({ kind: "disable", operation_id: input.operation_id, expected_version: input.expected_version }); return bound.disable(input); },
+      remove: async input => {
+        calls.push({ kind: "remove", operation_id: input.operation_id, expected_version: input.expected_version });
+        if (failRemoval) { failRemoval = false; throw new Error("isolated removal unavailable"); }
+        return bound.remove(input);
+      },
+    })),
+  });
+  const options = { projects: ["project-a"], tidy: async () => ({ duplicates: [[keep.memory_id, drop.memory_id] as [string, string]], conflicts: [] }) };
+  memory = controlled();
+  await assert.rejects(memory.upkeep(maintenance, options), /isolated removal unavailable/);
+  const afterMerge = (await memory.list(person())).items.find(item => item.memory_id === keep.memory_id)!;
+  assert.equal(afterMerge.version, 2, "the real SDK committed the merge before removal failed");
+  assert.deepEqual(afterMerge.evidence, [...keep.evidence, ...drop.evidence]);
+  assert.ok((await memory.list(person())).items.some(item => item.memory_id === drop.memory_id));
+  const linked = env.ledger().marker(LOCAL_PERSON_ACTOR_ID, `memory-source-links:${keep.memory_id}`)!.body;
+  assert.deepEqual(linked, { sources: ["merge-keep:input-1", "merge-keep:input-2", "merge-drop:input-1", "merge-drop:input-2"].map(event_id => ({ event_id, version: "1" })) });
+
+  await env.close();
+  await env.open();
+  memory = controlled();
+  const report = await memory.upkeep(maintenance, options);
+  assert.deepEqual([report.merged, report.unused], [1, 1]);
+  const survivor = (await memory.list(person())).items.find(item => item.memory_id === keep.memory_id)!;
+  assert.deepEqual([survivor.state, survivor.version], ["disabled", 3]);
+  assert.deepEqual(survivor.evidence, afterMerge.evidence, "replaying a committed merge does not append its provenance twice");
+  assert.ok(!(await memory.list(person())).items.some(item => item.memory_id === drop.memory_id));
+  assert.deepEqual(calls.filter(call => call.kind === "update").map(call => [call.operation_id, call.expected_version]), [[calls[0]!.operation_id, 1], [calls[0]!.operation_id, 1]]);
+  assert.ok(calls.every(call => call.operation_id.length <= 200), "the parent and full target identity remain in the ledger, not the SDK operation ID");
+  assert.notEqual(calls.find(call => call.kind === "disable")!.operation_id, calls[0]!.operation_id);
+  const changes = memory.changes(person(), { limit: 50 });
+  assert.equal(changes.filter(change => change.kind === "merged").length, 1);
+  assert.equal(changes.filter(change => change.kind === "auto_disabled").length, 1);
+  const completedCalls = calls.length;
+  await env.close();
+  await env.open();
+  memory = controlled();
+  const retry = await memory.upkeep(maintenance, options);
+  assert.deepEqual([retry.merged, retry.unused], [0, 0]);
+  assert.equal(calls.length, completedCalls, "completed steps are not dispatched again");
+  assert.deepEqual(memory.changes(person(), { limit: 50 }), changes);
+  assert.deepEqual(env.ledger().marker(LOCAL_PERSON_ACTOR_ID, `memory-source-links:${keep.memory_id}`)!.body, linked);
+});
+
+for (const deletion of ["remove", "clear"] as const) test(`upkeep merge keeps original sources and candidates until the person chooses ${deletion}`, { timeout: 60_000 }, async t => {
+  const clock = { now: new Date("2026-09-30T08:00:00.000Z") };
+  const env = await memoryHome(t, clock);
+  let memory = await env.open();
+  const keep = await env.automatic(memory, "source-keep", "project", "发布前先跑全量回归", "convention");
+  const drop = await env.automatic(memory, "source-drop", "project", "发布之前先跑全量回归", "convention");
+  const refs = ["source-keep:input-1", "source-keep:input-2", "source-drop:input-1", "source-drop:input-2"].map(event_id => ({ event_id, version: "1" }));
+  const candidates = await env.raw().candidates.list("project", "project-a");
+  assert.equal(candidates.length, 2, "both real source-bound promotions retain their canonical candidate");
+  assert.ok(memory.sourceAllowed(LOCAL_PERSON_ACTOR_ID, "project", "project-a", refs));
+  const report = await memory.upkeep({ ...person(), operation_id: `merge-before-${deletion}` }, { projects: ["project-a"],
+    tidy: async () => ({ duplicates: [[keep.memory_id, drop.memory_id]], conflicts: [] }) });
+  assert.equal(report.merged, 1);
+  assert.equal(memory.sourceAllowed(LOCAL_PERSON_ACTOR_ID, "project", "project-a", refs), true, "maintenance did not forget any contributing original");
+  assert.deepEqual(await env.raw().candidates.list("project", "project-a"), candidates, "maintenance does not erase the existing candidates");
+  assert.deepEqual(env.ledger().marker(LOCAL_PERSON_ACTOR_ID, `memory-source-links:${keep.memory_id}`)!.body, { sources: refs });
+  const merged = memory.changes(person()).find(change => change.kind === "merged")!;
+  assert.equal(merged.undoable, true, "the existing merge undo remains available");
+  await env.close(); memory = await env.open();
+  assert.equal(memory.sourceAllowed(LOCAL_PERSON_ACTOR_ID, "project", "project-a", refs), true, "the originals remain available after restart");
+  const survivor = (await memory.list(person(), { scope: "project" })).items;
+  assert.equal(survivor.length, 1);
+  assert.deepEqual(survivor[0]!.evidence, [...keep.evidence, ...drop.evidence]);
+  if (deletion === "remove") {
+    await memory.change({ ...person(), operation_id: "person-forgets-survivor" }, { action: "remove", memory_id: survivor[0]!.memory_id, expected_version: survivor[0]!.version });
+  } else {
+    const preview = await memory.previewScope(person(), "project");
+    const cleared = await memory.clearScope(person(), "project", preview.fingerprint);
+    assert.equal(cleared.complete, true); assert.equal(cleared.removed, 1);
+  }
+  assert.deepEqual((await memory.list(person(), { scope: "project" })).items, []);
+  assert.deepEqual(await env.raw().candidates.list("project", "project-a"), []);
+  assert.ok(refs.every(ref => !memory.sourceAllowed(LOCAL_PERSON_ACTOR_ID, "project", "project-a", [ref])), "the person's deletion suppresses the full merged union");
+});
+
 test("contradictions the model finds go to the person; until settled, recall takes the person's own words and names the other; an object gone pauses what rests on it", { timeout: 60_000 }, async t => {
   const clock = { now: new Date("2026-09-30T08:00:00.000Z") };
   const env = await memoryHome(t, clock);
   const memory = await env.open();
-  const table = (await memory.offer(assistant("work-1"), { scope: "project", text: "周报用表格", kind: "convention", basis: "repeated", why: "两次", from: "extraction" })).memory!;
+  const table = await env.automatic(memory, "work-1", "project", "周报用表格", "convention");
   const bullets = (await keep(memory, assistant(), { scope: "project", text: "周报用要点列表", said: "周报用要点列表" })).memory!;
   const doc = (await keep(memory, assistant(), { scope: "project", text: "方案结构按「背景-目标-计划」", said: "方案结构按「背景-目标-计划」", rests_on: { kind: "page", id: "page-1" } })).memory!;
   const report = await memory.upkeep(person(), { projects: ["project-a"],
@@ -171,8 +285,8 @@ test("a deleted memory does not come back through upkeep, a merge record or a re
   const clock = { now: new Date("2026-09-30T08:00:00.000Z") };
   const env = await memoryHome(t, clock);
   let memory = await env.open();
-  const keep = (await memory.offer(assistant("work-1"), { scope: "project", text: "发布前先跑全量回归", kind: "convention", basis: "repeated", why: "两次", from: "extraction" })).memory!;
-  await memory.offer(assistant("work-2"), { scope: "project", text: "发布之前先跑全量回归", kind: "convention", basis: "repeated", why: "两次", from: "extraction" });
+  const keep = await env.automatic(memory, "work-1", "project", "发布前先跑全量回归", "convention");
+  await env.automatic(memory, "work-2", "project", "发布之前先跑全量回归", "convention");
   await memory.upkeep(person(), { projects: ["project-a"], tidy: async entries => ({ duplicates: [[entries[0]!.memory_id, entries[1]!.memory_id]], conflicts: [] }) });
   const merged = memory.changes(person()).find(change => change.kind === "merged")!;
   assert.equal(merged.undoable, true);

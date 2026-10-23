@@ -7,48 +7,49 @@ import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-ho
 import { MemoryService, MEMORY_GATE_RULE, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase, openMemoryLedger } from "@molis-ai/molis-work-storage";
-import { ASSISTANT_STORE_NAME, AssistantStore, memoryRuntimePolicy, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
-import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_STORE_NAME, AssistantStore, memoryRuntimePolicy, memorySources, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentRunRef, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { memoryServiceHome } from "./fixtures/memory-service-home.js";
+import { memoryServiceHome, originalMemorySources } from "./fixtures/memory-service-home.js";
 import { learnFromQueuedWork, learnFromWork } from "../apps/local-host/dist/memory/memory-learning.js";
 import { MEMORY_EXTRACT } from "../apps/local-host/dist/agent-definitions/system-prompts.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
 async function memoryHome(t: Parameters<typeof memoryServiceHome>[0]) {
-  const env = await memoryServiceHome(t, { projects: ["project-q4"], projectTitle: async () => "Q4 plan" });
-  return { home: env.home, service: await env.open() };
+  const sources = originalMemorySources(["project-q4"]);
+  const env = await memoryServiceHome(t, { projects: ["project-q4"], projectTitle: async () => "Q4 plan", sources: sources.port });
+  return { home: env.home, service: await env.open(), sources };
 }
 
 const inWork = (work_id: string, title: string): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", consumer: "assistant", work: { work_id, title } });
 const person: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", consumer: "ui", person: true };
 const riskFirst = { text: "Q4 plan 的周报把风险放在最前面", kind: "convention" as const, scope: "project" as const, applies_when: "写 Q4 plan 的周报时", basis: "explicit" as const };
 
-test("a wish said once is only suggested; said again in another work it is kept automatically by the gate, shows as a recent change, and undo removes it from the store and from recall", { timeout: 60_000 }, async t => {
-  const { service } = await memoryHome(t);
-  const firstSaid = ["帮我写这周的周报", "以后周报都把风险放最前面，别放最后"];
+test("a wish said once is only suggested; a second independent original is kept automatically, shown as a recent change, and undo removes it from storage and recall", { timeout: 60_000 }, async t => {
+  const { service, sources } = await memoryHome(t);
+  const text = "以后周报都把风险放最前面，别放最后", request = { ...riskFirst, text, quote: text };
+  const firstSaid = ["帮我写这周的周报", text];
   assert.equal(service.worthLearning(inWork("work-1", "周报 9/23"), firstSaid), true);
-  const first = await service.learnFromWork(inWork("work-1", "周报 9/23"), { said: firstSaid, proposals: [{ ...riskFirst, quote: "以后周报都把风险放最前面" }] });
+  const first = await service.learnFromWork(inWork("work-1", "周报 9/23"), { said: firstSaid, sources: [sources.add("input-first", text)], proposals: [request] });
   assert.deepEqual(first.map(item => item.outcome), ["candidate"], "once is not repeated: it waits for the person");
   const [waiting] = await service.candidates(person, { scope: "project" });
   assert.equal(waiting!.basis, "explicit");
-  assert.match(waiting!.hold_reason!, /只在一项工作里出现过/);
+  assert.match(waiting!.hold_reason!, /只有一份原始表态/);
   assert.equal((await service.list(person)).items.length, 0, "nothing kept yet");
 
-  // A second work, the person says it again in their own words: repeated → kept automatically (preferences and conventions only).
-  const secondSaid = ["周报草稿", "风险还是要放在最前面，上次也是这么说的"];
-  const second = await service.learnFromWork(inWork("work-2", "周报 9/30"), { said: secondSaid,
-    proposals: [{ ...riskFirst, quote: "风险还是要放在最前面", same_as: waiting!.candidate_id }] });
+  // A different original input, with the same complete meaning. A work label alone is never evidence.
+  const second = await service.learnFromWork(inWork("work-2", "周报 9/30"), { said: [text], sources: [sources.add("input-second", text)],
+    proposals: [{ ...request, same_as: waiting!.candidate_id }] });
   assert.deepEqual(second.map(item => item.outcome), ["written"]);
   const [kept] = (await service.list(person)).items;
   assert.equal(kept!.source, "auto");
   assert.equal(kept!.basis, "repeated");
-  assert.deepEqual(kept!.approved_by, { by: "policy", policy: "memory.write-gate", version: 2 });
+  assert.deepEqual(kept!.approved_by, { by: "policy", policy: "memory.write-gate", version: 3 });
   assert.match(kept!.origin, new RegExp(`^${MEMORY_GATE_RULE}`));
-  assert.equal((await service.candidates(person, { scope: "project" })).length, 0, "the suggestion was settled by the promotion");
+  assert.deepEqual((await service.candidates(person, { scope: "project" })).map(item => [item.candidate_id, item.state]), [[waiting!.candidate_id, "pending"]], "the original single-source suggestion retains its real pending state");
   const [change] = service.changes(person, { scope: "project" });
   assert.equal(change!.kind, "auto_kept");
-  assert.match(change!.reason!, /你在工作「周报 9\/23」和「周报 9\/30」里都这样要求/);
+  assert.match(change!.reason!, /两份独立的本人原始表态/);
   assert.ok((await service.recall(inWork("work-3", "周报 10/7"), { query: "写周报" })).items.some(item => item.memory_id === kept!.memory_id));
 
   // Undo: gone from the store, never recalled again.
@@ -58,7 +59,7 @@ test("a wish said once is only suggested; said again in another work it is kept 
 });
 
 test("only once, only inferred, a background fact, words the person never said, or 'don't remember' — none is written automatically", { timeout: 60_000 }, async t => {
-  const { service } = await memoryHome(t);
+  const { service, sources } = await memoryHome(t);
   // Words not in what the person said: an inference, however the model labelled it.
   const invented = await service.learnFromWork(inWork("work-1", "周报"), { said: ["以后周报用表格吧"], proposals: [{ ...riskFirst, quote: "风险放最前面" }] });
   assert.deepEqual(invented.map(item => item.outcome), ["candidate"]);
@@ -70,9 +71,9 @@ test("only once, only inferred, a background fact, words the person never said, 
 
   // A background fact said in two works stays a suggestion (facts belong to the data they come from).
   const fact = { text: "Q4 plan 的预算上限是 50 万", kind: "fact" as const, scope: "project" as const, basis: "explicit" as const };
-  await service.learnFromWork(inWork("work-3", "预算"), { said: ["记住以后都按预算上限 50 万算"], proposals: [{ ...fact, quote: "预算上限 50 万" }] });
+  await service.learnFromWork(inWork("work-3", "预算"), { said: [fact.text], sources: [sources.add("budget-1", fact.text)], proposals: [{ ...fact, quote: fact.text }] });
   const factCandidate = (await service.candidates(person, { scope: "project" })).find(item => item.kind === "fact")!;
-  const repeated = await service.learnFromWork(inWork("work-4", "预算"), { said: ["以后预算上限 50 万"], proposals: [{ ...fact, quote: "预算上限 50 万", same_as: factCandidate.candidate_id }] });
+  const repeated = await service.learnFromWork(inWork("work-4", "预算"), { said: [fact.text], sources: [sources.add("budget-2", fact.text)], proposals: [{ ...fact, quote: fact.text, same_as: factCandidate.candidate_id }] });
   assert.equal(repeated[0]!.outcome, "candidate");
   assert.match(repeated[0]!.reason, /背景事实以原资料为准/);
   assert.equal((await service.list(person)).items.length, 0);
@@ -90,13 +91,13 @@ test("only once, only inferred, a background fact, words the person never said, 
 
 // MEM-12: independent repetition verifies a source; it does not make an experience eligible for automatic approval.
 test("an experience repeated in two works stays the same pending candidate until the person accepts it", { timeout: 60_000 }, async t => {
-  const { service } = await memoryHome(t);
+  const { service, sources } = await memoryHome(t);
   const proposal = { text: "预热缓存后发布告警通常更少", kind: "experience" as const, scope: "project" as const, basis: "explicit" as const, quote: "预热缓存后发布告警通常更少" };
-  const first = await service.learnFromWork(inWork("experience-1", "首次复盘"), { said: ["记住这个经验：预热缓存后发布告警通常更少"], proposals: [proposal] });
+  const first = await service.learnFromWork(inWork("experience-1", "首次复盘"), { said: [proposal.text], sources: [sources.add("experience-1", proposal.text)], proposals: [proposal] });
   assert.equal(first[0]!.outcome, "candidate");
   assert.match(first[0]!.reason, /经验.*认可/);
   assert.doesNotMatch(first[0]!.reason, /会自动记住/);
-  const second = await service.learnFromWork(inWork("experience-2", "第二次复盘"), { said: ["下次也参考这个经验，预热缓存后发布告警通常更少"], proposals: [proposal] });
+  const second = await service.learnFromWork(inWork("experience-2", "第二次复盘"), { said: [proposal.text], sources: [sources.add("experience-2", proposal.text)], proposals: [proposal] });
   assert.equal(second[0]!.outcome, "candidate");
   assert.equal(second[0]!.candidate_id, first[0]!.candidate_id);
   assert.match(second[0]!.reason, /经验.*认可/);
@@ -135,17 +136,17 @@ test("the drawing-out sends the registered instruction and the person's words, r
 });
 
 test("a personal wish learned in a project's works never names those works: not in the suggestion, the memory's provenance or the recent change", { timeout: 60_000 }, async t => {
-  const { service } = await memoryHome(t);
+  const { service, sources } = await memoryHome(t);
   const unit = { text: "汇报里的金额统一用万元做单位", kind: "preference" as const, scope: "personal" as const, basis: "explicit" as const };
-  await service.learnFromWork(inWork("work-1", "差旅费用 机票 18600 元"), { said: ["我习惯汇报里的金额都用万元做单位"], proposals: [{ ...unit, quote: "我习惯汇报里的金额都用万元做单位" }] });
+  await service.learnFromWork(inWork("work-1", "差旅费用 机票 18600 元"), { said: [unit.text], sources: [sources.add("unit-1", unit.text)], proposals: [{ ...unit, quote: unit.text }] });
   const [waiting] = await service.candidates(person, { scope: "personal" });
   assert.doesNotMatch(waiting!.why, /差旅费用|18600/);
-  const second = await service.learnFromWork(inWork("work-2", "内容预算 视频制作 275000 元"), { said: ["金额还是用万元，我一直这么要求"],
-    proposals: [{ ...unit, quote: "金额还是用万元", same_as: waiting!.candidate_id }] });
+  const second = await service.learnFromWork(inWork("work-2", "内容预算 视频制作 275000 元"), { said: [unit.text], sources: [sources.add("unit-2", unit.text)],
+    proposals: [{ ...unit, quote: unit.text, same_as: waiting!.candidate_id }] });
   assert.deepEqual(second.map(item => item.outcome), ["written"]);
   const [kept] = (await service.list(person, { scope: "personal" })).items;
   assert.equal(kept!.scope, "personal");
-  assert.match(kept!.origin, /两项不同的工作/);
+  assert.match(kept!.origin, /两份独立的原始输入/);
   assert.doesNotMatch(kept!.origin, /差旅费用|内容预算|18600|275000/);
   const [change] = service.changes(person, { scope: "personal" });
   assert.doesNotMatch(change!.reason ?? "", /差旅费用|内容预算/);
@@ -258,7 +259,12 @@ async function queuedLearning(t: test.TestContext) {
   });
   const open = async () => {
     const value = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
-      memory: memoryRuntimePolicy(() => policyOwner),
+      memory: { ...memoryRuntimePolicy(() => policyOwner), sources: memorySources(home, () => ({ adapter, policy: policyOwner,
+        sourceAllowed: (actor, scope, owner, refs) => service.sourceAllowed(actor, scope, owner, refs),
+        sessionAllowed: async owner => owner.actor_id === LOCAL_PERSON_ACTOR_ID && owner.project_id === "project-q4"
+          && owner.plugin_id === ASSISTANT_PLUGIN_ID && owner.install_id === ASSISTANT_INSTALL_ID,
+      })), promotion: { policy: "memory.write-gate", version: 3, decide: (caller, request) => service.promotion.decide(caller, request),
+        undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } } },
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
     const withCaller = value.memory!.withCaller.bind(value.memory!);
     t.mock.method(value.memory!, "withCaller", (caller: Parameters<AgentMemoryCapability["withCaller"]>[0]) => observe(withCaller(caller)));
@@ -272,13 +278,13 @@ async function queuedLearning(t: test.TestContext) {
   let inModel: () => Promise<void> = async () => {}, afterLearning: () => void = () => {}, projectExists = true;
   const generate = async () => {
     modelCalls++; await inModel();
-    return { value: "{}", structured: { candidates: [{ ...riskFirst, quote: "以后周报都把风险放最前面" }] }, run_ref: { kind: "run", id: "fixture", revision: 1 } as never,
+    return { value: "{}", structured: { candidates: [{ ...riskFirst, text: "以后周报都把风险放最前面", quote: "以后周报都把风险放最前面" }] }, run_ref: { kind: "run", id: "fixture", revision: 1 } as never,
       state: "completed" as const, configuredModel: "fixture", reportedModels: [], usage: [], validateResult: () => undefined };
   };
   const attach = () => adapter.schedule!.handle("memory.learn", async task => { outcomes.push(await learnFromQueuedWork(home, task,
     { adapter, service, ports, backend: (control: AgentMemoryExecutionControl) => prologueMemoryBackend(async () => adapter.memory!, control), alive: () => alive, projectExists: async () => projectExists }, generate)); afterLearning(); });
   const start = async (text = "以后周报都把风险放最前面", written_by?: "page") => {
-    const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_PLUGIN_ID };
+    const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID };
     const session = await adapter.createSession({ ...owner, workspace: "none", role_id: "assistant", title: "周报" });
     const work = originals.create({ actor_id: owner.actor_id, title: "周报", scope: { kind: "project", project_id: owner.project_id }, project_ref: { project_id: owner.project_id, storage_key: "memory:project-q4" }, origin: null });
     originals.update(owner.actor_id, work.work_id, null, { session_id: session.session_id });
@@ -341,17 +347,53 @@ test("MEM-SOURCE-07: a real queue retry after candidate commit remains one sourc
   fixture.attach(); await fixture.enqueue(first.task, Date.now(), 2);
   assert.equal((await fixture.settled(first.task.key)).state, "done");
   assert.equal(fixture.modelCalls, 2, "the Runtime really retried the callback");
-  assert.deepEqual(fixture.outcomes.map(item => item.learned.map(one => one.outcome)), [["candidate"], ["skipped"]]);
+  assert.deepEqual(fixture.outcomes.map(item => item.learned.map(one => one.outcome)), [["candidate"], ["candidate"]], "the same operation replays its committed result");
   const [candidate] = await fixture.service.candidates(person, { scope: "project" });
   assert.equal(candidate!.basis, "explicit");
   const sdkCandidates = await fixture.adapter.memory!.withCaller({ ...person, current_scene: "common", purpose: "management" }).candidates.list("project", "project-q4");
   assert.equal(sdkCandidates.length, 1);
+  assert.equal(sdkCandidates[0]!.version, 1, "the retry did not update the original candidate");
+  assert.equal(sdkCandidates[0]!.sources?.length, 1, "one original remains one source");
+  assert.deepEqual(fixture.outcomes.flatMap(item => item.learned.map(one => one.candidate_id)), [candidate!.candidate_id, candidate!.candidate_id]);
   assert.equal(sdkCandidates[0]!.meta?.evidence?.length, 1, "replay did not add a second occurrence");
   assert.deepEqual((await fixture.service.list(person)).items, []); assert.deepEqual(fixture.service.changes(person), []);
   const renamed = { ...first.task, key: `${first.task.key}:different-job` };
   await fixture.enqueue(renamed); assert.equal((await fixture.settled(renamed.key)).state, "done");
   assert.equal(fixture.modelCalls, 2, "a new job label cannot stand in for a new original round");
   assert.deepEqual((await fixture.service.candidates(person, { scope: "project" })).map(item => item.candidate_id), [candidate!.candidate_id]);
+});
+
+test("MEM-SOURCE-08: a completed supplementary source without its original time never starts extraction", { timeout: 60_000 }, async t => {
+  const fixture = await queuedLearning(t), first = await fixture.start(); await fixture.ended(first.ref);
+  const text = "以后周报都把风险放最前面";
+  const sent = await fixture.adapter.inputs!.send(first.ref, { text, key: "learning.unknown-time", mode: "after-run" });
+  const session = (await fixture.adapter.readSession({ session_id: first.ref.session_id, runtime_id: fixture.adapter.descriptor.runtime_id })).session;
+  const next = await fixture.adapter.start({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", plugin_id: ASSISTANT_PLUGIN_ID,
+    install_id: ASSISTANT_INSTALL_ID, session, workspace: "none", task: "继续处理排队的输入", role_id: "assistant", queued: "carry",
+    role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
+  fixture.originals.addRound(first.work.work_id, { run_id: next.ref.run_id, text: "继续处理排队的输入", written_by: "host",
+    materials: [], context: null, started_at: new Date().toISOString() });
+  const completed = await fixture.ended(next.ref), receipt = completed.turns.find(turn => turn.steer?.id === sent.input_id)?.steer;
+  assert.equal(receipt?.source, "person"); assert.ok(receipt && ["applied", "read"].includes(receipt.state));
+  assert.equal(typeof receipt.accepted_at_ms, "number", "the real queue/carry path first proves the original receipt");
+  const read = fixture.adapter.read.bind(fixture.adapter);
+  // Old public receipts may lack this optional fact. Preserve their real text, identity, author and state;
+  // the source owner must not substitute a current time or extract an unbound inferred suggestion.
+  t.mock.method(fixture.adapter, "read", async (...args: Parameters<typeof read>) => {
+    const view = await read(...args);
+    return { ...view, turns: view.turns.map(turn => {
+      if (turn.steer?.id !== sent.input_id) return turn;
+      const { accepted_at_ms: _unknown, ...steer } = turn.steer;
+      return { ...turn, steer };
+    }) };
+  });
+  const task = { key: `memory-learn:${first.work.work_id}:${next.ref.run_id}`, session_id: session.session_id,
+    payload: { actor_id: LOCAL_PERSON_ACTOR_ID, work_id: first.work.work_id, session_id: session.session_id, run_id: next.ref.run_id,
+      sources: [{ run_id: next.ref.run_id, input_id: sent.input_id, version: "1" }] } };
+  fixture.attach(); await fixture.enqueue(task);
+  assert.equal((await fixture.settled(task.key)).state, "done");
+  assert.equal(fixture.outcomes[0]!.ran, false); assert.equal(fixture.modelCalls, 0);
+  await fixture.empty(); await fixture.restart(); await fixture.empty();
 });
 
 test("MEM-SOURCE-02: old queued text is usable only with matching original identity and full text", { timeout: 60_000 }, async t => {
@@ -394,8 +436,13 @@ for (const when of ["before-model", "during-model", "sdk-write"] as const) test(
     fixture.beforeCandidateWrite(() => { intercepted = true; off(); });
   }
   fixture.attach(); await fixture.enqueue(first.task);
-  assert.equal((await fixture.settled(first.task.key)).state, "done");
-  if (when === "sdk-write") { assert.equal(intercepted, true); assert.deepEqual(fixture.outcomes[0]!.learned.map(item => item.outcome), ["skipped"], "the existing per-proposal result reports the refused write"); }
+  const settled = await fixture.settled(first.task.key);
+  assert.equal(settled.state, when === "sdk-write" ? "failed" : "done");
+  if (when === "sdk-write") {
+    assert.equal(intercepted, true);
+    assert.equal(settled.last_failure, "That memory source is not current or cannot be verified.");
+    assert.deepEqual(fixture.outcomes, [], "the SDK source gate refused before a candidate result existed");
+  }
   assert.equal(fixture.modelCalls, when === "before-model" ? 0 : 1); await fixture.empty();
   await fixture.restart(); await fixture.empty();
 });
@@ -418,7 +465,9 @@ test("MEM-SOURCE-06: an original archived after model checks is re-read at the a
     intercepted = true; fixture.originals.update(LOCAL_PERSON_ACTOR_ID, first.work.work_id, null, { archived: true });
   });
   fixture.attach(); await fixture.enqueue(first.task);
-  assert.equal((await fixture.settled(first.task.key)).state, "done"); assert.equal(fixture.modelCalls, 1); assert.equal(intercepted, true);
-  assert.deepEqual(fixture.outcomes[0]!.learned.map(item => item.outcome), ["skipped"]);
+  const settled = await fixture.settled(first.task.key);
+  assert.equal(settled.state, "failed"); assert.equal(fixture.modelCalls, 1); assert.equal(intercepted, true);
+  assert.equal(settled.last_failure, "That memory source is not current or cannot be verified.");
+  assert.deepEqual(fixture.outcomes, [], "archive invalidation reaches the SDK source gate before its commit");
   await fixture.empty(); await fixture.restart(); await fixture.empty();
 });

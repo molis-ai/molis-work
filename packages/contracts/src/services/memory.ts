@@ -643,6 +643,8 @@ export interface MemoryChangeRecord extends MemoryChange {
 }
 
 export interface MemoryCandidateRecord extends MemoryCandidate {
+  /** SDK-confirmed source identities only; no text and no substitute for the source owner's current authorization. */
+  source_refs?: readonly import("./agent-host-memory.js").AgentMemorySourceRef[];
   /** Formal retention intent, not the candidate waiting deadline. Absent means it was not recorded. */
   formal_expires_at?: string | null;
   actor_id: string;

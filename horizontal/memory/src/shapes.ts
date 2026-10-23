@@ -21,7 +21,7 @@ export function joinedFingerprint(parts: ReadonlyArray<{ scope: MemoryScope; own
 }
 
 export function candidateView(record: MemoryCandidateRecord): MemoryCandidate {
-  const { actor_id: _actor, owner: _owner, formal_expires_at: _formalExpiry, ...view } = record;
+  const { actor_id: _actor, owner: _owner, formal_expires_at: _formalExpiry, source_refs: _sourceRefs, ...view } = record;
   return view;
 }
 

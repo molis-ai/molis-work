@@ -3,16 +3,41 @@ import type { TestContext } from "node:test";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createPrologueNodeAdapter, openPrologueMemoryAdoption } from "@molis-ai/molis-work-service-agent-host";
+import { isDeepStrictEqual } from "node:util";
+import { createPrologueNodeAdapter, openPrologueMemoryAdoption, type PrologueNodeAdapterOptions } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AgentMemoryCaller, AgentMemorySourceSnapshot, AgentMemorySourceRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryRuntimePolicy, prologueMemoryBackend, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 
+/** Explicit original-input fixture. A request can resolve only declared identities in the person's allowed scopes. */
+export function originalMemorySources(projects: readonly string[], now: () => number = Date.now) {
+  const entries = new Map<string, AgentMemorySourceSnapshot>();
+  const allowed = (caller: AgentMemoryCaller, request: AgentMemorySourceRequest) => caller.actor_id === LOCAL_PERSON_ACTOR_ID
+    && (request.target.scope === "user" && request.target.owner === LOCAL_PERSON_ACTOR_ID
+      || request.target.scope === "project" && caller.project_id === request.target.owner && projects.includes(request.target.owner));
+  const port: NonNullable<NonNullable<PrologueNodeAdapterOptions["memory"]>["sources"]> = {
+    async resolve(caller, request) { return allowed(caller, request) ? request.refs.flatMap(ref => {
+      const source = entries.get(ref.event_id); return source?.version === ref.version ? [source] : [];
+    }) : []; },
+    async check(caller, request) { return allowed(caller, request) && request.identities.every(identity => {
+      const source = entries.get(identity.event_id); if (!source) return false;
+      const { text: _text, ...current } = source; return isDeepStrictEqual(current, identity);
+    }); },
+  };
+  return { port, entries, add(event_id: string, text: string) {
+    const source: AgentMemorySourceSnapshot = { event_id, version: "1", text, speaker: { kind: "person", id: LOCAL_PERSON_ACTOR_ID },
+      derivation: "original", occurred_at_ms: now() };
+    entries.set(event_id, source); return source;
+  } };
+}
+
 /** Production policy and persistent owners; only the declared scratch projects exist. No classifier defaults. */
 export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, options: {
   projects: readonly string[]; now?: () => Date; projectTitle?: (id: string) => Promise<string>;
+  sources?: NonNullable<PrologueNodeAdapterOptions["memory"]>["sources"];
 }) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-service-"));
   const projects = new Set(options.projects);
@@ -30,7 +55,9 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
   const open = async () => {
     ledger = openMemoryLedger({ homeDirectory: home });
     adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
-      memory: memoryRuntimePolicy(() => owner), modelConfiguration: async () => { throw new Error("Memory fixture does not call a model"); } });
+      memory: { ...memoryRuntimePolicy(() => owner), ...(options.sources ? { sources: options.sources } : {}),
+        promotion: { policy: "memory.write-gate", version: 3, decide: (caller, request) => service.promotion.decide(caller, request),
+          undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } } }, modelConfiguration: async () => { throw new Error("Memory fixture does not call a model"); } });
     service = new MemoryService({ backend: backend(), ledger, timeZone: "Asia/Shanghai",
       ...(options.now ? { now: options.now } : {}), ...(options.projectTitle ? { projectTitle: options.projectTitle } : {}) });
     alive = true;
@@ -60,7 +87,7 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
     } finally { await maintenance.close(); }
     return open();
   };
-  return { home, open, close, seedUnclassified, ledger: () => ledger!, memory: () => adapter!.memory!, raw: (caller = person) => backend().withCaller(caller) };
+  return { home, open, close, seedUnclassified, ledger: () => ledger!, adapter: () => adapter!, memory: () => adapter!.memory!, raw: (caller = person) => backend().withCaller(caller) };
 }
 
 /** Fault injection wraps the same bound backend the Service actually uses. It cannot replace caller authority. */

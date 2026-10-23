@@ -110,6 +110,12 @@ pnpm --filter @molis-ai/molis-work-service-memory typecheck
 pnpm --filter @molis-ai/molis-work-service-memory build
 ```
 
+### M2 来源绑定与规则 v3（实施中）
+
+范围与验收以 [spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定) 为准。沿现学习队列和单次登记的 Host 提炼，将 canonical 原件身份交 SDK 候选；明确表达复用 `spoken.theirWords` 的整条消息规则，重复只数独立来源。模型引用、工作/Run/job 数量和旧无来源候选不构成自动批准。SDK form 接线仍属 P0 后片，不用临时旁路存丢失的候选字段。
+
+产品规则 v3 和撤销准备/补账归本包，SDK 仍拥有正式 CAS 与候选决定。准备写现操作 marker/原版本历史，并在原 marker 内一次生成有界变更 ID；提交及重试复用该 ID，提交后记现变更与撤销；失败沿原操作恢复，后继人工版本不得覆盖。遗忘先写无正文来源抑制标识，清理和重放都复用现 ledger，不新增来源正文表。`learning.ts` 拥有学习编排，`promotion.ts` 拥有版本化批准与当前账本回执；这些不成为另一个候选或执行内核。现候选账注的可选 `source_refs` 只保留 SDK 已确认的来源身份，不保存原文、不替代最终授权；晋升准备读此账注，避免重入 SDK 正在执行的候选队列。
+
 ## 开发要求
 
 使用历史只由真实 Run Context 回执补入现有 ledger；显式召回返回记为 `returned`，不会进入最近参考。相同条目/SDK receipt 保存一份逐 call 事实的摘要，确认响应后不会被较弱状态降级；显示时间为原轮次开始时间。逐 call 完整事实仍归 Run，旧 `used` 不能转换成确认派发。遗忘后迟到回执逐条忽略已删身份，不阻断同批其他条目。对应回归为 `tests/memory-use-receipts.test.ts` 与 `tests/prologue-memory-run-context.test.ts`。

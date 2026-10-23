@@ -3,14 +3,28 @@ import test from "node:test";
 import { MemoryService, MEMORY_GATE_RULE, SIGNAL_THRESHOLD, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import type { MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
-import { memoryServiceHome } from "./fixtures/memory-service-home.js";
+import { memoryServiceHome, originalMemorySources } from "./fixtures/memory-service-home.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { NOT_THEIRS, THEIRS } from "./fixtures/memory-said-cases.js";
 
-const memoryHome = (t: Parameters<typeof memoryServiceHome>[0], clock?: () => Date) => memoryServiceHome(t, {
-  projects: ["project-a", "project-b"], ...(clock ? { now: clock } : {}),
-  projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙",
-});
+async function memoryHome(t: Parameters<typeof memoryServiceHome>[0], clock?: () => Date) {
+  const originals = originalMemorySources(["project-a", "project-b"], () => clock?.().getTime() ?? Date.now());
+  const env = await memoryServiceHome(t, { projects: ["project-a", "project-b"], ...(clock ? { now: clock } : {}), sources: originals.port,
+    projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙" });
+  return { ...env, async automatic(memory: MemoryService, text: string, scope: "personal" | "project" = "project") {
+    const operation = crypto.randomUUID();
+    const sources = [originals.add(`${operation}:first`, text), originals.add(`${operation}:second`, text)];
+    const [result] = await memory.learnFromWork({ ...assistant(), operation_id: operation, work: { work_id: operation, title: "两份原始表态" } }, {
+      said: sources.map(source => source.text), sources,
+      proposals: [{ text, scope, kind: scope === "project" ? "convention" : "preference", basis: "explicit", quote: text }],
+    });
+    assert.equal(result!.outcome, "written", "the automatic premise uses two canonical originals and the real SDK promotion");
+    const entry = (await memory.list(person(), { scope })).items.find(item => item.memory_id === result!.memory_id);
+    const change = memory.changes(person(), { scope }).find(item => item.memory_id === result!.memory_id);
+    assert.ok(entry); assert.ok(change);
+    return { ...result!, memory: entry, change_id: change.change_id };
+  } };
+}
 
 const person = (project: string | null = "project-a"): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project, consumer: "ui", person: true });
 const assistant = (project: string | null = "project-a", work = { work_id: "work-1", title: "季度复盘" }): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project, consumer: "assistant", work });
@@ -107,7 +121,7 @@ test("the gate records 'said' only when the text is the quote whole: a fragment,
   assert.equal((await memory.list(person())).items.length, 0, "nothing was recorded as the person's words");
 
   // Said again over a memory the gate kept itself: a quote that does not carry it does not turn it into the person's.
-  const auto = await memory.offer(assistant(), { scope: "project", text: "周报先写风险", kind: "convention", basis: "repeated", why: "两次都这样要求", from: "extraction" });
+  const auto = await env.automatic(memory, "周报先写风险");
   const again = await keep(memory, work(7), { scope: "project", text: "周报先写风险", said: "再说一遍" });
   assert.equal(again.outcome, "duplicate");
   assert.equal((await memory.list(person())).items.find(item => item.memory_id === auto.memory!.memory_id)!.source, "auto", "still the gate's, still takeable back");
@@ -203,7 +217,7 @@ test("a correction borrows no words from the memory it replaces, the person's ow
   const env = await memoryHome(t);
   const memory = await env.open();
   const work = (n: number) => assistant("project-a", { work_id: `work-${n}`, title: `工作 ${n}` });
-  const auto = (text: string) => memory.offer(assistant(), { scope: "project", text, kind: "convention", basis: "repeated", why: "两次都这样要求", from: "extraction" });
+  const auto = (text: string) => env.automatic(memory, text);
   const sources = async () => (await memory.list(person())).items.map(item => `${item.text} · ${item.source}`).sort();
   const undoable = (id: string | null) => memory.changes(person(), { scope: "project" }).find(item => item.change_id === id)!.undoable;
 
@@ -249,19 +263,18 @@ test("a correction borrows no words from the memory it replaces, the person's ow
 test("automatic writes follow the gate table, show in recent changes with their rule, and undo deletes them from the store", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
-  const auto = await memory.offer(assistant(), { scope: "project", text: "项目甲的周报把风险放最前面", kind: "convention", basis: "repeated", why: "你在两次工作里都这样要求", from: "extraction",
-    evidence: [{ kind: "said", text: "风险放最前面", at: new Date().toISOString() }] });
+  const auto = await env.automatic(memory, "项目甲的周报把风险放最前面");
   assert.equal(auto.outcome, "written");
   assert.equal(auto.memory!.source, "auto");
-  assert.deepEqual(auto.memory!.approved_by, { by: "policy", policy: "memory.write-gate", version: 2 });
+  assert.deepEqual(auto.memory!.approved_by, { by: "policy", policy: "memory.write-gate", version: 3 });
   // It went in as a promotion in Prologue's candidate box: the box wrote the approver on the entry, not the Host.
   assert.deepEqual((await env.raw().candidates.list("project", "project-a")).map(item => [item.state, item.memory_id]), [["promoted", auto.memory!.memory_id]]);
-  assert.deepEqual((await env.raw().list("project", "project-a"))[0]!.meta.approved_by, { by: "policy", policy: "memory.write-gate", version: 2 });
+  assert.deepEqual((await env.raw().list("project", "project-a"))[0]!.meta.approved_by, { by: "policy", policy: "memory.write-gate", version: 3 });
   assert.match(auto.memory!.origin, new RegExp(`^${MEMORY_GATE_RULE}`));
   const [change] = memory.changes(person(), { scope: "project" });
   assert.equal(change!.kind, "auto_kept");
   assert.equal(change!.rule, MEMORY_GATE_RULE);
-  assert.equal(change!.reason, "依据：你在两次工作里都这样要求");
+  assert.equal(change!.reason, "两份独立的本人原始表态，经当前规则复核");
   assert.equal(change!.undoable, true);
   assert.equal((await memory.list(person())).counts.auto_this_week, 1);
   // Only inferred, a background fact, or automatic writing switched off: candidates, never written.
@@ -287,7 +300,7 @@ test("automatic writes follow the gate table, show in recent changes with their 
 test("repeated experience waits across restart, then a person's acceptance replaces the entry and retires its automatic undo", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
-  const automatic = await memory.offer(assistant(), { scope: "project", text: "发布前先检查告警", kind: "convention", basis: "repeated", why: "两次明确约定", from: "extraction" });
+  const automatic = await env.automatic(memory, "发布前先检查告警");
   const held = await memory.offer(assistant(), { scope: "project", text: "缓存预热通常能减少发布告警", kind: "experience", basis: "repeated", why: "两次项目复盘提到", from: "extraction", supersedes: automatic.memory!.memory_id });
   assert.equal(held.outcome, "candidate");
   assert.match(held.reason, /经验.*认可/);
@@ -480,7 +493,7 @@ test("a reworded second suggestion of what the gate already holds in the same wo
 test("undoing an automatic write cannot delete what the person has since said, accepted, replaced or edited themselves", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
-  const auto = (text: string) => memory.offer(assistant(), { scope: "project", text, kind: "convention", basis: "repeated", why: "两次都这样要求", from: "extraction" });
+  const auto = (text: string) => env.automatic(memory, text);
   const change = (id: string | null) => memory.changes(person(), { scope: "project" }).find(item => item.change_id === id)!;
   const sources = async () => (await memory.list(person())).items.map(item => [item.text, item.source]);
 
@@ -497,6 +510,10 @@ test("undoing an automatic write cannot delete what the person has since said, a
   // A record that still says it can be undone (made before this was closed) is refused at undo too: the entry is no longer the gate's.
   const record = env.ledger().change(first.change_id!)!;
   env.ledger().saveChange({ ...record, undoable: true, undo: { action: "remove" } });
+  await assert.rejects(memory.undo(person(), first.change_id!), { code: "memory.conflict" }, "current versioned receipts refuse a stale undo before writing");
+  // A genuinely old receipt has no applied-version fact; its ownership check must still protect the person's memory.
+  const { applied_version: _notRecorded, ...legacy } = record;
+  env.ledger().saveChange({ ...legacy, undoable: true, undo: { action: "remove" } });
   await assert.rejects(memory.undo(person(), first.change_id!), /你自己的记忆/);
   assert.equal(change(first.change_id).undoable, false, "and it stops offering itself");
   assert.deepEqual(await sources(), [["周报先写风险", "said"]]);
@@ -629,7 +646,7 @@ test("an Agent that is not the Assistant has none of the person's messages to be
   assert.deepEqual((await memory.list(person())).items, [], "nothing an Agent wrote was recorded as the person's words");
   assert.equal((await memory.candidates(person(), { scope: "personal" })).length, 4, "each waits for the person");
   // It cannot make a memory the gate kept itself the person's either, nor replace one of theirs.
-  const gate = await memory.offer(assistant(), { scope: "project", text: "周报先写风险", kind: "convention", basis: "repeated", why: "两次都这样要求", from: "extraction" });
+  const gate = await env.automatic(memory, "周报先写风险");
   const again = await memory.write(agent(5), { scope: "project", text: "周报先写风险", said: "周报先写风险" });
   assert.equal(again.outcome, "duplicate");
   assert.equal((await memory.list(person())).items.find(item => item.memory_id === gate.memory!.memory_id)!.source, "auto", "still the gate's, still takeable back");
@@ -646,7 +663,7 @@ test("a text is a duplicate only when it is the same words: what the person type
   const env = await memoryHome(t);
   const memory = await env.open();
   const work = (n: number) => assistant("project-a", { work_id: `work-${n}`, title: `工作 ${n}` });
-  const auto = (text: string, scope: "personal" | "project" = "personal") => memory.offer(assistant(), { scope, text, kind: scope === "project" ? "convention" : "preference", basis: "repeated", why: "两次都这样要求", from: "extraction" });
+  const auto = (text: string, scope: "personal" | "project" = "personal") => env.automatic(memory, text, scope);
   const sources = async () => (await memory.list(person())).items.map(item => `${item.text} · ${item.source}`).sort();
   const undoable = (id: string | null) => memory.changes(person(), { scope: "all" }).find(item => item.change_id === id)!.undoable;
 
@@ -668,7 +685,7 @@ test("a text is a duplicate only when it is the same words: what the person type
   const said = await memory.write(work(10), { scope: "personal", text: "NSM 是北极星指标", said: "NSM 是北极星指标。" }, { originals: ["NSM 是北极星指标。"] });
   assert.deepEqual([said.outcome, said.memory!.memory_id, said.memory!.source], ["duplicate", spaced.memory!.memory_id, "said"]);
   assert.equal(undoable(spaced.change_id), false, "and it is no longer the gate's to take back");
-  assert.deepEqual(said.memory!.evidence.map(item => item.text), ["NSM 是北极星指标。"]);
+  assert.deepEqual(said.memory!.evidence.map(item => item.text), ["NSM是北极星指标", "NSM是北极星指标", "NSM 是北极星指标。"], "the two original statements remain alongside the latest complete message");
 
   // The person's own page is the same: a text with another comma is another memory, the same words with a mark at the end are the person keeping the gate's memory as theirs.
   const gate = await auto("不要删除旧文件");

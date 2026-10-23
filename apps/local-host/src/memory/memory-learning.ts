@@ -1,7 +1,7 @@
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { MEMORY_KINDS } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors, type MemoryBackendPort, type MemoryCaller, type MemoryLearned, type MemoryProposal, type MemoryService } from "@molis-ai/molis-work-service-memory";
-import type { AgentMemoryExecutionControl, AgentRuntimeAdapter, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryExecutionControl, AgentMemorySourceSnapshot, AgentRuntimeAdapter, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { assistantMemorySources } from "../assistant/assistant-memory-sources.js";
 import { controlledMemoryService } from "./memory-effect.js";
 import { MEMORY_EXTRACT } from "../agent-definitions/system-prompts.js";
@@ -16,6 +16,8 @@ export interface MemoryLearningRequest {
   caller: MemoryCaller;
   /** The person's own messages in this work, newest last (bounded). */
   said: string[];
+  /** Canonical snapshots from the existing input owner; not model-provided evidence. */
+  sources?: readonly AgentMemorySourceSnapshot[];
 }
 
 const PROPOSALS_SCHEMA = {
@@ -43,7 +45,8 @@ const PROPOSALS_SCHEMA = {
 export async function learnFromWork(service: MemoryService, homeDirectory: string, request: MemoryLearningRequest,
   generate: HostTextGeneration | undefined = hostTextGeneration({ homeDirectory }),
   stillWanted: () => Promise<boolean> = async () => true): Promise<{ ran: boolean; reason: string; learned: MemoryLearned[] }> {
-  const said = request.said.map(text => text.trim()).filter(Boolean).slice(-6).map(text => text.slice(0, 1500));
+  const said = request.said.map(text => text.trim()).filter(Boolean).slice(-6);
+  if (said.some(text => text.length > 1500)) return { ran: false, reason: "原始表态超出本轮提炼范围，没有截断后推断", learned: [] };
   if (!service.worthLearning(request.caller, said)) return { ran: false, reason: "这一轮没有值得学习的表态，或没有允许从工作里学习", learned: [] };
   if (!generate) return { ran: false, reason: "没有可用的文字模型", learned: [] };
   if (!await stillWanted()) return { ran: false, reason: "原始输入或学习权限已变化，什么都没有记", learned: [] };
@@ -63,7 +66,7 @@ export async function learnFromWork(service: MemoryService, homeDirectory: strin
   const proposals = (result.structured as { candidates?: MemoryProposal[] } | undefined)?.candidates;
   if (!Array.isArray(proposals)) return { ran: true, reason: "模型没有给出合格式的提议，什么都没有记", learned: [] };
   if (!await stillWanted()) return { ran: true, reason: "原始输入或学习权限已变化，什么都没有记", learned: [] };
-  return { ran: true, reason: "已提炼", learned: await service.learnFromWork(request.caller, { said, proposals }) };
+  return { ran: true, reason: "已提炼", learned: await service.learnFromWork(request.caller, { said, proposals, ...(request.sources ? { sources: request.sources } : {}) }) };
 }
 
 /** The existing queue's one learning invocation, with fresh owner checks through each actual SDK write. */
@@ -91,5 +94,5 @@ export async function learnFromQueuedWork(home: string, task: Pick<AgentSchedule
     assert_current: assertCurrent,
     beforeEffect: async () => { if (!await stillWanted()) throw memoryErrors.forbidden("原始输入或学习权限已变化，停止记忆写入"); },
   });
-  return learnFromWork(controlled, home, originals.request, generate, stillWanted);
+  return learnFromWork(controlled, home, { ...originals.request, caller: { ...originals.request.caller, operation_id: task.key } }, generate, stillWanted);
 }

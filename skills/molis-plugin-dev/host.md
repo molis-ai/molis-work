@@ -163,7 +163,7 @@ Inbox 的显式判断与 Feed 入箱事件已这样接通，参考 `plugins/nati
 
 构建期 Native（Feed/Inbox/Pages/…）没有这条总线。不要为了「完整」给它们加 `events:`。Integration 的进来走 Signal，不是这条总线。Functions「事件去向」也不是。
 
-Workbench 标签选中是另一种纯 UI 通知：Host 在当前插件根节点派发 `molis-work:select-item`，`detail.itemId` 为对象 ID，回到插件列表时为 `null`。Pages 等插件通过自己的公开 HTTP 读取对象并恢复编辑器；切换时要保存未落盘输入，忽略过期读取。要的对象读不到（已删除）时：在条目本来的位置用自己的话说明（`mw-alert`，留在页面上，不用会消失的轻提示），并在插件根上发 `molis-work:item-unreadable`（`{ itemId }`，冒泡），工作台就不会按标签名给这个面命名、助理也不会把它当「正在看」带上；`detail.quiet` 为真时是人没要的重开（重新载入、后退），只发事件、不出声。这个 DOM 通知不承担跨插件业务写入，也不是 Plugin Runtime 事件合同。
+Workbench 标签选中是另一种纯 UI 通知：Host 在当前插件根节点派发 `molis-work:select-item`，`detail.itemId` 为对象 ID，回到插件列表时为 `null`。Pages 等插件通过自己的公开 HTTP 读取对象并恢复编辑器；切换时要保存未落盘输入，忽略过期读取。要的对象读不到（已删除）时：在条目本来的位置用自己的话说明（`mw-alert`，留在页面上，不用会消失的轻提示），并在插件根上发 `molis-work:item-unreadable`（`{ itemId }`，冒泡），工作台就不会按标签名给这个面命名、助理也不会把它当「正在看」带上；`detail.quiet` 为真时是人没要的重开（重新载入、后退），只发事件、不出声。读被 Host 的路由拒绝（403、`actions.*` 码：没有授权，或项目停用了这个插件）不是「已删除」：对读取请求把 `host.readRefusal(status, code)` 的返回当作错误文字（空串表示不是这类拒绝），照样放在条目本来的位置、照样发 `molis-work:item-unreadable`，且重开时也要说（条目还在，人可以去授权）。这个 DOM 通知不承担跨插件业务写入，也不是 Plugin Runtime 事件合同。
 
 ## 信息整理的 Host 组合
 

@@ -97,7 +97,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     const response = await fetch(route(path.startsWith("/api/") ? path : "/api/plugins/io.molis.work.todo" + path), { method, headers: headers(), body: body === undefined || method === "GET" ? undefined : JSON.stringify(body) });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const error = new Error(payload.error || L("待办请求失败"));
+      const error = new Error((method === "GET" && host.readRefusal?.(response.status, payload.code)) || payload.error || L("待办请求失败"));
       error.code = payload.code; error.status = response.status;
       throw error;
     }
@@ -1196,7 +1196,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       void closeDetail().then(() => { focusBatch = String(id).slice(6); view = "review"; return load(); }).catch((error) => showNote(error.message, { error: true }));
       return;
     }
-    void flush().then(() => openDetail(id)).catch((error) => { if (error.status === 404) workbench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: id } })); showNote(error.message, { error: true }); });
+    void flush().then(() => openDetail(id)).catch((error) => { if (error.status === 404 || error.status === 403) workbench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: id } })); showNote(error.message, { error: true }); });
   });
   window.addEventListener("molis:assistant-effect", (event) => {
     const capability = event.detail && event.detail.capability_id;

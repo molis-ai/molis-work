@@ -31,7 +31,6 @@ export const MEMORY_EN: Record<string, string> = {
   "全部状态": "All states",
   "生效": "Active",
   "停用": "Switch off",
-  "暂停": "Paused",
   "搜索记忆": "Search memories",
   "怎么形成": "How memories form",
   "允许记住": "Allow remembering",

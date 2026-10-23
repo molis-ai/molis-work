@@ -145,6 +145,19 @@ test("SYS-48: clipboard Copy and Pages Duplicate stay distinct in the Host and b
   });
 });
 
+// VUX-40 (found in the second real-scenario walk, 2026-10-23): Memory's state "暂停" once translated as "Paused" and won the
+// merge, so the Assistant's Pause button read "Paused" in English. A state says 已暂停; the verb on a control stays 暂停.
+test("VUX-40: the Pause control reads as a verb and the paused state as a state, in the Host and the browser", () => {
+  runWithLocale("en", () => {
+    const browser: { L?: typeof L } = {};
+    runInNewContext(clientI18nScript(), browser);
+    for (const translate of [L, browser.L!]) {
+      assert.equal(translate("暂停"), "Pause");
+      assert.equal(translate("已暂停"), "Paused");
+    }
+  });
+});
+
 test("RAC-56/RAC-57: owner messages reach the Host renderer and the actual browser translator in both languages", () => {
   for (const locale of ["zh", "en"] as const) runWithLocale(locale, () => {
     const browser: { L?: typeof L } = {};

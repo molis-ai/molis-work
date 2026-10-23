@@ -36,6 +36,8 @@ export interface IssueModelBehavior {
   acknowledge?: { treatment: string; kind?: string; impacts: string[] };
   /** The first `times` Assistant calls are refused with 429 and `Retry-After` (seconds): the runtime waits and tries again. */
   rateLimited?: { times: number; retryAfterSeconds: number };
+  /** Assistant calls are held until this settles: a round stays running meanwhile. */
+  held?: Promise<void>;
 }
 
 /**
@@ -65,6 +67,7 @@ export async function issueModel(t: TestContext, home: string, behavior: IssueMo
       response.writeHead(429, { "content-type": "application/json", "retry-after": String(behavior.rateLimited.retryAfterSeconds) });
       response.end('{"type":"error","error":{"type":"rate_limit_error","message":"fixture rate limit"}}'); return;
     }
+    await behavior.held;
     requests.push(body);
     const ask = { name: "ask-user", input: { why: ISSUE_ASK } };
     // One planned tool call per model turn; after the plan, the round ends in words.

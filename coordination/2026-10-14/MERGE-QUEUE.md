@@ -35,6 +35,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 12 | [#1118](https://github.com/molis-ai/molis-work/pull/1118) | W5-09 余项：拆 `contracts/platform/plugin.ts`（纯移动） | — | `full` 非空（shared-core），进下一批 | `ac-review` 一轮：**可合**，0 条挡合并（[评论](https://github.com/molis-ai/molis-work/pull/1118#issuecomment-6371982397)）；等集成批 |
 | 13 | [#1119](https://github.com/molis-ai/molis-work/pull/1119) | BL-395：沙箱项目库语句上限（子进程执行，S-59） | — | `full` 现为空，补完子进程后重算 | **未就绪**：作者在同一 PR 补子进程执行（用户 10-23 定），补完统筹再交评审 |
 | 14 | [#1120](https://github.com/molis-ai/molis-work/pull/1120) | R5：Feed/Functions 入口不再导出 Repository/Store、PG-010 首页规则目标按声明找、两包巨大单元 | — | `full` 非空（shared-core、storage、spans-packages、deletes-code，141 文件），进下一批 | 头 `c0356cd09`；`ac-review` 在审 |
+| 15 | [#1121](https://github.com/molis-ai/molis-work/pull/1121) | R8 第 1 批：agent 宿主会话间消息与后台命令 7 条 typed 改成只给插件的动作（BL-365） | — | `full` 非空（shared core，205 文件），进下一批 | 头 `332cbac3e`；`ac-review` 排队审；改动作，合前确认动作快照已刷新 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 收尾时合 main、转 ready |
 
 新开的开发片 PR 由统筹按依赖插进本表。

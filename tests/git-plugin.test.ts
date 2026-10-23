@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { HOST_EVENT_SOURCE, HOST_REVIEW_SETTLED_EVENT, type HostReviewSettledPayload, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_EVENT_SOURCE, HOST_REVIEW_SETTLED_EVENT, HOST_WORKSPACE_CHANGED_EVENT, type HostReviewSettledPayload, type HostWorkspaceChangedPayload,
+  type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginEventDeliveryContext, PluginEventRecord } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import { CODING_FILE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import {
@@ -157,4 +158,31 @@ test("PG061-GIT-01 Git's own pages read again after a delivery or a settled oper
   await plugin.stop!(context);
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.equal(invalidated, 4, "after stop nothing is left to call it (BL-411)");
+});
+
+test("BL-379 any person-approved workspace operation makes Git's pages read again, whoever asked; Git publishes nothing for it", async () => {
+  // Coding's worktree and integration reviews settle only to Coding (S-54); the Host's broadcast reaches Git all the same.
+  assert.ok(gitManifest.events?.subscribes.some(item => item.event_type_id === HOST_WORKSPACE_CHANGED_EVENT && item.type_version === 1 && item.from_plugin_ids === undefined),
+    "Git subscribes to the Host's broadcast by type and version only");
+  assert.ok(gitManifest.permissions.some(item => item.permission === "workspace:read" && item.required), "and declares the permission it is broadcast under");
+  let invalidated = 0;
+  const published: unknown[] = [];
+  const context: PluginStartContext = { install_id: "git-changed", plugin_id: gitManifest.plugin_id, version: gitManifest.version,
+    deployment: "local", grants: gitManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user",
+    requireGrant: () => {}, services: {
+      ui: { register: () => {}, unregister: () => {}, invalidate: () => { invalidated++; } },
+      events: { publish: input => { published.push(input); throw new Error("Git publishes nothing for a workspace change"); } },
+    } };
+  const plugin = createGitPlugin(), contribution = await plugin.start(context);
+  const payload: HostWorkspaceChangedPayload = { workspace_id: "ws-1", cause: "plugin-operation" };
+  const record: PluginEventRecord = { event_id: "host-changed-1", project_id: "project", sequence: 0, event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1,
+    source_plugin_id: HOST_EVENT_SOURCE, source_install_id: HOST_EVENT_SOURCE, payload, correlation_id: null, occurred_at: new Date(0).toISOString() };
+  const delivery = (beforeEffect: () => void): PluginEventDeliveryContext => ({ project_id: "project", plugin_id: gitManifest.plugin_id,
+    install_id: context.install_id, installation_generation: "1", actor_id: `plugin:${gitManifest.plugin_id}`, signal: new AbortController().signal, beforeEffect });
+  await contribution.onEvent!(record, delivery(() => {}));
+  assert.deepEqual([invalidated, published.length], [1, 0], "Git's pages read again; nothing of the operation is Git's to publish");
+  const stale = new Error("the subscriber's installation is no longer current");
+  await assert.rejects(async () => contribution.onEvent!(record, delivery(() => { throw stale; })), error => error === stale);
+  assert.equal(invalidated, 1, "a delivery no longer current moves nothing");
+  await plugin.stop!(context);
 });

@@ -89,3 +89,33 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
   };
   return { activityLine, place, sweep };
 }`;
+
+/**
+ * A round whose model call waits to try again (VUX-20, VUX-43): its status line counts down to the runtime's own retry time,
+ * to the second, in a fixed-width MM:SS, then says it is retrying. The time and the reason are the Host's; the page never
+ * retries on its own. One timer serves every waiting round and stops when none is left.
+ */
+export const ASSISTANT_RETRY_FACTORY_SCRIPT = String.raw`(input) => {
+  let timer = 0;
+  const line = (status) => {
+    const left = Math.max(0, Math.ceil((Date.parse(status.dataset.retryUntil) - Date.now()) / 1000)), L = input.L;
+    if (!left) return L("正在重试…");
+    const time = String(Math.floor(left / 60)).padStart(2, "0") + ":" + String(left % 60).padStart(2, "0"), reason = status.dataset.retryReason;
+    return reason === "rate-limited" ? L("被限流，{time} 后自动重试", { time }) : reason === "not-sent" ? L("请求没有发出，{time} 后自动重试", { time }) : L("模型服务暂时不可用，{time} 后自动重试", { time });
+  };
+  const tick = () => {
+    const waiting = input.root.querySelectorAll("[data-retry-until]");
+    waiting.forEach((status) => input.setText(status, line(status)));
+    if (!waiting.length) { clearInterval(timer); timer = 0; }
+  };
+  return {
+    /** Marks a round's status line as waiting (or not), and starts the count when it is the first. */
+    mark: (status, wait) => {
+      if (!wait) { delete status.dataset.retryUntil; delete status.dataset.retryReason; return; }
+      status.dataset.retryUntil = wait.until; status.dataset.retryReason = wait.reason;
+      if (!timer) timer = setInterval(tick, 1000);
+    },
+    line,
+    stop: () => { clearInterval(timer); timer = 0; },
+  };
+}`;

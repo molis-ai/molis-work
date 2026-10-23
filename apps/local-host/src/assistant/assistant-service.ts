@@ -1834,7 +1834,7 @@ export class AssistantService {
       materials: round.materials.map(({ text: _text, ...rest }) => rest.kind === "image" && rest.image && !this.holdsImage(rest.image) ? { ...rest, expired: true } : rest),
       phase: view?.phase ?? "unknown", turns: spokenTurns(view?.turns ?? []), activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
       ...(view?.usage ? { usage: view.usage } : {}), ...roundModel(view), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason, round.work_budget) } : {}),
-      ...(view?.todo?.length ? { steps: view.todo.map(({ id, text, state }) => ({ id, text, state })) } : {}), ended_at: view?.ended_at ?? null };
+      ...(view?.todo?.length ? { steps: view.todo.map(({ id, text, state }) => ({ id, text, state })) } : {}), ...(view?.retry_wait ? { retry_wait: { ...view.retry_wait } } : {}), ended_at: view?.ended_at ?? null };
   }
 
   private publicWork(work: StoredWork, state: AssistantWorkState): AssistantWork {

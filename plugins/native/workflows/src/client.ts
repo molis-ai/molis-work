@@ -71,7 +71,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const res = await reply.json().catch(() => ({}));
-    if (!reply.ok) { const err = new Error(res.error || L('工作流程请求失败')); err.status = reply.status; throw err; }
+    if (!reply.ok) { const err = new Error((body === undefined && host.readRefusal?.(reply.status, res.code)) || res.error || L('工作流程请求失败')); err.status = reply.status; throw err; }
     return res;
   }
 
@@ -666,7 +666,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     return ico('alert') + '<span>' + esc(L('未接上：{reason}', { reason: L(ready.reason) })) + fix + '</span>';
   }
 
-  let submitForm = null;
+  let submitForm = null; dlg.addEventListener('cancel', (ev) => { if (dlg.querySelector('[data-loading]')) ev.preventDefault(); }); // Esc and Close do not pretend to cancel a submit on its way (VUX-29).
   function showForm(title, bodyHtml, submitLabel, onSubmit, { tone } = {}) {
     dlg.querySelector('[data-wf-dialog-title]').textContent = title;
     dlg.querySelector('[data-wf-dialog-body]').innerHTML = bodyHtml;
@@ -1005,7 +1005,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
         return;
       }
       if (act === 'start') { await startRun(); return; }
-      if (act === 'dialog-close') { dlg.close(); return; }
+      if (act === 'dialog-close') { if (!dlg.querySelector('[data-loading]')) dlg.close(); return; }
       if (act === 'stop') {
         const run = ui.instance;
         showForm(L('结束这一次？'), '<p>' + tx('后面的站不会再继续。已经交出去的内容都会留在各自的插件里。') + '</p>', L('结束这一次'), async () => {
@@ -1295,7 +1295,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const selectFlow = async (id, rev) => {
     if (id) {
       try { await showFlow(id, { revision:rev }); }
-      catch (err) { if (rev !== navId) return; if (err.status !== 404) { if (!pickedQuiet) toast(err.message, 'error'); return; } root.dispatchEvent(new CustomEvent('molis-work:item-unreadable', { bubbles: true, detail: { itemId: id } })); ui.workflow = null; ui.instance = null; ui.returnTo = null; remember(); setMode('list'); drawList(); const note = root.querySelector('[data-wf-gone]'); if (!pickedQuiet) { note.textContent = L('这条流程不存在或已删除'); note.hidden = false; } }
+      catch (err) { if (rev !== navId) return; if (err.status !== 404 && err.status !== 403) { if (!pickedQuiet) toast(err.message, 'error'); return; } root.dispatchEvent(new CustomEvent('molis-work:item-unreadable', { bubbles: true, detail: { itemId: id } })); ui.workflow = null; ui.instance = null; ui.returnTo = null; remember(); setMode('list'); drawList(); const note = root.querySelector('[data-wf-gone]'); if (!pickedQuiet || err.status === 403) { note.textContent = err.status === 403 ? err.message : L('这条流程不存在或已删除'); note.hidden = false; } }
       return;
     }
     ui.workflow = null; ui.instance = null; ui.returnTo = null; remember(); setMode('list'); drawList();

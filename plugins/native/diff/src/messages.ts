@@ -14,6 +14,7 @@ export const DIFF_MESSAGES = {
   "diff.sign.delete": { zh: "删除", en: "Removed" },
   "diff.sign.same": { zh: "未改变", en: "Unchanged" },
   "diff.fold.reveal": { zh: "展开 {count} 行未改变", en: "Show {count} unchanged lines" },
+  "diff.board.files": { zh: "一轮的文件行 · 增删行数与长路径", en: "A round's file rows · lines added and removed, long paths" },
   // The view's and the actions' own sentences are action output an Agent reads too, so they stay as written and are their
   // own keys here: the page shows them through the translator.
   "先选一组输入：两份快照、Coding 准备的变更，或 Git 的工作区改动": { zh: "先选一组输入：两份快照、Coding 准备的变更，或 Git 的工作区改动", en: "Choose an input first: two snapshots, a change Coding prepared, or a Git workspace change" },

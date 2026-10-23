@@ -238,13 +238,23 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Onboarding without limits (slice 101, user 2026-10-22): the 资料导入 sends a non-text file over 6 MB as the raw body of the 成果库's
-  // original route, its name in a header. 26516 → 26900 (+384).
-  "/assets/molis-work-knowledge.js": [26516, 26900],
-  // Onboarding without limits (slice 101): the shared request client sends a Blob as a raw body. It is bundled into the
-  // workbench and the isolated plugin frame: 1186577 → 1186715 (+138) and 187730 → 187841 (+111).
-  "/assets/molis-work-workbench.js": [1186577, 1186715],
-  "/assets/molis-work-plugin-frame.js": [187730, 187841],
+  // A refused read and a partial add (VUX-12, slice 109). The isolated frame lends `host.readRefusal(status, code)`, the
+  // one sentence for a read the router refused (403 `actions.*`: no permission, or the project turned the plugin off), and
+  // eight plugins put it where their missing-item words go and tell the workbench the item cannot be read: 190815 → 191104
+  // (+289), alchemist 52330 → 52556 (+226), coding 375272 → 375409 (+137), issues 24064 → 24145 (+81), jelly 91439 → 91650
+  // (+211), lingguang 25866 → 26094 (+228), pages 49027 → 49137 (+110), todo 61888 → 61976 (+88), workflows 81905 → 82031
+  // (+126). The Shelf tries every file of a multi-file add, names the ones that did not go in with why, and retries just
+  // those: 74969 → 76264 (+1295).
+  "/assets/molis-work-plugin-frame.js": [190815, 191104],
+  "/assets/molis-work-plugins/alchemist.js": [52330, 52556],
+  "/assets/molis-work-plugins/coding.js": [375272, 375409],
+  "/assets/molis-work-plugins/issues.js": [24064, 24145],
+  "/assets/molis-work-plugins/jelly.js": [91439, 91650],
+  "/assets/molis-work-plugins/lingguang.js": [25866, 26094],
+  "/assets/molis-work-plugins/pages.js": [49027, 49137],
+  "/assets/molis-work-plugins/shelf.js": [74969, 76264],
+  "/assets/molis-work-plugins/todo.js": [61888, 61976],
+  "/assets/molis-work-plugins/workflows.js": [81905, 82031],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

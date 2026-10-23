@@ -5,7 +5,7 @@ import { JELLY_MATERIAL_CLIENT_SCRIPT } from "./client-material.js";
 import { JELLY_PLAN_CLIENT_SCRIPT } from "./client-plan.js";
 
 /** A single browser owner keeps calendar, notes and linked task blocks coherent. */
-// Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `category colours`: Stored category colours: these hex values identify a saved choice and must match existing data; the swatches draw from tokens. `molis:assistant-effect`: The Assistant changed Jelly: read the workspace again. An open note or idea with unsaved edits keeps them; saving then reports the conflict instead of overwriting. `periodTitle()` on start: The period's name is known before anything loads: named at once, the toolbar has its final width when it is first painted. `molis-work:select-item`: Opened by id (search, the side panel, an Assistant result): the object may be newer than this page, so read the workspace again and show that item, note or idea where it lives.
+// Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `take()`: a read asked before a command answered must not take the workspace back to an older revision (the next command would be refused as a conflict), so a read only replaces the state when its revision is not older. `category colours`: Stored category colours: these hex values identify a saved choice and must match existing data; the swatches draw from tokens. `molis:assistant-effect`: The Assistant changed Jelly: read the workspace again. An open note or idea with unsaved edits keeps them; saving then reports the conflict instead of overwriting. `periodTitle()` on start: The period's name is known before anything loads: named at once, the toolbar has its final width when it is first painted. `molis-work:select-item`: Opened by id (search, the side panel, an Assistant result): the object may be newer than this page, so read the workspace again and show that item, note or idea where it lives.
 export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const root = document.querySelector('[data-jelly="workbench"]');
   if (!root) return;
@@ -65,7 +65,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const route = (document.body.dataset.routePrefix || '') + path;
     const response = await fetch(route, { method, headers: typeof molisWorkControlHeaders === 'function' ? molisWorkControlHeaders() : {'content-type':'application/json'}, ...(method === 'GET' ? {} : {body: JSON.stringify(body || {})}) });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) { const err = new Error(result.error || L('Jelly 请求失败')); err.status = response.status; err.code = result.code; err.details=result.details; throw err; }
+    if (!response.ok) { const err = new Error((method === 'GET' && host.readRefusal?.(response.status, result.code)) || result.error || L('Jelly 请求失败')); err.status = response.status; err.code = result.code; err.details=result.details; throw err; }
     return result;
   };
   const run = (fn) => Promise.resolve().then(fn).catch((error) => showNote(error.message || L('操作失败，请重试'), true));
@@ -76,13 +76,14 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
         const result = await request('POST', API+'/commands', {expected_revision:state.revision,command:value});
         state = result.state; await renderView(); return state;
       } catch (error) {
-        if (error.status === 409) { const fresh = await request('GET',API+'/'); state = fresh.state; await renderView(); showNote(L('其他窗口已更新。你的编辑仍保留，请核对后重新保存。'), true); }
+        if (error.status === 409) { const fresh = await request('GET',API+'/'); take(fresh.state); await renderView(); showNote(L('其他窗口已更新。你的编辑仍保留，请核对后重新保存。'), true); }
         throw error;
       }
     });
     mutationQueue = operation; return operation;
   };
-  const loadList = async () => { const result = await request('GET',API+'/'); state = result.state; await renderView(); };
+  const take = (next) => { if (!state || next.revision >= state.revision) state = next; };
+  const loadList = async () => { const result = await request('GET',API+'/'); take(result.state); await renderView(); };
   const matches = (record, body = '') => (!filterCategory || record.category_id === filterCategory) && (!query || (record.title + ' ' + body).toLowerCase().includes(query.toLowerCase()));
   const empty = (title, message, label) => '<div class="jelly-empty">' + glyph(view === 'calendar' ? 'calendar' : view === 'notes' ? 'note' : 'idea') + '<h2>' + tx(title) + '</h2><p>' + tx(message) + '</p>' + (label ? btn(label,'data-jelly-new','plus') : '') + '</div>';
   const download = (filename, body, type) => host.download(new Blob([body], {type}), filename);
@@ -172,7 +173,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if(typeof id!=='string'||!id)return;
     void run(async()=>{
       await flushEditor();await mutationQueue.catch(()=>{});
-      state=(await request('GET',API+'/')).state;
+      take((await request('GET',API+'/').catch((error)=>{if(error.status===403)root.dispatchEvent(new CustomEvent('molis-work:item-unreadable',{bubbles:true,detail:{itemId:id}}));throw error;})).state);
       const item=state.items.find((entry)=>entry.id===id),series=state.series.find((entry)=>entry.id===id);
       const kind=item||series?null:recordFor('note',id)?'note':null;
       if(!item&&!series&&!kind){root.dispatchEvent(new CustomEvent('molis-work:item-unreadable',{bubbles:true,detail:{itemId:id}}));await renderView();if(!event.detail.quiet)showNote(L('这条内容已不存在'),true);return;}

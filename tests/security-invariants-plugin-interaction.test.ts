@@ -75,8 +75,12 @@ async function withProbe(run: (rig: { interaction: PluginInteractionClient; draw
     const report = await platform.start([{ definition: plugin.definition }]);
     assert.deepEqual(report.failed, []); assert.deepEqual(report.blocked, []);
     assert.ok(plugin.given.interaction, "an activation that declared no permission is given the drawings");
+    const caller = { actor_id: ACTOR, project_id: DEMO_PROJECT_ID, audience: "user" as const, permissions: [] };
+    const view = (await actions.client.discover(caller)).find(value => value.capability_id === draw.capability_id && value.version === draw.version);
+    assert.ok(view, "the running plugin publishes its drawing action in the directory");
+    const reference = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
     await run({ interaction: plugin.given.interaction,
-      drawIn: async locale => await actions.client.invoke({ actor_id: ACTOR, project_id: DEMO_PROJECT_ID, audience: "user", permissions: [], locale }, { ...draw, provider_id: PROBE }, {}),
+      drawIn: async locale => await actions.client.invoke({ ...caller, locale }, reference, {}),
       cursor: () => store.eventCursor(DEMO_PROJECT_ID) });
   } finally {
     await platform.closeCoordination();

@@ -73,7 +73,7 @@ test("SYS-15-I2: undeclared, revoked, foreign and stopped installation readers a
   elsewhere.borrow(a.client!); await assert.rejects(elsewhere.read(), { code: "actions.forbidden" });
   const captured = a.client!;
   await a.platform.runtime.stop(a.installation().install_id);
-  assert.throws(() => captured.list(), { code: "actions.forbidden" });
+  assert.equal(captured.list(), undefined, "BL-411: a stopped activation's reader is refused and, outside every call, throws nothing");
   a.platform.runtime.grant(a.installation().install_id, []);
   await a.platform.runtime.start(a.installation().install_id);
   assert.throws(() => a.client!.list(), { code: "plugin.grant_denied" });

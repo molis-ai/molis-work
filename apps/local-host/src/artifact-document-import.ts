@@ -116,10 +116,9 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
 
 /** The offered file as the import reads it: its size now, its bytes or a copy in the 成果库's store when asked. */
 async function offeredOriginal(home: string, projectId: string, path: string, signal?: AbortSignal): Promise<OfferedOriginal> {
-  let size: number;
-  try { const info = await stat(path); if (!info.isFile()) throw new Error("not a file"); size = info.size; }
-  catch { throw documentErrors.original_not_offered("交给宿主的原文件已经不在了，请重新选择"); }
-  return { size_bytes: size, read: () => readFile(path, signal ? { signal } : {}), store: () => storeArtifactOriginal(home, projectId, path, signal) };
+  const info = await stat(path).catch(() => undefined);
+  if (!info?.isFile()) throw documentErrors.original_not_offered("交给宿主的原文件已经不在了，请重新选择");
+  return { size_bytes: info.size, read: () => readFile(path, signal ? { signal } : {}), store: () => storeArtifactOriginal(home, projectId, path, signal) };
 }
 
 /** JSON escaping can expand a 2 MB text file six-fold; the decoded file is separately bounded. */

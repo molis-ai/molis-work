@@ -10,7 +10,10 @@ export const SHELF_PLUGIN_ID = "io.molis.work.shelf";
 /** What the project database stores for this Plugin. */
 export const SHELF_PROJECT_PLUGIN_ID = "shelf";
 
-/** The personal Home instance and project result instance share this declaration. */
+/**
+ * The personal Home instance and each project's result instance share this declaration (a dual-instance plugin): every
+ * permission is required, as a dual-instance Manifest's must be.
+ */
 export const shelfManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
@@ -31,6 +34,7 @@ export const shelfManifest: PluginManifest = {
     { permission: "shelf:write", required: true, reason: "添加和整理置物架副本" },
     { permission: "materials:read", required: true, reason: "解析已选择的材料" },
     { permission: "materials:fetch", required: true, reason: "获取已选择的网页内容" },
+    { permission: "materials:fetch_local", required: true, reason: "获取已选择的本机网页内容" },
     { permission: "model:invoke", required: true, reason: "按所选配方处理材料" },
     { permission: "artifacts:read", required: true, reason: "读取项目成果" },
     { permission: "artifacts:write", required: true, reason: "将副本保存到项目成果" },

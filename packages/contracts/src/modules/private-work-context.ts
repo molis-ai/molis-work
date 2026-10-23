@@ -125,22 +125,6 @@ export const WORK_SESSION_EVENT_KINDS = [
 ] as const;
 export type WorkSessionEventKind = (typeof WORK_SESSION_EVENT_KINDS)[number];
 
-/** A successful Goal operation's existing secondary Session activity. */
-export interface RuntimeSessionReadResult {
-  sessionGoalId: string | null;
-  sessionRegistry:
-    | { status: "unavailable"; message: string; session: null }
-    | { status: "ready"; session: Pick<WorkSessionRecord,
-        "session_id" | "runtime_id" | "native_runtime_session_id" | "surface_id" | "project_id"
-        | "current_goal_id" | "workspace_id" | "status" | "provenance"> | null };
-}
-
-export interface RuntimeGoalSessionActivity {
-  goal_id: string;
-  actor_id: string;
-  event: Omit<AppendWorkSessionEventInput, "session_id">;
-}
-
 export interface WorkSessionEventRecord {
   event_id: string;
   session_id: string;

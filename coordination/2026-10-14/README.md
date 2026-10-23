@@ -2659,3 +2659,10 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 新开 BL-380（平台的本机工具探测服务，归 ②）和 PG-112、PG-113。① 核过 main 和在途 PR，这几个号都没被占。
   - Shelf 子会话接着做 S3。
 - **10-23 ⑤**：#1028 已进合并队列；合入后给 #1029 合 main，解 BACKLOG 冲突，再排队。
+- **10-23 ② 开 #1050（S0-2b-3）**，交 ⑤ 进批。
+  - 全范围：所有 gate 都连 `installation_generation` 一起比。
+  - 合同：`PluginStartContext` 加必填字段，不留兼容期。
+  - 新测试 `tests/dual-instance-handles.test.ts` 进 `test:security`。
+  - ② 评 #1048 的 D3：可合。
+  - ② 下一步做 BL-411。
+- **合并先后（① 定）**：#1028 → #1029；#1050 先于 #1051（DUAL-16），两个都属共享核心，最好进同一批，按这个顺序叠。#1048 如果确实没改共享核心，⑩ 评完、CI 绿了就单独入队；它和 #1050 只有 spec 状态句一行冲突，由后合的那个解。

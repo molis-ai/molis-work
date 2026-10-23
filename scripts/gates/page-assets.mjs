@@ -238,6 +238,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
+  // The Issue page's client as typed, bundled code (W5-04, slice 138): 24145 → 27750 (+3605). The old closure kept its state in
+  // local variables that esbuild renames to one letter; the typed page keeps it on one object whose property names stay whole,
+  // which is where the growth comes from (the style sheet, 4952 B minified, and the words are unchanged). Tried: the bundle is
+  // already minified with the sheet inside; property mangling would need a reserved list for the names shared with the Host.
+  "/assets/molis-work-plugins/issues.js": [24145, 27750],
   // A refused step in plain words (user 2026-10-23 ⑤, slice 110): the Assistant's step detail says the sort of failure and
   // each field with the rule it broke, from the Host's classification, and folds the runtime's own text under 原始说明. The
   // eleven sorts and four rules are words the page must hold: 1189644 → 1190721 (+1077). The fold's two rules ship in each

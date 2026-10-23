@@ -22,7 +22,8 @@
 - 页面录入不经 Work 助理，不留助理工作和通知；Issue 列表里的那一行是继续的唯一地方。页面另有两分钟的兜底：还在整理就先撤掉草稿，迟到的回答存不进来。
 - 手动补录保存期间只运行一次提交，沿用同一请求身份；回执丢失时保留输入和身份，刷新或再次保存先核对真实记录，不重复新建。离开页面后的截图保留仍遵守上面的约定。
 - update / delete 要求读取时的 `expected_version`，beforeEffect 后同步事务提交；冲突不覆盖，结果未知不自动重试。页面遇到冲突时读回最新内容，把自己改过的字段放在上面继续编辑，提示核对后再保存。
-- 十一个动作显式声明读、写和不可撤销删除。客户端构建用仓库已有的 esbuild 压缩工厂字符串，源码保持可读，不增加运行时依赖；资源上限见 `tooling/gates/page-assets.json`，只许变小。
+- 十一个动作显式声明读、写和不可撤销删除。客户端构建用仓库已有的 esbuild，源码保持可读，不增加运行时依赖；资源上限见 `tooling/gates/page-assets.json`，只许变小。
+- 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/issues-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂，样式表由 `tooling/minify-styles.mjs` 压缩后 `--define:ISSUES_CSS` 放进去）；`src/client.ts` 的 `ISSUES_CLIENT_FACTORY_SCRIPT` 只读这个包。页面状态在一个 `IssuesPage` 对象里（`page.ts`），列表、详情、截图、录入、重新整理各是一个部件；请求只经工作台的 `molisWorkRequest`（`request.ts`），不直接 `fetch`。页面上的字是稳定键（`issues.<区域>.<名称>`），中英文都在 `src/messages.ts`，登记在 `registration.ts` 的 `messages`；服务端画的静态控件用 `ui.ts` 里视图模型的 `primitives.text`。
 - Home Runtime 不提供项目成果、事件和端口，不得虚构项目满足服务。无团队共享、状态流转、被动采集或旧 Casebook 数据导入。
 
 ## 起标题的规则与助理方法
@@ -55,7 +56,7 @@
   - 一个 Home 一份个人数据；没有项目也可用。
   - 原话不改写，类型不默认；可信元数据不从业务输入读取，也不从模型回答读取，页面位置只作为页面的报告保存。
   - 提交前复查授权，更新和删除要求版本，冲突不覆盖；撤销只删除没改过的新记录。
-- 改动后必跑：`node scripts/run-tests.mjs tests/issue-home.test.ts tests/issue-home-runtime.test.ts tests/issue-capture.test.ts tests/issue-naming.test.ts tests/issue-assistant.test.ts tests/issue-capture-page.e2e.test.ts tests/issue-page.e2e.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/issue-home.test.ts tests/issue-home-runtime.test.ts tests/issue-capture.test.ts tests/issue-naming.test.ts tests/issue-assistant.test.ts tests/issues-client-bundle.test.ts tests/issue-capture-page.e2e.test.ts tests/issue-page.e2e.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/issue-manual-save.e2e.test.ts tests/issue-global-navigation.e2e.test.ts tests/issue-clarification-page.e2e.test.ts tests/issue-draft-preview.e2e.test.ts tests/issue-reorganize.e2e.test.ts`
 - Home 语言接线加跑：`node scripts/run-tests.mjs tests/issue-home-locale.e2e.test.ts`（W2-18-HOME-LOCALE-01：中英控件、原文保持、无模型设置往返与真实启动失败）。
 - 相关手册：[插件开发](../../../skills/molis-plugin-dev/SKILL.md)、[Home 数据归属](../../../docs/system/HOME-DATA.md)、[开发要求](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

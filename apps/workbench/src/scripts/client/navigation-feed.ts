@@ -481,14 +481,13 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         [...nextWorkspace.querySelectorAll("[data-feed-entry-detail]")].forEach((node) => {
           workspace.insertBefore(node, empty);
         });
-        if (feedWorkbench) {
-          feedWorkbench.dataset.loaded = "true";
-          feedWorkbench.dataset.loadedPreset = activeFeedPreset;
-        }
+        if (feedWorkbench) Object.assign(feedWorkbench.dataset, { loaded: "true", loadedPreset: activeFeedPreset });
         setFeedTask(selectedFeedTask, false);
         feedSourcesDialog?.querySelectorAll("[data-feed-config-section]").forEach(section => section.hidden = section.dataset.feedConfigSection !== feedConfigView);
-        if (!feedSourcesDialog?.hidden && feedConfigView === "rules") hydrateFeedRuleDrafts();
-        if (!feedSourcesDialog?.hidden && feedConfigView === "settings") void loadFeedConnections(feedSourcesDialog.querySelector('[data-feed-task-config]:not([hidden])'));
+        if (feedSourcesDialog?.hidden === false) {
+          if (feedConfigView === "rules") hydrateFeedRuleDrafts();
+          else if (feedConfigView === "settings") void loadFeedConnections(feedSourcesDialog.querySelector('[data-feed-task-config]:not([hidden])'));
+        }
         if (selectedId) selectFeedItem(selectedId, false, false, false);
         list.scrollTop = scrollTop;
         return true;

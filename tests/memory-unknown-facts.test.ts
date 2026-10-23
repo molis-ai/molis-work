@@ -95,6 +95,15 @@ test("undo recreates the saved unknown basis, approval and evidence rather than 
   const meta = { kind: "convention" as const, source: "auto" as const, classification, evidence };
   const first = await f.raw().write({ scope: "project", owner: "project-a", operation_id: "first", text: "Published release notes have a concise final summary", origin: "First record", meta });
   const second = await f.raw().write({ scope: "project", owner: "project-a", operation_id: "second", text: "Published release notes have concise final summary", origin: "Second record", meta });
+  // Record the safe history through the public edit path without inventing missing approval or basis.
+  for (const entry of [first, second]) {
+    const confirmed = await service.change(caller(`confirm-${entry.memory_id}`), {
+      memory_id: entry.memory_id, action: "update", expected_version: entry.version, text: entry.text,
+    });
+    const current = (await f.raw().list("project", "project-a")).find(item => item.memory_id === entry.memory_id)!;
+    assert.equal(current.version, confirmed.memory!.version);
+    assert.deepEqual(current.meta, entry.meta); assert.equal(current.origin, entry.origin);
+  }
   const report = await service.upkeep(caller("merge"), { projects: ["project-a"] }); assert.equal(report.merged, 1);
   const change = (await service.changes(caller("changes"))).find(item => item.kind === "merged")!; assert.ok(change);
   const keep = (await f.raw().list("project", "project-a"))[0]!;

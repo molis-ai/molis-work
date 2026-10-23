@@ -46,14 +46,15 @@ async function lettersSetup(t: TestContext) {
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: PROJECT });
   const composition = composeAgentHost({ localHost, workspaceFor: () => null });
   const seen: Array<[string, unknown[]]> = [];
-  composition.agentHost.register(lettersRuntime(seen));
+  const runtime = lettersRuntime(seen);
+  composition.agentHost.register(runtime);
   const store = new LocalProjectDatabase(join(directory, "plugins.sqlite"));
   const consumer = callerPlugin("letters", "project", {}, SEVEN.map(definition => definition.capability_id));
   const bystander = callerPlugin("bystander", "project");
   await startPlugin(localHost, reference, store, consumer);
   await startPlugin(localHost, reference, store, bystander);
   t.after(async () => { composition.dispose(); store.close(); await localHost.closeProject(reference); await localHost.close(); await rm(directory, { recursive: true, force: true }); });
-  return { localHost, reference, seen, consumer, bystander };
+  return { localHost, reference, seen, consumer, bystander, runtime };
 }
 
 const person = (audience: ActionCallContext["audience"]): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: PROJECT, audience, permissions: [] });
@@ -115,4 +116,37 @@ test("RAC-190 an input the schemas refuse never reaches the Runtime; the limits 
   await actions.invoke(agent.actOnPeopleMessage, [RUNTIME, "m1", "record", { note: "字".repeat(100_000) }]);
   await actions.invoke(agent.sendPeopleMessage, [RUNTIME, { ...sent, attachments: Array.from({ length: 50 }, (_, i) => ({ kind: "artifact", id: `a${i}` })) }]);
   assert.deepEqual(seen.map(([name]) => name), ["act", "send"], "the limits themselves are accepted");
+});
+
+
+test("RAC-190 Runtime message and background output errors are refused by the actual action dispatcher", async t => {
+  const { consumer, runtime } = await lettersSetup(t), actions = consumer.actions(PROJECT);
+  const malformed = [
+    { ...letter("m1"), from_title: undefined },
+    { ...letter("m1"), attachments: [{ kind: "artifact" }] },
+    { ...letter("m1"), await_reply: false },
+  ];
+  for (const value of malformed) {
+    runtime.messages!.read = async () => [value as never];
+    await assert.rejects(actions.invoke(agent.readMessages, [RUNTIME, "s1"]), { code: "actions.output_invalid" });
+  }
+  runtime.messages!.sendForPeople = async () => ({ ...letter("m2"), kind: "other" } as never);
+  await assert.rejects(actions.invoke(agent.sendPeopleMessage, [RUNTIME, { from_session: "s1", to_session: "s2", kind: "request", body: "Hi" }]), { code: "actions.output_invalid_after_effect" });
+  runtime.messages!.act = async () => ({ ...letter("m2"), history: [{ event: "done", state: "completed" }] } as never);
+  await assert.rejects(actions.invoke(agent.actOnPeopleMessage, [RUNTIME, "m2", "record", {}]), { code: "actions.output_invalid_after_effect" });
+  runtime.background!.read = async () => [{ task_id: "t1", session_id: "s1", summary: "command", state: "done", started_at_ms: 1 } as never];
+  await assert.rejects(actions.invoke(agent.readBackground, [RUNTIME]), { code: "actions.output_invalid" });
+});
+
+test("RAC-190 stored outputs include optional history and task fields without input size limits", async t => {
+  const { consumer, runtime } = await lettersSetup(t), actions = consumer.actions(PROJECT);
+  const stored: AgentSessionMessage = { ...letter("stored"), body: "x".repeat(1_000_001), in_reply_to: "m0", await_reply: true, hops: 2,
+    attachments: [{ kind: "artifact", id: "a1", version: 3, title: "Saved" }],
+    history: [{ event: "recorded", state: "delivered", at_ms: 2, by: "person", note: "saved note", attachments: [{ kind: "artifact", id: "a1" }], late: true }] };
+  runtime.messages!.read = async () => [stored];
+  assert.deepEqual(await actions.invoke(agent.readMessages, [RUNTIME]), [stored]);
+  const task = { task_id: "t1", session_id: "s1", run_id: "r1", summary: "command", state: "succeeded" as const, exit_code: 0, started_at_ms: 1, ended_at_ms: 2 };
+  runtime.background!.read = async () => [task];
+  assert.deepEqual(await actions.invoke(agent.readBackground, [RUNTIME]), [task]);
+  assert.equal(await actions.invoke(agent.cancelMessage, [RUNTIME, "m1"]), undefined, "cancel retains its void result");
 });

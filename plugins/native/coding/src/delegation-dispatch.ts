@@ -4,7 +4,7 @@ import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform
 import { materialArtifact, type CodingMaterial } from "./materials.js";
 import type { CodingSessionRecord } from "./store.js";
 import type { CodingExecution } from "./routes.js";
-import type { CodingBeforeWrite } from "./route-entry.js";
+import { codingActions, type CodingBeforeWrite } from "./route-entry.js";
 import { asAttachment, isDelegation } from "./delegation-view.js";
 
 /** A known pre-dispatch failure may put the draft away; an uncertain dispatch keeps its original target and outbox. */
@@ -13,7 +13,7 @@ export async function dispatchCodingDelegation(context: PluginStartContext, exec
   beforeWrite: CodingBeforeWrite, runtimeSession: (target: CodingSessionRecord) => Promise<string>,
   view: (letter: AgentSessionMessage, observed: AgentSessionMessage[], execution: CodingExecution) => unknown) {
   const { mine, task, title, materials, hops } = input;
-  const projectId = context.project_id!, actions = context.services!.actions!;
+  const projectId = context.project_id!, actions = codingActions(context, beforeWrite);
   await beforeWrite(); beforeWrite.assert_current();
   const at = new Date().toISOString();
   // The work happens in the Runtime of the session that asks (PG-054): the letter goes between two sessions of that one Runtime.

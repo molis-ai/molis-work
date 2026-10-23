@@ -225,6 +225,20 @@ const runtimeId = { type: "string", minLength: 1, maxLength: 200 } as const;
 const entryId = { type: "string", minLength: 1, maxLength: 500 } as const;
 const attachments = { type: "array", maxItems: 50, items: { type: "object", required: ["kind", "id"], additionalProperties: false,
   properties: { kind: entryId, id: entryId, version: { type: "integer", minimum: 1 }, title: { type: "string", maxLength: 2000 } } } } as const;
+/** Runtime outputs follow the stored message/task contracts, not the limits for new input. */
+const messageState = { enum: ["queued", "delivered", "accepted", "rejected", "completed", "expired", "cancelled"] } as const;
+const messageAttachments = { type: "array", items: { type: "object", required: ["kind", "id"], additionalProperties: false,
+  properties: { kind: { type: "string" }, id: { type: "string" }, version: { type: "number" }, title: { type: "string" } } } } as const;
+const messageOutput = { type: "object", additionalProperties: false,
+  required: ["message_id", "from_session", "to_session", "from_title", "to_title", "kind", "body", "state", "sent_at_ms"],
+  properties: { message_id: { type: "string" }, from_session: { type: "string" }, to_session: { type: "string" }, from_title: { type: "string" }, to_title: { type: "string" },
+    kind: { enum: ["request", "notice", "reply", "handoff"] }, body: { type: "string" }, state: messageState, sent_at_ms: { type: "number" },
+    in_reply_to: { type: "string" }, await_reply: { const: true }, audience: { const: "people" }, attachments: messageAttachments, hops: { type: "number" },
+    history: { type: "array", items: { type: "object", required: ["event", "state", "at_ms"], additionalProperties: false,
+      properties: { event: { type: "string" }, state: messageState, at_ms: { type: "number" }, by: { type: "string" }, note: { type: "string" }, attachments: messageAttachments, late: { const: true } } } } } } as const;
+const backgroundOutput = { type: "object", required: ["task_id", "session_id", "summary", "state", "started_at_ms"], additionalProperties: false,
+  properties: { task_id: { type: "string" }, session_id: { type: "string" }, run_id: { type: "string" }, summary: { type: "string" },
+    state: { enum: ["running", "succeeded", "failed", "stopped", "interrupted"] }, exit_code: { type: "number" }, started_at_ms: { type: "number" }, ended_at_ms: { type: "number" } } } as const;
 /** Offered to plugins only, which reach them through `services.actions` once their Manifest consumes them; nothing else needed. */
 const pluginOnly = { scope: "project", audiences: ["plugin"], permissions: [], subject_kinds: [] } as const;
 
@@ -281,6 +295,7 @@ export const agentHostCapabilities = {
   readMessages: {
     capability_id: "agent.messages.read.v1", version: 1, operation: "query",
     action: { title: "读会话间的信", description: "这个项目里各会话之间的信；点名会话时只读它发出和收到的。", kind: "query", ...pluginOnly,
+      output_schema: { type: "array", items: messageOutput },
       input_schema: { type: "array", minItems: 1, maxItems: 2, items: [runtimeId, entryId], additionalItems: false } },
   } as ActionDefinition<[runtimeId: string, sessionId?: string], AgentSessionMessage[]>,
   /** The person made a session the priority: overlapping sessions are asked to make way. */
@@ -295,6 +310,7 @@ export const agentHostCapabilities = {
   sendPeopleMessage: {
     capability_id: "agent.messages.send.v1", version: 1, operation: "command",
     action: { title: "替人发一封会话间的信", description: "本人经插件发一封给人看的信（一次委派、一份交付），从一个会话到另一个会话。", kind: "operation", ...pluginOnly,
+      output_schema: messageOutput,
       input_schema: { type: "array", minItems: 2, maxItems: 2, additionalItems: false, items: [runtimeId, { type: "object", required: ["from_session", "to_session", "kind", "body"], additionalProperties: false,
         properties: { from_session: entryId, to_session: entryId, kind: { enum: ["request", "reply"] }, body: { type: "string", minLength: 1, maxLength: 1_000_000 },
           in_reply_to: entryId, attachments, ttl_ms: { type: "integer", minimum: 1 }, hops: { type: "integer", minimum: 0 } } }] } },
@@ -303,6 +319,7 @@ export const agentHostCapabilities = {
   actOnPeopleMessage: {
     capability_id: "agent.messages.act.v1", version: 1, operation: "command",
     action: { title: "处理一封会话间的信", description: "把一封给人看的信往下走：送达、接受、拒绝（带原因）、完成、撤回，或记一笔。", kind: "operation", ...pluginOnly,
+      output_schema: messageOutput,
       input_schema: { type: "array", minItems: 3, maxItems: 4, additionalItems: false, items: [runtimeId, entryId,
         { enum: ["deliver", "accept", "reject", "complete", "cancel", "record"] },
         { type: "object", additionalProperties: false, properties: { event: { type: "string", minLength: 1, maxLength: 200 }, note: { type: "string", maxLength: 100_000 }, attachments } }] } },
@@ -329,6 +346,7 @@ export const agentHostCapabilities = {
   readBackground: {
     capability_id: "agent.background.read.v1", version: 1, operation: "query",
     action: { title: "读后台命令", description: "这个项目里在后台跑的命令；点名会话时只读它的。", kind: "query", ...pluginOnly,
+      output_schema: { type: "array", items: backgroundOutput },
       input_schema: { type: "array", minItems: 1, maxItems: 2, items: [runtimeId, entryId], additionalItems: false } },
   } as ActionDefinition<[runtimeId: string, sessionId?: string], AgentBackgroundTask[]>,
   /** The person stops a running background command. */

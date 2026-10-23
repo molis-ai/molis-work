@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, type AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
@@ -104,8 +104,8 @@ async function harness(initial: Entry[]) {
     if (definition.capability_id !== writerIntegrationCapabilities.read.capability_id) throw new Error(`Unexpected action ${definition.capability_id}`);
     return { workspace_id: "work", writer_workspace_id: "child", source_path: root + "-child", target_path: root, branch: "writer/child", base_commit: "abc123", files: [] };
   }, calls);
-  const letter = (input: Wording, state: string) => ({ message_id: "m1", audience: "people", kind: "request",
-    from_session: input.from_session, to_session: input.to_session, body: input.body, state, sent_at_ms: Date.now(), history: [], attachments: [] });
+  const letter = (input: Wording, state: AgentSessionMessage["state"]): AgentSessionMessage => ({ message_id: "m1", audience: "people", kind: "request",
+    from_session: input.from_session, to_session: input.to_session, from_title: "发起", to_title: "委派", body: input.body, state, sent_at_ms: Date.now(), history: [], attachments: [] });
   const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
     const id = definition.capability_id, input: unknown[] = Array.isArray(args) ? args : [];
     calls.push([id, args]);
@@ -241,6 +241,7 @@ test("PG-054 a delegation is made on the Runtime of the session that asks, and a
   try {
     const sent = await h.call("/sessions/a/delegations", { task: "整理会议记录" });
     assert.equal(sent.status, 200, JSON.stringify(sent.body));
+    assert.notEqual(sent.body.delivery_unconfirmed, true, "a successful delegation was actually delivered, not recovered after an invalid output");
     assert.equal(sent.body.session.runtime_id, "beta", "the receiving session is on the asking session's Runtime");
     assert.deepEqual(h.made(agent.createSession).map(args => args[0]), ["beta", "beta"]);
     assert.equal(h.made(agent.sendPeopleMessage)[0]![0], "beta");

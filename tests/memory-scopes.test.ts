@@ -75,7 +75,7 @@ test("a Character's memory is used only in work that Character carries: not by a
   await assert.rejects(service.clearScope(personIn("project-q4"), "project", preview.fingerprint), /重新预览/);
   assert.equal((await service.list(personIn("project-q4"))).items.filter(item => item.scope !== "personal").length, 3, "nothing went");
   const again = await service.previewScope(personIn("project-q4"), "project");
-  const expectedIds = (await service.list(personIn("project-q4"))).items.filter(item => item.scope !== "personal").map(item => item.memory_id).sort();
+  const expectedIds = (await service.list(personIn("project-q4"))).items.filter(item => item.scope !== "personal").map(item => item.memory_id).sort((a, b) => a.localeCompare(b));
   const cleared = await service.clearScope(personIn("project-q4"), "project", again.fingerprint);
   assert.deepEqual({ ...cleared, items: [...cleared.items].sort((a, b) => a.memory_id.localeCompare(b.memory_id)) }, {
     removed: 3, complete: true, items: expectedIds.map(memory_id => ({ memory_id, outcome: "completed" })),

@@ -7,6 +7,7 @@ import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from 
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions, type MemoryRecallResponse } from "@molis-ai/molis-work-contracts/services/memory";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, readMcpToolPreference, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 
 /** What the server answers to tools/list and tools/call, as far as this test reads it. */
 interface McpResult { tools: Array<{ name: string }>; isError?: boolean; content: Array<{ text: string }> }
@@ -87,9 +88,17 @@ test("an external MCP client reads memory only through the person's grant for me
   // Who is asking comes from the connection, never from the arguments; unknown arguments are refused rather than read as a claim.
   const forged = await codex.call(RECALL_TOOL, { query: "周报 风险", consumer: "ui", actor_id: "web-user", project_id: "other" });
   assert.equal(forged.isError, true);
-  assert.equal((await recalled(codex, "周报 风险")).items.length, 2);
-  const uses = (await asPerson.invoke(memoryActions.list, {})).items.map(item => item.last_used?.consumer);
-  assert.deepEqual(uses, ["mcp", "mcp"], "each recall by the client is a use receipt, shown to the person as used by an external AI client");
+  const returned = await recalled(codex, "周报 风险");
+  assert.equal(returned.items.length, 2);
+  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items.map(item => item.last_used), [null, null],
+    "MEM-30: returning a tool result does not prove an external client sent it to a model");
+  const ledger = openMemoryLedger({ homeDirectory: home });
+  try {
+    const uses = ledger.uses({ receipt_id: returned.receipt_id });
+    assert.deepEqual(uses.map(use => ({ consumer: use.consumer, source: use.source, state: use.state })),
+      [{ consumer: "mcp", source: "recall", state: "returned" }, { consumer: "mcp", source: "recall", state: "returned" }]);
+    assert.deepEqual(uses.map(use => use.memory_id).sort(), returned.items.map(item => item.memory_id).sort());
+  } finally { ledger.close(); }
 
   // Revoking the grant takes the tool away at once and the next call is refused; granting again restores it.
   await record([{ ...grant, enabled: false }]);

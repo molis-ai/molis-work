@@ -67,7 +67,9 @@ test("Assistant and Agent recipes retain their own switches without claiming use
   assert.deepEqual(forAssistant?.scopes, forAgent?.scopes, "both recipes use the same user store");
   assert.deepEqual((await service.recall({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, consumer: "assistant", work: { work_id: "w-1", title: "评审" } },
     { query: "帮我评审这次改动" })).items.map(item => item.memory_id), [kept.memory!.memory_id]);
-  assert.equal((await asPerson.invoke(memoryActions.list, {})).items[0]!.last_used?.title, "工作「评审」");
+  assert.equal((await asPerson.invoke(memoryActions.list, {})).items[0]!.last_used, null, "MEM-30 an explicit recall is returned data, not a confirmed model dispatch");
+  assert.deepEqual(service.uses({ work_id: "w-1" }).map(use => ({ memory_id: use.memory_id, title: use.title, source: use.source, state: use.state })),
+    [{ memory_id: kept.memory!.memory_id, title: "工作「评审」", source: "recall", state: "returned" }]);
 
   const prefs = service.prefs({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, consumer: "ui", person: true }, "personal").prefs;
   await asPerson.invoke(memoryActions.savePrefs, { scope: "personal", prefs: { consumers: { ...prefs.consumers, agent: false } } });

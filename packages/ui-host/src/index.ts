@@ -6,9 +6,12 @@ import type {
   UiMountRequest,
   UiMountResult,
   UiRenderRequest,
+  UiSlotDescriptor,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export { createPluginUiClient } from "./plugin-client.js";
+export { createSurfaceRenderer, createSurfaceRenderers } from "./surface-renderers.js";
+export type { UiDeclaredMountHost, UiSurfaceCallModel } from "./surface-renderers.js";
 export { UiViewRegistry } from "./view-registry.js";
 export { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "./client-lifecycle.js";
 export { shortCallId } from "./call-id.js";
@@ -37,6 +40,12 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
  */
 export class UiHost implements UiHostApi {
   private readonly contributions = new Map<string, UiContribution<unknown>>();
+  private readonly slots: ReadonlyMap<string, UiSlotDescriptor>;
+
+  /** `slots` are the places this host offers; `mountDeclared` puts a surface in the one its contribution names. */
+  constructor(options: { readonly slots?: readonly UiSlotDescriptor[] } = {}) {
+    this.slots = new Map((options.slots ?? []).map((slot) => [slot.slot_id, slot]));
+  }
 
   register<TModel>(contribution: UiContribution<TModel>): void {
     const contributionId = contribution.descriptor.contribution_id.trim();
@@ -90,5 +99,25 @@ export class UiHost implements UiHostApi {
       surface: surface.surface_id,
       html: contribution.render(request.contribution as UiRenderRequest<unknown>),
     };
+  }
+
+  /**
+   * W5-06: mount a surface in the slot its contribution declares (`target_slot_id`), so a caller names only the
+   * contribution and surface and keeps no surface→slot table. The same checks as `mount` then run.
+   */
+  mountDeclared<TModel>(request: UiRenderRequest<TModel>): UiMountResult {
+    const contribution = this.contributions.get(request.contribution_id);
+    if (!contribution) {
+      throw uiHostErrors.contribution_not_found(`找不到 UI Contribution ${request.contribution_id}`);
+    }
+    const surface = contribution.descriptor.surfaces?.find((candidate) => candidate.surface_id === request.surface);
+    if (!surface) {
+      throw uiHostErrors.surface_invalid(`UI Contribution ${request.contribution_id} 未声明 surface ${request.surface}`);
+    }
+    const slot = this.slots.get(surface.target_slot_id);
+    if (!slot) {
+      throw uiHostErrors.slot_incompatible(`surface ${surface.surface_id} 声明的 slot ${surface.target_slot_id} 不在这个宿主上`);
+    }
+    return this.mount({ slot, contribution: request });
   }
 }

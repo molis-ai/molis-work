@@ -35,7 +35,7 @@ function deferredSurfaces(L: Translate, enabledPlugins: readonly string[], hidde
 }
 
 type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";
-export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extends GoalCollectionView<TItem> {
+export interface WorkbenchShellPageView<TItem extends GoalCollectionItem> extends GoalCollectionView<TItem> {
   /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
   pane_plugin?: string;
   enabled_plugins?: readonly string[];
@@ -68,7 +68,7 @@ export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extend
 /** Finite composition ports, not a second Web model or an execution/permission API.
  * HTML ports accept only trusted output from the registered product owners.
  */
-export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TView extends WorkbenchGoalsPageView<TItem>, TFeedEntry> {
+export interface WorkbenchShellPageOwners<TItem extends GoalCollectionItem, TView extends WorkbenchShellPageView<TItem>, TFeedEntry> {
   L: Translate;
   escapeHtml(value: unknown): string;
   icon(name: PageIcon): string;
@@ -148,10 +148,10 @@ function renderManifestStageViews(
   });
 }
 
-/** Workbench owns placement; Goals/Feed/Work owners retain their actual UI and facts. */
+/** The shell's whole page: Workbench owns placement; Goals/Feed/Work owners retain their actual UI and facts. The function keeps its old name until W5-10 splits it, because the giant-unit gate keys a function by its name. */
 export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionItem,
-  TView extends WorkbenchGoalsPageView<TItem>, TFeedEntry>(
-  owners: WorkbenchGoalsPageOwners<TItem, TView, TFeedEntry>,
+  TView extends WorkbenchShellPageView<TItem>, TFeedEntry>(
+  owners: WorkbenchShellPageOwners<TItem, TView, TFeedEntry>,
 ) {
   const { L, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
     renderIconSprite, clientI18nScript, dataJson, prefixLocalLinks, renderWorkbenchDocument,

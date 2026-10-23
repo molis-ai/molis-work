@@ -9,7 +9,8 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createExtractablePdf, hashBytes } from "@molis-ai/molis-work-module-shelf";
 import { shelfActions as a, SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
-import { openHostShelfStore, shelfActionProvider } from "../apps/local-host/src/shelf-actions.js";
+import { openHostShelfStore } from "../apps/local-host/src/shelf-actions.js";
+import { shelfStoreProvider } from "./shelf-direct-actions.js";
 import { extractMaterial } from "../apps/local-host/src/material-extraction.js";
 import { materialImageTextAvailable } from "../apps/local-host/src/material-native.js";
 
@@ -22,11 +23,11 @@ for (const stop of ["cancel", "revoke", "withdraw", "copy-change", "job-cancel"]
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
     let paused = false, allowed = true;
     let extractionSignal: AbortSignal | undefined;
-    const registration = shelfActionProvider(home, { extract: async (source, options) => {
+    const registration = shelfStoreProvider(() => openHostShelfStore(home, { disabled: true }, { extract: async (source, options) => {
       const extracted = await extractMaterial(source, options);
       if (paused) { extractionSignal = options?.signal; entered.resolve(); await release.promise; }
       return extracted;
-    } });
+    } }));
     const service = new ActionService(); let dispose = service.registerProvider(registration);
     const context = { ...caller, signal: controller.signal, validate_authority: () => {
       if (!allowed) throw new ActionError("actions.forbidden", "revoked during extraction");
@@ -73,9 +74,9 @@ test("PDF admission cancellation after parsing leaves no saved copy", async () =
   const home = await mkdtemp(join(tmpdir(), "shelf-preview-")), controller = new AbortController();
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const service = new ActionService();
-  const dispose = service.registerProvider(shelfActionProvider(home, { extract: async (source, options) => {
+  const dispose = service.registerProvider(shelfStoreProvider(() => openHostShelfStore(home, { disabled: true }, { extract: async (source, options) => {
     const result = await extractMaterial(source, options); entered.resolve(); await release.promise; return result;
-  } }));
+  } })));
   const pending = service.invoke({ ...caller, signal: controller.signal }, a.admit, { filename: "late.pdf", bytes_base64: pdf.toString("base64") });
   const rejected = assert.rejects(pending, { name: "AbortError" });
   try {

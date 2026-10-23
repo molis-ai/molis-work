@@ -17,12 +17,13 @@ test("W1-18-CHARACTER-SCHEMA-01 an empty Character store initializes once and cu
     try { assert.deepEqual(reopened.service.get(draft.character_id), draft); }
     finally { reopened.close(); }
     const db = new DatabaseSync(join(home, "characters", "characters.sqlite"));
-    try { assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 1); }
+    try { assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 2); }
     finally { db.close(); }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
-for (const version of [0, 2]) test(`W1-18-CHARACTER-SCHEMA-01 an existing version ${version} store is refused without changing its bytes or mode`, () => {
+// Version 1 is the store before Characters kept its own runs (SC-2): refused until the maintenance in characters-maintenance-v2.test.ts.
+for (const version of [0, 1, 3]) test(`W1-18-CHARACTER-SCHEMA-01 an existing version ${version} store is refused without changing its bytes or mode`, () => {
   const home = mkdtempSync(join(tmpdir(), "character-refused-"));
   const directory = join(home, "characters"), filename = join(directory, "characters.sqlite");
   mkdirSync(directory);

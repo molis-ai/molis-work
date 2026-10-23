@@ -76,10 +76,10 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
         if (action) {
           if (!context.services?.actions) throw codingError(message => new ActionError("actions.unredeemed", message), "coding.server.no-actions");
           // A route answers Coding's own page: the model's words travel drawn, which a call of the action alone does not get.
-          return { status: 200, body: codingPageHtml(await context.services.actions.invoke(action.definition, action.toInput(request), request.execution), request.execution?.locale) };
+          return { status: 200, body: codingPageHtml(await context.services.actions.invoke(action.definition, action.toInput(request), request.execution), { route_id, query: request.query }, request.execution?.locale) };
         }
         const beforeWrite = check(request.execution), { api, execution } = await execute(request, beforeWrite, request.execution?.locale);
-        return { status: 200, body: codingPageHtml(await handle(request, api, execution, beforeWrite), execution.locale) };
+        return { status: 200, body: codingPageHtml(await handle(request, api, execution, beforeWrite), { route_id, query: request.query }, execution.locale) };
       } catch (error) { return failure(codingErrorIn(error, request.execution?.locale)); }
     } };
   };

@@ -14,4 +14,6 @@ ${processFold(A, { group: ".assistant-steps", groupBody: ".assistant-steps-body"
 ${A} .assistant-activity-detail{display:grid;gap:2px;margin:2px 0 4px 19px;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 ${A} .assistant-activity-detail>p{margin:0}
 ${A} .assistant-activity-label{margin-right:6px;color:var(--ink-soft)}
+${A} .assistant-activity-raw>summary{width:fit-content;cursor:pointer;color:var(--ink-soft)}
+${A} .assistant-activity-raw>p{margin:2px 0 0}
 `;

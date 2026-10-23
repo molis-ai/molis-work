@@ -71,7 +71,7 @@ const sameBinding = (left: ActionSceneBinding | null, right: ActionSceneBinding)
 
 /** Home owns its consumption contract; Functions remains the owner of saved bindings and history. */
 export function homeActionProvider(home: string, projectId: string, services: InboxSceneServices, onRecorded: (judgment: JudgmentRecord, caller: ActionCallContext) => void): ActionProviderRegistration {
-  const read = <T>(operation: Parameters<typeof withFunctionsService<T>>[1]) => withFunctionsService(home, operation, services.functions);
+  const read = services.readFunctions ?? (<T>(operation: Parameters<typeof withFunctionsService<T>>[1]) => withFunctionsService(home, operation, services.functions));
   const published = () => read(service => service.list().filter(rule => rule.status === "published" && rule.version));
   const bindingFor = (key: string, version: number): ActionSceneBinding => ({ binding_id: homeDockBindingId(projectId), scene_id: HOME_DOCK_SCENE_ID,
     scene_version: 1, project_id: projectId, function: { capability_id: `functions.published.${key}`, version, provider_id: "system.functions" }, enabled: true,

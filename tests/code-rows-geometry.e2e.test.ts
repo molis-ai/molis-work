@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compareRunChangeSet, renderDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-diff";
+import { compareRunChangeSet, DIFF_LABELS } from "@molis-ai/molis-work-plugin-diff";
+import { renderDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { coding, openCoding } from "./fixtures/coding-browser.js";
-import { pageText } from "./fixtures/page-text.js";
+import { diffPageText } from "./fixtures/diff-page-text.js";
 
 // DFP-03; specs/visual-ui-experience VUX-33 (§code-diff, shared row geometry): a change's line numbers and code keep their rows
 // under the page's zoom in and out, fractional device pixels and a missing code font. Every row's cells share its top and bottom;
@@ -10,7 +11,7 @@ import { pageText } from "./fixtures/page-text.js";
 // grow a line); a number sits on its code's baseline; a tab is the shared `--code-tab` (4) wide, the same in both layouts.
 
 const escape = (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const primitives = { escape, text: pageText("zh"), icon: (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>` };
+const primitives = { escape, text: diffPageText("zh"), icon: (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>` };
 const BEFORE = ["function check(x) {", "\treturn x;", "// 中文注释：行高不变", "const mark = 'ok';", "\t\tnested(1);", "}", ""].join("\n");
 const AFTER = ["function check(x) {", "\treturn x + 1;", "// 中文注释：行高不变，再加几个字", "const mark = '🙂✅';", "\t\tnested(1);", "\tadded(2);", "}", ""].join("\n");
 
@@ -18,7 +19,7 @@ function write() {
   const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-rows", applied: true, files: [{ path: "rows.ts", kind: "modified", added_lines: 4, removed_lines: 3, diff: "",
     review: { review_id: "review-rows", before_text: BEFORE, after_text: AFTER, decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
-  const html = (mode: "unified" | "split") => renderDiff({ view: { ...view, mode }, primitives, line_feedback: true, fold_context: 3, sides: false });
+  const html = (mode: "unified" | "split") => renderDiff({ labels: DIFF_LABELS, view: { ...view, mode }, primitives, line_feedback: true, fold_context: 3, sides: false });
   return { html, patch: unifiedPatch(view.rows, { path: "rows.ts" }) };
 }
 

@@ -1,6 +1,7 @@
 import type { BoundActionClient } from "./actions.js";
 import type { ArtifactReference } from "../modules/artifacts.js";
 export type { PluginBackgroundClient, PluginBackgroundExecution, PluginJobControl, PluginJobDeclaration, PluginKeptJob } from "./plugin-background.js";
+export type { PluginInteractionClient, PluginInteractionNextSteps, PluginInteractionStep } from "./plugin-interaction.js";
 import type { ConnectorDriver } from "../services/connector-host.js";
 import type { RawEventAdapter } from "../services/listener-host.js";
 import type { HostCapabilityDefinition } from "./app-host.js";
@@ -148,6 +149,8 @@ export interface PluginHostServices {
   readonly imageGeneration?: import("./plugin-image-generation.js").PluginImageGenerationClient;
   /** Host material readers, each declared on its own: materials:read, materials:fetch, materials:fetch_local, materials:original. */
   readonly materials?: PluginMaterialsClient;
+  /** Requests through the accounts the person bound to the Manifest's connection slots, when it declares `connections:use` (S-57). */
+  readonly connections?: import("./plugin-connections.js").PluginConnectionsClient;
   /** A person-authorized directory, only when the Manifest declares directory:read; the Host never lets the Plugin name an absolute path. */
   readonly directory?: import("./plugin-directory.js").PluginDirectoryService;
   /** Project artifact services are absent from Home activations. */
@@ -155,6 +158,11 @@ export interface PluginHostServices {
   /** Present when the Manifest declares `process_items.produces`. */
   readonly processItems?: PluginProcessItemClient;
   readonly ui: PluginUiClient;
+  /**
+   * The platform's question card, action card and next-step row as html, in the call's language (PG-062): what a plugin that runs
+   * an Agent's round on its own page shows the way the Assistant does. The Host gives it to every activation; no permission.
+   */
+  readonly interaction?: import("./plugin-interaction.js").PluginInteractionClient;
   /** Present when the Manifest declares published events. */
   readonly events?: PluginEventsClient;
   /** Present when the Manifest declares input ports. */
@@ -327,6 +335,8 @@ export interface PluginManifest {
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
   /** The plugin's own tables, by scope (PG-020, specs/plugin-project-database). */
   databases?: import("./plugin-database.js").PluginManifestDatabases;
+  /** v2: places where the plugin may use an account the person binds, with `connections:use` (`services.connections`, S-57). */
+  connections?: import("./plugin-connections.js").PluginConnectionsDeclaration;
   /** v2: kept jobs and commands the platform may wake for this installation. */
   background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[]; wakeups?: readonly import("./plugin-scheduler.js").PluginWakeupDeclaration[] };
   /** Complete, callable capabilities registered with the system action service. */
@@ -494,7 +504,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

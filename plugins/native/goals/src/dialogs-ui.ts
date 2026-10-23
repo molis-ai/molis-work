@@ -90,9 +90,11 @@ export type GoalsDialogsUiModel = {
     kind: "trash";
     args: Parameters<GoalsDialogsRenderer["renderGoalTrashDialog"]>;
 });
+/** Which surface each renderer method mounts (W5-06): the shell builds its renderer from this, and the descriptor lists these. */
+export const GOALS_DIALOGS_UI_SURFACES = { renderCreateDialog: "create", renderGoalTrashDialog: "trash" } as const satisfies Record<keyof GoalsDialogsRenderer, GoalsDialogsUiModel["kind"]>;
 export const goalsDialogsUiContribution: UiContribution<GoalsDialogsUiModel> = {
     descriptor: { contribution_id: GOALS_DIALOGS_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal dialogs",
-        surfaces: ["create", "trash"].map(surface_id => ({ surface_id, target_slot_id: "workbench.overlay", format: "declarative-html" })), slots: [] },
+        surfaces: Object.values(GOALS_DIALOGS_UI_SURFACES).map(surface_id => ({ surface_id, target_slot_id: "workbench.overlay", format: "declarative-html" })), slots: [] },
     render({ surface, model }) {
         if (surface !== model.kind)
             throw new Error("Goal dialog surface does not match its model");

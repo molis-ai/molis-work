@@ -74,4 +74,4 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 
 `runtime()` / `snapshot()` 和 Agent 目录只检查可执行文件，不启动 `--help`。人工终端与自动模型选择独立，`runJob()` 不探测或启动 CLI。显式 `pathEnvironment` 是完整搜索范围，默认发现才包含常用安装目录。AI 可用性由 Host 的模型目录提供；未注入 AI 端口时明确不可用，本机提取仍可执行。
 
-自动生成合同是 `ShelfAiPorts`，Host 拥有配置模型、材料 IO 与 SDK；Module 拥有任务、输入 hash、结果和回执保存。模型端口返回后仍须通过原 Action 的 beforeEffect 并复查来源。AI 改动另跑 `tests/shelf-ai-host.test.ts` 与 `tests/shelf-job-runner.test.ts`。
+自动生成合同是 `ShelfAiPorts`，由插件的 Home 实例经 `services.model` 与 `services.materials` 实现（`plugins/native/shelf/src/ai.ts`），冻结副本经 Shelf 自己的 owner files 读；Module 拥有任务、输入 hash、结果和回执保存。模型端口返回后仍须通过原 Action 的 beforeEffect 并复查来源。AI 改动另跑 `tests/shelf-ai-host.test.ts` 与 `tests/shelf-job-runner.test.ts`。

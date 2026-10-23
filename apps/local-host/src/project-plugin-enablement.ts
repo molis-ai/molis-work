@@ -39,6 +39,6 @@ export function projectPluginEnablementRefresh(platform: PluginPlatform, home: s
 
 /** Settings finish only after an already-open project has stopped or enabled its Runtime owners. */
 export async function refreshOpenProjectPlugins(host: MolisWorkLocalHost, projectId: string): Promise<void> {
-  const project = host.status().projects.find(item => item.project_id === projectId && item.state !== "closing");
+  const project = host.projects().find(item => item.project_id === projectId && item.state !== "closing");
   if (project) await host.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "user", permissions: [] }, project);
 }

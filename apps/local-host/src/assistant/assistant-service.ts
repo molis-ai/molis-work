@@ -8,6 +8,7 @@ import { AssistantFollowUps, type AssistantFollowUpPorts } from "./assistant-fol
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { failedStep } from "./activity-failure.js";
 import { ActionError, requireSynchronous, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { describeReview } from "./assistant-review-words.js";
 import { waitForAssistantWork } from "./assistant-wait.js";
@@ -255,7 +256,6 @@ export function stopInWords(reason: string, workBudget?: number): string {
   return reason;
 }
 
-
 /** The modes a Coding round can run in, as Coding's own page offers them. */
 const CODING_MODES: readonly string[] = ["discuss", "plan", "edit", "execute", "review", "collaborate", "parallel"];
 
@@ -295,10 +295,10 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
       : /reject|declin|拒绝/i.test(item.summary) ? "declined" as const : undefined;
     // A round that is over has nothing still going on: a step it never closed is one whose outcome nobody recorded.
     const state = uncertain || (ended && item.state === "started") ? "unknown" as const : item.state;
-    const detail = item.state === "failed" && item.output ? item.output.replace(/\s+/g, " ").trim().replace(/^[A-Z][A-Z_]+:\s*/, "").slice(0, 300) : "";
+    const { detail, failure } = failedStep(item);
     const capability = (verb === "read" || verb === "change") && item.target ? { capability_id: item.target } : {};
     const answer = verb === "ask" && item.state === "completed" ? answerOf(item.output) : "";
-    return [{ call_id: item.call_id, verb, target, state, ...capability, ...(reason ? { reason } : {}), ...(detail ? { detail } : {}), ...(answer ? { answer } : {}),
+    return [{ call_id: item.call_id, verb, target, state, ...capability, ...(reason ? { reason } : {}), ...(detail ? { detail } : {}), ...(failure ? { failure } : {}), ...(answer ? { answer } : {}),
       ...(item.sequence !== undefined ? { sequence: item.sequence } : {}) }];
   });
 }

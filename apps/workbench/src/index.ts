@@ -1,8 +1,8 @@
 export { renderSideViewDocument, type SideViewDocumentInput, type SideViewModel } from "./side-view-document.js";
-export { createWorkbenchGoalsPageRenderer } from "./goals-page-renderer.js";
+export { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
 export { renderWorkbenchPlanningRequest } from "./goals-planning-request.js";
 export type { WorkbenchPlanningPageOwners } from "./goals-planning-request.js";
-export type { WorkbenchGoalsPageView, WorkbenchGoalsPageOwners } from "./goals-page-renderer.js";
+export type { WorkbenchShellPageView, WorkbenchShellPageOwners } from "./shell-page-renderer.js";
 export { ARTIFACT_EMBED_STYLES } from "./artifact-ui.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
 export { homeToolKeysScript } from "./home-plugin-navigation.js";

@@ -43,7 +43,7 @@ pub fn install(app: AppHandle) {
             let Some(Some(cargo)) = on_main(&app, read_pasteboard) else {
                 continue;
             };
-            take(cargo);
+            take(&app, cargo);
         }
     });
 }
@@ -64,7 +64,7 @@ struct Cargo {
     types: Vec<String>,
 }
 
-fn take(cargo: Cargo) {
+fn take(app: &AppHandle, cargo: Cargo) {
     if is_concealed(&cargo.types) {
         return;
     }
@@ -82,8 +82,11 @@ fn take(cargo: Cargo) {
     // clipboard slot, same as DropAgent.
     if !cargo.files.is_empty() {
         for path in &cargo.files {
-            if let Err(error) = shelf_http::admit_file(path) {
-                eprintln!("Molis Work 没能收下复制的文件：{error}");
+            match shelf_http::admit_file(path) {
+                Ok(receipt) => {
+                    receipt.into_item_id(|message| crate::shelf_notice(app, message, true));
+                }
+                Err(error) => eprintln!("Molis Work 没能收下复制的文件：{error}"),
             }
         }
         return;

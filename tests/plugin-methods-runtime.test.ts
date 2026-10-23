@@ -144,3 +144,31 @@ test("W4-02-04 a definition's methods for an owner the catalog registers for are
       assert.deepEqual(listed(home, "io.molis.work.example.generated"), [], "it runs, and its methods are not registered");
     } finally { sandboxed.store.close(); }
   }));
+
+test("RAC-191 PG-051 V-05 a running definition's Agent block registers its roles and prompts; the person's edit is what a run gets, and outlives a stop", { timeout: 60_000 },
+  withHome(async home => {
+    const AGENT_ID = "io.molis.work.example.agentprobe";
+    const text = { prompt_id: "probe-role", version: 1, body: "按清单逐项核对" };
+    const plugin = probe({ pluginId: AGENT_ID, methods: [], bodies: [] });
+    const definition: PluginDefinition = { ...plugin.definition, agent_prompts: [text],
+      manifest: { ...plugin.definition.manifest, agent: { roles: [{ role_id: "checker", version: 1, name: "核对员", workspace: "none", prompts: ["probe-role"] }], prompts: [{ prompt_id: "probe-role", version: 1 }] } } };
+    const first = platformIn(home);
+    try {
+      const started = await first.platform.start([{ definition }]);
+      assert.deepEqual(started.running, [AGENT_ID], JSON.stringify(started.failed));
+      const registry = homeAgentDefinitions(home);
+      assert.deepEqual(registry.roles().filter(role => role.owner_id === AGENT_ID).map(role => [role.role_id, role.name, role.prompt_keys]), [["checker", "核对员", [`${AGENT_ID}/probe-role`]]]);
+      const [prompt] = registry.prompts().filter(view => view.owner_id === AGENT_ID);
+      assert.equal(prompt?.kind, "agent");
+      registry.save(prompt!.key, "按清单逐项核对，先列出缺的", null, "tester");
+      assert.equal(registry.effective(AGENT_ID, text).body, "按清单逐项核对，先列出缺的", "a run gets the person's version");
+      await first.platform.runtime.stop(first.installId(AGENT_ID));
+      assert.deepEqual(registry.roles().filter(role => role.owner_id === AGENT_ID), [], "withdrawn when it stops");
+      assert.equal(registry.effective(AGENT_ID, text).body, text.body, "an unregistered prompt runs as given");
+    } finally { first.store.close(); }
+    const again = platformIn(home);
+    try {
+      assert.deepEqual((await again.platform.start([{ definition }])).running, [AGENT_ID]);
+      assert.equal(homeAgentDefinitions(home).effective(AGENT_ID, text).body, "按清单逐项核对，先列出缺的", "the edit is back with the registration");
+    } finally { again.store.close(); }
+  }));

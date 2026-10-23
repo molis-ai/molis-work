@@ -118,6 +118,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     },
     {
       agentHost: () => agentHost,
+      originalInput: (_runtime, caller) => currentOriginalInput(caller),
       authority: (runtime, pluginId, caller) => startAuthority(runtime, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller),
       projectId: (runtime) => runtime.project_id,
       mcpChanged: (runtime, runtimeId, pluginId, library, owner) => externalMcp.sync(runtime, pluginId, runtimeId, library, owner),
@@ -195,6 +196,15 @@ async function preparePluginAgent(options: AgentHostCompositionOptions, caller: 
   return { authority, workspaces };
 }
 
+function currentOriginalInput(caller: HostPluginCaller | undefined) {
+  const invocation = currentPluginInvocation();
+  return invocation && "definition" in invocation && invocation.install_id === caller?.install_id
+    && invocation.caller.original_input?.install_id === caller.install_id
+    && invocation.definition.capability_id === invocation.caller.original_input.action.capability_id
+    && invocation.definition.version === invocation.caller.original_input.action.version
+    ? structuredClone(invocation.caller.original_input) : undefined;
+}
+
 async function startAuthority(
   runtime: MolisWorkProjectRuntime,
   pluginId: string,
@@ -210,12 +220,7 @@ async function startAuthority(
     : BUILTIN_PLUGIN_AGENTS.get(pluginId);
   const manifest = caller?.declaration.manifest ?? BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
   const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === 1);
-  const invocation = currentPluginInvocation();
-  const original = invocation && "definition" in invocation && invocation.install_id === caller?.install_id
-    && invocation.caller.original_input?.install_id === caller.install_id
-    && invocation.definition.capability_id === invocation.caller.original_input.action.capability_id
-    && invocation.definition.version === invocation.caller.original_input.action.version
-    ? structuredClone(invocation.caller.original_input) : undefined;
+  const original = currentOriginalInput(caller);
   const workspace = await workspaceFor(runtime.project_id);
   const workspaces = workspacesFor ? await workspacesFor(runtime.project_id) : workspace ? [workspace] : [];
   // The round's number: the call that starts it (agent.run.start), else a new one. The Runtime calls its tools later, in its own loop,

@@ -243,7 +243,8 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.js": [1186715, 1189908],
   // User separately approved +738 B for Coding original-input identity, retries and continuations.
   // Main #1069 independently adds 510 B; retain that new base without extending Memory's allowance.
-  "/assets/molis-work-plugins/coding.js": [374745, 375483],
+  // Mixed supplements reuse the same sender and save another 21 B from that allowance.
+  "/assets/molis-work-plugins/coding.js": [374745, 375462],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

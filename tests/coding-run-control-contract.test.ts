@@ -20,9 +20,9 @@ function rejected(value: unknown): void {
 }
 
 // ADOPT-CONTROL-V2-01, RC-01, RCPT-321: current schema and callers use a new shape under a new action version (3: a supplement's key and mode; 4: a non-choice question's answer is a value, specs/ai-interaction-experience AC-27; 5: the value may be picked objects, AC-28-5; 6: withdraw, and a supplement's about, specs/ai-input-receipts 3b-2a; 7: a supplement's source, RCPT-368, BL-144).
-test("coding.runs.control uses version 7 and remains exclusive to the person at this computer", () => {
+test("coding.runs.control uses version 8 and remains exclusive to the person at this computer", () => {
   assert.equal(control.definition.capability_id, "coding.runs.control");
-  assert.equal(control.definition.version, 7);
+  assert.equal(control.definition.version, 8);
   assert.deepEqual(control.definition.action.audiences, ["user"]);
 });
 
@@ -38,6 +38,7 @@ test("an answer without its question fields, or a steer without text, is rejecte
   rejected({ ...base, kind: "answer", text: "好" });
   rejected({ ...base, kind: "steer" });
   rejected({ ...base, kind: "steer", text: "   " });
+  rejected({ ...base, kind: "steer", text: "x", original: { text: "person", source: "person" } });
   rejected(control.toInput(request({ kind: "answer", run_id: "run-1", text: "好" })));
   rejected(control.toInput(request({ kind: "steer", run_id: "run-1", text: " " })));
 });

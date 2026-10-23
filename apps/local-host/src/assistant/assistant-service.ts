@@ -70,7 +70,7 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   /** IANA zone the person works in, so "tomorrow" means their tomorrow. */
   timeZone?: string;
   /** The person's own client in a work's project, to drive a plugin's Agent (Coding) as its page would; a dispatch's (a Send, a follow-up's round) is its own. */
-  personActions?(work: StoredWork, use?: "dispatch"): Promise<BoundActionClient>;
+  personActions?(work: StoredWork, use?: "dispatch", original?: SendIntent["original_input"]): Promise<BoundActionClient>;
   /** The person's own actions in a work's scope (its project, or the Home), for reading related objects from their owners. */
   scopeActions?(work: StoredWork): Promise<PersonActions>;
   /** The person's own actions in their Home, for reading the reminders they set in Plugins. */
@@ -1266,15 +1266,15 @@ export class AssistantService {
       ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });
   }
 
-  private async coding(work: StoredWork, dispatch?: { control?: CodingControl }): Promise<CodingExecutor> {
+  private async coding(work: StoredWork, dispatch?: { control?: CodingControl; original?: SendIntent["original_input"] }): Promise<CodingExecutor> {
     if (!this.ports.personActions) throw assistantErrors.unsupported("当前环境不能从这里使用 Coding Agent");
-    return new CodingExecutor(await this.ports.personActions(work, dispatch ? "dispatch" : undefined), dispatch?.control);
+    return new CodingExecutor(await this.ports.personActions(work, dispatch ? "dispatch" : undefined, dispatch?.original), dispatch?.control);
   }
 
   /** A work carried by Coding: its round starts, continues or is answered in Coding's own session. */
   private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, intent?: SendIntent): Promise<AssistantSendResult> {
     if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("Coding 工作暂时不能带图片；可以把图里的要点写成文字再发");
-    const coding = await this.coding(work, { control: stillCurrent ? dispatchControl(() => assertSendCurrent(stillCurrent)) : undefined });
+    const coding = await this.coding(work, { original: !intent?.byHost && !work.delegated_by && !work.reply_target ? intent?.original_input : undefined, control: stillCurrent ? dispatchControl(() => assertSendCurrent(stillCurrent)) : undefined });
     let sessionId = work.executor.kind === "coding" ? work.executor.session_id : null;
     if (!sessionId) {
       sessionId = await coding.createSession(work.title);
@@ -1332,7 +1332,7 @@ export class AssistantService {
       if (latest.phase === "reconcile-required") throw assistantErrors.needs_check("上一轮有结果未确认的操作，需要先核对", { action: "打开这项工作核对" });
       const outcome = await this.inputs.deliver(intent?.target === "answer" ? await adapter.read(latest.ref) : latest, text, materials, context, { answer: control => adapter.control(latest.ref, control), send: input => inputsOf(adapter).send(latest.ref, input, () => assertSendCurrent(stillCurrent)),
         // A running round cannot be shown a picture any more; it goes with the next round.
-        beforeSteer: () => { if (materials.some(item => item.kind === "image")) throw assistantErrors.state("这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } }, intent);
+        beforeSteer: () => { if (materials.some(item => item.kind === "image")) throw assistantErrors.state("这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } }, { ...intent, original_input });
       return this.result(work, outcome, latest.ref.run_id, stillCurrent);
     }
     const previousWaitWithdrawn = !intent?.byHost && await this.continuations.withdraw(work, "用户更新了任务，接下来按最新要求处理");

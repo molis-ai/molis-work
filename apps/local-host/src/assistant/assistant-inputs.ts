@@ -1,3 +1,4 @@
+import { personalInputText } from "../memory/memory-source-identity.js";
 import type { AgentRunView, AgentSessionView, AgentRuntimeAdapter, AgentRunRef, AgentOriginalInputRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentAnswerControl } from "@molis-ai/molis-work-contracts/services/agent-interaction";
@@ -33,8 +34,8 @@ export function typedMemorySources(views: readonly AgentRunView[]): AssistantMem
     const original = view.original_input;
     const eligible: AssistantMemorySource[] = [
       ...(original?.written_by === "person" ? [{ run_id: view.ref.run_id, input_id: null, version: "1" as const, original: original.ref, text: original.text }] : []),
-      ...view.turns.filter(turn => turn.kind === "user" && turn.steer?.source === "person" && turn.steer.state !== "withdrawn")
-        .map(turn => ({ run_id: view.ref.run_id, input_id: turn.steer!.id, version: "1" as const, text: turn.text })),
+      ...view.turns.filter(turn => turn.steer && personalInputText(turn.text, turn.steer) !== undefined && turn.steer.state !== "withdrawn")
+        .map(turn => ({ run_id: view.ref.run_id, input_id: turn.steer!.id, version: "1" as const, text: personalInputText(turn.text, turn.steer!)! })),
     ];
     for (const source of eligible) {
       const key = memorySourceIdentity(source);
@@ -131,8 +132,9 @@ export class AssistantInputs {
     }
     port.beforeSteer?.();
     const key = intent.id && new RegExp(AGENT_INPUT_KEY_PATTERN).test(`send.${intent.id}`) ? { key: `send.${intent.id}` } : {};
-    const derived = intent.byHost || materials.length > 0 || Boolean(context?.selection);
-    const receipt = await port.send({ text: this.compose(text, materials, context), ...key, ...(derived ? { source: "host" as const } : {}), ...(intent.about ? { about: intent.about } : {}) });
+    const original = !intent.byHost && intent.original_input?.written_by === "person" ? { text: intent.original_input.text, source: "person" as const } : undefined;
+    const derived = intent.byHost || !original || materials.length > 0 || Boolean(context?.selection);
+    const receipt = await port.send({ text: this.compose(text, materials, context), ...(derived && original ? { original } : {}), ...key, ...(derived ? { source: "host" as const } : {}), ...(intent.about ? { about: intent.about } : {}) });
     // A round that ended as the words arrived does not take them; they wait in its session for the next round.
     return receipt?.delivered === "queued" ? "queued" : "steered";
   }

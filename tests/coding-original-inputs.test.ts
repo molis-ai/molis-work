@@ -13,6 +13,7 @@ import { codingProductHost } from "./fixtures/coding-product-host.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 const coding = "/api/plugins/io.molis.work.coding";
 type Environment = Awaited<ReturnType<typeof codingProductHost>>;
@@ -82,7 +83,7 @@ test("MEM-35 production source assembly checks the current Coding installation w
   try {
     const original = installs.get(owner.install_id); assert.ok(original); assert.equal(original.state, "running");
     for (const patch of [{ state: "disabled" as const }, { state: "uninstalled" as const }]) {
-      const stopped = { ...original, ...patch }; installs.save(stopped);
+      const stopped: PluginInstanceRecord = { ...original, ...patch }; installs.save(stopped);
       await assert.rejects(propose(), { code: "MEMORY_NOT_ACCEPTED" });
       assert.deepEqual(installs.get(owner.install_id), stopped, "a source read cannot repair grants or restart an installation");
       assert.equal((await memory.candidates.list("project", owner.project_id)).length, 1);
@@ -163,7 +164,7 @@ test("a plugin start DTO cannot claim person without the protected Host authorit
     const request = { ...owner, session, directory, role_id: "discuss", task: "原话及宿主补充", original_input: original };
     const authority = { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [root] };
     await assert.rejects(host.start("prologue", request, authority), { code: "agent.capability_unavailable" });
-    for (const change of [{ text: "别人的原话" }, { install_id: "other-install" }, { written_by: "host" as const }, { occurred_at: "2000-01-01T00:00:00Z" }]) {
+    for (const change of [{ text: "别人的原话" }, { install_id: "other-install" }, { written_by: "host" as const }, { occurred_at: "2000-01-01T00:00:00Z" }, { use: "supplement" as const }]) {
       await assert.rejects(host.start("prologue", request, { ...authority, original_input: { ...original, install_id: owner.install_id, ...change } }), { code: "agent.capability_unavailable" });
     }
     assert.equal(models, 0); assert.deepEqual((await adapter.readSession(session)).runs, [], "provenance refusal creates no SDK execution");

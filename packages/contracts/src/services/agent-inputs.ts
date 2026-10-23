@@ -53,9 +53,14 @@ export const AGENT_STEER_MODES: readonly AgentSteerMode[] = ["next-boundary", "i
 /** Characters an input key may use, so it can name the input in the runtime's own references. */
 export const AGENT_INPUT_KEY_PATTERN = "^[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$";
 
+/** Exact personal words kept by the input owner, separate from the assembled model text. */
+export interface AgentInputOriginalText { readonly text: string; readonly source: "person" }
+
 /** A supplement to a round: it reaches the model at its next boundary, beside what it is already doing. */
 export interface AgentInputSend {
   text: string;
+  /** Trusted Host only; excluded from the public Action input schema. Requires source host. */
+  original?: AgentInputOriginalText;
   /** `person` when absent. */
   source?: AgentInputSource;
   /**
@@ -94,6 +99,7 @@ export interface AgentQueuedInput {
   input_id: string;
   /** Original Host acceptance time, if the runtime can prove it; carry/restart never replace it. */
   accepted_at_ms?: number;
+  original?: AgentInputOriginalText;
   text: string;
   /** `peer`: another session's Agent said it. */
   source: AgentInputSource | "peer";
@@ -172,6 +178,7 @@ export interface AgentTurnSteer {
   source?: AgentInputSource | "peer";
   /** Original Host acceptance time; absent on older input records whose origin time is unknown. */
   accepted_at_ms?: number;
+  original?: AgentInputOriginalText;
   /** received: taken, not yet in the context; applied: in the context; read: a kept reply was made with it (not compliance); unread: the round ended before that. */
   state: "received" | "applied" | "read" | "unread" | "withdrawn";
   /** The key it was sent under (`AGENT_INPUT_KEY_PATTERN`), so the page that sent it knows it here even when its answer was lost. */
@@ -183,7 +190,7 @@ export interface AgentTurnSteer {
   questions?: AgentInputQuestion[];
 }
 
-export type AgentInputSendRequest = AgentInputSend & { runtime_id: string; session_id: string; run_id: string };
+export type AgentInputSendRequest = Omit<AgentInputSend, "original"> & { runtime_id: string; session_id: string; run_id: string };
 /** `run_id`: the round the caller saw it in, or the session's latest; a supplement no round took is the session's. */
 export type AgentInputWithdrawRequest = { runtime_id: string; session_id: string; run_id: string; input_id: string };
 
@@ -192,7 +199,7 @@ const id = { type: "string", minLength: 1 } as const;
 /** The one way a plugin speaks to a round of its sessions; the Assistant, inside the Host, uses the runtime's port. */
 export const agentInputActions = {
   send: {
-    capability_id: "agent.inputs.send.v2", version: 2, operation: "command",
+    capability_id: "agent.inputs.send.v3", version: 3, operation: "command",
     action: { title: "向一轮补充要求", description: "把一段话交给这个项目里一个会话的一轮：下一个边界读进上下文、打断当前回复，或留到下一轮；纠正或改关联时用 about 指向原来那条。回执说这一轮收下了，还是留在会话里等下一轮；同键同文只算一次。只给插件调用。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id", "session_id", "run_id", "text"], additionalProperties: false, properties: {

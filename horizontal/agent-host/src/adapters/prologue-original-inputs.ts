@@ -59,7 +59,7 @@ export async function readSupplementaryInput(reference: AgentInputRef, owner: {
   if (!run || run.session_id !== ref.session_id) return undefined;
   const view = await owner.read(run);
   if (!location && !["running", "awaiting-input", "awaiting-review", "compacting"].includes(view.phase)) return undefined;
-  const input = view.turns.find(turn => turn.kind === "user" && turn.steer?.id === ref.input_id);
+  const input = view.turns.find(turn => turn.steer?.id === ref.input_id);
   if (!input?.steer) return undefined;
   if (input.steer.state === "withdrawn") return { state: "withdrawn", ref };
   const current = await owner.locate(ref);

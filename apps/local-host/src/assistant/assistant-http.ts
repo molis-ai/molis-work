@@ -1,3 +1,4 @@
+import { codingInputActions } from "./assistant-coding-input.js";
 import { pageRelatedWorks } from "./assistant-page-related.js";
 import { AssistantThreads } from "./assistant-threads.js";
 import { assistantThreadActions, assistantThreadRegistration } from "./assistant-thread-actions.js";
@@ -142,8 +143,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       read: (owner, skill, version) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).method(owner, skill, version) },
     // The person's own actions in the work's project, as the page there would use them. A dispatch, a follow-up's round among them,
     // binds the person's client anew when it acts, never the snapshot the reads share: what was granted or withdrawn by then counts.
-    personActions: async (work, use) => {
+    personActions: async (work, use, original) => {
       if (!work.project_ref) throw assistantErrors.scope("Coding Agent 在项目里工作");
+      if (original) return codingInputActions(ports.localHost, work.project_ref, LOCAL_OWNER_PERMISSIONS, original);
       return use === "dispatch" ? bindLocalWebActions(ports.localHost, work.project_ref, LOCAL_OWNER_PERMISSIONS) : personBound(work.project_ref);
     },
     // The person's Home, for the reminders they set in Plugins.

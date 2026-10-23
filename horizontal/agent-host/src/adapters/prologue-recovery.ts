@@ -27,6 +27,7 @@ const unclaimedWork = (index: SessionIndex, terminal: readonly { id: string }[],
 
 /** A supplement still waiting in the session, in the Host's words; the runtime's record stays its only owner. */
 export const queuedInput = (input: QueuedInput): AgentQueuedInput => ({ input_id: input.inputId, text: input.text,
+  ...(input.original ? { original: { ...input.original } } : {}),
   ...(input.acceptedAtMs === undefined ? {} : { accepted_at_ms: input.acceptedAtMs }),
   source: input.source === "app" ? "host" : input.source, ...(input.key ? { key: input.key } : {}), ...(input.about ? { about: input.about } : {}),
   ...(input.from ? { left_by: { run_id: input.from.run, applied: input.from.applied } } : {}) });

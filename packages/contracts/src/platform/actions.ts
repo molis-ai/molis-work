@@ -64,6 +64,8 @@ export interface HostOfferedOriginalFile {
 
 /** A protected HTTP entry's original text, limited to its installation and exact first own Action. Grants nothing. */
 export interface HostOfferedOriginalInput {
+  /** Supplement-only provenance; absent retains the existing initial-input contract. */
+  readonly use?: "supplement";
   readonly input_id: string;
   readonly text: string;
   readonly written_by: "person" | "host";

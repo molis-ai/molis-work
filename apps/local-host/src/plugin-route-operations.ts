@@ -43,11 +43,11 @@ function takeOriginalInput(body: unknown, installId: string | null | undefined, 
   const { original_input: offered, ...input } = body as Record<string, unknown>;
   if (!installId || !control || !offered || typeof offered !== "object" || Array.isArray(offered)) throw new ActionError("actions.input_invalid", "原始输入信封无效");
   const value = offered as Record<string, unknown>;
-  if (Object.keys(value).some(key => key !== "input_id" && key !== "text") || typeof value.input_id !== "string"
-    || !/^[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$/.test(value.input_id) || typeof value.text !== "string" || !value.text.trim() || value.text.length > 100_000) {
+  if (Object.keys(value).some(key => key !== "input_id" && key !== "text" && key !== "use") || typeof value.input_id !== "string"
+    || value.use !== undefined && value.use !== "supplement" || !/^[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$/.test(value.input_id) || typeof value.text !== "string" || !value.text.trim() || value.text.length > 100_000) {
     throw new ActionError("actions.input_invalid", "原始输入信封无效");
   }
-  offerRoutedOriginalInput(control, { install_id: installId, input_id: value.input_id, text: value.text, written_by: "person", occurred_at: new Date().toISOString() });
+  offerRoutedOriginalInput(control, { ...(value.use === "supplement" ? { use: "supplement" as const } : {}), install_id: installId, input_id: value.input_id, text: value.text, written_by: "person", occurred_at: new Date().toISOString() });
   return input;
 }
 

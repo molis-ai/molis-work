@@ -1,3 +1,4 @@
+import type { AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { AgentMemorySourceRef, AgentMemorySourceSnapshot, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** An original's identity never changes with its consuming Run, Work, queue job or retry. */
@@ -18,6 +19,11 @@ export function readMemoryInputSource(ref: AgentMemorySourceRef): MemoryInputIde
   return memoryInputSource(identity).event_id === ref.event_id ? identity : undefined;
 }
 
+/** Only the runtime's personal text or its preserved raw personal original qualifies. */
+export function personalInputText(text: string, receipt: Pick<AgentTurnSteer, "source" | "original">): string | undefined {
+  return receipt.source === "person" ? text : receipt.source === "host" && receipt.original?.source === "person" ? receipt.original.text : undefined;
+}
+
 /** Candidate material is a projection of owner facts; SourcePort still rereads each reference at commit. */
 export function memoryInputSnapshots(actorId: string, views: readonly AgentRunView[]): AgentMemorySourceSnapshot[] {
   const sources = new Map<string, AgentMemorySourceSnapshot>();
@@ -30,8 +36,9 @@ export function memoryInputSnapshots(actorId: string, views: readonly AgentRunVi
     if (["failed", "cancelled", "stopped", "reconcile-required"].includes(view.phase)) continue;
     const original = view.original_input;
     if (original?.written_by === "person") add({ actor_id: actorId, session_id: original.ref.session_id, kind: "original", input_id: original.ref.input_id }, original.text, Date.parse(original.occurred_at));
-    for (const turn of view.turns) if (turn.kind === "user" && turn.steer?.source === "person" && ["applied", "read"].includes(turn.steer.state)) {
-      add({ actor_id: actorId, session_id: view.ref.session_id, kind: "supplement", input_id: turn.steer.id }, turn.text, turn.steer.accepted_at_ms);
+    for (const turn of view.turns) if (turn.steer && ["applied", "read"].includes(turn.steer.state)) {
+      const text = personalInputText(turn.text, turn.steer);
+      if (text !== undefined) add({ actor_id: actorId, session_id: view.ref.session_id, kind: "supplement", input_id: turn.steer.id }, text, turn.steer.accepted_at_ms);
     }
   }
   return [...sources.values()];

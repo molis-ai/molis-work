@@ -121,7 +121,7 @@ for (const boundary of ["project", "installation"] as const) test(`MEM-35: a per
   assert.equal((await f.sources.resolve(f.caller, f.request([ref])))[0]?.text, text, "the original is valid for its own Coding owner");
   const otherOwner = { actor_id: actor, project_id: boundary === "project" ? "second-project" : project,
     plugin_id: coding, install_id: boundary === "installation" ? "another-test-install" : "actual-test-install" };
-  const other = await f.adapter.createSession({ ...otherOwner, workspace: "none", title: "Another Coding owner" });
+  const other = await f.adapter.createSession({ ...otherOwner, role_id: "reader", workspace: "none", title: "Another Coding owner" });
   const caller = { ...f.caller, project_id: otherOwner.project_id, session_id: other.session_id };
   await assert.rejects(f.propose(ref, caller), { code: "MEMORY_NOT_ACCEPTED" }, "personal scope is not permission to use a different Coding owner's source");
   assert.deepEqual(await f.sources.resolve(caller, f.request([ref])), []);
@@ -225,7 +225,8 @@ test("MEM-35: running originals are explicit-only; current grant loss and forgot
 
 test("MEM-35: exact supplementary reads preserve first time across carry/restart; current queue withdrawal wins", { timeout: 60_000 }, async t => {
   const f = await sourceHome(t), first = await f.start("Host task without original"); await f.completed(first.ref);
-  const sent = await f.adapter.inputs!.send(first.ref, { text: "以后周报先写风险", key: "source-supplement", mode: "after-run" });
+  const raw = "以后周报先写风险", derived = raw + "\n\n【附带材料】外部观点";
+  const sent = await f.adapter.inputs!.send(first.ref, { text: derived, source: "host", original: { text: raw, source: "person" }, key: "source-supplement", mode: "after-run" });
   const ref = { session_id: f.session.session_id, input_id: sent.input_id };
   const queued = await f.adapter.inputs!.read!(ref); assert.equal(queued?.state, "queued");
   assert.ok(queued?.state === "queued" && typeof queued.input.accepted_at_ms === "number");
@@ -233,8 +234,9 @@ test("MEM-35: exact supplementary reads preserve first time across carry/restart
   await f.reopen(); assert.deepEqual(await f.adapter.inputs!.read!(ref), queued);
   const next = await f.start("Continue with queued input"); await f.completed(next.ref);
   const located = await f.adapter.inputs!.read!(ref); assert.equal(located?.state, "run");
-  assert.ok(located?.state === "run"); assert.equal(located.text, "以后周报先写风险"); assert.equal(located.receipt.accepted_at_ms, originalTime);
+  assert.ok(located?.state === "run"); assert.equal(located.text, derived); assert.equal(located.receipt.accepted_at_ms, originalTime);
   const event = sourceRef(ref.session_id, ref.input_id, "supplement"); assert.ok((await f.propose(event)).candidate_id);
+  assert.equal((await f.sources.resolve(f.caller, f.request([event])))[0]?.text, raw, "only the raw personal input is a source, never the attached material");
   const waiting = await f.adapter.inputs!.send(next.ref, { text: "不许采用这条", key: "withdraw-source", mode: "after-run" });
   await f.adapter.inputs!.withdraw!(next.ref, waiting.input_id);
   assert.deepEqual(await f.adapter.inputs!.read!({ session_id: ref.session_id, input_id: waiting.input_id }), { state: "withdrawn", ref: { session_id: ref.session_id, input_id: waiting.input_id } });
@@ -284,7 +286,8 @@ test("MEM-35: protected Assistant supplements keep literal material markers inta
     text: "周报先列风险", origin: "Source contract", meta: { ...meta, classification: { scenes: ["assistant"], lifecycle: "long-term" } },
     sources: [sourceRef(ref.session_id, inputId, "supplement")], expected_version: 0, operation_id: randomUUID() });
   assert.ok((await propose(actualPlain.steer.id)).candidate_id);
-  await assert.rejects(propose(actualMixed.steer.id), "external material never becomes a person's original source");
+  assert.deepEqual(actualMixed.steer.original, { text: raw, source: "person" });
+  assert.ok((await propose(actualMixed.steer.id)).candidate_id, "the protected raw sentence remains a source alongside derived material");
   second.resolve();
   await untilSetup(async () => (await home.web.get<AssistantWorkView>(`/api/assistant/works/${sent.work.work_id}`)).work.state === "completed" ? true : undefined, "Assistant completed");
   const final = await adapter.inputs!.read!({ session_id: ref.session_id, input_id: actualPlain.steer.id });

@@ -2121,6 +2121,7 @@ export interface HostOfferedOriginalFile {
 }
 
 export interface HostOfferedOriginalInput {
+    readonly use?: "supplement";
     readonly input_id: string;
     readonly text: string;
     readonly written_by: "person" | "host";

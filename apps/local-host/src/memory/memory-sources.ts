@@ -7,7 +7,7 @@ import type { MemoryScope } from "@molis-ai/molis-work-contracts/services/memory
 import { characterOwner, consumerAccess } from "@molis-ai/molis-work-service-memory";
 import { assistantMemorySourceWork } from "../assistant/assistant-memory-sources.js";
 import type { MemoryRuntimePolicyOwner } from "./memory-runtime-policy.js";
-import { readMemoryInputSource } from "./memory-source-identity.js";
+import { personalInputText, readMemoryInputSource } from "./memory-source-identity.js";
 
 type SourcePort = NonNullable<NonNullable<PrologueNodeAdapterOptions["memory"]>["sources"]>;
 const CODING = "io.molis.work.coding";
@@ -73,9 +73,9 @@ async function readSource(home: string, owner: MemorySourceOwner, caller: AgentM
     text = found.original.text; at = Date.parse(found.original.occurred_at); runRef = found.accepted_run;
   } else {
     const found = await owner.adapter.inputs?.read?.({ session_id: identity.session_id, input_id: identity.input_id });
-    if (!found || found.state !== "run" || found.receipt.source !== "person" || !["applied", "read"].includes(found.receipt.state)
+    if (!found || found.state !== "run" || personalInputText(found.text, found.receipt) === undefined || !["applied", "read"].includes(found.receipt.state)
       || found.receipt.accepted_at_ms === undefined) return undefined;
-    text = found.text; at = found.receipt.accepted_at_ms; runRef = found.run;
+    text = personalInputText(found.text, found.receipt)!; at = found.receipt.accepted_at_ms; runRef = found.run;
   }
   if (!Number.isFinite(at) || !text.trim() || runRef.session_id !== identity.session_id) return undefined;
   const run = await owner.adapter.read(runRef);
@@ -89,8 +89,8 @@ async function readSource(home: string, owner: MemorySourceOwner, caller: AgentM
   // This is the last asynchronous source read. A withdrawn/queued input wins over an earlier readable receipt.
   if (identity.kind === "supplement") {
     const current = await owner.adapter.inputs?.read?.({ session_id: identity.session_id, input_id: identity.input_id });
-    if (!current || current.state !== "run" || current.run.run_id !== runRef.run_id || current.text !== text
-      || current.receipt.source !== "person" || !["applied", "read"].includes(current.receipt.state)
+    if (!current || current.state !== "run" || current.run.run_id !== runRef.run_id || personalInputText(current.text, current.receipt) !== text
+      || !["applied", "read"].includes(current.receipt.state)
       || current.receipt.accepted_at_ms !== at) return undefined;
   }
   if (request.signal?.aborted || !work() || !formationAllowed(owner, caller, scope, projectId, assistant, ref, request.target.owner)) return undefined;

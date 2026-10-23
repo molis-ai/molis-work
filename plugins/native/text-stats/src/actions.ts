@@ -11,7 +11,7 @@ const view = object({ phase: { enum: ["waiting", "unavailable", "ready"] }, mess
   ...counts }, ["phase", "message"]);
 const base = { kind: "query" as const, scope: "project" as const, audiences: ["user", "agent", "workflow", "mcp"] as const, subject_kinds: ["text", "artifact"] };
 export const textStatsActions = {
-  state: { capability_id: "text-stats.state", version: 1, operation: "query", action: { ...base,
+  state: { capability_id: "text-stats.state", version: 1, operation: "query", action: { ...base, audiences: [...base.audiences, "plugin"],
     title: "读取快照统计", description: "统计当前明确绑定的固定文本版本；输入缺失或不可用时保留状态，不读取当前磁盘", permissions: ["artifact:read"],
     input_schema: object({}), output_schema: object({ view }) } } as ActionDefinition<Record<string, never>, { view: TextStatsView }>,
   count: { capability_id: "text-stats.count", version: 1, operation: "query", action: { ...base,

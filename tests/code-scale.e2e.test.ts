@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { codeTokens, createCodingCodePaint, growCodeTokens } from "@molis-ai/molis-work-plugin-coding";
+import { createCodingCodePaint } from "@molis-ai/molis-work-plugin-coding";
+import { codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { codeColouringProjection } from "./fixtures/code-colouring.js";
 import { assistantTextHtml } from "@molis-ai/molis-work-app-workbench";
 
-// specs/visual-ui-experience VUX-33 and VUX-36 (§code-diff, Worker boundary): colouring costs about a millisecond per
-// thousand characters, nearly all of it putting the nodes in, so a large block is not sent to a Worker; it is shown as text
-// at once and coloured a slice of lines a frame. Measured first: on a product page a 180,000-character block took 13 s to
+// specs/visual-ui-experience VUX-33 and VUX-36 (§code-diff): a large block reads at once, and each slice
+// limits both DOM work and its inline layout. The tokenizer stays shared; no Worker owns another rendering path. Measured first: on a product page a 180,000-character block took 13 s to
 // put in, because the shared roving focus looked through the block's parent once for every text piece added; it is now
 // linear. A slice job takes a growing text, starts over for a changed one, and stops when its block leaves the page.
 
@@ -36,24 +38,31 @@ test("VUX-36: putting a large coloured block into a product page costs in step w
   await writeFile(new URL("code-scale-cost.json", evidence), JSON.stringify({ small, large }, null, 2));
 });
 
-test("VUX-33: a large block reads at once and is coloured a slice a frame, to exactly the whole colouring", { timeout: 120_000 }, async (t) => {
+test("SYS-49/VUX-33: a large block reads at once and is coloured a slice a frame, to exactly the whole colouring", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
   await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
   await waitFor("document.readyState === 'complete'");
-  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.whole = ${WHOLE};
+  // SYS-49: scope the timer to the painter's callbacks; catalog animations keep the native scheduler.
+  // Each timed slice still includes its forced layout, in the original product page and with the same text.
+  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.colourParts = ${codeColouringProjection};
+    const expected = new Map(); window.matchesColour = (code, text) => {
+      if (!expected.has(text)) expected.set(text, JSON.stringify(tokensOf(text, "ts")));
+      return JSON.stringify(colourParts(code)) === expected.get(text); };
     window.steps = []; const frame = window.requestAnimationFrame.bind(window);
-    window.requestAnimationFrame = (step) => frame(() => { const start = performance.now(); step(); window.steps.push(performance.now() - start); });
     window.grown = 0; const grow = ${growCodeTokens.toString()};
-    window.paint = (${createCodingCodePaint.toString()})(tokensOf, (last, text, language, tokens) => { const next = grow(last, text, language, tokens); window.grown += text.length - (next.starts[next.from] ?? text.length); return next; }, (hint) => hint);
+    window.paint = (() => {
+      const requestAnimationFrame = (step) => frame((stamp) => { const start = performance.now(); step(stamp); window.code?.getBoundingClientRect(); window.steps.push(performance.now() - start); });
+      return (${createCodingCodePaint.toString()})(tokensOf, (last, text, language, tokens) => { const next = grow(last, text, language, tokens); window.grown += text.length - (next.starts[next.from] ?? text.length); return next; }, (hint) => hint); })();
     window.block = () => { document.querySelector('#scale')?.remove(); const pre = document.body.appendChild(document.createElement('pre')); pre.id = 'scale'; return pre.appendChild(document.createElement('code')); };`);
   const text = textOf(300_000);
-  const first = await evaluate<{ coloured: boolean; reads: boolean; ms: number }>(`(() => { window.text = ${JSON.stringify(text)}; window.code = block(); steps.length = 0;
-    const start = performance.now(), coloured = paint.paintInto(code, text, 'ts'); return { coloured, reads: code.textContent === text, ms: performance.now() - start }; })()`);
+  const first = await evaluate<{ coloured: boolean; reads: boolean; ms: number; spans: number }>(`(() => { window.text = ${JSON.stringify(text)}; window.code = block(); steps.length = 0;
+    const start = performance.now(), coloured = paint.paintInto(code, text, 'ts'); return { coloured, reads: code.textContent === text, ms: performance.now() - start, spans:code.querySelectorAll('[class^=tok-]').length }; })()`);
   assert.deepEqual([first.coloured, first.reads], [true, true], "past the old 40,000-character cap it is coloured, and reads whole from the start");
   assert.ok(first.ms < 50, `the first slice is a frame's work: ${first.ms} ms`);
+  assert.equal(first.spans, 0, "SYS-49: large text reads immediately; the first colouring slice waits for its own frame");
   // Done when the slices end on what colouring it whole gives.
-  await waitFor("(window.want ??= whole(text)) && code.innerHTML === want", 30_000);
+  await waitFor("matchesColour(code, text)", 30_000);
   const steps = await evaluate<number[]>("steps.slice()");
   assert.ok(steps.length >= 15 && Math.max(...steps) < 50, `${steps.length} frames, the longest ${Math.max(...steps).toFixed(1)} ms`);
 
@@ -62,15 +71,15 @@ test("VUX-33: a large block reads at once and is coloured a slice a frame, to ex
   await waitFor("grown >= 32000");
   await evaluate("window.longer = text + text.slice(0, 50000); paint.paintInto(code, longer, 'ts')");
   assert.equal(await evaluate<boolean>("code.textContent === longer"), true, "the longer text reads at once");
-  await waitFor("(window.wantLonger ??= whole(longer)) && code.innerHTML === wantLonger", 30_000);
+  await waitFor("matchesColour(code, longer)", 30_000);
   const coloured = await evaluate<number>("grown");
   assert.ok(coloured < 350_000 * 1.05, `the growth went on from where the slices were: ${coloured} characters coloured for 350,000`);
 
   // A text changed in what is already coloured starts the slices over, from that text.
   await evaluate("window.code = block(); paint.paintInto(code, text, 'ts')");
-  await waitFor("code.childNodes.length > 100");
+  await waitFor("code.querySelectorAll('[class^=tok-]').length > 100");
   await evaluate("window.changed = '/* opened' + text; paint.paintInto(code, changed, 'ts')");
-  await waitFor("(window.wantChanged ??= whole(changed)) && code.innerHTML === wantChanged", 30_000);
+  await waitFor("matchesColour(code, changed)", 30_000);
 
   // A block that leaves the page is not coloured any further.
   await evaluate("window.code = block(); window.grown = 0; paint.paintInto(code, text, 'ts')");
@@ -80,11 +89,17 @@ test("VUX-33: a large block reads at once and is coloured a slice a frame, to ex
   assert.ok(await evaluate<number>("grown") <= left + 17_000, "the slices stop with the block gone");
   // Past the new cap the block stays text.
   assert.equal(await evaluate<boolean>(`(() => { const code = block(), big = text + text; code.textContent = big; return paint.paintInto(code, big, 'ts') === false && code.childNodes.length === 1; })()`), true);
+  assert.equal(await evaluate<boolean>(`(() => { const code = block(); return paint.paintInto(code, 'const value = 1;', 'ts') && !!code.querySelector('.tok-keyword'); })()`), true, "small blocks still colour synchronously");
 });
 
 test("VUX-33: Coding reopens a turn with a large code block as text at once and coloured whole", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "coding");
+  let active: Pick<typeof browser,"evaluate"|"waitFor"|"click"> = browser;
+  const evaluate: typeof browser.evaluate = (...args) => active.evaluate(...args);
+  const waitFor: typeof browser.waitFor = (...args) => active.waitFor(...args);
+  const click: typeof browser.click = (...args) => active.click(...args);
   const code = textOf(90_000).replace(/\n$/, "");
   const model = await assistantTextModel(t, homeDirectory, "下面是代码：\n\n```ts\n" + code + "\n```\n\n写完了。", { pieces: 4, pause: 100 });
   const workspace = join(homeDirectory, "code-scale");
@@ -102,6 +117,7 @@ test("VUX-33: Coding reopens a turn with a large code block as text at once and 
   const coding = "[data-coding-workbench]";
   await click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
+  active = child;
   await click(`${coding} [data-coding-new]`);
   await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 1`);
   await fill(`${coding} [data-coding-model]`, JSON.stringify(["local-only", "fixture-model"]));
@@ -121,8 +137,8 @@ test("VUX-33: Coding reopens a turn with a large code block as text at once and 
   await waitFor(`${block}?.textContent.includes('value100 ')`, 60_000);
   assert.equal((await evaluate<string>(`${block}.textContent`)).replace(/\n$/, ""), code, "the reopened block reads the whole code");
   // And is coloured exactly as colouring it whole gives, past the old cap.
-  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.want = (${WHOLE})(${block}.textContent)`);
-  await waitFor(`${block}.innerHTML === want`, 30_000);
+  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.colourParts = ${codeColouringProjection}; window.want = JSON.stringify(tokensOf(${block}.textContent, "ts"))`);
+  await waitFor(`JSON.stringify(colourParts(${block})) === want`, 30_000);
 });
 
 test("VUX-33: the Assistant sends a large block as its text and a map of its pieces, a small one coloured", () => {

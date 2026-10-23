@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
@@ -16,14 +17,19 @@ const BAR = ".mw-ctx:not([hidden])";
 async function pagesWorkbench(t: TestContext) {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return null;
-  const { command, sessionId, waitFor, navigate, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "pages");
+  const pane = await pluginFrameBrowser(t, browser, "pages", "iframe.tab-content-frame:not([hidden])");
+  await command("Page.addScriptToEvaluateOnNewDocument", {source:`window.__holds=[];window.__signals=[];
+    window.addEventListener("message",event=>{if(event.data?.type==="workbench-context-hold")window.__holds.push(event.data)});
+    const original=window.fetch;window.fetch=async(...args)=>{if(String(args[0]).includes("/api/contextual/signal"))window.__signals.push(JSON.parse(args[1].body));return original(...args)};`},sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   const setup = openPagesStore(homeDirectory);
   const page = (() => { try { return setup.create({ project_id: projectId!, title: "留存分析", body: { type: "doc", content: [paragraph(TEXT)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(TEXT)})`, 15_000);
-  return browser;
+  await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(TEXT)})`, 15_000);
+  return {...browser,child,pane};
 }
 
 /** Selects the first paragraph's text in the editor of `scope` (an expression that names a document). */
@@ -37,14 +43,9 @@ test("W2-02: a split pane draws its bar in its own document; holding it is repor
   const { evaluate, waitFor, click } = browser;
   await click("[data-titlebar-tabs] [data-tab-split]");
   await click("[data-layout-split=right]");
-  const PANE = "[...document.querySelectorAll('iframe.tab-content-frame')].find(frame => frame.contentDocument?.querySelector('[data-pages-editor] .ProseMirror'))";
-  await waitFor(`Boolean(${PANE}?.contentDocument.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(TEXT)}))`, 20_000);
-  // What the pane tells the top document, and what the top document records.
-  await evaluate(`(() => { window.__holds = []; window.__signals = [];
-    window.addEventListener('message', event => { if (event.data && event.data.type === 'workbench-context-hold') window.__holds.push(event.data); });
-    const original = window.fetch; window.fetch = async (...args) => { if (String(args[0]).includes('/api/contextual/signal')) window.__signals.push(JSON.parse(args[1].body)); return original(...args); }; })()`);
-
-  await evaluate(selectIn(`${PANE}.contentDocument`));
+  const PANE = "[...document.querySelectorAll('iframe.tab-content-frame')].find(frame => frame.contentDocument?.querySelector('iframe[data-plugin-frame=pages]'))";
+  await browser.pane.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(TEXT)})`,20_000);
+  await browser.pane.evaluate(selectIn("document"));
   await waitFor(`Boolean(${PANE}.contentDocument.querySelector(${JSON.stringify(`${BAR} .mw-btn[data-key]`)}))`, 15_000);
   const placed = await evaluate<{ inPane: boolean; inTop: boolean; inView: boolean }>(`(() => { const doc = ${PANE}.contentDocument, bar = doc.querySelector(${JSON.stringify(BAR)}), box = bar.getBoundingClientRect();
     return { inPane: bar.ownerDocument === doc, inTop: Boolean(document.querySelector(${JSON.stringify(BAR)})), inView: box.left >= 0 && box.right <= doc.defaultView.innerWidth && box.top >= 0 }; })()`);
@@ -71,18 +72,18 @@ test("W2-05: the editor's shortcuts are unchanged with the bar up; ⌘K opens th
     await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key, code, windowsVirtualKeyCode: keyCode, modifiers }, sessionId);
     await command("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: keyCode, modifiers }, sessionId);
   };
-  await evaluate(selectIn("document"));
+  await browser.child.evaluate(selectIn("document"));
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(`${BAR} .mw-ctx__tools button`)}))`, 15_000);
 
   await press("b", "KeyB", 66);
-  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror p strong')?.textContent === ${JSON.stringify(TEXT)}`, 5_000);
+  await browser.child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror p strong')?.textContent === ${JSON.stringify(TEXT)}`, 5_000);
   await waitFor(`[...document.querySelectorAll(${JSON.stringify(`${BAR} .mw-ctx__tools button`)})].some(button => button.getAttribute('aria-pressed') === 'true')`, 5_000);
 
   await press("k", "KeyK", 75);
-  await waitFor("Boolean(document.querySelector('.mw-ctx-panel input[type=url]'))", 5_000);
-  assert.equal(await evaluate<boolean>("document.activeElement === document.querySelector('.mw-ctx-panel input[type=url]')"), true, "the address field takes the focus");
-  assert.equal(await evaluate<boolean>("Boolean(document.querySelector('.mw-ctx-panel .pages-pop.is-docked')) && !document.querySelector('.pages-pop:not(.is-docked):not([hidden])')"), true,
-    "the form is docked under the bar, not floating on its own");
+  await browser.child.waitFor("Boolean(document.querySelector('.pages-pop:not([hidden]) input[type=url]'))", 5_000);
+  assert.equal(await browser.child.evaluate<boolean>("document.activeElement === document.querySelector('.pages-pop input[type=url]')"), true, "the address field takes the focus");
+  assert.equal(await browser.child.evaluate<boolean>("Boolean(document.querySelector('.pages-pop:not([hidden])')) && !document.querySelector('.pages-pop.is-docked')"), true,
+    "SYS-15-U1 the editable link form stays inside its page, using the existing local positioning fallback");
 });
 
 test("W2-08: a starter that cannot run any more says why in a toast", { timeout: 120_000 }, async t => {

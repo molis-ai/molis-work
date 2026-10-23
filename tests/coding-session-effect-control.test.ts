@@ -107,7 +107,7 @@ test("W5-01-CODING-17 Coding builds its store from the service the platform lend
 
 /** What a Host hands `start`, with only the services a case names (the platform's `ui` is always there). */
 function startContext(services: Partial<PluginHostServices>): PluginStartContext {
-  return { install_id: "coding-test", plugin_id: "io.molis.work.coding", version: "0.0.0", deployment: "local", grants: [], project_id: "board",
+  return { install_id: "coding-test", installation_generation: "1", plugin_id: "io.molis.work.coding", version: "0.0.0", deployment: "local", grants: [], project_id: "board",
     requireGrant() {}, services: { ui: { register() {}, unregister() {} }, ...services } };
 }
 const privateStorage = (): PluginPrivateStorage => {
@@ -188,25 +188,28 @@ for (const stop of ["cancel", "revoke"] as const) {
     } finally { h.database.close(); }
   });
 
-  test(`W5-01-CODING-19 a session's recorded state, moved by a read of its run, is not written by a call that is ${stop === "cancel" ? "cancelled" : "revoked"} before the commit`, async () => {
+  test(`W5-01-CODING-19 SYS-15 a session read only projects an unreadable runtime's state, including when ${stop === "cancel" ? "cancelled" : "revoked"}`, async () => {
     const control = callControl();
-    // The runtime cannot be read, so the read would record the session as needing a check; the call stops before that commit.
+    // Queries project recovery for the page without committing it. Stop the call while it reads the Runtime;
+    // neither that read nor a subsequent current read may write a session or enter a transaction.
+    let reading = () => control.stop(stop);
     const unreadable: PluginCapabilityClient = { availability: () => ({ available: true }), async invoke<Input, Output>(definition: { capability_id: string }): Promise<Output> {
-      if (definition.capability_id === agent.readSession.capability_id) throw new Error("SESSION_HISTORY_UNAVAILABLE");
+      if (definition.capability_id === agent.readSession.capability_id) { reading(); throw new Error("SESSION_HISTORY_UNAVAILABLE"); }
       return [] as Output;
     } };
     const h = routesOver({ capabilities: unreadable });
     try {
       await h.sessions.create(noEffect, { project_id: "board", session_id: "app", title: "中断", runtime_id: "prologue", at: AT });
       await h.sessions.setRuntimeSession(noEffect, "board", "app", "sdk", AT);
-      h.hooks.onWrite = () => control.stop(stop);
-      const refused = await h.call("coding.read-session", { method: "GET", params: { sessionId: "app" }, execution: control.execution });
-      assert.ok(refused.status >= 400, JSON.stringify(refused.body));
-      assert.deepEqual([h.sessions.get("board", "app").state, h.sessions.get("board", "app").updated_at], ["idle", AT], "a refused call recorded a state");
-      h.hooks.onWrite = () => {};
+      const committed = h.database.committed();
+      let writes = 0; h.hooks.onWrite = () => { writes++; };
+      await h.call("coding.read-session", { method: "GET", params: { sessionId: "app" }, execution: control.execution });
+      assert.deepEqual([writes, h.database.committed(), h.sessions.get("board", "app").state, h.sessions.get("board", "app").updated_at], [0, committed, "idle", AT], "a stopped query wrote its projection");
+      reading = () => {};
       const read = await h.call("coding.read-session", { method: "GET", params: { sessionId: "app" }, execution: callControl().execution });
       assert.equal(read.status, 200, JSON.stringify(read.body));
-      assert.equal(h.sessions.get("board", "app").state, "reconcile-required");
+      assert.equal((read.body as { session: { state: string } }).session.state, "reconcile-required");
+      assert.deepEqual([writes, h.database.committed(), h.sessions.get("board", "app").state, h.sessions.get("board", "app").updated_at], [0, committed, "idle", AT], "a current query also remains read only");
     } finally { h.database.close(); }
   });
 }

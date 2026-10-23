@@ -57,7 +57,7 @@ export const filesManifest: PluginManifest = {
   ],
   capabilities: {
     provides: [],
-    consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, workspaceReadActions.file.capability_id],
+    consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, workspaceReadActions.file.capability_id, "diff.state", "text-stats.state"],
   },
   actions: FILES_ACTIONS,
   artifacts: { produces: [], consumes: [] },

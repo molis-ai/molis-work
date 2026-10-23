@@ -43,6 +43,7 @@ const refs = [{label:'S1',source_id:'m1',version:1 as const,original:{filename:'
 
 test('adoption resumes after the summary action fails without replacing imported material edits or accepted intent', async t => {
   const dir = await home(t), id = randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
   withContextJourneys(dir, store => store.create(id));
   selectContextSources(dir, id, { sources: [{ kind: 'browser', selected: true, text: 'Adopted source body' }] });
   const base = pagesPorts(dir);
@@ -141,7 +142,9 @@ test('a batch cannot cite a source outside its input or pass invented evidence t
 });
 
 test('local scope → grounded summary → one real project and editable source documents; retries preserve edits', async t => {
-  const dir=await home(t), folder=join(dir,'selected');await mkdir(folder);await writeFile(join(folder,'brief.md'),'# Brief\nLaunch October 8');await writeFile(join(folder,'.secret.txt'),'private hidden');await symlink(join(folder,'brief.md'),join(folder,'link.md'));
+  const dir=await home(t), folder=join(dir,'selected');
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  await mkdir(folder);await writeFile(join(folder,'brief.md'),'# Brief\nLaunch October 8');await writeFile(join(folder,'.secret.txt'),'private hidden');await symlink(join(folder,'brief.md'),join(folder,'link.md'));
   const id=randomUUID();withContextJourneys(dir,s=>s.create(id));
   selectContextSources(dir,id,{sources:[{kind:'directory',selected:true,files:[{path:'brief.md',data:Buffer.from('# Brief\nLaunch October 8').toString('base64')}]},{kind:'gmail',selected:true,days:7}]});
   let calls=0;
@@ -166,7 +169,9 @@ test('local scope → grounded summary → one real project and editable source 
 });
 
 test('long source and project titles fit Pages while full titles, original bodies and retry identity survive',async t=>{
-  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
+  const dir=await home(t),id=randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir,s=>s.create(id));
   const sourceTitle='A'.repeat(73)+'🙂'+'B'.repeat(40),projectTitle='项目'.repeat(50);
   selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[{path:'message.md',data:Buffer.from('# '+sourceTitle+'\n\nOriginal mail body.').toString('base64')}]}]});
   const ports={...pagesPorts(dir),model:async()=>({completeText:async()=> '# Work\nOriginal mail body. [S1]'})};
@@ -193,7 +198,9 @@ test('missing model preserves imported bodies, restart/retry does not re-read, i
 });
 
 test('empty project is real, idempotent, and has no implicit root Goal',async t=>{
-  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
+  const dir=await home(t),id=randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir,s=>s.create(id));
   const result=await adoptContextJourney(dir,id,{title:'从空白开始',blank:true},{...pagesPorts(dir)});assert.equal(result.phase,'complete');
   assert.equal(readProjectArrival(dir).projects[result.project_id]?.description??null,null,'a blank start has no introduction to show');
   await withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.equal(catalog.listProjects()[0]!.display_name,'从空白开始');});
@@ -337,7 +344,9 @@ test('abandoned OAuth expires on resume without losing selected materials',async
 });
 
 test('creation failure after project registration resumes exactly that project, and materials-only remains usable without AI',async t=>{
-  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));selectContextSources(dir,id,{sources:[{kind:'browser',selected:true,text:'Fixture preserved body'}]});
+  const dir=await home(t),id=randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir,s=>s.create(id));selectContextSources(dir,id,{sources:[{kind:'browser',selected:true,text:'Fixture preserved body'}]});
   startContextJourney(dir,id,{...pagesPorts(dir),model:async()=>({})});await waitContextJourney(dir,id);
   const failAfterCreate:typeof withCatalog=async(options,operation)=>{await withCatalog(options,operation);throw new Error('Simulated response loss after project creation');};
   const first=await adoptContextJourney(dir,id,{title:'Without AI',materials_only:true},{...pagesPorts(dir),withCatalog:failAfterCreate});assert.match(first.error!,/response loss/);
@@ -368,7 +377,9 @@ test('partial failure can be adjusted and retried while successful material snap
 });
 
 test('interrupted blank adoption resumes persisted acceptance without requiring a nonexistent summary',async t=>{
-  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
+  const dir=await home(t),id=randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir,s=>s.create(id));
   const failAfterCreate:typeof withCatalog=async(options,operation)=>{await withCatalog(options,operation);throw Error('Lost creation response');};
   const accepted=await adoptContextJourney(dir,id,{title:'Accepted blank project',blank:true},{...pagesPorts(dir),withCatalog:failAfterCreate});assert.equal(accepted.phase,'failed');assert.equal(accepted.summary,null);
   withContextJourneys(dir,s=>{const j=s.get(id);j.phase='adopting';s.save(j);});
@@ -381,7 +392,9 @@ test('interrupted blank adoption resumes persisted acceptance without requiring 
 
 
 test('blank start after a prior summary never adopts old sources, including a failed-save retry',async t=>{
-  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>{const j=s.create(id);j.phase='review';j.summary={title:'Old summary',body:'Old facts [S1]',references:refs};s.save(j);});
+  const dir=await home(t),id=randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir,s=>{const j=s.create(id);j.phase='review';j.summary={title:'Old summary',body:'Old facts [S1]',references:refs};s.save(j);});
   reopenContextJourney(dir,id);
   const failAfterCreate:typeof withCatalog=async(options,operation)=>{await withCatalog(options,operation);throw Error('Response lost');};
   const failed=await adoptContextJourney(dir,id,{title:'Blank after summary',blank:true},{...pagesPorts(dir),withCatalog:failAfterCreate});assert.equal(failed.phase,'failed');
@@ -400,7 +413,17 @@ test('old unfinished Cognia identities remain intact and cannot become undefined
 
 
 test('materials-only adoption cannot bypass the total file budget',async t=>{
-  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>{const j=s.create(id);j.phase='failed';j.sources=[{kind:'files',selected:true,references:Array.from({length:51},(_,i)=>({...refs[0]!,source_id:'file-'+i}))}];s.save(j);});
-  await assert.rejects(adoptContextJourney(dir,id,{title:'Too many',materials_only:true},pagesPorts(dir)),/50 份/);
+  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>{const j=s.create(id);j.phase='failed';j.sources=[{kind:'files',selected:true,references:Array.from({length:201},(_,i)=>({...refs[0]!,source_id:'file-'+i}))}];s.save(j);});
+  await assert.rejects(adoptContextJourney(dir,id,{title:'Too many',materials_only:true},pagesPorts(dir)),/200 份/);
   assert.equal(readContextJourney(dir,id).adoption,undefined);
+});
+
+// specs/visual-ui-experience slice 90 (user, 2026-10-22: the old 50 files / 6 MB was too small): a round takes up to 200
+// files and 50 MB, a single file up to 20 MB; one more file, or one more byte in total, is refused.
+test('a round takes up to 200 files and 50 MB, 20 MB per file',()=>{
+  const file=(i:number,bytes=1)=>({path:'f-'+i+'.md',data:Buffer.alloc(bytes,97).toString('base64')});
+  assert.equal(contextSources([{kind:'files',selected:true,files:Array.from({length:200},(_,i)=>file(i))}])[0]!.files!.length,200);
+  assert.throws(()=>contextSources([{kind:'files',selected:true,files:Array.from({length:201},(_,i)=>file(i))}]),/200 份/);
+  assert.equal(contextSources([{kind:'files',selected:true,files:[file(0,20_000_000),file(1,20_000_000),file(2,10_000_000)]}])[0]!.files!.length,3);
+  assert.throws(()=>contextSources([{kind:'files',selected:true,files:[file(0,20_000_000),file(1,20_000_000),file(2,10_000_001)]}]),/50 MB/);
 });

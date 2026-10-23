@@ -507,6 +507,7 @@ export type ActionLocale = "zh" | "en";
 export interface ActionMetadata {
     readonly title: string;
     readonly description: string;
+    readonly local_id?: string;
     readonly kind: "query" | "judgment" | "operation" | "navigation";
     readonly scope: "home" | "project";
     readonly effect?: "read" | "write" | "irreversible";
@@ -2139,12 +2140,11 @@ export declare const HOME_OPEN_TARGET_SCHEMA: {
 
 export declare const HOST_EVENT_SOURCE = "host";
 
-export declare const HOST_EVENT_TYPES: readonly [{
-    readonly event_type_id: "host.review.settled";
-    readonly type_version: 1;
-}];
+export declare const HOST_EVENT_TYPES: readonly HostEventType[];
 
 export declare const HOST_REVIEW_SETTLED_EVENT = "host.review.settled";
+
+export declare const HOST_WORKSPACE_CHANGED_EVENT = "host.workspace.changed";
 
 export interface HomeBackgroundTask {
     id: string;
@@ -2234,6 +2234,13 @@ export interface HomeStoreDeclaration {
     };
 }
 
+export interface HostEventType {
+    readonly event_type_id: string;
+    readonly type_version: number;
+    readonly delivery: "addressed" | "broadcast";
+    readonly permission?: string;
+}
+
 export interface HostOfferedOriginalFile {
     readonly path: string;
     readonly install_id: string;
@@ -2245,6 +2252,11 @@ export interface HostReviewSettledPayload {
     operation_id: string;
     workspace_id: string;
     outcome: "succeeded" | "failed" | "unknown";
+}
+
+export interface HostWorkspaceChangedPayload {
+    workspace_id: string;
+    cause: "plugin-operation";
 }
 
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
@@ -2467,6 +2479,7 @@ export interface PlacementResult {
 
 export interface PluginActionClient extends BoundActionClient {
     invokeQuery<Input = unknown, Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: Input): Promise<Output>;
+    readonly dependencies?: PluginActionDirectory;
     readonly directory?: PluginActionDirectory;
 }
 
@@ -2474,6 +2487,24 @@ export interface PluginActionDirectory {
     discover(): Promise<readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionView[]>;
     invoke<Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: unknown, control?: PluginExecutionControl): Promise<Output>;
     check(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: unknown): Promise<void>;
+}
+
+export interface PluginAgentClient {
+    run(input: PluginAgentRunInput): Promise<PluginAgentRunResult>;
+}
+
+export interface PluginAgentRunInput {
+    role_id: string;
+    title: string;
+    task: string;
+    workspace_id?: string;
+    timeout_ms?: number;
+}
+
+export interface PluginAgentRunResult {
+    session: AgentSessionRef;
+    run: AgentRunRef;
+    text: string;
 }
 
 export interface PluginAppContribution {
@@ -2774,6 +2805,7 @@ export interface PluginEventsRepository {
 
 export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only"> & {
     readonly project_id?: string;
+    readonly project_title?: string;
 };
 
 export interface PluginExecutor {
@@ -2804,13 +2836,18 @@ export interface PluginFilesDeclaration {
 }
 
 export interface PluginHostServices {
+    readonly notifications?: import("platform/plugin-notifications").PluginNotificationClient;
+    readonly installations?: import("platform/plugin-installations").PluginInstallationClient;
+    readonly agents?: import("platform/plugin-agents").PluginAgentClient;
     readonly background?: import("platform/plugin-background").PluginBackgroundClient;
     readonly actions?: PluginActionClient;
     readonly storage?: PluginPrivateStorage;
     readonly database?: import("platform/plugin-database").PluginDatabase;
     readonly project_database?: import("platform/plugin-database").PluginDatabase;
+    readonly scheduler?: import("platform/plugin-scheduler").PluginScheduleClient;
     readonly files?: import("platform/plugin-files").PluginFilesClient;
     readonly ownerFiles?: import("platform/plugin-owner-files").PluginOwnerFilesClient;
+    readonly terminal?: PluginTerminalClient;
     readonly model?: PluginModelClient;
     readonly imageGeneration?: import("platform/plugin-image-generation").PluginImageGenerationClient;
     readonly materials?: PluginMaterialsClient;
@@ -2941,6 +2978,21 @@ export interface PluginInputsClient {
     read(port: string): ArtifactVersionRecord | ProcessItemRecord | null;
     reference(port: string): ArtifactReference | null;
     selectedGroup(): string | undefined;
+}
+
+export interface PluginInstallationClient {
+    list(): readonly PluginInstallationView[];
+    get(installId: string): PluginInstallationView | null;
+}
+
+export interface PluginInstallationView {
+    install_id: string;
+    installation_generation: string;
+    plugin_id: string;
+    version: string;
+    publisher_id: string;
+    name: string;
+    state: PluginLifecycleState;
 }
 
 export interface PluginInstanceRecord {
@@ -3080,6 +3132,7 @@ export interface PluginManifest {
     databases?: import("platform/plugin-database").PluginManifestDatabases;
     background?: {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
+        wakeups?: readonly import("platform/plugin-scheduler").PluginWakeupDeclaration[];
     };
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
@@ -3213,6 +3266,24 @@ export interface PluginModelSelection {
     readonly model_id: string;
 }
 
+export interface PluginNotificationClient {
+    deliver(transaction: PluginDatabaseTransaction, input: PluginNotificationInput): PluginNotificationReceipt;
+}
+
+export interface PluginNotificationInput {
+    key: string;
+    title: string;
+    summary: string;
+    body: string;
+    open_plugin_id?: string;
+}
+
+export interface PluginNotificationReceipt {
+    readonly item_id: string;
+    readonly created: boolean;
+    settle(): Promise<void>;
+}
+
 export interface PluginOriginalContent {
     readonly bytes: Uint8Array;
 }
@@ -3255,6 +3326,7 @@ export type PluginOwnerFileInfo = {
 };
 
 export interface PluginOwnerFilesClient extends PluginOwnerFilesReader {
+    rootPath(): string;
     write<Result>(run: (writer: PluginOwnerFilesWriter) => Result): Promise<Result>;
 }
 
@@ -3498,12 +3570,40 @@ export interface PluginRuntimeRepository {
     save(record: PluginInstanceRecord): void;
 }
 
+export interface PluginScheduleClient {
+    list(): PluginScheduleJob[];
+    get(jobId: string): PluginScheduleJob | null;
+    isExecuting(jobId: string): boolean;
+    join<T>(transaction: PluginDatabaseTransaction, write: (schedule: PluginScheduleWriter) => T): T;
+}
+
+export interface PluginScheduleJob extends ScheduleJobRecord {
+    authorization: "current" | "needs_confirmation";
+}
+
+export interface PluginScheduleRegisterInput {
+    action: Pick<ActionReference, "capability_id" | "version">;
+    object_ref: string;
+    title: string;
+    due_at: string;
+    recurrence?: ScheduleRecurrence;
+}
+
+export interface PluginScheduleWriter {
+    register(input: PluginScheduleRegisterInput): PluginScheduleJob;
+    cancel(jobId: string): {
+        cancelled: boolean;
+    };
+    setEnabled(jobId: string, enabled: boolean): PluginScheduleJob;
+}
+
 export type PluginSqlRow = Record<string, PluginSqlValue>;
 
 export type PluginSqlValue = string | number | bigint | Uint8Array | null;
 
 export interface PluginStartContext {
     install_id: string;
+    readonly installation_generation: string;
     readonly provider_id?: string;
     plugin_id: string;
     version: string;
@@ -3514,6 +3614,16 @@ export interface PluginStartContext {
     input_group?: string;
     readonly services?: PluginHostServices;
     requireGrant(permission: string): void;
+}
+
+export interface PluginTerminalClient {
+    open(input: {
+        key: string;
+        command: string;
+        title: string;
+    }): Promise<{
+        panelId: string;
+    }>;
 }
 
 export interface PluginUiClient {
@@ -3528,7 +3638,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "directory" | "background"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -3543,6 +3653,11 @@ export interface PluginUpstreamUnavailableReason {
     binding_id: string;
     code: PluginUpstreamUnavailableCode;
     message: string;
+}
+
+export interface PluginWakeupDeclaration {
+    readonly action: Pick<ActionReference, "capability_id" | "version">;
+    readonly reason: string;
 }
 
 export interface PluginWiringApi {
@@ -4561,6 +4676,8 @@ export declare function fileContentOf(input: {
 
 export declare function fileEntriesPage(entries: readonly FileEntry[], input: FileEntriesInput): FileEntriesPage;
 
+export declare function hostEventType(eventTypeId: string, typeVersion: number): HostEventType | undefined;
+
 export declare function isActionErrorKind(value: unknown): value is ActionErrorKind;
 
 export declare function isArtifactCompareAction(action: {
@@ -4597,8 +4714,6 @@ export declare function isFileEntriesSource(action: {
     input_type?: string;
     output_type?: string;
 }): boolean;
-
-export declare function isHostEventType(eventTypeId: string, typeVersion: number): boolean;
 
 export declare function isObjectCopier(action: {
     input_type?: string;

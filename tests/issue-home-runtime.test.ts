@@ -31,6 +31,7 @@ function attachedPng() {
 
 test("ISSUE-01 failed Home initialization preserves its database and only explicit concurrent retries recover it", async () => {
   const home = await mkdtemp(join(tmpdir(), "issue-start-retry-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const directory = join(home, "plugin-runtime"), path = join(directory, "plugin-runtime.db");
   await mkdir(directory);
   const broken = new DatabaseSync(path); broken.exec("PRAGMA user_version=9"); broken.close();
@@ -175,7 +176,10 @@ test("ISSUE-03 ISSUE-06 ISSUE-07 ISSUE-09 real HTTP and authorized MCP process s
       MOLIS_WORK_HOME: home, MOLIS_WORK_RUNTIME_ID: "issue-check", MOLIS_WORK_WEB_URL: origin,
       MOLIS_WORK_WORK_CONTEXT_ID: "issue-home-check", MOLIS_WORK_WORK_CONTEXT_STABLE: "true" }, stderr: "pipe" });
   try {
-    const page = await request("/plugins/issues"); assert.equal(page.status, 200); assert.match(await page.text(), /data-issues="workbench"/u);
+    const page = await request("/plugins/issues"); assert.equal(page.status, 200);
+    const html = await page.text(), payload = /<script\b[^>]*data-plugin-document[^>]*>([\s\S]*?)<\/script>/u.exec(html);
+    assert.ok(payload, "the Issue content is mounted in the isolated Host frame");
+    assert.match(JSON.parse(payload[1]!) as string, /data-issues="workbench"/u);
     assert.equal((await withCatalog({ homeDirectory: home }, catalog => catalog.listProjects())).length, 0);
     assert.equal((await request(`/api/plugins/${ISSUES_PLUGIN_ID}/create`, input, false)).status, 403);
     const image = attachedPng();

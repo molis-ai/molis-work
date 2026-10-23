@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-coding";
+import { codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
+import { codeColouringProjection } from "./fixtures/code-colouring.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 // specs/visual-ui-experience VUX-33 (§code-diff, incremental feed): a code block being streamed grows where it is. Its owner
@@ -97,25 +99,28 @@ test("VUX-33: the Assistant's streamed code block grows in place, keeps an opene
 
 test("VUX-33: Coding's streamed code block grows in place, coloured from its last line, and copies what it now reads", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const frame = await pluginFrameBrowser(t, browser, "coding");
+  const { evaluate, waitFor, click } = frame;
   const code = LINES.slice(0, 60).join("\n");
   const model = await assistantTextModel(t, homeDirectory, "下面是代码：\n\n```ts\n" + code + "\n```\n\n写完了。", { pieces: 16, pause: 250 });
   const workspace = join(homeDirectory, "code-grow");
   await mkdir(workspace, { recursive: true });
   await writeFile(join(workspace, "note.txt"), "x\n");
-  const fill = (selector: string, value: string) => evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  const fill = (selector: string, value: string, owner = false) => (owner ? browser.evaluate : evaluate)(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await click(".navigator-project-settings");
-  await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
-  await click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
-  await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
-  await fill("[data-project-workspaces-add] [name=path]", workspace);
-  await click("[data-project-workspaces-add] [type=submit]");
-  await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('code-grow')");
+  await browser.click(".navigator-project-settings");
+  await browser.waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
+  await browser.click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
+  await browser.waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
+  await fill("[data-project-workspaces-add] [name=path]", workspace, true);
+  await browser.click("[data-project-workspaces-add] [type=submit]");
+  await browser.waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('code-grow')");
   const coding = "[data-coding-workbench]";
-  await click(`[data-plugin-strip] [data-plugin-id="coding"]`);
-  await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
+  await browser.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
+  await browser.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
+  await waitFor(`document.querySelector('${coding} [data-coding-new]')`);
   await click(`${coding} [data-coding-new]`);
   await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 1`);
   await fill(`${coding} [data-coding-model]`, JSON.stringify(["local-only", "fixture-model"]));
@@ -127,21 +132,21 @@ test("VUX-33: Coding's streamed code block grows in place, coloured from its las
   model.finish();
   const block = `document.querySelector('${coding} [data-coding-turns] [data-kind="assistant"] pre[data-enriched]')`;
   await waitFor(`${block}?.querySelector('code .tok-keyword')`, 60_000);
-  await evaluate(`window.block = ${block}; window.piece = window.block.querySelector('code').firstChild; window.copyButton = window.block.querySelector('.coding-code-copy')`);
+  await evaluate(`window.block = ${block}; window.piece = window.block.querySelector('code .tok-comment'); window.copyButton = window.block.querySelector('.coding-code-copy')`);
   await waitFor(`[...document.querySelectorAll('${coding} [data-coding-turns] [data-kind="assistant"]')].some(node => node.textContent.includes('写完了'))`, 60_000);
   const written = await evaluate<{ same: boolean; piece: boolean; button: boolean; copies: number; text: string }>(`(() => { const pre = ${block};
-    return { same: pre === window.block, piece: pre.querySelector('code').firstChild === window.piece, button: pre.querySelector('.coding-code-copy') === window.copyButton,
+    return { same: pre === window.block, piece: pre.querySelector('code .tok-comment') === window.piece, button: pre.querySelector('.coding-code-copy') === window.copyButton,
       copies: pre.querySelectorAll('.coding-code-copy').length, text: pre.querySelector('code').textContent }; })()`);
   assert.equal(written.same, true, "the block is the same node from its first coloured line to its last");
   assert.equal(written.piece, true, "and so is its first coloured piece");
   assert.deepEqual([written.button, written.copies], [true, 1], "its one copy button is the one it had");
   assert.equal(written.text.replace(/\n$/, ""), code, "the block reads the whole code");
   // Copy gives the code as it now reads, not what the block held when its button was added.
-  await evaluate("window.copied = null; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text) => { window.copied = text; } } }); window.copyButton.click()");
-  await waitFor("window.copied !== null", 5_000);
-  assert.equal((await evaluate<string>("window.copied")).replace(/\n$/, ""), code);
-  const coloured = await evaluate<string>(`${block}.querySelector('code').innerHTML`);
-  const whole = await evaluate<string>(`(() => { const code = document.createElement('code'); const pieces = (${codeTokens.toString()})(${block}.querySelector('code').textContent, 'ts');
-    code.append(...pieces.map(([kind, value]) => { if (!kind) return document.createTextNode(value); const span = document.createElement('span'); span.className = 'tok-' + kind; span.textContent = value; return span; })); return code.innerHTML; })()`);
-  assert.equal(coloured, whole, "grown from its last line, the block is coloured exactly as colouring it whole would");
+  await browser.evaluate("window.copied = null; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text) => { window.copied = text; } } });");
+  await click(`${coding} .coding-code-copy`);
+  await browser.waitFor("window.copied !== null", 5_000);
+  assert.equal((await browser.evaluate<string>("window.copied")).replace(/\n$/, ""), code);
+  const coloured = await evaluate<Array<[string | null, string]>>(`(${codeColouringProjection})(${block}.querySelector('code'))`);
+  const whole = codeTokens(written.text, "ts");
+  assert.deepEqual(coloured, whole, "grown from its last line, every character has the same token kind as colouring it whole");
 });

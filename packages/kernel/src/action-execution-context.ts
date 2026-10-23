@@ -13,7 +13,8 @@ export function actionExecutionContext(context: ActionCallContext, reference: Ac
     const required = Object.freeze([...new Set(additionalPermissions)]);
     if (!required.every(permission => context.permissions.includes(permission))) throw new ActionError("actions.forbidden", "不能保留调用者没有的权限");
     const inherited = background ? context.retain_background_authority?.(references, required) : undefined;
-    const retainedContext = inherited ? { ...context, signal: undefined } : context;
+    const retainedContext = inherited ? { ...context, signal: undefined, assert_authority_current: inherited.assertCurrent,
+      validate_authority: () => inherited() } : context;
     // `audience` changes only how a target is seen (visibility and availability); the authority checks stay with the original caller.
     const viewed = audience ? { ...retainedContext, audience } : retainedContext;
     const snapshots = references.map(source => {

@@ -35,10 +35,10 @@ export {
 } from "./actions.js";
 export { SHELF_PLUGIN_ID, SHELF_PROJECT_PLUGIN_ID, shelfManifest } from "./manifest.js";
 
-export type { ShelfResultPorts } from "./plugin.js";
 export { SHELF_RUNTIME_ACTIONS, shelfRuntimeActions } from "./runtime-actions.js";
 export { SHELF_OWNER_FILES, createShelfPlugin } from "./plugin.js";
-export { createShelfHomePlugin, shelfStorePorts } from "./home-plugin.js";
+export { createHomeShelfPlugin, shelfStorePorts } from "./home-plugin.js";
 export { shelfAiPorts } from "./ai.js";
+export { initializeShelfFiles } from "@molis-ai/molis-work-module-shelf";
 
 export { SHELF_INSTRUCTIONS, shelfInstruction } from "./prompts.js";

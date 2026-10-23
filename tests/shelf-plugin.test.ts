@@ -15,7 +15,7 @@ import {
   hashBytes,
   isConcealedClipboard,
   isEditableShelfItem,
-  seedShelfFirstRun,
+  initializeShelfFiles,
 } from "@molis-ai/molis-work-module-shelf";
 import { openHostShelfFiles, openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
 import {
@@ -69,7 +69,7 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 
 test("empty shelf seeds a real extractable sample PDF and keeps origin hash", async () => {
   await withHome(async (home) => {
-    await openHostShelfFiles(home).write(seedShelfFirstRun);
+    await openHostShelfFiles(home).write(initializeShelfFiles);
     const store = openHostShelfStore(home, NO_AGENT, { extract: extractMaterial });
     const snapshot = await store.snapshot();
     assert.equal(snapshot.materials.length, 1);

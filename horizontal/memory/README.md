@@ -26,6 +26,27 @@ Molis 在配置中声明分类、读写矩阵、保留策略、候选限额、�
 
 不可配置掉的是来源与权限边界、秘密检查、版本/幂等约束、模型不能自批、删除后的不可读，以及最终注入硬预算。终端用户在原设置页选择读/形成/自动记住开关，查看依据，改类、纠正、停用、撤销或遗忘；操作结果和部分失败由同一个服务回执说明。
 
+### M1 第一片：采用与有效开关
+
+本片引用 spec §9.3 M1、§9.4 的采用约束，只交付 Home 启动前的格式门和可重启的有效偏好。分类正文、矩阵执行、分页、CAS 管理以及界面接线依赖 SDK 后续切片，不用空字段表示已提供。
+
+- Home 的第一项业务写入之前，只有整个目录不存在或确实为空才可自动新建；新建时将个人与项目默认的完整 reviewed 开关持久化（允许形成候选和读取，`auto=false`）。已有 Home 缺库、缺采用记录或缺默认偏好，一律明确拒绝启动，等待维护采用；不猜测用户是否用过记忆。
+- 安装器不启动 SDK；只在首次进入的空 Home 初始化 reviewed 偏好并明示写入路径，已有非空 Home 的安装不检查或改写记忆，启动时仍过同一门。安装中断按原合同回滚程序文件；已完整初始化的偏好保留，重试不重置，避免删除可能已被用户使用的数据。
+- 既有 Home 的一次性采用在备份副本上执行：按采用前代码计算个人、项目默认和已有项目覆盖的有效设置，包括没有显式偏好时的 `auto=true`，保存消费者和插件限制，再与采用记录一起提交到当前 ledger 基线。产品启动只认当前基线，不保留升级链，不复制 SDK 正文。
+- `project-host` 在任何 Home 服务构造前检查，`ensureSystemAgentService` 在 inference/builder 绑定、SDK 初始化和记忆处理器注册前复查。格式或采用失败时不产生 SDK 目标写入，也不留下推理绑定；支持的 Web、MCP 和 Home 入口共同遵循这道门。
+- Web 的共同装配和后台轮询只在上述启动检查成功后创建；拒绝启动不能留下定时任务，随后也不得创建其他 Home 库。
+- 正常使用仍走已有 `memory.prefs.read/write` 与助理设置映射，同一份偏好影响写入门与召回。新建/采用/重启不改变用户之后保存的开关；本片不扩展权限、不关闭旧用户的自动形成以制造成本收益。真实 Home 的采用、回滚及删除仍需单独授权。
+
+允许修改：本 README、`src/prefs.ts` 与包导出、storage 的 memory ledger、Host 的最早启动门与必要的现役入口（含 `web-server.ts` 既有装配顺序）、对应定向测试。`installer/home.ts` 的新 Home 安装准备与 `project-catalog.ts` 的打开存储准备在原文件内各自持有完整职责，不扩大冻结的主流程或巨类。维护脚本只在会话临时目录。验证覆盖新 Home 候选行为、旧默认与关闭设置、项目继承及插件限制的重启效果、错版/缺采用拒绝、旧产品三入口在采用副本上的 SDK 零写及 Web 拒绝后跨轮询周期无写入；按 `--jobs 2` 运行定向用例，不调模型。产品分类闭环和真人体验不在本片完成声明中。
+
+2026-10-22 的隔离验证覆盖了真实 Host / SDK 持久化、新 Home 安装及中断重试、偏好动作保存后重启、旧有效设置和项目/插件限制保留。副本维护在偏好更新后、版本提升前实际注入失败，旧基线、原偏好、SDK 正文与备份不变，随后能重新采用；冻结的旧 Home / Web / MCP 入口打开采用副本均拒绝且 SDK 正文零写。对应回归为 `tests/memory-adoption.test.ts`、`tests/install.test.ts` 和 `tests/secret-store-keychain-retry.test.ts`，另保留原记忆和存储定向回归。此处只证明偏好与 ledger 格式门；SDK 分类数据采用、最终安装包全链路和真实 Home 操作尚未验收。
+
+### M1 后续独立片：自动批准门 v2
+
+范围与验收见 [spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)。现役自动批准门改为 preference/convention 正向白名单，experience 和 fact 即使重复出现也等待本人认可；首次候选的原因使用同一规则，不再承诺它们下次会自动生效。新自动批准记录使用规则 v2；旧记录、人工保存/接受、插件独立批准与现有开关不重写。规则由内部 `src/policy.ts` 持有，Service 仍是唯一业务写主人。
+
+本片不增加持久配置或 SDK 适配口。分类字典、四预设及矩阵随 M2 真实装配完成，不能把 `form=false` 当成 off，也不能把泛用 agent 身份当成 coding 场景。验证覆盖真实候选、接受、历史、撤销、重启及下面列出的记忆回归，不将配置声明当成已接通的管理能力。
+
 ## 一次典型调用
 
 助理的一轮开始前，Host 以“助理”这个使用方调用 `MemoryService.recall`：服务按用户的开关确定能读哪些范围（个人、当前项目），从 Prologue Memory 读出条目，结合 Host 记下的类别、适用情境、状态和有效期逐条过滤，用中文两字片段与英文词打分，按上限与字数预算取用，把用上的和因预算没带上的都记成使用回执（设置里显示“最近用于”）。用户说“以后都……”时，`write` 经写入门：开关、秘密形状、像指令的文字、范围、重复与冲突，最后才写入 Prologue Memory 并记一条“最近变动”。
@@ -38,6 +59,7 @@ Molis 在配置中声明分类、读写矩阵、保留策略、候选限额、�
 | --- | --- |
 | [src/service.ts](src/service.ts) | `MemoryService`：列出、召回、写入门、修改与移动、候选、最近变动与撤销、界面信号、整理与维护 |
 | [src/prefs.ts](src/prefs.ts) | 开关的默认值、补全与使用方权限 |
+| [src/policy.ts](src/policy.ts) | 自动批准规则版本与低风险类型门；只决定自动提议是否仍需本人认可 |
 | [src/text.ts](src/text.ts) | 召回关键词、同文判断（`sameWords`：同样的话，由 `fold` 折叠后相等；`sameText`：去掉标点的粗略相等，只用来给建议去重）、秘密形状与像指令的文字（确定性规则） |
 | [src/spoken.ts](src/spoken.ts) | `theirWords`：记作“用户亲口说的”（来源 `said`）的核对，内容是不是本人写过的某一整条消息（只容许 `fold` 的差别：大小写、全角半角、引号样式、空白和最后一个句号），记下来的是那条消息本身；`quotedFrom`：引文是不是本人说过的一段话（工作结束时提炼出的建议用它区分“明说”和“推断”，不决定“亲口说的”） |
 
@@ -68,7 +90,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 - 不变量：
   - 前台控制按调用贯穿 SDK 的异步准备、实际 storage 提交和同步 owner 账本；后台维护使用自身授权。被拒绝的后续写入不反抹已经提交的 SDK 事实，部分失败明确报出并可重开核对。
   - 模型只提议不批准：自动写入由确定性的写入门决定，规则版本写进来源与最近变动。
-  - 单次行为、仅靠推断的内容、背景事实、像指令的文字、形似秘密的文字都不会被自动写入；推断不能覆盖用户明确说过的。
+  - 单次行为、仅靠推断的内容、背景事实、经验、像指令的文字、形似秘密的文字都不会被自动写入；只有偏好/约定可通过重复证据与开关门自动晋升，推断不能覆盖用户明确说过的。
   - 停用、暂停、过期、不适用的记忆不会被召回；某使用方的开关关掉后它拿不到记忆。
   - 删除后存储、旁表（历史、使用记录）、最近变动的正文、重启之后都不再带出该条。
   - 模型说“和之前那条一样”（`same_as`）只是指路：写入门只按文字认同文，否则新的话单独成一条建议，两条都留给本人，不替它自动记住别的，也不丢掉新的。“同样的话”（`sameWords`）只容许下面 `fold` 列出的差别；逗号、问号和符号都会改变意思（“不，要发给他”和“不要发给他”，“金额>1000”和“金额<1000”），所以不算同文，也不拿相似度去认。写入、替换、认可建议、从工作提炼时判断“是不是已经记着”都按这条；只有建议和建议之间“同文只提一次”仍用去掉标点的 `sameText`，那只是少打扰本人，不决定记了什么。
@@ -84,7 +106,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
   - 召回的使用回执（最近用于）是这次调用的副作用：调用被取消或撤权后不写（`recall` 在写回执前走调用自己的 `beforeEffect`）。
   - 项目被删除时 `purgeProjectMemories` 清掉该项目及其角色的记忆（存储里的条目与候选）和账本里与之相关的一切（修订、使用、变动、候选记录、成对提示、开关、界面计数）；角色的范围从账本记下的所有者（写入记忆时才记下）和候选记录上的项目找到，所以只有建议、没有写过记忆的角色也清得掉；Home 里没有 Agent 运行环境时 `backend` 为 null，只清账本；不需要预览指纹确认，删除项目就是本人的确认。
   - 个人记忆的出处不写项目里的工作名；个人记忆只归本人。
-- 改动后必跑：`node scripts/run-tests.mjs tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-upkeep.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
 - 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

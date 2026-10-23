@@ -18,6 +18,7 @@ export * from "./operations.js";
 export * from "./operation-actions.js";
 export * from "./operation-management.js";
 
+export { createSchedulePlugin } from "./plugin.js";
 export * from "./ui.js";
 export * from "./routes.js";
 export { createScheduleRouteHandlers } from "./route-handlers.js";

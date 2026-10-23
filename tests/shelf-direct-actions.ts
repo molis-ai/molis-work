@@ -19,12 +19,15 @@ export function directShelfActions(ports: ShelfActionPorts): BoundActionClient {
 
 /**
  * Shelf's Home actions over a store the test opens with its own material ports, registered with the kernel directly so the test
- * can withdraw the provider or revoke the call; the Home instance itself is covered by shelf-actions.test.ts.
+ * can withdraw the provider or revoke the call; the Home instance itself is covered by shelf-actions.test.ts. The terminal action
+ * needs the Home instance's terminal service, so it is left out here.
  */
 export function shelfStoreProvider(store: () => ShelfStore, ai: ShelfAiPorts = shelfTestAi()): ActionProviderRegistration {
+  const handlers = createShelfActionHandlers(shelfStorePorts(store, selection => {
+    const state = ai.status(selection);
+    return state.available ? { available: true } : { available: false, code: "actions.connection_required", reason: state.reason ?? "请先配置 AI 模型" };
+  }));
   return { provider: { provider_id: SHELF_PLUGIN_ID, plugin_id: SHELF_PLUGIN_ID, title: "Shelf", kind: "plugin" },
-    definitions: SHELF_ACTIONS, handlers: createShelfActionHandlers(shelfStorePorts(store, selection => {
-      const state = ai.status(selection);
-      return state.available ? { available: true } : { available: false, code: "actions.connection_required", reason: state.reason ?? "请先配置 AI 模型" };
-    })) };
+    definitions: SHELF_ACTIONS.filter(definition => handlers.some(row => row.capability_id === definition.capability_id && row.version === definition.version)),
+    handlers };
 }

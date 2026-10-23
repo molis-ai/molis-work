@@ -19,7 +19,7 @@ test("VUX-31: a Shelf setting whose save fails goes back to what was saved and s
   const alertIn = (control: string) => `(() => { const block = document.querySelector(${JSON.stringify(control)}).closest('.shelf-settings-block, .settings-section'), line = block.querySelector(':scope > [data-shelf-save-error]');
     return line && !line.hidden ? { text: line.textContent, role: line.getAttribute('role') } : null; })()`;
   const failNextSave = async (click: string) => {
-    const barrier = await sendBarrier(browser as never, [{ urlPattern: "*api/shelf/settings*", requestStage: "Request" }]);
+    const barrier = await sendBarrier(browser as never, [{ urlPattern: "*api/plugins/io.molis.work.shelf/settings*", requestStage: "Request" }]);
     await evaluate(click);
     for (;;) { const held = await barrier.next(); if ((held.request as { method?: string }).method === "POST") { await barrier.drop(held); break; } await barrier.release(held); }
     await pause(600); await barrier.close();
@@ -41,6 +41,6 @@ test("VUX-31: a Shelf setting whose save fails goes back to what was saved and s
   await waitFor(`document.querySelector('${wheel}').checked === ${!before} && !document.querySelector('${wheel}').disabled`, 10_000);
   await pause(300);
   assert.equal(await evaluate(alertIn(wheel)), null, "a save that works clears the failure");
-  const saved = await evaluate<{ drop_wheel_enabled: boolean }>("fetch('/api/shelf/settings', { cache: 'no-store' }).then((r) => r.json())");
+  const saved = await evaluate<{ drop_wheel_enabled: boolean }>("fetch('/api/plugins/io.molis.work.shelf/settings', { cache: 'no-store' }).then((r) => r.json())");
   assert.equal(saved.drop_wheel_enabled, !before);
 });

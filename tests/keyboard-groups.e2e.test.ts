@@ -115,4 +115,69 @@ test("VUX-28: the shared roving skips disabled items, follows removal and right-
   assert.equal(await active(), "s7");
   assert.ok(await evaluate<number>("document.querySelector('#strip').scrollLeft") > 0, "the strip scrolled");
   assert.equal(await evaluate("document.querySelector('#box').scrollTop"), 800, "the page did not");
+  // SYS-07: roving's own -1 does not remove generic focusable items from its next candidate list.
+  await evaluate(`(() => { const bar = document.createElement('div'); bar.setAttribute('role', 'toolbar');
+    bar.innerHTML = '<span id="generic-a" tabindex="0">A</span><span id="generic-b" tabindex="0">B</span>';
+    document.querySelector('#box').append(bar); })()`);
+  await frames();
+  assert.deepEqual(await evaluate("['generic-a','generic-b'].map(id => document.getElementById(id).tabIndex)"), [0, -1]);
+  await evaluate("document.querySelector('#generic-a').focus()");
+  await press("ArrowRight"); assert.equal(await active(), "generic-b");
+  assert.deepEqual(await evaluate("['generic-a','generic-b'].map(id => document.getElementById(id).tabIndex)"), [-1, 0]);
+  await press("ArrowLeft"); assert.equal(await active(), "generic-a");
+
+
+});
+
+test("VUX-28 VUX-36: ordinary content does not measure unrelated focus groups, while group mutations keep one live tab stop", { timeout: 90_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  const frames = () => evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  const stops = (ids: string[]) => evaluate<number[]>(`${JSON.stringify(ids)}.map(id => document.getElementById(id).tabIndex)`);
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog` }, sessionId));
+  await waitFor("document.readyState === 'complete'", 20_000);
+  await evaluate(`(() => { const box = document.createElement('div'); box.id = 'mutation-groups';
+    box.style.cssText = 'position:fixed;inset:0;z-index:99999;background:white';
+    box.innerHTML = '<div role="tablist"><button role="tab" id="watch-a" aria-selected="true">一</button><button role="tab" id="watch-b" aria-selected="false">二</button></div>'
+      + '<div id="visibility-owner"><div role="toolbar" id="changing-group"><button id="change-a">甲</button><button id="change-b">乙</button></div></div>'
+      + '<div role="toolbar" id="outer-group"><button>外层</button></div>';
+    document.body.append(box); })()`);
+  await frames();
+  assert.deepEqual(await stops(["watch-a", "watch-b", "change-a", "change-b"]), [0, -1, 0, -1]);
+  // Observe real geometry reads without replacing their result. A plain body's child-list change must not settle these groups.
+  await evaluate(`window.groupGeometryReads = 0; for (const id of ['watch-a', 'watch-b']) {
+    const item = document.getElementById(id), original = item.getClientRects.bind(item);
+    item.getClientRects = () => { window.groupGeometryReads++; return original(); };
+  }
+  const pre = document.createElement('pre'); pre.id = 'ordinary-content'; pre.textContent = 'ordinary text'; document.body.append(pre);
+  const span = document.createElement('span'); span.textContent = 'another piece'; pre.append(span, document.createTextNode(' tail'));`);
+  await frames();
+  const addedReads = await evaluate<number>("window.groupGeometryReads");
+  await evaluate("window.groupGeometryReads = 0; document.getElementById('ordinary-content').remove()");
+  await frames();
+  assert.deepEqual([addedReads, await evaluate<number>("window.groupGeometryReads")], [0, 0], "plain additions and removals do not force layout in unrelated groups");
+
+  await evaluate("const added = document.createElement('button'); added.id = 'change-c'; added.textContent = '丙'; document.getElementById('changing-group').append(added)");
+  await frames();
+  assert.deepEqual(await stops(["change-a", "change-b", "change-c"]), [0, -1, -1], "new items join their existing group");
+  await evaluate("document.getElementById('changing-group').prepend(document.getElementById('change-c'))");
+  await frames();
+  assert.deepEqual(await stops(["change-a", "change-b", "change-c"]), [-1, -1, 0], "reordering recomputes the first live stop");
+  await evaluate("document.getElementById('change-c').remove(); document.getElementById('change-a').disabled = true");
+  await frames();
+  assert.deepEqual(await stops(["change-a", "change-b"]), [-1, 0], "removal and disabling leave the remaining live item reachable");
+  await evaluate("document.getElementById('visibility-owner').hidden = true; document.getElementById('change-a').disabled = false");
+  await frames();
+  assert.equal(await evaluate("document.getElementById('change-a').checkVisibility()"), false);
+  await evaluate("document.getElementById('visibility-owner').hidden = false");
+  await frames();
+  assert.deepEqual(await stops(["change-a", "change-b"]), [0, -1], "showing an ancestor rechecks its descendant group");
+  await evaluate("document.getElementById('watch-a').setAttribute('aria-selected', 'false'); document.getElementById('watch-b').setAttribute('aria-selected', 'true')");
+  await frames();
+  assert.deepEqual(await stops(["watch-a", "watch-b"]), [-1, 0], "selection changes still update the group's tab stop");
+  assert.ok(await evaluate<number>("window.groupGeometryReads") > 0, "the same geometry probe observes an affected group's real update");
+  await evaluate(`const nested = document.createElement('div'); nested.innerHTML = '<div role="toolbar"><button id="nested-a">内一</button><button id="nested-b">内二</button></div>';
+    document.getElementById('outer-group').append(nested);`);
+  await frames();
+  assert.deepEqual(await stops(["nested-a", "nested-b"]), [0, -1], "an inserted subtree initializes its own group inside another group");
 });

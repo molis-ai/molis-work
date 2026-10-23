@@ -1,8 +1,8 @@
-import { codingBackgroundState } from "./background-state.js";
+import { readCodingSessions } from "./session-observation.js";
 import { characterSelection, characterSkillSelection } from "./characters.js";
 import { materialSelection } from "./materials.js";
 import { confirmedPlan } from "./plans.js";
-import { type Capabilities, type CodingActivation, selected, sessionState, priorityOf } from "./route-activation.js";
+import { type Capabilities, type CodingActivation, selected } from "./route-activation.js";
 import { codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import { codingError, codingFailure, codingText } from "./words.js";
 import { bodyOf, methodSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
@@ -12,11 +12,10 @@ import { projectRuntime, requireProjectRuntime, supports } from "./runtime-choic
 import { DEFAULT_SESSION_TITLE, codingSessionTitleFrom } from "./session-title.js";
 import { roundAfterParkedAnswer, startRound } from "./start-round.js";
 import type { CodingSessionRecord } from "./store.js";
-import type { CodingWaitView } from "./waits.js";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { defineErrorCodes, parseExactActionReferences, searchEntriesPage, subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentSessionStatus } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 
 /** A control for a round this session does not have, or for one that has ended (a second tab answering after the first, AC-08). */
@@ -24,59 +23,11 @@ const codingRunErrors = defineErrorCodes("coding", { run_not_found: "not_found",
 
 /** Coding routes for sessions and their rounds: the directory, creating and changing a session, starting, queueing and steering a round. */
 
-  // The directory a page shows: every session's current state, with what a new round needs. Read by coding.state.
-// The recorded states it brings up to date are written with the `beforeWrite` of the call that runs the read (one read serves every page that asks).
+// The directory reads current facts without changing any persistent record or starting background execution.
 const readState = async (a: CodingActivation, api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
-  const { context, projectId } = a;
+  const { context } = a;
   const runtimes = await api.invoke(agent.listRuntimes, []);
-  // Every session's standing in one Host call per runtime, rather than one queued read per session.
-  const records = execution.sessions.list(projectId);
-  // The titles of the Goals sessions are attached to, as Goals has them now: read through Goals' public action, and kept for the
-  // directory, which draws at once (goal-titles.ts). A Goal that cannot be read keeps the title it had, or none.
-  await execution.goalTitles.read(records.flatMap(record => record.goal_id ? [record.goal_id] : []), beforeWrite);
-  const statuses = new Map<string, AgentSessionStatus | { session_id: string; error: string }>();
-  for (const runtimeId of new Set(records.filter(record => record.runtime_session_id).map(record => record.runtime_id))) {
-    const ids = records.filter(record => record.runtime_id === runtimeId && record.runtime_session_id).map(record => record.runtime_session_id!);
-    try { for (const status of await api.invoke(agent.readSessionStatuses, [runtimeId, ids])) statuses.set(`${runtimeId}:${status.session_id}`, status); }
-    catch (error) { for (const id of ids) statuses.set(`${runtimeId}:${id}`, { session_id: id, error: error instanceof Error ? error.message : codingText(execution.locale)("coding.server.session-unreadable") }); }
-  }
-  // Parked sessions, from the SDK; the loop that takes fired waits up is (re)started here, after a restart too.
-  const parked = new Map<string, CodingWaitView>(), backgroundUnreadable = await codingBackgroundState(api, records, execution.sessions, projectId, beforeWrite);
-  for (const runtimeId of new Set(records.filter(record => record.runtime_session_id).map(record => record.runtime_id))) {
-    try { for (const [session, wait] of await a.waits.openWaits(runtimeId)) parked.set(`${runtimeId}:${session}`, wait); } catch { /* shown as not waiting */ }
-    a.waits.wakeLoop(api, execution, runtimeId);
-  }
-  // One session after the other: each recorded state is its own write, and the writes keep the order the sessions are listed in.
-  const describe = async (record: CodingSessionRecord) => {
-    const background_unreadable = backgroundUnreadable.has(record.runtime_id);
-    let checkpointBusy = false, steps = execution.sessions.stepsOf(projectId, record.session_id);
-    // A parked session waits whatever its last round did — unless a round is under way right now.
-    const wait = record.runtime_session_id ? parked.get(`${record.runtime_id}:${record.runtime_session_id}`) : undefined;
-    const status = record.runtime_session_id ? statuses.get(`${record.runtime_id}:${record.runtime_session_id}`) : undefined;
-    const active = status && !("error" in status) && status.latest_phase && !isTerminalAgentPhase(status.latest_phase);
-    if (wait && !active) {
-      if (record.state !== "queued") record = await execution.sessions.setState(beforeWrite, projectId, record.session_id, "queued", record.updated_at);
-      return { ...record, background_unreadable, checkpoint_busy: false, ...(steps ? { steps } : {}), queued: a.waits.waitView(wait),
-        goal_title: record.goal_id ? execution.goalTitles.known(record.goal_id) ?? null : null };
-    }
-    if (record.runtime_session_id) {
-      const status = statuses.get(`${record.runtime_id}:${record.runtime_session_id}`);
-      if (status && !("error" in status)) {
-        checkpointBusy = status.checkpoint_busy;
-        const read = status.steps ?? null;
-        if (JSON.stringify(read) !== JSON.stringify(steps)) { await execution.sessions.setSteps(beforeWrite, projectId, record.session_id, read); steps = read; }
-        const next = status.recovery ? "reconcile-required" : status.latest_phase ? sessionState({ phase: status.latest_phase }) : "idle";
-        if (next !== record.state) record = await execution.sessions.setState(beforeWrite, projectId, record.session_id, next, record.updated_at);
-      } else if (record.state !== "reconcile-required") {
-        // One unreadable ledger must not hide other sessions or make the
-        // directory call completed work safe to continue.
-        record = await execution.sessions.setState(beforeWrite, projectId, record.session_id, "reconcile-required", record.updated_at);
-      }
-    }
-    return { ...record, background_unreadable, checkpoint_busy: checkpointBusy, ...(steps ? { steps } : {}), ...(priorityOf(a, record.session_id) ? { priority: true } : {}), goal_title: record.goal_id ? execution.goalTitles.known(record.goal_id) ?? null : null };
-  };
-  const sessions = [];
-  for (const record of records) sessions.push(await describe(record));
+  const sessions = await readCodingSessions(a, api, execution, beforeWrite);
   // The methods and MCP servers are the project's Runtime's, and only what its own capability matrix offers (PG-054).
   const { runtime: library } = projectRuntime(runtimes);
   const methods = library && supports(library, "skills") ? await api.invoke(agent.listSkills, [library.runtime_id, context.plugin_id]) : [];
@@ -277,7 +228,7 @@ const ROUTES: RouteMaker[] = [
           const { wait_for: _dropped, ...rest } = body;
           // The session's step waits on that work; the send is kept here, by the wait, to start when the work is done.
           const item = await api!.invoke(agent.queueProjectRound, [record.runtime_id, { session, directory, task, after: target.work_id, title }]);
-          if (item.wait_id) a.waits.keepQueued(item.wait_id, rest, request.actor_id, item.work_id);
+          if (item.wait_id) a.waits.keepQueued(item.wait_id, rest, item.work_id);
           await execution.sessions.setState(beforeWrite, projectId, record.session_id, "queued", new Date().toISOString());
           a.waits.wakeLoop(api!, execution, record.runtime_id);
           return { queued: { work_id: item.work_id, ...(item.wait_id ? { wait_id: item.wait_id } : {}), after: target } };

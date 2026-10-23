@@ -22,7 +22,7 @@ import type { PluginPlatformHome } from "./home-side.js";
 export function pluginModelFor(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, context: PluginStartContext,
   assertActive: () => void, declaration?: PluginModelConfigurationDeclaration): PluginModelClient | undefined {
   if (!home || definition.execution === "sandbox" || !definition.manifest.permissions.some(item => MODEL_PERMISSIONS.includes(item.permission))) return undefined;
-  const gate = { install_id: context.install_id, assertActive, requireGrant: (permission: string) => context.requireGrant(permission) };
+  const gate = { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: (permission: string) => context.requireGrant(permission) };
   return Object.freeze({ ...createPluginModelClient(definition.manifest, createPluginModelPort(home), gate),
     ...(declaration ? { configuration: createPluginModelConfigurationClient(definition.manifest, declaration, createConsumerModelConfiguration(home.directory, declaration), gate) } : {}),
   });

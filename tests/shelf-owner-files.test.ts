@@ -192,7 +192,7 @@ test("PG-026-S1-9 a cancel decides on the run's row as its write finds it: a run
     const host = openHostShelfFiles(home);
     let open!: () => void;
     const turn = new Promise<void>(resolve => { open = resolve; });
-    const files: PluginOwnerFilesClient = { stat: relative => host.stat(relative), read: relative => host.read(relative), list: relative => host.list(relative),
+    const files: PluginOwnerFilesClient = { rootPath: () => host.rootPath(), stat: relative => host.stat(relative), read: relative => host.read(relative), list: relative => host.list(relative),
       write: <Result>(run: (writer: PluginOwnerFilesWriter) => Result) => turn.then(() => host.write(run)) };
     await host.write(writer => writer.replaceFileAtomic("catalog.json", running));
     const cancelling = openShelfStore(root, files, { disabled: true }).cancelJob(jobId);

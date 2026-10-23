@@ -30,10 +30,10 @@ export function handleComponentBoardHttp(request: IncomingMessage, response: Ser
 
 /**
  * The Assistant frame's fixed works, drawn by the Host exactly as it draws a real answer (questions, reviews, replies, the
- * next steps and the delivery note), in the page's language. Nothing is read from or written to any store.
+ * next steps and the delivery note), in the page's language — also what a work becomes once answered or checked. Nothing is read from or written to any store.
  */
 function drawnSamples(): string {
   const samples = assistantBoardSamples(Date.now());
-  for (const view of [...Object.values(samples.views), ...Object.values(samples.next).flat()]) drawAssistantReply(view, { say: L, drafts: () => ({}), card: () => "" });
+  for (const view of [...Object.values(samples.views), ...Object.values(samples.next).flat(), ...Object.values(samples.answered), ...Object.values(samples.closed)]) drawAssistantReply(view, { say: L, drafts: () => ({}), card: () => "" });
   return JSON.stringify(samples);
 }

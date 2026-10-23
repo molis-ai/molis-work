@@ -5,7 +5,6 @@ import type { HomePluginDatabaseDeclaration, HomeStoreDeclaration } from "./plug
 import type { PluginFilesDeclaration } from "./plugin-files.js";
 import type { PluginImageGenerationDeclaration } from "./plugin-image-generation.js";
 import type { PluginModelConfigurationDeclaration } from "./plugin-model-configuration.js";
-import type { PluginOwnerFilesDeclaration, PluginOwnerFilesWriter } from "./plugin-owner-files.js";
 import type { PluginDefinition, PluginManifest } from "./plugin.js";
 import type { UiContribution } from "./ui.js";
 
@@ -14,6 +13,8 @@ export interface PluginSearchRow { readonly selector: string; readonly idDataset
 
 /** What the workbench shell loads for one plugin: its views, styles and browser client. */
 export interface PluginWorkbenchRegistration {
+  /** Exact existing HTTP routes for pages whose backend is registered outside Plugin Runtime. This grants no Runtime services. */
+  readonly pageRequests?: readonly { readonly method: string; readonly path: string }[];
   /** Asset cascade/initialization order, independent of navigation order in the Manifest. */
   readonly order: number;
   readonly contributions: readonly UiContribution[];
@@ -70,6 +71,8 @@ export interface PluginRegistration {
    * registration only, never from a Manifest or an installed package.
    */
   readonly personal?: true;
+  /** Product setup choice for new projects; stored as ordinary membership and freely removable afterwards. */
+  readonly default_enabled?: true;
   /** Short ids enabled together with this plugin in a project, whatever its ports say (Feed brings Inbox). Trusted, as above. */
   readonly companions?: readonly string[];
   /**
@@ -82,10 +85,8 @@ export interface PluginRegistration {
     readonly create: () => PluginDefinition;
     readonly database?: HomePluginDatabaseDeclaration;
     readonly files?: PluginFilesDeclaration;
-    /** The owner-file store this instance reads and writes through `services.ownerFiles`; its Home store must name this plugin. */
-    readonly owner_files?: PluginOwnerFilesDeclaration;
-    /** Lays down first-run files once the instance starts, before any action can read them. */
-    readonly initialize_owner_files?: (writer: PluginOwnerFilesWriter) => void;
+    readonly owner_files?: import("./plugin-owner-files.js").PluginOwnerFilesDeclaration;
+    readonly initialize_owner_files?: (writer: import("./plugin-owner-files.js").PluginOwnerFilesWriter) => void;
     readonly model_configuration?: PluginModelConfigurationDeclaration;
     readonly image_generation?: PluginImageGenerationDeclaration;
     readonly package_name: string;

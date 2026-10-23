@@ -121,18 +121,26 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   await click("[data-action=intro-next]");
   await waitFor(obView("sources"));
   assert.equal(await evaluate("document.querySelector('#ob-title').textContent"), "带入已有的材料");
-  assert.equal(await evaluate("document.querySelectorAll('.ob-source').length"), 5);
+  // The sources are a list on the Welcome steps' sheet; the bar is theirs too (the way back, then skip and go on), and the empty card says what goes there.
+  assert.equal(await evaluate("document.querySelectorAll('.welcome.onboard .ob-sources .ob-source').length"), 5);
+  assert.equal(await evaluate("document.querySelector('[data-open=files] .ob-source__act.mw-btn').textContent"), "添加", "a row says what pressing it does, drawn as a button");
   assert.equal(await evaluate("document.querySelector('[data-action=prepare]').disabled"), true, "nothing to confirm yet");
-  assert.match(await evaluate<string>("document.querySelector('.arrival-bar .mw-bar-status').textContent"), /还没有材料/);
+  assert.equal(await evaluate("document.querySelector('.arrival-bar .mw-bar-status')"), null);
+  assert.match(await evaluate<string>("document.querySelector('.ob-right .ob-scene-note').textContent"), /材料会按来源排在这里/);
   await assertLayoutClean(evaluate, "sources, empty");
 
   // A folder: its files are listed by name and size at once, and a pasted page adds a group beside it.
+  // A source that only chooses files opens the system chooser at once: one press, nothing to open first.
+  await journey.command("Page.setInterceptFileChooserDialog", { enabled: true }, journey.sessionId);
+  await evaluate("window.chosen = []; const open = HTMLInputElement.prototype.click; HTMLInputElement.prototype.click = function () { window.chosen.push(this.id); return open.call(this); };");
   await click("[data-open=folder]");
-  assert.ok(await evaluate("!!document.querySelector('#cfgp-folder')"), "the row opens where it is");
+  assert.deepEqual(await evaluate("window.chosen"), ["cx-upload-directory"], "the folder choice opens the chooser");
+  assert.equal(await evaluate("document.querySelector('.ob-source__cfg')"), null, "and opens no settings of its own");
   await setFiles("#cx-upload-directory", [folder]);
   await waitFor("document.querySelectorAll('.ob-right .mw-file-group .mw-file-row').length === 4");
-  assert.match(await evaluate<string>("document.querySelector('.arrival-bar .mw-bar-status strong').textContent"), /已添加 4 份材料/);
-  assert.match(await evaluate<string>("document.querySelector('[data-open=folder] .mw-dir-row__count').textContent"), /已添加 4/);
+  assert.match(await evaluate<string>("document.querySelector('.ob-right .ob-stage-head span').textContent"), /^4 份/);
+  assert.equal(await evaluate("document.querySelector('[data-open=folder] .ob-source__act.is-added').textContent"), "已添加 4");
+  assert.ok(await evaluate("!!document.querySelector('.arrival-bar [data-action=blank]')"), "the step can still be skipped");
   await assertLayoutClean(evaluate, "sources, folder added");
   await click("[data-open=browser]");
   await evaluate("document.getElementById('cx-browser-text').focus()");
@@ -327,10 +335,12 @@ test("every screen of the journey lays out cleanly at every width, in light and 
           assert.equal(await evaluate("document.querySelectorAll('[data-ob-view=reading] [data-mw-state=running]').length"), 0);
         }
       }
-      // A source's own settings are part of the list: open each, one at a time.
+      // A source's own settings open under the choices: open each that has them, one at a time.
       await go("/onboarding?mode=new-project");
       await waitFor(obView("sources"));
-      for (const row of ["folder", "files", "browser", "gmail", "chat"]) {
+      const rows = await evaluate<string[]>("[...document.querySelectorAll('.ob-sources [aria-expanded]')].map((row) => row.dataset.open)");
+      assert.ok(rows.includes("browser"), "pasting a page has settings");
+      for (const row of rows) {
         await click(`[data-open=${row}]`);
         await waitFor(`!!document.querySelector('#cfgp-${row}')`);
         await assertLayoutClean(evaluate, `${row} settings open · ${name} · ${scheme}`);

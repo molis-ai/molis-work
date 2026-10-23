@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -75,7 +76,9 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
     body.dispatchEvent(new DragEvent('dragover', at)); body.dispatchEvent(new DragEvent('drop', at));
   })()`);
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
-  const goalsPane = "[...document.querySelectorAll('[data-tab-pane]')].find((pane) => pane.querySelector('[data-plugin-group=goals]'))";
+  const goalsPaneId = await evaluate<string>("[...document.querySelectorAll('[data-tab-pane]')].find((pane) => pane.querySelector('[data-plugin-group=goals]')).dataset.tabPane");
+  const goalsPaneSelector = `[data-tab-pane=${JSON.stringify(goalsPaneId)}]`;
+  const goalsPane = `document.querySelector(${JSON.stringify(goalsPaneSelector)})`;
   await evaluate(`${goalsPane}.querySelector('.tab-item[data-tab-kind=plugin][data-plugin=goals] .tab-item-trigger').click()`);
   const frame = `document.querySelector('iframe[data-pane-owner="' + ${goalsPane}.dataset.tabPane + '"]')`;
   await waitFor(`${frame}?.contentDocument?.querySelector('[data-record-owner=goals] [data-tree-item][data-goal-id=CORE]')`, 30_000);
@@ -83,35 +86,38 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
   await waitFor(`${goalsPane}.querySelector('[data-plugin-group=goals] .tab-item[data-tab-kind=item][data-item-id=CORE]')`);
   assert.equal(await evaluate(`${goalsPane}.querySelector('[data-plugin-group=goals] .tab-item[aria-current]')?.dataset.tabKind`), "plugin", "the pane stays on the Goals page");
 
-  // PRR-07 PTG-05 in the split pane the group closes with a way back; the undo chip restores the group and its current tab.
-  await evaluate(`(() => { const f = ${frame}; f.contentDocument.querySelector('[data-tab-kind=plugin][data-plugin=goals] [data-tab-close]').click(); })()`);
-  await waitFor(`!${frame}.contentDocument.querySelector('[data-plugin-group=goals] [data-tab-kind=plugin][data-plugin=goals]')`);
-  await waitFor(`${frame}.contentDocument.querySelector('[data-tab-undo]')`, 10_000);
-  await evaluate(`(() => { const f = ${frame}; f.contentDocument.querySelector('[data-tab-undo]').click(); })()`);
-  await waitFor(`${frame}.contentDocument.querySelector('[data-plugin-group=goals] .tab-item[data-tab-kind=item][data-item-id=CORE]')`);
+  // PRR-07 PTG-05: the parent owns the split pane's visible strip; the embedded page's strip is hidden and does not own CORE.
+  // Keep the pane identity through closing the group, then use its visible undo chip to restore the group and current page.
+  await click(`${goalsPaneSelector} [data-tab-kind=plugin][data-plugin=goals] [data-tab-close]`);
+  await waitFor(`!${goalsPane}.querySelector('[data-plugin-group=goals] [data-tab-kind=plugin][data-plugin=goals]')`);
+  await waitFor(`${goalsPane}.querySelector('[data-tab-undo]')`, 10_000);
+  await click(`${goalsPaneSelector} [data-tab-undo]`);
+  await waitFor(`${goalsPane}.querySelector('[data-plugin-group=goals] .tab-item[data-tab-kind=item][data-item-id=CORE]')`);
+  assert.equal(await evaluate(`${goalsPane}.querySelector('[data-plugin-group=goals] .tab-item[aria-current]')?.dataset.tabKind`), "plugin", "undo restores the Goals page as current");
 });
 
 test("D24 a list that picks several keeps ⌘-click for picking; a middle click there still opens the page behind", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "pages");
   const store = openPagesStore(homeDirectory);
   const pages = (() => { try { return ["A", "B", "C"].map((letter) => store.create({ project_id: projectId!, title: `Page ${letter}`, body: { type: "doc", content: [] } })); } finally { store.close(); } })();
   const [a, b, c] = pages.map((page) => page.id) as [string, string, string];
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${a}` }, sessionId));
-  await waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-rows] button[data-page-id="${c}"]')?.getClientRects().length > 0`);
+  await child.waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-rows] button[data-page-id="${c}"]')?.getClientRects().length > 0`);
   const selected = `[...document.querySelectorAll('[data-pages-rows] button[data-page-id]')].filter((row) => row.getAttribute('aria-selected') === 'true').map((row) => row.dataset.pageId).sort().join()`;
-  assert.deepEqual(await evaluate(`(() => { const list = document.querySelector('[data-pages-rows]'); return [list.getAttribute('role'), list.getAttribute('aria-multiselectable'), list.querySelector('button[data-page-id]').getAttribute('role')]; })()`),
+  assert.deepEqual(await child.evaluate(`(() => { const list = document.querySelector('[data-pages-rows]'); return [list.getAttribute('role'), list.getAttribute('aria-multiselectable'), list.querySelector('button[data-page-id]').getAttribute('role')]; })()`),
     ["listbox", "true", "option"], "the list says it picks several");
   const press = async (id: string, button: "left" | "middle", modifiers: number) => {
-    const point = await evaluate<{ x: number; y: number }>(`(() => { const r = document.querySelector('[data-pages-rows] button[data-page-id="${id}"]').getBoundingClientRect(); return { x: r.x + Math.min(40, r.width / 2), y: r.y + r.height / 2 }; })()`);
+    const point = await child.point(`[data-pages-rows] button[data-page-id="${id}"]`);
     for (const type of ["mousePressed", "mouseReleased"] as const) await command("Input.dispatchMouseEvent", { type, ...point, button, clickCount: 1, modifiers }, sessionId);
   };
 
   // D24 a real ⌘-click on B picks it, with the open A, and opens no tab.
   await press(b, "left", 4);
-  await waitFor(`(${selected}) === ${JSON.stringify([a, b].sort().join())} && document.querySelectorAll('[data-pages-rows] .pages-doc-row.is-picked').length === 2`);
+  await child.waitFor(`(${selected}) === ${JSON.stringify([a, b].sort().join())} && document.querySelectorAll('[data-pages-rows] .pages-doc-row.is-picked').length === 2`);
   assert.equal(await evaluate(`document.querySelector('[data-plugin-group=pages] .tab-item[data-tab-kind=item][data-item-id="${b}"]')`), null, "a ⌘-click in the list opens no tab");
 
   // D24 a middle click on C still opens it behind in the Pages group; the picks and the open page stay. The page was
@@ -122,6 +128,6 @@ test("D24 a list that picks several keeps ⌘-click for picking; a middle click 
   await press(c, "middle", 0);
   await waitFor(`document.querySelector('[data-plugin-group=pages] .tab-item[data-tab-kind=item][data-item-id="${c}"]')`);
   assert.equal(await evaluate(current), before, "the pane stays where it was");
-  assert.equal(await evaluate("document.querySelector('[data-pages-title]')?.value"), "Page A", "A stays open in the editor");
-  assert.equal(await evaluate(selected), [a, b].sort().join(), "the middle click leaves the picks alone");
+  assert.equal(await child.evaluate("document.querySelector('[data-pages-title]')?.value"), "Page A", "A stays open in the editor");
+  assert.equal(await child.evaluate(selected), [a, b].sort().join(), "the middle click leaves the picks alone");
 });

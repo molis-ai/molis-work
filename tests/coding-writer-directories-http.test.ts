@@ -6,11 +6,14 @@ import { promisify } from "node:util";
 import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 const exec = promisify(execFile);
 
 test("Coding formal worktree preparation requires the original review, grants only the created directory and retains results across restart", async () => {
-  const home = await realpath(await mkdtemp(path.join(tmpdir(), "coding-directories-"))), root = path.join(home, "repo"); await mkdir(root);
+  const home = await realpath(await mkdtemp(path.join(tmpdir(), "coding-directories-"))), root = path.join(home, "repo");
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  await mkdir(root);
   const git = (...args: string[]) => exec("git", args, { cwd: root });
   const token = "writer-directories-control-0123456789abcdef";
   let server: ReturnType<typeof createMolisWorkWebServer>, origin = "";

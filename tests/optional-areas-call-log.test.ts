@@ -19,6 +19,8 @@ const withProject = async (plugins: string[], run: (fixture: Fixture) => Promise
   const home = await mkdtemp(join(tmpdir(), "optional-areas-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "只有目标", actor_id: "test" });
+  // SYS-15-S7: new projects enable Schedule by default; this fixture explicitly tests the person's disabled state.
+  catalog.removeProjectPlugin({ project_id: created.project_id, plugin_id: "schedule", actor_id: "test" });
   for (const plugin_id of plugins) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });

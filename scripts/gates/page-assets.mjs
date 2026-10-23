@@ -238,22 +238,26 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [703659, 704435],
-  // Forms reflow (slice 85): moved and removed questions and options ease through the page's molisReflow, with the fallback when it is absent. 30244 → 30383 (+139).
-  "/assets/molis-work-plugins/form.js": [30244, 30383],
-  "/assets/molis-work-plugins/workflows.js": [83019, 83135],
-  // Order sweep (slices 82–88): settings' shared buttons keep their role (13 / 500) instead of 12 / 400 for every button, and the models pane's
-  // empty state is centred like every pane's (+141); the corner and empty-state slices win back 118 of it in the same sheet. 994428 → 994451 (+23).
-  "/assets/molis-work-settings.css": [994428, 994451],
-  // Select-item fix (#1003): a page that shows a blank item takes "no item" back instead of dropping it as a repeat. 1182810 → 1182868 (+58).
-  "/assets/molis-work-workbench.js": [1182810, 1182868],
+  // VUX-31 (slice 98): the slash menu keeps the words typed last when the lists the first asked for answer late, and the side panel's file
+  // list drops a late page of a list read again. 1186501 → 1186577 (+76).
+  "/assets/molis-work-workbench.js": [1186501, 1186577],
+  // VUX-29 (slice 97): Pages' folder name dialog sends while it is open: a second press is swallowed, a refusal keeps the name and says why
+  // under the field, Enter saves instead of cancelling. 48446 → 49109 (+663).
+  "/assets/molis-work-plugins/pages.js": [48446, 49109],
+  // VUX-31 (slice 98): the 项目资料 page's newest read wins and a longer list is not added to another state's; the helper keeps the bind
+  // function under the giant-unit limit, so inlining it to save ~60 B is not open. 26305 → 26516 (+211).
+  "/assets/molis-work-knowledge.js": [26305, 26516],
+  // VUX-29 (slice 97): a modal dialog in a plugin's isolated frame says so, and the workbench around the frame is inert until it closes,
+  // as showModal() leaves the rest of one document; without it the back, home, tab and plugin buttons stayed usable. 187115 → 187730 (+615).
+  "/assets/molis-work-plugin-frame.js": [187115, 187730],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.
-// User approved 2026-10-19 (specs/project-knowledge §2): the 项目资料 browser code is its own asset, loaded only where it is used (+1.5 KB from the 10-19 review fixes, +232 B for the import status of files it recognizes or transcribes).
+// User approved 2026-10-21 (specs/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
+// shared bridge (including the common UI helpers) once; the original 90325-byte estimate was not a ceiling.
 const APPROVED_NEW_ASSETS = {
-  "/assets/molis-work-knowledge.js": 26361,
+  "/assets/molis-work-plugin-frame.js": 187120,
 };
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {

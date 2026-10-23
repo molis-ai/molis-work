@@ -15,7 +15,7 @@ import { SESSION_PAGE, SESSION_WINDOW } from "./session-window.js";
 import { CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT } from "./usage-meter-client.js";
 import { CODING_COMPOSER_MODEL_CLIENT_FACTORY_SCRIPT } from "./composer-model-client.js";
 import { CODING_COOPERATION_CLIENT_FACTORY_SCRIPT } from "./cooperation-client.js";
-import { codeLanguage, codeTokens, diffRowTokens, growCodeTokens } from "./highlight.js";
+import { codeLanguage, codeTokens, diffRowTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { CODING_COMMANDS_CLIENT_FACTORY_SCRIPT } from "./commands-client.js";
 import { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 import { CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT } from "./subagent-cards-client.js";
@@ -76,8 +76,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   // The project has one current directory: where new rounds run and what Files and Git show. Choosing it here sets it
   // for the whole project (the same setting as in project settings), then the embedded Files and Git views re-read it.
   const useProjectWorkspace = async (id) => {
-    const response=await lifetime.fetch((document.body.dataset.routePrefix || '')+'/api/project-settings/workspaces',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({workspace_id:id})});
-    if(!response.ok){let reason='';try{reason=(await response.json()).error || '';}catch{}throw new Error(reason?L('coding.workspace.switch-failed-why',{reason}):L('coding.workspace.switch-failed'));}
+    try{await host.selectWorkspace(id);}catch(error){throw new Error(L('coding.workspace.switch-failed-why',{reason:error.message}));}
     lifetime.assertCurrent();
     root.querySelectorAll('[data-git-refresh],[data-files-refresh]').forEach(button=>button.click());
   };
@@ -564,7 +563,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     // A line past 40,000 characters stays text and the rest are coloured, a slice a frame (paintRows); splitting is cheap.
     const painted=language ? diffRowTokens(rows,language,tokensOf) : null;
     const fresh=rows.map((row,index)=>({...row,pieces:painted?.[index]})).filter(row=>!row.code.dataset.painted && (row.code.dataset.painted='true') && row.pieces);
-    paintRows(fresh,(step)=>lifetime.frame(()=>{if(list.isConnected)step();}));
+    paintRows(fresh,(step)=>lifetime.frame(()=>{if(list.isConnected)step();}),list,(release)=>host.mountPluginClient(list).own(release));
   }));
   let paintFrame=0;lifetime.observe(new MutationObserver(()=>{if(paintFrame)return;paintFrame=lifetime.frame(()=>{paintFrame=0;paintDiffs(root);});}),root,{childList:true,subtree:true});
   const enrichCode = (node) => node.querySelectorAll('pre:not([data-enriched])').forEach(pre => {
@@ -1188,7 +1187,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       await refreshState();host.openItem('coding',id,selected.title);await select(id);
       if(selected.workspace_id){workspaceId=selected.workspace_id;rememberConfiguration();await draft.flush();await refreshState();}
       input.focus();status(L('coding.character.brought-in'));
-    })().catch(error=>{status(error.message,true);window.alert(L('coding.character.session-failed',{reason:error.message}));}).finally(()=>{creatingCharacterSession=false;});
+    })().catch(error=>{status(L('coding.character.session-failed',{reason:error.message}),true);}).finally(()=>{creatingCharacterSession=false;});
   });
   /** The composer keeps rarely used context behind one "+" so the bar stays about the task. */
   const attachMenu=q('[data-coding-attach-menu]'),attachToggle=q('[data-coding-attach-toggle]'),setAttach=open=>{attachMenu.hidden=!open;attachToggle.setAttribute('aria-expanded',String(open));};
@@ -1338,7 +1337,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if(target.matches('[data-coding-stop]') && lastRun) { target.disabled=true;await api(sessionPath(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:'stop'});status(L('coding.run.stop-received'));await readCurrent(); }
       if(target.matches('[data-coding-archive]') && current) {
-        if(!confirm(L('coding.session.archive-confirm')))return;
+        if(!await host.confirm(L('coding.session.archive-confirm')))return;
         target.disabled=true;
         const id=current;
         try {

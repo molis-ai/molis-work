@@ -2,7 +2,7 @@
 
 Status: `partial`. Workspace migration: `goal-reorg-f2`. Contract: `@molis-ai/molis-work-contracts/platform/plugin`.
 
-Personal knowledge workspace for the current Molis Work Home. Import a local Obsidian, LLM Wiki or Markdown folder, preview the fixed snapshot, then explicitly commit. Browser folder uploads create an independent source; select an existing upload source to update it. Local paths use the canonical directory as source identity. Source files are never changed. See [format compatibility](../../../specs/archive/cognia-plugin/compatibility.md).
+Personal knowledge workspace for the current Molis Work Home. Import a local Obsidian, LLM Wiki or Markdown folder, preview the fixed snapshot, then explicitly commit. Browser folder uploads create an independent source; select an existing upload source to update it. Local path previews use a Host directory grant and record its grant ID as the source locator. Re-entering the same path obtains a new grant and currently creates a separate source; automatic source matching for that UI path remains unresolved. Source files are never changed. See [format compatibility](../../../specs/archive/cognia-plugin/compatibility.md).
 
 The Home store is `cognia/cognia.db`. Materials preserve paths, original bytes, Markdown, frontmatter, common title/tags/aliases and every changed version. Source/path pairs are unique. Import previews expire after 30 minutes; cancelled previews do not add materials. Repeated commits and draft saves are idempotent. Conflicting previews require a fresh preview. Deleting source files does not delete imported materials.
 
@@ -32,6 +32,12 @@ pnpm boundary:check
 
 No cloud sync, background watching, bidirectional sync, proprietary database migration, graph view, Dataview execution, block-reference reconstruction, or PDF/OCR extraction is included.
 
+## Directory preview route repair (2026-10-23)
+
+This repair restores the existing import journey in [the Cognia spec](../../../specs/archive/cognia-plugin/spec.md): enter a local directory, authorize it through the Host, review the fixed preview, and explicitly import. The client must use the Manifest's `/library/import/preview` route, whose handler already selects the directory action when `path` is present. It retains the Host-issued `grant_id`, the relative `path`, and the bound action service; no route, permission, chooser, storage identity or import policy is added.
+
+Acceptance uses the actual desktop and narrow-screen UI for preview, explicit commit, review and fixed-version citations, plus the existing directory-authority, cancellation and source-isolation tests. The concurrent-import fixture must identify the existing source explicitly when updating it. This slice does not claim that selecting the same path with a new directory grant automatically matches the previous source; directory source identity and a native chooser are outside this route repair. Source files remain untouched, cancelled previews add no materials, and denied calls retain the existing refusal behavior.
+
 ## 开发要求
 
 - 负责：个人知识的导入、阅读与有出处的综合。
@@ -53,3 +59,5 @@ No cloud sync, background watching, bidirectional sync, proprietary database mig
 - 授权等待及可见对象定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-context-regressions.e2e.test.ts`（浏览器文件需要本机 Chrome；owner 用例的授权是受控策略回调）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)、[specs/archive/cognia-plugin/spec.md](../../../specs/archive/cognia-plugin/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+目录导入：可以上传目录文件；未上传时，「预览导入」打开宿主系统目录选择器。界面不能提交绝对路径来取得授权。系统选择后得到的 grant 只供当前插件激活实例、当前项目及调用者使用，取消、撤权、重启和项目删除使其失效（SYS-15）。

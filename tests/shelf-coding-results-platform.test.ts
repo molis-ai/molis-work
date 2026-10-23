@@ -70,7 +70,7 @@ test("W5-01-CODING-14 without the declaration, without the grant, without Coding
   const ungranted = await consumer(t, home, project, { name: "ungranted", consumes: shelfManifest.capabilities.consumes, permissions: shelfPermission.map(row => ({ ...row, required: false })), grants: [] });
   await assert.rejects(ungranted.invoke(codingResultDocument, input), refused("plugin.grant_denied"));
   const elsewhere = await consumer(t, home, without, { name: "elsewhere", consumes: shelfManifest.capabilities.consumes, permissions: shelfPermission, grants: ["artifact:read"] });
-  await assert.rejects(elsewhere.invoke(codingResultDocument, input), refused("actions.plugin_disabled"), "a project that has not installed Coding does not offer its text");
+  await assert.rejects(elsewhere.invoke(codingResultDocument, input), refused("actions.dependency_missing"), "a project that has not installed Coding does not offer its text");
   // Not an action a person, an Agent, a workflow or an MCP client can pick.
   const views = await home.inspect("runtime:coding-text", project.project_id);
   assert.ok(views.some(view => view.capability_id.startsWith("coding.")), "the same directory does list Coding's actions open to an MCP client");

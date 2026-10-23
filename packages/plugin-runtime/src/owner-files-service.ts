@@ -1,17 +1,16 @@
 import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest, PluginOwnerFilesClient, PluginOwnerFilesDeclaration, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { currentPluginAction, type PluginActionScope } from "./action-scope.js";
+import { currentPluginAction, inPluginInstance, pluginInvocationReadOnly, type PluginActionScope, type PluginInstance } from "./action-scope.js";
 
 /** The executor supplies its existing lifetime and live installation grants. */
-export interface PluginOwnerFilesGate {
-  readonly install_id: string;
+export interface PluginOwnerFilesGate extends PluginInstance {
   assertActive(): void;
   requireGrant(permission: string): void;
 }
 
 /** Every primitive is synchronous; the Host port itself carries no authority. */
 export function createPluginOwnerFilesClient(manifest: PluginManifest, declaration: PluginOwnerFilesDeclaration,
-  port: PluginOwnerFilesWriter, gate: PluginOwnerFilesGate): {
+  port: PluginOwnerFilesWriter, gate: PluginOwnerFilesGate, rootPath?: string): {
     client: PluginOwnerFilesClient; initializeTrusted(run: (writer: PluginOwnerFilesWriter) => void): void;
   } {
   const permissions = new Set(manifest.permissions.map(item => item.permission));
@@ -23,10 +22,10 @@ export function createPluginOwnerFilesClient(manifest: PluginManifest, declarati
     }
   };
   const check = (scope: PluginActionScope | undefined, permission: string, write: boolean) => {
-    if (!scope || scope !== currentPluginAction() || scope.install_id !== gate.install_id) {
+    if (!scope || scope !== currentPluginAction() || !inPluginInstance(scope, gate)) {
       throw new ActionError("actions.forbidden", "文件服务只能由本插件的原动作调用");
     }
-    if (write && scope.definition.operation !== "command") throw new ActionError("actions.forbidden", "查询不能写文件");
+    if (write && pluginInvocationReadOnly(scope)) throw new ActionError("actions.forbidden", "查询不能写文件");
     if (!scope.definition.action.permissions.includes(permission) || !scope.caller.permissions.includes(permission)) {
       throw new ActionError("actions.forbidden", "动作或调用者没有文件权限");
     }
@@ -56,6 +55,7 @@ export function createPluginOwnerFilesClient(manifest: PluginManifest, declarati
     finally { active = false; }
   };
   return { client: Object.freeze<PluginOwnerFilesClient>({
+    rootPath() { read(); if (!rootPath) throw new ActionError("actions.unavailable", "文件服务没有本机位置"); return rootPath; },
     stat(relative) { read(); return port.stat(relative); },
     read(relative) { read(); return port.read(relative); },
     list(relative) { read(); return port.list(relative); },

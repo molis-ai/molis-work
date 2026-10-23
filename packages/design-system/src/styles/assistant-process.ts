@@ -21,7 +21,7 @@ ${A} .assistant-steps[open]>summary::before,${A} .assistant-activity-fold[open]>
 ${A} :is(.assistant-steps,.assistant-activity-fold)>summary:hover{background:var(--nav-hover)}
 ${A} .assistant-steps>summary:hover{color:var(--ink-soft)}
 ${A} :is(.assistant-steps,.assistant-activity-fold)>summary:focus-visible{outline:var(--focus-stroke);outline-offset:var(--focus-stroke-inset,-1px)}
-${A} .assistant-steps[data-state="failed"]>summary{color:var(--danger)}
+${A} .assistant-steps[data-state="failed"]>summary{color:var(--danger)}${A} .assistant-steps[data-state="unknown"]>summary{color:var(--tone-attention)}
 ${A} .assistant-steps-body>:is(.assistant-activity,.assistant-activity-fold){padding:2px 0 0 12px}
 ${A} .assistant-activity-detail{display:grid;gap:2px;margin:2px 0 4px 19px;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 ${A} .assistant-activity-detail>p{margin:0}

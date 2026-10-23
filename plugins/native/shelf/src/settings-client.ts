@@ -22,6 +22,7 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
   const SHIFT = ${CARBON_SHIFT_KEY};
   const CMD = ${CARBON_CMD_KEY};
   const t = (value) => (typeof L === "function" ? L(value) : value);
+  const api = (document.body.dataset.routePrefix || "") + "/api/plugins/io.molis.work.shelf";
   let recording = null;
 
   const chordFromEvent = (event) => {
@@ -113,7 +114,7 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
     });
   };
   const savePatch = async (root, patch) => {
-    const response = await fetch("/api/shelf/settings", {
+    const response = await fetch(api + "/settings", {
       method: "POST",
       headers: { ...(globalThis.molisWorkControlHeaders?.() || {}), "content-type": "application/json" },
       body: JSON.stringify(patch),
@@ -133,7 +134,7 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
   let settings = null;
   const refreshSettings = async (scope) => {
     try {
-      const response = await fetch("/api/shelf/settings", { cache: "no-store" });
+      const response = await fetch(api + "/settings", { cache: "no-store" });
       if (response.ok) settings = await response.json();
     } catch {}
     paintPanes(scope);
@@ -404,7 +405,7 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
       sample.addEventListener("click", async () => {
         sample.disabled = true;
         try {
-          await fetch("/api/shelf/sample", {
+          await fetch(api + "/sample", {
             method: "POST",
             headers: { ...(globalThis.molisWorkControlHeaders?.() || {}), "content-type": "application/json" },
             body: "{}",

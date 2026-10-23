@@ -19,6 +19,7 @@ const write = (artifact_id: string, artifact_type_id: string, producer: typeof c
 async function fixture(t: test.TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-declarations-"));
   const databasePath = join(directory, "fixture.db");
+  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);

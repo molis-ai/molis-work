@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { pluginComponentChoices, resolvePluginComponentCall } from '@molis-ai/molis-work-design-system';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuilderAgentRequest, BuilderAgentRecord, BuilderSkill } from '@molis-ai/molis-work-contracts/services/agent-host';
@@ -49,7 +49,7 @@ export interface AgentBuilderPorts {
   validateContract(contract: unknown): void;
   prepareBuild(previous: AgentBuild, design: AgentDesign, manifest: BuildManifest): Promise<string>;
   check(build: AgentBuild, operationIds: string[], signal: AbortSignal): Promise<BuildCheckResult>;
-  call(build: AgentBuild, operationId: string, input: SandboxJson): Promise<SandboxJson>;
+  call(build: AgentBuild, operationId: string, input: SandboxJson, control?: Pick<PluginExecutionControl, "signal" | "beforeEffect">): Promise<SandboxJson>;
   resetPreview(buildId: string, beforeReset?: () => void): Promise<void>;
   choose?(question: { key: string; instructions: string; state: string; candidates: readonly { key: string; description: string }[] }): Promise<{ choice: string | null; model: string; elapsedMs: number; confidence: number | null }>;
   /** How many operations are written at once (default 3; 1 writes them one after another). */
@@ -672,10 +672,10 @@ export class AgentBuilderWorkflow {
     }
     return result;
   }
-  async call(id: string, componentId: string, binding: 'read' | 'submit', payload: unknown) {
+  async call(id: string, componentId: string, binding: 'read' | 'submit', payload: unknown, control?: Pick<PluginExecutionControl, 'signal' | 'beforeEffect'>) {
     const build = this.store.require(id), node = build.nodes.find(item => item.id === componentId); if (!node || !build.design) throw new Error('界面组件不存在');
     const call = resolvePluginComponentCall(node, binding, payload); if (!build.connected.includes(call.operationId)) throw new Error('这个操作尚未接通，输入已保留');
-    return this.ports.call(build, call.operationId, call.input as SandboxJson);
+    return this.ports.call(build, call.operationId, call.input as SandboxJson, control);
   }
   private async resetPreview(id: string, token?: string) { const check = token ? () => this.current(id, token) : undefined; check?.(); await this.ports.resetPreview(id, check); check?.(); }
   /**

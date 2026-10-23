@@ -8,7 +8,7 @@
 
 ## 一次典型调用
 
-Host 把架子快照交给 UI contribution；HTTP 路由表拥有 `/api/shelf` 匹配，Host 注入 admit / job / file。快照带上本机 Agent 状态和整张 Recipe 表，动作栏按选中材料挑该用的动作。插件不写项目 Goal。在项目内可预览并确认「存到项目资料」：Host 把当前完整文字存成项目成果库里的一份导入文档（`apps/local-host/src/shelf-actions.ts` 的 `saveShelfToProject`），项目里的 Agent 都能经项目资料（`knowledge.*`）找到，人也能在输入框的项目资料选择器里选它。重复保存未变正文复用版本，编辑产生新版本；个人架子的编辑、隐藏或移除不改项目里存下的那一份。PDF/图片先使用已有提取动作转成文字。
+Host 把架子快照交给 UI contribution；HTTP 路由表拥有 `/api/shelf` 匹配，Host 注入 admit / job / file。快照带上本机 Agent 状态和整张 Recipe 表，动作栏按选中材料挑该用的动作。插件不写项目 Goal。在项目内可预览并确认「存到项目资料」：Shelf 经成果库公开的文件导入动作（`ARTIFACT_FILE_IMPORT_ACTION`，`src/home-plugin.ts`）把当前完整文字存成项目成果库里的一份导入文档，项目里的 Agent 都能经项目资料（`knowledge.*`）找到，人也能在输入框的项目资料选择器里选它。重复保存未变正文复用版本，编辑产生新版本；个人架子的编辑、隐藏或移除不改项目里存下的那一份。PDF/图片先使用已有提取动作转成文字。
 
 ## 从哪里读代码
 
@@ -48,7 +48,7 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-project-knowledge-http.test
 - 公开入口：`@molis-ai/molis-work-plugin-shelf`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-module-shelf`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`）；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 架子的文件声明是 `SHELF_OWNER_FILES`（`catalog.json`、`files/`、`jobs/`，插件包导出）。Home 动作由 Shelf 的 Runtime Home 实例提供（`src/registration.ts` 的 `runtime: { scope: "home", owner_files, initialize_owner_files }`，`src/home-plugin.ts`），文件走平台的 `services.ownerFiles`；项目一半（宿主的 `shelfProjectActionProvider`）仍由 Host 按这份声明装配文件客户端（过渡，PG-026-S1，Shelf S4 删）；动作端口里改架子的方法返回 `T | Promise<T>`，处理器都 `await`。
+  - 架子的文件声明是 `SHELF_OWNER_FILES`（`catalog.json`、`files/`、`jobs/`，插件包导出）。Home 动作和项目里的动作（存到项目资料、接收项目成果）都由 Shelf 的 Runtime 实例提供（`src/registration.ts` 的 `runtime: { scope: "home", dual_instance, owner_files, initialize_owner_files }`，`src/home-plugin.ts`），文件走平台的 `services.ownerFiles`；Host 按这份声明装配的文件客户端只剩演示数据的种子在用（`openHostShelfFiles`，过渡，PG-026-S1，Shelf S4 删）；动作端口里改架子的方法返回 `T | Promise<T>`，处理器都 `await`。
   - 不依赖 Goals 或 Artifacts 实现；交给项目的文字材料是过程项，由 Host 注入的公开端口写入，未绑项目时不能发布。
   - 个人架子的编辑、隐藏或移除不改项目里的旧版本。
   - 首次打开时架子里放着一份「试用示例.pdf」，是有意的首次使用引导，不是演示数据：只在架子从未放过任何材料时，由实例启动时的 `initialize_owner_files` 放一次，读快照不写（`seeded_sample`；删掉以后重启实例、重新授权也不放回；放入任何材料或示例本身之后，用户删除、隐藏都不会自动放回，设置里的「使用指南」可由用户主动再放一份），写在用户 Home 的个人架子里，不进任何项目库，不读不写用户的内容。它让「提取文字、拖走结果」在没有 Agent、没有授权、没有网络时也能走完一遍（[Shelf 插件需求](../../../specs/archive/shelf-plugin/spec.md)「动作与引导」）。保留是 W2-18 决定 12（2026-10-09）：不改成空状态按钮，不删除。

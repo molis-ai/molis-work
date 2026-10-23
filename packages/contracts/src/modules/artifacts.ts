@@ -28,6 +28,9 @@ export interface ArtifactReference {
 
 export const ARTIFACT_SUBJECT_KIND = "artifact";
 
+/** Imports a file into the caller's current project through its owner. */
+export const ARTIFACT_FILE_IMPORT_ACTION = { capability_id: "artifacts.import.file", version: 1, provider_id: "io.molis.work.artifacts" } as const;
+
 /**
  * An imported file or document in the 成果库 (specs/artifact-positioning A3): its type, and its original file as imported
  * (bytes for any file, or the text of an older text import). The 成果库 shows it; a plugin that continues from it reads it.

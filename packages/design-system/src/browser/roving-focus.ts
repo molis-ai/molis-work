@@ -15,7 +15,7 @@ type Role = (typeof GROUPS)[number];
 const GROUP = GROUPS.map((role) => `[role=${role}]`).join(",");
 const ITEMS: Record<Role, string> = {
   tablist: "[role=tab]", radiogroup: "[role=radio]", menu: "[role^=menuitem]", menubar: "[role^=menuitem]", listbox: "[role=option]",
-  toolbar: "button, [role=button], [role=checkbox], [role=radio], [role=switch], a[href], select, input, [tabindex]:not([tabindex='-1'])",
+  toolbar: "button, [role=button], [role=checkbox], [role=radio], [role=switch], a[href], select, input, [tabindex]",
 };
 const CHOSEN = "[aria-selected=true], [aria-checked=true], [aria-current]:not([aria-current=false]), [aria-pressed=true]";
 const TYPING = "input:not([type=button], [type=checkbox], [type=radio], [type=reset], [type=submit]), textarea, select, [contenteditable=true]";

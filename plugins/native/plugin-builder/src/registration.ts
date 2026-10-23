@@ -13,6 +13,16 @@ export const registration: PluginRegistration = {
   personal: true,
   summary: "用自然语言设计、构建并使用自己的插件。",
   workbench: {
+    pageRequests: [
+      { method: "GET", path: "/api/plugin-builder/studio/state" },
+      { method: "POST", path: "/api/plugin-builder/studio/settings" },
+      { method: "POST", path: "/api/plugin-builder/studio/builds" },
+      { method: "GET", path: "/api/plugin-builder/studio/builds/:id" },
+      { method: "GET", path: "/api/plugin-builder/studio/builds/:id/events" },
+      { method: "GET", path: "/api/plugin-builder/studio/builds/:id/mockups/:picture" },
+      { method: "POST", path: "/api/plugin-builder/studio/builds/:id/action" },
+      { method: "POST", path: "/api/plugin-builder/studio/builds/:id/call" },
+    ],
     order: 1,
     contributions: [builderUiContribution],
     // The studio is drawn in the plugin's stage; generated plugin parts in its canvas use the plugin components.

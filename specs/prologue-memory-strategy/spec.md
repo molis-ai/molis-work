@@ -1,6 +1,6 @@
 # Prologue 记忆策略与 Molis Work 接入
 
-状态：首期实施已获用户授权（2026-10-22）；C0/Q0 已独立交付，Molis C0/Q0 已合入 main；Prologue C0 与 S1 版本恢复、分类授权、业务 key、管理分页四片已合入 main；M1 配置采用第一片已提交 PR，完整回归与产品验收仍未完成；后续按 §9.3 的依赖推进。负责人：当前统筹会话；SDK 合同、Molis 产品合同、质量基线分别有执行负责人。已确认目标仍是 Molis Work 的记忆更精准、好用、省 token，以及 Prologue 的多策略组合和 App 自定义记忆矩阵。实施和验证事实只记在 §13；未通过的标准不因计划或合同落地而算完成。用户随后已授权按可独立验收部分提交、推送、开 PR，合并按依赖顺序；真实 Home 数据采用与发布仍不在本次范围内。
+状态：首期实施已获用户授权（2026-10-22）；C0/Q0 已独立交付，Molis C0/Q0 已合入 main；Prologue C0 与 S1 版本恢复、分类授权、业务 key、管理分页、停用恢复及候选期限检查已合入 main；M1 配置采用第一片已完成工程回归并合入 main；完整 P0 的形成、召回、SDK 接入和产品验收仍未完成；后续按 §9.3 的依赖推进。负责人：当前统筹会话；SDK 合同、Molis 产品合同、质量基线分别有执行负责人。已确认目标仍是 Molis Work 的记忆更精准、好用、省 token，以及 Prologue 的多策略组合和 App 自定义记忆矩阵。实施和验证事实只记在 §13；未通过的标准不因计划或合同落地而算完成。用户随后已授权按可独立验收部分提交、推送、开 PR，合并按依赖顺序；真实 Home 数据采用与发布仍不在本次范围内。
 
 ## 1. 用户结果与责任边界
 
@@ -436,6 +436,33 @@ P1 的 import 使用有界批次，先完整校验该批，再在 Host 可证明
 
 读取的 token 配额、代表性库规模和性能波动界在 Q0 实测后随运行参数记录；任何调参只用调参集，不在验证结果出来后放宽 §9.2。首期复用现有内容大小边界，Molis 正文仍最多 400 字符。
 
+#### 助理已撤回补充的当前读取修复
+
+现役助理从 SDK Run view 的本人补充记录提取 `typedWords`，供 `remember` 的原话核验和完成后的 `learnFromRound` 使用；SDK 已保留 `steer.state = withdrawn`，但提取时未排除。此片只在这一个既有读取主人中过滤已撤回补充，沿用原输入记录、记忆门和学习交接，不新增来源存储或修改 Coding 的来源归属。撤回事实不可由模型覆盖，也没有新增可调开关；本人仍经现有助理撤回入口操作。
+
+- **MEM-WITHDRAWN-01**：本人在运行中发送补充并经现有入口撤回后，`remember` 再引用该补充不能保存为 `source=said`；按原有不可信原话处理为待认可建议。初始本人消息和未撤回补充保持原行为。
+- **MEM-WITHDRAWN-02**：同轮完成后的真实学习交接 `said` 排除已撤回补充，保留初始本人消息与未撤回补充的原顺序；Host、页面或助理代写的排除规则不变。
+
+验收通过真实 AssistantService → Agent Host → SDK 输入发送/撤回路径和原记忆服务，供应商响应使用有界脚本替身，并运行 Local Host README 的助理逻辑回归及输入撤回、记忆学习相关用例；这不证明真实模型的语义质量。此片不追溯撤销已经写入的记忆，不保证已排队学习快照被撤回，也不解决遗忘后的来源重放；来源版本、提交前复核与删除屏障仍待 S2 采用。
+
+#### M1 后续独立片：自动批准门 v2
+
+本片先落实 MEM-12 的现役自动批准约束：`source=auto` 只有经过既有来源核验、独立重复与开关检查的 preference/convention 可以自动晋升；experience 与 fact 保留为候选，由本人接受。审批规则升为 v2，旧条目的规则版本与历史不重写。人工保存、本人接受、插件在自身 namespace 内的既有批准路径和现有开关语义保持不变。
+
+实现沿用 `horizontal/memory` 的写主人与候选路径，允许修改本节、该包 README、内部批准规则及 Service 门段、对应公开入口和记忆服务/学习测试。不改持久 prefs、ledger 版本、SDK 包、Agent Host 合同或 UI；四预设、分类字典与矩阵仍属 P0，随 M2 的可信场景和真实 SDK 配置装配完成，不先发布只有测试消费的配置生成器。现有 `form=false` 仍允许人工保存和读取，不映射成 off；泛用 agent 身份也不推定为 coding 场景。
+
+验收使用隔离 Home 上的真实 MemoryService、Node SDK 后端和 ledger：重复经验仍为待审候选，重启后由本人接受才成为正式记忆，历史与读取可见；既有自动变更的撤销仍可用，人工接受不会被旧自动撤销覆盖。偏好/约定自动晋升、关闭自动形成、手动保存及插件边界的原回归保持。按该包 README 的定向命令验证，不调用外部模型；本片不宣称完成 SDK 分类采用或矩阵管理。
+
+#### M2 前置片：助理学习队列保留可信来源
+
+现役完成回调先把本人消息降成 `said: string[]`，`memory.learn` 再持久复制正文；排队后的撤回、原 Run 取消和形成开关变化不能仅靠排队时的检查。此片沿用同一队列和 MemoryService 写主人，队列只保存已有 work/session/run 与输入事件引用，执行时从 AssistantStore 的原始轮次及 Agent Host 的输入记录重读，不新增来源正文库。初始消息身份是不可变的 work/run 原件，补充身份是 SDK input_id；版本表示该原件，不用工作 revision、队列重试或正文相同冒充独立来源。Host、页面、助理及工具代写不变成本人原话；`about` 只是关联，不自行判作撤销。
+
+源与调用者由可信 Host 绑定。提炼前、模型返回后及候选写入前重新核对原件、归属、撤回、原 Run 状态、工作/项目存活和现有形成开关；无原件或无法核验时跳过，不调用模型或留下候选/历史。等待期间失效时，丢弃迟到结果，已完成的写入不伪装回滚。同一来源的排队/重放保留原身份，不成为第二次独立表态。已有只有 `said` 的排队任务仅在其原 work/session/run 的可信记录能逐条完整恢复时继续；不能恢复的不补造来源。原 `typedWords` 的人工记住核验保留，Coding 自有会话仍经其主人，不能拿助理 session 引用冒读。
+
+允许修改本节、Local Host README，`apps/local-host/src/assistant/assistant-inputs.ts`、`assistant-service.ts`、`assistant-http.ts` 与同目录的来源读取职责，`apps/local-host/src/memory/memory-learning.ts`、`memory-host.ts`、`memory-effect.ts`，以及助理记忆、记忆学习和动作的定向测试。复用现有执行检查和 ledger 控制，不改 SDK 包、锁文件、Agent Host 公共合同、ledger baseline、四预设分支或 UI；配置仍由现役开关拥有，缺源拒绝不能配置掉。
+
+验收经真实生产队列、隔离 Home、Node SDK 和可控本地模型响应：正常本人初始消息/补充形成候选；排队后撤回、Run 取消、关闭形成、删除工作或项目在提炼前零模型请求，模型返回或写入等待后失效零候选/正式正文/历史；重启重读原件且重复任务不形成独立证据，代写内容不得成为本人来源。保留现有记住、history/undo/import/export/delete 回归，不调用外部付费模型。此片不完成 SDK MemorySourcePort 装配、同源遗忘抑制及 pending 决定对账；这些仍随 S2 和严格 SDK 采用接入，不能以本片宣布 MEM-35 全部完成。
+
 ### 9.5 Q0 基线记录与证据边界
 
 本轮固定的 B1 为 Molis `f6b2ff4bfba4f7ceb5aeaf95495a5e41fe85ea10`，实际使用 `attachment-order` SDK 包，上游来源 `753dbae8359e56a74397d030af4d18abf402d5b5`。Prologue 的实现起点是 `f481d53726b3a896a525386d8e93225f6091e947`，两者不能当作同一版本。B0 在相同初始材料和任务下关闭记忆；B2 只在新生产路径可运行后测量，缺席不是零成本。必要时补“新 SDK + 原 Molis 配方”的归因对照，区分 SDK 既有修复与新记忆策略的收益，不把其差异全部归功于本方案。
@@ -611,8 +638,18 @@ B1 冷启动失败另有 estimated input 6926、output 3072 和 partial cached i
 | M1 第四轮集成验证 | 冻结 `95355d2c0d59b16085d836941e4924f4282a09d1`；整体 build、health、资源、boundary、密钥及 6 文件 20 项通过，无重试/跳过。资源实测 26 项 7620447 B；[完整 Linux 回归 39862775962](https://github.com/molis-ai/molis-work/actions/runs/39862775962) 已终态 failure：16 分片中 15 成功、1 失败，1293 个选中文件均有结果、1292 个文件最终状态通过。3 个首次失败中 composer-steady 与 context-card-in-work 重试恢复，workflows-touch-tools 重试仍失败；16 份日志均核对准确 head，记忆采用错误零命中。#1044 的 12 项与 #1046 的 73 项全部首次通过，memory-adoption 9 项、guard 3 项首次通过；最终报告 `/private/tmp/molis-memory-p0-round4-final-20261023.json` 已由统筹复核 | #1021 仍不合并。文件通过不等于全部用例执行：5 个 live/平台条件文件全部跳过，plugin-sandbox-network 为 6/7、desktop-tui 为 34/35；另有 27 个 macOS 文件由原工作流整文件排除。两项重试恢复仍未归因，触控输入修正版尚不在本轮；不把零采用错误或局部通过写成 P0 完成 |
 | M1 第五轮集成验证 | [完整 Linux 回归 39867911702](https://github.com/molis-ai/molis-work/actions/runs/39867911702) 已终态 success：冻结 `4ccdf2d951219b3e82f6564b2a83babc9ee0134b`，16/16 分片与汇总通过，1293 个选中文件均有结果、最终文件状态全部通过；work-placement-journeys 和 plugin-tab-groups 首次失败后按原 retry 1 恢复，零最终失败。原触控/hover、代码布局/增量/50ms 性能、完整模型夹具 11 文件 73 项及 memory-adoption/guard 均首次通过。16 份完整日志核对准确 head，记忆采用错误零命中；最终报告 `/private/tmp/molis-memory-p0-round5-final-20261023.json` 已由统筹复核。#1045 已由正常队列合入 `9483928a8`；#1021 无冲突同步该实际 main，已提交整树与本轮冻结树完全一致，后续仅更新本文记录；最终本地整体 build、health/资源/边界与独立评审通过 | 本轮满足 M1 第一片完整工程回归门，按正常 CI/合并队列交付，实际合并回执见 PR。两项重试分别为标题焦点对象 undefined 与中键后台页签等待超时，原因尚未完全确定；保留失败与恢复原日志，不追加重试、不改阈值或隔离名单。5 个全跳过文件、plugin-sandbox-network 6/7、desktop-tui 34/35及 27 个 macOS 整文件排除单列，不能记为全部用例实跑；首期新 SDK、质量/成本与产品/用户验收未完成 |
 | M1 最终组合本机安装补验 | 同一冻结 `4ccdf2d95` 使用已缓存独立 Node v24.19.0 / ABI137 / arm64（仅系统动态库），7 文件 129/129、零失败/取消/跳过/重试：原六文件当前为 108 项（onboarding 从 23 增至 24），另含 installed-plugin-host 21 项；覆盖安装、版本/配置采用、启动拒绝、重启与插件宿主实际进程。统筹核对完整日志及环境，工作树干净、未重新构建或修改测试/沙箱；日志 `/private/tmp/molis-memory-p0-round5-m1-installed-final-20261023-tests.log` | 证明此组合的本机工程范围；不代表全部 macOS 测试、最终 App 产品实操或用户验收。未访问真实 Home 或 Keychain；旧 Homebrew Node 的 Seatbelt 动态库问题保留原归因，不据此放宽沙箱 |
-| S2 / S3 / M2 / M3 / I0 | 按 §9.3 等待实际前置产物；统筹负责共享装配、包及最终集成 | P0 全部行为、干净包/真实 Host、成对 B2 质量与成本、最终 App 实操及用户验收仍待完成 |
+| M1 第一片合并回执 | #1021 已于 2026-10-23 09:00:34 JST 经正常队列合入 main，merge `b87cf34d3b4c240c2ed364eeda88852a28944739`。PR head `12b68a084` 常规 CI `39872281131` 为 13 成功、1 可选跳过；队列 CI `39874816425` 为 10 成功、3 按既有配置跳过，零失败。入队主线另含 #1047/#1025，组合基线 `d14a49565`；对实际队列提交重新 build、资产门及 Git/Pages/Memory 六文件 32/32 首次通过，统筹复核主线与已测组合零差异 | 全量回归仍对应冻结 `4ccdf2d95`；新增主线组合由专项和队列验证，不将其外推成又跑一遍 fullsuite。M1 第一片工程交付完成，真实 Home 与产品/用户验收未进行 |
+| S1 停用与恢复独立片 | [Prologue PR #67](https://github.com/molis-ai/molis-prologue/pull/67) 已合并（head `43e75819`，merge `8f67623a`，两者 tree 一致）。独立 disabled 与显式 resume、暂停/停用互斥、编辑/改类/key 替换保持停用、任务读取拒绝、管理批处理和删除原因清除已实现；持久 shape 6。完整 quality 通过（679 项稳定回归、干净安装真实 Node/本机 HTTP、Rust fmt/clippy），Memory 专项 15 文件 219 项通过；实际旧 shape 5 SDK 对新库 hydrate/update/重试/purge 拒绝，0 Host commits，新 SDK 重启仍保留停用并可显式恢复 | 工程验证通过，独立 diff 评审无已确认 P1/P2；无 GitHub 人工 approval 不写成人审通过。Molis 尚未接入，未证明最终 App 或更省 token。旧导出 v1 不宣称完整分类/状态 round-trip；现有消费 App 历史/撤销/导入导出仍须保留 |
+| S1/S2 候选自有期限独立片 | [Prologue PR #68](https://github.com/molis-ai/molis-prologue/pull/68) 已合并（head `c71de58c`，merge `6d0232e0`，两者 tree 一致）。候选 accept/settleInto 不能借替换 meta 延长自身期限；当前权限先于到期披露；正式新写入最后提交前再查候选期限。已确定正式提交、仅关联回执待补的同操作重试可对账，仍查当前权限/Session/删除与版本；普通写入没有期限绕行。新增稳定码 `MEMORY_CANDIDATE_EXPIRED`。原始到期反例 8 项失败后转绿，最终候选专项 48 项、全部 Memory 16 文件 245 项与完整 quality/干净安装真实 Node/本机 HTTP、Rust fmt/clippy 通过 | 工程验证通过；本片 policy promotion 仅生产 core 门的定向验证，公开 Runtime 尚未装配晋升，不能宣称 S2 形成闭环完成。写前硬秘密门、来源遗忘屏障、Molis 历史和 SDK 采用继续推进 |
+| Molis 自动批准门 v2 | [PR #1054](https://github.com/molis-ai/molis-work/pull/1054) 已经正常队列合入 main `2d48e572e116b9c38356e20d422418a23021e157`。只有符合既有重复证据与开关的 preference/convention 可自动批准，experience/fact 保留候选；旧规则版本不重写，人工接受与历史/撤销保留。PR head `f8c2cfc7014eda99528e5880dd5f7c7f8a1bd257` 全部 CI 成功（1 个既有可选跳过），含此前失败后修复的 Product subset。主线相对已测 head 仅增加先行合入的 spec 记录 | 工程交付完成；四预设、SDK 分类采用与真实模型收益尚未完成，无人工 approval 不冒充人审或用户验收 |
+| Molis 已撤回补充的当前读取独立片 | [PR #1056](https://github.com/molis-ai/molis-work/pull/1056) 完成 §9.4 MEM-WITHDRAWN-01/02。真实 AssistantService → SDK 发送/撤回反例先证明已撤回文本仍被保存为 said、也进入完成学习；仅在 `typedWords` 过滤 SDK 已记录的 withdrawn 后转绿。原基线 8ff0e9f 的 build、9 文件 119 项通过；合入 #1054 主线后保留两份相邻 spec 合同，组合 `0b8dbeb83dda92f8b95387fdb2d4857a05669a23` 再 build 通过，助理/撤回/学习/MemoryService/维护共 11 文件 149 项、零重试/跳过通过，含页面代写的真实 Chrome 回归 | 已推送可评审，本地工程验证通过，等待新 head CI；不改变 Coding 来源策略，不追溯撤销已写入记忆，不解决已排队学习快照或遗忘重放。模型响应为脚本替身，不代表 S2/M2、真实 Provider 效果或产品/用户验收完成 |
+| S1 写前内容门独立片 | [Prologue PR #69](https://github.com/molis-ai/molis-prologue/pull/69) 已合并，merge `634cee2de5c50caf0a638dba83bfdaabc7a9d020` 与已测 head tree 一致。正式、候选、导入和管理输入复用 workspace 硬敏感名单；拒绝访问器且不执行，编码持久输入按原正文检查。完整 quality 和全部 Memory 17 文件 273 项通过 | 工程验证通过；不替代来源真实性、语义质量或 Molis ledger 写前检查。真实 Home 未操作 |
+| S3-A 有界召回独立片 | [Prologue PR #70](https://github.com/molis-ai/molis-prologue/pull/70) 已合并，merge `adf1cbbc74b68d09813aebc8c5df2a753ade3fca` 与已测 head tree 一致。单次多 scope 召回共享扫描/候选/载荷上限与 deadline，范围许可先于读取、成本默认脱敏、失败和迟到结果不返回部分正文。完整 quality 和 Memory/工作台 20 文件 373 项通过 | 工程验证通过。Node 目录仍全量枚举，不把 record-slot 上限说成物理枚举硬上限；异步自定义 recaller 与组合配方尚未交付 |
+| S3-B 最终包装预算与派发回执 | [Prologue PR #71](https://github.com/molis-ai/molis-prologue/pull/71) 已合并，merge `cc138457b741c132451dc29c7808a339ccb8c8ca` 与已测 head `00c733287f80473bc6ed4b85973b19608b3f34eb` tree 一致。结构化关联贯穿原文/摘录/摘要及最终消息；App/分类/Run 预算共同取小；按 prepared handle 固定计数，发送前重读当前授权/期限/版本。本地完整 quality（679 项稳定检查、干净安装和 Rust）及 30 文件 468 项专项通过；追加干净安装包公开入口经真实 Node/本机 HTTP 证明包装超额零注入、足额时实际发送与回执计数一致 | 工程验证通过；云端 job 未启动，失败注解确认为账单阻塞，按已批准的本地门禁合并。回执区分准备、未派发、派发或未知、观察到响应，不称模型采用。resident/task/expand、Molis 接入、B2 真实收益及产品/用户验收仍未完成 |
+| S2 可信来源候选首片 | [Prologue PR #72](https://github.com/molis-ai/molis-prologue/pull/72) 已合并，merge `d9425073c23e4cc3865dbda90e29623bf8798aa7` 与已测 head `f8aa5a9900c9d95ad2f59999d31604be905dfba8` tree 一致。App 提供可信来源 Port，候选按操作身份持久创建，保存去正文的事件/版本/主体；新正式提交前复核来源、当前权限与期限，已确定提交的原操作允许补关联。shape3 在唯一 decode 核对原创建引用，来源删改不能降成人工候选。完整 quality 679 项及 Memory 22 文件 340 项通过，干净包真实 Host 创建/重启/接受/抑制重放通过；实际 shape2 旧包五条候选入口拒绝新格式、目标写入零 | 工程验证通过；已占用但正式结果未确定的决定仍需对账，不能直接 purge；extractor、正式记忆全链撤销、Molis 可信来源适配及完整遗忘闭环保持后续 P0，未操作真实 Home |
+| M2 助理学习队列来源前置片 | 基于 main `88c58bdca603ecc185b8020cdf4812d79c772a78`：完成回调保留 work/session/run/input 原身份，队列只存引用，执行与实际 SDK 写入前重读原件。统筹独立审查生产调用链及测试。完整 build、19 文件 225 项回归通过，零重试、跳过或最终失败；包括真实 SDK/隔离 Home、生产队列、两项浏览器代写路径。旧完成回调丢失 sources 的真实基线反例先红后绿。同源队列重试实际提炼两次，但只有一个候选和一条证据；撤回、取消、形成关闭、归档、项目删除、最终提交时失效及重启均有覆盖。health、包边界通过，官方 unknown casts 基线只下降 173→171 | 本地工程验证通过，准备独立 PR；模型响应为脚本替身。尚未接新 SDK MemorySourcePort、Coding 来源和完整遗忘抑制，未证明真实 Provider 质量或完整 P0 产品/用户验收 |
+| S2 / S3 / M2 / M3 / I0 | 按 §9.3 核对可信来源/候选门、异步召回/Context、产品管理与真实 SDK 接入的可并行边界；统筹负责共享装配、包及最终集成 | P0 全部行为、干净包/真实 Host、成对 B2 质量与成本、最终 App 实操及用户验收仍待完成 |
 
 交付按可独立验收部分拆 PR：C0/Q0 合同、工具与冻结结果先行；S1 第一片单独交付版本检查、并发写入与恢复；M1 第一片单独交付有效配置采用与启动保护。两仓实现 PR 分别依赖各自 C0/Q0 父 PR，后续分类、形成、召回和界面按 §9.3 依赖继续拆分；父 PR 进入 main 后再合并子 PR，不将 stacked 分支合并视为进入 main。此处持续补充 PR 和最终 head 的验证结果；未操作真实 Home，也未发布。
 
-下一批继续沿现有任务分片：S1 已交付业务 key 与 SDK 分类管理分页，但条目级 disabled/恢复、跨候选及 Molis 历史的完整遗忘仍须收束；分类计数也不能以跨页 unknown 当作完整统计。S2 首片先闭合可信来源到持久待审候选，S3 接有界召回与最终回执。Molis 采用新 SDK 前必须提高下一严格格式基线：当前 ledger 3 无法阻止同样识别 3 的 M1 旧程序。管理调用复用现有可信执行上下文，后台 Run 复用 Session owner index，缺绑定拒绝；不创建全局 currentCaller。真实生产切换仍依赖 S1～S3 与 M1 完整产物，界面分页/统计不得先用前端切片代替 SDK 查询。
+下一批继续沿现有任务分片：S1 已交付业务 key 与 SDK 分类管理分页，条目级 disabled/恢复已由 #67 交付；跨候选及 Molis 历史的完整遗忘仍须收束；分类计数也不能以跨页 unknown 当作完整统计。S2 首片先闭合可信来源到持久待审候选，S3 接有界召回与最终回执。Molis 采用新 SDK 前必须提高下一严格格式基线：当前 ledger 3 无法阻止同样识别 3 的 M1 旧程序。管理调用复用现有可信执行上下文，后台 Run 复用 Session owner index，缺绑定拒绝；不创建全局 currentCaller。真实生产切换仍依赖 S1～S3 与 M1 完整产物，界面分页/统计不得先用前端切片代替 SDK 查询。

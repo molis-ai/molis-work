@@ -14,13 +14,27 @@ const tools = (index: number) => `(() => { const chain = document.querySelector(
       clipped: box.top < chain.top || box.bottom > chain.bottom || box.left < chain.left || box.right > chain.right, x, y };
   }); })()`;
 async function media(browser: Browser, hover: "hover" | "none", pointer: "fine" | "coarse") {
-  if (pointer === "coarse") await browser.command("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 }, browser.sessionId);
+  if (pointer === "coarse") {
+    await browser.command("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 }, browser.sessionId);
+    await browser.frame.frameCommand("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+  }
   assert.equal(await browser.evaluate(`matchMedia('(hover:${hover})').matches && matchMedia('(pointer:${pointer})').matches`), true);
 }
 // Blink HoverTypeNone = 1 and PointerTypeFine = 4; do not reset them with touch-emulation(false).
 const NO_HOVER_FINE = ["--blink-settings=primaryHoverType=1,availableHoverTypes=1,primaryPointerType=4,availablePointerTypes=4"];
 async function chain(t: Parameters<typeof openWorkflowsBrowser>[0], chromeArgs?: readonly string[]) {
-  const browser = await openWorkflowsBrowser(t, { chromeArgs });
+  const owner = await openWorkflowsBrowser(t, { chromeArgs });
+  // Inspect the opaque editor and send native input at its actual position in the trusted workbench.
+  const command = async <T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId = owner.sessionId, timeoutMs?: number): Promise<T> => {
+    if (method === "Input.dispatchMouseEvent" || method === "Input.dispatchTouchEvent") {
+      const offset = await owner.evaluate<{ x: number; y: number }>("(()=>{const r=document.querySelector('iframe[data-plugin-frame=workflows]').getBoundingClientRect();return{x:r.x,y:r.y};})()");
+      const point = (value: { x: number; y: number }) => ({ ...value, x: value.x + offset.x, y: value.y + offset.y });
+      params = method === "Input.dispatchMouseEvent" ? { ...params, ...point({ x: Number(params.x), y: Number(params.y) }) }
+        : { ...params, touchPoints: (params.touchPoints as Array<{ x: number; y: number }>).map(point) };
+    }
+    return owner.command<T>(method, params, sessionId, timeoutMs);
+  };
+  const browser = { ...owner, evaluate: owner.frame.evaluate, waitFor: owner.frame.waitFor, click: owner.frame.click, command };
   await browser.click(`[data-wf-open="${browser.b.workflow_id}"]`);
   await browser.click("[data-wf-action=append][data-wf-plugin=inbox]");
   await browser.waitFor("document.querySelectorAll('[data-wf-station]').length === 3 && document.querySelector('[data-wf-save-state]').dataset.state === 'saved'");

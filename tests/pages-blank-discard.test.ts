@@ -55,7 +55,15 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
   const store = new Map<string, Doc>(initial.map(doc => [doc.id, doc]));
   const calls: Array<{ method: string; path: string; body: Record<string, unknown>; keepalive?: boolean; stored_version?: number }> = [];
   let editorBody: unknown = EMPTY, change: (() => void) | null = null, created = 0, config: EditorConfig | null = null;
-  const lifetime = fakeLifetime();
+  const lifetime = fakeLifetime({ close(action) {
+    assert.equal(action.reference.capability_id, "pages.discard");
+    const input = action.input as {id: string; expected_version: number};
+    workbench.setAttribute("data-expanded", "false");
+    const context = JSON.parse(attributes.get("data-assistant-context") || "{}"); delete context.object; delete context.unsaved;
+    workbench.setAttribute("data-assistant-context", JSON.stringify(context));
+    workbench.querySelector("[data-pages-stage-workspace]")!.hidden = true;
+    void fetch("/api/plugins/io.molis.work.pages/pages/"+input.id+"/discard", {method:"POST",body:JSON.stringify({expected_version:input.expected_version}),keepalive:true});
+  } });
   const saved = { fetch: globalThis.fetch, document: (globalThis as { document?: unknown }).document, window: (globalThis as { window?: unknown }).window };
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const workbench = element(), rows = element(), titleInput = element(), note = element();
@@ -133,8 +141,8 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
     }
     return json({ document: current });
   }) as typeof fetch;
-  const factory = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; projectId: string; mountPluginClient: typeof lifetime.mount }) => void;
-  factory({ translate: value => value, projectId: "project-pages", mountPluginClient: lifetime.mount });
+  const factory = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; projectId: string; mountPluginClient: typeof lifetime.mount; view: typeof lifetime.view }) => void;
+  factory({ translate: value => value, projectId: "project-pages", mountPluginClient: lifetime.mount, view: lifetime.view });
   await flush();
   const fire = async (event: ReturnType<typeof click>) => { await workbench.listeners.click!(event); await flush(); };
   return {

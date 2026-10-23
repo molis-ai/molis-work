@@ -1,3 +1,4 @@
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pluginWorkbenchClientAsset } from "@molis-ai/molis-work-app-workbench";
@@ -11,7 +12,7 @@ test("RAC-43: the Host keeps one Cognia Runtime surface and loads its registered
     assert.equal(response.status, 200);
     const html = await response.text();
     assert.equal([...html.matchAll(/data-work-surface="cognia"/g)].length, 1);
-    return html;
+    return html + pluginDocuments(html).join("\n");
   };
   const html = await page();
   assert.match(html, /data-cognia="workbench"/);

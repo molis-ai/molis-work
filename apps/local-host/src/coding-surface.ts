@@ -17,7 +17,6 @@ import {
   type CodingUiHostModel,
 } from "@molis-ai/molis-work-plugin-coding";
 import {
-  DIFF_PLUGIN_ID,
   DIFF_UI_CONTRIBUTION_ID,
   renderDiff,
   unifiedPatch,
@@ -33,7 +32,7 @@ import {
   renderGitBrowserDirectory,
   renderGitBrowserResult,
 } from "@molis-ai/molis-work-plugin-git";
-import { TEXT_STATS_PLUGIN_ID, TEXT_STATS_UI_CONTRIBUTION_ID, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
+import { TEXT_STATS_UI_CONTRIBUTION_ID, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
 
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -135,17 +134,7 @@ export const codingRouteHooks: ProjectPluginRouteHooks = ({ platform, pluginId, 
 });
 
 function decorateRuntimeResult(result: PluginRouteResponse, pluginId: string, request: IncomingMessage, url: URL, ports: ProjectPluginHttpPorts): void {
-  if (result.status === 200 && url.pathname.endsWith("/state")) {
-    const content = result.body as { view?: unknown; html?: string };
-    if (content?.view && pluginId === DIFF_PLUGIN_ID) content.html = renderDiff({
-      route_prefix: ports.routePrefix ?? "", view: content.view as DiffView,
-      primitives: { escape: value => escapeHtml(String(value)), text: L, icon: name => icon(name as Parameters<typeof icon>[0]) },
-    });
-    if (content?.view && pluginId === TEXT_STATS_PLUGIN_ID) content.html = renderTextStats({
-      view: content.view as TextStatsView,
-      primitives: { escape: value => escapeHtml(String(value)), text: L, icon: name => icon(name as Parameters<typeof icon>[0]) },
-    });
-  }
+  if (result.status === 200 && url.pathname.endsWith("/state")) decorateCompanionState(pluginId.replace("io.molis.work.", "") + ".state", result.body, ports.routePrefix ?? "");
   if (pluginId === CODING_PLUGIN_ID) decorateCodingResult(result, request, url, ports);
 }
 
@@ -163,6 +152,20 @@ export function codingNextSteps(run: CodingFollowUpRun & { awaiting_input: reado
 
 /** A card of a Coding session as Coding keeps it: the SDK's card, with no work of the Assistant's around it. */
 type CodingCard = Omit<StoredCard, "work_id">;
+
+/** The same presentation is attached after a declared page action or a plugin's own HTTP query has passed authorization. */
+export function decorateCompanionState(capabilityId: string, result: unknown, routePrefix: string): void {
+  const content = result as { view?: unknown; html?: string } | null;
+  if (!content?.view) return;
+  if (capabilityId === "diff.state") content.html = renderDiff({
+    route_prefix: routePrefix, view: content.view as DiffView,
+    primitives: { escape: value => escapeHtml(String(value)), text: L, icon: name => icon(name as Parameters<typeof icon>[0]) },
+  });
+  if (capabilityId === "text-stats.state") content.html = renderTextStats({
+    view: content.view as TextStatsView,
+    primitives: { escape: value => escapeHtml(String(value)), text: L, icon: name => icon(name as Parameters<typeof icon>[0]) },
+  });
+}
 
 function decorateCodingResult(result: PluginRouteResponse, request: IncomingMessage, url: URL, ports: ProjectPluginHttpPorts): void {
   // Coding draws the model's words itself (its `rich-html.ts`); the Host adds the question and suggestion cards and the next-step row.

@@ -15,7 +15,7 @@ export const FORM_STYLES = `
   @media (prefers-reduced-motion: reduce) { .creative-artifact-act { transition: none; } }
   .form-stage-chrome { pointer-events: auto; }
   [data-form=workbench] { --plugin-tint: var(--plugin-form); }
-  [data-form-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; overflow-x: auto; }
+  [data-form-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; flex-wrap: wrap; }
   .form-workspace > * { flex-shrink: 0; }
   [data-form-stage-workspace] > .form-note { flex-shrink: 0; }
   .form-tabs { display: flex; gap: 4px; margin-left: auto; }
@@ -115,7 +115,6 @@ export const FORM_STYLES = `
   .plugin-stage-detail-bar [data-form-editor-status].mw-status {
     flex: none; color: var(--status-tone, var(--muted)); font-size: 11px;
   }
-  .plugin-stage-detail-bar [data-form-delete] { margin-left: 8px; }
   .plugin-stage-list .mw-empty { max-width: min(100%, 30em); padding: 8px 8px 16px; }
   @media (max-width: 720px) {
     .form-identity { grid-template-columns: 1fr; }
@@ -140,6 +139,7 @@ export const FORM_STYLES = `
   .form-placement-line { margin: 2px 0 10px; }
   [data-form-empty]:not([hidden]) ~ .form-placement-line { display: none; }
   .form-share-menu > summary { list-style: none; }
+  @media (max-width: 600px) { .form-share-menu > .plugin-stage-more-actions { left: 0; right: auto; } }
   .form-collect-state { white-space: nowrap; }
   .form-collect-help { margin: 14px 0 0; }
   .form-results-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }

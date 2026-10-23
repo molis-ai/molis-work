@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
-const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
+const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
 
 test("图片完整HTTP链路：配置、本地生成、刷新、下载、失败后复用、窄屏", {timeout: 90_000}, async (t) => {
   let calls = 0;
@@ -21,12 +22,14 @@ test("图片完整HTTP链路：配置、本地生成、刷新、下载、失败�
   const address = provider.address();assert.ok(address && typeof address === "object");
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const {command,sessionId,evaluate,waitFor,navigate,click,reloadPage,origin,projectId} = browser;
+  const { command, sessionId, navigate, reloadPage, origin, projectId } = browser;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "images");
   await command("Emulation.setDeviceMetricsOverride", {width:1360,height:960,deviceScaleFactor:1,mobile:false},sessionId);
   await navigate(() => command("Page.navigate", {url:`${origin}/projects/${projectId}/`},sessionId,20_000));
-  await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=images]')");
-  await click('[data-plugin-strip] [data-plugin-id="images"]');
-  await waitFor("document.body.dataset.desktopSurface === 'images'");
+  await browser.waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=images]')");
+  await browser.click('[data-plugin-strip] [data-plugin-id="images"]');
+  await browser.waitFor("document.body.dataset.desktopSurface === 'images'");
+  await waitFor("document.querySelector('[data-images-new]')");
   await click('[data-images-new]');
   await click('[data-images-connections]');
   await waitFor("document.querySelector('[data-images-dialog]').open");
@@ -44,13 +47,14 @@ test("图片完整HTTP链路：配置、本地生成、刷新、下载、失败�
   await click('[data-images-generate]');
   await waitFor("document.querySelector('[data-images-result] img')?.complete && document.querySelector('[data-images-result] img')?.naturalWidth > 0",12_000);
   assert.equal(calls,1);
-  const url = await evaluate<string>("document.querySelector('[data-images-result] img').src");
+  const download = await evaluate<string>("document.querySelector('[data-images-result] a[download]').getAttribute('href')");
+  const url = new URL(download.split("?")[0]!, origin).href;
   const bytes = Buffer.from(await (await fetch(url+"?download=1")).arrayBuffer());
   assert.deepEqual(bytes,Buffer.from(PNG,"base64"));
   await command('Network.enable', {}, sessionId);
   await command('Network.setBlockedURLs', { urls: [url] }, sessionId);
   await reloadPage();
-  if(await evaluate("document.body.dataset.desktopSurface") !== "images") await click('[data-plugin-strip] [data-plugin-id="images"]');
+  if(await browser.evaluate("document.body.dataset.desktopSurface") !== "images") await browser.click('[data-plugin-strip] [data-plugin-id="images"]');
   await waitFor("document.querySelectorAll('[data-images-job]').length > 0 || document.querySelectorAll('[data-images-id]').length > 0 || document.querySelectorAll('.images-history-row').length > 0");
   await click('.images-history-row');
   await waitFor("document.querySelector('[data-images-result]')?.textContent.includes('图片暂时无法读取')");
@@ -63,14 +67,16 @@ test("图片完整HTTP链路：配置、本地生成、刷新、下载、失败�
   await click('[data-images-generate]');
   await waitFor("(document.querySelector('[data-images-result]')?.textContent || '').includes('429')",12_000);
   assert.equal(calls,2);
-  await evaluate("window.confirm = () => true");
   await click('[data-images-delete-job]');
+  await click('[data-page-dialog=confirm] button[type=submit]');
   await waitFor("document.querySelectorAll('.images-history-row').length === 1");
   await click('.images-history-row');
   await click('[data-images-delete-job]');
+  await click('[data-page-dialog=confirm] button[type=submit]');
   await waitFor("document.querySelectorAll('.images-history-row').length === 0");
   await click('[data-images-connections]');
   await click('[data-images-delete-connection]');
+  await click('[data-page-dialog=confirm] button[type=submit]');
   await waitFor("document.querySelectorAll('[data-images-edit-connection]').length === 0");
   assert.equal(calls,2,"删除本机记录和连接不会再次调用厂商");
   await click('[data-images-dialog-close]');

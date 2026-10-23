@@ -18,6 +18,8 @@ export interface PluginOwnerFilesWriter extends PluginOwnerFilesReader {
   setAccess(relative: string, access: "readonly" | "readwrite"): void;
 }
 export interface PluginOwnerFilesClient extends PluginOwnerFilesReader {
+  /** Location of this owner's declared root; grants no additional file access. */
+  rootPath(): string;
   /** The callback must finish synchronously. Its writer expires on return or throw. */
   write<Result>(run: (writer: PluginOwnerFilesWriter) => Result): Promise<Result>;
 }

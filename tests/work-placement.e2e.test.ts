@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
@@ -10,6 +11,7 @@ for (const width of [1440, 390]) test(`placement ${width}px: capture in the pers
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, reloadPage } = browser;
+  const pages = await pluginFrameBrowser(t, browser, "pages");
   const text = JSON.stringify;
   const output = new URL(`../${specEvidenceDirectory("specs/archive/work-placement/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
@@ -18,7 +20,7 @@ for (const width of [1440, 390]) test(`placement ${width}px: capture in the pers
     await writeFile(new URL(`placement-${name}-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   };
   const card = (words: string) => waitFor(`[...document.querySelectorAll('.placement-toast')].some(node => node.innerText.includes(${text(words)}))`, 12_000);
-  const bar = (words: string) => waitFor(`[...document.querySelectorAll('.placement-bar')].some(node => node.getClientRects().length && node.innerText.includes(${text(words)}))`, 12_000);
+  const bar = (words: string) => pages.waitFor(`[...document.querySelectorAll('.placement-bar')].some(node => node.getClientRects().length && node.innerText.includes(${text(words)}))`, 12_000);
   const current = () => evaluate<{ kind: string; id: string; title: string } | null>(`(() => {
     const node = [...document.querySelectorAll('[data-assistant-context]')].find(element => element.getClientRects().length && JSON.parse(element.getAttribute('data-assistant-context') || '{}').object);
     return node ? JSON.parse(node.getAttribute('data-assistant-context')).object : null; })()`);
@@ -31,7 +33,7 @@ for (const width of [1440, 390]) test(`placement ${width}px: capture in the pers
     await waitFor(`document.body.dataset.desktopSurface === '${plugin}'`, 12_000);
   };
   const panel = async (action: string) => {
-    await click(".placement-bar");
+    await pages.click(".placement-bar");
     await waitFor(`document.querySelector('.placement-panel [data-placement-action="${action}"]')`, 12_000);
     await click(`.placement-panel [data-placement-action="${action}"]`);
     await waitFor("document.querySelector('dialog.placement-dialog')?.open", 12_000);
@@ -43,15 +45,15 @@ for (const width of [1440, 390]) test(`placement ${width}px: capture in the pers
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/personal/?openPlugin=pages` }, sessionId));
   await openPlugin("pages");
   const projectTitle = await evaluate<string>(`fetch('/api/placement/spaces').then(r => r.json()).then(v => v.spaces.find(s => s.project_id === ${text(projectId)}).title)`);
-  await click("[data-pages-new]");
+  await pages.click("[data-pages-new]");
   await card("存到 个人空间");
   // The card comes once the workbench has described the new document; Pages opens it after it has read its list again. The two
   // requests run side by side (both through the Runtime now), so the document is read once it is the open one, not at the card.
   await waitFor(`[...document.querySelectorAll('[data-assistant-context]')].some(element => element.getClientRects().length && JSON.parse(element.getAttribute('data-assistant-context') || '{}').object?.kind === 'pages_document')`, 12_000);
   const doc = await current();
   assert.equal(doc?.kind, "pages_document");
-  await evaluate(`(() => { const input = document.querySelector('[data-pages-title]'); input.focus(); input.value = '上线前检查清单'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
-  await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 12_000);
+  await pages.evaluate(`(() => { const input = document.querySelector('[data-pages-title]'); input.focus(); input.value = '上线前检查清单'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await pages.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 12_000);
   await bar("个人空间");
   const personal = { kind: doc!.kind, id: doc!.id, project_id: "personal" };
   assert.equal((await describe(personal)).location?.title, "个人空间");
@@ -73,10 +75,11 @@ for (const width of [1440, 390]) test(`placement ${width}px: capture in the pers
   assert.match(await evaluate<string>("document.querySelector('[data-placement-related]').innerText"), /上线前检查清单[\s\S]*个人空间[\s\S]*只有你能打开/u);
   await screenshot("project-home");
   await click(`[data-placement-open=${text(doc!.id)}]`);
-  await waitFor(`location.pathname === '/projects/personal/' && document.querySelector('[data-pages-title]')?.value === '上线前检查清单'`, 15_000);
+  await waitFor("location.pathname === '/projects/personal/'", 15_000);
+  await pages.waitFor(`document.querySelector('[data-pages-title]')?.value === '上线前检查清单'`, 15_000);
   assert.equal((await current())?.id, doc!.id, "the same document, not a copy");
-  await evaluate(`(() => { const input = document.querySelector('[data-pages-title]'); input.focus(); input.value = '上线前检查清单（第二版）'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
-  await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 12_000);
+  await pages.evaluate(`(() => { const input = document.querySelector('[data-pages-title]'); input.focus(); input.value = '上线前检查清单（第二版）'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await pages.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'", 12_000);
 
   // 4. Organized later: moved into the project, the same identity; the old reference still finds it.
   await bar("个人空间");

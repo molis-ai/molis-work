@@ -1,140 +1,85 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-
-import { AgentHost, emptyCapabilityMatrix, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import { createHostScheduledTaskRunner } from "@molis-ai/molis-work-app-local-host";
+import { createServer } from "node:http";
+import test, { type TestContext } from "node:test";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createLocalFeedApplication, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
+import { scheduleActions, SCHEDULE_ACTION_PERMISSIONS, SCHEDULE_PLUGIN_ID, getScheduleConversationTask } from "@molis-ai/molis-work-plugin-schedule";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
-import { scheduleAgentManifest } from "@molis-ai/molis-work-plugin-schedule";
-import type { AgentRuntimeAdapter, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { MEMORY_PERMISSIONS, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
+import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
+import { openTestHome } from "./fixtures/test-home.js";
+import { seedConfiguredModels } from "./fixtures/configured-models.js";
+import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
+import { asideReply } from "./fixtures/ending-review.js";
 
-test("没有 Runtime 时到点执行说明原因", async () => {
-  const runner = createHostScheduledTaskRunner({
-    agentHost: new AgentHost(),
-    projectId: "project-1",
-    workspaceFor: async () => null,
+async function scheduledAgent(t: TestContext, options: { hold?: boolean; workspace?: boolean; model?: boolean } = {}) {
+  const f = await openTestHome(t), project = await f.createProject("Scheduled Agent");
+  if (options.workspace !== false) await withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog => catalog.commit(() => catalog.addWorkspaceProject({
+    project_id: project.project_id, canonical_path: f.home, actor_id: "web-user", user_confirmed: true,
+  })));
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), disconnected = Promise.withResolvers<void>(), prompts: string[] = [];
+  const model = createServer(async (request, response) => {
+    let body = ""; for await (const part of request) body += part;
+    const aside = asideReply(body);
+    if (!aside) { prompts.push(body); entered.resolve(); response.on("close", () => disconnected.resolve()); if (options.hold) await release.promise; }
+    if (response.destroyed) return;
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.end(await cogniaModelResponse(aside ?? "IMPORTANT: yes\n有三项工作需要处理。").text());
   });
-  await assert.rejects(
-    () => runner.run({ title: "汇总", instructions: "看一眼", history: [] }),
-    /还没有可用的 Agent Runtime/,
-  );
-});
-
-/** Records which Runtime a session was opened on, then stops the run there. */
-function fakeRuntime(runtimeId: string, opened: string[]): AgentRuntimeAdapter {
-  const unused = async () => { throw new Error("unused"); };
-  return {
-    descriptor: { runtime_id: runtimeId, display_name: runtimeId, provider_version: "1", capabilities: emptyCapabilityMatrix() },
-    async health() { return { ok: true, status: "ready", message: "就绪" }; },
-    async createSession() { opened.push(runtimeId); throw new Error(`stop:${runtimeId}`); },
-    readSession: unused, start: unused, read: unused, control: unused, readCommandOutput: unused,
-    observe() { return () => {}; },
+  await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
+  t.after(async () => { release.resolve(); model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
+  const address = model.address(); assert.ok(address && typeof address === "object");
+  if (options.model !== false) await seedConfiguredModels(f.home, [{ provider_id: "fixture", model_id: "fixture" }], `http://127.0.0.1:${address.port}`);
+  const caller = { actor_id: "web-user", project_id: project.project_id, audience: "user" as const, permissions: SCHEDULE_ACTION_PERMISSIONS };
+  const client = f.host.actionClient(project.reference);
+  const created = await client.invoke(caller, scheduleActions.createTask, { title: "早上汇总", instructions: "汇总本周进展", time: "08:30", notify_important: true });
+  const store = await f.host.withProject(project.reference, runtime => runtime.store), clock = scheduleServiceFor(store.db);
+  const agents = f.host.ensureAgentService(f.home, () => { throw new Error("The served Home must already own its Agent service"); });
+  const starts = t.mock.method(agents.agentHost, "start");
+  return { ...f, project, store, client, caller, agents, starts, prompts, entered: entered.promise, disconnected: disconnected.promise, release: () => release.resolve(),
+    task: () => getScheduleConversationTask(store.db, created.task.task_id)!,
+    tick: () => clock.tick(new Date(Date.parse(clock.get(created.task.job_id!)!.next_due_at) + 1000)),
+    resume: () => client.invoke(caller, scheduleActions.setTaskEnabled, { task_id: created.task.task_id, enabled: true }),
   };
 }
 
-const workspace = async () => ({ canonical_path: "/tmp/schedule-project", realpath_verified: true }) as never;
-
-test("a schedule cancelled while waiting for the Home Runtime cannot create an Agent session", async () => {
-  const opened: string[] = [], controller = new AbortController(), agentHost = new AgentHost();
-  agentHost.register(fakeRuntime("prologue", opened));
-  const runner = createHostScheduledTaskRunner({ agentHost, projectId: "b", workspaceFor: workspace,
-    ready: async () => { controller.abort(new Error("schedule paused")); } });
-  await assert.rejects(runner.run({ title: "late", instructions: "wait", history: [] }, {
-    signal: controller.signal, beforeEffect: () => controller.signal.throwIfAborted(),
-  }), /schedule paused/);
-  assert.deepEqual(opened, []);
+test("SYS-15-A1/S4: the real Schedule wakeup runs the Home Prologue reader with history, memory and the tick's call id", { timeout: 60_000 }, async t => {
+  const f = await scheduledAgent(t);
+  let otherRuntimeCalls = 0;
+  const unused = async () => { otherRuntimeCalls++; throw new Error("A different runtime must not receive scheduled work"); };
+  f.agents.agentHost.register({ descriptor: { runtime_id: "aaa-other-runtime", display_name: "Other", provider_version: "1", capabilities: emptyCapabilityMatrix() },
+    health: async () => ({ ok: true, status: "ready", message: "ready" }), createSession: unused, readSession: unused, start: unused, read: unused, control: unused, readCommandOutput: unused,
+    observe: () => { otherRuntimeCalls++; return () => {}; } });
+  const memory = await f.host.homeActionClient().invoke({ actor_id: "web-user", audience: "user", project_id: null, permissions: [...MEMORY_PERMISSIONS] }, memoryActions.write,
+    { scope: "personal", text: "汇总工作进展时先列需要处理的工作", kind: "preference" });
+  assert.ok(memory.memory);
+  const callId = newCallId();
+  const result = await withCallId(callId, f.tick);
+  assert.equal(result.invoked, 1); assert.equal(result.failed, 0, f.task().last_error ?? "");
+  assert.deepEqual(f.task().turns.map(turn => [turn.kind, turn.text]), [["user", "汇总本周进展"], ["assistant", "有三项工作需要处理。"]]);
+  assert.equal(f.task().unread, true); assert.equal(f.task().last_error, null); assert.equal(otherRuntimeCalls, 0);
+  const first = f.starts.mock.calls[0]!;
+  assert.equal(first.arguments[0], "prologue"); assert.equal(first.arguments[1].plugin_id, SCHEDULE_PLUGIN_ID);
+  assert.equal(first.arguments[1].role_id, "reader"); assert.equal(first.arguments[2].call_id, callId);
+  assert.match(f.prompts[0]!, /汇总本周进展/); assert.match(f.prompts[0]!, /汇总工作进展时先列需要处理的工作/);
+  await f.resume(); await f.tick();
+  assert.equal(f.task().turns.length, 3); assert.match(f.prompts[1]!, /assistant: 有三项工作需要处理/);
+  assert.ok(f.starts.mock.calls[1]!.arguments[2].call_id); assert.notEqual(f.starts.mock.calls[1]!.arguments[2].call_id, callId);
 });
 
-test("先注册了别的 Runtime 也按 Prologue 跑：不按 Runtime id 排序挑第一个", async () => {
-  const opened: string[] = [];
-  const agentHost = new AgentHost();
-  agentHost.register(fakeRuntime("claude-code", opened));
-  let registered = false;
-  const runner = createHostScheduledTaskRunner({
-    agentHost,
-    // Prologue registers lazily; the runner waits for it instead of taking whatever is there now.
-    ready: async () => { if (!registered) { registered = true; agentHost.register(fakeRuntime("prologue", opened)); } },
-    projectId: "project-1",
-    workspaceFor: workspace,
-  });
-  await assert.rejects(() => runner.run({ title: "汇总", instructions: "看一眼", history: [] }), /stop:prologue/);
-  assert.deepEqual(opened, ["prologue"]);
+for (const missing of ["workspace", "model"] as const) test(`Schedule persists an actionable failure when its ${missing} is unavailable`, { timeout: 60_000 }, async t => {
+  const f = await scheduledAgent(t, { [missing]: false });
+  assert.equal((await f.tick()).failed, 1);
+  assert.equal(f.prompts.length, 0); assert.equal(f.task().turns.at(-1)?.kind, "system");
+  assert.match(f.task().last_error ?? "", missing === "workspace" ? /工作区/ : /模型|model/i);
 });
 
-test("只有别的 Runtime、没有 Prologue 时不退回去用它，报需要 Prologue", async () => {
-  const opened: string[] = [];
-  const agentHost = new AgentHost();
-  agentHost.register(fakeRuntime("claude-code", opened));
-  const runner = createHostScheduledTaskRunner({ agentHost, projectId: "board-1", workspaceFor: workspace });
-  await assert.rejects(() => runner.run({ title: "汇总", instructions: "看一眼", history: [] }), /需要 Prologue/);
-  assert.deepEqual(opened, []);
-});
-
-test("a scheduled run is given the memories the Host chose for it, as Agent work in its project", async () => {
-  const opened: string[] = [], asked: Array<[string, string]> = [];
-  // Stops at start: what matters is the authority the run would be started with.
-  const agentHost = new AgentHost();
-  let authority: any = null;
-  const runtime = fakeRuntime("prologue", opened);
-  agentHost.register({ ...runtime, async createSession() { return { session_id: "s", runtime_id: "prologue" } as never; } });
-  (agentHost as any).start = async (_id: string, _request: unknown, given: any) => { authority = given; throw new Error("stop:start"); };
-  const runner = createHostScheduledTaskRunner({ agentHost, projectId: "board-1", workspaceFor: workspace,
-    memory: async (task, title) => { asked.push([task.slice(0, 10), title]); return { pinned: [{ scope: "project", owner: "project-1", memory_id: "m-1" }], budget_chars: 800, receipt_id: "r-1" }; } });
-  await assert.rejects(() => runner.run({ title: "周报汇总", instructions: "汇总本周进展", history: [] }), /stop:start/);
-  assert.ok(authority?.memory, "the run's authority carries the memory choice");
-  assert.deepEqual(await authority.memory("汇总本周进展"), { pinned: [{ scope: "project", owner: "project-1", memory_id: "m-1" }], budget_chars: 800, receipt_id: "r-1" });
-  assert.deepEqual(asked, [["汇总本周进展", "周报汇总"]]);
-});
-
-/** An Agent Host that keeps the authority each round is started with, then stops there. */
-class StartProbe extends AgentHost {
-  readonly starts: AgentStartAuthority[] = [];
-  override async start(_runtimeId: string, _request: AgentStartRequest, authority: AgentStartAuthority): Promise<never> {
-    this.starts.push(authority);
-    throw new Error("stop:start");
-  }
-}
-
-test("a scheduled round is started with the number of the tick that runs it, or one of its own when nothing opened one", async () => {
-  const agentHost = new StartProbe();
-  agentHost.register({ ...fakeRuntime("prologue", []), async createSession() { return { session_id: "s", runtime_id: "prologue" } as never; } });
-  const runner = createHostScheduledTaskRunner({ agentHost, projectId: "board-1", workspaceFor: workspace });
-  const tick = newCallId();
-  await assert.rejects(() => withCallId(tick, () => runner.run({ title: "周报", instructions: "汇总", history: [] })), /stop:start/);
-  await assert.rejects(() => runner.run({ title: "周报", instructions: "汇总", history: [] }), /stop:start/);
-  assert.equal(agentHost.starts[0]?.call_id, tick, "the round belongs to the tick that triggered it");
-  assert.match(agentHost.starts[1]?.call_id ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-/, "a round run outside any tick still has a number the Host gave");
-  assert.notEqual(agentHost.starts[1]?.call_id, tick);
-});
-
-// specs/prologue-adoption §4.5 (item 12): the run's own view changes wake the runner; nothing reads the run on a timer.
-test("a scheduled run is followed through its own view changes, never polled; a run that stops for a person fails it", async () => {
-  const views: Array<(view: never) => void> = [], reads: string[] = [], controls: string[] = [];
-  const view = (phase: string, text?: string) => ({ ref: { session_id: "s", run_id: "r" }, phase, turns: text ? [{ turn_id: "a", kind: "assistant", text, at: null }] : [],
-    activity: [], awaiting_input: [], usage: { tokens: { input: 0, output: 0 } }, frozen: {}, started_at: "", ended_at: null }) as never;
-  const adapter: AgentRuntimeAdapter = {
-    descriptor: { runtime_id: "prologue", display_name: "prologue", provider_version: "1", capabilities: { ...emptyCapabilityMatrix(), "session.create": "supported", "run.start": "supported", "run.observe": "supported", "run.control": "supported" } },
-    async health() { return { ok: true, status: "ready", message: "就绪" }; },
-    async createSession() { return { session_id: "s", runtime_id: "prologue" }; },
-    async readSession() { return { session: { session_id: "s", runtime_id: "prologue" }, owner: { project_id: "b", plugin_id: "io.molis.work.schedule", install_id: "io.molis.work.schedule", actor_id: "schedule" }, title: "t", runs: [], latest_run: null } as never; },
-    async start() { return { ref: { session_id: "s", run_id: "r" }, frozen: { role_id: "reader", role_version: scheduleAgentManifest.roles[0]!.version, execution: "read-only", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: "/tmp/schedule-project", realpath_verified: true } } } as never; },
-    async read() { reads.push("read"); return view("running"); },
-    async control(_run, control) { controls.push(control.kind); },
-    async readCommandOutput() { throw new Error("unused"); },
-    observe(_run, listener) { views.push(listener); listener(view("running")); return () => { views.splice(views.indexOf(listener), 1); }; },
-  };
-  const agentHost = new AgentHost(); agentHost.register(adapter);
-  const runner = createHostScheduledTaskRunner({ agentHost, projectId: "b", workspaceFor: workspace });
-  const done = runner.run({ title: "汇总", instructions: "看一眼", history: [] });
-  for (let i = 0; i < 100 && !views.length; i++) await new Promise(resolve => setTimeout(resolve, 5));
-  views.at(-1)!(view("completed", JSON.stringify({ title: "本周", body: "都按计划进行。" })));
-  const reply = await done;
-  assert.ok(reply);
-  assert.deepEqual(reads, [], "the runner never polls the run");
-  assert.equal(views.length, 0, "it stops listening once the run ends");
-  // A run that stops to wait for a person cannot finish on its own: the runner fails it and stops the run.
-  const held = runner.run({ title: "汇总", instructions: "看一眼", history: [] });
-  for (let i = 0; i < 100 && !views.length; i++) await new Promise(resolve => setTimeout(resolve, 5));
-  views.at(-1)!(view("awaiting-review"));
-  await assert.rejects(held, /不能停下来等人确认/);
-  assert.deepEqual(controls, ["cancel"]);
+test("SYS-15-S7/A3: disabling Schedule during the actual model request cancels it and writes no late task result or notification", { timeout: 60_000 }, async t => {
+  const f = await scheduledAgent(t, { hold: true }), before = f.task().turns;
+  const ticking = f.tick();
+  await f.entered;
+  await f.web.delete(`/api/settings/projects/${encodeURIComponent(f.project.project_id)}/plugins`, { plugin_id: "schedule" });
+  await f.disconnected; f.release(); await ticking;
+  assert.deepEqual(f.task().turns, before);
+  assert.equal(createLocalFeedApplication(f.store.db).snapshot(f.project.project_id).feed_items.length, 0);
 });

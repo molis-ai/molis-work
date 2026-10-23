@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -13,7 +14,12 @@ import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 test("Character and Coding discover authorized unknown actions, preserve exact selections and explain withdrawn providers", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
-  const { localHost, projectId, homeDirectory, command, sessionId, evaluate, waitFor, click } = b;
+  const { localHost, projectId, homeDirectory, command, sessionId } = b;
+  const child = await pluginFrameBrowser(t,b,"coding");
+  let active: Pick<typeof b,"evaluate" | "waitFor" | "click"> = b;
+  const evaluate: typeof b.evaluate = (...args) => active.evaluate(...args);
+  const waitFor: typeof b.waitFor = (...args) => active.waitFor(...args);
+  const click: typeof b.click = (...args) => active.click(...args);
   assert.ok(localHost); assert.ok(projectId);
   const project = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId });
   const read: ActionDefinition = { capability_id: "unknown.character-notes.read", version: 2, operation: "query", action: {
@@ -39,9 +45,11 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   const choose = (selector: string, title: string) => evaluate(`(()=>{const label=[...document.querySelectorAll(${JSON.stringify(selector)})].find(node=>node.textContent.includes(${JSON.stringify(title)}));if(!label)throw new Error('missing choice');label.querySelector('input').click();})()`);
   // Characters' page is Settings › 角色 (specs/archive/page-interaction-flow); other plugins open from the switcher.
   const open = async (id: string) => {
+    active = b;
     if (id === "characters") { await click('[data-directory-open="settings"]'); await click('[data-directory-panel=settings] [data-settings-section="characters"]'); }
     else await click(`[data-plugin-id="${id}"][data-work-surface-open]`);
     await waitFor(`!document.querySelector('[data-work-surface="${id}"]').hidden`);
+    if (id === "coding") active = child;
   };
   const capture = async (name: string) => { const directory = join(process.cwd(), `${REVIEW_EVIDENCE}/agent-actions`); await mkdir(directory, { recursive: true });
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId); await writeFile(join(directory, name + ".png"), Buffer.from(shot.data, "base64")); };

@@ -5,7 +5,7 @@ import { COGNIA_ACTION_PERMISSIONS, cogniaActions } from "@molis-ai/molis-work-p
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -23,10 +23,7 @@ test("HTTP preview/commit roundtrip, concurrent retry, malformed JSON, downloads
   const state = await (await fetch(url)).json(); assert.deepEqual(state.materials, []); assert.equal(state.ai_available, false);
   const project = await f.project("Old route refusal");
   const grantResponse = await f.request(`/projects/${project.project_id}/api/host/directory-grants`, { method: "POST", body: { path: f.home } });
-  assert.equal(grantResponse.status, 200, "PRR-03 the person authorizes a directory through the project page");
-  const grant = await grantResponse.json() as { grant_id: string; root: string; expires_at: string };
-  assert.match(grant.grant_id, /^[0-9a-f-]{36}$/); assert.equal(grant.root, await realpath(f.home));
-  assert.equal((await f.request(`/projects/${project.project_id}/api/host/directory-grants`, { method: "POST", body: { path: "relative" } })).status, 400);
+  assert.equal(grantResponse.status, 400, "SYS-15 an absolute path supplied by a page is not authorization");
   assert.equal((await f.request(`/projects/${project.project_id}/api/cognia`)).status, 404, "RAC-40: the removed Host adapter is unavailable");
   assert.equal((await f.request("/api/cognia")).status, 400, "Home retains its shared unknown-API response");
   const body='---\ntags: [test]\n---\n# Original\n<script>globalThis.executed=true</script>';

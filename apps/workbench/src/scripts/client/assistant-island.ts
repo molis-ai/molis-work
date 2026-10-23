@@ -1268,9 +1268,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           try {
             const report = await api("/works/" + encodeURIComponent(work.work_id) + "/recovery");
             const OUTCOMES = { completed: "已发生", failed: "失败，没有发生", "not-dispatched": "没有执行", unknown: "结果未知，请到原处核对" };
-            const list = el("ul", "assistant-recovery");
+            const list = el("ul", "assistant-recovery"), closes = [];
             report.rounds.forEach((round) => {
-              round.operations.forEach((op) => list.append(el("li", "", op.summary + " — " + L(OUTCOMES[op.outcome] || op.outcome))));
+              round.operations.forEach((op) => { const item = el("li", "", op.summary + " — " + L(OUTCOMES[op.outcome] || op.outcome)); item.dataset.state = op.outcome; list.append(item); });
               if (!round.operations.length) list.append(el("li", "", L("这一轮没有记录到任何操作")));
               round.blockers.forEach((why) => list.append(el("li", "assistant-muted", why)));
               if (round.can_close) {
@@ -1280,10 +1280,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
                   try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/recovery", "POST", { run_id: round.run_id, version: round.version }); render(); }
                   catch (error) { showError(error); }
                 });
-                list.append(close);
+                closes.push(close);
               }
             });
-            check.replaceWith(list);
+            check.replaceWith(list, ...closes);
           } catch (error) { showError(error); }
         });
         box.append(check);

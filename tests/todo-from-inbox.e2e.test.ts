@@ -4,12 +4,15 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
 import { createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
 for (const width of [1440, 390]) test(`Todo ${width}px: an Inbox entry and a 灵光 become todos that keep where they came from; neither original is handled for the person`, { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null);
   if (!browser) return;
   const { store, localHost, projectId, homeDirectory, command, sessionId, navigate, evaluate, waitFor, click, surfaceReady, origin } = browser;
+  const todo = await pluginFrameBrowser(t, browser, "todo");
+  const lingguang = await pluginFrameBrowser(t, browser, "lingguang");
   assert.ok(localHost); assert.ok(projectId);
   await localHost.withProject(molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId }), () => undefined);
   const feed = createLocalFeedApplication(store.db);
@@ -56,10 +59,11 @@ for (const width of [1440, 390]) test(`Todo ${width}px: an Inbox entry and a 灵
 
   // The todo opens from there, shows where it came from, and that source opens the Inbox entry again.
   await click(`${detail} [data-make-todo-status] [data-workbench-item-plugin=todo]`);
-  await waitFor(`document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-todo-field=title]')?.value === '供应商报价需要回复'`);
-  await waitFor(`document.querySelector('[data-todo-sources]').textContent.includes('Inbox')`);
+  await waitFor("document.body.dataset.desktopSurface === 'todo'");
+  await todo.waitFor("document.querySelector('[data-todo-field=title]')?.value === '供应商报价需要回复'");
+  await todo.waitFor(`document.querySelector('[data-todo-sources]').textContent.includes('Inbox')`);
   await screenshot("inbox-todo");
-  await click(`[data-todo-sources] [data-workbench-item-plugin=inbox][data-workbench-item-id="${entry.entry_id}"]`);
+  await todo.click(`[data-todo-sources] [data-workbench-item-plugin=inbox][data-workbench-item-id="${entry.entry_id}"]`);
   await waitFor(`document.body.dataset.desktopSurface === 'inbox' && ${visible(`${detail} .feed-detail-header`)}`);
 
   // 灵光: what is on screen, including words not saved yet, becomes the todo; the spark stays where it is.
@@ -68,31 +72,33 @@ for (const width of [1440, 390]) test(`Todo ${width}px: an Inbox entry and a 灵
   await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await waitFor("document.body.dataset.desktopSurface === 'lingguang'");
   await surfaceReady("lingguang");
-  await evaluate(`document.querySelector("[data-lingguang-capture]").click()`);
-  await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'");
-  await evaluate(`(() => {
+  await lingguang.evaluate(`document.querySelector("[data-lingguang-capture]").click()`);
+  await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'");
+  await lingguang.evaluate(`(() => {
     const title = document.querySelector("[data-lingguang-title]"), body = document.querySelector("[data-lingguang-body]");
     title.value = "给新人写一页入门"; body.value = "先列常见问题，再配截图。";
     title.dispatchEvent(new InputEvent("input", { bubbles: true })); body.dispatchEvent(new InputEvent("input", { bubbles: true }));
   })()`);
-  await waitFor(visible("[data-lingguang-todo]"));
-  await click("[data-lingguang-todo]");
-  await waitFor("document.querySelector('[data-lingguang-note]').textContent.includes('已转为待办')");
+  await lingguang.waitFor("document.querySelector('[data-lingguang-todo]')");
+  await lingguang.click("[data-lingguang-todo]");
+  await lingguang.waitFor("document.querySelector('[data-lingguang-note]').textContent.includes('已转为待办')");
   const spark = todos().find(todo => todo.title === "给新人写一页入门");
   assert.ok(spark, "灵光转成的待办");
   assert.deepEqual([spark.sources[0]!.kind, spark.sources[0]!.excerpt, spark.sources[0]!.subject?.kind], ["lingguang", "先列常见问题，再配截图。", "lingguang_spark"]);
-  assert.ok(await evaluate("Boolean(document.querySelector('[data-lingguang-id]'))"), "灵光还在");
-  assert.ok(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "不横向滚动");
+  assert.ok(await lingguang.evaluate("Boolean(document.querySelector('[data-lingguang-id]'))"), "灵光还在");
+  assert.ok(await evaluate("document.documentElement.scrollWidth <= window.innerWidth") && await lingguang.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "不横向滚动");
   await screenshot("lingguang");
 
   // Discarding the spark leaves the todo as it is; its source then says the spark is gone instead of opening nothing.
-  await evaluate(`document.querySelector("[data-lingguang-discard-current]").click()`);
-  await waitFor("document.querySelector('[data-lingguang-confirm]')?.open");
-  await evaluate(`document.querySelector("[data-lingguang-confirm] [data-confirm-ok]").click()`);
-  await waitFor("!document.querySelector('[data-lingguang-id]')");
+  await lingguang.evaluate(`document.querySelector("[data-lingguang-discard-current]").click()`);
+  await lingguang.waitFor("document.querySelector('[data-lingguang-confirm]')?.open");
+  await lingguang.evaluate(`document.querySelector("[data-lingguang-confirm] [data-confirm-ok]").click()`);
+  await lingguang.waitFor("!document.querySelector('[data-lingguang-id]')");
   assert.equal(todos().find(todo => todo.id === spark.id)?.status, "open", "丢掉灵光不影响待办");
   await load(`?openPlugin=todo&openItem=${encodeURIComponent(spark.id)}`, "todo");
-  await waitFor(`document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-todo-field=title]')?.value === '给新人写一页入门'`);
-  await click(`[data-todo-sources] [data-workbench-item-plugin=lingguang]`);
-  await waitFor("document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-note]').textContent.includes('已丢掉或不存在')");
+  await waitFor("document.body.dataset.desktopSurface === 'todo'");
+  await todo.waitFor("document.querySelector('[data-todo-field=title]')?.value === '给新人写一页入门'");
+  await todo.click(`[data-todo-sources] [data-workbench-item-plugin=lingguang]`);
+  await waitFor("document.body.dataset.desktopSurface === 'lingguang'");
+  await lingguang.waitFor("document.querySelector('[data-lingguang-note]').textContent.includes('已丢掉或不存在')");
 });

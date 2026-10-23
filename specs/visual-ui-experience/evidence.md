@@ -47,8 +47,8 @@
 | VUX-35 | 工程 | `action-directory-pass`、`local-web-actions`、`pages-assistant-surfaces.e2e`、`style-has-scope` | 未走 | 未做 | 真实 Home 规模下的复测 |
 | VUX-36 | 工程 | `action-directory-pass`、`code-diff-scale.e2e`、`code-scale.e2e`、`code-turn-style.e2e`、`has-anchors.e2e`、`hidden-surfaces-quiet.e2e`、`plugin-market-upgrade.e2e`、`repeat-no-accumulation.e2e`、`style-has-scope`、`visual-foundation` | 未走 | 未做 | 助理面板泄漏测试 |
 | VUX-37 | 工程 | `action-directory-pass` | 未走 | 未做 | — |
-| VUX-38 | 工程 | — | 未走 | 未做 | 同源靠门禁与共有组件守着（插件 SDK、包边界、`pnpm boundary:check`），没有单列用例 |
-| VUX-39 | 工程 | `board-assistant.e2e`、`board-conditions.e2e`、`board-overflow.e2e`、`media-zoom-board.e2e` | 未走 | 未做 | 限流倒计时、英文样本、问题卡、委派子任务、通知浮层等标本 |
+| VUX-38 | 工程 | `style-custom-properties`（语义参数有声明） | 未走 | 未做 | 同源的其余部分靠门禁与共有组件守着（插件 SDK、包边界、`pnpm boundary:check`） |
+| VUX-39 | 工程 | `board-assistant.e2e`、`board-conditions.e2e`、`board-overflow.e2e`、`media-zoom-board.e2e` | 未走 | 未做 | 限流倒计时、英文样本、用量细节、媒体与 Diff 插件行的标本 |
 | VUX-40 | 工程 | `chinese-layers.e2e`、`chinese-walkthrough.e2e`、`coding-board-origins.e2e`、`coding-mcp-settings-client`、`coding-route-locale`、`coding-run-control-contract`、`coding-state-rings.e2e`、`coding-timeline.e2e`、`diff-git-english-sentences`、`english-surfaces.e2e`、`english-walkthrough.e2e`、`fill-message`、`local-web-actions`、`narrow-surfaces.e2e`、`translation-check` | 未走 | 未做 | Git 同步句与提交草稿（待决定）；Agent 审阅卡片归字体皮肤语言书 §6.1 |
 | VUX-41 | 工程 | — | 未走 | 未做 | 本表即证据；真实场景两轮与本人验收未做 |
 | VUX-42 | 工程 | `visual-mechanisms.e2e` | 未走 | 未做 | — |

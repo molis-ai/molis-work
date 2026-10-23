@@ -783,15 +783,8 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     try { found = (await request("GET", "/api/assistant/related?kind=todo_item&id=" + encodeURIComponent(item.id))).works || []; } catch { found = []; }
     // One work can relate to the todo more than once (where it started, and as material): list it once.
     const unique = found.filter((work, index) => found.findIndex((other) => other.work_id === work.work_id) === index);
-    const withResults = await Promise.all(unique.map(async (work) => {
-      try {
-        const view = await request("GET", "/api/assistant/works/" + encodeURIComponent(work.work_id));
-        const results = (view.objects || []).filter((object) => object.relation === "result" && !(object.subject.kind === "todo_item" && object.subject.id === item.id));
-        return { ...work, results };
-      } catch { return { ...work, results: [] }; }
-    }));
     if (!selected || selected.id !== item.id) return;
-    works = withResults;
+    works = unique;
     renderWorks();
     // A round has no “finished” message for pages, so while one runs, look again now and then (only while this todo is open).
     clearTimeout(worksTimer);

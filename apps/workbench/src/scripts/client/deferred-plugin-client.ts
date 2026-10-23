@@ -1,13 +1,13 @@
 import { deferredSurfaceClients } from "../../plugin-workbench.js";
 
 /**
- * Loading is UI-only. Visible surfaces keep their original client and Host lifetime. A companion that borrows another plugin's
- * client (`clientFrom`) loads that one bundle, once for all of them, and mounts its own root with it (W4-03).
+ * Trusted Host surfaces retain their client and lifetime. Registered plugin code runs only inside its opaque frame;
+ * the owner loads the shared frame bridge and never executes a plugin bundle.
  */
 export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const failure = () => L('无法加载界面，请重试');
-  const packs = ${JSON.stringify(deferredSurfaceClients().map(({ id, bundle, assets }) => assets.length ? [id, bundle, assets] : bundle === id ? [id] : [id, bundle]))}.map(([id, bundle = id, assets = []]) => ({ id, bundle, assets }));
+  const packs = ${JSON.stringify(deferredSurfaceClients().map(({ id, plugin_id, bundle, assets, searchRow, recordRow }) => [id, plugin_id, bundle, assets, searchRow, recordRow]))}.map(([id, plugin_id, bundle, assets, searchRow, recordRow]) => ({ id, plugin_id, bundle, assets, searchRow, recordRow }));
   const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap();
   const scope = host.scope;
   const load = url => {
@@ -32,21 +32,28 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const settle = (root, state) => { root.inert = false; root.removeAttribute('aria-busy'); root.dataset.uiClientState = state; };
   const prepare = root => {
-    if (!root || !root.hasAttribute('data-deferred-surface')) return Promise.resolve();
+    if (!root || !root.hasAttribute('data-deferred-surface') || root.closest('[hidden], [data-surface-pool]')) return Promise.resolve();
     if (mounting.has(root)) return mounting.get(root);
     const pack = packs.find(pack => pack.id === root.dataset.workSurface);
     if (!pack) return Promise.resolve();
     const template = root.querySelector(':scope > template[data-deferred-content]');
-    if (template) { root.append(template.content); template.remove(); }
+    if (!pack.plugin_id && template) { root.append(template.content); template.remove(); }
     root.inert = true; root.setAttribute('aria-busy', 'true'); root.dataset.uiClientState = 'loading';
     const pending = (async () => {
       try {
-        for (const asset of pack.assets) await load(asset);
-        await load('/assets/molis-work-plugins/' + encodeURIComponent(pack.bundle) + '.js');
-        if (!root.isConnected || scope.signal.aborted) return;
-        const factory = globalThis.molisWorkbenchPluginFactories?.[pack.bundle];
-        if (!factory) throw new Error(failure());
-        factory({ ...host, root });
+        if (pack.plugin_id) {
+          await load('/assets/molis-work-plugin-frame.js');
+          if (!root.isConnected || scope.signal.aborted) return;
+          if(root.closest('[hidden], [data-surface-pool]')){mounting.delete(root);settle(root,'idle');return;}
+          await globalThis.molisPluginFrames.mount(root, host, pack);
+        } else {
+          for (const asset of pack.assets) await load(asset);
+          await load('/assets/molis-work-plugins/' + encodeURIComponent(pack.bundle) + '.js');
+          if (!root.isConnected || scope.signal.aborted) return;
+          const factory = globalThis.molisWorkbenchPluginFactories?.[pack.bundle];
+          if (!factory) throw new Error(failure());
+          factory({ ...host, root });
+        }
         root.removeAttribute('data-deferred-surface'); settle(root, 'ready');
         const selection = selections.get(root);
         if (selection) { selections.delete(root); root.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: selection })); }
@@ -67,7 +74,7 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!root) return; selections.set(root, event.detail); event.stopImmediatePropagation(); void prepare(root);
   }, true);
   const visible = () => document.querySelectorAll('[data-deferred-surface]').forEach(root => {
-    if (!root.closest('[hidden]') && root.dataset.uiClientState !== 'failed') void prepare(root);
+    if (!root.closest('[hidden], [data-surface-pool]') && root.dataset.uiClientState !== 'failed') void prepare(root);
   });
   scope.observe(new MutationObserver(visible), document.body, { subtree: true, attributes: true, attributeFilter: ['hidden'], childList: true });
   visible();

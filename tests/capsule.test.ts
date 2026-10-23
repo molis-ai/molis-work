@@ -1,9 +1,12 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createLocalHostCapsule } from "@molis-ai/molis-work-app-local-host";
+import { createLocalHostCapsule, GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { renderDesktopCapsuleShell } from "@molis-ai/molis-work-app-desktop";
 const { buildCapsuleSnapshot, renderCapsuleShell } = createLocalHostCapsule(renderDesktopCapsuleShell);
-import type { GoalActionKind, GoalDisplayStatus } from "@molis-ai/molis-work-plugin-goals";
+import { eventDirectoryPresentation, type GoalActionKind, type GoalDisplayStatus } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { MolisWorkWebView, WebGoalView } from "./workbench-renderer-fixture.js";
 
@@ -433,4 +436,24 @@ test("capsule shell is one menu-bar popover with horizontal state tabs and inlin
   assert.doesNotMatch(html, /capsule__compact|capsule__expanded|capsule__minimized/);
   assert.doesNotMatch(html, /capsule__goal-block/);
   assert.doesNotMatch(html, />Pause<|>Resume<|>Start</);
+});
+
+test("SYS-09 a cancelled Goal's production event projection stays Cancelled and explicitly resumable in the capsule", t => {
+  const home = mkdtempSync(join(tmpdir(), "cancelled-capsule-"));
+  const store = new LocalProjectDatabase(join(home, "project.db"));
+  t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
+  const app = new GoalProjectApplication(store), project_id = "cancelled-project", actor_id = "person", actor_kind = "user" as const;
+  app.initializeBoard({ project_id, actor_id, idempotency_key: "init" });
+  const created = app.goalEvents.createIntent({ project_id, title: "停止的方向", outcome: "原结果", actor_id, actor_kind, idempotency_key: "create" });
+  const goal_id = created.goal.goal_id, before = app.goalEvents.readState(project_id, goal_id);
+  app.goalEvents.submitClosure({ project_id, goal_id, actor_id, actor_kind, idempotency_key: "cancel", kind: "cancel", reason: "方向改变",
+    expected_config_version: before.config.version, expected_agreement_version: before.agreement.version });
+  const current = app.goalEvents.readState(project_id, goal_id), projection = eventDirectoryPresentation(current)!;
+  assert.equal(current.work_status, "cancelled");
+  const record = store.snapshot(project_id).goals.find(row => row.goal_id === goal_id)!;
+  const item = { ...webGoal(record, "invalidated"), ...projection };
+  const result = buildCapsuleSnapshot(view([item], goal_id), []);
+  assert.equal(result.state.label, "已取消");
+  assert.equal(result.state.action_label, "显式继续");
+  assert.equal(result.tabs.some(tab => tab.kind === "blocked"), false);
 });

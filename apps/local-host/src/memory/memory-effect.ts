@@ -29,6 +29,11 @@ function controlledMemoryLedger(ledger: MemoryLedgerPort, control: AgentMemoryEx
 
 export function memoryCallService(context: ActionExecutionContext, ports: ConstructorParameters<typeof MemoryService>[0],
   backend: (control: AgentMemoryExecutionControl) => MemoryBackendPort, alive: () => boolean): MemoryService {
-  const control = memoryExecutionControl(context, alive);
+  return controlledMemoryService(ports, backend, memoryExecutionControl(context, alive));
+}
+
+/** A trusted background invocation restores its own source checks, never an expired HTTP call's authority. */
+export function controlledMemoryService(ports: ConstructorParameters<typeof MemoryService>[0],
+  backend: (control: AgentMemoryExecutionControl) => MemoryBackendPort, control: AgentMemoryExecutionControl): MemoryService {
   return new MemoryService({ ...ports, backend: backend(control), ledger: controlledMemoryLedger(ports.ledger, control) });
 }

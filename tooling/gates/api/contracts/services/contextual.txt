@@ -31,14 +31,21 @@ export interface ContextActionChosen {
     readonly title: string;
     readonly scope?: "object";
     readonly object?: SurfaceFocus["object"];
-    prepare(): Promise<{
+    prepare(control?: {
+        readonly signal?: AbortSignal;
+        readonly page_id?: string;
+    }): Promise<{
         readonly key: string;
         readonly apply: FragmentApply;
         readonly action: ContextualCandidate["action"];
         readonly input: unknown;
     }>;
     readonly landing?: SurfaceLanding;
-    run?(): Promise<unknown>;
+    run?(control?: {
+        readonly signal?: AbortSignal;
+        readonly page_id?: string;
+    }): Promise<unknown>;
+    handled?: Promise<boolean>;
 }
 
 export type ContextToolGlyph = "B" | "I" | "U" | "S" | "H1" | "H2" | "H3" | "A";

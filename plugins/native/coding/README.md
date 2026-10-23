@@ -71,15 +71,15 @@ Directory candidates and browsing preferences come from the [current-project set
 - 公开入口：`@molis-ai/molis-work-plugin-coding`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（变更集的逐行比较 `compareTexts` 与 `splitLines`；页面上模型文字的富文本用它的 `/rich-text`，所以本包按 SDK 的可选 peer 声明 `marked`、`sanitize-html`，只在服务端加载）。会话库是平台借的 `context.services.project_database`（合同 `platform/plugin-database`），Manifest 的 `databases.project`（`src/database.ts`）声明表；宿主不再递原始库句柄。执行入口的四个输入也不再由宿主注入（切片 C2 起 `CodingExecutionPorts` 已删）：模型表与可用性是 `services.model`（权限 `model:read`），Goal 标题是 Goals 的公开读动作 `goals.list`，Character 的列表与可运行判断是 `characters.list@1`、`characters.runnable@1`，「宿主就绪」不再有等待（见下「不变量」）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 前台 HTTP/动作调用把原信号、beforeEffect 与同步 checker 传到实际 Host/SDK 写点；报告、变更、计划与启动的最后一次等待后再核。已经接受的 Run、follow 和 wake 使用 activation 的独立生命线。
+  - 前台 HTTP/动作调用把原信号、beforeEffect 与同步 checker 传到实际 Host/SDK 写点；报告、变更、计划与启动的最后一次等待后再核。已经接受的 Run 由激活的后台作业 `follow` 跟到底，等待结束后的下一轮由作业 `wake` 接起（`services.background.keep`，Manifest `background.jobs` 声明；PG-038）：只有安装自己的授权，写之前过作业的检查，平台在激活停止、撤权、项目或 Home 关闭时停它们，作业里的计时器带作业的 `signal`。
   - 后台命令读取失败保留最后事实并标未知；activation ready 后恢复持久等待消费者，服务临时故障退避重试，Runtime 不支持 waits 时明确拒绝并停止该消费者，stop 释放。委派保留已经提交或未知的原目标、原信，只能核对同一封信继续送达；失权不得返回受保护正文。
   - 收下交付先检查 30 项材料容量，已有同版本引用不重复添加；合法插步的当前 SDK 图和用户评价一起固定进报告，后续变化不改固定版本。
   - 模型与 Agent 只经 Host 注入的 Prologue 能力，不直接依赖 SDK。
   - 页面上模型的文字由 Coding 自己画成富文本（PG-062，PG062-05～07）：`src/rich-html.ts` 的 `codingPageHtml` 用 SDK 的 `renderRichText` 给一轮的发言、子任务的结果和报告加 `html`，只加在路由答给自己页面的回答上，并在一轮的指纹算完之后；模型、工作流、MCP 直接调同一个动作只拿到文字。接续摘要那一轮的开场由页面按文字画，不再画一遍；回答开头照抄的压缩标签（`[retained …]`、`[historical …]`）不画。宿主不再替 Coding 画这些，浏览器包里也没有解析器。
   - 执行入口的输入都走平台服务与公开动作，宿主不替它递（specs/coding-plugin §H，W5-01-CODING-23–31；PG-047、PG-086、PG-091、V-13）：
     - 模型：Manifest 声明 `model:read`（必需）与 `model:invoke`（可选）。可选的模型是 `context.services.model.choices()`，选定的模型用 `availability(selection)` 核对；`complete()` 在这里不可用（一轮的模型请求归 Agent 运行时）。`model:invoke` 只管两处显式起草：提交说明与历史摘要经平台动作 `agent.draft-text.v1`（`src/drafts.ts` 的 `codingDraft`，经 `services.actions`）；关掉它，提交说明的路由答 `plugin.grant_denied`，历史摘要退回 Coding 按记录整理的那一份（PG-035）。全仓库只有这一个模型表来源（V-13），`models.ts` 的 `codingModels` 是唯一读取处。
-    - 就绪：路由入口不再等 `execution.ready()`，Agent 能力在被调用时自己初始化。恢复起来的唤醒循环（`wake-loop.ts`）若第一次等待续接就失败、之前从未成功，按「能力不可用」结束，不进 5–30 秒的重试；已经成功过的循环照旧退避重试。
-    - Goal 标题：读 Goals 的公开读动作 `goals.list`（`goalPluginActions.list`，plugin 受众，写在 Manifest `capabilities.consumes`）。目录面板同步渲染，等不了一次动作，所以 `goal-titles.ts` 的 `codingGoalTitles` 在 Coding 一侧缓存标题（内存加插件私有存储 `goal-title:<id>`），由 `coding.state`、会话读取、`search/entries`、`subject` 刷新，选择 Goal 时记下；还没读过的 Goal，目录第一次绘制显示 Goal 的 id，路由一读就换成标题。
+    - 就绪：路由入口不再等 `execution.ready()`，Agent 能力在被调用时自己初始化。恢复起来的唤醒循环（`wake-loop.ts`）遇到暂时读取失败按 5–30 秒退避重试，不依赖页面查询重新启动；Runtime 明确不支持等待续接时才结束该消费者。
+    - Goal 标题：读 Goals 的公开读动作 `goals.list`（`goalPluginActions.list`，plugin 受众，写在 Manifest `capabilities.consumes`）。目录面板同步渲染，等不了一次动作，所以 `goal-titles.ts` 的 `codingGoalTitles` 在 Coding 一侧缓存标题。查询只刷新内存；独立后台观察每 5 秒读取并保存标题及会话状态到本插件存储，选择 Goal 的命令也会记下标题。查询不写持久记录、不启动唤醒；后台观察在停止或撤权后结束。还没读过的 Goal，目录第一次绘制显示 Goal 的 id，路由一读就换成标题。
     - Character：列表读 `characters.list@1`（是浏览用的预览，读取按容忍的 `publishedOf` 写法），能不能运行以 `characters.runnable@1` 的回答为准（只答能不能跑与原因；本机程序与工作目录的 `characters.execution@1` 只给本人）；两者都对 `plugin` 受众开放，都写在 Manifest `capabilities.consumes`，授权在设置页撤回后调用以 `plugin.grant_denied` 拒绝，没声明的以 `actions.forbidden` 拒绝（S-15）。`characters-host.ts` 的 `codingCharacterPorts` 还给 `assistant-http.ts` 用，留到切片 C2b。
   - 固定成果的正文只有一处写法：`coding.results.document@1`（定义在合同包 `@molis-ai/molis-work-contracts/modules/coding`，Coding 的 Manifest 声明的就是这个对象，处理器在 `results-document.ts`；plugin 受众的查询，权限 `artifact:read`，输入 `{ reference }`，输出 `{ reference, title, saved_at, markdown }`）。它用 `readOwn` 读自己的版本，已归档、不属于当前项目、不可用、不是报告或变更、成果里的身份与引用不符，一律以 `coding.shelf_material_invalid` 拒绝；别的生产者的版本由平台以 `artifacts.plugin_denied` 先拒。不动 `coding.artifacts.preview@1`。消费方（Shelf）在自己的 Manifest `capabilities.consumes` 声明它，宿主不拼这段文字（W5-01-CODING-01 至 -14）。
   - 自己的报告、变更、计划列表经 `services.artifacts.listConsumable()` 按类型取，再留下生产者是自己的版本（`outputs.ts` 的 `codingOutputReferences`）；宿主不再给列表端口。已归档或不可用的版本不在列表里。
@@ -96,7 +96,7 @@ Directory candidates and browsing preferences come from the [current-project set
 
 Coding 客户端及子面板共享 Host 注入的 UI 挂载生命周期；隐藏时停止会话/目录/审查轮询和时间显示，返回后刷新，卸载取消本机请求并释放监听、观察器和定时器。草稿仍按原业务规则保存；界面关闭不会停止服务端运行。
 
-后台 Run follower 使用当前 activation 的独立权限和取消信号；停止/待核对状态产生 v1 `run-updated` 刷新提示，携带开始时确认的工作区和原 Run 引用。它不宣称文件已修改，也不将通知失败改为 Run 失败。
+后台 Run follower 是激活的 `follow` 作业，用安装自己的授权和作业的取消信号；停止/待核对状态产生 v1 `run-updated` 刷新提示，携带开始时确认的工作区和原 Run 引用。它不宣称文件已修改，也不将通知失败改为 Run 失败。
 
 `coding.runs.control` 的现行合同是 version 7：包含中途 `switch-model`、补充要求的 `key` 与 `mode`（version 3），文字、数字、日期、日期时间题的回答 `value`（version 4，T1），对象引用题的回答（`value` 是选中的对象，version 5，T2；标题由宿主按对象主人现在的写法换掉），撤回补充与补充的 `about`（version 6，回执 3b-2a），以及补充的 `source`（version 7，BL-144：`host` 是宿主转交页面代写的话，这一轮记成说明，不记成本人的话）；页面交回问卷卡的字段原样（`values`），由路由用插件开发包的 `questionAnswer` 读成回答再交给动作。固定旧版本的引用明确拒绝，不保留别名或读取旧形状；页面仍走原 HTTP 路径并动态取得现行动作，LOCAL 仅本人可用，MCP 不暴露此控制。验证见 `tests/coding-actions.test.ts` 的 W2-18-CODING-CONTROL-VERSION-01。
 

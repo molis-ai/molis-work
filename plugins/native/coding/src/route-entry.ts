@@ -1,5 +1,5 @@
 import { ActionError, requireSynchronous, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginCapabilityClient, PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginCapabilityClient, PluginJobControl, PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { codingPageHtml } from "./rich-html.js";
 import { codingRouteActions } from "./route-actions.js";
@@ -11,6 +11,10 @@ type Control = Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_
 /** Carry the original route fence to a formal dependency action just as the typed adapter does. */
 export function codingActionControl(beforeWrite: CodingBeforeWrite): Control {
   return { signal: beforeWrite.signal, beforeEffect: beforeWrite, assert_authority_current: beforeWrite.assert_current };
+}
+/** A job's writes answer to the job (PG-038): it still runs, the activation is live, and the installation still grants what the job needs. */
+export function codingJobWrite(control: PluginJobControl): CodingBeforeWrite {
+  return Object.assign(() => control.beforeEffect(), { assert_current: () => control.assert_authority_current(), signal: control.signal });
 }
 type Handler = (request: PluginRouteRequest, api: PluginCapabilityClient, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => Promise<unknown>;
 /** What an action with no route of its own runs with. `routed` answers through one of the routes' handlers, under this action's fence. */
@@ -27,10 +31,9 @@ export interface CodingActionCall {
  * again inside the transaction, not by wrapping every store call.
  */
 export function codingRouteEntry(context: PluginStartContext, execution: CodingExecution, actions: ActionHandlerBinding[],
-  alive: () => boolean, failure: (error: unknown) => { status: number; body: unknown }) {
+  failure: (error: unknown) => { status: number; body: unknown }) {
   const check = (control?: Control, ownerCheck?: () => Promise<void>, permissions: readonly string[] = []): CodingBeforeWrite => {
     const assert_current = () => {
-      if (!alive()) throw codingError(message => new ActionError("actions.expired", message), "coding.server.instance-stopped");
       control?.signal?.throwIfAborted();
       for (const permission of permissions) context.requireGrant(permission);
       requireSynchronous(control?.assert_authority_current?.(), "最终授权检查必须同步完成");

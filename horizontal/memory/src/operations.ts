@@ -15,7 +15,7 @@ interface OperationIdentity {
   evidence_count?: number;
   /** An absolute retention decision, not content or a reconstructed command. */
   formal_expires_at?: string | null;
-  /** Identity of an entire normalized import, including items not yet dispatched. */
+  /** Identity of a complete normalized import or person candidate decision. */
   input_digest?: string;
 }
 interface OperationMark extends OperationIdentity {

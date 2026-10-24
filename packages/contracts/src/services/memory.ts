@@ -145,6 +145,12 @@ export interface MemoryRevision {
 }
 
 export interface MemoryCandidate {
+  /** Canonical classification, absent when the original ledger note did not record it; null means unknown. */
+  classification?: MemoryClassification | null;
+  /** Formal retention intent: absent is unknown, null is explicitly unlimited. */
+  formal_expires_at?: string | null;
+  /** Separate canonical candidate waiting deadline, including the App waiting limit. */
+  waiting_expires_at?: string;
   candidate_id: string;
   version: number;
   scope: MemoryScope;
@@ -352,7 +358,11 @@ export interface MemoryRevisionView extends Omit<MemoryRevision, "snapshot"> {
 }
 export interface MemoryHistoryResponse { memory_id: string; revisions: MemoryRevisionView[] }
 
-export interface MemoryCandidateDecision { candidate_id: string; expected_version: number; text?: string }
+export interface MemoryCandidateDecision {
+  candidate_id: string; expected_version: number; text?: string;
+  /** Complete person-owned formal decision; never accepts owner, sources or Session authority. */
+  formal?: { kind: MemoryFormalKind; classification: MemoryClassificationCorrection; expires_at: string | null };
+}
 
 /* ---- upkeep: pairs for the person, and the report of one pass (spec §6.4) ---- */
 
@@ -489,6 +499,7 @@ const itemSchema = { type: "object", properties: {
   additionalProperties: false };
 const workRef = { anyOf: [{ type: "null" }, { type: "object", properties: { work_id: text, title: text }, required: ["work_id", "title"], additionalProperties: false }] };
 const candidateSchema = { type: "object", properties: {
+  classification: historyClassificationSchema, formal_expires_at: nullableText, waiting_expires_at: text,
   candidate_id: text, version: { type: "integer", minimum: 1 }, scope: scopeSchema, project_id: nullableText, kind: kindSchema, text, applies: appliesSchema, basis: { enum: ["explicit", "repeated", "inferred"] },
   why: text, from: { enum: ["work", "extraction", "signal", "gate"] }, work: workRef, hold_reason: nullableText, supersedes: nullableText,
   state: { enum: ["pending", "accepted", "discarded", "expired", "cancelled"] }, created_at: text, memory_id: nullableText },
@@ -557,7 +568,7 @@ export const memoryActions = {
     output_schema: { type: "object", properties: { items: { type: "array", items: itemSchema },
       counts: { type: "object", properties: { personal: { type: "integer" }, project: { type: "integer" }, auto_this_week: { anyOf: [{ type: "integer" }, { type: "null" }] }, pending: { anyOf: [{ type: "integer" }, { type: "null" }] } }, required: ["personal", "project", "auto_this_week", "pending"], additionalProperties: false } },
       required: ["items", "counts"], additionalProperties: false } } } as ActionDefinition<MemoryListRequest, MemoryListResponse>,
-  write: { capability_id: "memory.write", version: 3, operation: "command", action: { ...writes, ...notForPlugins, audiences: ["user", "agent"] as ("user" | "agent")[], permissions: [MEMORY_WRITE_PERMISSION],
+  write: { capability_id: "memory.write", version: 4, operation: "command", action: { ...writes, ...notForPlugins, audiences: ["user", "agent"] as ("user" | "agent")[], permissions: [MEMORY_WRITE_PERMISSION],
     title: "记住一件事", description: "按用户的明确要求记住一条偏好、约定、背景或经验（个人或当前项目）。经写入门：形似秘密的不写，像指令的文字只作为待认可的建议；与已有的冲突时新的明确要求替换旧的。Agent 调用时必须在 said 里附上用户原话，但宿主没有保存用户对这个 Agent 说过的话，没法核对，said 是 Agent 自己写的，不算；所以经这个动作写的一律只是待认可的建议，等用户认可才生效，不记作“用户说的”（只有助理自己的工具，把宿主保存的用户原话交给写入门核对后，才可能记作“用户说的”）。",
     input_schema: { type: "object", properties: { scope: scopeSchema, text: memoryText, kind: kindSchema, applies: appliesSchema, said: { type: "string", maxLength: 400 },
       expires_at: nullableText, replaces: memoryId, rests_on: { type: "object", properties: { kind: { type: "string", minLength: 1, maxLength: 200 }, id: { type: "string", minLength: 1, maxLength: 200 } },
@@ -576,15 +587,17 @@ export const memoryActions = {
     output_schema: { type: "object", properties: { memory_id: text, revisions: { type: "array", items: { type: "object", properties: { version: { type: "integer" }, text, kind: formalKindSchema, applies: appliesSchema, classification: historyClassificationSchema, expires_at: nullableText, snapshot_available: { type: "boolean" },
       change: { enum: ["created", "edited", "replaced", "restored", "merged"] }, by: { enum: ["person", "policy", "maintenance"] }, at: text }, required: ["version", "text", "kind", "applies", "change", "by", "at", "classification", "expires_at", "snapshot_available"], additionalProperties: false } } },
       required: ["memory_id", "revisions"], additionalProperties: false } } } as ActionDefinition<{ memory_id: string }, MemoryHistoryResponse>,
-  candidates: { capability_id: "memory.candidates.list", version: 2, operation: "query", action: { ...reads, audiences: person, permissions: [MEMORY_READ_PERMISSION],
+  candidates: { capability_id: "memory.candidates.list", version: 3, operation: "query", action: { ...reads, audiences: person, permissions: [MEMORY_READ_PERMISSION],
     title: "等你认可的记忆", description: "从工作、工作结束时的提炼、界面操作或写入门留下的待认可建议。",
     input_schema: { type: "object", properties: { scope: { enum: ["personal", "project", "all"] }, work_id: { type: "string", maxLength: 200 } }, additionalProperties: false },
     output_schema: { type: "object", properties: { candidates: { type: "array", items: candidateSchema } }, required: ["candidates"], additionalProperties: false } } } as ActionDefinition<{ scope?: MemoryScope | "all"; work_id?: string }, { candidates: MemoryCandidate[] }>,
-  accept: { capability_id: "memory.candidates.accept", version: 3, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_WRITE_PERMISSION],
+  accept: { capability_id: "memory.candidates.accept", version: 4, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_WRITE_PERMISSION],
     title: "记住这条建议", description: "认可一条待认可的建议（可先改写），它随即生效。",
-    input_schema: { type: "object", properties: { candidate_id: memoryId, text: memoryText, expected_version: { type: "integer", minimum: 1 } }, required: ["candidate_id", "expected_version"], additionalProperties: false },
+    input_schema: { type: "object", properties: { candidate_id: memoryId, text: memoryText, expected_version: { type: "integer", minimum: 1 },
+      formal: { type: "object", properties: { kind: formalKindSchema, classification: classificationSchema, expires_at: nullableText },
+        required: ["kind", "classification", "expires_at"], additionalProperties: false } }, required: ["candidate_id", "expected_version"], additionalProperties: false },
     output_schema: { type: "object", properties: { candidate: candidateSchema, memory: { anyOf: [{ type: "null" }, itemSchema] } }, required: ["candidate", "memory"], additionalProperties: false } } } as ActionDefinition<MemoryCandidateDecision, { candidate: MemoryCandidate; memory: MemoryItem | null }>,
-  discard: { capability_id: "memory.candidates.discard", version: 2, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_WRITE_PERMISSION],
+  discard: { capability_id: "memory.candidates.discard", version: 3, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_WRITE_PERMISSION],
     title: "不用这条建议", description: "拒绝一条待认可的建议；同样的内容以后不再提。",
     input_schema: { type: "object", properties: { candidate_id: memoryId, expected_version: { type: "integer", minimum: 1 } }, required: ["candidate_id", "expected_version"], additionalProperties: false },
     output_schema: { type: "object", properties: { candidate: candidateSchema }, required: ["candidate"], additionalProperties: false } } } as ActionDefinition<Pick<MemoryCandidateDecision, "candidate_id" | "expected_version">, { candidate: MemoryCandidate }>,

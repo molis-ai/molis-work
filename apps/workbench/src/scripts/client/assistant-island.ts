@@ -1,4 +1,5 @@
 import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT, ASSISTANT_PLACER_SCRIPT } from "./assistant-stage.js";
+import { MEMORY_SETTINGS_NAVIGATION_FACTORY_SCRIPT } from "../../settings-memory.js";
 import { codeLanguage, codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { assistantCodeColours, createAssistantCodeGrow } from "./assistant-code-grow.js";
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
@@ -32,6 +33,7 @@ export const assistantReviewHtml = (review: AssistantPendingReview, say: (text: 
  */
 export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const L = host.translate;
+  const openMemorySettings = (${MEMORY_SETTINGS_NAVIGATION_FACTORY_SCRIPT})(() => project, L);
   const island = document.querySelector("[data-assistant-island]");
   if (!island) return null;
   const panel = island.querySelector("[data-assistant-panel]");
@@ -773,7 +775,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         const settle = (path) => async () => { await api("/memory-candidates/" + encodeURIComponent(candidate.candidate_id) + path, "POST", {}); await reload(); };
         cards.push(card({ icon: "sparkles", tone: "suggest", ask: true, title: L(candidate.held ? "你刚才让我记住" : "要记住吗") + "：" + candidate.text, detail: candidate.held,
           sub: (candidate.held ? "" : candidate.why + " · ") + proc.memoryScope(candidate.scope),
-          actions: [sideAct(L("记住"), candidate.text, settle("/accept"), false, "primary"), sideAct(L("不用"), candidate.text, settle("/discard"), false, "secondary")] }));
+          actions: [sideAct(L(candidate.needs_formal_decision ? "去设置查看" : "记住"), candidate.text, candidate.needs_formal_decision ? () => openMemorySettings(candidate) : settle("/accept"), false, "primary"), sideAct(L("不用"), candidate.text, settle("/discard"), false, "secondary")] }));
       });
       paintBlock(node, L("还等你处理"), "bell", cards.length ? stack(cards) : null, String(cards.length), true, true);
     });
@@ -918,12 +920,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           await molisWorkRequest(host.route("/api/memory/changes/"+encodeURIComponent(change.change_id)+"/undo"),{method:"POST",fallback:L("没能撤销")});
           await reload();
         }, false, "secondary", "undo"));
-        if (!undone) actions.push(sideAct(L("去设置查看"), change.text, async () => {
-          // The settings surface opens its memory section when it hears this; with nobody listening, go there.
-          const handled = !window.dispatchEvent(new CustomEvent("molis-work:open-settings-section", { detail: { section: "memory" }, cancelable: true }));
-          const scoped = change.scope === "project" ? change.project_id || (project && project.id) : "";
-          if (!handled) location.assign(scoped ? "/projects/" + encodeURIComponent(scoped) + "/settings/memory" : "/settings/memory");
-        }, true));
+        if (!undone) actions.push(sideAct(L("去设置查看"), change.text, () => openMemorySettings(change), true));
         const scope = proc.memoryScope(change.scope);
         if (undone && (!UNDONE[change.kind] || !change.text)) return card({ icon: "sparkles", title: L("已撤销（已从记忆里删掉）"), done: true, sub: scope, actions });
         return card({ icon: "sparkles", tone: undone ? "" : "suggest", title: change.text, done: undone,

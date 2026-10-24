@@ -9,6 +9,7 @@ import {
   type MemoryApproval,
   type MemoryBasis,
   type MemoryCandidate,
+  type MemoryCandidateDecision,
   type MemoryCandidateRecord,
   type MemoryChange,
   type MemoryChangeKind,
@@ -36,7 +37,6 @@ import {
   type MemoryRecallRequest,
   type MemoryRecallResponse,
   type MemoryRecalled,
-  type MemoryRevision,
   type MemoryScope,
   type MemorySignalReport,
   type MemorySignalResult,
@@ -57,10 +57,11 @@ import { memoryUses } from "./usage.js";
 import { assertFormationFacts, automaticMemoryHold, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
 import { memoryErrors } from "./errors.js";
 import { applies, disownAutomatic, isExpired, personOnly, placeOf, visibleTo } from "./places.js";
-import { MAX_TEXT, candidateView, changeView, revisionView, pairKey, useTitle } from "./shapes.js";
+import { MAX_TEXT, CANDIDATE_TTL_MS, candidateView, changeView, revisionView, pairKey, useTitle } from "./shapes.js";
 import { UNCHECKED, UNSAID, theirWords } from "./spoken.js";
 import { keywordScore, looksLikeInstruction, looksLikeSecret, recallKeywords, sameText, sameWords, similarity } from "./text.js";
 import { fromEntryMeta, restoredEntryFacts, toEntryMeta } from "./facts.js";
+import { MemoryCandidateDecisions } from "./candidate-decisions.js";
 import { MemoryEdits } from "./edits.js";
 import { newMemoryClassification } from "./classification.js";
 import { formationReferenceAllowed } from "./formation.js";
@@ -131,7 +132,6 @@ interface MemoryCommitInput {
 
 /** Interface signals: at least this many, from at least this many different occasions, before a candidate is made. */
 export const SIGNAL_THRESHOLD = { count: 3, distinct: 2 } as const;
-const CANDIDATE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const PENDING_PER_WORK = 3;
 /** What Prologue's `redactText` puts where a credential was. */
 const REDACTED_CREDENTIAL = "[redacted]";
@@ -156,6 +156,7 @@ export class MemoryService {
   private readonly maintenance: MemoryUpkeep;
   private readonly queries: MemoryQueries;
   private readonly edits: MemoryEdits;
+  private readonly candidateDecisions: MemoryCandidateDecisions;
   private readonly moves: MemoryMoves;
   private readonly duplicates: MemoryDuplicates;
 
@@ -182,6 +183,9 @@ export class MemoryService {
       record: (caller, input) => this.recordChange(caller, input) });
     this.queries = new MemoryQueries({ backend: ports.backend, ledger: ports.ledger, scopes: this.scopeCommands, now: this.now,
       limits: ports.managementPages, candidates: (caller, request) => this.candidates(caller, request) });
+    this.candidateDecisions = new MemoryCandidateDecisions({ backend: ports.backend, ledger: ports.ledger, operations: this.operations,
+      scopes: this.scopeCommands, queries: this.queries, preferences: this.preferences, promotions: this.promotions, now: this.now,
+      date: at => this.date(at), beforeEffect: ports.beforeEffect, record: (caller, input) => this.recordChange(caller, input) });
     this.duplicates = new MemoryDuplicates({ ledger: ports.ledger, operations: this.operations, scopes: this.scopeCommands,
       promotions: this.promotions, beforeEffect: ports.beforeEffect,
       saveFacts: (caller, located, meta, before) => this.saveFacts(caller, located, meta, before) });
@@ -561,18 +565,21 @@ export class MemoryService {
    * why it was held back, what it would replace). Left alone for 14 days, a suggestion goes quietly: it was never in effect.
    */
   async candidates(caller: MemoryCaller, filter: { scope?: MemoryScope | "all"; work_id?: string; anywhere?: boolean } = {}): Promise<MemoryCandidate[]> {
-    const stale = this.now().getTime() - CANDIDATE_TTL_MS;
     const anywhere = filter.anywhere === true && caller.person === true;
-    const owners = new Map(this.scopeCommands.scopesFor(caller, filter.scope && filter.scope !== "all" ? [filter.scope] : undefined, true).map(where => [`${where.scope}:${where.owner}`, where]));
+    // The person's project view includes its registered Characters, as the formal management page does.
+    // Select before reading/expiring candidates: another scope's pending decision must stay untouched.
+    const requested = caller.person && filter.scope === "project" ? ["project", "character"] as const
+      : filter.scope && filter.scope !== "all" ? [filter.scope] : undefined;
+    const owners = new Map(this.scopeCommands.scopesFor(caller, requested, true).map(where => [`${where.scope}:${where.owner}`, where]));
     if (anywhere) for (const note of this.ports.ledger.candidates(caller.actor_id)) owners.set(`${note.scope}:${note.owner}`, { scope: note.scope, owner: note.owner, project: note.project_id });
     const out: MemoryCandidate[] = [];
     for (const where of owners.values()) {
       if (!caller.person && !consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id).allowed) continue;
       const holder = anywhere ? { ...caller, project_id: where.project } : caller;
-      for (const { note: record } of await this.queries.candidateRecords(holder, where.scope, where.owner)) {
+      for (const { note: record, entry } of await this.queries.candidateRecords(holder, where.scope, where.owner)) {
         if (record.state !== "pending") continue;
         if (filter.work_id && record.work?.work_id !== filter.work_id) continue;
-        if (Date.parse(record.created_at) < stale) { await this.settleCandidate(holder,record, "expired"); continue; }
+        if (Math.min(entry.created_at_ms + CANDIDATE_TTL_MS, entry.meta.expires_at_ms ?? Infinity) <= this.now().getTime()) { await this.settleCandidate(holder,record, "expired"); continue; }
         out.push(candidateView(record));
       }
     }
@@ -631,6 +638,7 @@ export class MemoryService {
       ...(options.sources?.length ? { sources: [...options.sources] } : {}),
       expected_version: 0, operation_id: mark.operation_id, ...(caller.signal ? { signal: caller.signal } : {}) });
     const record: MemoryCandidateRecord = { candidate_id: held.candidate_id, version: held.version,
+      classification: held.meta.classification ?? null, waiting_expires_at: new Date(Math.min(held.created_at_ms + CANDIDATE_TTL_MS, held.meta.expires_at_ms ?? Infinity)).toISOString(),
       ...(held.sources?.length ? { source_refs: held.sources.map(({ event_id, version }) => ({ event_id, version })) } : {}), actor_id: caller.actor_id, owner: where.owner, scope: input.scope,
       project_id: where.project, formal_expires_at: formalExpiry, kind: input.kind, text, applies: input.applies ?? {}, basis: input.basis, why: input.why.trim().slice(0, 300),
       // Instruction-like text says so however it came in, so the person sees why before accepting.
@@ -643,73 +651,8 @@ export class MemoryService {
    * The person keeps a suggestion (as it was, or reworded). It goes in through Prologue's candidate box with the person
    * as approver; one that corrects an existing memory updates that memory (its history keeps the old version).
    */
-  async accept(caller: MemoryCaller, candidateId: string, input: { text?: string; expected_version?: number } = {}): Promise<{ candidate: MemoryCandidate; memory: MemoryItem | null }> {
-    caller = this.operations.caller(caller);
-    personOnly(caller, "只有本人能认可记忆建议");
-    const record = await this.queries.ownCandidate(caller, candidateId);
-    this.preferences.assertEnabled(caller.actor_id, { ...record, project: record.project_id });
-    if (record.state !== "pending" && !this.operations.find(caller, `accept:${candidateId}`)) throw memoryErrors.invalid(record.state === "accepted" ? "这条已经记住了" : "这条建议已经不在了");
-    const text = typeof input.text === "string" && input.text.trim() ? input.text.trim() : record.text;
-    if (text.length > MAX_TEXT) throw memoryErrors.invalid(`记忆内容要在 ${MAX_TEXT} 字以内`);
-    if (looksLikeSecret(text)) throw memoryErrors.invalid("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
-    const holder: MemoryCaller = { ...caller, project_id: record.project_id ?? caller.project_id, work: record.work };
-    const candidate = (await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner)).find(item => item.candidate_id === candidateId);
-    if (!candidate) throw memoryErrors.conflict("候选原件已不可读，不能重建其分类或来源");
-    const original = this.operations.find(caller, `accept:${candidateId}`);
-    const entries = await this.scopeCommands.located(holder, record.scope, record.owner);
-    this.preferences.assertEnabled(caller.actor_id, { ...record, project: record.project_id });
-    const target = candidate.replacement ? entries.find(located => located.entry.memory_id === candidate.replacement!.memory_id) : original
-      ? (original.memory_id ? entries.find(located => located.entry.memory_id === original.memory_id) : undefined)
-      : (record.supersedes ? entries.find(located => located.entry.memory_id === record.supersedes) : undefined)
-        ?? entries.find(located => sameWords(located.entry.text, text));
-    if ((original?.memory_id || candidate.replacement) && !target) throw memoryErrors.conflict("原候选决定的目标已不可读，请核对原操作");
-    const decision = this.operations.begin(caller, `accept:${candidateId}`, { kind: "accept", scope: record.scope, owner: record.owner,
-      candidate_id: candidateId, ...(target ? { memory_id: target.entry.memory_id } : {}), expected_version: input.expected_version ?? record.version });
-    if (input.expected_version !== undefined && input.expected_version !== decision.expected_version) throw memoryErrors.conflict("重试不能改变原候选版本");
-    const date = this.date(decision.at);
-    const origin = record.scope === "project" && record.work ? `你认可的建议 · 工作「${record.work.title.slice(0, 40)}」· ${date} · 依据：${record.why.slice(0, 120)}`
-      : `你认可的建议 · ${date} · 依据：${record.why.slice(0, 120)}`;
-    const at = decision.at;
-    if (!target && record.formal_expires_at === undefined) throw memoryErrors.invalid("这条建议未记录正式期限，请明确分类与期限后重新决定");
-    const formalExpiry = record.formal_expires_at === undefined ? target?.meta.expires_at ?? null : record.formal_expires_at;
-    const facts = { kind: record.kind, source: "accepted" as MemorySource, basis: record.basis,
-      evidence: [{ kind: "work" as const, text: record.why.slice(0, 200), ...(record.work ? { ref: { kind: "work", id: record.work.work_id } } : {}), at }],
-      applies: record.applies, expires_at: formalExpiry, approved_by: { by: "person" } as MemoryApproval, plugin_id: target?.meta.plugin_id ?? candidate.meta.namespace ?? null };
-    let located: Located, change: MemoryChangeKind, revision: MemoryRevision;
-    if (target) {
-      const meta: MemoryMetaRecord = { ...target.meta, ...facts,
-        evidence: [...new Map([...target.meta.evidence, ...facts.evidence].map(item => [JSON.stringify(item), item])).values()].slice(-6), updated_at: at };
-      const targetCondition = candidate.replacement ? { expected_version: candidate.replacement.expected_version }
-        : this.operations.formal(caller, target, `accept-target:${candidateId}`);
-      const entry = await this.ports.backend.withCaller(holder).candidates.settleInto({ scope: record.scope, owner: record.owner, candidate_id: candidateId,
-        candidate_expected_version: decision.expected_version!, operation_id: decision.operation_id, ...(caller.signal ? { signal: caller.signal } : {}),
-        target: { memory_id: target.entry.memory_id, expected_version: targetCondition.expected_version, change: { text, meta: toEntryMeta(meta, target.entry.meta) } }, by: { by: "person" } });
-      revision = { version: entry.version, text: entry.text, kind: meta.kind, applies: meta.applies,
-        snapshot: { origin: entry.origin, meta: entry.meta }, change: "replaced", by: "person", at };
-      located = { scope: record.scope, owner: record.owner, entry, meta };
-      change = "replaced";
-    } else {
-      const entry = await this.ports.backend.withCaller(holder).candidates.accept({ scope: record.scope, owner: record.owner, candidate_id: candidateId,
-        expected_version: decision.expected_version!, operation_id: decision.operation_id, ...(caller.signal ? { signal: caller.signal } : {}), text, origin, meta: toEntryMeta(facts, candidate.meta) });
-      if (entry.version !== 1) throw memoryErrors.conflict("候选接受后的正式记忆已有后继版本，不能把当前正文补作原接受历史");
-      revision = { version: entry.version, text: entry.text, kind: record.kind, applies: record.applies,
-        snapshot: { origin: entry.origin, meta: entry.meta }, change: "created", by: "person", at };
-      located = { scope: record.scope, owner: record.owner, entry, meta: { memory_id: entry.memory_id, scope: record.scope, owner: record.owner, ...facts, state: "active", state_reason: null, created_at: at, updated_at: at } };
-      change = "accepted";
-    }
-    const accepted = (await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner)).find(item => item.candidate_id === candidateId);
-    if (!accepted) throw memoryErrors.conflict("候选提交后的关联不可确认，请使用原操作对账");
-    const kept: MemoryCandidateRecord = { ...record, version: accepted.version, text, state: "accepted", memory_id: located.entry.memory_id };
-    this.ports.ledger.transaction(() => {
-      this.operations.committed(caller, decision, { memory_id: located.entry.memory_id, candidate_id: candidateId, version: accepted.version });
-      this.promotions.link(caller.actor_id, located.entry.memory_id, candidate.sources ?? []);
-      this.ports.ledger.addRevision(located.entry.memory_id, revision);
-      if (change === "replaced") disownAutomatic(this.ports.ledger, located.entry.memory_id);
-      this.recordChange(holder, { kind: change, scope: record.scope, owner: record.owner, memory_id: located.entry.memory_id, text: located.entry.text,
-        applied_version: located.entry.version, by: "person", rule: null, reason: `依据：${record.why.slice(0, 120)}`, undo: null });
-      this.ports.ledger.saveCandidate(kept);
-    });
-    return { candidate: candidateView(kept), memory: this.scopeCommands.item(located) };
+  async accept(caller: MemoryCaller, candidateId: string, input: Omit<MemoryCandidateDecision, "candidate_id" | "expected_version"> & { expected_version?: number } = {}): Promise<{ candidate: MemoryCandidate; memory: MemoryItem | null }> {
+    return this.candidateDecisions.accept(caller, candidateId, input);
   }
 
   async discard(caller: MemoryCaller, candidateId: string, expectedVersion?: number): Promise<{ candidate: MemoryCandidate }> {

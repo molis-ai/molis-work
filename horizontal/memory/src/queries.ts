@@ -1,3 +1,4 @@
+import { CANDIDATE_TTL_MS } from "./shapes.js";
 import { MEMORY_KINDS, MEMORY_SOURCES, type MemoryCandidate, type MemoryCandidateRecord, type MemoryScope, type MemoryItem, type MemoryLedgerPort,
   type MemoryListRequest, type MemoryListResponse, type MemoryManagementItem, type MemoryManagementKind,
   type MemoryPageRequest, type MemoryPageResponse } from "@molis-ai/molis-work-contracts/services/memory";
@@ -147,7 +148,9 @@ export class MemoryQueries {
       }
       if (!found) throw memoryErrors.not_found("记忆建议的原记录不可读；请核对存储后继续");
       const state: MemoryCandidateRecord["state"] = found.state === "promoted" ? "accepted" : found.state;
-      out.push({ note: { ...note, text: found.text, version: found.version, state, memory_id: found.memory_id ?? note.memory_id }, entry: found });
+      out.push({ note: { ...note, text: found.text, version: found.version, state, memory_id: found.memory_id ?? note.memory_id,
+        classification: found.meta.classification ?? null, created_at: new Date(found.created_at_ms).toISOString(),
+        waiting_expires_at: new Date(Math.min(found.created_at_ms + CANDIDATE_TTL_MS, found.meta.expires_at_ms ?? Infinity)).toISOString() }, entry: found });
     }
     return out;
   }

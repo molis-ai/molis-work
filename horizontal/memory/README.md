@@ -127,7 +127,7 @@ recreate 撤销按原 changeId 在现 operation marker 中保留短创建号；�
 
 ### M2 期限与当前格式往返
 
-沿 spec §9.5，候选自身最多等待 14 天；正式记忆的绝对期限单独保存在内部候选记录 `formal_expires_at`，不出现在公开候选投影。短于等待期时，候选同时提前到期；长于等待期或无期限时，不把等待日期当成正式期限。同一操作的无正文 marker 在 SDK 提议前冻结正式期限，补账不能把原 30 天改成 60 天。接受仍由 SDK 检查候选自身期限；已提交的同操作可以按 SDK 合同补关联与历史，不能重新产生一次正式写入。
+沿 spec §9.5，候选自身最多等待 14 天；正式记忆的绝对期限单独保存在候选账本 `formal_expires_at`，并投影给本人决定；`waiting_expires_at` 独立显示等待截止时间。短于等待期时，候选同时提前到期；长于等待期或无期限时，不把等待日期当成正式期限。同一操作的无正文 marker 在 SDK 提议前冻结正式期限，补账不能把原 30 天改成 60 天。接受仍由 SDK 检查候选自身期限；具备完整操作身份的已提交同操作可以按 SDK 合同补关联与历史，不能重新产生一次正式写入。
 
 已记录的候选 `formal_expires_at: null` 表示无正式期限，缺字段表示旧记录未记录该决定；两者不混用。公开 `write` 的替换请求沿用原语义：省略或传 `expires_at: null` 都保留目标原期限，并不提供清空期限或续期能力。
 
@@ -201,6 +201,20 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 候选账注只登记 SDK 已确认的引用、版本、来源和冻结期限。模型的 inferred 提示始终保守待审；自动 v3 晋升仍独立核验两份完整本人表态、当前权限、低风险类别及原撤销 journal。形成的 partial、unknown、取消和提炼用量原样返回，不能变成空成功；同操作按 SDK 完整创建输入恢复，不宣称整批 exactly-once。模型、SDK 写主人、权限与取消都不可替换为第二条 App 提议循环。验收使用真实 Node 存储及有界提炼替身，覆盖无信号零调用、同类多条、条件与跨类纠正、来源重复、固定版本冲突、取消和部分提交。
 
 产品规则 v3 和撤销准备/补账归本包，SDK 仍拥有正式 CAS 与候选决定。准备写现操作 marker/原版本历史，并在原 marker 内一次生成有界变更 ID；提交及重试复用该 ID，提交后记现变更与撤销；失败沿原操作恢复，后继人工版本不得覆盖。遗忘先写无正文来源抑制标识，清理和重放都复用现 ledger，不新增来源正文表。`learning.ts` 拥有学习编排，`promotion.ts` 拥有版本化批准与当前账本回执；这些不成为另一个候选或执行内核。现候选账注的可选 `source_refs` 只保留 SDK 已确认的来源身份，不保存原文、不替代最终授权；晋升准备读此账注，避免重入 SDK 正在执行的候选队列。
+
+### P0 候选明确采用（SDK99 定向工程验证）
+
+页面的完整 `formal` 必须沿现候选 HTTP accept 路由进入共同 Action；此前路由重建参数漏传该字段。`tests/memory-candidate-adoption.test.ts` 补真实 HTTP → Action → Service → SDK 回归，覆盖选择透传及非法决定零写入；校验仍由共同 schema/Service 持有，本片已在 SDK99 上通过该真实 HTTP 回归。
+
+完整新 marker 的同一决定允许 pending 候选在 TTL 后进入 SDK 对账，以覆盖 formal 已提交但 candidate finish 未保存；新 formal 提交仍须通过 Host 联合请求的 TTL 最后门。真实回归分别制造 finish 保存前失败与 formal 从未提交，关闭/重开跨 TTL 观察补关联或零新增。settleInto 合并证据按现 identity 将候选证据稳定放在末尾再限六条，避免重叠截断在补账时改变 meta。旧 unknown canonical 的 SDK accept 由继承的 SDK99 处理，App 不伪造分类；真实 Node/SQLite 回归已覆盖这两个故障窗口和证据合并。重开仅为同进程 Runtime/Host 生命周期，不等同 OS 进程重启。
+
+候选本人决定由 `candidate-decisions.ts` 拥有，复用原 SDK candidates.accept/settleInto 与 MemoryOperations/ledger Port。可选 formal 必须完整；旧分类或正式期限未知须本人决定。等待期与正式期限分离，canonical replacement 优先；无 replacement 时保留原 supersedes/同文选择，首次选定后固定目标版本与完整输入摘要，失败不转 append。当前授权、来源、Session、CAS 不可配置；无新插件/阈值，用户在 App 选分类和期限。短合同与 CAND-01–05 验收见现 memory strategy。候选专项17项已通过，包含项目设置列出本项目已登记角色候选、排除个人/其它项目并拒绝错项目采用；真实临时 Home 浏览器及相关 README 回归的实际结果见 spec。完整 App、真实 Home、模型效果与用户验收不由这些工程证据代替。
+
+本人项目候选视图在读取或过期处理前，复用管理页的当前项目与已登记角色 owner 集合；个人、非本人和显式全范围查询保留各自语义。无关个人候选的到期或待恢复决定不会因项目设置读取而被处理。
+
+旧候选即使没有 SDK expiry，现 Host policy 也在 SDK 的正式 `accept` + 候选 `accept` 联合请求上检查 canonical `createdAtMs + CANDIDATE_TTL_MS`，并由同一 `assertCurrent` 在实际提交前同步重查。SDK 已提交后的 accept 对账只有候选请求，不受此新提交截止门阻挡；不推广到 promote 或其它动作，不从调用参数和 App 投影读创建时间。
+
+恢复仅覆盖具有完整新 identity 的原 marker。尚未合入的 #1064 开发态旧 accept marker 缺少完整 digest/候选版本身份时，即使 SDK 已提交，也明确 conflict 并保留原记录待对账；不猜原决定，不重写正式记录、候选或历史。主干 `abc052bcb` 的旧 accept 没有 MemoryOperations，此边界不等于发布版本升级全恢复承诺。`tests/memory-candidate-adoption.test.ts` 已分别通过真实 SDK/ledger 的旧 marker 拒绝无写反例和完整新 marker 关闭/重开后跨 TTL 补账用例。
 
 ## 开发要求
 

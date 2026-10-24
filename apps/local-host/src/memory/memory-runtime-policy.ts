@@ -3,7 +3,7 @@ import type { AgentMemoryCaller, AgentMemoryExtractor } from "@molis-ai/molis-wo
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { MEMORY_CONSUMERS, type MemoryPrefs, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
-import { characterOwner, consumerAccess, memoryClassReadAllowed, memoryClassReadPossible, memoryClassFormationAllowed } from "@molis-ai/molis-work-service-memory";
+import { CANDIDATE_TTL_MS, characterOwner, consumerAccess, memoryClassReadAllowed, memoryClassReadPossible, memoryClassFormationAllowed } from "@molis-ai/molis-work-service-memory";
 
 type Options = NonNullable<PrologueNodeAdapterOptions["memory"]>;
 type Request = Parameters<Options["authorize"]>[1][number];
@@ -120,8 +120,13 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
       && request.target.source === "plugin" && request.target.approvedBy?.by === "policy" && request.target.approvedBy.policy === `plugin:${caller.plugin_id}`;
     return (caller.consumer !== "plugin" || request.target.namespace === caller.plugin_id) && (pluginSave || formation());
   };
+  // SDK's joint accept batch is the new formal commit. Committed accept reconciliation carries only the candidate.
+  // These createdAtMs facts come from canonical SDK targets, never a caller field or App candidate projection.
+  const candidateAcceptanceCurrent = (requests: readonly Request[]) => !requests.some(request => request.action === "accept" && request.target.ref.kind === "memory")
+    || requests.filter(request => request.action === "accept" && request.target.ref.kind === "memory-candidate")
+      .every(request => request.target.createdAtMs + CANDIDATE_TTL_MS > Date.now());
   const requestsAllowed = (caller: AgentMemoryCaller, requests: readonly Request[], state: ReturnType<typeof currentFacts>) =>
-    !!state && requests.every(request => permitted(caller, request, state)
+    !!state && candidateAcceptanceCurrent(requests) && requests.every(request => permitted(caller, request, state)
       && (!request.before || scoped(caller, request.before, state) && namespaceAllowed(caller, request.before.namespace)));
   return {
     policy: extractor ? { ...POLICY, formation: { maxSlots: 144 },

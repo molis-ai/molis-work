@@ -1194,3 +1194,84 @@ MEM-DEL-01..03 的当前证据：同进程内关闭 Runtime/Node Host 后重新�
 本树精确命令、退出码和日志索引为 `/private/tmp/molis-memory-delete-identity-20261024.results.json` 与 `/private/tmp/molis-memory-delete-identity-commands-20261024.txt`；原始输出分别为同前缀的 install/build/regression/root-types/workspace-types/health/boundary/api/actions/resources 日志。差异仅本合同约定四文件，未提交、推送、开 PR 或改旧树，交统筹独立审核和后续集成。
 
 统筹已独立核实际两个删除口、新增9项测试与真实原日志。正文不可读、墓碑/旁条/版本/原操作断言和信任边界与原合同一致；未发现需要扩大范围的缺口。本片保留 Draft，提交后正式 secrets 扫描与父链最终集成仍为交付门，不将局部验证等同完整 App 验收。
+
+### P0 旧候选明确采用短合同（2026-10-24，定向工程验证；资源待批准）
+
+本轮为独立集成树 `/private/tmp/molis-memory-candidate-adoption-integration-20261024`，准确父 Draft #1195 的 `ec70a1bc66aeb604c81684019c8b3abe3b659ca5`，继承 SDK99 与晋升取消修复。本轮原23文件 allowlist由统筹明确扩展一份既有 CAS 浏览器 fixture；另三个 API/Action 快照由统筹持有并生成。子任务不改旧工作树、SDK/vendor/lock、共享快照、CI或资源额度。此前候选片的普通/浏览器结果及下文未验记录仅作历史线索，本轮重新核对真实SDK与页面路径。真实 Home、付费模型、全量、提交/推送/PR均不在此子任务范围。
+
+CAND-01：同一候选 ID 进入现 accept/settleInto。可选 formal 必须完整包含 kind、classification {scenes,lifecycle}、expires_at；未知分类或正式期限要求本人明确决定。canonical 来源不补造；正式六类不扩大自动四类。
+
+CAND-02：canonical 分类/等待期限与 ledger 正式保留意图联合投影，缺失/null/绝对时间保持区别。即使旧候选无 SDK expiry，App 也从 canonical 创建时刻守 14 天等待期限。Session 原件拒绝；候选 TTL 不能充作正式旧期限。SDK 联合新提交请求的正式 accept + 候选 accept 组合在现 Host authorize/assertCurrent 检查 canonical createdAtMs 与单一 TTL 常量；SDK 已提交 accept 的单候选对账不拦。必须分别证明 append/settleInto 授权等待跨 TTL 零正式副作用，以及已提交补账跨 TTL 成功，不把此判断推广到 promote 或其它动作。
+
+CAND-03：副作用前用既有 operation digest 冻结原候选版本、最终正文/完整 formal、固定目标及版本。同操作改决定冲突；SDK 提交但账本失败跨重启及 TTL 只补原回执，不能用后继正式版本补原历史。
+
+恢复也包括正式提交成功、canonical candidate finish 尚未保存的窗口：candidate 仍 pending 时，仅已存在完整新 marker 且 digest/原版本相同的重试可越过 App 的预检查进入 SDK 对账；这不授予新写权限，真正的新 formal 提交仍由 Host 的联合请求 TTL 最后门拒绝。CAND-03 须以真实 SDK 最终候选保存前故障、重启跨 TTL 证明一次正式写与原候选补关联；另以已有同 marker 但从未正式提交的跨 TTL 重试证明零新增。settleInto 证据按现 JSON identity 先从目标移除候选同 identity，再稳定追加候选证据并限六条，防止重叠且截断后重试改变已冻结 meta；真实 SDK+ledger 回归使用目标 [a,b,c,d,e,f] 与候选 [a,g]、账本失败及重启，结果始终 [c,d,e,f,a,g]。不新增正文账本。旧 unknown canonical 的 SDK accept 限制由独立 SDK 切片处理，App 不补假分类绕过；相关用例在依赖接入及机器槽释放前未运行。
+
+此恢复保证只覆盖保存了完整新 identity 的原操作。缺少 digest/候选版本身份的 accept marker 来自尚未合入的 #1064 开发合同；已核主干 `abc052bcb` 的旧 accept 尚无 MemoryOperations，不把开发中间态描述成发布版本升级恢复承诺。即使 SDK 已提交，无完整 identity 的原 marker 也明确返回 conflict、保留待对账状态，不从当前正文、分类、期限或后继版本猜测原决定，不补写 formal、candidate 或历史。这与旧导入缺整包身份时拒绝重放的边界一致。最小反例须使用真实 ledger 的旧 marker 和真实 SDK 已提交候选，重启重试后逐项断言正式记录、canonical 候选、候选账本、修订、最近变动及 marker 原样不变；完整新 marker 跨重启/TTL 补账另验。
+
+CAND-04：canonical replacement 唯一优先。无 replacement 时保留原 supersedes/同文判定，首次选定后不能换目标或失败转 append。
+
+CAND-05：设置页复用分类/期限字段与 mutation/run；未知不能预选无限/长期，取消零写，确认后的失败固定原请求。需明确决定的助理卡片打开同一设置入口。真实 Host 浏览器与 SDK/ledger 测试为必需验证。
+
+2026-10-24 接线核对发现 `candidateEditor → POST /candidates/:id/accept → memory-host → memory.candidates.accept` 的 HTTP 重建参数丢弃 `formal`，使旧候选即使本人已选择仍按缺决定拒绝。本片补原路由透传该字段，校验继续归现 Action schema 与候选决定 Service；先补真实 HTTP 回归，独立检查完整选择进入正式记录、非法完整决定被共同 schema 拒绝且零写入。正式 SDK 新包接入前仅准备源码，未执行红绿验证。
+
+当前必须：独立候选决定职责、现投影和编辑器复用。可延后：可信 Session 管理、批量采用。删除不必要复杂度：新 SDK API/parser、候选存储、正文操作日志或插件。硬边界是当前权限、来源、Session、CAS；App 传本人决定。允许 Memory contracts、horizontal memory、Host policy/助理投影、Workbench 记忆/助理卡片与词典、相关 README/spec 和测试。SDK/vendor/lock/gates/资源额度不改。机器槽冻结期间未 install/build/test/browser，不能宣称验证或验收通过。
+
+释放机器槽并由统筹完成构建后，目标命令为 `node scripts/run-tests.mjs tests/memory-candidate-adoption.test.ts tests/memory-retention-roundtrip.test.ts tests/memory-service-cas.test.ts tests/memory-formation.test.ts tests/memory-settings-candidate-adoption.e2e.test.ts`；另按 Memory/Workbench README 执行必需回归、根类型、API/Action 快照与既有边界/health/资源门。预期为 CAND-01–05 的持久化与真实页面断言全过，取消零写、失败原请求恢复、授权跨 TTL 拒绝及补账不受 TTL 阻断均有独立观察；源码存在不代表此标准已经满足。
+
+候选采用的合同版本收尾（2026-10-24，源码准备、未验证）：共享候选 DTO 输出形状及 accept 的 formal 输入已经改变，依当前 CONTRACT-CHANGES 不在原版本下更换 schema。统筹将 memory.write 3→4、candidates.list 2→3、candidates.accept 3→4、candidates.discard 2→3；Host/助理等现消费者沿同一 memoryActions 定义，不增加兼容入口或迁移真实 Home 的固定引用。正式 SDK 包、整体构建及 API/Action 生成仍待执行，本记录不表示快照门通过。
+
+独立源码评审未发现新的确定产品 P1/P2，指出两项会使新回归到不了目标断言的准备问题，统筹已修正：离线采用使用公开 kind `memory-candidate`；Session 拒绝例通过公开 Runtime 创建真实 active Session 后绑定其 ref，先确认原件绑定存在，再断言明确分类不能替换 Session 管理权限。语法和 diff 检查通过；这些修正仍未运行，不能记为工程回归通过。
+
+本独立集成片第一轮结果（2026-10-24，角色路径评审前）：分支 `codex/memory-candidate-adoption-integration`，HEAD/准确父仍为 `ec70a1bc66aeb604c81684019c8b3abe3b659ca5`（Draft #1195，SDK99）；尚未提交或推送。上文机器槽冻结、源码待验证和旧候选片的记录保留为准备期历史，不能当本轮通过证据。本轮按真实代码、公开 Node SDK、SQLite、生产 Host/HTTP 与临时 Home 浏览器重新验证。候选决定继续使用一个 SDK/ledger 写主人，无兼容入口、新存储或第二协议。
+
+实现与实际影响：完整 formal 透传共同 Action；canonical 分类/期限与账注原期限分开投影；独立 `MemoryCandidateDecisions` 持有本人采用编排、原操作完整身份及固定 replacement；现 Host 对联合 accept 请求执行14天最终门。保留来源、Session 与版本硬边界，已提交后只修原账。同一编辑器复用正文/分类/期限职责，候选和既有变更卡片复用当前项目的设置导航。已移除无实际资源收益的 compactScript 包装，保留原注释与结构，没有为预算另做压缩或挤行。
+
+本轮变更清单共27文件。子任务允许的24份为：
+
+- `apps/local-host/src/assistant/assistant-memory-tools.ts`、`apps/local-host/src/memory/memory-host.ts`、`apps/local-host/src/memory/memory-runtime-policy.ts`。
+- `apps/workbench/README.md`、`apps/workbench/src/i18n/memory-en.ts`、`apps/workbench/src/scripts/client/assistant-island.ts`、`apps/workbench/src/settings-memory.ts`。
+- `horizontal/memory/README.md`、`horizontal/memory/src/candidate-decisions.ts`、`horizontal/memory/src/formation.ts`、`horizontal/memory/src/index.ts`、`horizontal/memory/src/operations.ts`、`horizontal/memory/src/queries.ts`、`horizontal/memory/src/service.ts`、`horizontal/memory/src/shapes.ts`。
+- `packages/contracts/README.md`、`packages/contracts/src/services/assistant-memory.ts`、`packages/contracts/src/services/memory.ts`。
+- `tests/fixtures/memory-candidate-adoption.ts`、`tests/memory-candidate-adoption.test.ts`、`tests/memory-settings-candidate-adoption.e2e.test.ts`、`tests/memory-retention-roundtrip.test.ts`、`tests/memory-settings-cas.e2e.test.ts`、本 spec。
+
+其中新增且交接时未跟踪的四份为 `horizontal/memory/src/candidate-decisions.ts`、`tests/fixtures/memory-candidate-adoption.ts`、`tests/memory-candidate-adoption.test.ts`、`tests/memory-settings-candidate-adoption.e2e.test.ts`；完整 patch 必须包含它们。其余三份由统筹生成且子任务只验证：`tooling/gates/api/contracts/services/assistant.txt`、`tooling/gates/api/contracts/services/memory.txt`、`tooling/gates/actions/host-actions.tsv`。公开变化为候选新增 classification/formal_expires_at/waiting_expires_at、接受决定可选完整 formal、助理候选 needs_formal_decision，以及 write 3→4、list 2→3、accept 3→4、discard 2→3；原固定旧 Action 按版本规则失败，不静默升级。
+
+首败与修正均保留原日志：首次 build 因 `MemoryRevision` 未使用导入失败，移除后通过；首轮候选专项9/15，两个自建 Adapter fixture 缺生产 assisted-promotion 接线，导致六个故障用例尚未进入目标断言，已复用真实 `service.promotion` decide/undo 后15/15。新增助理卡片 fixture 初次传完整 StoredWork，违反输出 schema，改为实际 `{work_id,title}`；随后原测试误以 pathname 必须变化，诊断确认真实 workspace shell 在原项目 URL 呈现正确项目记忆设置，改验可见 owner/scope/editor，未改产品导航。普通 README 回归49/50，唯一失败是原“已经记住了”错误文案被新候选职责统一文案替代，已恢复原 accepted 状态文案，6份相关增量回归全过。浏览器首轮10/11，唯一旧 CAS fixture 缺新合同必需的完整分类/已知 null 期限；统筹明确允许补 fixture，两项新增字段外保留原 CAS、请求和版本全部断言，随后12/12文件通过。原 health 因助理脚本增长失败，经真实表单/导航职责复用后通过，未挪注释、删断言或改 gate 基线。最终脚本语法补验首次命令 heredoc 重定向位置错误，仅为执行器输入错误，修正命令后实际构建脚本语法通过。
+
+验证结论：冻结离线安装、最终整体 build、根类型、全工作区类型、准确父 health、boundary、API/Action 均通过。正式 runner 统一 `--jobs 2 --browser-jobs 1 --retries 0`；核心七文件中其余六份首轮已通过（期限往返13、CAS85、形成14、运行策略15、严格晋升14、晋升9），新增候选15项修 fixture 后全过；普通 README/影响回归50文件中49份首轮有效，唯一文案失败修复后另6文件增量全过；相关浏览器12文件全过。最终去掉无收益包装并整体构建后，仅补构建脚本语法、候选浏览器3路径与27资源测量，不机械重跑同状态不受影响回归。精确命令、退出码与日志索引见 `/private/tmp/molis-memory-candidate-adoption-integration-20261024.results.json` 和 `/private/tmp/molis-memory-candidate-adoption-integration-commands-20261024.txt`；未隐藏首败或做 runner 自动重试。
+
+CAND-01–05 实际覆盖真实 HTTP formal 选择/共同 schema 拒绝、六类正式采用且来源不补造、未知分类/期限显式决定、Session 原件拒绝、append/settleInto 授权等待跨 TTL 零新正式副作用、已提交但账本/候选 finish 失败后原决定补账、同 marker 从未提交跨 TTL 拒绝、后继版本/改决定冲突、canonical/原同文 replacement 固定、重叠六条证据重试恒定 `[c,d,e,f,a,g]`。真实临时 Home 浏览器覆盖非空修改后的明确确认、取消零写、短期真实输入期限、失败后完全同请求重试、关闭/重开和实际助理候选卡片进入同一项目设置编辑器。关闭/重开均是同进程 Runtime/Host 生命周期，不冒充 OS 进程重启；隔离浏览器与局部 Node 路径是有界工程验证，不等于最终 App、真实 Home、模型质量/token 效果、完整 P0 或用户验收。
+
+角色路径评审前资源仍未通过：当轮27项共7,831,816 B，相对准确父7,830,253 B，仅 `/assets/molis-work-workbench.js` 1,208,174→1,209,737 B，净增1,563 B，其余26项相同。原始实现曾增加2,917 B，实际表单和导航复用收回1,354 B；未使用新压缩旁路，未提高预算或修改资源快照。最终 `resources-no-compact` 为 exit1（真实超预算），`--report --json` 为 exit0仅表示成功测量。该必要 UI 增长交统筹基于可审查 Draft 单独申请；本片不宣称全部工程门禁通过，也不把资源失败掩盖为测试失败。无全量/CI、真实 Home、付费模型或发布，最终独立评审与父链集成仍由统筹完成。
+
+独立评审追加的 CAND-05 角色路径修复（2026-10-24，准确父与27文件范围不变）：合法的角色候选具有已登记 owner、所属 project_id 与工作，助理全范围候选查询可返回它；原导航把 character 送个人页，而项目 overview 又仅列 project，所以只改 URL 仍不能到达原候选。该路径属于本 spec 已有角色候选接受/丢弃与 CAND-01/05 的承诺，统筹明确授权复现和最小完整修复，不放宽验收。
+
+先复现并保留原始失败：`character-entry-red` 在旧构建上项目卡路径通过、角色卡真实可见但点击后进错范围（3/4）；`character-scope-fixture-red` 的真实 HTTP 项目 overview 期望 `[project-pending,role-pending]`，实际只有 project 项（候选专项15/16）。更早 `character-red` 因实验去掉原页面初始化导致两个卡片事件发得过早，已恢复原 fixture 初始化；`character-scope-red` 因新增个人隔离 fixture 误把 App personal 传给公开离线采用，修正为 SDK user 后才形成上述真实产品红例。两份准备错误不冒充产品失败，所有日志保留。
+
+最小修复仍在既有导航与 HTTP owner 内：character 卡只用其自身 project_id，缺项目明确报错，不借当前项目猜归属；项目 overview 调用已有候选 Action 的 scope:all，始终使用当前可信项目 caller、不设 anywhere，然后只返回 scope 为 project/character 且 project_id 等于可信 context.project_id 的候选。个人 overview 仍只查 personal；不新增 owner 业务输入、Action schema、全局索引或授权。真实 Node/HTTP 反例同时保有个人、本项目与另一项目的角色候选，证明项目返回本项目两类、个人页只个人、另一项目只自己的角色；错项目 accept 被拒且候选保持 pending。
+
+最终角色修复构建后增量结果：`build-character`、根类型及 Workbench/Local Host 类型、`character-health`、API/Action 与实际脚本语法均 exit0。正式 runner（jobs2/browser1/retries0）六个相关普通文件6/6通过，候选专项16/16；四个相关浏览器文件4/4通过，候选路径4/4、原 CAS23/23、原管理页1/1、助理页面卡片1/1。角色实操自动化从真实已登记 owner + work 的旧候选助理卡出发，到对应项目中同原 ID 的明确分类/期限编辑器；取消零写，确认后仍为原 expected_version=1、原 candidate ID 与 character owner，且同进程 Host 关闭/重开保持结果。此前首轮有效证据继续保留，未再跑全量或无关浏览器。
+
+最终资源以角色修复后为准：27项共7,831,998 B；相对准确父7,830,253 B，仅 workbench.js 1,208,174→1,209,919 B，净增1,745 B（角色路径必要增长182 B），其余26项不变。`character-resources` exit1，`character-resources-report` exit0仅代表测量完成。未改预算、额度、门禁、SDK、锁或父的三个共享快照；+1,563 B 为评审前历史，不能用作最终申请值。统筹继续负责该必要资源增长的单独批准与最终独立评审、Draft 交付。最终日志/精确命令更新在同一 results JSON 与 commands 文本，完整 patch 含全部四个新增未跟踪文件。工程验证只覆盖所述临时 Home/Node/HTTP/浏览器路径，OS 进程重启、最终 App、真实 Home、付费模型、完整 P0 与用户验收仍未验证；资源门未过，不能宣称全部工程门禁通过。
+
+CAND-05 本人项目候选查询隔离短合同补充（2026-10-24，修改前）：独立复核确认角色修复的 HTTP scope:all 后过滤过晚。Service.candidates 在投影前会读取并过期处理 personal；个人原 accept 已提交正式记忆、candidate finish 尚未保存且跨 TTL 时，项目 GET 会尝试另建 expired 决定，冲突并留下无关个人操作 marker。真实 Node/SQLite + 生产 Host/HTTP 红例已复现，准确观察本次 Action operation_id 对应的 `memory-operation:<operation>:expired:personal-recover` 新 pending marker，而原个人 SDK/候选/账注/历史/变更与 accept marker 保持。不能仅靠响应过滤声称隔离。
+
+本次最小责任变化：本人 `candidates(scope:project)` 视图在进入候选读取/过期循环前，复用与现 `MemoryQueries.page(scope:project)` 相同的 `scopesFor(caller,[project,character])`，只枚举当前可信项目和已登记角色 owner；非本人、personal、all/anywhere 保留原语义。HTTP overview 恢复调用原 scope:project，不再 all 后过滤。此为本人项目候选视图与既有管理页语义对齐，不增公开 scope、输入字段、owner 参数、Port、存储或授权。若无当前项目，继续使用 scopesFor 原 lenient 规则；权限、来源、当前 owner、取消与 CAS 仍由原主人强制。本片不修个人候选自身的 expire/accept 冲突，只保证无关项目查询不读、不触发其过期或新 marker。
+
+验收必须：个人 before-finish 故障→关闭/重开→跨 TTL，项目 overview 仍返回本项目 project+registered character；个人正式条目、canonical 候选、账注、revisions/changes、原 accept marker 完全不变，本次 Action 对两项个人候选的准确 expired marker 均不存在；一项普通到期个人候选也保持 pending，证明没有无关过期写。保留真实首败与 fixture准备失败；补整体build、候选/范围/助理等必要影响回归和角色浏览器原路径、最新27资源测量。复用此前同状态有效证据，不全量，不改 SDK/lock/API快照/资源额度或提交推送。
+
+本人项目候选隔离实际结果（2026-10-24，生产源码定型）：`project-isolation-status-red` 在原 all 后过滤构建上候选16/17，实际项目 GET 为 HTTP500/actions.execution_failed，并留下本次真实 Action operation 对应的个人 `expired:personal-recover` pending marker。前置准备中，`project-isolation-red` 的快照曾直接向 Adapter 使用 personal，导致空结果；修正为生产 Backend 的 user 映射。`project-isolation-fixture-red` 虽17/17，但当时只 mock Date.now、未改变 Host Service 使用的 new Date，因此未真正跨 TTL，不作为通过证据。统一 MockTimers Date 后 `project-isolation-clock-red` 和状态诊断红例准确重现副作用。当前永久用例观察实际调用的 operation_id，按准确 `memory-operation:<operation>:expired:<candidate_id>` 键核验两项个人无关 marker，而非虚构固定过期键。
+
+修复后的 `build-project-isolation` exit0；必要受影响普通七文件7/7：候选17/17、scopes3/3、service23/23、CAS85/85、Actions23/23、runtime policy15/15、assistant19/19。新用例以真实个人 before-finish reservation、同进程关闭/重开、跨 TTL 和新鲜项目/角色候选证明本项目正常返回，个人 canonical/formal/账注/revisions/changes/原 accept marker 逐项不变，个人恢复项及普通过期项均无本次 expired marker。本人项目范围在读取/过期前由现 scopesFor 冻结为 project+当前已登记 character；HTTP 恢复原调用，无新 API、owner 字段或后过滤掩盖。根类型及 Memory/Local Host 类型、准确父 health、API/Action 均 exit0。
+
+浏览器证据如实保留：`project-isolation-browser` 两文件中管理页通过，候选3/4，角色例在 CDP `Page.navigate` 等待30秒超时；同轮项目卡也变慢。原失败清理已关闭 Chrome/Host，未能追回该次失败的具体导航 URL 阶段、当时 CDP current page/Host 状态，不能从现有日志确认环境或产品根因。统筹明确允许一次带阶段诊断的原文件复核：`project-isolation-browser-diagnostic` 4/4，无取消/跳过，项目卡2.10秒、角色卡2.55秒，settings/project/about:blank 各实际导航均收到 CDP 答复；断言、时限和 retries0 保持。该结果证明本次覆盖路径成功，不表示已修复或定位首轮导航超时。最后补失败时 URL、同进程 Host.status、CDP targets/current page 的诊断分支，仅语法检查通过，尚无再次触发该分支的证据，不再为此重复浏览器。
+
+既有 Harness 使用 headless=new、disable-extensions，无原生 Chrome 窗口或扩展。`navigation-resource-snapshot` 是首败之后的只读进程快照，与更早工具读取的时点不同，不能还原首败时的进程状态；FIFO不等于没有其它 CPU 活动，这只是排查线索而非本次超时根因。该首败及未定位边界继续交统筹，未降低为“环境已排除”，不挪用 #1064 或其它页面证据。
+
+最终27资源仍为7,831,998 B，唯一 workbench.js 1,209,919 B（准确父+1,745 B），本次后端隔离修复没有新增资源；gate exit1、report exit0，额度仍未改。准确父/HEAD、24份子任务文件和3份统筹快照范围均不变；完整补丁、commands/results 与 scope 索引已更新，含全部四份新增未跟踪文件。工程边界继续限于所述隔离真实 Node/SQLite/HTTP/浏览器路径，单次导航超时未定位；无 OS 进程重启、全量、最终 App、真实 Home、付费模型、提交/推送/PR或用户验收结论。
+
+
+候选采用统筹/独立深审收口（2026-10-24）：已逐行核对两个P2的修复和实际红绿日志：角色卡导航到其项目原候选；项目候选在读取/过期之前限定可信项目与已登记角色。普通7文件与候选17项通过；最后候选浏览器首轮因CDP导航等待失败，带只读导航诊断的单次原断言复核4/4通过，首败原因未定位，不能称已修复超时。
+
+恢复证据边界沿原§9合同保持：持原完整请求可跨SDK/Host关闭重开和TTL对账，同一页面保留原请求可显式重试；离页/刷新后不保证找回命令。个人自身存在pending accept已正式提交、finish未完成且跨TTL时，个人overview的自动expire仍与原决定冲突而失败；未新增自动找回/重放或从marker猜正文来掩盖它。此边界不是完整页面恢复通过；最终完整P0与用户验收仍未完成。独立复核在本片冻结范围未见新增P1/P2，资源仍仅workbench+1745 B未授权，保持资源门失败并准备Draft。

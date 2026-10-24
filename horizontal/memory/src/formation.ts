@@ -1,3 +1,4 @@
+import { CANDIDATE_TTL_MS } from "./shapes.js";
 import type { AgentMemorySourceRef, AgentMemorySourceSnapshot } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { MEMORY_KINDS, MEMORY_LIFECYCLES, type MemoryPrefs, type MemoryCandidateRecord, type MemoryKind, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryBackendCandidate, MemoryFormationInput } from "./backend.js";
@@ -135,7 +136,8 @@ export function formedRecord(caller: MemoryCaller, slot: FormationSlot, entry: M
   const target = slot.replacement ? snapshot.existing.find(one => one.entry.memory_id === slot.replacement!.memory_id) : undefined;
   const single = entry.meta.kind === "fact" ? "背景事实" : entry.meta.kind === "experience" ? "经验" : "这项要求";
   const why = basis === "repeated" ? "你在两份独立的原始输入里都这样要求" : basis === "explicit" ? "你在这次原始输入里完整表达了这项要求" : "从这次工作里推断";
-  return { candidate_id: entry.candidate_id, version: entry.version, source_refs: refs.map(({ event_id, version }) => ({ event_id, version })),
+  return { candidate_id: entry.candidate_id, version: entry.version,
+    classification: entry.meta.classification ?? null, waiting_expires_at: new Date(Math.min(entry.created_at_ms + CANDIDATE_TTL_MS, entry.meta.expires_at_ms ?? Infinity)).toISOString(), source_refs: refs.map(({ event_id, version }) => ({ event_id, version })),
     actor_id: caller.actor_id, owner: slot.owner, scope: slot.scope, project_id: place.project, formal_expires_at: target?.meta.expires_at ?? null,
     kind: entry.meta.kind as MemoryKind, text: entry.text, applies: facts.applies, basis, why, from: "extraction", work: caller.work ?? null,
     hold_reason: looksLikeInstruction(entry.text) ?? (basis === "inferred" ? "只是推断或缺少可核验的原件，需要你认可才会生效"

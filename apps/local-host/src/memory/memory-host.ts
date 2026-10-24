@@ -309,7 +309,8 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       if (parts.length === 1 && parts[0] === "items") return { status: 200, body: await call(memoryActions.write, body) };
       if (parts.length === 1 && parts[0] === "change") return { status: 200, body: await call(memoryActions.change, body) };
       if (parts.length === 1 && parts[0] === "prefs") return { status: 200, body: await call(memoryActions.savePrefs, body) };
-      if (parts.length === 3 && parts[0] === "candidates" && parts[2] === "accept") return { status: 200, body: await call(memoryActions.accept, { candidate_id: parts[1], expected_version: body.expected_version, ...(typeof body.text === "string" && body.text.trim() ? { text: body.text } : {}) }) };
+      if (parts.length === 3 && parts[0] === "candidates" && parts[2] === "accept") return { status: 200, body: await call(memoryActions.accept, { candidate_id: parts[1], expected_version: body.expected_version,
+        ...(typeof body.text === "string" && body.text.trim() ? { text: body.text } : {}), ...(body.formal === undefined ? {} : { formal: body.formal }) }) };
       if (parts.length === 3 && parts[0] === "candidates" && parts[2] === "discard") return { status: 200, body: await call(memoryActions.discard, { candidate_id: parts[1], expected_version: body.expected_version }) };
       if (parts.length === 3 && parts[0] === "changes" && parts[2] === "undo") return { status: 200, body: await call(memoryActions.undo, { change_id: parts[1] }) };
       if (parts.length === 1 && parts[0] === "signals") return { status: 200, body: await call(memoryActions.signal, body) };

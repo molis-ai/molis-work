@@ -1,5 +1,12 @@
 /** English for the memory settings pages (specs/archive/memory-system §10). */
 export const MEMORY_EN: Record<string, string> = {
+  "明确分类与期限": "Choose classification and retention",
+  "正式记忆的保留时间与建议等待期限分开。请明确这条记忆以后怎样使用。": "Formal retention is separate from the suggestion's waiting deadline. Choose how this memory should be used.",
+  "请选择正式期限": "Choose formal retention",
+  "尚未决定": "Not yet decided",
+  "记住这条建议": "Keep this suggestion",
+  "正在保存…": "Saving…",
+  "建议等待至": "Suggestion awaits a decision until",
   "按分类控制记忆": "Control memory by class",
   "选择谁在什么场景下使用哪类记忆，再分别限制读取与自动形成。多条限制同时适用时，采用更严格的一条；总开关和原有权限仍然有效。": "Choose who uses which memories in each work scene, then limit reading and automatic formation separately. Overlapping restrictions use the stricter rule. Master switches and existing permissions still apply.",
   "工作场景": "Work scene",
@@ -260,4 +267,5 @@ export const MEMORY_EN: Record<string, string> = {
   "期限未知": "Expiry unknown",
   "原分类": "Original classification",
   "将移除未声明的分类值": "Undeclared classification values to remove",
+  "角色建议缺少项目，无法打开设置": "This character suggestion has no project, so its settings cannot be opened",
 };

@@ -22,8 +22,10 @@ export function joinedFingerprint(parts: ReadonlyArray<{ scope: MemoryScope; own
   return counted.length === 1 ? counted[0]!.fingerprint : counted.map(part => `${part.scope}:${part.owner}=${part.fingerprint}`).join("|");
 }
 
+export const CANDIDATE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
 export function candidateView(record: MemoryCandidateRecord): MemoryCandidate {
-  const { actor_id: _actor, owner: _owner, formal_expires_at: _formalExpiry, source_refs: _sourceRefs, ...view } = record;
+  const { actor_id: _actor, owner: _owner, source_refs: _sourceRefs, ...view } = record;
   return view;
 }
 

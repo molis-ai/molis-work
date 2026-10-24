@@ -1,6 +1,6 @@
 # 防腐 PR 专职会话分工
 
-状态：2026-10-24 21:33 UTC 交付接续核实。顶部当前角色/合同覆盖下方带日期的历史快照；源码以固定PR/head、公开认领和原始证据为准。
+状态：2026-10-24 21:42 UTC 交付接续核实。顶部当前角色/合同覆盖下方带日期的历史快照；源码以固定PR/head、公开认领和原始证据为准。
 
 一骏最新纠偏：“整体还是听Claude统筹，可以从他那领取独立任务处理，不一定只解决问题和review问题，可以与他组织好领取独立任务，分配1-2个独立任务实现的session。”此前组织合并、持续接续评审与全部有效意见修复的要求保留。Claude是整条防腐线的总统筹，决定任务范围、优先级、跨线依赖和全量排期；下表Codex流水线职责只在Codex侧执行，不能替代Claude。
 
@@ -13,12 +13,12 @@
 | 测试 | 专职｜防腐测试与证据核验 · Codex | 01a16bc4-6c9f-7ca0-b47e-621727302fee | 核精确head与原始日志、CI/full；按派单补独立回归、归因失败 | 不改实现或断言、不做正式代码评审、不合并；不另起重复full |
 | 修复1 | 专职修复 1｜防腐问题与冲突 · Codex | 01a1682d-0a26-7522-b2b2-4446d904a7b7 | #1235 actual7d；#1230 c887与#1240 2f本轮双PASS/source释放。当前Full34两HTTP红：唯一6389267885，独立838树fixture A、冷build0，有限红绿中 | Root最终A已解除暂停，Claude6389627934接受；只两公共fixture目录装配，原严格HTTP/生产语义不改，撤回编号隔离；固定直二轮/TEST后仅Claude吸收 |
 | 修复2 | 专职修复 2｜防腐问题与冲突 · Codex | 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | #1237 actual87eb；#1229 c2双审待34。当前#1246/80e重装清理同题，真实Project/Home KV+文件红已取，sync keptDataDiscarded及必要KV owner接线实现、修后build定向中 | 唯一本题，留数据/失败/发布者/队列重放保持，无async install/持久flag/新full。旧1112三P2责任保留不混；旧ghost目录登记由实际owner处理，不阻塞新树 |
-| 修复3 | Root单题专职，gpt-6.1-sol/max | 01a16f01-0e2c-7450-a0f8-8ad03f18b32e | #1248已actual0a90；#1249首评nonblock已6389840541一次普通push固定516bd00d3c4aa349fb413634034001fa0bc32987，只测试四行等价注释/源码冻结 | parent87a/原115与FIRST证据有效，未重跑；新516已直REVIEW/TEST窄增量待，Claude full/actual未完成，不接未派下一题 |
-| 修复4 | Root单题专职，gpt-6.1-sol/max | 01a16f15-e025-71a3-adac-2e84f0e83fdd | #1232 887/#1239 5e双PASS待批；#1243 3a两文档双PASS/释放。当前#1244 b0d正常关闭SSE/WS/pending HTTP，唯一6389350840实际修、build/gates0，首批启动超时有限核证据中 | 新固定头/双审未交，原首败UNKNOWN；只entry文件公共槽jobs1目的核，不放宽2s真实超时/断言、不冒整PR PASS |
+| 修复3（本题源码/独立阶段已交） | Root单题专职，gpt-6.1-sol/max | 01a16f01-0e2c-7450-a0f8-8ad03f18b32e | #1248 actual0a90；#1249固定516四注释已REVIEW6389854349/TEST6389873756 PASS，原87a FIRST/115有效；source冻结释放，固定候选已交Claude统批 | CI40134883070在途/full非空/actual仍待；下一不同问题由Root明确派，不关闭C1/C3/Gmail真实账户验收 |
+| 修复4 | Root单题专职，gpt-6.1-sol/max | 01a16f15-e025-71a3-adac-2e84f0e83fdd | #1239 5e/#1243 3a双PASS待35；当前#1244 b0d同题目的复核entry12/13，新HTTP trace证实close回调早于实际socket关闭 | Socket→close Promise最小收尾修仍原2秒/原factory，下一必要whole build/entry定向公共槽，原首批时限UNKNOWN及有效文件保留，不冒整PR PASS |
 | 修复5 | Root单题专职，gpt-6.1-sol/max | 01a16f24-7a33-76f2-80b4-f20c55006d09 | #1234 7c双PASS/#1238 actual584；#1242 b86两文档双PASS待35。当前#1245 f965显式Attention owner/null与必要旧Feed/Goals边界已Root START，唯一6389330950实际实施 | 纯前缀方案撤回；两表owner字段/部分唯一索引、schema9→10/fixture/API/主spec§4.1候选维护行与ac-trust真实hunk交carrier统一，不自动维护真实Home/兼容；当前未交修复双审 |
 | 修复6（本题源码/独立阶段已交） | Root单题专职，gpt-6.1-sol/max | 01a16fa8-53d9-7622-8169-0c424357366c | #1247固定a7已独立REVIEW6389827852、TEST6389846644 PASS，Claude6389853469实际认领batch35/fe86d5cec；source冻结释放/正常push不再重推 | 73unique644是有效并集，原66/69+5取消/late activity仍UNKNOWN；CI/full/actual仍未齐，下一不同问题由Root明确派单，不以本题交付关闭FI1/PG034 |
 | 两来源最终闭环（已交付归档） | 专职合并｜PR 1109、1112 收尾 · Codex | 01a16f02-8e7e-7a92-8976-fb7befe916fd | #1236已actual bde02c59；实际树/包含核实后仅1109/1112已19:05关闭，6388316807/6388317402；本人已向Root交付并官方归档该专职 | 未重复queue/full、未动原树；1223已原Claude6388301030关闭，旧三nonblock仍FIX2，不因专职完成关闭整线 |
-| 独立实现 C1 / C3 | 专职实现 1（原C1完整owner保留）· Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | C1各片见TASKS：116 actual584，115待34、117双PASS待35、118/119由FIX4修。C3首Gmail完整区域#1249/87a已clean/FROZEN/RELEASE、TEST6389659498工程PASS；Root下一horizontal四单元已START/新树baseline build | Gmail Claude FIRST6389735163可合、FIX3四注释516已交窄双核/唯一full；下一区域listener-host/search/placement/index与im-ui/views一PR，公共生成物留批、API行为保持；不因旧PR审验空置，不关闭C1/C3整线 |
+| 独立实现 C1 / C3 | 专职实现 1（原C1完整owner保留）· Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | C1各片见TASKS：116 actual584，115待34、117双PASS待35、118/119由FIX4修。C3首Gmail完整区域#1249/87a已clean/FROZEN/RELEASE、TEST6389659498工程PASS；下一horizontal四单元新树baseline build0/14文件109绿，IM原浏览器基线等槽、完整外部候选准备但未应用 | Gmail Claude FIRST6389735163可合、FIX3四注释516已双PASS/source释放、唯一full；下一区域listener-host/search/placement/index与im-ui/views一PR，公共生成物留批、API行为保持；不因旧PR审验空置，不关闭C1/C3整线 |
 | 独立实现 C2 | 专职实现 2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | B1/645与B2a/006实际合，B2b/#1239 5e双PASS/释放待35。完整A同物理Home owner lease、Host全生命周期/stdio可信转发实际实施，Root technical contract已定，不再等泛许可 | 核心6/6+真实SDK borrow3/3仅局部；关闭须实际完成才还父lease，newHome凭opaque proof仅技术owner文件不读锁内容。Memory profile-check与A hunk窄串行，A/全恢复/真Home/本人验收尚未完成 |
 
 已有角色 owner 与有效技术裁定保持。独立树、独立明确问题且无真实重叠可多writer；同文件/合同/候选串行。Claude唯一组批/full/批PR队列；Root唯一定时发现/初始派单/复杂裁决；本流水线交付驱动接续与既有普通小PR合并职责保持。整机一份build、一批browser，machine-slot排队。

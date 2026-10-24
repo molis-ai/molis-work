@@ -9,6 +9,7 @@ const pieces = [
   { out: "characters-bundle.js", module: "characters", create: "characterChoice" },
   { out: "actions-bundle.js", module: "actions", create: "actionsClient" },
   { out: "usage-meter-bundle.js", module: "usage-meter", create: "usageMeter" },
+  { out: "subagents-bundle.js", module: "subagents", create: "subagentGroups" },
 ];
 
 const shared = { bundle: true, format: "iife", platform: "browser", minify: true, charset: "utf8", logLevel: "warning" };

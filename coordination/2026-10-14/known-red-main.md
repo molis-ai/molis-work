@@ -36,6 +36,15 @@
 | --- | --- | --- | --- | --- |
 | `workbench-deferred-clients.e2e` | 2/3 通过。「registered clients mount on demand, retry resources and retain their original surfaces」：`Error: CDP timeout: Network.setBlockedURLs`（`:50`，测试端 CDP 命令 20 秒超时） | 环境与时序（待查） | 超时出在第一条 `Network.setBlockedURLs`，早于用例碰到伴随面板，#1049 的改动（删宿主的伙伴面板装饰）不在这条路径上；同一 run 片内重试也红，重跑这一片 3/3 通过。BL-412 已把它列为重试才过的三份文件之一，根因未定 | batch-1023-3 第一次跑；batch-1023-1、batch-1023-2 都通过；batch-1023-4 第一次 2/3、重试通过；batch-1023-9 最终红；batch-1023-10 通过。BL-412 修掉就删 |
 
+## 待确认（batch-1024-22 新出现，等 batch-1024-23 判定是不是 main 的红）
+
+batch-1024-22（[run 40065231630](https://github.com/molis-ai/molis-work/actions/runs/40065231630)，main `89c9a7194` + #1164 `d6b867b02` + #1165 `01de2cb48`）除已知红外又有两份重试也失败；batch-20/21（基底 `de103e5fa` 之前）都没有这两份：
+
+- `tests/home-side-surfaces.e2e.test.ts`：VUX-16 (fallback) 那条，灵光侧栏的 `[data-lingguang-title]` 没出现。这条用例由 #1135（`a12347ae0`，新增 235 行）带进 main；同一基底里 #1147（`1756f9842`）改了灵光的 `plugin.ts`/`registration.ts`。#1164、#1165 都不碰灵光和侧栏，初判是 main 的红（#1135 进来时没跑全量，或与 #1147 组合后失败）。
+- `tests/work-placement-journeys.e2e.test.ts`：`Inspected target navigated or closed`（CDP），偶发名单里已有，这次重试也失败。
+
+batch-1024-23（基底 `8aa62a65b`，同样含 #1135、#1147）跑完后：两份也红 → 进「当前已知红」，派 Codex 修；不红 → 记偶发，batch-22 按重跑判定。
+
 ## 偶发（重试才过，不算红；记下来，看会不会变成稳定失败）
 
 规则（① 10-23）：这里的文件以后再红一次（最终失败），就写进 `tests/quarantine.json`，带 owner 和到期日（最多 30 天、最多 10 条），不从清单里删行。

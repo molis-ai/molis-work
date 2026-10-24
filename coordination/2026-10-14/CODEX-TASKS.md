@@ -12,6 +12,9 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
 
+> **10-24 06:00 统筹提醒**：`Full suite` 的 `workflow_dispatch` 只由 Claude 统筹发起（同一时刻一批，runner 只够一批）。05:55 `codex/memory-sdk-adoption`（#1064，草稿）自发了一次（[40068141974](https://github.com/molis-ai/molis-work/actions/runs/40068141974)），和 batch-22/23 抢 16 个 runner。取消 CI 要用户同意，这次不取消；以后要跑全量，先在本节写申请，统筹排时段或并进集成批。
+
+
 用户 10-24 停了合并 Agent，它的活由 Codex 接：照 `MERGE-QUEUE.md` §1 的条件入队（第 8 条：入队前留「合并认领」，取出时写原因）、机械同步、修 CI 红、起集成批、合入后把行挪到 §3。统筹照旧排顺序、做评审、也会直接入队，两边靠 PR 上的认领避免重复。现在接手时在途的：
 
 | PR | 要做的 | 说明 |

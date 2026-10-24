@@ -272,3 +272,14 @@ lead 对审计结论抽查确认（读 main `8aa62a65b` 的原始文件，GitHub
 - 验证：build、6 个定向 unit 文件全过、2 个浏览器用例、boundary、health --base、secrets 全过；CI run `40068914495` 排队；旧头 run 40065546050 已 success（含 Verify）。
 - 待：新头 Verify 绿 → 请 ac-review 复核该段 diff → 统筹进下一批（审计 AC-AUDIT-06/16 待合入后标 done）。
 - #1114：task-18 修评审项中（正文两句 + locator 测试）；旧头 CI run 40067187885 仍排队，新头会重跑。
+
+## 状态刷新（2026-10-24 07:1x UTC）
+
+- **#1114**：task-18 完成，review-pr-fixer 推新 head **`6bac03b453`**（普通 push）：
+  - 先 `git merge origin/main`（`8aa62a65b`，无冲突）；正文按 ac-review 6380443185 改（补 `directory_preview@3` 调用方影响、删「删了 #1108 4 条放行」过期句）；`tests/cognia-workbench.test.ts` 新增页面 locator 回归（断言带 `locator:'local:'+grant.root` 与 grant_id/path 同行发出）；正文加「与 #1167 的顺序」节。
+  - 本机证据：build、`actions:update` 无 diff、health --base（113 巨大单元/444 测试引用）、page-assets --base（27 assets 7,792,605B）、boundary errors=[]、secrets 无命中、contracts 47/47、定向 6 文件 35/35（cognia-workbench 2/2）。
+  - CI run `40069541221` 排队；旧头 run 40067187885 失败（已被新头取代）。等 required 绿 →请 ac-review 复核新头 → 统筹入队。
+- **#1168**：head `98906bfad`，run `40068914495` 仍有 10 项 pending（Security 1/2、2/2、Product subset 1/2、2/2、Shell/Python 等），当前 0 失败。等绿后 auditor 记 §14.2/E14 完成态、请 ac-review 复核该段 diff。
+- **审计第 10 轮（主题 h：Manifest 声明 vs 实际消费）**：完成，无新派修项；仅 **AC-AUDIT-17**（`docs/SSOT-MATRIX.md:142` coding 行「19 项 coding.* 动作」过时，实际 actions.tsv 有 28 条，含 C8-2 执行器/计划面）→ 交统筹批量写。库存：声明动作 601 条/24 provider；宿主注册但无 Manifest 271 条/29 provider（非 system/platform 132 条均落已有 PG）。构建未跑成（node_modules 符号链接 + 非 TTY），改用动作合同快照 + main tip CI 证据，未动源码。
+- **#1107**（W5-06 第二批，叠 #1098）：main 上 3 处冲突，Codex 线尚未认领；转 review-pr-fixer 按认领流程做机械同步（若 Codex 先认领则让行）。
+- 门禁正则扩 `.e2e`（AC-AUDIT-08 门禁侧）仍待用户批准。

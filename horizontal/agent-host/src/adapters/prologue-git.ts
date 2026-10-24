@@ -57,14 +57,15 @@ async function savedOf(ports: Ports, effect: Effect): Promise<StoredReview | nul
   return value;
 }
 /** Carry an effect's settled outcome onto its review; an outcome not yet known stays uncertain and is never retried. */
-async function settleReview({ runtime, queue, readDecision }: Ports, effect: Effect, request: AgentReviewRequest, error?: unknown, restored = false) {
+async function settleReview(ports: Ports, effect: Effect, request: AgentReviewRequest, error?: unknown, restored = false) {
+  const { runtime, queue } = ports;
   const current = runtime.effects.get(effect.ref), dispatch = await runtime.effects.inspectDispatch(effect.ref);
   if (!current || dispatch.state === "unknown" || ["dispatching", "reconcile-required"].includes(current.state)) {
     queue.uncertain(request.review_id, "Git 操作结果尚未确定，请核对仓库；不会自动重复执行", { restored });
     return;
   }
   if (queue.receipt(request.review_id)?.status === "approved") {
-    const saved = await readDecision(effect.proposal.inputFingerprint);
+    const saved = await ports.readDecision(effect.proposal.inputFingerprint);
     const reconciled = current.state === "failed" && dispatch.state === "not-dispatched" ? saved?.reconciliation : undefined;
     queue.settle(request.review_id, current.state === "completed" && dispatch.state === "dispatched" && dispatch.ok === true
       ? { ok: true } : { ok: false, error: reconciled ? "经核对，原操作未发生；不会自动重试"

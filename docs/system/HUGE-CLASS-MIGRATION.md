@@ -202,6 +202,12 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 
 15 个单元（拆 15），11 个文件。路径前缀 `horizontal/agent-host/src/`。
 
+R-38 第 1 片的本轮评审修复（PR #1226，2026-10-24，Codex）：只修 `prologue-git.ts` 抽出的 `settleReview` 解构 `readDecision` 后丢失 Ports 接收者的问题，保留 `ports.readDecision(...)` 方法调用；不改变四文件拆分、权限、取消、SDK Effects 或公共 API。目标是这条既有端口合同的定向工程验证通过，之后交独立增量复查与共同集成，不代表 R-38 整线完成。
+
+验收：**R38-GIT-RECEIVER-01** 通过生产 `createPrologueGitReviews → queue.refresh → settleReview`、真实 SDK Effect 和依赖 `this` 保存决定的 Ports，旧解构应失败，修后投影出原存储决定及核对依据；**R38-GIT-RECEIVER-02** 同路径的无 `this` 实现结果不变；**R38-GIT-RECEIVER-03** 决定读取在收口阶段失败时，原错误对象继续传播，不伪装成功。回归放在 `tests/prologue-git.test.ts`；原两条暂存区真实恢复用例连同全部原断言归入已持有同一实现依赖的 `tests/workspace-git-index.test.ts`，不新增公开测试 API 或增加逐文件内部导入数。整体构建后运行这两份用例、Agent Host README 必跑和受影响的 Git/审查用例；原四文件拆分的其他有效逐片证据复用，浏览器与 full 仍由统筹按共同集成排期。
+
+本轮定向结果（2026-10-24）：原 `ef71a03c1` 实现上三项新回归为 1/3，无接收者依赖的正控通过，两项实例方法用例均在真实生产 `settleReview` 丢接收者失败；最小修复后同三项 3/3，通过真实决定与原错误对象验证。整体构建、24 个必要回归文件、边界及对合并基点 `112114f23` 的健康检查通过；未增加内部导入、未改公共 API、基线或门禁，也未重新拆其他单元。原四文件的逐片证据保留，本轮结果交独立复查与共同集成，不代替 full 或实际合并。
+
 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | ---: |
 | `adapters/plugin-builder.ts` | `createPluginBuilderAgent` 函数 204 行<br>`run` 函数 153 行 | 已拆（W5-10，R-38 第 1 片） | 已做：代码角色的权限钩子（`frozenAuthority`）、`plugin-checks`（`pluginChecks`）、Skill 挂载、截图入库、事件记账、重启时标记中断的记录各成模块级函数，`run` 只剩执行顺序。原计划：`run` 里 `execution` 一段 127 行，另有 `guard`（5）、`record`（3）；`createPluginBuilderAgent` 里 `authority` 16 行。执行体、守卫、记录、权限各成函数。`run` 内嵌在 `createPluginBuilderAgent` 里（同一段计两次）。 | 5 |

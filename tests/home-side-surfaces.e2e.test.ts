@@ -102,7 +102,7 @@ test("VUX-16 (fallback): the fields on the Home Issue page, the Issue side view 
   await lingguang.waitFor("document.querySelector('[data-lingguang-title]')?.getClientRects().length", 20_000);
   await lingguang.evaluate("(() => { const title = document.querySelector('[data-lingguang-title]'); title.focus(); title.value = '侧栏里的一条灵光'; title.dispatchEvent(new Event('input', { bubbles: true })); })()");
   await lingguang.waitFor("document.querySelector('[data-lingguang-save-status]')?.textContent === '已保存'", 20_000);
-  await lingguang.evaluate("(() => { const button = [...document.querySelectorAll('[data-lingguang-brainstorm-current]')].find(button => button.getClientRects().length); button.click(); })()");
+  await lingguang.click("[data-lingguang-brainstorm-current]");
   await lingguang.waitFor("!document.querySelector('[data-lingguang-pane=chat]').hidden && document.querySelector('textarea[data-lingguang-chat-input][data-fit]')?.getClientRects().length", 30_000);
   await growsAndFallsBack(browser, lingguang, "textarea[data-lingguang-chat-input][data-fit]");
 });

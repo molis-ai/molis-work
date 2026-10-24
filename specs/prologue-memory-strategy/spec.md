@@ -1043,3 +1043,11 @@ CI 独立片最终交付：#1149 已经正常队列合入 main `afaa4fea354003e7
 本刀仅改上述原测试、既有 `plugin-frame-readiness.e2e.test.ts` 与本记录：沿原 30 秒等待界限，以可信侧栏宿主的真实 ready 和可见状态作为点击前提，改用现有 helper 的一次真实按下/松开；尺寸、字段增长/回落、保存及后续行为断言全部保留。复现用真实 HTTP 暂停子 bridge 与插件资源，分别证明“子根存在但 hidden、可见按钮为零”和“按钮已可见但宿主尚未 ready、请求与落盘为零”；放行后一次真实点击恰有一次 POST 和一条磁盘记录。没有伪造 ready、扩大超时、提高重试、跳过断言或改生产代码。
 
 定向实测：受控 readiness 2/2、原 Home side 5/5、既有 page interaction 2/2 通过，jobs=1/browser=1/retries=0；日志 `/private/tmp/molis-memory-1064-side-readiness-controlled-20261024.log` 与 `/private/tmp/molis-memory-1064-side-readiness-journeys-20261024.log`。仅测试与文档变化，不重建未变化的产品，也不机械重跑已在 `24b1266af` 通过的 27 个本机平台文件；保留原资源实测 27 项共 7,796,487 B。最终提交的静态门与共享全量仍待执行；按仓库现有 `integration/**` 全量模式运行所有分片，保留任何失败，未通过前不合并。真实模型 live、完整 P0 与用户验收仍未完成。
+
+
+#1064 最新主干冲突对齐（2026-10-24，合并后验证待运行）：旧候选 `4f29f878e` 的正常 CI `40070967939` 与集成全量 `40070963767` 保持原始运行，尚未用来声明新合并完成。主干进到 `4e17c3d1b`，其中 #1171/#1174 独立合入同一 Home 设置与侧栏时序修复，真实产生三处冲突。生产 Home listener 采用主干同义代码；侧栏保留本片严格 owner ready/可见条件，并保留主干第二处真实 click；Home locale 同时保留主干原 document/iframe 与请求回执检查、本片非法请求零 I/O，以及模型草稿经连接管理往返断言。主干 DOM event 合同、公开快照和独立安全测试、placement 导航监听修复均保留。未删除断言、修改等待时限或改变门禁。后续在实际合并树重建、跑相关浏览器和静态门，旧全量结束后再决定精确合并候选的最终全量，不能把父绿色等同合并后绿色。
+
+
+上述主干合并树实测完成：整体 build、根类型、六个相关浏览器文件全部通过（受控 readiness、原 Home side、Home locale、安全请求、placement 导航及嵌入设置，零重试），health 对准确主干 `4e17c3d1b`、boundary、API/Action、实际资源、secrets/diff 全通过。结果 `/private/tmp/molis-memory-1064-main-conflicts-20261024.results.json`。此为冲突合并后的相关验证，既有 27 个本机平台文件与未变化生产路径证据保留；最终 CI/共享全量仍独立要求。
+
+旧候选 `4f29f878e` 正常 CI 已通过，但全量 `40070963767` shard 14 出现 45/86 文件失败，原生堆栈共同落在 Node `RemoveEnvironmentCleanupHook` 的 env 空断言与 better-sqlite3 `Statement` 析构。成功 shard 5/13 与失败分片均使用 Node 24.21.0，不能据此归因单纯版本不同；尚在比对原生安装与调用链，不宣称基线或偶发，也不放宽断言/隔离/超时。原始日志 `/private/tmp/molis-memory-1064-full-suite-40070963767-shard14.log` 保留，其余分片继续跑完以收集完整结果；该全量不能计作通过。

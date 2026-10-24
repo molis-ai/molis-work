@@ -40,6 +40,9 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 ## 2. 顺序与现状
 
+> **2026-10-24 16:45 UTC 用户最新方法覆盖旧逐PR次序**：一骏要求若旧执行方不再做就合成一个，避免合来合去。Root已鲜核原Claude仍推进、1222已普通push a788e1a413f8ffce6d60c922f3c18092e9b343d3，故当前source owner仍原ac-batch29pr，不另起重复writer。以a788已含四源为核心，把1109@8921、1112@08b、1223@8af统一**一个最终共同carrier**，复用integration33/d3的1112六真冲突解法但不把1226–29新增当依赖；原分支全线成果保留。原writer须给唯一branch/worktree/head与所含源，不逐个leaf合main/刷baseline。原1222 CI自然跑作现成证据、不取消，暂不与共同结果竞争入队；仅真实共同树一次共用文件/必要build/security/full/增量双审、最终一个queue actualmain后一起关8目标。1198临时明确交Root唯一Ready/queue/actual核，流水线不重复命令；C1已在当前有界RAC115安全固定后release，之后source优先8真实修复，原Claude明确不再写该组才交可用FIX2接共同候选。当前3focus中Cognia390需真实Back回列表、不改隐藏规则；MCP唯一有界/tmp阶段取证已派TEST，原45s不加、不新full/第三次盲跑；HomeAgg已有6/6新raw保首取消。
+
+
 > 2026-10-24 16:35 UTC **本轮新授权只此8旧目标，1222最高优先**
 >
 > **一骏新明确合并授权（Root刚转达并鲜核8个）**：“把1225之前的除了memory相关的非draft PR（784，734也除外），都解决合并掉”。准确集合 **1109、1112、1209、1210、1211、1212、1222、1223**；Memory实质相关（包括Memory base的1196）、784/734与其余Draft排除，不自动Ready，不自动扩新PR>1225。可用清楚包含旧目标的合规carrier，不混未经授权新目标；旧非阻塞owner责任保留。#1198原单独任务独立继续，Root据四完整PNG交叉同bytes/空toast无匹配button已判剩6px非本分支回归，底层仍UNKNOWN、formal exit1/阈值0/首败全保留、无新capture/算法/期望图变更；可Ready正常队列，不挡这8目标。
@@ -316,3 +319,5 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
 - 10-24 16:55 UTC：#1222 推 `a788e1a41`（再合 main `2dd535912`）。本机 focus 119 个文件里 3 个红，逐个核过、都不是本批：home-aggregate 单跑 6/6；cognia-mcp 拆阶段量到 10.2s 无卡点，原用例本批两次 1/1，干净 main 两次 1/1；Cognia 390px 本批两次 4/4、main 两次 4/4，本批不改 Cognia 浏览器、样式与 workbench。390px 那次谁把 `data-expanded` 设成 true 未定，交 Codex 测试修复队列加诊断（PR 评论里写了）。Codex REVIEW 6386623257 关了 P2。
 - 10-24 16:55 UTC：**batch-33 集成** `integration/batch-1024-33`（叠在 #1222 `a788e1a41` 上）：#1226 → #1227 → #1228 → #1229 → #1112，全量 run 40112466492。解的冲突：Workflows `registration.ts`（去 `home_store`、留 `messages`）；#1112 × batch-32 四个 Manifest 视图行合键（`accepts_objects`）、workbench 入口导出并集、EXTENSION-POINTS 两条「按需」都删（包外 11 处，外加 2）。本机 build、tsc、health --base 过。#1222 不另起 full，用这一次。
 - 10-24 16:55 UTC：X2 存储定 ①（沿用 `connector_bindings`，scope_id 由 connector-host 一个函数拼解；记录键限字符；卸载、删项目按带分隔符的前缀/锚定删，测试放互为前缀的 id）；X3 刷新失败的 `reauth_required` 做成宿主进程内标记，只在令牌端点明确拒绝时标，不改库、不删密钥。S 号 X1 S-71、X2 S-72、X3 S-73。
+
+- **2026-10-24 16:45 UTC 用户最新方法覆盖旧逐PR次序**：一骏要求若旧执行方不再做就合成一个，避免合来合去。Root已鲜核原Claude仍推进、1222已普通push a788e1a413f8ffce6d60c922f3c18092e9b343d3，故当前source owner仍原ac-batch29pr，不另起重复writer。以a788已含四源为核心，把1109@8921、1112@08b、1223@8af统一**一个最终共同carrier**，复用integration33/d3的1112六真冲突解法但不把1226–29新增当依赖；原分支全线成果保留。原writer须给唯一branch/worktree/head与所含源，不逐个leaf合main/刷baseline。原1222 CI自然跑作现成证据、不取消，暂不与共同结果竞争入队；仅真实共同树一次共用文件/必要build/security/full/增量双审、最终一个queue actualmain后一起关8目标。1198临时明确交Root唯一Ready/queue/actual核，流水线不重复命令；C1已在当前有界RAC115安全固定后release，之后source优先8真实修复，原Claude明确不再写该组才交可用FIX2接共同候选。当前3focus中Cognia390需真实Back回列表、不改隐藏规则；MCP唯一有界/tmp阶段取证已派TEST，原45s不加、不新full/第三次盲跑；HomeAgg已有6/6新raw保首取消。

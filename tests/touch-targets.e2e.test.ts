@@ -181,8 +181,18 @@ const POPOVER_CONTENTS: Array<[string, string, string, string[]]> = [
 ];
 /** What a list holds for a touch pointer that a fine pointer shows only under the cursor or on focus. */
 const HOVER_ONLY = ["[data-dock-choice]", "[data-plugin-toggle]"];
+/** Who carries the next new work, chosen the way a person chooses it: the plugin in the "who does it" list, or the Assistant (its first row). The mode and
+ * the list itself belong to a work a plugin carries, so a list that is measured for them is measured in that state. */
+const PICK_EXECUTOR = `const pickExecutor = async (plugin) => {
+  const chooser = document.querySelector("[data-assistant-executor]");
+  chooser.hidden = false; chooser.click(); await new Promise((resolve) => setTimeout(resolve, 300));
+  const rows = [...document.querySelectorAll("[data-assistant-executors] .assistant-starter")];
+  (plugin ? rows.find((row) => /Coding/.test(row.textContent)) : rows[0])?.click();
+  await new Promise((resolve) => setTimeout(resolve, 300));
+};`;
 const popoversScript = (floor: number) => `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  ${PICK_EXECUTOR}
   const notices = [
     { notice_id: "t1", kind: "needs-decision", text: "需要你决定发布时间", work_id: "w1" },
     { notice_id: "t2", kind: "reminder", text: "下午三点的评审", work_id: "w2", open: { surface: "todo", id: "x", title: "评审" } },
@@ -201,6 +211,8 @@ const popoversScript = (floor: number) => `(async () => {
     // A suggestion has no button: a plugin's page hands one over and it waits above the bar.
     const opener = button ? document.querySelector(button) : { isConnected: true, click() {}, hidden: false };
     if (!opener || !opener.isConnected) { out[name] = null; continue; }
+    // The mode is the plugin's: a work the Assistant carries has none. So a person first picks the plugin in "who does it", and the mode is there.
+    if (name === "the mode") await pickExecutor(true);
     opener.hidden = false;
     // The strip shows while the input has focus.
     if (button) { if (opener.matches("input")) opener.focus(); else opener.click(); }
@@ -215,6 +227,7 @@ const popoversScript = (floor: number) => `(async () => {
     };
     if (!pop.hidden && button) { if (opener.matches("input")) opener.blur(); else opener.click(); }
     await wait(120);
+    if (name === "the mode") await pickExecutor(false);
   }
   window.fetch = real;
   return out;
@@ -523,6 +536,8 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     return { opened, closed: popover.hidden, focus: document.activeElement === (button.checkVisibility() ? button : attach), onButton: document.activeElement === button };
   })()`);
 
+  const chooseExecutor = (plugin: boolean) => evaluate(`(async () => { ${PICK_EXECUTOR} await pickExecutor(${plugin}); })()`);
+
   /** A send without a model keeps the work, which is all the chip needs; the island remembers it as this viewer's current work. */
   const makeCurrentWork = () => evaluate(`(async () => {
     const api = ${JSON.stringify(`/projects/${projectId}/api/assistant`)};
@@ -595,7 +610,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     return evaluate<number[]>(`[...document.querySelectorAll(".mw-menu .mw-menu__item")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })).map(el => Math.round(el.getBoundingClientRect().height))`);
   };
 
-  return { start, open, short, settle, shellFindings, rowFit, dockFold, popovers, switcherOps, stripMenus, panelHeader, panelBody, menuRows, line, typeAndLeave, moreLabels, makeCurrentWork, escapeReturns, evaluate, waitFor };
+  return { start, open, short, settle, shellFindings, rowFit, dockFold, popovers, switcherOps, stripMenus, panelHeader, panelBody, menuRows, line, typeAndLeave, moreLabels, makeCurrentWork, chooseExecutor, escapeReturns, evaluate, waitFor };
 }
 
 const NEW_WORK = ["[data-assistant-executor]", "[data-assistant-attention]", "[data-assistant-mode]"];
@@ -871,10 +886,13 @@ for (const scheme of ["light", "dark"] as const) {
     await w.open(1280, 800, "", "true");
     await w.line("a new work · 1280", NEW_WORK, NEW_WORK_KINDS, floors.bar);
     // Escape puts away what a button of the line opened and gives it focus back: the "+" menu and the choosers' lists.
+    // The "who does it" button and the mode are on the line once a plugin is chosen to carry the work: a person chooses it, and then they are there.
+    await w.chooseExecutor(true);
     for (const [name, button, popover] of [["the + menu", "[data-assistant-attach]", "[data-assistant-more]"], ["who does it", "[data-assistant-executor]", "[data-assistant-executors]"],
       ["the mode", "[data-assistant-mode]", "[data-assistant-modes]"], ["the notices", "[data-assistant-attention]", "[data-assistant-notices]"]] as const) {
       assert.deepEqual(await w.escapeReturns(button, popover), { opened: true, closed: true, focus: true, onButton: true }, `${name} · 1280: Escape closes it and focus goes back to its button`);
     }
+    await w.chooseExecutor(false);
     await w.makeCurrentWork();
     await w.open(1280, 800, "", "true");
     await w.line("a current work · 1280", [], ["work chip", "work chip clear"], floors.bar);

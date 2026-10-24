@@ -2,6 +2,8 @@
 
 状态：已实现、本地验证，PR #1230 已开（2026-10-24，防腐线 ac-coding 片；基于 #1191 所在的 main `2dd535912`）。发事件与删 `filesOutputsRefresh` 钩子是同一个功能，合在这一个 PR 里（用户 10-24 定一个完整功能一个 PR）。
 
+本轮按 REVIEW6387490072 在同一 PR 修复 `project-opened` 的失败重试与缺能力入口边界，并补 S-54 的 RAC-463 测试引用，已完成下述本地验证；独立二轮、CI 与实际合入另行核收。首次插件路由等待 `drain()` 的顺序和时限不变，大目录首次打开耗时仍按原评审观察处理。
+
 ## 1. 现状
 
 `host.workspace.changed@1` 目前只在两种情况发：人批准的插件工作区操作结算（`plugin-operation`），Agent 自己经人批准的写入结算（`agent-change`，BL-366）。项目设置里换了或移除了工作目录既不经审查结算，也不发事件，所以换目录后消费 Files 输出的插件会读到旧目录的快照。今天的补救是 `coding-surface.ts` 里的「先让 Files 刷新」钩子（#1191 把它改名 `filesOutputsRefresh`，搬到 `project-plugin-input-refresh.ts`）。
@@ -50,11 +52,16 @@
 
 **做的（本片）：** `apps/local-host/src/workspace-settings-events.ts` 的 `announceProjectOpened(platform, ports)`，由 `project-plugin-http.ts` 的 `handleProjectPluginHttp` 在一个插件路由派发之前调：每个平台一次（`WeakMap` 记 promise，并发的头几条路由等同一个），读项目当时的浏览目录（`projectSettingsCapabilities.browsingWorkspace`），广播 `host.workspace.changed@1`，`cause: "project-opened"`，`workspace_id` 是那个目录（项目没有就是空串），再 `hostEvents.drain()` 等投递结束，然后这条路由才继续，所以读 Files 输出的插件不会在 Files 作废旧快照之前读到它们。失败只写日志，不让路由失败。
 
+“每个平台一次”以补发及投递成功完成为准。读取或补发失败后只移除本次对应的缓存，下一条网页路由重新尝试；同一次进行中的尝试仍由并发路由共同等待，不影响另一个平台。缺少能力入口时只记录诊断、不广播，也不标记成功；之后具备入口的路由仍可补发。只有成功读取后确实没有选定浏览目录才用空 `workspace_id`，不把能力不可用解释为未选择目录。
+
 - 只有这个网页入口调它：无头启动平台（MCP、桌面壳为发现动作而 `ensureProjectPlugins`）不读不发，`project-plugin-startup` 等五个文件不动一条断言。
 - 合同：`HostWorkspaceChangedPayload.cause` 再多一个取值 `"project-opened"`（API 快照已刷新）；订阅方对每个 `cause` 一视同仁，Files、Git 不用改。
 - 代价：每个平台头一次被打开时 Files 读一次浏览目录、Git 重读一次（没变时 Files 什么也不作废）。
 - **RAC-463**（`tests/security-invariants-workspace-settings-events.test.ts`，两条）：平台头一次被打开时只发一次、名字是空串（项目没有目录）、订阅者排到了；再开路由不再发，另一个项目各发各的；链了目录并选定之后宿主重启，新平台的补发名字是那个目录；`announceProjectOpened` 只在 `project-plugin-http.ts` 里被调。
+- **RAC-463 复审回归**（同一文件）：真实网页路由遇到首次浏览目录读取失败后仍返回，未发错误事件；下一条路由成功重读并补发，后续成功去重。缺少能力入口不发空目录事件，后来能读取且确实没有选择时才发空目录。并发路由只读一次并共同等待投递结束，另一平台独立打开；无头启动不读不发。先在原 `dfa3064be` 代码上取得两类故障红例，再修复后运行同一回归；整体构建后跑该文件及 `project-plugin-startup`、`companion-actions`、`files-git-actions`、`security-invariants-plugin-pages`、`workspace-read-one-id`，复用原未变动路径证据，不另起 full。
 - 没有一条把「设置变化 → 平台没在运行 → 重启 → 消费方读到的快照」在真实平台上走通的用例；事件的一半（RAC-461）、补发的一半（RAC-463）、收到后的一半（RAC-332）各有测试。
+
+本轮验证：原 `dfa3064be` 生产代码经整体构建后，新回归稳定留下三条红例（同步抛错、异步拒绝均未在下条路由重试，缺能力入口仍广播空目录），并发与隔离正例通过；修复后同一文件 8/8 通过。包 README 的 56 个必跑文件加上述 5 个无头启动文件，共 61 文件、555 用例通过，包含原 Runtime HTTP 浏览器回归；整体构建、健康门禁（对照 `origin/main` 的 merge-base `2dd535912`）、包边界、文档与安全引用检查均通过。未另跑全量，也未做设置页完整动线或大目录首开耗时验收。
 
 ### 6.3 仍在的一个窄口（原来就有，不是本片带来的）
 

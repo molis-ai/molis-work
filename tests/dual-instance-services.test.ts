@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { directoryForHome, localWebActionContext } from "@molis-ai/molis-work-app-local-host";
+import { directoryForHome } from "@molis-ai/molis-work-app-local-host";
 import type { ActionDefinition, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseTransaction, PluginDefinition, PluginHostServices, PluginManifest, PluginOwnerFilesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -64,7 +64,7 @@ async function open(t: TestContext) {
     home: [{ definition: probe.home, dual_instance: true, owner_files: probe.owner_files }], project: [probe.project] } } });
   await home.host.homePlugins!.ready();
   const project = await home.createProject("双实例服务");
-  const context = await localWebActionContext(home.host, project.reference, []), client = home.host.actionClient(project.reference);
+  const context = await home.host.localPersonContext(project.reference), client = home.host.actionClient(project.reference);
   /** Runs `use` inside the action of the half `inside`, as the local person in the project. */
   const run = async (inside: Half, use: Use) => { probe.use(use); return await client.invoke(context, probe.actions[inside], {}) as Outcome; };
   return { home, project, context, run };

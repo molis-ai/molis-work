@@ -62,6 +62,8 @@ export type {
   PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginPrivateStorage,
   PluginUiClient, PluginHostServices, PluginActionClient, PluginActionDirectory,
   PluginDatabase, PluginDatabaseReader, PluginDatabaseTransaction, PluginDatabaseDeclaration, PluginSqlValue, PluginSqlRow,
+  PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginJournalReader, PluginJournalWriter, PluginJournalEvent, PluginJournalAppend,
+  PluginIdempotencyRecord, PluginIdempotencyPut,
   PluginScheduleClient, PluginScheduleWriter, PluginScheduleJob, PluginScheduleRegisterInput, PluginWakeupDeclaration,
   PluginModelClient, PluginModelRequest, PluginModelResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin";

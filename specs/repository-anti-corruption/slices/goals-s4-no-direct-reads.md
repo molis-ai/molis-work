@@ -24,7 +24,7 @@ Goals 迁到 Plugin Runtime（PG-094）的第四步：宿主不再绕开 Goals �
 
 ## 3. 没做的，和为什么
 
-- **钉死的提供方**（计划第 8 行、PG-031 的 Goals 部分：`goals-actions.ts` 的 `readProjectGuidance` 与 `bindGoalsManagementActions` 把 `provider_id` 写成 `GOALS_PLUGIN_ID`）。2026-10-10 用户在 `RUNTIME-MIGRATION.md` 选 (a)：内置插件的 `provider_id` 等于 `plugin_id`，宿主对内置插件写 `plugin_id` 是稳定的、认可的。去掉它要改 `allowed_actions` 的合同（现在要求精确的提供方）并让宿主按能力在目录里找提供方，改的是信任边界，且 PG-031 同一行还有 Inbox、Pages、CLI、MCP；本片不动它，登记为 BL-501。统筹 2026-10-23 已裁：宿主按 `capability_id@version` 在共同目录（`services.actions.directory`）里找提供方，同一能力多个提供方时带码拒绝；`allowed_actions` 对插件与外部调用方仍要求精确提供方；PG-031 的 Goals、Inbox、Pages、CLI、MCP 合成一片，归 `ac-platform`。删除条件：`provider_id: GOALS_PLUGIN_ID` 一类写死点为 0。
+- **钉死的提供方**（计划第 8 行、PG-031 的 Goals 部分：`goals-actions.ts` 的 `readProjectGuidance` 与 `bindGoalsManagementActions` 把 `provider_id` 写成 `GOALS_PLUGIN_ID`）。2026-10-10 用户在 `RUNTIME-MIGRATION.md` 选 (a)：内置插件的 `provider_id` 等于 `plugin_id`，宿主对内置插件写 `plugin_id` 是稳定的、认可的。去掉它要改 `allowed_actions` 的合同（现在要求精确的提供方）并让宿主按能力在目录里找提供方，改的是信任边界，且 PG-031 同一行还有 Inbox、Pages、CLI、MCP；本片不动它，登记为 BL-501。统筹 2026-10-23 已裁：宿主按 `capability_id@version` 在共同目录（`services.actions.directory`）里找提供方，同一能力多个提供方时带码拒绝；`allowed_actions` 对插件与外部调用方仍要求精确提供方；PG-031 的 Goals、Inbox、Pages、CLI、MCP 合成一片，归 `ac-platform`。删除条件：`provider_id: GOALS_PLUGIN_ID` 一类写死点为 0。2026-10-24 BL-501 做完：宿主两处都改为按目录找唯一提供方再钉住，见 [bl501-host-provider-lookup.md](bl501-host-provider-lookup.md)。
 - **`goalTitle` 端口**：计划写明这部分等 T1 解冻，与 Coding 一族一起。登记为 BL-500。
 - **项目库身份**与 **Feed 读 Goals**：分别归 S8 的另一半和 PG-093，清单里写了名字。
 

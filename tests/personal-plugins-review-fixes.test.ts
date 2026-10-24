@@ -39,7 +39,7 @@ import {
   pagesActions,
   pagesManifest,
 } from "@molis-ai/molis-work-plugin-pages";
-import { PPT_CLIENT_FACTORY_SCRIPT, pptManifest, renderPptWorkbench } from "@molis-ai/molis-work-plugin-ppt";
+import { pptManifest, renderPptWorkbench } from "@molis-ai/molis-work-plugin-ppt";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { homeStores, hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { rewriteNativePluginApiPath } from "../apps/local-host/dist/native-plugin-api.js";
@@ -212,8 +212,12 @@ test("客户端使用当前插件路径，保留的 Host 适配按合同改写",
   assert.match(datasetBrowser("page.ts"), /api: "\/datasets"/);
   assert.match(datasetBrowser("request.ts"), /host\.pluginRoute\(path\)/);
   assert.ok(datasetManifest.routes?.some(route => route.method === "GET" && route.path === "/datasets"), "and the Manifest declares that collection route");
-  // W5-01-PPT-02: the Runtime client uses its Manifest route, including the resource path.
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.ppt\/ppt/);
+  // W5-01-PPT-02: the Runtime client uses its Manifest route, including the resource path. RAC-150: PPT's page names its routes
+  // under the plugin ("/ppt") and asks the shared host for the full path.
+  const pptBrowser = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/ppt/src/browser/${file}`, import.meta.url)), "utf8");
+  assert.match(pptBrowser("page.ts"), /api: "\/ppt"/);
+  assert.match(pptBrowser("request.ts"), /host\.pluginRoute\(path\)/);
+  assert.ok(pptManifest.routes?.some(route => route.method === "GET" && route.path === "/ppt"), "and the Manifest declares that collection route");
   // RAC-31: the Runtime client targets its declared route; the HTTP discovery test rejects the removed URL.
   // RAC-146: 灵光's page names its routes under the plugin ("/sparks") and asks the shared host for the full path.
   const lingguangBrowser = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/lingguang/src/browser/${file}`, import.meta.url)), "utf8");
@@ -327,7 +331,7 @@ test("PPT 用色板，没有系统 color input", () => {
   });
   assert.match(html, /data-ppt-swatch/);
   assert.doesNotMatch(html, /type="color"/);
-  assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /type=["']color["']/);
+  assert.doesNotMatch(readFileSync(fileURLToPath(new URL("../plugins/native/ppt/src/browser/slides.ts", import.meta.url)), "utf8"), /type=["']color["']/);
 });
 
 test("Host 文本补全口暂无模型；注入后 Pages AI 返回模型的候选文字，不带占位标记", async t => {

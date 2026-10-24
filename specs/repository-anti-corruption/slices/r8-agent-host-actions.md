@@ -1,6 +1,6 @@
 # R8：agent 宿主的 typed 能力分批改登记成动作（PG-035、BL-364、BL-365）
 
-状态：第 1 批评审修复已完成本地验证（2026-10-23，防腐线 ac-kernel 片，Codex 接续修复），第 2 批（§8）已实现、在评审；验收 RAC-188～190、RAC-197 的定向回归通过，共享核心全量与浏览器验证留统一集成窗口，未宣称整线完成。
+状态：第 1～3 批与 `waitRun` 一批已合入 main（#1121、#1148、batch-26 #1202）；第 4 批（§11）在 PR 里（2026-10-24，防腐线 ac-kernel，从 main `1712c0331` 重放），§11.3 四项统筹 10-23 已裁、按裁定做完，验收 RAC-182～187 的定向回归通过。共享核心全量与浏览器验证留统一集成窗口，未宣称整线完成。
 
 ## 1. 目标
 
@@ -131,7 +131,7 @@ PR 等 #1121 合入再开，不开第三层。
    - 顶层字段列全、`required`、`additionalProperties: false`。
    - 嵌套对象只列仓库里调用方（Coding 与其他调用点）真读的字段，其余只约束 `object`。
    - 只约束 `object` 的地方，动作合同快照看不出形状变化，所以只列真用的，不把没人读的字段塞进 schema。
-   - 收紧记为 BL-470。去掉的条件：仓库外第一个插件读嵌套字段，或 `validateResult`（PG-047）开启。
+   - 收紧记为 BL-470。动作服务本来就按 output_schema 校验返回，只约束 `object` 的嵌套对象校验得过、约束不住形状。去掉的条件：仓库外第一个插件读嵌套字段。（原先写的「或 `validateResult`（PG-047）开启」是笔误：PG-047 的 `validateResult` 指模型结果，不是动作返回。）
    - 小而稳的类型照第 1 批写全：`AgentSessionRef`、`AgentRunHandle`、`AgentCheckpoint`、`AgentRecoveryReport`、命令输出。
 2. **身份字段拆开。**
    - 插件给的 `*Input` 不带身份字段，就是动作的输入 schema。
@@ -259,3 +259,78 @@ BL-364 剩 13 条（`waitRun` 转完剩 12 条，见 §10）。
   - RAC-181（`tests/agent-host-actions.test.ts`）：等满时间回答原样、调用记录不留行；调用方取消，调用记录留一行只有 `actions.cancelled` 的诊断行；第 9 个等待被拒、没观察任何东西，让出一个名额后再等成功；别的插件、项目、安装、人的会话按「找不到」拒；不属于这条会话的一轮按 `agent.run_unknown` 拒；人、Agent、工作流、MCP 一律 `actions.forbidden`；`timeoutMs` 超上限、为负、不是整数，以及多带身份项，都是 `actions.input_invalid`；被拒的等待没碰运行时。
   - `agent-run-wait` 的两条照旧，调用改带插件调用者。
   - 夹具 `fakeAgentHostActions` 把调用的 `signal` 交给假回答，`coding-session-follow` 的「插件停用即取消等待」靠它照旧成立。
+
+## 11. 第 4 批：BL-364 剩下的 12 条（已实现；§11.3 统筹 10-23 已裁）
+
+分支 `ac-kernel/r8-agent-typed-to-actions-4b`：第 3 批随 batch-26 合入后，把原分支 `…-4` 的四个提交重放到 main `1712c0331` 上（`baseline.json` 不随功能 PR 改）。验收编号 RAC-182～187。
+
+### 11.1 范围与归到哪条规矩
+
+| 描述符 | 现在的输入 | 规矩 | 改法 | 调用方 |
+| --- | --- | --- | --- | --- |
+| `awaitContinuations` | `[runtimeId, timeoutMs, exclude?]` | 2、3 | 照 `waitRun`：只给插件的 `concurrent` 查询，宿主 30 秒兜底，`timeoutMs` 0～25 000 整数由 schema 拒；回答只留调用者自己会话的接续（照 `projectWorkScope`）；占 `waitRun` 同一个每安装 8 个的名额；同一批删平台的 `wait` 分支（BL-364 的去掉条件到此满足） | Coding `wake-loop.ts` |
+| `listRuntimes` | `[]` | 3 | 只给插件的查询。运行时描述是本机的公开配置，每个插件看到的都一样，没有可滤的 | Coding 11 处；Characters 宿主一处（§11.3①）；plugin-builder 的 consumes（BL-377，不动） |
+| `availableRoles`、`listActions` | `[runtimeId, pluginId]` | 1、3 | 去掉 `pluginId`，角色与动作按调用者自己的声明与授权答 | Coding 6 处；Characters 宿主一处（§11.3①） |
+| `listSkills`、`readSkill`、`discoverSkills`、`installSkill` | `[runtimeId, pluginId, …]` | 1 | 去掉 `pluginId`；方法库的主人就是调用者（`method_owner`）；`installSkill` 写之前 `beforeEffect` | Coding `routes-setup.ts`、`routes-sessions.ts` |
+| `listMcp`、`saveMcp`、`controlMcp` | `[runtimeId, pluginId, …]` | 1 | 去掉 `pluginId`；`saveMcp` 写之前补 `beforeEffect`（现在没有）；`listMcp` 见 §11.3③ | Coding `routes-setup.ts`、`routes-sessions.ts`、`executor.ts` |
+| `listReviews` | `[projectId, status?]` | 1、3 | 见 §11.3② | 仓库里没有产品调用方，只有 `tests/agent-host-wiring.test.ts` |
+
+`pluginFor(call, pluginId)` 里「输入带 `pluginId`、与调用者比对」的分支随这一批删掉；`ports.authority` 只按调用者取。转完 `agentHostCapabilities` 里没有 typed 条目，BL-364 删行；`AgentCapabilityRegistrar` 只剩动作一种，组合根和测试里「按 `action` 分两边」的写法一起删（BL-364 原文）。
+
+### 11.2 每条要补的拒绝用例
+
+- 不消费它的插件；人、Agent、工作流、MCP：`actions.forbidden`。
+- 输入里多带 `pluginId` 或别的身份：`actions.input_invalid`。
+- `availableRoles`、`listActions`、技能、MCP：答的只是调用者自己的（另一个插件的方法库、MCP、角色读不到，也写不进）。
+- `awaitContinuations`：别的插件的会话的接续不在回答里；第 9 个等待（与 `waitRun` 合计）`agent.wait_limit_reached`；`timeoutMs` 越界 `actions.input_invalid`；等满时间回答空表算成功、不留调用记录行，取消留一行。
+- `saveMcp`、`installSkill`：撤权或取消发生在写之前，什么也没写。
+
+### 11.3 规矩没盖到的（统筹 10-23 裁）
+
+1. **Characters 是宿主自己登记的提供方，没有插件调用者。** `apps/local-host/src/characters-host.ts` 用宿主的 typed 客户端以 `io.molis.work.characters` 的名义调 `listRuntimes`、`listActions`（走 `startAuthority` 里「没有调用者就按内置名单查」那条）。动作只给插件以后，它调不到了。
+   - ①（推荐）组合根直接给 Characters 一个端口（`CharactersAgentCatalog`），由 `agent-host-composition.ts` 用 Agent Host 本身实现：运行时列表照 `descriptors()`，动作照 Characters 自己的声明算。不经动作、不经 typed 客户端，也不在输入里写插件名。
+   - ② Characters 改成一个真正装起来的插件，带自己的调用者。这是 Characters 去向的那条防腐线（2026-10-18 改），不在这一批。
+   - **裁定（统筹 10-23 裁）：①。** `CharactersAgentCatalog` 是宿主内部的端口，只给宿主装配的 Characters 用，不对插件开放：不经动作、不经 typed 客户端，输入里没有插件名，插件拿不到它。Characters 装成插件或确认归平台以后，这个端口删掉或改归类，记 BL-520（PG-085）。
+2. **`listReviews` 没有产品调用方。** 没有调用者时它把项目里所有审批都给出去；`projectId` 输入实际被忽略（取的是调用上下文的项目）。
+   - ①（推荐）删掉这条描述符（现在不留兼容期），测试改断言它不再登记。插件要看自己一轮的审批，已有 `readRunReviews`。
+   - ② 转成只给插件的查询：去掉 `projectId`，只给调用者自己会话的。
+   - **裁定（统筹 10-23 裁）：①，删掉。** 一轮的审批由 `readRunReviews` 读；不留兼容期。
+3. **`listMcp` 是查询，却会同步项目的 MCP 工具目录。** 它调 `mcpChanged`，也就是 `external-mcp-actions.ts` 的 `sync`：把这个插件的 MCP 服务器重新登记成项目里的动作提供方，并写 Home 里的「见过」记录。这不是业务数据，是宿主的目录簿记，但查询带了副作用。
+   - ①（推荐）保留现状，在描述和 slice 里写明这是宿主簿记：撤权或取消的调用照样不 `sync`，因为同步排在 `beforeEffect` 之后，这一点补测试。
+   - ② 让 `listMcp` 变成纯读，目录只在 `saveMcp`、`controlMcp` 和项目打开时（`restore`）同步。运行时在别处改了服务器状态时，目录要等下一次保存或重开才跟上。
+   - **裁定（统筹 10-23 裁）：①，带条件。** `listMcp` 不是没有副作用的查询，描述里照实写：列的同时宿主把调用插件自己的 MCP 工具重新登记进项目的动作目录。条件与做法：
+     - 只重登调用者自己那个安装的工具：同步按 `[项目, 插件]` 记，属主就是调用者的 `method_owner`，提供方是 `<插件>#mcp:<服务器>`，同步不再另收插件名；别的插件的工具一条不动。
+     - 幂等：没变的工具保留原登记（`createRegistrationSet` 按指纹比），连列两次不新登记。
+     - 排在 `beforeEffect` 复核授权之后；同步读完服务器的工具、写目录与 Home 里的「见过」记录之前，再同步跑一次 `assertAuthorityCurrent`。撤权、取消、停用的调用不同步，这一步失败按原错误拒绝，不当作「同步失败、列表照样成功」吞掉。
+     - Home 里的「见过」记录（`config/external-mcp-tools.json`）是宿主的目录簿记，重启后用它把断开的服务器的工具标成不可用，不是业务数据。
+     - 在动作模型里照样能声明成查询（`kind: "query"`，只给插件），不用改成 `concurrent`。
+4. **`awaitContinuations` 的名额。** 推荐与 `waitRun` 共用每个安装 8 个的名额（统筹 10-23 裁的是「每个安装的等待」）；另一个办法是各给 8 个。
+   - **裁定（统筹 10-23 裁）：共用每个安装 8 个。** RAC-185 两个方向都测：任一种占满 8 个，另一种也被拒。
+
+### 11.4 做了什么
+
+- 11 条转成只给插件、不要权限的动作：`listRuntimes`（输入 `[]`）、`availableRoles`、`listActions`（`[runtimeId]`）、四条技能、三条 MCP（`[runtimeId, …]`，都不再带 `pluginId`）、`awaitContinuations`（`concurrent` 查询，宿主 30 秒兜底，`timeoutMs` 0～25 000 整数，`exclude` 至多 200 条）。输出 schema 顶层列全，嵌套对象只约束 `object`（同 §9.3①、BL-470）。
+- `pluginFor(call)` 不再收 `pluginId`；`ports.authority(call)` 没有插件调用者就按 `agent.session_unknown` 拒，只按调用者取声明、授权与 `method_owner`。`listActions` 先取权威再看运行时是否支持动作工具。
+- 写之前补 `beforeEffect`：`installSkill`、`saveMcp`；`mcpChanged`（MCP 目录同步）排在 `beforeEffect` 之后，属主取自 `owner.plugin_id`，不再另传插件名；§11.3③（统筹 10-23 裁）同步在写之前再跑一次授权检查，失败照原错误拒绝。
+- `awaitContinuations` 只回调用者自己会话的接续（照 `readScopedSession`），别的会话的接续记进 `exclude` 接着等，不提前结束（循环在 `run-wait.ts` 的 `awaitOwnContinuations`，`registerAgentHostCapabilities` 因此不变长）；与 `waitRun` 共用每个安装 8 个的名额（`installationWaits(8)`）。
+- 删掉平台里只为 `wait` 留的分支：`HostCapabilityOperation` 只剩 `query | command`，内核登记拒绝 `wait`；`action-metadata.ts`、`local-host.ts` 的 `callSignal`、排队绕行与 `checkActionAvailability` 早退，`action-call-log.ts`、`typed-call-settlement.ts` 的 wait 分支都删了。可能停住的读改成声明 `scheduling: "concurrent"` 的查询。
+- §11.3① Characters（统筹 10-23 裁）：`AgentHostComposition.charactersCatalog(runtime)` 给 Characters 宿主一个宿主内部的端口，运行时列表照 `descriptors()`，动作照 Characters 自己的声明算；`characters-host.ts` 不再经 typed 客户端。
+- §11.3② 删掉（统筹 10-23 裁）`agent.reviews.list.v1`（描述符、处理器、包描述与 `scripts/workspace-packages.mjs` 的登记）。
+- `agentHostCapabilities` 里不再有 typed 条目；`AgentCapabilityRegistrar.register` 只收 `ActionDefinition`，组合根与 6 处测试的「按 `action` 分两边」与转型一起删。BL-364 删行。
+- 等待与接续的读与控（`agent.collaboration.read`、`agent.collaboration.control`，原已是动作，统筹 10-23 要求随这一批改）：读不带 `session_id` 时只回调用者自己会话的，带别人的 `session_id` 按 `agent.session_unknown` 拒；控只认调用者自己会话里的等待，别人的按 `agent.collaboration_unknown`（与项目里没有的等待一样）拒，到不了运行时（规矩 3、4）。原来不带会话的读把项目里所有会话都给出去，控也不看等待是谁的。
+- Coding：所有调用经 `codingActions(…).invoke(agent.X, [runtimeId, …])`，不带插件名；`wake-loop.ts` 经 `services.actions` 等接续，带本轮的 `signal` 与 `beforeEffect`；`codingCardPorts`、`landRoundOffers`、`runsWithCards` 去掉不再用的 `api` 参数。
+
+### 11.5 验收（RAC-182～187）
+
+- **RAC-182** 运行时列表、角色、动作只给消费它们的插件；角色按调用者自己的声明答；输入里多带插件名一律 `actions.input_invalid`；不消费的插件、人、Agent、工作流、MCP、宿主自己的客户端一律 `actions.forbidden`；被拒的调用没问到运行时。
+- **RAC-183** 方法库按调用插件的 `method_owner` 列、读、装；授权工作区之外的目录按 `agent.directory_unauthorized` 拒、没问到运行时；开始后、写之前被取消的安装是 `actions.cancelled`，方法库没被写。
+- **RAC-184** MCP 服务器按调用插件列、存、控；每次列只重登调用插件自己的工具，没变时再列不新登记；授权工作区之外的本地进程按 `agent.directory_unauthorized` 拒；写之前被取消的保存什么也没存；列到一半被取消的列表，不管停在读服务器时还是读工具时，都不重登项目的 MCP 目录；读工具时插件被停用，调用被拒、什么也没登记。
+- **RAC-185** 等接续是 `concurrent` 查询；别的插件会话的接续不在回答里、不提前结束等待；等满时间回空表算成功、不留调用记录行；调用方取消留一行只有 `actions.cancelled` 的诊断行；与 `waitRun` 共用名额：任一种占满 8 个，另一种的第 9 个 `agent.wait_limit_reached`、什么也没问，让出后再等成功；`timeoutMs` 越界、`exclude` 超 200 条 `actions.input_invalid`。等待与接续的读只回调用者自己会话的，点名别人的会话按找不到拒；控别人会话的等待按项目里没有这个等待拒，运行时零调用。
+- **RAC-186** 没有 `wait` 这种能力：内核拒绝登记，调用方也不能把命令说成等待。
+- **RAC-187** `agent.reviews.list.v1` 不再登记，调它是 `actions.dependency_missing`。
+- 测试：RAC-182～185 在 `tests/agent-host-actions.test.ts`；RAC-186 在 `tests/local-host.test.ts`；RAC-187 在 `tests/agent-host-wiring.test.ts`；RAC-182 另有 `tests/agent-host-composition.test.ts`、`tests/agent-plugin-identity.test.ts` 的输入拒绝。
+
+### 11.6 没改的、留给后面的
+
+- typed 定义顶层的 `scheduling` 字段（`HostCapabilityDefinition`）还在，宿主里别的 typed 条目还在用；随 typed 登记口整体删除时一起去。
+

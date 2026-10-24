@@ -25,13 +25,13 @@ const codingRunErrors = defineErrorCodes("coding", { run_not_found: "not_found",
 
 // The directory reads current facts without changing any persistent record or starting background execution.
 const readState = async (a: CodingActivation, api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
-  const { context } = a;
-  const runtimes = await api.invoke(agent.listRuntimes, []);
+  const { context } = a, actions = codingActions(context, beforeWrite);
+  const runtimes = await actions.invoke(agent.listRuntimes, []);
   const sessions = await readCodingSessions(a, execution, beforeWrite);
   // The methods and MCP servers are the project's Runtime's, and only what its own capability matrix offers (PG-054).
   const { runtime: library } = projectRuntime(runtimes);
-  const methods = library && supports(library, "skills") ? await api.invoke(agent.listSkills, [library.runtime_id, context.plugin_id]) : [];
-  const mcp = library && supports(library, "mcp") ? await api.invoke(agent.listMcp, [library.runtime_id, context.plugin_id]) : [];
+  const methods = library && supports(library, "skills") ? await actions.invoke(agent.listSkills, [library.runtime_id]) : [];
+  const mcp = library && supports(library, "mcp") ? await actions.invoke(agent.listMcp, [library.runtime_id]) : [];
   return { sessions, methods, mcp, models: execution.models.list(),
     // One current directory per project: the one chosen in project settings (and by Coding's own workspace choice)
     // is where new rounds run and what Files and Git show. Only when none was chosen does the catalog's pick stand.
@@ -39,7 +39,7 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
     workspace: await unlessMissing(api.invoke(projectSettingsCapabilities.browsingWorkspace, []), null) ?? await unlessMissing(api.invoke(projectsCapabilities.readWorkspace, []), null),
     workspaces: await unlessMissing(api.invoke(projectSettingsCapabilities.workspaces, []), []),
     runtimes: await Promise.all(runtimes.map(async (runtime) => ({ ...runtime,
-      roles: await api.invoke(agent.availableRoles, [runtime.runtime_id, context.plugin_id]),
+      roles: await actions.invoke(agent.availableRoles, [runtime.runtime_id]),
     }))),
   };
 };
@@ -82,10 +82,10 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { projectId, route } = a;
-    return route("coding.create-session", async (request, api, execution, beforeWrite) => {
+    return route("coding.create-session", async (request, _api, execution, beforeWrite) => {
       const body = bodyOf(request);
       // The first Runtime in the platform's directory that can host a session; with none, the session is refused and nothing is created.
-      const runtime = requireProjectRuntime(await api!.invoke(agent.listRuntimes, []));
+      const runtime = requireProjectRuntime(await codingActions(a.context, beforeWrite).invoke(agent.listRuntimes, []));
       const record = await execution.sessions.create(beforeWrite, { project_id: projectId, session_id: crypto.randomUUID(),
         title: text(body.title ?? DEFAULT_SESSION_TITLE, "coding.field.session-title"), runtime_id: runtime.runtime_id, at: new Date().toISOString() });
       return { session: record };

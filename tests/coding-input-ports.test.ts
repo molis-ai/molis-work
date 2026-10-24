@@ -262,15 +262,9 @@ test("W5-01-CODING-30 S-15 once the person has withdrawn the grant, the listed a
 
 test("W5-01-CODING-31 SYS15-Q2 recovery retries after a failed Agent read without a page; coding.state never starts a loop", { timeout: 60_000 }, async t => {
   const waits: unknown[] = [];
-  const s = await codingSdkRuntime(t, { wrapCapabilities: client => new Proxy(client, { get(target, key) {
-    const value = Reflect.get(target, key, target);
-    if (key !== "invoke") return typeof value === "function" ? value.bind(target) : value;
-    return async (definition: { capability_id: string }, ...rest: unknown[]) => {
-      if (definition.capability_id !== agent.awaitContinuations.capability_id) return (value as (...args: unknown[]) => unknown).call(target, definition, ...rest);
-      waits.push(rest[0]);
-      throw new Error("Agent 运行时没有起来");
-    };
-  } }) });
+  const s = await codingSdkRuntime(t);
+  // The wait for a continuation (an action, R8 batch 4) reaches the task graph and fails there, as when the runtime is not up.
+  t.mock.method(s.adapter.collaboration!, "awaitReady", async (...args: unknown[]) => { waits.push(args); throw new Error("Agent 运行时没有起来"); });
   assert.equal(waits.length, 0, "a project with no session tied to an Agent run starts no loop");
   await s.sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "tied", title: "重启前的会话", runtime_id: "prologue", at });
   await s.sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "tied", "sdk", at);

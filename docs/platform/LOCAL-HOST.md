@@ -31,7 +31,7 @@ Local Host 是本地产品的“总装配间”。以前 Web、CLI、MCP 各自�
 
 | 家族 | 现行生产调用或声明 | 边界 |
 | --- | --- | --- |
-| Agent `agent.*` | Coding 的 `routes.ts`、`delegation-dispatch.ts`、`background-state.ts`；Coding、创作台、Schedule 的 Manifest 声明；Characters 的宿主提供方 `characters-host.ts`（Characters 不是插件，`listRuntimes`、`listActions` 在那里调） | 注册集中在 `horizontal/agent-host/src/capability-registration.ts` 与 Host 的 `agent-host-composition.ts`。其中 `draftText` 与会话间的信、后台命令 7 条已是只给插件的动作（PG-035、R8 第 1 批），Coding 经 `services.actions` 调；其余 30 条仍是 typed（BL-364）。助理直接消费其 Agent 服务端口，不因此算 typed 客户端。 |
+| Agent `agent.*` | Coding 的 `routes.ts`、`delegation-dispatch.ts`、`background-state.ts`；Coding、创作台、Schedule 的 Manifest 声明；Characters 的宿主提供方 `characters-host.ts`（Characters 不是插件，运行时列表与动作经组合根给的 `charactersCatalog` 端口读，不经动作） | 注册集中在 `horizontal/agent-host/src/capability-registration.ts` 与 Host 的 `agent-host-composition.ts`。全部是只给插件、不要权限的动作（PG-035、R8 第 1～4 批），身份只从调用上下文来，Coding 经 `services.actions` 调；没有 typed 条目了。助理直接消费其 Agent 服务端口，不因此算 typed 客户端。 |
 | 项目工作区与设置读取 | Coding、Files、Git 的 Manifest 与路由/动作；创作台 Manifest；`web-project-platform-routes.ts` 的设置消费（项目工作区） | 只有配置工作区端口才登记。这组五项（两项工作区、三项设置）全部有动作元数据，读取和写入都不属于剩余 typed；经旧客户端调用时也是 typed 入口转动作。 |
 | Git 审阅准备与结果 | Git Manifest 与 `actions.ts` | 四项现存读/准备服务由 Host 装配，实际 Git 写入仍经审阅。 |
 | Writer 目录与集成 | Coding Manifest 与 `routes.ts` | 目录、准备与集成由 Host 给当前项目的原工作区，不接受另选项目的身份。 |
@@ -75,7 +75,7 @@ AP2 保证一个 Local Host 实例内，每个 Project storage key 只有一份 
 | `action-*`、`mcp-*`、`scene-configuration-actions.ts`、`local-owner-permissions.ts` | 统一动作服务的宿主侧：系统动作、授权、调用记录、MCP 网关与目录 |
 | `<插件>-actions.ts`、`<插件>-native-plugin-http.ts` | 冻结的旧装配：构建期组合的内置插件（名单冻结、只许减少，以 `tests/builtin-plugin-assembly-gate.test.ts` 为准）在这里注入存储位置、模型、Artifact 发布等端口，路由只转发到动作。**不再新增**：新的内置插件经 Plugin Runtime 装配（`project-plugins.ts` 的监督器条目），HTTP 由 Manifest 声明、挂在 `/api/plugins/<plugin_id>/`，宿主里不再为它写 `<插件>-native-plugin-http.ts` 和 `<插件>-actions.ts`（下一行的舞台渲染和端口文件今天仍要写）。业务规则留在插件包里。迁移计划见 [RUNTIME-MIGRATION.md](../system/RUNTIME-MIGRATION.md) |
 | `coding-surface.ts` | Plugin Runtime 插件在宿主里的工作面渲染和端口（监督器条目在 `project-plugins.ts`，属 `project-*`）。今天仍按插件写，目标是由声明产生，见 [EXTENSION-POINTS.md](../system/EXTENSION-POINTS.md) |
-| `characters-host.ts`、`characters-http.ts` | Characters 不是插件（CHR-1，2026-10-22，[RUNTIME-MIGRATION.md](../system/RUNTIME-MIGRATION.md) 5.4），宿主自己提供它：`characters-host.ts` 为每个项目注册 Characters 的动作提供方（`charactersActionProvider`），并留着 Coding 用的 `codingCharacterPorts`；`characters-http.ts` 的 `handleCharactersHttp` 是页面的 14 个地址（`/api/plugins/io.molis.work.characters/…`）的门，由 `web-request.ts` 转来，每个地址按本人身份调用一个 Characters 动作 |
+| `characters-host.ts`、`characters-http.ts` | Characters 不是插件（CHR-1，2026-10-22，[RUNTIME-MIGRATION.md](../system/RUNTIME-MIGRATION.md) 5.4），宿主自己提供它：`characters-host.ts` 为每个项目注册 Characters 的动作提供方（`charactersActionProvider`），开一轮时冻结某个版本的 `freezeProjectCharacter` 也在这里；`characters-http.ts` 的 `handleCharactersHttp` 是页面的 14 个地址（`/api/plugins/io.molis.work.characters/…`）的门，由 `web-request.ts` 转来，每个地址按本人身份调用一个 Characters 动作 |
 | `connector-*`、`<服务>-oauth.ts`、`<服务>-connector.ts` | 服务连接、凭据、OAuth 与连接器驱动 |
 | `agent-*`、`system-agent-service.ts`、`prologue-inference-host.ts`、`host-complete-text.ts`、`configured-models.ts` | Agent Host 装配、Home 推理绑定、模型选择 |
 | `web-*` | Web 入口：请求路由、页面视图投影、设置页 |

@@ -106,7 +106,7 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
     // Transient read failures back off while the job runs; a Host without a task graph ends the loop.
     for (let failures = 0; !control.signal.aborted;) {
       let ready: CodingWaitView[];
-      try { ready = (await api.invoke(agent.awaitContinuations, [runtimeId, 25_000, [...held]], { signal: control.signal })).flatMap(view => openWait(view) ?? []); failures = 0; served = true; }
+      try { ready = (await context.services!.actions!.invoke(agent.awaitContinuations, [runtimeId, 25_000, [...held]], { signal: control.signal, beforeEffect: control.beforeEffect })).flatMap(view => openWait(view) ?? []); failures = 0; served = true; }
       catch (error) {
         if (error && typeof error === "object" && "code" in error && error.code === "agent.capability_unavailable") return;
         if (recovery && !served) return;

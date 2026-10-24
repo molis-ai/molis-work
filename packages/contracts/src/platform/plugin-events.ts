@@ -59,11 +59,12 @@ export interface HostReviewSettledPayload {
 /**
  * `host.workspace.changed@1`: files in this project's workspace may have changed, so a subscriber that shows or holds them reads
  * them again. It carries no review, operation, outcome or installation: it tells every subscriber that holds `workspace:read`
- * only what any of them could read for itself. Treat every `cause` alike; new causes come as new values.
+ * only what any of them could read for itself. Treat every `cause` alike; new causes come as new values: `plugin-operation` is a
+ * plugin's person-reviewed operation, `agent-change` an Agent's own approved file edit, command or Git step in that workspace.
  */
 export interface HostWorkspaceChangedPayload {
   workspace_id: string;
-  cause: "plugin-operation";
+  cause: "plugin-operation" | "agent-change";
 }
 
 export type PluginEventErrorCode =

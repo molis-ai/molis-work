@@ -160,7 +160,7 @@ export interface ConnectorRequestService {
  * on a tenant's own origin, one that signs requests or needs OAuth extras, or one reached through a CLI is not here.
  */
 export const CONNECTOR_REQUEST_SERVICES: Readonly<Record<string, ConnectorRequestService>> = {
-  github: { origins: ["https://api.github.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "none" },
+  github: { origins: ["https://api.github.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
   gmail: { origins: ["https://gmail.googleapis.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
   "google-calendar": { origins: ["https://www.googleapis.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
   "google-drive": { origins: ["https://www.googleapis.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },

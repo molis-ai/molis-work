@@ -1022,3 +1022,10 @@ CI 独立片最终交付：#1149 已经正常队列合入 main `afaa4fea354003e7
 额外有界观测：同一旧冻结 head 的 Copy/AC-08 原文件在五轮被动探针中均通过，可信输入与消息桥记录完整、无丢环记录；仅证明这五轮实际路径，不能清除原失败，退出清单 `/private/tmp/molis-copy-ac08-bounded-20261024-47260-exits.json`。随后转查实际 `/state` 请求、取消及页面生命周期，不增加等待或全量重跑；首次探针路径误写而未采到目标 HTTP/bridge 数据，记录仍保留，不把空采样当作没有请求。
 
 统筹继续集成（2026-10-24）：GitHub PR 元数据仍报告旧 base 时，实际远端 main 已推进到 `aa4de404f`（#1121 的正式 Session 动作迁移）；以实际 ref 为准合入，形成 `8cb1764e5`。唯一文本冲突是 Coding 路由的类型 import，保留原始输入与正式动作两边语义。实际合并结果的整体 build、根类型、health 对该 main、boundary、API/Action 快照、资源、secrets 与 diff 均通过；14 个相关普通文件 **14/14、165/165**，jobs=2/retries=0，35.2 秒，见 `/private/tmp/molis-memory-1064-session-actions-integration-20261024.results.json`。资源仍为 27 项 7,797,144 B，无新增额度。该结果只覆盖本次主干集成；原冻结全量 1,397/1,400 与 Copy/AC-08 阻塞仍保留，尚不能合并。
+
+
+**#1064 点击坐标消费与回执收束（2026-10-24）。** 在旧冻结树的真实 Coding 自动跟随路径中，捕获 `renderRuns → followLive → pin` 的实际待执行 RAF：在最后点位采样前释放时，单次复制成功；在旧 helper 已确认 pointermove 并清理回执、实际 mousePressed 前释放时，同一真实滚动把目标移出点位，trusted down/up/click 落在 SPAN，原 5 秒 clipboard 断言失败。此受控交错证明 helper 存在可复现的时序缺口，不宣称就是历史全量失败的唯一原因。原 A/B 日志与评估 `/private/tmp/molis-copy-pin-interleaving-20261024-11126-{A.log,B.log,assessment.json}` 保留。
+
+沿用现输入助手，把坐标交给 click 消费后再清理临时回执；最终 guard 重核当前矩形、命中和 disabled，并在原 10 秒定位期限内只允许按下前重新定位。按下/抬起始终一次，trusted down/up 必须匹配本次收到 pointermove 的目标；CDP dispatch 与最后 guard 不是原子操作，最后缝隙发生位移会明确失败，不补点。原三个错路由/合成/旧回执断言保持；新增两个真实浏览器布局交错在旧实现均失败，修复后五例全部通过，含全部临时监听清理、零或一次 Store 副作用。最终 `/private/tmp/molis-frame-click-guard-green-final.log`；原受影响三文件另一次 9/9 通过、零重试/跳过，日志 `/private/tmp/molis-frame-click-guard-affected-three.log`。这些只是定向工程证据，AC-08 历史根因仍未确定，未改原业务断言/等待/隔离/产品代码，最终全量仍待执行。
+
+统筹复核 CI：head `92a671c75` 对应 run `40055930035` 的适用 jobs 已全部成功，Linux probe 为原配置跳过；产品两片各 218/218，并集 436、交集 0，与所测 manifest 一致，attempts 全为 1，无失败、跳过、未执行、flaky 或隔离。实际测试的是合并提交 `a9211c4e8`（parents `1cc9cfee7` + `92a671c75`），不是 head 的相同树；证据 `/private/tmp/molis-ci1064-92a-product-assessment.json`。后续主干已到 `f4df5b471`，含隔离页 link 通道修复，必须整合后重新检查相应影响，不能继承这次绿色为最终通过。

@@ -8,11 +8,15 @@ type Child = Awaited<ReturnType<typeof pluginFrameBrowser>>;
 const capture = "[data-lingguang-capture]";
 
 // Inspect the real document's listeners independently of the fixture's receipt implementation.
-async function pointerListeners(child: Child) {
+async function pointerListeners(child: Child, receiptOnly = false) {
   const { result } = await child.frameCommand<{result:{objectId:string}}>("Runtime.evaluate", {expression:"document"});
   try {
-    const { listeners } = await child.frameCommand<{listeners:Array<{type:string}>}>("DOMDebugger.getEventListeners", {objectId:result.objectId});
-    return listeners.filter(listener => listener.type === "pointermove").length;
+    const { listeners } = await child.frameCommand<{listeners:Array<{type:string;useCapture:boolean;passive:boolean}>}>("DOMDebugger.getEventListeners", {objectId:result.objectId});
+    // The product lazily adds bubbling pointerdown listeners. Receipt listeners are capture + passive;
+    // count all three input types for layout regressions without conflating product lifecycle with leaks.
+    return listeners.filter(listener => receiptOnly
+      ? ["pointermove", "pointerdown", "pointerup"].includes(listener.type) && listener.useCapture && listener.passive
+      : listener.type === "pointermove").length;
   } finally { await child.frameCommand("Runtime.releaseObject", {objectId:result.objectId}); }
 }
 
@@ -85,5 +89,69 @@ for (const fault of ["wrong frame", "synthetic after a previous trusted move", "
       return;
     }
     assert.equal(await pointerListeners(child),listenersBefore,"timeout removed the temporary pointer listener");
+  });
+}
+
+// Controlled layout changes on a real Lingguang button exercise the helper contract;
+// they do not claim to replay Coding's historical scroll-follow failure.
+for (const fault of ["before final guard", "immediately before press"] as const) {
+  test(`plugin frame input receipt rejects stale geometry: ${fault}`, {timeout:60_000}, async t => {
+    const b = await openGoalBrowser(t, true); if (!b) return;
+    let child: Child, inject = false, displaced = false, presses = 0, releases = 0, posts = 0;
+    let movesAfterDisplacement = 0;
+    const displace = async () => {
+      displaced = true;
+      assert.equal(await child.evaluate(`(() => {
+        const target=document.querySelector(${JSON.stringify(capture)}), before=target.getBoundingClientRect();
+        target.style.transform='translateY(96px)';
+        const after=target.getBoundingClientRect();
+        return after.y-before.y === 96 && !target.contains(document.elementFromPoint(before.x+before.width/2,before.y+before.height/2));
+      })()`), true, "layout actually moved the button away from the sampled point");
+    };
+    const command: typeof b.command = async (method, params = {}, session, timeout) => {
+      if (inject && !displaced && fault === "before final guard" && method === "Runtime.callFunctionOn"
+        && String(params.functionDeclaration).includes("this.arrived(")) await displace();
+      if (method === "Input.dispatchMouseEvent") {
+        if (params.type === "mousePressed") {
+          presses++;
+          // This is after the helper's last guard, exactly at the CDP dispatch boundary.
+          if (inject && !displaced && fault === "immediately before press") await displace();
+        }
+        if (params.type === "mouseReleased") releases++;
+        if (params.type === "mouseMoved" && displaced) movesAfterDisplacement++;
+      }
+      return b.command(method, params, session, timeout);
+    };
+    child = await pluginFrameBrowser(t, {...b,command}, "lingguang");
+    b.server.on("request", request => { if (request.method === "POST" && request.url?.endsWith("/api/plugins/io.molis.work.lingguang/sparks")) posts++; });
+    const count = () => { const store=openLingguangStore(b.homeDirectory); try { return store.list(b.projectId!).length; } finally { store.close(); } };
+    await b.command("Emulation.setDeviceMetricsOverride", {width:1280,height:900,deviceScaleFactor:1,mobile:false}, b.sessionId);
+    await b.navigate(() => b.command("Page.navigate", {url:`${b.origin}/projects/${b.projectId}/`}, b.sessionId));
+    await b.waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')",20_000);
+    await b.click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
+    await child.waitFor("document.querySelector('[data-lingguang-capture]')",20_000);
+    assert.equal(count(),0);
+    await child.evaluate(`window.receiptTestButtons=[];for(const type of ['pointerdown','pointerup'])document.addEventListener(type,event=>{
+      window.receiptTestButtons.push({type,trusted:event.isTrusted,target:!!event.target.closest(${JSON.stringify(capture)})});
+    },{capture:true,passive:true});`);
+    const listenersBefore=await pointerListeners(child,true);
+    inject = true;
+    if (fault === "before final guard") {
+      await child.click(capture);
+      await child.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'");
+      assert.ok(movesAfterDisplacement>0,"a stale guard must re-locate before the only press");
+      assert.equal(posts,1); assert.equal(count(),1);
+    } else {
+      await assert.rejects(child.click(capture), /Input was not delivered to plugin frame/);
+      assert.equal(movesAfterDisplacement,0,"never retry input after a press");
+      assert.equal(await child.evaluate("document.querySelector('[data-lingguang=workbench]').dataset.expanded"),"false");
+      assert.equal(posts,0); assert.equal(count(),0);
+    }
+    assert.equal(displaced,true); assert.equal(presses,1); assert.equal(releases,1);
+    assert.deepEqual(await child.evaluate("window.receiptTestButtons"),[
+      {type:"pointerdown",trusted:true,target:fault === "before final guard"},
+      {type:"pointerup",trusted:true,target:fault === "before final guard"},
+    ]);
+    assert.equal(await pointerListeners(child,true),listenersBefore,"success and rejection both remove all temporary receipt listeners");
   });
 }

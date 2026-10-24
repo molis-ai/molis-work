@@ -82,7 +82,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     const hostState = await browser.evaluate(`(()=>{${owner}const root=doc.querySelector('[data-work-surface='+${JSON.stringify(JSON.stringify(surface))}+']');return {surface:document.body.dataset.desktopSurface,root:root?{...root.dataset}:null,hidden:root?.hidden,parent:root?.parentElement?.className,text:root?.innerText?.slice(-400),frames:[...doc.querySelectorAll('iframe[data-plugin-frame]')].map(frame=>frame.dataset.pluginFrame)}})()`).catch(() => null);
     throw new Error(expression + " " + JSON.stringify(hostState), { cause: failure });
   }
-  async function point(target: string): Promise<{ x: number; y: number }> {
+  async function withPoint<T>(target: string, consume: (position: {x:number; y:number}, delivered: () => Promise<boolean>) => Promise<T>): Promise<T> {
     const deadline = Date.now() + 10000;
     const remaining = () => Math.max(1, deadline - Date.now());
     await waitFor(`document.querySelector(${JSON.stringify(target)})`, remaining());
@@ -91,23 +91,42 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     // temporary remote object, never on window; a previous move or another document cannot satisfy it.
     const receipt = await browser.command<{ result: { objectId?: string }; exceptionDetails?: unknown }>("Runtime.evaluate", {
       expression: `(() => {
-        let expected = null, received = null;
+        let expected = null, received = null, pressed = null, released = null;
         const matches = target => [...document.querySelectorAll(${JSON.stringify(target)})].find(element => element.contains(target));
         const listener = event => {
-          if (!expected || !event.isTrusted || event.pointerType !== 'mouse' || event.buttons !== 0) return;
+          if (!expected || !event.isTrusted || event.pointerType !== 'mouse') return;
           const element = matches(event.target);
+          if (event.type !== 'pointermove') {
+            const receipt = {element, x:event.clientX, y:event.clientY, button:event.button, buttons:event.buttons};
+            if (event.type === 'pointerdown') pressed = receipt; else released = receipt;
+            return;
+          }
+          if (event.buttons !== 0) return;
           // CSS coordinates can be fractional; the input event may round them to a pixel.
           if (element && Math.abs(event.clientX - expected.x) < 1 && Math.abs(event.clientY - expected.y) < 1)
             received = {element, x: expected.x, y: expected.y};
         };
-        document.addEventListener('pointermove', listener, {capture:true, passive:true});
-        // Bound the listener even if the protocol response carrying its object handle is lost.
-        const expiry = setTimeout(() => document.removeEventListener('pointermove', listener, true), ${remaining()});
+        const types = ['pointermove', 'pointerdown', 'pointerup'];
+        for (const type of types) document.addEventListener(type, listener, {capture:true, passive:true});
+        const remove = () => { for (const type of types) document.removeEventListener(type, listener, true); };
+        // Bound the listeners even if the protocol response carrying their object handle is lost.
+        const expiry = setTimeout(remove, ${remaining()});
         return {
-          arm(x, y) { expected = {x, y}; received = null; },
-          arrived(x, y) { return Boolean(received && received.x === x && received.y === y && received.element.isConnected
-            && [...document.querySelectorAll(${JSON.stringify(target)})].includes(received.element)); },
-          dispose() { clearTimeout(expiry); document.removeEventListener('pointermove', listener, true); expected = received = null; }
+          arm(x, y) { expected = {x, y}; received = pressed = released = null; },
+          arrived(x, y) {
+            if (!received || received.x !== x || received.y !== y) return false;
+            const element = received.element, box = element.getBoundingClientRect();
+            return element.isConnected && !element.disabled && box.width > 0 && box.height > 0
+              && x >= box.left && x < box.right && y >= box.top && y < box.bottom
+              && [...document.querySelectorAll(${JSON.stringify(target)})].includes(element)
+              && element.contains(document.elementFromPoint(x, y));
+          },
+          delivered(x, y) {
+            return Boolean(received && [pressed, released].every(event => event && event.element === received.element
+              && event.button === 0 && Math.abs(event.x - x) < 1 && Math.abs(event.y - y) < 1)
+              && pressed.buttons === 1 && released.buttons === 0);
+          },
+          dispose() { clearTimeout(expiry); remove(); expected = received = pressed = released = null; }
         };
       })()`, contextId: current.id, returnByValue: false,
     }, current.session, remaining());
@@ -167,7 +186,11 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
         if (!frame.covered) {
           const position = {x:frame.x + point.x, y:frame.y + point.y};
           if (movedTo?.x === position.x && movedTo.y === position.y
-            && await callReceipt('function(x,y){return this.arrived(x,y);}', point) && Date.now() < deadline) return position;
+            && await callReceipt('function(x,y){return this.arrived(x,y);}', point) && Date.now() < deadline) {
+            // Consume the guarded point before cleanup yields to another layout. CDP dispatch itself is
+            // not atomic with this guard; the trusted down/up receipt detects that remaining gap.
+            return await consume(position, () => callReceipt('function(x,y){return this.delivered(x,y);}', point));
+          }
           await move(point, frame);
         }
         covered = frame.covered;
@@ -188,10 +211,19 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
       finally { await cleanup("Runtime.releaseObject", {objectId}); }
     }
   }
+  // Public coordinates are only a snapshot; click keeps its receipt alive while consuming them.
+  async function point(target: string): Promise<{ x: number; y: number }> {
+    return withPoint(target, async position => position);
+  }
   async function click(target: string, clickCount = 1): Promise<void> {
     for (let count = 1; count <= clickCount; count++) {
-      const position = await point(target);
-      for (const type of ["mousePressed", "mouseReleased"]) await browser.command("Input.dispatchMouseEvent", { type, ...position, button: "left", clickCount: count }, browser.sessionId);
+      await withPoint(target, async (position, delivered) => {
+        const input = {...position, button: "left", clickCount: count};
+        try { await browser.command("Input.dispatchMouseEvent", {type:"mousePressed", ...input}, browser.sessionId); }
+        finally { await browser.command("Input.dispatchMouseEvent", {type:"mouseReleased", ...input}, browser.sessionId); }
+        // Never retry after a press: a side effect may already have happened on the wrong element.
+        if (!await delivered()) throw new Error("Input was not delivered to plugin frame: " + target + "; pointerdown/pointerup target mismatch");
+      });
     }
   }
   async function command<T = Record<string, unknown>>(method: string, params: Record<string, unknown> = {}): Promise<T> {

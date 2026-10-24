@@ -12,6 +12,8 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
 
+> **当前执行（10-24 11:24UTC，覆盖下列旧时间快照）**：#1202实际11:12:45Z合入645853cb60c0c76c4fa86ba27bbbbc0f35ba868a，7固定头均c4祖先、landing与已测627树相同，源PR已Claude带SHA关闭，QUEUE已移§3。full26b40086400255@c4全16+汇总success，merge-group40088629727 Verify成功；独立TEST10文件153/153首过/零skip/retry/自然exit0，旧stale不计、原28stdout未亲读。#1206/fa52a4f8c已开/base645，唯一full27b40089127294进行中，REVIEW已接组合增量；touch c37增量6383557011过，原raw交TEST，不重审board/资源。C2 B2a仍唯一source，固定交付/release后可接B2b等独立片；**W5 FIX2须同时等1206实际落地**再对1107（含1098）/1112各合一次main，Claude6383510742基于真代码冲突新时点优先于旧“release即sync”。不让等待review/CI空占writer，也不提前撞真实依赖。ACA005→003独立tmp验证TEST已接续，不新增生产writer/无关合并门。B2根因完整纠正见同一当前合同，不另造初始化任务。
+
 > **现行落地规则已接续（10-24 08:16UTC核源）**：以MERGE-QUEUE最新§1a「同路径一起落地」为准，旧逐片同步/逐片入队流程不套新批：评审仍逐片固定head，full非空按路径在Claude批分支一次解共用文件、一次health/security/full，最终仅批PR入队，叠层顶端一次落地；原片按批PR真实merge SHA及包含证据关闭。纯共用文件冲突作者不merge main、不刷baseline；full空且按队列试合无冲突的小PR可独立入队。#1114含Cognia真实代码冲突，仍是Claude6381691853指定等1169先合后原FIX2一次同步的例外，不开重复writer。
 >
 > C2 S行具体落点已由root按当前事实裁定：main安全表最大58、沙箱顶1144/61a0da5df真实包含59/60，B1以S61为集成候选（非永久占号），不造占位、不放宽连续门禁；当前独立head只缺前序须如实记health红。C2完成必要源修后立即固定非DraftPR/head及原始证据直发REVIEW/TEST/流水线、释放source；拿固定候选才向Claude申请加入当前26或下一安全批，Claude决定冻结/最终编号/唯一full，不为编号等着不开发，也不要求各片再次机械sync main。当前26计划已变为沙箱顶＋1181 e70160a6e＋1188 d6d1da98a；同批编号随实际顺序一次一致调整。C2 B2/A/快照/恢复及真实HomeR41边界保持。
@@ -35,7 +37,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 >
 > storage owner复用既有AES/主key选择读取，仅提供必要密封payload边界；清单只放非敏感描述与key依赖，payload无凭据原文，主key/Keychain/SDK等原key不导出/替换，不另造加密平台或第二key。snapshot只读原Home，不能SecretStore.put临时payload进活vault，不能落明文暂存。restore先全量预检再走既有发布/回滚，缺错key/篡改/越界/链接均零写；仅.home丢失且原key仍在时须恢复原配置/登录文件，不承诺第三方过期/撤销会话仍有效。
 >
-> 若实际存在“从未建立platform master却已有CLI私有状态”，C2给精确生产路径与最小初始化选项交root裁，不能猜key/把常见Home永久拒绝算功能可用；独立部分继续。实际只用合成凭据/临时Home，不读真实Home/Keychain/R41。
+> **B2b根因校正（root已裁定、实现2已接受，公开1190/6383570134）**：完整受管CLI前序startConnectorSetupSubmission→beginConnectorAuthorization→bindConnectorAuthorizationProtocol及bindConnectorAuthorizationInstallation都会SecretStore.put；只核connectCli/activate末段不能证明从未建master。撤销新增CLI初始化入口/pre-master常规维护计划，保留原生产初始化链，不改CLI setup接线。真正边界是finish临时授权清空最后entry后，vault外CLI密文仍依赖原key：现持久v2 backend在entries=0时仍须稳定绑定原master，不能改偏好就换backend/丢key就新建。storage必要公开出口只读seal/open，含空vault读取原key、payload单独登记依赖；缺错key拒绝且零重建/改写，不另增持久字段/协议/第二key/dummy/兼容格式。原B2a“单独空vault没有密文依赖”可保留，不能推广到外部payload。验真实prepared/start/bind/finish临时Home、首次前序已建key/vault、finish后空entry与进程重启/配置偏好变化仍沿原依赖、原key缺错零写及.home丢失原路径/字节/权限恢复；底层installer不冒完整路径，不触真实Home/网络登录/Keychain/R41。
 >
 > **交付顺序与实际owner**：实现2 C2仍唯一Codex writer，先在同一slice更新完整合同、owner清单与HOME-DATA。当前Runtime配置封存+raw维护+只读SecretStore预检作为 **B2a** 固定非Draft PR/head/raw直交REVIEW/TEST/流水线并release，不等B2b或前片审验/CI；当前7文件39项仅作者候选不冒独立过。**B2b CLI密封owner必须接续**，作者先回具体最小新增路径/公开输入输出/验收给root与流水线，再由流水线排源码窗口，不产生第二writer。B2a局部交付不等于B2/W5-16完成；A同Home早期lease、全库/非SQLitesnapshot/restore及R41边界保持。跨owner真实依赖和固定候选统一full交Claude，不提前起或重复full。
 

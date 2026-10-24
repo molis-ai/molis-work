@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { renderInboxWorkbench, type InboxUiEntry } from "@molis-ai/molis-work-plugin-inbox";
-import { LINGGUANG_CLIENT_FACTORY_SCRIPT, renderLingguangWorkbench } from "@molis-ai/molis-work-plugin-lingguang";
+import { LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_MESSAGES, renderLingguangWorkbench } from "@molis-ai/molis-work-plugin-lingguang";
 import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, openTodoStore, todoActions, todoManifest, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
 
 const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/gu, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]!));
@@ -29,11 +30,13 @@ test("RAC-135 an Inbox entry offers 转为待办 whether or not it is handled, n
 });
 
 test("RAC-135 灵光 offers 转为待办 from its editor; its client script parses (the button is filled from what is on screen)", () => {
-  const html = renderLingguangWorkbench({ primitives: { escape, text: value => value } });
+  const html = renderLingguangWorkbench({ primitives: { escape, text: key => LINGGUANG_MESSAGES[key as keyof typeof LINGGUANG_MESSAGES].zh } });
   assert.match(html, /<button[^>]*data-lingguang-todo data-context-intake="todo">转为待办<\/button>/u);
   assert.doesNotMatch(html, /data-make-todo/u);
   assert.doesNotThrow(() => new Function(`return (${LINGGUANG_CLIENT_FACTORY_SCRIPT});`));
-  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /dataset\.contextId = selected\.id/u, "the button carries the spark that is on screen");
+  // What the button carries is read in the page's source (the behaviour is run in lingguang-blank-discard.test.ts); the bundle is minified.
+  const editor = readFileSync(fileURLToPath(new URL("../plugins/native/lingguang/src/browser/editor.ts", import.meta.url)), "utf8");
+  assert.match(editor, /button\.dataset\.contextId = s\.selected\.id/u, "the button carries the spark that is on screen");
   assert.doesNotMatch(LINGGUANG_CLIENT_FACTORY_SCRIPT, /makeTodo/u);
 });
 

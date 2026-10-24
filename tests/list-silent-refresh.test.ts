@@ -12,7 +12,6 @@ import {
   InboxPluginRouteTable,
   createInboxRouteHandlers,
 } from "@molis-ai/molis-work-plugin-inbox";
-import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
 import { ALCHEMIST_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-alchemist";
 import { PAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-ppt";
@@ -26,6 +25,7 @@ import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/dist/scripts/c
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 
 // Forms' page is TypeScript bundled and minified into its client pack (W4-04): what its code does is read in the sources.
+const lingguangSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/lingguang/src/browser/${file}`, import.meta.url)), "utf8");
 const formSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/form/src/browser/${file}`, import.meta.url)), "utf8");
 
 const csrClients = {
@@ -33,7 +33,6 @@ const csrClients = {
   ppt: PPT_CLIENT_FACTORY_SCRIPT,
   functions: FUNCTIONS_CLIENT_FACTORY_SCRIPT,
   pages: PAGES_CLIENT_FACTORY_SCRIPT,
-  lingguang: LINGGUANG_CLIENT_FACTORY_SCRIPT,
 } as const;
 
 function sliceFn(script: string, startToken: string, endToken: string): string {
@@ -48,13 +47,16 @@ test("个人插件列表在创建、删除、返回后重新 GET，并保住滚�
     assert.match(script, /keepListScroll/, `${name} 要保住列表滚动`);
     assert.match(script, /list\.scrollTop = top/, `${name} 画完要写回 scrollTop`);
     assert.match(script, /await loadList\(\)/, `${name} 变更后要重新拉列表`);
-    if (name === "lingguang") {
-      assert.match(script, /\/discard[\s\S]{0,250}loadList\(\)/, `${name} 丢掉后要重新拉列表`);
-    } else {
-      // Functions reloads with { preserveForm: true } so a draft still open elsewhere keeps its form.
-      assert.match(script, /\/delete[\s\S]{0,500}loadList\((\{ preserveForm: true \})?\)/, `${name} 删除后要重新拉列表`);
-    }
+    // Functions reloads with { preserveForm: true } so a draft still open elsewhere keeps its form.
+    assert.match(script, /\/delete[\s\S]{0,500}loadList\((\{ preserveForm: true \})?\)/, `${name} 删除后要重新拉列表`);
   }
+  // 灵光 is TypeScript bundled into its client pack: the list keeps its scroll on every repaint, and discarding and going back
+  // each load the list again.
+  const lingguangList = sliceFn(lingguangSource("list.ts"), "page.renderList = ", "page.markSelected");
+  assert.match(lingguangList, /const top = el\.list\.scrollTop[\s\S]*paintList\(\)[\s\S]*el\.list\.scrollTop = top/, "灵光 要保住列表滚动，画完写回 scrollTop");
+  const lingguangCommands = lingguangSource("commands.ts");
+  assert.match(sliceFn(lingguangCommands, "const discardIds", "const current"), /\/discard[\s\S]{0,250}await page\.loadList\(\)/, "灵光 丢掉后要重新拉列表");
+  assert.match(sliceFn(lingguangCommands, "const back", "const pick"), /await page\.loadList\(\)/, "灵光 返回后要重新拉列表");
   // Forms: the list keeps its scroll on every repaint (read before the rows are replaced, written back after), and creating,
   // deleting and going back each load the list again.
   // CLN-04: these helpers are internal; the scroll contract does not depend on an export modifier.
@@ -68,7 +70,7 @@ test("个人插件列表在创建、删除、返回后重新 GET，并保住滚�
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /data-ppt-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-back[\s\S]{0,400}await loadList\(\)/);
-  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /data-lingguang-back[\s\S]{0,400}await loadList\(\)/);
+  assert.match(lingguangCommands, /data-lingguang-back\]"\)\) \{ await back\(\)/, "灵光 的返回按钮走 back()");
   // Alchemist Studio is not a list-and-editor plugin; its content re-render keeps the reader's scroll position.
   // (Its main pane is mainEl and the redraws are paintStudy / paintDir.)
   assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /const scroll=mainEl\.scrollTop;paint\w+\([^)]*\);mainEl\.scrollTop=scroll;/);

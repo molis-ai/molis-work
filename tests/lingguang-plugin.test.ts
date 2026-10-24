@@ -1,5 +1,7 @@
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
@@ -50,11 +52,15 @@ test("PRR-11 each Lingguang route has its own body limit", () => {
   }
 });
 
-function saveFunctionSource(script: string): string {
-  const start = script.indexOf("const save = async");
-  const end = script.indexOf("const queueSave", start);
+/** 灵光's page code is TypeScript in `src/browser/`; what it does is read in the sources, not in the minified bundle. */
+const browserSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/lingguang/src/browser/${file}`, import.meta.url)), "utf8");
+
+function saveFunctionSource(): string {
+  const source = browserSource("editor.ts");
+  const start = source.indexOf("page.save = async");
+  const end = source.indexOf("page.queueSave", start);
   assert.ok(start >= 0 && end > start, "找不到 save()");
-  return script.slice(start, end);
+  return source.slice(start, end);
 }
 
 function emptyView(): MolisWorkWebView {
@@ -177,12 +183,12 @@ test("工作台客户端脚本挂上灵光后仍能解析，保存不重绘编�
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
   assert.match(script, /data-assistant-composer/);
-  assert.doesNotMatch(saveFunctionSource(LINGGUANG_CLIENT_FACTORY_SCRIPT), /fillEditor/);
+  assert.doesNotMatch(saveFunctionSource(), /fillEditor/, "保存不重绘编辑器");
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
   assert.doesNotMatch(LINGGUANG_CLIENT_FACTORY_SCRIPT, /window\.confirm/);
   assert.doesNotMatch(LINGGUANG_CLIENT_FACTORY_SCRIPT, /openai|anthropic|api\.openai/i);
-  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /showNote/);
-  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /showModal/);
+  assert.match(browserSource("page.ts"), /showNote\(text: string/, "failures are said in the page's note");
+  assert.match(browserSource("page.ts"), /dialog\.showModal\(\)/, "the confirmation is the page's own dialog, not a browser one");
 });
 
 test("RAC-31 RAC-32 快记、重开还在；项目隔离；丢掉后离开列表", async t => {

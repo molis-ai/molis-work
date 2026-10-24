@@ -2,15 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { transformSync } from "esbuild";
 import { PAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-pages";
-import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
 import { SCHEDULE_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-schedule";
 import { pluginWorkbenchClientAsset } from "@molis-ai/molis-work-app-workbench";
 
-// The page asset budget only shrinks. These three plugins keep their explanations as comments and their layout as indentation in
+// The page asset budget only shrinks. These two plugins keep their explanations as comments and their layout as indentation in
 // the source and are sent without the comments that fill whole lines (`//` and `/* */`) and without the indentation; this holds what
 // is sent to the same program as what was written (comments, spacing and quoting aside).
 
-const sources: Record<string, string> = { pages: PAGES_CLIENT_FACTORY_SCRIPT, lingguang: LINGGUANG_CLIENT_FACTORY_SCRIPT, schedule: SCHEDULE_CLIENT_FACTORY_SCRIPT };
+const sources: Record<string, string> = { pages: PAGES_CLIENT_FACTORY_SCRIPT, schedule: SCHEDULE_CLIENT_FACTORY_SCRIPT };
 // Identifier minification chooses names using character frequencies, which can change after a trivia-only pass.
 // Preserve names so this compares the actual program, including its bindings, rather than the minifier's choices.
 const program = (script: string) => transformSync(`const factory = ${script};`, { loader: "js", minifySyntax: true, minifyWhitespace: true }).code;

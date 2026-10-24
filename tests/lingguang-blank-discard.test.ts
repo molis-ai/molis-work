@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
 import { fakeLifetime } from "./fixtures/fake-client-lifetime.js";
+import { lingguangHost } from "./fixtures/lingguang-host.js";
 
 // W2-18 decision 6, 灵光 side: 「记下第一条灵光」 makes a spark at once; one left with nothing written is thrown away with
 // the existing lingguang.discard when the person leaves it (back to the list, another spark, another new spark, the workbench
@@ -108,8 +109,8 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
     options.afterGet?.(store);
     return answer;
   }) as typeof fetch;
-  const factory = Function(`return (${LINGGUANG_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; route: (path: string) => string; mountPluginClient: typeof lifetime.mount; view: typeof lifetime.view }) => void;
-  factory({ translate: value => value, route: path => path, mountPluginClient: lifetime.mount, view: lifetime.view });
+  const factory = Function(`return (${LINGGUANG_CLIENT_FACTORY_SCRIPT})`)() as (host: ReturnType<typeof lingguangHost>) => void;
+  factory(lingguangHost(lifetime));
   await flush();
   const fire = async (event: ReturnType<typeof click>) => { await workbench.listeners.click!(event); await flush(); };
   return {
@@ -507,5 +508,17 @@ test("when the page goes away, the discard is asked at the updated_at the page's
     page.lifetime.unload(); await page.elapse();
     assert.deepEqual(page.discards().map(call => [call.body.expected_updated_at, call.keepalive]), [[{ S1: saved }, true]]);
     assert.equal(page.store.get("S1")?.status, "discarded", "still blank, so it goes");
+  } finally { page.restore(); }
+});
+
+test("RAC-135 the 转为待办 button carries the spark that is on screen and follows what is typed", async () => {
+  const page = await mounted([spark("OLD", "想法", "第一行\n第二行")]);
+  try {
+    const button = page.part("[data-lingguang-todo]");
+    assert.deepEqual(button.dataset, {}, "nothing is on screen before a spark is opened");
+    await page.fire(click("[data-lingguang-id]", { lingguangId: "OLD" }));
+    assert.deepEqual([button.dataset.contextId, button.dataset.contextTitle, button.dataset.contextText], ["OLD", "想法", "想法\n第一行\n第二行"]);
+    await page.write({ title: "", body: "改成新的\n后面" });
+    assert.deepEqual([button.dataset.contextId, button.dataset.contextTitle, button.dataset.contextText], ["OLD", "改成新的", "改成新的\n后面"], "a missing title is the body's first line");
   } finally { page.restore(); }
 });

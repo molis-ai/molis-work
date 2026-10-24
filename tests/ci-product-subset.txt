@@ -355,6 +355,7 @@ tests/creative-artifact-promote.test.ts
 tests/creative-tools-plugins.test.ts
 tests/cross-device-client.test.ts
 tests/demo-plugin-sample.test.ts
+tests/desktop-launch-args.test.ts
 tests/desktop-shell-bootstrap.test.ts
 tests/diff-plugin.test.ts
 tests/document-import-providers.test.ts

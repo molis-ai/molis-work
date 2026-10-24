@@ -184,6 +184,8 @@ export interface DesktopPanelRepository {
   insert(record: DesktopPanelRecord): void;
   addAlias(panelId: string, runtimeId: string, workContextId: string, createdAt: string): void;
   list(projectId: string, goalId?: string): DesktopPanelRecord[];
+  /** Project deletion checks terminal liveness without reading launch arguments. */
+  listIds(projectId: string): string[];
   get(panelId: string): DesktopPanelRecord | null;
   updateStatus(panelId: string, status: DesktopPanelRecord["status"], updatedAt: string): void;
   updateHostSession(panelId: string, hostSessionId: string, updatedAt: string): void;
@@ -218,6 +220,8 @@ export interface DesktopPanelServiceOptions {
 }
 
 export interface DesktopPanelCatalogApi extends DesktopPanelApi {
+  /** Project deletion checks terminal liveness without reading launch arguments. */
+  listIds(projectId: string): string[];
   aliasSession(input: AliasDesktopPanelSessionInput): DesktopPanelRecord;
   findByWorkContext(runtimeId: string, workContextId: string): DesktopPanelRecord | null;
   deleteForProject(projectId: string): void;

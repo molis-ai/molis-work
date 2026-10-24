@@ -44,6 +44,9 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 
 ## 当前流水线（2026-10-24 15:51 UTC）
 
+- **2026-10-24 16:16 UTC 实际交槽**：1198 FIX2已公开6386459129明确全源码/spec冻结释放，精确remote fd3e56b8485462985d71630b8c14ec2ebd841919；only readonly formal93507/CI40110037944与metadata，按Root最新仍Draft，最终formal/guard恢复/正式审验待。**唯一Codex source现授C1 RAC115 START** freshmain2dd53591276982b6947369e345ddfcffcc21afd2，先同slice/路径鲜核；C1 fixed/release立即C2B2b含e20准确base，不等旧CI/full/merge。FIX2改源先返槽，TEST/Review只读，不并写。
+- **1225实际merge2dd已核**：16:04:33Z、treead24278b75=f2固定头、singleparent112；1098原91e/1107f25/1191d184/1173f45祖先+实际包含/queueVerify成功，源PR关闭证据齐。1107 REST15:17 merged/d09进1098下层，tree=f25，不冒当时main已合；本次2dd才主线包含。1112在33仍未合/3P2保持；full32原三红+web health starting首红retry过因未定，后者FIX1/R44只读接续，48raw/Test新修有限核在途，不以actualmerge倒写原绿。
+
 - **最新接续（2026-10-24 16:03 UTC）**：1198原作者docs-only20e9bef8新增两行历史UNKNOWN已guard识别，6386367670公开FIX2当前owner/请此轮原分支spec不并写，普通merge保留；真实ready对照先红绿仍排公共browser，原正式3图红不豁免。UI真正fixed/release后 **C1 RAC115→C2 B2b** 已Root明确同意，不等前片CI/merge/旧full、不作为1198额外门。C1真Input.*吞错有界片与C2空vault/backend+readonly CLI密封已具体允许路径/验收，详TASKS§0同一合同，当前不第二writer。
 - **1222当前2d剩P2**：REVIEW6386273574/Root确认ready后原2500到close与真FIFO控制核心已修；实际owner/blocked未传t.signal、pre-aborted/stop后late-ready须同原Claude两test内补齐。4次7/7原raw（仅rb4有phase）不盖真实test取消，新头独立复审/Linux待，不挪旧b99两Security绿、原Linux未知不改。当前不是另C2同修。
 - **1225有限Review已PASS6386329302**，原full32三红/新CI/478of479单live skip分别核，不以Review代；新增BL387字段旧文案、C9仍称HYBRID剩shelf两nonblock已明确实际FIX1（6386368000，依本批真merge+writer短窗/原作者先修则证据去重），尚未实施，不挡本批/不关W5或PG060。

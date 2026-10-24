@@ -17,6 +17,8 @@ const PLUGIN_ID = "io.molis.work.example.sbxmaterials";
 const IDENTITY: SandboxIdentity = { projectId: "p", installationId: "install-sbx", pluginId: PLUGIN_ID, namespace: "installed" };
 const code = (expected: string) => (error: unknown) => (error as { code?: string } | undefined)?.code === expected;
 const READ: SandboxEffects = { materials: ["read"] };
+const FETCH: SandboxEffects = { materials: ["fetch"], networkDomains: ["docs.example.com", "cdn.example.com"] };
+const PAGE = "https://docs.example.com/guide?page=2";
 const FILE = { file_name: "note.md", data_base64: Buffer.from("# 标题\n正文").toString("base64") };
 const ALL_METHODS_MANIFEST_PERMISSIONS = ["storage:private", "materials:read", "materials:fetch", "materials:fetch_local", "materials:original"];
 
@@ -49,7 +51,10 @@ function rig(services: "materials" | "none" = "materials"): Rig {
     async extract(source, options) { await options.beforeEffect(); reads.push({ method: "extract", name: source.file_name, bytes: Buffer.from(source.bytes), options }); return state.reply(); },
     async readDocuments(files, options) { await options.beforeEffect(); reads.push({ method: "readDocuments", name: files[0]!.file_name, options }); return batch(); },
     imageTextAvailable: () => true,
-    async readSource(url, options) { reads.push({ method: "readSource", name: url, options }); throw new Error("the sandbox reached the network reader"); },
+    async readSource(url, options) {
+      await options.beforeEffect(); reads.push({ method: "readSource", name: url, options });
+      return { text: "page", source_url: url, provider: "article", extractor: "probe", coverage: { status: "sufficient", processed_pages: 1, total_pages: 1, issues: [] } };
+    },
     async readLocalPage(url, options) { reads.push({ method: "readLocalPage", name: url, options }); throw new Error("the sandbox reached the local page reader"); },
     async claimOriginal(_key, path, options) { reads.push({ method: "claimOriginal", name: path, options }); },
     async readOriginal(key, options) { reads.push({ method: "readOriginal", name: key.record_key, options }); return new Uint8Array(); },
@@ -62,9 +67,9 @@ function rig(services: "materials" | "none" = "materials"): Rig {
   const action = (concurrent: boolean, permissions: string[]): ActionDefinition => ({ capability_id: "example.sbx.read", version: 1, operation: "command", action: {
     title: "read", description: "probe", scope: "project", kind: "operation", subject_kinds: [], audiences: ["user", "agent", "workflow", "mcp", "plugin"],
     permissions, ...(concurrent ? { scheduling: "concurrent" as const } : {}), input_schema: { type: "object", additionalProperties: false } } });
-  const caller = { permissions: ["materials:read"], audience: "user", signal: state.abort.signal, beforeEffect: async () => {} } as ActionExecutionContext;
+  const caller = { permissions: ["materials:read", "materials:fetch"], audience: "user", signal: state.abort.signal, beforeEffect: async () => {} } as ActionExecutionContext;
   const inAction = <T>(run: () => T, options: { concurrent?: boolean; permissions?: string[] } = {}): T =>
-    runInPluginAction({ install_id: "install-sbx", installation_generation: "g1", definition: action(options.concurrent ?? true, options.permissions ?? ["materials:read"]), caller }, run);
+    runInPluginAction({ install_id: "install-sbx", installation_generation: "g1", definition: action(options.concurrent ?? true, options.permissions ?? ["materials:read", "materials:fetch"]), caller }, run);
   return {
     reads, state, inAction,
     async call(op, method, args, options = {}) {
@@ -140,21 +145,43 @@ test("S-60 RAC-235 RAC-237 the Host's own client refuses a read outside the plug
   await assert.rejects(none.call(operation("command", READ), "materials.imageTextAvailable", []), code("sandbox.service_unavailable"));
 });
 
-test("S-60 RAC-235 what reaches the network has no method: a page from the web is refused even when the Manifest declares it", async () => {
+test("S-68 RAC-235 a page read needs materials: fetch and the page's host in the operation's approved network domains, and reads only from those hosts", async () => {
   const r = rig();
-  const names = ["materials.readSource", "materials.fetch", "materials.original", "materials.readOriginal"];
-  for (const method of names) {
+  const outside = await r.call(operation("query", FETCH), "materials.readSource", [PAGE], { grants: FETCH, where: "outside" }).catch(error => error);
+  assert.equal((outside as { code?: string }).code, "plugin.materials_action_required", "the Host's client still asks for the plugin's own concurrent action");
+  const page = await r.call(operation("command", FETCH), "materials.readSource", [PAGE], { grants: FETCH }) as { text: string; source_url: string };
+  assert.deepEqual([page.text, page.source_url], ["page", PAGE]);
+  assert.deepEqual(r.reads.at(-1)!.options.allowedDomains, ["docs.example.com", "cdn.example.com"], "the read may contact the operation's approved hosts and no others");
+  const before = r.reads.length;
+  const both: SandboxEffects = { ...FETCH, materials: ["read", "fetch"] };
+  // Not declared, not approved, the host not in both lists, or approved for something else.
+  await assert.rejects(r.call(operation("command", {}), "materials.readSource", [PAGE], { grants: FETCH }), code("sandbox.not_authorized"));
+  await assert.rejects(r.call(operation("command", READ), "materials.readSource", [PAGE], { grants: both }), code("sandbox.not_authorized"), "read is not fetch");
+  await assert.rejects(r.call(operation("command", FETCH), "materials.readSource", [PAGE], { grants: { materials: ["fetch"] } }), code("sandbox.not_authorized"), "the host is not approved");
+  await assert.rejects(r.call(operation("command", FETCH), "materials.readSource", [PAGE], { grants: { networkDomains: FETCH.networkDomains } }), code("sandbox.not_authorized"), "fetch is not approved");
+  await assert.rejects(r.call(operation("command", { materials: ["fetch"], networkDomains: ["docs.example.com"] }), "materials.readSource", ["https://cdn.example.com/a"], { grants: FETCH }), code("sandbox.not_authorized"), "the host is not declared");
+  await assert.rejects(r.call(operation("command", FETCH), "materials.readSource", ["https://evil.example/"], { grants: FETCH }), code("sandbox.not_authorized"));
+  // The address: https, no credentials, no port of its own, nothing but a string.
+  for (const args of [[], [PAGE, {}], [1], ["not a url"], ["http://docs.example.com/"], ["https://user:pass@docs.example.com/"], ["https://docs.example.com:8443/"], ["file:///etc/hosts"], ["https://127.0.0.1/"]] as SandboxJson[][]) {
+    await assert.rejects(r.call(operation("command", FETCH), "materials.readSource", args, { grants: FETCH }), error => ["sandbox.invalid_request", "sandbox.not_authorized"].includes((error as { code?: string }).code ?? ""), JSON.stringify(args));
+  }
+  const many = Array.from({ length: 21 }, (_, i) => `h${i}.example.com`), crowded: SandboxEffects = { materials: ["fetch"], networkDomains: many };
+  await assert.rejects(r.call(operation("command", crowded), "materials.readSource", ["https://h0.example.com/"], { grants: crowded }), code("sandbox.invalid_request"));
+  assert.equal(r.reads.length, before, "no refused read reached the Host's port");
+  const none = rig("none");
+  await assert.rejects(none.call(operation("command", FETCH), "materials.readSource", [PAGE], { grants: FETCH }), code("sandbox.service_unavailable"));
+  // A query may not declare a page read; the contract names `read`, `fetch`, `fetch_local` and `original` and nothing else.
+  for (const access of ["read", "fetch", "fetch_local", "original"]) assert.doesNotThrow(() => assertEffects({ materials: [access] }), access);
+  assert.throws(() => assertEffects({ materials: ["write"] }), code("sandbox.invalid_contract"));
+});
+
+test("S-68 RAC-235 a machine's own pages and the Host's saved originals are not a page read: their methods need their own effects, and a read has no method for what it is not", async () => {
+  const r = rig();
+  for (const method of ["materials.fetch", "materials.original", "materials.fetch_local"]) {
     await assert.rejects(r.call(operation("command", READ), method as never, ["https://example.com/", {}]), code("sandbox.invalid_request"), method);
     await assert.rejects(r.call(operation("command", {}), method as never, ["https://example.com/", {}]), code("sandbox.not_authorized"), `${method} without the effect`);
   }
-  // An effect that names one of them (a contract is refused on load; here the broker is asked anyway) is no `read`: nothing matches it.
-  for (const effects of [{ materials: ["fetch"] }]) {
-    await assert.rejects(r.call(operation("command", effects as never), "materials.readSource" as never, ["https://example.com/", {}], { grants: effects as never }), code("sandbox.not_authorized"), JSON.stringify(effects));
-  }
   assert.equal(r.reads.length, 0, "none of them reached the Host's port");
-  // The contract an operation declares names `read`, `fetch_local` or `original` and nothing else, so a package cannot even load with a network read.
-  for (const access of ["read", "fetch_local", "original"]) assert.doesNotThrow(() => assertEffects({ materials: [access] }), access);
-  for (const access of ["fetch", "write"]) assert.throws(() => assertEffects({ materials: [access] }), code("sandbox.invalid_contract"), access);
 });
 
 test("S-60 RAC-231 a stopped installation, a taken-back grant and a cancelled call read nothing through the broker", async () => {

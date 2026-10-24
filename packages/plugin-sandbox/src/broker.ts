@@ -4,7 +4,7 @@ import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkReques
 import { BACKGROUND_EXECUTIONS, type SandboxBackground } from './background.js';
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
-import { documentBatchJson, extractionJson, materialLocalUrl, materialRequest, materialSource, materialUploads, originalPart, originalRecordKey, plainJson } from './materials.js';
+import { documentBatchJson, extractionJson, materialLocalUrl, materialReadDomains, materialRequest, materialSource, materialSourceUrl, materialUploads, originalPart, originalRecordKey, plainJson, sourceContentJson } from './materials.js';
 import { availabilityJson, choicesJson, modelCall, modelResultJson, modelSelection, type SandboxModel } from './model.js';
 import { applyOwnerFileChanges, ownerFileChanges, ownerFileInfo, ownerFileList, ownerFilePath, ownerFileRead, type SandboxOwnerFiles } from './owner-files.js';
 import { BoundedQueue, RateBudget } from './queue.js';
@@ -89,12 +89,21 @@ export class SandboxBroker {
     const missing = (): never => { throw new SandboxError('sandbox.service_unavailable', 'Host service is not connected'); };
     return { permit, count, string, missing };
   }
-  private async dispatchMaterials(context: SandboxServiceContext, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, missing }: DispatchGuards): Promise<SandboxJson> {
+  private async dispatchMaterials(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, missing }: DispatchGuards): Promise<SandboxJson> {
     // `read` reads bytes the plugin sent. `fetch_local` and `original` are effects of their own (S-65): the first hands the Host an address as
     // data and takes back extracted text, the second names the Host's saved file by the plugin's own key and takes it back in parts; neither
-    // gives the plugin a socket, an address that was resolved, or a path. A network page (`materials:fetch`) has no method here. The Host's
-    // client checks the Manifest's permission, the grant and the running action each time, and the Host's readers the address and the file.
+    // gives the plugin a socket, an address that was resolved, or a path. `fetch` (S-68) reads one public page and is a network request as far
+    // as the person's approval goes: its host must also be one of the operation's approved `networkDomains`, and the read may contact those
+    // hosts and no others. The Host's client checks the Manifest's permission, the grant and the running action each time, and the Host's
+    // readers the address and the file.
     const materials = this.services.materials;
+    if (method === 'materials.readSource') {
+      permit('materials', 'fetch'); count(1);
+      const url = materialSourceUrl(args[0]);
+      permit('networkDomains', url.hostname);
+      const allowedDomains = materialReadDomains(operation.effects.networkDomains, this.grants.networkDomains);
+      return materials?.readSource ? sourceContentJson(await materials.readSource(url.href, { signal: context.signal, allowedDomains })) : missing();
+    }
     if (method === 'materials.readLocalPage') {
       permit('materials', 'fetch_local'); count(1);
       const url = materialLocalUrl(args[0]);
@@ -246,7 +255,7 @@ export class SandboxBroker {
       const { status, headers, body, authenticated } = await this.services.connections.request(slot, { ...request, signal: context.signal });
       return { status, headers: { ...headers }, body, authenticated };
     }
-    if (method.startsWith('materials.')) return this.dispatchMaterials(context, method, args, guards);
+    if (method.startsWith('materials.')) return this.dispatchMaterials(context, operation, method, args, guards);
     if (method.startsWith('ownerFiles.')) return this.dispatchOwnerFiles(context, operation, method, args, guards);
     if (method.startsWith('model.')) return this.dispatchModel(context, operation, method, args, guards);
     if (method.startsWith('background.')) return this.dispatchBackground(operation, method, args, guards);

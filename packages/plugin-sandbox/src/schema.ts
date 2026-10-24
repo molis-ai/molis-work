@@ -109,7 +109,7 @@ export function assertEffects(effects: unknown): asserts effects is SandboxEffec
     if (!effectKeys.includes(key as typeof effectKeys[number]) || !Array.isArray(values) || values.some(v => typeof v !== 'string' || !v || v.length > 256) || new Set(values).size !== values.length) throw new SandboxError('sandbox.invalid_contract', `Invalid effect ${key}`);
     if ((key === 'storage' || key === 'artifacts' || key === 'projectDatabase' || key === 'ownerFiles') && values.some(v => v !== 'read' && v !== 'write')) throw new SandboxError('sandbox.invalid_contract', `Invalid ${key} access`);
     if (key === 'networkDomains' && values.some(v => !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]*$/.test(v))) throw new SandboxError('sandbox.invalid_contract', 'Network effects require exact lowercase DNS domains');
-    if (key === 'materials' && values.some(v => v !== 'read' && v !== 'fetch_local' && v !== 'original')) throw new SandboxError('sandbox.invalid_contract', 'Invalid materials access');
+    if (key === 'materials' && values.some(v => v !== 'read' && v !== 'fetch' && v !== 'fetch_local' && v !== 'original')) throw new SandboxError('sandbox.invalid_contract', 'Invalid materials access');
     if (key === 'model' && values.some(v => v !== 'read' && v !== 'invoke')) throw new SandboxError('sandbox.invalid_contract', 'Invalid model access');
     if (key === 'background' && values.some(v => !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(v))) throw new SandboxError('sandbox.invalid_contract', 'Background effects name operations of the contract');
     if (key === 'connections' && values.some(v => !/^[a-z][a-z0-9-]{0,63}$/.test(v))) throw new SandboxError('sandbox.invalid_contract', 'Connection effects name a slot of the Manifest');

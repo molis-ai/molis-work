@@ -35,11 +35,13 @@ export interface SandboxEffects {
   connections?: string[];
   /**
    * `read`: the Host's document and file readers (`sdk.materials`); the plugin's package also declares `materials:read`.
+   * `fetch`: `readSource`, a public https page the Host reads and answers as text (`materials:fetch`); the operation also names the page's host in
+   * `networkDomains`, because the person approves a page's host the way they approve a network request's.
    * `fetch_local`: `readLocalPage`, a page on this machine that the Host fetches and answers as extracted text (`materials:fetch_local`).
    * `original`: `claimOriginal`, `readOriginal` and `releaseOriginal`, the file the person handed the Host's entry, by the plugin's own key
    * (`materials:original`). The last two are never in a query.
    */
-  materials?: Array<'read' | 'fetch_local' | 'original'>;
+  materials?: Array<'read' | 'fetch' | 'fetch_local' | 'original'>;
   /**
    * `read`: `stat`, `list` and `read` of the files the plugin's Manifest declares (`owner_files`, PG-017 P2c); `write`: `write`, never in a query.
    * The package also declares `storage:private` and the Manifest's read and write permissions.
@@ -156,6 +158,19 @@ export interface SandboxMaterialExtraction {
   duration_seconds?: number;
   coverage: { status: 'sufficient' | 'partial' | 'insufficient'; truncated?: boolean; processed_pages: number; total_pages: number; issues: string[] };
 }
+/** What `readSource` answers, as plain JSON: the page's text with where it came from (see `SandboxMaterialExtraction`). */
+export interface SandboxMaterialSourceContent {
+  text: string;
+  title?: string;
+  source_url: string;
+  provider: string;
+  extractor: string;
+  coverage: SandboxMaterialExtraction['coverage'];
+  pages?: SandboxMaterialExtraction['pages'];
+  segments?: SandboxMaterialExtraction['segments'];
+  frames?: SandboxMaterialExtraction['frames'];
+  model_required?: { approximate_bytes?: number; variant?: string };
+}
 /** What `readDocuments` answers, as plain JSON (see `SandboxMaterialExtraction`). */
 export interface SandboxMaterialDocumentBatch {
   documents: Array<{ name: string; format: 'markdown' | 'html' | 'text' | 'csv'; content: string; coverage: { status: 'sufficient' | 'partial' | 'insufficient'; issues: string[]; truncated?: boolean } }>;
@@ -245,6 +260,8 @@ export interface SandboxSdk {
    * a ZIP of those, `extract` reads one file (PDF, image, office document) as text, `imageTextAvailable` says whether an image's text can
    * be read on this machine now. Declare `effects.materials: ['read']` on the operation. A file and a result cross as JSON, so a read
    * is bounded by the channel (half of 1 MiB for the result); pages and the Host's helpers are not the plugin's to choose.
+   * `readSource` (`effects.materials: ['fetch']`) reads a public https page for its text: the page's host must be one of the operation's approved
+   * `networkDomains`, and the read (its redirects, and the interfaces and media of sites the Host knows) goes to those hosts only.
    * `readLocalPage` (`effects.materials: ['fetch_local']`) is a page on this machine: the plugin names an address as data, the Host decides
    * whether it may be read (plain HTTP to a loopback name, never the Host's own ports) and fetches it, and only the extracted text comes back.
    * `claimOriginal`, `readOriginal` and `releaseOriginal` (`effects.materials: ['original']`) keep, read and forget the file the person handed
@@ -255,6 +272,7 @@ export interface SandboxSdk {
     imageTextAvailable(): Promise<boolean>;
     readDocuments(files: SandboxMaterialFile[], request?: Pick<SandboxMaterialRequest, 'timeoutMs'>): Promise<SandboxMaterialDocumentBatch>;
     extract(file: SandboxMaterialFile, request?: SandboxMaterialRequest): Promise<SandboxMaterialExtraction>;
+    readSource(url: string): Promise<SandboxMaterialSourceContent>;
     readLocalPage(url: string): Promise<SandboxMaterialExtraction>;
     claimOriginal(record_key: string): Promise<void>;
     readOriginal(record_key: string, request?: { maxBytes?: number }): Promise<{ bytes: Uint8Array }>;
@@ -301,7 +319,7 @@ export type SandboxOperations = Record<string, (input: SandboxJson, sdk: Sandbox
 export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list'
   | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
   | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request'
-  | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readLocalPage'
+  | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'materials.readLocalPage'
   | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal'
   | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write'
   | 'model.choices' | 'model.availability' | 'model.complete'

@@ -69,7 +69,7 @@ export function sandboxServicesFor(host: SandboxHostServices | undefined, extras
     ...(host.interaction ? { interaction: host.interaction } : {}),
     // Requests through the person's bound account: the Host's client, which checks the slot, the grant and the call's action itself.
     ...(host.connections ? { connections: host.connections } : {}),
-    // The readers the Host built for the activation from its Manifest's `materials:*` permissions; the broker has methods for the reads of bytes only.
+    // The readers the Host built for the activation from its Manifest's `materials:*` permissions; the broker has methods for bytes, public pages (held to approved domains) and the person's own machine and saved originals.
     ...(host.materials ? { materials: host.materials } : {}),
     // The plugin's own declared files: the Host's client reduced to the four members the channel can carry (no location, no writer callback).
     ...(host.ownerFiles ? { ownerFiles: sandboxOwnerFiles(host.ownerFiles) } : {}),
@@ -128,8 +128,6 @@ function asksFor(definition: SandboxDeclarations, held: readonly string[], permi
  * here in the same change that gives its service, so what stays in the list is exactly what a package asking for it is refused for.
  */
 export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
-  { service: 'materials', services: [], reason: 'Reading a page from the network (materials:fetch) is not given to sandboxed plugins yet (PG-017 BL-492).',
-    declared: (definition, held) => asksFor(definition, held, ['materials:fetch']) },
   { service: 'background', services: [], reason: 'Background jobs kept for as long as the plugin runs (background.jobs in the Manifest) are not given to sandboxed plugins until the definition can bind them to operations of the package (PG-017 BL-377); a run a command starts (background_job on an action) is.',
     declared: definition => !!definition.manifest.background?.jobs.length },
   { service: 'agent', services: [], reason: 'Roles, prompts, skills and methods that reach other Agents are not given to sandboxed plugins until a package install can show the person what it adds (PG-017 BL-493, PG-001).',

@@ -76,7 +76,7 @@ test("PG-050 / W5-01-PAGES-01 a document batch is read by the Host under materia
   await assert.rejects(probe.contexts.at(-1)!.services!.materials!.readDocuments!([upload("outside.md", "x")]), { code: "plugin.materials_action_required" });
 });
 
-test("RAC-25 S-60 RAC-235 a sandboxed definition receives the Host's readers of bytes, a page on this machine and the saved original files, and a package that asks for a network read is refused at start", async t => {
+test("RAC-25 S-60 RAC-235 a sandboxed definition receives the Host's readers of bytes, public pages, a page on this machine and the saved original files", async t => {
   const { home } = await serveHomeRuntime(t);
   const file = join(mkdtempSync(join(home, "project-")), "project.db"); seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), shared = pluginActions(store, DEMO_PROJECT_ID);
@@ -95,14 +95,10 @@ test("RAC-25 S-60 RAC-235 a sandboxed definition receives the Host's readers of 
     const local = materialsProbe("boxedlocal", { execution: "sandbox", permissions: ["materials:read", "materials:fetch_local", "materials:original"] });
     await platform.start([{ definition: local.definition, grants: local.permissions }]);
     assert.deepEqual(Object.keys(local.contexts[0]!.services!.materials!).sort(), ["claimOriginal", "extract", "imageTextAvailable", "readDocuments", "readLocalPage", "readOriginal", "readOriginalRange", "releaseOriginal"]);
-    // What the sandbox is not given is refused with a code before its code starts, whether the package needs it or the person approved it.
-    for (const refused of [["materials:fetch"], ["materials:read", "materials:fetch"]]) {
-      const name = `boxed${refused.join("").replace(/[^a-z]/g, "")}`, probe = materialsProbe(name, { execution: "sandbox", permissions: refused });
-      await platform.start([{ definition: probe.definition, grants: probe.permissions }]);
-      assert.equal(probe.contexts.length, 0, `${refused.join(", ")}: the sandboxed package's start never ran`);
-      const installed = platform.runtime.list().find(item => item.plugin_id === probe.id)!;
-      assert.deepEqual({ state: installed.state, code: installed.last_error_code }, { state: "crashed", code: "sandbox.service_not_given" }, refused.join(", "));
-    }
+    // A package that asks to read a public page is started too: its client has the page reader, the broker the host check (S-68).
+    const pages = materialsProbe("boxedpages", { execution: "sandbox", permissions: ["materials:read", "materials:fetch"] });
+    await platform.start([{ definition: pages.definition, grants: pages.permissions }]);
+    assert.deepEqual(Object.keys(pages.contexts[0]!.services!.materials!).sort(), ["extract", "imageTextAvailable", "readDocuments", "readSource"]);
   } finally {
     for (const installed of platform.runtime.list()) if (installed.state === "running") await platform.runtime.stop(installed.install_id);
     store.close();

@@ -26,7 +26,7 @@ export interface SandboxEffects {
     resources?: string[];
     projectDatabase?: Array<'read' | 'write'>;
     connections?: string[];
-    materials?: Array<'read' | 'fetch_local' | 'original'>;
+    materials?: Array<'read' | 'fetch' | 'fetch_local' | 'original'>;
     ownerFiles?: Array<'read' | 'write'>;
     model?: Array<'read' | 'invoke'>;
     background?: string[];
@@ -117,6 +117,22 @@ export interface SandboxMaterialRequest {
     textFormat?: 'text' | 'markdown';
     pdfMode?: 'text' | 'ocr';
     ocrLanguages?: Array<'zh-Hans' | 'zh-Hant' | 'en-US'>;
+}
+
+export interface SandboxMaterialSourceContent {
+    text: string;
+    title?: string;
+    source_url: string;
+    provider: string;
+    extractor: string;
+    coverage: SandboxMaterialExtraction['coverage'];
+    pages?: SandboxMaterialExtraction['pages'];
+    segments?: SandboxMaterialExtraction['segments'];
+    frames?: SandboxMaterialExtraction['frames'];
+    model_required?: {
+        approximate_bytes?: number;
+        variant?: string;
+    };
 }
 
 export type SandboxModelAvailability = {
@@ -340,6 +356,7 @@ export interface SandboxSdk {
         imageTextAvailable(): Promise<boolean>;
         readDocuments(files: SandboxMaterialFile[], request?: Pick<SandboxMaterialRequest, 'timeoutMs'>): Promise<SandboxMaterialDocumentBatch>;
         extract(file: SandboxMaterialFile, request?: SandboxMaterialRequest): Promise<SandboxMaterialExtraction>;
+        readSource(url: string): Promise<SandboxMaterialSourceContent>;
         readLocalPage(url: string): Promise<SandboxMaterialExtraction>;
         claimOriginal(record_key: string): Promise<void>;
         readOriginal(record_key: string, request?: {
@@ -367,7 +384,7 @@ export interface SandboxSdk {
     interaction: import('./plugin-interaction.js').PluginInteractionClient;
 }
 
-export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readLocalPage' | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal' | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write' | 'model.choices' | 'model.availability' | 'model.complete' | 'background.start' | 'background.cancel' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
+export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'materials.readLocalPage' | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal' | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write' | 'model.choices' | 'model.availability' | 'model.complete' | 'background.start' | 'background.cancel' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
 export type SandboxSqlRow = {
     [column: string]: SandboxSqlValue;

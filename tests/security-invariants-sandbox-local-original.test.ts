@@ -283,7 +283,7 @@ test("S-65 RAC-368 the operation's declared effect and the person's approval dec
   for (const effects of [LOCAL, ORIGINAL, BOTH]) assert.throws(() => assertContract(contract(effects)), { code: "sandbox.invalid_contract" }, JSON.stringify(effects));
   assert.doesNotThrow(() => assertContract(contract({ materials: ["read"] })));
   // A method the broker does not have: the whole-file read is the SDK's loop over parts, and nothing names a path.
-  for (const method of ["materials.readOriginal", "materials.original", "materials.originalPath", "materials.fetch", "materials.readSource", "materials.fetch_local"]) {
+  for (const method of ["materials.readOriginal", "materials.original", "materials.originalPath", "materials.fetch", "materials.fetch_local"]) {
     await r.refused(method, "sandbox.invalid_request", operation("command", EVERY), method as SandboxSdkMethod, ["k"], { grants: EVERY });
   }
 });

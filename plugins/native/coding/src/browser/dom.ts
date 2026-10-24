@@ -1,7 +1,8 @@
-/** A new element with the given text (none: empty). */
-export function el<Tag extends keyof HTMLElementTagNameMap>(tag: Tag, text = ""): HTMLElementTagNameMap[Tag] {
+/** A new element with the given text (none: empty) and class. */
+export function el<Tag extends keyof HTMLElementTagNameMap>(tag: Tag, text = "", className = ""): HTMLElementTagNameMap[Tag] {
   const node = document.createElement(tag);
   node.textContent = text;
+  if (className) node.className = className;
   return node;
 }
 

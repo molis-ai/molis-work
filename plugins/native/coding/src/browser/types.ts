@@ -36,3 +36,6 @@ export interface PagePorts {
 export interface ReceiptLinks {
   link(container: Element, inputId: string, afterOpen?: () => void): Node | null;
 }
+
+/** Draws the Host's review cards for the runs it is given in a container (`host.showReviews`). */
+export type ShowReviews = (container: Element, refs: readonly { readonly run_id: string }[], sessionId?: string | null, workspaceId?: string | null) => unknown;

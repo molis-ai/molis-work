@@ -204,7 +204,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const instruction=L('coding.rework.instruction',{subagent:child.subagent_id,run:runId,path:child.workspace_path,task:child.task,notes});
     await draft.append(id,text=>text.trim()?text+'\\n\\n'+instruction:instruction,L('coding.rework.saved-not-added'));
   }});
-  const writerDirectories = (${CODING_WRITER_DIRECTORIES_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,host,current:()=>current,workspace:()=>workspaceId,workspaceLabel:()=>state.workspaces?.find(item=>item.workspace_id===workspaceId)?.canonical_path || workspaceId,status,assignments:()=>configurations.get(current)?.writer_assignments || [],saveAssignments:async(owner,parent,assignments)=>{
+  const writerDirectories = (${CODING_WRITER_DIRECTORIES_CLIENT_FACTORY_SCRIPT})({lifetime,translate:L,q,api,reviews:(box,parent)=>host.showReviews?.(box,[],null,parent),current:()=>current,workspace:()=>workspaceId,workspaceLabel:()=>state.workspaces?.find(item=>item.workspace_id===workspaceId)?.canonical_path || workspaceId,status,assignments:()=>configurations.get(current)?.writer_assignments || [],saveAssignments:async(owner,parent,assignments)=>{
     if(owner!==current || parent!==workspaceId)throw new Error(L('coding.error.split-changed'));
     rememberConfiguration();const previous=configurations.get(current);configurations.set(current,{...previous,writer_assignments:assignments});
     try{await draft.flush();status(L('coding.worktrees.split-saved'));}catch(error){if(!lifetime.alive)return;configurations.set(owner,previous);throw error;}

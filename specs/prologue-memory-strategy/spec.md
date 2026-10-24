@@ -1246,3 +1246,14 @@ boundary、API/Action与diff通过；实际27资源共7,806,260 B，只有workbe
 
 
 #1154 针对首批两处CDP超时的有效观测补记（2026-10-24）：在保留前次无效探针及原失败日志后，仅对原CAS/Home侧栏两文件挂已实际核验启用的只读send/receive/dispatch观察；jobs1/browser1/retries0，原用例/断言/超时均不改。CAS23/23、Home5/5单次完成；目标观测分别32和270个请求均收到且分发，丢弃0。Home47次releaseObject均收到回复。未复现旧超时，原因仍未定位，不能表述为已修复。探针已精确移除，两测试恢复原HEAD blob，无产品或测试交付差异；日志、开关预检、探针补丁和两份transport数据见 `/private/tmp/molis-memory-renewal-cdp-valid-20261024.results.json` 及同名前缀文件。此前18文件首批16通过、70/72与无效诊断保留，不改写成首次全绿；这次仅补两个原失败文件的有效当前运行。该独立片保持Draft，父链/最终合流全量与用户验收仍待完成。
+
+
+### #1154 接入准确分类控制父 c10c22ac3（2026-10-25，准备集成）
+
+本轮从已推送且干净的 `588955503e9669899c0a1819fa9ea8c43fa8e3be` 合入 #1153 `c10c22ac3ce8573c71845de7a7186ef722b88909`，沿「M3 到期正式记忆的明确续期」短合同闭合既有本人续期，不增加功能或接口。保留当前绝对期限决定、原 memory_id/expected_version/operation_id、失败补账与后继冲突；续期不恢复 paused/disabled、不处理 Session 绑定、不猜新期限。硬边界、App 输入、用户决定及允许路径沿原合同；复用现 MemoryEdits、SDK renew 与 marker/ledger，不增加写主人、表、状态机或兼容层。
+
+新父的 generic WorkExecutor、R8 三项读取 Action version2、原件深复制与后台清证明、分类 recipe 冻结与 MCP v3 owner/generation fixture 均保留；agent.memory_conflict 与 agent.wait_limit_reached 两码并存。SDK 保持本片原已采用 #96，不随父回退95、不升97及以后；原 vendor八文件与来源测试完整保留，锁仅在继承父依赖后保留原SDK96 integrity。已核当前artifact 1,359,578 B、SHA256 `bb0b6b79c3f744a2bb64c214472a53b74b0a50d5c61d5f0b026c1f02b5a086c5` 与sha512/provenance一致；公开PR96已合，head `15c38aed0bde2f8f0540a3e390f2e03033cdb717` 与merge `d46e76c61d06dbb9bcd6ca6a2f7fcb1b5acc1e11` 的Git tree相同。新main112114f23不在本轮，统筹另线合入。
+
+仅原批准workbench净增+1,680 B：准确父1,145,353 B，允许上限1,147,033 B；父27资源合计7,657,970 B。此处是额度，不是实测；构建后按实际值冻结，其余26项不得增长。不重复使用父+3,024 B或历史额度。冲突限已核重叠路径，公开API/Action与health/资源快照实际生成，不手编；异常生产冲突先向统筹说明。
+
+固定Node24.14/pnpm11.9、现缓存冻结离线安装与整体build等待统筹槽位。验证沿原79非浏览器计划实际README补齐Contracts遗漏9项（除原已列plugin-model-service），再去重补R8正式读取与原Run冻结/原件隔离受影响路径；真实Node/SQLite/HTTP及续期/分类/分页/CAS/原失败Home浏览器保持jobs2/browser1/retries0。可复用准确父未变化外围证据须在计划明列，不写成当前子片已跑。保留原18浏览器70/72与有效CDP补观测：旧超时原因仍未知，不能称已修复或改写首轮结果。正常、期限/权限/取消拒绝、同版本竞争、原操作恢复、SDK已提交账本失败后补账及重启都沿原验收，不加超时、不降断言。只允许本树本地merge/fix commit，不push、不动PR、不跑全量或真实模型；先交准备差异与精确验证计划，工程证据不替代完整P0和用户验收。

@@ -14,8 +14,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const header = document.querySelector(".immersive-titlebar");
   const scrim = document.querySelector("[data-directory-dismiss]");
   const directoryFilterMenus = () => [
-    ...treePane.querySelectorAll(".project-record-filter-menu, .source-filter-menu"),
-    ...document.querySelectorAll("[data-session-stage-chrome] .project-record-filter-menu"),
+    ...treePane.querySelectorAll(".source-filter-menu"),
   ];
   const frame = document.querySelector("[data-goal-node-workspace]");
   const workMain = document.querySelector("[data-goal-work-main]");
@@ -204,7 +203,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     const viewTab = event.target.closest("[data-goal-view-tab]");
     if (viewTab && frame?.contains(viewTab)) { setView(viewTab.dataset.goalViewTab, true); return; }
     if (event.target.closest("[data-goal-details-toggle]")) setDetails(frame.dataset.detailsOpen !== "true", true);
-    if (event.target.closest("[data-select-goal], [data-operation-select], [data-inbox-row]")) {
+    if (event.target.closest("[data-select-goal], [data-inbox-row]")) {
       if (narrow()) setMobileView("document");
       sync();
     }

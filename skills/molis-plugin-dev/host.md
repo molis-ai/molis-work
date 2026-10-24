@@ -30,7 +30,7 @@ Home 的 `services.storage` 是 v2 Home Runtime 库里的安装隔离 KV；升�
 
 Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `model:invoke`，用 `context.services.model.complete(instructed(自己的指令, 数据))`，不再写宿主里的绑定文件。只要模型列表和能不能用、不发请求的（比如让人选模型），声明只读的 `model:read`：它只开 `choices()` 与 `availability()`，`complete()` 仍只认 `model:invoke`。只在自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调（其余位置 `plugin.model_*` 拒绝，动作返回之后是 `actions.expired`）；指令在 `PluginDefinition.instructions` 里声明（没有目录条目时），`owner_id` 是自己的插件 id；写入之前仍要自己 `await caller.beforeEffect()`。沙箱插件没有它。细则见 `docs/platform/PROLOGUE-AI.md` 第 4 节。
 
-模型原图用 `images: [{ bytes, label? }]`，不传路径或 URL；可选模型从只读 `choices()` 获取。结果保留实际推理 `execution` 与同步 `validateResult()`：先等待本次 `beforeEffect()`，再调用结果自己的 `validateResult()`，紧接同步提交。可记账失败同样检查，不补造未知用量或复用已结束动作的结果。原图限额、失败回执与完整写法见上述手册。
+模型原图用 `images: [{ bytes, label? }]`，不传路径或 URL；可选模型从只读 `choices()` 获取。结果保留实际推理 `execution` 与同步 `validateResult()`：先等待本次 `beforeEffect()`，再调用结果自己的 `validateResult()`，紧接同步提交。平台也替你核同一项（PG-047）：拿到结果之后，这次调用每次经平台服务写入（库事务、私有存储、文件、成果、事件）、每次嵌套调用与每次 `beforeEffect()` 结束时都再核一次，结果失效（换了模型或连接、取消、撤权）就带原错误码拒绝，忘了调也提交不了。可记账失败同样检查，不补造未知用量或复用已结束动作的结果。原图限额、失败回执与完整写法见上述手册。
 
 下面的目录、资源、英文和公开包登记仍适用；第 3 步只给实际导入者登记依赖（Home 的可信工厂来自 Workbench 目录，不必给 Local Host 增加插件专属 import），第 6、7 步的项目监督器名单由 Home 声明和实际启动测试代替。第 8 步使用通用 Home 页面与运行实例 contribution；不再添加插件专属 Host 渲染函数。
 
@@ -90,7 +90,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
    工作面还须在 `ui-composition.ts` 通过 UiHost 挂到它声明的 slot（`mountDeclared`），`renderer.ts` 注入 primitives，再由 `shell-page-renderer.ts` 渲染到主页面；只登记 pack 不会产生页面 DOM。对照图片插件 `renderImagesContribution`。
 6. **监督器条目**：`apps/local-host/src/project-plugins.ts` 的 `startPlatform` 里，在 `entries` 加 `{ definition: createXPlugin(ports), bundled: true, releaseArtifact: nativePluginReleaseArtifact(包名, "createXPlugin", factory => factory(ports)) }`。`bundled: true` 让内置插件随宿主版本升级，不写 `upgrade_compatibility`。`start()` 要兑现 Manifest 的每一条（见下面「app 一等」一节）。
 7. **门禁名单**：`tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED` 加一行 `项目短名 → 包名`；短名要与第 4 步 `registration` 的 `project_plugin_id` 相同，包名要出现在 `project-plugins.ts` 里。
-8. **HTTP**：写 Manifest `routes`，由 Plugin Runtime 挂在 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作；不写 Host 文件，也不要往 `personal-native-plugin-http.ts`、`web-request.ts` 的路由表加条目。`project_id` 由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。工作面的渲染今天有两条现存路径，没有统一规则，照最接近的同类插件走：像 Shelf 那样在 workbench 的 `ui-composition.ts` 写 `render<X>Contribution`、由 `renderer.ts` 注入（同第 5 步）；或像 Coding 族那样由 `apps/local-host/src/coding-surface.ts` 渲染（`builtinStagePanels` 里的 `codingCompanionStages`，由 `web-goals-read.ts` 调用）。
+8. **HTTP**：写 Manifest `routes`，由 Plugin Runtime 挂在 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作；不写 Host 文件，也不要往 `web-request.ts` 的路由表加条目；宿主的 `*-native-plugin-http.ts` 是冻结的构建期旧路径（`tests/builtin-plugin-assembly-gate.test.ts` 里只许减少），不再新增条目。`project_id` 由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。工作面的渲染今天有两条现存路径，没有统一规则，照最接近的同类插件走：像 Shelf 那样在 workbench 的 `ui-composition.ts` 写 `render<X>Contribution`、由 `renderer.ts` 注入（同第 5 步）；或像 Coding 族那样由 `apps/local-host/src/coding-surface.ts` 渲染（`builtinStagePanels` 里的 `codingCompanionStages`，由 `web-goals-read.ts` 调用）。
 9. **英文**：插件 `src/en.ts` 导出 `X_EN`，还要在 `apps/workbench/src/i18n/en.ts` `import` 并 `...X_EN`。只写插件文件，英文界面仍是中文 key。
 10. **构建**：`pnpm --filter @molis-ai/molis-work-plugin-<id> build`。根目录 `pnpm build` 含 workspace。
 11. **会点名插件名单的测试**：`tests/plugin-declarative-mounting.test.ts`（插件切换/常驻/个人插件）、`tests/creative-tools-plugins.test.ts` 的 `PERSONAL_PLUGIN_IDS`、`tests/uninstall.test.ts` 的 `{home}` 库名、有列表时 `tests/list-silent-refresh.test.ts` 的 factory 表。按需改 `tests/plugin-catalog-companions.test.ts`。
@@ -101,7 +101,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 `BUILD_TIME_ASSEMBLED` 里的旧插件仍是手写接线：Host 里的 `registerProvider(...)`（`project-host.ts`）、`apps/local-host/src/<id>-native-plugin-http.ts` 和目录条目（各包的 `registration`）。只有改这些旧插件时才看这一段，新插件不照抄。
 
-- 手写 HTTP 文件：实现 `<id>-native-plugin-http.ts`。其中 Alchemist 再挂进 `personal-native-plugin-http.ts` 的 handler 列表；Pages、灵光、Feed、Inbox、Schedule 等是 `web-request.ts` 路由表里的条目，各调自己的 `handle<X>NativePluginHttp`。
+- 手写 HTTP 文件：实现 `<id>-native-plugin-http.ts`。Alchemist 的 HTTP 由 `apps/local-host/src/web-request.ts` 里的显式直连路由处理（`handleAlchemistNativePluginHttp`，不经适配桥）；Pages、灵光、Feed、Inbox、Schedule 等也是 `web-request.ts` 路由表里的条目，各调自己的 `handle<X>NativePluginHttp`。
 - Shelf 不属于这一份：它已由监督器启动（在 `RUNTIME_ASSEMBLED`，不在 `BUILD_TIME_ASSEMBLED`），路由从 Shelf S3 起是 Manifest 声明的插件路由（`/api/plugins/io.molis.work.shelf/…`），宿主里已没有 Shelf 名下的文件（Shelf S4：演示数据的示例由常驻宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回），新插件不照抄。
 - `project_id` 同样由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
 
@@ -159,7 +159,7 @@ Inbox 的显式判断与 Feed 入箱事件已这样接通，参考 `plugins/nati
 宿主事件（X-6，S-54）：宿主自己发的事件，现在有两条（类型与载荷在合同 `platform/plugin`）：
 
 - `host.review.settled@1`（`HOST_REVIEW_SETTLED_EVENT`、`HostReviewSettledPayload`）：只发给发起这个审查的那个安装。
-- `host.workspace.changed@1`（`HOST_WORKSPACE_CHANGED_EVENT`、`HostWorkspaceChangedPayload`）：插件发起、人批准的工作区操作执行完（成功、失败、不明）时，广播给本项目里订阅了它、持有 `workspace:read` 的每个安装。载荷只有 `{ workspace_id, cause }`；收到就重读那个工作区，不要按 `cause` 分支。
+- `host.workspace.changed@1`（`HOST_WORKSPACE_CHANGED_EVENT`、`HostWorkspaceChangedPayload`）：插件发起、人批准的工作区操作执行完（成功、失败、不明）时，或 Agent 经人批准的写入在本项目的某个工作目录里执行完时，广播给本项目里订阅了它、持有 `workspace:read` 的每个安装。载荷只有 `{ workspace_id, cause }`；收到就重读那个工作区，不要按 `cause` 分支。
 
 1. Manifest `events.subscribes` 写 `{ event_type_id: "host.review.settled", type_version: 1 }`（或 `host.workspace.changed`），不写 `from_plugin_ids`（写了读 Manifest 时就拒绝）。订阅 `host.workspace.changed` 还要在 `permissions` 里声明 `workspace:read`，没声明读 Manifest 时就拒绝；人关掉这项授权就收不到。
 2. 同一个 `onEvent` 接收：`event.source_plugin_id` 是 `"host"`，`sequence` 是 0；`correlation_id` 在 `host.review.settled` 上是 `review_id`，在 `host.workspace.changed` 上是 null。

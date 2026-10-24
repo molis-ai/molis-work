@@ -103,7 +103,7 @@ test("an SDK effect queued by an invocation cannot lose its guard just because t
 // W2-18-CODING-EFFECT-02: the final SDK commit fence and the typed Host bridge, including an independent peer.
 test("typed start revocation at SDK commit rejects only its invocation; accepted work survives disconnect and restart", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "agent-sdk-effects-")), appId = "io.molis.work.sdk-effects-test", storageRoot = join(home, "runtime");
-  const owner = { project_id: "project", plugin_id: "io.molis.work.coding", install_id: "install", actor_id: "person" }, directory = { canonical_path: home, realpath_verified: true };
+  const directory = { canonical_path: home, realpath_verified: true };
   const make = () => createPrologueNodeAdapter({ app: { appId, appVersion: "1.0.0" }, storageRoot,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   let adapter = await make(); const agentHost = new AgentHost(); agentHost.register(adapter);
@@ -117,11 +117,18 @@ test("typed start revocation at SDK commit rejects only its invocation; accepted
     return definition.action ? local.registerAction(definition as typeof definition & ActionDefinition, handler) : local.register(definition, handler);
   } }, { agentHost: () => agentHost, projectId: runtime => runtime.project_id,
     authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home] }) });
-  const client = local.client({ project_id: owner.project_id, storage_key: join(home, "project") });
-  const session = await client.invoke(agent.createSession, ["prologue", { ...owner, directory, title: "Revoked" }]);
+  // Sessions and rounds are a plugin's own actions (R8 batch 3): each project's round is started by a plugin the Host started there.
+  const store = new LocalProjectDatabase(join(home, "plugins.db")), starter = callerPlugin("sdk-effects", "project");
+  const callerIn = async (project_id: string) => {
+    const reference = { project_id, storage_key: join(home, project_id) }, probe = registerProbe(local.actionRegistry(reference), "project");
+    await startPlugin(local, reference, store, starter, { actorId: "person" });
+    return { client: local.client(reference), plugin_caller: await issuedCaller(probe, starter, project_id) };
+  };
+  const { client, plugin_caller } = await callerIn("project"), mine = { plugin_caller };
+  const session = await client.invoke(agent.createSession, ["prologue", { directory, title: "Revoked" }], mine);
   originalSession = session.session_id;
-  const peerOwner = { ...owner, project_id: "peer-project" }, peerClient = local.client({ project_id: peerOwner.project_id, storage_key: join(home, "peer-project") });
-  const peer = await peerClient.invoke(agent.createSession, ["prologue", { ...peerOwner, directory, title: "Peer" }]);
+  const { client: peerClient, plugin_caller: peerCaller } = await callerIn("peer-project");
+  const peer = await peerClient.invoke(agent.createSession, ["prologue", { directory, title: "Peer" }], { plugin_caller: peerCaller });
   const inspector = createNodeHost({ storageRoot }), indexKind = `molis-agent-index-${createHash("sha256").update(appId).digest("hex").slice(0, 24)}`;
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), network = Promise.withResolvers<void>(), response = Promise.withResolvers<void>();
   let current = true, holding = true, providerCalls = 0;
@@ -134,20 +141,20 @@ test("typed start revocation at SDK commit rejects only its invocation; accepted
     if (holding && index.attempts.length) { holding = false; entered.resolve(); await release.promise; }
   };
   t.mock.method(globalThis, "fetch", async () => { providerCalls++; network.resolve(); await response.promise; return cogniaModelResponse("The accepted round finished."); });
-  const request = (target: typeof session, identity = owner) => ["prologue", { ...identity, session: target, directory, role_id: "reader", task: "Read without tools." }] as const;
-  t.after(async () => { release.resolve(); response.resolve(); await local.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
-  const original = client.invoke(agent.startRun, [...request(session)], { signal: controller.signal, before_effect: beforeEffect, assert_authority_current: assertCurrent });
+  const request = (target: typeof session) => ["prologue", { session: target, directory, role_id: "reader", task: "Read without tools." }] as const;
+  t.after(async () => { release.resolve(); response.resolve(); await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
+  const original = client.invoke(agent.startRun, [...request(session)], { plugin_caller, signal: controller.signal, before_effect: beforeEffect, assert_authority_current: assertCurrent });
   const rejected = assert.rejects(original);
   await entered.promise;
-  const accepted = await peerClient.invoke(agent.startRun, [...request(peer, peerOwner)]); await network.promise;
+  const accepted = await peerClient.invoke(agent.startRun, [...request(peer)], { plugin_caller: peerCaller }); await network.promise;
   assert.equal(providerCalls, 1, "a peer with the same permissions cannot lend its authority to the held call");
   current = false; controller.abort(); release.resolve(); await rejected; await finished.promise;
   assert.deepEqual((await adapter.readSession(session)).runs, []);
   assert.equal((await adapter.readSession(session)).recovery, undefined, "the rejected prepared intent is removed, not accepted as unknown work");
   const detached = new AbortController(); let detachedCurrent = true;
   const guard = () => { detached.signal.throwIfAborted(); if (!detachedCurrent) throw new ActionError("actions.forbidden", "foreground ended"); };
-  const third = await client.invoke(agent.createSession, ["prologue", { ...owner, directory, title: "Accepted" }]);
-  const background = await client.invoke(agent.startRun, [...request(third)], { signal: detached.signal, before_effect: async () => guard(), assert_authority_current: guard });
+  const third = await client.invoke(agent.createSession, ["prologue", { directory, title: "Accepted" }], mine);
+  const background = await client.invoke(agent.startRun, [...request(third)], { plugin_caller, signal: detached.signal, before_effect: async () => guard(), assert_authority_current: guard });
   detachedCurrent = false; detached.abort(); response.resolve();
   const settle = (ref: AgentRunRef) => new Promise<void>((resolve, reject) => {
     let off = () => {}; const timer = setTimeout(() => reject(new Error("accepted SDK round did not finish")), 10_000);
@@ -211,8 +218,13 @@ for (const stage of ["configuration", "credential", "sdk-acceptance"] as const) 
     const host = new AgentHost(); host.register(adapter);
     const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } });
     registerAgentHostCapabilities<null>({ register: (definition, handler) => definition.action ? local.registerAction(definition as typeof definition & ActionDefinition, handler) : local.register(definition, handler) }, { agentHost: () => host, projectId: () => "project", authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home] }) });
-    const client = local.client({ project_id: "project", storage_key: join(home, "project.db") });
-    const owner = { project_id: "project", plugin_id: "io.molis.work.coding", install_id: "install", actor_id: "person" }, directory = { canonical_path: home, realpath_verified: true };
+    const reference = { project_id: "project", storage_key: join(home, "project.db") }, client = local.client(reference);
+    // Controlling a round is a plugin's own action (R8 batch 3): the round is started and switched by a plugin the Host started.
+    const store = new LocalProjectDatabase(join(home, "plugins.db")), probe = registerProbe(local.actionRegistry(reference), "project");
+    const starter = callerPlugin("switch-authority", "project");
+    await startPlugin(local, reference, store, starter, { actorId: "person" });
+    const plugin_caller = await issuedCaller(probe, starter, reference.project_id);
+    const directory = { canonical_path: home, realpath_verified: true };
     const controller = new AbortController();
     const invalidate = () => { if (invalidation === "cancel") controller.abort(new Error("original switch cancelled")); else current = false; };
     const check = () => {
@@ -230,14 +242,14 @@ for (const stage of ["configuration", "credential", "sdk-acceptance"] as const) 
       if (models.length === 1) { network.resolve(); await response.promise; return switchReadResponse(); }
       return cogniaModelResponse("Finished with the accepted model B.");
     });
-    t.after(async () => { release.resolve(); response.resolve(); await local.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
-    const session = await client.invoke(agent.createSession, ["prologue", { ...owner, directory, title: "One running session" }]);
-    const handle = await client.invoke(agent.startRun, ["prologue", { ...owner, session, directory, role_id: "reader", task: "Read note.txt, then answer." }]);
+    t.after(async () => { release.resolve(); response.resolve(); await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
+    const session = await client.invoke(agent.createSession, ["prologue", { directory, title: "One running session" }], { plugin_caller });
+    const handle = await client.invoke(agent.startRun, ["prologue", { session, directory, role_id: "reader", task: "Read note.txt, then answer." }], { plugin_caller });
     await network.promise;
     const requested = (id: string) => [session, handle.ref, { kind: "switch-model" as const, provider_id: "fixture", model_id: id }] as const;
-    await client.invoke(agent.controlRun, [...requested("peer")]);
+    await client.invoke(agent.controlRun, [...requested("peer")], { plugin_caller });
     assert.equal((await adapter.read(handle.ref)).model_switch?.requested, "B");
-    const refused = client.invoke(agent.controlRun, [...requested("denied")], { signal: controller.signal, before_effect: async () => check(), assert_authority_current: check });
+    const refused = client.invoke(agent.controlRun, [...requested("denied")], { plugin_caller, signal: controller.signal, before_effect: async () => check(), assert_authority_current: check });
     const rejected = assert.rejects(refused);
     if (stage === "sdk-acceptance") { await rejected; assert.equal(held, true, "the original checker reached the actual SDK acceptance frame"); }
     else await entered.promise;
@@ -284,7 +296,6 @@ for (const invalidation of ["plugin-stopped", "character-disabled"] as const)
     const store = new LocalProjectDatabase(join(home, "plugins.db")), probe = registerProbe(local.actionRegistry(reference), "project");
     const starter = callerPlugin("switcher", "project"), started = await startPlugin(local, reference, store, starter, { actorId: "person" });
     const plugin_caller = await issuedCaller(probe, starter, reference.project_id);
-    const owner = { project_id: "project", plugin_id: plugin_caller.plugin_id, install_id: plugin_caller.install_id, actor_id: "person" };
     t.mock.method(globalThis, "fetch", async (url: string | URL | Request, init: RequestInit) => {
       const payload = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
       requests.push({ endpoint: new Request(url).url, model: JSON.parse(payload).model });
@@ -292,8 +303,8 @@ for (const invalidation of ["plugin-stopped", "character-disabled"] as const)
       return cogniaModelResponse("Finished with B, which must not happen.");
     });
     t.after(async () => { response.resolve(); await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
-    const session = await client.invoke(agent.createSession, ["prologue", { ...owner, directory, title: "Switch then revoke" }], { plugin_caller });
-    const handle = await client.invoke(agent.startRun, ["prologue", { ...owner, session, directory, role_id: "reader", task: "Read note.txt, then answer.",
+    const session = await client.invoke(agent.createSession, ["prologue", { directory, title: "Switch then revoke" }], { plugin_caller });
+    const handle = await client.invoke(agent.startRun, ["prologue", { session, directory, role_id: "reader", task: "Read note.txt, then answer.",
       ...(invalidation === "character-disabled" ? { character: character.reference } : {}) }], { plugin_caller });
     await network.promise;
     await client.invoke(agent.controlRun, [session, handle.ref, { kind: "switch-model", provider_id: "fixture", model_id: "peer" }], { plugin_caller });

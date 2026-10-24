@@ -72,7 +72,7 @@ Git 审查把全部有效 push URL 纳入修订，执行固定的提交与目标
 
 插件调用自己的动作、声明消费的动作或 typed 能力时，Host 捕获 Runtime 中原动作或场景的调用者；下游写入前同步复查原调用者，不能只信插件传入的等待回调。只读场景的约束跟随调用，typed 口按真实注册的操作与费用拒绝写入或付费查询。回归：`tests/security-invariants-plugin-scenes.test.ts`。
 
-PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信任的进程内开发执行。应用通过 openWorkSessionRegistry 组合 Work 与 Ledger，关闭 Registry 时释放其拥有的连接。
+PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信任的进程内开发执行。
 
 Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定唤醒，无须打开 Studio。`schedule-reminders.ts` 只连接安装仓库和同库 Feed/Inbox 投递；时间、数量、安装隔离和一次性消费归 Schedule 插件。`schedule-operations.ts` 同样只装配安装执行器和 Inbox；计划与 occurrence、重装后的归属确认、未知结果恢复归 Schedule。执行器注册不派出工作，新的 lease 才能运行持久 pending；结果未知必须在 Schedule 核对后明确重试或跳过。
 

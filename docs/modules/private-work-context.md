@@ -1,50 +1,37 @@
 # Private Work Context
 
-**定位：** 用户或 Runtime 为完成工作产生的私人 Session、内容引用、workspace 关联和 handoff 事实的唯一 owner。
+**定位：** Runtime 工作入口与 Project 之间绑定关系的唯一 owner。
 
-大白话说，它保存的是“这次私人工作从哪里开始、现在关联哪个 Project / Goal、私密过程内容放在哪里、换 Runtime 后从哪继续”。这些事实默认只在本机，不会因为进入 Team 就自动同步。
+大白话说，它保存的是“这个外部 Runtime 的工作入口（或工作目录）属于哪个 Project”：谁在什么时候绑定、解绑，用户拒绝过哪些建议，幂等请求做到了哪一步。这些事实默认只在本机。
+
+Sessions 插件已下线（SC-4，`specs/repository-anti-corruption/slices/sc-4-sessions-offline.md`）：Session 身份、事件与加密内容引用、Handoff、会话目录和关联规则的实现都已删除，重做见 `specs/BACKLOG.md` 的 BL-177。本模块只留下 Runtime 项目绑定。
 
 ## 本模块拥有
 
-- Molis Work Session identity、Runtime native identity / correlation、surface identity。
-- Session 与 Project、Goal、workspace 的关联规则和 Goal 历史视图；关系事实由 Context Ledger 唯一保存。
-- 本地加密的 Session event / content reference。
-- Handoff 草稿、目标 Session、发送状态、重试与恢复事实。
 - Runtime context binding、binding event、setup request 和 suggestion rejection。
+- Runtime 工作入口到 Project 的当前关联：personal `work.binding_project` 边，由 Context Ledger 唯一保存。
+- 绑定语义的错误码（`work.context.*`，如 `work.context.project_relation_missing`：项目关系缺失时拒绝，不猜测绑定）。
 
 ## 本模块不拥有
 
 - Goal、Artifact、Project identity 或 workspace membership。
-- Runtime 进程、Codex / PTY 协议、resume 调用和实际消息投递；这些由 WK2 的 Runtime Host 和 WK3 的 Work Plugin 编排。
-- Desktop panel UI 状态。Panel 只把明确的用户选择写入本模块公开入口。
-- Team 同步。私人过程要交换给别人，必须由用户显式存成成果或未来明确选择共享的记录。
+- Runtime 进程、Codex / PTY 协议和实际消息投递；这些由 Runtime Host 与终端工作区负责。
+- Session 与消息：已下线，没有 owner；`<home>/sessions/` 里的旧数据由 Host 的存储登记持有，本模块不打开它。
+- Team 同步。
 
 ## 公开入口与内部拆分
 
 所有业务调用从 `@molis-ai/molis-work-module-private-work-context` 进入：
 
-- `MolisWorkSessionRegistry`：Session Registry 公开入口（实现 `WorkSessionApi`，把持久化、事件与 Handoff 分给各组件），不保存混合实现。
-- `session-records.ts`：Session 身份与命令事务。
-- `session-associations.ts`：关联规则与 Ledger 公开 API 适配，不保存第二套关系表。
-- `session-events.ts` 与 `content-store.ts`：过滤元数据并本地加密保存内容。
-- `session-handoffs.ts`：Handoff 状态、目标关联和中断恢复。
-- `handoff-associations.ts`：Handoff 的来源 Goal、目标 Project / workspace 引用适配；关系存储归 Ledger。
+- `createRuntimeContextModule`：在同一数据库连接里装配绑定、创建并绑定、拒绝建议与清理服务；Repository 不对包外导出。
 - `context-bindings.ts`：Runtime context binding 的身份、控制历史、mapping 和 Repository。
 - `context-binding-references.ts`：当前工作入口到 Project 的 Ledger 适配；通过注入的 Projects Query 校验 Project，不跨 owner 查询表。
-- `session-schema.ts`：Session 数据库版本和共同校验。
+- `project-binding-commands.ts`、`project-binding-validation.ts`、`project-resolution.ts`、`project-setup.ts`、`project-suggestions.ts`：绑定命令、校验、解析、创建与建议。
 
-WK3 已将所有 Registry caller 切到公开 owner 包，并删除 `src/sessions/registry.ts` 和 `content-store.ts`。旧 `src/sessions/` 已全部退出；Host MCP/Project 通过公开 Contracts 与 Work/Private Work Context 接入。Project Catalog 编排选择 Project，不直接保存 Runtime Session binding SQL。Work 依赖公开 `WorkSessionQueryApi` / `WorkSessionApi`（包括已有的 eventCount 查询和 Handoff 状态操作），不依赖 Registry 私有实现或数据库。
+Project Catalog 编排选择 Project，不直接保存 Runtime binding SQL；Host MCP 与 Project 通过公开 Contracts 接入。
 
 ## 数据位置
 
-- 使用 `~/.molis-work/sessions/sessions.db` 和原有加密内容目录；库只认当前 schema 版本（7），版本不符拒绝，不就地升级；不搬移或删除私人内容。
-- owner marker 只标识这是本模块的库，不代表代码 owner 仍在旧目录。
-- WK1 迁移事实 owner；WK2 迁移 Runtime Host，WK3 再清除 Work UI / resume / handoff caller 的兼容入口。
+Runtime 工作入口绑定保留在 `projects/catalog.db` 的同一事务资源中。当前 Project 关联是 personal `work.binding_project` 边，本模块只存绑定身份、事件、setup 幂等与拒绝建议；目录库只认当前版本，不就地升级。绑定事件里的 Project 是当时决定的历史快照，setup 幂等与拒绝建议仍是控制状态，不能拿来恢复第二份当前关联。解除和 Project 删除通过公开 API 撤销边；外层事务同时覆盖目录版本、metadata、事件与 Ledger，失败后可完整重试。
 
-应用层通过 `@molis-ai/molis-work-app-local-host` 的 `openWorkSessionRegistry` 组合两个 Module；Module 单独使用时显式注入 Ledger factory。`project_id`、`current_goal_id`、`workspace_id` 仍作为公开 Session response 字段，但从 Ledger 派生，不双写。Project 里的同名 Goal 通过 ObjectRef 的 Project namespace 区分。
-
-Handoff 的 `source_project_id` / `source_goal_id` / `target_project_id` / `target_workspace_id` 同样由 Ledger 派生。来源 Goal 的版本可为空，未知版本不猜测，也不借用 Session 后来的关联。新建和目标修改把 Work 状态与 Ledger 放入一个事务；失败不留下半成品或孤立关系。
-
-私人 Handoff 草稿、正文引用、digest、发送/重试 Receipt 仍归本模块，不因持久化自动成为 Artifact 或进入 Team。只有显式形成符合定义的正式结果才走 Artifact 发布；这是总 spec §20.11 / §20.13 的边界，而非暂存双 owner。
-
-Runtime 工作入口绑定保留在 `projects/catalog.db` 的同一事务资源中。当前 Project 关联是 personal `work.binding_project` 边，Work 只存绑定身份、事件、setup 幂等与拒绝建议；目录库只认当前版本，不就地升级。绑定事件里的 Project 是当时决定的历史快照，setup 幂等与拒绝建议仍是 Work 控制状态，不能拿来恢复第二份当前关联。解除和 Project 删除通过公开 API 撤销边；外层事务同时覆盖目录版本、metadata、事件与 Ledger，失败后可完整重试。
+`<home>/sessions/`（旧 Sessions 的库与加密内容目录）不再被任何代码打开：它登记在 Host 的存储清单（`apps/local-host/src/home-stores.ts`，owner 为 `apps/local-host`），备份与卸载清理仍认得它；项目删除不再有 `sessions` 主人，该目录里属于被删项目的旧记录会留到单独的清理片（SC-5，在备份副本上做并经用户确认）。

@@ -1,18 +1,7 @@
 import { PLUGIN_ROUTE_PREFIX } from "@molis-ai/molis-work-plugin-runtime";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
-function nativePluginHttpAliases(): Readonly<Record<string, string>> {
-  const aliases: Record<string, string> = { functions: "functions", "io.molis.work.functions": "functions" };
-  for (const entry of BUILTIN_PLUGIN_CATALOG) {
-    // A Home runtime plugin's routes are served by the Home runtime under its own id; it has no short native path.
-    if (entry.personal !== true || entry.runtime) continue;
-    aliases[entry.project_plugin_id] = entry.project_plugin_id;
-    aliases[entry.manifest.plugin_id] = entry.project_plugin_id;
-  }
-  return aliases;
-}
-
-const PLUGIN_HTTP_ALIASES = nativePluginHttpAliases();
+// W6-01/PG-058: functions is the only adapter left; the per-plugin short names went with the personal route bridge.
+const PLUGIN_HTTP_ALIASES: Readonly<Record<string, string>> = { functions: "functions", "io.molis.work.functions": "functions" };
 
 /** `/api/plugins/<id>/…` → `/api/<short-id>/…`. Unknown prefixes stay unchanged. */
 export function rewriteNativePluginApiPath(pathname: string): string {

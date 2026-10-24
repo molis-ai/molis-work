@@ -311,6 +311,11 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
   route(path: string): string;
   /** A relative path under this plugin's Manifest identity and current project (or Home). */
   pluginRoute(path: string): string;
+  /**
+   * The surface that opens objects of this kind, as the plugins declare it (their search sources), or `null` when no surface
+   * does or several do. A page links an object it holds only by `kind` and `id` through it, and shows plain text when it is `null`.
+   */
+  surfaceFor(kind: string): string | null;
   readRefusal(status: number, code: unknown): string;
   confirmBox(dialog: Dialog, ok: Element, run?: () => Promise<unknown>): Promise<boolean>;
   interaction(card: Element, options: { onSubmit?: () => void }): UiPageInteraction;

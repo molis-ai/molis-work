@@ -49,7 +49,6 @@ import {
   createWorkbenchGoalsRelationRenderer,
   createWorkbenchGoalsStatusRenderer,
   createWorkbenchGoalsTreeRenderer,
-  renderProjectOperations,
   renderWorkbenchDocument,
 } from "./ui-composition.js";
 import { renderTerminalPane } from "./terminal/pane.js";
@@ -313,7 +312,6 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderIconSprite, clientI18nScript, dataJson, prefixLocalLinks, renderWorkbenchDocument,
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer, renderGoalProposals: (view) => renderGoalTreeProposalList(view.snapshot.goal_tree_proposals, view),
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
-    renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
     renderFeedNativePluginSurface, stageModel: (pluginId, view) => stageModels.get(pluginId)?.(view),
   });

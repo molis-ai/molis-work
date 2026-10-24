@@ -298,9 +298,11 @@ test("三击选中整块文字，图片则选中那一块", () => {
   const textAt = image.child(0).nodeSize + 1;
   assert.deepEqual(tripleClickSelection(image, textAt), { from: textAt, to: textAt + 1, atom: false });
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  assert.match(editor, /handleTripleClick\(current, pos\)/);
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-view-props.ts", import.meta.url), "utf8");
+  assert.match(editor, /handlePagesTripleClick\(current: EditorView, pos: number\)/);
   assert.match(editor, /tripleClickSelection\(current\.state\.doc, pos\)/);
+  const mounted = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  assert.match(mounted, /handleTripleClick: handlePagesTripleClick/);
 });
 
 test("按住 Alt 拖开会复制一块，原来的还在", () => {
@@ -360,7 +362,7 @@ test("已经选中一块时，按住 Shift 再点另一块会扩到那一块", (
   assert.deepEqual(blockSpanToRow(callout, bing, inside), { anchor: bing, head: yi });
   assert.equal(blockSpanToRow(callout, yi, outside), null);
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-view-props.ts", import.meta.url), "utf8");
   assert.match(editor, /blockSpanToRow\(current\.state\.doc, anchor, point\.pos\)/);
 });
 
@@ -523,11 +525,13 @@ test("点到正文下面的空白会落到一个空段落", () => {
   assert.equal(after.doc.child(0).textContent, "甲");
   assert.equal(after.doc.child(1).textContent, "");
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  const down = editor.indexOf("mousedown(current, event)");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-view-props.ts", import.meta.url), "utf8");
+  const down = editor.indexOf("mousedown(current: EditorView, event: MouseEvent)");
   const placed = editor.indexOf("focusBelowContent(current.state)", down);
   assert.ok(editor.indexOf("coordsAtPos", down) > down);
   assert.ok(placed > editor.indexOf("coordsAtPos", down));
+  const mounted = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  assert.match(mounted, /handleDOMEvents: \{ \.\.\.pagesDomEvents/);
 });
 
 test("Pages 是个人插件，不进项目启用名单", () => {
@@ -2885,10 +2889,12 @@ test("选中待办再按空格是勾选，不是换成空格", () => {
     if (item < 0 && node.type.name === "task_item") item = pos;
   });
   assert.equal(toggleTaskGroup(pagesState(mixed), 0, item), null);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-view-props.ts", import.meta.url), "utf8");
   const space = editor.indexOf("toggleTaskGroup(current.state");
   const replace = editor.indexOf("replaceSelectedBlock(current.state, text)");
   assert.ok(space > 0 && replace > space);
+  const mounted = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  assert.match(mounted, /handleTextInput: handlePagesTextInput/);
 });
 
 test("空行粘贴网址变成书签，选中的字只加链接", () => {

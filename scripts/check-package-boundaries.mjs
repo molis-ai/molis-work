@@ -1048,17 +1048,10 @@ export function checkPrivateWorkContextOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const requiredOwnerFiles = [
-    "modules/private-work-context/src/content-store.ts",
     "modules/private-work-context/src/context-bindings.ts",
     "modules/private-work-context/src/runtime-context-module.ts",
-    "modules/private-work-context/src/session-events.ts",
-    "modules/private-work-context/src/session-handoffs.ts",
-    "modules/private-work-context/src/session-surfaces.ts",
-    "modules/private-work-context/src/session-records.ts",
-    "modules/private-work-context/src/session-registry.ts",
-    "modules/private-work-context/src/session-schema.ts",
     "packages/contracts/src/modules/private-work-context.ts",
-    "tests/private-work-context-module.test.ts",
+    "tests/runtime-binding-ledger.test.ts",
   ];
   for (const relativePath of requiredOwnerFiles) {
     if (!fs.existsSync(path.join(repositoryRoot, relativePath))) {
@@ -1069,10 +1062,7 @@ export function checkPrivateWorkContextOwnership(repositoryRoot) {
   const contract = read("packages/contracts/src/modules/private-work-context.ts");
   for (const required of [
     'maturity: "partial"',
-    "WorkSessionRecord",
     "RuntimeContextBindingRecord",
-    "WorkSessionHandoffRecord",
-    "PrivateWorkContextApplicationApi",
   ]) {
     if (!contract.includes(required)) {
       errors.push(`packages/contracts/src/modules/private-work-context.ts: missing ${required}`);
@@ -1081,7 +1071,6 @@ export function checkPrivateWorkContextOwnership(repositoryRoot) {
 
   const entry = read("modules/private-work-context/src/index.ts");
   for (const required of [
-    "MolisWorkSessionRegistry",
     "createRuntimeContextModule",
     'maturity: "partial"',
     '"runtime-context-bindings"',
@@ -1129,9 +1118,6 @@ function checkRuntimeHostOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const ownerFiles = [
-    "horizontal/runtime-host/src/runtime-router.ts",
-    "horizontal/runtime-host/src/adapters/codex-session.ts",
-    "horizontal/runtime-host/src/adapters/codex-app-server.ts",
     "horizontal/runtime-host/src/adapters/terminal-pty.ts",
   ];
   for (const relativePath of [
@@ -1148,10 +1134,9 @@ function checkRuntimeHostOwnership(repositoryRoot) {
   const contract = read("packages/contracts/src/services/runtime-host.ts");
   for (const required of [
     'maturity: "partial"',
-    "RuntimeHostApi",
-    "RuntimeSessionAdapter",
-    "RuntimeSessionAdapterResult",
     "PtySpawnRequest",
+    "PtySpawnResult",
+    "PtyHostHandlers",
   ]) {
     if (!contract.includes(required)) {
       errors.push(`packages/contracts/src/services/runtime-host.ts: missing ${required}`);
@@ -1160,13 +1145,9 @@ function checkRuntimeHostOwnership(repositoryRoot) {
 
   const entry = read("horizontal/runtime-host/src/index.ts");
   for (const required of [
-    "RuntimeHostRouter",
-    "CodexAppServerTransport",
-    "CodexRuntimeSessionAdapter",
     "MolisWorkPtyHost",
     'maturity: "partial"',
     '"runtime.host.v1"',
-    '"runtime.codex.v1"',
     '"runtime.terminal-pty.v1"',
   ]) {
     if (!entry.includes(required)) errors.push(`horizontal/runtime-host/src/index.ts: missing ${required}`);
@@ -1195,9 +1176,6 @@ function checkRuntimeHostOwnership(repositoryRoot) {
   }
   if (!read("apps/local-host/src/pty-socket.ts").includes('from "@molis-ai/molis-work-service-runtime-host"')) {
     errors.push("apps/local-host/src/pty-socket.ts: PTY socket must consume the public Runtime Host entrypoint");
-  }
-  if (read("horizontal/runtime-host/src/runtime-router.ts").includes("RegistryFallbackSessionAdapter")) {
-    errors.push("horizontal/runtime-host: Session registry fallback must remain with Private Work Context composition");
   }
 
   for (const relativePath of ownerFiles) {

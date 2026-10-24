@@ -52,7 +52,6 @@
     "@molis-ai/molis-work-plugin-schedule": "workspace:*",
     "@molis-ai/molis-work-plugin-shelf": "workspace:*",
     "@molis-ai/molis-work-plugin-text-stats": "workspace:*",
-    "@molis-ai/molis-work-plugin-work": "workspace:*",
     "@molis-ai/molis-work-ui-host": "workspace:*",
     "@molis-ai/molis-work-plugin-images": "workspace:*",
     "@molis-ai/molis-work-plugin-jelly": "workspace:*",

@@ -327,10 +327,9 @@
       "paths": [
         "modules/private-work-context/",
         "packages/contracts/src/modules/private-work-context.ts",
-        "packages/contracts/src/modules/workspace-artifacts.ts",
-        "apps/local-host/src/work-*"
+        "packages/contracts/src/modules/workspace-artifacts.ts"
       ],
-      "reason": "The Work plugin owns sessions, handoffs, workspaces and their private context; the session, sessions, handoff, context and workspace prefixes become work.* (spec W3-02 R4a)."
+      "reason": "The private work context module owns the runtime-context bindings and workspace artifacts; the context and workspace prefixes become work.* (spec W3-02 R4a). The Sessions plugin that used to share this owner is retired (SC-4)."
     },
     "workflows": {
       "paths": [

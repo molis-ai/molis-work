@@ -23,7 +23,7 @@ interface CodingWakeDeps<Execution> {
   readonly busy: Set<string>;
   records(execution: Execution): CodingSessionRecord[];
   record(execution: Execution, sessionId: string): CodingSessionRecord;
-  startRound(record: CodingSessionRecord, body: Record<string, unknown>, actorId: string, api: Capabilities, execution: Execution, beforeWrite: CodingBeforeWrite): Promise<unknown>;
+  startRound(record: CodingSessionRecord, body: Record<string, unknown>, api: Capabilities, execution: Execution, beforeWrite: CodingBeforeWrite): Promise<unknown>;
 }
 
 /**
@@ -67,8 +67,7 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
   };
   /**
    * A wait that is over: start the next round (it takes the continuation up), or leave it for the person with a note. The round
-   * names the person the activation runs for (`context.actor_id`), never one read back from storage: the Host refuses a round whose
-   * identity is not the caller it bound (`assertInputOwner`, horizontal/agent-host), and the job's caller is the activation's.
+   * names no one: the Host starts it for the caller it bound (horizontal/agent-host), and the job's caller is the activation's.
    */
   const takeUp = async (api: Capabilities, execution: Execution, runtimeId: string, view: CodingWaitView, control: PluginJobControl): Promise<"started" | "held" | "later" | "not-ours" | "refused"> => {
     const found = deps.records(execution).find(entry => entry.runtime_id === runtimeId && entry.runtime_session_id === view.session_id);
@@ -78,7 +77,7 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
     if (deps.busy.has(found.session_id)) return "later";
     deps.busy.add(found.session_id);
     try {
-      await deps.startRound(deps.record(execution, found.session_id), wakeBody(found, view), context.actor_id!, api, execution, codingJobWrite(control));
+      await deps.startRound(deps.record(execution, found.session_id), wakeBody(found, view), api, execution, codingJobWrite(control));
       storage()?.delete(`queued:${view.wait.wait_id}`);
       return "started";
     } catch (error) {
@@ -128,21 +127,21 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
   /** Ask for `runtimeId`'s loop; nothing when one runs. */
   const wakeLoop = (_api: Capabilities, execution: Execution, runtimeId: string, recovery = false) => jobs.wake(execution, runtimeId, recovery);
   /** The person gives the wait up: a request it waited on is withdrawn, a queued round's project work item goes. */
-  const cancel = async (api: Capabilities, record: CodingSessionRecord, view: CodingWaitView, beforeWrite: CodingBeforeWrite) => {
+  const cancel = async (record: CodingSessionRecord, view: CodingWaitView, beforeWrite: CodingBeforeWrite) => {
     const actions = codingActions(context, beforeWrite);
     for (const one of view.wait.conditions) if (one.kind === "envelope") await actions.invoke(agent.cancelMessage, [record.runtime_id, one.ref]).catch(() => undefined);
     const queued = queuedOf(view.wait.wait_id);
-    if (view.wait.by === "app" && queued) await api.invoke(agent.releaseProjectRound, [record.runtime_id, queued.work_id, "用户取消了等待"]).catch(() => undefined);
+    if (view.wait.by === "app" && queued) await actions.invoke(agent.releaseProjectRound, [record.runtime_id, queued.work_id, "用户取消了等待"]).catch(() => undefined);
     // An open wait is cancelled; one over whose step is held for the person gives the step back.
     if (view.wait.state === "waiting" || ["blocked", "needs-reconciliation"].includes(view.continuation?.state ?? ""))
       await actions.invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "cancel-wait", wait_id: view.wait.wait_id, note: "用户取消了等待" });
     storage()?.delete(`queued:${view.wait.wait_id}`);
   };
   /** The person goes on before the wait is over: the continuation is ready at once, and the round started now takes it up. */
-  const goOn = async (api: Capabilities, execution: Execution, record: CodingSessionRecord, view: CodingWaitView, actorId: string, beforeWrite: CodingBeforeWrite) => {
+  const goOn = async (api: Capabilities, execution: Execution, record: CodingSessionRecord, view: CodingWaitView, beforeWrite: CodingBeforeWrite) => {
     if (view.wait.state === "waiting") await hostActions().invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "continue-now", wait_id: view.wait.wait_id, note: "用户选择现在开始" },
       codingActionControl(beforeWrite));
-    const started = await deps.startRound(record, wakeBody(record, view, true), actorId, api, execution, beforeWrite);
+    const started = await deps.startRound(record, wakeBody(record, view, true), api, execution, beforeWrite);
     storage()?.delete(`queued:${view.wait.wait_id}`);
     return started;
   };

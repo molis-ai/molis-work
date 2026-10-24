@@ -1,4 +1,5 @@
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
+import { GOALS_JOURNAL_NAMESPACE } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { listProjectRoots, type ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import { DEMO_PROJECT_ID } from "./demo-seed.js";
@@ -361,6 +362,6 @@ function seedDemoDeliverable(store: LocalProjectDatabase, projectId: string): vo
   const scope = { kind: "personal" as const, id: projectId };
   const delivered = { artifact_id: DEMO_CORE_ARTIFACT_ID, version: 2 };
   createContextLedger(store.db, { authorize: access => access.scope.kind === "personal" && access.scope.id === projectId }).commands.put({ actor_id: DEMO_ACTOR, scope }, {
-    key: `goal.output:CORE:${artifactSubjectId(delivered)}`, type: "goal.output", cause: "goals.deliverable",
+    key: `${GOALS_JOURNAL_NAMESPACE}goal.output:CORE:${artifactSubjectId(delivered)}`, type: "goal.output", cause: "goals.deliverable",
     source: { module: "goals", id: "CORE", version: null, scope }, target: { module: "artifacts", id: delivered.artifact_id, version: delivered.version, scope } });
 }

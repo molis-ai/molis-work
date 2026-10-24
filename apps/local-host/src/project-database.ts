@@ -4,6 +4,7 @@ import { createGoalReadServices } from "@molis-ai/molis-work-module-goals";
 import { createGovernanceReadServices } from "@molis-ai/molis-work-module-governance-collaboration";
 import type { GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import { readMolisWorkSnapshot, type BoardSnapshot, type MolisWorkSnapshotPorts } from "@molis-ai/molis-work-plugin-goals";
+import { goalsJournal } from "./goals-journal.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { openProjectPluginDatabases, type ProjectPluginDatabaseOutcome } from "./project-plugin-databases.js";
 
@@ -26,8 +27,8 @@ export class LocalProjectDatabase extends LocalSqliteStorage {
     try {
       if (!options.existingOnly) applySqliteBaseline(this.db, path, PROJECT_DATABASE_BASELINE);
       this.pluginDatabases = options.existingOnly ? new Map() : openProjectPluginDatabases(this.db, path);
-      const goals = createGoalReadServices(this.db, this);
-      const governance = createGovernanceReadServices(this.db, this);
+      const goals = createGoalReadServices(this.db, goalsJournal(this));
+      const governance = createGovernanceReadServices(this.db, goalsJournal(this));
       this.goalsQuery = goals.query;
       this.snapshotQueries = { goals: goals.query, governance: governance.query };
     } catch (error) { this.close(); throw error; }

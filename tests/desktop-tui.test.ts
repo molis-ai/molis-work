@@ -14,6 +14,7 @@ import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host"
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GOALS_JOURNAL_NAMESPACE } from "@molis-ai/molis-work-contracts/modules/goals";
 import { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 import { NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-app-desktop";
 import {
@@ -1044,12 +1045,12 @@ test("compound parent terminals become read-only and direct execution APIs requi
         .prepare("UPDATE goals SET fulfillment_state = 'satisfied' WHERE goal_id IN (?, ?)")
         .run("TUI-CHILD", "TUI-PARENT");
       // This test-only fixture mutation bypasses the coordinator, so publish a
-      // matching cursor event just as every supported product write does.
+      // matching cursor event (a Goals event, which is what Goals' cursor counts) just as every supported product write does.
       completionStore.appendEvent({
         eventId: "desktop-tui-compound-completed",
         projectId: fixture.project.project_id,
         actorId: "test-user",
-        type: "test.fixture.updated",
+        type: `${GOALS_JOURNAL_NAMESPACE}test.fixture.updated`,
         objectType: "goal",
         objectId: "TUI-PARENT",
         reason: "测试复合 Goal 完成后的只读终端",

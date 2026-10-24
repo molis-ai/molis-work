@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GOALS_JOURNAL_NAMESPACE } from "@molis-ai/molis-work-contracts/modules/goals";
 import { GoalsModule } from "@molis-ai/molis-work-module-goals";
 import { GovernanceCollaborationModule } from "@molis-ai/molis-work-module-governance-collaboration";
 import { pluginLegalSql, SAVEPOINTS } from "./fixtures/plugin-legal-sql.js";
@@ -61,8 +62,8 @@ test("RAC-283 neither module names the project journal's tables, and writes its 
 
     assert.equal(replay.goal.goal_id, first.goal.goal_id);
     assert.ok(spy.calls.includes("getIdempotency") && spy.calls.includes("putIdempotency"), "the record is read and kept through the journal");
-    assert.ok(spy.calls.some(call => call.startsWith("appendEvent:goal.")), "the event is appended through the journal");
-    const created = store.readEventsDescending("board-legal").filter(event => event.object_id === "goal-legal" && event.type === "goal.created");
+    assert.ok(spy.calls.some(call => call.startsWith("appendEvent:io.molis.work.goals.goal.")), "the event is appended through the journal");
+    const created = store.readEventsDescending("board-legal").filter(event => event.object_id === "goal-legal" && event.type === `${GOALS_JOURNAL_NAMESPACE}goal.created`);
     assert.equal(created.length, 1, "the replay under the same key appends nothing");
     assert.equal(created[0]?.actor_id, "user-1");
     assert.ok(legal.stats.checked > 0, "the statements ran through the check");

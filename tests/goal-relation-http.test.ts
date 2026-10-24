@@ -28,5 +28,5 @@ test('Relation HTTP validates direction/type/project scope and replays writes wi
   assert.equal((await post(path,{reason:'验收完毕解除'},'remove-relation')).body.replayed,true);
   assert.equal(b.store.snapshot(DEMO_PROJECT_ID).relations.find(r=>r.relation_id===first.body.relation_id)?.state,'inactive');
   const history=b.store.readEventsDescending(DEMO_PROJECT_ID).filter(e=>e.object_id===first.body.relation_id);
-  assert.equal(history.filter(e=>e.type==='relation.added').length,1);assert.equal(history.filter(e=>e.type==='relation.deactivated').length,1);
+  assert.equal(history.filter(e=>e.type==='io.molis.work.goals.relation.added').length,1);assert.equal(history.filter(e=>e.type==='io.molis.work.goals.relation.deactivated').length,1);
 });

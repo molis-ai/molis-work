@@ -45,7 +45,7 @@ async function newProject(directory: string) {
 const identity = (databasePath: string) => ({
   roots: rows(databasePath, "SELECT project_id FROM project_root").map(row => row.project_id),
   boards: rows(databasePath, "SELECT project_id FROM boards").map(row => row.project_id),
-  created: rows(databasePath, "SELECT actor_id FROM events WHERE type = 'board.created'").map(row => row.actor_id),
+  created: rows(databasePath, "SELECT actor_id FROM events WHERE type = 'io.molis.work.goals.board.created'").map(row => row.actor_id),
 });
 
 /** The project opened by a Host of its own, as a page or a tool opens it; `initialize` is Goals' board action, as the management door calls it. */
@@ -91,7 +91,7 @@ test("PG094-10 RAC-262 a library the board action has yet to make a project of i
 
 test("PG094-10 RAC-263 when Goals' tables are refused the library check still passes and opening makes no board", async t => {
   const { home, projectId, databasePath } = await newProject(await scratch(t));
-  exec(databasePath, "UPDATE plugin_project_databases SET version = 2 WHERE plugin_id = 'io.molis.work.goals'");
+  exec(databasePath, "UPDATE plugin_project_databases SET version = 3 WHERE plugin_id = 'io.molis.work.goals'");
   validateManagedProject(databasePath, projectId);
   await openProject(home, projectId, databasePath);
   assert.deepEqual(identity(databasePath), { roots: [projectId], boards: [], created: [] }, "a refused Goals is left as the platform found it");

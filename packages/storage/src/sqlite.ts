@@ -33,11 +33,11 @@ export class LocalSqliteJournal {
     return this.db.transaction(fn).immediate();
   }
 
-  eventCursor(projectId: string, objectType?: string): number {
-    const row = objectType === undefined
-      ? this.db.prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE project_id = ?").get(projectId) as Row
-      : this.db.prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE project_id = ? AND object_type = ?")
-        .get(projectId, objectType) as Row;
+  /** Where the project's events end; of one object type, or of the types that start with `typePrefix` (a plugin's own namespace). */
+  eventCursor(projectId: string, objectType?: string, typePrefix?: string): number {
+    const row = this.db.prepare(`SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE project_id = ?${
+      objectType === undefined ? "" : " AND object_type = ?"}${typePrefix === undefined ? "" : " AND substr(type, 1, ?) = ?"}`)
+      .get(...[projectId, ...(objectType === undefined ? [] : [objectType]), ...(typePrefix === undefined ? [] : [typePrefix.length, typePrefix])]) as Row;
     return number(row.cursor);
   }
 

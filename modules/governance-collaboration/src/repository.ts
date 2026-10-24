@@ -1,3 +1,4 @@
+import { GOALS_JOURNAL_NAMESPACE } from "@molis-ai/molis-work-contracts/modules/goals";
 import type {
   GoalTreeProposalDecisionRecord,
   GoalTreeProposalItemRecord,
@@ -97,8 +98,8 @@ export class GovernanceRepository {
     object_type: string; object_id: string; reason: string; payload: unknown; at: string;
   }): void {
     this.journal.appendEvent({
-      eventId: input.event_id, projectId: input.project_id, actorId: input.actor_id, type: input.type,
-      objectType: input.object_type, objectId: input.object_id, reason: input.reason, payload: input.payload, at: input.at,
+      eventId: input.event_id, projectId: input.project_id, actorId: input.actor_id, type: GOALS_JOURNAL_NAMESPACE + input.type,
+      objectType: GOALS_JOURNAL_NAMESPACE + input.object_type, objectId: input.object_id, reason: input.reason, payload: input.payload, at: input.at,
     });
   }
 }

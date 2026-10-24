@@ -1,12 +1,13 @@
-import type {
-  GoalAcceptanceCriterion,
-  GoalPolicyBindingRecord,
-  GoalRecord,
-  GoalRelationRecord,
-  GoalsBoardRecord,
-  PlanningMethodPack,
-  ProjectGuidanceEntryRecord,
-  ProjectGuidanceRevisionRecord,
+import {
+  GOALS_JOURNAL_NAMESPACE,
+  type GoalAcceptanceCriterion,
+  type GoalPolicyBindingRecord,
+  type GoalRecord,
+  type GoalRelationRecord,
+  type GoalsBoardRecord,
+  type PlanningMethodPack,
+  type ProjectGuidanceEntryRecord,
+  type ProjectGuidanceRevisionRecord,
 } from "@molis-ai/molis-work-contracts/modules/goals";
 
 type Row = Record<string, unknown>;
@@ -48,7 +49,7 @@ export interface GoalsIdempotencyInput {
 }
 
 /**
- * The project's journal as Goals reaches it (PG-094 S9-1): the storage package's methods over `events` and `idempotency_records`,
+ * The project's journal as Goals reaches it (PG-094 S9-1; `eventCursor` is where Goals' own events end, S9-2): the storage package's methods over `events` and `idempotency_records`,
  * which are not Goals' tables. A statement naming either table is refused by the statement check a plugin's SQL goes through, so
  * Goals names neither; the Host hands over the storage's own journal (the same methods `services.project_database.journal` binds).
  */
@@ -249,16 +250,17 @@ export class GoalsRepository {
     return this.journal.eventCursor(projectId);
   }
 
+  /** Goals' domain names stay short (`goal.created`, `goal`, `create_goal`); the journal keeps them under the plugin's namespace. */
   appendEvent(input: GoalsEventInput): number {
-    return this.journal.appendEvent(input);
+    return this.journal.appendEvent({ ...input, type: GOALS_JOURNAL_NAMESPACE + input.type, objectType: GOALS_JOURNAL_NAMESPACE + input.objectType });
   }
 
   getIdempotency(projectId: string, actorId: string, operation: string, key: string): { request_hash: string; outcome: unknown } | null {
-    return this.journal.getIdempotency(projectId, actorId, operation, key);
+    return this.journal.getIdempotency(projectId, actorId, GOALS_JOURNAL_NAMESPACE + operation, key);
   }
 
   putIdempotency(input: GoalsIdempotencyInput): void {
-    this.journal.putIdempotency(input);
+    this.journal.putIdempotency({ ...input, operation: GOALS_JOURNAL_NAMESPACE + input.operation });
   }
 }
 

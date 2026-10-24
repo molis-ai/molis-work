@@ -6,7 +6,7 @@ import test, { mock, type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference, runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { GoalEventDecisionResult } from "@molis-ai/molis-work-contracts/modules/goals";
+import { GOALS_JOURNAL_NAMESPACE, type GoalEventDecisionResult } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalTreeProposalDecisionResult, GoalTreeApplicationApi } from "@molis-ai/molis-work-plugin-goals";
 import { dispatchMcpProjectTool, mcpWebUrl, type McpToolResult } from "@molis-ai/molis-work-app-mcp";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
@@ -87,7 +87,7 @@ test("W3-07-4-01 / W3-07-4-02: management MCP shares Goals actions and CLI propo
   assert.deepEqual([initialized.project_id, initialized.replayed], [PROJECT, false]);
   assert.deepEqual(await success(host, management, "molis_work_v1_initialize", initialize, "goals.board.initialize"), { ...initialized, replayed: true });
   const boardFacts = await fixture.facts(host);
-  assert.equal(boardFacts.events.find(event => event.type === "board.created")?.actor_id, LOCAL_PERSON_ACTOR_ID);
+  assert.equal(boardFacts.events.find(event => event.type === `${GOALS_JOURNAL_NAMESPACE}board.created`)?.actor_id, LOCAL_PERSON_ACTOR_ID);
   const proposalInput = { project_id: PROJECT, summary: "首个目标", idempotency_key: "propose",
     items: [{ item_id: "first", kind: "goal", operation: "create", payload: { goal_id: "first", title: "验证管理入口", outcome: "重启后决定" },
       source_refs: ["conversation://management-actions"], reason: "明确用户要留的结果", confidence: 1 }] };

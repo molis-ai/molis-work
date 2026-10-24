@@ -35,6 +35,7 @@ import { FEED_PLUGIN_ID, FeedApplication, FeedOutRuleStore, type FeedApplication
 import { ArtifactsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createFeedHistoryRelease } from "./feed-history-release.js";
+import { goalsJournal } from "./goals-journal.js";
 import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
 export interface LocalFeedApplicationOptions {
   artifacts?: FeedArtifactProducer;
@@ -52,7 +53,7 @@ export function createLocalFeedApplication(
   const journal = new LocalSqliteJournal(db);
   // Listener Host's storage is plain functions, so it has no constructor to create its tables; the other owners do.
   db.exec(LISTENER_HOST_SCHEMA_SQL);
-  const goals = createGoalReadServices(db, journal).query;
+  const goals = createGoalReadServices(db, goalsJournal(journal)).query;
   let feedItems!: FeedModule;
   let inboxCreated: (entry: { project_id: string; entry_id: string }) => void = () => {};
   const attention = new AttentionModule(db, {

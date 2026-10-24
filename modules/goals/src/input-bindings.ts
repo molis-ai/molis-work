@@ -1,5 +1,5 @@
 import { goalErrors } from "./errors.js";
-import type { GoalInputBindingRecord, GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import { GOALS_JOURNAL_NAMESPACE, type GoalInputBindingRecord, type GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ContextAccess, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type { GoalsSqliteDatabase } from "./repository.js";
 
@@ -54,7 +54,7 @@ export class GoalInputBindings implements GoalInputBindingsApi {
     const id = input.source_ref.slice("feed-item:".length);
     if (!id.trim()) return null;
     const access = this.access(input.project_id, input.created_by);
-    const key = `goal.input:${input.binding_id}`;
+    const key = `${GOALS_JOURNAL_NAMESPACE}goal.input:${input.binding_id}`;
     this.ledger.commands.put(access, {
       key, type: "goal.input", source: { module: "goals", id: input.goal_id, version: null, scope: access.scope },
       target: { module: "feed", id, version: null, scope: access.scope },

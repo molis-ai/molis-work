@@ -1,8 +1,9 @@
-import { createGoalsActionHandlers, goalsManifest, goalsActions, GOALS_ACTION_PERMISSIONS, GOALS_PLUGIN_ID, hostEventDecisionAuthority, managementEventDecisionAuthority, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { createGoalsActionHandlers, goalsManifest, goalsActions, GOALS_ACTION_PERMISSIONS, GOALS_PLUGIN_ID, hostEventDecisionAuthority, managementEventDecisionAuthority, managementTreeAuthority, goalsJournalEvents } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, bindActionClient, pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
+import { goalsEventCursor } from "./goals-journal.js";
 import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
 import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-module-goals";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
@@ -19,7 +20,7 @@ export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMe
     title: goalsManifest.name, kind: "plugin", project_id: runtime.project_id },
     definitions: goalsManifest.actions!.filter(definition => definition.action.scope === "project"), handlers: createGoalsActionHandlers({ events: runtime.coordinator.goalEvents, acknowledgements: runtime.coordinator.goalAcknowledgements, projectId: runtime.project_id,
       board: { initializeBoard: input => runtime.coordinator.initializeBoard(input) },
-      collection: { snapshot: projectId => runtime.store.snapshot(projectId), events: projectId => runtime.store.readEventsDescending(projectId),
+      collection: { snapshot: projectId => runtime.store.snapshot(projectId), events: projectId => goalsJournalEvents(runtime.store.readEventsDescending(projectId)),
         goals: runtime.coordinator.goalQueries, inputs: runtime.coordinator.goalInputs, eventWork: runtime.coordinator.goalEvents },
       readGoal: goalId => runtime.coordinator.goalQueries.getGoal(runtime.project_id, goalId),
       readContract: goalId => runtime.coordinator.goalQueries.readGoalContract(runtime.project_id, goalId),
@@ -27,12 +28,12 @@ export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMe
         ledger: createContextLedger(runtime.store.db, { authorize: access => access.scope.kind === "personal" && access.scope.id === runtime.project_id }),
         pin: async (caller, subject) => (await pinActionSubject(client, caller, subject)).artifact, pinnableKinds: caller => pinnableSubjectKinds(client, caller) },
       history: {
-      snapshot: () => runtime.store.snapshot(runtime.project_id), journalEvents: () => runtime.store.readEventsDescending(runtime.project_id),
+      snapshot: () => runtime.store.snapshot(runtime.project_id), journalEvents: () => goalsJournalEvents(runtime.store.readEventsDescending(runtime.project_id)),
     }, planning: { planning: runtime.coordinator.goals.planning, baseMethods: () => resolvePlanningMethodPacks(personalMethods()) },
     guidance: { commands: runtime.coordinator.goals.commands, read: projectId => runtime.coordinator.goalQueries.readProjectGuidance(projectId) },
     lifecycle: { lifecycle: runtime.coordinator.goals.lifecycle, setActiveGoal: (...args) => runtime.coordinator.setActiveGoal(...args),
-      eventCursor: () => runtime.store.eventCursor(runtime.project_id) },
-    configuration: { commands: runtime.coordinator.goals.commands, query: runtime.store.goalsQuery, eventCursor: () => runtime.store.eventCursor(runtime.project_id) },
+      eventCursor: () => goalsEventCursor(runtime.store, runtime.project_id) },
+    configuration: { commands: runtime.coordinator.goals.commands, query: runtime.store.goalsQuery, eventCursor: () => goalsEventCursor(runtime.store, runtime.project_id) },
     tree: { submitGoalTreeProposal: input => runtime.coordinator.goalTreeSubmission.submitGoalTreeProposal(input),
       listGoalTreeProposals: query => runtime.coordinator.goalTree.listGoalTreeProposals(query),
       checkGoalTreeProposal: input => runtime.coordinator.goalTreeCheck.checkGoalTreeProposal(input),

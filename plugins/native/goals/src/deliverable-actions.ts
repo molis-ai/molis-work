@@ -1,5 +1,6 @@
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { GOALS_JOURNAL_NAMESPACE } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ContextAccess, ContextEdge, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { goalAction, goalActor } from "./action-contract.js";
 import { text, identifier, boolean, array, object, nullable } from "@molis-ai/molis-work-contracts/modules/goal-actions";
@@ -89,7 +90,7 @@ export function createGoalsDeliverableActionHandlers(ports: GoalDeliverablePorts
   const active = (at: ContextAccess, key: string) => { const edge = ports.ledger.query.get(at, key); return edge?.state === "active" ? edge : null; };
   const requireGoal = (goalId: string) => { if (!ports.goalExists(goalId)) throw new ActionError("goals.not_found", "找不到这个目标"); };
   const links = (role: LinkRole) => {
-    const keyOf = (goalId: string, ref: ArtifactReference, type = role.type) => `${type}:${goalId}:${artifactSubjectId(ref)}`;
+    const keyOf = (goalId: string, ref: ArtifactReference, type = role.type) => `${GOALS_JOURNAL_NAMESPACE}${type}:${goalId}:${artifactSubjectId(ref)}`;
     const view = (edge: ContextEdge): GoalDeliverable | null => {
       if ((edge.type !== role.type && edge.type !== role.proposal) || edge.source.module !== "goals" || edge.target.module !== "artifacts" || edge.target.version == null) return null;
       const ref = { artifact_id: edge.target.id, version: edge.target.version };

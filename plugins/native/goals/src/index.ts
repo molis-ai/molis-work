@@ -1,4 +1,5 @@
 export * from "./personal-planning-actions.js";
+export { goalsJournalEvents } from "./journal-events.js";
 export * from "./decision-view.js";
 export * from "./actions.js";
 export type { InitializeBoardOutput } from "./board-actions.js";

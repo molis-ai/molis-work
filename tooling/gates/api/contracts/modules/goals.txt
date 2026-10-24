@@ -208,6 +208,8 @@ export interface CreateGoalIntentResult {
     completion_effect: false;
 }
 
+export declare const GOALS_JOURNAL_NAMESPACE = "io.molis.work.goals.";
+
 export declare const GOAL_PLUGIN_OBJECT_SOURCE = "plugin_object";
 
 export interface GoalAcceptanceCriterion {

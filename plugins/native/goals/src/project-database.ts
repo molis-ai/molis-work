@@ -15,7 +15,9 @@ import { GOALS_GOVERNANCE_SQL } from "./project-database-governance.js";
  */
 export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "goals",
-  version: 1,
+  // 2: the names Goals writes into the project's shared tables carry its namespace (PG-094 S9-2). A library recorded at 1 still has them
+  // without it, and Goals alone is refused there until `scripts/maintenance/goals-namespace-prefix.mjs` has renamed them and recorded 2.
+  version: 2,
   schema: [GOALS_BOARDS_SQL, GOALS_TABLES_SQL, GOALS_INPUT_BINDINGS_SQL, GOALS_EVENT_FACTS_SQL, GOALS_EVENT_STATE_SQL, GOALS_GOVERNANCE_SQL].join("\n"),
   // A plugin's own tables in the project's library are its private storage (D23), not Goals' action permissions.
   read_permission: "storage:private",

@@ -260,10 +260,10 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
     assert.ok((await actions.invoke(homeActions.readJudgment, {})).capabilities.some(action => action.capability_id === judgment.capability_id));
     await assert.rejects(actions.invoke(homeActions.evaluate, { subjects: [subject, { kind: "feed_item", id: "any" }] }), { code: "actions.subject_incompatible" });
     assert.equal(calls, 0, "reject an incompatible batch before any model calls");
-    const before = project.store.snapshot(reference.project_id).cursor;
+    const before = project.store.eventCursor(reference.project_id);
     let result = await actions.invoke(homeActions.evaluate, { subjects: [subject, { id: subject.id, kind: subject.kind }] });
     assert.equal(history().length, 1); assert.equal(result.judgments[0]!.subject.kind, subject.kind);
-    assert.ok(project.store.snapshot(reference.project_id).cursor > before, "judgment advances the original project journal without a Feed item");
+    assert.ok(project.store.eventCursor(reference.project_id) > before, "judgment advances the original project journal without a Feed item");
     assert.deepEqual((await recommendations()).judgments.map(record => record.judgment_id), [result.judgments[0]!.judgment_id]);
     const range = { from: new Date(Date.parse(now) - 1000).toISOString(), to: new Date(Date.parse(now) + 1000).toISOString(), now };
     assert.deepEqual((await actions.invoke(homeActions.events, range)).events.find(event => event.subject.id === subject.id)?.suggested_behavior_ids, [selectedKey]);

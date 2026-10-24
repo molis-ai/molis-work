@@ -187,7 +187,7 @@ test("project guidance is user-confirmed, deduplicated, and rendered as a stable
   assert.match(secondView.runtime_prompt_prefix, /&lt;\/MOLIS_WORK_PROJECT_GUIDANCE&gt;/);
   assert.deepEqual(store.snapshot("board-1").project_guidance.map((entry) => entry.position), [1, 2]);
   assert.equal(
-    (store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE type = 'project.guidance_added'").get() as { count: number }).count,
+    (store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE type = 'io.molis.work.goals.project.guidance_added'").get() as { count: number }).count,
     2,
   );
 
@@ -406,9 +406,9 @@ test("only satisfied Goals can be archived and restoration preserves completion 
   assert.equal(restored.goal.archived_by, null);
   assert.equal(restored.goal.fulfillment_state, "satisfied");
   const archiveEvents = store.db
-    .prepare("SELECT type FROM events WHERE object_id = ? AND type IN ('goal.archived', 'goal.restored') ORDER BY seq")
+    .prepare("SELECT type FROM events WHERE object_id = ? AND type IN ('io.molis.work.goals.goal.archived', 'io.molis.work.goals.goal.restored') ORDER BY seq")
     .all("archive-target") as Array<{ type: string }>;
-  assert.deepEqual(archiveEvents.map((event) => event.type), ["goal.archived", "goal.restored"]);
+  assert.deepEqual(archiveEvents.map((event) => event.type), ["io.molis.work.goals.goal.archived", "io.molis.work.goals.goal.restored"]);
   store.close();
 });
 
@@ -506,10 +506,10 @@ test("Goal trash preserves history, deactivates only active relations, and resto
   assert.equal(coordinator.listTrashedGoals("board-1").length, 0);
   assert.deepEqual(
     store.db
-      .prepare("SELECT type FROM events WHERE object_id = ? AND type IN ('goal.trashed', 'goal.restored_from_trash') ORDER BY seq")
+      .prepare("SELECT type FROM events WHERE object_id = ? AND type IN ('io.molis.work.goals.goal.trashed', 'io.molis.work.goals.goal.restored_from_trash') ORDER BY seq")
       .all("trash-target")
       .map((row: { type: string }) => row.type),
-    ["goal.trashed", "goal.restored_from_trash"],
+    ["io.molis.work.goals.goal.trashed", "io.molis.work.goals.goal.restored_from_trash"],
   );
   assert.equal(
     coordinator.goals.lifecycle.setTrashed(
@@ -676,7 +676,7 @@ test("user relation maintenance keeps direction, reason, history, and idempotenc
       error instanceof ActionError && error.code === "goals.relation.not_active",
   );
   const event = store.db
-    .prepare("SELECT reason FROM events WHERE type = 'relation.deactivated' AND object_id = ?")
+    .prepare("SELECT reason FROM events WHERE type = 'io.molis.work.goals.relation.deactivated' AND object_id = ?")
     .get(added.relation_id) as { reason: string } | undefined;
   assert.equal(event?.reason, "扩展结果已经并入新的独立 Goal");
   store.close();

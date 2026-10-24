@@ -54,7 +54,7 @@ for (const graph of [
   assert.deepEqual(await state(), before);
   await host.withProject(ref, r => r.coordinator.goals.commands.deactivateRelation(project.project_id, { relation_id: currentEdge.relation_id, reason: "Remove the conflicting current edge" }, { actor_id: caller.actor_id, idempotency_key: "correct-B-C" }));
   const corrected = await state();
-  await host.withProject(ref, r => r.store.db.exec("CREATE TEMP TRIGGER reject_restore BEFORE INSERT ON events WHEN NEW.type = 'goal.restored_from_trash' BEGIN SELECT RAISE(ABORT, 'injected restore append failure'); END"));
+  await host.withProject(ref, r => r.store.db.exec("CREATE TEMP TRIGGER reject_restore BEFORE INSERT ON events WHEN NEW.type = 'io.molis.work.goals.goal.restored_from_trash' BEGIN SELECT RAISE(ABORT, 'injected restore append failure'); END"));
   await assert.rejects(actions.invoke(goalsActions.trash, restore), /injected restore append failure/);
   assert.deepEqual(await state(), corrected, "an owner event failure rolls back both restored edges and the Goal");
   await host.withProject(ref, r => r.store.db.exec("DROP TRIGGER reject_restore"));
@@ -100,7 +100,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
 
     // Fail after the owner has changed placement, relations and the current Goal pointer.
     await host.withProject(ref, r => r.store.db.exec(`CREATE TEMP TRIGGER reject_trash BEFORE INSERT ON events
-      WHEN NEW.type = 'goal.trashed' BEGIN SELECT RAISE(ABORT, 'injected trash append failure'); END`));
+      WHEN NEW.type = 'io.molis.work.goals.goal.trashed' BEGIN SELECT RAISE(ABORT, 'injected trash append failure'); END`));
     await assert.rejects(bound.invoke(goalsActions.trash, trash), /injected trash append failure/);
     assert.deepEqual(await snapshot(), before);
     assert.equal(await host.withProject(ref, r => (r.store.db.prepare("SELECT COUNT(*) AS n FROM goal_trash_records WHERE goal_id = 'left'").get() as { n: number }).n), 0);

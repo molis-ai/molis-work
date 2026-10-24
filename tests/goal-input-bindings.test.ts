@@ -82,9 +82,9 @@ test("Feed input provenance is recorded once and survives reopen independently o
     assert.deepEqual(inputs.list("project-a"), [feedReceipt]);
     assert.deepEqual(inputs.list("project-b"), []);
     assert.deepEqual(db.prepare("SELECT source_ref, source_edge_key FROM input_bindings").get(), {
-      source_ref: "", source_edge_key: "goal.input:binding-feed",
+      source_ref: "", source_edge_key: "io.molis.work.goals.goal.input:binding-feed",
     });
-    const edge = ledger.query.get(access, "goal.input:binding-feed")!;
+    const edge = ledger.query.get(access, "io.molis.work.goals.goal.input:binding-feed")!;
     assert.equal(edge.actor_id, "original-user");
     assert.equal(edge.recorded_at, "2026-09-01T10:00:00Z");
     assert.deepEqual(edge.target, { module: "feed", id: "item-a", version: null, scope: access.scope });
@@ -98,8 +98,8 @@ test("Feed input provenance is recorded once and survives reopen independently o
     ledger = createContextLedger(db, { authorize: () => true });
     inputs = new GoalInputBindings(db, ledger);
     assert.deepEqual(inputs.list("project-a"), [feedReceipt]);
-    assert.equal(ledger.query.history(access, "goal.input:binding-feed").length, 1);
-    ledger.commands.remove(access, "goal.input:binding-feed", "test.missing_source");
+    assert.equal(ledger.query.history(access, "io.molis.work.goals.goal.input:binding-feed").length, 1);
+    ledger.commands.remove(access, "io.molis.work.goals.goal.input:binding-feed", "test.missing_source");
     assert.throws(() => inputs.list("project-a"), { code: "goals.goal.input_source_missing" });
   } finally {
     db.close();
@@ -129,14 +129,14 @@ test("Source registration rolls back ledger writes and receipt changes on failur
     inputs.register(feedReceipt);
     fail = true;
     assert.throws(() => inputs.register({ ...feedReceipt, binding_id: "failed-new" }), /source write failed/);
-    assert.deepEqual(ledger.query.history(access, "goal.input:failed-new"), []);
+    assert.deepEqual(ledger.query.history(access, "io.molis.work.goals.goal.input:failed-new"), []);
     assert.deepEqual(inputs.list("project-a"), [feedReceipt]);
     fail = false;
     inputs.register({ ...feedReceipt, binding_id: "new" });
     assert.equal(inputs.list("project-a").length, 2);
     assert.throws(() => inputs.register({ ...feedReceipt, source_ref: "feed-item:replacement" }), /UNIQUE constraint/);
-    assert.equal(ledger.query.get(access, "goal.input:binding-feed")?.target.id, "item-a");
-    assert.equal(ledger.query.history(access, "goal.input:binding-feed").length, 1);
+    assert.equal(ledger.query.get(access, "io.molis.work.goals.goal.input:binding-feed")?.target.id, "item-a");
+    assert.equal(ledger.query.history(access, "io.molis.work.goals.goal.input:binding-feed").length, 1);
     assert.equal(inputs.list("project-a")[0]?.source_ref, "feed-item:item-a");
   } finally { db.close(); }
 });

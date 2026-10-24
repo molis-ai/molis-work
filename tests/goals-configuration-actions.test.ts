@@ -72,7 +72,7 @@ test("relation actions preserve original receipts, direction, history, graph rul
       const created = event === "relation.deactivated" ? await actions.invoke(goalsActions.relationAdd, { ...fixedInput, idempotency_key: "for-remove" }) : null;
       const stable = await snapshot();
       await host.withProject(ref, r => r.store.db.exec(`CREATE TEMP TRIGGER reject_configuration BEFORE INSERT ON events
-        WHEN NEW.type = '${event}' BEGIN SELECT RAISE(ABORT, 'injected configuration failure'); END`));
+        WHEN NEW.type = 'io.molis.work.goals.${event}' BEGIN SELECT RAISE(ABORT, 'injected configuration failure'); END`));
       const execute = () => created
         ? actions.invoke(goalsActions.relationDeactivate, { relation_id: created.relation_id, reason: "Remove", idempotency_key: fixedInput.idempotency_key })
         : actions.invoke(goalsActions.relationAdd, fixedInput);
@@ -146,7 +146,7 @@ test("project policy actions preserve normalized receipts, original binding hist
     await served.close();
     assert.deepEqual(await snapshot(), stable);
     await host.withProject(ref, r => r.store.db.exec(`CREATE TEMP TRIGGER reject_policy BEFORE INSERT ON events
-      WHEN NEW.type = 'policy.project_defaults_saved' BEGIN SELECT RAISE(ABORT, 'injected policy failure'); END`));
+      WHEN NEW.type = 'io.molis.work.goals.policy.project_defaults_saved' BEGIN SELECT RAISE(ABORT, 'injected policy failure'); END`));
     await assert.rejects(actions.invoke(goalsActions.policySave, next), /injected policy failure/);
     assert.deepEqual(await actions.invoke(goalsActions.policyHistory, {}), history, "failed replacement retains old active defaults and all history");
     assert.deepEqual(await snapshot(), stable);

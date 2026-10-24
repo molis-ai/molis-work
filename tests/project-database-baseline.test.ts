@@ -93,7 +93,7 @@ test("a new project database is made at the baseline, its plugins' tables made a
   } finally { created.close(); }
   assert.deepEqual(shapeOf(project.database_path), opened);
   const ledger = ledgerOf(project.database_path);
-  assert.deepEqual(ledger.map(row => [row.plugin_id, row.publisher_signature, row.store_name, row.version]), declaring.map(manifest => [manifest.plugin_id, manifest.publisher.signature, manifest.databases!.project!.store_name, 1]).sort());
+  assert.deepEqual(ledger.map(row => [row.plugin_id, row.publisher_signature, row.store_name, row.version]), declaring.map(manifest => [manifest.plugin_id, manifest.publisher.signature, manifest.databases!.project!.store_name, manifest.databases!.project!.version]).sort());
 
   // Opening the project's pages starts its plugins and their owners; none of them makes a table of its own any more.
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: "project-database-baseline-token-123456789" });

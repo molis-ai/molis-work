@@ -14,3 +14,5 @@
 `approved` 与 `approved-completed` 里存的授权完成决定（`goal_event_applied_decisions` 与幂等回执里的 `commitment`），按「点头只对整份约定有效」（`specs/archive/goal-closure-identity`）改成了当前形状：承诺里记结果说明和决定时 Goal 的每一条要求（`MIXED-C1`、`imported-policy:MIXED-OWNER`），与现行代码写下同样决定时逐字相同（用同一份约定记一条新决定对照过）。原先只记结果说明、不含任何要求。旧形状的承诺比不上现在的约定，项目规则「完成前必须你点头」打开时不再放行；读取不兜底旧形状，所以夹具存成当前形状，不改断言。真实 Home 里没有这样的决定要整理（演练拷贝里全部项目库的授权完成与接受要求的决定为零条）。
 
 版本 9（SYS-15-S6）在临时副本执行同一份维护九脚本（`tests/fixtures/project-maintenance-v9.sql`），新增空的动作闹钟安装绑定表，旧闹钟暂停且清空租约，未填造授权。四份夹具的其余业务行逐表核对不变，再用同样的 `sqlite3 .dump` 导出。
+
+Goals S9-2（PG-094，10-24）：日志里 Goals 写的名字（事件类型与对象类型、幂等记录的操作名）加了命名空间前缀 `io.molis.work.goals.`，Goals 的账本行（`plugin_project_databases`）从版本 1 写成 2。四份夹具用 `scripts/maintenance/goals-namespace-prefix.mjs rewrite` 的规则改了一遍，与脚本对原件的输出逐字相同（`tests/goals-names-prefix-maintenance.test.ts` 的演练是同一份规则）；其余业务行不动。夹具里曾有的旧对象类型 `policy`（`policy.added_from_tree_proposal`）也算 Goals 的名字，同样加了前缀。

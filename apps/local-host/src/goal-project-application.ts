@@ -15,6 +15,7 @@ import type { GoalEventAcknowledgementsApi, GoalsApplicationApi, GoalInputBindin
 import { createGoalsApplication, GOALS_PLUGIN_ID, type GoalsApplication } from "@molis-ai/molis-work-plugin-goals";
 import { LocalProjectDatabase } from "./project-database.js";
 import { assertProjectPluginDatabase } from "./project-plugin-databases.js";
+import { goalsJournal } from "./goals-journal.js";
 import type { GoalRecord, ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -56,7 +57,7 @@ export class GoalProjectApplication {
   ) {
     const governanceModule = new GovernanceCollaborationModule({
       db: this.store.db as unknown as GovernanceSqliteDatabase,
-      journal: this.store,
+      journal: goalsJournal(this.store),
       now: () => this.clock().toISOString(),
     });
     this.governance = {
@@ -73,7 +74,7 @@ export class GoalProjectApplication {
     let goalsModule!: GoalsModule;
     goalsModule = new GoalsModule(
       this.store.db as unknown as GoalsSqliteDatabase,
-      this.store,
+      goalsJournal(this.store),
       {
         validateRelationGraph: (projectId, input) => goalsModule.planning.validateRelationAddition(projectId, input),
       },

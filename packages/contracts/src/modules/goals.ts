@@ -22,6 +22,13 @@ export const modulesGoalsContract = {
   ssot: "docs/modules/goals.md",
 } as const satisfies ContractDescriptor;
 
+/**
+ * The names Goals writes into the project's shared tables start with this: the `type` and `object_type` of its journal events, the
+ * `operation` of its idempotency records and the `key` of its context-ledger edges (PG-094 S9-2). It is the plugin's id and a dot, the
+ * namespace the event bus and `services.project_database` give a plugin; `GOALS_PLUGIN_ID + "."` in `plugins/native/goals`.
+ */
+export const GOALS_JOURNAL_NAMESPACE = "io.molis.work.goals.";
+
 export type GoalDefinitionState = "draft" | "accepted";
 export type GoalDecompositionState =
   | "abstract"

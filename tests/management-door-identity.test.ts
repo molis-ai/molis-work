@@ -219,7 +219,7 @@ test("the management MCP's initialize reads only project_id and idempotency_key:
     // The same operation of the same person replays whatever identity fields ride along: had one been read, it would be someone else's request.
     for (const identity of IDENTITY_FIELDS) assert.equal((await call(identity)).replayed, true, `ignores ${Object.keys(identity).join(" and ")}`);
     const actors = await host.withProject(molisWorkHostProjectReference({ projectId: project_id, databasePath }),
-      runtime => runtime.store.db.prepare("SELECT actor_id FROM events WHERE project_id = ? AND type = 'board.created'").all(project_id) as Array<{ actor_id: string }>);
+      runtime => runtime.store.db.prepare("SELECT actor_id FROM events WHERE project_id = ? AND type = 'io.molis.work.goals.board.created'").all(project_id) as Array<{ actor_id: string }>);
     assert.deepEqual(actors.map(row => row.actor_id), [LOCAL_PERSON_ACTOR_ID], "the board was created by the person on this machine");
   } finally { await management.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });

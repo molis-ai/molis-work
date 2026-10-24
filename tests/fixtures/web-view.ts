@@ -4,12 +4,12 @@ import { feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { buildMolisWorkWebView as composeWebView, cachedMolisWorkWebView as readCachedWebView,
   type LocalProjectDatabase, type GoalProjectApplication, type WebViewOptions, type MolisWorkWebViewCache } from "@molis-ai/molis-work-app-local-host";
-import { buildGoalsDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
+import { buildGoalsDocumentCollection, goalsJournalEvents } from "@molis-ai/molis-work-plugin-goals";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** Owner-level projection fixture. Actual HTTP authorization is tested through the real Host. */
 export function readTestGoalCollection(store: LocalProjectDatabase, app: GoalProjectApplication, projectId: string) {
-  return buildGoalsDocumentCollection({ snapshot: id => store.snapshot(id), events: id => store.readEventsDescending(id),
+  return buildGoalsDocumentCollection({ snapshot: id => store.snapshot(id), events: id => goalsJournalEvents(store.readEventsDescending(id)),
     goals: app.goalQueries, inputs: app.goalInputs, eventWork: app.goalEvents }, projectId);
 }
 export function buildMolisWorkWebView(store: LocalProjectDatabase, app: GoalProjectApplication,

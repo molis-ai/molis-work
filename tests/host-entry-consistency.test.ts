@@ -62,7 +62,7 @@ test("MCP Goal directory cannot be split by a queued competing Goal write, and a
     assert.equal(trashed.status, "trashed");
     await host.withProject(reference, ({ store }) => {
       const trashEvent = store.readEventsDescending(projectId).find((event) =>
-        event.object_id === "first" && event.type === "goal.trashed");
+        event.object_id === "first" && event.type === "io.molis.work.goals.goal.trashed");
       assert.equal(trashEvent?.actor_id, "runtime:entry:session");
     });
   } finally {

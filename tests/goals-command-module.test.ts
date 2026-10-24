@@ -136,7 +136,7 @@ test("Goals public Lifecycle API owns archive and trash", () => {
     const initialize = { project_id: "board-lifecycle", actor_id: "user-1", idempotency_key: "initialize" };
     writeProjectRoot(store.db, "board-lifecycle", "2026-10-20T00:00:00.000Z");
     store.db.exec(`CREATE TRIGGER reject_board_event BEFORE INSERT ON events
-      WHEN NEW.type = 'board.created' BEGIN SELECT RAISE(ABORT, 'board event unavailable'); END`);
+      WHEN NEW.type = 'io.molis.work.goals.board.created' BEGIN SELECT RAISE(ABORT, 'board event unavailable'); END`);
     assert.throws(() => goals.commands.initializeBoard(initialize), /board event unavailable/u);
     assert.equal(goals.query.getBoard("board-lifecycle"), null, "a failed event rolls back Board creation too");
     store.db.exec("DROP TRIGGER reject_board_event");
@@ -144,7 +144,7 @@ test("Goals public Lifecycle API owns archive and trash", () => {
     assert.equal(initialized.replayed, false);
     assert.deepEqual(goals.commands.initializeBoard(initialize), { ...initialized, replayed: true });
     assert.equal(goals.query.getBoard("board-lifecycle")?.project_id, "board-lifecycle");
-    assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE project_id = ? AND type = 'board.created'")
+    assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE project_id = ? AND type = 'io.molis.work.goals.board.created'")
       .get("board-lifecycle")?.count, 1, "retry does not duplicate the Board event");
     goals.commands.createGoal("board-lifecycle", acceptedGoal("goal-lifecycle", "Lifecycle Goal", "生命周期迁移无损"), {
       actor_id: "user-1",

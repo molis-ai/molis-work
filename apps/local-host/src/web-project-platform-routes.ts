@@ -34,6 +34,7 @@ import { projectNavigation } from "./web-project-presentation.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody, requestHeader } from "./web-http.js";
 import { htmlLang, L } from "./web-locale.js";
+import { goalsEventCursor } from "./goals-journal.js";
 import { assistantPortsFor } from "./web-catalog-index-routes.js";
 import { contextualPorts, projectRoutePrefix, type ProjectRequestContext, type ProjectRuntimeContext } from "./web-project-context.js";
 import type { WebRoute } from "./web-route-table.js";
@@ -168,7 +169,7 @@ export const projectProbeRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   } },
   { id: "board-cursor", handle: ({ request, response, url, store, options }) => {
     if (request.method !== "GET" || url.pathname !== "/api/board/cursor") return false;
-    sendJson(response, 200, { observed_event_cursor: store.eventCursor(options.projectId) });
+    sendJson(response, 200, { observed_event_cursor: goalsEventCursor(store, options.projectId) });
     return true;
   } },
 ];

@@ -4,8 +4,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { GoalProjectApplication, LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { goalsRoutes, hostEventDecisionAuthority, GOALS_ACTIONS, GOALS_PLUGIN_ID, goalsActions, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
+import { GoalProjectApplication, LocalProjectDatabase, goalsEventCursor, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { goalsRoutes, hostEventDecisionAuthority, GOALS_ACTIONS, GOALS_PLUGIN_ID, goalsActions, goalsJournalEvents, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { bindGoalsManagementActions, bindGoalsWebActions } from "../apps/local-host/dist/goals-actions.js";
@@ -640,16 +640,16 @@ test("protected Web user entry records a decision; Host-injected identity is req
         board: { immediate: operation => data.store.immediate(operation), query: data.store.goalsQuery,
         initializeBoard: input => data.app.initializeBoard(input), commands: data.app.goals.commands,
         adoptOwner: input => data.app.goalEvents.adoptOwner(input) },
-      collection: { snapshot: projectId => data.store.snapshot(projectId), events: projectId => data.store.readEventsDescending(projectId),
+      collection: { snapshot: projectId => data.store.snapshot(projectId), events: projectId => goalsJournalEvents(data.store.readEventsDescending(projectId)),
         goals: data.app.goalQueries, inputs: data.app.goalInputs, eventWork: data.app.goalEvents },
       readGoal: goalId => data.app.goalQueries.getGoal(BOARD, goalId),
         readContract: goalId => data.app.goalQueries.readGoalContract(BOARD, goalId),
       deliverables: { readArtifact: reference => openProjectVersionStores(data.store).artifacts.query.getArtifactVersion(BOARD, reference), ledger: createContextLedger(data.store.db, { authorize: () => true }) },
       history: {
-        snapshot: () => data.store.snapshot(BOARD), journalEvents: () => data.store.readEventsDescending(BOARD),
+        snapshot: () => data.store.snapshot(BOARD), journalEvents: () => goalsJournalEvents(data.store.readEventsDescending(BOARD)),
       }, planning: { planning: data.app.goals.planning, baseMethods: () => [] }, guidance: { commands: data.app.goals.commands, read: projectId => data.app.goalQueries.readProjectGuidance(projectId) },
-      lifecycle: { lifecycle: data.app.goals.lifecycle, setActiveGoal: (...args) => data.app.setActiveGoal(...args), eventCursor: () => data.store.eventCursor(BOARD) },
-      configuration: { commands: data.app.goals.commands, query: data.store.goalsQuery, eventCursor: () => data.store.eventCursor(BOARD) },
+      lifecycle: { lifecycle: data.app.goals.lifecycle, setActiveGoal: (...args) => data.app.setActiveGoal(...args), eventCursor: () => goalsEventCursor(data.store, BOARD) },
+      configuration: { commands: data.app.goals.commands, query: data.store.goalsQuery, eventCursor: () => goalsEventCursor(data.store, BOARD) },
       tree: { submitGoalTreeProposal: input => data.app.goalTreeSubmission.submitGoalTreeProposal(input),
         listGoalTreeProposals: input => data.app.goalTree.listGoalTreeProposals(input),
         checkGoalTreeProposal: input => data.app.goalTreeCheck.checkGoalTreeProposal(input),

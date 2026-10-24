@@ -462,7 +462,7 @@ test("retries replay without duplicates; reused keys conflict; stale config vers
     assert.equal(replayedConfig.replayed, true);
     assert.equal(replayedConfig.event_id, first.event_id);
     assert.equal(data.module.events.readConfig(BOARD, GOAL).version, 1);
-    assert.equal(data.store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE type = 'goal.event_config.updated' AND project_id = ?").get(BOARD)?.count, 1);
+    assert.equal(data.store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE type = 'io.molis.work.goals.goal.event_config.updated' AND project_id = ?").get(BOARD)?.count, 1);
 
     assert.throws(
       () => data.module.events.configure({
@@ -577,8 +577,8 @@ test("a project keeps its Goals and journal across reopening, and a fresh projec
       assert.equal(module.events.readConfig(BOARD, GOAL).version, 1);
       assert.equal(module.events.listEvents(BOARD, GOAL).events.filter((item) => item.kind === "report").length, 1);
       assert.deepEqual(
-        upgradedAgain.db.prepare("SELECT type FROM events WHERE project_id = ? AND type IN ('goal.created', 'board.created') ORDER BY seq").all(BOARD),
-        originalJournal.filter((row: { type: string }) => row.type === "goal.created" || row.type === "board.created").map((row: { type: string }) => ({ type: row.type })),
+        upgradedAgain.db.prepare("SELECT type FROM events WHERE project_id = ? AND type IN ('io.molis.work.goals.goal.created', 'io.molis.work.goals.board.created') ORDER BY seq").all(BOARD),
+        originalJournal.filter((row: { type: string }) => row.type === "io.molis.work.goals.goal.created" || row.type === "io.molis.work.goals.board.created").map((row: { type: string }) => ({ type: row.type })),
       );
     } finally {
       upgradedAgain.close();

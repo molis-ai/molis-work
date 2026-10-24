@@ -21,7 +21,7 @@ async function withProject(prefix: string, run: (store: LocalProjectDatabase, di
 test("seeding the demo project makes V1 the active Goal through the Goals command, so the journal records the move", async () => {
   await withProject("owner-readers-demo-", (store) => {
     assert.equal(store.goalsQuery.getBoard(DEMO_PROJECT_ID)?.active_goal_id, "V1");
-    const moves = store.db.prepare("SELECT object_id, reason FROM events WHERE project_id = ? AND type = 'board.active_goal_changed'").all(DEMO_PROJECT_ID) as Array<{ object_id: string; reason: string }>;
+    const moves = store.db.prepare("SELECT object_id, reason FROM events WHERE project_id = ? AND type = 'io.molis.work.goals.board.active_goal_changed'").all(DEMO_PROJECT_ID) as Array<{ object_id: string; reason: string }>;
     assert.deepEqual(moves.map((move) => move.object_id), ["V1"]);
     assert.ok(moves[0]!.reason.length > 0);
   });

@@ -8,11 +8,12 @@
 
 2026-10-23 20:40 UTC：batch-1023-13（run40013259093，6cff3977e）16片1341/1341文件最终通过；3份重试通过记入偶发。Linux跳过的macOS C0仍未验证，保留当前已知红。
 
-## 当前已知红（2 个文件）
+## 当前已知红（1 个文件）
+
+10-24：`tests/issue-home-locale.e2e.test.ts` 由 #1171（`d28794061`）修好，batch-1024-23 里已通过，删行。
 
 | 文件 | 带进来的 PR | 原因类别 | 谁修 | 依据 |
 | --- | --- | --- | --- | --- |
-| `tests/issue-home-locale.e2e.test.ts`（W2-18-HOME-LOCALE-01） | #1127（`c0b48111b`，10-24 03:33 合入；隔离页link改发`molis-work:open-settings-path`） | 产品回归：独立`/plugins/issues`仅装Home原设置dialog，没有工作台settings-directory；新事件无人消费，真实设置请求`loads=[]`。不能仅更换等待选择器 | Codex专职修复1（01a1682d-0a26-7522-b2b2-4446d904a7b7），root认领6380097295/裁定6380173758；已交[#1171](https://github.com/molis-ai/molis-work/pull/1171) b27b0cd8，正式review6380293028/独立32文件544项与门禁核验通过；CI/full/真实合入待，writer已释放 | batch20分片10首跑/重试都红；原main04435950a及鲜main89c9a7194复现line69；修后须保留S47禁导航，Home现有宿主限同源三路径消费事件，证明英文错误/真实Retry/关闭/草稿/拒绝；待PR独立评审测试及实际合入再移除 |
 | `tests/home-side-surfaces.e2e.test.ts`（VUX-16 (fallback)，第 101 行） | #1135（`a12347ae0`，新增这条用例；同一基底里 #1147 `1756f9842` 改了灵光的 `plugin.ts`/`registration.ts`） | 待查（产品回归或测试缺陷）：Home 侧栏里的灵光 frame 已挂上（`uiClientState: ready`、`parent: side-view`），但正文为空，`[data-lingguang-title]` 一直不出现 | Codex（CODEX-TASKS §0 顶行） | batch-1024-22 [40065231630](https://github.com/molis-ai/molis-work/actions/runs/40065231630)、batch-1024-23 [40066081993](https://github.com/molis-ai/molis-work/actions/runs/40066081993) 各重试仍失败 |
 
 
@@ -92,7 +93,6 @@
 ## 机读清单（当前已知红 + 间歇红）
 
 ```
-tests/issue-home-locale.e2e.test.ts
 tests/workbench-deferred-clients.e2e.test.ts
 tests/home-side-surfaces.e2e.test.ts
 ```

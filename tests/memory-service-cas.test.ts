@@ -7,6 +7,7 @@ import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-wor
 import { MemoryService, memoryErrors, characterOwner, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
+import type { MemoryExportPackage } from "@molis-ai/molis-work-contracts/services/memory";
 import { currentMemoryOptions } from "./fixtures/current-memory.js";
 
 const caller = (operation_id: string): MemoryCaller => ({ actor_id: "memory-owner", project_id: "project-a", consumer: "ui",
@@ -28,7 +29,7 @@ test("MEM-20 candidate decisions retain the observed candidate version and repla
   assert.equal((await env.raw.candidates.list("personal", "memory-owner"))[0]!.version, acceptedVersion + 1);
 });
 
-async function fixture(t: TestContext, character?: { project_id: string; owner: string }, plugin?: string, formedKinds = false) {
+async function fixture(t: TestContext, character?: { project_id: string; owner: string; additionalOwners?: string[] }, plugin?: string, formedKinds = false) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-cas-"));
   const appId = "io.molis.work.memory-cas";
   let denied: string | undefined;
@@ -42,7 +43,7 @@ async function fixture(t: TestContext, character?: { project_id: string; owner: 
   let authorized = true;
   const memory = currentMemoryOptions({ appId, scopesFor: who => [{ scope: "user", owner: who.actor_id },
     ...(who.project_id ? [{ scope: "project" as const, owner: who.project_id }] : []),
-    ...(character && who.project_id === character.project_id ? [{ scope: "character" as const, owner: character.owner }] : [])],
+    ...(character && who.project_id === character.project_id ? [character.owner, ...character.additionalOwners ?? []].map(owner => ({ scope: "character" as const, owner })) : [])],
     allowed: () => authorized,
     beforeAuthorize: async (_who, requests) => requests.every(request => request.action !== "delete" || request.target.ref.id !== denied) });
   if (formedKinds) memory.policy = { ...memory.policy!, taxonomy: { ...memory.policy!.taxonomy,
@@ -1031,4 +1032,191 @@ test("an append receipt arriving after an observed deletion cannot restore histo
     assert.throws(() => env.ledger.addRevision(held.memory_id, { version: 1, text: "A later-forgotten preference", kind: "preference", applies: {}, change: "created", by: "person", at: "2026-10-23T00:00:00Z" }), /已经删除/);
     assert.deepEqual(env.ledger.revisions(held.memory_id), []);
   } finally { release(); await env.close(); }
+});
+
+// MEM-03/20: the operation fixes the whole package, including entries not yet dispatched.
+test("an interrupted import cannot replace an unstarted entry under the same operation", async t => {
+  const setup = await fixture(t); let env = await setup.open();
+  const texts = ["Prefer concise changelogs", "Use numbered review steps", "Keep original release examples"];
+  const pack = { format: "molis.memory" as const, version: 2 as const, scope: "personal" as const, exported_at: "2026-10-24T00:00:00Z", redactions: [],
+    entries: texts.map(text => ({ text, kind: "preference" as const, source: "imported" as const, basis: null, applies: {},
+      origin: "Original package", expires_at: null, classification: { scenes: ["coding"], lifecycle: "long-term" } })) };
+  const who = caller("whole-package-retry"), replacement = "Keep substituted release examples";
+  try {
+    const bind = env.backend.withCaller.bind(env.backend);
+    const fail = t.mock.method(env.backend, "withCaller", (actor: MemoryCaller) => {
+      const bound = bind(actor);
+      return { ...bound, write: async (input: Parameters<typeof bound.write>[0]) => {
+        if (input.text === texts[1]) throw new Error("second entry stopped before SDK write");
+        return bound.write(input);
+      } };
+    });
+    await assert.rejects(env.service.importScope(who, "personal", pack), error => {
+      const failure = error as { code?: string; details?: Record<string, unknown> };
+      assert.equal(failure.code, "memory.conflict"); assert.equal(failure.details?.failed_index, 1);
+      assert.equal(failure.details?.not_started, 1); return true;
+    });
+    fail.mock.restore();
+    const before = await env.raw.list("personal", who.actor_id);
+    assert.deepEqual(before.map(entry => entry.text), [texts[0]]);
+    assert.equal(env.ledger.marker(who.actor_id, "memory-operation:whole-package-retry:import:2:import"), null);
+    const firstHistory = env.ledger.revisions(before[0]!.memory_id), firstChanges = env.ledger.changesOf(before[0]!.memory_id);
+    await env.close(); env = await setup.open();
+    const changed = structuredClone(pack); changed.entries[2]!.text = replacement;
+    const retry = await env.service.importScope(who, "personal", changed).then(result => ({ result }), error => ({ error }));
+    const afterChanged = await env.raw.list("personal", who.actor_id);
+    assert.deepEqual(afterChanged, before, `changed-package retry must write nothing; actual texts: ${JSON.stringify(afterChanged.map(entry => entry.text))}`);
+    assert.ok("error" in retry); assert.equal((retry.error as { code?: string }).code, "memory.conflict");
+    assert.deepEqual(await env.service.importScope(who, "personal", pack), { written: 3, skipped: 0, refused: 0 });
+    const restored = await env.raw.list("personal", who.actor_id);
+    assert.deepEqual(restored.map(entry => entry.text).sort(), [...texts].sort());
+    assert.deepEqual(env.ledger.revisions(before[0]!.memory_id), firstHistory);
+    assert.deepEqual(env.ledger.changesOf(before[0]!.memory_id), firstChanges);
+    assert.deepEqual(await env.service.importScope(who, "personal", pack), { written: 3, skipped: 0, refused: 0 });
+    assert.deepEqual(await env.raw.list("personal", who.actor_id), restored);
+  } finally { await env.close(); }
+});
+
+function importPackage(texts: string[]): MemoryExportPackage {
+  return { format: "molis.memory" as const, version: 2 as const, scope: "personal" as const, exported_at: "2026-10-24T00:00:00Z", redactions: [],
+    entries: texts.map(text => ({ text, kind: "preference" as const, source: "imported" as const, basis: null, applies: { task: "release", plugin_ids: ["first", "second"] },
+      origin: "Original package", expires_at: null, classification: { scenes: ["coding"], lifecycle: "long-term" } })) };
+}
+
+test("import snapshots nested input before awaiting its first SDK write", async t => {
+  const setup = await fixture(t); const env = await setup.open();
+  let reached!: () => void, release!: () => void;
+  const paused = new Promise<void>(resolve => { reached = resolve; });
+  const barrier = new Promise<void>(resolve => { release = resolve; });
+  let writes = 0;
+  setup.afterWrite(async () => { if (++writes === 1) { reached(); await barrier; } });
+  const pack = importPackage(["Use concise summaries", "Include original release examples"]), original = structuredClone(pack);
+  const who = caller("package-input-snapshot"), pending = env.service.importScope(who, "personal", pack);
+  try {
+    await paused;
+    pack.entries[1]!.text = "Substituted text";
+    pack.entries[1]!.applies.task = "changed task"; pack.entries[1]!.applies.plugin_ids!.reverse();
+    pack.entries[1]!.classification!.scenes[0] = "common";
+    release();
+    assert.deepEqual(await pending, { written: 2, skipped: 0, refused: 0 });
+    const entries = await env.raw.list("personal", who.actor_id), second = entries.find(entry => entry.text === original.entries[1]!.text)!;
+    assert.ok(second); assert.equal(second.meta.applies_when!.task, "release");
+    assert.deepEqual(second.meta.applies_when!.plugins, ["first", "second"]);
+    assert.deepEqual(second.meta.classification!.scenes, ["coding"]);
+    await env.service.importScope(who, "personal", original);
+    assert.deepEqual(await env.raw.list("personal", who.actor_id), entries);
+  } finally { release(); await pending.catch(() => undefined); await env.close(); }
+});
+
+test("concurrent imports with one operation cannot dispatch different whole packages", async t => {
+  const setup = await fixture(t); const env = await setup.open();
+  let reached!: () => void, release!: () => void;
+  const paused = new Promise<void>(resolve => { reached = resolve; });
+  const barrier = new Promise<void>(resolve => { release = resolve; });
+  let writes = 0;
+  setup.afterWrite(async () => { if (++writes === 1) { reached(); await barrier; } });
+  const pack = importPackage(["Use concise summaries", "Keep original review steps"]), changed = structuredClone(pack);
+  changed.entries[1]!.text = "Keep competing review steps";
+  const who = caller("concurrent-whole-package"), pending = env.service.importScope(who, "personal", pack);
+  try {
+    await paused;
+    const before = await env.raw.list("personal", who.actor_id);
+    const rival = await env.service.importScope(who, "personal", changed).then(result => ({ result }), error => ({ error }));
+    assert.deepEqual(await env.raw.list("personal", who.actor_id), before, "the rival must not dispatch any new item while the original awaits its first receipt");
+    assert.ok("error" in rival); assert.equal((rival.error as { code?: string }).code, "memory.conflict");
+    assert.equal(env.ledger.marker(who.actor_id, "memory-operation:concurrent-whole-package:import:1:import"), null);
+    release(); assert.deepEqual(await pending, { written: 2, skipped: 0, refused: 0 });
+    const entries = await env.raw.list("personal", who.actor_id);
+    assert.deepEqual(entries.map(entry => entry.text).sort(), pack.entries.map(entry => entry.text).sort());
+    await env.service.importScope(who, "personal", pack);
+    assert.deepEqual(await env.raw.list("personal", who.actor_id), entries);
+  } finally { release(); await pending.catch(() => undefined); await env.close(); }
+});
+
+test("whole import identity includes ordered content and every retained constraint but ignores object key order", async t => {
+  const setup = await fixture(t); const env = await setup.open();
+  const who = caller("package-field-identity"), pack = importPackage(["Use concise summaries", "Keep original release examples"]);
+  try {
+    assert.deepEqual(await env.service.importScope(who, "personal", pack), { written: 2, skipped: 0, refused: 0 });
+    const before = await env.raw.list("personal", who.actor_id);
+    const snapshots = before.map(entry => ({ revisions: env.ledger.revisions(entry.memory_id), changes: env.ledger.changesOf(entry.memory_id) }));
+    const markKey = "memory-operation:package-field-identity:import-package", mark = env.ledger.marker(who.actor_id, markKey);
+    assert.ok(mark); for (const entry of pack.entries) assert.equal(JSON.stringify(mark).includes(entry.text), false);
+    const changes: Array<[string, (value: MemoryExportPackage) => void]> = [
+      ["text", value => { value.entries[1]!.text = "Different release examples"; }],
+      ["kind", value => { value.entries[1]!.kind = "convention"; }],
+      ["origin", value => { value.entries[1]!.origin = "Another original source"; }],
+      ["basis", value => { value.entries[1]!.basis = "explicit"; }],
+      ["expiry", value => { value.entries[1]!.expires_at = "2099-01-01T00:00:00Z"; }],
+      ["task", value => { value.entries[1]!.applies.task = "Another task"; }],
+      ["applicability order", value => { value.entries[1]!.applies.plugin_ids!.reverse(); }],
+      ["scenes", value => { value.entries[1]!.classification!.scenes.push("common"); }],
+      ["lifecycle", value => { value.entries[1]!.classification!.lifecycle = "short-term"; }],
+      ["extra classification", value => { value.entries[1]!.classification!.extra = { topic: ["release"] }; }],
+      ["session", value => { value.entries[1]!.session_ref = { kind: "session", id: "other-session", revision: 1 }; }],
+      ["namespace", value => { value.entries[1]!.namespace = "other-namespace"; }],
+      ["fewer entries", value => { value.entries.pop(); }],
+      ["more entries", value => { value.entries.push({ ...value.entries[0]!, text: "One more decision" }); }],
+      ["entry order", value => { value.entries.reverse(); }],
+    ];
+    for (const [label, change] of changes) {
+      const changed = structuredClone(pack); change(changed);
+      await assert.rejects(env.service.importScope(who, "personal", changed), { code: "memory.conflict" }, label);
+    }
+    await assert.rejects(env.service.importScope(who, "project", pack), { code: "memory.conflict" });
+    // Actor identities own separate operation namespaces; owner binding is checked within the same actor's project operation.
+    await env.service.importScope(caller("project-package"), "project", importPackage([]));
+    await assert.rejects(env.service.importScope({ ...caller("project-package"), project_id: "project-b" }, "project", importPackage([])), { code: "memory.conflict" });
+    const reordered = structuredClone(pack);
+    reordered.entries = reordered.entries.map(entry => ({ ...Object.fromEntries(Object.entries(entry).reverse()),
+      applies: { plugin_ids: entry.applies.plugin_ids, task: entry.applies.task },
+      classification: { lifecycle: entry.classification!.lifecycle, scenes: entry.classification!.scenes } } as typeof entry));
+    reordered.exported_at = "2099-01-01T00:00:00Z"; reordered.scope = "project";
+    reordered.entries[0]!.source = "auto"; reordered.entries[0]!.text = `  ${reordered.entries[0]!.text}  `;
+    assert.deepEqual(await env.service.importScope(who, "personal", reordered), { written: 2, skipped: 0, refused: 0 });
+    assert.deepEqual(await env.raw.list("personal", who.actor_id), before);
+    assert.deepEqual(before.map(entry => ({ revisions: env.ledger.revisions(entry.memory_id), changes: env.ledger.changesOf(entry.memory_id) })), snapshots);
+    assert.deepEqual(env.ledger.marker(who.actor_id, markKey), mark);
+  } finally { await env.close(); }
+});
+
+test("an import with an existing first child cannot guess a missing whole-package identity", async t => {
+  const setup = await fixture(t); const env = await setup.open(), who = caller("unbound-package");
+  const key = "memory-operation:unbound-package:import:0:import", at = "2026-10-24T00:00:00Z";
+  // The exact marker shape left by importScope before whole-package identities existed.
+  env.ledger.setMarker(who.actor_id, key, { kind: "import", scope: "personal", owner: who.actor_id,
+    operation_id: "unbound-package:import:0:import", at, phase: "pending" }, at);
+  try {
+    const first = env.ledger.marker(who.actor_id, key);
+    await assert.rejects(env.service.importScope(who, "personal", importPackage(["An unproven continuation"])), { code: "memory.conflict" });
+    assert.deepEqual(await env.raw.list("personal", who.actor_id), []);
+    assert.deepEqual(env.ledger.marker(who.actor_id, key), first);
+    assert.equal(env.ledger.marker(who.actor_id, "memory-operation:unbound-package:import-package"), null);
+    assert.equal(env.ledger.marker(who.actor_id, "memory-operation:unbound-package:import:0:append"), null);
+  } finally { await env.close(); }
+});
+
+test("concurrent imports keep the original character owner while caller identity is mutated", async t => {
+  const firstOwner = characterOwner("project-a", "first"), secondOwner = characterOwner("project-a", "second");
+  const setup = await fixture(t, { project_id: "project-a", owner: firstOwner, additionalOwners: [secondOwner] });
+  const env = await setup.open();
+  let reached!: () => void, release!: () => void;
+  const paused = new Promise<void>(resolve => { reached = resolve; });
+  const barrier = new Promise<void>(resolve => { release = resolve; });
+  let writes = 0;
+  setup.afterWrite(async () => { if (++writes === 1) { reached(); await barrier; } });
+  const who = { ...caller("character-package-snapshot"), character: { id: "first", title: "First character" } };
+  const original = structuredClone(who), pack = importPackage(["Use concise character summaries", "Keep original character examples"]);
+  const pending = env.service.importScope(who, "character", pack);
+  try {
+    await paused;
+    who.character.id = "second"; who.character.title = "Second character";
+    release(); assert.deepEqual(await pending, { written: 2, skipped: 0, refused: 0 });
+    const first = await env.raw.list("character", firstOwner), second = await env.raw.list("character", secondOwner);
+    assert.deepEqual(second, [], "no later item may follow a changed caller reference into another authorized owner");
+    assert.deepEqual(first.map(entry => entry.text).sort(), pack.entries.map(entry => entry.text).sort());
+    assert.equal((env.ledger.marker(who.actor_id, "memory-operation:character-package-snapshot:import-package")!.body as { owner: string }).owner, firstOwner);
+    await env.service.importScope(original, "character", pack);
+    assert.deepEqual(await env.raw.list("character", firstOwner), first);
+  } finally { release(); await pending.catch(() => undefined); await env.close(); }
 });

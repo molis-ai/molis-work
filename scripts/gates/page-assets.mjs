@@ -238,10 +238,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Memory classification pages and truthful bounded counts: the user approved this slice's +3437 B on 2026-10-24.
-  // Reusing 34 selectors saved 316 B. Integrated parent e8e800810 and paging a59b712f4 were measured together;
-  // the same +3437 B admission remains tied to that parent, not a reusable allowance.
-  "/assets/molis-work-workbench.js": [1193918, 1197355],
+  // Classification paging: the existing +3437 B approval follows the updated #1064 parent.
+  // Reusing 34 selectors saved 316 B. Parent 1bc28b5e2 freezes 1194297 B; no additional growth is authorized.
+  // The integrated build must be measured before the budget is updated or this slice is delivered.
+  "/assets/molis-work-workbench.js": [1194297, 1197734],
+
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

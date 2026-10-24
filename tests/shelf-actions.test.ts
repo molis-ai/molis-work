@@ -3,10 +3,11 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTIONS, SHELF_RUNTIME_ACTIONS, shelfActions as a } from "@molis-ai/molis-work-plugin-shelf";
+import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PLUGIN_ID, SHELF_PROJECT_ACTIONS, SHELF_RUNTIME_ACTIONS, shelfActions as a } from "@molis-ai/molis-work-plugin-shelf";
 import { createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, openHostShelfStore, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, seedDemoHomeSamples, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { openTestShelfStore } from "./shelf-direct-actions.js";
 
 test("SYS-15-F1 the personal Shelf runs in Home Runtime; clipboard, settings and local paths stay with the local user", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "shelf-actions-"));
@@ -26,7 +27,7 @@ test("SYS-15-F1 the personal Shelf runs in Home Runtime; clipboard, settings and
     assert.deepEqual((await agent.invoke(a.readText, { item_id: item.item_id })).text, "会议纪要：周三前定稿");
     const edited = (await agent.invoke(a.edit, { item_id: item.item_id, text: "会议纪要：周五前定稿" })).item;
     assert.equal(edited.item_id, item.item_id);
-    assert.equal(openHostShelfStore(home).readFile(item.item_id).bytes.toString("utf8"), "会议纪要：周五前定稿");
+    assert.equal(openTestShelfStore(home).readFile(item.item_id).bytes.toString("utf8"), "会议纪要：周五前定稿");
     const listed = await agent.invoke(a.list, {});
     assert.deepEqual(Object.keys(listed).sort(), ["materials", "results", "running_jobs"], "the shared list carries no clipboard, settings or root path");
     assert.ok(listed.materials.some(row => row.item_id === item.item_id));
@@ -75,6 +76,33 @@ test("SYS-15-F1 the personal Shelf runs in Home Runtime; clipboard, settings and
     // Owner-bound: another identity cannot read results into this person's Shelf.
     const other = await host.actionClient(project).discover({ ...owner, actor_id: "runtime:other", audience: "mcp" });
     assert.ok(other.filter(row => row.capability_id === "shelf.results.list").every(row => !row.availability.available));
+  } finally {
+    if (previous === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT; else process.env.MOLIS_WORK_SHELF_AGENT = previous;
+    await host.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("the demo puts Shelf's sample back through shelf.sample.seed; a Shelf that is not running is left alone", { timeout: 60_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "shelf-demo-sample-"));
+  const previous = process.env.MOLIS_WORK_SHELF_AGENT;
+  process.env.MOLIS_WORK_SHELF_AGENT = "off";
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const user: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS };
+  const bound = bindActionClient(host.homeActionClient(), () => user);
+  const names = async () => (await bound.invoke(a.snapshot, {})).materials.map(item => item.name);
+  try {
+    const [sample] = (await bound.invoke(a.snapshot, {})).materials;
+    assert.equal(sample?.name, "试用示例.pdf", "Shelf put its first-run sample down itself");
+    await bound.invoke(a.delete, { item_id: sample!.item_id });
+    assert.deepEqual(await names(), []);
+    await seedDemoHomeSamples(bound);
+    assert.deepEqual(await names(), ["试用示例.pdf"], "the demo puts a removed sample back through Shelf's action");
+    const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(SHELF_PLUGIN_ID)!;
+    await platform.runtime.stop(install.install_id);
+    await seedDemoHomeSamples(bound);
+    await assert.rejects(seedDemoHomeSamples({ invoke: async () => { throw new ActionError("actions.execution_failed", "示例写坏了"); } }),
+      { code: "actions.execution_failed" }, "a failure other than Shelf being off or not granted reaches the demo");
   } finally {
     if (previous === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT; else process.env.MOLIS_WORK_SHELF_AGENT = previous;
     await host.close();

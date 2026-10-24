@@ -977,3 +977,66 @@ CI 独立片最终交付：#1149 已经正常队列合入 main `afaa4fea354003e7
 后续独立片检查点：Prologue #96 已按私仓既定本地门禁合入 main `d46e76c61d06dbb9bcd6ca6a2f7fcb1b5acc1e11`，clean head `15c38aed`；quality 684 项、Memory 680 项、干净包安装/重开及旧 SDK 拒绝 shape 8 均通过。Molis 续期的本地采用另在独立树，未混进 #1064 当前 SDK。分页 #1101 的本地父集成与 23 文件核心回归通过；实测 workbench `1193918 → 1197355`，沿用户原批准净增 3437 B 登记，其余 26 资源不变。分类纠正 #1111 的新父仅完成本地集成/静态检查，后续构建与浏览器仍待完成；父子未进入 main 不记已交付。
 
 M3 分页本轮验证完成（2026-10-24，本地生产 head `86872848d`）：已合入父候选 `ecec96b981`，相对先前 `e8e800810` 仅三份文档变化；保留上轮 23/23 核心证据，本轮增量 build、其余 README 97/97 文件、分页与 CAS 浏览器 2/2（1/1、20/20 用例）、README 工作台浏览器 10/10 全部通过。根与全包类型、health 对最新 main `afaa4fea` 及父 `ecec96b981`、包边界、API 和 Action 快照均通过，无生成快照变化。资源重新实测仍为 27 项 7,819,434 B，workbench 1,197,355 B，对父构建仅增加已批准的 3,437 B，其余 26 项相同；资源门通过。完整逐步结果与日志：`/private/tmp/molis-memory-pages-integration-resumed-20261024.results.json`，资源报告同 stem 的 `-assets.log`。本地相关工程与指定浏览器路径验证通过；不据此关闭 #1064 灵光全套失败或宣称用户验收、进入 main。
+
+### M2 整包导入的固定输入身份（2026-10-24，本地工程验证通过，待统筹审查集成）
+
+本片落实 MEM-03/20 的同一操作重试：已有逐项 SDK/ledger 回执会固定开始过的子操作，但导入中途失败时，尚未开始的后续条目没有原包约束。目标是本人以同一操作号恢复时，只能继续原范围和原有序有效输入，不能替换、增删或调换后续条目；保持原逐项拒绝、部分结果、duplicate 与 append 的重开恢复，不把整个导入改成原子写入。
+
+复用 `readPackage` 的完整 v2 校验和规范化，在第一次异步派发前取与调用方引用隔离的有效条目及调用身份快照（保留原取消信号）；对象键序不构成差异，条目及语义数组顺序保持。通过现 `MemoryOperations` marker 与同一 ledger 事务绑定可信 scope/owner 及整包摘要，涵盖正文、类别、原出处、规范化来源/依据、期限、适用条件、分类扩展、Session 引用和 namespace。摘要仅是业务重试输入身份，不是流程/源码校验，也不存正文副本或 encoded request。新绑定与已有第 0 子操作检测同事务；没有整包身份但已有第 0 子操作的在途调用拒绝猜测原包，不全表扫描、不把后来提供的包当原件。取消/授权仍沿现写门，原已提交事实不撤销。
+
+允许改动 `horizontal/memory` 的现导入/规范化/操作职责及 README、本 spec、现 `memory-service-cas` 与必要 HTTP 回归；不改 SDK、UI、包锁、资源门、数据库结构或公开动作。硬边界是原输入/操作身份及现权限；Backend/ledger 仍可替换，调用方提供当前 v2 包及操作号，用户在现入口选择文件；没有新增配置或用户决定。旧 v1/缺分类的显式采用属于另一片。
+
+验收先用真实 SDK+SQLite 复现 A 完成、B 写前失败、C 未开始后换 C 能落盘的红例，再证明换包拒绝且 SDK/ledger 零新增；原包重开准确完成一次。相关回归覆盖长度/顺序和嵌套事实变化、等价键序、等待后修改原引用、旧在途缺身份拒绝、同操作并发不同包，以及既有 duplicate/new append、逐项拒绝与部分结果。构建和定向测试只按机器槽排队；当前本地实现已按该合同接入，验证结果另记，不据源码宣称通过。
+
+首轮红例（未修复）：基于同一 `ecec96b98` 且三份相关源码逐字相同的已构建公开包，机器槽内正式 runner 跑外置真实 SDK/SQLite 单例，0/1、exit 1、无取消/跳过。A 完成、B 在 SDK write 前故障、C 无子操作 marker；关闭重开后同操作换 C，raw SDK 实际包含 A、B、新 C（version 1），零新增断言失败。日志 `/private/tmp/molis-memory-import-whole-package-red.log`；永久用例已加入现 CAS 文件，生产源码尚未修改。证据只证明此重试缺口，不涉及最终 App 或用户验收。
+
+统筹核实的独立 CI 补记（保留此前失败）：#1064 head `ecec96b981027709f60fa3e0c7899ca3e38f242f` 的正常 CI `40037655100` 所有适用任务通过。Linux 两片 artifact 各 218/218，失败、flaky、timeout、skipped、not-run、quarantine 均为 0；实际并集 436、交集 0，与 manifest 完全一致。测试合并提交 `93e91802c90c808b37948b32f11377a25b7ff677` 已核 parents 为 `afaa4fea3` + `ecec96b98`；原 15/8 分钟预算不变，非浏览器阶段分别 7.7/7.6 分钟。证据 `/private/tmp/molis-ci1064-ecec-linux-coverage-20261024.json` 与 `/private/tmp/molis-ci1064-ecec-product-subset-{1,2}/report.json`。当前 review/threads 为空不代表最终验收；灵光旧全套 1398/1399 的失败仍未关闭，也不以此 CI 结果替代本片导入修复的验证。
+
+交错反例补记：同一已构建父包的三个真实 SDK/SQLite 用例均红（0/3），分别观察到 await 后改 `applies.task` 真进入 SDK、竞争整包写入替换条目、改 `caller.character.id` 后第二项写入另一合法 owner，日志 `/private/tmp/molis-memory-import-interleaving-red.log`。本地首次完整构建通过；首轮定向 5/6，唯一未闭合为 Character 嵌套身份引用，日志 `/private/tmp/molis-memory-import-identity-targeted.log`。随后复用现分页入口的 signal 分离及 identity 深复制方式修复，不以 SDK 权限拒绝替代原 owner 固定。
+
+本片最终本地证据：最后的 Character 身份修复后，Memory 包真实构建通过；公开 SDK/SQLite 六个定向反例 6/6、零取消/跳过通过，日志 `/private/tmp/molis-memory-import-identity-owner-targeted.log`。此前完整 build 通过，最终两行身份修复以受影响包重建及整树无 emit 类型检查覆盖，不表述为最终源码再次完整 build。README 必跑 18 文件加 CAS/期限往返/分类三文件的首轮为 17/21，CAS 85/85、新导入六例及原逐项拒绝/duplicate/append/取消/恢复均通过；另外四文件因本树缺 `better-sqlite3@12.8.0` native binding 而失败（HTTP 项目初始化随之返回 500），原日志 `/private/tmp/molis-memory-import-identity-regression.log` 保留。补齐同版本、同 Node 24 ABI 的本机已构建依赖后，只重跑四个环境失败文件，23/23、零失败/重试/取消/跳过通过，日志 `/private/tmp/molis-memory-import-identity-environment-recheck.log`；不将分批结果改写成一次完整批次通过。
+
+最终 `tsc --noEmit`、health（对当前父 `ecec96b98` 的 merge-base）、boundary、diff 检查通过，日志分别 `/private/tmp/molis-memory-import-identity-{types,health,boundary}.log`。生产改动仅在现 shapes/operations/scope-commands 三文件，现 README/spec/CAS 同步；未改 SDK、锁文件、UI、表结构、公开 API 或资源额度。无最终 App/浏览器实操、无全量、未发布；上述只支持本片工程验证，统筹深审与父集成另行处理。
+
+统筹集成补记（2026-10-24）：独立深度评审核对 `94a126d6f` 的六文件差异、SQLite 事务、完整输入/caller 隔离及删除后的原操作屏障，未发现确定 P1/P2；本次评审未另跑测试。该片已快进接入 #1064 候选，并无冲突合入 main `abc052bcb` 的调度器变更，形成 `e6f870615`。实际合并结果完整 build、12 个 Memory/调度器集成文件（含 CAS 85/85）、根类型、health 对当前 main、boundary、API/Action 快照、资源和 secret 全部通过，逐步退出码与原始日志见 `/private/tmp/molis-memory-1064-import-integration-20261024.results.json`。27 项实际资源仍为 7,815,997 B，无新额度。此前 CI 通过对应 `ecec96b98`，本次新 head 的 CI 尚待执行，不能继承绿色。
+
+已推送的独立后续片：#1101 head `24cc645c2` 与 #1111 head `3a11c545e` 均保留 Draft 和原依赖，分别完成 97 个 README 普通文件、目标及 README 浏览器、静态门与准确资源登记；两片仍未进入 main。灵光一次完整 Back/Forward 的被动 HTTP 诊断通过，未触发预定的失败后 A/B/C，故没有尺寸或初始化根因结论；旧全套 1398/1399 的阻塞仍保留，未把成功重跑当作修复或降低门禁。完整工程、最终 App、B2 质量/token 与用户验收继续按原 P0 范围推进。
+
+### 2026-10-24 灵光首次 capture 的浏览器输入前置修复（定向工程验证通过，待集成全量）
+
+原 `53b5efc05` 全套 **1398/1399** 的失败保留；不能用成功重跑抹掉。后续完整原 16 例顺序诊断三轮均 **15/16**：仅给原第 4/7 例 catch 的一轮在第 5 例首次 capture 失败；child 事件诊断一轮在第 6 例失败，只记录可信 pointerup，没有 down/click，原 Store 空/POST0，失败后 A 同页同 native756×556 再点成功（原失败仍重抛）；父子路由诊断一轮在第 7 例失败，同坐标 press/release 均得到 CDP 回应，但 down 落在父文档的灵光 IFRAME，up 才到 child 按钮，未生成目标 click、未 create。parent down 时 gate 已 ready 且非 inert。三轮证据分别在 `/private/tmp/molis-lingguang-full16-abc-high-ldpel4iq`、`/private/tmp/molis-lingguang-input-full16-high-m3ry9ndw`、`/private/tmp/molis-lingguang-routing-high-5jf3o0du`；此前 catch-only 原两例 1/2、其他成功诊断也保留，不能据此称基线问题。
+
+本片仅修测试 fixture 的输入前置条件：沿当前 child context 与父 session 的真实 mouseMoved，在同一个 10 秒回执轮询 deadline 内取得本次点的可信 child pointermove 回执，才能进行原一次 press/release；不重试 click，不改产品、原展开断言/20 秒超时、native bounds、Chrome 配置或 quarantine。context 与父 evaluate 保留既有 CDP 命令超时，finally 另有清理期限，因此不承诺 CDP 卡死时整个 point 也在 10 秒内返回。临时回执由 CDP 对象持有，结束时 finally 移除监听并释放，不留 window 永久探针。定向真实浏览器验证要证明错路由、合成事件与旧回执均不能放行（press/release/Store 副作用为零），并实测同坐标 fresh move 的可信送达、单次正常创建及原 16 例。
+
+[Chromium 官方 OOPIF 文档](https://www.chromium.org/developers/design-documents/oop-iframes/#input-events) 描述输入由浏览器 Surfaces 做命中路由，是解释 DOM 命中与实际输入可分离的架构背景；**此版 Chromium 内部具体原因仍未确定**，不能简单归为 native/emulation 尺寸差异。A 同尺寸成功反对确定性尺寸拦截。本片不是产品或用户验收，也不替代统筹后续全量集成。
+
+同期 #1064 正常 CI 补记（统筹复核，2026-10-24）：head `843a30368bc657f6ce07efdad04d57bf65459189` 的运行 `40040877102` 所有适用 jobs 通过，Linux probe 仅原设计 skip。真实两片 artifact 各 218/218，合计 436、交集 0、无缺失或额外；attempts 全为 1，无 flaky、skip、quarantine、timeout，原 15/8 分钟预算不变。报告所测合并提交 `191667e0e551d222beebb5abb92b8d79be17d106`，GitHub 元数据为合并 `843a30368` 到 `abc052bcb`；本地覆盖报告 `/private/tmp/molis-ci1064-843a-linux-coverage-20261024.json` 与两片 `product-subset-{1,2}/report.json` 已由统筹核对。正常 CI **不关闭上述旧全套失败**；本片 harness 新 head 接入后仍需其自身 CI。
+
+本片最终定向结果（2026-10-24）：从 `843a30368` 独立分支 `codex/memory-frame-input-receipt` 实现，offline frozen 安装与完整 build 通过，SDK/锁未改。真实浏览器新回归最终 **3/3**（27.9 秒），原 `plugin-small-ux.e2e.test.ts` **16/16**（136.7 秒），同批串行、零重试；新回归独立检查错路由以及旧可信 move 后合成事件均不能放行，press/release/HTTP POST/Store 新增为零，超时后临时监听归零；正例实测连续同坐标 move 均为可信 `(854.15625,48)`，随后仅原一次 press/release 创建一条。最后父位置若变化必须重新取得回执，返回时也核对 deadline；临时监听另有同 deadline 到期清理，避免创建回包丢失留下监听。原 16 例文件、断言与预算均未改。定向 TypeScript、health 对 merge-base `843a30368`、boundary 和 diff check 通过；日志 `/private/tmp/molis-frame-input-{build,types,final-health,boundary}-20261024.log` 与 `/private/tmp/molis-frame-input-final-browser-20261024.log`。本片未跑全量；旧全量失败仍保留，当前结果仅支持进入统筹的独立深审、新 head CI 与冻结集成全量。
+
+统筹预检与独立深审（2026-10-24）：修复 7672619b5 已快进进入 #1064 专用集成树。最新 origin/main 仍为 abc052bcb；同树整体 build、根类型、health 对 main、boundary、API/Action 快照、资源门、secrets 与 diff 均通过，逐步退出码见 /private/tmp/molis-memory-1064-input-preflight-20261024.results.json。关键交付独立只读深审未发现确定 P1/P2，核对了全部三文件差异和原始失败/最终定向日志，未另跑测试。以上支持冻结当前源码进行新全量与 CI；原失败及整体待验收状态不变。
+
+冻结全量最终结果（2026-10-24，`6c7ea53d`）：1,400 文件全部执行，1,397 通过、3 失败、6508.1 秒、exit 1；jobs=2、browser jobs=1、retries=0，最终 HEAD 未变且工作树干净。失败为 `code-incremental.e2e` 2/3（复制后原 5 秒内无 clipboard 结果）、`interaction-no-crosstalk.e2e` 3/4（AC-08 第二窗口未出现目标会话行，等待保存的异常为 context 不存在）、`page-interaction-flow.e2e` 1/2（首次记下未展开/无条目）。原日志、清单与退出记录为 `/private/tmp/molis-memory-1064-input-fullsuite-20261024.{log,manifest.json,exit.json}`，不以正常 CI 或局部重跑替代。
+
+被动诊断在同一冻结版本增加事件/消息桥/执行上下文观测，三原文件第一轮均过；第二轮增加逐次 boolean/exception、原点击同轮状态及受控资源延迟反例，四文件均过，分别见 `/private/tmp/molis-coding-copy-diagnostic-run-20261024.results.json` 和 `/private/tmp/molis-memory-1064-diagnostic-round2-20261024.results.json`。这些结果不关闭原失败：AC-08 的 helper 会保留较早的异常，后续读取为 false 不清除，因此不能据最终 cause 推断持续 context 失效；两轮成功轨迹不证明原失败归因。复制及双窗口继续定向诊断，不扩大等待、不重试点击、不改业务断言。
+
+灵光受控反例确认现有测试入口的初始化缺口：阻住原客户端资源时，原 child 可见条件已满足、原 DOM click 无事件主人且不产生 POST；放开后 owner ready/inert 恢复也不会补发旧 click，随后一次真实点击恰好创建一条。只将原入口等待改为可信 owner 的 ready、可见且非 inert，保留原 10 秒预算和全部内容/切换/重启断言；新增 `plugin-frame-readiness.e2e` 留下公开页面/真实 Store 证据，不修改产品。原全量无点击现场轨迹，不能把受控窗口写成已观察到的原始时序。另已集成最新 main `1dedc1f5c`，三处文本冲突保留两边语义；workbench 只平移原净额 3,193 B 到新主干基点，Coding 原净额 717 B 不变，最终资源门已在实际构建上通过：对 main `1dedc1f5c` 的 27 项资源共 7,797,144 B，未借用分类切片额度。
+
+统筹集成验证（2026-10-24）：主干合并提交 `bd20d5b1f` 的 offline frozen 安装、整体 build、根类型、health 对新 main、boundary、API/Action 快照、实际资源、secrets 与 diff check 均通过，见 `/private/tmp/molis-memory-1064-main-integration-20261024.results.json`。输入身份/可信 user_action、插件路由权限及 Memory CAS 的 17 文件，加原三个失败浏览器文件和新就绪反例，共 **21/21 文件通过**，61.6 秒、jobs=2/browser=1/retries=0，见 `/private/tmp/molis-memory-1064-main-integration-targeted-20261024.results.json`。原 1,400 文件失败与 Copy/AC-08 未定根因仍保留；本次不是新全量结果，不能据此合并。
+
+额外有界观测：同一旧冻结 head 的 Copy/AC-08 原文件在五轮被动探针中均通过，可信输入与消息桥记录完整、无丢环记录；仅证明这五轮实际路径，不能清除原失败，退出清单 `/private/tmp/molis-copy-ac08-bounded-20261024-47260-exits.json`。随后转查实际 `/state` 请求、取消及页面生命周期，不增加等待或全量重跑；首次探针路径误写而未采到目标 HTTP/bridge 数据，记录仍保留，不把空采样当作没有请求。
+
+统筹继续集成（2026-10-24）：GitHub PR 元数据仍报告旧 base 时，实际远端 main 已推进到 `aa4de404f`（#1121 的正式 Session 动作迁移）；以实际 ref 为准合入，形成 `8cb1764e5`。唯一文本冲突是 Coding 路由的类型 import，保留原始输入与正式动作两边语义。实际合并结果的整体 build、根类型、health 对该 main、boundary、API/Action 快照、资源、secrets 与 diff 均通过；14 个相关普通文件 **14/14、165/165**，jobs=2/retries=0，35.2 秒，见 `/private/tmp/molis-memory-1064-session-actions-integration-20261024.results.json`。资源仍为 27 项 7,797,144 B，无新增额度。该结果只覆盖本次主干集成；原冻结全量 1,397/1,400 与 Copy/AC-08 阻塞仍保留，尚不能合并。
+
+
+**#1064 点击坐标消费与回执收束（2026-10-24）。** 在旧冻结树的真实 Coding 自动跟随路径中，捕获 `renderRuns → followLive → pin` 的实际待执行 RAF：在最后点位采样前释放时，单次复制成功；在旧 helper 已确认 pointermove 并清理回执、实际 mousePressed 前释放时，同一真实滚动把目标移出点位，trusted down/up/click 落在 SPAN，原 5 秒 clipboard 断言失败。此受控交错证明 helper 存在可复现的时序缺口，不宣称就是历史全量失败的唯一原因。原 A/B 日志与评估 `/private/tmp/molis-copy-pin-interleaving-20261024-11126-{A.log,B.log,assessment.json}` 保留。
+
+沿用现输入助手，把坐标交给 click 消费后再清理临时回执；最终 guard 重核当前矩形、命中和 disabled，并在原 10 秒定位期限内只允许按下前重新定位。按下/抬起始终一次，trusted down/up 必须匹配本次收到 pointermove 的目标；CDP dispatch 与最后 guard 不是原子操作，最后缝隙发生位移会明确失败，不补点。原三个错路由/合成/旧回执断言保持；新增两个真实浏览器布局交错在旧实现均失败，修复后五例全部通过，含全部临时监听清理、零或一次 Store 副作用。最终 `/private/tmp/molis-frame-click-guard-green-final.log`；原受影响三文件另一次 9/9 通过、零重试/跳过，日志 `/private/tmp/molis-frame-click-guard-affected-three.log`。这些只是定向工程证据，AC-08 历史根因仍未确定，未改原业务断言/等待/隔离/产品代码，最终全量仍待执行。
+
+统筹复核 CI：head `92a671c75` 对应 run `40055930035` 的适用 jobs 已全部成功，Linux probe 为原配置跳过；产品两片各 218/218，并集 436、交集 0，与所测 manifest 一致，attempts 全为 1，无失败、跳过、未执行、flaky 或隔离。实际测试的是合并提交 `a9211c4e8`（parents `1cc9cfee7` + `92a671c75`），不是 head 的相同树；证据 `/private/tmp/molis-ci1064-92a-product-assessment.json`。后续主干已到 `f4df5b471`，含隔离页 link 通道修复，必须整合后重新检查相应影响，不能继承这次绿色为最终通过。
+
+
+统筹最终集成预检（2026-10-24）：点击修复 2474bfc42 合入 main f4df5b471 后为 4fe2c24c6。唯一文本冲突为资源批准表，主干已有额度保留在实际基线，Memory 仍只用原批准净增，未增加额度。离线 frozen 安装、整体构建、根类型、health 对该精确 main、boundary、API/Action 快照、实际资源、secret、diff 全部通过；12 个相关文件（含原三个失败、5 个 receipt 场景和主干 link 权限/页面生命周期）全部通过，jobs=2/browser=1/retries=0。完整结果 /private/tmp/molis-memory-1064-final-integration-20261024.results.json。该结果支持冻结新源码进入必要共享全量，不能将旧 1397/1400 改写为通过；AC-08 历史具体触发仍 UNKNOWN，后续新全量和当前 head CI 分别记录。
+
+
+分页父链刷新准备（2026-10-24）：本地合入 #1064 `1bc28b5e2`，该父已含 main `f4df5b471` 与最新点击回执修复；未修改父正在运行的冻结全量。冲突仅在资源登记/预算与追加 spec，保留两侧文档和已批准分页净增 3,437 B；资源基点随父已实测 1,194,297 B 移动，最大 1,197,734 B，没有新增额度。当前本片完整构建、实际资源重测与受影响集成回归尚未运行，预算仍保留上次实际值；不得继承此前资源门绿色或描述为已验证合并结果。

@@ -25,16 +25,17 @@ function memoryPromotion(service: () => MemoryService): AgentMemoryPromotion {
 /** Public production composition with deterministic loopback model replies. */
 async function expansionHome(t: TestContext, endpoint: string, projects: readonly string[]) {
   const home = await mkdtemp(join(tmpdir(), "memory-expansion-wiring-")), appId = "io.molis.work";
-  const ledger = openMemoryLedger({ homeDirectory: home });
+  let ledger = openMemoryLedger({ homeDirectory: home });
   for (const key of ["personal", "project-default"]) ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, key,
     { ...defaultPrefs(key === "personal" ? "personal" : "project"), form: false, auto: false, task_recall: false });
   let service!: MemoryService;
   const policy = memoryRuntimePolicy(() => ({ alive: () => true,
     prefsFor: (scope, id) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, id), owners: id => ledger.owners(id), candidateOwners: id => ledger.candidateOwners(id),
     projectExists: async id => projects.includes(id), deletingProject: () => undefined }));
-  const adapter = await createPrologueNodeAdapter({ app: { appId, appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), memory: { ...policy, promotion: memoryPromotion(() => service) },
+  const open = () => createPrologueNodeAdapter({ app: { appId, appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), memory: { ...policy, promotion: memoryPromotion(() => service) },
     memoryUsage: receipt => service.settleUses(receipt), resolveCredential: () => "test-only",
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint, model: "fixture", credential_ref: "fixture" }) });
+  let adapter = await open();
   const backend = prologueMemoryBackend(async () => adapter.memory!);
   service = new MemoryService({ ledger, backend });
   let closed = false;
@@ -52,15 +53,19 @@ async function expansionHome(t: TestContext, endpoint: string, projects: readonl
         action_gateway: { operate: false, client: { discover: async () => [], invoke: async () => { throw new Error("No Actions"); }, memory: { list } } } } });
     return { owner, person, session, entry, start };
   };
-  return { home, appId, adapter, service, prepare, close };
+  return { home, appId, get adapter() { return adapter; }, get service() { return service; }, prepare, close,
+    reopen: async () => {
+      await close(); ledger.close(); ledger = openMemoryLedger({ homeDirectory: home });
+      adapter = await open(); closed = false; service = new MemoryService({ ledger, backend });
+    } };
 }
 
 async function expansionFinished(adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>>, handle: AgentRunHandle) {
-  const deadline = Date.now() + 15_000;
+  const deadline = performance.now() + 15_000;
   for (;;) {
     const view = await adapter.read(handle.ref);
     if (["completed", "failed", "cancelled", "stopped"].includes(view.phase)) return view;
-    assert.ok(Date.now() < deadline, "the real Run did not finish");
+    assert.ok(performance.now() < deadline, "the real Run did not finish");
     await new Promise(resolve => setTimeout(resolve, 10));
   }
 }
@@ -182,8 +187,10 @@ for (const outcome of ["release", "commit-fails", "read-cancelled"] as const) te
 });
 
 /** Real public Node/SQLite/HTTP path; deterministic loopback replies do not prove model quality. */
-for (const scenario of ["read-only", "off", "role-denied", "class-denied", "consumer-off", "wrong-owner", "cancel", "revoke-after-selection", "version-changed"] as const) {
+for (const scenario of ["read-only", "off", "role-denied", "class-denied", "consumer-off", "wrong-owner", "cancel", "revoke-after-selection", "version-changed", "expired-after-selection", "installation-revoked"] as const) {
   test(`same Run expansion: ${scenario}, no tool body or unconfirmed use`, { timeout: 40_000 }, async t => {
+    const clock = Date.now();
+    if (scenario === "expired-after-selection") t.mock.timers.enable({ apis: ["Date"], now: clock });
     const home = await mkdtemp(join(tmpdir(), "memory-run-expand-"));
     const project = "expand-project", plugin = "io.molis.work.coding", sentinel = "EXPANSION_ONLY_CANONICAL_TEXT";
     const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project, plugin_id: plugin, install_id: "coding" };
@@ -191,6 +198,8 @@ for (const scenario of ["read-only", "off", "role-denied", "class-denied", "cons
     const caller = { actor_id: owner.actor_id, project_id: project, consumer: "agent" as const, plugin_id: plugin, current_scene: "coding" };
     const receipts: MemoryRunReadResult[] = [];
     let retained: MemoryRunReadControl | undefined;
+    let installed = true, revokedChecks = 0, selected = false, installationReadRejected = false;
+    const installationDenied = new Error("The original installation is no longer authorized");
     const server = await scriptedModelServer(t, (_body, turn) => turn === 1 ? { name: "list-memories", input: {} } : "Checked.");
     const ledger = openMemoryLedger({ homeDirectory: home });
     for (const key of ["personal", "project-default"]) ledger.savePrefs(owner.actor_id, key, { ...defaultPrefs(key === "personal" ? "personal" : "project"), form: false, auto: false, task_recall: false });
@@ -210,10 +219,11 @@ for (const scenario of ["read-only", "off", "role-denied", "class-denied", "cons
     service = new MemoryService({ ledger, backend: { ...backend, withCaller: observe } });
     try {
       const entry = await backend.withCaller(person).write({ scope: "project", owner: project, text: sentinel, origin: "person", operation_id: crypto.randomUUID(),
-        meta: { kind: "convention", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["coding"], lifecycle: "long-term" } } });
+        meta: { kind: "convention", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["coding"], lifecycle: scenario === "expired-after-selection" ? "short-term" : "long-term" },
+          ...(scenario === "expired-after-selection" ? { expires_at_ms: clock + 60_000 } : {}) } });
       const session = await adapter.createSession({ ...owner, workspace: "business", role_id: "reader", title: "Expansion" });
       if (scenario === "off") for (const scope of ["personal", "project"] as const) service.savePrefs(person, scope, { enabled: false });
-      if (scenario === "consumer-off") for (const scope of ["personal", "project"] as const) service.savePrefs(person, scope, { consumers: { agent: false } });
+      if (scenario === "consumer-off") for (const scope of ["personal", "project"] as const) service.savePrefs(person, scope, { consumers: { ...service.prefsFor(owner.actor_id, scope, project).consumers, agent: false } });
       if (scenario === "class-denied") for (const scope of ["personal", "project"] as const) service.savePrefs(person, scope, { class_restrictions: [{ selector: { consumer: "agent", current_scene: "coding" }, read: "off", form: "inherit" }] });
       const recipe = await service.forRun(caller, { query: "Read memory", used_for: "Expansion" }); assert.ok(recipe);
       assert.equal(recipe.task, false); assert.equal(recipe.skip, true);
@@ -224,14 +234,23 @@ for (const scenario of ["read-only", "off", "role-denied", "class-denied", "cons
           const cancelled = new AbortController(); cancelled.abort();
           return service.expand({ ...reader, signal: cancelled.signal }, { list: { scope: "project" } }, retained);
         }
-        if (scenario === "revoke-after-selection" || scenario === "version-changed") {
-          return retained.read(async scopes => {
+        if (["revoke-after-selection", "version-changed", "expired-after-selection", "installation-revoked"].includes(scenario)) {
+          const reading = retained.read(async scopes => {
             assert.equal(scopes.some(scope => scope.owner === project), true);
-            if (scenario === "revoke-after-selection") service.savePrefs(person, "project", { enabled: false });
+            selected = true;
+            if (scenario === "expired-after-selection") t.mock.timers.setTime(clock + 60_001);
+            else if (scenario === "installation-revoked") installed = false;
+            else if (scenario === "revoke-after-selection") service.savePrefs(person, "project", { enabled: false });
             else await backend.withCaller(person).update({ scope: "project", owner: project, memory_id: entry.memory_id,
               expected_version: entry.version, operation_id: crypto.randomUUID(), change: { text: "REPLACEMENT_VERSION_TEXT" } });
             return [{ scope: "project", owner: project, memory_id: entry.memory_id, version: entry.version }];
           }, call.signal);
+          if (scenario === "installation-revoked") {
+            await assert.rejects(reading, error => error === installationDenied);
+            installationReadRejected = true;
+            return reading;
+          }
+          const result = await reading; receipts.push(result); return result;
         }
         const selectedCaller = scenario === "wrong-owner" ? { ...reader, actor_id: "another-person", project_id: "another-project" } : reader;
         const values = await Promise.all([service.expand({ ...selectedCaller, signal: call.signal }, { list: { scope: "project" } }, retained),
@@ -240,12 +259,23 @@ for (const scenario of ["read-only", "off", "role-denied", "class-denied", "cons
       };
       const handle: AgentRunHandle = await adapter.start({ ...owner, session, workspace: "business", role_id: "reader", task: "Read memory", history: "digest",
         role: { role_id: "reader", version: 1, workspace: "business", execution: "read-only", host_tools: [], prompts: [],
-          ...(scenario === "role-denied" ? {} : { memory: recipe }), action_gateway: { operate: false, client: { discover: async () => [], invoke: async () => { throw new Error("No Actions"); }, memory: { list } } } } });
-      const deadline = Date.now() + 15_000;
+          ...(scenario === "role-denied" ? {} : { memory: recipe }), action_gateway: { operate: false, client: { discover: async () => [], invoke: async () => { throw new Error("No Actions"); }, memory: { list } } } } }, {
+          // The public execution port is the same trusted current-installation fence supplied by the Host.
+          beforeDispatch: () => { if (!installed) { revokedChecks++; throw installationDenied; } },
+        });
+      const deadline = performance.now() + 15_000;
       let view = await adapter.read(handle.ref);
       while (!["completed", "failed", "cancelled", "stopped"].includes(view.phase)) {
-        assert.ok(Date.now() < deadline, "Run must finish without a start/tool circular wait");
+        assert.ok(performance.now() < deadline, "Run must finish without a start/tool circular wait");
         await new Promise(resolve => setTimeout(resolve, 10)); view = await adapter.read(handle.ref);
+      }
+      if (scenario === "installation-revoked") {
+        assert.equal(selected, true); assert.equal(installationReadRejected, true);
+        assert.ok(revokedChecks >= 2, "both the post-selection and next-dispatch fences reject the revoked installation");
+        assert.equal(view.phase, "failed"); assert.equal(server.requests.length, 1);
+        assert.doesNotMatch(JSON.stringify(server.requests), new RegExp(sentinel));
+        assert.deepEqual(service.uses({}), []); assert.equal(scans, 0);
+        return;
       }
       assert.ok(server.requests.length >= 2, "the real tool result must reach the next model request");
       const messages = server.requests[1]!.messages as Array<{ content?: unknown }>;
@@ -260,6 +290,11 @@ for (const scenario of ["read-only", "off", "role-denied", "class-denied", "cons
         assert.ok(view.memory_recalled?.contexts?.every(context => context.tokens <= context.budget_tokens));
         assert.ok(service.uses({}).every(use => use.source === "run-context"), "selection writes no returned/use ledger");
       } else {
+        if (scenario === "expired-after-selection") {
+          assert.equal(selected, true); assert.equal(receipts.length, 1);
+          assert.deepEqual(receipts[0]!.queued, []); assert.equal(receipts[0]!.tokens, 0);
+          assert.ok(!view.memory_recalled?.contexts?.some(context => context.references.some(ref => ref.memory_id === entry.memory_id)));
+        }
         assert.doesNotMatch(JSON.stringify(server.requests), new RegExp(sentinel));
         assert.deepEqual(service.uses({}), []);
         assert.equal(scans, 0, "off, missing role, cancellation or denied exact refs never scan through App list");
@@ -271,6 +306,54 @@ for (const scenario of ["read-only", "off", "role-denied", "class-denied", "cons
     } finally { await adapter.close(); ledger.close(); await rm(home, { recursive: true, force: true }); }
   });
 }
+
+test("MEM-33: reopened historical Run cannot revive or lend its expansion control", { timeout: 40_000 }, async t => {
+  const server = await scriptedModelServer(t, (_body, turn) => turn % 2 === 1 ? { name: "list-memories", input: {} } : "Checked.");
+  const f = await expansionHome(t, server.base + "/v1/messages", ["HISTORICAL_RUN"]);
+  const one = await f.prepare("HISTORICAL_RUN", "HISTORICAL_CANONICAL_MEMORY", 900);
+  const reference = { scope: "project" as const, owner: one.owner.project_id, memory_id: one.entry.memory_id, version: one.entry.version };
+  let original: MemoryRunReadControl | undefined;
+  const first = await one.start(async call => {
+    assert.ok(call.memory_read); original = call.memory_read;
+    return original.read(async () => [reference], call.signal);
+  });
+  assert.equal((await expansionFinished(f.adapter, first)).phase, "completed");
+  assert.equal(server.requests.length, 2);
+  assert.match(JSON.stringify(server.requests[1]), /HISTORICAL_CANONICAL_MEMORY/);
+  const before = await f.adapter.readSession(one.session);
+  const uses = f.service.uses({}); assert.ok(uses.length > 0);
+  await f.reopen();
+  const restored = await f.adapter.readSession(one.session);
+  assert.deepEqual(restored.runs, before.runs);
+  assert.equal(restored.latest_run?.phase, "completed");
+  assert.equal(restored.latest_run?.ref.run_id, first.ref.run_id);
+  assert.equal("memory_read" in restored, false);
+  assert.equal("memory_read" in restored.latest_run!, false);
+  assert.deepEqual(f.service.uses({}), uses);
+  assert.equal(server.requests.length, 2, "restoring history starts no model work");
+  assert.ok(original);
+  let oldSelections = 0;
+  const rejectOriginal = () => assert.rejects(original!.read(async () => { oldSelections++; return [reference]; }), /已结束|读取控制/);
+  await rejectOriginal();
+  let newAdmission: MemoryRunReadResult | undefined;
+  const second = await one.start(async call => {
+    assert.ok(call.memory_read); assert.notEqual(call.memory_read, original);
+    await rejectOriginal();
+    const empty = await call.memory_read.read(async () => [], call.signal);
+    assert.equal(empty.remaining_tokens, 900, "the new Run starts with its own admission budget");
+    const result = await call.memory_read.read(async () => [reference], call.signal);
+    assert.deepEqual(result.queued, [{ memory_id: one.entry.memory_id, version: one.entry.version }], "historical admission does not deduplicate the new Run");
+    newAdmission = result; return result;
+  });
+  assert.notEqual(second.ref.run_id, first.ref.run_id);
+  assert.equal((await expansionFinished(f.adapter, second)).phase, "completed");
+  assert.ok(newAdmission, "the real second tool completed every control and admission assertion");
+  assert.equal(oldSelections, 0);
+  assert.equal((await f.adapter.read(first.ref)).phase, "completed");
+  assert.equal(server.requests.length, 4);
+  assert.doesNotMatch(JSON.stringify(server.requests[2]), /HISTORICAL_CANONICAL_MEMORY/);
+  assert.match(JSON.stringify(server.requests[3]), /HISTORICAL_CANONICAL_MEMORY/);
+});
 
 // Adapter contract only: the double follows the SDK's independent-drive return contract. It does not
 // prove a real Node afterStart storage failure; the public SDK/Host cases above cover that distinct path.
@@ -299,7 +382,7 @@ test("MEM-33: an accepted start failing before RunRecord binding releases the ea
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://model.example/v1/messages", model: "fixture", credential_ref: "fixture" }) });
   const owner = { actor_id: "person", project_id: "project", plugin_id: "assistant", install_id: "assistant" };
   try {
-    const session = await adapter.createSession({ ...owner, workspace: "business", title: "Early tool" });
+    const session = await adapter.createSession({ ...owner, workspace: "business", role_id: "reader", title: "Early tool" });
     await assert.rejects(adapter.start({ ...owner, session, workspace: "business", role_id: "reader", task: "Read", role: {
       role_id: "reader", workspace: "business", version: 1, execution: "read-only", host_tools: [], prompts: [], memory: recipe,
       action_gateway: { operate: false, client: { discover: async () => [], invoke: async () => { throw new Error("No Actions"); }, memory: {

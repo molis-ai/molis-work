@@ -1226,9 +1226,11 @@ export function checkNoGoalTypedAdapters(files) {
   return errors;
 }
 
-const GOALS_PACKAGE = "@molis-ai/molis-work-plugin-goals";
-/** The modules the CLI dispatcher may reach: the action contract, Goals' `goalsActions` and its own protocol file. */
-const CLI_DISPATCHER_MODULES = new Set(["@molis-ai/molis-work-contracts/platform/actions", GOALS_PACKAGE, "./protocol.js"]);
+/** Where the platform's entries take Goals' action descriptors from (PG-031): the contracts subpath, not the Goals plugin package. */
+const GOALS_ACTIONS_MODULE = "@molis-ai/molis-work-contracts/modules/goal-actions";
+const GOALS_ACTIONS = "goalEntryActions";
+/** The modules the CLI dispatcher may reach: the action contract, the published `goalEntryActions` and its own protocol file. */
+const CLI_DISPATCHER_MODULES = new Set(["@molis-ai/molis-work-contracts/platform/actions", GOALS_ACTIONS_MODULE, "./protocol.js"]);
 /** The ways the Host opens a project or reaches Goals; the dispatcher is handed the management port and holds none of them. */
 const HOST_CLIENT_NAMES = new Set(["LocalHostProjectClient", "actionClient", "client", "withProject", "withScope", "coordinator"]);
 
@@ -1252,24 +1254,24 @@ function moduleReferences(file) {
   return found;
 }
 
-/** What of the Goals package a reference holds other than `{ goalsActions }`; empty when it is just that. */
+/** What of the Goals descriptors module a reference holds other than `{ goalEntryActions }`; empty when it is just that. */
 function goalsBindingsOtherThanActions(node, kind) {
-  if (kind !== "import") return [`a ${kind} of the whole package`];
+  if (kind !== "import") return [`a ${kind} of the whole module`];
   const clause = node.importClause;
-  if (!clause) return ["a bare import (the transport imports { goalsActions })"];
+  if (!clause) return [`a bare import (the transport imports { ${GOALS_ACTIONS} })`];
   const names = [];
   if (clause.name) names.push(`default import ${clause.name.text}`);
   const bindings = clause.namedBindings;
   if (bindings && ts.isNamespaceImport(bindings)) names.push(`* as ${bindings.name.text}`);
   if (bindings && ts.isNamedImports(bindings)) {
-    for (const element of bindings.elements) if ((element.propertyName ?? element.name).text !== "goalsActions") names.push((element.propertyName ?? element.name).text);
+    for (const element of bindings.elements) if ((element.propertyName ?? element.name).text !== GOALS_ACTIONS) names.push((element.propertyName ?? element.name).text);
   }
   return names;
 }
 
 /**
  * The transport entries reach Goals through the platform, not through a Host client of their own. `cli`: the dispatcher is handed the
- * management port the Host builds (`CliManagementActions`), reaches only the action contract, `goalsActions` and its protocol file,
+ * management port the Host builds (`CliManagementActions`), reaches only the action contract, `goalEntryActions` and its protocol file,
  * holds no Host client under any spelling and reads the snapshot through Goals' own action; `cli-project.ts` builds that port with
  * `bindGoalsManagementActions(<host>.actionClient(reference, false), reference)`, over the client that does not prepare the project's
  * plugins and the very reference the command is bound to, and hands the dispatcher what it returned. `mcp`: the dispatcher takes only
@@ -1282,11 +1284,11 @@ export function checkGoalTransportCallers({ cli, mcp }) {
   const dispatcher = ts.createSourceFile(dispatcherPath, cli.dispatcher, ts.ScriptTarget.Latest, true);
   for (const { node, kind, specifier } of moduleReferences(dispatcher)) {
     if (specifier === undefined) {
-      errors.push(`${dispatcherPath}: a ${kind} of a module the gate cannot read (not a string literal); the CLI dispatcher reaches only the action contract, goalsActions and its protocol file`);
+      errors.push(`${dispatcherPath}: a ${kind} of a module the gate cannot read (not a string literal); the CLI dispatcher reaches only the action contract, goalEntryActions and its protocol file`);
     } else if (!CLI_DISPATCHER_MODULES.has(specifier)) {
-      errors.push(`${dispatcherPath}: imports ${specifier} (${kind}); the CLI dispatcher reaches only the action contract, Goals' goalsActions and its protocol file`);
-    } else if (specifier === GOALS_PACKAGE) {
-      for (const held of goalsBindingsOtherThanActions(node, kind)) errors.push(`${dispatcherPath}: ${held} is not a Goals action; the CLI calls goalsActions through the management port`);
+      errors.push(`${dispatcherPath}: imports ${specifier} (${kind}); the CLI dispatcher reaches only the action contract, goalEntryActions and its protocol file`);
+    } else if (specifier === GOALS_ACTIONS_MODULE) {
+      for (const held of goalsBindingsOtherThanActions(node, kind)) errors.push(`${dispatcherPath}: ${held} is not a Goals action; the CLI calls goalEntryActions through the management port`);
     }
   }
   const names = new Set(), held = new Set();
@@ -1297,7 +1299,7 @@ export function checkGoalTransportCallers({ cli, mcp }) {
       if (HOST_CLIENT_NAMES.has(node.text)) held.add(node.text);
     }
     if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && HOST_CLIENT_NAMES.has(node.argumentExpression.text)) held.add(node.argumentExpression.text);
-    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "goalsActions" && node.name.text === "snapshot") snapshot = true;
+    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === GOALS_ACTIONS && node.name.text === "snapshot") snapshot = true;
     ts.forEachChild(node, visit);
   };
   visit(dispatcher);
@@ -1305,7 +1307,7 @@ export function checkGoalTransportCallers({ cli, mcp }) {
   for (const name of held) {
     errors.push(`${dispatcherPath}: ${name} is how the Host opens a project or reaches Goals; the CLI calls Goals' actions through the management port and holds no Host client (LocalHostProjectClient, client, withProject, withScope, actionClient, coordinator.goals)`);
   }
-  if (!snapshot) errors.push(`${dispatcherPath}: the CLI snapshot must be read through goalsActions.snapshot`);
+  if (!snapshot) errors.push(`${dispatcherPath}: the CLI snapshot must be read through goalEntryActions.snapshot`);
 
   errors.push(...checkGoalsManagementWiring(cli.project, "cli"));
   errors.push(...checkMcpGoalTransportCallers(mcp));
@@ -1316,10 +1318,10 @@ export function checkGoalTransportCallers({ cli, mcp }) {
 function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) {
   const errors = [], toolPath = "apps/mcp/src/tool-dispatch.ts";
   const file = ts.createSourceFile(toolPath, source, ts.ScriptTarget.Latest, true);
-  const allowed = new Set(["@molis-ai/molis-work-contracts/platform/actions", GOALS_PACKAGE, "./goal-presentation.js"]);
+  const allowed = new Set(["@molis-ai/molis-work-contracts/platform/actions", GOALS_ACTIONS_MODULE, "./goal-presentation.js"]);
   for (const { node, kind, specifier } of moduleReferences(file)) {
-    if (!allowed.has(specifier)) errors.push(`${toolPath}: imports ${specifier ?? "a module that is not a string literal"} (${kind}); only the action contract, goalsActions and the presentation error type belong to the transport`);
-    else if (specifier === GOALS_PACKAGE) for (const held of goalsBindingsOtherThanActions(node, kind)) errors.push(`${toolPath}: ${held} is not a Goals action`);
+    if (!allowed.has(specifier)) errors.push(`${toolPath}: imports ${specifier ?? "a module that is not a string literal"} (${kind}); only the action contract, goalEntryActions and the presentation error type belong to the transport`);
+    else if (specifier === GOALS_ACTIONS_MODULE) for (const held of goalsBindingsOtherThanActions(node, kind)) errors.push(`${toolPath}: ${held} is not a Goals action`);
   }
   const actions = new Set(); let port = false;
   const visit = node => {
@@ -1328,14 +1330,14 @@ function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) 
     if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && HOST_CLIENT_NAMES.has(node.argumentExpression.text)) errors.push(`${toolPath}: ${node.argumentExpression.text} is a Host client`);
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "invoke") {
       const action = node.arguments[0];
-      if (action && ts.isPropertyAccessExpression(action) && ts.isIdentifier(action.expression) && action.expression.text === "goalsActions") actions.add(action.name.text);
+      if (action && ts.isPropertyAccessExpression(action) && ts.isIdentifier(action.expression) && action.expression.text === GOALS_ACTIONS) actions.add(action.name.text);
       else errors.push(`${toolPath}: invoke must name a Goals action, never a typed descriptor or caller`);
     }
     ts.forEachChild(node, visit);
   };
   visit(file);
   if (!port) errors.push(`${toolPath}: declare the Host's McpManagementActions port`);
-  for (const action of ["initialize", "decide", "treeDecide"]) if (!actions.has(action)) errors.push(`${toolPath}: the management tool must invoke goalsActions.${action}`);
+  for (const action of ["initialize", "decide", "treeDecide"]) if (!actions.has(action)) errors.push(`${toolPath}: the management tool must invoke ${GOALS_ACTIONS}.${action}`);
 
   errors.push(...checkGoalsManagementWiring(hostSource, "mcp"));
   return errors;

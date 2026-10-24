@@ -6,9 +6,17 @@ import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalEntryActions, goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { managementCaller, managementGoals } from "./goal-management-caller.js";
+
+// RAC-343, RAC-344: the platform's entries take Goals' descriptors from contracts, and Goals declares those very objects, not a copy of them.
+test("RAC-344 Goals declares the descriptors contracts publish for the platform's entries", () => {
+  const declared: Record<string, unknown> = goalsActions;
+  for (const [key, definition] of Object.entries(goalEntryActions)) assert.equal(declared[key], definition, key);
+  const shared = { list: "list", state: "state", contract: "contract", progress: "progress", receipt: "progressReceipt" } as const;
+  for (const [key, name] of Object.entries(shared)) assert.equal(declared[name], goalPluginActions[key as keyof typeof shared], key);
+});
 
 test("Goals work actions keep atomic reports, original receipts, user authority, and completion rules", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-command-actions-"));

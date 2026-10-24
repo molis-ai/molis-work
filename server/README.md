@@ -3,12 +3,15 @@
 Status: `partial`. Contract: `@molis-ai/molis-work-contracts/platform/app-host`.
 Workspace registration: `goal-reorg-f2`.
 
-`server/` 收纳服务端实现，目前有两条运行链路，尚未合成同一个运行进程：
+`server/` 的业务源码统一在 `src/`，构建配置放在本目录根部：
 
-- `src/`：现有 Node/TypeScript 包，负责公共身份、设备、项目访问、接续回执与事件传输，聊天领域在 `src/im`；由 `apps/server` 启动或本地 Host 嵌入。
-- [`sync/`](sync/README.md)：Rust 个人同步模块，负责远端同步协议、D1/R2、容量和历史；由 `apps/sync-worker` 这个 Cloudflare 入口启动。
+- `src/im/`：现有 TypeScript 群聊模块；身份、项目访问与接续源码也位于 `src/`，由 `apps/server` 启动或本地 Host 嵌入。
+- [`src/sync/`](src/sync/README.md)：Rust 个人同步模块，负责远端同步协议、D1/R2、容量和历史，由 `apps/sync-worker` 启动。
+- `package.json`、`tsconfig.json`：构建 `src/` 下的 TypeScript，输出到 `dist/`。
+- `Cargo.toml`、`Cargo.lock`：构建 Rust，库入口明确指定为 `src/sync/lib.rs`，不在业务子目录里另建项目。
+- `migrations/sync/`：同步模块的 D1 建表基线，与源码、构建产物分开存放。
 
-同步只是服务端的一个模块。Node 包的公开入口与工作区登记不变；Rust 模块使用独立 Cargo manifest，不加入 Node 构建。下文的启动、接口和开发要求描述现有 Node 包；同步的部署与检查见上面的模块文档。两条链路都不启动模型运行时。
+同步只是服务端的一个模块。Node 包的公开入口与工作区登记不变，Rust 不加入 Node 编译。两条运行链路尚未合成同一个进程，也不启动模型运行时。下文的启动、接口和开发要求描述 Node 部分；同步的部署与检查见上面的模块文档。
 
 ## 本地启动
 

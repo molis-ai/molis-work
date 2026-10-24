@@ -449,7 +449,7 @@ test('business SQL rollback rolls back the outbox too',async t=>{
 test('D1 schema: atomic CAS, owner isolation, idempotency constraint, disabled policy',()=>{
   const db=new DatabaseSync(':memory:');
   try{
-    db.exec(readFileSync('server/sync/migrations/0001_sync.sql','utf8'));
+    db.exec(readFileSync('server/migrations/sync/0001_sync.sql','utf8'));
     const ns=syncNamespace(selection);
     db.prepare('INSERT INTO sync_policy VALUES (?,1,?,?)').run('alice','{}',JSON.stringify([ns]));
     const insert=db.prepare("INSERT INTO sync_events(space,namespace,operation,key,base,value,attachments,policy_revision,fingerprint) VALUES (?,?,?,?,?,?,'[]',?,'schema-fixture')");

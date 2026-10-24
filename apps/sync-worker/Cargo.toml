@@ -8,7 +8,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 worker = { version = "=0.8.6", features = ["d1"] }
-molis-work-server-sync = { path = "../../server/sync" }
+molis-work-server-sync = { path = "../../server" }
 
 [profile.release]
 opt-level = "s"

@@ -188,9 +188,9 @@ W1-09。工具是 Biome（根 `biome.jsonc`，锁文件里一个精确版本的 
 
 | 检查 | 命令 | 范围与说明 |
 | --- | --- | --- |
-| Rust 格式 | `rustfmt --check` | 所有被跟踪的 `.rs`，按各 crate 的 edition 检查。只接受 `RUST_CRATES` 登记的 `apps/desktop`、`apps/sync-worker` 和 `server/sync`，其他位置直接失败 |
+| Rust 格式 | `rustfmt --check` | 所有被跟踪的 `.rs`，按各 crate 的 edition 检查。只接受 `RUST_CRATES` 登记的 `apps/desktop`、`apps/sync-worker` 和 `server/src/sync`，其他位置直接失败 |
 | Rust 静态检查 | `cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --locked -- -D warnings` | 要编译 crate，所以在 macOS 上跑。CI 用 `RUSTUP_TOOLCHAIN` 固定 Rust 版本（clippy 每个版本都会新增 lint，`-D warnings` 跟着“stable”走会让每次发布变红）；换版本是单独的改动，同一个 PR 里清掉新告警。本机用已装的版本，新版本可能多报 |
-| Rust 同步 Worker 与服务端模块 | `cargo clippy --manifest-path apps/sync-worker/Cargo.toml --target wasm32-unknown-unknown --all-targets --locked -- -D warnings` | 对 `server/sync/Cargo.toml` 运行相同命令。使用实际部署的 WASM 编译目标，不回退为本机目标；CI 为同一固定 Rust 版本安装 WASM 标准库，并缓存三个 crate。缺少目标或编译告警均失败。不部署 Worker、不修改 D1 |
+| Rust 同步 Worker 与服务端模块 | `cargo clippy --manifest-path apps/sync-worker/Cargo.toml --target wasm32-unknown-unknown --all-targets --locked -- -D warnings` | 对 `server/Cargo.toml` 运行相同命令。使用实际部署的 WASM 编译目标，不回退为本机目标；CI 为同一固定 Rust 版本安装 WASM 标准库，并缓存三个 crate。缺少目标或编译告警均失败。不部署 Worker、不修改 D1 |
 | Swift 类型检查 | `swiftc -typecheck -parse-as-library -target <arch>-apple-macosx14.0 JellyMaterial.swift` | 原生素材提取器。每个被跟踪的 `.swift` 都要登记在脚本的 `SWIFT_UNITS`，否则失败 |
 | Swift 包构建 | `swift build --package-path apps/local-host/native/materials/whisper`（加 `--package`） | `jelly-whisper` 的 SwiftPM 包，`swift-tools-version: 6.2`（要 Xcode 26），冷编译约 7 分钟，要联网拉 `argmax-oss-swift`。CI 里先作为不挡合并的步骤跑（`continue-on-error`），所以现在挡合并的只有 `JellyMaterial.swift` 的类型检查，`jelly-whisper` 编译坏了不会让 CI 变红。收口记在待办 [BL-122](../../specs/BACKLOG.md)：确认有 Swift 6.2 的 runner（`macos-26` 或装 Xcode 26）后去掉 `continue-on-error` |
 | shell | `shellcheck --severity=warning` | 所有被跟踪的 `.sh`，和第一行是 sh/bash 的无后缀文件。告警和错误失败，风格提示不失败 |

@@ -40,7 +40,7 @@ the published surface (contracts, plugin-sdk) is the lowest layer
 
 `server/`（身份、设备、接续回执与群聊领域）按 Module 规则检查，不算平台包：它有自己的业务事实（2026-10-08 决定第 4 项）。分类以 `scripts/workspace-packages.mjs` 的 `kind` 为准。
 
-这里的工作区登记指 `server/package.json` 的 Node 包（`server/src`）。同目录下独立的 Rust 同步模块在 `server/sync`，由 Cargo/native-checks 管理，不计入 pnpm 包数；`apps/sync-worker` 通过该 crate 的公开入口装配，不持有同步 SQL 或业务实现。
+这里的工作区登记指 `server/package.json` 的 Node 包，TypeScript 只编译 `server/src/**/*.ts`。Rust 同步业务也在统一源码目录下的 `server/src/sync`，由根部 `server/Cargo.toml` 指定库入口并由 native-checks 检查，不新增 pnpm 包；`apps/sync-worker` 通过该库的公开入口装配，不持有同步 SQL 或业务实现。
 
 ## 2. 强制禁止
 
@@ -110,7 +110,7 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 build（每个包的 t
 
 `.github/workflows/ci.yml` 在 pull request 和 `main` push 上把挡合并的检查分成四组并行的作业（各约 5 分钟），都在 `Verify` 的 `needs` 里：`gates`（不要构建）跑健康门禁（`health:check`，对照合并基点）、版本一致，以及文档门禁、翻译、包清单、vendored 记录、密钥扫描、探针与产品子集运行器、测试运行器自己的变异用例；`health-gate-rules`（只构建 contracts 包给一个门禁用例用）跑 `tests/health-gates-*.test.ts`，即健康门禁各条规则的变异用例，分在两个 runner 上（矩阵 `shard: [1, 2]`，每份取同一列表里隔一个的文件，`node scripts/run-tests.mjs --shard <k>/<n>`）；`architecture-boundaries` 跑同一条 `workspace:verify`，再在这次构建上跑页面资源预算（`page-assets:check`，宿主发出的样式表、脚本、插件客户端包与字体只许变小）、Goal 查询/存储边界、存储基线、发布资产、启动器类型检查、单一工作台外壳与成果门禁、炼金术士与创作台回放；`action-contracts` 自己构建，跑动作与插件合同（`pnpm test:contracts`），分在两个 runner 上、每个同时只跑 2 个文件：其中几个用例起真实宿主和 MCP 服务、自带时限，一个 4 核 runner 上同时跑 4 个时会超时。两个作业里一次点名多个文件的 `node scripts/run-tests.mjs` 都是几份同时跑、每份一个 `MOLIS_WORK_HOME`（`MOLIS_WORK_TEST_JOBS: 4`，见 [并行开发](PARALLEL-DEVELOPMENT.md) 第 5 节），上次用时长的先跑：各作业用 `actions/cache` 把运行器记下的用时带到下一次运行。安全不变量（`pnpm test:security`）是单独的 `security-invariants` 作业，暂不挡合并，不在 `Verify` 的 `needs` 里，所以不拖长必过检查。全量产品测试仍在本地跑（见 PR 模板），但这些定向行为回归和 package 边界检查持续执行；用户动线上的一部分产品用例由下面的 `product-subset` 作业在 Linux 上跑。
 
-健康门禁里还有静态检查（Biome：空 `catch`、`as unknown as`、没处理的 promise、显式 `any`、`console`、`debugger`，按文件计数、只许减少，口径与按包开新规则见 `tooling/gates/README.md`「静态检查」）。非 TypeScript 的代码由两个作业查，都在 `Verify` 的 `needs` 里，不看数字、有告警就失败：`native-checks`（macOS：`apps/desktop`、`apps/sync-worker` 与 `server/sync` 的 `rustfmt --check` 与 `cargo clippy -D warnings`，Rust 版本固定，同步 Worker 用 `wasm32-unknown-unknown` 目标；Swift 的 `swiftc -typecheck`，`jelly-whisper` 包的 `swift build` 暂不挡合并，见 BL-122）和 `shell-checks`（Linux：被跟踪的 `.sh` 的 `shellcheck`，被跟踪的 `.py` 能解析）。脚本是 `scripts/gates/native-checks.mjs`，规则的测试是 `tests/native-checks.test.mjs`。
+健康门禁里还有静态检查（Biome：空 `catch`、`as unknown as`、没处理的 promise、显式 `any`、`console`、`debugger`，按文件计数、只许减少，口径与按包开新规则见 `tooling/gates/README.md`「静态检查」）。非 TypeScript 的代码由两个作业查，都在 `Verify` 的 `needs` 里，不看数字、有告警就失败：`native-checks`（macOS：`apps/desktop`、`apps/sync-worker` 与 `server/src/sync` 的 `rustfmt --check` 与 `cargo clippy -D warnings`，Rust 版本固定，同步 Worker 用 `wasm32-unknown-unknown` 目标；Swift 的 `swiftc -typecheck`，`jelly-whisper` 包的 `swift build` 暂不挡合并，见 BL-122）和 `shell-checks`（Linux：被跟踪的 `.sh` 的 `shellcheck`，被跟踪的 `.py` 能解析）。脚本是 `scripts/gates/native-checks.mjs`，规则的测试是 `tests/native-checks.test.mjs`。
 
 `ci.yml` 里另有一个不挡合并的 `linux-probe` 作业（依据 `specs/repository-anti-corruption` 决定 #14）：`continue-on-error: true`，不在 `Verify` 的 `needs` 里，分支保护不动。它只在每晚的定时运行（main，`schedule`，有自己的并发组，夜里的合并取消不到它）和手动触发（`workflow_dispatch`）时跑，PR 和推送上不跑（用户 2026-10-14 定：每次推送占一小时 runner 却不决定任何事，main 上又常被下一次合并取消）。它在 ubuntu 上先 `pnpm build`，再用 `scripts/ci-linux-probe.mjs` 把 `tests/` 下的非浏览器测试文件逐个跑一遍，记下哪些在 Linux 上通过：
 

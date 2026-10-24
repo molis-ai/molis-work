@@ -334,7 +334,7 @@ jobs:
           workspaces: |
             apps/desktop/src-tauri
             apps/sync-worker
-            server/sync
+            server
           key: with-tests
 
       # Each check is broken once on a scratch repository and must go red (the shell cases use a stand-in for shellcheck here).

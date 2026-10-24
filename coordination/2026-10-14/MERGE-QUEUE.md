@@ -48,16 +48,13 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 新 | [#1168](https://github.com/molis-ai/molis-work/pull/1168) | W6-01 / PG-058：删 `personal` 旧短名路由桥，alchemist HTTP 改显式直连（审计 AC-AUDIT-06） | — | 已非Draft；改枢纽文件 `web-request.ts`，须按实际full集成 | 一轮修后可合（[6380641317](https://github.com/molis-ai/molis-work/pull/1168#issuecomment-6380641317)）→ 头 `98906bfad` 统筹核过（别名表只剩 functions，form/pages 反向断言）。`full` 非空（assembly 命中 `web-request.ts`，90 个用例），排 **batch-24**（和 #1169）。合入后 PG-058 进下一批 privileges |
 | 新 | [#1169](https://github.com/molis-ai/molis-work/pull/1169) | `ac-clients-1` R11（PG-063/064）：Inbox/灵光转待办走通用创作入口，删工作台的 `data-make-todo`；来源打开按声明解析（统筹定 B） | — | 待算 | 二轮**可合**（[6380370924](https://github.com/molis-ai/molis-work/pull/1169#issuecomment-6380370924)）；头 `295575bcd` 删了已用完的 issues.js、plugin-frame.js×2 放行（统筹核过，只剩 todo.js、lingguang.js）。`full` 命中，排 **batch-24**（和 #1168），batch-23 跑完即开；作者 merge main 后头 `d586db646`，remerge-diff 只解 `page-assets.mjs`、与 batch-24 解法相同（统筹核过） |
 | 新 | [#1167](https://github.com/molis-ai/molis-work/pull/1167) | `ac-clients-1` Cognia（W5-04，RAC-144～145）：稳定翻译键与打包、类型检查的页面客户端 | — | `full` 非空（assembly、spans-packages，97 个用例），进 batch-23 | 一轮可合、作者改完两条，二轮**可合**（[6380313426](https://github.com/molis-ai/molis-work/pull/1167#issuecomment-6380313426)），头 `4097bbd1d`；进 batch-23 |
-| 已合 | [#1171](https://github.com/molis-ai/molis-work/pull/1171) | Codex：恢复独立Home设置请求接收，修issue-home-locale真实入口失效 | — | batch23固定74606d5e2（main8aa+#1171 b27+#1167 4097） | 10-24 合入 `d28794061`（main 的 `issue-home-locale` 红关掉）。已通知沙箱叠层与 #1130/#1157 同步 |
 | 新 | [#1114](https://github.com/molis-ai/molis-work/pull/1114) | DeepSeek复审修复成果与剩余资源放行清理 | #1167谁先好谁先合；后合搬locator/重算 | full为空 | `6bac03b45`正文/locator/BL改号已二轮6380826646；Claude6380810029新增已用资源放行清理由Codex修复2在6380924207明确接单，当前唯一writer，不重做已有效审验。新头交后只增量核清理/page-assets/CI |
-| 已合 | [#1172](https://github.com/molis-ai/molis-work/pull/1172) | `ac-giants` 代做：ac-trust 安装信任设计稿（PG-001/004/005） | — | 纯文档 | 10-24 合入 `6f638ad73`。ac-trust 实现等 #1098 合入 |
-| 新 | [#1173](https://github.com/molis-ai/molis-work/pull/1173) | Codex：AC-AUDIT-08～11 校准安全不变量表与测试编号（纯文档/注释） | #1171、沙箱叠层之后 | 纯文档 | 头 `47cf31b28`，交 `ac-review`。`SECURITY-INVARIANTS.md` 和 #1171、#1144 都冲突，顺序 #1171 → 沙箱叠层 → 本 PR（[6380825487](https://github.com/molis-ai/molis-work/pull/1173#issuecomment-6380825487)） |
-| **先** | [#1174](https://github.com/molis-ai/molis-work/pull/1174) | Codex：main 红修复——`home-side-surfaces`（VUX-16 灵光侧栏等客户端 ready）与 `work-placement-journeys`（跨项目点击前先听导航） | — | `full` 空，不进批 | `ac-review` **可合**（[6380946827](https://github.com/molis-ai/molis-work/pull/1174#issuecomment-6380946827)）；10-24 06:55 合并认领入队。评审带出 BL-544（侧视图加载守护，ac-shell）、R-44（插件框 10 秒期限）。合入后 #1167、#1164、#1165、#1119、#1139、#1148、#1130→#1157 合 main 走 merge-only |
+| 新 | [#1173](https://github.com/molis-ai/molis-work/pull/1173) | DeepSeek AC-AUDIT-08～11原成果，Codex修复1接文档必须修 | #1171已合；沙箱叠层之后同步/合并 | 纯文档/注释 | 头`47cf31b28`，ac-review6380866302修后可合；Claude6380869179要求CI Chrome前言、S47草稿CI列、gates措辞和BL569登记。修复1只读准备完成，1114交槽后启动；保留S38及四测试注释，门禁算法另片核授权。新头增量复审，不重跑一轮。 |
+| **先** | [#1174](https://github.com/molis-ai/molis-work/pull/1174) | Codex：main 红修复——`home-side-surfaces`（VUX-16 灵光侧栏等客户端 ready）与 `work-placement-journeys`（跨项目点击前先听导航） | — | `full` 空，不进批 | 精确head`5bbb4318697dbef4631e5db3870691c27fff2e94`；Codex正式6380942452及TEST独立核证通过；CI40070310777未齐。`ac-review` **可合**（[6380946827](https://github.com/molis-ai/molis-work/pull/1174#issuecomment-6380946827)）；10-24 06:55 合并认领入队。评审带出 BL-544（侧视图加载守护，ac-shell）、R-44（Pages挂载failed，10秒期限仅待验证根因假设）。合入后 #1167、#1164、#1165、#1119、#1139、#1148、#1130→#1157 合 main 走 merge-only |
 | 新 | [#1175](https://github.com/molis-ai/molis-work/pull/1175) | `ac-giants` 代做：ac-artifacts 设计稿（PG-077～079、096、097、107） | — | 纯文档（设计稿不占 15 个名额） | 头 `934a0bfc3`，交 `ac-review` |
 | 新 | [#1176](https://github.com/molis-ai/molis-work/pull/1176) | 统筹：BACKLOG 加 BL-543（设置地址只转声明参数，R-42）、BL-544（侧视图加载守护） | — | 纯文档 | 统筹自开，CI 绿即合（auto-merge） |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 已按用户要求转为非 Draft；收尾时合 main |
 
-| 新 | [#1174](https://github.com/molis-ai/molis-work/pull/1174) | Codex：VUX16真实ready/严格指针和AC3/4点击前导航监听；仅两测试与原spec | main红同步修复，按Claude顺序独立推进 | actual full=[]/storage=[]，不自行全量 | 冻结`5bbb4318697dbef4631e5db3870691c27fff2e94`；正式评审6380942452与TEST独立核证通过，CI40070310777待齐；最终重算full/storage/uncovered均空，无需追加本机或全量。修复1已释放；无产品、fixture、断言或超时放宽。Pages旧信号明确TEST/修复1跟进，不列已归因 |
 
 新开的开发片 PR 由统筹按依赖插进本表。
 
@@ -65,6 +62,8 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 | PR | 合并提交 | 日期 |
 | --- | --- | --- |
+| #1171 | `d28794061a189aea2d4e5ebfe74b558ed9a8e169` | 2026-10-24T06:39:30Z（GitHub实际合入；独立Home设置入口修复，原统筹认领6380903089；沙箱/SC4接续依Claude安排） |
+| #1172 | `6f638ad734ce68e6c2b78b3a5ad209f10a711ffd` | 2026-10-24T06:37:01Z（GitHub实际合入；信任设计稿，ac-trust实现仍等1098） |
 | #1170 | `61bfc2b8ad28ddd64304e89a3862e2e51d18b37a` | 2026-10-24T06:25:24Z（GitHub实际合入；最终head4010b747d，沿原认领正常队列） |
 | #1163 | `8aa62a65b2a3644fc8be69ff50b748a53317ec34` | 10-24 05:16:43 UTC（Codex已核实际合并；#1147 SDK文案建议闭环） |
 | #1161 | `a934251d35dae6907fb2de75c3fb9f91735218e0` | 10-24 05:12:22 UTC（Codex已核实际合并，回执6380246527；#805规格引用错号闭环） |

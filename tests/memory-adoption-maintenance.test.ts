@@ -57,7 +57,11 @@ function state(home: string) {
 }
 
 function bridge(overrides: Partial<MemoryHomeAdoptionBridge> = {}): MemoryHomeAdoptionBridge {
-  return { previewCleanup: async () => done, purgeCleanupTarget: async () => {}, adopt: async () => done, verify: async () => ({ outcome: "complete", exhausted: true }), close: async () => {}, ...overrides };
+  let closing: Promise<void> | undefined;
+  return { previewCleanup: async () => done, purgeCleanupTarget: async () => {}, adopt: async () => done,
+    verify: async () => ({ outcome: "complete", exhausted: true }), ...overrides,
+    close: afterSDKClosed => closing ??= (async () => { await overrides.close?.(); afterSDKClosed?.(); })() };
+
 }
 
 test("offline adoption owns storage before blocking, closes before ledger 4, and preserves six-field choices plus draft off/manual", async t => {
@@ -439,4 +443,30 @@ test("adopting commit rechecks synchronous authority inside the transaction and 
   assert.throws(() => beginMemoryLedgerAdoption({ homeDirectory: home, snapshot: inspectMemoryLedgerAdoption({ homeDirectory: home }),
     assertCurrent: async () => {} }), { code: "memory.adoption_conflict" });
   assert.deepEqual(state(home), before);
+});
+
+for (const mode of ["missing", "duplicate"] as const) test(`MEM-40 an injected close with ${mode} publication cannot return completed`, async t => {
+  const { home } = scratch(t); seed(home); let closing: Promise<void> | undefined;
+  await assert.rejects(adoptMemoryHome({ homeDirectory: home, open: async input => {
+    input.onOwned();
+    return { ...bridge(), close: publish => closing ??= (async () => {
+      if (mode === "duplicate") { publish?.(); publish?.(); }
+    })() };
+  } }), { code: "memory.forbidden" });
+  assert.equal(state(home).version, mode === "missing" ? 3 : 4);
+  assert.equal(state(home).marker.origin, mode === "missing" ? "adopting" : "existing-home");
+});
+
+
+test("MEM-40 a verification exception after an earlier complete page never publishes from exception cleanup", async t => {
+  const { home } = scratch(t); seed(home); let verified = 0, closed = 0;
+  await assert.rejects(adoptMemoryHome({ homeDirectory: home, open: async input => {
+    input.onOwned();
+    return { ...bridge({ verify: async () => {
+      if (++verified === 1) return { outcome: "complete", exhausted: false, cursor: "remaining" };
+      throw new Error("remaining verification unavailable");
+    } }), close: async publish => { assert.equal(publish, undefined); closed++; } };
+  } }), /remaining verification unavailable/);
+  assert.equal(verified, 2); assert.equal(closed, 1);
+  assert.equal(state(home).version, 3); assert.equal(state(home).marker.origin, "adopting");
 });

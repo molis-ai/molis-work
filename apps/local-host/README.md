@@ -310,6 +310,6 @@ MCP 工具的原始 schema 留在发现快照和版本指纹里。`src/mcp-tool-
 
 Agent 的通用 Memory Action 使用生产 startAuthority 绑定的原 Run `runtime_memory` 与 Session，不能以当前设置或最新 attempt 替代。Memory owner 将其作为 task caller 交同一 SDK；缺失时明确不可用。动作 grant、安装与取消检查保持原调用链。
 
-MEM-40 采用现在通过同步 onOwned 在 SDK maintenance 打开前提交 adopting；自定义 open Port 必须在取得独占权后恰好调用一次，未调用或重复均拒绝。公开 cleanup preview 使用只读 inspect Port，保留 homeDirectory/cursor 与原选集；不再借 writer Runtime。SQLite readonly 可能产生 sidecar，T1/T0 原件零写仍依赖已冻结但本刀未实现的完整工作副本编排，不能把该局部预览宣称为整个 Home 零副作用入口。
+MEM-40 采用现在通过同步 onOwned 在 SDK maintenance 打开前提交 adopting；自定义 open Port 必须在取得独占权后恰好调用一次，未调用或重复均拒绝。全部 convert/verify 正常完成后，账本 complete 经 writer `close(afterSDKClosed)` 的同步回调提交；SDK 已关闭而原 owner 仍持有，发布继续检查原外层取消、授权和 ledger CAS。异常收尾只 close，不发布；只有回调恰好一次且关闭/释放成功才返回 completed。提交前失败保 adopting；COMMIT 成功后的 owner 释放失败明确抛错并保已完成账本，不虚构回滚。公开 cleanup preview 使用只读 inspect Port，保留 homeDirectory/cursor 与原选集；不再借 writer Runtime。SQLite readonly 可能产生 sidecar，T1/T0 原件零写仍依赖已冻结但本刀未实现的完整工作副本编排，不能把该局部预览宣称为整个 Home 零副作用入口。
 
 Character 的一般Memory mutation对目标及before原件均要求当前ledger中的准确项目/subject关系，并核`characterOwner(project,subject)`；本人采用不需要伪报caller.character。新写/提案沿Memory原准备口先登记关系，authority回调只读、不猜历史归属。空角色范围可读取为空且不登记关系；明确项目删除仍只沿原固定计划许可。专项回归见 `tests/memory-runtime-policy.test.ts`、`tests/memory-character-proposal-owner.test.ts` 与 `tests/memory-owner-relations.test.ts`。

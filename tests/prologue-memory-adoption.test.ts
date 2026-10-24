@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs, { mkdirSync, mkdtempSync, rmSync, readdirSync, readFileSync, existsSync, realpathSync } from "node:fs";
 import { createRequire, syncBuiltinESMExports } from "node:module";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -458,7 +459,7 @@ test("MEM-40 open and close preserve unselected dispatching board and expired qu
   assert.deepEqual(Object.keys(after).filter(path => !path.startsWith(".molis-runtime-owner.db")), Object.keys(before));
 });
 
-test("MEM-40 close failure retains the real owner and prevents ledger completion", async t => {
+test("MEM-40 owner release failure after publication keeps the committed ledger and rejects instead of reporting completion", async t => {
   const f = scratch(t); ledger(f.home); await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: original }]);
   const originalClose = DatabaseSync.prototype.close;
   let retained: DatabaseSync | undefined;
@@ -470,7 +471,7 @@ test("MEM-40 close failure retains the real owner and prevents ledger completion
   });
   try {
     await assert.rejects(adoptMemoryHome({ homeDirectory: f.home }), /owner close failed/);
-    assert.ok(retained); assert.equal(ledgerState(f.home).marker.origin, "adopting"); assert.equal(ledgerState(f.home).version, 3);
+    assert.ok(retained); assert.equal(ledgerState(f.home).marker.origin, "existing-home"); assert.equal(ledgerState(f.home).version, 4);
     await assert.rejects(open(f.storageRoot), { code: "agent.storage_busy" });
   } finally { fault.mock.restore(); if (retained) originalClose.call(retained); }
   const resumed = await adoptMemoryHome({ homeDirectory: f.home }); assert.equal(resumed.outcome, "completed");
@@ -503,4 +504,118 @@ for (const cause of ["cancel", "revoke"] as const) test(`MEM-40 inspection ${cau
   try { await assert.rejects(inspection.previewCleanup({ ...scope, kind: "memory" })); assert.ok(reads > 0); }
   finally { fault.mock.restore(); syncBuiltinESMExports(); await inspection.close(); }
   assert.deepEqual(storageBytes(f.storageRoot), before);
+});
+
+function otherOwner(home: string): unknown {
+  const child = spawnSync(process.execPath, [new URL("./fixtures/memory-adoption-owner-process.mjs", import.meta.url).pathname, home],
+    { encoding: "utf8", timeout: 20_000 });
+  assert.ifError(child.error); assert.equal(child.status, 0, child.stderr);
+  return JSON.parse(child.stdout);
+}
+
+test("MEM-40 ledger publication holds the first real owner and a second process can take over only after ledger 4", async t => {
+  const f = scratch(t); ledger(f.home); await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: original }]);
+  const stages: string[] = [];
+  const result = await adoptMemoryHome({ homeDirectory: f.home, open: async input => {
+    const real = await openPrologueMemoryAdoption({ storageRoot: f.storageRoot, appVersion: app.appVersion,
+      scopes: input.scopes, policy: memoryRuntimePolicy(() => undefined).policy, onOwned: input.onOwned,
+      assertCurrent: input.assertCurrent, ...(input.signal ? { signal: input.signal } : {}) });
+    return { ...real, close: async publish => {
+      await real.close(publish && (() => {
+        stages.push("SDK closed; original owner still held");
+        assert.equal(ledgerState(f.home).version, 3); assert.equal(ledgerState(f.home).marker.origin, "adopting");
+        assert.deepEqual(otherOwner(f.home), { outcome: "busy" });
+        publish();
+        stages.push("ledger committed; original owner still held");
+        assert.equal(ledgerState(f.home).version, 4); assert.equal(ledgerState(f.home).marker.origin, "existing-home");
+        assert.deepEqual(otherOwner(f.home), { outcome: "busy" });
+      }));
+      assert.deepEqual(otherOwner(f.home), { outcome: "owned", version: 4, origin: "existing-home" });
+      stages.push("owner released; second process owned ledger 4");
+    } };
+  } });
+  assert.equal(result.outcome, "completed"); assert.equal(stages.length, 3);
+});
+
+test("MEM-40 writer close publishes once, rejects a new callback after closing begins, and preserves ordinary idempotence", async t => {
+  const f = scratch(t); await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: original }]);
+  const real = await open(f.storageRoot); let published = 0;
+  const closing = real.close(() => { published++; });
+  await assert.rejects(real.close(() => { published++; }), { code: "agent.capability_unavailable" });
+  await closing; await real.close(); await real.close();
+  await assert.rejects(real.close(() => { published++; }), { code: "agent.capability_unavailable" });
+  assert.equal(published, 1);
+  const next = await open(f.storageRoot); await next.close();
+});
+
+for (const cause of ["throw", "value", "thenable", "cancel", "revoke", "commit"] as const) test(`MEM-40 publication ${cause} rejects and retains adopting while releasing the safely closed owner`, async t => {
+  const f = scratch(t); ledger(f.home); const before = ledgerState(f.home);
+  await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: original }]);
+  const signal = new AbortController(); let publicationCalls = 0, commitFaults = 0, committing = false, allowed = true;
+  const exec = DatabaseSync.prototype.exec;
+  const fault = t.mock.method(DatabaseSync.prototype, "exec", function(this: DatabaseSync, sql: string) {
+    if (committing && sql === "COMMIT") { commitFaults++; throw new Error("publication COMMIT refused"); }
+    return exec.call(this, sql);
+  });
+  try {
+    await assert.rejects(adoptMemoryHome({ homeDirectory: f.home, signal: signal.signal, assertCurrent: () => { if (!allowed) throw new Error("publication authority revoked"); }, open: async input => {
+      const real = await openPrologueMemoryAdoption({ storageRoot: f.storageRoot, appVersion: app.appVersion,
+      scopes: input.scopes, policy: memoryRuntimePolicy(() => undefined).policy, onOwned: input.onOwned,
+      assertCurrent: input.assertCurrent, ...(input.signal ? { signal: input.signal } : {}) });
+      return { ...real, close: publish => real.close(publish && (() => {
+        publicationCalls++;
+        if (cause === "throw") throw new Error("publication refused");
+        if (cause === "value") return 1;
+        if (cause === "thenable") return Promise.resolve();
+        if (cause === "cancel") signal.abort();
+        if (cause === "revoke") allowed = false;
+        committing = cause === "commit";
+        try { publish(); } finally { committing = false; }
+      })) };
+    } }), cause === "throw" ? /publication refused/ : cause === "value" || cause === "thenable"
+      ? { code: "agent.capability_unavailable" } : cause === "cancel" ? { name: "AbortError" }
+      : cause === "revoke" ? /publication authority revoked/ : /publication COMMIT refused/);
+  } finally { fault.mock.restore(); }
+  assert.equal(commitFaults, cause === "commit" ? 1 : 0);
+  assert.equal(publicationCalls, 1); assert.equal(ledgerState(f.home).version, 3);
+  assert.equal(ledgerState(f.home).marker.origin, "adopting"); assert.deepEqual(ledgerState(f.home).prefs, before.prefs);
+  const next = await open(f.storageRoot); await next.close();
+  const resumed = await adoptMemoryHome({ homeDirectory: f.home }); assert.equal(resumed.outcome, "completed");
+});
+
+test("MEM-40 genuine SDK close failure does not publish and retains the real owner", async t => {
+  const f = scratch(t); ledger(f.home); await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: original }]);
+  let retained: DatabaseSync | undefined, closing = false, closeFaults = 0, publicationCalls = 0;
+  const exec = DatabaseSync.prototype.exec, fill = Buffer.prototype.fill;
+  const ownerTrace = t.mock.method(DatabaseSync.prototype, "exec", function(this: DatabaseSync, sql: string) {
+    const result = exec.call(this, sql);
+    if (sql.includes("BEGIN EXCLUSIVE") && this.prepare("PRAGMA database_list").all().some(row => String(row.file) === join(realpathSync(f.storageRoot), ".molis-runtime-owner.db"))) retained = this;
+    return result;
+  });
+  // The real SDK close clears its key through Buffer.fill. Fail that actual close action;
+  // never substitute the SDK handle, inspect key bytes, or confuse this with owner release.
+  const sdkCloseFault = t.mock.method(Buffer.prototype, "fill", function(this: Buffer, ...args: Parameters<Buffer["fill"]>) {
+    if (closing && args[0] === 0) { closeFaults++; throw new Error("SDK key close failed"); }
+    return Reflect.apply(fill, this, args);
+  });
+  try {
+    await assert.rejects(adoptMemoryHome({ homeDirectory: f.home, open: async input => {
+      const real = await openPrologueMemoryAdoption({ storageRoot: f.storageRoot, appVersion: app.appVersion,
+      scopes: input.scopes, policy: memoryRuntimePolicy(() => undefined).policy, onOwned: input.onOwned,
+      assertCurrent: input.assertCurrent, ...(input.signal ? { signal: input.signal } : {}) });
+      return { ...real, close: async publish => {
+        closing = true;
+        try { await real.close(publish && (() => { publicationCalls++; publish(); })); }
+        finally { closing = false; }
+      } };
+    } }), /SDK key close failed/);
+    assert.equal(closeFaults, 1); assert.equal(publicationCalls, 0); assert.ok(retained);
+    assert.equal(ledgerState(f.home).version, 3); assert.equal(ledgerState(f.home).marker.origin, "adopting");
+    await assert.rejects(open(f.storageRoot), { code: "agent.storage_busy" });
+  } finally {
+    sdkCloseFault.mock.restore(); ownerTrace.mock.restore();
+    // This injected terminal SDK failure intentionally leaves the owner held; dispose only this test's captured handle.
+    retained?.close();
+  }
+  assert.equal((await adoptMemoryHome({ homeDirectory: f.home })).outcome, "completed");
 });

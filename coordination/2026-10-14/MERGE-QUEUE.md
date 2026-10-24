@@ -44,7 +44,6 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 28 | ~~#1140~~ | SC-4 残留：BL-485/486/488 | 作者已关闭（第三层）；分支 `migrate/sessions-sc4b-runtime-leftovers`（`259a5fc84`）留着，#1113 合入且 #1130 改投 main 后合 main 再重开新 PR | — | 不在队里 |
 | 29 | [#1143](https://github.com/molis-ai/molis-work/pull/1143) | PG-017 P2a：连接经 broker 给沙箱插件 | 叠在 #1139→#1119（第三层）；**草稿**，#1119 合入、#1139 改投 main 后再转 ready | 待重算 | 统筹转了草稿，先不审 |
 | 30 | [#1144](https://github.com/molis-ai/molis-work/pull/1144) | PG-017 P2b：不联网的材料读取经 broker 给沙箱 | 叠在 #1143（第四层）；**草稿**，按层合入后再转 ready | 待重算 | 统筹转了草稿；评审要看 RAC-25 旧测试改写没放宽 |
-| 32 | [#1146](https://github.com/molis-ai/molis-work/pull/1146) | Goals S4（PG094-06）：网页层不再持有 Goals 协调器；宿主剩余持有者与读 Goals 表的文件冻结成清单（RAC-250～253） | 改了枢纽文件 `web-request.ts`，和改它的在途 PR 后合的解 | `full` 非空（assembly），进下一批；补跑 `goals-navigation.e2e`、`goals-narrow-navigation.e2e` | 头 `729c8c0b2`；`ac-review` **二轮：可合**（新测试已进 Package boundaries 必跑作业，CI 日志核过）；`full` 非空进下一批 |
 | 33 | [#1147](https://github.com/molis-ai/molis-work/pull/1147) | PG-051 P2b：插件 Agent 定义只由运行中的定义登记，删目录那条、`BUILTIN_PLUGIN_AGENTS` 与 `startAuthority` 回落；创作台改为平台来源；`PluginRegistration` 去三字段 | #1138 已合（10-24），已改投 main | `full` 非空（contracts），和 #1138 同批 | 头 `10d814fda`；`ac-review` **合 main 后仍可合**（[评论](https://github.com/molis-ai/molis-work/pull/1147#issuecomment-6377646076)，改动与二轮逐行一致）；`full` 非空进下一批 |
 | 34 | [#1148](https://github.com/molis-ai/molis-work/pull/1148) | R8 第 2 批（BL-364）：项目里的工作与会话状态 4 条 typed 改登记成只给插件的动作 | **叠在 #1121 上**（第二层），#1121 合入后改投 main | `full` 非空，进下一批 | 头 `d4fa12217`；`ac-review` **二轮：可合**（[评论](https://github.com/molis-ai/molis-work/pull/1148#issuecomment-6375826711)）；#1121 合入后改投 main 再合 |
 | 35 | [#1150](https://github.com/molis-ai/molis-work/pull/1150) | Codex：Shelf S3 合后 P2——桌面四个收集入口提示「原件登记部分成功」（PG-026-S1-S3-1～5） | #1076 已合 | `full` 为空 | 头 `46bfb7cc2`；`ac-review` 一轮**修后可合** 1 条（轮盘一次拖进几个文件时逐个发提示、后到的警告盖掉真正的失败；改成整批一条汇总、复用 `finish_capture`、补两种顺序的 Rust 用例；[评论](https://github.com/molis-ai/molis-work/pull/1150#issuecomment-6376547750)）；作者 Codex 修 |
@@ -81,3 +80,4 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1083 | `b30325bd5` | 10-24 01:08 UTC |
 | #1117 | `acb8941b0` | 10-24 01:08 UTC |
 | #1145 | `b1ab81518` | 10-24 01:27 UTC |
+| #1146 | `fea1eb0ba` | 10-24 01:34 UTC |

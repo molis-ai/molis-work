@@ -58,6 +58,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 新 | [#1180](https://github.com/molis-ai/molis-work/pull/1180) | `ac-clients-1` W5-03/04 灵光页面客户端（稳定键、打包类型检查） | 叠在 #1169（base `ac-r11-intake`）；#1169 合入后改 base 为 main | 进下一批（有 full） | 头 `5e26ba1ef`；**ac-review 一轮可合**（6381327535，与 Issues/Jelly 同写法、`lingguang.js` 26118→23300、无非阻塞）；base 不是 main，#1169 合入改 base 后以 CI 与全量为准 |
 | 新 | [#1181](https://github.com/molis-ai/molis-work/pull/1181) | `ac-kernel` R8 第 3 批：agent-host typed 改动作 | 叠在 #1148（base `ac-kernel/r8-agent-typed-to-actions-2`）；#1148 合入后改 base 为 main | 进下一批（full: true） | 头 `132bc0cb6`；**ac-review 一轮可合**（6381277540，只看 #1148 之外：14 条首登动作 v1、身份只从调用者取、waitRun concurrent+beforeEffect）；非阻塞 1 条交 Codex 修复队列；base 不是 main、CI 没跑，#1148 合入改 base 后以 CI 与全量为准；第 4 批等 #1148 合入再开 |
 | 待开 | `ac-clients-dataset`（未开 PR） | `ac-clients-1` W5-03/04 Dataset 页面客户端 | — | 进批（affected-tests 建议全量，assembly） | 头 `ffaa656f0`（已合 main d28794061）；本机门禁与 6 个浏览器文件过；`ac-clients-1` 在审已满两个（#1167、#1180），其中一个合入后再开 |
+| 新 | [#1182](https://github.com/molis-ai/molis-work/pull/1182) | `ac-sc3` refactor(local-host): 项目库的身份只由根行决定，看板由 Goals 在打开项目时建（Goals S | base `main` | 待定 | 头 `70343d004`；不动存量；07:3x UTC 交 ac-review；S9-0 等 #1164 合入后再开 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 已按用户要求转为非 Draft；收尾时合 main |
 
 

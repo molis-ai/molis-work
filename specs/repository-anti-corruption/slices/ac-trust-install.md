@@ -239,7 +239,7 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 - **RAC-397-HOST**：维护后的隔离 Home 经真实 `MolisWorkLocalHost` 启动后，Shelf 的 `always_on` 同意实际落账，发布者、Manifest 与 `host_build` 来源正确；关闭后再次启动不重复，持久撤回后再次启动不复活。不因此声明 T3 的常开名单与移除限制、T5 的撤回入口已实现。
 - **RAC-398-T1**：S-34 仅补现有 `plugin.state_invalid`、`plugin.grant_denied`、`plugin.definition_conflict` 的文件与真实测试名引用，不新增 S 号；在 `recordInstallConsents` 旁说明安装记录与 Home 同意可能跨库部分成功、账本失败原样传播及下一次 replay 补账，失败策略与权限不变。
 
-官方集成的 `host`/`unsigned` 矛盾先保留为唯一待裁定 hunk：当前 `official-integrations.ts` 与 `trust-rules.ts` 注释及本节口径不一致，Root 已交统筹按 T1、R-48、W5-11 确认；决定返回后代码、注释与本稿一起统一，不自行选等级或提前实现 T2/W5-11。项目库 9→10、与 #1245 的真实 owner 结构/四份 SQL 组合仍由唯一 carrier 处理，本轮不改版本或维护 SQL；#1246 的重装先清文件后清 KV、清完才发布新安装保持原样。
+官方集成的 `host`/`unsigned` 矛盾先保留为唯一待裁定 hunk：当前 `official-integrations.ts` 与 `trust-rules.ts` 注释及本节口径不一致，Root 已交 Claude 统筹仅确认本轮 T1 官方集成的过渡等级；决定返回后代码、注释与本稿一起统一，不自行选等级或提前实现 T2。项目库 9→10、与 #1245 的真实 owner 结构/四份 SQL 组合仍由唯一 carrier 处理，本轮不改版本或维护 SQL；#1246 的重装先清文件后清 KV、清完才发布新安装保持原样。
 
 验证先做一次独立树整体构建，按 Plugin Runtime README 必跑用例及上述精确定向运行，保留初败、复跑与未跑范围；共享核心的 full 仍由唯一 Claude 批次排期，禁止在真实 Home 演练。
 

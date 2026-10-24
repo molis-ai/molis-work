@@ -4,6 +4,8 @@ Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副
 
 Node 适配器类型与运行时都要求明确的绝对 `storageRoot`；缺失、空值、相对路径以 `agent.storage_root_invalid` 在 SDK 与磁盘初始化前拒绝，不回退到 cwd 或用户默认目录。适配器通过 storage 的同一 SQLite 独占端口取得所有权，或借用本 Home Host 已持有的 opaque owner；没有另一套锁、同 PID 放行或可复制的 proof。获取或第二借用失败报告 `agent.storage_busy`，不读取恢复记录。只有实际 SDK 关闭成功才归还借用；失败关闭保留所有权，下一次明确 close 可以重试。初始化失败先清理已创建的 Runtime 资源再归还自己的部分，父 Host 继续持锁。跨进程入口转发给常驻 Host，不能用多个 Runtime 直接共享目录。回归：`tests/security-invariants-home-storage-sdk.test.ts`、`tests/security-invariants-home-storage-host.test.ts`。
 
+`createPrologueNodeAdapter(options)` 返回可等待的初始化句柄，`await` 仍取得原 adapter；从创建时保留该句柄，其 `close()` 即使初始化拒绝也可继续清理。初始化失败后的清理再次失败会继续占锁，显式重试只处理未完成项，全部成功才归还 borrow/独立 owner。成功 adapter 的 `close()` 复用同一入口；同次并发共享结果，失败后可以明确重试。Local Host composition 在初始化前保存句柄，dispose 总能关闭它；失败后的显式 ready 先完成旧实例清理，再创建新实例，关闭中的实例不登记为可用。回归：`tests/security-invariants-agent-initialization-cleanup.test.ts`。
+
 包名：`@molis-ai/molis-work-service-agent-host`。工作区内部包，由 Host 装配使用。
 
 ## 它拥有什么

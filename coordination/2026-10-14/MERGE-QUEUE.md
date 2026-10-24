@@ -240,3 +240,5 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
 - 10-24 12:25 UTC：#1209 新头 `e20e68f0a` 独立 REVIEW 6384019404 / TEST 6384047094 已关两条 must-fix → batch-29 候选（改 `packages/storage`，共享核心，进集成批跑全量）。
 
 - 2026-10-24 12:24 UTC：C1 RAC114固定1213/8fce66c63并明确release，REVIEW6384157844过，TEST必要覆盖/同头CI接续；新快4例product-subset共享一行已交Claude实际批writer，未实施保留。下一唯一writer已实际START FIX1 ACA005 P1（generation/v3已root批准），不是继续只读；固定即直审验/release不等CI，W5源接续不额外等P1merge。1209 e20双独立过/源冻结，storage/full申请6384076618由Claude统一；full28最终14worker成功、2worker失败，aggregate失败不是第3产品文件，分别1207取消诊断和S63正文引号枚举，原owner/批writer已具体派修，未据此称flaky或追加full。
+
+- 2026-10-24 12:29 UTC：#1207已交新65b8494b67acd812bf0ff3f5d77eb1386104679b（6383966882/6383975189），原ac-kernel在现可信Goals退路下删冗余pre-discover，精确invoke回原dispatcher；management作者三轮4/4/13文件绿，旧280失败不冒新头验收。流水线已即时派独立REVIEW从9c70核scope/diff/信任边界与最终BL501尾项，TEST核现raw/必要范围，6384260851请求已有stdout不机械重跑/不新增full。当前新头审验未齐不写闭环，不要求为原建议额外造settlement API；是否进最终批/适用证据仍Claude定。

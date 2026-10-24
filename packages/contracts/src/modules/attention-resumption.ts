@@ -9,7 +9,9 @@ export const modulesAttentionResumptionContract = {
   ssot: "docs/modules/attention-resumption.md",
 } as const satisfies ContractDescriptor;
 
-export type AttentionSubjectType = "feed_item" | "goal_decision" | "source_fault";
+/** The kinds of subject an entry can be about: the platform's closed list, which a plugin declares its own from (`PluginAttentionDeclaration`). */
+export const ATTENTION_SUBJECT_TYPES = ["feed_item", "goal_decision", "source_fault"] as const;
+export type AttentionSubjectType = typeof ATTENTION_SUBJECT_TYPES[number];
 export type AttentionReason = "manual" | "source_rule" | "goal_decision" | "source_fault" | "artifact_out_failed";
 export type AttentionStatus = "open" | "in_progress" | "done" | "dismissed";
 

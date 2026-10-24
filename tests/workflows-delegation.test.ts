@@ -28,7 +28,11 @@ const NOTE = desk("note", ["workflows:write"]);
 const SETTINGS = desk("settings", ["projects:settings"]);
 /** A permission nobody on the page holds. */
 const ADMIN = desk("admin", ["delegate:admin"]);
-const PROVIDER = "fixture-desk";
+/**
+ * The Host's own provider (`HOST_PROVIDER_ID`), where the person holds what each action asks (PG-007 stage 4): a made-up host provider
+ * would give the person nothing, so the page could not reach NOTE or SETTINGS for a reason this file does not test.
+ */
+const PROVIDER = "platform";
 const ref = (definition: ActionDefinition): ActionReference => ({ capability_id: definition.capability_id, version: definition.version });
 const stepRef = (definition: ActionDefinition) => ({ ...ref(definition), provider_id: PROVIDER });
 const FEED_PERMISSIONS = feedManifest.actions!.flatMap(definition => definition.action.permissions);

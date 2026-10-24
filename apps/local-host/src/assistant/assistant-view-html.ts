@@ -43,8 +43,8 @@ export function drawAssistantReply(body: unknown, ports: { say: (text: string, v
       const drafts = ports.drafts(candidate.work.work_id);
       for (const round of candidate.rounds) {
         const words = composerQuestion(round.awaiting_input);
-        // A closed question is asked again by a new round of the Assistant's own; a Coding work's questions are Coding's.
-        const reask = candidate.work.executor.kind !== "coding";
+        // A closed question is asked again by a new round of the Assistant's own; an executor plugin's work has questions of the plugin's own.
+        const reask = candidate.work.executor.kind !== "plugin";
         for (const question of round.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, ports.say, drafts[question.pending_id], undefined, reask), ...(question !== words?.question ? {} : words.field ? { draft_from_composer: words.field } : { from_composer: true }) });
       }
       for (const round of candidate.rounds) for (const turn of round.turns) {

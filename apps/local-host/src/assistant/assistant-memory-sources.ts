@@ -42,8 +42,8 @@ async function readSources(home: string, adapter: AgentRuntimeAdapter, task: Lea
     const readRun = async (id: string): Promise<AgentRunView | null> => {
       if (views.has(id)) return views.get(id)!;
       const stored = rounds.find(round => round.run_id === id);
-      // Coding owns its own session. An Assistant session reference cannot stand in for it.
-      if (!stored || stored.executor === "coding") return null;
+      // The executor plugin owns its own session. An Assistant session reference cannot stand in for it.
+      if (!stored || stored.executor === "plugin") return null;
       const run = await adapter.read({ session_id: task.session_id, run_id: id });
       if (run.ref.session_id !== task.session_id || run.ref.run_id !== id || run.phase !== "completed") return null;
       views.set(id, run); return run;

@@ -7,7 +7,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { AssistantPageCardInput, AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantHandover, AssistantPageCardInput, AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativePluginJsonResponse } from "../native-plugin-http.js";
 import { L } from "../web-locale.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
@@ -19,7 +19,7 @@ import { registerWorkAuthority } from "../agent-work-authority.js";
 import { AssistantService, type AssistantServicePorts } from "./assistant-service.js";
 import { assistantSurroundings } from "./assistant-surroundings.js";
 import { assistantErrors } from "./assistant-errors.js";
-import type { PersonActions } from "./assistant-coding.js";
+import type { PersonActions } from "./assistant-executor.js";
 import { ASSISTANT_STORE_NAME, AssistantStore } from "./assistant-store.js";
 import { codingCharacterPorts } from "../characters-host.js";
 import { assistantContributions } from "./assistant-contributions.js";
@@ -99,7 +99,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       invoke: async (action, input) => client.invoke(await personContext(reference), action, input),
     };
   };
-  // The same client, bound the way every client that carries a control is (`bindActionClient`): what the Coding executor reads with.
+  // The same client, bound the way every client that carries a control is (`bindActionClient`): what the work's executor reads with.
   const personBound = (reference: LocalHostProjectReference): BoundActionClient => {
     const person = personClient(reference), client = ports.localHost.actionClient(reference);
     return { discover: person.discover, invoke: async (definition, input, control, transport) => {
@@ -143,7 +143,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     // The person's own actions in the work's project, as the page there would use them. A dispatch, a follow-up's round among them,
     // binds the person's client anew when it acts, never the snapshot the reads share: what was granted or withdrawn by then counts.
     personActions: async (work, use) => {
-      if (!work.project_ref) throw assistantErrors.scope("Coding Agent 在项目里工作");
+      if (!work.project_ref) throw assistantErrors.scope("执行方插件在项目里工作");
       return use === "dispatch" ? bindLocalWebActions(ports.localHost, work.project_ref, LOCAL_OWNER_PERMISSIONS) : personBound(work.project_ref);
     },
     // The person's Home, for the reminders they set in Plugins.
@@ -216,6 +216,10 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 1 && parts[0] === "characters") {
         const work = url.searchParams.get("work") ?? undefined;
         return { status: 200, body: { characters: await service.characters(work, ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
+      }
+      // The plugins that can carry a work here: the person picks one for a new work, or hands an open one over.
+      if (method === "GET" && parts.length === 1 && parts[0] === "executors") {
+        return { status: 200, body: { executors: await service.executors(ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
       }
       // A card a page prepared from the person's selection (a contextual action they clicked); runs only when clicked.
       if (method === "POST" && parts.length === 1 && parts[0] === "cards") {
@@ -324,7 +328,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (parts.length === 4 && parts[2] === "undo") return { status: 200, body: await service.undo(workId, parts[3]!) };
       if (parts.length === 3 && parts[2] === "budget") return { status: 200, body: await service.saveWorkBudget(workId, body.budget_tokens) };
       if (parts.length === 3 && parts[2] === "results") return { status: 200, body: await service.receiveResult(workId, body) };
-      if (parts.length === 3 && parts[2] === "handover") return { status: 200, body: await service.handover(workId, { to: body.to as "coding" | "assistant", ...(typeof body.mode === "string" ? { mode: body.mode } : {}) }) };
+      if (parts.length === 3 && parts[2] === "handover") return { status: 200, body: await service.handover(workId, { to: body.to as AssistantHandover["to"], ...(typeof body.mode === "string" ? { mode: body.mode } : {}) }) };
       if (parts.length === 3 && parts[2] === "recovery") return { status: 200, body: typeof body.run_id === "string"
         ? await service.closeInterrupted(workId, { run_id: body.run_id, version: Number(body.version) }) : await service.recovery(workId) };
       if (parts.length === 3 && parts[2] === "archive") return { status: 200, body: { work: await service.archive(workId, body.archived !== false) } };

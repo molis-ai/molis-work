@@ -37,13 +37,13 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 | PR | 一轮评论 | 要修 | 二轮 |
 | --- | --- | --- | --- |
 | #1228 | 6387362602 | 提供方 id 常量与权限来源；RAC-339 证据范围 | FIX3已修固定 `ed3985f188856e829fd5233aa23ada80cd8a26b5`；二轮6388105405、TEST6388119074 PASS。Assistant线程本来需model:invoke，原“多给”仅该子结论不成立并保留实际权限；旧Search fixture只迁合法身份。80唯一文件706项有效，CI40121335561/最终批仍另核；源码释放后FIX3按Root转#1226 |
-| #1226 | 6387391426 | settleReview保readDecision的this receiver | FIX3固定1d400d25408544e5ab28c645630fcfe80afca4bb，二轮6388570552 PASS；真实旧1/3→新3/3、24文件180有效，原fixture校准失败保留。TEST当前优先核此窄增量，尚未正式结论；原巨大单元一轮复用，新头CI/批34完整full/actual另核 |
+| #1226 | 6387391426 | settleReview保readDecision的this receiver | FIX3固定1d400d25408544e5ab28c645630fcfe80afca4bb；二轮6388570552、独立TEST6388762185 PASS，旧1/3→新3/3、README19/24唯一文件180有效。新CI40125046945十四成功/probe skip，两Product206+205首过，实际b37=bde+1d400，不称裸树same；Claude批34/full/实际merge尚待，不关R38整线 |
 | #1229 | 6387428971 | `translation-check:467` 的过时注释 | FIX2固定 `c2a66516784bb1c6341ccecdd2b6eec5de343bc4`，仅注释+2/-1，断言不变、去注释JS逐字相同、语法/diff/secrets0；二轮6388272667 PASS。整个Workflows原PR待最终批，不能把注释修复当全PR已合 |
 | #1232 | ac-review6387465387 / Codex6387505760复用 | 页面真实DOM负断言与灵光已minify的served源码检查，文档范围写准 | FIX4固定 `887b8ee76361289cd46eec27a0e85569776c5243`，二轮6387989321、TEST6388063111 PASS。实际词只在i18n脚本，3种真实UI变异仍拒绝；灵光保内容/字节23209一致。原首败保留，未改生产/门禁；整条#1229→#1232进最终批。FIX4已转#1239 |
 | #1230 | 6387490072 | S-54补RAC-463；opened失败能重试，缺能力不误播空workspace | FIX1固定 `c887e11c985632b1f5add9a3f83a4dd503bf0f8d`，二轮6388234113、TEST6388250799 PASS；修复真实3红→新8/8，62唯一文件563项有效。仅S54引用、不动drain契约，CI40122537049/整功能最终批另核；FIX1源码已释放 |
 | #1227 | 6387370902 | 无，直接进批 | 不需要 |
 | #1238 | 6388105657 | 同文件三catch按真实正常/失败分类 | FIX5已固定释放55fc；二轮6388469609与TEST6388652106 PASS，6文件37项有效、原fixture首败保留。新CI40124435473十四适用成功/probe skip，CI树43a=bde+55fc非裸树，Product206+206首过；README56仅24本scope适用、余32明确未齐。Root已排TEST先1226窄增量，再按公共资源补确缺32，旧3ce不白跑；不得借bf09/331或把scoped PASS写整体验证齐。public候选6388726367，适用证据齐再依Claude路径排期/正常队列，未actual不关C1 |
-| #1239 | 6388031418 / 6388049535 | B2b用途隔离、采集限额、S12与严格原后端恢复文档 | 唯一修复owner FIX4 `01a16f15-e025-71a3-adac-2e84f0e83fdd`，以冻结b9af98fd430e7451ad0a267e3fc2bc9aab1d7944接同轮全意见；C2已18:53:15Z明确零改动释放认领6388158312，不开第二writer。payload加用途/owner/Home绑定且不改既有vault格式，限额拒绝不截断/跳cache；恢复只找回原file/env/Keychain后端钥匙，不凭新ENV切后端。具体行为/额度按Root现行裁定；新头后修后复审/TEST。旧Functions首次超时、Keychain候选/干净006各8/8证据保留，不能判负载或首全绿 |
+| #1239 | 6388031418 / 6388049535 | B2b用途隔离/全批限额/严格原后端恢复/S12 | FIX4一次正常push固定 `5e1d8a29156509d6fc51f75fd5bcc17316e3f225`，b9后10文件+372/-43，公开6388749288、clean/SOURCE RELEASE；Home payload仅加purpose+canonical Home+owner AAD，vault v2无AAD原读法不变。Root已批准源32MiB/10000节点/密封串128MiB全批额度，有界读/扫描、超限too_large且整次零写，不截断/跳cache；严格原backend恢复报错/文档及S12同轮齐修。作者17唯一文件112项/最终build与门禁通过是候选证据，二轮/独立TEST/新CI/full尚待，旧b9首败/干净006/Keychain范围保留、不判负载。实际改storage README、HOME-DATA、S12单行和原slice B2b段已释放；storage index/local-host index/README本轮未改，Root已直接给C2在其树保5e最终hunk并串行追加A，不等CI/merge、不覆FIX4冻结树 |
 | #1234 | 6387698407 | **挡合并**：`SECURITY-INVARIANTS.md:81` S-67 正文的「操作 id + 输入」换别的引号（S-20 把「」当测试名，Security invariants 1/2 红，同 #1187）。不挡合并：①受理期间 broker 停止，那条运行逃过取消；②cancel 不查被取消运行的目标；③S-67 三条真进程用例只在 mac 跑，挪到「只在本机跑」那栏，S-66 行补缺的一栏；④S-67 第②道门（宿主客户端）在沙箱路径补测试 |专职FIX5 `01a16f24-7a33-76f2-80b4-f20c55006d09` 已Root实际START，原71e4d059分支一轮齐修 |
 | #1240 | 6388577861 / 统筹6388582397 | 挡合并：坏launch_args不能卡整项目删除；写侧强转同PR收口 | FIX1 sole已Root START/公开6388670438，基于冻结3ce独立树；owner窄ID查询+真实删除/非法写入红绿。Root后续B细化：原坏读launch_args_invalid/internal500不变，写入新launch_args_input_invalid/invalid400，HTTP去coercion原样交owner。新head/二轮/TEST尚待，C1原作者不并写，未actual不关 |
 
@@ -51,7 +51,7 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 | --- | --- | --- |
 | C1 | W5-13 收尾：宿主日志与吞掉的错误（§2） | #1231 bf09已逐片审验，README缺32补齐；#1238现55fc同轮修后待二轮；作者独立RAC117 desktop完整PR收尾，不算C1整线完成 |
 | C2 | W5-16 B2b：Home 快照与恢复（§2） | B2a随1222/006已合；#1239 b9已一轮，当前FIX4唯一同轮修复，C2原writer零修改释放。完整A/快照恢复仍原owner未完成 |
-| C3 | W5-10 的一部分：官方集成与横向服务的巨大单元（§2） | Root已给实现1明确接续：先核C1未实现缺口，有独立项沿C1继续；若源码全覆盖只待三个PR落地，直接START Gmail首区域纯拆（4现存源码/5单元），鲜核实际claim，不等前片merge。当前实际选择/新head待作者交付 |
+| C3 | W5-10 的一部分：官方集成与横向服务的巨大单元（§2） | Root已授权C1源码全覆盖时接Gmail纯拆；实现1鲜核发现RAC118/119仍有实际缺口，当前实际选继续C1双entry异常片，无Gmail写入。Gmail 4源码/5单元保留下一独立范围，不等旧PR合入但不重复当前C1 |
 | C4 | W5-11：OAuth 移进官方集成插件（统筹 10-23 定） | 待开工，接在 C3 后（同一块代码）；号段开工前问统筹 |
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
@@ -70,9 +70,11 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 >
 > **C1 RAC117当前修复（替代旧待认领状态）**：#1240冻结 `3ce6270b7297382a9e07051c35959b4b89d882bf` 已ac-review6388577861；原统筹6388582397将坏参数阻塞整项目删除升为挡合并，写侧强转同PR收口。Root已START FIX1 sole，公开认领6388670438，独立 `desktop-launch-args-fix/goalboard`，C1原作者保持冻结/source释放。Root细化B：原坏存量 `desktop.launch_args_invalid/internal500` 保留，非法写入新 `desktop.launch_args_input_invalid/invalid400`，不改SDK类别映射。窄panel-ID owner查询保live-terminal/确认/幂等/删除清理；DesktopPanelCatalogApi/Repository只补listIds，生产HTTP入口去map(String)原样交owner严格校验。修后固定头直二轮/TEST，原143项仅旧头边界。已给F1下一空闲build一次原3ce红例前整建，实际machine-slot取得后运行，browser现有Claude批不碰。不是新权限/人类待批，不再催首评，不操作/重启已停Claude UI。
 >
-> **C1其余实际证据/下一片**：#1231固定bf09cc3a76d406e9ab84a0a223a8f53221368b30，正式TEST6388585347核原CI24+新32文件238/238无重合，README基本56齐；原Cookie基线红/TS2531保留，未冒整个C1/实际merge。#1238状态见§0a，旧c72那32未起，不借bf09。实现1新片按Root C1缺口核查→条件满足才Gmail C3接续，不把计划写START。
+> **C1其余证据/实际选择**：#1231固定bf09cc3a76d406e9ab84a0a223a8f53221368b30，TEST6388585347已核CI24+新增32文件238/238无重合，README56齐，原Cookie基线红/TS2531保留。#1238/55fc修后双PASS/CI14成功、README确缺32由TEST在1226核完后按Root已接jobs2非browser补，尚不冒通过。实现1已鲜核main87eb/16在途后发现 desktop launchers CLI外层Promise和Web close(error)/2s exit0未被115–117覆盖，实际选择继续C1 RAC118/119：两个entry+必要私有接线/真实子进程回归/唯一slice/README独立新段，正常行为/2s界限不变、意外安全诊断非0、不加logger/重试/权限。正从87eb建独立树/短spec红→实现，尚无固定PR/head，C3 Gmail未启动。FIX1仅1240坏args段，C2关闭library须保error callback，三者按真实hunk独立接续。
 >
 > **FIX2新实际START**：#1237 actual后Root已将原1210/6384193830第2项交FIX2独立实施：uninstalled hook失败会跳过definition清理，当前main87eb runtime/index628–632仍真实存在；Root已分页核14在途无该文件。保失败/真实链接拒绝/其他安装/权限/重放，只此一题新树与红绿，完整PR后ac-review一轮；1210 actual006依赖已满足，不再等旧单writer/真merge窗口。原1112三P2不混本题。
+>
+> **B2b新固定头与共享释放**：FIX4一次正常push固定 `5e1d8a29156509d6fc51f75fd5bcc17316e3f225`，b9后10文件+372/-43，公开6388749288、clean/SOURCE RELEASE；Home payload仅加purpose+canonical Home+owner AAD，vault v2无AAD原读法不变。Root已批准源32MiB/10000节点/密封串128MiB全批额度，有界读/扫描、超限too_large且整次零写，不截断/跳cache；严格原backend恢复报错/文档及S12同轮齐修。作者17唯一文件112项/最终build与门禁通过是候选证据，二轮/独立TEST/新CI/full尚待，旧b9首败/干净006/Keychain范围保留、不判负载。实际改storage README、HOME-DATA、S12单行和原slice B2b段已释放；storage index/local-host index/README本轮未改，Root已直接给C2在其树保5e最终hunk并串行追加A，不等CI/merge、不覆FIX4冻结树。
 >
 > **C2 A实际START**：RAC105既有A合同内，独立actual-main-bde树的新 `packages/storage/src/adapters/storage-owner.ts` 与真实公开入口跨进程回归/fixtures已明确给实现2实际编码，不等B2b/Memory整体merge。Root已直接定清同锁上提/opaque父借用与stdio转发可信context、常驻Host薄入口合同；不再泛称等待Root安全裁定。生产stdio/contextTools等实际Catalog写入口须随A最小完整接线闭合，不能先合Host独占留下绕行；保Origin/token/nonce/数字回环/Host instance/取消，身份取可信context而非用户arguments，不新权限/锁/通用RPC/本地写回退。FIX4当前公共出口/README/同一slice/S12按实际hunk固定释放后串行追加A，不等CI/merge；Memory只协调真实同hunk，不将整条Memory当前置。完整A/快照恢复未完成，不把新模块半成品另开PR；本次无需build/browser/full，真实Home不动。
 >
@@ -339,7 +341,7 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 | C0 | **main 的 macOS 红（先于 C1）**：自 #1079（S-56）起 `SandboxSdk.interaction` 写成 `import('./plugin-interaction.js')` 的相对导入，发给生成项目的 `developer/sdk.d.ts` 解析不了，`tests/agent-built-plugins-checks.test.ts`（创作台 G2）与 `tests/agent-built-plugins-workflow.test.ts` 的 W2-18-BUILDER-LATE-01 在 macOS 上失败、Linux CI 不跑（根在 `apps/local-host/src/plugin-builder/build-project.ts` 的 `sdkDeclaration()` 只拷 plugin-sandbox 一份声明，#1147 作者 10-23 核过）。修法：让发出去的 SDK 声明自包含（内联该类型或在生成时一并带上），断言不放宽；创作台本轮不删只绕过，但 main 的红要修。写进 `known-red-main.md` 直到修好 | — | **已完成**：#1136 合入 main（`15b656648`，10-23）。`known-red-main.md` 里这条由 Codex 移除 |
 | C1 | W5-13 收尾：宿主日志与吞掉的错误 | RAC-110～119，BL-445～449 | 实现1保持完整owner。1151/ee2958、1183/f586、1215/1712已合；1231 bf09单片及32README缺例有效，1238日志55fc由FIX5修后待二轮，desktop RAC117按Root严格A已实际收尾及CI唯一行。固定PR后ac-review一轮，实际merge前各片不关闭，C1整体未完成 |
 | C2 | W5-16：`molis-work home snapshot` 与恢复 | RAC-100～109，BL-440～444 | 实现2保持完整owner。B1随1202/645、B2a e20随1222/006实际合；B2b #1239 b9已完整交付一轮，FIX4接全部有效意见且C2已零改动释放，避免重复writer。A早期同Home lease、全库/非SQLite完整snapshot/restore与真实Home R41未完成；沿已接受A/B合同，不复活online quiesce或旧待批限制 |
-| C3 | W5-10 的一部分：官方集成与横向服务的巨大单元 | RAC-120～129 里的 RAC-124～129，BL-452～454 | Root已给实现1C1核全后可直接START官方Gmail首区域纯拆；4源码/5单元、HUGE-CLASS-MIGRATION现行行，API/行为不变，一个完整区域PR，公共baseline留批，ac-review一轮/Claude唯一full。不碰静态catalog例外、Memory、design-system或OAuth搬迁；实际START/选择尚待回执 |
+| C3 | W5-10 的一部分：官方集成与横向服务的巨大单元 | RAC-120～129 里的 RAC-124～129，BL-452～454 | Root已给实现1C1源码覆盖后Gmail纯拆接续合同；当前作者发现RAC118/119未实现，明确继续C1，无Gmail源码。后续仍4源码/5单元/现行巨大单元表，API行为不变、一完整区域PR/Claude首评与唯一full，公共baseline留批，不碰静态catalog例外/Memory/design-system/OAuth迁移 |
 
 ### C1 W5-13 收尾
 

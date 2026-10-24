@@ -8,7 +8,7 @@
 | --- | --- | --- | --- | --- |
 | 防腐线总统筹 | Claude现行统筹 | 共享CODEX-TASKS/LINES/README现行派单 | 整线范围、优先级、跨线依赖、任务分配和唯一full组批；Codex从其共享派单或明确回执领取独立任务 | 原开发与有效认领保留 |
 | 总目标与用户沟通 | 统筹｜Work 全线进度 · Codex | 01a12a80-ede2-7b81-93ea-521a5abcc35c | gpt-6-astra/xhigh；完整目标、复杂裁决、跨线范围、需要用户决定的事项与汇报 | 日常派单和合并已交给下行，不重复操作 |
-| 流水线与合并执行 | 专职｜防腐流水线与合并执行 · Codex | 01a16c88-7956-7e10-a5f4-5baf476c3634 | gpt-6.1-sol/max（后继回合设置已提交，待实际核验）；按Claude已定合同接单、派单、证据与CI/队列接续、正常合并、共享状态和10分钟兜底 | Claude总统筹，root管复杂裁决/用户沟通；不自行改产品、架构、安全或授权决定；不写实现、不替代独立审验 |
+| 流水线与合并执行 | 专职｜防腐流水线与合并执行 · Codex | 01a16c88-7956-7e10-a5f4-5baf476c3634 | gpt-6.1-sol/max（06:45:56UTC实际回合已核）；按Claude已定合同接单、派单、证据与CI/队列接续、正常合并、共享状态和10分钟兜底 | Claude总统筹，root管复杂裁决/用户沟通；不自行改产品、架构、安全或授权决定；不写实现、不替代独立审验 |
 | 评审 | 专职｜防腐 PR 评审与复审 · Codex | 01a16bc4-68fe-71d3-af0e-83523232c1ea | 核spec、精确diff和全部有效意见，修后复审、给正式结论 | 只读、不构建/测试、不合并；block与non-block分别记录 |
 | 测试 | 专职｜防腐测试与证据核验 · Codex | 01a16bc4-6c9f-7ca0-b47e-621727302fee | 核精确head与原始日志、CI/full；按派单补独立回归、归因失败 | 不改实现或断言、不做正式代码评审、不合并；不另起重复full |
 | 修复1 | 专职修复 1｜防腐问题与冲突 · Codex | 01a1682d-0a26-7522-b2b2-4446d904a7b7 | 已派评审问题、CI失败及机械冲突；必要红绿自测；交精确head和日志 | 不自主领新片、不独立评审或统筹测试、不合并 |
@@ -30,7 +30,7 @@
 
 ## 当前流水线（2026-10-23 23:41 洛杉矶／10-24 06:41 UTC）
 
-- 最新用户补充「处理Merge的也是sol6.1就够」：本执行chat后继设置已由root提交为gpt-6.1-sol/max；当前06:39:20轮实际仍gpt-6-astra/xhigh，保存交接后安全结束，下一轮核实际再记生效。root与REVIEW保留Astra/xhigh；TEST/FIX/C1/C2保留6.1-sol/max。原有任务、CI与子chat继续，不取消或重开重复入口。
+- 用户最新模型分工已实测生效：本执行chat当前`01a16ca8-9fc1-7df1-927a-0cb3e7fdc74c`（2026-10-24 06:45:56.285UTC）turn_context为gpt-6.1-sol/max；root与REVIEW为Astra/xhigh，TEST/FIX/C1/C2为6.1-sol/max。root已独立核全8个chat，无需再为模型重启。当前1114机械sync writer、1173→C1→C2顺序及现有CI继续。
 - Claude最新CODEX-TASKS §0已明确单writer顺序：#1114资源清理→#1173文档→C1 RAC-113卸载预检→C2 slice/B1/B2/快照/恢复→C3；nonblock在C片等审/CI时插空，不永久挤掉实现。修复2当前完成1114构建/定向/资源核验，正交付；修复1的1173两文档精确准备完成，待明确交槽。C1准备有效，随后启动。C2已收到Claude裁定并只读差异准备：离线持现有Home独占锁，常驻Host运行时snapshot/restore拒绝且零写，不做在线quiesce/resume；B1 server邀请token哈希/receipt无原文独立前置PR，B2逐库与非SQLite秘密清单及引用化/派生排除，真实Home维护另排；完整快照/恢复目标保留。
 - Claude是整条防腐线总统筹；本chat负责Codex侧按其范围、优先级、跨线依赖与全量排期接续。C1/C2两个实现chat已收到入口并开始只读准备，完整目标未缩小；不重复建chat，全部Codex修复/实现仍单writer。DeepSeek历史贡献与review-pr-fixer在途认领分别保留。
 - 修复1已交非Draft[#1174](https://github.com/molis-ai/molis-work/pull/1174) `5bbb4318697dbef4631e5db3870691c27fff2e94`，4文件+12/-5，仅两e2e同步与两原spec；已释放writer/build/browser。统筹已读真实bundle延迟旧点击0次→ready后严格pointer1次、旧document等待精确红→navigate-before-click完整AC4绿；完整main后续5+3/8及batch23同patch8/8保留。首次main-fixed7/8的Pages后段failed/Missing frame仍未归因，TEST接现有批次观察，不能称已修。原日志 `/tmp/molis-verify-2026-10-23/home-side-ci-recovery/handoff.md`；实际affected full=[]/storage=[]。REVIEW6380942452与TEST独立核原始diff/两有效探针/完整文件/门禁及最终affected均通过，无需重复本机运行；精确头CI40070310777待齐；Claude已公开合并认领6380951820，不重复入队。ac-review6380946827补充BL544侧视图加载守护（当前仅ac-shell领域归属，需具体实施接续）和R44；10s期限/负载只是候选解释，缺少原始mount失败原因，未定因。

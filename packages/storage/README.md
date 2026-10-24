@@ -39,6 +39,10 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 
 `inspectSealedSecretsSnapshot(home, ciphertext)` 只读核对所给的现行 v2 vault 与同 Home 原主密钥，逐条验证 AES-GCM，返回后端、条目数和 `{location, sha256}` 密钥身份引用；不返回 key 或正文，不创建目录、锁库或替代 key，不依赖现 Home 的 vault 是否完好。单独空 vault 没有密文依赖。`readSealedSecretSnapshotEntry` 是 owner 明确恢复时读取单条正文的端口；`readExistingSecret(home, authRef)` 对当前 vault 做同样的只读检查，并拒绝软/硬链接文件，不借用 store 缓存。它们不是普通诊断或 HTTP 返回接口；调用方仍负责自己的引用归属。已密封的 Runtime 原配置备份由其 owner 使用这些端口读取。
 
+`sealExistingHomePayload(home, binding, contents)` 与 `openExistingHomePayload(home, binding, payload)` 供明确的 owner 在内存中密封/恢复必要私有状态，使用同一 AES-GCM v2 core 与原 master。payload 的 AAD 绑定用途域、canonical Home 和 owner/install binding，与普通 vault 条目的用途隔离；vault 现行无 AAD 的读写格式不变，不读取旧的无用途绑定 payload。seal 要求已有现行 vault，open 按 payload 的原 backend/key 引用读取，即使活 vault 已损坏也可预检；二者都不初始化 store、锁、缓存或替代 key，不写活 vault、不落明文暂存、不返回 master。当前受管 CLI 使用它们密封整个私有目录的普通文件与权限，普通设置/Agent 状态不返回该正文。缺原 key 的恢复按 [HOME-DATA 的原后端恢复边界](../../docs/system/HOME-DATA.md#original-key-recovery)，不能用任意新 key 或切换后端代替。
+
+已有 v2 vault 的 backend 在 entries 为空时也保持绑定：正常重开不按新的环境偏好切换，原 key 缺失/无效即拒绝，不生成替代值；只有从未存在 vault 的首次初始化走原选择规则。单独空 vault inspection 的无密文依赖结论不代表 vault 外的 owner payload 没有依赖。
+
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
 `createEvidenceContentStore` 为 Feed 与研究等消费者保存受限大小的加密正文，Host 显式选择目录并固定 Home。`createSearchOpaqueBlobStore`、`createSearchAead`、`createSearchSecretStore` 为 SEL 提供持久化。历史 `molis-work-feed/sha256/...` 引用、密钥引用、恢复 overlay、密文格式及 `feed_runtime_blobs` 表名保持不变；旧 Feed 名称仅导出同一实现，不保留第二份存储。来源游标、研究策略和条目处置归消费者。正文按内容寻址、整个 Home 共用，本包看不到谁在引用：`EvidenceContentStore.delete` 删一份正文，`collect({ candidates, isReferenced })` 只删调用方数过引用、确认无人持有的候选；`createSearchOpaqueBlobStore` 返回的 `collect({ namespace, discard })` 按键删 SEL 操作记录（值保持密封、不被读取）。数引用的一方（Feed 删除来源）负责数全。
@@ -69,7 +73,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 - 不变量：
   - 密钥与正文存储跟随创建时的 Home，不靠切换全局变量混用目录。
   - 钥匙串主密钥读取失败后，同一进程、Home 与配置停止自动重试；不改密文、不自动降级到文件存储。
-  - 文件后端已有密文时必须读取原有的有效密钥；缺失或无效即拒绝读取、写入和后端诊断，不生成替代 key。恢复原 key 后可重新打开。回归见 [secret-store-missing-key.test.ts](../../tests/secret-store-missing-key.test.ts)。
+  - 已有现行 v2 vault（包括 entries 为空）时必须读取它绑定的原有有效密钥；缺失或无效即拒绝读取、写入和后端诊断，不生成替代 key。恢复原 key 后可重新打开。回归见 [secret-store-missing-key.test.ts](../../tests/secret-store-missing-key.test.ts)。
   - 密文快照预检必须只读，不创建锁/目录/key；密文中有任一条认证失败就整体拒绝，不能因活 vault 损坏而拒绝检查健康快照。明确恢复读取仍核原 key、普通单链接文件及调用 owner 的引用归属。
   - 只有部分操作需要凭据的服务用 `createLazyFileSecretStore`：读取尚未保存的引用不初始化后端。
   - 原子文件写入、日志与幂等记录由这里提供，Module 不各建一套。
@@ -78,7 +82,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
   - 索引切分：中日韩每字单独、相邻两字成词，其余字母数字按小写词、查询用前缀；候选必须在原文（NFKC、小写）里真实出现才返回，两字中文与 `Q4` 这类短词可查。
   - 正文由读取器提供的条目，只对能读该种类的调用来源返回。
   - 项目被删除时清掉它在个人库里的行：`clearInExistingHomeSqlite` 对已存在的库在一个写事务里运行删除（库不存在就不创建、版本不符照常拒绝）；`deleteSecretEntriesWithPrefix` 按引用前缀删密封的密钥，不解密；记忆账本的 `forgetScopes` 一并忘掉已不存在的范围。
-- 改动后必跑：`node scripts/run-tests.mjs tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/secret-store-keychain-retry.test.ts tests/secret-store-format.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts tests/system-search.test.ts tests/feed-local-history-delete.test.ts tests/project-deletion-owners.test.ts tests/project-deletion-studios.test.ts tests/security-invariants-secret-snapshot.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/secret-store-keychain-retry.test.ts tests/secret-store-format.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts tests/system-search.test.ts tests/feed-local-history-delete.test.ts tests/project-deletion-owners.test.ts tests/project-deletion-studios.test.ts tests/security-invariants-secret-snapshot.test.ts tests/security-invariants-connector-private-state.test.ts tests/security-invariants-home-payload-purpose.test.ts tests/security-invariants-connector-private-state-limits.test.ts tests/secret-store-missing-key.test.ts`
 - 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

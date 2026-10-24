@@ -22,7 +22,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | #1150 | 机械同步 main（Codex 自己的 PR） | 二轮可合；同步后入队 |
 | #1151 | `serve` 第一行留在 stdout（统筹裁定） | 改完统筹看一眼即入队 |
 | #1137 | 合并 Agent 02:18 手动取出、没写原因 | 现在又在队里；若再被取出要在 PR 上写原因 |
-| batch-1024-19 | 统筹起的（#1130、#1157、#1148），run 40054696653 | 结果对 `known-red-main.md`；绿后按 #1130 → #1157（第 5 条改投 main 后合一次）→ #1148 合 |
+| batch-1024-19 | 统筹起的（#1130、#1157、#1148），run 40054696653：**红**（home-offers、web-home-isolation 是旧 #1130 头，新头已改；touch-targets 两主题确定性失败，已交 `ac-sc3`） | 不再处理旧批；**batch-20 由 Claude 统筹起**，等 `ac-sc3` 回 #1130/#1157 新头，Codex 不另起 |
 | #1098、#1107、#1112 | 作者合 main 后进下一批；**`full` 非空，不进批不能入队**（10-24 03:04 #1098 被直接入队，统筹已取出并在 PR 上写了原因） | batch-19 试合时 W5-06 链与 main 冲突 3 个文件 |
 | `known-red-main.md` | 补一条：`tests/agent-studio.e2e.test.ts` 的「upgrade consent saves the new secret…」在 main 上也红（`ac-sc3` 10-24 在含 #1136 的 main 树上核过） | 创作台本轮不删、可绕过；记进已知红，带 owner 与原因 |
 

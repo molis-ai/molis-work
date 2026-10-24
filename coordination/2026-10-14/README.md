@@ -3596,3 +3596,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-24：#1127（隔离页 link 通道、SYS-15-U10 flake）合入 `c0b48111b`；#1159（BL-540～542）合入 `f4df5b471`，工作树 ac-coord-docs 已删。
 - 10-24 03:50：#1128、#1151（C1 首片）、#1150 合入。batch-1024-19 红：home-offers、web-home-isolation 是旧 #1130 头所致（新头 `fb22b7dc1` 已改）；touch-targets 第 659 行两主题确定性失败，交 `ac-sc3` 定性并把 main 合进 #1130/#1157；batch-20 由 Claude 统筹等新头再起。
 - 10-24 04:10：#1120、#1141 合入。batch-1024-20 起（#1148、#1119、#1139，run 40061024962）；SC-4 组因 #1120 又冲突，`ac-sc3` 再同步后单起 batch-21。touch-targets 定性为 SC-4 预期变化，夹具修好、断言原样。
+- 10-24 04:30：#1125 合入。两条本地开发线开着（同时最多两条）：`ac-clients-1` 做 R11（先于灵光），`ac-giants` 开工 W5-10 设计系统（RAC-370～379、BL-550～554）；都不开 PR，积压降到 10 以下再开。

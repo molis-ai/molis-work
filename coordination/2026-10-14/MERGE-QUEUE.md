@@ -54,9 +54,10 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 新 | [#1175](https://github.com/molis-ai/molis-work/pull/1175) | `ac-giants` 代做：ac-artifacts 设计稿（PG-077～079、096、097、107） | — | 纯文档（设计稿不占 15 个名额） | 头 `b3e7443a5`（合 main，remerge-diff 只有 BACKLOG 并列）；ac-review 可合；**10-24 07:05 UTC 统筹认领、设自动合并** |
 | 新 | [#1176](https://github.com/molis-ai/molis-work/pull/1176) | 统筹：BACKLOG 加 BL-543（设置地址只转声明参数，R-42）、BL-544（侧视图加载守护） | — | 纯文档 | 头 `cb8795f57`（合 main 解 BACKLOG 冲突，两边并列）；自动合并已设 |
 | 新 | [#1178](https://github.com/molis-ai/molis-work/pull/1178) | `ac-giants` W5-10 R4a：设计系统 4 个巨大单元纯搬移 | — | 进下一批（改 `packages/design-system`，有 full） | 头 `203dd7679`；**ac-review 一轮可合**（6381232708：拼出的样式逐字相同、导出与 API 快照不变、巨大单元 113→109、`plugin-builder.js` +2540 字节一次性放行数字对）；等进下一批全量 |
-| 新 | [#1179](https://github.com/molis-ai/molis-work/pull/1179) | `ac-giants` W5-10 R4d | — | 进下一批（有 full） | 头 `bbc790f62`；排在 #1178 后交 ac-review；`ac-giants` 在审已满两个，暂不开新 PR |
+| 新 | [#1179](https://github.com/molis-ai/molis-work/pull/1179) | `ac-giants` W5-10 R4d | — | 进下一批（有 full） | 头 `bbc790f62`；ac-review 一轮**修后可合**（6381305640）：挡合并 1 条（`pages-plugin.test` 改指 `editor-view-props.ts` 后不再钉编辑器接法，补三条对 `editor-browser.ts` 的断言），07:2x UTC 交 ac-giants；巨大单元 113→111 |
 | 新 | [#1180](https://github.com/molis-ai/molis-work/pull/1180) | `ac-clients-1` W5-03/04 灵光页面客户端（稳定键、打包类型检查） | 叠在 #1169（base `ac-r11-intake`）；#1169 合入后改 base 为 main | 进下一批（有 full） | 头 `5e26ba1ef`；本机跑过 4 个灵光浏览器文件；7 个未跑的列在「待测（交 Codex 测试专职）」；排在 #1179 后交 ac-review |
 | 新 | [#1181](https://github.com/molis-ai/molis-work/pull/1181) | `ac-kernel` R8 第 3 批：agent-host typed 改动作 | 叠在 #1148（base `ac-kernel/r8-agent-typed-to-actions-2`）；#1148 合入后改 base 为 main | 进下一批（full: true） | 头 `132bc0cb6`；**ac-review 一轮可合**（6381277540，只看 #1148 之外：14 条首登动作 v1、身份只从调用者取、waitRun concurrent+beforeEffect）；非阻塞 1 条交 Codex 修复队列；base 不是 main、CI 没跑，#1148 合入改 base 后以 CI 与全量为准；第 4 批等 #1148 合入再开 |
+| 待开 | `ac-clients-dataset`（未开 PR） | `ac-clients-1` W5-03/04 Dataset 页面客户端 | — | 进批（affected-tests 建议全量，assembly） | 头 `ffaa656f0`（已合 main d28794061）；本机门禁与 6 个浏览器文件过；`ac-clients-1` 在审已满两个（#1167、#1180），其中一个合入后再开 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 已按用户要求转为非 Draft；收尾时合 main |
 
 

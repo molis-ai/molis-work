@@ -551,3 +551,52 @@ A. 文件删除后两处活文档仍把它写成现存接线：`skills/molis-plu
 - **无 blocker。** 存量代码与防腐要求的实质不一致集中在已知在治的迁移片（PG 状态待做/PG-007 stage4/PG-020/PG-021 等）与已记录的门禁盲区；本次新增的全是 non-blocker 文档/门禁卫生问题（AC-AUDIT-01..16，除 05 为 P2 存量 HANDOFF、06 已实现待合）。
 - 建议下一步只做一批低风险收口：统筹批量写 E1–E22 + AC-AUDIT-12..16（纯文档），ac-shell 顺手清 AC-AUDIT-07，安全线清 AC-AUDIT-08/10（门禁+文档），其余按原路线；#1168 等 CI 绿后合入并把 §6.2/E14 标 done。
 - 后续若 main 前进：刷新基准后复跑 13.1 的 5 条只读命令，再复核受影响的 E/AC 条目（尤其 privileges/SSOT 若被批量写过，E 清单按 PG 编号定位而非行号）。
+
+## §6.4 task-13 / #1168 二次复核（2026-10-24 晚，基准 main 8aa62a65b）
+
+- head `98906bfadd2c0a602aec090b687f4a92db0d8c03`（非 draft，OPEN；此前 8d748bd3b draft、cb3440a02 文档同步）。
+- task-16 修改核对（diff 89c9a7194..98906bfad）：
+  * `apps/local-host/src/native-plugin-api.ts`：删 `BUILTIN_PLUGIN_CATALOG` import 与动态遍历生成别名的逻辑，别名表只剩 `{ functions: "functions", "io.molis.work.functions": "functions" }`；`rewriteNativePluginApiPath` 与 `withRewrittenPluginApi` 导出保留（`apps/local-host/src/functions-http.ts:22` 仍用）。
+  * `tests/personal-plugins-review-fixes.test.ts`：反向断言 form/pages 路径不再改写（`/api/plugins/pages/abc/promote`、`/api/plugins/io.molis.work.form` 原样返回）；functions 的 `/api/plugins/functions`↔`/api/functions`、`/api/plugins/io.molis.work.functions/items`↔`/api/functions/items` 断言保留。
+  * 无其它误删：personal 文件删除、web-request 显式 alchemist 直连、冻结名单 5→4、baseline 只降（testInternalImports 444→443、该测试文件 import 6→5）。
+  * PR body 已补 affected-tests 与别名收窄说明；CI 对 98906bfad 全部重新排队（快照时 QUEUED，Linux probe SKIPPED）。
+- 结论：task-13 v2 清单 + task-16 修正均按预期；等 CI 全绿后由统筹合入。
+- 遗留（非阻塞）：`docs/system/RUNTIME-MIGRATION.md:150` 仍描述「文档族客户端…由 native-plugin-api.ts 改写成 /api/<短名>/…」，现在只剩 functions 适配 → 记 AC-AUDIT-16 后续文档项（W6-01 文档片）。
+
+## §14 第 9 轮（2026-10-24 晚）：刷新复核 + #1168 复核 + task-17 派单
+
+### 14.1 基准刷新（main `8aa62a65b`）
+
+main 自 89c9a7194 新增两个提交：#1163（`8aa62a65b` docs(plugin-sdk) 修正插件指令统一运行时登记说明）、#1161（`a934251d3` local-host 写后检查设置路由规格引用）——均文档。
+
+5 条只读命令全绿：
+
+- `node scripts/gates/package-inventory.mjs --check` → 「Package inventory holds 71 packages, all matching the code.」
+- `node scripts/workspace-packages.mjs --check` → uniquePackageNames 71（ids unique）、contractSubpaths 67、errors []
+- `node scripts/package-owners.mjs` → 「owners ok: 71 packages, .github/CODEOWNERS and docs/SSOT-MATRIX.md match the rules」
+- `node scripts/gates/dom-events.mjs --report` → 8 条既有差距（均已在 UI-PLATFORM「现状与例外」登记）
+- `node scripts/check-health-gates.mjs --report` → exit 0
+
+diff 影响：`git diff 89c9a7194..8aa62a65b -- specs/repository-anti-corruption/privileges.md docs/SSOT-MATRIX.md docs/system/SECURITY-INVARIANTS.md` 为空 → 第 2/3 轮 E1–E22、第 8 轮 AC-AUDIT-12..15 的现象与行号全部未变，无需重定位；本表改文可在该基准直接应用。
+
+### 14.2 #1168（task-13）复核
+
+见 §6.4：可合（等 CI 绿）。第一次复核（8d748bd3b）PASS per §6.2 v2，§6.3 已记录；二次复核（98906bfad）task-16 修正 PASS，无新增 blocker。
+
+提示统筹：合并入 main 后 PG-058 由 5 份改 4 份（E14 预留），`docs/system/RUNTIME-MIGRATION.md:150` 留作 AC-16 后续。
+
+### 14.3 task-17 派单（owner review-fix-owner，纯文档）
+
+- AC-08：SECURITY-INVARIANTS.md:61（S-47 本机列）补 `tests/security-invariants-plugin-drafts.e2e.test.ts`「SYS-15-D1 …」；门禁正则扩 `.e2e` 待用户批，本轮不动脚本。
+- AC-09：:52（S-38 代码位置）标明四个 `packages/sdk/...`、`crates/prologue-host-tauri/...` 路径属 Prologue 仓库（不在本仓）。
+- AC-10：§1 第 7/8 行 CI/本机口径改为「三处集合」与「浏览器用例 CI skip、probe 不跑浏览器」；建议同改 S-31 本机列（home-plugin-platform.test.ts 实为 test:security 在跑）。
+- AC-11：四个测试注释加 S-16/19/22/23 编号。
+- 验收：只改 5 个文件、`node scripts/check-health-gates.mjs --report` exit 0。
+
+### 14.4 覆盖矩阵更新
+
+无新增 FAIL。AC-AUDIT-01..04 仍 FAIL（待派修）；AC-05 HANDOFF-TO-CODEX；AC-06/07 已完成/转统筹；AC-08..16 已交付 edit 或派单（AC-08..11 task-17，AC-12..15 待统筹批量写 SSOT/privileges）。
+
+### 14.5 下一轮
+
+task-17 PR 出现后只读复核；#1168 合入后把 E14 标记完成；主题 h（manifest 声明 vs 实际消费）若继续（建议清单：声明了 actions/views/artifacts/process_items 但无消费者的条目；有消费但未声明的调用；页面不在 manifest 里的残留）。

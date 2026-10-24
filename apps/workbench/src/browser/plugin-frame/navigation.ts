@@ -10,7 +10,7 @@ export function pageNavigation(scope: FrameScope, port: MessagePort, side: boole
   // The channel keeps focus after the visibility message, including a previously hidden side view.
   const focus = () => { if (side && scope.visible && document.hasFocus()) port.postMessage({ type: "focus" } satisfies FrameDown); };
   scope.listen(window, "focus", focus);
-  return { shortcuts, focus, todoAvailable: () => owner.body.hasAttribute("data-todo-available"), receive(message: Extract<FrameUp, { type: "shortcut" | "close-side" }>) {
+  return { shortcuts, focus, receive(message: Extract<FrameUp, { type: "shortcut" | "close-side" }>) {
     if (!scope.visible) return;
     if (message.type === "close-side") {
       if (side && parent !== window) parent.postMessage({ type: "molis:side-close" }, location.origin);

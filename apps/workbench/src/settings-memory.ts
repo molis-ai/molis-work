@@ -41,7 +41,7 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
       <div class="memory-items-head"><h2 id="memory-items-title">${personal ? L("我的记忆") : L("这个项目的记忆")}</h2>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-add>${L("添加")}</button></div>
       <div class="memory-toolbar" role="group" aria-label="${L("筛选记忆")}">
-        ${filter("scene", "场景", [["", "全部场景"], ["coding", "Coding"], ["assistant", "助理"], ["common", "通用"], ["unclassified", "未分类"]])}
+        ${filter("scene", "场景", [["", "全部场景"], ["coding", "Coding"], ["assistant", "助理"], ["common", "通用"], ["unclassified", "未归类"]])}
         ${filter("kind", "类别", [["", "全部类别"], ["preference", "偏好"], ["convention", "约定"], ["fact", "背景事实"], ["experience", "经验"], ["habit", "习惯"], ["project-decision", "项目决策"]])}
         ${filter("lifecycle", "保留时间", [["", "全部保留类型"], ["long-term", "长期"], ["short-term", "短期"], ["session", "会话内"]])}
         ${filter("source", "来源", [["", "全部来源"], ["said", "你说的"], ["accepted", "你认可的"], ["auto", "自动记住"], ["manual", "手动添加"], ["imported", "导入"], ["plugin", "插件记下"]])}
@@ -331,7 +331,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     }
 
     const classificationText = classification => classification
-      ? classification.scenes.map(scene => L(CLASS[scene] || scene)).concat(L(CLASS[classification.lifecycle] || classification.lifecycle)).join(" · ") : L("未分类");
+      ? classification.scenes.map(scene => L(CLASS[scene] || scene)).concat(L(CLASS[classification.lifecycle] || classification.lifecycle)).join(" · ") : L("未归类");
     const expiryText = expires => expires ? new Date(expires).toLocaleString() : L("无固定期限");
 
     function classificationFields(item) {
@@ -497,7 +497,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         meta.append(el("span", "memory-tag", L(KIND[item.kind] || CLASS[item.kind] || item.kind)));
         const classification = item.classification;
         meta.append(el("span", "memory-tag", classification
-          ? classification.scenes.map(scene => L(CLASS[scene] || scene)).concat(L(CLASS[classification.lifecycle] || classification.lifecycle)).join(" · ") : L("未分类")));
+          ? classification.scenes.map(scene => L(CLASS[scene] || scene)).concat(L(CLASS[classification.lifecycle] || classification.lifecycle)).join(" · ") : L("未归类")));
         if (item.scope === "character") meta.append(el("span", "memory-tag memory-tag--character", L("角色") + "「" + (item.character_title || item.character_id) + "」"));
         if (item.plugin_id) meta.append(el("span", "memory-tag", L("插件") + " " + item.plugin_id));
         meta.append(el("span", "memory-tag memory-tag--" + item.source, L(SOURCE[item.source] || item.source) + " " + day(item.created_at)));

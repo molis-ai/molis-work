@@ -237,8 +237,10 @@ describe("the records of this repository", () => {
     assert.equal(record.patches.length, 26);
     assert.equal(record.packagesWithoutPatch.length, 32);
     // The repeated memory-p0 filename keeps its first archived version; later versions are recorded in notes.
-    assert.equal(record.packagesWithoutPatch.at(-2).file, "prologue-sdk-0.0.0-rc.1-attachment-order.tgz");
-    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-memory-p0.tgz");
+    assert.deepEqual(record.packagesWithoutPatch.slice(-2).map((item: { file: string; sha256: string }) => ({ file: item.file, sha256: item.sha256 })), [
+      { file: "prologue-sdk-0.0.0-rc.1-attachment-order.tgz", sha256: "f39224701ae52eeeb7251e4486d32ee2c3c93a798c997f5764103e127280ceea" },
+      { file: "prologue-sdk-0.0.0-rc.1-memory-p0.tgz", sha256: "119feb645c13f6d7ec1f288e42f0b68d95031e268826ca014da2c26346394bb1" },
+    ]);
     assert.equal(record.packagesWithoutPatch.at(-1).commit, "f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512");
     assert.equal(record.patches.reduce((sum: number, patch: { bytes: number }) => sum + patch.bytes, 0), 2_791_897);
     const kinds = record.patches.reduce((count: Record<string, number>, patch: { sourceKind: string }) => ({ ...count, [patch.sourceKind]: (count[patch.sourceKind] ?? 0) + 1 }), {});

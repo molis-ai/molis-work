@@ -14,7 +14,8 @@ import { copyFromPage } from "./clipboard.js";
 import { frameContext } from "./context.js";
 import { pageDrafts } from "./drafts.js";
 import { pageNavigation } from "./navigation.js";
-import { pageTodo } from "./todo.js";
+import { pageIntake } from "./intake.js";
+import { subjectSurfaces } from "./subjects.js";
 import { pageModal } from "./modal.js";
 import { pagePresentation } from "./presentation.js";
 import { pageFilePicker } from "./file-picker.js";
@@ -75,6 +76,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   if (!scope) throw new Error("View is already mounted");
   try {
   const grant = pack.authorization ?? await molisWorkRequest<{ page_id: string; storage_scope: string }>(route("/api/host/plugin-pages"), { body: { plugin_id: pack.plugin_id }, scope });
+  const surfaces = await subjectSurfaces(route, scope);
   scope.assertCurrent();
   root.dataset.pluginPage = grant.page_id;
   const storagePrefix = "molis-plugin-page:" + grant.storage_scope + ":", storage = stored(storagePrefix);
@@ -87,7 +89,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const contextMessage = frameContext(port, scope, root, frame, pack.plugin_id, grant.page_id);
   const drafts = pageDrafts(port, scope, storagePrefix), navigation = pageNavigation(scope, port, Boolean(host.side));
   const receiveMessage = pageMessages(port, scope, pack.plugin_id, Boolean(host.side));
-  const makeTodo = pageTodo(port, scope, frame, grant.page_id, route);
+  const makeIntake = pageIntake(scope, frame, root);
   const placement = pagePlacement(port, scope, root, frame);
   const presentation = pagePresentation(scope, frame, root, pack, grant.page_id);
   const modal = pageModal(scope, frame);
@@ -131,7 +133,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "embed-open" || message.type === "embed-layout" || message.type === "embed-close") { void embed(message); return; }
     if (message.type === "fetch" || message.type === "abort" || message.type === "pull") { void requests(message); return; }
     if (message.type === "draft") { void drafts(message); return; }
-    if (message.type === "make-todo") { void makeTodo(message); return; }
+    if (message.type === "context-intake") { makeIntake(message); return; }
     if (message.type === "presentation") { presentation(message); return; }
     if (message.type === "modal") { modal(message.open); return; }
     if (message.type === "interaction") { if (scope.visible) window.dispatchEvent(new CustomEvent("molis:surface-interaction")); return; }
@@ -177,7 +179,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   frame.onload = () => {
     if (loaded) { fail(new Error("Plugin page navigated")); scope.dispose(); return; }
     loaded = true;
-    const config: FrameConfig = { todoAvailable: navigation.todoAvailable(), origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, surface: pack.id,
+    const config: FrameConfig = { subjectSurfaces: surfaces, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, surface: pack.id,
       stage: { title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)), description: getComputedStyle(root).getPropertyValue("--stage-desc") },
       nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts,
       projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,

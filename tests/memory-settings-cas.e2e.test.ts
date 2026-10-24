@@ -85,7 +85,7 @@ test("Memory page continues after an empty scan, preserves unknown totals and se
   assert.equal(f.reads.at(-1)?.cursor, "fixed-query-page-2"); assert.equal(f.reads.at(-1)?.query, "周报");
   assert.match(await f.page.evaluate<string>("document.querySelector('[data-memory-summary]').textContent"), /总数未知/, "last page does not invent a total");
   assert.equal(await f.page.evaluate("document.querySelector('[data-memory-next]').disabled"), true);
-  assert.match(await f.page.evaluate<string>("document.querySelector('[data-memory-id=expired] .memory-meta').textContent"), /未分类/);
+  assert.match(await f.page.evaluate<string>("document.querySelector('[data-memory-id=expired] .memory-meta').textContent"), /未归类/);
   assert.match(await f.page.evaluate<string>("document.querySelector('[data-memory-id=expired] .memory-meta').textContent"), /已到期/);
   assert.equal(await f.page.evaluate("document.querySelector('[data-memory-id=expired] [data-mw-state=disabled]')"), null, "expiry is not a fabricated disabled state");
   // M3's formal-management contract now includes all six kinds; expiry is still a separate restriction.
@@ -317,7 +317,7 @@ test("Memory text editing preserves null and unknown classification values inste
     await f.page.click(item() + " " + textButton("修改"));
     await f.page.click(item() + " .memory-origin summary");
     const shown = await f.page.evaluate<string>(`document.querySelector('${item()} .memory-origin').textContent`);
-    assert.ok(shown.includes(classification?.lifecycle === "future-lifecycle" ? "future-lifecycle" : classification ? "future-scene" : "未分类"));
+    assert.ok(shown.includes(classification?.lifecycle === "future-lifecycle" ? "future-lifecycle" : classification ? "future-scene" : "未归类"));
     await f.page.fill(item() + " textarea", "保留未知分类的正文修改");
     await f.page.click(item() + " button[type=submit]");
     await f.page.wait("!document.querySelector('[data-memory-id=active] textarea')");

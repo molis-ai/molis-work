@@ -16,6 +16,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 | PR | 要做的 | 说明 |
 | --- | --- | --- |
+| 并发规矩（10-24 05:00 起） | 只在 PR 对 main **DIRTY** 时机械同步，单纯 BEHIND 不同步（合并队列在合并结果上验；每推一次占一轮 CI）；集成批只由 Claude 统筹起、同一时间一批 | 细则见 `LINES.md` 末尾：全量 40～67 分钟、一次只够跑一批；合并队列一小时 3～5 个 |
 | #1147 | `ac-review` 已核 `36f137eaa` 可合 | 又对 main 冲突（DIRTY），机械同步后 Verify 绿即入队，不再跑全量 |
 | #1120 | 机械同步 main | 二轮可合、batch-16 绿；同步后 Verify 绿即入队 |
 | #1126、#1127 | 机械同步 main | 统筹一轮可合；#1127 改了安全不变量，解完核 S-47 行仍点名本 PR 的用例、S 号连续 |

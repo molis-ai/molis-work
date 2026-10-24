@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createFeedEvidenceContentStore } from "@molis-ai/molis-work-module-feed";
 import {
   createFileSecretStore,
   createEvidenceContentStore,
@@ -45,7 +44,7 @@ test("Molis Work Feed secrets and retained content are AES-GCM sealed", () => {
       assert.ok(sealed);
       assert.equal(sealed!.includes("github-secret-value-123"), false);
 
-      const content = createFeedEvidenceContentStore({ secretStore: secrets });
+      const content = createEvidenceContentStore({ secretStore: secrets });
       const written = content.write("# Private retained body\n\nfull text");
       assert.equal(content.read(written.contentRef), "# Private retained body\n\nfull text");
       const digest = written.contentRef.split("/").at(-1)!;
@@ -64,7 +63,7 @@ test("retained content recovery re-seals a migrated hash without overwriting unr
   try {
     withFeedHome(directory, () => {
       const secrets = createFileSecretStore();
-      const content = createFeedEvidenceContentStore({ secretStore: secrets });
+      const content = createEvidenceContentStore({ secretStore: secrets });
       const markdown = "# Migrated feed body\n\nThe original ciphertext must remain untouched.";
       const written = content.write(markdown);
       const digest = written.contentRef.split("/").at(-1)!;
@@ -72,7 +71,7 @@ test("retained content recovery re-seals a migrated hash without overwriting unr
       const originalCiphertext = readFileSync(originalPath, "utf8");
 
       secrets.deleteIfPresent("system:feed:evidence-content-key:v1");
-      const migrated = createFeedEvidenceContentStore({ secretStore: secrets });
+      const migrated = createEvidenceContentStore({ secretStore: secrets });
       assert.throws(() => migrated.read(written.contentRef), /key unavailable/u);
       assert.deepEqual(migrated.write(markdown), written);
       assert.equal(migrated.read(written.contentRef), markdown);
@@ -128,7 +127,7 @@ test("SecretStore preserves its populated backend and refuses silent key rotatio
 });
 
 
-test("Storage reads deployed Feed ciphertext and both public APIs keep the same references", () => {
+test("Storage reads deployed Feed ciphertext and two stores over one home keep the same references", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-evidence-compatibility-"));
   try {
     withFeedHome(directory, () => {
@@ -148,13 +147,13 @@ test("Storage reads deployed Feed ciphertext and both public APIs keep the same 
       const filename = join(bucket, `${digest}.blob`);
       writeFileSync(filename, ciphertext);
       const current = createEvidenceContentStore({ secretStore: secrets });
-      const legacy = createFeedEvidenceContentStore({ secretStore: secrets });
+      const second = createEvidenceContentStore({ secretStore: secrets });
       assert.equal(current.read(ref), markdown);
-      assert.equal(legacy.read(ref), markdown);
+      assert.equal(second.read(ref), markdown);
       assert.deepEqual(current.write(markdown), { contentRef: ref });
       assert.equal(readFileSync(filename, "utf8"), ciphertext, "existing ciphertext is not rewritten");
-      assert.equal(legacy.read(current.write("New shared evidence").contentRef), "New shared evidence");
-      assert.equal(current.read(legacy.write("Old caller's evidence").contentRef), "Old caller's evidence");
+      assert.equal(second.read(current.write("New shared evidence").contentRef), "New shared evidence");
+      assert.equal(current.read(second.write("Second caller's evidence").contentRef), "Second caller's evidence");
       assert.throws(() => current.read("molis-work-feed/sha256/../../outside"), /reference rejected/);
       assert.throws(() => current.write("x".repeat(1_048_577)), /retention limit/);
     });

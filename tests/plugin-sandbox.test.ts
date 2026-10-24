@@ -123,6 +123,29 @@ test('SDK reaches the declared files by relative path and bounded base64 only, a
   } finally { await f.close(); }
 });
 
+test('SDK reads a page on this machine and the saved original file in parts, passing the first revision back, and the plugin never sees an address or a path (S-66)', mac, async () => {
+  const effects: SandboxEffects = { materials: ['fetch_local', 'original'] };
+  const file = Buffer.alloc(600 * 1024, 7), revision = 'a'.repeat(32), seen: string[] = [];
+  const f = await fixture(`export const operations={run:async(_,sdk)=>{
+    await sdk.materials.claimOriginal('doc');
+    const whole=await sdk.materials.readOriginal('doc');
+    let small,bad; try{await sdk.materials.readOriginal('doc',{maxBytes:1000})}catch(e){small=e.code} try{await sdk.materials.readOriginal('doc',{maxBytes:0})}catch(e){bad=e.code}
+    const page=await sdk.materials.readLocalPage('http://127.0.0.1:9/page');
+    await sdk.materials.releaseOriginal('doc');
+    return JSON.stringify([whole.bytes.length,Buffer.from(whole.bytes).subarray(0,2).toString('hex'),small,bad,page.text,Object.keys(sdk.materials).sort()]);
+  }};`, { effects, grants: effects, services: { materials: {
+    async claimOriginal(key) { seen.push(`claim:${key}`); },
+    async readOriginalRange(key, request) { seen.push(`range:${key}:${request.offset}+${request.length}:${request.revision ?? '-'}`); return { bytes: file.subarray(request.offset, request.offset + request.length), size: file.length, revision }; },
+    async releaseOriginal(key) { seen.push(`release:${key}`); },
+    async readLocalPage(url) { seen.push(`page:${url}`); return { text: '本机页面', title: undefined, extractor: 'probe', pages: [], coverage: { status: 'sufficient', processed_pages: 1, total_pages: 1, issues: [] } }; },
+  } } });
+  try {
+    assert.equal(await f.runner.call('run', ''), JSON.stringify([614400, '0707', 'material.original.too_large', 'sandbox.invalid_request', '本机页面',
+      ['claimOriginal', 'extract', 'imageTextAvailable', 'readDocuments', 'readLocalPage', 'readOriginal', 'releaseOriginal']]));
+    assert.deepEqual(seen, ['claim:doc', 'range:doc:0+262144:-', `range:doc:262144+262144:${revision}`, `range:doc:524288+262144:${revision}`, 'range:doc:0+262144:-', 'page:http://127.0.0.1:9/page', 'release:doc']);
+  } finally { await f.close(); }
+});
+
 test('SDK requests run in the operation that made the call, not in the one that started the process', mac, async () => {
   const effects = { capabilities: ['who'] };
   const seen: string[] = [];

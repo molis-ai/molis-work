@@ -17,6 +17,22 @@ export interface PluginOriginalRequest {
 export interface PluginOriginalContent {
   readonly bytes: Uint8Array;
 }
+/**
+ * One part of an original file: `length` bytes from `offset`. A later part passes the `revision` an earlier part answered, so that a file
+ * changed in between is refused instead of read as a mixture of two files.
+ */
+export interface PluginOriginalRangeRequest {
+  readonly offset: number;
+  readonly length: number;
+  readonly revision?: string;
+  readonly signal?: AbortSignal;
+}
+/** A part of an original file with the file's whole size and an opaque revision of it (a digest of what identifies the file and its last change; never a path). */
+export interface PluginOriginalRangeContent {
+  readonly bytes: Uint8Array;
+  readonly size: number;
+  readonly revision: string;
+}
 
 /**
  * The Host's existing material readers. Available only to Host-executed plugins, inside their own concurrent actions.
@@ -53,6 +69,12 @@ export interface PluginMaterialsClient {
    * file and fit the cap. It lists no directory and writes nothing.
    */
   readOriginal?(record_key: string, request?: PluginOriginalRequest): Promise<PluginOriginalContent>;
+  /**
+   * Present for materials:original. Reads one part of that file, with every check `readOriginal` makes, for a caller that cannot take the
+   * whole file at once (a sandboxed plugin reads it in parts over its channel). Each part is a read of its own: it rechecks the running
+   * action and the grant, and the file's identity before and after.
+   */
+  readOriginalRange?(record_key: string, request: PluginOriginalRangeRequest): Promise<PluginOriginalRangeContent>;
   /** Present for materials:original. Forgets one registration (the plugin's record was deleted). */
   releaseOriginal?(record_key: string): Promise<void>;
 }

@@ -1,5 +1,5 @@
 import { ActionError, defineErrorCodes, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { MaterialSourceContent, PluginLocalPageRequest, PluginManifest, PluginMaterialDocumentsRequest, PluginMaterialRequest, PluginMaterialsClient, PluginOriginalContent, PluginOriginalRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { MaterialSourceContent, PluginLocalPageRequest, PluginManifest, PluginMaterialDocumentsRequest, PluginMaterialRequest, PluginMaterialsClient, PluginOriginalContent, PluginOriginalRangeContent, PluginOriginalRangeRequest, PluginOriginalRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MaterialDocumentBatch, MaterialExtraction, MaterialSource, MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
 import { currentPluginAction, inPluginInstance, type PluginInstance } from "./action-scope.js";
 
@@ -40,6 +40,8 @@ export interface PluginMaterialsPort {
   claimOriginal?(key: PluginOriginalFileKey, path: string, options: PluginMaterialsDispatch): Promise<void>;
   readOriginal?(key: PluginOriginalFileKey, options: PluginMaterialsDispatch & { readonly maxBytes?: number }): Promise<Uint8Array>;
   releaseOriginal?(key: PluginOriginalFileKey, options: PluginMaterialsDispatch): Promise<void>;
+  /** One part of the registered file, with the file's size and an opaque revision (PluginOriginalRangeRequest); the Host checks the bounds. */
+  readOriginalRange?(key: PluginOriginalFileKey, options: PluginMaterialsDispatch & Pick<PluginOriginalRangeRequest, "offset" | "length" | "revision">): Promise<PluginOriginalRangeContent>;
 }
 export interface PluginMaterialsGate extends PluginInstance {
   /** The project this activation runs in, from the Host's start list; `null` for a Home-level activation. */
@@ -109,6 +111,10 @@ export function createPluginMaterialsClient(manifest: PluginManifest, port: Plug
     ...(original?.readOriginal ? { readOriginal: async (record_key: string, request: PluginOriginalRequest = {}): Promise<PluginOriginalContent> => {
       const key = originalKey(record_key);
       return { bytes: await run("materials:original", { signal: request.signal }, options => original.readOriginal!(key, { ...options, maxBytes: request.maxBytes })) };
+    } } : {}),
+    ...(original?.readOriginalRange ? { readOriginalRange: async (record_key: string, request: PluginOriginalRangeRequest): Promise<PluginOriginalRangeContent> => {
+      const key = originalKey(record_key), { offset, length, revision } = request;
+      return run("materials:original", { signal: request.signal }, options => original.readOriginalRange!(key, { ...options, offset, length, revision }));
     } } : {}),
     ...(original?.releaseOriginal ? { releaseOriginal: async (record_key: string) => {
       const key = originalKey(record_key);

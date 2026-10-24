@@ -3175,6 +3175,7 @@ export interface PluginMaterialsClient {
     readLocalPage?(url: string, request?: PluginLocalPageRequest): Promise<MaterialExtraction>;
     claimOriginal?(record_key: string): Promise<void>;
     readOriginal?(record_key: string, request?: PluginOriginalRequest): Promise<PluginOriginalContent>;
+    readOriginalRange?(record_key: string, request: PluginOriginalRangeRequest): Promise<PluginOriginalRangeContent>;
     releaseOriginal?(record_key: string): Promise<void>;
 }
 
@@ -3305,6 +3306,19 @@ export interface PluginNotificationReceipt {
 
 export interface PluginOriginalContent {
     readonly bytes: Uint8Array;
+}
+
+export interface PluginOriginalRangeContent {
+    readonly bytes: Uint8Array;
+    readonly size: number;
+    readonly revision: string;
+}
+
+export interface PluginOriginalRangeRequest {
+    readonly offset: number;
+    readonly length: number;
+    readonly revision?: string;
+    readonly signal?: AbortSignal;
 }
 
 export interface PluginOriginalRequest {

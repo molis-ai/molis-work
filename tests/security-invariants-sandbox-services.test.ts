@@ -38,8 +38,6 @@ test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not gi
     ["instructions", declaring({ instructions: [{ prompt_id: "probe", version: 1, owner_id: PLUGIN_ID, title: "probe", body: "probe", layer: "task" } as never] }), []],
     ["materials", declaring({}, {}, [permission("materials:fetch", true)]), []],
     ["materials", declaring({}, {}, [permission("materials:fetch", false)]), ["materials:fetch"]],
-    ["materials", declaring({}, {}, [permission("materials:fetch_local", true)]), []],
-    ["materials", declaring({}, {}, [permission("materials:original", false)]), ["materials:original"]],
     ["background", declaring({}, { background: { jobs: [{ job_id: "probe" } as never] } }), []],
     ["background", declaring({}, { actions: [{ action: { background_job: { label: "probe" } } } as never] }), []],
     ["agent", declaring({ agent_prompts: [{ prompt_id: "probe", version: 1, body: "probe", layer: "role" }] }), []],

@@ -33,8 +33,13 @@ export interface SandboxEffects {
   projectDatabase?: Array<'read' | 'write'>;
   /** Slots of the Manifest's `connections.slots` the operation sends requests through (`sdk.connections`); the plugin's package also declares `connections:use`. */
   connections?: string[];
-  /** `read`: the Host's document and file readers (`sdk.materials`); the plugin's package also declares `materials:read`. */
-  materials?: Array<'read'>;
+  /**
+   * `read`: the Host's document and file readers (`sdk.materials`); the plugin's package also declares `materials:read`.
+   * `fetch_local`: `readLocalPage`, a page on this machine that the Host fetches and answers as extracted text (`materials:fetch_local`).
+   * `original`: `claimOriginal`, `readOriginal` and `releaseOriginal`, the file the person handed the Host's entry, by the plugin's own key
+   * (`materials:original`). The last two are never in a query.
+   */
+  materials?: Array<'read' | 'fetch_local' | 'original'>;
   /**
    * `read`: `stat`, `list` and `read` of the files the plugin's Manifest declares (`owner_files`, PG-017 P2c); `write`: `write`, never in a query.
    * The package also declares `storage:private` and the Manifest's read and write permissions.
@@ -142,6 +147,9 @@ export type SandboxOwnerFileChange =
   | { op: 'remove'; path: string }
   | { op: 'set_access'; path: string; access: 'readonly' | 'readwrite' };
 
+/** One part of an original file as it crosses the channel: at most 256 KiB of bytes, the file's size and the opaque revision a later part passes back. */
+export interface SandboxOriginalPart { data_base64: string; byte_length: number; size: number; revision: string }
+
 /** What a statement in the project's library takes and gives back across the channel: no BLOBs, no integers past 2^53. */
 export type SandboxSqlValue = null | number | string;
 export type SandboxSqlRow = { [column: string]: SandboxSqlValue };
@@ -182,11 +190,20 @@ export interface SandboxSdk {
    * a ZIP of those, `extract` reads one file (PDF, image, office document) as text, `imageTextAvailable` says whether an image's text can
    * be read on this machine now. Declare `effects.materials: ['read']` on the operation. A file and a result cross as JSON, so a read
    * is bounded by the channel (half of 1 MiB for the result); pages and the Host's helpers are not the plugin's to choose.
+   * `readLocalPage` (`effects.materials: ['fetch_local']`) is a page on this machine: the plugin names an address as data, the Host decides
+   * whether it may be read (plain HTTP to a loopback name, never the Host's own ports) and fetches it, and only the extracted text comes back.
+   * `claimOriginal`, `readOriginal` and `releaseOriginal` (`effects.materials: ['original']`) keep, read and forget the file the person handed
+   * the Host's entry, by a key the plugin chooses; no path is ever shown, and `readOriginal` takes the file (at most 32 MiB, or `maxBytes`) in
+   * parts over the channel, each part checked by the Host, the whole refused if the file changes meanwhile. Neither is allowed in a query.
    */
   materials: {
     imageTextAvailable(): Promise<boolean>;
     readDocuments(files: SandboxMaterialFile[], request?: Pick<SandboxMaterialRequest, 'timeoutMs'>): Promise<import('../services/materials.js').MaterialDocumentBatch>;
     extract(file: SandboxMaterialFile, request?: SandboxMaterialRequest): Promise<import('../services/materials.js').MaterialExtraction>;
+    readLocalPage(url: string): Promise<import('../services/materials.js').MaterialExtraction>;
+    claimOriginal(record_key: string): Promise<void>;
+    readOriginal(record_key: string, request?: { maxBytes?: number }): Promise<{ bytes: Uint8Array }>;
+    releaseOriginal(record_key: string): Promise<void>;
   };
   /**
    * The plugin's own files, the ones its Manifest declares (`owner_files`): by relative path only, never the folder's location. `read` is
@@ -207,7 +224,8 @@ export type SandboxOperations = Record<string, (input: SandboxJson, sdk: Sandbox
 export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list'
   | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
   | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request'
-  | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract'
+  | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readLocalPage'
+  | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal'
   | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write'
   | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 

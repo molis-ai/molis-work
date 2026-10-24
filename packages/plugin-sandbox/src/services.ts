@@ -122,8 +122,6 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
     declared: definition => !!definition.instructions?.length },
   { service: 'materials', services: [], reason: 'Reading a page from the network (materials:fetch) is not given to sandboxed plugins yet (PG-017 BL-492).',
     declared: (definition, held) => asksFor(definition, held, ['materials:fetch']) },
-  { service: 'materials', services: [], reason: 'Reading a page on this machine (materials:fetch_local) and the Host\'s saved original files (materials:original) are never given to sandboxed plugins (PG-017).',
-    declared: (definition, held) => asksFor(definition, held, ['materials:fetch_local', 'materials:original']) },
   { service: 'background', services: ['background'], reason: 'Background jobs are not given to sandboxed plugins yet (PG-017 P3).',
     declared: definition => !!definition.manifest.background?.jobs.length || !!definition.manifest.actions?.some(item => item.action.background_job) },
   { service: 'agent', services: [], reason: 'Roles, prompts, skills and methods that reach other Agents are not given to sandboxed plugins until a package install can show the person what it adds (PG-017 BL-493, PG-001).',

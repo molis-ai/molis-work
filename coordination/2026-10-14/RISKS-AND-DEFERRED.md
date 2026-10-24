@@ -160,7 +160,7 @@
 | R-28 | 新：本机 CPU 紧，同时开 7 个会话会卡住（用户 10-23） | 统筹：同时最多两条开发线，派单写明只构建改到的包、测试 `--jobs 2` 以内 | 常设，不关 |
 | R-29 | 新：`privileges.md` 是每片都改的枢纽文件 | 统筹：开发片只在 PR 正文写「privileges.md 状态」，合入后统筹批量改（#1115 是第一批） | 防腐收尾时关 |
 | R-30 | 新：桌面壳 Rust 用例 `context_directory_files::tests::replacement_with_same_size_and_mtime_is_rejected` 在 CI 上偶发失败（#1118 不碰 Rust 也红，main 同作业绿），按时间戳精度抖动 | Codex：查是不是同一秒内两次写入导致 mtime 相同、判据依赖时序；能修就修测试的时间设定，修不了按 `tests/quarantine.json` 规则登记（owner 与到期日） | 修好或登记隔离后关 |
-| R-31 | 新：一轮评审只有一个 `ac-review` 会话，队里常压 6～8 个 PR，合并被评审卡住 | 统筹：按依赖排评审先后（样板片、被叠的下层优先）；纯文档与核对类 PR（`full` 为空）不等评审直接合；队列超过 8 个时再开第二个只读评审会话 | 防腐收尾时关 |
+| R-31 | 新：一轮评审只有一个 `ac-review` 会话，队里常压 6～8 个 PR，合并被评审卡住 | 统筹：按依赖排评审先后（样板片、被叠的下层优先）；纯文档与核对类 PR（`full` 为空）不等评审直接合；队列超过 8 个时再开第二个只读评审会话。**10-24 起统筹也审也合**（用户 10-24），开发线暂停开新 PR，等积压清掉 | 防腐收尾时关 |
 | R-32 | 新：还没关的 PG 行约 90 条，在跑的线只覆盖一部分；漏派就会留尾巴 | 统筹：同目录 `LINES.md` 给每一条没关的行指了线和先后，脚本核过一条不漏；每合一片、每开一条线都更新它 | `privileges.md` 没有没关的行时关 |
 | R-33 | 新：main 上 `tests/agent-built-plugins-checks.test.ts` 自 #1079 起在 macOS 上红（生成项目的 `sdk.d.ts` 有相对 import），Linux CI 不跑，没人发现；说明「只在 macOS 跑的用例」没有人定期看 | Codex：C0 修；并在 W6-05 最终回归里跑一遍 macOS 专有用例 | 已关：#1136 合入 main（`15b656648`，10-23）；`agent-built-plugins-workflow` 的 W2-18-BUILDER-LATE-01 同因一并修好 |
 | R-34 | 新：Codex 一个会话同时认领 6 个以上 PR 的修复（#1119、#1083、#1129、#1132、#1137 与 C1），修复串行，作者会话空着，PR 积压 | 统筹：Codex 手上超过 3 个认领时，新的修复改派作者（统筹代留认领）；10-23 22:30 起 #1145、#1146、#1148 由作者修 | 进行中 |
@@ -168,6 +168,8 @@
 | R-36 | 新：宿主任何地方都不调 `verifyPluginPackage`；安装记录的 `publisher_id`/`publisher_signature` 是安装时 Manifest 的自报，之后才固定（项目库账本、PG-022 P1b 的 Home 库账本都是「装上后不可换」，不保证首次可信） | `ac-trust` 线（PG-001 统一安装确认与签名校验）；该线开线前统筹盯着，未签名插件安装要用户同意 | 进行中 |
 | R-37 | 新：插件 id 互为点号前缀（如 `a` 与 `a.b`）时共用命名空间，事件总线与 S-63/S-64 的前缀检查都受影响（BL-506）；内置 27 个 id 里没有这样的一对 | `ac-trust` 线：安装时拒绝互为前缀的 id | 进行中 |
 | R-38 | 新：agent-host 五个巨大单元（`prologue.ts`、`index.ts`、`prologue-stream.ts`、`prologue-action-gateway.ts`、`capability-registration.ts`）同时在草稿 #1153、#1064（记忆线，jingxusandra）里改，纯搬移拆分会让草稿大面积冲突；`capability-registration.ts` 还在 R8 链上 | 统筹：等 #1153/#1064 合入或统筹通知再拆，`capability-registration` 等 R8 链合完；`ac-kernel` 先做不重叠的 5 个；插件创作台的巨大单元本轮不拆（绕过，只要不变大） | 进行中 |
+| R-39 | 新（#1126 评审，10-24）：Coding 判断一轮是否被切断，用的是 `process.uptime()` 算出的 Home 进程启动时间，等于插件在读宿主进程的事实。内置插件在进程内跑时是对的；插件一旦进沙箱子进程，界限就变成子进程的启动时间，子进程单独重启时会把「进行中」误报成「需要核对」 | BL-540，归 `ac-platform`：改成问 Agent 宿主这一轮还在不在，或由平台给出 Home 进程的启动时刻 | BL-540 合入后关 |
+| R-40 | 新（#1126 评审，10-24）：Coding 的 TaskBoard、计划卡用正则从 Agent 宿主拼的中文标签里抠子任务标题，并按 `本会话`、`用户`、`改派` 这几个字面量判断报告作者（标签在 `horizontal/agent-host/src/adapters/prologue-plan-steps.ts:89,108`）。宿主一改措辞，英文页就静默退成 Other holder，夹具是手抄的同一份中文，拦不住 | BL-541，归 `ac-kernel`，排在 R8 之后：Agent 宿主给出结构化字段（子任务的 `title`、报告作者的 `by.kind`），客户端不再解析宿主的句子 | BL-541 合入后关 |
 
 
 | 编号 | 风险 | 影响 | 现状与缓解 | 谁跟 | 何时处理 |

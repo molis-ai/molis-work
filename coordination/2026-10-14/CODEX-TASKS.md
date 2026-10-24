@@ -1,6 +1,6 @@
 # 交给 Codex 的独立开发片
 
-> **2026-10-23（洛杉矶）接续入口：** 本表仍是交给 Codex 的迭代队列；本地「统筹｜Work 全线进度 · Codex」（chat `01a12a80-ede2-7b81-93ea-521a5abcc35c`）统一接收交接、安排合并和专职评审/测试/修复。现有四个专职会话的入口见 [CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。已经派出的开发与技术裁定保留；后续开发片排在本表规定的修复、评审、测试之后，另按原授权与依赖派发，不让专职修复会话自动承担新功能开发。旧 Draft 与角色文字以最新用户要求为准。
+> **2026-10-23 23:18（洛杉矶）最新分工：** 一骏已指定 `gpt-6.1-sol / xhigh` 专职组织防腐流水线与合并。日常Codex派单、证据裁决和合并交给「统筹｜防腐流水线与合并 · Codex」（`01a16c88-7956-7e10-a5f4-5baf476c3634`），每10分钟周期接续；原主chat保留完整目标与用户决定。四个专职评审/测试/修复会话和全部non-block闭环规则见 [CODEX-SESSION-ROLES.md](CODEX-SESSION-ROLES.md)。原Claude开发owner、有效评审和在途认领保留，Claude仍唯一full组批者；本次不重复启动既有工作。旧的日常root派单/合并文字由本条替代。
 
 状态：2026-10-23 起生效。用户 10-23 定：独立的开发任务可以派给 Codex，不必都在 Claude 子会话里做。统筹（本机 Claude）在这里派片、排序；Codex 做完一片在本表写 PR 号，再接下一片。
 
@@ -18,7 +18,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 > **10-24 06:00 统筹提醒**：`Full suite` 的 `workflow_dispatch` 只由 Claude 统筹发起（同一时刻一批，runner 只够一批）。05:55 `codex/memory-sdk-adoption`（#1064，草稿）自发了一次（[40068141974](https://github.com/molis-ai/molis-work/actions/runs/40068141974)），和 batch-22/23 抢 16 个 runner。取消 CI 要用户同意，这次不取消；以后要跑全量，先在本节写申请，统筹排时段或并进集成批。
 
 
-用户 10-24 停了合并 Agent，它的活由 Codex 接：照 `MERGE-QUEUE.md` §1 的条件入队（第 8 条：入队前留「合并认领」，取出时写原因）、机械同步、修 CI 红、起集成批、合入后把行挪到 §3。统筹照旧排顺序、做评审、也会直接入队，两边靠 PR 上的认领避免重复。现在接手时在途的：
+用户 10-24 停了合并 Agent，它的活由 Codex 接：照 `MERGE-QUEUE.md` §1 的条件入队（第 8 条：入队前留「合并认领」，取出时写原因）、机械同步、修 CI 红、起集成批、合入后把行挪到 §3。截至10-24 06:18，Codex日常收件与执行协调已统一交给专职流水线chat（见页首与CODEX-SESSION-ROLES）；原Claude在途认领及技术裁定保留，双方仍用PR公开认领协调，Claude唯一组full。旧root不再重复派单或合并。现在接手时在途的：
 
 | PR | 要做的 | 说明 |
 | --- | --- | --- |

@@ -285,3 +285,34 @@
 ### 8.4 下一轮
 
 主题 d（lead 队列）：**表 owner 违规** —— `tooling/gates/table-owners.json`、`scripts/gates/table-owners.mjs` 的零基线；抽查 modules/plugins 写别人表、非字面量表名/拼接 SQL 的盲区、共用表登记理由与代码现状一致。
+
+---
+
+## 9. 第 5 轮（主题 d：表 owner 违规）
+
+基准：origin/main `89c9a7194`（主题 d 期间无新提交；复核前再次 fetch 确认）。只读。
+
+### 9.1 结论：PASS（无 blocker；本轮无需写 privileges / 无需派修）
+
+1. **门禁本身**：`scripts/gates/table-owners.mjs` 是零基线门禁 —— owner = 源文件最近的含 package.json 祖先目录；`CREATE [VIRTUAL] TABLE` 决定表 owner；任何别的包的 SQL（`SELECT … FROM`、`JOIN`、`INSERT INTO`、`REPLACE INTO`、`UPDATE`、`DELETE FROM`、`ALTER TABLE`、`DROP TABLE`）碰到即失败；`tooling/gates/table-owners.json` 的 `shared`/`same_name` 双向校验（用了没登记、登记了没用、同名未登记都失败）；不读 tests/fixtures/build 输出。`node scripts/check-health-gates.mjs --report` 在 `89c9a7194` 退出 0（含该门禁）→ 现有代码与登记表一致。
+2. **登记表复核**（`tooling/gates/table-owners.json`）：
+   - `shared` 26 条：`events`、`idempotency_records`（owner `packages/storage`；users `modules/goals`、`modules/governance-collaboration`；理由=依赖方向，Artifacts 已改成注入函数并离开此表）；24 张 Goals 项目库表（owner `plugins/native/goals`；users `modules/goals`；其中 trusted_decisions、`goal_tree_proposal_*` 的 users 含 `modules/governance-collaboration`），理由=Goals 已在 Manifest `databases.project` 声明并由插件建表（S8/PG-020），SQL 暂留 modules/*，S9 把 Goals 存储搬进插件后删条目。
+   - `same_name` 2 条：`workspaces`（`modules/projects` + `plugins/native/alchemist`）、`jobs`（`plugins/native/alchemist` + `plugins/native/images`），理由=不同库里的同名不同表、互不读、spec §9.5 item 9 保留名字。
+   - 抽查与代码一致：`modules/goals/src/repository.ts:238-290` 读写 events/idempotency_records；`modules/governance-collaboration/src/repository.ts:38,86`、`proposal-operation-store.ts:56,67` 同；Goals 24 张表在 `plugins/native/goals/src/project-database-*.ts` 建、modules/goals 仍用。
+3. **盲区实查**（门禁自述看不到的三类）：
+   - 非字面量表名（`FROM ${...}`）6 处，全部 owner 一致：assistant purge（`apps/local-host/src/assistant/assistant-project-purge.ts:15,48`，WORK_TABLES 全是 `assistant_*`，由同包 `assistant-store.ts:28-68` 建）；Artifacts repository（`modules/artifacts/src/repository.ts:33-45,116`，默认 `ARTIFACT_TABLES`/`PROCESS_ITEM_TABLES`；全仓 `new ArtifactsRepository(` 只在 `modules/artifacts/src/index.ts:53,71` 构造，无外部注入表名）；memory ledger（`packages/storage/src/adapters/memory-ledger.ts:24-55,91-94`，循环的表同文件建）；plugin wiring（`packages/plugin-runtime/src/wiring-repository.ts:231`，循环 `plugin_port_bindings`/`plugin_port_artifact_bindings`，同包表）；`project-database-statements.ts:77` 的 `EXPLAIN SELECT * FROM ${name}('[]')`（校验插件声明表，不写业务表）；alchemist `workspace-export.ts:108`（清自己的库）。
+   - 小写 SQL/DDL 绕过（门禁只匹配大写）：全仓无小写 `create table` 语句（只有 `plugin-database.ts:54` 注释与 `packages/plugin-sdk/src/highlight.ts:56` 关键字表）；对 shared 表的小写 FROM/INTO/UPDATE 亦无命中。
+   - 非 TS 文件 SQL：`git ls-files '*.sql'` 排除 tests 后为空；`apps/desktop` 的 Rust/Swift 无 SQL。tests/fixtures 里的 SQL 不在门禁范围（设计如此）。
+   - `apps/local-host/src/catalog-schema.ts:8,11,19` 的 desktop panel 表是通过注入回调 `CatalogDesktopSchema` 在 catalog 初始化时执行，SQL 文本在 owner 包 `apps/desktop/src/adapters/sqlite-panels.ts` 内 → 符合「建表 SQL 在 owner 包」，不是宿主跨包写表。
+4. **平台动态建插件表（X-5/PG-020）与门禁的关系（补偿控制已存在，不算缺陷）**：`packages/plugin-runtime/src/project-database.ts:170-225` 的 `openPluginProjectDatabase` 在一个写事务里：`store_name` 全项目库唯一、已有账本时 publisher_signature/version/声明形状三者必须一致、新建时「项目库里已有同名对象」直接 `object_taken` 拒绝、建完再比对声明形状；`project-database-statements.ts` 的 PLIB-06 用 `EXPLAIN` 逐步校验插件语句只能读写自己的表 + 项目 root 行。→ 动态 DDL 门禁看不到，但运行时约束更强，不会出现「两个插件同名表静默共享」。
+5. **无需 edit**：privileges.md / SSOT / spec 没有与表 owner 相关的过时描述需要本轮改（PG-020/021 的进度行已在 §7 的 E 清单外，且无新增；`table-owners.json` 理由文字与代码一致）。
+
+### 9.2 观察（非缺陷，记录备查）
+
+- `apps/local-host/src/catalog-schema.ts` 通过 import 各 owner 导出的 `create*Schema` 在同一 catalog 连接上建表（modules/projects、modules/goals 的 `personal_planning_method_packs`、module-private-work-context、apps/local-host 的 model providers），desktop panel 表用注入回调 —— 这是「跨包用 owner 导出的函数建表」的合法形态；但 catalog schema 的组成清单是宿主手写的，新增 owner 表要改宿主（W4 类名单问题，不属本轮主题）。
+- `table-owners.mjs` 只按包级 owner 判定，不区分同包内不同 Module/服务的表；更细的 owner（表达「这张表归哪个模块」）当前规则不覆盖。
+- 流程提醒：S9（Goals 存储搬进插件）落地后，需按登记理由删掉 `shared` 的 24 条 Goals 条目——由统筹在 S9 片里做，不是本轮 edit。
+
+### 9.3 下一轮
+
+主题 e（lead 队列）：**页面资源 / 冻结名单收口** —— `web-assets.ts` 路由唯一性第 1 轮已 PASS，本轮重点：`NATIVE_PLUGIN_HTTP_FILES` 5→4（task-13 合入后）、页面资源预算（`tooling/gates/page-assets.json`、`APPROVED_CEILINGS` 现状与 2026-10-18 规则）、独立整页门禁与例外清单、`scripts/gates/assembly.mjs` 各计数（hostPluginFiles/registerProviderSites/hybridPlugins/pluginOutsideMentions）现状复核。

@@ -12,17 +12,20 @@
 | 评审 | 专职｜防腐 PR 评审与复审 · Codex | 01a16bc4-68fe-71d3-af0e-83523232c1ea | 修复后按精确head只读二轮，复用ac-review有效一轮并给正式结论；gpt-6-astra/xhigh | 一轮全归Claude ac-review；不改源/构建/测试/合并，block/nonblock分别保留 |
 | 测试 | 专职｜防腐测试与证据核验 · Codex | 01a16bc4-6c9f-7ca0-b47e-621727302fee | 核精确head与原始日志、CI/full；按派单补独立回归、归因失败 | 不改实现或断言、不做正式代码评审、不合并；不另起重复full |
 | 修复1 | 专职修复 1｜防腐问题与冲突 · Codex | 01a1682d-0a26-7522-b2b2-4446d904a7b7 | #1235/52c已actual7d闭README P2；#1230本轮现c887e11c、二轮6388234113/TEST6388250799 PASS，源码释放，等待Root下一具体独立题 | 整功能批/full/CI及实际merge仍流水线与Claude；一次一题，不混未闭的其他nonblock |
-| 修复2 | 专职修复 2｜防腐问题与冲突 · Codex | 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | #1237/7eb已二轮/TEST/PRCI通过，流水线唯一正常队列中；#1229过时注释现c2a66516，二轮6388272667 PASS，未改断言 | 各原PR实际merge后才闭；旧1112三P2等完整责任保留，无当前重复writer |
-| 修复3（当前#1226） | Root新建单题专职，gpt-6.1-sol/max | 01a16f01-0e2c-7450-a0f8-8ad03f18b32e | #1228已交ed3985f1、二轮6388105405/TEST6388119074 PASS并释放；Root已转#1226/ef71一轮6387391426 readDecision receiver实际回归 | 只当前原PR同轮，不抢已交1228；不改C1 HTTP/放宽权限断言，新头直交二轮/TEST |
+| 修复2 | 专职修复 2｜防腐问题与冲突 · Codex | 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | #1237/7eb已actual87eb、原1216P2由6388559951闭；#1229过时注释现c2a66516，二轮6388272667 PASS，原断言不变，整功能待批 | 原1112三P2等完整责任保留，一次一题，后续由Root初始具体派单；不以登记关闭其他问题 |
+| 修复3（当前#1226） | Root新建单题专职，gpt-6.1-sol/max | 01a16f01-0e2c-7450-a0f8-8ad03f18b32e | #1228/ed3985已双PASS释放；#1226 readDecision receiver本轮现1d400d25408544e5ab28c645630fcfe80afca4bb，生产+3/-2/真实旧1/3→新3/3、24文件180有效；源码冻结，二轮/TEST待 | 只ef71后单轮增量，不重评四巨大单元、不弱断言/SDK/gate；新头CI/批实际full/merge另核 |
 | 修复4（当前#1239） | Root新建单题专职，gpt-6.1-sol/max | 01a16f15-e025-71a3-adac-2e84f0e83fdd | #1232已交887b8ee7、二轮6387989321/TEST6388063111 PASS并释放；Root转#1239/b9一轮全部有效意见，C2已零改动释放，由FIX4唯一修 | B2b payload用途隔离/限额/严格原后端恢复/S12文档一起收口，不改既有vault格式或另切ENV后端；新头二轮/TEST |
 | 修复5（当前#1238） | Root新建单题专职，gpt-6.1-sol/max | 01a16f24-7a33-76f2-80b4-f20c55006d09 | #1234已交7cfff92a、二轮6388064603/TEST6388103144 PASS并释放；#1238现55fc9f14，三catch同轮修齐，二轮6388469609 PASS、独立TEST/新CI接续 | 保原降级/权限/Thread+rules，不写公共CI清单或C1 desktop；源码已固定释放，不关闭整C1 |
 | 两来源最终闭环（已交付归档） | 专职合并｜PR 1109、1112 收尾 · Codex | 01a16f02-8e7e-7a92-8976-fb7befe916fd | #1236已actual bde02c59；实际树/包含核实后仅1109/1112已19:05关闭，6388316807/6388317402；本人已向Root交付并官方归档该专职 | 未重复queue/full、未动原树；1223已原Claude6388301030关闭，旧三nonblock仍FIX2，不因专职完成关闭整线 |
-| 独立实现 C1 | 专职实现 1｜W5-13 宿主日志与错误收尾 · Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | 保留完整C1 owner；RAC117 desktop launch_args按Root严格A已真实实施，124/124与native有效，最终完整非Draft PR收尾；只补desktop新测试CI一行已Root明确放行 | #1238评审三catch已FIX5 sole，作者不并改；1231/bf09 README缺32 TEST已自然32/32，C1整体/本人验收未完成 |
-| 独立实现 C2 | 专职实现 2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | B1/1202/645、B2a/1222/006实际合；B2b #1239/b9完整交付一轮后已18:53:15Z零改动释放，FIX4唯一修后接续；原完整C2 owner保持 | 不再并写/构建旧b9；早期lease、全Home快照恢复、真实Home R41和本人验收未完成，不拿局部工程证据关闭 |
+| 独立实现 C1 | 专职实现 1｜W5-13 宿主日志与错误收尾 · Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | RAC117完整非Draft #1240/3ce6270b，6文件259/-10、有效143/143、独立TEST接续；ac-review首评待实际认领（公开请求不当已开始），作者source已释放 | 本轮Claude UI用户已停止不再操作/重启，不派Codex代一轮；1238由FIX5修，C1完整owner/未完成状态保持 |
+| 独立实现 C2 | 专职实现 2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | B1/645、B2a/006实际合；B2b b9冻结给FIX4 sole；RAC105 A独立新storage-owner/真实进程回归已获START，Root MCP可信转发/生命周期合同已定，真实共享hunk另精确串行 | 不以整个B2b/Memory合入当前置；stdio Catalog绕行须随A最小完整接线关，未齐不先合Host独占/不另半成品PR；真实Home/全恢复未完成 |
 
 已有角色 owner 与有效技术裁定保持。独立树、独立明确问题且无真实重叠可多writer；同文件/合同/候选串行。Claude唯一组批/full/批PR队列；Root唯一定时发现/初始派单/复杂裁决；本流水线交付驱动接续与既有普通小PR合并职责保持。整机一份build、一批browser，machine-slot排队。
 
 ## 流水线接续合同
+
+**最新实际接续（覆盖下方旧候选）**：#1237已actual87eb/P2闭；**C1 RAC117完整交付**：非Draft #1240 固定 `3ce6270b7297382a9e07051c35959b4b89d882bf`，直接parent fe285283172e025abf05e671052b83687d0ee9cc、实际merge-base7a2；6文件+259/-10/clean，最终仅CI一行+slice说明，生产/业务test逐字同已测fe285。Root已定严格A，11唯一文件143/143/0skip含必要CI-list19，真实公开Catalog/SQLite/Desktop HTTP红绿、两整体build/native真实Rust及必要门禁有效；Linux/同头CI/独立TEST另核。流水线6388538710已公开交ac-review一轮，Root确认本轮用户已停止Claude UI，流水线不再操作或重启该应用，不派Codex代首评；尚待既有非UI链路自然实际认领，绝不把公开请求当已开始。TEST已直收准确头，作者source释放，不阻C2/其他修复。原件 `/tmp/molis-verify-2026-10-24/c1-rac117/handoff.md`。 **C2 A实际START**：RAC105既有A合同内，独立actual-main-bde树的新 `packages/storage/src/adapters/storage-owner.ts` 与真实公开入口跨进程回归/fixtures已明确给实现2实际编码，不等B2b/Memory整体merge。Root已直接定清同锁上提/opaque父借用与stdio转发可信context、常驻Host薄入口合同；不再泛称等待Root安全裁定。生产stdio/contextTools等实际Catalog写入口须随A最小完整接线闭合，不能先合Host独占留下绕行；保Origin/token/nonce/数字回环/Host instance/取消，身份取可信context而非用户arguments，不新权限/锁/通用RPC/本地写回退。FIX4当前公共出口/README/同一slice/S12按实际hunk固定释放后串行追加A，不等CI/merge；Memory只协调真实同hunk，不将整条Memory当前置。完整A/快照恢复未完成，不把新模块半成品另开PR；本次无需build/browser/full，真实Home不动。
+
 
 **本次实际交付与现行角色证据**：旧8目标已actual闭环：1222/006及四源先合；1236/331已19:02:08Z正常merge bde02c59eb9a1d794a442419570819a80585708a，真实parent7d、tree972177be=实际试合，1109/1112专职已关闭归档、1223原Claude已关。1235/52c已actual7d关闭原1212README P2；1237/7eb原any漏检已修、二轮/TEST/PRCI通过，本流水线6388458800一次正常match-head唯一队列pos1，实际前原1216P2不闭。新模式70e009698已由Root与流水线独立核原Claude人类Message22，非文档自称；各FIX当前一题/固定头见上表及TASKS§0a。
 
@@ -112,7 +115,7 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 | #1211评审6384204115-2：1+N动作且逐次全项目扫描造成N²读取 | FIX1已明确接，公开6384708923 | Characters owner最小消重复扫描，保身份/签名/权限/真实审计/冻结尾检；若必须改公开list形状/版本给root具体裁定，与下一owner诊断项去重 | 未实施，不盲增API/缓存授权；实际修复PR/性能行为证据/独立审验/真merge闭环 |
 | #1211 Claude6384231304-①：selector失败须可读错误不能空白 | FIX1已明确接，公开6384708923 | 先核既有UI真实错误路径，有证据已覆盖则据证关闭；缺失才最小修，保已接受当前fail语义 | 未验证是否已覆盖，不能凭记录关；实际证据/必要修复/独立核收/真merge闭环 |
 | #1211 Claude6384231304-②：Characters单坏行诊断且其余正常 | FIX1已明确接，公开6384708923 | 主人统一输出让页面/Assistant受益，scope/输出版本必要取舍直接root；与N²项同一最小owner方案，不消费方跳坏行 | 未实施；当前整selector失败仍被接受/不阻原PR；源/独立证据/真merge闭环 |
-| #1216评审6384484840-1：Object.assign前as ImCtx伪完整 | FIX2已实现#1237，现7ebef08b252f675891ae1eca91b84d7200bed349 | 首次e425九参assign仍any已真实反证并回修；新生产结构/四反例红绿、必跑16与未变89复用、两browser覆盖；二轮6387881227/TEST6388153277、PRCI40120148369十四适用成功 | actual full/storage=[]；试合main bde无冲突；6388458800本流水线一次正常唯一queue pos1/AWAITING_CHECKS，actual前不关闭。首navigate失败与唯一恢复/UNKNOWN边界保留，不称首批2/2 |
+| #1216评审6384484840-1：Object.assign前as ImCtx伪完整 | FIX2实际修复#1237/7eb | 生产any四反例旧红→新绿、必跑16+未变89复用、两browser真实覆盖；二轮6387881227/TEST6388153277与PRCI十四适用成功 | 已19:27:04Z actual87ebba4c769557f9548d66310d76eb4e30b68bc9；tree1f9b385b=merge-tree(parent bde,冻结7eb)，本scope源→实际零diff，正常queue40124785872/Verify120965005904成功；原P2由6388559951 actual关闭，其他问题/首败/整线保留 |
 | #1218 readGoalResumeFacts/README，ac-review6384460634第1项与流水线实际patch | FIX2已明确接受，公开6384588280 | 依1218真merge，鲜核全调用方，将前100/焦点最多2策略移回Host、同步消费者/两测试/API与CLI/MCP门禁准确文字；现P1/W5后实际source窗 | 当前未实施，不阻1218；修复PR/精确head/独立审验/真merge后闭环，非登记完成 |
 | #1200真正同键重排焦点P2，REVIEW6382734693 | 修复2，原作者保持 | 本主修复不挡；后续同域源码窗口补同组重排/跨组移动且不抢用户已转移焦点，独立回归 | 未修；不得把节点复用当焦点移动全覆盖，实际提交/审验/merge后关闭 |
 | ACA004后台链/装配文档P2 | 修复2已实际确认，纳现E22/SSOT文档队列 | 下一实际文档source窗口鲜核main：CALL-CHAINS154–161/180、plugin-dev SKILL52，最小更正不拿在途当主线；1114不覆盖 | 未实施；独立差异/引用验证/真实merge后关闭，当前不占C2 B2 |

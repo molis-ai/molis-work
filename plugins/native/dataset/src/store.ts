@@ -1,7 +1,6 @@
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
-import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   DatasetColumn,
   DatasetColumnInput,
@@ -13,6 +12,8 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { datasetErrors } from "./error.js";
 import type { DatasetPublicationIntent, DatasetPublicationSnapshot } from "./promote.js";
+import { DATASET_DATABASE } from "./database.js";
+export { DATASET_DATABASE };
 
 interface DatasetRowDb {
   id: string;
@@ -282,38 +283,6 @@ export class DatasetStore {
   }
 }
 
-/**
- * The dataset store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
- * must already be at its version. Columns keep the order existing stores have them in.
- */
-const DATASET_SCHEMA = `
-  CREATE TABLE datasets (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT NOT NULL,
-    status TEXT NOT NULL,
-    columns_json TEXT NOT NULL,
-    rows_json TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    version INTEGER NOT NULL,
-    project_id TEXT NOT NULL DEFAULT '',
-    artifact_id TEXT NOT NULL DEFAULT '',
-    artifact_version INTEGER NOT NULL DEFAULT 0,
-    publication_pending_json TEXT
-  );
-  CREATE TABLE dataset_versions (
-    id TEXT PRIMARY KEY,
-    dataset_id TEXT NOT NULL,
-    note TEXT NOT NULL,
-    snapshot_json TEXT NOT NULL,
-    created_at TEXT NOT NULL
-  );
-  CREATE TABLE dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
-`;
-/** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const DATASET_DATABASE: PluginDatabaseDeclaration = { store_name: "dataset", version: 1,
-  read_permission: "dataset:read", write_permission: "dataset:write", schema: DATASET_SCHEMA };
 
 export function openDatasetStore(homeDirectory: string): DatasetStore {
   const db = openBaselineHomeSqlite(homeDirectory, DATASET_HOME_STORE.path, DATASET_DATABASE);

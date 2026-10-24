@@ -4,7 +4,7 @@ import { extractHomeMaterial } from "./material-home.js";
 import { readMaterialUploads } from "./material-documents.js";
 import { readMaterialLocalPage } from "./material-local-page.js";
 import { materialImageTextAvailable } from "./material-native.js";
-import { readOriginalFile, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
+import { readOriginalFile, readOriginalRange, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
 import { readMaterialSource } from "./material-source-providers.js";
 import type { PluginPlatformHome } from "./home-side.js";
 import { MATERIAL_PERMISSIONS } from "./plugin-service-permissions.js";
@@ -12,7 +12,8 @@ import { MATERIAL_PERMISSIONS } from "./plugin-service-permissions.js";
 
 /**
  * A platform without a Home receives no material service (the model service is refused to a sandboxed activation; this one is not). A sandboxed activation is given this
- * client like any other, for the readers of bytes only (PG-017; the sandbox refuses a package that asks for the rest). `project_id` is the
+ * client like any other (PG-017): the sandbox's broker forwards the readers of bytes, a page on this machine and the saved original files, one
+ * method at a time, and refuses a package that asks for a network page (S-60, S-66). `project_id` is the
  * project the Host started this activation for (`null` for a Home-level one): original-file registrations are kept per project.
  */
 export function pluginMaterialsFor(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, context: PluginStartContext,
@@ -28,6 +29,7 @@ export function pluginMaterialsFor(home: PluginPlatformHome | null | undefined, 
     readLocalPage: (url, options) => readMaterialLocalPage(url, { signal: options.signal, beforeDispatch: options.beforeEffect }),
     claimOriginal: (key, offered, options) => registerOriginalFile(home.directory, key, offered, options.beforeEffect),
     readOriginal: (key, options) => readOriginalFile(home.directory, key, { maxBytes: options.maxBytes, signal: options.signal }),
+    readOriginalRange: (key, options) => readOriginalRange(home.directory, key, { offset: options.offset, length: options.length, revision: options.revision, signal: options.signal }),
     releaseOriginal: (key, options) => releaseOriginalFile(home.directory, key, options.beforeEffect),
   }, { install_id: context.install_id, installation_generation: context.installation_generation, project_id, assertActive, requireGrant: permission => context.requireGrant(permission) });
 }

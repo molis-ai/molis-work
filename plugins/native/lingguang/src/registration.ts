@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { LINGGUANG_MESSAGES, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution, lingguangProjectData, LINGGUANG_HOME_STORE } from "./index.js";
+import { LINGGUANG_MESSAGES, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution, lingguangProjectData } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -7,7 +7,6 @@ import { LINGGUANG_MESSAGES, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LIN
  */
 export const registration: PluginRegistration = {
   project_plugin_id: LINGGUANG_PROJECT_PLUGIN_ID, catalog_order: 12,
-  home_store: LINGGUANG_HOME_STORE,
   manifest: lingguangManifest,
   project_data: lingguangProjectData,
   messages: LINGGUANG_MESSAGES,

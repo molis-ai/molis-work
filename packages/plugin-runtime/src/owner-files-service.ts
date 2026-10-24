@@ -1,6 +1,6 @@
 import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest, PluginOwnerFilesClient, PluginOwnerFilesDeclaration, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { currentPluginAction, inPluginInstance, pluginInvocationReadOnly, type PluginActionScope, type PluginInstance } from "./action-scope.js";
+import { currentPluginAction, currentPluginInvocation, inPluginInstance, pluginInvocationReadOnly, type PluginActionScope, type PluginInstance } from "./action-scope.js";
 
 /** The executor supplies its existing lifetime and live installation grants. */
 export interface PluginOwnerFilesGate extends PluginInstance {
@@ -8,11 +8,15 @@ export interface PluginOwnerFilesGate extends PluginInstance {
   requireGrant(permission: string): void;
 }
 
-/** Every primitive is synchronous; the Host port itself carries no authority. */
+/**
+ * Every primitive is synchronous; the Host port itself carries no authority. Inside the plugin's own action (or a job it started) the
+ * action and its original caller decide. Outside every action and job (`start`, a route, a timer set up there) there is no caller to
+ * ask, and the installation's current grants alone decide, as for every other service (`assertPluginActionCurrent`): a plugin whose
+ * installation is stopped, disabled, uninstalled or without the grants can neither read nor write. Inside another instance's action,
+ * or a scene, it is refused.
+ */
 export function createPluginOwnerFilesClient(manifest: PluginManifest, declaration: PluginOwnerFilesDeclaration,
-  port: PluginOwnerFilesWriter, gate: PluginOwnerFilesGate, rootPath?: string): {
-    client: PluginOwnerFilesClient; initializeTrusted(run: (writer: PluginOwnerFilesWriter) => void): void;
-  } {
+  port: PluginOwnerFilesWriter, gate: PluginOwnerFilesGate, rootPath?: string): { client: PluginOwnerFilesClient } {
   const permissions = new Set(manifest.permissions.map(item => item.permission));
   const permit = (permission: string) => {
     gate.assertActive();
@@ -22,8 +26,9 @@ export function createPluginOwnerFilesClient(manifest: PluginManifest, declarati
     }
   };
   const check = (scope: PluginActionScope | undefined, permission: string, write: boolean) => {
+    if (!scope && currentPluginInvocation() === undefined) { permit(permission); return; }
     if (!scope || scope !== currentPluginAction() || !inPluginInstance(scope, gate)) {
-      throw new ActionError("actions.forbidden", "文件服务只能由本插件的原动作调用");
+      throw new ActionError("actions.forbidden", "文件服务只能由本插件的原动作调用，或在动作之外由本插件自己调用");
     }
     if (write && pluginInvocationReadOnly(scope)) throw new ActionError("actions.forbidden", "查询不能写文件");
     if (!scope.definition.action.permissions.includes(permission) || !scope.caller.permissions.includes(permission)) {
@@ -63,9 +68,8 @@ export function createPluginOwnerFilesClient(manifest: PluginManifest, declarati
       const scope = currentPluginAction();
       const authorize = () => check(scope, declaration.write_permission, true);
       authorize();
-      await scope!.caller.beforeEffect();
-      authorize();
+      if (scope) { await scope.caller.beforeEffect(); authorize(); }
       return runWriter(run, authorize);
     },
-  }), initializeTrusted(run) { runWriter(run, () => permit(declaration.write_permission)); } };
+  }) };
 }

@@ -31,11 +31,13 @@ import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { openPluginDatabase } from "./plugin-database.js";
-import { openPluginFiles } from "./plugin-files.js";
+import { homeLibraryFor } from "./plugin-database-entries.js";
+import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { openPluginProjectLibrary } from "./plugin-project-library.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
+import { sandboxOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginConnectionsFor } from "./plugin-connections-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
@@ -69,12 +71,11 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let disposeArtifacts = () => {};
   let library: ReturnType<typeof openPluginDatabase> | undefined;
   let projectLibrary: ReturnType<typeof openPluginProjectLibrary> | undefined;
-  let files: ReturnType<typeof openPluginFiles> | undefined;
   let background: ReturnType<typeof pluginBackgroundFor>, scheduler: ReturnType<typeof pluginSchedulerFor>, agents: ReturnType<typeof pluginAgentsFor>;
   let withdrawAgentDefinitions: (() => void) | undefined;
   let withdrawCaller: (() => void) | undefined, withdrawPages: (() => void) | undefined;
   let directory: ReturnType<DirectoryGrantService["connect"]> | undefined;
-  const dispose = () => { active = false; stopped = true; withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); files?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
+  const dispose = () => { active = false; stopped = true; withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     // Running in a sandbox is an install trust; what the package asks for that the sandbox is not given stops its start with a code (S-60).
@@ -90,11 +91,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     disposeArtifacts = artifactService.dispose;
     library = openDeclaredLibrary(options, definition, context, assertActive);
     projectLibrary = openProjectTables(options, definition, context, assertActive);
-    const fileDeclaration = options.filesFor?.(definition);
-    if (fileDeclaration) {
-      if (!options.home) throw new Error("私有文件服务需要 Home");
-      files = openPluginFiles(options.home.directory, fileDeclaration, permission => { assertActive(); context.requireGrant(permission); }, context);
-    }
+    const ownerFiles = sandboxOwnerFilesFor(options, definition, context, assertActive);
     withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
     background = pluginBackgroundFor(definition, context, assertActive, { actor_id: options.actor_id, project_id: options.project_id,
       ...(options.record ? { record: () => options.record!(context.install_id) } : {}) });
@@ -106,7 +103,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     agents = pluginAgentsFor(options.home, manifest, context, pluginCaller, () => options.record?.(context.install_id) ?? null);
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
       scheduler: scheduler?.client, agents: agents?.client,
-      database: library?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, files: files?.client, model: pluginModelFor(options.home, definition, context, assertActive),
+      database: library?.client, ownerFiles: ownerFiles?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, model: pluginModelFor(options.home, definition, context, assertActive),
       materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), connections: pluginConnectionsFor(options.home, definition, context, assertActive),
       background: background?.client, directory: directory?.client });
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, project_id: options.project_id, actor_id: options.actor_id,
@@ -121,16 +118,18 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
 }
 
 /**
- * The plugin's library in the Home, when the Host's start list declared one for this definition. It is the one service the
+ * The plugin's library in the Home, when its Manifest declares one and the Host's start list holds the definition. It is the one service the
  * Home-level instances have (`openPluginDatabase`), opened here for the length of the run: every call asks again whether this
  * instance is still the running one and still holds the grants, so a stopped, disabled, uninstalled or revoked plugin writes
  * nothing, its own `stop` hook included.
  */
 function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void) {
-  const declaration = options.databaseFor?.(definition);
-  if (declaration === undefined) return undefined;
+  const library = homeLibraryFor(definition, options.databaseFor?.(definition), options.record?.(context.install_id) ?? null);
+  if (library === undefined) return undefined;
   if (!options.home) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了 Home 库，但这个插件平台没有 Home`);
-  return openPluginDatabase(options.home.directory, declaration, permission => { assertActive(); context.requireGrant(permission); }, context);
+  const { directory, stores } = options.home;
+  const open = () => openPluginDatabase(directory, library.declaration, permission => { assertActive(); context.requireGrant(permission); }, context);
+  return library.installed ? openInstalledPluginLibrary(directory, library.installed, library.declaration, stores, open) : open();
 }
 
 /**
@@ -167,13 +166,14 @@ interface SessionParts {
   readonly isActive: () => boolean;
   /** The library the Host's start list declared for this plugin, if any (`openDeclaredLibrary`). */
   readonly database: PluginDatabase | undefined;
+  /** A sandboxed plugin's declared files, in the project's directory (`sandboxOwnerFilesFor`, S-65); none for any other plugin. */
+  readonly ownerFiles: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesClient | undefined;
   /** The plugin's own tables in the project's library, if its Manifest declares them (`openProjectTables`). */
   readonly project_database: import("@molis-ai/molis-work-contracts/platform/plugin").PluginProjectDatabase | undefined;
   /** The same tables for a plugin the Host runs outside its own process: its statements run in a process the Host can kill (`openProjectTables`). It gets this in place of `project_database`. */
   readonly project_statements: import("@molis-ai/molis-work-contracts/platform/plugin").PluginProjectStatements | undefined;
   readonly agents: import("@molis-ai/molis-work-contracts/platform/plugin").PluginAgentClient | undefined;
   readonly scheduler: import("@molis-ai/molis-work-contracts/platform/plugin").PluginScheduleClient | undefined;
-  readonly files: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesClient | undefined;
   /** The Host's text model, when the Manifest declares `model:read` or `model:invoke` and the Host runs the plugin itself (`pluginModelFor`); only `model:invoke` sends requests. */
   readonly model: PluginModelClient | undefined;
   readonly materials: ReturnType<typeof pluginMaterialsFor>;
@@ -204,10 +204,10 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ui: ui.client,
       interaction: pluginInteraction,
       ...(parts.database === undefined ? {} : { database: parts.database }),
+      ...(parts.ownerFiles === undefined ? {} : { ownerFiles: parts.ownerFiles }),
       ...(parts.project_statements !== undefined ? { project_statements: parts.project_statements } : parts.project_database === undefined ? {} : { project_database: parts.project_database }),
       ...(parts.scheduler === undefined ? {} : { scheduler: parts.scheduler }),
       ...(parts.agents === undefined ? {} : { agents: parts.agents }),
-      ...(parts.files === undefined ? {} : { files: parts.files }),
       ...(parts.model === undefined ? {} : { model: parts.model }),
       ...(parts.materials === undefined ? {} : { materials: parts.materials }),
       ...(parts.connections === undefined ? {} : { connections: parts.connections }),

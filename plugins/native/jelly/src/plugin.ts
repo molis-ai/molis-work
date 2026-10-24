@@ -1,5 +1,5 @@
 import { ActionError, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDefinition, PluginModelConfigurationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createJellyActionHandlers } from "./actions.js";
 import { jellyErrors } from "./error.js";
 import { jellyManifest } from "./manifest.js";
@@ -9,12 +9,6 @@ import { JellyStore, type JellyStores } from "./store.js";
 import { jellyUiContribution } from "./ui.js";
 import { JELLY_INSTRUCTIONS } from "./prompts.js";
 
-/** Trusted startup declaration. Runtime only honors the copy carried by the Host entry. */
-export const JELLY_MODEL_CONFIGURATION: PluginModelConfigurationDeclaration = {
-  preference: { store_name: "jelly", file_name: "preferences.json" },
-  custom_provider: { provider_id: "jelly-text", display_name: "Jelly 模型" },
-  actions: { read: { capability_id: "jelly.model.settings", version: 1 }, save: { capability_id: "jelly.model.configure", version: 1 } },
-};
 const unavailable = (): ActionAvailability => ({ available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" });
 
 /** One Home Runtime instance owns every Jelly action, view, and HTTP route. */

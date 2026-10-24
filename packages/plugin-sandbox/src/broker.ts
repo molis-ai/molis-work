@@ -3,7 +3,8 @@ import type { PluginConnectionMethod, PluginConnectionsClient } from '@molis-ai/
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkRequest, SandboxNetworkResponse, SandboxOperationContract, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
-import { documentBatchJson, extractionJson, materialRequest, materialSource, materialUploads } from './materials.js';
+import { documentBatchJson, extractionJson, materialLocalUrl, materialRequest, materialSource, materialUploads, originalPart, originalRecordKey, plainJson } from './materials.js';
+import { applyOwnerFileChanges, ownerFileChanges, ownerFileInfo, ownerFileList, ownerFilePath, ownerFileRead, type SandboxOwnerFiles } from './owner-files.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
 
@@ -28,6 +29,14 @@ export interface SandboxServices {
   connections?: PluginConnectionsClient;
   /** The activation's `services.materials`, the readers of files the plugin already holds: the Host decides which of them exist (S-60). */
   materials?: PluginMaterialsClient;
+  /** The activation's `services.ownerFiles` without its `rootPath`: the plugin's own declared files by relative path (S-65). */
+  ownerFiles?: SandboxOwnerFiles;
+}
+interface DispatchGuards {
+  permit(key: keyof SandboxEffects, value: string): void;
+  count(n: number): void;
+  string(index: number, max?: number): string;
+  missing(): never;
 }
 interface BrokerLimits { sdkQueue: number; sdkPerMinute: number; eventsPerMinute: number; serviceTimeoutMs: number; storageBytes: number; messageBytes: number }
 
@@ -55,7 +64,8 @@ export class SandboxBroker {
       } finally { lifetime.dispose(); }
     });
   }
-  private async dispatch(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[]): Promise<SandboxJson> {
+  /** The checks every SDK method makes before it reaches a service: the declared effect that the person also approved, the argument count and one string. */
+  private guards(operation: SandboxOperationContract, args: SandboxJson[]): DispatchGuards {
     const effects = operation.effects;
     const permit = (key: keyof SandboxEffects, value: string) => {
       if (!(effects[key] as string[] | undefined)?.includes(value) || !(this.grants[key] as string[] | undefined)?.includes(value)) throw new SandboxError('sandbox.not_authorized', `Undeclared or unapproved ${key}: ${value}`);
@@ -67,6 +77,69 @@ export class SandboxBroker {
       return value;
     };
     const missing = (): never => { throw new SandboxError('sandbox.service_unavailable', 'Host service is not connected'); };
+    return { permit, count, string, missing };
+  }
+  private async dispatchMaterials(context: SandboxServiceContext, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, missing }: DispatchGuards): Promise<SandboxJson> {
+    // `read` reads bytes the plugin sent. `fetch_local` and `original` are effects of their own (S-66): the first hands the Host an address as
+    // data and takes back extracted text, the second names the Host's saved file by the plugin's own key and takes it back in parts; neither
+    // gives the plugin a socket, an address that was resolved, or a path. A network page (`materials:fetch`) has no method here. The Host's
+    // client checks the Manifest's permission, the grant and the running action each time, and the Host's readers the address and the file.
+    const materials = this.services.materials;
+    if (method === 'materials.readLocalPage') {
+      permit('materials', 'fetch_local'); count(1);
+      const url = materialLocalUrl(args[0]);
+      return materials?.readLocalPage ? extractionJson(await materials.readLocalPage(url, { signal: context.signal })) : missing();
+    }
+    if (method === 'materials.claimOriginal' || method === 'materials.releaseOriginal') {
+      permit('materials', 'original'); count(1);
+      const key = originalRecordKey(args[0]);
+      const call = method === 'materials.claimOriginal' ? materials?.claimOriginal : materials?.releaseOriginal;
+      if (!call) return missing();
+      await call.call(materials, key);
+      return null;
+    }
+    if (method === 'materials.readOriginalRange') {
+      permit('materials', 'original'); count(4);
+      const key = originalRecordKey(args[0]), { offset, length, revision } = originalPart(args[1], args[2], args[3]);
+      if (!materials?.readOriginalRange) return missing();
+      const part = await materials.readOriginalRange(key, { offset, length, ...(revision !== undefined ? { revision } : {}), signal: context.signal });
+      return { data_base64: Buffer.from(part.bytes).toString('base64'), byte_length: part.bytes.byteLength, size: part.size, revision: part.revision };
+    }
+    permit('materials', 'read');
+    if (method === 'materials.imageTextAvailable') { count(0); return materials?.imageTextAvailable ? materials.imageTextAvailable() : missing(); }
+    if (method !== 'materials.readDocuments' && method !== 'materials.extract') throw new SandboxError('sandbox.invalid_request', 'Unknown materials method');
+    count(2);
+    if (method === 'materials.readDocuments') {
+      const files = materialUploads(args[0]), { timeoutMs } = materialRequest(args[1], ['timeoutMs']);
+      return materials?.readDocuments ? documentBatchJson(await materials.readDocuments(files, { signal: context.signal, ...(timeoutMs !== undefined ? { timeoutMs } : {}) })) : missing();
+    }
+    const source = materialSource(args[0]), request = materialRequest(args[1]);
+    return materials?.extract ? extractionJson(await materials.extract(source, { ...request, signal: context.signal })) : missing();
+  }
+  private async dispatchOwnerFiles(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, missing }: DispatchGuards): Promise<SandboxJson> {
+    // By relative path and in bounded JSON: the Host's client checks the Manifest's permissions, the grant, the running action and its original
+    // caller, and its port that the path is inside a declared entry with no link or special node on the way; the folder's location and the
+    // writer callback have no method here, and a query reads only.
+    if (method !== 'ownerFiles.stat' && method !== 'ownerFiles.list' && method !== 'ownerFiles.read' && method !== 'ownerFiles.write') throw new SandboxError('sandbox.invalid_request', 'Unknown owner files method');
+    count(1);
+    const files = this.services.ownerFiles;
+    if (method === 'ownerFiles.write') {
+      permit('ownerFiles', 'write');
+      if (operation.kind === 'query') throw new SandboxError('sandbox.not_authorized', 'A query cannot write files');
+      const steps = ownerFileChanges(args[0]);
+      if (!files) return missing();
+      await context.beforeEffect?.();
+      await files.write(writer => applyOwnerFileChanges(writer, steps));
+      return null;
+    }
+    permit('ownerFiles', 'read');
+    const path = ownerFilePath(args[0]);
+    if (!files) return missing();
+    return plainJson(method === 'ownerFiles.stat' ? ownerFileInfo(files, path) : method === 'ownerFiles.list' ? ownerFileList(files, path) : ownerFileRead(files, path));
+  
+  }
+  private async dispatch(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[]): Promise<SandboxJson> {
+    const guards = this.guards(operation, args), { permit, count, string, missing } = guards;
     if (method.startsWith('storage.')) {
       const write = method === 'storage.set' || method === 'storage.delete';
       permit('storage', write ? 'write' : 'read');
@@ -114,21 +187,8 @@ export class SandboxBroker {
       const { status, headers, body, authenticated } = await this.services.connections.request(slot, { ...request, signal: context.signal });
       return { status, headers: { ...headers }, body, authenticated };
     }
-    if (method.startsWith('materials.')) {
-      // Reading is the one effect (`materials: ['read']`), and it reads bytes the plugin sent, never a path or an address: what reaches out
-      // to a network, a machine's own pages or the Host's saved originals has no method here. The Host's client checks the rest.
-      const materials = this.services.materials;
-      permit('materials', 'read');
-      if (method === 'materials.imageTextAvailable') { count(0); return materials?.imageTextAvailable ? materials.imageTextAvailable() : missing(); }
-      if (method !== 'materials.readDocuments' && method !== 'materials.extract') throw new SandboxError('sandbox.invalid_request', 'Unknown materials method');
-      count(2);
-      if (method === 'materials.readDocuments') {
-        const files = materialUploads(args[0]), { timeoutMs } = materialRequest(args[1], ['timeoutMs']);
-        return materials?.readDocuments ? documentBatchJson(await materials.readDocuments(files, { signal: context.signal, ...(timeoutMs !== undefined ? { timeoutMs } : {}) })) : missing();
-      }
-      const source = materialSource(args[0]), request = materialRequest(args[1]);
-      return materials?.extract ? extractionJson(await materials.extract(source, { ...request, signal: context.signal })) : missing();
-    }
+    if (method.startsWith('materials.')) return this.dispatchMaterials(context, method, args, guards);
+    if (method.startsWith('ownerFiles.')) return this.dispatchOwnerFiles(context, operation, method, args, guards);
     if (method.startsWith('interaction.')) {
       // Drawing reads only what the plugin passes and writes nothing; the Host checks each drawing's shape, the channel that it is an object.
       const object = <T>(index: number): T => {

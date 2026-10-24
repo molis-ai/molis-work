@@ -58,7 +58,7 @@ function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
 function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
   const declared: Array<{ id: string; data: ProjectDataDeclaration; partitioned?: string }> = [
     ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.project_data ? [{ id: entry.project_plugin_id, data: entry.project_data,
-      ...entry.runtime?.database?.partition === "project" ? { partitioned: entry.runtime.database.store_name } : {} }] : []),
+      ...entry.runtime && entry.manifest.databases?.home?.partition === "project" ? { partitioned: entry.manifest.databases.home.store_name } : {} }] : []),
     // Characters keeps its native runs by project in a library of the Home; the drafts it also keeps are the person's and stay.
     { id: "characters", data: charactersProjectData },
     { id: "functions", data: functionsProjectData },

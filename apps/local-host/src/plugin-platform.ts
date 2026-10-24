@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
-  PluginDatabaseDeclaration,
   PluginDefinition,
   PluginManifest,
   PluginPrivateStorage,
@@ -34,7 +33,6 @@ import type { PluginPlatformHome } from "./home-side.js";
 import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { observePluginArtifacts } from "./plugin-artifact-refresh.js";
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
-import { assertFilesEntries } from "./plugin-files-entries.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
 import type { ProjectLibrary } from "./plugin-project-library.js";
 import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
@@ -57,13 +55,10 @@ export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase
 };
 
 /**
- * One entry of the Host's own start list. `database` is the library in the Home the Host gives that plugin as
- * `services.database`; the entry names it, never the plugin (`assertDatabaseEntries` says what a list may declare).
+ * One entry of the Host's own start list. A plugin on it is given the library in the Home its Manifest declares
+ * (`databases.home`, as `services.database`); `assertDatabaseEntries` says what a list may declare.
  */
-export interface PluginPlatformEntry extends PluginSupervisorEntry, Pick<PluginOwnerFilesEntry, "owner_files" | "initialize_owner_files" | "dual_instance"> {
-  readonly database?: PluginDatabaseDeclaration;
-  readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
-}
+export interface PluginPlatformEntry extends PluginSupervisorEntry, Pick<PluginOwnerFilesEntry, "dual_instance"> {}
 
 export interface PluginPlatformOptions {
   project_id: string;
@@ -149,7 +144,6 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     providerFor,
     databaseFor: identity.databaseFor,
     projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,
-    filesFor: identity.filesFor,
     project_id: options.project_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,
@@ -240,8 +234,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
         listed.add(definition.manifest.plugin_id);
       }
       assertDatabaseEntries(entries, options.home, "project");
-      assertOwnerFilesEntries(options.home ? homeOwnerFilesEntries(options.home.directory) : [], entries, options.home);
-      assertFilesEntries(entries, options.home);
+      assertOwnerFilesEntries(homeOwnerFilesEntries(options.home?.directory ?? null), entries, options.home);
       identity.remember(entries);
       const report = await supervisor.start(entries.map(entry => rememberingRestored(entry, identity.remember)));
       // Deliver whatever was already bound and published before this process.

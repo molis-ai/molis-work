@@ -10,8 +10,8 @@ import { assertEffects, DEFAULT_SANDBOX_LIMITS, SandboxBroker, sandboxServicesFo
 // S-60 for `services.materials` (PG-017 P2): a sandboxed plugin reads files it already holds through the Host's readers, over the broker. Two
 // gates in series: the broker asks the operation's declared and approved `materials: ["read"]` and the shape of the request, then the Host's own
 // client asks what it asks every plugin (the Manifest's permission, the grant, the running concurrent action that declares the permission). What
-// reaches out (a network page, a page on this machine, the Host's saved originals) has no method on the broker. These tests assert the refusals,
-// with the real client behind the broker.
+// reaches the network (a page from the web) has no method on the broker; a page on this machine and the Host's saved originals are S-66's, in
+// tests/security-invariants-sandbox-local-original.test.ts. These tests assert the refusals, with the real client behind the broker.
 
 const PLUGIN_ID = "io.molis.work.example.sbxmaterials";
 const IDENTITY: SandboxIdentity = { projectId: "p", installationId: "install-sbx", pluginId: PLUGIN_ID, namespace: "installed" };
@@ -140,21 +140,21 @@ test("S-60 RAC-235 RAC-237 the Host's own client refuses a read outside the plug
   await assert.rejects(none.call(operation("command", READ), "materials.imageTextAvailable", []), code("sandbox.service_unavailable"));
 });
 
-test("S-60 RAC-235 what reaches out has no method: a network page, a page on this machine and the Host's saved originals are refused even when the Manifest declares them", async () => {
+test("S-60 RAC-235 what reaches the network has no method: a page from the web is refused even when the Manifest declares it", async () => {
   const r = rig();
-  const names = ["materials.readSource", "materials.readLocalPage", "materials.claimOriginal", "materials.readOriginal", "materials.releaseOriginal", "materials.original", "materials.fetch"];
+  const names = ["materials.readSource", "materials.fetch", "materials.original", "materials.readOriginal"];
   for (const method of names) {
     await assert.rejects(r.call(operation("command", READ), method as never, ["https://example.com/", {}]), code("sandbox.invalid_request"), method);
     await assert.rejects(r.call(operation("command", {}), method as never, ["https://example.com/", {}]), code("sandbox.not_authorized"), `${method} without the effect`);
   }
   // An effect that names one of them (a contract is refused on load; here the broker is asked anyway) is no `read`: nothing matches it.
-  for (const effects of [{ materials: ["fetch"] }, { materials: ["fetch_local"] }, { materials: ["original"] }]) {
+  for (const effects of [{ materials: ["fetch"] }]) {
     await assert.rejects(r.call(operation("command", effects as never), "materials.readSource" as never, ["https://example.com/", {}], { grants: effects as never }), code("sandbox.not_authorized"), JSON.stringify(effects));
   }
   assert.equal(r.reads.length, 0, "none of them reached the Host's port");
-  // The contract an operation declares names `read` and nothing else, so a package cannot even load with the others.
-  assert.doesNotThrow(() => assertEffects(READ));
-  for (const access of ["fetch", "fetch_local", "original", "write"]) assert.throws(() => assertEffects({ materials: [access] }), code("sandbox.invalid_contract"), access);
+  // The contract an operation declares names `read`, `fetch_local` or `original` and nothing else, so a package cannot even load with a network read.
+  for (const access of ["read", "fetch_local", "original"]) assert.doesNotThrow(() => assertEffects({ materials: [access] }), access);
+  for (const access of ["fetch", "write"]) assert.throws(() => assertEffects({ materials: [access] }), code("sandbox.invalid_contract"), access);
 });
 
 test("S-60 RAC-231 a stopped installation, a taken-back grant and a cancelled call read nothing through the broker", async () => {

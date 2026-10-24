@@ -635,3 +635,13 @@ task-17 PR 出现后只读复核；#1168 合入后把 E14 标记完成；主题 
 
 - 等 task-17 PR 做一次 diff 只读复核；#1168 绿后把 §14.2/E14 记完成态。
 - 主题 h 的 UNVERIFIED 部分需要真实 Home 调用数据或页面抓包，暂不深挖；#1165/#1167/#1169/#1172 等新 PR 是否覆盖 AC-AUDIT-01..04，等 lead 派。
+
+### 15.6 在途 PR 覆盖映射与合并顺序提示（防重复；2026-10-25 01:00 左右）
+
+- **AC-AUDIT-01..04**（纯文档，=E1/E14/E15/E19）→ 待统筹批量写；新 PR #1165/#1167/#1168/#1169/#1172 **均不覆盖**，无重复派修。
+- **AC-AUDIT-06**（personal 别名桥）→ PR #1168：§6.2 v2 复核已 PASS；新 head `98906bfad` 追加「别名表收窄到 functions」与反向断言；当前 0 failed / **10 pending**（等 CI 绿）；绿合后把 §14.2/E14 记完成，冻结名单 5→4。
+- **AC-AUDIT-08..11**（安全不变量表/测试注释）→ task-17（review-fix-owner），PR 尚未出现。
+- **AC-AUDIT-12..15 / AC-AUDIT-17**（SSOT/privileges 数字与行号）→ 统筹批量写（E1/E14/E15/E19/E22 + AC-17）。注意 **PR #1172 的 design 也计划改 `docs/SSOT-MATRIX.md`、`specs/repository-anti-corruption/privileges.md`**（新增行与 PG-001/003/004/005 状态、S-67/S-68），与本批 E 编辑同文件：建议合并顺序 = 先合 #1172，再让统筹批量写 E 清单（或批量写后 rebase #1172），避免同文件冲突。
+- **文档冲突提示（task-17 × #1165）**：PR #1165（ac-kernel/pg047-validate-result）改 `docs/system/SECURITY-INVARIANTS.md`（S-18 行整行重写，S-47 行在 diff 中也出现）与 `skills/molis-plugin-dev/host.md`；task-17 也改同一文档（§1 第 7/8 行、S-38:52、S-47:61）→ 建议 task-17 在 #1165 合入后基于该 main 生成，并由 review-fix-owner 按语义重定位行号（S-47 若被 #1165 改写，需把 AC-08 的追加句并入新行）。
+- **安全不变量编号预留**：#1119 → S-59；#1139 → S-60；#1172 design 拟新增 S-67/S-68。task-17 只改注释/引用，不新增 S 行、不占号。
+- **其他新 PR 与本次发现的关系**：#1169 = R11/PG-063（Inbox/灵光与 Todo 的通用入口；删 `apps/local-host/src/plugin-page-todo.ts` 等，不动本审计 E/AC 条目）；#1167 = W5-04 Cognia（稳定翻译键与打包客户端，PG-056 进度）；#1172 = PG-001/003/004/005 信任边界设计（AC-AUDIT-01..04 的 privileges 行清理不在其范围）。

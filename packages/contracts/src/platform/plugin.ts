@@ -197,6 +197,8 @@ export interface PluginExecutor {
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
   /** The installation is uninstalled and its row saved: what the Host kept for it while it was installed goes (PG-051 Q1 b). */
   uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
+  /** A confirmed install dropped the private data an earlier uninstall kept (`discard_kept_data`), and its row is saved: what the Host kept beside that data goes too. `record` is the uninstalled row it replaced. */
+  keptDataDiscarded?(record: PluginInstanceRecord): void;
 }
 
 export interface PluginRuntimeRepository {

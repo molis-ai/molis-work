@@ -45,7 +45,7 @@ export function homeStores(): HomeStoreRegistry {
     }),
     ...owned("horizontal/agent-host", ...at("agent-runtime")),
     ...owned("apps/local-host/src/installer", ...at("runtime-config-backups", "runtime-integrations", "runtime-integration-attempts")),
-    ...owned("apps/local-host", ...at("browser", "plugin-builder", "cache", "git-operation-details.json", "config/onboarding.json",
+    ...owned("apps/local-host", ...at("browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/onboarding.json",
       "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json")),
     ...owned("apps/desktop", ...at("directory-access")),
   ]);

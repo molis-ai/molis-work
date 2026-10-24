@@ -7,18 +7,18 @@ import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type PluginOwnerFilesClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxEffects, SandboxJson, SandboxOperationContract, SandboxSdkMethod } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
-import { HomePluginHost } from "@molis-ai/molis-work-app-local-host";
+import { HomePluginHost, homeStores } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { DEFAULT_SANDBOX_LIMITS, SandboxBroker, sandboxServicesFor } from "@molis-ai/molis-work-plugin-sandbox";
 import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-files.js";
 
 // S-65 for `services.ownerFiles` (PG-017 P2c): a sandboxed plugin reads and writes the files its Manifest declares (`owner_files`), over the broker.
-// The Host gives a sandboxed installation its own root in the project (<Home>/projects/<project>/plugin-files/<installation>/<store_name>), builds the
-// same client the Host's own plugins get, and the broker passes it relative paths and bounded base64 only: no location (`rootPath`), no writer callback.
-// Three gates in series: the broker (the operation's declared and approved `ownerFiles` effect, the shape and the size of every request), the Host's
-// client (the Manifest's permissions, the grant, the running action and its original caller, a query never writes) and the Host's port (a strict relative
-// path inside a declared entry, no link, no special node). Everything runs behind the real project platform and its real action scope. Provisional
-// acceptance ids (P2C-nn) stand until the line is given RAC numbers.
+// The Host gives a sandboxed installation its own root (in a project: <Home>/projects/<project>/plugin-files/<installation>/<store_name>; on the Home
+// Runtime: <Home>/plugin-files/<installation>/<store_name>), builds the same client the Host's own plugins get, and the broker passes it relative paths
+// and bounded base64 only: no location (`rootPath`), no writer callback. Three gates in series: the broker (the operation's declared and approved
+// `ownerFiles` effect, the shape and the size of every request), the Host's client (the Manifest's permissions, the grant, the running action and its
+// original caller, a query never writes) and the Host's port (a strict relative path inside a declared entry, no link, no special node). Everything
+// runs behind the real project platform or the real Home Runtime and its real action scope. RAC-350 to RAC-359 are this slice's.
 
 const code = (expected: string) => (error: unknown) => (error as { code?: string } | undefined)?.code === expected;
 const READ: SandboxEffects = { ownerFiles: ["read"] }, WRITE: SandboxEffects = { ownerFiles: ["read", "write"] };
@@ -30,16 +30,28 @@ const operation = (kind: "query" | "command", effects: SandboxEffects): SandboxO
 
 type Outcome = { ok: SandboxJson } | { error: string };
 
-async function rig(t: test.TestContext, options: { name?: string; granted?: string[] } = {}) {
-  const home = mkdtempSync(join(tmpdir(), "sandbox-owner-files-"));
-  const probe = ownerFilesProbe(options.name ?? "sbxfiles", "project");
+/** A sandboxed package installed into a project's platform (the folder is the project's) or the Home Runtime (the folder is the Home's). */
+async function platformFor(t: test.TestContext, home: string, probe: ReturnType<typeof ownerFilesProbe>, scope: "project" | "home") {
+  if (scope === "project") {
+    const project = ownerFilesProject(home, probe);
+    t.after(async () => { await project.close(); rmSync(home, { recursive: true, force: true }); });
+    return { runtime: project.platform.runtime, client: project.client, projectId: project.projectId as string | null,
+      base: (installId: string) => join(realpathSync(home), "projects", project.projectId, "plugin-files", installId) };
+  }
+  const actions = new ActionService(), host = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [] });
+  t.after(async () => { try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } });
+  return { runtime: (await host.ready()).runtime, client: actions, projectId: null as string | null, base: (installId: string) => join(realpathSync(home), "plugin-files", installId) };
+}
+
+async function rig(t: test.TestContext, options: { name?: string; granted?: string[]; scope?: "project" | "home" } = {}) {
+  const home = mkdtempSync(join(tmpdir(), "sandbox-owner-files-")), scope = options.scope ?? "project";
+  const probe = ownerFilesProbe(options.name ?? "sbxfiles", scope);
   probe.definition.execution = "sandbox";
-  const project = ownerFilesProject(home, probe);
-  t.after(async () => { await project.close(); rmSync(home, { recursive: true, force: true }); });
+  const project = await platformFor(t, home, probe, scope);
   // A sandboxed package is installed with the person's grants; it is never a start-list entry.
-  const runtime = project.platform.runtime, install = runtime.install({ definition: probe.definition, deployment: "local", grants: options.granted ?? probe.permissions }).install;
+  const runtime = project.runtime, install = runtime.install({ definition: probe.definition, deployment: "local", grants: options.granted ?? probe.permissions }).install;
   await runtime.start(install.install_id);
-  const root = join(realpathSync(home), "projects", project.projectId, "plugin-files", install.install_id, probe.owner_files.store_name);
+  const root = join(project.base(install.install_id), probe.owner_files.store_name);
   const tally = { reads: 0, writes: 0 }, abort = { current: new AbortController() };
   /** One broker call, run inside the real action `action` (so the Host's client sees a real scope), answered as data. */
   async function call(op: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], settings: {
@@ -70,14 +82,14 @@ async function rig(t: test.TestContext, options: { name?: string; granted?: stri
   };
   const tree = (dir = root): string[] => !existsSync(dir) ? [] : readdirSync(dir, { withFileTypes: true }).flatMap(entry =>
     entry.isDirectory() ? [`${entry.name}/`, ...tree(join(dir, entry.name)).map(item => `${entry.name}/${item}`)] : [entry.name]).sort();
-  return { home, probe, project, install, root, tally, abort, call, ok, refused, tree };
+  return { home, probe, project, install, root, tally, abort, call, ok, refused, tree, scope };
 }
 
 const write = (...steps: SandboxJson[]): SandboxJson[] => [steps];
 
-test("S-65 P2C-01 a sandboxed plugin writes, reads, lists, copies and removes its own declared files, in its installation's folder of the project and nowhere else", { timeout: 60_000 }, async t => {
+test("S-65 RAC-350 a sandboxed plugin writes, reads, lists, copies and removes its own declared files, in its installation's folder of the project and nowhere else", { timeout: 60_000 }, async t => {
   const r = await rig(t), command = operation("command", WRITE), query = operation("query", READ);
-  assert.equal(r.project.platform.runtime.get(r.install.install_id).state, "running");
+  assert.equal(r.project.runtime.get(r.install.install_id).state, "running");
   await r.ok(command, "ownerFiles.write", write(
     { op: "mkdir", path: "documents/sub" },
     { op: "write", path: "documents/sub/a.txt", data_base64: b64("中文 a"), mode: "create" },
@@ -100,7 +112,7 @@ test("S-65 P2C-01 a sandboxed plugin writes, reads, lists, copies and removes it
   assert.equal(existsSync(join(r.home, r.probe.owner_files.store_name)), false);
 });
 
-test("S-65 P2C-02 the operation's declared effect and the person's approval decide, a query only reads, and the Host's own gates still apply", { timeout: 60_000 }, async t => {
+test("S-65 RAC-351 the operation's declared effect and the person's approval decide, a query only reads, and the Host's own gates still apply", { timeout: 60_000 }, async t => {
   const r = await rig(t), steps = write({ op: "mkdir", path: "documents/x" });
   const methods: Array<[SandboxSdkMethod, SandboxJson[]]> = [["ownerFiles.stat", ["documents"]], ["ownerFiles.list", ["documents"]], ["ownerFiles.read", ["catalog.json"]], ["ownerFiles.write", steps]];
   for (const [method, args] of methods) {
@@ -125,12 +137,12 @@ test("S-65 P2C-02 the operation's declared effect and the person's approval deci
   await r.ok(operation("command", WRITE), "ownerFiles.write", write({ op: "mkdir", path: "documents/first" }));
   const stopping: Promise<unknown>[] = [];
   await r.refused("stopped", "actions.provider_changed", operation("command", WRITE), "ownerFiles.write", write({ op: "mkdir", path: "documents/second" }),
-    { between: async () => { stopping.push(r.project.platform.runtime.stop(r.install.install_id)); await new Promise(resolve => setTimeout(resolve, 100)); } });
+    { between: async () => { stopping.push(r.project.runtime.stop(r.install.install_id)); await new Promise(resolve => setTimeout(resolve, 100)); } });
   await Promise.all(stopping);
   assert.deepEqual(r.tree(), ["documents/", "documents/first/"]);
 });
 
-test("S-65 P2C-03 a request of the wrong shape is refused at the broker and never reaches the Host's client", { timeout: 60_000 }, async t => {
+test("S-65 RAC-352 a request of the wrong shape is refused at the broker and never reaches the Host's client", { timeout: 60_000 }, async t => {
   const r = await rig(t), command = operation("command", WRITE), data = b64("x");
   const bad: Array<[string, SandboxSdkMethod, SandboxJson[], string]> = [
     ["no argument", "ownerFiles.stat", [], "sandbox.invalid_request"], ["two arguments", "ownerFiles.read", ["catalog.json", 1], "sandbox.invalid_request"],
@@ -162,7 +174,7 @@ test("S-65 P2C-03 a request of the wrong shape is refused at the broker and neve
   assert.equal(r.tree().filter(item => item.startsWith("documents/d")).length, 16);
 });
 
-test("S-65 P2C-04 the Host's port refuses a path outside the declared entries, a link, a special node and a hard link; nothing outside the root is touched", { timeout: 90_000 }, async t => {
+test("S-65 RAC-353 the Host's port refuses a path outside the declared entries, a link, a special node and a hard link; nothing outside the root is touched", { timeout: 90_000 }, async t => {
   const r = await rig(t), command = operation("command", WRITE);
   mkdirSync(join(r.root, "documents"), { recursive: true });
   const outside = join(r.home, "outside.txt");
@@ -197,7 +209,7 @@ test("S-65 P2C-04 the Host's port refuses a path outside the declared entries, a
   assert.deepEqual(r.tree(), before, "the root holds exactly what the test put there");
 });
 
-test("S-65 P2C-05 the plugin gets no location and no callback: the services hold four members, the broker has no other method, and no answer carries a path", { timeout: 60_000 }, async t => {
+test("S-65 RAC-354 the plugin gets no location and no callback: the services hold four members, the broker has no other method, and no answer carries a path", { timeout: 60_000 }, async t => {
   const r = await rig(t);
   let members: string[] = [];
   r.probe.behavior.read = client => { members = Object.keys(sandboxServicesFor({ storage: { get: () => null, set: () => {}, delete: () => false, compareAndSet: () => true }, ownerFiles: client }).ownerFiles ?? {}).sort(); return null; };
@@ -214,7 +226,7 @@ test("S-65 P2C-05 the plugin gets no location and no callback: the services hold
   assert.equal(answers.includes("plugin-files"), false);
 });
 
-test("S-65 P2C-06 a read is bounded: a file past 256 KiB or a folder past 1000 entries is refused, and the Host does not read the big file", { timeout: 90_000 }, async t => {
+test("S-65 RAC-355 a read is bounded: a file past 256 KiB or a folder past 1000 entries is refused, and the Host does not read the big file", { timeout: 90_000 }, async t => {
   const r = await rig(t), query = operation("query", READ);
   mkdirSync(join(r.root, "documents"), { recursive: true });
   writeFileSync(join(r.root, "documents", "big.bin"), Buffer.alloc(256 * 1024 + 1, 7));
@@ -229,7 +241,7 @@ test("S-65 P2C-06 a read is bounded: a file past 256 KiB or a folder past 1000 e
   await r.refused("1001 entries", "sandbox.owner_file_too_large", query, "ownerFiles.list", ["documents/many"], { grants: READ });
 });
 
-test("S-65 P2C-07 a call that is cancelled, or that the person's invocation no longer allows, writes nothing", { timeout: 60_000 }, async t => {
+test("S-65 RAC-355 a call that is cancelled, or that the person's invocation no longer allows, writes nothing", { timeout: 60_000 }, async t => {
   const r = await rig(t), command = operation("command", WRITE), step = write({ op: "mkdir", path: "documents/x" });
   await r.refused("the call is cancelled before the write", "AbortError", command, "ownerFiles.write", step, { between: async () => r.abort.current.abort() });
   assert.deepEqual(r.tree(), []);
@@ -244,7 +256,7 @@ test("S-65 P2C-07 a call that is cancelled, or that the person's invocation no l
   assert.equal(r.tally.writes, 0, "the Host's client never ran a write");
 });
 
-test("S-65 P2C-08 each installation has its own folder, and a platform with no Home refuses the declaration", { timeout: 90_000 }, async t => {
+test("S-65 RAC-356 each installation has its own folder, and a platform with no Home refuses the declaration", { timeout: 90_000 }, async t => {
   const a = await rig(t, { name: "sbxa" }), b = await rig(t, { name: "sbxb" });
   await a.ok(operation("command", WRITE), "ownerFiles.write", write({ op: "replace_atomic", path: "catalog.json", data_base64: b64("a's") }));
   assert.equal(await b.ok(operation("query", READ), "ownerFiles.read", ["catalog.json"], { grants: READ }), null);
@@ -261,14 +273,89 @@ test("S-65 P2C-08 each installation has its own folder, and a platform with no H
   assert.equal(probe.contexts.length, 0, "its code never ran");
 });
 
-test("S-65 P2C-09 the Home Runtime does not give a sandboxed installation files: a Home has no project to hold its folder, so the start is refused before its code runs", { timeout: 60_000 }, async t => {
-  const home = mkdtempSync(join(tmpdir(), "sandbox-owner-files-home-")), actions = new ActionService(), probe = ownerFilesProbe("sbxhome");
-  const host = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [] });
-  t.after(async () => { try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } });
-  const { runtime } = await host.ready();
-  const { install } = runtime.install({ definition: { ...probe.definition, execution: "sandbox" }, deployment: "local", grants: probe.permissions });
-  await assert.rejects(runtime.start(install.install_id), { code: "plugin.executor_failed" });
-  assert.equal(runtime.get(install.install_id).last_error_code, pluginErrors.declaration_invalid("x").code);
-  assert.equal(probe.contexts.length, 0, "its code never ran");
-  assert.equal(existsSync(join(home, probe.owner_files.store_name)), false, "and no folder was made");
+test("S-65 RAC-357 an uninstall that keeps no data removes that installation's folder and nothing else; one that keeps it leaves the folder to the same installation, which a reinstall finds", { timeout: 90_000 }, async t => {
+  const r = await rig(t, { name: "sbxa" }), other = ownerFilesProbe("sbxb", "project"), runtime = r.project.runtime, command = operation("command", WRITE), query = operation("query", READ);
+  other.definition.execution = "sandbox";
+  const beside = runtime.install({ definition: other.definition, deployment: "local", grants: other.permissions }).install;
+  await runtime.start(beside.install_id);
+  const besideRoot = join(realpathSync(r.home), "projects", r.project.projectId!, "plugin-files", beside.install_id);
+  writeFileSync(join(besideRoot, "marker.txt"), "another installation's");
+  await r.ok(command, "ownerFiles.write", write({ op: "replace_atomic", path: "catalog.json", data_base64: b64("kept") }));
+  // Keeping the data keeps the folder, and the same installation id, which a reinstall reuses, finds it.
+  await runtime.uninstall(r.install.install_id, { retain_private_data: true });
+  assert.equal(readFileSync(join(r.root, "catalog.json"), "utf8"), "kept");
+  const again = runtime.install({ definition: r.probe.definition, deployment: "local", grants: r.probe.permissions }).install;
+  assert.equal(again.install_id, r.install.install_id);
+  await runtime.start(again.install_id);
+  assert.deepEqual(await r.ok(query, "ownerFiles.read", ["catalog.json"], { grants: READ }), { data_base64: b64("kept"), byte_length: 4 });
+  // An uninstall that keeps nothing takes the installation's folder with the rest of its data, and no other installation's.
+  await runtime.uninstall(r.install.install_id, { retain_private_data: false });
+  assert.equal(existsSync(join(r.root, "..")), false, "the installation's folder is gone with its files");
+  assert.equal(readFileSync(join(besideRoot, "marker.txt"), "utf8"), "another installation's");
+  // A reinstall starts with nothing.
+  runtime.install({ definition: r.probe.definition, deployment: "local", grants: r.probe.permissions });
+  await runtime.start(r.install.install_id);
+  assert.deepEqual(r.tree(), []);
+  assert.equal(await r.ok(query, "ownerFiles.read", ["catalog.json"], { grants: READ }), null);
+  // The person's word at a reinstall that drops the data an uninstall kept drops the folder too, before the new code runs.
+  await r.ok(command, "ownerFiles.write", write({ op: "replace_atomic", path: "catalog.json", data_base64: b64("to drop") }));
+  await runtime.uninstall(r.install.install_id, { retain_private_data: true });
+  assert.equal(readFileSync(join(r.root, "catalog.json"), "utf8"), "to drop");
+  runtime.install({ definition: r.probe.definition, deployment: "local", grants: r.probe.permissions, discard_kept_data: true });
+  assert.equal(existsSync(join(r.root, "..")), false, "gone as the install is confirmed, before anything starts");
+  await runtime.start(r.install.install_id);
+  assert.deepEqual(r.tree(), []);
+  assert.equal(readFileSync(join(besideRoot, "marker.txt"), "utf8"), "another installation's");
+});
+
+test("S-65 RAC-357 the cleanup never follows a link out of the Home: a folder that resolves elsewhere is refused and what it points at is untouched", { timeout: 60_000 }, async t => {
+  const r = await rig(t), outside = mkdtempSync(join(tmpdir(), "sandbox-owner-files-outside-"));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  const holder = join(realpathSync(r.home), "projects", r.project.projectId!, "plugin-files");
+  mkdirSync(join(outside, r.install.install_id));
+  writeFileSync(join(outside, r.install.install_id, "keep.txt"), "not the plugin's");
+  await r.project.runtime.stop(r.install.install_id);
+  rmSync(holder, { recursive: true, force: true });
+  symlinkSync(outside, holder);
+  await assert.rejects(r.project.runtime.uninstall(r.install.install_id, { retain_private_data: false }), { code: pluginErrors.declaration_invalid("x").code });
+  assert.equal(readFileSync(join(outside, r.install.install_id, "keep.txt"), "utf8"), "not the plugin's");
+});
+
+test("S-65 RAC-358 on the Home Runtime a sandboxed installation has its own folder of the Home and the same bounded service, with the same refusals", { timeout: 90_000 }, async t => {
+  const r = await rig(t, { scope: "home" }), command = operation("command", WRITE), query = operation("query", READ);
+  assert.equal(r.project.runtime.get(r.install.install_id).state, "running");
+  assert.equal(r.root, join(realpathSync(r.home), "plugin-files", r.install.install_id, r.probe.owner_files.store_name));
+  await r.ok(command, "ownerFiles.write", write({ op: "mkdir", path: "documents" }, { op: "write", path: "documents/a.txt", data_base64: b64("home a"), mode: "create" }));
+  assert.equal(readFileSync(join(r.root, "documents/a.txt"), "utf8"), "home a");
+  assert.deepEqual(await r.ok(query, "ownerFiles.read", ["documents/a.txt"], { grants: READ }), { data_base64: b64("home a"), byte_length: 6 });
+  assert.equal(existsSync(join(r.home, "projects")), false, "a Home installation has no project folder");
+  assert.equal(existsSync(join(r.home, r.probe.owner_files.store_name)), false, "and no folder of a registered Home store");
+  // The broker's gates and the Host's port are the same ones: an effect that is not declared, a path outside the entries, a request of the wrong shape.
+  await r.refused("an effect the operation did not declare", "sandbox.not_authorized", operation("command", { ownerFiles: ["read"] }), "ownerFiles.write", write({ op: "mkdir", path: "documents/x" }));
+  await r.refused("a query that writes", "sandbox.not_authorized", operation("query", WRITE), "ownerFiles.write", write({ op: "mkdir", path: "documents/x" }));
+  await r.refused("a path outside the declared entries", "host.owner_file_invalid", query, "ownerFiles.read", ["../a.txt"], { grants: READ });
+  await r.refused("a request of the wrong shape", "sandbox.invalid_request", command, "ownerFiles.write", [{ op: "mkdir" }]);
+  await r.refused("a method that would give a location", "sandbox.invalid_request", command, "ownerFiles.rootPath" as SandboxSdkMethod, []);
+  assert.deepEqual(r.tree(), ["documents/", "documents/a.txt"]);
+});
+
+test("S-65 RAC-359 on the Home Runtime each installation has its own folder, an uninstall that keeps no data removes it, and a registered Home store covers the folders for a purge", { timeout: 90_000 }, async t => {
+  const r = await rig(t, { scope: "home" }), runtime = r.project.runtime, kept = ownerFilesProbe("sbxhomeb", "home");
+  kept.definition.execution = "sandbox";
+  const beside = runtime.install({ definition: kept.definition, deployment: "local", grants: kept.permissions }).install;
+  await runtime.start(beside.install_id);
+  const besideRoot = join(realpathSync(r.home), "plugin-files", beside.install_id);
+  assert.notEqual(besideRoot, join(r.root, ".."));
+  await r.ok(operation("command", WRITE), "ownerFiles.write", write({ op: "replace_atomic", path: "catalog.json", data_base64: b64("a's") }));
+  mkdirSync(join(besideRoot, kept.owner_files.store_name), { recursive: true });
+  writeFileSync(join(besideRoot, kept.owner_files.store_name, "catalog.json"), "b's");
+  assert.equal(readFileSync(join(r.root, "catalog.json"), "utf8"), "a's", "each installation has its own file");
+  // Kept data keeps the folder; none removes it, and nothing of the other installation goes with it.
+  await runtime.uninstall(beside.install_id, { retain_private_data: true });
+  assert.equal(readFileSync(join(besideRoot, kept.owner_files.store_name, "catalog.json"), "utf8"), "b's");
+  await runtime.uninstall(r.install.install_id, { retain_private_data: false });
+  assert.equal(existsSync(join(r.root, "..")), false);
+  assert.equal(readFileSync(join(besideRoot, kept.owner_files.store_name, "catalog.json"), "utf8"), "b's");
+  // `plugin-files` is a registered Home store of the Host, so `uninstall --purge-user-data` removes the folders of every installation.
+  assert.equal(homeStores().get("plugin-files")?.owner, "apps/local-host");
 });

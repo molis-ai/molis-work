@@ -50,6 +50,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 新 | [#1168](https://github.com/molis-ai/molis-work/pull/1168) | W6-01 / PG-058：删 `personal` 旧短名路由桥，alchemist HTTP 改显式直连（审计 AC-AUDIT-06） | — | 草稿；改枢纽文件 `web-request.ts`，转 ready 时算 `full` | 审计流程（Codex 侧）开的草稿；Alchemist 不删、行为不变（保留 `/api/alchemist` 直连）。转 ready 后交 `ac-review` 一轮 |
 | 新 | [#1169](https://github.com/molis-ai/molis-work/pull/1169) | `ac-clients-1` R11（PG-063/064）：Inbox/灵光转待办走通用创作入口，删工作台的 `data-make-todo`；来源打开按声明解析（统筹定 B） | — | 待算 | 10-24 开；待 `ac-review` 一轮 |
 | 新 | [#1170](https://github.com/molis-ai/molis-work/pull/1170) | 统筹 privileges 第 5 批：PG-051 已做、PG-010 部分、Images 进度；审计 E1～E21；Alchemist 与创作台本轮不删（用户 10-23 目标） | — | `full` 为空，直接入队 | 10-24 06:10 开；`ac-review` 快看后入队 |
+| 新 | [#1167](https://github.com/molis-ai/molis-work/pull/1167) | `ac-clients-1` Cognia（W5-04，RAC-144～145）：稳定翻译键与打包、类型检查的页面客户端 | — | 待算 | 10-24 开；待 `ac-review` 一轮 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 已按用户要求转为非 Draft；收尾时合 main |
 
 新开的开发片 PR 由统筹按依赖插进本表。
@@ -112,6 +113,8 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 2026-10-23 21:30 洛杉矶（Claude 统筹）：`ac-sc3` 再同步 main `04435950a`：#1130 `7d5e06b77`、#1157 `2d15c6d41`（baseline 用 `--update --base` 重生成）。**batch-1024-21** 起：main `de103e5fa` + #1157 `2d15c6d41`（含 #1130），头 `05b63880f`，run [40061758914](https://github.com/molis-ai/molis-work/actions/runs/40061758914)。绿后 #1130 → #1157（改投 main 后合一次）。作者不再推送，免得批作废。
 
 2026-10-23 22:50 洛杉矶（Claude 统筹）：**batch-1024-20 结果**：16 片只红分片 10 的 `issue-home-locale.e2e`（重试仍红），就是 main 上 #1127 带进来的已知红（`known-red-main.md`），#1119、#1139、#1148 没带进新的红。照用户 10-18 规矩：**main 修好前不合**；Codex 的修复合入后，三个 PR 各合一次 main、Verify 绿就按 #1119 → #1139（改投 main 后合一次）→ #1148 入队，不重跑全量。入队前看 #1119、#1139 的 Security 作业。
+
+2026-10-23 23:20 洛杉矶（Claude 统筹）：**batch-1024-21 结果**：只红分片 6 的 `issue-home-locale.e2e`（重试仍红），同是 main 上 #1127 的已知红；SC-4 组没带进新的红。main 修好后 #1130 → #1157（改投 main 后合一次）入队，不重跑全量。现在等 main 修复的：#1119、#1139、#1148、#1130、#1157。
 
 后续更新：#1157已在6379484788确认不重复推两测试补丁，原重复认领等待已解除；现等待ac-sc3处理batch-19新增touch-targets移动端失败。测试专职只读核原始失败与产品契约，下一全量仍未启动。#1119需在后续明确集成批补全量，不能借用batch13–19。
 

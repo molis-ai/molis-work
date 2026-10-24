@@ -37,14 +37,13 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 | 19 | [#1129](https://github.com/molis-ai/molis-work/pull/1129) | W5-03/04 Todo 片（样板）：客户端打包成 TS、稳定翻译键；`todo.js` 61,976→54,090 B | — | `full` 非空（assembly、deletes-code，102 文件），进下一批 | **已关闭**（10-24，统筹）：同步 main 后树与 main `1dedc1f5c` 相同、0 个文件；Todo 片内容随 #1132 合入，batch-17 已覆盖 |
 | 20 | [#1130](https://github.com/molis-ai/molis-work/pull/1130) | SC-4：Sessions 下线（删 Work 包、Session 模块部分、首页「说一句」；PG-081、PG-082 收尾；D6 方案 A 用户 10-23 已确认） | **叠在 #1113 上**，#1113 先合 | `full` 非空（855 文件），进集成批 | 最新远端 `7d5e06b779219fb908aae21ab63c356edc3e167d`；78阶段机械同步与26项日志已独立核，最新同步待交付/增量核验；SC4等1157非空Dock补测和作者精确交付后单起batch21，Codex不重复起批 |
 | 39 | [#1157](https://github.com/molis-ai/molis-work/pull/1157) | `ac-sc3` SC-4b：清 SC-4 三项残留（BL-485 Codex 会话适配器、BL-486 `session_id`、BL-488 依赖） | **叠在 #1130 上**（第二层），#1130 合入后改投 main | `full` 非空（shared-core），进下一批 | 候选 `e387dc98167679751288f8c8cf6d168abc625c7f` 已独立核双阶段断言及原补丁保留；评审6379709843发现Dock菜单检查可空过，统筹6379741863已派原ac-sc3补真实320px非空hidden/list/44px验证及同步SC4注释。暂不可合，等待新头及batch21 |
-| 24 | [#1126](https://github.com/molis-ai/molis-work/pull/1126) | 评审修复线（合并 Agent 派）：Coding 两条无人认领 P3——#955 首页后台时间界限、#928 英文持有人中文标签 | — | `full` 为空 | 新头 `e418e68065f37180df1f30a11e9cb15cd8daf6c2`；正式评审6379499475、测试证据及最终CI14项成功。统筹认领6379692948，匹配head正常入队，实际合入另核；BL540/541未完成 |
 | 27 | [#1139](https://github.com/molis-ai/molis-work/pull/1139) | PG-017 P0：`sandboxServicesFor` 一张映射；不给的服务一声明就以 `sandbox.service_not_given` 拒绝（项目与 Home 执行器共用）；S-60 一行 | **叠在 #1119 上**；S 号连续要 #1117、#1119 先合；#1134 合入后作者把切片文件改动并进来 | `full` 为空 | 作者同步下层中，新远端 `9314fc7ba22410df66a2ce38ae27f0dccff3bfbd`，仍叠1119；旧5713头二轮6379124950有效范围保留，新头待回交和增量核验；依赖及Security门槛不变 |
 | 28 | ~~#1140~~ | SC-4 残留：BL-485/486/488 | 作者已关闭（第三层）；分支 `migrate/sessions-sc4b-runtime-leftovers`（`259a5fc84`）留着，#1113 已合，作者改开 [#1157](https://github.com/molis-ai/molis-work/pull/1157)（叠在 #1130 上，第 39 行） | — | 最终候选 `e387dc98167679751288f8c8cf6d168abc625c7f`，作者6379640966交付：合下层78与b640，保留fb22双阶段断言；touch恢复原断言、真实pin配置增todo，报告4/4。已派独立最终review/raw核验，下一batch尚未启动 |
 | 29 | [#1143](https://github.com/molis-ai/molis-work/pull/1143) | PG-017 P2a：连接经 broker 给沙箱插件 | 叠在 #1139→#1119（第三层）；已按用户要求转为非 Draft，保留 #1119 先合与 #1139 改投 main 的依赖 | 待重算 | 已转非 Draft；先等待下层依赖 |
 | 30 | [#1144](https://github.com/molis-ai/molis-work/pull/1144) | PG-017 P2b：不联网的材料读取经 broker 给沙箱 | 叠在 #1143（第四层）；已按用户要求转为非 Draft，仍按层依赖合入 | 待重算 | 统筹转了已按用户要求转为非 Draft；评审要看 RAC-25 旧测试改写没放宽 |
 | 34 | [#1148](https://github.com/molis-ai/molis-work/pull/1148) | R8 第 2 批（BL-364）：项目里的工作与会话状态 4 条 typed 改登记成只给插件的动作 | **叠在 #1121 上**（第二层），#1121 合入后改投 main | `full` 非空，进下一批 | 头 `2a8eec5d8`（squash 感知同步，只剩自己的 13 个文件）；二轮可合；在 **batch-1024-19**（统筹起，10-24 03:35，run [40054696653](https://github.com/molis-ai/molis-work/actions/runs/40054696653)：main `aa4de404f` + #1157 `782af05ed`（含 #1130 `f7fb96ed6`）+ #1148 `2a8eec5d8`）；绿后入队 |
-| 新 | [#1161](https://github.com/molis-ai/molis-work/pull/1161) | #805非阻塞遗留：写后检查设置页路由注释规格错号 | — | 注释only，无full需求 | head `a6621a7ea817077b489c8e26648986568a9c02b2`；修复1交付/释放，1文件+1/-1，正式一轮6379702002可合，独立文档/secret检查通过；CI40061206220原生作业失败，已交测试专职读日志定位，不盲重跑 |
-| 新 | [#1163](https://github.com/molis-ai/molis-work/pull/1163) | #1147非阻塞遗留：SDK instructions统一登记文案 | #1147已实际合入1756f9842 | 纯文档，无full需求 | head `fd7c64a0ee77e72642cd5d6cf3b6c2a1cc281896`；修复2已交付/释放，1行README，root已读diff并立即派正式review/独立检查；已转ready，CI待 |
+| 新 | [#1161](https://github.com/molis-ai/molis-work/pull/1161) | #805非阻塞遗留：写后检查设置页路由注释规格错号 | — | 注释only，无full需求 | head `a6621a7ea817077b489c8e26648986568a9c02b2`；修复1交付/释放，1文件+1/-1，正式一轮6379702002可合，独立文档/secret检查通过；CI40061206220原生剪贴板测试间歇失败，独立诊断后待原run完成，统筹已成功单job重跑一次（6379912743），等原生/Verify结果 |
+| 新 | [#1163](https://github.com/molis-ai/molis-work/pull/1163) | #1147非阻塞遗留：SDK instructions统一登记文案 | #1147已实际合入1756f9842 | 纯文档，无full需求 | head `fd7c64a0ee77e72642cd5d6cf3b6c2a1cc281896`；修复2已交付/释放，1行README，正式review6379896345及独立原始文档/secret核验通过；已转ready，当前CI40062592114待完成 |
 | 最后 | [#784](https://github.com/molis-ai/molis-work/pull/784) | Codex 的 QA 与验收记录（文档） | 全部代码 PR | — | 已按用户要求转为非 Draft；收尾时合 main |
 
 新开的开发片 PR 由统筹按依赖插进本表。
@@ -53,6 +52,7 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 | PR | 合并提交 | 日期 |
 | --- | --- | --- |
+| #1126 | `89c9a71947f483cd429405574df7b2b916b36b8d` | 10-24 04:31:56 UTC（Codex已核实际合并；BL-540/541各已认领待串行实施） |
 | #1147 | `1756f9842def9df6b1cb0ccebfa23b10af26ec76` | 10-24 04:28:30 UTC（Codex已核实际合并；SDKREADME非阻塞文案另派修复2） |
 | #1125 | `de103e5fa421345101056c9fd9100b2144f710e6` | 10-24 04:08:27 UTC（Codex 已核实际合并；只完成文档登记） |
 | #1141 | `04435950a05a3602d6408f31c51c5b3e66080f28` | 10-24 03:56:55 UTC（Codex 已核实际合并） |

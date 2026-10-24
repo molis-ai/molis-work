@@ -13,7 +13,7 @@ import { L } from "../web-locale.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { actionEffect, bindActionClient, type ActionCallContext, type ActionView, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionEffect, bindActionClient, type ActionCallContext, type ActionView, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { registerWorkAuthority } from "../agent-work-authority.js";
 import { AssistantService, type AssistantServicePorts } from "./assistant-service.js";
@@ -191,7 +191,7 @@ export async function assistantNotices(ports: AssistantHttpPorts, surface: strin
   // Reading the works is what notices a change of state, so a closed panel still hears that a round finished.
   await service.list();
   // What the person already acted on in its plugin is not news any more.
-  await service.settleHandledNotices().catch(() => 0);
+  await service.settleHandledNotices().catch(error => { hostLog.warn("assistant", "handled_notices_settlement_failed", error); return 0; });
   return service.notices(surface);
 }
 
@@ -369,7 +369,10 @@ async function threadWorkRoute(workId: string, parts: string[], body: Record<str
 function writeDrawn(ports: AssistantHttpPorts, response: ServerResponse, result: NativePluginJsonResult): void {
   const { service, store } = assistantServiceFor(ports);
   drawAssistantReply(result.body, { say: L, card: card => service.offers.html(card, L),
-    drafts: workId => { try { return questionDrafts(store).read(workId); } catch { return {}; } } });
+    drafts: workId => { try { return questionDrafts(store).read(workId); } catch (error) {
+      if (!(error instanceof ActionError && error.code === "assistant.not_found")) hostLog.warn("assistant", "question_drafts_read_failed", error);
+      return {};
+    } } });
   writeNativePluginJsonResponse(response, result);
 }
 
@@ -390,7 +393,10 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
       // A questionnaire answer the Runtime refused: each question's reason goes beside its own field.
       if (error?.code !== "agent.answer_invalid") throw error;
       // Read back with the questions it answered, so each line can name the limit it crossed.
-      const asked = (await service.read(workId).catch(() => undefined))?.rounds.flatMap(round => round.awaiting_input).find(item => item.pending_id === body.pending_id)?.questions;
+      const asked = (await service.read(workId).catch(error => {
+        if (!(error instanceof ActionError && error.code === "assistant.not_found")) hostLog.warn("assistant", "answer_context_read_failed", error);
+        return undefined;
+      }))?.rounds.flatMap(round => round.awaiting_input).find(item => item.pending_id === body.pending_id)?.questions;
       throw assistantErrors.invalid(String(error.message), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, L, asked) } : undefined);
     });
     drafts.drop(workId, String(body.pending_id ?? ""));

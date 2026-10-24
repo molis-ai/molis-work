@@ -12,6 +12,11 @@ git fetch origin coordination/handoff-2026-10-14 && git show origin/coordination
 
 ## 0. 接手合并 Agent（10-24 03:40 起，先于 §2 的开发片）
 
+> **现行落地规则已接续（10-24 08:16UTC核源）**：以MERGE-QUEUE最新§1a「同路径一起落地」为准，旧逐片同步/逐片入队流程不套新批：评审仍逐片固定head，full非空按路径在Claude批分支一次解共用文件、一次health/security/full，最终仅批PR入队，叠层顶端一次落地；原片按批PR真实merge SHA及包含证据关闭。纯共用文件冲突作者不merge main、不刷baseline；full空且按队列试合无冲突的小PR可独立入队。#1114含Cognia真实代码冲突，仍是Claude6381691853指定等1169先合后原FIX2一次同步的例外，不开重复writer。
+>
+> C2 S行具体落点已由root按当前事实裁定：main安全表最大58、沙箱顶1144/61a0da5df真实包含59/60，B1以S61为集成候选（非永久占号），不造占位、不放宽连续门禁；当前独立head只缺前序须如实记health红。C2完成必要源修后立即固定非DraftPR/head及原始证据直发REVIEW/TEST/流水线、释放source；拿固定候选才向Claude申请加入当前26或下一安全批，Claude决定冻结/最终编号/唯一full，不为编号等着不开发，也不要求各片再次机械sync main。当前26计划已变为沙箱顶＋1181 e70160a6e＋1188 d6d1da98a；同批编号随实际顺序一次一致调整。C2 B2/A/快照/恢复及真实HomeR41边界保持。
+
+
 > **流水线实际接续（10-24 08:06UTC）**：#1164/#1165/#1167已于07:50:52Z真合（3e96b40e/531e43fb/21257170），#1148于07:57:43Z真合38b27b06，已按实际SHA移MERGE-QUEUE§3。#1114现7733对main真实Cognia/资产冲突，原修复2已接公开6381709344；按Claude6381691853等1169先真合后一次merge最新main，不并写/不重复入队。C2曾a86dd1c2干净checkpoint暂释，但1169尚未合且health两项必需收尾，已明确RESUME C2 B1；FIX2自动START条件已撤，等1169实际merge+C2新release+执行明确START才写。固定新head直达REVIEW/TEST、源码固定即还C2，不等browser/CI。
 >
 > #1183固定7bbb014c4的REVIEW6381427633与最终TEST6381742635均通过，README主56份已由独立32文件239项和当前CI原始24项完整核对，CI40073797867/Verify120819091266及适用项全绿；Claude6381754001已认领，实际队列第5/AWAITING_CHECKS，不再记仅排CI，未真合仍不关C1整体。1180固定5e26父295的TEST24项和1178固定203dd的TEST68项均实际公开，精确版本/堆叠/full边界见队列。

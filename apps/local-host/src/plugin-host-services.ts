@@ -168,7 +168,7 @@ interface SessionParts {
   /** The library the Host's start list declared for this plugin, if any (`openDeclaredLibrary`). */
   readonly database: PluginDatabase | undefined;
   /** The plugin's own tables in the project's library, if its Manifest declares them (`openProjectTables`). */
-  readonly project_database: PluginDatabase | undefined;
+  readonly project_database: import("@molis-ai/molis-work-contracts/platform/plugin").PluginProjectDatabase | undefined;
   /** The same tables for a plugin the Host runs outside its own process: its statements run in a process the Host can kill (`openProjectTables`). It gets this in place of `project_database`. */
   readonly project_statements: import("@molis-ai/molis-work-contracts/platform/plugin").PluginProjectStatements | undefined;
   readonly agents: import("@molis-ai/molis-work-contracts/platform/plugin").PluginAgentClient | undefined;

@@ -203,6 +203,9 @@ tests/feed-rich-content.test.ts
 tests/feed-sync-concurrency.test.ts
 tests/feed.test.ts
 
+# gmail
+tests/gmail-factory-boundaries.test.ts
+
 # goal
 tests/goal-decision-attention.test.ts
 tests/goal-deliverable-proposals.test.ts

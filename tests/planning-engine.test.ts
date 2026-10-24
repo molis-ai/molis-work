@@ -26,6 +26,7 @@ import { readPersonalPlanningMethodPacks } from "@molis-ai/molis-work-app-local-
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import type { GoalRecord, GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
 
 function customMethod(methodId: string): PlanningMethodPackInput {
   return {
@@ -430,8 +431,8 @@ test("Goals public Planning API owns method versions, graph checks, and change i
       idempotency_key: "init-module-planning",
     });
     // W5-08-MOD-02: planning crosses the same business interface as the Host.
-    const governance = new GovernanceCollaborationModule({ db: store.db });
-    const goals = new GoalsModule(store.db, {
+    const governance = new GovernanceCollaborationModule({ db: pluginLegalSql(store).db, journal: store });
+    const goals = new GoalsModule(pluginLegalSql(store).db, store, {
       supersedePendingContractProposals: (...args) => governance.records.supersedePendingContractProposals(...args),
       currentActionToken: () => "token:planning",
       authorizeRiskUpdate: () => undefined,

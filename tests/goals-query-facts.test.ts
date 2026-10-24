@@ -5,12 +5,13 @@ import test from "node:test";
 import { GoalsModule } from "@molis-ai/molis-work-module-goals";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
 
 test("public Query preserves complete rule history and Runtime dependency/replacement facts", () => {
   const store = new LocalProjectDatabase(":memory:");
   try {
     const coordinator = new GoalProjectApplication(store);
-    const goals = new GoalsModule(store.db, {});
+    const goals = new GoalsModule(pluginLegalSql(store).db, store, {});
     for (const board of ["query-main", "query-other"]) coordinator.initializeBoard({
       project_id: board, actor_id: "user", idempotency_key: `init:${board}`,
     });

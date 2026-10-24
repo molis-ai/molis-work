@@ -1,14 +1,13 @@
 import { requestErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 import type { GovernanceRecordsApi, GoalTreeProposalDecisionResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import { json, parseJson, text, type GovernanceRow } from "./mappers.js";
-import { GovernanceRepository, type GovernanceSqliteDatabase } from "./repository.js";
+import { GovernanceRepository, type GovernanceJournal, type GovernanceSqliteDatabase } from "./repository.js";
 
 /** Goal Tree submission, check and decision keys share one idempotent journal. */
 export class GovernanceProposalOperationStore {
   private readonly repository: GovernanceRepository;
-  constructor(private readonly db: GovernanceSqliteDatabase) {
-    this.repository = new GovernanceRepository(db);
+  constructor(db: GovernanceSqliteDatabase, private readonly journal: GovernanceJournal) {
+    this.repository = new GovernanceRepository(db, journal);
   }
 
   executeSubmission(input: Parameters<GovernanceRecordsApi["executeGoalTreeSubmission"]>[0],
@@ -53,21 +52,19 @@ export class GovernanceProposalOperationStore {
     input: Parameters<GovernanceRecordsApi["executeGoalTreeSubmission"]>[0],
     operation: () => { value: T; at: string }): { value: T; replayed: boolean } {
     return this.repository.immediate(() => {
-      const saved = this.db.prepare(`SELECT request_hash, outcome_json FROM idempotency_records
-        WHERE project_id = ? AND actor_id = ? AND operation = ? AND idempotency_key = ?`)
-        .get(input.project_id, input.actor_id, operationName, input.idempotency_key) as GovernanceRow | undefined;
+      const saved = this.journal.getIdempotency(input.project_id, input.actor_id, operationName, input.idempotency_key);
       if (saved) {
-        if (text(saved.request_hash) !== input.request_hash) {
+        if (saved.request_hash !== input.request_hash) {
           throw requestErrors.idempotency_key_reused(`幂等键 ${input.idempotency_key} 已被不同请求使用`);
         }
-        const value = parseJson<T | null>(saved.outcome_json, null);
+        const value = saved.outcome as T | null;
         if (value) return { value, replayed: true };
       }
       const result = operation();
-      this.db.prepare(`INSERT INTO idempotency_records (
-        project_id, actor_id, operation, idempotency_key, request_hash, outcome_json, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(input.project_id, input.actor_id, operationName,
-        input.idempotency_key, input.request_hash, json(result.value), result.at);
+      this.journal.putIdempotency({
+        projectId: input.project_id, actorId: input.actor_id, operation: operationName, key: input.idempotency_key,
+        requestHash: input.request_hash, outcome: result.value, at: result.at,
+      });
       return { value: result.value, replayed: false };
     });
   }

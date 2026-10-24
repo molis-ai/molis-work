@@ -6,7 +6,6 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 import {
-  json,
   mapGoalTreeProposal,
   mapGoalTreeProposalDecision,
   mapGoalTreeProposalItem,
@@ -27,17 +26,31 @@ export interface GovernanceSqliteDatabase {
   pragma(source: string): unknown;
 }
 
+/**
+ * The project's journal as Governance reaches it (PG-094 S9-1): the storage package's methods over `events` and
+ * `idempotency_records`, which are not Goals' tables, so no statement here names either one (a plugin's SQL is refused when it does).
+ */
+export interface GovernanceJournal {
+  eventCursor(projectId: string): number;
+  appendEvent(input: {
+    eventId: string; projectId: string; actorId: string; type: string; objectType: string; objectId: string;
+    reason: string; payload: unknown; at: string;
+  }): number;
+  getIdempotency(projectId: string, actorId: string, operation: string, key: string): { request_hash: string; outcome: unknown } | null;
+  putIdempotency(input: {
+    projectId: string; actorId: string; operation: string; key: string; requestHash: string; outcome: unknown; at: string;
+  }): void;
+}
+
 export class GovernanceRepository {
-  constructor(private readonly db: GovernanceSqliteDatabase) {}
+  constructor(private readonly db: GovernanceSqliteDatabase, readonly journal: GovernanceJournal) {}
 
   immediate<T>(operation: () => T): T {
     return this.db.transaction(operation).immediate();
   }
 
   eventCursor(projectId: string): number {
-    const row = this.db.prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE project_id = ?")
-      .get(projectId) as GovernanceRow | undefined;
-    return Number(row?.cursor ?? 0);
+    return this.journal.eventCursor(projectId);
   }
 
   snapshot(projectId: string): GovernanceSnapshot {
@@ -83,10 +96,9 @@ export class GovernanceRepository {
     event_id: string; project_id: string; actor_id: string; type: string;
     object_type: string; object_id: string; reason: string; payload: unknown; at: string;
   }): void {
-    this.db.prepare(`INSERT INTO events (
-      event_id, project_id, actor_id, type, object_type, object_id, reason, payload_json, at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(input.event_id, input.project_id, input.actor_id, input.type, input.object_type,
-        input.object_id, input.reason, json(input.payload), input.at);
+    this.journal.appendEvent({
+      eventId: input.event_id, projectId: input.project_id, actorId: input.actor_id, type: input.type,
+      objectType: input.object_type, objectId: input.object_id, reason: input.reason, payload: input.payload, at: input.at,
+    });
   }
 }

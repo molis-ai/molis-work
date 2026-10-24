@@ -105,6 +105,8 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 ## 开发要求
 
+生成插件的 SDK 声明由 Host 从已构建的 contracts 提供：`src/plugin-builder/build-sdk-declarations.ts` 持有 `SandboxSdk` 的声明依赖集合，`build-project.ts` 创建只读文件，`build-checks.ts` 的 G1 逐文件校验，隔离检查只复制这份 Host 集合。`developer/sdk.d.ts` 仍是作者的入口，依赖声明保留在 `developer/contracts/` 的原相对目录；不复制运行时代码，不增加插件权限，不改变公开合同。声明闭包修复只涉及这条生成、校验与快照链，不改变取消、恢复或执行语义。缺少构建声明时明确失败；声明被改动时在 G1 拒绝；错误的交互参数由 G2 拒绝，`skipLibCheck: false`、无 Node 环境类型、文件白名单与 Seatbelt 保持不变。验收是正常交互调用通过原六道门、错误参数不进入执行、篡改依赖不进入编译；整体构建后运行 `node scripts/run-tests.mjs tests/agent-built-plugins-checks.test.ts`。这证明生成插件的工程检查路径，不代表创作台完整体验或用户验收。
+
 炼金术士的关闭先停止接纳并撤销提交，再等待前台动作与 worker 的真实退出；只有工作室与搜索资源全部关闭后才移出登记和删除目录。失败保留 live 删除钩子与未关闭资源，公开 Host.close 的同次并发与成功后重复调用返回同一 Promise；失败后可单独重试炼金术士收尾，其余已完成 Host 收尾不重复执行。搜索组合直接拥有 query transport 的清理，避免 SEL 缓存一次关闭失败后无法重试；SEL 内部终端故障仍保留失败和资源，不假称清理成功。回归：`tests/security-invariants-alchemist-lifecycle.test.ts`、`tests/alchemist-studio-idle.test.ts`、`tests/search-evidence-runtime.test.ts`。
 
 助理每轮的未完成接入材料由 `src/assistant/assistant-setup-material.ts` 从接入 owner 读取，按当前 actor、会话、项目和读取授权筛选；只给公开状态、意图修订及实际旧等待撤回结果，不带凭据、不决定保留/取消。新消息后的暂缓与等待撤回仍分别由连接 owner 和 SDK 负责。回归：`tests/assistant-connector-business.test.ts`。
@@ -116,6 +118,7 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - 公开入口：`@molis-ai/molis-work-app-local-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
+  - 沙箱项目库（S-59）：SQL 只在子进程的 Worker 中运行，子进程控制器独立执行截止时间、进程总 RSS 上限与宿主断线终止；宿主逐句复查授权并固定事务所属进程。`get`/`all` 的字节上限在 Worker 中拒绝，事务外写也拒绝；提交中断保持结果未知。回归：`tests/security-invariants-sandbox-project-database-limits.test.ts`，包括宿主同步写等锁与父宿主被杀的真实进程路径。
   - 页面 JS 交付统一经 `src/served-page-text.ts` 的 esbuild 转换，直接读原程序，压缩空白和等价语法但保留绑定名与文字；不能先剥注释或缩进改变换行返回、模板正文。工作台、能力页与插件脚本走同一路径，转换失败保留原文；回归见 `tests/served-script-text.test.ts`，缓存、locale 与 HEAD 的既有合同保持。
   - 产品版本在宿主代码里只有 `src/product-version.ts` 的 `PRODUCT_VERSION` 一处：Feed 的 User-Agent 与 `app.version`、搜索运行时的 `app.version`、MCP 客户端、Codex 会话传输的客户端版本都取它，不另写一份；发版脚本核对这一行（`docs/releases/POLICY.md` 第 1 节，`tests/verify-release-versions.test.ts`）。
   - Runtime 插件的动作提供方编号（用户 2026-10-10，W3-06 C）：`createPluginPlatform` 只把宿主自己启动名单里标 `bundled` 的定义对象（项目插件装配里交给监督器的 7 个条目）登记在 `plugin_id` 之下，其余一律 `install_id`；Home/项目执行器与 `PluginRuntime`（`actions.providerId`）复用 `plugin-entry-identity.ts` 的可信定义对象规则，插件自己的动作客户端靠登记上的 `plugin_install_id` 找回自己的动作。`localWebActionContext` 的授权也按 `plugin_install_id` 认安装，不按 `provider_id`：构建期的同名提供方（Shelf 的 Home 级与项目级）没有 `plugin_install_id`，借不到 Runtime 实例的授权。

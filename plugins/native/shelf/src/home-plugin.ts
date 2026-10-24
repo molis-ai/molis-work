@@ -12,7 +12,7 @@ import { shelfUiContribution } from "./ui.js";
 import { shelfSettingsUiContribution } from "./settings-ui.js";
 import { shelfReceiveCopy, shelfRuntimeActions } from "./runtime-actions.js";
 import { createShelfRouteHandlers } from "./route-handlers.js";
-import { SHELF_NATIVE_PLUGIN_ROUTES } from "./routes.js";
+import { SHELF_HOME_ROUTES } from "./routes.js";
 
 /** A page on this machine is read by `readLocalPage`, any other by `readSource`; the Host refuses what neither may reach. */
 function websiteReader(materials: PluginMaterialsClient): MaterialWebsiteReader {
@@ -24,9 +24,14 @@ function websiteReader(materials: PluginMaterialsClient): MaterialWebsiteReader 
   };
 }
 
+/** The original the person handed in is registered, read and forgotten by the platform, under the Shelf item's id. */
 function shelfMaterialPorts(materials: PluginMaterialsClient): ShelfMaterialPorts {
+  const { claimOriginal, readOriginal, releaseOriginal } = materials;
   return { readWebsite: websiteReader(materials), extract: (source, options) => materials.extract!(source, options),
-    imageTextAvailable: () => materials.imageTextAvailable?.() ?? false };
+    imageTextAvailable: () => materials.imageTextAvailable?.() ?? false,
+    ...(claimOriginal ? { claimOriginal: (itemId: string) => claimOriginal(itemId) } : {}),
+    ...(readOriginal ? { readOriginal: (itemId: string, request?: { signal?: AbortSignal }) => readOriginal(itemId, { signal: request?.signal }) } : {}),
+    ...(releaseOriginal ? { releaseOriginal: (itemId: string) => releaseOriginal(itemId) } : {}) };
 }
 
 /**
@@ -45,6 +50,8 @@ export function shelfStorePorts(store: () => ShelfStore, availability: (selectio
     saveSettings: async patch => remember(await store().saveSettings(patch)),
     admit: (input, control) => store().admitFile(input, control),
     admitText: (text, title, capture, control) => store().admitText(text, title, capture, control),
+    captureUrl: (url, control) => store().admitUrl(url, control),
+    claimOriginal: itemId => store().claimOriginal(itemId),
     admitFolder: input => store().admitFolder(input),
     readChild: (itemId, relative) => store().readChild(itemId, relative),
     seedSample: () => store().seedSample(),
@@ -96,7 +103,7 @@ export function createHomeShelfPlugin(): PluginDefinition {
           return { artifact_id: result.artifact_id, version: result.version };
         } }).find(binding => binding.capability_id === definition.capability_id)!.handle(caller, input);
       } })),
-    ], routes: SHELF_NATIVE_PLUGIN_ROUTES.map(({ route_id }) => ({ route_id, async handle(request) {
+    ], routes: SHELF_HOME_ROUTES.map(({ route_id }) => ({ route_id, async handle(request) {
       const bound: BoundActionClient = { discover: async () => [], invoke: (definition, input) => actions.invoke(definition, input, request.execution) };
       const handlers = createShelfRouteHandlers({ actions: bound, ...(request.execution?.project_id ? {
         project: { title: request.execution.project_title ?? request.execution.project_id, actions: bound },

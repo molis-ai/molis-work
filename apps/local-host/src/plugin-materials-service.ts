@@ -11,7 +11,7 @@ import { MATERIAL_PERMISSIONS } from "./plugin-service-permissions.js";
 
 
 /**
- * Same trust boundary as services.model; a platform without a Home receives no material service. A sandboxed activation is given this
+ * A platform without a Home receives no material service (the model service is refused to a sandboxed activation; this one is not). A sandboxed activation is given this
  * client like any other, for the readers of bytes only (PG-017; the sandbox refuses a package that asks for the rest). `project_id` is the
  * project the Host started this activation for (`null` for a Home-level one): original-file registrations are kept per project.
  */

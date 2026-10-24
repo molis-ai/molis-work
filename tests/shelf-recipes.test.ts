@@ -6,10 +6,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { SHELF_RECIPES, shelfErrors, shelfRecipeOutputName, type ShelfFailure } from "@molis-ai/molis-work-module-shelf";
-import { openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
 import { extractMaterial } from "../apps/local-host/dist/material-extraction.js";
 import { materialImageTextAvailable } from "../apps/local-host/dist/material-native.js";
 import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
+import { openTestShelfStore } from "./shelf-direct-actions.js";
 
 async function fixture(run: (home: string) => Promise<void>) {
   const home = await mkdtemp(join(tmpdir(), "shelf-recipes-"));
@@ -18,7 +18,7 @@ async function fixture(run: (home: string) => Promise<void>) {
 const materials = { extract: extractMaterial, imageTextAvailable: materialImageTextAvailable };
 
 test("automatic recipes require a configured model; local extraction works without one", async () => fixture(async home => {
-  const store = openHostShelfStore(home, { disabled: true }, materials);
+  const store = openTestShelfStore(home, { disabled: true }, materials);
   const snapshot = await store.snapshot();
   assert.equal(snapshot.runtime.runtime_key, "");
   assert.equal(snapshot.recipes.find(recipe => recipe.recipe === "summarize")?.available, false);
@@ -37,10 +37,15 @@ test("every AI recipe preserves source identity, uses frozen copies, and stores 
     assert.match(Buffer.from(input.files.read(copy)!).toString("utf8"), /12 万元/);
     return { text: input.recipe === "extract_structure" && input.option_id === "json" ? '{"amount":120000}' : "# 摘要\n\n总价 12 万元。", execution: shelfTestReceipt };
   });
-  const store = openHostShelfStore(home, { disabled: true }, materials, ai);
   const origin = join(home, "报价.md"); writeFileSync(origin, "总价 12 万元。");
+  // The platform keeps the original (Shelf S3): here only the first copy has one, read back so each run compares it first.
+  const registered = new Set<string>();
+  const store = openTestShelfStore(home, { disabled: true }, { ...materials, readOriginal: async (itemId: string) => {
+    if (!registered.has(itemId)) throw Object.assign(new Error("没有登记原件"), { code: "material.original.not_registered" });
+    return { bytes: readFileSync(origin) };
+  } }, ai);
   const original = readFileSync(origin), hash = createHash("sha256").update(original).digest("hex");
-  const one = await store.admit({ filename: "报价.md", bytes: original, origin_realpath: origin });
+  const one = await store.admit({ filename: "报价.md", bytes: original }); registered.add(one.item_id);
   const two = await store.admit({ filename: "补充.md", bytes: Buffer.from("人力 12 万元。") });
   for (const recipe of SHELF_RECIPES.filter(recipe => recipe.requires_agent)) {
     for (const choice of recipe.choices) {
@@ -59,7 +64,7 @@ test("every AI recipe preserves source identity, uses frozen copies, and stores 
 }));
 
 test("a failed model response retains its reason and receipt without a fake deliverable", async () => fixture(async home => {
-  const store = openHostShelfStore(home, { disabled: true }, materials, shelfTestAi(async () => {
+  const store = openTestShelfStore(home, { disabled: true }, materials, shelfTestAi(async () => {
     const error: ShelfFailure = shelfErrors.invalid_result("没有交付正文"); error.execution = shelfTestReceipt; throw error;
   }));
   const item = await store.admit({ filename: "材料.md", bytes: Buffer.from("事实") });
@@ -73,7 +78,7 @@ test("a failed model response retains its reason and receipt without a fake deli
 
 test("kind and minimum selection checks still precede model dispatch", async () => fixture(async home => {
   let calls = 0;
-  const store = openHostShelfStore(home, { disabled: true }, materials, shelfTestAi(async () => { calls++; throw new Error("must not dispatch"); }));
+  const store = openTestShelfStore(home, { disabled: true }, materials, shelfTestAi(async () => { calls++; throw new Error("must not dispatch"); }));
   const item = await store.admit({ filename: "材料.md", bytes: Buffer.from("事实") });
   await assert.rejects(store.runJob({ recipe: "combine", item_ids: [item.item_id] }), /至少要两份/);
   const image = await store.admit({ filename: "image.png", mime: "image/png", bytes: Buffer.from([1, 2]) });
@@ -85,7 +90,7 @@ test("local Vision still extracts the original image without a model", async t =
   if (process.platform !== "darwin") { t.skip("Vision requires macOS"); return; }
   await fixture(async home => {
     assert.equal(materialImageTextAvailable(), true);
-    const store = openHostShelfStore(home, { disabled: true }, materials);
+    const store = openTestShelfStore(home, { disabled: true }, materials);
     const item = await store.admit({ filename: "截图.png", mime: "image/png", bytes: readFileSync(new URL("./fixtures/shelf-ocr-text.png", import.meta.url)) });
     const out = await store.runJob({ recipe: "extract_text", item_id: item.item_id, option_id: "en" });
     assert.equal(out.result?.name, "ocr.md"); assert.equal(out.job.runtime, "vision"); assert.match(out.result?.preview_text ?? "", /SHELF/);

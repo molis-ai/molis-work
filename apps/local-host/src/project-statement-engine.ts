@@ -4,7 +4,7 @@ import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { assertReadStatement, assertWriteStatement, type StatementReply, type StatementRequest, type StatementRow, type StatementValue } from "./project-statement-protocol.js";
 
 // The statements of one sandboxed plugin, run on connections of this process's own to the project's library. This runs in the
-// child process of `project-statement-process.ts`, which the Host kills when a statement runs too long or takes too much memory:
+// SQL Worker inside the child of `project-statement-process.ts`; its controller kills the whole process independently of the Host:
 // nothing here needs to be interruptible. The checks are the ones the Host's client makes (the keyword filters, then S-46's
 // `pluginStatementGuard`); the grants and the original caller are the Host's, asked between the steps it sends.
 
@@ -25,19 +25,16 @@ export function openStatementEngine(path: string, record: PluginProjectDatabaseR
         case "get": {
           assertReadStatement(request.sql); reads(request.sql, request.parameters, "read");
           const row = reader.prepare(request.sql).get(...request.parameters) as Record<string, unknown> | undefined;
-          return { id: request.id, ok: true, row: row === undefined ? null : plain(row) };
+          return { id: request.id, ok: true, row: row === undefined ? null : boundedRow(row, { bytes: 0 }, request.bytes) };
         }
         case "all": {
           assertReadStatement(request.sql); reads(request.sql, request.parameters, "read");
           const rows: StatementRow[] = [];
-          let bytes = 0;
+          const size = { bytes: 0 };
           // Row by row, so a statement with a million rows is stopped at the first row past the limit, not built.
           for (const row of reader.prepare(request.sql).iterate(...request.parameters) as Iterable<Record<string, unknown>>) {
             if (rows.length >= request.rows) throw pluginProjectDatabaseErrors.result_too_large(`A read returns at most ${request.rows} rows; page it with LIMIT and OFFSET`);
-            const converted = plain(row);
-            for (const [column, value] of Object.entries(converted)) bytes += Buffer.byteLength(column) + (typeof value === "string" ? Buffer.byteLength(value) : 8);
-            if (bytes > request.bytes) throw pluginProjectDatabaseErrors.result_too_large(`A read returns at most ${request.bytes} bytes; select fewer columns or page it with LIMIT and OFFSET`);
-            rows.push(converted);
+            rows.push(boundedRow(row, size, request.bytes));
           }
           return { id: request.id, ok: true, rows };
         }
@@ -46,10 +43,12 @@ export function openStatementEngine(path: string, record: PluginProjectDatabaseR
           writer.exec("BEGIN IMMEDIATE");
           return { id: request.id, ok: true };
         case "run": {
+          if (!writer.inTransaction) throw pluginProjectDatabaseErrors.statement_refused("事务尚未开始，不能写入");
           assertWriteStatement(request.sql); writes(request.sql, request.parameters, "write");
           return { id: request.id, ok: true, changes: Number((writer.prepare(request.sql).run(...request.parameters) as { changes: number | bigint }).changes) };
         }
         case "commit":
+          if (!writer.inTransaction) throw pluginProjectDatabaseErrors.statement_refused("事务尚未开始，不能提交");
           writer.exec("COMMIT");
           return { id: request.id, ok: true };
         case "rollback":
@@ -77,9 +76,14 @@ export function failure(id: number, error: unknown): StatementReply {
 }
 
 /** A row the channel can carry: text, finite numbers, null. A BLOB, an infinity or an integer past 2^53 is refused, not changed. */
-function plain(row: Record<string, unknown>): StatementRow {
+function boundedRow(row: Record<string, unknown>, size: { bytes: number }, limit: number): StatementRow {
   const converted: StatementRow = {};
-  for (const [column, value] of Object.entries(row)) converted[column] = carried(column, value);
+  for (const [column, raw] of Object.entries(row)) {
+    const value = carried(column, raw);
+    size.bytes += Buffer.byteLength(column) + (typeof value === "string" ? Buffer.byteLength(value) : 8);
+    if (size.bytes > limit) throw pluginProjectDatabaseErrors.result_too_large(`A read returns at most ${limit} bytes; select fewer columns or page it with LIMIT and OFFSET`);
+    converted[column] = value;
+  }
   return converted;
 }
 

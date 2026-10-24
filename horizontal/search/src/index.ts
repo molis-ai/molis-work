@@ -244,7 +244,7 @@ export class SearchService {
     if (!query) throw new ActionError("actions.input_invalid", "请输入要搜索的内容");
     const limit = Math.min(50, Math.max(1, input.limit ?? DEFAULT_LIMIT));
     const offset = offsetOf(input.cursor, query);
-    const scoped = this.scoped(access.caller, input.scope);
+    const scoped = searchScope(access.caller, input.scope);
     const before = await this.callerSources(access, scoped, input);
     const authority = queryAuthority(access.caller, before.visible, before.views, before.personal, input.kinds);
     await this.purgeDisabled(before.all);
@@ -259,7 +259,7 @@ export class SearchService {
       readable_kinds: [...source.kinds.keys()].filter(kind => authority.canRead(source, kind, views)) }));
     const found = this.options.index.search({ query, sources: allowed, ...(input.kinds?.length ? { kinds: input.kinds } : {}), offset, limit });
     const hits = searchHits(found.matches, visible);
-    const sources = this.statuses(all);
+    const sources = searchStatuses(this.options, all);
     const pending = sources.some(source => source.state === "indexing");
     const degraded = sources.some(source => ["failed", "stale", "unavailable", "indexing"].includes(source.state));
     return { status: !hits.length && pending ? "indexing" : degraded ? "partial" : "complete", hits: hits.slice(0, limit),
@@ -276,7 +276,7 @@ export class SearchService {
       catch (error) { return { state: "unavailable", hit_id, reason: errorText(error) }; }
     }
     const views = await access.client.discover(access.caller);
-    const source = this.entrySources(views, access.caller).find(candidate => candidate.project_id === hit.project_id && sameReference(candidate.reference, hit));
+    const source = entrySources(views, access.caller).find(candidate => candidate.project_id === hit.project_id && sameReference(candidate.reference, hit));
     if (!source) return { state: "unavailable", hit_id, reason: "来源插件已停用、升级或当前没有读取权限" };
     if (!source.view.availability.available) return { state: "unavailable", hit_id, reason: source.view.availability.reason };
     if (!source.kinds.has(hit.kind)) return { state: "unavailable", hit_id, reason: "来源不再提供这类对象" };
@@ -312,16 +312,16 @@ export class SearchService {
   }
 
   async status(access: SearchAccess, input: { scope?: SearchScope }): Promise<SearchStatusResponse> {
-    return { sources: this.statuses((await this.callerSources(access, this.scoped(access.caller, input.scope))).all) };
+    return { sources: searchStatuses(this.options, (await this.callerSources(access, searchScope(access.caller, input.scope))).all) };
   }
 
   async rebuild(access: SearchAccess, input: SearchRebuildRequest): Promise<SearchRebuildResponse> {
-    const scoped = this.scoped(access.caller, input.scope);
+    const scoped = searchScope(access.caller, input.scope);
     const { all: sources, visible, personal } = await this.callerSources(access, scoped);
     let cleared = 0;
     for (const source of sources) { await this.inflight.get(source.key)?.catch(() => undefined); cleared += this.options.index.removeSource(source.key); }
     await this.catchUp(visible, scoped, access.caller, true, personal ? this.options.personalSpace : undefined);
-    return { cleared, sources: this.statuses(sources) };
+    return { cleared, sources: searchStatuses(this.options, sources) };
   }
 
   /** Project deletion: the index keeps nothing of it. */
@@ -340,24 +340,6 @@ export class SearchService {
     clearTimeout(timer);
   }
 
-  /* ---------------- sources ---------------- */
-
-  private scoped(caller: ActionCallContext, scope: SearchScope | undefined): Scoped {
-    const chosen = scope ?? "all";
-    if (chosen === "project" && !caller.project_id) throw new ActionError("actions.project_required", "当前没有打开项目，只能搜索个人内容");
-    return { project: chosen !== "personal" && !!caller.project_id, personal: chosen !== "project" };
-  }
-
-  private entrySources(views: readonly ActionView[], caller: ActionCallContext): SourceView[] {
-    return views.filter(view => isSearchEntriesSource(view.action) && view.action.search_source?.kinds.length).map(view => {
-      // A registration bound to a project serves that project; a Home registration of a project action serves the caller's project.
-      const project_id = view.provider.project_id ?? (view.action.scope === "project" ? caller.project_id : null);
-      const reference = referenceOf(view);
-      return { key: searchSourceKey({ project_id, ...reference }), project_id, view, reference,
-        kinds: new Map(view.action.search_source!.kinds.map(entry => [entry.kind, { title: entry.title, surface: entry.surface }])) };
-    });
-  }
-
   private inScope(source: SourceView, scoped: Scoped): boolean {
     // The personal space is a project partition, but what is in it is the person's own.
     if (source.project_id && source.project_id === this.options.personalSpace) return scoped.personal || scoped.project;
@@ -370,14 +352,14 @@ export class SearchService {
     if (!space || !scoped.personal || access.caller.project_id === space || access.caller.audience !== "user") return null;
     try {
       const { access: own, views } = await this.owner(space)();
-      return { access: own, views, sources: this.entrySources(views, own.caller).filter(source => source.project_id === space) };
+      return { access: own, views, sources: entrySources(views, own.caller).filter(source => source.project_id === space) };
     } catch { return null; }
   }
 
   /** The caller's sources in scope, from its catalog as it is now (with the personal space, for the local person), narrowed by a query's filters. */
   private async callerSources(access: SearchAccess, scoped: Scoped, input?: SearchQueryRequest) {
     const views = await access.client.discover(access.caller), personal = await this.personalSpaceOf(access, scoped);
-    const all = [...this.entrySources(views, access.caller), ...personal?.sources ?? []].filter(source => this.inScope(source, scoped)
+    const all = [...entrySources(views, access.caller), ...personal?.sources ?? []].filter(source => this.inScope(source, scoped)
       && (!input?.plugins?.length || input.plugins.includes(source.view.provider.plugin_id ?? source.reference.provider_id))
       && (!input?.kinds?.length || [...source.kinds.keys()].some(kind => input.kinds!.includes(kind))));
     return { views: [...views, ...personal?.views ?? []], personal, all, visible: all.filter(source => source.view.availability.available) };
@@ -400,7 +382,7 @@ export class SearchService {
     if (this.clock() - last < 30_000) return;
     this.reconciled.set(scope, this.clock());
     const { access, views } = await this.owner(projectId)();
-    const current = new Set(this.entrySources(views, access.caller).filter(source => source.project_id === projectId).map(source => source.key));
+    const current = new Set(entrySources(views, access.caller).filter(source => source.project_id === projectId).map(source => source.key));
     for (const record of this.options.index.sources()) {
       if (record.project_id !== projectId || current.has(record.source_key)) continue;
       await this.inflight.get(record.source_key)?.catch(() => undefined);
@@ -470,7 +452,7 @@ export class SearchService {
     for (const scope of new Set(records.map(record => record.project_id))) {
       const owner = this.owner(scope);
       const { access, views } = await owner();
-      const sources = this.entrySources(views, access.caller)
+      const sources = entrySources(views, access.caller)
         .filter(source => source.project_id === scope && source.reference.provider_id === providerId && source.view.availability.available);
       await Promise.allSettled(sources.map(source => this.sync(source, owner)));
     }
@@ -486,103 +468,129 @@ export class SearchService {
     return task;
   }
 
-  private async runSync(source: SourceView, ownerOf: () => Promise<Owner>): Promise<void> {
-    const index = this.options.index;
-    const previous = index.source(source.key);
-    const base: SearchIndexSourceRecord = previous ?? { source_key: source.key, project_id: source.project_id, provider_id: source.reference.provider_id,
-      capability_id: source.reference.capability_id, version: source.reference.version, plugin_id: source.view.provider.plugin_id ?? source.reference.provider_id,
-      title: source.view.provider.title, collection_revision: null, state: "indexing", error: null, synced_at: null, checked_at: null };
-    const startedAt = this.clock();
-    this.syncedSeq.set(source.key, this.changeSeq);
-    const save = (patch: Partial<SearchIndexSourceRecord>) => index.saveSource({ ...base, plugin_id: source.view.provider.plugin_id ?? source.reference.provider_id,
-      title: source.view.provider.title, ...patch });
-    if (!previous) save({});
-    try {
-      const { access: owner, views } = await ownerOf();
-      const live = views.find(view => sameReference(referenceOf(view), source.reference) && (view.provider.project_id ?? null) === (source.view.provider.project_id ?? null));
-      if (!live) throw new ActionError("actions.missing", "来源已从当前项目撤下");
-      if (!live.availability.available) throw new ActionError(live.availability.code, live.availability.reason);
-      const nested = retainActionAuthority(owner.caller, source.reference);
-      const list = (cursor: string | null) => owner.client.invoke(nested, source.reference, { cursor, limit: SEARCH_ENTRIES_PAGE_LIMIT }) as Promise<SearchEntriesPage>;
-      let first = await list(null);
-      if (previous?.state === "ready" && !previous.error && previous.collection_revision === first.collection_revision) {
-        save({ checked_at: startedAt });
-        return;
-      }
-      let entries: SearchEntry[] = [];
-      for (let attempt = 0; ; attempt += 1) {
-        entries = [...first.entries];
-        let page = first, moved = false;
-        while (page.next_cursor) {
-          page = await list(page.next_cursor);
-          if (page.collection_revision !== first.collection_revision) { moved = true; break; }
-          entries.push(...page.entries);
-        }
-        if (!moved) break;
-        // The collection changed while it was being listed: start over from the new revision.
-        if (attempt >= SYNC_RESTARTS) throw new ActionError("search.source_moving", "来源内容在读取期间持续变化，稍后重试");
-        first = await list(null);
-      }
-      const seen = new Map<string, SearchEntry>();
-      for (const entry of entries) {
-        if (!source.kinds.has(entry.subject.kind)) throw new ActionError("search.entry_invalid", "来源返回了未声明的对象种类");
-        const key = entryKey(entry.subject.kind, entry.subject.id);
-        if (seen.has(key)) throw new ActionError("search.entry_invalid", "来源返回了重复的条目");
-        seen.set(key, entry);
-      }
-      const known = index.revisions(source.key);
-      const changed = [...seen.values()].filter(entry => known.get(entryKey(entry.subject.kind, entry.subject.id)) !== entry.revision);
-      const readers = new Map<string, ActionReference>();
-      for (const view of views) if (isReader(view) && view.availability.available && view.provider.provider_id === source.reference.provider_id) {
-        for (const kind of view.action.subject_kinds) if (!readers.has(kind)) readers.set(kind, referenceOf(view));
-      }
-      for (let at = 0; at < changed.length; at += CONTEXT_BATCH) {
-        if (this.closed) throw new ActionError("search.closed", "搜索服务已关闭");
-        const batch = changed.slice(at, at + CONTEXT_BATCH);
-        index.upsert(await Promise.all(batch.map(entry => this.document(source, entry, readers.get(entry.subject.kind), owner, nested))));
-      }
-      const removed = [...known.keys()].filter(key => !seen.has(key)).map(key => {
-        const [kind, object_id] = key.split("\u0000") as [string, string];
-        return { kind, object_id };
-      });
-      if (removed.length) index.remove(source.key, removed);
-      save({ collection_revision: first.collection_revision, state: "ready", error: null, synced_at: this.clock(), checked_at: startedAt });
-    } catch (error) {
-      // Keep what was indexed; removals wait for a complete pass. The next query retries after a pause.
-      save({ state: previous?.collection_revision ? "ready" : "failed", error: errorText(error), checked_at: startedAt });
-      throw error;
-    }
-  }
-
-  private async document(source: SourceView, entry: SearchEntry, reader: ActionReference | undefined, owner: SearchAccess, nested: ActionCallContext): Promise<SearchIndexDocument> {
-    const base: SearchIndexDocument = { source_key: source.key, kind: entry.subject.kind, object_id: entry.subject.id, project_id: source.project_id, revision: entry.revision,
-      title: entry.title, summary: entry.summary, content: "", updated_at: entry.updated_at, open: entry.open ?? defaultOpen(source, entry.subject.kind, entry.subject.id),
-      content_policy: "summary" };
-    if (entry.content !== "context" || !reader) return base;
-    try {
-      const context = await owner.client.invoke(nested, reader, { subject_id: entry.subject.id }) as ActionSubjectContext;
-      if (context.subject.kind !== entry.subject.kind || context.subject.id !== entry.subject.id) return base;
-      return { ...base, content: context.content, content_policy: "context" };
-    } catch {
-      // Unreadable now (archived, locked): index what the listing allowed; the object stays findable by title.
-      return base;
-    }
-  }
-
-  private statuses(sources: readonly SourceView[]): SearchSourceStatus[] {
-    return sources.map(source => {
-      const record = this.options.index.source(source.key);
-      const base = { plugin_id: source.view.provider.plugin_id ?? source.reference.provider_id, title: source.view.provider.title,
-        scope: source.project_id ? "project" as const : "personal" as const, indexed_at: record?.synced_at ? new Date(record.synced_at).toISOString() : null,
-        entries: record ? this.options.index.count(source.key) : 0 };
-      const availability = source.view.availability;
-      if (!availability.available) return { ...base, state: availability.code === "actions.plugin_disabled" ? "disabled" as const : "unavailable" as const, reason: availability.reason, entries: 0 };
-      if (!record || record.collection_revision === null) return { ...base, state: record?.state === "failed" ? "failed" as const : "indexing" as const, reason: record?.error ?? null };
-      if (record.error) return { ...base, state: "stale" as const, reason: record.error };
-      return { ...base, state: "ready" as const, reason: null };
-    });
+  private runSync(source: SourceView, ownerOf: () => Promise<Owner>): Promise<void> {
+    return syncSearchSource(this.options, {
+      syncedSeq: this.syncedSeq, changeSeq: () => this.changeSeq, isClosed: () => this.closed,
+    }, () => this.clock(), source, ownerOf);
   }
 }
 
 export { searchActions, SEARCH_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/search";
 export { confirmReferences, findReferenceCandidates, readReferences, type ReferenceAccess } from "./references.js";
+
+function entrySources(views: readonly ActionView[], caller: ActionCallContext): SourceView[] {
+  return views.filter(view => isSearchEntriesSource(view.action) && view.action.search_source?.kinds.length).map(view => {
+    // A registration bound to a project serves that project; a Home registration of a project action serves the caller's project.
+    const project_id = view.provider.project_id ?? (view.action.scope === "project" ? caller.project_id : null);
+    const reference = referenceOf(view);
+    return { key: searchSourceKey({ project_id, ...reference }), project_id, view, reference,
+      kinds: new Map(view.action.search_source!.kinds.map(entry => [entry.kind, { title: entry.title, surface: entry.surface }])) };
+  });
+}
+
+/* ---------------- sources ---------------- */
+function searchScope(caller: ActionCallContext, scope: SearchScope | undefined): Scoped {
+  const chosen = scope ?? "all";
+  if (chosen === "project" && !caller.project_id) throw new ActionError("actions.project_required", "当前没有打开项目，只能搜索个人内容");
+  return { project: chosen !== "personal" && !!caller.project_id, personal: chosen !== "project" };
+}
+
+
+async function readSearchDocument(source: SourceView, entry: SearchEntry, reader: ActionReference | undefined, owner: SearchAccess, nested: ActionCallContext): Promise<SearchIndexDocument> {
+  const base: SearchIndexDocument = { source_key: source.key, kind: entry.subject.kind, object_id: entry.subject.id, project_id: source.project_id, revision: entry.revision,
+    title: entry.title, summary: entry.summary, content: "", updated_at: entry.updated_at, open: entry.open ?? defaultOpen(source, entry.subject.kind, entry.subject.id),
+    content_policy: "summary" };
+  if (entry.content !== "context" || !reader) return base;
+  try {
+    const context = await owner.client.invoke(nested, reader, { subject_id: entry.subject.id }) as ActionSubjectContext;
+    if (context.subject.kind !== entry.subject.kind || context.subject.id !== entry.subject.id) return base;
+    return { ...base, content: context.content, content_policy: "context" };
+  } catch {
+    // Unreadable now (archived, locked): index what the listing allowed; the object stays findable by title.
+    return base;
+  }
+}
+
+
+function searchStatuses(options: SearchServiceOptions, sources: readonly SourceView[]): SearchSourceStatus[] {
+  return sources.map(source => {
+    const record = options.index.source(source.key);
+    const base = { plugin_id: source.view.provider.plugin_id ?? source.reference.provider_id, title: source.view.provider.title,
+      scope: source.project_id ? "project" as const : "personal" as const, indexed_at: record?.synced_at ? new Date(record.synced_at).toISOString() : null,
+      entries: record ? options.index.count(source.key) : 0 };
+    const availability = source.view.availability;
+    if (!availability.available) return { ...base, state: availability.code === "actions.plugin_disabled" ? "disabled" as const : "unavailable" as const, reason: availability.reason, entries: 0 };
+    if (!record || record.collection_revision === null) return { ...base, state: record?.state === "failed" ? "failed" as const : "indexing" as const, reason: record?.error ?? null };
+    if (record.error) return { ...base, state: "stale" as const, reason: record.error };
+    return { ...base, state: "ready" as const, reason: null };
+  });
+}
+
+
+async function syncSearchSource(options: SearchServiceOptions, state: { syncedSeq: Map<string, number>; changeSeq(): number; isClosed(): boolean }, clock: () => number, source: SourceView, ownerOf: () => Promise<Owner>): Promise<void> {
+  const index = options.index;
+  const previous = index.source(source.key);
+  const base: SearchIndexSourceRecord = previous ?? { source_key: source.key, project_id: source.project_id, provider_id: source.reference.provider_id,
+    capability_id: source.reference.capability_id, version: source.reference.version, plugin_id: source.view.provider.plugin_id ?? source.reference.provider_id,
+    title: source.view.provider.title, collection_revision: null, state: "indexing", error: null, synced_at: null, checked_at: null };
+  const startedAt = clock();
+  state.syncedSeq.set(source.key, state.changeSeq());
+  const save = (patch: Partial<SearchIndexSourceRecord>) => index.saveSource({ ...base, plugin_id: source.view.provider.plugin_id ?? source.reference.provider_id,
+    title: source.view.provider.title, ...patch });
+  if (!previous) save({});
+  try {
+    const { access: owner, views } = await ownerOf();
+    const live = views.find(view => sameReference(referenceOf(view), source.reference) && (view.provider.project_id ?? null) === (source.view.provider.project_id ?? null));
+    if (!live) throw new ActionError("actions.missing", "来源已从当前项目撤下");
+    if (!live.availability.available) throw new ActionError(live.availability.code, live.availability.reason);
+    const nested = retainActionAuthority(owner.caller, source.reference);
+    const list = (cursor: string | null) => owner.client.invoke(nested, source.reference, { cursor, limit: SEARCH_ENTRIES_PAGE_LIMIT }) as Promise<SearchEntriesPage>;
+    let first = await list(null);
+    if (previous?.state === "ready" && !previous.error && previous.collection_revision === first.collection_revision) {
+      save({ checked_at: startedAt });
+      return;
+    }
+    let entries: SearchEntry[] = [];
+    for (let attempt = 0; ; attempt += 1) {
+      entries = [...first.entries];
+      let page = first, moved = false;
+      while (page.next_cursor) {
+        page = await list(page.next_cursor);
+        if (page.collection_revision !== first.collection_revision) { moved = true; break; }
+        entries.push(...page.entries);
+      }
+      if (!moved) break;
+      // The collection changed while it was being listed: start over from the new revision.
+      if (attempt >= SYNC_RESTARTS) throw new ActionError("search.source_moving", "来源内容在读取期间持续变化，稍后重试");
+      first = await list(null);
+    }
+    const seen = new Map<string, SearchEntry>();
+    for (const entry of entries) {
+      if (!source.kinds.has(entry.subject.kind)) throw new ActionError("search.entry_invalid", "来源返回了未声明的对象种类");
+      const key = entryKey(entry.subject.kind, entry.subject.id);
+      if (seen.has(key)) throw new ActionError("search.entry_invalid", "来源返回了重复的条目");
+      seen.set(key, entry);
+    }
+    const known = index.revisions(source.key);
+    const changed = [...seen.values()].filter(entry => known.get(entryKey(entry.subject.kind, entry.subject.id)) !== entry.revision);
+    const readers = new Map<string, ActionReference>();
+    for (const view of views) if (isReader(view) && view.availability.available && view.provider.provider_id === source.reference.provider_id) {
+      for (const kind of view.action.subject_kinds) if (!readers.has(kind)) readers.set(kind, referenceOf(view));
+    }
+    for (let at = 0; at < changed.length; at += CONTEXT_BATCH) {
+      if (state.isClosed()) throw new ActionError("search.closed", "搜索服务已关闭");
+      const batch = changed.slice(at, at + CONTEXT_BATCH);
+      index.upsert(await Promise.all(batch.map(entry => readSearchDocument(source, entry, readers.get(entry.subject.kind), owner, nested))));
+    }
+    const removed = [...known.keys()].filter(key => !seen.has(key)).map(key => {
+      const [kind, object_id] = key.split("\u0000") as [string, string];
+      return { kind, object_id };
+    });
+    if (removed.length) index.remove(source.key, removed);
+    save({ collection_revision: first.collection_revision, state: "ready", error: null, synced_at: clock(), checked_at: startedAt });
+  } catch (error) {
+    // Keep what was indexed; removals wait for a complete pass. The next query retries after a pause.
+    save({ state: previous?.collection_revision ? "ready" : "failed", error: errorText(error), checked_at: startedAt });
+    throw error;
+  }
+}

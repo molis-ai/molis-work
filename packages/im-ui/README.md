@@ -9,7 +9,7 @@ Workspace registration: `goal-reorg-f2`。
 
 - `src/page.ts`：嵌入/独立页面的语义 DOM、会话区、搜索和输入控件。
 - `src/styles.ts`：中性明暗主题、标签、消息、响应式及局部动效。
-- `src/views.ts`：消息、引用、来源上下文、成员与标签的安全渲染。
+- `src/views.ts`：消息、引用、来源上下文、成员与标签的安全渲染。`createViews` 为每个根节点持有独立的两份 WeakMap；同文件 `updateViewMarkup` 接收这一实例的 chrome 缓存，处理更新与焦点恢复，由 `client.ts` 为序列化后的视图显式绑定，不依赖外部模块作用域。
 - `src/message-format.ts`：先转义再处理基础 Markdown，不接受原始 HTML。
 - `src/client.ts`：组装已编译、有类型的浏览器函数；不再维护不可检查的 JavaScript 字符串。
 - `src/browser/controller.ts`：只做装配（页面状态 `ImState`、按顺序调用各层）；具体工作分在 `controller-shell.ts`（路径、状态行、输入框可用性）、`controller-composer.ts`（草稿、引用、绘制、阅读位置、已读）、`controller-sync.ts`（事件流、刷新、历史分页）、`controller-rooms.ts`（选群、选话题）、`controller-topics.ts`（话题面板与新话题）、`controller-navigate.ts`（发送、来源与搜索结果定位）、`controller-dialogs.ts`（各弹窗）、`controller-startup.ts`（连接与取名）、`controller-page.ts`（页面级监听）、`controller-clicks.ts`（`data-action` 点击分发）。构造方法工厂时只给已就绪的 `ImBaseCtx`（元素、状态、基础服务）；返回的处理函数被调用时才取得完整 `ImCtx` 以跨层调用。完整上下文在装齐方法和邀请控制器后由类型检查确认，再交给页面监听与启动；不把初始对象断言成完整上下文。每层仍是自包含工厂，由 `client.ts` 序列化进页面。

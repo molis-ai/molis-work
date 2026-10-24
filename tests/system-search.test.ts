@@ -85,12 +85,12 @@ function registerPersonal(service: ActionService, memos: Note[]) {
 
 const owner = (project_id: string | null): ActionCallContext => ({ actor_id: "web-user", project_id, audience: "user", permissions: ["notes:read", "memos:read", "todo:read", "search:read"] });
 
-async function fixture(t: import("node:test").TestContext, options: { freshMs?: number } = {}) {
+async function fixture(t: import("node:test").TestContext, options: { freshMs?: number; clock?: () => number } = {}) {
   const home = await mkdtemp(join(tmpdir(), "system-search-"));
   const actions = new ActionService();
   let now = 1_000_000;
   let index = openTextSearchIndex({ homeDirectory: home });
-  const make = () => new SearchService({ index, clock: () => now, freshMs: options.freshMs ?? 60_000, budgetMs: 5_000, refreshDelayMs: 5,
+  const make = () => new SearchService({ index, clock: options.clock ?? (() => now), freshMs: options.freshMs ?? 60_000, budgetMs: 5_000, refreshDelayMs: 5,
     indexer: async project_id => ({ client: actions, caller: owner(project_id) }) });
   let search = make();
   t.after(async () => { await search.close(); index.close(); await rm(home, { recursive: true, force: true }); });
@@ -359,6 +359,33 @@ test("a failing source keeps what it had, reports it, and recovers", async t => 
   assert.deepEqual(ids(recovered), []);
   assert.equal(recovered.status, "complete");
   assert.equal(recovered.sources[0]!.state, "ready");
+});
+
+test("RAC-129-SEARCH: close during a held listing preserves the old index and clock receiver, while another service remains independent", async t => {
+  let first: SearchService | undefined;
+  const a = await fixture(t, { clock(this: unknown) { assert.equal(this, first); return 1_000_000; } });
+  first = a.search;
+  const b = await fixture(t);
+  const notes = source([{ id: "kept", title: "原有内容", body: "保留", version: 1 }]);
+  register(a.actions, notes, { provider_id: "notes-a", project_id: "a" });
+  register(b.actions, source([{ id: "other", title: "另一实例", body: "保留", version: 1 }]), { provider_id: "notes-a", project_id: "a" });
+  assert.deepEqual(ids(await ask(a, owner("a"), "保留")), ["kept"]);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  t.after(() => release.resolve());
+  notes.hold = release.promise;
+  notes.onList = () => entered.resolve();
+  notes.notes.set("new", { id: "new", title: "新内容", body: "保留", version: 1 });
+  a.search.markRegistration("notes-a", "a");
+  const pending = ask(a, owner("a"), "保留");
+  await entered.promise;
+  const closed = a.search.close();
+  release.resolve();
+  const answer = await pending;
+  await closed;
+  assert.deepEqual(ids(answer), ["kept"], "the newly listed body cannot be indexed after close; the previous body stays");
+  assert.equal(answer.status, "partial");
+  assert.match(answer.sources[0]!.reason ?? "", /关闭/);
+  assert.deepEqual(ids(await ask(b, owner("a"), "保留")), ["other"]);
 });
 
 test("a source that has never indexed and fails is reported, not hidden", async t => {

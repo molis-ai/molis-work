@@ -27,8 +27,13 @@ export class ImagesService {
       run: () => { throw imagesErrors.invalid("读取图片记录时不能写入。"); } });
   }
 
+  /** Jobs a stopped process left running are interrupted; this is the plugin's own database and needs no file grant. */
   async recover(control: ImagesControl): Promise<void> {
     await this.write(control, store => store.recoverInterrupted());
+  }
+
+  /** Tidying, not recovery: files no job refers to. A start whose installation cannot read and write the files skips it (the next one that can does it). */
+  async reclaimAssets(control: ImagesControl): Promise<void> {
     const referenced = this.store.referencedFiles();
     const unreferenced = this.options.files.list(IMAGES_ASSETS).filter(entry => entry.kind === "file" && !referenced.has(entry.name)).map(entry => entry.name);
     if (unreferenced.length) {

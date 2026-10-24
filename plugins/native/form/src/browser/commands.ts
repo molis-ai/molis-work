@@ -34,7 +34,7 @@ const open = (page: FormPage) => page.sel!;
 /** Save first; if a half-filled preview would be lost, ask. False when the person stays. */
 const leaveEditing = async (page: FormPage) => {
   await save(page);
-  return !page.dirty || await ask(page, page.L("离开会丢弃未提交的填写内容。继续吗？"), page.L("继续"));
+  return !page.dirty || await ask(page, page.L("form.dialog.leave-confirm"), page.L("form.dialog.continue"));
 };
 const closeMenu = (target: Element) => target.closest("details")?.removeAttribute("open");
 
@@ -43,7 +43,7 @@ const reload: Command = {
   async run(page) {
     clearTimeout(page.saveTimer);
     if (page.savePromise) await page.savePromise.catch(() => {});
-    if (hasUnsaved(page) && !await ask(page, page.L("重新读取会丢弃未保存的编辑和填写内容。继续吗？"), page.L("重新读取"))) return;
+    if (hasUnsaved(page) && !await ask(page, page.L("form.dialog.reload-confirm"), page.L("form.action.reload"))) return;
     const payload = await page.request<FormAnswer>("GET", path(open(page).id));
     fillEditor(page, payload.form);
     await loadList(page);
@@ -55,7 +55,7 @@ const create: Command = {
   find: on("[data-form-new]", false),
   async run(page) {
     await save(page);
-    if (page.dirty && !await ask(page, page.L("离开会丢弃未提交的填写内容。继续吗？"), page.L("继续"))) return;
+    if (page.dirty && !await ask(page, page.L("form.dialog.leave-confirm"), page.L("form.dialog.continue"))) return;
     const payload = await page.request<FormAnswer>("POST", "", {});
     await loadList(page);
     setTab(page, "editor");
@@ -84,7 +84,7 @@ const version: Command = {
       throw error;
     }
     placed({ verb: "versioned", title: payload.form.title, object: { kind: "form", id: payload.form.id }, artifact: payload.artifact,
-      note: page.L("第 {version} 版题目 · 放在这个位置的成果里；不含答卷", { version: payload.artifact.version }) });
+      note: page.L("form.fixed.done-note", { version: payload.artifact.version }) });
     await loadList(page);
     if (payload.form && page.sel && page.sel.id === payload.form.id) remember(page, payload.form, false);
   },
@@ -202,11 +202,11 @@ const publish: Command = {
   async run(page) {
     await save(page);
     const sel = open(page);
-    if (!(sel.questions || []).length) { showNote(page, page.L("还没有题目，先加题再开始收集"), true); return; }
+    if (!(sel.questions || []).length) { showNote(page, page.L("form.note.no-questions-collect"), true); return; }
     const payload = await page.request<FormAnswer>("POST", path(sel.id, "/publish"), { expected_version: sel.version });
     remember(page, payload.form, false);
     await loadList(page);
-    showNote(page, page.L("正在收集答卷：可以在这台电脑上打开填写页，或导出填写页文件发给别人。不会生成外网链接。"), false);
+    showNote(page, page.L("form.note.collecting"), false);
   },
 };
 
@@ -219,7 +219,7 @@ const stopCollecting: Command = {
     const payload = await page.request<FormAnswer>("POST", path(sel.id, "/close"), { expected_version: sel.version });
     remember(page, payload.form, false);
     await loadList(page);
-    showNote(page, page.L("已停止收集。已有答卷都保留；填写页不再接受提交，导入答卷文件仍然可以。"), false);
+    showNote(page, page.L("form.note.stopped"), false);
   },
 };
 
@@ -241,13 +241,13 @@ const exportFile = async (page: FormPage, target: Element, tail: string, type: s
 const exportFill: Command = {
   find: on("[data-form-export-fill]"),
   run: (page, _found, target) => exportFile(page, target, "/fill-page", "text/html;charset=utf-8",
-    () => page.L("填写页 · 发给对方在自己的浏览器里填，填完得到答卷文件发回，在“结果”里导入")),
+    () => page.L("form.export.fill-file-format")),
 };
 
 const exportCsv: Command = {
   find: on("[data-form-export-csv]"),
   run: (page, _found, target) => exportFile(page, target, "/results.csv", "text/csv;charset=utf-8",
-    (table) => page.L("{count} 份答卷 · Excel、Numbers 可以打开", { count: table.count })),
+    (table) => page.L("form.export.csv-format", { count: table.count })),
 };
 
 const importFiles: Command = {
@@ -262,17 +262,17 @@ const toDataset: Command = {
     await save(page);
     const sel = open(page);
     const table = await page.request<FormFile>("GET", path(sel.id, "/results.csv"));
-    if (!table.count) { showNote(page, L("还没有答卷，收到答卷后再存成数据表"), true); return; }
+    if (!table.count) { showNote(page, L("form.note.no-responses-dataset"), true); return; }
     window.dispatchEvent(new CustomEvent("molis:placement-convert", { detail: { source: { kind: "form", id: sel.id }, station: "dataset",
-      title: sel.title + " · " + L("答卷"), payload: { title: sel.title + " · " + L("答卷"), body: table.content.replace(/^﻿/, "") },
-      note: L("{count} 份答卷做成的表 · 之后的新答卷不会自动加入", { count: table.count }) } }));
+      title: sel.title + " · " + L("form.result.response-word"), payload: { title: sel.title + " · " + L("form.result.response-word"), body: table.content.replace(/^﻿/, "") },
+      note: L("form.note.dataset-made", { count: table.count }) } }));
   },
 };
 
 const remove: Command = {
   find: on("[data-form-delete]"),
   async run(page) {
-    if (!await ask(page, page.L("删除这份问卷？答卷也会一起删掉。"), page.L("删除"), async () => {
+    if (!await ask(page, page.L("form.dialog.delete-confirm"), page.L("form.action.delete"), async () => {
       await save(page);
       const sel = open(page);
       await page.request("POST", path(sel.id, "/delete"), { expected_version: sel.version });
@@ -299,6 +299,6 @@ export const onClick = async (page: FormPage, event: MouseEvent) => {
   } catch (error) {
     const failure = error as FormFailure;
     if (failure.code === "form.conflict") page.saveError = failure;
-    showNote(page, failure.message || page.L("问卷请求失败"), true, page.saveError ? "save" : button.matches("[data-form-artifact]") ? "publication" : "");
+    showNote(page, failure.message || page.L("form.error.request"), true, page.saveError ? "save" : button.matches("[data-form-artifact]") ? "publication" : "");
   } finally { setBusy(page, false); }
 };

@@ -209,8 +209,8 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /form-preview-rating/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /data-option-remove/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /data-form-result-list/);
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /还有必填题没填/);
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /载入中/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /form\.fill\.missing-required/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /form\.result\.loading/);
   assert.match(pptSource("slides.ts"), /ppt-card-notes/);
   assert.match(pptSource("slides.ts"), /ppt-card-empty/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
@@ -221,7 +221,7 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
     assert.doesNotMatch(script, /kindChip\(/);
     assert.doesNotMatch(script, /plugin-stage-kind/);
     assert.match(script, cell);
-    assert.match(script, /L\("(?:固定版本|dataset\.fixed\.label|ppt\.fixed\.label)"\) \+ " v" \+ record\.artifact_version/);
+    assert.match(script, /L\("(?:固定版本|form\.fixed\.label|dataset\.fixed\.label|ppt\.fixed\.label)"\) \+ " v" \+ record\.artifact_version/);
     // The row-level "存为固定版本" control is gone: it looked like share and was the least-used action; the editor keeps it.
     assert.doesNotMatch(script, /creative-artifact-act/);
   }

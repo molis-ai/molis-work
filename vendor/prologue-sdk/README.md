@@ -12,6 +12,8 @@
 
 该 head 的完整 `pnpm quality`（68 文件 684 项）、Memory 专项（41 文件 680 项）及干净安装真实 Node/本机 HTTP 消费者通过；原归档反例与首次粒度门失败保留。制包环境 macOS arm64、Node 24.14.0、pnpm 11.9.0；实际 tgz 独立离线安装后，上一版 #95 实包读取/更新续期记录被拒，正式写入为零、磁盘不变，新包重开结果保持。干净提交重打包与已测试产物逐字节一致，775 个非 manifest 文件与构建树一致；未作独立重复构建。不宣称 Molis 采用、模型收益或用户验收通过，集成状态以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) §13 为准。
 
+历史来源补核：当前 `patch-history.json` 共记录 42 个 Prologue 提交。原 41 个提交仍对应 2026-10-23 对 main `2c7feba5` 的核查；2026-10-24 新增的 `f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512` 是已替换 SDK #94 原包来源，其树与 squash merge `d94a99fb` 相同。这个补核不把原 head 说成 main 祖先，也不改写历史核查时点。当前 #96 包仍由本节开头的 provenance 单独标明。
+
 ## 上一份主线依赖：retry-waiting（2026-10-23）
 
 当前包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz`（1,249,614 字节），SHA-256 `ac44cf9fd079f3444523285798ac0d6d2dc1ed1e5b07f05870887db66b4df419`。来源为上游 main `2c7feba5a6ea85e81e4a263671fb5e68f536d86a`，即 [Prologue #60](https://github.com/molis-ai/molis-prologue/pull/60) 的合并（head `84a6884f`），当时的 main 头；无补丁、dirty 为 false。上游仓库此后改名为 `molis-ai/molis-prologue`（原 `molis-ai/prologue`，旧地址会跳转；下面较早的小节里的旧链接保留原样）。上游按这个提交给的源码归档（GitHub tarball）解到两个各自独立的空目录，各自装依赖、构建、打包，两份逐字节相同。版本号仍是 `0.0.0-rc.1`，只换上游提交，不算发版。

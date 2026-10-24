@@ -530,7 +530,6 @@ export class MemoryService {
     const stamp = this.operations.begin(caller, `change:${request.memory_id}`, { kind: request.action, scope, owner, memory_id: located.entry.memory_id, expected_version: request.expected_version ?? located.entry.version, original_state: located.meta.state });
     if (request.expected_version !== undefined && request.expected_version !== stamp.expected_version) throw memoryErrors.conflict("重试不能改变原先确认的记忆版本");
     const at = stamp.at;
-    const by = "person" as const;
     switch (request.action) {
       case "renew": case "update": case "reclassify": case "restore": return this.edits.apply(caller, located, request, at, undoing);
       case "disable": case "enable": {
@@ -540,13 +539,13 @@ export class MemoryService {
           state_reason: request.action === "disable" ? (assistant ? "助理按你的要求停用了" : "你停用了") : null, updated_at: at };
         const entry = await this.saveFacts(caller, located, meta, located.meta);
         const change = this.recordChange(caller, { kind: request.action === "disable" ? "disabled" : "enabled", scope, owner, memory_id: located.entry.memory_id, text: located.entry.text,
-          applied_version: entry.version, by: assistant ? "assistant" : by, rule: null, reason: assistant ? "助理按你的要求停用，可以撤销" : null,
+          applied_version: entry.version, by: assistant ? "assistant" : "person", rule: null, reason: assistant ? "助理按你的要求停用，可以撤销" : null,
           undo: assistant && stamp.original_state === "active" ? { action: "enable" } : null });
         return { memory: this.scopeCommands.item({ ...located, entry, meta }), change: changeView(change) };
       }
       case "remove": {
         await this.purge(caller, located, stamp.expected_version!);
-        const change = this.recordChange(caller, { kind: "removed", scope, owner, memory_id: located.entry.memory_id, text: "", by, rule: null, reason: null, undo: null });
+        const change = this.recordChange(caller, { kind: "removed", scope, owner, memory_id: located.entry.memory_id, text: "", by: "person", rule: null, reason: null, undo: null });
         return { memory: null, change: changeView(change) };
       }
       default: throw memoryErrors.invalid("不支持的操作");

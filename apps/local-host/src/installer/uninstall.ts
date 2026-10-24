@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { resolveConfiguredHome } from "../product-home.js";
 import { homeStores } from "../home-stores.js";
+import { hostLog } from "../host-log.js";
 import { RuntimeIntegrationService } from "./runtime-integration.js";
 import { SUPPORTED_RUNTIME_IDS } from "./runtime-integration-contract.js";
 import { MolisWorkWebServiceManager } from "./web-service.js";
@@ -202,8 +203,11 @@ export class MolisWorkUninstallService {
       receipt.state = "failed";
       receipt.error = error instanceof Error ? error.message : String(error);
       receipt.updated_at = new Date().toISOString();
-      await this.writeReceipt(receipt).catch(() => undefined);
-      throw installerErrors["installer.uninstall.step_failed"](`卸载未完成，进度收据已保留：${receipt.error}`);
+      const receiptSaved = await this.writeReceipt(receipt).then(() => true, (receiptError: unknown) => {
+        hostLog.warn("installer", "uninstall_receipt_write_failed", receiptError, { completed_steps: receipt.completed_steps.length, purge_user_data: plan.purge_user_data });
+        return false;
+      });
+      throw installerErrors["installer.uninstall.step_failed"](`卸载未完成，${receiptSaved ? "进度收据已保留" : "失败进度未能写入收据"}：${receipt.error}`);
     }
   }
 

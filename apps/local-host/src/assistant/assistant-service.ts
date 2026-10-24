@@ -1073,12 +1073,12 @@ export class AssistantService {
    * the person chooses it or the round reads it, and only for that round.
    */
   async methods(work: StoredWork | null, caller: AssistantCaller = {}): Promise<AssistantMethod[]> {
-    const registered = this.ports.methods?.list() ?? [];
-    if (!registered.length) return [];
+    if (!this.ports.methods) return [];
     let actions: PersonActions | null = null;
     try { actions = await this.ports.scopeActions?.(work ?? ({ project_ref: caller.project_ref ?? undefined } as StoredWork)) ?? null; } catch { actions = null; }
     const live = new Set((actions ? await actions.discover().catch(() => [] as ActionView[]) : []).filter(view => view.availability.available).map(view => view.provider.provider_id));
-    return registered.filter(method => live.has(method.owner_id)).map(method => ({ method_id: method.key, plugin_id: method.owner_id,
+    // Read after the scope is open: opening it starts its plugins, and a plugin's methods are registered by its running definition (PG-051).
+    return this.ports.methods.list().filter(method => live.has(method.owner_id)).map(method => ({ method_id: method.key, plugin_id: method.owner_id,
       plugin_title: method.source.kind === "plugin" ? method.source.title : method.owner_id, version: method.version, name: method.name, summary: method.summary }));
   }
 

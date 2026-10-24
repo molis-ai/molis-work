@@ -1654,6 +1654,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `config/mcp-tools.json` | 2 → 3 | ACA005（`feature/aca005-search-authority`，本片 PR） | [同一片规格](slices/aca-005-search-authority.md)；逐条授权增加管理 owner 生成的 generation，原 client、scope、精确引用、权限、enabled 全部保留。临时副本已演练一次性 list/apply、外置原件、幂等、重复拒绝、真实写入失败零改和原件恢复；脚本仅在会话临时目录，不进运行时读路径。真实 Home 未操作，随 W5-17/统一发布维护窗口停全部 owner、完整备份并在副本核对后，另按真实 Home 的当次授权执行；v3 运行时严格拒绝 v2，不自动迁移、不改产品发布版本。 |
 | `server/server.sqlite` | 1 → 2 | W5-16 B1（`anticorr/codex-w5-16-im-invite-hash`） | [本片规格](slices/w5-16-home-snapshot.md) B1；真实 Home 未执行，随 W5-17、Goals S9 的既定维护窗口另行授权。停宿主并在完整副本先 `list`，显式 `apply --backup <Home外新目录>` 按原邀请 SHA-256 重建 v2 库，清除邀请回执原文，保留其余业务事实、自增序号与旧链接效力；不自动迁移。`tests/im-invite-maintenance.test.ts` 已在一次性 Home 演练：含最新 WAL 的全表比对、发布库与 backup API 副本无原文字节、重复零改、失败回滚和中断后拒绝打开及原件恢复。 |
 | `memory/memory.db` | 2 → 3 | 记忆策略 M1 第一片（`codex/memory-p0`，独立 PR 交付） | [记忆策略 spec](../prologue-memory-strategy/spec.md) §9.4 / §13；真实 Home 未执行。停止全部 owner 并备份，在隔离副本按旧代码物化个人、项目默认及已有项目的有效开关，保留消费者/插件限制，同一事务写采用记录和版本 3，不改 SDK 正文。已演练事务失败回退、重试、两次新进程重启及旧 Home/Web/MCP 入口拒绝。真实库采用与安装新构建须另获对应授权，不能由普通启动就地升级 |
 | `connectors/connectors.db` | 1 → 2 | #661（`7074abe67`、`fe5634dd3`、`7007532b8`） | 归维护八，与安装新构建同一步进行；真实 Home 未执行，仍需当次授权，不得先用新构建打开旧库或让旧构建打开维护后的库。隔离 v1 副本已演练：停宿主并完整备份，按当前 `CONNECTORS_STORE_BASELINE` 增加连接启停/移除字段、协议/授权请求与技术观察字段和表，在事务中写基线 2，核对原连接 id、凭据引用、绑定、协议及取消记录不变；失败恢复完整副本。证据见 [服务接入 spec](../assistant-service-connections/spec.md) 的连接生命周期、正式接入准备与技术观察记录 |

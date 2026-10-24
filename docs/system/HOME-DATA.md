@@ -239,7 +239,7 @@ Sessions 插件下线（SC-4）后，没有任何代码打开 `sessions/sessions
 | `config/uninstall.json` | `installer/uninstall.ts:20`：卸载进度收据 | JSON · `schema_version` = 1 | 临时 | purge 成功后删（`installer/uninstall.ts:190`）；普通卸载保留 |
 | `config/onboarding.json` | `apps/local-host/src/onboarding.ts:6`：首次引导状态，0600（`:99`） | JSON · `schema_version` = 1 | 必备份（很小） | purge |
 | `config/project-arrival.json` | `apps/local-host/src/project-arrival.ts:11`：最近打开的项目与到达状态，0600（`:66`） | JSON · `schema_version` = 1 | 必备份（很小） | purge |
-| `config/mcp-tools.json` | `apps/local-host/src/mcp-settings-store.ts:16`：MCP 客户端的动作授权 | JSON · `version` = 2（`:15`） | 必备份（授权不能丢，也不能凭空恢复） | purge |
+| `config/mcp-tools.json` | `apps/local-host/src/mcp-settings-store.ts`：MCP 客户端的动作授权与逐条 generation（ACA005） | JSON · `version` = 3 | 必备份（授权及其代次不能丢，也不能凭空恢复） | purge |
 | `config/external-mcp-tools.json`、`config/connector-mcp-tools.json` | `apps/local-host/src/external-mcp-actions.ts:10`、`apps/local-host/src/connector-mcp-actions.ts:12`：见过的工具清单 | JSON · 无版本 | 可重建；真实 Home 里还没有 | purge |
 | `logs/web-service.log`、`logs/web-service.error.log` | `installer/web-service-platform.ts:37-38`：LaunchAgent 的标准输出与错误 | 文本 | 日志 | purge（`installer/uninstall.ts:48`） |
 | `logs/action-calls.jsonl` | `apps/local-host/src/action-call-log.ts`：诊断记录，不存输入输出。每个命令一行，读取只在失败时一行，处理器之前就被拒的调用一行（标「未执行」）；被拒的行与失败的读取只存谁、什么动作、结果与错误码，执行过又失败的命令另存前 200 字的错误信息；每行带这次操作的编号 `call_id`；连续相同的结果合并成一行（另存最近 20 个编号）；超过 2000 行时重写，执行过的命令留最近 1000 条、其余留最近 200 条；没有编号的旧行不读，重写时去掉 | JSON Lines | 日志 | purge（`installer/uninstall.ts:48`） |
@@ -250,6 +250,9 @@ Sessions 插件下线（SC-4）后，没有任何代码打开 `sessions/sessions
 | `runtime-config-backups/<runtime>/<plan>.bak` | `installer/runtime-integration.ts:319`：改动前的 Runtime 配置副本，可能含那个 Runtime 自己的密钥 | 文本 | 必备份，按密钥对待 | purge（`installer/uninstall.ts:54`） |
 | `runtime-integration-attempts/<plan>-<uuid>.json` | `installer/runtime-integration.ts:342`：回滚记录 | JSON · `schema_version` = 1 | 日志 | purge；真实 Home 里还没有 |
 | `backups/` | 没有任何代码写它；只出现在卸载的清除与保留清单里（`installer/uninstall.ts:47`、`:81`） | 保留名，没有内容可分类 | 无 | purge |
+
+MCP 配置 v3 是 ACA005 修复的维护前置：运行时拒绝 v2 和坏配置且不改原件。按 [ACA005 的离线维护合同](../../specs/repository-anti-corruption/slices/aca-005-search-authority.md) 在临时 Home/副本 list/apply，保留原 client、scope、精确引用、权限、enabled，由管理 owner 建立各行新代次；原件外置备份、失败可恢复、重复不换代。此一次性维护交 W5-17/统一发布窗口，不在正常读路径迁移，不改变产品版本；真实 Home 另需当次授权。
+
 
 受管工具的维护边界：`runtime/connectors/installs/<id>/installation.json` 记录安装 id、固定来源和版本、命令路径、运行时路径及完成状态，npm 的锁文件与 Python 的 `requirements.lock` 记录依赖。它们与 `connectors/connectors.db` 中的 `installation_id` 引用应在停止宿主后一起备份；连接凭据仍归现有加密凭据存储，按第 7 节 D 组配对。路径是本机绝对路径，直接恢复限原 Home 路径；换机器或路径应重新准备、安装和验证连接，不能只复制清单并改成完成。`runtimes/` 是多个安装可共享的运行时，`cache/` 是可重建缓存；停止安装及连接进程后才做缓存清理。连接移除经安装器重新核对引用、真实路径与所有权记录，只删除已无连接引用的那一份 `installs/<id>`，保留共享运行时和业务工作目录。当前不提供自动清除孤立安装或共享运行时的维护任务；维护真实 Home 仍须随发布取得授权，不由本 PR 提前操作。
 

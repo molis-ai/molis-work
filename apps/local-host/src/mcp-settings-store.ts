@@ -14,13 +14,13 @@ export interface McpActionGrant {
   readonly enabled: boolean;
 }
 
-const MCP_TOOL_PREFERENCE_VERSION = 2;
+const MCP_TOOL_PREFERENCE_VERSION = 3;
 const MCP_TOOL_PREFERENCE_RELATIVE_PATH = "config/mcp-tools.json";
 
 /** Which actions each MCP client may use; nothing else switches an MCP tool on or off. */
 export interface McpToolPreference {
   readonly version: typeof MCP_TOOL_PREFERENCE_VERSION;
-  readonly action_grants: readonly McpActionGrant[];
+  readonly action_grants: readonly (McpActionGrant & { readonly generation: string })[];
 }
 
 const EMPTY: McpToolPreference = { version: MCP_TOOL_PREFERENCE_VERSION, action_grants: [] };
@@ -33,21 +33,24 @@ export function parseMcpToolPreference(value: unknown): McpToolPreference {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw invalidPreference();
   const record = value as { version?: unknown; action_grants?: unknown };
   if (Object.keys(record).length !== 2 || Object.keys(record).some(key => key !== "version" && key !== "action_grants")
-    || record.version !== MCP_TOOL_PREFERENCE_VERSION || !Array.isArray(record.action_grants) || !record.action_grants.every(isMcpActionGrant)) throw invalidPreference();
+    || record.version !== MCP_TOOL_PREFERENCE_VERSION || !Array.isArray(record.action_grants) || !record.action_grants.every(isStoredMcpActionGrant)) throw invalidPreference();
   // Keep every valid record: duplicates are existing facts, never absence that reopens a public default.
   return { version: MCP_TOOL_PREFERENCE_VERSION, action_grants: record.action_grants };
 }
 
-function isMcpActionGrant(value: unknown): value is McpActionGrant {
+function isMcpActionGrant(value: unknown, stored = false): value is McpActionGrant {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
-  const fields = ["client_id", "project_id", "capability_id", "version", "provider_id", "permissions", "enabled"];
+  const fields = ["client_id", "project_id", "capability_id", "version", "provider_id", "permissions", "enabled", ...(stored ? ["generation"] : [])];
   if (Object.keys(row).length !== fields.length || Object.keys(row).some(key => !fields.includes(key))) return false;
   const id = (v: unknown) => typeof v === "string" && v.trim().length > 0;
   return id(row.client_id) && (row.project_id === null || id(row.project_id)) && id(row.capability_id)
     && Number.isSafeInteger(row.version) && Number(row.version) > 0 && id(row.provider_id)
-    && Array.isArray(row.permissions) && row.permissions.every(id) && typeof row.enabled === "boolean";
+    && Array.isArray(row.permissions) && row.permissions.every(id) && typeof row.enabled === "boolean"
+    && (!stored || id(row.generation));
 }
+
+function isStoredMcpActionGrant(value: unknown): value is McpToolPreference["action_grants"][number] { return isMcpActionGrant(value, true); }
 
 export function actionGrantKey(grant: Pick<McpActionGrant, "client_id" | "project_id" | "capability_id" | "version" | "provider_id">): string {
   return JSON.stringify([grant.client_id, grant.project_id, grant.capability_id, grant.version, grant.provider_id]);
@@ -65,7 +68,7 @@ export function readMcpToolPreferenceSync(homeDirectory: string): McpToolPrefere
 }
 
 function invalidPreference(cause?: unknown): ActionError {
-  return new ActionError("actions.configuration_unavailable", "MCP 授权配置无效，已保留原文件；请修复为完整 version 2 配置后重试", { cause });
+  return new ActionError("actions.configuration_unavailable", "MCP 授权配置无效，已保留原文件；请修复为完整 version 3 配置后重试", { cause });
 }
 
 function parsePreferenceText(text: string): McpToolPreference {
@@ -113,10 +116,15 @@ export async function writeMcpActionGrant(homeDirectory: string, grant: McpActio
 
 /** Several grants in one atomic write: an action and the actions it depends on are saved together or not at all. */
 export async function writeMcpActionGrants(homeDirectory: string, grants: readonly McpActionGrant[]): Promise<McpToolPreference> {
-  if (!grants.every(isMcpActionGrant)) throw new Error("动作授权无效");
+  if (!grants.every(grant => isMcpActionGrant(grant))) throw new Error("动作授权无效");
   const snapshots = grants.map(grant => structuredClone(grant));
   const keys = new Set(snapshots.map(actionGrantKey));
   return updateMcpToolPreference(homeDirectory, current => ({ ...current,
-    action_grants: [...current.action_grants.filter(row => !keys.has(actionGrantKey(row))), ...snapshots],
+    action_grants: [...current.action_grants.filter(row => !keys.has(actionGrantKey(row))), ...snapshots.map(grant => {
+      const previous = current.action_grants.find(row => actionGrantKey(row) === actionGrantKey(grant));
+      const samePermissions = previous && new Set(previous.permissions).size === new Set(grant.permissions).size
+        && previous.permissions.every(permission => grant.permissions.includes(permission));
+      return { ...grant, generation: previous && previous.enabled === grant.enabled && samePermissions ? previous.generation : randomUUID() };
+    })],
   }));
 }

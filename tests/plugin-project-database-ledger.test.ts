@@ -136,7 +136,7 @@ test("PLIB-03 tried on the scratch database, a declaration may make only its own
     "CREATE TABLE notes_items (project_id TEXT REFERENCES project_root, note_id TEXT PRIMARY KEY); CREATE TABLE notes_tags (note_id TEXT REFERENCES notes_items);" } }).created, true);
 });
 
-test("PLIB-03 the Manifest's databases declare only a project library, with a store name, a positive version, statements and declared permissions", () => {
+test("PLIB-03 RAC-300 the Manifest's databases declare a project library and a Home library, each with a store name, a positive version, statements and declared permissions; only the Home one may be partitioned by project", () => {
   const manifest = (databases: unknown) => ({
     schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.notes-probe", version: "0.1.0", name: "Notes", kind: "native",
     publisher: { publisher_id: "example", signature: "publisher-a" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
@@ -145,11 +145,24 @@ test("PLIB-03 the Manifest's databases declare only a project library, with a st
     ...(databases === undefined ? {} : { databases }),
   });
   assert.deepEqual(parsePluginManifest(manifest({ project: NOTES })).databases, { project: NOTES });
+  assert.deepEqual(parsePluginManifest(manifest({ home: NOTES })).databases, { home: NOTES });
+  assert.deepEqual(parsePluginManifest(manifest({ home: { ...NOTES, partition: "project" } })).databases, { home: { ...NOTES, partition: "project" } });
+  assert.deepEqual(parsePluginManifest(manifest({ project: NOTES, home: { ...NOTES, store_name: "notes-home" } })).databases, { project: NOTES, home: { ...NOTES, store_name: "notes-home" } });
   assert.equal(parsePluginManifest(manifest(undefined)).databases, undefined);
   for (const [databases, mentions] of [
     [[], /databases 必须为对象/u],
-    [{ home: NOTES }, /只能声明 project/u],
-    [{ project: NOTES, home: NOTES }, /只能声明 project/u],
+    [{ global: NOTES }, /只能声明 project（项目库）和 home（Home 库），不认 global/u],
+    [{ project: NOTES, plugin: NOTES }, /不认 plugin/u],
+    [{ home: "notes" }, /databases\.home 必须为对象/u],
+    [{ home: { ...NOTES, tables: ["notes_items"] } }, /databases\.home 不认这些字段：tables/u],
+    [{ home: { ...NOTES, store_name: "Notes" } }, /databases\.home\.store_name/u],
+    [{ home: { ...NOTES, store_name: "../notes" } }, /databases\.home\.store_name/u],
+    [{ home: { ...NOTES, version: 0 } }, /databases\.home\.version/u],
+    [{ home: { ...NOTES, schema: "  " } }, /databases\.home\.schema/u],
+    [{ home: { ...NOTES, read_permission: "notes:read" } }, /databases\.home\.read_permission/u],
+    [{ home: { ...NOTES, write_permission: undefined } }, /databases\.home\.write_permission/u],
+    [{ home: { ...NOTES, partition: "whole" } }, /databases\.home\.partition 只能是 "project"/u],
+    [{ project: { ...NOTES, partition: "project" } }, /databases\.project 不认这些字段：partition/u],
     [{ project: "notes" }, /databases\.project 必须为对象/u],
     [{ project: { ...NOTES, tables: ["notes_items"] } }, /不认这些字段：tables/u],
     [{ project: { ...NOTES, store_name: "Notes" } }, /store_name/u],

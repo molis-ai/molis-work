@@ -204,12 +204,13 @@ for (const revoked of [false, true]) {
 for (const cancelled of [false, true]) {
   test(`S-18 RAC-51 RAC-52 accepted file work ${cancelled ? "cannot persist after explicit cancellation" : "persists with its bounded control after HTTP ends"}`, async t => {
     const name = "backgroundfiles", probe = backgroundProbe(name), entered = deferred(), release = deferred(), finished = deferred();
-    const files = { store_name: name, directory: "assets", max_file_bytes: 128, read_permission: `${name}:read`, write_permission: `${name}:write` };
-    const fixture = { definition: probe.definition, files };
+    probe.definition.manifest = { ...probe.definition.manifest, owner_files: { store_name: name, entries: [{ name: "assets", kind: "directory" }],
+      read_permission: `${name}:read`, write_permission: `${name}:write` } };
+    const fixture = { definition: probe.definition };
     const f = await serveHomeRuntime(t, { pluginFixtures: { home: [fixture] } });
     probe.behavior.work = async (context, control) => {
       entered.resolve(); await release.promise;
-      try { await context.services!.files!.create(control, "result.bin", Buffer.from("durable bytes")); return "durable result"; }
+      try { await context.services!.ownerFiles!.write(writer => writer.writeFile("assets/result.bin", Buffer.from("durable bytes"), "create")); return "durable result"; }
       finally { finished.resolve(); }
     };
     try {
@@ -225,7 +226,7 @@ for (const cancelled of [false, true]) {
       const reopened = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null, pluginFixtures: { home: [fixture] } });
       try {
         await reopened.homePlugins!.ready();
-        const stored = probe.contexts.at(-1)!.services!.files!.read("result.bin");
+        const stored = probe.contexts.at(-1)!.services!.ownerFiles!.read("assets/result.bin");
         assert.equal(stored === null ? null : Buffer.from(stored).toString("utf8"), cancelled ? null : "durable bytes");
         assert.equal(probe.stored("result.file"), cancelled ? null : "durable result");
         assert.equal(probe.stored("failure.file"), null);

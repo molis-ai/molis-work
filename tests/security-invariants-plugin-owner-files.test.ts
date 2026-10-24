@@ -7,6 +7,25 @@ import test from "node:test";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { grantOwnerFiles, ownerFileActions, ownerFilesProbe } from "./fixtures/plugin-owner-files.js";
 
+test("RAC-306 V-30 owner files are readable and writable by the Host's user only: created, read-only and read-write nodes carry no group or other bits, whatever the umask", async t => {
+  const probe = ownerFilesProbe(), { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.entry()] } });
+  await grantOwnerFiles(host, probe);
+  const run = ownerFileActions(host, probe), root = join(home, probe.owner_files.store_name), mode = (path: string) => statSync(join(root, path)).mode & 0o777;
+  const umask = process.umask(0);
+  try {
+    await run.write(writer => {
+      writer.mkdir("documents/folder"); writer.writeFile("documents/folder/a.txt", Buffer.from("a"), "create");
+      writer.copyFile("documents/folder/a.txt", "documents/b.txt"); writer.replaceFileAtomic("catalog.json", Buffer.from("{}"));
+    });
+    assert.deepEqual(["catalog.json", "documents/b.txt", "documents/folder/a.txt"].map(mode), [0o600, 0o600, 0o600]);
+    assert.deepEqual(["documents", "documents/folder"].map(mode), [0o700, 0o700]);
+    await run.write(writer => { writer.setAccess("documents/b.txt", "readonly"); writer.setAccess("documents/folder", "readonly"); });
+    assert.deepEqual([mode("documents/b.txt"), mode("documents/folder")], [0o400, 0o500]);
+    await run.write(writer => { writer.setAccess("documents/b.txt", "readwrite"); writer.setAccess("documents/folder", "readwrite"); });
+    assert.deepEqual([mode("documents/b.txt"), mode("documents/folder")], [0o600, 0o700]);
+  } finally { process.umask(umask); }
+});
+
 test("SHF-IO-S03 SHF-IO-S06 Home owner files keep Unicode bytes, exclusive creates and copies, replacement and read-only queries", async t => {
   const probe = ownerFilesProbe(), { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.entry()] } });
   await grantOwnerFiles(host, probe);
@@ -26,8 +45,8 @@ test("SHF-IO-S03 SHF-IO-S06 Home owner files keep Unicode bytes, exclusive creat
     writer.setAccess("documents/copy.txt", "readonly"); writer.setAccess("documents/保留 空格", "readonly");
   });
   assert.equal(readFileSync(join(root, "documents/copy.txt"), "utf8"), "short");
-  assert.equal(statSync(join(root, "documents/copy.txt")).mode & 0o777, 0o444);
-  assert.equal(statSync(join(root, "documents/保留 空格")).mode & 0o777, 0o555);
+  assert.equal(statSync(join(root, "documents/copy.txt")).mode & 0o777, 0o400);
+  assert.equal(statSync(join(root, "documents/保留 空格")).mode & 0o777, 0o500);
   const before = [statSync(root), statSync(join(root, "catalog.json")), statSync(join(root, "documents"))].map(s => [s.mtimeMs, s.ctimeMs, s.mode]);
   for (let i = 0; i < 2; i++) await run.read(client => [client.stat("catalog.json"), client.list("documents"), client.read("catalog.json")]);
   assert.deepEqual([statSync(root), statSync(join(root, "catalog.json")), statSync(join(root, "documents"))].map(s => [s.mtimeMs, s.ctimeMs, s.mode]), before);

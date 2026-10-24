@@ -39,8 +39,8 @@ export interface PluginModelConfigurationClient {
 }
 
 /**
- * Trusted Host startup data, never taken from a plugin manifest or definition. 2026-10-18 改: declared in the Manifest and granted
- * like any plugin's (PG-102 in specs/repository-anti-corruption/privileges.md); until then, as above.
+ * What a plugin's Manifest declares (`model_configuration`, PG-102), like any plugin's: the Host gives the service only to a
+ * definition on its start list, whose preference directory its store registry holds as this plugin's.
  */
 export interface PluginModelConfigurationDeclaration {
   readonly preference: { readonly store_name: string; readonly file_name: string };

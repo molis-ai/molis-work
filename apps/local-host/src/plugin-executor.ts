@@ -20,9 +20,9 @@ export interface PluginHostExecutorOptions {
   /** The Home the platform reaches in process; absent or `null`: none (a developed plugin, a bare executor in a test). */
   home?: PluginPlatformHome | null;
   /**
-   * The library in the Home the Host's start list declared for a definition (`PluginPlatformEntry.database`), looked up by the
-   * definition object the Host listed. None for any other definition (a developed plugin that carries a built-in plugin's id,
-   * a generated one), whatever its Manifest asks for; the plugin never names a library. Needs `home`.
+   * The library in the Home that a definition's Manifest declares (`databases.home`), given only to a definition object the Host's
+   * start list holds. None for any other definition (a developed plugin that carries a built-in plugin's id, a generated one): a
+   * Manifest that declares a library for one of those is refused (`homeLibraryFor`). Needs `home`.
    */
   databaseFor?(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
   /**
@@ -32,7 +32,6 @@ export interface PluginHostExecutorOptions {
   projectLibrary?: import("./plugin-project-library.js").ProjectLibrary | null;
   installations?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginInstallationClient;
   scheduler?: import("@molis-ai/molis-work-service-scheduler").ScheduleService;
-  filesFor?(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
   /**
    * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its
    * plugin_id). Without it, or for a definition it does not name, the installation id. Whatever registers the Plugin's actions

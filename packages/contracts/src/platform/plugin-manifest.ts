@@ -153,6 +153,12 @@ export interface PluginManifest {
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
   /** The plugin's own tables, by scope (PG-020, specs/plugin-project-database). */
   databases?: import("./plugin-database.js").PluginManifestDatabases;
+  /** The plugin's own files in the Home (`services.ownerFiles`, PG-102): a root and its top-level entries, like `databases.home` declared here and nowhere else. */
+  owner_files?: import("./plugin-owner-files.js").PluginOwnerFilesDeclaration;
+  /** The settings of the model this plugin uses (`services.model.configuration`, PG-102): where its choice is kept and the two actions that read and save it. */
+  model_configuration?: import("./plugin-model-configuration.js").PluginModelConfigurationDeclaration;
+  /** The image connections this plugin uses (`services.imageGeneration`, PG-102): the namespace its bindings live in and the permissions that read, bind and generate. */
+  image_generation?: import("./plugin-image-generation.js").PluginImageGenerationDeclaration;
   /** v2: places where the plugin may use an account the person binds, with `connections:use` (`services.connections`, S-57). */
   connections?: import("./plugin-connections.js").PluginConnectionsDeclaration;
   /** v2: kept jobs and commands the platform may wake for this installation. */

@@ -23,6 +23,7 @@
 | 调用编号（call id） | 宿主给一次入口级操作的编号，贯穿它引起的每次动作与宿主能力调用，只用于诊断，不是身份 | 诊断编号（英文 Diagnostic ID；2026-10-10 用户已批准；「设置 › 诊断」、「能力 › 调用记录」和经共用请求助手显示的错误详情里已出现：装了助手的内联页面，和工作台主程序里已迁到助手的部分（设置一组、项目设置）；工作台的导航、Feed、插件挂载、助理底栏、放置、搜索和插件客户端的错误详情还没有，随 W3-10-2～4、W5-04） | 调用 id、trace id、请求编号；一次性键（`x-molis-work-idempotency-key` 防重放，不是它）；助理与 Agent 工具活动的 `call_id`（一行活动的标识，不是它） |
 | 调用记录 | Home 里近期调用的诊断记录：谁调了什么、怎样结束，不写输入与结果 | 调用记录 | 动作调用日志（`docs/system/SECURITY-INVARIANTS.md` S-12 的写法） |
 | 宿主能力（typed capability） | 注册表里不带 `action` 的条目，只作宿主内的服务通道 | 无 | 裸写的「能力」「Capability」 |
+| 插件私有文件（`ownerFiles` / `owner_files`） | 插件在自己 Manifest 的 `owner_files` 里声明、放在 Home 的文件树（顶层条目、读写权限），只经 `services.ownerFiles` 读写；只有这一套 | 无 | `files`（旧的启动条目声明与 `services.files`，PG-022 P2b 已删，现在只叫 `ownerFiles`）、`initialize_owner_files`（启动钩子，已删，由插件在自己的 `start` 里写） |
 | 判断规则 | 已发布、版本不可变的判断：给一段内容，返回选择、是非概率或分数 | 判断规则 | 判断函数、Function、Functions |
 | 消费场景 | 插件或系统里真正使用判断结果的位置 | 用途、消费场景 | 判断场景、去向、消费入口 |
 | 推荐选项 | 判断结果里「建议做什么」的一项 | 推荐动作 | 行为（behavior） |

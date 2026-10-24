@@ -11,7 +11,7 @@ import { functionAuthoringActions } from "@molis-ai/molis-work-module-functions"
 import { openTestHome } from "./fixtures/test-home.js";
 
 const caller: ActionCallContext = { actor_id: "consumer-reader", audience: "agent", project_id: null,
-  permissions: ["connectors:management:read", "images:connections:read", "images:connections:write", "images:generate", "model:invoke", "feed:read", "feed:write", "functions:manage", "functions:invoke"] };
+  permissions: ["connectors:management:read", "images:connections:read", "images:connections:write", "images:generate", "images:files:write", "model:invoke", "feed:read", "feed:write", "functions:manage", "functions:invoke"] };
 type Usage = Omit<ConnectorUsage, "actions"> & { source: ActionReference; actions: Array<ConnectorUsage["actions"][number] & { available: boolean; reason?: string }> };
 const read = (client: ActionClient, connection_id: string, context = caller) => client.invoke(context, connectorUsagesAction, { connection_id }) as Promise<{ usages: Usage[]; issues: string[] }>;
 

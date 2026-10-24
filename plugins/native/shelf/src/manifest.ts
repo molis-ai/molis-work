@@ -4,6 +4,7 @@ import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
 import { SHELF_RUNTIME_ACTIONS, shelfReceiveCopy } from "./runtime-actions.js";
 import { SHELF_ACTIONS, SHELF_PROJECT_ACTIONS } from "./actions.js";
 import { SHELF_HOME_ROUTES } from "./routes.js";
+import { SHELF_OWNER_FILES } from "./owner-files.js";
 import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
 
 export const SHELF_PLUGIN_ID = "io.molis.work.shelf";
@@ -44,6 +45,8 @@ export const shelfManifest: PluginManifest = {
   ],
   // The text of a Coding result comes from Coding itself (the plugin audience only); Shelf adds its own heading and source.
   capabilities: { provides: [], consumes: [codingResultDocument.capability_id] },
+  // The Home half is given these files (`services.ownerFiles`); a project's half, which shares this Manifest, is not.
+  owner_files: SHELF_OWNER_FILES,
   // Each Runtime instance redeems only the actions it owns.
   actions: [...SHELF_ACTIONS, ...SHELF_PROJECT_ACTIONS, shelfReceiveCopy, ...SHELF_RUNTIME_ACTIONS],
   artifacts: { produces: [], consumes: [{ artifact_type_id: "coding.report.v1", schema_version: 1 }] },

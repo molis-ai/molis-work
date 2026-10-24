@@ -1,4 +1,4 @@
-import type { HomePluginDatabaseDeclaration, PluginFilesDeclaration, PluginDefinition, PluginManifest, PluginModelConfigurationDeclaration, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginManifest, PluginModelConfigurationDeclaration, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginProjectCleanup } from "./plugin-project-cleanup.js";
 import type { PluginOwnerFilesEntry, PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
 
@@ -6,8 +6,7 @@ import type { PluginOwnerFilesEntry, PluginOwnerFilesBinding } from "./plugin-ow
 export function pluginEntryIdentity() {
   const bundled = new WeakSet<PluginDefinition>();
   const bundledManifests = new WeakSet<PluginManifest>();
-  const databases = new WeakMap<PluginDefinition, HomePluginDatabaseDeclaration>();
-  const files = new WeakMap<PluginDefinition, PluginFilesDeclaration>();
+  const listed = new WeakSet<PluginDefinition>();
   const ownerFiles = new WeakMap<PluginDefinition, PluginOwnerFilesBinding>();
   const configurations = new WeakMap<PluginDefinition, PluginModelConfigurationDeclaration>();
   const images = new WeakMap<PluginDefinition, PluginImageGenerationDeclaration>();
@@ -15,8 +14,8 @@ export function pluginEntryIdentity() {
   const dual = new WeakSet<PluginDefinition>();
   return {
     providerFor: (definition: PluginDefinition, installId: string) => bundled.has(definition) ? definition.manifest.plugin_id : installId,
-    databaseFor: (definition: PluginDefinition) => databases.get(definition),
-    filesFor: (definition: PluginDefinition) => files.get(definition),
+    /** The library its Manifest declares, for a definition object the Host's start list holds; none for any other. */
+    databaseFor: (definition: PluginDefinition): HomePluginDatabaseDeclaration | undefined => listed.has(definition) ? definition.manifest.databases?.home : undefined,
     ownerFilesFor: (definition: PluginDefinition) => ownerFiles.get(definition),
     modelConfigurationFor: (definition: PluginDefinition) => configurations.get(definition),
     imageGenerationFor: (definition: PluginDefinition) => images.get(definition),
@@ -25,23 +24,23 @@ export function pluginEntryIdentity() {
     dualInstance: (definition: PluginDefinition) => dual.has(definition),
     /** Whether this Manifest object is the one a bundled definition on the Host's start list carries. */
     shipsWithHost: (manifest: PluginManifest | undefined) => manifest !== undefined && bundledManifests.has(manifest),
-    remember(entries: readonly (PluginOwnerFilesEntry & { bundled?: boolean; database?: HomePluginDatabaseDeclaration; files?: PluginFilesDeclaration;
-      model_configuration?: PluginModelConfigurationDeclaration; image_generation?: PluginImageGenerationDeclaration; project_data?: PluginProjectCleanup })[]) {
+    /** The files its Manifest declares, for a definition object the Host's start list holds. */
+    remember(entries: readonly (PluginOwnerFilesEntry & { bundled?: boolean;
+      project_data?: PluginProjectCleanup })[]) {
       for (const entry of entries) {
         if (entry.bundled) { bundled.add(entry.definition); bundledManifests.add(entry.definition.manifest); }
         if (entry.dual_instance) dual.add(entry.definition);
-        if (entry.database) databases.set(entry.definition, entry.database);
-        if (entry.files) files.set(entry.definition, Object.freeze({ ...entry.files }));
-        if (entry.owner_files) ownerFiles.set(entry.definition, Object.freeze({
-          declaration: Object.freeze({ ...entry.owner_files, entries: Object.freeze(entry.owner_files.entries.map(item => Object.freeze({ ...item }))) }),
-          initialize: entry.initialize_owner_files,
+        listed.add(entry.definition);
+        const owned = entry.definition.manifest.owner_files;
+        if (owned) ownerFiles.set(entry.definition, Object.freeze({
+          declaration: Object.freeze({ ...owned, entries: Object.freeze(owned.entries.map(item => Object.freeze({ ...item }))) }),
         }));
-        const config = entry.model_configuration;
+        const config = entry.definition.manifest.model_configuration;
         if (config) configurations.set(entry.definition, Object.freeze({
           preference: Object.freeze({ ...config.preference }), custom_provider: Object.freeze({ ...config.custom_provider }),
           actions: Object.freeze({ read: Object.freeze({ ...config.actions.read }), save: Object.freeze({ ...config.actions.save }) }),
         }));
-        if (entry.image_generation) images.set(entry.definition, Object.freeze({ ...entry.image_generation }));
+        if (entry.definition.manifest.image_generation) images.set(entry.definition, Object.freeze({ ...entry.definition.manifest.image_generation }));
         if (entry.project_data) projectData.set(entry.definition, Object.freeze({ owner_id: entry.project_data.owner_id,
           declaration: Object.freeze({ ...entry.project_data.declaration }) }));
       }

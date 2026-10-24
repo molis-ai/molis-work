@@ -1,11 +1,12 @@
-import type { PluginDefinition, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginPlatformHome } from "./home-side.js";
 import { PLUGIN_LIBRARY_NAME } from "./plugin-database-entries.js";
 
-/** The trusted entry owns the namespace; no Manifest can select another owner's bindings. */
-export function assertImageGenerationEntries(entries: readonly { definition: PluginDefinition; image_generation?: PluginImageGenerationDeclaration }[], home: PluginPlatformHome | null): void {
+/** A definition's connections are what its Manifest declares (`image_generation`); the store registry says whether the namespace is its own. */
+export function assertImageGenerationEntries(entries: readonly { definition: PluginDefinition }[], home: PluginPlatformHome | null): void {
   const taken = new Set<string>();
-  for (const { definition, image_generation: declaration } of entries) {
+  for (const { definition } of entries) {
+    const declaration = definition.manifest.image_generation;
     if (!declaration) continue;
     if (!home || definition.execution === "sandbox") throw new Error("图片生成服务只供有 Home 的原生插件");
     const id = definition.manifest.plugin_id, name = declaration.store_name;

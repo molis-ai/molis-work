@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
-  PluginDatabaseDeclaration, PluginDefinition, PluginFilesDeclaration, PluginHostServices, PluginManifest,
+  PluginDatabaseDeclaration, PluginDefinition, PluginHostServices, PluginManifest,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { captureHostLog, charactersProvider, createPluginPlatform, DEMO_PROJECT_ID, homeStores, LocalProjectDatabase, seedDemoBoard, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -16,11 +16,13 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { artifactPreview } from "./fixtures/artifact-preview.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { deferred } from "./fixtures/home-runtime.js";
+import { withLibrary } from "./fixtures/home-library.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
 // S-18: the platform services a plugin writes through ask the original caller of the action the plugin runs for themselves, in
 // the same turn as the write. What the plugin hands them (a wait of its own, or none) cannot stand in for that caller, and a
-// service writing for one installation refuses inside another installation's action.
+// service writing for one installation refuses inside another installation's action. A project plugin has no private files
+// (`owner_files` is the Home half's, PG-102); the same rules for them are in security-invariants-plugin-owner-files-lifecycle.test.ts.
 
 const ID = "io.molis.work.example.callerprobe", READ = "callerprobe:read", WRITE = "callerprobe:write", ITEM = "example.item";
 const LISTENER = "io.molis.work.example.callerlistener", ANNOUNCED = `${ID}.announced`, WRITTEN = `${ID}.written`;
@@ -29,8 +31,7 @@ const DATABASE: PluginDatabaseDeclaration = { store_name: "callerprobe", version
 /** The probe's own table in the project's library (PLIB-07). */
 const PROJECT_DATABASE: PluginDatabaseDeclaration = { store_name: "callerprobe", version: 1, read_permission: READ, write_permission: WRITE,
   schema: "CREATE TABLE callerprobe_notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);" };
-const FILES: PluginFilesDeclaration = { store_name: "callerprobe-files", directory: "assets", max_file_bytes: 64, read_permission: READ, write_permission: WRITE };
-const TARGETS = ["database", "project_database", "storage", "files", "publish", "record", "event", "select", "invalidate", "retain"] as const;
+const TARGETS = ["database", "project_database", "storage", "publish", "record", "event", "select", "invalidate", "retain"] as const;
 type Target = typeof TARGETS[number];
 const preview = artifactPreview(ID);
 
@@ -45,7 +46,6 @@ async function write(services: PluginHostServices, target: Target, name: string,
   const content = { kind: "inline" as const, payload: { name } };
   if (target === "database") { await services.database!.transaction(wait, tx => tx.run("INSERT INTO notes (text) VALUES (?)", [name])); return; }
   if (target === "project_database") { await services.project_database!.transaction(wait, tx => tx.run("INSERT INTO callerprobe_notes (text) VALUES (?)", [name])); return; }
-  if (target === "files") { await services.files!.create({ beforeEffect: wait }, `${name}.bin`, Buffer.from(name)); return; }
   const expected = target === "select" ? services.outputs!.reference("fixed") : null;
   await wait();
   if (target === "storage") services.storage!.set(name, "written");
@@ -156,7 +156,7 @@ async function platform(t: TestContext) {
   const ports = { db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event),
     eventCursor: (projectId: string) => store.eventCursor(projectId) };
   const artifacts = new ArtifactsModule(ports), processItems = new ProcessItemsModule(ports), privateStorage = new SqlitePluginPrivateStorage(store.db);
-  const stores = homeStoreRegistry([...homeStores().stores, { path: DATABASE.store_name, owner: ID, library: { baseline: DATABASE } }, { path: FILES.store_name, owner: ID }]);
+  const stores = homeStoreRegistry([...homeStores().stores, { path: DATABASE.store_name, owner: ID, library: { baseline: DATABASE } }]);
   const running = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, journal: store, artifacts, processItems,
     ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
     home: { directory: home, completeText: () => null, stores } });
@@ -167,14 +167,13 @@ async function platform(t: TestContext) {
     } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
   });
   const plugin = probe(), subscriber = listener(() => plugin.services());
-  assert.deepEqual((await running.start([{ definition: plugin.definition, database: DATABASE, files: FILES, bundled: true },
+  assert.deepEqual((await running.start([{ definition: withLibrary(plugin.definition, DATABASE), bundled: true },
     { definition: subscriber.definition, bundled: true }])).running.toSorted(), [LISTENER, ID].toSorted());
   const written = (target: Target, name: string): boolean => {
     const services = plugin.services();
     if (target === "database") return Number(services.database!.get("SELECT count(*) AS n FROM notes WHERE text = ?", [name])!.n) > 0;
     if (target === "project_database") return store.db.prepare("SELECT 1 FROM callerprobe_notes WHERE text = ?").get(name) !== undefined;
     if (target === "storage") return services.storage!.get(name) !== null;
-    if (target === "files") return existsSync(join(home, FILES.store_name, FILES.directory, `${name}.bin`));
     if (target === "event") return store.db.prepare("SELECT 1 FROM plugin_events WHERE source_plugin_id = ? AND event_type_id = ? AND json_extract(payload_json, '$.name') = ?")
       .get(ID, WRITTEN, name) !== undefined;
     if (target === "select") return running.wiring.outputReference(ID, "fixed")?.artifact_id === name;

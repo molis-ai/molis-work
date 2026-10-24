@@ -33,7 +33,7 @@ Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副
 
 普通 archive/unarchive/purge 同样受 held/pending 约束，读取原生命周期不变。index 原 busy lane 先占用，实际 Host 写仍经同一 admission 检查；项目原清理仅通过当前 hold 内绑定固定 Session/operation 的 purge 闭包进入。经 SDK 公开父关系核验的集合扩入同一个 hold（包括个人根的子 Session），不会把相同 owner 的其它个人 Session 一并封住。闭包退出即无效，公开 Session lifecycle 不接收 bypass 参数。
 
-`held.preview` 只读本 App 的完整 Host index，并沿 SDK 公共 subagents/boards 的精确父 Session/Run 关系补无 index 子会话，核持久父 owner 和实际 Run。结果只含原 owner/ref/preview/decision 与父关系，父到子顺序只确定一次。Catalog 先保存此原计划并完成全部 Memory 清理，再调用 `held.purge`。恢复只读取 Catalog 保存的原计划；父已清除后不重扫消失的 Run 或重建决定，不伪造 child index。indexed 项复用原 Session lifecycle，非 indexed 项以原 SDK preview 恢复。held 回调退出后能力失效，实际 SDK/Index Host 写前沿原 effects 同步复核，不能靠未 await 的调用逃逸。每项 `state` 记录预览当时的真实状态；已 purge 项仍带原决定，并明确标为 purged，供 Memory 主人拒绝将新空列表当作完整清理计划。缺 owner、冲突父关系和未知残留不算完整清空；旧 Home/MEM-40 仍待验。
+`held.preview` 只读本 App 的完整 Host index，并沿 SDK 公共 subagents/boards 的精确父 Session/Run 关系补无 index 子会话，核持久父 owner 和实际 Run。结果只含原 owner/ref/preview/decision 与父关系，父到子顺序只确定一次。Catalog 先保存此原计划并完成全部 Memory 清理，再调用 `held.purge`。恢复只读取 Catalog 保存的原计划；父已清除后不重扫消失的 Run 或重建决定，不伪造 child index。indexed 项复用原 Session lifecycle，非 indexed 项以原 SDK preview 恢复。held 回调退出后能力失效，实际 SDK/Index Host 写前沿原 effects 同步复核，不能靠未 await 的调用逃逸。每项 `state` 记录预览当时的真实状态；已 purge 项仍带原决定，并明确标为 purged。Memory 主人另走当前在线无正文预览，不能以此状态或普通空列表证明原件不存在。缺 owner、冲突父关系和未知残留不算完整清空；旧 Home/MEM-40 仍待验。
 
 边界不可配：原 owner、原决定、父子归属、当前取消/授权与唯一 SDK 写主人。App 传删除操作号、业务 owner 明确关联的个人 Session 和 Catalog pending 事实；用户决定仍归原项目删除入口。无新 SDK API、注册表、表、资源或设置。真实隔离 Node/磁盘与本机免费 loopback 定向验证 `tests/prologue-project-deletion.test.ts`，原 `tests/prologue-session-lifecycle.test.ts` 和相关 effect/输入/模型/子任务回归通过。原件只用合成测试数据；这不证明 Catalog/Memory/App 整体删除、旧 Home 或 MEM-40 已通过。
 

@@ -1,6 +1,6 @@
 import { memoryPromotionFailure } from "./prologue-memory-promotion.js";
 import { formationInput, formationView } from "./prologue-memory-formation.js";
-import { candidateView, memoryView, toSdkMemoryMeta } from "./prologue-memory-values.js";
+import { candidateView, memoryView, toSdkMemoryMeta, purgeQuery, purgePageView } from "./prologue-memory-values.js";
 import { randomUUID } from "node:crypto";
 import type { PrologueEffects } from "./prologue-effects.js";
 import { agentErrors } from "../errors.js";
@@ -62,6 +62,7 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
           directory_traversal: page.cost.directoryTraversal, metadata_reads: page.cost.metadataReads, body_reads: page.cost.bodyReads,
         } };
       }),
+      previewPurge: input => call(async bound => purgePageView(await bound.previewPurge(purgeQuery(input))), undefined, input.signal),
       write: input => call(async bound => memoryView(await bound.memory.write({ scope: input.scope, owner: input.owner, text: input.text,
         origin: input.origin, idempotencyKey: input.operation_id, ...(input.signal ? { signal: input.signal } : {}),
         ...(input.tags ? { tags: input.tags } : {}), ...(input.meta ? { meta: toSdkMemoryMeta(input.meta) } : {}) }))),

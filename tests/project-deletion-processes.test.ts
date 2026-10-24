@@ -255,7 +255,7 @@ test("a catalog-only process cannot accept runtime cleanup; an accepted executor
   ready = true;
   assert.equal((await catalog.ensureDemoProject(input)).status, "created");
   assert.equal(catalog.listProjectDeletions().find(item => item.deletion_id === removed.deletion.deletion_id)?.cleanup_state, "complete");
-  assert.equal(search.calls.length, 3, "the two failed attempts resume the same remaining owner exactly once");
+  assert.equal(search.calls.length, 4, "three original receipt attempts are followed by the new demo's ordinary owner cleanup");
   const next = catalog.getProject(DEMO_PROJECT_ID);
   const store = openLingguangStore(home); store.create({ project_id: DEMO_PROJECT_ID, title: "后继实例的记录", body: "保留" }); store.close();
   assert.equal((await catalog.ensureDemoProject(input)).status, "existing");
@@ -265,10 +265,10 @@ test("a catalog-only process cannot accept runtime cleanup; an accepted executor
   try { assert.deepEqual(reopened.list(DEMO_PROJECT_ID).map(item => item.title), ["后继实例的记录"]); } finally { reopened.close(); }
 });
 
-test("a catalog-only process recreates the demo after recorded owner completion, but cannot trust a receipt with no owner steps", async t => {
+test("demo recreation waits for a current resident Memory proof after Host shutdown and rejects a receipt with no owner steps", async t => {
   const { home, catalog } = await scratchHome(t);
   ranBefore(home);
-  await catalog.ensureDemoProject(input);
+  const demo = await catalog.ensureDemoProject(input);
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   t.after(() => host.close());
   await ensureSystemAgentService(host, home, withMolisWorkProjectCatalog).ready;
@@ -276,10 +276,13 @@ test("a catalog-only process recreates the demo after recorded owner completion,
   assert.equal(removed.deletion.cleanup_state, "complete");
   await host.close();
 
-  assert.equal((await catalog.ensureDemoProject(input)).status, "created");
+  await assert.rejects(() => catalog.ensureDemoProject(input), /Molis Work/);
+  assert.equal(catalog.listProjects().some(project => project.project_id === DEMO_PROJECT_ID), false);
+  assert.equal(existsSync(dirname(demo.project.database_path)), false, "a historical receipt cannot authorize a new directory");
   const nextHost = new MolisWorkLocalHost({ homeDirectory: home });
   t.after(() => nextHost.close());
   await ensureSystemAgentService(nextHost, home, withMolisWorkProjectCatalog).ready;
+  assert.equal((await catalog.ensureDemoProject(input)).status, "created", "the same request resumes through the actual resident owner");
   const next = await catalog.removeDemoProject({ project_id: DEMO_PROJECT_ID, actor_id: "test-user", delete_confirmed: true, idempotency_key: "demo-remove-2" });
   assert.equal(next.deletion.cleanup_state, "complete");
   await nextHost.close();
@@ -304,6 +307,58 @@ test("a catalog-only process in a Home that never ran the app has no memory or s
   const rebuilt = await catalog.resetDemoProject(input);
   assert.equal(rebuilt.status, "reset");
   assert.equal(rebuilt.owners_left, undefined, "nothing was left: there is no runtime or index that could hold anything");
+});
+
+test("demo recreation owns its staging and rechecks the live empty proof inside a queued Catalog commit", { timeout: 60_000 }, async t => {
+  const { home, catalog } = await scratchHome(t);
+  const demo = await catalog.ensureDemoProject(input), directory = dirname(demo.project.database_path);
+  const host = new MolisWorkLocalHost({ homeDirectory: home }); t.after(() => host.close());
+  const agents = ensureSystemAgentService(host, home, withMolisWorkProjectCatalog); await agents.ready;
+  assert.equal((await catalog.removeDemoProject(deletion(DEMO_PROJECT_ID))).deletion.cleanup_state, "complete");
+  const hooks = projectDeletedHooksFor(home), memory = hooks.owners().find(owner => owner.id === "memory")!;
+  const proofChecks: boolean[] = [];
+  let entered!: () => void, release!: () => void;
+  const waiting = new Promise<void>(resolve => { entered = resolve; }), gate = new Promise<void>(resolve => { release = resolve; });
+  const dispose = hooks.register({ ...memory, withRecreation: (facts, work) => memory.withRecreation!(facts, async current => {
+    entered(); await gate; return work(() => { proofChecks.push(memory.alive?.() === true); current(); });
+  }) }); t.after(dispose);
+  const creating = catalog.ensureDemoProject(input); void creating.catch(() => undefined); await waiting;
+  const staging = join(home, "projects", `.staging-${DEMO_PROJECT_ID}`);
+  assert.equal(existsSync(staging), true);
+  await assert.rejects(catalog.ensureDemoProject(input), { code: "EEXIST" });
+  assert.equal(existsSync(staging), true, "the losing request does not remove the winner's staging");
+  await assert.rejects(agents.agentHost.adapter("prologue").createSession({ project_id: DEMO_PROJECT_ID,
+    plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: LOCAL_PERSON_ACTOR_ID,
+    workspace: "none", role_id: "coding", title: "Cannot enter the empty-proof window" }), { code: "agent.session_busy" });
+  // A different process owns the SQLite lock: closing another Catalog connection here cannot release it.
+  const lock = spawn(process.execPath, ["--input-type=module", "-e", `
+    import { DatabaseSync } from "node:sqlite";
+    const db = new DatabaseSync(process.argv[1]);
+    db.exec("BEGIN IMMEDIATE"); process.send({ locked: true });
+    process.once("message", () => { db.exec("ROLLBACK"); db.close(); process.disconnect(); });
+  `, join(home, "projects", "catalog.db")], { stdio: ["ignore", "ignore", "inherit", "ipc"] });
+  const exited = once(lock, "exit");
+  t.after(async () => { if (lock.exitCode === null && lock.signalCode === null) lock.kill("SIGKILL"); await exited; });
+  const [locked] = await Promise.race([once(lock, "message"), exited.then(() => { throw new Error("Catalog lock process exited before acquisition"); })]);
+  assert.deepEqual(locked, { locked: true });
+  try {
+    release();
+    const deadline = Date.now() + 10_000;
+    while (!existsSync(directory) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(existsSync(directory), true, "the real Catalog commit is waiting after staging promotion");
+    assert.equal(catalog.listProjects().some(project => project.project_id === DEMO_PROJECT_ID), false, "the independently held write lock prevents Catalog registration");
+    assert.equal(memory.alive?.(), true);
+    await host.close();
+    assert.equal(memory.alive?.(), false, "the original Memory owner is invalid before releasing the Catalog lock");
+  } finally { lock.send("release"); await exited; }
+  await assert.rejects(creating, /空态证明已结束/);
+  assert.equal(proofChecks.at(-1), false, "the actual synchronous commit rechecks the closed original owner");
+  assert.equal(catalog.listProjects().some(project => project.project_id === DEMO_PROJECT_ID), false);
+  assert.equal(existsSync(directory), false); assert.equal(existsSync(staging), false);
+  dispose();
+  const resumed = new MolisWorkLocalHost({ homeDirectory: home }); t.after(() => resumed.close());
+  await ensureSystemAgentService(resumed, home, withMolisWorkProjectCatalog).ready;
+  assert.equal((await catalog.ensureDemoProject(input)).status, "created");
 });
 
 test("a Host finishes the deletions other processes left pending, as it starts and while it runs", { timeout: 60_000 }, async t => {

@@ -7,6 +7,7 @@ import type { ProjectMemoryPurgePlan } from "@molis-ai/molis-work-service-memory
 import { BUILTIN_PLUGIN_REGISTRY } from "@molis-ai/molis-work-app-workbench";
 import { assertCurrentCatalog, assertOwnedCatalog } from "./catalog-schema.js";
 import { catalogErrors } from "./project-catalog-contract.js";
+import type { ProjectDeletionRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 
 /** Internal Catalog record, never accepted from an Action or HTTP payload. No conversation or Memory text. */
 export type ProjectDeletionRecovery = { version: 1; project_id: string; operation_id: string } & (
@@ -18,6 +19,12 @@ export interface ProjectDeletionPreparation {
 }
 export type WithProjectDeletionRecovery = <T>(input: ProjectDeletionPreparation,
   work: (plan: ProjectDeletionRecovery) => Promise<T>) => Promise<T>;
+/** Catalog-decoded original facts, never a request flag or a reusable permission token. */
+export interface ProjectRecreation {
+  project_id: string;
+  deletions: readonly (ProjectDeletionRecord & { recovery: ProjectDeletionRecovery })[];
+}
+export type WithProjectRecreation = <T>(input: ProjectRecreation, work: (assertCurrent: () => void) => Promise<T>) => Promise<T>;
 
 const invalid = () => catalogErrors.project_storage_invalid("原项目删除计划缺失或形状不符，保留收据等待停写维护");
 const object = (value: unknown, keys: readonly string[]): Record<string, unknown> => {

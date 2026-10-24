@@ -27,12 +27,24 @@ export const SEARCH_OWNER = { id: "search", label: null } as const;
  * project.
  */
 export function memoryOwnerWithoutService(home: string): ProjectDeletedOwner {
-  const plans = new AsyncLocalStorage<{ original: boolean; active: boolean }>();
+  const plans = new AsyncLocalStorage<{ original: boolean; active: boolean; recreation?: string }>();
   const check = () => {
     if (existsSync(agentRuntimeDirectory(home))) throw new ProjectDeletedDeferred("记忆放在 Agent 执行服务里，这个入口不运行它；由运行中的 Molis Work 清理，它会接着做", true);
   };
   return {
     ...MEMORY_OWNER, check,
+    async withRecreation(input, work) {
+      const frame = { original: false, active: true, recreation: input.project_id };
+      const current = () => {
+        if (!frame.active) throw new ProjectDeletedDeferred("示例空态证明已结束，请重试", true);
+        check();
+        if (existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)) && !memoryLedgerHasOnlyPreferences({ homeDirectory: home }))
+          throw new ProjectDeletedDeferred("已有记忆账注但当前入口不能确认空态，请由运行中的 Molis Work 核对", true);
+      };
+      current();
+      try { return await plans.run(frame, () => work(current)); }
+      finally { frame.active = false; }
+    },
     async withRecovery(input, work) {
       if (input.original && input.original.kind !== "absent") throw new ProjectDeletedDeferred("原删除计划需要运行时主人恢复", true);
       const completed = !!input.original && input.memory_complete === true;

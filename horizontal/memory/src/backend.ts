@@ -1,6 +1,7 @@
 import type {
   AgentMemoryEntry, AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryCandidateCapability,
   AgentMemoryMutation, AgentMemoryChange, AgentMemoryMeta, AgentMemoryPageQuery, AgentMemoryPage,
+  AgentMemoryPurgeQuery, AgentMemoryPurgePage,
   AgentMemoryDecisionReceipt, AgentMemoryScopePreview, AgentMemoryClearResult, AgentMemoryFormationInput, AgentMemoryFormationResult,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { MemoryApproval, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
@@ -22,6 +23,8 @@ export interface MemoryBackendPort {
   withCaller(caller: MemoryCaller): MemoryBackendPort;
   list(scope: MemoryScope, owner: string): Promise<MemoryBackendEntry[]>;
   page(input: Scoped<AgentMemoryPageQuery>): Promise<Omit<AgentMemoryPage, "items"> & { items: MemoryBackendEntry[] }>;
+  /** Returned identities retain the Runtime's user scope spelling. */
+  previewPurge(input: Scoped<AgentMemoryPurgeQuery>): Promise<AgentMemoryPurgePage>;
   write(input: Scoped<Parameters<AgentMemoryCapability["write"]>[0]>): Promise<MemoryBackendEntry>;
   update(input: Formal & { change: AgentMemoryChange }): Promise<MemoryBackendEntry>;
   setMeta(input: Formal & { meta: AgentMemoryMeta }): Promise<MemoryBackendEntry>;

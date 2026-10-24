@@ -4,13 +4,13 @@
 
 目录里现在有这些东西：
 
-- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,365,062 字节），SHA-256 `d42b1699b0bd7a41db97521b27dadf892feff27d560047dcd4e8ec2f6eea700e`。来源为已合并 Prologue [#100](https://github.com/molis-ai/molis-prologue/pull/100) `a83e04761108a21f04f9a1b2a67c1dc8cb1582fe`；实际打包自干净 head `bc0d996733e87bdd73d2ce01109ce2fb6309b0f8`，两者整树相同，无本地补丁。包含 #99 全部能力及归档历史三个原入口只读，Runtime 关闭与永久结束仍拒绝；本次 M4 安装和集成结果记在现 Memory spec。
+- 当前接入包 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`（1,369,124 字节），SHA-256 `632d8b3b6f7485d68badfd917370227e124ba6dfdc4b6cf4139667d621ee8b90`。来源为已合并 Prologue [#101](https://github.com/molis-ai/molis-prologue/pull/101)，merge `6523abb47d25bd45d22dc47db1d3a679bf9327d5`、head `ac914852dc6a92e1f8d777e400b3714a37478606`。实际归档来自干净生产提交 `28e6f0491753bcaef3fab536670e82e78cc290c6`；后继 head 仅追加验证文档，合并后沿用原归档，无本地补丁。包含 #100 全部能力，新增在线、无正文的 `previewPurge`，用于当前授权下找到普通列表因 Session 已结束而隐藏的 canonical 原件；不借离线维护授权。
 - 保留主干在途包 `prologue-sdk-0.0.0-rc.1-retry-waiting.tgz` 及来源记录；当前依赖为上述 memory-p0。已核对 `2c7feba5` 是 `f4bbbd88` 的祖先，主干采用的 #53、#58、#59、#60 全部包含。
 - 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
 - `patch-history.json`：已删除的 26 份历史补丁和 34 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
 - 本文件。
 
-SDK 验证记录：#100 最终完整 quality 通过（70 文件 723 项及类型、构建、API、复杂度、文档、干净消费者、Rust）；两个受影响真实 Node 文件 33/33，通过关闭与 purge 交错。准确正式归档在隔离目录离线安装后，公开入口的真实磁盘/本机 HTTP 消费脚本通过；781 个非 manifest 文件与已验证构建树一致。Node 24.14.0、pnpm 11.9.0、macOS arm64。完整 SDK 全套、Molis 最终 App、付费 B2 与用户验收未据此宣称完成；M4 集成结果另记 [Memory spec](../../specs/prologue-memory-strategy/spec.md)。
+SDK 验证记录：#101 最终原 `pnpm quality` 通过（70 文件 723 项及类型、构建、API、复杂度、文档、干净消费者、Rust）；正式归档 784 个文件与冻结构建一致，公开安装消费者和坏索引独立反例通过。Node 24.14.0、pnpm 11.9.0、macOS arm64。已知合法点号 owner 前缀重叠仍需 `STORAGE_RECONCILE_REQUIRED` 对账，不能将历史自定义 owner 泛称完整支持；未读真实 Home。Molis 接线和原失败恢复验证另记 [Memory spec](../../specs/prologue-memory-strategy/spec.md)，不以 SDK 工程门代替最终 App 或用户验收。
 
 ## 上一份主线依赖：retry-waiting（2026-10-23）
 

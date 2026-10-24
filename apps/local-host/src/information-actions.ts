@@ -5,6 +5,8 @@ import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { hostCompleteText, textModelAvailability, textModelRequired, type HostCompleteText } from "./host-complete-text.js";
 import { planInformationWork } from "./information-planner.js";
 
+export const INFORMATION_PROVIDER_ID = "system.information";
+
 const text = { type: "string" };
 const fields = (properties: Record<string, unknown>) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
 
@@ -23,13 +25,13 @@ export const informationActions = {
 
 export function informationActionProvider(home: string, projectId: string, client: ActionClient, completion?: HostCompleteText | null): ActionProviderRegistration {
   const model = () => completion === undefined ? hostCompleteText({ homeDirectory: home }) : completion ?? undefined;
-  return { provider: { provider_id: "system.information", kind: "system", title: "信息助手", project_id: projectId },
+  return { provider: { provider_id: INFORMATION_PROVIDER_ID, kind: "system", title: "信息助手", project_id: projectId },
     definitions: [informationActions.plan], handlers: [{ ...informationActions.plan,
       availability: () => textModelAvailability(model),
       handle: async (caller, input) => {
         const complete = model();
         if (!complete) throw textModelRequired();
-        const nested = retainActionAuthority(caller, { ...informationActions.plan, provider_id: "system.information" });
+        const nested = retainActionAuthority(caller, { ...informationActions.plan, provider_id: INFORMATION_PROVIDER_ID });
         const actions = bindActionClient(client, () => nested);
         const snapshot = await actions.invoke(feedQueryActions.snapshot, {});
         const { entries } = await actions.invoke(inboxActions.list, {});

@@ -4,6 +4,8 @@ import { projectWorkspaceActions as a } from "@molis-ai/molis-work-contracts/mod
 import { normalizeRuntimeWorkContext, type MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
+export const PROJECT_WORKSPACE_PROVIDER_ID = "system.project-workspaces";
+
 /** The Home catalog owner the platform injected at startup; project folders are kept there. */
 type ProjectCatalogOwner = () => { home: string; run: LocalWebCatalogRunner } | undefined;
 
@@ -65,7 +67,7 @@ export function projectWorkspaceActionProvider(projectId: string, catalogOwner: 
       return { changed: folder.projectLinked };
     } },
   ];
-  return { provider: { provider_id: "system.project-workspaces", title: "项目工作目录", kind: "system", project_id: projectId },
+  return { provider: { provider_id: PROJECT_WORKSPACE_PROVIDER_ID, title: "项目工作目录", kind: "system", project_id: projectId },
     definitions: Object.values(a), handlers,
     availability: () => catalogOwner() ? { available: true } : { available: false, code: "actions.service_unavailable", reason: "项目目录服务尚未装配" } };
 }

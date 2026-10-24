@@ -20,6 +20,8 @@ import type { ConnectorActionInspector } from "./connector-status-view.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { rememberConnectorCheck } from "./connector-observations.js";
 
+export const CONNECTOR_PROVIDER_ID = "system.connectors";
+
 interface ConnectorAccount { connection_id: string; service_id: string; login: string; scopes?: string[]; account_id?: string }
 const text = { type: "string" };
 export const connectorAccountActions = {
@@ -70,7 +72,7 @@ export async function readConnectorAccount(home: string, connectionId: string): 
 /** The connector owner registers account identity as a system action; connecting an account grants no other capability. */
 export function connectorAccountActionProvider(home: string, remember: ConnectorMcpDirectory["remember"], projectMcp: ProjectMcpManagementPort = noProjectMcp, inspect?: ConnectorActionInspector, clientFor?: (caller: ActionCallContext) => ActionClient): ActionProviderRegistration {
   return {
-    provider: { provider_id: "system.connectors", title: "服务连接", kind: "system" },
+    provider: { provider_id: CONNECTOR_PROVIDER_ID, title: "服务连接", kind: "system" },
     definitions: [connectorUsagesAction, modelConnectionUsages, ...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, ...Object.values(connectorLocalActions), ...Object.values(connectorCliActions), ...Object.values(connectorPluginSlotActions)],
     handlers: [connectorUsagesHandler(home, clientFor), modelConnectionUsagesHandler(home), { capability_id: connectorAccountActions.read.capability_id, version: 1,
       handle: async (caller, input) => {

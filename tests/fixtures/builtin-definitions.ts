@@ -35,5 +35,4 @@ export const BUILTIN_WITHOUT_DEFINITION: Readonly<Record<string, string>> = {
   "io.molis.work.feed": "包里没有 PluginDefinition",
   "io.molis.work.goals": "包里没有 PluginDefinition",
   "io.molis.work.inbox": "包里没有 PluginDefinition",
-  "io.molis.work.sessions": "包里没有 PluginDefinition",
 };

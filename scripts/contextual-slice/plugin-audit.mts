@@ -77,7 +77,7 @@ try {
     const { readFileSync } = await import("node:fs");
     const targets = (JSON.parse(readFileSync(targetsFile, "utf8")) as { provider: string; scope: string; sample?: { title: string; kind: string } }[])
       .filter(item => item.scope === "project" && item.sample);
-    const itemTabs = ["goals", "sessions", "inbox", "feed", "pages", "lingguang", "workflows", "coding", "shelf", "artifacts"];
+    const itemTabs = ["goals", "inbox", "feed", "pages", "lingguang", "workflows", "coding", "shelf", "artifacts"];
     const opened: Record<string, unknown>[] = [];
     for (const target of targets) {
       const base = `${origin}/projects/${encodeURIComponent(demo)}/`;

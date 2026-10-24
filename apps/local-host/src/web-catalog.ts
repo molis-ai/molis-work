@@ -260,14 +260,6 @@ export async function handleLocalCatalogWebRequest(
     }));
     return;
   }
-  if (request.method === "GET" && (url.pathname === "/sessions" || url.pathname === "/workspaces")) {
-    response.writeHead(302, {
-      location: isDesktopShellRequest(request, url) ? "/?desktop=1" : "/",
-      "cache-control": "no-store",
-    });
-    response.end();
-    return;
-  }
   if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
     sendJson(response, 400, { error: L("请先选择一个 Molis Work 项目") });
     return;

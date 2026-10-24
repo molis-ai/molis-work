@@ -14,7 +14,6 @@ import type { ProjectDeletedPort } from "./project-deleted-hooks.js";
 import {
   enableDemoProjectPlugins,
   seedDemoPluginSurfaces,
-  seedDemoProjectExtras,
 } from "./demo-plugin-seed.js";
 /** The demo project has a fixed id; its seed writes under whichever project id it is given (an older demo keeps its own). */
 export interface DemoProjectSeedPort { projectId: string; seed(databasePath: string, projectId: string): void }
@@ -22,7 +21,6 @@ export interface DemoProjectSeedPort { projectId: string; seed(databasePath: str
 export class DemoProjectLifecycle {
   constructor(
     private readonly projects: Pick<ProjectsModule, "query" | "lifecycle" | "commands">,
-    private readonly homeDirectory: string,
     private readonly projectsDirectory: string,
     private readonly demo: DemoProjectSeedPort,
     private readonly deletion: ManagedProjectDeletion,
@@ -101,9 +99,9 @@ export class DemoProjectLifecycle {
       await fs.rename(stagingDirectory, projectDirectory);
       resetPromoted = true;
       // A rebuilt demo starts without what the owners kept for the old one, except what only a running Molis Work can clear
-      // and what stays valid for the project that stays: the Sessions its kept panels and Runtime bindings name.
+      // and what stays valid for the project that stays (the owners that declare `survivesRebuild`).
       left = await this.owners.clearAll(project.project_id, { leaveElsewhere: true, rebuild: true });
-      await this.seedDemoExtras(project.project_id, project.database_path, actorId);
+      seedDemoPluginSurfaces(project.database_path, project.project_id);
       updated = await this.commit(() => {
         enableDemoProjectPlugins(this.projects, project.project_id, actorId);
         return this.projects.lifecycle.touch(project.project_id, "project.demo_reset", actorId, {});
@@ -139,15 +137,6 @@ export class DemoProjectLifecycle {
 
   private async finishDemoProject(projectId: string, databasePath: string, actorId: string): Promise<void> {
     await this.commit(() => enableDemoProjectPlugins(this.projects, projectId, actorId));
-    await this.seedDemoExtras(projectId, databasePath, actorId);
-  }
-
-  private async seedDemoExtras(projectId: string, databasePath: string, actorId: string): Promise<void> {
     seedDemoPluginSurfaces(databasePath, projectId);
-    await seedDemoProjectExtras({
-      projectId,
-      homeDirectory: this.homeDirectory,
-      actorId,
-    });
   }
 }

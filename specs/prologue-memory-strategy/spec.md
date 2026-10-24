@@ -1065,3 +1065,10 @@ CI 独立片最终交付：#1149 已经正常队列合入 main `afaa4fea354003e7
 本合并树冻结离线安装、整体 build、根与工作区类型、10 个受影响非浏览器文件及 8 个浏览器文件首轮通过，jobs2/browser1/retries0。API/Action、boundary、secrets 与 diff 通过；独立静态深审未发现确定 P1/P2，确认原件与 PG-047 最终检查未互相覆盖。首次资源检查因合并尚未提交，git merge-base 仍落在 4e17c3d1，错误比较旧主干基数而拒绝 Todo/灵光和工作台；失败日志保留。先完成合并提交，再以 f586496e4 重新跑 health、实际资源和提交级 secrets，不能将该首轮 health 当成已按新主干验证。其余已通过内容不变，不重复构建或浏览器全批。日志索引 `/private/tmp/molis-memory-1064-main-integration-f586-20261024.results.json`。
 
 合并产品提交 `601deca0b` 后，以准确 main f586496e4 重跑 health、资源和提交级 secrets 全部通过；实际27项资源7,792,484 B，workbench 1,193,899 B、Coding 376,999 B，只保留原批准净增。该 SDK #94 分支原晋升12/12补验通过；不混同后续SDK #96/#99的取消修复切片。当前源码与先前10非浏览器/8浏览器验证一致，未再构建或重复全批。提交后结果 `/private/tmp/molis-memory-1064-main-integration-f586-final-20261024.results.json`；首轮因未提交导致比较旧merge-base的失败日志仍保留。新候选仍须最终正常CI与完整Full suite；此前Node固定版本审批未答复，未修改工作流。
+
+
+### #1064 接入 CI 固定版本及最新主干（2026-10-24，验证待完成）
+
+用户已明确批准普通CI/Full suite共11处Node固定24.14.0。独立#1201的原59项CI合同回归、整体build与准确父各门通过，普通CI40083494609全部适用作业成功；按仓库强制合并队列，merge-group40084867644的Verify及适用门成功后合入main `afabfcbef41cfb99993cdf4a3ecd4ed34d36f423`。未更改测试、断言、时限、重试或门槛。旧Node24.21原生崩溃、Linux推断及socket首败仍保留，尚未由此宣称#1064完整全量通过。
+
+本次从本片71ec9c7合入准确main afab，其中主干已含#1194的旧Sessions/Work下线、设计系统和Pages纯拆分及卸载修复；保留主干删除的旧产品能力，不把它们与SDK可信Runtime Session混淆。生产Memory源码和SDK94包不改，锁文件继承主干移除的旧依赖。三处冲突仅资源脚本、实际预算及本地快查baseline：预算沿新主干，workbench基点1,129,753仅加原批准收紧后的3,193，Coding376,282仅加717；这是待实际构建确认的数字，不新增额度。baseline先采用主干干净输入，合并提交后用现门禁对准确父重新生成，不手拼或抬高数字。需要整体build、受影响调用链/主干清理回归、准确父健康/边界/API/Action/实际资源，以及最终普通CI和完整全量；独立toast修复#1198的视觉对照仍待诊断，未在此时冒称关闭。

@@ -32,7 +32,6 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.event_changed": "conflict";
     readonly "actions.event_invalid": "conflict";
     readonly "actions.event_source_changed": "conflict";
-    readonly "actions.service_configured": "conflict";
     readonly "actions.mcp_name_conflict": "conflict";
     readonly "actions.scene_duplicate": "conflict";
     readonly "actions.input_invalid": "invalid";
@@ -743,7 +742,6 @@ export interface ActionSubjectContext {
     content: string;
     truncated: boolean;
     goal_ids: string[];
-    session_id: string | null;
     open?: {
         surface: string;
         id: string;
@@ -4034,9 +4032,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
             };
             uniqueItems: boolean;
         };
-        session_id: {
-            type: string[];
-        };
     };
     required: string[];
     additionalProperties: boolean;
@@ -4082,9 +4077,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN: {
                 minLength: number;
             };
             uniqueItems: boolean;
-        };
-        session_id: {
-            type: string[];
         };
     };
     required: string[];
@@ -4147,9 +4139,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
                 minLength: number;
             };
             uniqueItems: boolean;
-        };
-        session_id: {
-            type: string[];
         };
     };
     required: string[];

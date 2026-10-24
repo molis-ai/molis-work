@@ -23,7 +23,6 @@ const spawnMessage = (panel: PanelRecord, mode: SpawnMode, size: { cols: number;
   return {
     type: "spawn",
     panelId: panel.panel_id,
-    sessionId: spawn?.sessionId,
     command: spawn?.command ?? panel.launch_command,
     args: spawn?.args ?? panel.launch_args,
     cwd: spawn?.cwd ?? panel.cwd,

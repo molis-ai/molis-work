@@ -105,7 +105,7 @@ Host 为每个提供 `targets` 的场景自动注册三项真实动作：`scenes
 
 授权上下文由可信 Host 传入。除权限集合外，`allowed_actions` 可以将调用限制到准确的能力 ID、版本和提供方；旧 `allowed_capability_ids` 不能扩大该限制。组合处理器调用其他能力时保留原上下文，不重新拼一份权限更大的 context。`validate_authority` 是 Host 在实际分发前调用的授权检查回调，处理器不能删除或替换它来绕过撤权；它不是业务输入，也不写入任务 JSON。长期后台任务仍需由业务 owner 接入自己的取消和生命周期规则。
 
-组合能力触发嵌套动作或场景时，可使用 contracts 的 `retainActionAuthority(caller, { capability_id, version, provider_id })` 保留发起动作的精确授权校验。它原样保留项目、调用者、权限和取消信号，不授予权限。等待后的副作用边界仍需调用该上下文的 `validate_authority`；共同场景在消费结果前执行此校验。事件队列必须只消费本次操作拥有的事件，不能拿当前调用者去排空其他来源的待处理事件。
+组合能力触发嵌套动作或场景时，可使用 contracts 的 `retainActionAuthority(caller, ownDefinition, caller.beforeEffect)` 保留发起动作的精确授权校验与副作用检查。正在执行的动作可省略 `provider_id`，平台使用本次分发解析出的提供方；其他动作必须明确提供方。它原样保留项目、调用者、权限和取消信号，不授予权限。等待后的副作用边界仍需调用该上下文的 `validate_authority`；共同场景在消费结果前执行此校验。事件队列必须只消费本次操作拥有的事件，不能拿当前调用者去排空其他来源的待处理事件。
 
 `user_action` 由受保护 Host 渠道注入，表示真实用户操作的出处，不能由插件或模型根据文本构造。它不单独授予操作权限。Goals 决定只走现行动作与独立用户权限，插件开发不提供 typed 入口。SDK 的依赖检查与调用始终保留真实插件身份；Manifest consumes、复制的描述符或调用选项不能恢复已删除入口，用户决定交给产品的受保护入口。
 
@@ -233,7 +233,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 判断编辑器的 Agent 用途直接读取当前授权目录中带 `agent` 或 `mcp` audience 的能力，无须声明旧 MCP 名称或增加作者白名单。能力引用同时包含 ID、版本和提供方；Choice/Noul 的可选结果映射保存该引用，调用返回 `recommended_actions`。调用者仍须根据业务输入合同构造参数，再通过共同服务单独调用。推荐不执行、不授权；发布和判断前后检查来源与授权，失效引用保留。旧连接凭据本身不代表可调用能力，只有正式注册动作才进入目录。
 
-`defineAction` 的处理器接收 `ActionExecutionContext`。等待模型、网络或其他异步工作后，写入前调用 `await context.beforeEffect()`，再验证原对象版本。该检查由 dispatcher 创建，不能由业务输入提供；它覆盖取消、注册替换、生命周期与实时授权。嵌套调用保留外层检查时使用合同层 `retainActionAuthority(context, originReference, context.beforeEffect)`。处理器拿到的上下文里还有 `context.call_id`：Host 给这次入口级操作的调用编号，嵌套调用沿用它。只用来写进日志或带进错误说明，方便把一份报告对到这次调用；它不是身份，不授予权限，不能当业务输入，也不能据它做任何判断，插件从请求里读到的 `call_id` 同样不可信。
+`defineAction` 的处理器接收 `ActionExecutionContext`。等待模型、网络或其他异步工作后，写入前调用 `await context.beforeEffect()`，再验证原对象版本。该检查由 dispatcher 创建，不能由业务输入提供；它覆盖取消、注册替换、生命周期与实时授权。嵌套调用保留外层检查时使用合同层 `retainActionAuthority(context, ownDefinition, context.beforeEffect)`；自己的动作可省略提供方，其他动作须明确 `provider_id`。处理器拿到的上下文里还有 `context.call_id`：Host 给这次入口级操作的调用编号，嵌套调用沿用它。只用来写进日志或带进错误说明，方便把一份报告对到这次调用；它不是身份，不授予权限，不能当业务输入，也不能据它做任何判断，插件从请求里读到的 `call_id` 同样不可信。
 
 长任务可使用 `createExecutionLifetime({ signal, timeout, monitor })`。`monitor.check()` 必须同步，检查失败抛出原错误以取消本次执行。将返回的 signal 交给外部等待，返回后 `assertActive()`，再执行所属插件的事务/版本/授权检查；finally 调用 `dispose()`。取消或 shutdown 不应误记成普通业务失败。这个工具不替代幂等请求、持久 lease、执行身份和未知副作用的恢复决策。
 

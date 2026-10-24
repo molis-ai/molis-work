@@ -17,14 +17,6 @@
     "./registration": {
       "types": "./dist/registration.d.ts",
       "import": "./dist/registration.js"
-    },
-    "./terminal": {
-      "types": "./dist/terminal/index.d.ts",
-      "import": "./dist/terminal/index.js"
-    },
-    "./terminal-client": {
-      "types": "./dist/terminal/client.d.ts",
-      "import": "./dist/terminal/client.js"
     }
   },
   "files": [
@@ -38,9 +30,7 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-design-system": "workspace:*",
-    "@xterm/xterm": "^6.0.0",
-    "@xterm/addon-fit": "^0.11.0"
+    "@molis-ai/molis-work-design-system": "workspace:*"
   },
   "molis-work": {
     "path": "plugins/native/work",

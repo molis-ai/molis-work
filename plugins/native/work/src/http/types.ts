@@ -28,11 +28,4 @@ export interface WorkSessionHttpContext {
     exists(path: string): boolean;
     isDirectory(path: string): boolean;
   };
-  /** Opens the system folder window on the computer running this host. */
-  pickDirectory(): Promise<
-    | { status: "picked"; path: string }
-    | { status: "cancelled" }
-    | { status: "busy" }
-    | { status: "unavailable"; message: string }
-  >;
 }

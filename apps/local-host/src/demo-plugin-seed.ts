@@ -7,7 +7,9 @@ import { openProjectVersionStores } from "./project-version-stores.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { createLocalFeedSourceService } from "./feed-source-service.js";
 import { openWorkSessionRegistry } from "./session-registry.js";
-import { openHostShelfStore } from "./shelf-actions.js";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
+import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { artifactsManifest, DOCUMENT_ARTIFACT_TYPE } from "@molis-ai/molis-work-plugin-artifacts";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
@@ -211,7 +213,6 @@ export async function seedDemoProjectExtras(input: {
   homeDirectory: string;
   actorId: string;
 }): Promise<void> {
-  await openHostShelfStore(input.homeDirectory).seedSample();
   const registry = await openWorkSessionRegistry({ homeDirectory: input.homeDirectory });
   try {
     const existing = registry.list({ project_id: input.projectId })
@@ -243,6 +244,21 @@ export async function seedDemoProjectExtras(input: {
     }
   } finally {
     registry.close();
+  }
+}
+
+/**
+ * The demo's sample in this Home's Shelf, put back if it was removed: Shelf's own action, called by the process that runs Shelf (the
+ * resident Host) after the demo is made or rebuilt. A Shelf that is missing, off or not granted is left as it is; the demo is made
+ * either way. A process without that Host (the CLI) does not call this; Shelf puts its first-run sample on the shelf itself when it
+ * starts.
+ */
+export async function seedDemoHomeSamples(actions: Pick<BoundActionClient, "invoke">): Promise<void> {
+  try {
+    await actions.invoke(shelfActions.sample, {});
+  } catch (error) {
+    const kind = actionErrorKind(error);
+    if (kind !== "not_found" && kind !== "unavailable" && kind !== "forbidden") throw error;
   }
 }
 

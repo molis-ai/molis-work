@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { createScheduleService, PluginWakeupIndex } from "@molis-ai/molis-work-service-scheduler";
+import { createScheduleService } from "@molis-ai/molis-work-service-scheduler";
 import { SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 import { SCHEDULE_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-schedule";
 
@@ -46,7 +46,7 @@ test("SYS-15-S6: v8 is refused; offline maintenance preserves jobs/history, paus
   assert.deepEqual(after.job, { ...original.job, enabled: 0, lease_token: null, lease_until: null });
   assert.deepEqual(after.receipt, original.receipt);
   assert.deepEqual(after.task, original.task); assert.deepEqual(after.turn, original.turn);
-  const store = new LocalProjectDatabase(file), clock = createScheduleService(store.db, { wakeupIndex: new PluginWakeupIndex() });
+  const store = new LocalProjectDatabase(file), clock = createScheduleService(store.db);
   try {
     assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM schedule_action_bindings").get()!.n, 0);
     assert.equal((await clock.tick(new Date("2026-10-22T00:00:00Z"))).invoked, 0);

@@ -46,7 +46,8 @@ test('composition preserves Native UI identities', () => {
   // Native UI is composed statically, not redeemed as a Runtime contribution; its old public identities stay stable.
   const ui = createWorkbenchUiHost().list();
   assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.goals.proposal')?.plugin_id, 'io.molis.work.native.goals');
-  assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.work.terminal.v1')?.plugin_id, 'io.molis.work.native.work');
+  // SC-3 (PG-082): the Goal terminal pane is the workbench's own surface (apps/workbench/src/terminal/pane.ts), no longer a Work contribution.
+  assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.work.terminal.v1'), undefined);
 });
 
 test('W4-03-05 the Coding companions borrow Coding\'s client: one bundle is served, none of them ships a copy', () => {

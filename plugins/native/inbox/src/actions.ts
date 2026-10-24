@@ -1,4 +1,3 @@
-import { INBOX_PLUGIN_ID } from "./identity.js";
 import { retainActionAuthority, ActionError, defineSubjectOffersAction, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSchema, type SubjectOffersInput, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AttentionEntryRecord, AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -138,6 +137,6 @@ export function createInboxActionHandlers(ports: InboxActionPorts): ActionHandle
     bind(inboxActions.readJudgment, (_input, caller) => ports.readJudgment!(caller), !!ports.readJudgment),
     bind(inboxActions.recommendations, (_input, caller) => ports.recommendations!(caller), !!ports.recommendations),
     bind(inboxActions.writeJudgment, (input, caller) => ports.writeJudgment!(input.function_key?.trim() || null, caller), !!ports.writeJudgment),
-    bind(inboxActions.evaluateJudgment, (input, caller) => ports.evaluateJudgment!(input.entry_ids, retainActionAuthority(caller, { ...inboxActions.evaluateJudgment, provider_id: INBOX_PLUGIN_ID }, caller.beforeEffect)), !!ports.evaluateJudgment),
+    bind(inboxActions.evaluateJudgment, (input, caller) => ports.evaluateJudgment!(input.entry_ids, retainActionAuthority(caller, inboxActions.evaluateJudgment, caller.beforeEffect)), !!ports.evaluateJudgment),
   ];
 }

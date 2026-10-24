@@ -20,7 +20,7 @@ export const placed = (detail: Record<string, unknown>) => { window.dispatchEven
 
 /** The form on screen, for the placement bar and the Assistant. */
 export const publishContext = (page: FormPage) => {
-  const context: Record<string, unknown> = { plugin_id: "io.molis.work.form", surface_title: "Forms" };
+  const context: Record<string, unknown> = { plugin_id: page.host.pluginId, surface_title: "Forms" };
   const { sel } = page;
   if (sel) {
     context.object = { kind: "form", id: sel.id, version: sel.version, title: page.titleInput.value || sel.title };

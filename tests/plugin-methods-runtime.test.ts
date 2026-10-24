@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -20,10 +20,10 @@ const PLUGIN_ID = "io.molis.work.example.methodprobe";
 const declared = (skill_id: string, version = 1): AgentSkillDeclaration => ({ skill_id, version, name: `方法 ${skill_id}`, summary: `何时用 ${skill_id}`, tools: ["read-capability"] });
 const body = (skill_id: string, version = 1, text = `${skill_id} 第 ${version} 版的做法`): AgentSkillDefinition => ({ ...declared(skill_id, version), body: text });
 
-function probe(options: { pluginId?: string; version?: string; methods?: AgentSkillDeclaration[]; bodies?: AgentSkillDefinition[]; execution?: "sandbox" } = {}) {
-  const { pluginId = PLUGIN_ID, version = "1.0.0", methods = [declared("triage")], bodies = [body("triage")], execution } = options;
+function probe(options: { pluginId?: string; version?: string; methods?: AgentSkillDeclaration[]; bodies?: AgentSkillDefinition[]; execution?: "sandbox"; signature?: string } = {}) {
+  const { pluginId = PLUGIN_ID, version = "1.0.0", methods = [declared("triage")], bodies = [body("triage")], execution, signature = "probe-methods" } = options;
   const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version, name: "方法探针", kind: "app",
-    publisher: { publisher_id: "molis", signature: "probe-methods" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+    publisher: { publisher_id: "molis", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, methods,
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
   let started = 0;
@@ -143,4 +143,153 @@ test("W4-02-04 a definition's methods for an owner the catalog registers for are
       assert.equal(generated.started(), 1);
       assert.deepEqual(listed(home, "io.molis.work.example.generated"), [], "it runs, and its methods are not registered");
     } finally { sandboxed.store.close(); }
+  }));
+
+test("RAC-191 PG-051 V-05 a running definition's Agent block registers its roles and prompts; the person's edit is what a run gets, and outlives a stop", { timeout: 60_000 },
+  withHome(async home => {
+    const AGENT_ID = "io.molis.work.example.agentprobe";
+    const text = { prompt_id: "probe-role", version: 1, body: "按清单逐项核对" };
+    const plugin = probe({ pluginId: AGENT_ID, methods: [], bodies: [] });
+    const definition: PluginDefinition = { ...plugin.definition, agent_prompts: [text],
+      manifest: { ...plugin.definition.manifest, agent: { roles: [{ role_id: "checker", version: 1, name: "核对员", workspace: "none", prompts: ["probe-role"] }], prompts: [{ prompt_id: "probe-role", version: 1 }] } } };
+    const first = platformIn(home);
+    try {
+      const started = await first.platform.start([{ definition }]);
+      assert.deepEqual(started.running, [AGENT_ID], JSON.stringify(started.failed));
+      const registry = homeAgentDefinitions(home);
+      assert.deepEqual(registry.roles().filter(role => role.owner_id === AGENT_ID).map(role => [role.role_id, role.name, role.prompt_keys]), [["checker", "核对员", [`${AGENT_ID}/probe-role`]]]);
+      const [prompt] = registry.prompts().filter(view => view.owner_id === AGENT_ID);
+      assert.equal(prompt?.kind, "agent");
+      registry.save(prompt!.key, "按清单逐项核对，先列出缺的", null, "tester");
+      assert.equal(registry.effective(AGENT_ID, text).body, "按清单逐项核对，先列出缺的", "a run gets the person's version");
+      await first.platform.runtime.stop(first.installId(AGENT_ID));
+      // Stopped, it stays in the person's settings as not running (PG-051 Q1 b), with the edit kept.
+      assert.deepEqual(registry.roles().filter(role => role.owner_id === AGENT_ID).map(role => role.source.kind === "plugin" && role.source.state), ["disabled"]);
+    } finally { first.store.close(); }
+    const again = platformIn(home);
+    try {
+      assert.deepEqual((await again.platform.start([{ definition }])).running, [AGENT_ID]);
+      assert.equal(homeAgentDefinitions(home).effective(AGENT_ID, text).body, "按清单逐项核对，先列出缺的", "the edit is back with the registration");
+    } finally { again.store.close(); }
+  }));
+
+/** An Agent probe for PG-051 Q1 b: one role with its prompt, and one method. */
+function agentProbe(options: { version?: string; prompt?: string; signature?: string } = {}) {
+  const { version = "1.0.0", prompt = "probe-role", signature } = options;
+  const plugin = probe({ pluginId: AGENT_PROBE, version, ...(signature ? { signature } : {}) });
+  const definition: PluginDefinition = { ...plugin.definition, agent_prompts: [{ prompt_id: prompt, version: 1, body: `${prompt} 的默认做法` }],
+    manifest: { ...plugin.definition.manifest, agent: { roles: [{ role_id: "checker", version: 1, name: "核对员", workspace: "none", prompts: [prompt] }], prompts: [{ prompt_id: prompt, version: 1 }] } } };
+  return definition;
+}
+const AGENT_PROBE = "io.molis.work.example.agentprobe";
+const promptsOf = (home: string) => homeAgentDefinitions(home).prompts().filter(view => view.owner_id === AGENT_PROBE)
+  .map(view => `${view.prompt_id}:${view.source.kind === "plugin" ? view.source.state : "system"}`);
+
+test("RAC-193 PG-051 two installations side by side: one stopping leaves the other's; the last out keeps them as not running, the person's edit with them", { timeout: 60_000 },
+  withHome(async home => {
+    const first = platformIn(home), second = platformIn(home);
+    try {
+      assert.deepEqual((await first.platform.start([{ definition: agentProbe() }])).running, [AGENT_PROBE]);
+      assert.deepEqual((await second.platform.start([{ definition: agentProbe({ signature: "probe-second" }) }])).running, [AGENT_PROBE]);
+      const ids = (platform: ReturnType<typeof platformIn>) => platform.platform.runtime.list().filter(record => record.plugin_id === AGENT_PROBE).map(record => record.install_id);
+      assert.equal(new Set([...ids(first), ...ids(second)]).size, 2, "two installations, one per signature");
+      const registry = homeAgentDefinitions(home);
+      const [view] = registry.prompts().filter(item => item.owner_id === AGENT_PROBE);
+      registry.save(view!.key, "先列出缺的", null, "tester");
+      await first.platform.runtime.stop(ids(first)[0]!);
+      assert.deepEqual(listed(home, AGENT_PROBE), ["triage@1"], "the other installation still runs: its method stays");
+      assert.deepEqual(promptsOf(home), ["probe-role:enabled"]);
+      await second.platform.runtime.stop(ids(second)[0]!);
+      assert.deepEqual(listed(home, AGENT_PROBE), [], "the last out: no method for other Agents");
+      assert.deepEqual(promptsOf(home), ["probe-role:disabled"], "still in the person's settings, as not running");
+      assert.equal(registry.effective(AGENT_PROBE, { prompt_id: "probe-role", version: 1, body: "probe-role 的默认做法" }).body, "先列出缺的");
+      assert.deepEqual((await second.platform.runtime.start(ids(second)[0]!)).install.state, "running");
+      assert.deepEqual(promptsOf(home), ["probe-role:enabled"], "registered again, with the edit in force");
+      assert.equal(registry.effective(AGENT_PROBE, { prompt_id: "probe-role", version: 1, body: "probe-role 的默认做法" }).body, "先列出缺的");
+    } finally { first.store.close(); second.store.close(); }
+  }));
+
+/** The Host starting again on a copy of the Home: what the register shows for the Agent probe then. */
+function promptsAfterRestart(home: string) {
+  const restarted = mkdtempSync(join(tmpdir(), "plugin-methods-restart-"));
+  try {
+    for (const store of ["agent-definitions", "agent-declarations"]) cpSync(join(home, store), join(restarted, store), { recursive: true });
+    return { prompts: promptsOf(restarted), roles: homeAgentDefinitions(restarted).roles().filter(role => role.owner_id === AGENT_PROBE).map(role => role.role_id) };
+  } finally { rmSync(restarted, { recursive: true, force: true }); }
+}
+
+test("RAC-196 PG-051 Q1 b the last instance out leaves the installation's newest version, not the one it started with", { timeout: 60_000 },
+  withHome(async home => {
+    // One installation, two projects: A still runs 1.0.0 when B starts the upgraded 1.1.0; B stops first, A last.
+    const a = platformIn(home), b = platformIn(home);
+    try {
+      assert.deepEqual((await a.platform.start([{ definition: agentProbe() }])).running, [AGENT_PROBE]);
+      assert.deepEqual((await b.platform.start([{ definition: agentProbe({ version: "1.1.0", prompt: "probe-role-2" }) }])).running, [AGENT_PROBE]);
+      assert.equal(a.installId(AGENT_PROBE), b.installId(AGENT_PROBE), "one installation in both projects");
+      assert.deepEqual(promptsOf(home), ["probe-role-2:enabled"], "the register shows the newest version");
+      await b.platform.runtime.stop(b.installId(AGENT_PROBE));
+      assert.deepEqual(promptsOf(home), ["probe-role-2:enabled"], "1.0.0 still runs in A: the newest declaration stays");
+      await a.platform.runtime.stop(a.installId(AGENT_PROBE));
+      assert.deepEqual(promptsOf(home), ["probe-role-2:disabled"], "A, on 1.0.0, stops last: 1.1.0 is what stays, as not running");
+      // An earlier version starting while a newer one runs does not take its place either.
+      await b.platform.runtime.start(b.installId(AGENT_PROBE));
+      await a.platform.runtime.start(a.installId(AGENT_PROBE));
+      assert.deepEqual(promptsOf(home), ["probe-role-2:enabled"]);
+      await a.platform.runtime.stop(a.installId(AGENT_PROBE));
+      await b.platform.runtime.stop(b.installId(AGENT_PROBE));
+    } finally { a.store.close(); b.store.close(); }
+    assert.deepEqual(promptsAfterRestart(home).prompts, ["probe-role-2:disabled"], "and so when the Host starts again");
+  }));
+
+test("RAC-196 PG-051 Q1 b a new version that declares nothing for Agents replaces the remembered declaration with nothing", { timeout: 60_000 },
+  withHome(async home => {
+    const project = platformIn(home);
+    try {
+      await project.platform.start([{ definition: agentProbe() }]);
+      await project.platform.runtime.stop(project.installId(AGENT_PROBE));
+      assert.deepEqual(promptsOf(home), ["probe-role:disabled"]);
+      await project.platform.runtime.start(project.installId(AGENT_PROBE));
+      const bare = probe({ pluginId: AGENT_PROBE, version: "1.1.0", methods: [], bodies: [] }).definition;
+      const result = await project.platform.upgrade(AGENT_PROBE, bare);
+      assert.equal(result.status, "running", result.message ?? "");
+      assert.deepEqual(promptsOf(home), [], "1.1.0 declares no prompt, role or method: none of 1.0.0's is shown");
+      await project.platform.runtime.stop(project.installId(AGENT_PROBE));
+      assert.deepEqual(promptsOf(home), []);
+      assert.deepEqual(homeAgentDefinitions(home).roles().filter(role => role.owner_id === AGENT_PROBE), []);
+    } finally { project.store.close(); }
+    assert.deepEqual(promptsAfterRestart(home), { prompts: [], roles: [] }, "nor when the Host starts again");
+  }));
+
+test("RAC-196 PG-051 Q1 b a stopped installation's declaration comes back as not running when the Host starts again, offers no method, is replaced whole by a new version and goes with the uninstall", { timeout: 60_000 },
+  withHome(async home => {
+    const project = platformIn(home);
+    try {
+      await project.platform.start([{ definition: agentProbe() }]);
+      await project.platform.runtime.stop(project.installId(AGENT_PROBE));
+    } finally { project.store.close(); }
+    // The Host starting again: a fresh process opens the Home's register from disk (a copy of the Home stands in for it here).
+    const restarted = mkdtempSync(join(tmpdir(), "plugin-methods-restart-"));
+    try {
+      for (const store of ["agent-definitions", "agent-declarations"]) cpSync(join(home, store), join(restarted, store), { recursive: true });
+      assert.deepEqual(promptsOf(restarted), ["probe-role:disabled"], "shown as not running before it starts");
+      assert.deepEqual(homeAgentDefinitions(restarted).roles().filter(role => role.owner_id === AGENT_PROBE).map(role => role.role_id), ["checker"]);
+      assert.deepEqual(listed(restarted, AGENT_PROBE), [], "its method is not offered to other Agents");
+      assert.throws(() => homeAgentDefinitions(restarted).method(AGENT_PROBE, "triage", 1), /没有登记这个方法版本/);
+    } finally { rmSync(restarted, { recursive: true, force: true }); }
+    // A new version replaces the remembered record whole: the earlier prompt is not kept beside the new one.
+    const upgraded = platformIn(home);
+    try {
+      await upgraded.platform.start([{ definition: agentProbe() }]);
+      const result = await upgraded.platform.upgrade(AGENT_PROBE, agentProbe({ version: "1.1.0", prompt: "probe-role-2" }));
+      assert.equal(result.status, "running", result.message ?? "");
+      await upgraded.platform.runtime.stop(upgraded.installId(AGENT_PROBE));
+      assert.deepEqual(promptsOf(home), ["probe-role-2:disabled"]);
+      await upgraded.platform.runtime.uninstall(upgraded.installId(AGENT_PROBE));
+      assert.deepEqual(promptsOf(home), [], "uninstalled: gone from the register");
+    } finally { upgraded.store.close(); }
+    const afterUninstall = mkdtempSync(join(tmpdir(), "plugin-methods-restart-"));
+    try {
+      for (const store of ["agent-definitions", "agent-declarations"]) cpSync(join(home, store), join(afterUninstall, store), { recursive: true });
+      assert.deepEqual(promptsOf(afterUninstall), [], "and from the Home");
+    } finally { rmSync(afterUninstall, { recursive: true, force: true }); }
   }));

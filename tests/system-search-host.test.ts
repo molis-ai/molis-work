@@ -74,7 +74,7 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     assert.ok(homeOnly.sources.every(source => source.scope === "personal"), "a caller without a project sees no project source");
 
     // Shelf: a material reaches as far as it is readable; clipboard history stays with the local person, as every clipboard action does.
-    await host.homeActionClient().invoke(personalCaller, shelfActions.admit, { text: "置物架里的抹香鲸观察笔记", title: "抹香鲸观察", capture_pages: false });
+    await host.homeActionClient().invoke(personalCaller, shelfActions.admit, { text: "置物架里的抹香鲸观察笔记", title: "抹香鲸观察"});
     await host.homeActionClient().invoke(personalCaller, shelfActions.clip, { text: "剪贴板里的抹香鲸暗号 7731" });
     const shelfHits = await search(refA, "抹香鲸");
     assert.deepEqual(ids(shelfHits), ["io.molis.work.shelf:shelf_clip", "io.molis.work.shelf:shelf_item"]);

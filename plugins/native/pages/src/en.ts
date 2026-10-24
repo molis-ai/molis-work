@@ -56,6 +56,7 @@ export const PAGES_EN: Record<string, string> = {
   "文档正文": "Document body",
   "请输入有效链接，例如 https://example.com": "Enter a valid link, such as https://example.com",
   "导入": "Import",
+  "导出 Markdown": "Export Markdown",
   "关闭": "Close",
   "导入已有文档": "Import existing documents",
   "导入文档": "Import documents",

@@ -754,7 +754,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   const admitFolderEntry = async (entry) => {
     const found = [];
     for (const child of await readEntries(entry.createReader())) await walkEntry(child, "", found);
-    if (!found.length) return null;
+    if (!found.length) return null; if (found.reduce((total, file) => total + file.file.size, 0) > 32 * 1024 * 1024) throw new Error(L("这个文件夹超过 32 MB，请把它拆成几个小一点的文件夹再放进来"));
     const entries = [];
     for (const file of found) {
       const bytes = new Uint8Array(await file.file.arrayBuffer());

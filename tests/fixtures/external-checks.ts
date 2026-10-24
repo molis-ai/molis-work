@@ -130,7 +130,7 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
   // The round holds model:invoke, so only the checker's own rule keeps the model-backed query out.
   const caller = { actor_id: "agent:prologue", actor_kind: "runtime" as const, audience: "agent" as const, project_id: project.project_id, permissions: ["model:invoke"] };
   const authority: AgentStartAuthority = { manifest: codingAgentManifest, prompts: [...codingPrompts], authorizedDirectories: [root, writer],
-    // The plugin instance that started the round: the real one throws this once the instance stops (plugin-host-services.ts).
+    // The plugin instance that started the round: the real one throws this once the instance stops (apps/local-host/src/plugin-host-services.ts).
     beforeDispatch: async () => { calls.roundChecks++; if (!switches.pluginActive) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); },
     actions: async (_runtime, validate) => {
       const client = local.actionClient(project);

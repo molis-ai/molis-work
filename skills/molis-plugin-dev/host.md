@@ -102,7 +102,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 `BUILD_TIME_ASSEMBLED` 里的旧插件仍是手写接线：Host 里的 `registerProvider(...)`（`project-host.ts`）、`apps/local-host/src/<id>-native-plugin-http.ts` 和目录条目（各包的 `registration`）。只有改这些旧插件时才看这一段，新插件不照抄。
 
 - 手写 HTTP 文件：实现 `<id>-native-plugin-http.ts`。其中 Alchemist 再挂进 `personal-native-plugin-http.ts` 的 handler 列表；Pages、灵光、Feed、Inbox、Schedule 等是 `web-request.ts` 路由表里的条目，各调自己的 `handle<X>NativePluginHttp`。
-- Shelf 不属于这一份：它已由监督器启动（在 `RUNTIME_ASSEMBLED`，不在 `BUILD_TIME_ASSEMBLED`），只是还留着冻结的 `shelf-native-plugin-http.ts`（`/api/shelf`，同样挂在 `personal-native-plugin-http.ts`），新插件不照抄。
+- Shelf 不属于这一份：它已由监督器启动（在 `RUNTIME_ASSEMBLED`，不在 `BUILD_TIME_ASSEMBLED`），路由从 Shelf S3 起是 Manifest 声明的插件路由（`/api/plugins/io.molis.work.shelf/…`），宿主里已没有 Shelf 名下的文件（Shelf S4：演示数据的示例由常驻宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回），新插件不照抄。
 - `project_id` 同样由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
 
 ### 按需
@@ -249,7 +249,7 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 
 ## 异步提交
 
-等待模型/网络的动作按 `scheduling: "concurrent"` 执行，读快照 → 等待 → `await caller.beforeEffect()` → 版本比较提交。嵌套调用使用 `retainActionAuthority(caller, originReference, caller.beforeEffect)`，同时保留外层注册、权限和生命周期约束。来源拉取还需逐来源独占，不能只把串行标记改掉。被撤权或取消后，不写失败记账；此前已发出的外部操作保留未确认状态供恢复。
+等待模型/网络的动作按 `scheduling: "concurrent"` 执行，读快照 → 等待 → `await caller.beforeEffect()` → 版本比较提交。嵌套调用使用 `retainActionAuthority(caller, ownDefinition, caller.beforeEffect)`，同时保留外层注册、权限和生命周期约束；自己的动作可省略 `provider_id`，平台使用本次分发解析出的提供方，其他动作必须明确提供方。来源拉取还需逐来源独占，不能只把串行标记改掉。被撤权或取消后，不写失败记账；此前已发出的外部操作保留未确认状态供恢复。
 
 ### 已授权材料的提取
 

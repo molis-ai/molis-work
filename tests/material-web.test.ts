@@ -9,11 +9,10 @@ import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { shelfActions, SHELF_ACTION_PERMISSIONS } from '@molis-ai/molis-work-plugin-shelf';
 import { readMaterialWebsite } from '../apps/local-host/src/material-web.js';
-import { openHostShelfStore } from '../apps/local-host/src/shelf-actions.js';
-import { shelfStoreProvider } from './shelf-direct-actions.js';
+import { shelfStoreProvider, openTestShelfStore } from './shelf-direct-actions.js';
 
 /** The Host's own page reader behind Shelf, as the Home instance's materials service runs it. */
-const hostShelf = (home: string) => shelfStoreProvider(() => openHostShelfStore(home, { disabled: true }, { readWebsite: readMaterialWebsite }));
+const hostShelf = (home: string) => shelfStoreProvider(() => openTestShelfStore(home, { disabled: true }, { readWebsite: readMaterialWebsite }));
 
 async function fixture(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), 'material-web-'));
@@ -51,7 +50,7 @@ async function fixture(t: test.TestContext) {
   let authorized = true;
   const caller = { actor_id: 'person', audience: 'user' as const, project_id: null, permissions: SHELF_ACTION_PERMISSIONS,
     validate_authority: () => { if (!authorized) throw new ActionError('actions.revoked', 'revoked'); } };
-  const store = () => openHostShelfStore(home, { disabled: true });
+  const store = () => openTestShelfStore(home, { disabled: true });
   t.after(async () => {
     dispose(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
     await rm(home, { recursive: true, force: true });
@@ -69,9 +68,12 @@ test('Host web extraction shares HTML semantics, preserves plaintext, follows bo
   const before = f.requests();
   const pure = await f.store().admitUrl(f.origin + '/page');
   assert.equal(f.requests(), before); assert.match(f.store().readFile(pure.item_id).bytes.toString(), /没有抓到正文/);
-  const imported = await f.service.invoke(f.caller, shelfActions.admit, { text: f.origin + '/page' }) as { item: { item_id: string } };
+  const imported = await f.service.invoke(f.caller, shelfActions.capture, { url: f.origin + '/page' }) as { item: { item_id: string } };
   const saved = f.store().readFile(imported.item.item_id).bytes.toString();
   assert.match(saved, /# 网页 & 材料/); assert.match(saved, /中文 🙂/); assert.match(saved, new RegExp(f.origin));
+  const linked = f.requests();
+  await f.service.invoke(f.caller, shelfActions.admit, { text: f.origin + '/page' });
+  assert.equal(f.requests(), linked, 'admit@2 keeps a link as a link and fetches nothing');
   const count = f.requests();
   await assert.rejects(readMaterialWebsite(f.origin + '/loop'), { code: 'material.redirect' }); assert.equal(f.requests() - count, 6);
   await assert.rejects(readMaterialWebsite('file:///etc/passwd'), { code: 'material.url' });
@@ -83,28 +85,29 @@ for (const path of ['/large', '/gzip'] as const) test(`Host capture bounds decod
   await assert.rejects(readMaterialWebsite(f.origin + path), { code: 'material.too_large' });
   await f.closed;
   if (path === '/large') assert.ok(f.sentBytes() < 6 * 1024 * 1024, 'the Host stops the producing response instead of downloading it all');
-  const result = await f.service.invoke(f.caller, shelfActions.admit, { text: f.origin + path }) as { item: { item_id: string } };
+  const result = await f.service.invoke(f.caller, shelfActions.capture, { url: f.origin + path }) as { item: { item_id: string } };
   const saved = f.store().readFile(result.item.item_id).bytes.toString();
   assert.match(saved, /没有抓到正文/); assert.ok(saved.length < 300); assert.match(saved, new RegExp(path));
 });
 
 test('a broken response preserves only the link, without claiming its partial body was captured', async t => {
   const f = await fixture(t);
-  const result = await f.service.invoke(f.caller, shelfActions.admit, { text: f.origin + '/broken' }) as { item: { item_id: string } };
+  const result = await f.service.invoke(f.caller, shelfActions.capture, { url: f.origin + '/broken' }) as { item: { item_id: string } };
   const saved = f.store().readFile(result.item.item_id).bytes.toString();
   assert.match(saved, /没有抓到正文/); assert.doesNotMatch(saved, /partial/);
 });
 
-for (const entry of ['admit', 'clipboard'] as const) for (const stop of ['cancel', 'revoke', 'withdraw', 'delete-clipboard'] as const) {
-  if (entry === 'admit' && stop === 'delete-clipboard') continue;
+// A page is fetched by `shelf.items.capture` (admit@2 keeps a link as a link), or by putting a clipboard entry on the shelf.
+for (const entry of ['capture', 'clipboard'] as const) for (const stop of ['cancel', 'revoke', 'withdraw', 'delete-clipboard'] as const) {
+  if (entry === 'capture' && stop === 'delete-clipboard') continue;
   test(`Shelf ${entry} ${stop} during real capture leaves no material or file and can recover`, { timeout: 20_000 }, async t => {
   const f = await fixture(t), controller = new AbortController();
   // Reading the shelf writes nothing (D6), so a new shelf may have no files folder yet: none is the same as an empty one.
   const copies = () => readdir(join(f.home, 'shelf', 'files')).catch((error: NodeJS.ErrnoException) => { if (error.code === 'ENOENT') return []; throw error; });
   const original = (await f.store().snapshot()).materials, files = await copies();
   const clip = (await f.store().addClipboard(f.origin + '/hold'))!;
-  const pending = f.service.invoke({ ...f.caller, signal: controller.signal }, entry === 'admit' ? shelfActions.admit : shelfActions.clipToMaterial,
-    entry === 'admit' ? { text: f.origin + '/hold' } : { clip_id: clip.clip_id });
+  const pending = f.service.invoke({ ...f.caller, signal: controller.signal }, entry === 'capture' ? shelfActions.capture : shelfActions.clipToMaterial,
+    entry === 'capture' ? { url: f.origin + '/hold' } : { clip_id: clip.clip_id });
   const rejected = assert.rejects(pending, stop === 'cancel' ? { name: 'AbortError' } : { code: stop === 'revoke' ? 'actions.revoked' : stop === 'withdraw' ? 'actions.provider_changed' : 'shelf.item_not_found' });
   const response = await f.arrived;
   if (stop === 'cancel') controller.abort();
@@ -118,7 +121,7 @@ for (const entry of ['admit', 'clipboard'] as const) for (const stop of ['cancel
   // A new authorized provider/call can still save a real page after any of these interruptions.
   const recovered = new ActionService(), dispose = recovered.registerProvider(hostShelf(f.home));
   try {
-    const result = await recovered.invoke({ ...f.caller, validate_authority: undefined }, shelfActions.admit, { text: f.origin + '/page' }) as { item: { item_id: string } };
+    const result = await recovered.invoke({ ...f.caller, validate_authority: undefined }, shelfActions.capture, { url: f.origin + '/page' }) as { item: { item_id: string } };
     assert.match(f.store().readFile(result.item.item_id).bytes.toString(), /中文 🙂/);
   } finally { dispose(); }
 });
@@ -126,7 +129,7 @@ for (const entry of ['admit', 'clipboard'] as const) for (const stop of ['cancel
 
 test('a bounded text extraction keeps its partial-content notice in the saved Shelf material', async t => {
   const f = await fixture(t);
-  const result = await f.service.invoke(f.caller, shelfActions.admit, { text: f.origin + '/text-large' }) as { item: { item_id: string } };
+  const result = await f.service.invoke(f.caller, shelfActions.capture, { url: f.origin + '/text-large' }) as { item: { item_id: string } };
   const saved = f.store().readFile(result.item.item_id).bytes.toString();
   assert.ok(saved.includes('a'.repeat(2_000_000)));
   assert.ok(!saved.includes('a'.repeat(2_000_001)));

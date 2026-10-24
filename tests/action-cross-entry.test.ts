@@ -188,14 +188,15 @@ test("W3-09-1-01 T7: stale Home Todo revisions refuse page and actual MCP equall
 
 test("W3-09-1-01 T5: a real Shelf page caller retains the operation id on schema refusal before any owner write", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), project = await home.createProject("Literal page caller", ["shelf"]);
-  const path = `/projects/${encodeURIComponent(project.project_id)}/api/shelf`;
-  const before = await home.web.get(path);
-  const refused = await page(home, path + "/items", { text: "原材料保留", title: "x".repeat(201), capture_pages: false });
+  const path = `/projects/${encodeURIComponent(project.project_id)}/api/plugins/io.molis.work.shelf`;
+  const before = await home.web.get(path + "/");
+  const refused = await page(home, path + "/items", { text: "原材料保留", title: "x".repeat(201) });
   assert.equal(refused.status, 400); assert.equal(refused.body.code, "actions.input_invalid");
   assert.equal(refused.callId, refused.body.call_id);
   const record = row(home, refused.callId, shelfActions.admit.capability_id);
-  assert.deepEqual([record.ok, record.code, record.refused, record.project_id, record.actor_id], [false, "actions.input_invalid", true, null, "web-user"]);
-  assert.deepEqual(await home.web.get(path), before, "invalid material creates no Shelf item or job");
+  // A Home plugin route under a project's prefix runs in that project, so the row names the page's project.
+  assert.deepEqual([record.ok, record.code, record.refused, record.project_id, record.actor_id], [false, "actions.input_invalid", true, project.project_id, "web-user"]);
+  assert.deepEqual(await home.web.get(path + "/"), before, "invalid material creates no Shelf item or job");
 });
 
 test("W3-09-1-01 T6: a stopped Runtime withdraws its actions and rejects page and saved gateway access without owner writes", { timeout: 60_000 }, async t => {

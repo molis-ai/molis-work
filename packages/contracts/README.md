@@ -24,7 +24,10 @@ Home 插件的 `PluginDatabaseDeclaration` / `PluginDatabase` 从 `platform/plug
 | 文件 | 用途 |
 | --- | --- |
 | [src/modules/goals.ts](src/modules/goals.ts) | 目标 Command/Query 契约 |
-| [src/platform/plugin.ts](src/platform/plugin.ts) | Plugin Manifest 与运行协议 |
+| [src/platform/plugin.ts](src/platform/plugin.ts) | Plugin 运行协议（启动上下文、定义、Runtime）；`platform/plugin` 子路径的入口 |
+| [src/platform/plugin-manifest.ts](src/platform/plugin-manifest.ts) | Plugin Manifest 与各项声明 |
+| [src/platform/plugin-host-services.ts](src/platform/plugin-host-services.ts) | 插件拿到的平台服务（`PluginHostServices`） |
+| [src/platform/plugin-routes.ts](src/platform/plugin-routes.ts) | 插件路由的请求、回应与执行控制 |
 | [src/platform/app-host.ts](src/platform/app-host.ts) | Host Client 与 capability 契约 |
 | [package.json](package.json) | 完整公共 exports |
 

@@ -1,6 +1,6 @@
-# 会话、终端与交接体验
+# 会话与交接体验
 
-组合 Session、Runtime 和项目上下文，提供会话目录、内容读取、恢复、handoff 和终端操作。
+组合 Session、Runtime 和项目上下文，提供会话目录、内容读取、恢复和 handoff。Goal 终端（xterm、面板、连接）归工作台 `apps/workbench/src/terminal/`，项目工作目录的关联、修复与解除归 Host 的项目设置（SC-3）。
 
 包名：`@molis-ai/molis-work-plugin-work`。工作区内部包，通过仓库构建和 Host 装配使用。
 
@@ -16,7 +16,7 @@
 
 原 `/api/sessions` GET、内容 GET 与恢复 POST 保留为薄转发。项目停用插件后这些入口拒绝调用；已有会话、关联、历史和授权引用不删除，重新启用后继续可用。读取和恢复在原生等待前后检查调用权限及会话所属项目、原生身份和关联；等待期间撤权或改变关联时不返回失效内容。
 
-SessionDirectoryService 继续处理发现/创建，SessionContentService 继续处理内容与恢复，SessionHandoffService 继续准备并交付交接包。Registry、Runtime adapter、内容服务和 recorder 由系统 Host 的一个资源实例持有，网页借用该实例，关闭借用方不关闭 Host。创建、关联、交接与终端的旧业务入口仍在迁移；浏览器 terminal-client 负责 xterm 与连接控制。
+SessionDirectoryService 继续处理发现/创建，SessionContentService 继续处理内容与恢复，SessionHandoffService 继续准备并交付交接包。Registry、Runtime adapter、内容服务和 recorder 由系统 Host 的一个资源实例持有，网页借用该实例，关闭借用方不关闭 Host。创建、关联与交接的旧业务入口仍在迁移。
 
 目录发现、创建和交接按每次 Action 传入原 `signal/beforeEffect/assert_authority_current`，原生等待返回后在本地提交或下一次派发前复查，并在最后一次等待后同步检查；取消、撤权或停用后不新增 Session 关联、草稿、失败记录或继续派发。已经创建但未获本地提交授权的外部目标保留未知，不自动重建。普通消息只有已经接受的真实 turn 回执可收敛原幂等请求，调用者仍须通过返回前复查；失败或未知结果不套用这个例外，保持未确认请求，恢复不重发。
 
@@ -31,8 +31,8 @@ SessionDirectoryService 继续处理发现/创建，SessionContentService 继续
 | [src/messages.ts](src/messages.ts)、[src/message-actions.ts](src/message-actions.ts) | 普通消息发送、去重、回执与重试 |
 | [src/content.ts](src/content.ts) | 内容与恢复 |
 | [src/handoff.ts](src/handoff.ts) | 交接用例 |
-| [src/http/index.ts](src/http/index.ts) | 会话 HTTP 路由 |
-| [src/ui](src/ui) | 会话与终端界面 |
+| [src/http/index.ts](src/http/index.ts) | 会话 HTTP 路由（含在某个工作目录里启动会话） |
+| [src/ui](src/ui) | 会话界面 |
 
 可对照现有调用方 [apps/local-host/src/web-work-session.ts](../../../apps/local-host/src/web-work-session.ts) 阅读装配方式。
 
@@ -61,16 +61,15 @@ node scripts/run-tests.mjs tests/session-handoff.test.ts tests/session-directory
 
 ## 开发要求
 
-- 负责：会话、Runtime、恢复、交接与终端界面。
-- 不负责：Session/Run/Goal 事实、Runtime 适配器实现。
+- 负责：会话、Runtime、恢复与交接界面。
+- 不负责：Session/Run/Goal 事实、Runtime 适配器实现、Goal 终端（工作台）、项目工作目录的关联与修复（Host 项目设置）。
 - 公开入口：`@molis-ai/molis-work-plugin-work`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 发送必须给出 Session、预期的当前 Goal、文本与稳定幂等键。
   - `uncertain` 表示送达未确认：查询、重复发送或重试都不自动重发。
   - 等待期间撤权或关联改变时不返回失效内容；交接包保持私人，不自动发布。
-  - 终端用 xterm 的命名空间导入并兼容 default 导出，两种打包形态都能加载。
-- 改动后必跑：`node scripts/run-tests.mjs tests/work-session-actions.test.ts tests/work-session-ui.test.ts tests/work-terminal-client.test.ts tests/session-handoff.test.ts tests/session-messages.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/work-session-actions.test.ts tests/work-session-ui.test.ts tests/session-handoff.test.ts tests/session-messages.test.ts`
 - 相关手册：[docs/modules/private-work-context.md](../../../docs/modules/private-work-context.md)、[docs/horizontal/runtime-host.md](../../../docs/horizontal/runtime-host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

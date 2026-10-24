@@ -164,7 +164,9 @@ test("visual foundation keeps terminal appearance separate and local", () => {
 });
 
 test("live xterm sessions receive the selected terminal palette", () => {
-  const ptyClientSource = readFileSync(new URL("../plugins/native/work/src/terminal/screens.ts", import.meta.url), "utf8");
+  // The screens take the palette the Character terminal also uses (apps/workbench/src/terminal-theme.ts).
+  const ptyClientSource = ["../apps/workbench/src/terminal/screens.ts", "../apps/workbench/src/terminal-theme.ts"]
+    .map((path) => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
   assert.match(ptyClientSource, /theme: terminalPalette\(\)/);
   assert.match(ptyClientSource, /molis-work:terminal-theme-change/);
   assert.match(ptyClientSource, /term\.options\.theme = palette/);

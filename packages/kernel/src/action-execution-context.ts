@@ -1,13 +1,16 @@
-import { ActionError, actionReachesAudience, requireSynchronous, type ActionDefinition, type ActionProvider, type ActionCallContext, type ActionExecutionContext, type ActionReference, type RetainedActionAuthority } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionReachesAudience, requireSynchronous, type ActionDefinition, type ActionProvider, type ActionCallContext, type ActionExecutionContext, type ActionReference, type ExactActionReference, type RetainedActionAuthority } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { CapabilityRegistry } from "./index.js";
 import { assertCurrentAuthority, effectGuard } from "./action-settlement.js";
 
 /** A retained guard checks original registrations, without extending a finished handler's effect lifetime. */
-export function actionExecutionContext(context: ActionCallContext, reference: ActionReference, permissions: readonly string[],
+export function actionExecutionContext(context: ActionCallContext, reference: ExactActionReference, permissions: readonly string[],
   assertCurrent: () => void, effect: ((context: ActionCallContext, reference: ActionReference) => void | Promise<void>) | undefined,
   registry: CapabilityRegistry<ActionCallContext>, resolve: (reference: ActionReference) => HostCapabilityDescriptor | undefined,
   assertEnvironment?: (context: ActionCallContext, reference: ActionReference) => void): ActionExecutionContext {
+  // A reference to the running action that names no provider is this registration's own, not whichever provider the directory finds first.
+  const ownProvider = (source: ActionReference): ActionReference => !source.provider_id && source.capability_id === reference.capability_id
+    && source.version === reference.version ? { ...source, provider_id: reference.provider_id } : { ...source };
   const retain = (references: readonly ActionReference[], background = false, additionalPermissions: readonly string[] = [], audience?: "workflow"): RetainedActionAuthority => {
     assertCurrent();
     const required = Object.freeze([...new Set(additionalPermissions)]);
@@ -18,10 +21,11 @@ export function actionExecutionContext(context: ActionCallContext, reference: Ac
     // `audience` changes only how a target is seen (visibility and availability); the authority checks stay with the original caller.
     const viewed = audience ? { ...retainedContext, audience } : retainedContext;
     const snapshots = references.map(source => {
-      const reference = { ...source };
-      const definition = resolve(reference);
+      const definition = resolve(ownProvider(source));
       if (!definition?.action || !definition.action_provider || !visibleAction(definition as ActionDefinition, definition.action_provider, viewed)
-        || reference.provider_id && definition.action_provider.provider_id !== reference.provider_id) throw new ActionError("actions.forbidden", "不能保留未获授权的能力");
+        || source.provider_id && definition.action_provider.provider_id !== source.provider_id) throw new ActionError("actions.forbidden", "不能保留未获授权的能力");
+      // Every later check names the provider that was resolved here, so a grant per exact action (an MCP client's) matches it (BL-374).
+      const reference = { capability_id: source.capability_id, version: source.version, provider_id: definition.action_provider.provider_id };
       return { reference, definition, permissions: [...new Set([...definition.action.permissions, ...required])], token: registry.registrationToken(definition) };
     });
     const check = () => {
@@ -47,7 +51,8 @@ export function actionExecutionContext(context: ActionCallContext, reference: Ac
     };
     return Object.assign(guard, { assertCurrent: check });
   };
-  return { ...context, retain_background_authority: undefined, ...effectGuard(context, reference, permissions, assertCurrent, effect),
+  return { ...context, retain_background_authority: undefined, current_action: Object.freeze({ capability_id: reference.capability_id, version: reference.version, provider_id: reference.provider_id }),
+    ...effectGuard(context, reference, permissions, assertCurrent, effect),
     retainAuthority: (references, options) => retain(references, false, [], options?.audience), retainBackgroundAuthority: additionalPermissions => retain([reference], true, additionalPermissions) };
 }
 

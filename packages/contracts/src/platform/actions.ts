@@ -65,6 +65,20 @@ export interface HostOfferedOriginalFile {
 /** The languages a page is shown in; the words a handler sends back follow the caller's. */
 export type ActionLocale = "zh" | "en";
 
+/**
+ * Which protected entry a person's operation came through, and where to find it: audit locators that grant nothing on their own (PG-029).
+ * Only the entry gives it (a page route: `web`; a management command: `management`). A call made inside a running handler carries the one
+ * that handler was given, or none: the dispatcher refuses a nested call that brings its own. Never copied from tool or business input.
+ */
+export interface ActionUserAction {
+  readonly source: string;
+  readonly conversation_ref: string;
+  readonly message_ref: string;
+  /** Protected UI confirmation provenance; optional for operations without a whole-subject decision. */
+  readonly whole_confirmation_prompted?: boolean;
+  readonly prompted_subject_id?: string;
+}
+
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;
@@ -96,16 +110,8 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly runtime_session_missing?: true;
   /** Trusted audit classification; null when the trusted caller does not know it (not inferred). Never business input. */
   readonly actor_kind?: "user" | "runtime" | null;
-  /** Authenticated user-operation provenance supplied only by a protected Host adapter.
-   * These audit locators grant no authority on their own; never copy them from tool/business input. */
-  readonly user_action?: {
-    readonly source: string;
-    readonly conversation_ref: string;
-    readonly message_ref: string;
-    /** Protected UI confirmation provenance; optional for operations without a whole-subject decision. */
-    readonly whole_confirmation_prompted?: boolean;
-    readonly prompted_subject_id?: string;
-  };
+  /** Authenticated user-operation provenance supplied only by a protected Host entry (PG-029); see `ActionUserAction`. */
+  readonly user_action?: ActionUserAction;
   readonly project_id: string | null;
   readonly audience: ActionAudience;
   /** Host-bound installation identity for private Plugin SDK services. */
@@ -159,6 +165,8 @@ export interface RetainedActionAuthority {
 
 export interface ActionExecutionContext extends ActionCallContext {
   readonly beforeEffect: () => Promise<void>;
+  /** The action this handler runs, with the provider the dispatcher resolved: a plugin finds "its own action" here rather than naming itself (PG-030). */
+  readonly current_action?: ExactActionReference;
   /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect.
    * `audience: "workflow"` admits each target as the workflow audience sees it instead of this caller's own audience, for the Host when it calls
    * the targets under that audience on this caller's behalf (the plugin action directory, S-43). Every other check is the same, and the guard still grants nothing. */
@@ -536,12 +544,13 @@ function boundBackgroundAuthority(caller: ActionCallContext, definition: ActionD
 }
 
 /** Keep the originating operation's transport authority when it calls a nested action or scene.
- * This does not grant permissions; the dispatcher still checks each target's current registration and policy. */
-export function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference & { provider_id: string }, beforeEffect?: () => Promise<void>): Context {
+ * This does not grant permissions; the dispatcher still checks each target's current registration and policy.
+ * An origin without a provider is the running action itself: its provider is the one the dispatcher resolved (PG-030). */
+export function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference, beforeEffect?: () => Promise<void>): Context {
   const validate = context.validate_authority;
   const assertCurrent = context.assert_authority_current;
+  const pinned = pinnedOrigin(context, origin);
   if (!validate && !beforeEffect && !assertCurrent) return context;
-  const pinned = { capability_id: origin.capability_id, version: origin.version, provider_id: origin.provider_id };
   return { ...context, validate_authority: async (reference: ActionReference) => {
     await validate?.(pinned);
     if (reference.capability_id !== pinned.capability_id || reference.version !== pinned.version || reference.provider_id !== pinned.provider_id) await validate?.(reference);
@@ -553,6 +562,15 @@ export function retainActionAuthority<Context extends ActionCallContext>(context
       requireSynchronous(assertCurrent?.(reference, requiredPermissions), "最终授权检查必须同步完成");
     }
   } };
+}
+
+function pinnedOrigin(context: ActionCallContext, origin: ActionReference): ExactActionReference {
+  if (origin.provider_id) return { capability_id: origin.capability_id, version: origin.version, provider_id: origin.provider_id };
+  const running = (context as Partial<ActionExecutionContext>).current_action;
+  if (running?.capability_id !== origin.capability_id || running.version !== origin.version) {
+    throw new ActionError("actions.reference_invalid", "只有正在执行的动作可以省略提供方");
+  }
+  return { capability_id: running.capability_id, version: running.version, provider_id: running.provider_id };
 }
 
 /** A Manifest declares every permission its actions use; these stay optional because the Host grants them per call. */

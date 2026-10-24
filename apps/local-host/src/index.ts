@@ -25,7 +25,6 @@ export { dispatchDeclaredPluginRoutes, type DeclaredPluginRoutes } from "./plugi
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
 export { readMaterialLocalPage } from "./material-local-page.js";
-export { openHostShelfFiles, openHostShelfStore } from "./shelf-actions.js";
 export { isHostEndpointPort, trackHostChildEndpoint, trackHostPort } from "./host-endpoints.js";
 export { ORIGINAL_FILE_MAX_BYTES, readOriginalFile, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
 export type { PluginPlatform, PluginPlatformDatabase, PluginPlatformEntry, PluginPlatformOptions } from "./plugin-platform.js";
@@ -85,6 +84,7 @@ export { seedDemoBoard, DEMO_PROJECT_ID } from "./demo-seed.js";
 export {
   seedDemoPluginSurfaces,
   seedDemoProjectExtras,
+  seedDemoHomeSamples,
   enableDemoProjectPlugins,
   DEMO_GITHUB_SOURCE_ID,
   DEMO_GMAIL_SOURCE_ID,
@@ -138,7 +138,6 @@ export { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
 export { handleFeedNativePluginHttp, type FeedNativePluginHttpOptions } from "./feed-native-plugin-http.js";
 export { handleInboxNativePluginHttp, type InboxNativePluginHttpOptions } from "./inbox-native-plugin-http.js";
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
-export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 export { handleFunctionsHttp } from "./functions-http.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";

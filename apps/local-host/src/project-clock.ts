@@ -1,12 +1,12 @@
-import { createScheduleService, PluginWakeupIndex, type ScheduleService, type ScheduleSqliteDatabase } from "@molis-ai/molis-work-service-scheduler";
+import { createScheduleService, type ScheduleService, type ScheduleSqliteDatabase } from "@molis-ai/molis-work-service-scheduler";
 
 const clocks = new WeakMap<object, ScheduleService>();
 
-/** One project clock. Every plugin supplies its own declared action through the public scheduler service. */
+/** One project clock. Every wakeup is a plugin's own declared action, delivered through that installation's gateway; the Host registers no handler of its own. */
 export function scheduleServiceFor(db: ScheduleSqliteDatabase, now?: () => Date): ScheduleService {
   let clock = clocks.get(db);
   if (!clock) {
-    clock = createScheduleService(db, { wakeupIndex: new PluginWakeupIndex(), ...(now ? { now } : {}) });
+    clock = createScheduleService(db, now ? { now } : {});
     clocks.set(db, clock);
   }
   return clock;

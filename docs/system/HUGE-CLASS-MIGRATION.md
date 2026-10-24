@@ -1,6 +1,6 @@
 # 巨大单元清单与判定
 
-当前所有超过阈值的文件、类和函数，各自的 owner（包）、判定和计划。快照取自 main `4d59cd4d`（2026-10-08），之后 W1-05 把 `evaluateImportBoundary` 拆到阈值以下、从清单删去，W3-03 的 B2 把 `inspectActionDeclarations` 与 `inspectAgentDeclaration` 拆成按声明段的小函数、搬进 `packages/plugin-sdk` 并从清单删去，W4-06 把 `prologue-node.ts` 的文件与两个函数拆成九个模块、从清单删去，W4-07 把 Coding 的 `routes.ts` 文件与 `codingRouteBindings` 按资源拆成路由组、从清单删去，CHR-0 把 Characters 的 `createCharactersPlugin` 与 `start` 两个函数拆到阈值以下（处理器搬进 `modules/characters`，插件只绑定）、从清单删去，共 154 个单元，分布在 37 个包的 125 个文件里；实时数字以 `node scripts/check-health-gates.mjs --report` 为准，本表只在判定或计划变化时改。每个单元都有判定（拆、归线或例外），没有“待排期”。2026-09 的迁移记录（列的是已不存在的 `src/v1/coordinator.ts` 等）已移到 [归档](../archive/huge-class-migration-2026-09.md)。
+当前所有超过阈值的文件、类和函数，各自的 owner（包）、判定和计划。快照取自 main `4d59cd4d`（2026-10-08），之后 W1-05 把 `evaluateImportBoundary` 拆到阈值以下、从清单删去，W3-03 的 B2 把 `inspectActionDeclarations` 与 `inspectAgentDeclaration` 拆成按声明段的小函数、搬进 `packages/plugin-sdk` 并从清单删去，W4-06 把 `prologue-node.ts` 的文件与两个函数拆成九个模块、从清单删去，W4-07 把 Coding 的 `routes.ts` 文件与 `codingRouteBindings` 按资源拆成路由组、从清单删去，CHR-0 把 Characters 的 `createCharactersPlugin` 与 `start` 两个函数拆到阈值以下（处理器搬进 `modules/characters`，插件只绑定）、从清单删去，SC-3 把 Work 的 `handleWorkPanelHttp`、`startWorkTerminalClient`、`createTerminalPanels` 搬出 Work 并拆到阈值以下（面板路由进 Host 的 `web-panel-routes.ts`，终端进 `apps/workbench/src/terminal/`）、从清单删去，共 151 个单元，分布在 37 个包的 122 个文件里；实时数字以 `node scripts/check-health-gates.mjs --report` 为准，本表只在判定或计划变化时改。每个单元都有判定（拆、归线或例外），没有“待排期”。2026-09 的迁移记录（列的是已不存在的 `src/v1/coordinator.ts` 等）已移到 [归档](../archive/huge-class-migration-2026-09.md)。
 
 ## 1. 规则
 
@@ -37,19 +37,19 @@
 
 | 判定 | 文件 | 类 | 函数 | 合计 |
 | --- | ---: | ---: | ---: | ---: |
-| 拆 | 14 | 38 | 78 | 130 |
+| 拆 | 14 | 38 | 75 | 127 |
 | 归线 | 15 | 1 | 3 | 19 |
 | 例外 | 4 | 0 | 0 | 4 |
-| 合计 | 33 | 39 | 81 | 153 |
+| 合计 | 33 | 39 | 78 | 150 |
 
 - **例外**（4 个）已登记在 `tooling/gates/giant-exceptions.json`：样式表 3 份（动量、基础控件、Coding）、连接器声明表 1 份。`--report` 在这些单元后面标 `[exception: …]`。看起来像例外、但没有登记的两处：Pages 的样式表只超 12 行，开头 12 行是用 `PAGES_TONES` 生成的色调规则，移到 `tone.ts` 就回到 800 行；组件规格板 `primitives/catalog.ts` 里有一段 175 行带分支的演示脚本，不是静态数据，脚本归 W5-04，剩下的样例标记已有章节函数的雏形，照样拆。英文词典 `en.ts` 也不是例外：决定 #16 已定词典按主人分，它归 W5-03（见下），所以 `translation-table` 这一类现在没有条目。
 - **归线**（19 个）：浏览器脚本模板、旧皮肤和英文词典 `en.ts`（决定 #16，W5-03）等，路线里别的线会让它消失或换形态。归线的单元都有片号。Characters 的两个函数（`createCharactersPlugin`、`start`）曾挂在 W5-01 下，CHR-0 已把它们拆到阈值以下，不在清单里了（见下）。
-- **拆**（130 个，100 个文件）：其中 122 个归 W5-10（93 个文件，32 个批次；助理的 3 个单元 W4-05 已抽出提醒与跟进样板，仍超限，也在这 122 个里），其余 8 个归 W5-04、W5-07、W5-09（W3-03 的两个已由 B2 拆完并搬进 SDK，W4-06 的三个、W4-07 的两个、W5-09 的一个、W5-07 的两个已拆完）。
-- 全部单元里，45 个只超出阈值不到 20%（9 个文件、27 个函数、9 个类；类按行数与方法数里超得多的那一项算），其中 37 个在 W5-10；5 个类只因方法数超标（行数没超）；这些超出不多，是 W5-10 里最便宜的一批。
+- **拆**（127 个，97 个文件）：其中 120 个归 W5-10（91 个文件，32 个批次；助理的 3 个单元 W4-05 已抽出提醒与跟进样板，仍超限，也在这 120 个里），其余 7 个归 W5-04、W5-07、W5-09（SC-3 的三个已搬出 Work 并拆完，W3-03 的两个已由 B2 拆完并搬进 SDK，W4-06 的三个、W4-07 的两个、W5-09 的一个、W5-07 的两个已拆完）。
+- 全部单元里，44 个只超出阈值不到 20%（9 个文件、26 个函数、9 个类；类按行数与方法数里超得多的那一项算），其中 36 个在 W5-10；5 个类只因方法数超标（行数没超）；这些超出不多，是 W5-10 里最便宜的一批。
 
 ### W5-10 怎么做
 
-路线里 W5-10 的标题是“其余巨大单元拆分”，原文点名了助理协作者、Pages 编辑器的 `mount`、`hoverHandlePlugin` 与 `commands.ts`，之后“按决定搬助理包”。本清单把它的范围定为所有判定为“拆 · W5-10”的单元（122 个，93 个文件），做成一串 PR：**每个包一个 PR**，先做任务书 §4.5 第 3 条点名的助理、平台记忆服务、Pages 编辑器（Prologue 节点适配器的初始化函数与 Coding 的路由绑定已有 W4-06、W4-07），其余按窗口内被改动得最多的先做（并列的，单元多的在前，再按路径；窗口的定义在下表后面）。每个 PR 只拆自己包里的单元，拆完就在同一个 PR 里改本表对应的行并更新本地快查。下表是这一串的顺序：
+路线里 W5-10 的标题是“其余巨大单元拆分”，原文点名了助理协作者、Pages 编辑器的 `mount`、`hoverHandlePlugin` 与 `commands.ts`，之后“按决定搬助理包”。本清单把它的范围定为所有判定为“拆 · W5-10”的单元（120 个，91 个文件），做成一串 PR：**每个包一个 PR**，先做任务书 §4.5 第 3 条点名的助理、平台记忆服务、Pages 编辑器（Prologue 节点适配器的初始化函数与 Coding 的路由绑定已有 W4-06、W4-07），其余按窗口内被改动得最多的先做（并列的，单元多的在前，再按路径；窗口的定义在下表后面）。每个 PR 只拆自己包里的单元，拆完就在同一个 PR 里改本表对应的行并更新本地快查。下表是这一串的顺序：
 
 | 顺序 | 批次（包） | 文件 | 单元 | 窗口内改动它的合并数 | 备注 |
 | ---: | --- | ---: | ---: | ---: | --- |
@@ -63,7 +63,7 @@
 | 8 | `packages/plugin-runtime` | 4 | 5 | 9 | W3-06、W4-02 之前或同一 PR 先拆被它们碰到的类 |
 | 9 | `plugins/native/feed` | 1 | 1 | 7 | 不依赖 Feed 迁 Runtime 的专项计划 |
 | 10 | `plugins/native/workflows` | 1 | 1 | 6 |  |
-| 11 | `plugins/native/work` | 4 | 4 | 5 |  |
+| 11 | `plugins/native/work` | 2 | 2 | 5 | SC-3 已把面板路由与终端面板搬出 Work 并拆完 |
 | 12 | `plugins/native/plugin-builder` | 2 | 2 | 5 | 创作台属构建期例外清单，不迁 Runtime，就地拆（2026-10-18 改：不算插件、并进平台能力，仍就地拆） |
 | 13 | `horizontal/listener-host` | 1 | 1 | 5 |  |
 | 14 | `modules/feed` | 1 | 1 | 5 |  |
@@ -127,12 +127,12 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | W5-01 | 插件族逐个迁到 Runtime，每迁一族就删宿主里它的文件和 `registerProvider` 站点；Feed 另有专项计划（尚未写出） | 4 | `project-host.ts`、Feed 投影的页面渲染、Characters 的 `createCharactersPlugin` 与内嵌的 `start`（决定 #26 把这一项提到第 4 波） |
 | W5-02 | 声明式登记：目录和监督器名单由各包声明生成 | 1 | `project-host.ts`（与 W5-01 同） |
 | W5-03 | 翻译按主人分词典（决定 #16 改成稳定键），删无引用的键 | 1 | `en.ts` 变小，降到 800 行以下时删这一行 |
-| W5-04 | 浏览器代码逐个插件打包、类型检查，再做工作台客户端分段 | 18 | 11 个浏览器脚本模板、`toString` 注入的函数（`createTabWorkspaceOps`、`createPluginComponentClient`、`createCodingTimeline`）、Work 终端客户端、`craft-finish.ts` 与 `primitives/catalog.ts` 里的脚本 |
+| W5-04 | 浏览器代码逐个插件打包、类型检查，再做工作台客户端分段 | 17 | 11 个浏览器脚本模板、`toString` 注入的函数（`createTabWorkspaceOps`、`createPluginComponentClient`、`createCodingTimeline`）、`craft-finish.ts` 与 `primitives/catalog.ts` 里的脚本 |
 | W5-05 | 逐个删旧皮肤，并降低页面预算和巨大单元基线 | 0 | 已做（第 1～5 片）：`personal-workbench-v3.ts`、`calm-desktop.ts` 都已删 |
 | W5-06 | 声明式贡献挂载器代替 15 个 Goals 挂载适配器；`goals-page-renderer.ts` 改名，留在工作台 | — | 第 1 片已做：UiHost `mountDeclared` 按 surface 声明的 slot 挂，`createSurfaceRenderers` 按 Goals 自己导出的「方法→surface」表造渲染方法，11 个 `goals-*-ui.ts` 转接文件与 9 张 surface→slot 表删掉；文件改名 `shell-page-renderer.ts`，函数名 `createWorkbenchGoalsPageRenderer` 留到 W5-10 拆它时再改（巨大单元按函数名记，改名会被当成新的巨大单元）。不拆那两个函数（适配器是别的文件）。第 2 片已做：舞台按 Manifest `views` 挂（新文件 `declared-stages.ts`），外壳里九行手写舞台和目录的空占位键删掉，两个函数都变短了 |
 | W5-07 | `handleMolisWorkWebRequest` 改成注册表 | 2 | 已拆完：按顺序尝试的路由表（`web-route-table.ts`），表写在宿主里、`*-http` 模块不动（统筹 10-17 定，理由见防腐 spec §4.5 一行） |
 | W5-09 | `contracts` 的 `services/agent-host.ts` 按领域拆，纯搬移，由 API 快照守着 | 1 | `agent-host.ts` 合同；已拆完：入口留描述符、错误码、`AgentHostApi` 与 `agentHostCapabilities`，其余按领域放进旁边的 `agent-host-*.ts`（运行时、启动、会话、运行视图、审查、端口、创作台），子路径与 API 快照不变 |
-| W5-10 | 其余巨大单元拆分（范围见上） | 122 | 122 个，含助理协作者、Pages 编辑器与命令 |
+| W5-10 | 其余巨大单元拆分（范围见上） | 120 | 120 个，含助理协作者、Pages 编辑器与命令 |
 | W5-11 | 宿主瘦身：连接器提供方设置与 OAuth 移进官方连接器插件，或按决定 #7 作为宿主管理接口留下 | 1 | `web-connectors-settings.ts` |
 | W2-08、W3-07 | 删 Goals 无生产调用方的类型化桥；管理入口改走动作并删剩余桥（工作区读取只留一个 id 已由 W2-09 做完，函数仍 270 行：删了两处登记，补了整份文件只给宿主运行的插件的判断） | 1 | `project-capabilities.ts` |
 | W2-06 | 删四处跨主人 SQL（含 `demo-seed.ts` 一处） | — | 只删几行，不改判定 |
@@ -310,9 +310,6 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `todo` | `src/client.ts` | 文件 1,245 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（1,240/1,245 行）；Todo 是第二个迁 Runtime 的样板。 | 3 |
 | `todo` | `src/store.ts` | `TodoStore` 类 381 行 / 28 方法 | 拆 · W5-10 | `TodoStore` 28 个方法分三组：读（`list`、`get`、`backlinks`、`history`、`dueReminders`）、写（`create` 48、`update`、`move`、`setStatus`、`setArchived`、`delete`、`batch`、`revert` 38）、链接与来源（`link` 30、`addSource`、`normalizeLink`）。 | 4 |
 | `work` | `src/actions.ts` | `createWorkActionHandlers` 函数 169 行 | 拆 · W5-10 | 只超 19 行。`createWorkActionHandlers` 返回的处理器表 143 行，每个动作一个处理函数；`workActions` 声明（57 行）不动。 | 2 |
-| `work` | `src/http/panels.ts` | `handleWorkPanelHttp` 函数 163 行 | 拆 · W5-10 | `handleWorkPanelHttp` 的 `try` 块 153 行，按 `panelsMatch`、`promptMatch`、`panelMatch`、`exitedMatch`、`reopenMatch` 等路由分支，每个路由一个处理函数。 | 3 |
-| `work` | `src/terminal/client.ts` | `startWorkTerminalClient` 函数 438 行 | 拆 · W5-04 | 浏览器里跑的终端客户端，整个函数在一个 `if` 里（430 行）。W5-04 把 Work 的浏览器代码打包成类型检查的模块时拆开。（对 W5-04 范围的解释同 `tab-workspace-ops.ts`。） | 1 |
-| `work` | `src/terminal/panels.ts` | `createTerminalPanels` 函数 365 行 | 拆 · W5-10 | `createTerminalPanels` 里 `spawnPanel`（87）、`handlePtyMessage`（48）、`openPanel`（35）、`loadPanels`（33）、`reconnectLivePanels`（27）、`reopenPanel`（19）各成模块。 | 1 |
 | `work` | `src/ui/render.ts` | `renderWorkSessionSurface` 函数 350 行 | 拆 · W5-10 | `renderWorkSessionSurface` 里 `renderSessionDetail`（85）、`renderOverlays`（81）、`renderSessionRow`（29）、`groupSessionRecords`（19）、`renderRuntimeFold`（15）各成模块。 | 0 |
 | `workflows` | `src/actions.ts` | `createWorkflowsActionHandlers` 函数 268 行 | 拆 · W5-10 | `createWorkflowsActionHandlers` 里 `prepareHandoff`（44）、`runActionStep`（28）、`readStep`（15）、`judge`（12）、`reachFor`、`resolveAction`（各 10）和 100 行的返回表；按步骤种类各成函数。 | 6 |
 | `workflows` | `src/client.ts` | 文件 1,387 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（1,378/1,387 行）。 | 3 |

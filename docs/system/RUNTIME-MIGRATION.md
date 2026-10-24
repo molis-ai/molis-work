@@ -83,7 +83,7 @@ Workflows 已由 Plugin Runtime 装配（防腐 spec W5-01-WORKFLOWS）：宿主
 - **每个项目一个实例**：提供方今天按项目登记的（同文件第 189–206 行，`this.host.actionRegistry(reference)`）：Form、Dataset、PPT、Pages、灵光、Workflows、Inbox、Schedule、Feed，共 9 个。监督器条目放在 `project-plugins.ts` 的 `startPlatform`，和 Shelf、Coding 一族一样。
 - **用户已确认（2026-10-10，防腐 spec §1）。** Form、Dataset、PPT、Pages、灵光、Workflows 每个项目一个 Runtime 实例，原 Home 库仍按项目分区；Todo、Jelly、Cognia、Images、Alchemist 是 Home 级实例。目录的 `personal` 仍只表示每个项目都可用，不决定实例作用域。
 
-**混合插件**（在 `RUNTIME_ASSEMBLED` 里，宿主却仍留着手写文件，门禁看不出来）：Shelf 仍有 `shelf-native-plugin-http.ts`、`personal-native-plugin-http.ts`、`shelf-actions.ts`（只剩演示种子用的 `openHostShelfFiles`、`openHostShelfStore`）；它的 Home 一半和项目一半都是 Runtime 实例（#1018，registration 的 `runtime: { scope: "home", dual_instance: true }`），`project-host.ts` 不再登记它的提供方，模型调用从 Shelf S2 起也在插件里（`services.model`）。它的收拢在 W5-01 的最后一组。Characters 原来也是混合插件（宿主里有 `characters-host.ts` 等文件），现在走另一条路：并进宿主（第 5.4 节；CHR-1 已做，2026-10-22）。
+**混合插件**（在 `RUNTIME_ASSEMBLED` 里，宿主却仍留着手写文件，门禁看不出来）：名单（`tests/builtin-plugin-assembly-gate.test.ts` 的 `HYBRID_RUNTIME_PLUGINS`）现在只剩 Coding（Git 已随 G5 移出）。Shelf 已收拢（S4，2026-10-23）：Home 与项目两半的动作和模型调用从 Shelf S2 起是 Runtime 实例（registration 的 `runtime: { scope: "home", dual_instance }`，项目提供方 #1018 已删），路由（`/api/plugins/io.molis.work.shelf/…`）从 S3 起只由插件声明，`shelf-native-plugin-http.ts` 已删，`personal-native-plugin-http.ts` 只剩 Alchemist；S4 删了 `shelf-actions.ts`，演示数据的示例改由常驻宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回（PG-026-S1）。宿主替 Shelf 拼设置节（`web-catalog.ts` 按贡献 id 分支）不是 Shelf 名下的文件，归 PG-072。Characters 原来也是混合插件（宿主里有 `characters-host.ts` 等文件），现在走另一条路：并进宿主（第 5.4 节；CHR-1 已做，2026-10-22）。
 
 ## 3. 批准的构建期例外
 
@@ -196,7 +196,7 @@ Todo 打开 Home 级路径：它是第一个迁到 Home 级实例上的插件，
 2. 个人族：Jelly、Cognia、灵光、Images。其中 Jelly、Cognia、Images 依赖 Home 级实例；灵光按 2.2 的放置规则是每个项目一个。Images 有长驻的 `ImagesHostService`，有一处额外适配。
 3. 流程族：Schedule、Workflows、Inbox。Schedule 的提醒和定时操作与宿主调度器相连，Workflows 要通过动作目录调其他插件，Inbox 与 Feed 有判断场景绑定；碰到 4.2 的项目库表问题。Inbox 和 Workflows 还在代码里写死了自己的 `provider_id`，Inbox 还钉着 Pages（4.2 第 3 类后果）：4.2 已定内置插件保持 `plugin_id`（用户 2026-10-10，W3-06 C），这些钉死处不用改，迁 Pages 也不会让 Inbox 的动作不可用，迁移顺序不受它牵制。
 4. Feed：被 29 个宿主文件 import，来源、信号、连接器、Inbox 都和它相连，单独写计划再迁。
-5. 混合插件收拢：Shelf（删 `shelf-native-plugin-http.ts`、`personal-native-plugin-http.ts`、两处 `registerProvider`）。
+5. 混合插件收拢：Shelf 已做（S2 Runtime 实例；S3 路由：项目提供方与 `shelf-native-plugin-http.ts` 已删；S4 演示种子走 Shelf 的动作 `shelf.sample.seed`，删 `shelf-actions.ts`，移出混合名单）。
 6. Alchemist：最后迁，它有自己的宿主服务和每项目工作室库。（2026-10-21 用户定：不迁，防腐收尾后删除再重做，见防腐 spec §1 的 2026-10-21 行与 BL-376。）
 
 ### 5.4 Characters：并进宿主，不是迁到 Runtime

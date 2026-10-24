@@ -126,6 +126,12 @@
       ],
       "reason": "Contextual ranking's Host side (service, judgment, HTTP edge); its codes already start with contextual."
     },
+    "desktop": {
+      "paths": [
+        "apps/desktop/src/launch.ts"
+      ],
+      "reason": "The desktop app's Goal terminal launch recipes: which command and arguments open each Runtime in a terminal panel. A custom terminal without a command is refused as desktop.launch_command_required (invalid), so the panel route answers 400 with a code instead of an uncoded failure."
+    },
     "diff": {
       "paths": [
         "packages/plugin-sdk/src/unified-diff.ts"
@@ -294,10 +300,9 @@
     },
     "shelf": {
       "paths": [
-        "modules/shelf/",
-        "apps/local-host/src/shelf-*"
+        "modules/shelf/"
       ],
-      "reason": "The Shelf module, plugin and its Host AI file; its codes already start with shelf."
+      "reason": "The Shelf module and plugin; its codes already start with shelf."
     },
     "signals": {
       "paths": [

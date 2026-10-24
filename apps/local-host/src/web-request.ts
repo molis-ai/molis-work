@@ -32,7 +32,6 @@ import { cachedMolisWorkWebView, lookingForArea, type MolisWorkWebViewCache } fr
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
-import { SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
@@ -49,6 +48,7 @@ import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
 import {
   agentReviewsRoute, boardRoute, desktopPanelRoute, directoryGrantRoute, pluginPageRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
   projectProbeRoutes, projectWorkspacesRoute, projectWriteCheckersRoute, runtimePluginsRoute, sessionsAddressRoute, sideFilesRoute, sideViewRoute,
+  workspaceMembershipRoute,
 } from "./web-project-platform-routes.js";
 
 /**
@@ -145,14 +145,14 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
 /** The ports of the project's open runtime, built in the order the page needs them. */
 function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWorkProjectRuntime): ProjectRuntimeContext {
   const { localHost, hostReference, options } = context;
-  const { store, coordinator, artifacts, processItems } = runtime;
+  const { store, artifacts, processItems } = runtime;
   const feedOptions = projectFeedOptions(localHost, hostReference);
   const homeActions = bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
   const goalActions = bindGoalsWebActions(localHost.actionClient(hostReference), hostReference);
   const pluginServices = projectPluginServices(context);
   const pluginPorts: CodingSurfacePorts = { ...pluginServices, routeCaller: () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS), store, artifacts, processItems, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
     actorId: LOCAL_PERSON_ACTOR_ID, escapeHtml: (value) => String(value) };
-  const withoutView = { ...context, store, coordinator, feedOptions, homeActions, goalActions, pluginServices, pluginPorts };
+  const withoutView = { ...context, store, feedOptions, homeActions, goalActions, pluginServices, pluginPorts };
   return { ...withoutView, readWebView: projectWebView(withoutView) };
 }
 
@@ -186,17 +186,14 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
 /** The person in this project, under one plugin's permissions. */
 const asPerson = ({ localHost, hostReference }: ProjectRuntimeContext, permissions: readonly string[]) =>
   bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user", permissions: [...permissions] }));
-/** The person outside any project (a Home plugin), with the surface's transport. */
-const asHomePerson = (localHost: MolisWorkLocalHost, permissions: readonly string[], transport: object) =>
-  bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [...permissions], ...transport }));
 
 /** Sessions, the Goals settings and planning pages: the project's work and its Goals, read by their owners. */
 const sessionsAndPlanningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "sessions", handle: ({ request, response, url, serverOptions, options, sessionResources, readWebView, composition, localHost, hostReference }) =>
     composition.handleSessions(request, response, url, serverOptions.homeDirectory, options, sessionResources, readWebView,
       bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user",
-        // Goal read lets a session association check the Goal through its owner; project settings cover the folder membership this page manages.
-        project_id: hostReference.project_id, audience: "user", permissions: [...WORK_ACTION_PERMISSIONS, "goals:read", "projects:settings"] }))) },
+        // Goal read lets a session association check the Goal through its owner.
+        project_id: hostReference.project_id, audience: "user", permissions: [...WORK_ACTION_PERMISSIONS, "goals:read"] }))) },
   { id: "goals-settings", handle: ({ request, response, url, readWebView, controlToken, goalActions, composition }) =>
     composition.goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions) },
   { id: "planning", handle: ({ request, response, url, controlToken, readWebView, goalActions, composition, localHost }) =>
@@ -207,7 +204,6 @@ const sessionsAndPlanningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 const nativePluginRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "personal", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost, userActions }) => Boolean(serverOptions.homeDirectory)
     && await handlePersonalNativePluginHttp(request, response, url, {
-      projectId: options.project?.project_id ?? "",
       alchemist: { projectId: hostReference.project_id, routePrefix: options.routePrefix ?? "",
         actions: { invoke: async (definition, input, signal) => {
           if (!signal) throw new ActionError("actions.forbidden", "缺少请求生命周期");
@@ -216,11 +212,6 @@ const nativePluginRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
           });
           return userActions(ALCHEMIST_ACTION_PERMISSIONS).invoke(definition, input, control);
         } } },
-      shelf: {
-        actions: asHomePerson(localHost, SHELF_ACTION_PERMISSIONS, {}),
-        project: { title: options.project?.display_name ?? options.projectId,
-          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user", permissions: SHELF_PROJECT_ACTION_PERMISSIONS })) },
-      },
     }) },
 ];
 
@@ -283,7 +274,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
     projectWebView(context, { includeStageIds: true }), asPerson(context, WORK_ACTION_PERMISSIONS), context.controlToken, context.goalActions,
-    asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.coordinator, context.store,
+    asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.store,
     { ...context.pluginServices, artifacts: context.pluginPorts.artifacts, processItems: context.pluginPorts.processItems }) },
 ];
 
@@ -296,6 +287,7 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "characters", handle: ({ request, response, url, localHost, hostReference }) => handleCharactersHttp(request, response, url, hostCharactersInvoke(localHost, hostReference)) },
   runtimePluginsRoute,
   sessionsAddressRoute,
+  workspaceMembershipRoute,
   ...sessionsAndPlanningRoutes,
   ...projectProbeRoutes,
   { id: "goal-fragments", handle: context => context.composition.goalsReadHttp.fragments(context.request, context.response, context.url, context.readWebView, context.goalActions,

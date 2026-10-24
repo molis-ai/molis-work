@@ -7,7 +7,7 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type Action
 import type { PluginDatabaseTransaction, PluginDefinition, PluginHostServices, PluginScheduleWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { createScheduleService, PluginWakeupIndex } from "@molis-ai/molis-work-service-scheduler";
+import { createScheduleService } from "@molis-ai/molis-work-service-scheduler";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./plugin-actions.js";
 
@@ -15,8 +15,8 @@ import { pluginActions } from "./plugin-actions.js";
 export async function pluginSchedulerFixture(t: TestContext, options: { directory?: string; now?: () => Date } = {}) {
   const directory = options.directory ?? mkdtempSync(join(tmpdir(), "plugin-scheduler-")), file = join(directory, "project.db");
   if (!existsSync(file)) seedDemoBoard(file);
-  const store = new LocalProjectDatabase(file), index = new PluginWakeupIndex();
-  const scheduler = createScheduleService(store.db, { wakeupIndex: index, now: options.now });
+  const store = new LocalProjectDatabase(file);
+  const scheduler = createScheduleService(store.db, { now: options.now });
   const ports = { db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event), eventCursor: (id: string) => store.eventCursor(id) };
   const actions = pluginActions(store, DEMO_PROJECT_ID);
   const platform = createPluginPlatform({ db: store.db, project_id: DEMO_PROJECT_ID, actor_id: "tester", actions, scheduler,
@@ -58,5 +58,5 @@ export async function pluginSchedulerFixture(t: TestContext, options: { director
       count: () => Number((store.db.prepare(`SELECT COUNT(*) AS n FROM ${name}_notes`).get() as { n: number }).n),
       stop: () => platform.runtime.stop(install().install_id) };
   };
-  return { start, scheduler, index, directory, file };
+  return { start, scheduler, directory, file };
 }

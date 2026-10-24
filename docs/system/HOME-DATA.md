@@ -256,7 +256,7 @@ Sessions 插件下线（SC-4）后，没有任何代码打开 `sessions/sessions
 MCP 配置 v3 是 ACA005 修复的维护前置：运行时拒绝 v2 和坏配置且不改原件。按 [ACA005 的离线维护合同](../../specs/repository-anti-corruption/slices/aca-005-search-authority.md) 在临时 Home/副本 list/apply，保留原 client、scope、精确引用、权限、enabled，由管理 owner 建立各行新代次；原件外置备份、失败可恢复、重复不换代。此一次性维护交 W5-17/统一发布窗口，不在正常读路径迁移，不改变产品版本；真实 Home 另需当次授权。
 
 
-受管工具的维护边界：`runtime/connectors/installs/<id>/installation.json` 记录安装 id、固定来源和版本、命令路径、运行时路径及完成状态，npm 的锁文件与 Python 的 `requirements.lock` 记录依赖。它们与 `connectors/connectors.db` 中的 `installation_id` 引用应在停止宿主后一起备份；平台管理的连接凭据归现有 SecretStore，而第三方 CLI 写在私有 `.home` 的文件也可能含凭据，不能按普通程序文件复制。W5-16 B2b 使用同一平台 master 密封这些必要文件，不改第三方格式、不导出 master；原 `.home` 丢失且原 key 尚在须可恢复，第三方会话本身过期仍需重新授权。受管接入在 `startConnectorSetupSubmission` → `beginConnectorAuthorization` → `bindConnectorAuthorizationProtocol` 已初始化 master；完成清除 presentation 后即便 vault 条目为空，CLI payload 的原 backend/key 依赖仍须单独保留和校验，不能补造替代 key。路径是本机绝对路径，直接恢复限原 Home 路径；换机器或路径应重新准备、安装和验证连接，不能只复制清单并改成完成。`runtimes/` 是多个安装可共享的运行时，`cache/` 是可重建缓存；停止安装及连接进程后才做缓存清理。连接移除经安装器重新核对引用、真实路径与所有权记录，只删除已无连接引用的那一份 `installs/<id>`，保留共享运行时和业务工作目录。当前不提供自动清除孤立安装或共享运行时的维护任务；维护真实 Home 仍须随发布取得授权，不由本 PR 提前操作。
+受管工具的维护边界：`runtime/connectors/installs/<id>/installation.json` 记录安装 id、固定来源和版本、命令路径、运行时路径及完成状态，npm 的锁文件与 Python 的 `requirements.lock` 记录依赖。它们与 `connectors/connectors.db` 中的 `installation_id` 引用应在停止宿主后一起备份；平台管理的连接凭据归现有 SecretStore，而第三方 CLI 写在私有 `.home` 的文件也可能含凭据，不能按普通程序文件复制。W5-16 B2b 的 `captureConnectorPrivateState` 使用同一平台 master 在内存中密封这些必要文件，不改第三方格式、不导出 master；原 `.home` 丢失且原 key 尚在时，`preflightConnectorPrivateStateRestore` 可在核对当前完整安装集合后给出原字节/目录与文件权限的完整内存计划；它不写目标，最终发布由统一恢复命令接续。第三方会话本身过期仍需重新授权。受管接入在 `startConnectorSetupSubmission` → `beginConnectorAuthorization` → `bindConnectorAuthorizationProtocol` 已初始化 master；完成清除 presentation 后即便 vault 条目为空，正常 SecretStore 重开仍绑定持久 backend，CLI payload 的原 backend/key 依赖单独保留和校验，不能按新偏好切换或补造替代 key。路径是本机绝对路径，直接恢复限原 Home 路径；换机器或路径应重新准备、安装和验证连接，不能只复制清单并改成完成。`runtimes/` 是多个安装可共享的运行时，`cache/` 是可重建缓存；停止安装及连接进程后才做缓存清理。连接移除经安装器重新核对引用、真实路径与所有权记录，只删除已无连接引用的那一份 `installs/<id>`，保留共享运行时和业务工作目录。当前不提供自动清除孤立安装或共享运行时的维护任务；维护真实 Home 仍须随发布取得授权，不由本 PR 提前操作。
 
 `config/casebook.json`（从前由 Casebook 通道读取）自 2026-10-10 起不再被任何代码读取；Home 里留着的这个文件是残留，含服务端凭据，按密钥对待，处置见 `specs/repository-anti-corruption/spec.md` §4.1 的维护六。
 
@@ -264,7 +264,7 @@ MCP 配置 v3 是 ACA005 修复的维护前置：运行时拒绝 v2 和坏配置
 
 产品里没有备份命令；`docs/installation.md` 的“离线备份与恢复边界”只说明退出后整份拷贝，`tests/home-backup-recovery.test.ts` 的两条用例只覆盖目录库、项目库、会话库（含加密正文与密钥）和成果版本，不覆盖下面其余的组。SQLite 文件在 WAL 模式下旁边有 `-wal`、`-shm`，只拷 `.db` 会丢最近的提交。
 
-W5-16 实施中的新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key`；下表的配对描述依赖关系，新的同 Home 恢复只保存非敏感依赖引用并校验原钥匙。B2a 已提供 Runtime 配置备份密封与只读 vault 预检；CLI 私有状态密封、早期互斥、完整 snapshot/restore 仍待实施，不能用既有局部恢复用例宣称全部覆盖。逐项现行登记的凭据策略见 [W5-16 slice](../../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
+W5-16 实施中的新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key`；下表的配对描述依赖关系，新的同 Home 恢复只保存非敏感依赖引用并校验原钥匙。B2a 已提供 Runtime 配置备份密封与只读 vault 预检；B2b 已提供 CLI 私有状态密封和完整内存预检 owner，早期互斥、统一发布/回滚与完整 snapshot/restore 仍待实施，不能用既有局部恢复用例宣称全部覆盖。逐项现行登记的凭据策略见 [W5-16 slice](../../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
 
 | 组 | 成员 | 为什么要同一时点 |
 | --- | --- | --- |

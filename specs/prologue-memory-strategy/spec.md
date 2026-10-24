@@ -1,6 +1,6 @@
 # Prologue 记忆策略与 Molis Work 接入
 
-状态：首期实施已获用户授权（2026-10-22）；C0/Q0 已独立交付，Molis C0/Q0 已合入 main；Prologue C0 与 S1 版本恢复、分类授权、业务 key、管理分页、停用恢复及候选期限检查已合入 main；M1 配置采用第一片已完成工程回归并合入 main；完整 P0 的形成、召回、SDK 接入和产品验收仍未完成；后续按 §9.3 的依赖推进。负责人：当前统筹会话；SDK 合同、Molis 产品合同、质量基线分别有执行负责人。已确认目标仍是 Molis Work 的记忆更精准、好用、省 token，以及 Prologue 的多策略组合和 App 自定义记忆矩阵。实施和验证事实只记在 §13；未通过的标准不因计划或合同落地而算完成。用户随后已授权按可独立验收部分提交、推送、开 PR，合并按依赖顺序；真实 Home 数据采用与发布仍不在本次范围内。
+状态：首期实施已获用户授权（2026-10-22）；C0/Q0 已独立交付，Molis C0/Q0 已合入 main；Prologue C0 与 S1 版本恢复、分类授权、业务 key、管理分页、停用恢复及候选期限检查已合入 main；M1 配置采用第一片已完成工程回归并合入 main；完整 P0 的形成、召回、SDK 接入和产品验收仍未完成；后续按 §9.3 的依赖推进。负责人：当前统筹会话；SDK 合同、Molis 产品合同、质量基线分别有执行负责人。已确认目标仍是 Molis Work 的记忆更精准、好用、省 token，以及 Prologue 的多策略组合和 App 自定义记忆矩阵。实施和验证事实只记在 §13；未通过的标准不因计划或合同落地而算完成。用户随后已授权分片提交和依赖交付；2026-10-25 改为尽可能聚合大 PR，复用 #1101 收齐后续 Memory P0 应用片，原独立验收不放宽。真实 Home 数据采用与发布仍不在本次范围内。
 
 ## 1. 用户结果与责任边界
 
@@ -1356,3 +1356,39 @@ boundary、API/Action与diff通过；实际27资源共7,806,260 B，只有workbe
 
 
 #1154 原操作恢复的期限边界复核（2026-10-25）：现续期短合同已规定新期限在等待或重试时到期仍失败；App 和 SDK96 均按当前期限检查。因此 SDK 已提交而 ledger 尚未补齐的原操作，也只有在新期限仍有效时可继续补账，跨期限的 pending 账本不会自动完成。本次只明确现合同和实际调用链，不放宽权限或恢复语义；现测试分别覆盖提交后补账与过期重试拒绝，尚未直接实跑两者组合，不将其记为已验证。若后续要求跨期限只补原账，须先调整 SDK 已提交恢复合同，不能只移除 App 检查。
+
+
+### Memory P0 应用聚合集成短合同（2026-10-25，源码合并前）
+
+用户把交付粒度改为尽可能一个大 PR，本轮复用 #1101，保留下表所有历史提交和原验收，不新开微片 PR、不 squash。准确基础是 #1064 `1c2ddcbe44adf8241bf7f36b5da1d5d241adbbf8`（已含 main `2dd535912`）；其完整 Full suite 仍由统筹收束。独立集成树从 #1101 fast-forward 到 #1154，再合准确基础及叶子 #1160、#1177、#1189、#1203、#1196；先收齐源码再一次整体构建和按实际影响去重验证，全量由统筹运行。原 14 条分支与工作树保持不变，不提前关闭旧 Draft。
+
+| 原 PR | 固定 head | 已有职责 |
+| --- | --- | --- |
+| #1101 | f27f62263f21cbd3ba4e8ef374ae5debcce6147b | 管理分页、分类筛选、真实状态 |
+| #1111 | 59cd2caec89acdb79c7db61568983cdb0ec52928 | 逐条分类纠正 |
+| #1153 | c10c22ac3ce8573c71845de7a7186ef722b88909 | 独立读取与形成控制、原 Run 冻结 |
+| #1154 | 4e07b11582c72c2677787ec3199d9b7094d47354 | 到期正式记忆明确续期 |
+| #1155 | 66f32c4a69ab0cdf542e7accaa217be0679de10e | 缺完整快照时明确使用旧文字 |
+| #1160 | a9d66bc8ff9aa41b1b3b7fe00136ae1d2701eb4e | 选定批量、版本与原决定 |
+| #1177 | 05eaa99b34a30ca442682fa10eca1f96f6383451 | 旧导入的明确采用 |
+| #1184 | f4908179604a8a175557c80dfe71c2162975ac5d | 采用后的去正文清理 |
+| #1189 | ac1d43569dcc1de8d8a381f47104cb085cac1ea7 | 单轮明确扩展读取 |
+| #1192 | 8386b235515818b123c1692c6c14a991339ab34d | SDK Session 生命周期与原决定 |
+| #1193 | 6a5ed01ef9bc18b5499a6cbbc999ebb5e4142786 | 晋升等待的即时取消 |
+| #1195 | ec70a1bc66aeb604c81684019c8b3abe3b659ca5 | 删除原身份与后继版本隔离 |
+| #1196 | 415ce1559d1f7b7dbeab5c1b4b40a6ce8dc7c2df | Coding 静止会话归档消费者 |
+| #1203 | 3c5802b78678d9a116d4d3112ea9fc0a81425afc | 旧候选明确采用及项目查询隔离 |
+
+复杂度与调用链：复用现 Memory Service/ledger、AgentHost 唯一 SDK Adapter、SessionIndex 原决定、PluginRuntime 与通用 WorkExecutor；不新增执行核、状态库、registry 或兼容层。硬边界仍是可信 actor/project/install、当前权限与取消、原请求/版本/CAS、scope 隔离、单一正文写主人；可替换部分沿原 Backend/Host/模型替身口。App 传入本人所见版本、明确分类/绝对期限/选中范围及原操作，用户在现页面决定读取、形成、续期、采用和归档；模型不能伪造身份或扩大权限。
+
+源码合并允许路径是上述固定提交的现有变更及其必要生产调用方、回归、README/spec、来源记录与实际生成的合同/资源快照；不更改门禁规则、阈值或 CI。保留新父 generic WorkExecutor、R8 全 Action、MCP v3 设置写主人及 generation、原件结构复制和后台清证明、新 Coding stage/ui-host。旧 assistant-coding.ts 已删除，旧固定版本修复只按现通用协议落实，不恢复 Coding 专用宿主路径。Run 扩展与候选合并必须同时保留 explicit/disable 授权、冻结分类、TTL 新提交最后门、原信号和已提交对账。
+
+公开合同按现规则明确迁移：准确父 startRun/readSession/readRun/wait 均为 @2；本片 class_restrictions/memory_scene 扩展 runViewOutput，因此三个读取口 readSession/readRun/wait 改为 @3，startRun 仍 @2；capability_id 不变，仅现行版本，无兼容层。核全部固定仓内消费者、插件 manifest/PluginRunner 发现、真实公开 start→read/wait 输出校验与伪造身份拒绝。Host-only memory_context 不开放为插件业务输入。其它原片已批准 Action/API 变化保留，快照在最终构建后实际生成，不手编。
+
+最终运行只用 SDK100 的 memory-p0 包，来源 Prologue #100 merge `a83e04761108a21f04f9a1b2a67c1dc8cb1582fe`、干净 head `bc0d996733e87bdd73d2ce01109ce2fb6309b0f8`（整树相同），1,365,062 B，SHA-256 `d42b1699b0bd7a41db97521b27dadf892feff27d560047dcd4e8ec2f6eea700e`。94/95 的 squash tree 等价及96/99祖先已核，100包含95分类最终授权、96续期、97旧候选明确接受、98生命周期/身份删除、99去正文清理。只保留仓库已准许的 retry-waiting 旧在途副本，不并存95/96/99运行包；vendor/来源/测试/lock与100同一归档一致，锁同时保留准确父全部依赖。
+
+资源一次性组合上限沿原授权，不是本次新额度或实测：workbench 最多 +28,830 B（3437+5635+3024+1680+480+4794+8035+1745），settings.css 与 workbench.css 各最多 +680 B（488+192），Coding 最多 +570 B，其余23项不增长。只计实际归并代码；相对准确父逐项测量，去重后冻结实际净增，不自动吃满上限，不沿旧父重复累计或保留失效绝对基准。
+
+正常、拒绝、取消与恢复沿各原短合同：真实 Node/持久存储/SQLite/公开 Host Action/HTTP 验证正常结果和拒绝后的持久状态；分类/续期/批量/导入/候选保留同版本竞争、丢回应、SDK 已提交但业务失败、原请求重启重试与后继冲突；Run 扩展核第一工具早于 start 返回、等待过期与安装撤权；生命周期核静止归档、忙/待批拒绝、原决定、业务写失败、取消与重启。页面按原非空场景真实 Chrome 操作，jobs2/browser1/retries0，固定 Node24.14/pnpm11.9；权限明确的 loopback/Chrome 与缓存安装首次使用已批准权限。安装/build、根与 workspace 类型、README 去重必需集、API/Action 实际生成、准确父 health/boundary/资源/secrets/diff 均须完成；未变路径引用其准确旧 head 证据，不冒称新树实跑。
+
+尚未闭合的边界保留：续期提交后 pending 跨新期限不自动补账，组合故障尚未直接实跑；候选持完整原请求可重启/跨TTL对账，离页刷新不保证重建，个人自身 pending accept 的 overview 自动过期冲突仍存在；原 CDP/Page.navigate 与 async_id 首败原因未知，不能用补验抹去。Assistant 自有 Session archive/unarchive/start 恢复、项目删除、Session 管理与 MEM-40 等未完 P0 继续在此 Draft 按原合同推进，不因14片合入宣称完成。本次合并不顺手实现这些后继；#1198全站视觉 UNKNOWN 仍独立，付费B2预算未批准，真实模型零调用。最终工程、完整产品实操与用户验收分开记录。

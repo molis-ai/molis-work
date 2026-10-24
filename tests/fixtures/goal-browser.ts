@@ -18,7 +18,6 @@ const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void = seedDemoBoard, completion?: HostCompleteText | null,
-  runtimeSessionTransport?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["runtimeSessionTransport"],
   functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"],
   webOptions: Pick<WebServerOptions, "chooseDirectory"> = {},
   pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"], chromeArgs?: readonly string[]) {
@@ -90,7 +89,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     seed(databasePath);
   }
   store = new LocalProjectDatabase(databasePath);
-  localHost = completion === undefined && !runtimeSessionTransport && !functions && !workspaceFor && !pluginFixtures ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, runtimeSessionTransport, functions, workspaceFor, pluginFixtures,
+  localHost = completion === undefined && !functions && !workspaceFor && !pluginFixtures ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, functions, workspaceFor, pluginFixtures,
     ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });
   server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
     controlToken: CONTROL_TOKEN, ...webOptions });

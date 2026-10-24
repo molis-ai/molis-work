@@ -6,7 +6,6 @@ import test from "node:test";
 
 import { createDirectoryPicker, runDirectoryPickerCommand, type DirectoryPickerCommandResult } from "../apps/local-host/src/directory-picker.ts";
 import { handleProjectWorkspaceHttp, type ProjectWorkspaceHttpContext } from "../apps/local-host/src/project-workspace-http.ts";
-import { sessionErrors } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 function commandResult(overrides: Partial<DirectoryPickerCommandResult> = {}): DirectoryPickerCommandResult {
@@ -141,11 +140,10 @@ test("pick route reports the window result and does not open one without a proje
     { error: "这台电脑打不开目录选择窗口" },
   ]);
   assert.deepEqual(calls.slice(1).map((call) => call.status), [200, 200, 409, 503]);
-  // Membership no longer moves Sessions (BL-177), so a Session error is a refusal like any other. Every refusal answers by its kind
-  // and with its code (SC-3): an action service that is down or not redeemed is unavailable (503), a missing permission forbidden (403).
+  // Every refusal answers by its kind and with its code (SC-3): an action service that is down or not redeemed is unavailable (503), a missing permission forbidden (403).
   for (const [failure, expectedStatus] of [
     [new ActionError("actions.service_unavailable", "项目目录服务尚未装配"), 503],
-    [sessionErrors.invalid_input("关联恢复需要核对"), 400],
+    [new ActionError("actions.input_invalid", "目录需要核对"), 400],
     [new ActionError("actions.forbidden", "没有目录权限"), 403],
     [new ActionError("host.workspace_not_found", "找不到当前 Project 的这条工作目录", { kind: "not_found" }), 404],
   ] as const) {

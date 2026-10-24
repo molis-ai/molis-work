@@ -1,8 +1,6 @@
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { CHARACTER_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-characters";
-import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
 import { HOME_ACTION_PERMISSIONS } from "./home-actions.js";
-import { HOME_TALK_PERMISSIONS } from "./home-talk-actions.js";
 import { CONNECTOR_ACCOUNT_PERMISSIONS } from "./connector-account-actions.js";
 import { CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
 import { connectorRecordActions } from "./connector-record-actions.js";
@@ -24,8 +22,8 @@ const NATIVE_OWNER_PERMISSIONS = [...new Set(BUILTIN_PLUGIN_CATALOG.filter(entry
   .flatMap(entry => (entry.manifest.actions ?? []).flatMap(definition => definition.action.permissions)))];
 
 /** Host-owned services and the native actions a Host registers outside a manifest (content stores, Characters). */
-const HOST_OWNER_PERMISSIONS = [...HOME_ACTION_PERMISSIONS, ...HOME_TALK_PERMISSIONS, ...CONNECTOR_ACCOUNT_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS,
-  ...CHARACTER_ACTION_PERMISSIONS, ...WORK_ACTION_PERMISSIONS, ...SEARCH_PERMISSIONS, ...KNOWLEDGE_PERMISSIONS, ...PLACEMENT_PERMISSIONS, ...MEMORY_PERMISSIONS,
+const HOST_OWNER_PERMISSIONS = [...HOME_ACTION_PERMISSIONS, ...CONNECTOR_ACCOUNT_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS,
+  ...CHARACTER_ACTION_PERMISSIONS, ...SEARCH_PERMISSIONS, ...KNOWLEDGE_PERMISSIONS, ...PLACEMENT_PERMISSIONS, ...MEMORY_PERMISSIONS,
   "functions:invoke", "functions:manage", EXTERNAL_MCP_PERMISSION, "projects:settings", CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions];
 
 export const LOCAL_OWNER_PERMISSIONS: readonly string[] = [...new Set([...NATIVE_OWNER_PERMISSIONS, ...HOST_OWNER_PERMISSIONS])];

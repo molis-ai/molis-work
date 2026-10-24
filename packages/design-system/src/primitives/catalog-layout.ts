@@ -170,8 +170,7 @@ export function layoutSection(): string {
         icon: "rss",
         iconOnly: true,
         attrs: { "aria-current": "page", "data-plugin-id": "feed" },
-      })
-      + renderButton({ label: "Sessions", variant: "ghost", size: "icon", icon: "terminal", iconOnly: true, attrs: { "data-plugin-id": "sessions" } }),
+      }),
   }) + renderSidebar({
     variant: "directory",
     body: catalogShellDirectory,

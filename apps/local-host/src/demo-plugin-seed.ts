@@ -6,7 +6,6 @@ import { LocalProjectDatabase } from "./project-database.js";
 import { openProjectVersionStores } from "./project-version-stores.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { createLocalFeedSourceService } from "./feed-source-service.js";
-import { openWorkSessionRegistry } from "./session-registry.js";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
@@ -208,45 +207,6 @@ export function enableDemoProjectPlugins(
   }
 }
 
-export async function seedDemoProjectExtras(input: {
-  projectId: string;
-  homeDirectory: string;
-  actorId: string;
-}): Promise<void> {
-  const registry = await openWorkSessionRegistry({ homeDirectory: input.homeDirectory });
-  try {
-    const existing = registry.list({ project_id: input.projectId })
-      .filter((session) => session.metadata.regenerable_demo === true);
-    for (const spec of DEMO_SESSIONS) {
-      let session = existing.find((item) => item.metadata.seed_key === spec.seed_key);
-      if (!session) {
-        session = registry.createSession({
-          runtime_id: spec.runtime_id,
-          actor_id: input.actorId,
-          user_confirmed: true,
-          project_id: input.projectId,
-          current_goal_id: spec.goal_id,
-          title: spec.title,
-          provenance: "molis_work_created",
-          metadata: { regenerable_demo: true, seed_key: spec.seed_key },
-        });
-      }
-      if (registry.eventCount(session.session_id) > 0) continue;
-      registry.appendEvent({
-        session_id: session.session_id,
-        source: "molis_work_tui",
-        kind: "terminal_output",
-        source_id: `demo-seed:${spec.seed_key}:output:0`,
-        source_order: 0,
-        content: spec.content,
-        metadata: { regenerable_demo: true, partial_terminal_history: true },
-      });
-    }
-  } finally {
-    registry.close();
-  }
-}
-
 /**
  * The demo's sample in this Home's Shelf, put back if it was removed: Shelf's own action, called by the process that runs Shelf (the
  * resident Host) after the demo is made or rebuilt. A Shelf that is missing, off or not granted is left as it is; the demo is made
@@ -261,30 +221,6 @@ export async function seedDemoHomeSamples(actions: Pick<BoundActionClient, "invo
     if (kind !== "not_found" && kind !== "unavailable" && kind !== "forbidden") throw error;
   }
 }
-
-const DEMO_SESSIONS = [
-  {
-    seed_key: "core-lifecycle",
-    runtime_id: "codex",
-    goal_id: "CORE",
-    title: "接通完成依据",
-    content: [
-      "$ molis-work goal show CORE",
-      "工作从约定、报告到收尾形成完整记录。",
-      "下一步：明确收尾，把可用的生命周期记录交给当前用户确认。",
-    ].join("\n"),
-  },
-  {
-    seed_key: "desktop-workbench",
-    runtime_id: "claude-code",
-    goal_id: "DESKTOP",
-    title: "工作台主栏对齐",
-    content: [
-      "目录、舞台和标签已经能在同一窗口里切换。",
-      "核对分屏后 Goal 绑定仍保持。这条 Session 只保留 Molis Work 本地记录，没有原 Runtime 线程。",
-    ].join("\n"),
-  },
-] as const;
 
 function upsertConnectorSource(
   feed: ReturnType<typeof createLocalFeedApplication>,

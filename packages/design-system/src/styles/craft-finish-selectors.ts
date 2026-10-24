@@ -11,7 +11,6 @@ export const PAGES = "body:is(.immersive-workbench, .settings-page, .project-pre
 export const STAGE_SHELL = "body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface=\"jelly\"])";
 export const STAGE_LIST = `${STAGE_SHELL}[data-expanded="false"] > .plugin-stage-list`;
 export const STAGE_OPEN = `${STAGE_SHELL}[data-expanded="true"]`;
-export const SESSIONS_LIST = "body.immersive-workbench .session-stage-shell:not([data-expanded=\"true\"])";
-
+export 
 /** Dialogs that open in the middle of the viewport. Edge sheets travel in from their edge instead. */
 export const CENTRED_DIALOG = ":is(dialog.mw-dialog, dialog.global-search-dialog, dialog.runtime-plan-dialog, dialog.inbox-compose-dialog):not(.mw-sheet)";

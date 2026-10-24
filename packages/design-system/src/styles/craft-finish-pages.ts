@@ -1,5 +1,5 @@
 import { renderMenuMotion } from "./motion.js";
-import { WORKBENCH, SHELL, ASSIST, PAGES, STAGE_LIST, STAGE_OPEN, SESSIONS_LIST, CENTRED_DIALOG } from "./craft-finish-selectors.js";
+import { WORKBENCH, SHELL, ASSIST, PAGES, STAGE_LIST, STAGE_OPEN, CENTRED_DIALOG } from "./craft-finish-selectors.js";
 
 /** The finish layer, third part: the phone bar, project menu, directories, controls, overlays, plugin pages and the reduced-motion rule. */
 export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assistant line first, then the Dock and the project (a plugin's own list opens
@@ -236,9 +236,9 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   /* Dark reads as three layers: whatever floats (menus, popovers, dialogs, the Assistant panel) sits a step above the
      work surface on --popover, edged by the light ring in its lift rather than by a darker shadow. */
   html[data-resolved-theme="dark"] ${PAGES} :is(.mw-menu, .mw-popover, .navigator-project-menu-popover, .plugin-market-project-popover,
-    .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu,
+    .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .tui-menu,
     [data-plugin-picker-popover], .account-global-popover, .shelf-side-menu, .shelf-find, .feed-source-rail, ${CENTRED_DIALOG},
-    dialog.mw-sheet, .assistant-panel, .home-talk) { background-color: var(--popover); }
+    dialog.mw-sheet, .assistant-panel) { background-color: var(--popover); }
   ${PAGES} .mw-menu :is([role="menuitem"], [role="option"], button) { transition: background-color 130ms var(--ease-quint), color 130ms var(--ease-quint); }
 
   /* The Workbench's toast element is the one toast (.mw-toast, primitives) kept on the page: shown by is-visible, it rises in
@@ -252,7 +252,7 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
 
   /* ─── Plugin stage: an empty plugin is a calm centred invitation, not a note in the corner ── */
   ${WORKBENCH} .plugin-stage-list > .mw-empty,
-  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child, ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) {
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child {
     display: grid; justify-items: center; align-content: center; gap: 0; box-sizing: border-box;
     width: 100%; max-width: 440px; min-height: calc(100% - 24px); margin: 0 auto; padding: 48px 24px 64px; text-align: center;
   }
@@ -282,15 +282,15 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   ${PAGES} .mw-empty--error > strong { margin: 0 0 4px; font-size: 15px; font-weight: var(--weight-title, 600); color: var(--ink); }
   ${PAGES} .mw-empty--error > p { margin: 0 0 16px; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
   ${WORKBENCH} .plugin-stage-list > .mw-empty > :is(strong, h1, h2),
-  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(strong, h1, h2), ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > strong { margin: 0 0 8px; font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; color: var(--ink); }
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(strong, h1, h2) { margin: 0 0 8px; font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; color: var(--ink); }
   ${WORKBENCH} .plugin-stage-list > .mw-empty > p,
-  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > p, ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > p { margin: 0; max-width: min(34em, 100%); color: var(--muted); font-size: 13px; line-height: 1.75; }
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > p { margin: 0; max-width: min(34em, 100%); color: var(--muted); font-size: 13px; line-height: 1.75; }
   ${WORKBENCH} .plugin-stage-list > .mw-empty > :is(.mw-btn, .mw-empty__actions),
-  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(.mw-btn, .mw-empty__actions), ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > .mw-btn { margin: 24px 0 0; justify-content: center; }
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(.mw-btn, .mw-empty__actions) { margin: 24px 0 0; justify-content: center; }
   ${WORKBENCH} .plugin-stage-list .mw-empty__actions { gap: 8px; }
 
   /* ─── Lists and rows ─── */
-  ${WORKBENCH} :is(.tree-entry, .feed-stage-entry, .plugin-stage-list .mw-dir-row, .home-erow, .session-stage-row) {
+  ${WORKBENCH} :is(.tree-entry, .feed-stage-entry, .plugin-stage-list .mw-dir-row, .home-erow) {
     transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint);
   }
   ${WORKBENCH} .plugin-stage-list :is(.mw-dir-row, .tree-node):active:not(:disabled) { background: var(--nav-press); }
@@ -431,28 +431,6 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     ${STAGE_LIST} > div:not(:only-child) > .mw-empty:only-child > p { margin: 0; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.75; }
     /* The open item: the list becomes a soft side column, as in the Feed and Goals columns. */
     ${STAGE_OPEN} > .plugin-stage-list { background: var(--surface-soft); }
-  }
-  /* Sessions keep their own shell (a fixed header over a scrolling list); the page reads the same way. */
-  @media (min-width: 761px) {
-    ${SESSIONS_LIST}::before {
-      content: var(--stage-title, "") / ""; position: absolute; top: 24px; left: max(32px, calc((100% - 960px) / 2)); z-index: 21;
-      max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none;
-      font-size: 24px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; line-height: 40px; color: var(--ink);
-    }
-    ${SESSIONS_LIST}::after {
-      content: var(--stage-desc, "") / ""; position: absolute; top: 66px; left: max(32px, calc((100% - 960px) / 2)); z-index: 21;
-      max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; font-size: 13px; line-height: 20px; color: var(--muted);
-    }
-    ${SESSIONS_LIST} > [data-session-stage-chrome] { top: 24px; left: auto; right: max(32px, calc((100% - 960px) / 2)); height: 40px; }
-    ${SESSIONS_LIST} > [data-session-stage-chrome] .tree-create { min-height: var(--control-h, 32px); padding: 0 12px; border-radius: 8px; font-size: 13px; background: var(--action); color: var(--action-ink); }
-    ${SESSIONS_LIST} > [data-session-stage-chrome] .tree-create svg { color: currentColor; }
-    /* The header's actions sit on the right, so their filter menus open leftward and stay inside the page. */
-    :is(${STAGE_LIST} > .plugin-stage-chrome, ${SESSIONS_LIST} > [data-session-stage-chrome]) .project-record-filter-menu > div { left: auto; right: 0; transform-origin: top right; }
-    ${SESSIONS_LIST} > [data-session-stage-chrome] .tree-create:hover { background: var(--action-hover, color-mix(in srgb, var(--action) 90%, var(--action-ink))); }
-    ${SESSIONS_LIST} > .session-stage-list { top: 104px; padding: 0 max(32px, calc((100% - 960px) / 2)) 56px; }
-    ${SESSIONS_LIST} .session-stage-row { height: auto; min-height: 44px; padding-block: 8px; border-radius: 8px; }
-    ${SESSIONS_LIST} .goal-collection-fold { margin: 0 0 16px; }
-    ${WORKBENCH} .session-stage-shell[data-expanded="true"] > .session-stage-list { background: var(--surface-soft); }
   }
   /* Phones keep the stacked header: the title and its sentence above the actions. */
   @media (max-width: 760px) {

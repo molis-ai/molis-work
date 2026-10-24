@@ -317,7 +317,7 @@ test("Memory text editing preserves null and unknown classification values inste
     await f.page.click(item() + " " + textButton("修改"));
     await f.page.click(item() + " .memory-origin summary");
     const shown = await f.page.evaluate<string>(`document.querySelector('${item()} .memory-origin').textContent`);
-    assert.ok(shown.includes(classification?.lifecycle === "future-lifecycle" ? "future-lifecycle" : classification ? "future-scene" : "未分类"));
+    assert.ok(shown.includes(classification?.lifecycle === "future-lifecycle" ? "future-lifecycle" : classification ? "future-scene" : "未归类"));
     await f.page.fill(item() + " textarea", "保留未知分类的正文修改");
     await f.page.click(item() + " button[type=submit]");
     await f.page.wait("!document.querySelector('[data-memory-id=active] textarea')");

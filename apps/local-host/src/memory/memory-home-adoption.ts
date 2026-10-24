@@ -4,7 +4,7 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import { isCompletePrefs, memoryErrors } from "@molis-ai/molis-work-service-memory";
 import { isDeepStrictEqual } from "node:util";
-import { openPrologueMemoryAdoption, type PrologueMemoryAdoptionBridge } from "@molis-ai/molis-work-service-agent-host";
+import { openPrologueMemoryAdoption, openPrologueMemoryAdoptionInspection, type PrologueMemoryAdoptionBridge } from "@molis-ai/molis-work-service-agent-host";
 import { LocalSqliteStorage, inspectMemoryLedgerAdoption, beginMemoryLedgerAdoption, completeMemoryLedgerAdoption,
   type MemoryLedgerAdoptionProfile, type MemoryLedgerAdoptionSnapshot } from "@molis-ai/molis-work-storage";
 import { assertCurrentCatalog, assertOwnedCatalog } from "../catalog-schema.js";
@@ -40,9 +40,9 @@ export interface MemoryHomeAdoptionInput {
   cleanup?: MemoryHomeAdoptionCleanup;
   /** Synchronous current maintenance authority; invoked again immediately before each ledger commit. */
   assertCurrent?: () => void;
-  /** Acquire the existing exclusive storage owner before returning; failure must release partially opened resources. */
+  /** Acquire the existing owner, call onOwned synchronously once before SDK opening, and release partial resources on failure. */
   open?(input: { homeDirectory: string; scopes: readonly MemoryHomeAdoptionScope[];
-    profiles: readonly MemoryLedgerAdoptionProfile[]; signal?: AbortSignal; assertCurrent(): void }): Promise<MemoryHomeAdoptionBridge>;
+    profiles: readonly MemoryLedgerAdoptionProfile[]; signal?: AbortSignal; assertCurrent(): void; onOwned(): void }): Promise<MemoryHomeAdoptionBridge>;
 }
 
 export interface MemoryHomeAdoptionResult {
@@ -150,17 +150,21 @@ function prepareAdoption(input: MemoryHomeAdoptionInput) {
   assertCurrent();
   return { fixed, snapshot, profiles, scopes, assertCurrent };
 }
-async function openAdoption(prepared: ReturnType<typeof prepareAdoption>): Promise<MemoryHomeAdoptionBridge> {
+async function openAdoption(prepared: ReturnType<typeof prepareAdoption>, onOwned: () => void): Promise<MemoryHomeAdoptionBridge> {
   const { fixed, profiles, scopes, assertCurrent } = prepared;
-  return fixed.open ? fixed.open({ homeDirectory: fixed.homeDirectory, profiles, scopes, assertCurrent, ...(fixed.signal ? { signal: fixed.signal } : {}) })
+  return fixed.open ? fixed.open({ homeDirectory: fixed.homeDirectory, profiles, scopes, assertCurrent, onOwned, ...(fixed.signal ? { signal: fixed.signal } : {}) })
     : openPrologueMemoryAdoption({ storageRoot: agentRuntimeDirectory(fixed.homeDirectory), appVersion: PRODUCT_VERSION,
-      scopes, policy: memoryRuntimePolicy(() => undefined).policy, assertCurrent, ...(fixed.signal ? { signal: fixed.signal } : {}) });
+      scopes, policy: memoryRuntimePolicy(() => undefined).policy, assertCurrent, onOwned, ...(fixed.signal ? { signal: fixed.signal } : {}) });
 }
 
 /** Body-free paged inspection of an explicit stopped Home; never changes its ledger or adoption barrier. */
-export async function previewMemoryHomeAdoptionCleanup(input: Omit<MemoryHomeAdoptionInput, "cleanup"> & { cursor?: string }): Promise<MemoryHomeAdoptionCleanupPreview> {
+export async function previewMemoryHomeAdoptionCleanup(input: Omit<MemoryHomeAdoptionInput, "cleanup" | "open"> & { cursor?: string;
+  inspect?: (input: { homeDirectory: string; scopes: readonly MemoryHomeAdoptionScope[]; signal?: AbortSignal; assertCurrent(): void }) => Promise<Pick<MemoryHomeAdoptionBridge, "previewCleanup" | "close">> }): Promise<MemoryHomeAdoptionCleanupPreview> {
   const prepared = prepareAdoption(input), cursor = input.cursor;
-  const bridge = await openAdoption(prepared);
+  const { fixed, scopes, assertCurrent } = prepared;
+  const bridge = await (input.inspect ? input.inspect({ homeDirectory: fixed.homeDirectory, scopes, assertCurrent, ...(fixed.signal ? { signal: fixed.signal } : {}) })
+    : openPrologueMemoryAdoptionInspection({ storageRoot: agentRuntimeDirectory(fixed.homeDirectory), appVersion: PRODUCT_VERSION,
+      scopes, policy: memoryRuntimePolicy(() => undefined).policy, assertCurrent, ...(fixed.signal ? { signal: fixed.signal } : {}) }));
   try { return await cleanupPreview({ ...prepared.fixed, ...prepared, bridge }, cursor); }
   finally { await bridge.close(); }
 }
@@ -168,12 +172,18 @@ export async function previewMemoryHomeAdoptionCleanup(input: Omit<MemoryHomeAdo
 /** Explicit offline adoption only. Backup/copy rehearsal belongs to the operator, never to ordinary Home startup. */
 export async function adoptMemoryHome(input: MemoryHomeAdoptionInput): Promise<MemoryHomeAdoptionResult> {
   const prepared = prepareAdoption(input), { fixed, snapshot, profiles, scopes, assertCurrent } = prepared;
-  const bridge = await openAdoption(prepared);
-  let adopting: MemoryLedgerAdoptionSnapshot;
+  let adopting: MemoryLedgerAdoptionSnapshot | undefined;
+  let owned = false;
+  const bridge = await openAdoption(prepared, () => {
+    if (owned) throw memoryErrors.forbidden("维护阻断只能在取得 owner 后建立一次");
+    owned = true;
+    assertCurrent();
+    adopting = beginMemoryLedgerAdoption({ homeDirectory: fixed.homeDirectory, snapshot, assertCurrent });
+  });
   const result: MemoryHomeAdoptionResult = { outcome: "completed", items: { adopted: 0, current: 0, "needs-reconcile": 0, conflict: 0, unknown: 0 }, verification: "not-run" };
   try {
+    if (!adopting) throw memoryErrors.forbidden("维护入口未在 SDK 打开前建立阻断");
     assertCurrent();
-    adopting = beginMemoryLedgerAdoption({ homeDirectory: fixed.homeDirectory, snapshot });
     if (fixed.cleanup) {
       result.cleanup = await cleanupConfirmed({ homeDirectory: fixed.homeDirectory, snapshot: adopting, scopes, bridge,
         assertCurrent, ...(fixed.signal ? { signal: fixed.signal } : {}) }, fixed.cleanup);

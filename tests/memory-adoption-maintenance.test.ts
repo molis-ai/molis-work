@@ -65,6 +65,7 @@ test("offline adoption owns storage before blocking, closes before ledger 4, and
   const before = state(home), calls: string[] = [];
   const result = await adoptMemoryHome({ homeDirectory: home, open: async input => {
     calls.push("owner"); assert.equal(state(home).marker.origin, "existing-home");
+    input.onOwned();
     assert.deepEqual(input.profiles.find(row => row.key === "personal")!.prefs, full);
     return bridge({ adopt: async page => {
       assert.equal(state(home).marker.origin, "adopting");
@@ -86,11 +87,11 @@ test("offline adoption owns storage before blocking, closes before ledger 4, and
 test("a pending old decision on an early page stays incomplete after later current rows and successful verification", async t => {
   const { home } = scratch(t); seed(home); const before = state(home);
   let calls = 0, closed = 0;
-  const result = await adoptMemoryHome({ homeDirectory: home, open: async () => bridge({ adopt: async input => {
+  const result = await adoptMemoryHome({ homeDirectory: home, open: async input => (input.onOwned(), bridge({ adopt: async input => {
     calls++;
     if (input.kind === "memory" && !input.cursor) return { issues: [], outcome: "partial", items: [{ outcome: "needs-reconcile" }], exhausted: false, cursor: "next" };
     return { ...done, items: [{ outcome: "current" }] };
-  }, close: async () => { closed++; } }) });
+  }, close: async () => { closed++; } })) });
   assert.equal(calls, 3); assert.equal(closed, 1); assert.equal(result.outcome, "incomplete");
   assert.equal(result.items["needs-reconcile"], 1); assert.equal(state(home).version, 3);
   assert.equal(state(home).marker.origin, "adopting"); assert.deepEqual(state(home).prefs, before.prefs);
@@ -99,24 +100,24 @@ test("a pending old decision on an early page stays incomplete after later curre
 
 test("whole-App verification preserves an early unknown-owner result instead of trusting the final complete page", async t => {
   const { home } = scratch(t); seed(home); let verified = 0;
-  const result = await adoptMemoryHome({ homeDirectory: home, open: async () => bridge({ verify: async input => {
+  const result = await adoptMemoryHome({ homeDirectory: home, open: async input => (input.onOwned(), bridge({ verify: async input => {
     verified++;
     return input.cursor ? { outcome: "complete", exhausted: true } : { outcome: "needs-reconcile", exhausted: false, cursor: "next" };
-  } }) });
+  } })) });
   assert.equal(verified, 2); assert.equal(result.outcome, "incomplete"); assert.equal(result.verification, "needs-reconcile");
   assert.equal(state(home).version, 3); assert.equal(state(home).marker.origin, "adopting");
 });
 
 test("unknown dispatch stops later SDK writes, persists the barrier and can resume from the same Home after reopening", async t => {
   const { home } = scratch(t); seed(home); let writes = 0, closed = 0;
-  const first = await adoptMemoryHome({ homeDirectory: home, open: async () => bridge({
+  const first = await adoptMemoryHome({ homeDirectory: home, open: async input => (input.onOwned(), bridge({
     adopt: async () => { writes++; return { issues: [], outcome: "partial", items: [{ outcome: "unknown" }], exhausted: false }; },
     verify: async () => { assert.fail("unknown dispatch must not publish completion"); }, close: async () => { closed++; },
-  }) });
+  })) });
   assert.equal(first.outcome, "incomplete"); assert.equal(writes, 1); assert.equal(closed, 1);
   const blocked = inspectMemoryLedgerAdoption({ homeDirectory: home });
   assert.equal((blocked.adoptions[0]!.body as { original_origin: string }).original_origin, "existing-home");
-  const resumed = await adoptMemoryHome({ homeDirectory: home, open: async () => bridge() });
+  const resumed = await adoptMemoryHome({ homeDirectory: home, open: async input => (input.onOwned(), bridge()) });
   assert.equal(resumed.outcome, "completed"); assert.equal(state(home).version, 4);
   assert.equal(state(home).marker.origin, "existing-home");
 });
@@ -127,9 +128,9 @@ test("cancellation before ownership has zero writes; cancellation after a page k
   await assert.rejects(adoptMemoryHome({ homeDirectory: home, signal: controller.signal, open: async () => { assert.fail("already cancelled"); } }));
   assert.deepEqual(state(home), before);
   const active = new AbortController(); let closed = 0;
-  await assert.rejects(adoptMemoryHome({ homeDirectory: home, signal: active.signal, open: async () => bridge({ adopt: async () => {
+  await assert.rejects(adoptMemoryHome({ homeDirectory: home, signal: active.signal, open: async input => (input.onOwned(), bridge({ adopt: async () => {
     active.abort(); return done;
-  }, close: async () => { closed++; } }) }));
+  }, close: async () => { closed++; } })) }));
   assert.equal(closed, 1); assert.equal(state(home).version, 3); assert.equal(state(home).marker.origin, "adopting");
   assert.deepEqual(state(home).prefs, before.prefs);
 });
@@ -138,7 +139,7 @@ test("owner acquisition and shutdown failure cannot publish completed adoption",
   const { home } = scratch(t); seed(home); const before = state(home);
   await assert.rejects(adoptMemoryHome({ homeDirectory: home, open: async () => { throw new Error("owner already held"); } }), /owner already held/);
   assert.deepEqual(state(home), before);
-  await assert.rejects(adoptMemoryHome({ homeDirectory: home, open: async () => bridge({ close: async () => { throw new Error("shutdown failed"); } }) }), /shutdown failed/);
+  await assert.rejects(adoptMemoryHome({ homeDirectory: home, open: async input => (input.onOwned(), bridge({ close: async () => { throw new Error("shutdown failed"); } })) }), /shutdown failed/);
   assert.equal(state(home).version, 3); assert.equal(state(home).marker.origin, "adopting");
 });
 
@@ -146,8 +147,9 @@ for (const phase of ["begin", "complete"] as const) test(`a competing prefs chan
   const { home } = scratch(t); seed(home); let closed = 0, dispatched = 0;
   const changed = { ...six, auto: false };
   const edit = () => withDb(home, db => db.prepare("UPDATE memory_prefs SET body=? WHERE key='personal'").run(JSON.stringify(changed)));
-  await assert.rejects(adoptMemoryHome({ homeDirectory: home, open: async () => {
+  await assert.rejects(adoptMemoryHome({ homeDirectory: home, open: async input => {
     if (phase === "begin") edit();
+    try { input.onOwned(); } catch (error) { closed++; throw error; }
     return bridge({ adopt: async () => { dispatched++; return done; }, verify: async () => {
       if (phase === "complete") edit();
       return { outcome: "complete", exhausted: true };
@@ -166,7 +168,7 @@ test("invalid old profiles and missing continuation refuse instead of guessing d
   await assert.rejects(adoptMemoryHome({ homeDirectory: home, open: async () => { opened++; return bridge(); } }), { code: "memory.invalid" });
   assert.equal(opened, 0); assert.equal(state(home).marker.origin, "existing-home");
   withDb(home, db => db.prepare("UPDATE memory_prefs SET body=? WHERE key='personal'").run(JSON.stringify(six)));
-  await assert.rejects(adoptMemoryHome({ homeDirectory: home, open: async () => bridge({ adopt: async () => ({ ...done, exhausted: false }) }) }), { code: "memory.unavailable" });
+  await assert.rejects(adoptMemoryHome({ homeDirectory: home, open: async input => (input.onOwned(), bridge({ adopt: async () => ({ ...done, exhausted: false }) })) }), { code: "memory.unavailable" });
   assert.equal(state(home).version, 3); assert.equal(state(home).marker.origin, "adopting");
 });
 
@@ -174,9 +176,9 @@ test("a stopped complete copy can restore the original ledger and SDK bytes afte
   const { root, home } = scratch(t); seed(home);
   mkdirSync(join(home, "agent-runtime")); writeFileSync(join(home, "agent-runtime", "fixture"), "original SDK bytes");
   const before = state(home), backup = join(root, "backup"); cpSync(home, backup, { recursive: true });
-  await assert.rejects(adoptMemoryHome({ homeDirectory: home, open: async () => bridge({ adopt: async () => {
+  await assert.rejects(adoptMemoryHome({ homeDirectory: home, open: async input => (input.onOwned(), bridge({ adopt: async () => {
     writeFileSync(join(home, "agent-runtime", "fixture"), "partially converted SDK bytes"); throw new Error("conversion failed");
-  } }) }), /conversion failed/);
+  } })) }), /conversion failed/);
   assert.equal(state(home).marker.origin, "adopting");
   rmSync(home, { recursive: true }); cpSync(backup, home, { recursive: true });
   assert.deepEqual(state(home), before);
@@ -190,7 +192,8 @@ test("scope discovery uses the real catalog and ledger owners without starting a
   await catalog.close(); seed(home);
   withDb(home, db => db.prepare("INSERT INTO memory_owners VALUES (?,?,?,?,?)").run("character", "character-a", project.project_id, "Character", null));
   let captured: Parameters<NonNullable<MemoryHomeAdoptionInput["open"]>>[0] | undefined;
-  const result = await adoptMemoryHome({ homeDirectory: home, open: async input => { captured = input; return bridge(); } });
+  const result = await adoptMemoryHome({ homeDirectory: home, open: async input => {
+    input.onOwned(); captured = input; return bridge(); } });
   assert.equal(result.outcome, "completed");
   assert.deepEqual(captured!.scopes, [{ scope: "user", owner: LOCAL_PERSON_ACTOR_ID }, { scope: "project", owner: project.project_id }, { scope: "character", owner: "character-a" }]);
   assert.equal(captured!.scopes.some(scope => scope.owner === "off" || scope.owner === "manual"), false, "a prefs key alone does not create a project identity");
@@ -200,10 +203,10 @@ test("scope discovery uses the real catalog and ledger owners without starting a
 test("an adoption issue remains incomplete even if a faulty page says completed and later pages verify", async t => {
   const { home } = scratch(t); seed(home);
   let calls = 0;
-  const result = await adoptMemoryHome({ homeDirectory: home, open: async () => bridge({ adopt: async () => {
+  const result = await adoptMemoryHome({ homeDirectory: home, open: async input => (input.onOwned(), bridge({ adopt: async () => {
     calls++;
     return calls === 1 ? { ...done, issues: [{ code: "MEMORY_NOT_ACCEPTED" }], exhausted: false, cursor: "next" } : done;
-  } }) });
+  } })) });
   assert.equal(calls, 3); assert.equal(result.outcome, "incomplete");
   assert.equal(result.verification, "complete"); assert.equal(state(home).version, 3);
   assert.equal(state(home).marker.origin, "adopting");
@@ -228,6 +231,7 @@ test("ledger 4 adoption adds only the missing restriction field and repeated ado
   for (let attempt = 0; attempt < 2; attempt++) {
     let verified = 0;
     const result = await adoptMemoryHome({ homeDirectory: home, open: async input => {
+      input.onOwned();
       assert.deepEqual(input.profiles.find(row => row.actor_id === "another-person")!.prefs, restricted);
       assert.deepEqual(input.profiles.find(row => row.key === "personal")!.prefs, { ...full, enabled: false, task_recall: false });
       if (expected) assert.deepEqual(input.profiles, expected);
@@ -254,9 +258,9 @@ for (const interruption of ["cancelled", "incomplete"] as const) test(`ledger 4 
   const { home } = scratch(t); seed(home);
   withDb(home, db => db.exec("PRAGMA user_version=4"));
   const before = state(home);
-  const result = await adoptMemoryHome({ homeDirectory: home, open: async () => bridge({
+  const result = await adoptMemoryHome({ homeDirectory: home, open: async input => (input.onOwned(), bridge({
     verify: async () => ({ outcome: interruption, exhausted: true }),
-  }) });
+  })) });
   assert.equal(result.outcome, interruption);
   assert.equal(state(home).version, 4); assert.equal(state(home).marker.origin, "adopting");
   assert.deepEqual(state(home).prefs, before.prefs);
@@ -277,7 +281,7 @@ const cleanupMarker = (home: string) => withDb(home, db => JSON.parse(String(db.
 
 test("cleanup preview crosses an empty intermediate page without ledger writes and reveals no body", async t => {
   const { home } = scratch(t); seed(home); const before = state(home), seen: (string | undefined)[] = [];
-  const input = { homeDirectory: home, open: async () => cleanupBridge([], { previewCleanup: async page => {
+  const input = { homeDirectory: home, inspect: async () => cleanupBridge([], { previewCleanup: async page => {
     seen.push(page.cursor);
     return page.kind === "memory" && !page.cursor ? { ...done, exhausted: false, cursor: "empty-middle" }
       : { ...done, items: page.kind === "memory" ? [cleanupTarget()] : [] };
@@ -301,7 +305,8 @@ test("cleanup freezes confirmation before owner acquisition, suppresses known so
   });
   const targets = [{ ...cleanupTarget(), sources: [{ actor_id: LOCAL_PERSON_ACTOR_ID, ...source }] }], cleanup = confirmation(structuredClone(targets));
   let requested: Parameters<MemoryHomeAdoptionBridge["purgeCleanupTarget"]>[0] | undefined;
-  const result = await adoptMemoryHome({ homeDirectory: home, cleanup, open: async () => {
+  const result = await adoptMemoryHome({ homeDirectory: home, cleanup, open: async input => {
+    input.onOwned();
     cleanup.targets[0] = cleanupTarget("mutated-after-await");
     return cleanupBridge(targets, { purgeCleanupTarget: async input => {
       requested = input;
@@ -319,20 +324,20 @@ test("cleanup freezes confirmation before owner acquisition, suppresses known so
 test("unknown cleanup stops later targets, blocks ledger completion, and resumes original versions and child operations without preview", async t => {
   const { home } = scratch(t); seed(home); const targets = [cleanupTarget(), cleanupTarget("second")];
   let originalOperation = "", calls = 0;
-  const first = await adoptMemoryHome({ homeDirectory: home, cleanup: confirmation(targets), open: async () => cleanupBridge(targets, {
+  const first = await adoptMemoryHome({ homeDirectory: home, cleanup: confirmation(targets), open: async input => (input.onOwned(), cleanupBridge(targets, {
     purgeCleanupTarget: async request => { calls++; originalOperation = request.operation_id; throw new Error("receipt lost"); },
-  }) });
+  })) });
   assert.deepEqual(first.cleanup?.map(item => item.outcome), ["unknown", "not-executed"]);
   assert.equal(calls, 1); assert.equal(state(home).version, 3);
-  await assert.rejects(adoptMemoryHome({ homeDirectory: home, open: async () => bridge() }), { code: "memory.adoption_conflict" });
+  await assert.rejects(adoptMemoryHome({ homeDirectory: home, open: async input => (input.onOwned(), bridge()) }), { code: "memory.adoption_conflict" });
   const changed = targets.map(target => ({ ...target, expectedVersion: 3 }));
-  await assert.rejects(adoptMemoryHome({ homeDirectory: home, cleanup: confirmation(changed), open: async () => cleanupBridge(changed) }), { code: "memory.conflict" });
-  const resumed = await adoptMemoryHome({ homeDirectory: home, cleanup: { mode: "resume", operation_id: "offline-cleanup" }, open: async () => cleanupBridge([], {
+  await assert.rejects(adoptMemoryHome({ homeDirectory: home, cleanup: confirmation(changed), open: async input => (input.onOwned(), cleanupBridge(changed)) }), { code: "memory.conflict" });
+  const resumed = await adoptMemoryHome({ homeDirectory: home, cleanup: { mode: "resume", operation_id: "offline-cleanup" }, open: async input => (input.onOwned(), cleanupBridge([], {
     previewCleanup: async () => assert.fail("resume must not chase a fresh tombstone version"),
     purgeCleanupTarget: async request => {
       if (request.target.ref.id === "memory-1") { assert.equal(request.operation_id, originalOperation); assert.equal(request.target.expectedVersion, 2); }
     },
-  }) });
+  })) });
   assert.equal(resumed.outcome, "completed"); assert.equal(cleanupMarker(home).phase, "committed"); assert.equal(state(home).version, 4);
 });
 
@@ -357,10 +362,10 @@ test("MEM-15: resumed cleanup does not suppress a later target whose Catalog sco
     assert.equal(projects.query.listProjects().some(item => item.project_id === project.project_id), false);
   } finally { storage.close(); }
   const purged: string[] = [];
-  const result = await adoptMemoryHome({ homeDirectory: home, cleanup: { mode: "resume", operation_id: "offline-cleanup" }, open: async () => cleanupBridge([], {
+  const result = await adoptMemoryHome({ homeDirectory: home, cleanup: { mode: "resume", operation_id: "offline-cleanup" }, open: async input => (input.onOwned(), cleanupBridge([], {
     previewCleanup: async () => assert.fail("the original decision owns this retry"),
     purgeCleanupTarget: async input => { purged.push(input.target.ref.id); assert.equal(input.operation_id, original.items[0]!.operation_id); },
-  }) });
+  })) });
   assert.deepEqual(purged, ["memory-1"]); assert.equal(result.outcome, "incomplete");
   assert.deepEqual(result.cleanup?.map(item => item.outcome), ["completed", "denied"]);
   const suppressed = withDb(home, db => db.prepare("SELECT key FROM memory_markers WHERE key LIKE 'memory-source-forgotten:%' ORDER BY key").all().map(row => row.key));
@@ -378,9 +383,9 @@ for (const reason of ["cancel", "revoke"] as const) test(`cleanup SDK absence fo
   let allowed = true, calls = 0;
   const result = await adoptMemoryHome({ homeDirectory: home, signal: controller.signal, cleanup: confirmation(targets),
     assertCurrent: () => { if (!allowed) throw Object.assign(new Error("revoked"), { code: "memory.forbidden" }); },
-    open: async () => cleanupBridge(targets, { purgeCleanupTarget: async () => {
+    open: async input => (input.onOwned(), cleanupBridge(targets, { purgeCleanupTarget: async () => {
       calls++; if (reason === "cancel") controller.abort(); else allowed = false;
-    } }),
+    } })),
   });
   assert.equal(calls, 1); assert.deepEqual(result.cleanup?.map(item => item.outcome), ["denied", "not-executed"]);
   assert.equal(cleanupMarker(home).phase, "pending"); assert.equal(state(home).revisions.length, 1); assert.equal(state(home).version, 3);
@@ -388,7 +393,7 @@ for (const reason of ["cancel", "revoke"] as const) test(`cleanup SDK absence fo
 
 test("cleanup refuses missing original decisions, changed preview versions and forged source impact with zero SDK deletes", async t => {
   const { home } = scratch(t); seed(home); let deleted = 0;
-  const open = async () => cleanupBridge([cleanupTarget()], { purgeCleanupTarget: async () => { deleted++; } });
+  const open: NonNullable<MemoryHomeAdoptionInput["open"]> = async input => { input.onOwned(); return cleanupBridge([cleanupTarget()], { purgeCleanupTarget: async () => { deleted++; } }); };
   await assert.rejects(adoptMemoryHome({ homeDirectory: home, cleanup: { mode: "resume", operation_id: "absent" }, open }), { code: "memory.conflict" });
   for (const target of [{ ...cleanupTarget(), expectedVersion: 9 }, { ...cleanupTarget(), sources: [{ actor_id: LOCAL_PERSON_ACTOR_ID, event_id: "invented", version: "1" }] }]) {
     await assert.rejects(adoptMemoryHome({ homeDirectory: home, cleanup: confirmation([target]), open }), { code: "memory.conflict" });
@@ -398,14 +403,40 @@ test("cleanup refuses missing original decisions, changed preview versions and f
 
 test("cleanup completion still requires full verification and successful bridge close", async t => {
   const { home } = scratch(t); seed(home);
-  const first = await adoptMemoryHome({ homeDirectory: home, cleanup: confirmation(), open: async () => cleanupBridge([cleanupTarget()], {
+  const first = await adoptMemoryHome({ homeDirectory: home, cleanup: confirmation(), open: async input => (input.onOwned(), cleanupBridge([cleanupTarget()], {
     verify: async input => input.cursor ? { outcome: "complete", exhausted: true } : { outcome: "needs-reconcile", exhausted: false, cursor: "second" },
-  }) });
+  })) });
   assert.equal(first.outcome, "incomplete"); assert.equal(first.verification, "needs-reconcile"); assert.equal(state(home).version, 3);
-  await assert.rejects(adoptMemoryHome({ homeDirectory: home, cleanup: { mode: "resume", operation_id: "offline-cleanup" }, open: async () => cleanupBridge([], {
+  await assert.rejects(adoptMemoryHome({ homeDirectory: home, cleanup: { mode: "resume", operation_id: "offline-cleanup" }, open: async input => (input.onOwned(), cleanupBridge([], {
     close: async () => { throw new Error("shutdown failed"); },
-  }) }), /shutdown failed/);
+  })) }), /shutdown failed/);
   assert.equal(state(home).version, 3);
-  const final = await adoptMemoryHome({ homeDirectory: home, cleanup: { mode: "resume", operation_id: "offline-cleanup" }, open: async () => cleanupBridge([]) });
+  const final = await adoptMemoryHome({ homeDirectory: home, cleanup: { mode: "resume", operation_id: "offline-cleanup" }, open: async input => (input.onOwned(), cleanupBridge([])) });
   assert.equal(final.outcome, "completed"); assert.equal(state(home).version, 4);
+});
+
+test("maintenance open must call its barrier once and SDK opening failure retains adopting", async t => {
+  for (const mode of ["missing", "duplicate", "sdk-open"] as const) {
+    const { home } = scratch(t); seed(home); let closed = 0, dispatched = 0;
+    await assert.rejects(adoptMemoryHome({ homeDirectory: home, open: async input => {
+      if (mode !== "missing") input.onOwned();
+      if (mode === "duplicate") input.onOwned();
+      if (mode === "sdk-open") throw new Error("SDK opening failed");
+      return bridge({ adopt: async () => { dispatched++; return done; }, close: async () => { closed++; } });
+    } }), mode === "sdk-open" ? /SDK opening failed/ : { code: "memory.forbidden" });
+    assert.equal(dispatched, 0); assert.equal(closed, mode === "missing" ? 1 : 0);
+    assert.equal(state(home).marker.origin, mode === "missing" ? "existing-home" : "adopting");
+    assert.equal(state(home).version, 3);
+  }
+});
+
+test("adopting commit rechecks synchronous authority inside the transaction and rolls back refusal", async t => {
+  const { home } = scratch(t); seed(home); const before = state(home);
+  let checks = 0;
+  assert.throws(() => beginMemoryLedgerAdoption({ homeDirectory: home, snapshot: inspectMemoryLedgerAdoption({ homeDirectory: home }),
+    assertCurrent: () => { if (++checks === 2) throw new Error("revoked at commit"); } }), /revoked at commit/);
+  assert.equal(checks, 2); assert.deepEqual(state(home), before);
+  assert.throws(() => beginMemoryLedgerAdoption({ homeDirectory: home, snapshot: inspectMemoryLedgerAdoption({ homeDirectory: home }),
+    assertCurrent: async () => {} }), { code: "memory.adoption_conflict" });
+  assert.deepEqual(state(home), before);
 });

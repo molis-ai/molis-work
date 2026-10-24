@@ -210,15 +210,15 @@ describe("the records of this repository", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
   });
 
-  test("the current Prologue package is the one agent-host depends on, packed from a named commit merged into upstream main without a patch", () => {
+  test("the current Prologue package is the one agent-host depends on, packed from the frozen upstream maintenance candidate without a patch", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    // PR #101 retains the tested production archive; its later head only adds verification documentation.
-    assert.equal(provenance.source.commit, "28e6f0491753bcaef3fab536670e82e78cc290c6");
-    assert.equal(provenance.source.mergedUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/101");
-    assert.equal(provenance.source.mergedUpstream.head, "ac914852dc6a92e1f8d777e400b3714a37478606");
-    assert.equal(provenance.source.mergedUpstream.mergeCommit, "6523abb47d25bd45d22dc47db1d3a679bf9327d5");
+    // Draft #102 remains a candidate until the coordinator verifies and merges its exact head.
+    assert.equal(provenance.source.commit, "4ac8d7dc823233aca67924942688e9f9aae9e87d");
+    assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/102");
+    assert.equal(provenance.source.candidateUpstream.head, "4ac8d7dc823233aca67924942688e9f9aae9e87d");
+    assert.equal(provenance.source.candidateUpstream.status, "draft");
     assert.equal(provenance.source.inFlight, undefined);
     // The historical ancestry audit remains pinned to the main commit it actually checked.
     assert.equal(json(`${folder}/patch-history.json`).upstream.mainHead, "2c7feba5a6ea85e81e4a263671fb5e68f536d86a");

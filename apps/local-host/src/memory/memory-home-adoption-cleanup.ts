@@ -32,7 +32,7 @@ export function fixedCleanup(input: MemoryHomeAdoptionCleanup | undefined): Memo
 }
 
 /** One SDK page per call: an empty intermediate page still returns its continuation. */
-export async function cleanupPreview(context: Context, cursor?: string): Promise<MemoryHomeAdoptionCleanupPreview> {
+export async function cleanupPreview(context: Omit<Context, "bridge"> & { bridge: Pick<MemoryHomeAdoptionBridge, "previewCleanup"> }, cursor?: string): Promise<MemoryHomeAdoptionCleanupPreview> {
   let index = 0, sdkCursor: string | undefined;
   if (cursor !== undefined) {
     const value: unknown = JSON.parse(cursor);

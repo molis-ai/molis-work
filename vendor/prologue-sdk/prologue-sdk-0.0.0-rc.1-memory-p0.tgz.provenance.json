@@ -9,22 +9,22 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "28e6f0491753bcaef3fab536670e82e78cc290c6",
+    "commit": "4ac8d7dc823233aca67924942688e9f9aae9e87d",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
-    "mergedUpstream": {
-      "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/101",
-      "head": "ac914852dc6a92e1f8d777e400b3714a37478606",
-      "mergeCommit": "6523abb47d25bd45d22dc47db1d3a679bf9327d5",
-      "note": "Archive built at clean production commit 28e6f049; ac914852 only appends the upstream verification record. Coordinator verified and merged PR 101 without repacking."
+    "candidateUpstream": {
+      "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/102",
+      "head": "4ac8d7dc823233aca67924942688e9f9aae9e87d",
+      "status": "draft",
+      "note": "冻结候选，尚未合并；App 最终整合由统筹负责。"
     }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1369124,
-    "sha256": "632d8b3b6f7485d68badfd917370227e124ba6dfdc4b6cf4139667d621ee8b90",
-    "integrity": "sha512-Rz6rjrAJIilNAoG6aoHsCH98R24vjhr6IfXxXTh7byU390yj5HRh1qT/Mv2Gi+QmjVEGwX+j4n01K2r13F6h1g=="
+    "bytes": 1378953,
+    "sha256": "f46c51b37dc71b6d0f7b07abdd9ad59c627253b8459c007f40c093a9f549d36a",
+    "integrity": "sha512-JSWWFqZMj3SXjZdOXRyCXUs/hucET1otxIQD6qSelKJP77sZWfahYxncL0HjRnZ4OTbEopSaty88Jja6ncqQWA=="
   },
   "build": {
     "node": "24.14.0",
@@ -32,13 +32,11 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Build clean frozen SDK source with Node 24.14.0 and pnpm 11.9.0; no local SDK patch",
-      "Compare all 784 archive files against the frozen build tree",
-      "Run affected real Node/Registry tests and install the exact archive into an offline public JS/TS consumer",
-      "Independent public package probes reject malformed scope headers and confirm cursor v2",
-      "Replace the existing Molis Memory archive and its one lock integrity; Molis integration verification follows"
+      "统筹提供干净冻结 4ac8d7d 受控归档；在 d57 上增加 inspection 返回前的必填同步当前权限复核",
+      "核对 796 归档文件与冻结构建，独立公开包消费者验证",
+      "Molis 按原 vendor 规则替换同名依赖及 sidecar/provenance/lock，不修改 SDK 源码"
     ],
     "packedOn": "2026-10-25",
-    "note": "Merged upstream PR 101. Frozen production 28e6f049 and its exact archive were retained. Original pnpm quality passed: 70 files, 723 tests, clean installed consumer, Rust, types, build and API checks. Legal dotted owner-prefix ambiguity requires reconciliation; no real Home or product/user acceptance claimed."
+    "note": "Draft #102 冻结候选。d57 原 quality 70 文件 723 项及磁盘满定向 4 文件 40 项通过；4ac8d7d 同步复核补丁的独立深审进行中，不称已合并、完整 App 或用户验收。"
   }
 }

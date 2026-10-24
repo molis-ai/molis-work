@@ -82,7 +82,7 @@ function originalOrigin(body: Record<string, unknown>): "new-home" | "existing-h
 }
 
 /** Blocks normal startup before SDK conversion; a failed conversion intentionally leaves this state in place. */
-export function beginMemoryLedgerAdoption(input: { homeDirectory: string; snapshot: MemoryLedgerAdoptionSnapshot }): MemoryLedgerAdoptionSnapshot {
+export function beginMemoryLedgerAdoption(input: { homeDirectory: string; snapshot: MemoryLedgerAdoptionSnapshot; assertCurrent?: () => void }): MemoryLedgerAdoptionSnapshot {
   return changeMemoryLedgerAdoption(input, db => {
     if (!input.snapshot.adoptions.length) conflict("旧记忆账本没有采用记录");
     for (const marker of input.snapshot.adoptions) {
@@ -91,7 +91,7 @@ export function beginMemoryLedgerAdoption(input: { homeDirectory: string; snapsh
         .run(JSON.stringify({ ...body, origin: "adopting", original_origin: originalOrigin(body) }), marker.actor_id);
     }
     return snapshot(db, homeSqlitePath(input.homeDirectory, MEMORY_LEDGER_STORE));
-  });
+  }, input.assertCurrent);
 }
 
 /** The Host validates/maps full profiles; this owner atomically checks the old snapshot and publishes ledger 4. */

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { createRequire } from "node:module";
+import fs, { mkdirSync, mkdtempSync, rmSync, readdirSync, readFileSync, existsSync, realpathSync } from "node:fs";
+import { createRequire, syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { adoptMemoryHome, previewMemoryHomeAdoptionCleanup, type MemoryHomeAdoptionInput, memoryRuntimePolicy, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
-import { createPrologueNodeAdapter, openPrologueMemoryAdoption } from "@molis-ai/molis-work-service-agent-host";
+import { createPrologueNodeAdapter, openPrologueMemoryAdoption, openPrologueMemoryAdoptionInspection } from "@molis-ai/molis-work-service-agent-host";
 import { homeSqlitePath, MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_STORE, openMemoryLedger, type MemoryLedgerCleanupTarget } from "@molis-ai/molis-work-storage";
 import { MemoryService, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION } from "@molis-ai/molis-work-service-memory";
 import { currentMemoryOptions } from "./fixtures/current-memory.ts";
@@ -178,7 +178,8 @@ test("a malformed row issue blocks completion after a valid row has been adopted
 });
 
 test("offline bridge shares the normal writer lock, restricts scope grants, and closes before another owner can continue", async t => {
-  const f = scratch(t); ledger(f.home);
+  const f = scratch(t);
+  await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: original }]); ledger(f.home);
   const normal = () => createPrologueNodeAdapter({ app, storageRoot: f.storageRoot, modelConfiguration: async () => { assert.fail("no model"); } });
   const active = await normal();
   try { await assert.rejects(adoptMemoryHome({ homeDirectory: f.home }), { code: "agent.storage_busy" }); }
@@ -300,35 +301,28 @@ for (const failure of ["tombstone-commit", "physical-dispatch", "physical-receip
   await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: endedFormal(original.id) }, { kind: "memory-candidates", shape: 1, value: endedCandidate() }]);
   const targets = (await cleanupPages(f.home)).targets;
   let injected = false;
-  // The real public Node Host is only wrapped at its fault boundary; no fake decoder, state machine or purge result.
+  // Fault the real Node atomic rename. Both phases still run through the production maintenance factory.
+  const rename = fs.renameSync;
+  let memoryWrites = 0;
+  const disk = t.mock.method(fs, "renameSync", (from: Parameters<typeof fs.renameSync>[0], to: Parameters<typeof fs.renameSync>[1]) => {
+    if (String(to).includes("~memories/") && String(to).startsWith(realpathSync(f.storageRoot))) {
+      memoryWrites++;
+      if (!injected && (failure === "tombstone-commit" && memoryWrites === 1 || failure === "physical-dispatch" && memoryWrites === 2)) {
+        injected = true; throw Object.assign(new Error("interrupted atomic storage write"), { code: "ENOSPC" });
+      }
+    }
+    return rename(from, to);
+  });
+  syncBuiltinESMExports();
+  t.after(() => { disk.mock.restore(); syncBuiltinESMExports(); });
   const failingOpen: NonNullable<MemoryHomeAdoptionInput["open"]> = async input => {
-    const host = createNodeHost({ storageRoot: f.storageRoot, exclusiveOwner: true });
-    const commit = host.storage.commit.bind(host.storage);
-    host.storage.commit = async (request: { kind: string }) => {
-      if (failure === "tombstone-commit" && !injected && request.kind.endsWith("~memories")) { injected = true; throw new Error("tombstone commit failed"); }
-      return commit(request);
-    };
-    // Memory retains its body-free identity: registry purge erases the body via Host.remove, not Host.purge.
-    const remove = host.storage.remove.bind(host.storage);
-    host.storage.remove = async (request: { kind: string }) => {
-      if (failure === "physical-dispatch" && !injected && request.kind.endsWith("~memories")) { injected = true; throw new Error("physical purge interrupted after tombstone"); }
-      return remove(request);
-    };
-    const runtime = await createRuntime({ app, host, config: { memory: { ...memoryRuntimePolicy(() => undefined).policy, preset: "manual",
-      matrix: { default: { actions: ["manage-read", "delete"], formation: [] } } } }, memoryAuthority: {
-      authorize: async () => true, assertCurrent: input.assertCurrent, authorizeManagement: async () => ({ allowed: true }), authorizeAdoption: async () => true,
-    } });
-    const bound = runtime.bindMemory({ consumer: "memory-maintenance", currentScene: "common", purpose: "management" });
-    return {
-      adopt: request => bound.adoptStorage({ ...request, classify: () => undefined }), verify: request => bound.verifyAdoption(request),
-      previewCleanup: request => bound.previewAdoptionCleanup(request),
-      purgeCleanupTarget: async request => {
-        const options = { expectedVersion: request.target.expectedVersion, operationId: request.operation_id, identity: request.target.identity, signal: request.signal };
-        if (request.target.ref.kind === "memory") await bound.memory.purge(request.target.ref, options);
-        else await bound.candidates.purge(request.target.ref, options);
-        if (failure === "physical-receipt" && !injected) { injected = true; throw new Error("physical delete receipt lost"); }
-      }, close: () => runtime.shutdown(),
-    };
+    const bridge = await openPrologueMemoryAdoption({ storageRoot: f.storageRoot, appVersion: app.appVersion,
+      scopes: input.scopes, policy: memoryRuntimePolicy(() => undefined).policy, onOwned: input.onOwned,
+      assertCurrent: input.assertCurrent, ...(input.signal ? { signal: input.signal } : {}) });
+    return { ...bridge, purgeCleanupTarget: async request => {
+      await bridge.purgeCleanupTarget(request);
+      if (failure === "physical-receipt" && !injected) { injected = true; throw new Error("physical delete receipt lost"); }
+    } };
   };
   const originalExec = DatabaseSync.prototype.exec;
   const mock = t.mock.method(DatabaseSync.prototype, "exec", function(this: DatabaseSync, sql: string) {
@@ -385,4 +379,128 @@ test("real selected cleanup suppresses known event replay without deleting an un
     assert.deepEqual(entries.map(entry => entry.memory_id), [original.id]); assert.equal(entries[0]!.text, original.text);
     assert.equal(entries[0]!.version, original.version);
   } finally { await adapter.close(); records.close(); }
+});
+
+function storageBytes(root: string): Record<string, Buffer> {
+  const result: Record<string, Buffer> = {};
+  const visit = (directory: string, relative = "") => {
+    for (const item of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, item.name), key = join(relative, item.name);
+      if (item.isDirectory()) visit(path, key); else result[key] = readFileSync(path);
+    }
+  };
+  visit(root); return result;
+}
+
+test("MEM-40 inspection previews nonempty orphan cleanup without creating an owner or changing SDK bytes", async t => {
+  const f = scratch(t); ledger(f.home);
+  await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: endedFormal(original.id) }, { kind: "memory-candidates", shape: 1, value: endedCandidate() }]);
+  const before = storageBytes(f.storageRoot), priorLedger = ledgerState(f.home);
+  assert.equal(existsSync(join(f.storageRoot, ".molis-runtime-owner.db")), false);
+  const preview = await cleanupPages(f.home);
+  assert.equal(preview.targets.length, 2);
+  assert.deepEqual(storageBytes(f.storageRoot), before);
+  assert.deepEqual(ledgerState(f.home), priorLedger);
+  const inspection = await openPrologueMemoryAdoptionInspection({ storageRoot: f.storageRoot, appVersion: app.appVersion, scopes: [scope], policy: memoryRuntimePolicy(() => undefined).policy });
+  await inspection.close();
+  await assert.rejects(inspection.previewCleanup({ ...scope, kind: "memory" }));
+  assert.deepEqual(storageBytes(f.storageRoot), before);
+});
+
+for (const mode of ["throw", "thenable"] as const) test(`MEM-40 ${mode} barrier is rejected before SDK open and releases owner`, async t => {
+  const f = scratch(t); await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: original }]);
+  let calls = 0, reads = 0;
+  const read = fs.readFileSync;
+  const fault = t.mock.method(fs, "readFileSync", (...args: Parameters<typeof fs.readFileSync>) => {
+    if (String(args[0]).startsWith(realpathSync(f.storageRoot))) reads++;
+    return read(...args);
+  });
+  syncBuiltinESMExports();
+  t.after(() => { fault.mock.restore(); syncBuiltinESMExports(); });
+  await assert.rejects(openPrologueMemoryAdoption({ storageRoot: f.storageRoot, appVersion: app.appVersion, scopes: [scope], policy: memoryRuntimePolicy(() => undefined).policy,
+    onOwned: () => { calls++; if (mode === "throw") throw new Error("barrier failed"); return Promise.resolve(); },
+  }), mode === "throw" ? /barrier failed/ : { code: "agent.capability_unavailable" });
+  assert.equal(calls, 1); assert.equal(reads, 0);
+  const next = await open(f.storageRoot); await next.close();
+});
+
+test("MEM-40 owner contention does not call the barrier or alter ledger", async t => {
+  const f = scratch(t); ledger(f.home); await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: original }]);
+  const held = await open(f.storageRoot), before = ledgerState(f.home);
+  try { await assert.rejects(adoptMemoryHome({ homeDirectory: f.home }), { code: "agent.storage_busy" }); }
+  finally { await held.close(); }
+  assert.deepEqual(ledgerState(f.home), before);
+});
+
+test("MEM-40 open and close preserve unselected dispatching board and expired queued work", async t => {
+  const f = scratch(t), runtime = await createRuntime({ app, host: createNodeHost({ storageRoot: f.storageRoot }) });
+  let dueAt = 0;
+  try {
+    const session = await runtime.sessions.create();
+    const board = await runtime.boards.admit({ standing: { keepFinished: 5 }, nodes: [
+      { id: "unselected", title: "Retained work", dependsOn: [], onFailure: "block-for-human", assignee: session.ref },
+    ] });
+    const attempted = await runtime.boards.beginAttempt({ ref: board.ref, expectedVersion: board.version, nodeId: "unselected",
+      attempt: { session: session.ref, requestKey: "retain-dispatch" }, atMs: Date.now() });
+    dueAt = Date.now() + 800;
+    const queued = await runtime.queue.enqueue({ key: "retain-future-task", sessionRef: session.ref,
+      work: { kind: "probe-no-executor", payload: { retained: "not selected" } }, dueAtMs: dueAt, maxAttempts: 1 });
+    assert.equal(attempted.nodes[0].attempts[0].state, "dispatching"); assert.equal(queued.state, "queued");
+  } finally { await runtime.shutdown(); }
+  await new Promise(resolve => setTimeout(resolve, Math.max(0, dueAt - Date.now()) + 30));
+  const before = storageBytes(f.storageRoot);
+  const bridge = await open(f.storageRoot);
+  await bridge.verify({ scopes: [scope] });
+  await new Promise(resolve => setTimeout(resolve, 50));
+  await bridge.close();
+  const after = storageBytes(f.storageRoot);
+  for (const [path, bytes] of Object.entries(before)) assert.deepEqual(after[path], bytes, path);
+  assert.deepEqual(Object.keys(after).filter(path => !path.startsWith(".molis-runtime-owner.db")), Object.keys(before));
+});
+
+test("MEM-40 close failure retains the real owner and prevents ledger completion", async t => {
+  const f = scratch(t); ledger(f.home); await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: original }]);
+  const originalClose = DatabaseSync.prototype.close;
+  let retained: DatabaseSync | undefined;
+  const fault = t.mock.method(DatabaseSync.prototype, "close", function(this: DatabaseSync) {
+    if (this.prepare("PRAGMA database_list").all().some(row => String(row.file) === join(realpathSync(f.storageRoot), ".molis-runtime-owner.db")) && !retained) {
+      retained = this; throw new Error("owner close failed");
+    }
+    return originalClose.call(this);
+  });
+  try {
+    await assert.rejects(adoptMemoryHome({ homeDirectory: f.home }), /owner close failed/);
+    assert.ok(retained); assert.equal(ledgerState(f.home).marker.origin, "adopting"); assert.equal(ledgerState(f.home).version, 3);
+    await assert.rejects(open(f.storageRoot), { code: "agent.storage_busy" });
+  } finally { fault.mock.restore(); if (retained) originalClose.call(retained); }
+  const resumed = await adoptMemoryHome({ homeDirectory: f.home }); assert.equal(resumed.outcome, "completed");
+});
+
+test("MEM-40 real SDK opening failure leaves adopting and releases only the failed maintenance owner", async t => {
+  const f = scratch(t); ledger(f.home); mkdirSync(f.storageRoot);
+  await assert.rejects(adoptMemoryHome({ homeDirectory: f.home }), { code: "STORAGE_ENCRYPTION_UNAVAILABLE" });
+  assert.equal(ledgerState(f.home).marker.origin, "adopting"); assert.equal(ledgerState(f.home).version, 3);
+  await assert.rejects(open(f.storageRoot), { code: "STORAGE_ENCRYPTION_UNAVAILABLE" });
+  assert.deepEqual(readdirSync(f.storageRoot), [".molis-runtime-owner.db"]);
+});
+
+for (const cause of ["cancel", "revoke"] as const) test(`MEM-40 inspection ${cause} during real storage reading returns no preview and leaves bytes unchanged`, async t => {
+  const f = scratch(t); await seed(f.storageRoot, [{ kind: "memories", shape: 2, value: endedFormal(original.id) }]);
+  const before = storageBytes(f.storageRoot), controller = new AbortController();
+  let allowed = true, reads = 0;
+  const inspection = await openPrologueMemoryAdoptionInspection({ storageRoot: f.storageRoot, appVersion: app.appVersion,
+    scopes: [scope], policy: memoryRuntimePolicy(() => undefined).policy, signal: controller.signal,
+    assertCurrent: () => { if (!allowed) throw new Error("source authority revoked"); } });
+  const read = fs.readFileSync;
+  const fault = t.mock.method(fs, "readFileSync", (...args: Parameters<typeof fs.readFileSync>) => {
+    const value = read(...args);
+    if (String(args[0]).startsWith(realpathSync(f.storageRoot)) && String(args[0]).endsWith(".json")) {
+      reads++; queueMicrotask(() => { if (cause === "cancel") controller.abort(); else allowed = false; });
+    }
+    return value;
+  });
+  syncBuiltinESMExports();
+  try { await assert.rejects(inspection.previewCleanup({ ...scope, kind: "memory" })); assert.ok(reads > 0); }
+  finally { fault.mock.restore(); syncBuiltinESMExports(); await inspection.close(); }
+  assert.deepEqual(storageBytes(f.storageRoot), before);
 });

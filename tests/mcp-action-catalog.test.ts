@@ -8,6 +8,7 @@ import { formActions, formManifest } from "@molis-ai/molis-work-plugin-form";
 import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { datasetManifest } from "@molis-ai/molis-work-plugin-dataset";
 import { pptManifest } from "@molis-ai/molis-work-plugin-ppt";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -62,6 +63,19 @@ test("the management decision tool names no actor: the host decides as the perso
   assert.equal(Object.hasOwn(schema.properties, "actor_id"), false);
   assert.equal(schema.required.includes("actor_id"), false);
   for (const field of schema.required) assert.ok(Object.hasOwn(schema.properties, field), `${field} is described by the schema`);
+});
+
+// RAC-345: the management Goals tools describe the very actions Goals registers: the same words and every business input field.
+test("RAC-345 management Goals tools carry the description and input fields of the action Goals registers", () => {
+  const pairs = [["molis_work_v1_initialize", goalsActions.initialize], ["molis_work_v1_goal_tree_decide", goalsActions.treeDecide],
+    ["molis_work_v1_event_decide", goalsActions.decide]] as const;
+  for (const [name, definition] of pairs) {
+    const tool = MCP_TOOLS.find(item => item.name === name);
+    assert.ok(tool, name);
+    assert.equal(tool.description, definition.action.description, name);
+    const fields = Object.keys((tool.inputSchema as { properties: Record<string, unknown> }).properties);
+    for (const field of Object.keys(definition.action.input_schema.properties as Record<string, unknown>)) assert.ok(fields.includes(field), `${name} lists ${field}`);
+  }
 });
 
 test("assembleMcpCatalog lists exactly the granted actions that are available now", () => {

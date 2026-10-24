@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution, formProjectData, FORM_HOME_STORE } from "./index.js";
+import { FORM_MESSAGES, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution, formProjectData, FORM_HOME_STORE } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -10,6 +10,7 @@ export const registration: PluginRegistration = {
   home_store: FORM_HOME_STORE,
   manifest: formManifest,
   project_data: formProjectData,
+  messages: FORM_MESSAGES,
   personal: true,
   summary: "建问卷，收答卷，看逐题汇总。",
   workbench: {

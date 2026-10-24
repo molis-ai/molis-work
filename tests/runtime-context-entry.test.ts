@@ -7,7 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { RuntimeProjectConnection } from "@molis-ai/molis-work-app-local-host";
 import { createMcpContextPresenter, createMcpRuntimeContextHandlers } from "@molis-ai/molis-work-app-mcp";
-import { readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals";
+import { readGoalResumeFacts } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";

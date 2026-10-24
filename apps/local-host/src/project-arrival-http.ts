@@ -1,7 +1,7 @@
 import os from "node:os";
 import { projectOrNull } from "./catalog-lookup.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { goalEntryActions, goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { composeProjectBrief, currentBriefGoal, summarizeProjectBrief, type BriefEvent, type BriefGoal, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "@molis-ai/molis-work-app-workbench";
 import type { HomeEventView, HomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { homeActions } from "./home-actions.js";
@@ -115,17 +115,17 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
     const arrival = readProjectArrival(homeDirectory);
     const remembered = arrival.projects[project.project_id];
     const [goals, events, guidance] = await Promise.all([
-      settle(actions.invoke(goalsActions.list, { limit: 100 })),
+      settle(actions.invoke(goalPluginActions.list, { limit: 100 })),
       settle(actions.invoke(homeActions.events, eventWindow(now))),
       // The introduction the person accepted at creation is kept here; a project made another way may carry long-term notes instead.
-      remembered?.description || personal ? Promise.resolve({ ok: false as const }) : settle(actions.invoke(goalsActions.guidanceRead, {})),
+      remembered?.description || personal ? Promise.resolve({ ok: false as const }) : settle(actions.invoke(goalEntryActions.guidanceRead, {})),
     ]);
     const goalList: BriefGoal[] | null = goals.ok ? goals.value.goals.map(goal => ({ goal_id: goal.goal_id, title: goal.title, work_status: goal.work_status, next_hint: goal.next_hint,
       pending_decision_count: goal.pending_decision_count, updated_at: goal.updated_at })) : null;
     const eventList: BriefEvent[] | null = events.ok ? events.value.events.map(briefEvent) : null;
     // One more reading, for the goal in play only: where it stands, in the words its own record keeps.
     const current = goalList && !personal ? currentBriefGoal(goalList) : null;
-    const state = current ? await settle(actions.invoke(goalsActions.state, { goal_id: current.goal_id })) : null;
+    const state = current ? await settle(actions.invoke(goalPluginActions.state, { goal_id: current.goal_id })) : null;
     const detail = state?.ok ? (state.value.progress_summary && !state.value.progress_summary.stale ? state.value.progress_summary.summary : state.value.intent.why) : null;
     const context = guidance.ok ? guidance.value.entries.find(entry => entry.active && entry.kind === "context") : undefined;
     const input: ProjectBriefInput = {

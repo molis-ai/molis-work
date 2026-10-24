@@ -11,8 +11,9 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import {
-  PROBE, PROBE_DATABASE, homeRead, later, noteTexts, partitionDirectory, partitionFile, partitionHome, probe, probeEntry, read, storeNote, write,
+  PROBE, PROBE_DATABASE, homeRead, later, noteTexts, partitionDirectory, partitionFile, partitionHome, probe, probeEntry, probeWithLibrary, read, storeNote, write,
 } from "./fixtures/partition-probe.js";
+import { withLibrary } from "./fixtures/home-library.js";
 import { deferred } from "./fixtures/home-runtime.js";
 
 // specs/plugin-project-partition: a Home plugin's library partitioned by project. Each call reaches the library of the project it
@@ -25,9 +26,9 @@ const open = (home: string, projectId: string) => existsSync(`${partitionFile(ho
 
 test("PART-01 the entry and the Home's store registry agree on the partition, either way round, or the Home plugins do not start", async t => {
   const todo = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "todo")!;
-  const partitionedTodo = partitionHome(t, [{ ...todo.runtime!, manifest: todo.manifest, database: { ...todo.runtime!.database!, partition: "project" } }]);
+  const partitionedTodo = partitionHome(t, [{ ...todo.runtime!, manifest: todo.manifest, create: () => withLibrary(todo.runtime!.create(), { ...todo.manifest.databases!.home!, partition: "project" }) }]);
   await assert.rejects(partitionedTodo.host.ready(), /分区方式不同/u, "a library the registry keeps whole cannot be opened per project");
-  const whole = partitionHome(t, [probeEntry({ database: { ...PROBE_DATABASE, partition: undefined } })]);
+  const whole = partitionHome(t, [probeEntry({ create: probeWithLibrary({ ...PROBE_DATABASE, partition: undefined }) })]);
   await assert.rejects(whole.host.ready(), /分区方式不同/u, "a library the registry keeps per project cannot be opened whole");
   assert.equal(existsSync(join(whole.home, PROBE)), false);
 

@@ -2,6 +2,7 @@ import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf
 import { imagesActions, IMAGES_ACTION_PERMISSIONS } from "./actions.js";
 import type { PluginManifest, PluginRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { IMAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/images";
+import { IMAGES_DATABASE } from "./database.js";
 
 export const IMAGES_UI_CONTRIBUTION_ID = "io.molis.work.native.images.ui.v1";
 const routes: PluginRouteDeclaration[] = [
@@ -26,6 +27,7 @@ export const imagesManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-images-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   actions: Object.values(imagesActions),
+  databases: { home: IMAGES_DATABASE },
   routes: routes.map(route => route.method === "POST" ? { ...route, max_body_bytes: 160_000 } : route),
   permissions: [
     ...IMAGES_ACTION_PERMISSIONS.map(permission => ({ permission, required: false, reason: "图片动作" })),

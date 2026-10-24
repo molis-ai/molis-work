@@ -9,6 +9,7 @@ import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { openPluginDatabase } from "./plugin-database.js";
+import { homeLibraryFor } from "./plugin-database-entries.js";
 import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
 import { openPluginFiles } from "./plugin-files.js";
 import { pluginHomeFor } from "./home-side.js";
@@ -94,7 +95,7 @@ export class HomePluginExecutor implements PluginExecutor {
     };
     try {
       const home = pluginHomeFor(this.options.home);
-      const declaration = this.options.database(definition);
+      const declaration = homeLibraryFor(definition, this.options.database(definition));
       if (declaration?.partition === "project") {
         partitions = openPartitionedPluginDatabase(this.options.home, declaration, authorize, context, this.deletionsOf(context.install_id));
       }

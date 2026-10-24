@@ -16,6 +16,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { artifactPreview } from "./fixtures/artifact-preview.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { deferred } from "./fixtures/home-runtime.js";
+import { withLibrary } from "./fixtures/home-library.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
 // S-18: the platform services a plugin writes through ask the original caller of the action the plugin runs for themselves, in
@@ -167,7 +168,7 @@ async function platform(t: TestContext) {
     } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
   });
   const plugin = probe(), subscriber = listener(() => plugin.services());
-  assert.deepEqual((await running.start([{ definition: plugin.definition, database: DATABASE, files: FILES, bundled: true },
+  assert.deepEqual((await running.start([{ definition: withLibrary(plugin.definition, DATABASE), files: FILES, bundled: true },
     { definition: subscriber.definition, bundled: true }])).running.toSorted(), [LISTENER, ID].toSorted());
   const written = (target: Target, name: string): boolean => {
     const services = plugin.services();

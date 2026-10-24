@@ -1,12 +1,11 @@
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import type { PluginDatabaseDeclaration, PluginDefinition, PluginFilesDeclaration, PluginOwnerFilesDeclaration, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginFilesDeclaration, PluginOwnerFilesDeclaration, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { fixtureDeclarationsFor, type PluginPlatformHome } from "./home-side.js";
 import { PLUGIN_LIBRARY_NAME } from "./plugin-database-entries.js";
 import { ownerFileSegments } from "./plugin-owner-files-paths.js";
 
 export interface PluginOwnerFilesEntry {
   readonly definition: PluginDefinition;
-  readonly database?: PluginDatabaseDeclaration;
   readonly files?: PluginFilesDeclaration;
   readonly owner_files?: PluginOwnerFilesDeclaration;
   readonly initialize_owner_files?: (writer: PluginOwnerFilesWriter) => void;
@@ -41,7 +40,7 @@ export function assertOwnerFilesEntries(homeEntries: readonly PluginOwnerFilesEn
     if (!PLUGIN_LIBRARY_NAME.test(files.store_name)) throw new Error("主人文件根必须是普通目录名");
     const store = home.stores.get(files.store_name);
     if (store?.owner !== id) throw new Error(`主人文件根 ${files.store_name} 未登记为插件 ${id} 所有`);
-    if (store.library || all.some(other => other.database?.store_name === files.store_name || other.files?.store_name === files.store_name)) {
+    if (store.library || all.some(other => other.definition.manifest.databases?.home?.store_name === files.store_name || other.files?.store_name === files.store_name)) {
       throw new Error(`主人文件根 ${files.store_name} 不能同时用于数据库或旧文件服务`);
     }
     if (taken.has(files.store_name)) throw new Error(`主人文件根 ${files.store_name} 在启动名单中重复`);

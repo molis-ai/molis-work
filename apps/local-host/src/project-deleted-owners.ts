@@ -61,7 +61,7 @@ function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
 function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
   const declared: Array<{ id: string; data: ProjectDataDeclaration; survivesRebuild?: true; partitioned?: string }> = [
     ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.project_data ? [{ id: entry.project_plugin_id, data: entry.project_data,
-      ...entry.runtime?.database?.partition === "project" ? { partitioned: entry.runtime.database.store_name } : {} }] : []),
+      ...entry.runtime && entry.manifest.databases?.home?.partition === "project" ? { partitioned: entry.manifest.databases.home.store_name } : {} }] : []),
     { id: "functions", data: functionsProjectData },
     // The demo's reset keeps its panels and Runtime bindings, so the Sessions they name stay with them.
     { id: "sessions", data: sessionsProjectData(db => createSessionLedger(db)), survivesRebuild: true },

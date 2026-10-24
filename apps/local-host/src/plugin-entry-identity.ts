@@ -6,7 +6,7 @@ import type { PluginOwnerFilesEntry, PluginOwnerFilesBinding } from "./plugin-ow
 export function pluginEntryIdentity() {
   const bundled = new WeakSet<PluginDefinition>();
   const bundledManifests = new WeakSet<PluginManifest>();
-  const databases = new WeakMap<PluginDefinition, HomePluginDatabaseDeclaration>();
+  const listed = new WeakSet<PluginDefinition>();
   const files = new WeakMap<PluginDefinition, PluginFilesDeclaration>();
   const ownerFiles = new WeakMap<PluginDefinition, PluginOwnerFilesBinding>();
   const configurations = new WeakMap<PluginDefinition, PluginModelConfigurationDeclaration>();
@@ -15,7 +15,8 @@ export function pluginEntryIdentity() {
   const dual = new WeakSet<PluginDefinition>();
   return {
     providerFor: (definition: PluginDefinition, installId: string) => bundled.has(definition) ? definition.manifest.plugin_id : installId,
-    databaseFor: (definition: PluginDefinition) => databases.get(definition),
+    /** The library its Manifest declares, for a definition object the Host's start list holds; none for any other. */
+    databaseFor: (definition: PluginDefinition): HomePluginDatabaseDeclaration | undefined => listed.has(definition) ? definition.manifest.databases?.home : undefined,
     filesFor: (definition: PluginDefinition) => files.get(definition),
     ownerFilesFor: (definition: PluginDefinition) => ownerFiles.get(definition),
     modelConfigurationFor: (definition: PluginDefinition) => configurations.get(definition),
@@ -25,12 +26,12 @@ export function pluginEntryIdentity() {
     dualInstance: (definition: PluginDefinition) => dual.has(definition),
     /** Whether this Manifest object is the one a bundled definition on the Host's start list carries. */
     shipsWithHost: (manifest: PluginManifest | undefined) => manifest !== undefined && bundledManifests.has(manifest),
-    remember(entries: readonly (PluginOwnerFilesEntry & { bundled?: boolean; database?: HomePluginDatabaseDeclaration; files?: PluginFilesDeclaration;
+    remember(entries: readonly (PluginOwnerFilesEntry & { bundled?: boolean; files?: PluginFilesDeclaration;
       model_configuration?: PluginModelConfigurationDeclaration; image_generation?: PluginImageGenerationDeclaration; project_data?: PluginProjectCleanup })[]) {
       for (const entry of entries) {
         if (entry.bundled) { bundled.add(entry.definition); bundledManifests.add(entry.definition.manifest); }
         if (entry.dual_instance) dual.add(entry.definition);
-        if (entry.database) databases.set(entry.definition, entry.database);
+        listed.add(entry.definition);
         if (entry.files) files.set(entry.definition, Object.freeze({ ...entry.files }));
         if (entry.owner_files) ownerFiles.set(entry.definition, Object.freeze({
           declaration: Object.freeze({ ...entry.owner_files, entries: Object.freeze(entry.owner_files.entries.map(item => Object.freeze({ ...item }))) }),

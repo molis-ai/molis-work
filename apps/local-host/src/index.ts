@@ -19,6 +19,7 @@ export { handleCharactersHttp, type CharactersInvoke } from "./characters-http.j
 export { charactersProvider, type CharactersProject } from "./characters-host.js";
 export { collectHomeAggregate, homeAggregatePorts, type HomeAggregateAnswer, type HomeAggregateIssue, type HomeAggregatePorts, type HomeAggregateResult } from "./home-aggregate.js";
 export { openPluginDatabase } from "./plugin-database.js";
+export { homeLibraryFor } from "./plugin-database-entries.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { dispatchDeclaredPluginRoutes, type DeclaredPluginRoutes } from "./plugin-route-operations.js";

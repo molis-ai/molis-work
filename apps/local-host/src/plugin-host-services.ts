@@ -31,6 +31,7 @@ import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { openPluginDatabase } from "./plugin-database.js";
+import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openPluginFiles } from "./plugin-files.js";
 import { openPluginProjectLibrary } from "./plugin-project-library.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
@@ -118,13 +119,13 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
 }
 
 /**
- * The plugin's library in the Home, when the Host's start list declared one for this definition. It is the one service the
+ * The plugin's library in the Home, when its Manifest declares one and the Host's start list holds the definition. It is the one service the
  * Home-level instances have (`openPluginDatabase`), opened here for the length of the run: every call asks again whether this
  * instance is still the running one and still holds the grants, so a stopped, disabled, uninstalled or revoked plugin writes
  * nothing, its own `stop` hook included.
  */
 function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void) {
-  const declaration = options.databaseFor?.(definition);
+  const declaration = homeLibraryFor(definition, options.databaseFor?.(definition));
   if (declaration === undefined) return undefined;
   if (!options.home) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了 Home 库，但这个插件平台没有 Home`);
   return openPluginDatabase(options.home.directory, declaration, permission => { assertActive(); context.requireGrant(permission); }, context);

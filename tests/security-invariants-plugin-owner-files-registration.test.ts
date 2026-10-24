@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { homeStores, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import type { PluginDatabaseDeclaration, PluginFilesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginFilesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { filesProbe, filesProject } from "./fixtures/plugin-files.js";
 import { grantOwnerFiles, ownerFileActions, ownerFilesProbe } from "./fixtures/plugin-owner-files.js";
@@ -14,14 +14,15 @@ test("SHF-IO-S01 all trusted declaration failures precede managed Home stores an
     const home = mkdtempSync(join(tmpdir(), "owner-files-entry-")), probe = ownerFilesProbe(), good = ownerFilesProbe("goodowner");
     let seeds = 0;
     const entry = probe.entry(() => { seeds++; });
-    let database: PluginDatabaseDeclaration | undefined, files: PluginFilesDeclaration | undefined;
+    let files: PluginFilesDeclaration | undefined;
     if (invalid === "shelf-owner") Object.assign(probe.owner_files, { store_name: "shelf" });
     if (invalid === "registered-library") {
       const existing = homeStores().stores.find(store => store.library)!;
       Object.assign(probe.owner_files, { store_name: existing.path });
       probe.definition.manifest = { ...probe.definition.manifest, plugin_id: existing.owner };
     }
-    if (invalid === "database") database = { store_name: probe.owner_files.store_name, version: 1, schema: "CREATE TABLE own (id TEXT);", read_permission: probe.read, write_permission: probe.write };
+    if (invalid === "database") probe.definition.manifest = { ...probe.definition.manifest, databases: { home: { store_name: probe.owner_files.store_name, version: 1,
+      schema: "CREATE TABLE own (id TEXT);", read_permission: probe.read, write_permission: probe.write } } };
     if (invalid === "old-files") files = { store_name: probe.owner_files.store_name, directory: "assets", max_file_bytes: 64, read_permission: probe.read, write_permission: probe.write };
     if (invalid === "sandbox") probe.definition.execution = "sandbox";
     if (invalid === "permission" || invalid === "storage") probe.definition.manifest = { ...probe.definition.manifest,
@@ -31,7 +32,7 @@ test("SHF-IO-S01 all trusted declaration failures precede managed Home stores an
     if (invalid === "duplicate-name") Object.assign(probe.owner_files, { entries: [{ name: "same", kind: "file" }, { name: "same", kind: "directory" }] });
     if (invalid === "nested-name") Object.assign(probe.owner_files, { entries: [{ name: "parent/child", kind: "file" }] });
     if (invalid === "kind") Object.assign(probe.owner_files.entries[0]!, { kind: "socket" });
-    const bad = invalid === "initializer-only" ? { definition: probe.definition, initialize_owner_files: () => { seeds++; } } : { ...entry, database, files };
+    const bad = invalid === "initializer-only" ? { definition: probe.definition, initialize_owner_files: () => { seeds++; } } : { ...entry, files };
     const entries = [good.entry(() => { seeds++; }), bad, ...(invalid === "duplicate-store" ? [{ ...entry, definition: { ...probe.definition } }] : [])];
     try {
       assert.throws(() => new MolisWorkLocalHost({ ...(invalid === "no-home" ? {} : { homeDirectory: home }), completeText: null,

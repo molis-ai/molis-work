@@ -18,8 +18,8 @@ const at = (...paths: string[]): HomeStoreDeclaration[] => paths.map(path => ({ 
 
 /**
  * Every store of a Home (W4-11, docs/system/HOME-DATA.md): the Host's own, those of the modules and services it composes,
- * and the shipped plugins' (each declared by its plugin and carried by its catalog entry, or the database its Home entry
- * gives it). `uninstall --purge-user-data` removes all of them (decision #20); a plugin may be given a library only if the
+ * and the shipped plugins' (each declared by its plugin and carried by its catalog entry, and the library its Manifest
+ * declares, `databases.home`). `uninstall --purge-user-data` removes all of them (decision #20); a plugin may be given a library only if the
  * library is registered here as its own. Built on first use: the stores are declared in modules that may import this one.
  */
 export function homeStores(): HomeStoreRegistry {
@@ -33,12 +33,14 @@ export function homeStores(): HomeStoreRegistry {
     ...owned("modules/characters", CHARACTERS_HOME_STORE),
     ...owned("packages/storage", MEMORY_LEDGER_HOME_STORE, TEXT_SEARCH_HOME_STORE, KNOWLEDGE_CARDS_HOME_STORE, ...at("feed")),
     ...owned("server", DISCUSSION_HOME_STORE),
-    ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => [
-      ...entry.home_store ? [{ ...entry.home_store, owner: entry.manifest.plugin_id }] : [],
-      ...entry.runtime?.database ? [{ path: entry.runtime.database.store_name, owner: entry.manifest.plugin_id,
-        library: { baseline: { version: entry.runtime.database.version, schema: entry.runtime.database.schema },
-          ...entry.runtime.database.partition ? { partition: entry.runtime.database.partition } : {} } }] : [],
-    ]),
+    ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => {
+      const library = entry.manifest.databases?.home;
+      return [
+        ...entry.home_store ? [{ ...entry.home_store, owner: entry.manifest.plugin_id }] : [],
+        ...library ? [{ path: library.store_name, owner: entry.manifest.plugin_id,
+          library: { baseline: { version: library.version, schema: library.schema }, ...library.partition ? { partition: library.partition } : {} } }] : [],
+      ];
+    }),
     ...owned("horizontal/agent-host", ...at("agent-runtime")),
     ...owned("apps/local-host/src/installer", ...at("runtime-config-backups", "runtime-integrations", "runtime-integration-attempts")),
     ...owned("apps/local-host", ...at("browser", "plugin-builder", "cache", "git-operation-details.json", "config/onboarding.json",

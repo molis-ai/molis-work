@@ -5,6 +5,7 @@ import { IMPORTED_DOCUMENT_TYPE } from "@molis-ai/molis-work-contracts/modules/a
 import { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_UI_CONTRIBUTION_ID } from "./ui.js";
 import { pagesMethods } from "./methods.js";
+import { PAGES_DATABASE } from "./database.js";
 
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID };
 
@@ -24,6 +25,7 @@ export const pagesManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-pages-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   // Declaration order is match order: the fixed paths come before the ones that take a document id.
+  databases: { home: PAGES_DATABASE },
   routes: [
     { route_id: "pages.comments.list", method: "GET", path: "/pages/:id/comments" },
     { route_id: "pages.comments.append", method: "POST", path: "/pages/:id/comments", max_body_bytes: PAGES_BODY_BYTES },

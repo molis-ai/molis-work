@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
-  PluginDatabaseDeclaration,
   PluginDefinition,
   PluginManifest,
   PluginPrivateStorage,
@@ -57,11 +56,10 @@ export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase
 };
 
 /**
- * One entry of the Host's own start list. `database` is the library in the Home the Host gives that plugin as
- * `services.database`; the entry names it, never the plugin (`assertDatabaseEntries` says what a list may declare).
+ * One entry of the Host's own start list. A plugin on it is given the library in the Home its Manifest declares
+ * (`databases.home`, as `services.database`); `assertDatabaseEntries` says what a list may declare.
  */
 export interface PluginPlatformEntry extends PluginSupervisorEntry, Pick<PluginOwnerFilesEntry, "owner_files" | "initialize_owner_files" | "dual_instance"> {
-  readonly database?: PluginDatabaseDeclaration;
   readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
 }
 

@@ -1,10 +1,9 @@
-import type { HomePluginDatabaseDeclaration, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginPlatformHome } from "./home-side.js";
 
-/** A plugin the Host starts in a project's platform, with the library in the Home the Host gives it, if any. */
+/** A plugin on the Host's start list; the library in the Home it is given, if any, is the one its Manifest declares (`databases.home`). */
 interface PluginDatabaseEntry {
   readonly definition: PluginDefinition;
-  readonly database?: HomePluginDatabaseDeclaration;
 }
 
 /** A plugin library's name: one directory of the Home. */
@@ -14,20 +13,20 @@ export const PLUGIN_LIBRARY_NAME = /^[a-z][a-z0-9-]*$/u;
  * What the Host's own start list says about libraries, checked before anything on the list starts (a mistake in the Host's
  * composition, not in a plugin): the list is refused whole, and no library is made.
  *
- * The library is the Host's to name. It is the same service as the Home-level instances have (`openPluginDatabase`), so a
- * plugin never picks a name, a path or a version: the entry does, and the entry is code the Host ships. Sandboxed definitions
- * and platforms that reach no Home cannot be given one. The library has to be registered in the Home's store registry
- * (`home-stores.ts`, W4-11) as this plugin's own, at the baseline the entry declares: so `uninstall --purge-user-data` reaches
- * it, and a library another owner registered (the Host's, a module's, another plugin's) or any other entry of the Home
- * (`feed`, `config`, `agent-runtime`, ...) is refused.
+ * The library is the plugin's own declaration (`databases.home` in its Manifest), but only a plugin on the Host's start list is
+ * given it, and only if the Home's store registry (`home-stores.ts`, W4-11) holds that library as this plugin's own at the same
+ * baseline: so `uninstall --purge-user-data` reaches it, and a library another owner registered (the Host's, a module's, another
+ * plugin's) or any other entry of the Home (`feed`, `config`, `agent-runtime`, ...) is refused. It is the same service as the
+ * Home-level instances have (`openPluginDatabase`). Sandboxed definitions and platforms that reach no Home cannot be given one.
  *
  * A library partitioned by project (`partition: "project"`) is only for a Home-level plugin (`scope`): a project's plugin keeps its
- * data in that project already. The entry and the registry have to agree on it, so the files uninstall and project deletion remove
- * are the ones the plugin writes.
+ * data in that project already. The Manifest and the registry have to agree on it, so the files uninstall and project deletion
+ * remove are the ones the plugin writes.
  */
 export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], home: PluginPlatformHome | null, scope: "home" | "project"): void {
   const taken = new Set<string>();
-  for (const { definition, database } of entries) {
+  for (const { definition } of entries) {
+    const database = definition.manifest.databases?.home;
     if (!database) continue;
     const id = definition.manifest.plugin_id;
     if (home === null) throw new Error(`插件 ${id} 声明了 Home 库，但这个插件平台没有 Home`);
@@ -52,4 +51,18 @@ export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], h
       if (!declared.has(permission)) throw new Error(`插件 ${id} 的数据库权限 ${permission} 未在清单声明`);
     }
   }
+}
+
+/**
+ * The library a running definition is given, `given` being what the Host's start list holds for it (`pluginEntryIdentity`). None
+ * when its Manifest declares none; a refusal when it declares one the list did not give it: a plugin that is not on the Host's
+ * list has no library in the Home yet, and does not start without the service it declared.
+ */
+export function homeLibraryFor(definition: PluginDefinition, given: HomePluginDatabaseDeclaration | undefined): HomePluginDatabaseDeclaration | undefined {
+  const declared = definition.manifest.databases?.home;
+  if (declared === undefined) return undefined;
+  if (given === undefined) {
+    throw pluginErrors.declaration_invalid(`插件 ${definition.manifest.plugin_id} 的 Manifest 声明了 Home 库 ${declared.store_name}，但宿主没有把这个库给它：不在宿主启动名单上的插件现在还没有 Home 库`);
+  }
+  return given;
 }

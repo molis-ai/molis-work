@@ -225,7 +225,7 @@ test("W5-01-JMC-03 a preference write failure rolls back the provider but retain
 async function trustedJelly(t: test.TestContext) {
   const { HomePluginHost } = await import("@molis-ai/molis-work-app-local-host");
   const { ActionService } = await import("@molis-ai/molis-work-kernel");
-  const { createJellyPlugin, jellyManifest, JELLY_DATABASE } = await import("@molis-ai/molis-work-plugin-jelly");
+  const { createJellyPlugin, jellyManifest } = await import("@molis-ai/molis-work-plugin-jelly");
   const home = homeFor(t), service = new ActionService();
   const definitions: import("@molis-ai/molis-work-contracts/platform/plugin").PluginDefinition[] = [];
   const contexts: import("@molis-ai/molis-work-contracts/platform/plugin").PluginStartContext[] = [];
@@ -237,7 +237,7 @@ async function trustedJelly(t: test.TestContext) {
     const plugin = createJellyPlugin();
     const definition = { ...plugin, async start(context: import("@molis-ai/molis-work-contracts/platform/plugin").PluginStartContext) { contexts.push(context); return plugin.start(context); } };
     definitions.push(definition); return definition;
-  }, database: JELLY_DATABASE, model_configuration: declaration,
+  }, model_configuration: declaration,
   package_name: "@molis-ai/molis-work-plugin-jelly", factory_export: "createJellyPlugin" }] });
   const platform = await host.ready(), install = host.installation(jellyManifest.plugin_id)!;
   return { home, host, service, platform, install, contexts, registrations, declaration, definitions };

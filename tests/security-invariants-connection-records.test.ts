@@ -8,7 +8,8 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { connectorPluginSlotActions, createPluginConnectionsPort, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { ProjectDeletionService, connectorPluginSlotActions, createPluginConnectionsPort, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createPluginConnectionsClient, runInPluginAction, type PluginConnectionsPort } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { parsePluginBindingScope, pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
@@ -197,4 +198,40 @@ test("S-66 RAC-348 only the person binds a record's account, in the project they
   // Unbinding takes it away.
   assert.equal((await client.invoke(inOne, connectorPluginSlotActions.bindRecord, { ...input, connection_id: null }) as { connection: unknown }).connection, null);
   assert.equal(stored(one.project_id), null);
+});
+
+test("S-66 RAC-470 deleting a project removes its per_record bindings, of every plugin, and nothing of another project or installation slot", { timeout: 60_000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), "connection-records-deletion-")); t.after(() => rm(directory, { recursive: true, force: true }));
+  const home = join(directory, "home"), catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }); t.after(() => catalog.close());
+  const gone = await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" });
+  const kept = await catalog.createProject({ display_name: "留下的项目", actor_id: "test-user" });
+  const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "Work GitHub", token: BEARER_VALUE }));
+  // The kept project's id begins with the deleted one's, as an anchored match must tell apart; and an id that only ends like it.
+  const rows: Array<{ scope: string; plugin: string; slot: string }> = [
+    { scope: pluginBindingScope({ install_id: INSTALL, project_id: gone.project_id, record_key: "src-1" }), plugin: PLUGIN, slot: "feed" },
+    { scope: pluginBindingScope({ install_id: "plugin-install-other", project_id: gone.project_id, record_key: "src-1" }), plugin: "io.molis.work.example.otherrecords", slot: "feed" },
+    { scope: pluginBindingScope({ install_id: INSTALL, project_id: kept.project_id, record_key: "src-1" }), plugin: PLUGIN, slot: "feed" },
+    { scope: pluginBindingScope({ install_id: INSTALL, project_id: `${gone.project_id}0`, record_key: "src-1" }), plugin: PLUGIN, slot: "feed" },
+    { scope: pluginBindingScope({ install_id: INSTALL, project_id: `x${gone.project_id}`, record_key: "src-1" }), plugin: PLUGIN, slot: "feed" },
+    { scope: pluginBindingScope({ install_id: INSTALL }), plugin: PLUGIN, slot: "account" },
+    { scope: "home", plugin: "io.molis.work.example.otherrecords", slot: "account" },
+  ];
+  for (const row of rows) withConnectorConnections(home, store => store.bind({ scopeId: row.scope, pluginId: row.plugin, slotId: row.slot, serviceId: "github", connectionId: connection.connection_id }));
+  const left = () => rows.filter(row => withConnectorConnections(home, store => store.binding(row.scope, row.plugin, row.slot)) !== null).map(row => row.scope);
+  const service = new ProjectDeletionService(withMolisWorkProjectCatalog, { isPanelAlive: () => false, releaseProject: async () => {} });
+  const result = await service.deleteProject(home, { project_id: gone.project_id, actor_id: "test-user", delete_confirmed: true, idempotency_key: `delete-${gone.project_id}` });
+  assert.equal(result.deletion.cleanup_state, "complete");
+  assert.deepEqual(left(), rows.slice(2).map(row => row.scope));
+  assert.equal(withConnectorConnections(home, store => store.get(connection.connection_id))?.connection_id, connection.connection_id, "the account itself stays");
+});
+
+test("S-66 RAC-471 an installation's per_record bindings in one project are matched on the separators: never another installation's or project's", async t => {
+  const home = await mkdtemp(join(tmpdir(), "connection-records-install-")); t.after(() => rm(home, { recursive: true, force: true }));
+  const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: BEARER_VALUE }));
+  const rows = [[INSTALL, "p-1"], [`${INSTALL}x`, "p-1"], [INSTALL, "p-10"], [INSTALL, "p"]].map(([install_id, project_id]) => pluginBindingScope({ install_id: install_id!, project_id: project_id!, record_key: "src-1" }));
+  for (const scope of [...rows, pluginBindingScope({ install_id: INSTALL })]) withConnectorConnections(home, store => store.bind({ scopeId: scope, pluginId: PLUGIN, slotId: "feed", serviceId: "github", connectionId: connection.connection_id }));
+  assert.equal(withConnectorConnections(home, store => store.forgetInstallationProjectBindings(INSTALL, "p-1")), 1);
+  assert.equal(withConnectorConnections(home, store => store.forgetInstallationProjectBindings(INSTALL, "p/1")), 0, "an id no scope can hold matches nothing");
+  const left = [...rows, pluginBindingScope({ install_id: INSTALL })].filter(scope => withConnectorConnections(home, store => store.binding(scope, PLUGIN, "feed")) !== null);
+  assert.deepEqual(left, [...rows.slice(1), pluginBindingScope({ install_id: INSTALL })]);
 });

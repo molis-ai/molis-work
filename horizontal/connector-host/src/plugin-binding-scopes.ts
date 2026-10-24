@@ -35,6 +35,29 @@ export function pluginBindingScope(target: PluginBindingTarget): string {
   return INSTALLATION + target.install_id + PROJECT + target.project_id + RECORD + target.record_key;
 }
 
+/** Whether a scope is a plugin's, which only `pluginBindingScope` may have written. */
+export const isPluginBindingScope = (scope: string): boolean => scope.startsWith(INSTALLATION);
+
+/**
+ * The `connector_bindings` rows of every `per_record` binding of one project: a plugin scope holding `/project:<project>/record:`.
+ * Neither an installation id nor a project id holds `/` or `:`, so that occurs only as the scope's project part, and project
+ * `p-1`'s never matches `p-10`'s. Compared with `substr` and `instr`, never `LIKE`. `null` for an id no scope can hold, which has none.
+ */
+export function projectBindingsWhere(project_id: string): { readonly where: string; readonly parameters: readonly (string | number)[] } | null {
+  if (!part(project_id)) return null;
+  return { where: "substr(scope_id, 1, ?) = ? AND instr(scope_id, ?) > 0", parameters: [INSTALLATION.length, INSTALLATION, PROJECT + project_id + RECORD] };
+}
+
+/**
+ * The rows of one installation's `per_record` bindings in one project: scopes starting `plugin-installation:<install>/project:<project>/record:`.
+ * The separators end both ids, so installation `abc` never matches `abcd` and project `p-1` never `p-10`. `null` when no scope can hold them.
+ */
+export function installationProjectBindingsWhere(install_id: string, project_id: string): { readonly where: string; readonly parameters: readonly (string | number)[] } | null {
+  if (!part(install_id) || !part(project_id)) return null;
+  const prefix = INSTALLATION + install_id + PROJECT + project_id + RECORD;
+  return { where: "substr(scope_id, 1, ?) = ?", parameters: [prefix.length, prefix] };
+}
+
 /** The one place a binding scope is read back; `null` for a scope that is not a plugin's (`home`, a built-in consumer's). */
 export function parsePluginBindingScope(scope: string): PluginBindingTarget | null {
   if (!scope.startsWith(INSTALLATION)) return null;

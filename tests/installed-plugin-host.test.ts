@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { copyFile, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
@@ -17,7 +17,8 @@ import { installedSignature, sandboxedPluginDefinition } from '../apps/local-hos
 import { exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
 import { studioStorage } from '../apps/local-host/dist/plugin-builder/storage.js';
 import { buildManifest } from '../apps/local-host/dist/plugin-builder/build-project.js';
-import { scheduleServiceFor } from '@molis-ai/molis-work-app-local-host';
+import { scheduleServiceFor, withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
+import { pluginBindingScope } from '@molis-ai/molis-work-service-connector-host';
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from './fixtures/plugin-callers.js';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
@@ -688,3 +689,26 @@ for (const choice of ['catalog-failure', 'disable', 'disable-enable'] as const)
       }
     } finally { release.resolve(); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); await rm(home, { recursive: true, force: true }); }
   });
+
+test('S-66 RAC-471 uninstalling in one project takes the per_record bindings of that project only; the other project and the installation slot keep theirs', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-connection-bindings-'));
+  const fixture = await publishedFixture(home, 'first'), copy = join(home, 'second.sqlite');
+  await copyFile(fixture.databasePath, copy);
+  // The same installation in two projects whose ids are a prefix pair: the anchored delete must tell them apart.
+  const projects = [DEMO_PROJECT_ID, DEMO_PROJECT_ID + '0'], stores = [fixture.databasePath, copy].map(path => new LocalProjectDatabase(path));
+  const install_id = fixture.install.install_id, pluginId = fixture.release.pluginId;
+  const connection = withConnectorConnections(home, store => store.createToken({ serviceId: 'github', displayName: 'GitHub', token: 'fixture-bearer-value-for-s72' }));
+  const scopes = [...projects.map(project_id => pluginBindingScope({ install_id, project_id, record_key: 'src-1' })), pluginBindingScope({ install_id })];
+  for (const [index, scope] of scopes.entries()) {
+    withConnectorConnections(home, store => store.bind({ scopeId: scope, pluginId, slotId: index < 2 ? 'feed' : 'account', serviceId: 'github', connectionId: connection.connection_id }));
+  }
+  const left = () => scopes.filter((scope, index) => withConnectorConnections(home, store => store.binding(scope, pluginId, index < 2 ? 'feed' : 'account')) !== null);
+  try {
+    const [one, two] = await Promise.all(stores.map((store, index) => ensureInstalledPlugins({ store, projectId: projects[index]!, homeDirectory: home })));
+    await one.lifecycle('uninstall', fixture.release, { keepData: true });
+    assert.deepEqual(left(), [scopes[1], scopes[2]], 'the other project keeps its record binding and both keep the installation slot');
+    await two.lifecycle('uninstall', fixture.release, { keepData: false });
+    // Whether another project still installs it is only in each project's library, so the shared one stays for the person (BL-596).
+    assert.deepEqual(left(), [scopes[2]]);
+  } finally { for (const [index, store] of stores.entries()) { await releaseInstalledPlugins(store, projects[index]!); store.close(); } await rm(home, { recursive: true, force: true }); }
+});

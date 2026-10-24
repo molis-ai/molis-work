@@ -58,12 +58,13 @@ test("real Plugin executor binds unknown Agent declarations and rejects forged o
     await runtime.start(first.install_id); await runtime.start(second.install_id);
     const a = contexts[0]!, b = contexts[1]!, api = a.services!.capabilities!, other = b.services!.capabilities!;
     const owner = { project_id: project.project_id, plugin_id: a.plugin_id, install_id: a.install_id, actor_id: "web-user", directory: { canonical_path: home, realpath_verified: true } };
-    assert.deepEqual(await api.invoke(agent.availableRoles, ["prologue", a.plugin_id]), [{ role_id: "private-reader", available: true }]);
+    assert.deepEqual(await api.invoke(agent.availableRoles, ["prologue"]), [{ role_id: "private-reader", available: true }], "the caller's own roles");
     const forged = { ...owner, plugin_id: "io.molis.work.coding", install_id: "forged-install" };
     // RAC-180: who a session is for is never an input; one that names an owner is refused before anything is asked.
     const invalid = { code: "actions.input_invalid" }, place = { directory: owner.directory };
     await assert.rejects(api.invoke(agent.createSession, ["prologue", { ...forged, title: "Forged" } as never]), invalid);
-    await assert.rejects(api.invoke(agent.availableRoles, ["prologue", "io.molis.work.coding"]), rejected);
+    // RAC-182: nor is the plugin whose roles are read; naming one is an input the action does not take.
+    await assert.rejects(api.invoke(agent.availableRoles, ["prologue", "io.molis.work.coding"] as never), invalid);
     const forgedOptions = { plugin_caller: { ...forged, project_id: project.project_id, assertActive() {}, declaration: { manifest: definitions[0]!.manifest } }, consumer: undefined };
     // A caller in the call options is not the plugin's to give either: its SDK drops it, and the session is the plugin's own.
     const unforged = await api.invoke(agent.createSession, ["prologue", { ...place, title: "Forged options" }], forgedOptions);

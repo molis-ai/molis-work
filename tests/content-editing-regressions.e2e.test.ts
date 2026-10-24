@@ -215,7 +215,7 @@ test("W2-18-PPT-02: closing a generating dialog protects later typing and a reop
   const store = openPptStore(b.homeDirectory);
   const deck = (() => { try { return store.create({ title: "Deck", project_id: b.projectId! }); } finally { store.close(); } })();
   await open(b, "ppt", deck.id); await b.frame.click("[data-ppt-outline-open]");
-  await b.frame.evaluate(`(() => { const original=window.fetch;window.pptCallEnded=false;window.fetch=async(url,options)=>{try{return await original(url,options);}finally{if(options?.method==='POST'&&new URL(url,"http://plugin.invalid").pathname.endsWith('/outline-ai'))window.pptCallEnded=true;}};window.restorePptFetch=()=>window.fetch=original;})()`);
+  await b.frame.evaluate(`(() => { const original=window.molisWorkRequest;window.pptCallEnded=false;window.molisWorkRequest=Object.assign(async(url,options)=>{try{return await original(url,options);}finally{if(options?.method==='POST'&&new URL(url,"http://plugin.invalid").pathname.endsWith('/outline-ai'))window.pptCallEnded=true;}},original);window.restorePptFetch=()=>{window.molisWorkRequest=original;};})()`);
   await input(b, "[data-ppt-outline-text]", "Original source"); await b.frame.click('[data-ppt-outline-mode="ai"]');
   await b.frame.click("[data-ppt-outline-submit]"); await started;
   await b.frame.click("[data-ppt-outline-close]"); await cancellation; await holdTimers(b);

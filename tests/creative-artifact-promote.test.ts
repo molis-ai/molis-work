@@ -25,7 +25,6 @@ import {
   renderPagesWorkbench,
 } from "@molis-ai/molis-work-plugin-pages";
 import {
-  PPT_CLIENT_FACTORY_SCRIPT,
   openPptStore,
   pptActions,
   renderPptWorkbench,
@@ -56,7 +55,7 @@ test("四个创作插件的列表和顶栏都有存为固定版本（放进 Arti
 
   const ppt = renderPptWorkbench({ primitives });
   assert.match(ppt, /data-ppt-artifact-bar/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /data-ppt-artifact/);
+  assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/ppt/src/browser/commands.ts", import.meta.url)), "utf8"), /data-ppt-artifact/);
 });
 
 test("问卷、数据表、演示稿可以连续存成两版 Artifact，编辑稿还在", async () => {

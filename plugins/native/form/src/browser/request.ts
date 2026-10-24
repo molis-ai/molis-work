@@ -8,16 +8,16 @@ export function formRequest(host: FormClientHost): FormRequest {
   const projectId = () => host.projectId();
   const withProject = (path: string) => {
     const id = projectId();
-    if (!id) throw new Error(L("缺少项目"));
+    if (!id) throw new Error(L("form.error.no-project"));
     return path + (path.includes("?") ? "&" : "?") + "project_id=" + encodeURIComponent(id);
   };
   return async <T>(method: "GET" | "POST", path: string, body?: Record<string, unknown>) => {
     const url = withProject(host.pluginRoute("/forms" + path));
     try {
-      return await molisWorkRequest<T>(url, { method, ...(body === undefined || method === "GET" ? {} : { body: { ...body, project_id: projectId() } }), fallback: L("问卷请求失败") });
+      return await molisWorkRequest<T>(url, { method, ...(body === undefined || method === "GET" ? {} : { body: { ...body, project_id: projectId() } }), fallback: L("form.error.request") });
     } catch (error) {
       const failure = error as UiRequestFailure & FormFailure;
-      if (failure.code === "form.conflict") failure.message = L("问卷已在别处修改，当前输入已保留。请复制需要保留的内容，再重新读取。");
+      if (failure.code === "form.conflict") failure.message = L("form.error.conflict");
       const answer = failure.body;
       if (answer && typeof answer === "object") failure.details = (answer as { details?: unknown }).details;
       throw failure;

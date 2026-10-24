@@ -71,6 +71,16 @@ authorizeMcpActions入口捕获原代次/absence，复用现validate_authority�
 >
 > **交付顺序与实际owner**：实现2 C2仍唯一Codex writer，先在同一slice更新完整合同、owner清单与HOME-DATA。当前Runtime配置封存+raw维护+只读SecretStore预检作为 **B2a** 固定非Draft PR/head/raw直交REVIEW/TEST/流水线并release，不等B2b或前片审验/CI；当前7文件39项仅作者候选不冒独立过。**B2b CLI密封owner必须接续**，作者先回具体最小新增路径/公开输入输出/验收给root与流水线，再由流水线排源码窗口，不产生第二writer。B2a局部交付不等于B2/W5-16完成；A同Home早期lease、全库/非SQLitesnapshot/restore及R41边界保持。跨owner真实依赖和固定候选统一full交Claude，不提前起或重复full。
 
+### ACA003 accepted WO：S-18最终同步authority合同补齐（P2，实际owner FIX2）
+
+root按现S18及已确认接口缺口批准本轮最小补齐，不再找/造真实漏洞窗口作为实施前置。有限检查未证生产越权，保持P2；DB只有statement-check helper差异、未改beforeEffect或同步提交顺序，其余指定相关链无diff，详见 `/tmp/molis-verify-2026-10-24/aca003-reachability/handoff.md`，不冒新main Module搬迁已验证。
+
+FIX2取得START后先在唯一slice `specs/repository-anti-corruption/slices/aca-003-assistant-authority.md` 落同一合同，鲜核迁移后的Assistant owner和在途认领。由现owner提供原精确动作 `assert_authority_current`，提交同轮重读disabled集合，保留signal、已准action ref、原异步验证、Host生命周期与嵌套控制；不缓存关闭集合/用全局permission替动作级开关，不改默认开放/确认策略。沿现callback合同，不增共享callback/状态库/版本/Assistant generation，不混ACA005 MCP v3。
+
+ACA003-01 用生产authority+真实设置owner证明最终同步拒绝且原业务状态零写；ACA003-02 合法动作正常、无关能力关闭不误杀；ACA003-03 嵌套控制及既有拒绝保持。声明内可控await只标合同边界验证，不冒当前内置产品exploit；只测字段存在不足，不再跑假Host policy暂停“漏洞复现”。同步同一S18条目/唯一slice/直接回归，共同docs冲突批内一次解。
+
+排现P1和在途必须修后由流水线按Claude顺序给单writer START；FIX2当前仅只读，不提前改spec/配置/源。新非Draft PR/head/spec/diff/raw DIRECT REVIEW/TEST/流水线/root，独立审验与真merge后关闭；不提高严重度/给无关候选加门，W5/1208nonblocks/E22等原owner保持。
+
 ### root全仓审计最终接单与验证（2026-10-24 10:55UTC，覆盖先前候选等级/验证顺序）
 
 独立报告 `/Users/yijunwang/code/goalboard/work/anti-corruption-audit-2026-10-24/report.md` 终点afabfcbef：范围71→70包/8生产链，非新增359文件逐行复审，未构建/测试或操作真实Home。最终1个P1（ACA005）、3个未修P2（ACA001/003/004），ACA002随1194/1166已修。审计已交付不等于整改完成，四原始目标均尚不能整体关闭。
@@ -78,7 +88,7 @@ authorizeMcpActions入口捕获原代次/absence，复用现validate_authority�
 | 项目 | 初始要求/事实与当前边界 | 实际owner与下一可执行动作 | 真实闭环 |
 | --- | --- | --- | --- |
 | ACA005 P1：search在owner catchUp后用MCP旧快照返回摘要 | 已真实MCP/source+reader单撤复现，root与流水线核run/handoff/result；仅平台扩展来源可达，内置同步Form另界 | 实施owner FIX1，当前只读去重/最小方案；source依赖C2短修与C1自然收口，见本节唯一accepted WO ACA005 | 已确认有效/未实施，独立修后同case和实际merge后闭环，不加无关候选门 |
-| ACA003 P2合同gap：Assistant缺提交同步尾检 | S18/防腐4.10/4.11/4.18；缺同步hook事实保留，但web-catalog-access缓存让不少await只是resolved Promise。仅给Host替身强加pause只能合同演示，不证真实HTTP可达；1153 memory getter等不覆盖 | 同一TEST在005后找真实生产owner/availability实际未决等待，再从真实Assistant设置入口撤精确能力，核owner/txn零写和action_revoked，保未撤对照；若003已开始自然完成不取消，清楚标合同演示/真实路径 | 从P1候选下调P2，不把旧人工barrier方案当生产越权可达；未实施/未验证，不扩大writer |
+| ACA003 P2：Assistant最终同步authority合同缺口 | 有限生产链检查未证真实窗口，不升P1/不关闭；DB一处statement-check helper差异已单独说明，其余相关链无diff | root已裁最小S18同步尾检，实际owner FIX2，当前只读准备；在现P1/在途必须修后由流水线START，不再以找exploit为前置 | 同一callback/真实disabled owner与零写验证，修复提交/独立审验/真merge前保持open，不混ACA005 MCPv3 |
 | ACA001 P2成果自读签名隔离 | 初始4.10/4.18、系统整理4/7/10、RAC411；主线按id、现候选1197/5cd2277，未合不能称已修 | 沿1197/1199现有原owner/派单与审验，不另开线；固定实际head/签名拒绝证据与批包含由既有批核 | 未真合前保持open，不从旧D1测试绿关闭 |
 | ACA004 P2文档过时 | CALL-CHAINS154–161/180旧后台启动缺口描述，实际web-project-schedulers已列catalog/inspectActions；plugin-dev SKILL52旧Pages/灵光/Jelly装配名单。1114只添locale未覆盖；初始4.9/4.12/4.14与系统整理2/13/14/15 | FIX2 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3已明确接入E22/SSOT文档队列；后续获源码/文档窗口鲜核真正main/监督器最小修，直交REVIEW/TEST，当前不占C2 B2 | 尚无提交/独立审验/merge，不以认领闭环 |
 

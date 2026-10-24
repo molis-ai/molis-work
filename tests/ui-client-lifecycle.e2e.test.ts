@@ -4,7 +4,7 @@ import { createServer, type ServerResponse } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { IMAGES_CLIENT_FACTORY_SCRIPT, imagesUiContribution } from "@molis-ai/molis-work-plugin-images";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
@@ -141,9 +141,10 @@ test("Images uses Host lifetime: hidden views stop polling, reopening refreshes,
     }
     if (request.url === "/api/plugins/io.molis.work.images/connections") { response.end(JSON.stringify({ connections: [], auth_connections: [] })); return; }
     response.end(`<!doctype html><section id="parent" hidden>${body}</section><script>
+      ${UI_REQUEST_CLIENT_SCRIPT}
       window.molisWorkControlHeaders = () => ({});
       window.mount = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
-      window.boot = () => (${IMAGES_CLIENT_FACTORY_SCRIPT})({ mountPluginClient: mount, translate: x => x, route: x => x, projectId: () => 'project' });
+      window.boot = () => (${IMAGES_CLIENT_FACTORY_SCRIPT})({ mountPluginClient: mount, translate: x => x, route: x => x, pluginRoute: path => '/api/plugins/io.molis.work.images' + path, pluginId: 'io.molis.work.images', projectId: () => 'project', loadMedia: (image, path) => { image.src = path; }, confirm: async () => true });
       window.root = document.querySelector('[data-images=workbench]'); root.hidden = false; boot();
     </script>`);
   });

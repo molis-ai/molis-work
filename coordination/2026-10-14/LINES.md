@@ -20,9 +20,9 @@
 > **10-24 晚派单（统筹，以此为准，上表是旧写法）**：
 > - `ac-coding` → **ac-trust 实现**：先 BL-563，再 T1（合同、规则、新表、基线升版本、S-34 改写），之后 T3→T6→T2→T4→T5→T8；T7 的界面统筹排。PG-037、PG-044 已核过、随 batch-34 标已做。
 > - `ac-giants` → **ac-artifacts 实现**：A2→A4→A7 的非目录部分；A3、A6 等 ac-registry 的 PG-024 片；A5 和 A7 的目录部分等用户的维护时段。
-> - `ac-sandbox-sched` → **Feed/Inbox 迁到 Runtime**（`slices/feed-inbox-runtime.md`，RAC-480～499）：FI-1 #1247 在修；FI-2 等 #1242 合入；FI-3、FI-4 先写设计稿交统筹审（D3 按插件 Manifest 声明集成；D4 用 Feed 的 Home 一半记引用账）；BL-490 等 #1241 合入。
+> - `ac-sandbox-sched` → **Feed/Inbox 迁到 Runtime**（`slices/feed-inbox-runtime.md`，RAC-480～519，10-24 21:35 加 500～519）：FI-1 #1247 在修；FI-2 等 #1242 合入；FI-3、FI-4 设计稿已审（10-24 21:35，`582a8b123`，方向认可、各 5 条必改，改完统筹核一眼即算审过；FI-3 可在分支开工，PR 排在 BL-490、FI-2 之后；FI-4 实现随 FI-6）；BL-490 等 #1241 合入。
 > - `ac-clients-1` → **W5-04 第三组**（Coding、Diff、text-stats 的客户端，样式按需加载），之后写 PG-055 设计稿（SDK 公开界面部件）。
-> - `ac-kernel` → S-57 X1～X4 合成一个 PR（等 #1242 二轮、#1241 合入后合 main、S 号排 S-68～70）；然后 R-38 第 2 片。
+> - `ac-kernel` → S-57 X1～X4（号段 10-24 21:35 改为 RAC-470～479、520～539，避开 Feed/Inbox 的 480 段）合成一个 PR（等 #1242 二轮、#1241 合入后合 main、S 号排 S-68～70）；然后 R-38 第 2 片。
 > - `ac-sc3` → Goals S9-0b #1245（统筹把对象种类隔离升为挡合并，Codex 在修）；S9-1 等 #1245 过一轮；S9-2 等维护时段。
 > - 待开线：`ac-registry`（W5-02，PG-024 片挡着 ac-artifacts 的 A3/A6），下一条线空出来就开。
 

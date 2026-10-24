@@ -1,5 +1,5 @@
 {
-  "giantUnits": 113,
+  "giantUnits": 111,
   "giant": {
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
@@ -194,11 +194,6 @@
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
     "file plugins/native/pages/src/client.ts": 1094,
-    "function plugins/native/pages/src/editor-browser.ts#mount": 451,
-    "class plugins/native/pages/src/store.ts#PagesStore": {
-      "lines": 346,
-      "methods": 28
-    },
     "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": 225,
     "class plugins/native/plugin-builder/src/agent-workflow.ts#AgentBuilderWorkflow": {
       "lines": 654,

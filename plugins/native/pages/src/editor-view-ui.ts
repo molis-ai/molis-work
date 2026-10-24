@@ -58,6 +58,12 @@ export function keepSelectedVisible(menu: HTMLElement): void {
   );
 }
 
+/** A mousedown handler that keeps the editor's selection and focus where they are. */
+export const keepFocus = (event: Event): void => event.preventDefault();
+
+/** A handler that keeps an event from reaching the editor underneath. */
+export const keepOut = (event: Event): void => event.stopPropagation();
+
 export function stopEvent(event: Event): void {
   event.preventDefault();
   event.stopPropagation();

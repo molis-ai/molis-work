@@ -6,7 +6,7 @@ import { applySlash, slashSession, dismissedMenuRange, menuKey, hoverMenuIndex }
 import { ownPagesTransient, readPagesImage } from "./editor-transient.js";
 import { pagesSchema } from "./schema.js";
 import type { Translate, PagesEditorMountOptions, PagesListItem } from "./editor-types.js";
-import { t, overlayRoot, dsIcon, escapeHtml, keepSelectedVisible } from "./editor-view-ui.js";
+import { t, overlayRoot, dsIcon, escapeHtml, keepSelectedVisible, keepFocus } from "./editor-view-ui.js";
 
 export const slashKey = new PluginKey<{ open: boolean; pos: number; query: string; index: number }>("pages-slash");
 
@@ -227,7 +227,7 @@ export function slashPlugin(translate: Translate | undefined) {
                 if (next == null) return;
                 view.dispatch(view.state.tr.setMeta(slashKey, { ...current, index: next }));
               });
-              button.addEventListener("mousedown", (event) => event.preventDefault());
+              button.addEventListener("mousedown", keepFocus);
               button.addEventListener("click", () => choose(view, item.id));
               menu.append(button);
             });
@@ -347,7 +347,7 @@ export function mentionPlugin(options: PagesEditorMountOptions) {
                 if (next == null) return;
                 view.dispatch(view.state.tr.setMeta(mentionKey, { ...current, index: next }));
               });
-              button.addEventListener("mousedown", (event) => event.preventDefault());
+              button.addEventListener("mousedown", keepFocus);
               button.addEventListener("click", () => {
                 const current = mentionKey.getState(view.state);
                 if (current?.open) insertMention(view, current.from, view.state.selection.from, item);

@@ -6,7 +6,7 @@ import { calloutIconFor, safePagesCalloutTone } from "./callout.js";
 import { setColumnWidth } from "./table-edit.js";
 import { pagesSchema, safePagesColumnShare, safePagesColumnWidth } from "./schema.js";
 import type { Translate, PagesEditorMountOptions } from "./editor-types.js";
-import { t, dsIcon } from "./editor-view-ui.js";
+import { t, dsIcon, keepFocus } from "./editor-view-ui.js";
 import { SIZE_KEYS, sizeHandle } from "./editor-size-keys.js";
 
 
@@ -30,7 +30,7 @@ export function columnNodeView(node: Node, view: EditorView, getPos: () => numbe
     dom.dataset.pagesColumnShare = String(own);
     value(n, 0, 100, t(translate, "栏宽 {n}%").replace("{n}", String(n)));
   };
-  handle.addEventListener("mousedown", (event) => event.preventDefault());
+  handle.addEventListener("mousedown", keepFocus);
   handle.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -110,7 +110,7 @@ export function cellNodeView(node: Node, view: EditorView, getPos: () => number 
     }
     read();
   };
-  handle.addEventListener("mousedown", (event) => event.preventDefault());
+  handle.addEventListener("mousedown", keepFocus);
   handle.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -190,7 +190,7 @@ export function toggleNodeView(node: Node, view: EditorView, getPos: () => numbe
   caret.type = "button";
   caret.className = "pages-toggle-caret";
   caret.innerHTML = dsIcon("chevron-right");
-  caret.addEventListener("mousedown", (event) => event.preventDefault());
+  caret.addEventListener("mousedown", keepFocus);
   caret.addEventListener("click", () => {
     const pos = getPos();
     if (pos == null) return;
@@ -227,7 +227,7 @@ export function calloutNodeView(
   const pickLabel = t(translate, "换图标或颜色");
   mark.setAttribute("aria-label", pickLabel);
   mark.title = pickLabel;
-  mark.addEventListener("mousedown", (event) => event.preventDefault());
+  mark.addEventListener("mousedown", keepFocus);
   mark.addEventListener("click", (event) => {
     event.preventDefault();
     const pos = getPos();

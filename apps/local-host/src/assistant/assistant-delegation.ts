@@ -290,7 +290,7 @@ export class AssistantDelegations {
   async #continue(ready: { graph_id: string; request_key: string }): Promise<void> {
     const { store, actorId } = this.ports;
     const parent = store.list(actorId, { limit: 500 }).find(work => work.graph_id === ready.graph_id && !work.delegated_by);
-    if (!parent || parent.executor.kind === "coding" || this.#continuing.has(parent.work_id) || this.#refused.has(ready.request_key)) return;
+    if (!parent || parent.executor.kind === "plugin" || this.#continuing.has(parent.work_id) || this.#refused.has(ready.request_key)) return;
     const preparing = { withdrawn: false };
     this.#continuing.set(parent.work_id, preparing);
     try {

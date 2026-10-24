@@ -75,55 +75,60 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let problem = null;
   let nextScope = project ? "project" : "personal";
   let nextExec = "assistant";
-  // The first round's mode for a new Coding work; after that the session keeps it.
-  let nextMode = "execute";
+  // The first round's mode for a new plugin work (empty: its default); after that the session keeps it.
+  let nextMode = "";
   const execBtn = island.querySelector("[data-assistant-executor]");
   const executorLabel = island.querySelector("[data-assistant-executor-label]");
   const execsPop = island.querySelector("[data-assistant-executors]");
-  const EXECUTORS = [{ id: "assistant", label: "助理", hint: "个人工作助理，使用你已授权的能力" }, { id: "coding", label: "Coding Agent", hint: "在项目的工作目录里写代码、运行命令，改动逐项请你确认" }];
+  let executors = [];
+  const executorOffer = (id) => executors.find((one) => one.plugin_id === id && !one.problem) || null;
+  const executorsHere = () => Boolean(project && executors.some((one) => !one.problem));
+  const executorChoices = () => [{ id: "assistant", label: "助理", hint: "个人工作助理，使用你已授权的能力" }].concat(executors.filter((one) => !one.problem)
+    .map((one) => ({ id: one.plugin_id, label: one.title, hint: "在这个项目里由它自己的 Agent 执行，补充和回答照常在这里发" })));
   const modeButton = island.querySelector("[data-assistant-mode]");
   const modeLabel = island.querySelector("[data-assistant-mode-label]");
   const modesPop = island.querySelector("[data-assistant-modes]");
-  const MODES = [{ id: "discuss", label: "讨论", hint: "只读，回答与建议，不改文件" }, { id: "plan", label: "规划", hint: "先出计划，确认后再执行" },
-    { id: "edit", label: "修改", hint: "改文件，不运行命令" }, { id: "execute", label: "执行", hint: "改文件并运行命令，逐项请你确认" }, { id: "review", label: "评审", hint: "检查现有改动并给出意见" }];
+  const modeOffer = () => { const work = getWork(); return executorOffer(work ? work.executor.kind === "plugin" ? work.executor.plugin_id : "" : nextExec); };
+  const modeRows = (offer) => offer.modes.map((mode) => ({ id: mode.id, label: L(mode.title) }));
   const setModes = (open) => {
     if (!modesPop) return;
     modesPop.hidden = !open;
     modeButton?.setAttribute("aria-expanded", String(open));
     if (!open) return;
     const work = getWork();
-    const chosen = work ? work.executor && work.executor.mode : nextMode;
-    modesPop.replaceChildren(el("p", "assistant-popover-title", L(work ? "下一轮的方式（与 Coding 页面同一设置）" : "第一轮的方式")));
-    MODES.forEach((mode) => {
+    const offer = modeOffer(); if (!offer) { modesPop.hidden = true; return; }
+    const chosen = work ? work.executor && work.executor.mode || offer.default_mode : nextMode || offer.default_mode;
+    modesPop.replaceChildren(el("p", "assistant-popover-title", L(work ? "下一轮的方式（与插件自己的页面同一设置）" : "第一轮的方式")));
+    modeRows(offer).forEach((mode) => {
       const item = el("button", "assistant-starter"); item.type = "button";
       if (chosen === mode.id) item.setAttribute("aria-current", "true");
-      item.append(el("strong", "", L(mode.label)), el("span", "assistant-material-origin", " " + L(mode.hint)));
+      item.append(el("strong", "", mode.label));
       item.addEventListener("click", async () => { setModes(false); await applyMode(mode.id); input.focus(); });
       modesPop.append(item);
     });
     (modesPop.querySelector("[aria-current]") || modesPop.querySelector("button"))?.focus();
   };
-  /** A new Coding work's first round, or an open work's next one: the session's own setting, the same one its page shows. */
+  /** A new plugin work's first round, or an open work's next one: the session's own setting, the same one its page shows. */
   async function applyMode(id) {
     const work = getWork();
     if (!work) { nextMode = id; paintAim(); paintSum(); return; }
     try {
       view = await api("/works/" + encodeURIComponent(work.work_id) + "/mode", "POST", { mode: id }); render();
-      window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: "coding.sessions.update", session_id: view.work.executor.session_id } }));
+      const offer = modeOffer(); if (offer) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: offer.capability_ids["session.update"], session_id: view.work.executor.session_id } }));
     }
     catch (error) { showError(error); }
   }
   // The choice is made against what is saved now, not what this panel last read.
   modeButton?.addEventListener("click", async () => { if (!modesPop.hidden) { setModes(false); return; } if (curId) await reload().catch(() => {}); setModes(true); });
   // Which Character carries the next round: the work's own choice, or one made here that the next Send brings along.
-  // Only the Assistant's own project work has Characters (they are published per project); a Coding work picks its own.
+  // Only the Assistant's own project work has Characters (they are published per project); a plugin work picks its own.
   const charBtn = island.querySelector("[data-assistant-character]");
   const characterLabel = island.querySelector("[data-assistant-character-label]");
   const charsPop = island.querySelector("[data-assistant-characters]");
   let nextChar = null, pendingChar;
   const chosenCharacter = () => { const work = getWork(); return work ? (pendingChar !== undefined ? pendingChar : work.character || null) : nextChar; };
   const allowsCharacter = () => { const work = getWork();
-    return work ? work.executor.kind !== "coding" && work.scope.kind === "project" : nextExec === "assistant" && nextScope === "project" && Boolean(project); };
+    return work ? work.executor.kind !== "plugin" && work.scope.kind === "project" : nextExec === "assistant" && nextScope === "project" && Boolean(project); };
   const setChars = async (open) => {
     if (!charsPop) return;
     charsPop.hidden = !open;
@@ -198,11 +203,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!work || !id || !(work.executor && work.executor.session_id === id)) return;
     void reload().then(poll).catch(() => {});
   });
-  const codingHere = () => Boolean(project && document.querySelector('.plugin-rail-items [data-plugin-id="coding"]'));
   let draftTimer = 0, draftWrite = Promise.resolve();
   let activeSend = null;
 
   const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:L("助理暂时无法完成")});
+  const loadExecutors = () => project ? api("/executors").then((res) => { executors = res.executors || []; if (nextExec !== "assistant" && !executorOffer(nextExec)) nextExec = "assistant"; paintAim(); paintSum(); }).catch(() => { executors = []; }) : Promise.resolve();
+  const executorsLoaded = loadExecutors();
   const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ L, shared: host.receipts, chip: island.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
     pact: (content, badge) => paintBlock(blocks.agreements, L("AI 记下的约定"), "list", content, badge) });
   const stateLabel = (state) => L(STATE_LABELS[state] || state || ""); const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
@@ -232,15 +238,16 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     // A page that knows what the person is looking at (the project list) may say so in the placeholder of a new work.
     const hint = !work && nextExec === "assistant" && host.placeholder ? host.placeholder(project) : "";
-    input.placeholder = work?.reply_target ? L("请回到原评论继续回复") : work ? L("补充、回答或纠正…") : nextExec === "coding" ? L("让 Coding Agent 做点什么…")
+    input.placeholder = work?.reply_target ? L("请回到原评论继续回复") : work ? L("补充、回答或纠正…") : nextExec !== "assistant" && executorOffer(nextExec) ? L("让 {name} 做点什么…", { name: executorOffer(nextExec).title })
       : hint ? hint : searchKey() ? L("让助理做点什么，或按 {key} 搜索").replace("{key}", searchKey()) : L("让助理做点什么…");
-    // A Coding work shows the mode its next round runs in — the session's own setting, the same one its page shows.
+    // A plugin work shows the mode its next round runs in — the session's own setting, the same one its page shows.
     if (modeButton) {
-      // A new work that continues an open Coding session runs in that session's own mode, shown once it is the work's.
-      const coding = work ? work.executor && work.executor.kind === "coding" : nextExec === "coding" && codingHere() && !codingSession();
-      modeButton.hidden = !coding;
-      if (coding && modeLabel) {
-        const name = L((MODES.find((one) => one.id === (work ? work.executor.mode : nextMode)) || { label: "执行" }).label), [before, after = ""] = L("方式：{mode}", { mode: "\u0000" }).split("\u0000"), label = before + name + after;
+      // A new work that continues a session open on the page runs in that session's own mode, shown once it is the work's.
+      const offer = modeOffer(), shown = Boolean(offer && offer.modes.length && (work || !executorSession(nextExec)));
+      modeButton.hidden = !shown;
+      if (shown && modeLabel) {
+        const wanted = work ? work.executor.mode || offer.default_mode : nextMode || offer.default_mode;
+        const name = L((offer.modes.find((one) => one.id === wanted) || { title: wanted }).title), [before, after = ""] = L("方式：{mode}", { mode: "\u0000" }).split("\u0000"), label = before + name + after;
         modeLabel.replaceChildren(el("span", "assistant-mode-word", before), name, el("span", "assistant-mode-word", after)); // a narrow bar shows the mode alone
         modeButton.setAttribute("aria-label", L(work ? "下一轮的方式" : "第一轮的方式") + " · " + label);
       }
@@ -257,11 +264,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     // Who carries the next new work: chosen before sending; an existing work keeps its own.
     if (execBtn) {
-      execBtn.hidden = Boolean(work) || !codingHere() || nextExec === "assistant";
-      if (!codingHere() && nextExec !== "assistant") nextExec = "assistant";
+      execBtn.hidden = Boolean(work) || !executorsHere() || nextExec === "assistant";
+      if (!executorsHere() && nextExec !== "assistant") nextExec = "assistant";
       execBtn.toggleAttribute("data-chosen", nextExec !== "assistant");
-      if (executorLabel) executorLabel.textContent = L((EXECUTORS.find((one) => one.id === nextExec) || EXECUTORS[0]).label)
-        + (nextExec === "coding" && codingSession() ? " · " + L("当前会话") : "");
+      if (executorLabel) executorLabel.textContent = L((executorChoices().find((one) => one.id === nextExec) || executorChoices()[0]).label)
+        + (nextExec !== "assistant" && executorSession(nextExec) ? " · " + L("当前会话") : "");
     }
   };
   const setExecs = (open) => {
@@ -270,11 +277,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     execBtn?.setAttribute("aria-expanded", String(open));
     if (!open) return;
     execsPop.replaceChildren(el("p", "assistant-popover-title", L("由谁来做")));
-    EXECUTORS.filter((one) => one.id !== "coding" || codingHere()).forEach((one) => {
+    void loadExecutors();
+    executorChoices().forEach((one) => {
       const item = el("button", "assistant-starter"); item.type = "button";
       if (one.id === nextExec) item.setAttribute("aria-current", "true");
       item.append(el("strong", "", L(one.label)), el("span", "assistant-material-origin", " " + L(one.hint)));
-      item.addEventListener("click", () => { nextExec = one.id; setExecs(false); paintAim(); paintSum(); input.focus(); });
+      item.addEventListener("click", () => { nextExec = one.id; nextMode = ""; setExecs(false); paintAim(); paintSum(); input.focus(); });
       execsPop.append(item);
     });
     (execsPop.querySelector("[aria-current]") || execsPop.querySelector("button"))?.focus();
@@ -548,7 +556,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     round.activity.forEach((item, index) => { if (!(stepsShown && item.verb === "todo")) entries.push({ key: "a:" + item.call_id, order: item.sequence ?? (1000 + index), item }); });
     entries.sort((a, b) => a.order - b.order);
     // Which Agent ran this round, when the work changed hands.
-    if (round.executor === "coding") { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); setText(tag, L("由 Coding Agent 执行")); put(tag); }
+    if (round.executor === "plugin") { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); const carrier = getWork(); setText(tag, carrier && carrier.executor.kind === "plugin" ? L("由 {name} 执行", { name: carrier.executor.title }) : L("由执行方插件执行")); put(tag); }
     else if (round.character) { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); setText(tag, L("由角色负责") + "：" + round.character.title + " v" + round.character.version); put(tag); }
     // What this round carried reads as a line under the person's own message; the side pane keeps the full list.
     let carried = null;
@@ -824,11 +832,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         const name = surfaceName(work.origin.surface), title = work.origin.title || name;
         step("flag", "", L("起点"), card({ icon: kindGlyph(work.origin.surface), title, sub: name !== title && name !== work.origin.surface ? name : "" }));
       }
-      objects.filter((o) => o.relation === "session").forEach((o) => step("code", "", L("专业会话"), objectCard(o, "", L("在 Coding 打开"))));
-      if (work && work.executor.kind === "coding" && work.executor.session_id && !objects.some((o) => o.relation === "session")) {
-        step("code", "", L("专业会话"), card({ icon: "code", title: work.executor.title || "Coding", sub: "Coding",
-          open: host.openItem ? async () => host.openItem("coding", work.executor.session_id, work.title) : null, openLabel: L("在 Coding 打开") }));
-      }
+      objects.filter((o) => o.relation === "session").forEach((o) => step("code", "", L("专业会话"), objectCard(o, "", L("在执行方打开"))));
       const steps = latestSteps(work);
       if (steps.length) {
         // The step in hand either runs, or waits on the person: then it says what to do and takes them to it.
@@ -983,7 +987,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (work.state === "completed" && last && last.ended_at) return L("完成于") + " " + when(last.ended_at);
     return "";
   };
-  /** A small row of choices, the current one pressed; used for who carries a new work, the Coding mode and where it lives. */
+  /** A small row of choices, the current one pressed; used for who carries a new work, a plugin's mode and where it lives. */
   const segmented = (label, options, chosen, pick) => {
     const group = el("div", "assistant-segmented"); group.setAttribute("role", "group"); group.setAttribute("aria-label", label);
     options.forEach((option) => {
@@ -1052,7 +1056,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const hasChoices = Boolean(characters && characters.length);
     const chosen = chosenCharacter();
     const signature = JSON.stringify([work && work.work_id, work && work.executor, work && work.scope, work && work.character, work && isLive(work.state), pendingChar,
-      nextExec, nextScope, nextMode, nextChar, codingHere(), codingSession(), characters && characters.map((c) => [c.reference, c.available])]);
+      nextExec, nextScope, nextMode, nextChar, executors.map((one) => [one.plugin_id, one.title, one.problem, one.modes]), executorSession(nextExec), characters && characters.map((c) => [c.reference, c.available])]);
     if (metaEl.dataset.signature === signature) return;
     metaEl.dataset.signature = signature;
     keepFocus(metaEl, () => {
@@ -1077,34 +1081,34 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       };
       if (work) {
         rows.push(...metaRow(L("属于"), document.createTextNode(scopeLabel(work.scope, work.scope_title))));
-        if (work.executor.kind === "coding") {
-          rows.push(...metaRow(L("谁来做"), document.createTextNode("Coding Agent")));
-          rows.push(...metaRow(L("方式"), segmented(L("下一轮的方式（与 Coding 页面同一设置）"), MODES.map((mode) => ({ id: mode.id, label: L(mode.label), hint: L(mode.hint) })), work.executor.mode || "execute", (id) => void applyMode(id))));
+        if (work.executor.kind === "plugin") {
+          const offer = modeOffer();
+          rows.push(...metaRow(L("谁来做"), document.createTextNode(work.executor.title)));
+          if (offer && offer.modes.length) rows.push(...metaRow(L("方式"), segmented(L("下一轮的方式（与插件自己的页面同一设置）"), modeRows(offer), work.executor.mode || offer.default_mode, (id) => void applyMode(id))));
         } else if (allowsCharacter() && hasChoices) {
           rows.push(...metaRow(L("谁来做"), characterPicker()));
         } else rows.push(...metaRow(L("谁来做"), document.createTextNode(chosen ? L("角色") + "：" + chosen.title : L("助理"))));
-        // The same work can change hands between rounds: to Coding in its project, and back to the Assistant.
-        const toCoding = work.executor.kind === "assistant" && work.scope.kind === "project" && codingHere();
-        const toAssistant = work.executor.kind === "coding";
-        if (!isLive(work.state) && (toCoding || toAssistant)) {
-          const hand = el("button", "assistant-side-action", toCoding ? L("交给 Coding 继续") : L("回到助理")); hand.type = "button";
-          hand.addEventListener("click", async () => {
-            hand.disabled = true;
-            try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/handover", "POST", { to: toCoding ? "coding" : "assistant" }); render(); input.focus(); }
-            catch (error) { showError(error); }
-            finally { if (hand.isConnected) hand.disabled = false; }
-          });
-          rows.push(...metaRow("", hand));
+        // The same work can change hands between rounds: to a plugin in its project, and back to the Assistant.
+        const toPlugins = work.executor.kind === "assistant" && work.scope.kind === "project" ? executors.filter((one) => !one.problem) : [];
+        if (!isLive(work.state) && (toPlugins.length || work.executor.kind === "plugin")) {
+          const handOver = (label, to) => {
+            const hand = el("button", "assistant-side-action", label); hand.type = "button";
+            hand.addEventListener("click", async () => { hand.disabled = true;
+              try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/handover", "POST", { to }); render(); input.focus(); }
+              catch (error) { showError(error); } finally { if (hand.isConnected) hand.disabled = false; } });
+            rows.push(...metaRow("", hand)); };
+          toPlugins.forEach((one) => handOver(L("交给 {name} 继续", { name: one.title }), { kind: "plugin", plugin_id: one.plugin_id }));
+          if (work.executor.kind === "plugin") handOver(L("回到助理"), { kind: "assistant" });
         }
       } else {
         // A new work: who carries it and where it lives are chosen here, before its first message.
-        const who = [{ id: "assistant", label: L("助理"), hint: L("个人工作助理，使用你已授权的能力") }];
-        if (codingHere()) who.push({ id: "coding", label: "Coding Agent", hint: L("在项目的工作目录里写代码、运行命令，改动逐项请你确认") });
+        const who = executorChoices().map((one) => ({ id: one.id, label: L(one.label), hint: L(one.hint) }));
         rows.push(...metaRow(L("谁来做"), segmented(L("由谁来做"), who, nextExec, (id) => { nextExec = id; if (id !== "assistant") nextChar = null; paintAim(); paintSum(); })));
         if (nextExec === "assistant" && allowsCharacter() && hasChoices) rows.push(...metaRow(L("角色"), characterPicker()));
-        if (nextExec === "coding") {
-          if (codingSession()) rows.push(...metaRow(L("方式"), document.createTextNode(L("接着当前打开的 Coding 会话"))));
-          else rows.push(...metaRow(L("方式"), segmented(L("第一轮的方式"), MODES.map((mode) => ({ id: mode.id, label: L(mode.label), hint: L(mode.hint) })), nextMode, (id) => void applyMode(id))));
+        if (nextExec !== "assistant" && modeOffer()) {
+          const offer = modeOffer();
+          if (executorSession(nextExec)) rows.push(...metaRow(L("方式"), document.createTextNode(L("接着当前打开的会话"))));
+          else if (offer.modes.length) rows.push(...metaRow(L("方式"), segmented(L("第一轮的方式"), modeRows(offer), nextMode || offer.default_mode, (id) => void applyMode(id))));
         }
         if (nextExec === "assistant" && project) {
           rows.push(...metaRow(L("放在"), segmented(L("新工作放在"), [{ id: "project", label: project.title || L("本项目") }, { id: "personal", label: L("个人") }], nextScope,
@@ -1297,12 +1301,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           box.append(raise);
         }
         else if (shown.action === "打开设置") { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", L("打开助理设置")); link.href = "/settings/assistant"; box.append(link); }
-        // Coding's own choices (its model, its folder) are made on its page: the step is a button that goes there.
-        else if (/Coding/.test(shown.action) && codingHere()) {
-          const go = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("打开 Coding")); go.type = "button";
-          go.addEventListener("click", () => { document.querySelector('.plugin-rail-items [data-plugin-id="coding"]')?.click(); setPanel(false); });
-          box.append(el("p", "assistant-muted", L(shown.action)), go);
-        }
         else box.append(el("p", "assistant-muted", L(shown.action)));
       }
       thread.append(box);
@@ -1381,7 +1379,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const follower = (${ASSISTANT_FOLLOW_FACTORY_SCRIPT})({ route: host.route, headers: host.headers, followed, current: () => curId, show: (next) => { view = next; render(); } });
   const poll = () => { if (curId && view && view.work.work_id === curId && followed(view)) follower.follow(curId); else follower.stop(); };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { reload().then(poll); loadWorks(); } });
-  // Another window may have changed this work (a Coding mode, a new round): coming back to this one reads it again.
+  // Another window may have changed this work (a mode, a new round): coming back to this one reads it again.
   window.addEventListener("focus", () => { if (!document.hidden && curId) reload().then(poll); });
   const listTimer = setInterval(() => { if (!document.hidden && panel && !panel.hidden) loadWorks(); }, 15000);
 
@@ -1563,8 +1561,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const joined = new Set();
   const { objectKey, belongsToWork, holds, relatedWorks, pickable, forgetRelated } = (${ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT})({ api, joined, open: () => Boolean(panel && !panel.hidden),
     current: () => (view && view.work.work_id === curId ? view : null), repaint: () => paintMats(), L });
-  /** The Coding session open on the page, which a new Coding work continues instead of starting another. */
-  const codingSession = () => { const ctx = pageCtx(); return ctx && ctx.object && ctx.object.kind === "coding_session" ? ctx.object.id : null; };
+  /** The page's session of the plugin a new work aims at, which it continues instead of starting another. */
+  const executorSession = (id) => { const offer = id === "assistant" ? null : executorOffer(id), ctx = pageCtx(); return offer && ctx && ctx.object && ctx.object.kind === offer.session_kind ? ctx.object.id : null; };
   const pageObject = () => {
     const ctx = pageCtx();
     if (!ctx || !ctx.object || removed.has("object")) return null;
@@ -1860,7 +1858,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const mats = Array.isArray(raw.materials) ? raw.materials.filter((item) => item && typeof item.title === "string" && typeof item.text === "string" && item.text)
       .slice(0, 4).map((item) => ({ title: item.title.slice(0, 200), text: item.text.slice(0, 20000) })) : [];
     return { message_id: raw.message_id, purpose: raw.purpose, source, object, text: typeof raw.text === "string" ? raw.text.trim().slice(0, 8000) : "", materials:mats,
-      work_id: typeof raw.work_id === "string" && raw.work_id ? raw.work_id : null, executor: raw.executor === "coding" ? "coding" : null };
+      work_id: typeof raw.work_id === "string" && raw.work_id ? raw.work_id : null, executor: typeof raw.executor === "string" && raw.executor ? raw.executor.slice(0, 200) : null };
   };
   const bring = (message) => {
     (message.materials.length || !message.object ? message.materials : [{ kind: "object", title: message.object.title || message.object.id }]).forEach((item, index) => files.some((file) => file.title === item.title && file.text === item.text) || files.push(Object.assign({ material_id: "msg-" + message.message_id.slice(0, 40) + "-" + index, kind: item.kind || "text", title: item.title, text: item.text,
@@ -1873,7 +1871,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (busy) { showOffer(message, false); return; }
     if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id);
     else if (message.work_id || curId) await switchTo(null);
-    if (!message.work_id && message.executor === "coding" && codingHere()) { nextExec = "coding"; paintAim(); paintSum(); } // e.g. the 成果库's 「交给 Coding」
+    await executorsLoaded;
+    if (!message.work_id && message.executor && executorOffer(message.executor)) { nextExec = message.executor; nextMode = ""; paintAim(); paintSum(); } // e.g. the 成果库's 「交给 Coding」
     bring(message);
     if (!String(input.value || "").trim()) { setPanel(true); input.focus(); return; }
     requestOverride = "msg-" + message.message_id; pageText = message.text && input.value.trim();

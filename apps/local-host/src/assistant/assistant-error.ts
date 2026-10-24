@@ -1,7 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorBody, actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 import { assistantErrors } from "./assistant-errors.js";
-import { CodingUnavailable } from "./assistant-coding.js";
 import { L } from "../web-locale.js";
 
 /**
@@ -9,7 +8,6 @@ import { L } from "../web-locale.js";
  * are said in the page's language (QA-001); `action` stays the key the page picks its control by and translates.
  */
 export function assistantFailure(error: unknown): ActionError {
-    if (error instanceof CodingUnavailable) return assistantErrors.coding_unavailable(error.message, error.action ? { action: error.action } : undefined);
     const code = (error as { code?: string })?.code ?? "";
     const message = error instanceof Error ? error.message : String(error);
     if (code === "agent.model_not_configured") return assistantErrors.model_missing(L("还没有配置可用的模型，助理无法开始工作"), { action: "打开模型设置" });

@@ -1,4 +1,4 @@
-import { artifactsErrors } from "./errors.js";
+import { pluginArtifactErrors } from "./plugin-errors.js";
 import type {
   PluginArtifactClient, PluginStartContext, PluginArtifactPublishInput, PluginProcessItemClient, PluginProcessItemInput,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -19,16 +19,16 @@ export function createPluginArtifactClient(input: Omit<PluginArtifactOperationsI
   const { context, actor_id } = input;
   const manifest = structuredClone(input.manifest);
   if (manifest.plugin_id !== context.plugin_id || manifest.version !== context.version) {
-    throw artifactsErrors.plugin_denied("Host 的 Plugin Manifest 与安装上下文不匹配");
+    throw pluginArtifactErrors.plugin_denied("Host 的 Plugin Manifest 与安装上下文不匹配");
   }
   function requirePermission(permission: string): void {
     if (!manifest.permissions.some(item => item.permission === permission)) {
-      throw artifactsErrors.plugin_denied("Manifest 未声明该成果权限");
+      throw pluginArtifactErrors.plugin_denied("Manifest 未声明该成果权限");
     }
     context.requireGrant(permission);
   }
   const denied = (reason: string): ActionAvailability => {
-    const error = artifactsErrors.plugin_denied(reason);
+    const error = pluginArtifactErrors.plugin_denied(reason);
     return { available: false, code: error.code, kind: error.kind, reason: error.message };
   };
   const available = (permission: string): ActionAvailability => {

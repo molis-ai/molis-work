@@ -12,7 +12,7 @@ import type { HostCapabilityCallOptions, HostPluginCaller } from "@molis-ai/moli
 import type { PluginDatabase, PluginDefinition, PluginManifest, PluginModelClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDirectoryService } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
-import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
+import { createPluginArtifactClient } from "@molis-ai/molis-work-module-artifacts";
 import {
   assertPluginActionCurrent,
   assertCapturedPluginActionCurrent,

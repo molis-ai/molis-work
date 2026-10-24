@@ -42,7 +42,7 @@ Coding 可在授权范围内操作浏览器与桌面，协调有依赖关系的�
 | 只把最后五条用户补充交给摘要模型；备用摘要不带执行中的补充 | 生产函数最小实验复现；最新主线及 Claude Coding 分支仍有对应逻辑 | Claude 输入回执需求 §20，P0 |
 | thinking 覆盖显式输出预算，记录 8,192、实际请求 32,768 | 旧检出通过真实适配器、SDK、本地 HTTP/SSE 模型替身复现；**最新主线已修正**，`runModelParams` 以显式预算优先，已有组合断言。本次未在新树重新运行测试。[参数解析](../../horizontal/agent-host/src/adapters/prologue-run-params.ts)、[用例](../../tests/model-thinking.test.ts) | R4，保留回归，不再列待修 |
 | SDK 自动读取项目规则的信任参数未接入 | 新主线适配层未找到 `projectTrusted`，上下文装配仅见窗口/压缩；不等于模型完全不能自行读 AGENTS.md。[运行装配](../../horizontal/agent-host/src/adapters/prologue-run.ts) | R3，待接通 |
-| 助理继续 Coding 会话时不带已选 Skill、MCP；启动端缺省为空 | 最新主线静态确认。[委派入口](../../apps/local-host/src/assistant/assistant-coding.ts)、[Coding 路由](../../plugins/native/coding/src/routes.ts) | R2，待修 |
+| 助理继续 Coding 会话时不带已选 Skill、MCP；启动端缺省为空 | 最新主线静态确认。[委派入口](../../apps/local-host/src/assistant/assistant-executor.ts)、[Coding 路由](../../plugins/native/coding/src/routes.ts) | R2，待修 |
 | 动作发现不到统一提示“没有可用 Coding 插件” | 最新主线静态确认；用户当时事件缺日志，未确定是安装、激活、版本、项目还是发现失败 | R2，需分类诊断与实操复现 |
 | 浏览器/桌面只挂给 business 工作区，真实目录 Coding 被排除 | 最新主线 `roundSurface` 仍有此条件；SDK 与 Host 已有 surface 能力 | R8，接入已有能力 |
 | 讨论模式不能执行，过多逐项审查影响连贯；结束检查偏重表达 | 机制与角色可确认；不能推断为所有真实任务失败的根因；不得降低已有安全边界换取成功率 | R3、R5、R12 |
@@ -240,7 +240,7 @@ Coding 的有效会话配置由 Coding 一处解析；页面与助理启动时�
 现有起点命令（不是覆盖全部新增验收的承诺）：
 
 ```sh
-node scripts/run-tests.mjs tests/workspace-directory-picker.test.ts tests/coding-actions.test.ts tests/assistant-coding-executor.test.ts
+node scripts/run-tests.mjs tests/workspace-directory-picker.test.ts tests/coding-actions.test.ts tests/assistant-executor.test.ts
 node scripts/run-tests.mjs tests/coding-history-summary-http.test.ts tests/model-thinking.test.ts tests/agent-budget-prologue.test.ts
 node scripts/run-tests.mjs tests/coding-timeline.e2e.test.ts tests/coding-workbench.e2e.test.ts tests/dataset-actions.test.ts
 pnpm studio:replay

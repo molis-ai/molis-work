@@ -12,7 +12,8 @@ import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { noEffect } from "./fixtures/coding-sessions.js";
 
 type Fixture = Awaited<ReturnType<typeof codingSdkRuntime>>;
-type Decision = { mode: "local" } | { mode: "runtime"; binding: AgentSessionRef; decision: AgentSessionDecision };
+type Decision = { observed: { session_id: string; title: string; state: string; archived: boolean; goal_id: string | null; updated_at: string }; previous_operation_id: string | null } &
+  ({ mode: "local"; runtime_id: string; operation_id: string } | { mode: "runtime"; binding: AgentSessionRef; decision: AgentSessionDecision });
 const path = (id: string) => `/sessions/${id}`;
 async function responds<T>(call: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
@@ -43,9 +44,9 @@ test("COD-MEM-ARCH-01 local preview creates no SDK Session; a nonempty runtime a
   t.mock.method(globalThis, "fetch", async () => cogniaModelResponse("The project has been read."));
   await f.create("local");
   const before = f.sessions.get(project, "local"), create = t.mock.method(f.adapter, "createSession", async () => { throw new Error("a local archive must not create an SDK Session"); });
-  assert.deepEqual(await preview(f, "local"), { mode: "local" });
+  const local = await preview(f, "local"); assert.equal(local.mode, "local");
   assert.deepEqual(f.sessions.get(project, "local"), before, "cancel after preview leaves the row untouched");
-  assert.equal((await archive(f, "local", { mode: "local" }))?.status, 200);
+  assert.equal((await archive(f, "local", local))?.status, 200);
   assert.equal(create.mock.callCount(), 0); create.mock.restore();
   await f.create("runtime"); await completed(f, "runtime");
   const original = await preview(f, "runtime"); assert.equal(original.mode, "runtime");
@@ -234,6 +235,19 @@ test("a completed lawful unarchive permits a fresh confirmation only while the C
     "a stale archived business row is not silently reopened or given a new archive decision");
 });
 
+for (const changed of ["title", "goal"] as const) test(`COD-MEM-RESTORE-REV original local confirmation refuses a same-at ${changed} change`, { timeout: 60_000 }, async t => {
+  const f = await codingSdkRuntime(t, { hostActions: true });
+  await f.create("fixed-local");
+  const before = f.sessions.get(project, "fixed-local"), original = await preview(f, "fixed-local");
+  if (changed === "title") await f.sessions.rename(noEffect, project, "fixed-local", "A later title", before.updated_at);
+  else await f.sessions.setGoal(noEffect, project, "fixed-local", "later-goal", before.updated_at);
+  const later = f.sessions.get(project, "fixed-local");
+  assert.equal(later.updated_at, before.updated_at, "the production Store accepts the same timestamp for a different business fact");
+  const refused = await archive(f, "fixed-local", original);
+  assert.equal(refused?.status, 409, JSON.stringify(refused?.body));
+  assert.deepEqual(f.sessions.get(project, "fixed-local"), later, "an earlier confirmation must not archive a changed business row");
+});
+
 test("concurrent archive leaves another Session editable and refuses every same-Session settings write while waiting", { timeout: 60_000 }, async t => {
   let storage!: PluginPrivateStorage;
   const f = await codingSdkRuntime(t, { hostActions: true, wrapCoding: definition => ({ ...definition, start: context => {
@@ -290,4 +304,91 @@ test("a rename already waiting to commit cannot edit a Session that finishes arc
   } finally { release.resolve(); }
   assert.ok((await renaming)!.status >= 400);
   assert.deepEqual(f.sessions.get(project, "rename-wait"), archived);
+});
+
+async function restorePreview(f: Fixture, id: string): Promise<Decision> {
+  const result = await f.call(path(id) + "/unarchive-preview");
+  assert.equal(result?.status, 200, JSON.stringify(result?.body));
+  return (result!.body as { unarchive_decision: Decision }).unarchive_decision;
+}
+const restore = (f: Fixture, id: string, unarchive_decision: Decision, control?: Parameters<Fixture["call"]>[3]) =>
+  f.call(path(id) + "/unarchive", { unarchive_decision }, "POST", control);
+
+test("COD-MEM-RESTORE Local list is Store-only; cancel, original retry and the next archive cycle stay distinct even at the same timestamp", async t => {
+  const f = await codingSdkRuntime(t, { hostActions: true });
+  await f.create("local-restore"); await f.create("active");
+  const create = t.mock.method(f.adapter, "createSession", async () => { throw new Error("restoring Local must not create an SDK Session"); });
+  assert.equal((await archive(f, "local-restore", await preview(f, "local-restore")))?.status, 200);
+  const archived = f.sessions.get(project, "local-restore"), current = f.sessions.lifecycle.current(project, "local-restore");
+  const calls = t.mock.method(f.adapter.sessionLifecycle!, "read", async () => { throw new Error("archived list must not read any runtime"); });
+  const listing = await f.call("/sessions/archived"); assert.equal(listing?.status, 200);
+  assert.deepEqual((listing!.body as { sessions: unknown[] }).sessions, [archived]);
+  assert.equal(calls.mock.callCount(), 0); calls.mock.restore();
+  const original = await restorePreview(f, "local-restore");
+  assert.deepEqual(f.sessions.get(project, "local-restore"), archived, "preview and cancel preserve business state");
+  assert.deepEqual(f.sessions.lifecycle.current(project, "local-restore"), current, "preview does not prepare a new decision");
+  assert.equal((await restore(f, "active", original))?.status, 409, "an original cannot select a different local row");
+  assert.equal((await restore(f, "local-restore", original))?.status, 200);
+  const available = f.sessions.get(project, "local-restore");
+  assert.deepEqual(available, { ...archived, archived: false });
+  assert.equal((await restore(f, "local-restore", original))?.status, 200);
+  assert.deepEqual(f.sessions.get(project, "local-restore"), available);
+  // The public archive selects a new current operation; restoring never relies on a different millisecond.
+  t.mock.method(Date.prototype, "toISOString", () => archived.updated_at);
+  assert.equal((await archive(f, "local-restore", await preview(f, "local-restore")))?.status, 200);
+  assert.deepEqual(f.sessions.get(project, "local-restore"), archived);
+  assert.equal((await restore(f, "local-restore", original))?.status, 409, "old restore must not cross a later archive cycle");
+  const next = await restorePreview(f, "local-restore"); assert.notDeepEqual(next, original);
+  assert.equal((await restore(f, "local-restore", next))?.status, 200);
+  assert.equal(create.mock.callCount(), 0);
+});
+
+for (const failure of ["lost-receipt", "business-commit"] as const) test(`COD-MEM-RESTORE nonempty ${failure}: prepared original survives SDK reopen and completes without another Run`, { timeout: 60_000 }, async t => {
+  let failCommit = false;
+  const f = await codingSdkRuntime(t, { hostActions: true, wrapCoding: definition => ({ ...definition, start: context => {
+    const database = context.services!.project_database!;
+    return definition.start({ ...context, services: { ...context.services, project_database: { ...database,
+      transaction: (before, write) => { if (failCommit) throw new Error("restore business commit unavailable"); return database.transaction(before, write); } } } });
+  } }) });
+  const model = t.mock.method(globalThis, "fetch", async () => cogniaModelResponse("Keep this nonempty history."));
+  await f.create("restore-runtime"); await completed(f, "restore-runtime");
+  const history = await f.call(path("restore-runtime"));
+  assert.equal((await archive(f, "restore-runtime", await preview(f, "restore-runtime")))?.status, 200);
+  const archived = f.sessions.get(project, "restore-runtime"), request = await restorePreview(f, "restore-runtime");
+  assert.ok(request.mode === "runtime");
+  const modelCalls = model.mock.callCount(), unarchive = f.adapter.sessionLifecycle!.unarchive.bind(f.adapter.sessionLifecycle);
+  const fault = t.mock.method(f.adapter.sessionLifecycle!, "unarchive", async (...args) => {
+    const receipt = await unarchive(...args);
+    if (failure === "lost-receipt") throw new Error("restore response lost after SDK commit");
+    failCommit = true; return receipt;
+  });
+  assert.ok((await restore(f, "restore-runtime", request))!.status >= 400);
+  assert.deepEqual(f.sessions.get(project, "restore-runtime"), archived);
+  const pending = f.sessions.lifecycle.current(project, "restore-runtime"); assert.equal(pending?.completed, false);
+  assert.equal((await f.adapter.sessionLifecycle!.read(request.binding, owner(f))).state, "active");
+  failCommit = false; fault.mock.restore(); await f.reopenSdk();
+  assert.deepEqual(await restorePreview(f, "restore-runtime"), request);
+  assert.deepEqual(f.sessions.lifecycle.current(project, "restore-runtime"), pending, "GET does not repair business completion");
+  assert.equal((await restore(f, "restore-runtime", request))?.status, 200);
+  assert.deepEqual(f.sessions.get(project, "restore-runtime"), { ...archived, archived: false });
+  assert.equal(f.sessions.lifecycle.current(project, "restore-runtime")?.completed, true);
+  assert.equal((await f.adapter.sessionLifecycle!.read(request.binding, owner(f))).version, request.decision.expected_version + 1);
+  assert.deepEqual(((await f.call(path("restore-runtime")))!.body as { runs: unknown }).runs, (history!.body as { runs: unknown }).runs, "the complete unwindowed Run history is unchanged");
+  assert.equal(model.mock.callCount(), modelCalls, "restoring creates no model turn");
+});
+
+for (const stop of ["cancel", "revoke"] as const) test(`COD-MEM-RESTORE ${stop} after SDK restore leaves the completed SDK fact and pending business original`, { timeout: 60_000 }, async t => {
+  const f = await codingSdkRuntime(t, { hostActions: true });
+  t.mock.method(globalThis, "fetch", async () => cogniaModelResponse("A saved conversation."));
+  await f.create("restore-stop"); await completed(f, "restore-stop");
+  assert.equal((await archive(f, "restore-stop", await preview(f, "restore-stop")))?.status, 200);
+  const original = await restorePreview(f, "restore-stop"), archived = f.sessions.get(project, "restore-stop");
+  const abort = new AbortController(); let allowed = true;
+  const current = () => { abort.signal.throwIfAborted(); if (!allowed) throw new ActionError("actions.forbidden", "original restore grant revoked"); };
+  const real = f.adapter.sessionLifecycle!.unarchive.bind(f.adapter.sessionLifecycle);
+  const gate = t.mock.method(f.adapter.sessionLifecycle!, "unarchive", async (...args) => { const result = await real(...args); if (stop === "cancel") abort.abort(); else allowed = false; return result; });
+  assert.ok((await restore(f, "restore-stop", original, { signal: abort.signal, beforeEffect: async () => current(), assert_authority_current: current }))!.status >= 400);
+  assert.deepEqual(f.sessions.get(project, "restore-stop"), archived);
+  assert.equal(f.sessions.lifecycle.current(project, "restore-stop")?.completed, false);
+  gate.mock.restore(); assert.equal((await restore(f, "restore-stop", original))?.status, 200);
 });

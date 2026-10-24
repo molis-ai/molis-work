@@ -166,7 +166,8 @@ for (const stop of ["cancel", "revoke"] as const) {
       const made = await h.call("coding.create-session", { method: "POST", params: {}, body: { title: "留下来" }, execution: callControl().execution });
       assert.equal(made.status, 200, JSON.stringify(made.body));
       const id = (made.body as { session: { session_id: string } }).session.session_id;
-      for (const body of [{ title: "改过的名字" }, { archive: true, archive_decision: { mode: "local" } }]) {
+      const original = await h.call("coding.archive-preview", { method: "GET", params: { sessionId: id } });
+      for (const body of [{ title: "改过的名字" }, { archive: true, archive_decision: (original.body as { archive_decision: unknown }).archive_decision }]) {
         const again = callControl();
         h.hooks.onWrite = () => again.stop(stop);
         const refusedUpdate = await h.call("coding.update-session", { method: "PATCH", params: { sessionId: id }, body, execution: again.execution });
@@ -266,12 +267,12 @@ test("RAC-189 Coding message reads also carry their request control into the act
 });
 
 test("COD-MEM-ARCH-05 the final Coding transaction refuses a local confirmation whose binding changes while the write waits", async () => {
-  const h = routesOver({ capabilities: directory() });
+  const h = routesOver({ agent: directory() });
   try {
     await h.sessions.create(noEffect, { project_id: "board", session_id: "binding", title: "Original", runtime_id: "prologue", at: AT });
     const preview = await h.call("coding.archive-preview", { method: "GET", params: { sessionId: "binding" } });
     assert.equal(preview.status, 200);
-    assert.deepEqual(preview.body, { archive_decision: { mode: "local" } });
+    assert.equal((preview.body as { archive_decision: { mode: string } }).archive_decision.mode, "local");
     let changed = false;
     h.hooks.onWrite = async () => {
       h.hooks.onWrite = () => {};
@@ -279,7 +280,7 @@ test("COD-MEM-ARCH-05 the final Coding transaction refuses a local confirmation 
       changed = true;
     };
     const result = await h.call("coding.update-session", { method: "PATCH", params: { sessionId: "binding" },
-      body: { archive: true, archive_decision: { mode: "local" } }, execution: callControl().execution });
+      body: { archive: true, archive_decision: (preview.body as { archive_decision: unknown }).archive_decision }, execution: callControl().execution });
     assert.equal(changed, true); assert.ok(result.status >= 400);
     assert.equal(h.sessions.get("board", "binding").runtime_session_id, "new-binding");
     assert.equal(h.sessions.get("board", "binding").archived, false);

@@ -44,6 +44,7 @@ const library = (path: string) => withDatabase(path, db => ({
   ledger: db.prepare("SELECT * FROM plugin_project_databases ORDER BY plugin_id").all().map(row => JSON.stringify(row)),
   master: db.prepare("SELECT type, name, sql FROM sqlite_master ORDER BY type, name").all().map(row => JSON.stringify(row)),
   shape: describeSqliteSchema(db),
+  coding: db.prepare("SELECT * FROM coding_sessions ORDER BY project_id, session_id").all(),
 }));
 
 /** A Home with one project, made by this build: its library has the three plugins' tables and ledger rows. */
@@ -86,6 +87,7 @@ test("PLIB-04: a library this build made opens every plugin that declares tables
 });
 
 const cases = [
+  { plugin: CODING_PLUGIN_ID, change: "Coding still has its exact version 1 baseline", sql: `INSERT INTO coding_sessions (project_id, session_id, title, state, runtime_id, created_at, updated_at) SELECT project_id, 'kept-v1', 'Nonempty old Coding', 'idle', 'prologue', '2026-10-25', '2026-10-25' FROM project_root; ALTER TABLE coding_sessions DROP COLUMN lifecycle_json; UPDATE plugin_project_databases SET version = 1 WHERE plugin_id = '${CODING_PLUGIN_ID}'` },
   { plugin: SCHEDULE_PLUGIN_ID, change: "its ledger row says another version", sql: `UPDATE plugin_project_databases SET version = 2 WHERE plugin_id = '${SCHEDULE_PLUGIN_ID}'` },
   { plugin: FEED_PLUGIN_ID, change: "its ledger row names another publisher", sql: `UPDATE plugin_project_databases SET publisher_signature = 'someone-else' WHERE plugin_id = '${FEED_PLUGIN_ID}'` },
   { plugin: CODING_PLUGIN_ID, change: "one of its tables gained a column", sql: "ALTER TABLE coding_plan_drafts ADD COLUMN added_by_hand TEXT" },
@@ -106,7 +108,7 @@ for (const { plugin, change, sql } of cases) {
     if (plugin === CODING_PLUGIN_ID) {
       assert.match(panel, /role="alert"/, "the Coding page says it did not open");
       assert.match(panel, /io\.molis\.work\.coding/, "and names the plugin it refused");
-      assert.match(panel, /的表和索引与声明不同/, "the reason is the platform's refusal, not a failure further on");
+      assert.match(panel, change.includes("version 1") ? /是第 1 版，这次声明的是第 2 版/ : /的表和索引与声明不同/, "the reason is the platform's refusal, not a failure further on");
     } else {
       assert.doesNotMatch(panel, /role="alert"/, "Coding opens while another plugin is refused");
     }

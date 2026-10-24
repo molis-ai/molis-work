@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -12,6 +12,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { asideReply } from "./fixtures/ending-review.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { codingSessions } from "./fixtures/coding-sessions.js";
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -84,10 +85,12 @@ test("Coding stops hidden polling and releases every client listener before the 
 test("Coding archives a nonempty conversation after cancel and lost response, retaining its decision across real server process restarts", { timeout: 120_000 }, async t => {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
+  let modelCalls = 0; const modelRequests: Array<{ aside: boolean }> = [];
   const answer = "归档前保存的项目讨论内容。";
   const model = createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += chunk;
-    const result = cogniaModelResponse(asideReply(raw) ?? answer);
+    modelCalls++; let raw = ""; for await (const chunk of request) raw += chunk;
+    const aside = asideReply(raw); modelRequests.push({ aside: aside !== null && aside !== undefined });
+    const result = cogniaModelResponse(aside ?? answer);
     response.writeHead(200, { "content-type": "text/event-stream" }); response.end(await result.text());
   });
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
@@ -109,15 +112,19 @@ test("Coding archives a nonempty conversation after cancel and lost response, re
   const fill = (selector: string, value: string, page: Pick<typeof child, "evaluate"> = child) => page.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   const sessions = codingSessions(browser.store);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `
-    window.archiveTraffic=[];window.loseArchiveResponse=true;const archiveFetch=window.fetch;
+    window.archiveTraffic=[];window.restoreTraffic=[];window.loseArchiveResponse=true;window.loseRestoreResponse=true;const archiveFetch=window.fetch;
     window.fetch=async(input,init)=>{
       const request=new Request(input,init),path=request.url,method=request.method;
       if(!path.includes('/api/plugins/io.molis.work.coding/sessions/'))return archiveFetch(input,init);
-      const body=method==='PATCH'?await request.clone().text():null;
+      const body=['PATCH','POST'].includes(method)?await request.clone().text():null;
       const entry=path.endsWith('/archive-preview')||body&&JSON.parse(body).archive?{path,method,body}:null;
       if(entry)archiveTraffic.push(entry);
+      const restoring=path.endsWith('/unarchive-preview')||path.endsWith('/unarchive')?{path,method,body}:null;
+      if(restoring)restoreTraffic.push(restoring);
       const response=await archiveFetch(input,init);
       if(entry){entry.status=response.status;entry.result=await response.clone().json();}
+      if(restoring){restoring.status=response.status;restoring.result=await response.clone().json();}
+      if(restoring&&method==='POST'&&response.ok&&loseRestoreResponse){loseRestoreResponse=false;throw new Error('restore response lost after commit');}
       if(body&&JSON.parse(body).archive&&response.ok&&loseArchiveResponse){loseArchiveResponse=false;throw new Error('archive response lost after commit');}
       return response;
     };` }, sessionId);
@@ -181,4 +188,56 @@ test("Coding archives a nonempty conversation after cancel and lost response, re
   assert.equal(await child.evaluate(`Boolean(document.querySelector('[data-coding-session="${id}"]'))`), false, "the archived row stays out of the reopened list");
   const restored = await child.evaluate(`fetch(document.querySelector('[data-coding-workbench]').dataset.codingPrefix + '/api/plugins/io.molis.work.coding/sessions/${id}/archive-preview').then(async response=>({status:response.status,body:await response.json()}))`) as { status: number; body: { archive_decision: unknown } };
   assert.equal(restored.status, 200); assert.deepEqual(restored.body.archive_decision, request.archive_decision, "read-only preview confirms the persisted canonical archive and original decision after another process restart");
+  const callsBeforeRestore = modelCalls;
+  const evidence = reviewEvidenceUrl("coding-restore/"); await mkdir(evidence, { recursive: true });
+  const picture = async (name: string) => writeFile(new URL(name, evidence), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+  await child.click('[data-coding-archived] summary');
+  await child.waitFor(`document.querySelector('[data-coding-restore="${id}"]')`);
+  await child.click(`[data-coding-restore="${id}"]`);
+  await child.waitFor("document.querySelector('[data-page-dialog=confirm]')?.open");
+  assert.equal(await child.evaluate("document.querySelector('[data-page-dialog]').textContent.includes('旧任务不会自动继续')"), true);
+  await picture('restore-desktop.png');
+  await child.click('[data-page-dialog] button[type=button]');
+  assert.equal(await evaluate("restoreTraffic.filter(x=>x.method==='POST').length"), 0);
+  assert.deepEqual(sessions.get(projectId, id), archived);
+  // Real business commit fault, after the SDK has accepted the fixed original.
+  browser.store.db.exec("CREATE TRIGGER coding_restore_fault BEFORE UPDATE OF archived ON coding_sessions WHEN OLD.archived=1 AND NEW.archived=0 BEGIN SELECT RAISE(ABORT, 'restore business commit unavailable'); END");
+  await child.click(`[data-coding-restore="${id}"]`);
+  await child.waitFor("document.querySelector('[data-page-dialog=confirm]')?.open");
+  await child.click('[data-page-dialog] button[type=submit]');
+  await child.waitFor("document.querySelector('[data-coding-status]').dataset.error==='true'");
+  const fixed = await evaluate<string>("restoreTraffic.find(x=>x.method==='POST').body");
+  assert.deepEqual(sessions.get(projectId, id), archived);
+  assert.equal(sessions.lifecycle.current(projectId, id)?.completed, false);
+  assert.ok(await evaluate("restoreTraffic.find(x=>x.method==='POST').status>=400"));
+  browser.store.db.exec("DROP TRIGGER coding_restore_fault");
+  t.diagnostic(`pending restore restart: ${JSON.stringify(await browser.restartServer())}`);
+  await evaluate("localStorage.setItem('molis-work:theme','dark')"); await browser.setViewport(390, 844);
+  await browser.reloadPage(); await click('[data-plugin-strip] [data-plugin-id="coding"]');
+  assert.equal(modelCalls, callsBeforeRestore, "restarting without opening history makes no model call");
+  await child.waitFor("document.querySelector('[data-coding-archived] summary')");
+  await child.click('[data-coding-archived] summary');
+  await child.waitFor(`document.querySelector('[data-coding-restore="${id}"]')`);
+  await child.click(`[data-coding-restore="${id}"]`);
+  await child.waitFor("document.querySelector('[data-page-dialog=confirm]')?.open");
+  assert.equal(await child.evaluate("(()=>{const r=document.querySelector('[data-page-dialog] button[type=submit]').getBoundingClientRect();return r.width>0&&r.height>0&&r.top>=0&&r.bottom<=innerHeight})()"), true, "restore confirmation remains reachable on the narrow screen");
+  await picture('restore-phone-dark.png');
+  await child.click('[data-page-dialog] button[type=submit]');
+  await child.waitFor("document.querySelector('[data-coding-status]').dataset.error==='true' && !document.querySelector('[data-coding-restore]').disabled");
+  assert.equal(await evaluate("restoreTraffic.find(x=>x.method==='POST').body"), fixed, "new process preview retains the durable original");
+  await child.click(`[data-coding-restore="${id}"]`);
+  await child.waitFor("document.querySelector('[data-coding-status]').textContent.includes('已恢复')");
+  assert.deepEqual(await evaluate("restoreTraffic.filter(x=>x.method==='POST').map(x=>x.body)"), [fixed, fixed]);
+  assert.deepEqual(sessions.get(projectId, id), { ...archived, archived: false });
+  assert.equal(sessions.lifecycle.current(projectId, id)?.completed, true);
+  assert.equal(modelCalls, callsBeforeRestore, "recovery neither starts a model nor resumes an old task");
+  t.diagnostic(`completed restore restart: ${JSON.stringify(await browser.restartServer())}`);
+  await browser.reloadPage(); await click('[data-plugin-strip] [data-plugin-id="coding"]');
+  await child.waitFor(`document.querySelector('[data-coding-session="${id}"]')`);
+  assert.equal(modelCalls, callsBeforeRestore, "restored availability and a new Host alone do not invoke a model");
+  await child.click(`[data-coding-session="${id}"]`);
+  await child.waitFor(`document.querySelector('[data-coding-turns]').textContent.includes(${JSON.stringify(answer)})`);
+  assert.equal(modelCalls, callsBeforeRestore, "restoration and reopening history must not trigger a model");
+  t.diagnostic(JSON.stringify({ historyReadKnowledgeAsideCalls: modelRequests.slice(callsBeforeRestore).filter(request => request.aside).length }));
+
 });

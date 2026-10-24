@@ -1,8 +1,8 @@
-# W5-04 第二组：Files、Schedule、Shelf 的稳定翻译键与打包、类型检查的客户端
+# W5-04 第二组：Files、Schedule、Shelf、Git 的稳定翻译键与打包、类型检查的客户端
 
-状态：执行中（2026-10-24）。Files、Schedule、Shelf 三个插件的页面客户端改成打包、类型检查的 TypeScript，页面文字全部是稳定键；本地构建、定向用例与健康门禁通过，待统筹集成全量。三个插件是一个完整功能、一个 PR，从 main 起，不叠在别的片上。
+状态：执行中（2026-10-24）。Files、Schedule、Shelf、Git 四个插件的页面客户端改成打包、类型检查的 TypeScript，页面文字全部是稳定键（Git 在 #1236 合入后并进来）；本地构建、定向用例与健康门禁通过，待统筹集成全量。四个插件是一个完整功能、一个 PR，合过一次 main（bde02c59e），不叠在别的片上。
 
-验收编号：RAC-160～166（Files 160～161，Schedule 162～163，Shelf 164～166）。
+验收编号：RAC-160～168（Files 160～161，Schedule 162～163，Shelf 164～166，Git 167～168）。
 
 ## 范围
 
@@ -26,6 +26,14 @@
 - 设置页的客户端（533 行）改成 `src/browser/settings/`，打成 `dist/shelf-settings-client.js`；`src/settings-client.ts` 在前面放热键表和路由后交给设置页（热键默认表取自 `@molis-ai/molis-work-module-shelf`，仍是同一份）。
 - 页面文字：`ui.ts`、客户端和设置页的中文原文改成 166 个稳定键 `shelf.<区域>.<名称>`（156 个页面的、10 个设置页的）；`src/en.ts` 从 335 条减到 187 条（服务端标签与错误、`settings-ui.ts` 的词和别的主人在查的词，见 BL-464）。
 - 登记的页面事件 `PAGE_STATE_OWNERS.shelf.files` 指向新的文件（`browser/document.ts`、`browser/tui.ts`、`browser/settings/reload.ts`，`terminal-client.ts` 不变），`tooling/gates/api/contracts/platform/dom-events.txt` 同步；事件名和载荷没变，对插件和调用方没有影响。
+
+### Git（RAC-167、RAC-168）
+
+- 266 行的客户端改成 `src/browser/`（`types`、`dom`、`page`、`results`、`diff`、`list`、`source`、`conflicts`、`client`、`factory`）：改动列表、结果历史、diff 与暂存动作、分支/提交/推送/拉取/合并/PR 的源码控制块、合并冲突编辑，逐段照搬。页面状态在一个 `GitPage` 对象里（`page.ts`）。
+- 页面文字在 main 上已经是稳定键（`GIT_MESSAGES`），键和英文一个没动。原先 `L({…}[state] || …)`、`L(cond ? a : b)` 这类按条件取键的写法改成逐个字面量调用（`switch`），扫描器能列全。
+- 宿主与动作写的句子（拒绝、结果、摘要）仍只经一处说成页面的语言：`page.S`。`sayHostSentence`、`sayUpstream` 搬到不依赖词典的 `src/say.ts`（`sentences.ts` 再导出，包的导出不变），打包时直接 import，不再用 `toString()` 拷进脚本；句子模板表 `GIT_SENTENCE_TABLE` 由 `src/client.ts` 作为第二个参数交给包（工厂是 `(host, sentences, git) => { … return git }`，`client.ts` 外面再包成 `(host) => …`），所以包里没有词典。
+- 请求仍经 Coding 的包给的 `host.request`（不直接 `fetch`，不写 `/api/plugins/`）。
+- 未知的执行结果词（页面不认识的 outcome）原来会显示 `undefined`，现在显示原词。
 
 不动 `manifest.ts`（Files 的 Manifest 只改成取共用的插件 id）、`actions.ts`、`plugin.ts`、`store`、`styles.ts`、服务端路由与动作。不改工作台与别的主人的文件、别片的规格。
 
@@ -53,7 +61,9 @@
 - RAC-164：Shelf 页面与设置页的每个键都有中英文且占位符一致，没有多余；没有中文键、没有未解析的动态键；Host 写的话只经 `said` 一处进入翻译；设置页的词与 `settings-ui` 的热键占用、录制两处提示对得上（`tests/shelf-client-bundle.test.ts`）。
 - RAC-165：Shelf 的浏览器代码同 RAC-161 的规则；包是 `(host) => {…}`，带 `shelf.request.shelf-request-failed` 等记号（`tests/shelf-client-bundle.test.ts`）。
 - RAC-166：Shelf 设置页的包前面放着热键表与路由，包本身用页面的 `L` 与 `molisWorkRequest`（`tests/shelf-client-bundle.test.ts`）。
-- 页面资源（`tooling/gates/page-assets.json` 同步，全部变小）：`schedule.js` 16,407 → 12,570；`shelf.js` 76,438 → 63,376；`coding.js`（Files 的客户端折进 Coding 的包）377,227 → 375,909；`molis-work-workbench.js` 1,130,064 → 1,125,715；合计少 22,566 字节。
+- RAC-167：Git 的页面文字每个键都有中英文且占位符一致，浏览器代码里没有按条件取键的非字面量调用，宿主句只经 `page.S` 一处进入翻译；宿主句模板表里的键都有定义（`tests/git-client-bundle.test.ts`）。
+- RAC-168：Git 的浏览器代码不直接 `fetch`、无 `any`、`as unknown as`、空 `catch`、浏览器弹窗，不写插件 id 和路由前缀，时间随页面语言；构建跑浏览器类型检查并用 esbuild 打包，esbuild 与根同版本；包是 `(host) => ((host, sentences, git) => {…})(host, 表)`，带宿主句模板表、不带词典；没有 Git 的元素时什么也不挂、返回 null（`tests/git-client-bundle.test.ts`）。`tests/diff-git-english-sentences.test.ts` 里读脚本文字的几处断言改成读 `src/browser/` 的源码。
+- 页面资源（`tooling/gates/page-assets.json` 同步，全部变小）：`schedule.js` 16,407 → 12,570；`shelf.js` 76,438 → 63,376；`coding.js`（Files 与 Git 的客户端折进 Coding 的包）377,163 → 372,136；`molis-work-workbench.js` 1,130,916 → 1,126,567；合计少 26,275 字节。
 - 原先靠正则读脚本文字的断言（`tests/shelf-plugin.test.ts`、`tests/plugin-global-settings.test.ts`）改成读 key 与包里的字符串（压缩后函数名会变，不再按名字断言）；浏览器用例的假宿主补上 `pluginRoute`、`pluginId`、`loadMedia`、按键解析的 `translate` 和真实的 `molisWorkRequest`（`tests/shelf-client-boundaries.e2e.test.ts`、`tests/fixtures/schedule-host.ts`）。
 - 行为不变：README「改动后必跑」的单元用例与浏览器用例（`tests/shelf-client-boundaries.e2e.test.ts`、`tests/shelf-dropagent-parity.e2e.test.ts`、`tests/shelf-partial-admission.e2e.test.ts`、`tests/shelf-plugin.e2e.test.ts`、`tests/shelf-side-links.e2e.test.ts`、`tests/schedule-isolated-page.e2e.test.ts`、`tests/companion-client-lifecycle.e2e.test.ts`、`tests/model-ready-surfaces.e2e.test.ts`、`tests/plugin-small-ux.e2e.test.ts`、`tests/request-failure-call-id.e2e.test.ts`、`tests/save-failure.e2e.test.ts`、`tests/cross-plugin-recovery.e2e.test.ts`、`tests/workflows-action-steps.e2e.test.ts`、`tests/composer-steady.e2e.test.ts`）通过。
 

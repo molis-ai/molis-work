@@ -16,6 +16,7 @@ const pieces = [
   { out: "commands-bundle.js", module: "commands", create: "commandsClient" },
   { out: "plans-bundle.js", module: "plans", create: "plansClient" },
   { out: "plan-progress-bundle.js", module: "plan-progress", create: "planProgress" },
+  { out: "changeset-bundle.js", module: "changeset", create: "changesetClient" },
 ];
 
 const shared = { bundle: true, format: "iife", platform: "browser", minify: true, charset: "utf8", logLevel: "warning" };

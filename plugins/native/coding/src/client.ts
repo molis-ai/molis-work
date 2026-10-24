@@ -292,7 +292,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     }catch(error){if(!lifetime.alive)return;if(ticket===goalTicket)q('[data-coding-goal-error]').textContent=error.message;}
   };
   const returnFromChange = () => {const fromArtifact=changeItem;changeItem='';renderArtifacts();if(fromArtifact)host.openItem('coding',current,state.sessions.find(item=>item.session_id===current)?.title);};
-  const changeReview = (${CODING_CHANGESET_CLIENT_FACTORY_SCRIPT})({lifetime,root,q,api,turns,current:()=>current,closeReport:()=>closeReport(),
+  const changeReview = (${CODING_CHANGESET_CLIENT_FACTORY_SCRIPT})({lifetime,translate:L,root,q,api,current:()=>current,closeReport:()=>closeReport(),
     returnToTask:returnFromChange,onRunOpen:()=>{changeItem='';reportItem='';renderArtifacts();},
     appendDraft:task=>draft.append(current,text=>{const next=text.endsWith(task)?text:(text?text+'\\n\\n':'')+task;if(next.length>100000)throw new Error(L('coding.feedback.too-long'));return next;},L('coding.feedback.still-loading')),
     focusDraft:()=>{returnFromChange();input.focus();status(L('coding.feedback.added'));}});

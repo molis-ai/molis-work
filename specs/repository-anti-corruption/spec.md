@@ -1217,9 +1217,9 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 - **现在的代码**
   - `apps/local-host/src/plugin-page-authority.ts:145`：情境页（带 `x-molis-context-page`、不带 `x-molis-plugin-page`）的 POST 白名单里硬编码了 `/api/plugins/io.molis.work.todo/items`；
   - `apps/local-host/src/plugin-page-todo.ts`：只放行 `io.molis.work.todo` 的 `items` 操作，把情境页选中的来源映射成待办的 `title`、`sources`、`placement` 与幂等 `request_id`；唯一调用点在 `apps/local-host/src/home-plugin-http.ts`；
-  - `scripts/gates/assembly.mjs:92`：`hostPluginFiles` 指标只按 `-actions.ts` / `-native-plugin-http.ts` 后缀认出「以插件命名的宿主文件」，`plugin-page-todo.ts` 识别不到、不进冻结名单。该指标只许减少，所以在这个文件删掉之前不能靠改正则补上——改正则会把现存文件算成新增（口径见 `tooling/gates/README.md` 与 `scripts/check-health-gates.mjs` 的 `--base`）。
-- **为什么现在不清理**：合规的清理是把「情境选择 → 落点/动作」做成平台能力，宿主不再认某个插件 id——即 [context program](../context-program/spec.md) 的 W1-5（`intake.<提供方>.<能力>` / `attach.<提供方>.<能力>` 键，准备、核对与执行走同一套）。那要动合同与产品口径，超出复审报告 P3 的修复面，不在评审修复 PR 里做。
-- **归属与跟踪**：平台能力归 ② 的 context program W1-5；`plugin-page-todo.ts` 删掉后 `assembly.mjs` 的识别盲区自然消失，本节随之删除。BACKLOG 的 BL-447 跟踪这一条（随 #1114 登记；该 PR 未合入前以本节为准）。`privileges.md` 的 PG 行由统筹在合入后补，本节不重复维护那份清单。
+  - `scripts/gates/assembly.mjs:92`：`hostPluginFiles` 指标只按 `-actions.ts` / `-native-plugin-http.ts` 后缀认出「以插件命名的宿主文件」，`plugin-page-todo.ts` 识别不到、不进该指标记录。`scripts/check-health-gates.mjs` 的 `--base` 用同一份 `measureAll` 测量工作树和 merge-base；两边已有且同样命中新规则的文件会共同计入，不会仅因扩充扫描口径就自动成为新增违规。改门禁仍须按仓库规则取得授权，本片只登记，不改正则或指标（口径见 `tooling/gates/README.md`）。
+- **为什么本片只登记**：[context program](../context-program/spec.md) 开头的「交接（2026-10-20）」已说明 W0～W3 合入 main；W1-5 已有内核派生实现（`47c00b44`，`packages/kernel/src/contextual/destinations.ts`），不是尚待新建的平台能力。该 spec §18.7 已修正旧计划：去处走 `/draft`，落点版本冻结与执行前核对归 W3 的 `attach`。后续应按现行情境合同核对并迁移仍存的 Todo 专用入口与适配；是否还需改合同，由核对出的实际差距确定，不能预设为清理前置。本片保持复审报告 P3 的登记范围，不实施迁移。
+- **归属与跟踪**：后续清理沿用 ② 的 context program W1-5 跟踪归属，按当前交接接续；BACKLOG 的 BL-447 跟踪这一条（随 #1114 登记；该 PR 未合入前以本节为准）。完成须同时覆盖情境页的 Todo POST 白名单、`plugin-page-todo.ts` 专用适配及其调用，验证该路径已由通用合同承接后再更新本节；单独删文件不代表清理闭环，也不会消除扫描正则的通用识别盲区。`privileges.md` 的 PG 行由统筹在合入后补，本节不重复维护那份清单。
 - **同报告的另一条**：#1018 的「隔离页 link 通道」（合成 click 可导航宿主设置页）已由合并 Agent 派出的 plugin-frame-fixes 认领修复，不在此登记。
 
 

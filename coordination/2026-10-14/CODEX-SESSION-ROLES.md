@@ -1,6 +1,6 @@
 # 防腐 PR 专职会话分工
 
-状态：2026-10-23 23:26（America/Los_Angeles）按一骏最新明确纠偏调整。仅记录协作职责与派单；需求仍以原 spec、PR 和现行合并清单为准。下方带日期的旧进度是历史快照，当前执行以本节和远端事实为准。
+状态：2026-10-23 23:36（America/Los_Angeles）按一骏最新明确纠偏调整。仅记录协作职责与派单；需求仍以原 spec、PR 和现行合并清单为准。下方带日期的旧进度是历史快照，当前执行以本节和远端事实为准。
 
 一骏最新纠偏：“整体还是听Claude统筹，可以从他那领取独立任务处理，不一定只解决问题和review问题，可以与他组织好领取独立任务，分配1-2个独立任务实现的session。”此前组织合并、持续接续评审与全部有效意见修复的要求保留。Claude是整条防腐线的总统筹，决定任务范围、优先级、跨线依赖和全量排期；下表Codex流水线职责只在Codex侧执行，不能替代Claude。
 
@@ -8,13 +8,11 @@
 | --- | --- | --- | --- | --- |
 | 防腐线总统筹 | Claude现行统筹 | 共享CODEX-TASKS/LINES/README现行派单 | 整线范围、优先级、跨线依赖、任务分配和唯一full组批；Codex从其共享派单或明确回执领取独立任务 | 原开发与有效认领保留 |
 | 总目标与用户沟通 | 统筹｜Work 全线进度 · Codex | 01a12a80-ede2-7b81-93ea-521a5abcc35c | 完整目标、跨线范围、需要用户决定的事项与汇报 | 日常派单和合并已交给下行，不重复操作 |
-| 流水线与合并 | 统筹｜防腐流水线与合并 · Codex | 01a16c88-7956-7e10-a5f4-5baf476c3634 | gpt-6.1-sol / xhigh；听Claude总统筹，领取独立任务；Codex侧派单、证据核验、按Claude顺序正常合并与共享状态；每10分钟接续 | 不写实现、不代替独立评审/测试或Claude总统筹；1–2个独立实现chat由原root建立后接入 |
+| 流水线与合并 | 统筹｜防腐流水线与合并 · Codex | 01a16c88-7956-7e10-a5f4-5baf476c3634 | gpt-6-astra / xhigh；听Claude总统筹，领取独立任务；Codex侧派单、证据核验、按Claude顺序正常合并与共享状态；每10分钟接续 | 不写实现、不代替独立评审/测试或Claude总统筹；1–2个独立实现chat由原root建立后接入 |
 | 评审 | 专职｜防腐 PR 评审与复审 · Codex | 01a16bc4-68fe-71d3-af0e-83523232c1ea | 核spec、精确diff和全部有效意见，修后复审、给正式结论 | 只读、不构建/测试、不合并；block与non-block分别记录 |
 | 测试 | 专职｜防腐测试与证据核验 · Codex | 01a16bc4-6c9f-7ca0-b47e-621727302fee | 核精确head与原始日志、CI/full；按派单补独立回归、归因失败 | 不改实现或断言、不做正式代码评审、不合并；不另起重复full |
 | 修复1 | 专职修复 1｜防腐问题与冲突 · Codex | 01a1682d-0a26-7522-b2b2-4446d904a7b7 | 已派评审问题、CI失败及机械冲突；必要红绿自测；交精确head和日志 | 不自主领新片、不独立评审或统筹测试、不合并 |
-| 修复2 | 专职修复 2｜防腐问题与冲突 · Codex | 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | 与修复1串行轮换；无写入安排时做已派只读准备 | 同上；两个修复会话互不代派，不并写 |
-
-| 独立实现 C1 | 专职实现 1｜W5-13 宿主日志与错误收尾 · Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | 从Claude的C1领取desktop/local-host后续片，保留server+CLI已合1151 | 当前只读准备；与修复chat合计单writer，不自行启动full |
+| 修复2 | 专职修复 2｜防腐问题与冲突 · Codex | 01a16b08-de51-7cd0-a4c5-d45d89d9cdb3 | 与修复1串行轮换；无写入安排时做已派只读准备 | 同上；两个修复会话互不代派，不并写 || 独立实现 C1 | 专职实现 1｜W5-13 宿主日志与错误收尾 · Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | 从Claude的C1领取desktop/local-host后续片，保留server+CLI已合1151 | 当前只读准备；与修复chat合计单writer，不自行启动full |
 | 独立实现 C2 | 专职实现 2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | 从Claude的C2领取全库/非SQLite状态快照恢复，密钥不外带 | 当前只读准备；不碰真实Home；按Claude顺序获明确writer后实施 |
 
 已有角色 owner 与有效技术裁定保持。用户明确授权新统筹组织四个专职会话；专职交付回新统筹，由其接续。修复与新增独立实现chat合计最多一个Codex实现writer；可同时只读准备，实施顺序听Claude；整机仍是一份build、一批浏览器，公共machine-slot排队。旧文中由root日常派单/合并之处自本次交接起均由新流水线统筹承担。
@@ -29,8 +27,10 @@
 6. 活跃期间收到交付即接续，不等待下一次定时唤醒。每10分钟heartbeat只作遗漏/停滞兜底；每轮有可行动任务就做具体动作，无变化则安静。普通完成与内部可解决失败只写共享记录，只有必须用户决定或补充权限/信息才通知。
 7. 当前完整防腐范围和C1/C2/C3、W5/W6未缩小；不限定只修bug/review。按Claude当前共享派单或明确回执领取独立任务，分给1–2个专职实现chat；原root创建并交入口，本chat不重复建。未明确更改并发上限前，全部Codex实现chat仍串行占writer。流水线建立不代表全线开发、真实Home或用户验收完成。
 
-## 当前流水线（2026-10-23 23:31 洛杉矶／10-24 06:31 UTC）
+## 当前流水线（2026-10-23 23:36 洛杉矶／10-24 06:36 UTC）
 
+- 模型按用户最新指令：统筹/REVIEW目标gpt-6-astra/xhigh；TEST/修复/实现优先gpt-6.1-sol/max。宿主已提交本chat续接设置，但实际06:19活跃轮turn_context仍sol/xhigh，需安全结束后新回合核实际，不能把目标写成已生效。此为换回合，不暂停流水线；不取消已有命令/CI或下属工作。
+- 交付事件继续：#1174正式评审6380942452已通过，TEST核原日志/Pages信号中；修复2唯一writer做#1114，修复1只读准备#1173按6380866302/6380869179改CI Chrome前言、S47草稿CI列并登记BL569，门禁正则另片先备权限依据。C1已完成卸载预检首片只读方案（RAC113、ENOENT正常缺省，其余readdir/stat错误拒绝且零删除）；#1114/1173短修后按Claude优先级给C1明确writer，不泛化成永远不启动。C2全量只读准备已交，须Claude裁Home quiesce/resume最小Host接线与server原文邀请token等安全备份前置；未写spec/实现，不把准备算完成。
 - Claude是整条防腐线总统筹；本chat负责Codex侧按其范围、优先级、跨线依赖与全量排期接续。C1/C2两个实现chat已收到入口并开始只读准备，完整目标未缩小；不重复建chat，全部Codex修复/实现仍单writer。DeepSeek历史贡献与review-pr-fixer在途认领分别保留。
 - 修复1已交非Draft[#1174](https://github.com/molis-ai/molis-work/pull/1174) `5bbb4318697dbef4631e5db3870691c27fff2e94`，4文件+12/-5，仅两e2e同步与两原spec；已释放writer/build/browser。统筹已读真实bundle延迟旧点击0次→ready后严格pointer1次、旧document等待精确红→navigate-before-click完整AC4绿；完整main后续5+3/8及batch23同patch8/8保留。首次main-fixed7/8的Pages后段failed/Missing frame仍未归因，TEST接现有批次观察，不能称已修。原日志 `/tmp/molis-verify-2026-10-23/home-side-ci-recovery/handoff.md`；实际affected full=[]/storage=[]。已立即并派REVIEW正式评审与TEST独立核证据，精确头CI待。
 - 修复2现唯一Codex writer：按Claude[6380810029](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6380810029)，接[#1114/6380924207](https://github.com/molis-ai/molis-work/pull/1114#issuecomment-6380924207)过期APPROVED_CEILINGS机械删除，只留本片cognia批准；不改算法或预算。DeepSeek `6bac03b45`正文/locator成果及二轮6380826646有效，#1167/#1169谁后合谁按main解冲突。交付即派增量审验。

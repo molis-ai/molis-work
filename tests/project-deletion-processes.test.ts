@@ -21,8 +21,8 @@ import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 /**
  * What deleting a project does when the process that deletes it is not the one that has every service: another process
  * holds the Agent runtime (memory lives in it), a Host only forwards to the one that runs it (the stdio MCP's), or the
- * process is only a catalog (the CLI, the uninstaller) with no memory or search service at all. The owner steps that
- * cannot run there stay pending in the receipt for a Host that can; a demo rebuild leaves them to it instead of waiting.
+ * process is only a catalog (the CLI, the uninstaller) with no memory or search service at all. A deletion is accepted
+ * only after its Memory/Session plan is fixed; later owner failures stay pending. Demo rebuild retains its separate contract.
  */
 type Catalog = Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
 const input = { actor_id: "test-user", user_confirmed: true };
@@ -65,39 +65,32 @@ async function holdAgentRuntime(home: string): Promise<{ release(): Promise<void
   return { release };
 }
 
-test("a Host that is not the executor (the stdio MCP's) leaves the memory step to the Host that is, and starts no Agent runtime for it", { timeout: 180_000 }, async t => {
+test("a forwarding Host refuses before accepting deletion, starts no Agent runtime, and the executor can accept the original request", { timeout: 180_000 }, async t => {
   const { home, catalog } = await scratchHome(t);
   ranBefore(home);
-  // What the MCP launcher builds when it forwards actions to the resident Host: a Host with the Home and no transport that
-  // adopted its Agent service (the Web server and the embedded MCP pass the catalog owner for that).
   const forwarding = new MolisWorkLocalHost({ homeDirectory: home });
   t.after(() => forwarding.close());
-  const gone = (await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" })).project_id;
+  const project = await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" });
 
-  const deferred = await catalog.deleteProject(deletion(gone));
+  await assert.rejects(() => catalog.deleteProject(deletion(project.project_id)), /运行中的 Molis Work/);
+  assert.deepEqual(catalog.listProjectDeletions(), [], "without a fixed Memory plan no deletion was accepted");
+  assert.equal(catalog.getProject(project.project_id).database_path, project.database_path);
+  assert.equal(existsSync(project.database_path), true);
+  const free = await holdAgentRuntime(home);
+  await free.release();
 
-  assert.equal(deferred.deletion.cleanup_state, "pending");
-  assert.deepEqual(pendingOwners(deferred.deletion), ["memory"], "every other owner cleared; memory waits for the executor");
-  assert.match(deferred.deletion.owner_steps.find(step => step.owner_id === "memory")?.error ?? "", /运行中的 Molis Work/);
-  const free = await holdAgentRuntime(home).catch((error: Error) => error);
-  assert.ok(!(free instanceof Error), `the Agent runtime is still free for the process that runs it (this Host took it: ${free instanceof Error ? free.message.slice(0, 200) : ""})`);
-  if (!(free instanceof Error)) await free.release();
-
-  // The MCP process ends; the Web server is the executor (one Host in a process, so the forwarding one is closed first):
-  // it finishes what another process left, without anyone asking.
   await forwarding.close();
-  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: "project-deletion-processes-0123456789", deletionSweepMs: 100 });
-  t.after(() => new Promise<void>(resolve => { server.close(() => resolve()); }));
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
-  const deadline = Date.now() + 120_000;
-  while (catalog.listProjectDeletions().find(item => item.project_id === gone)?.cleanup_state !== "complete" && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));
-  const finished = catalog.listProjectDeletions().find(item => item.project_id === gone);
-  assert.equal(finished?.cleanup_state, "complete", finished?.cleanup_error ?? "");
-  assert.deepEqual(finished?.owner_steps.filter(step => step.owner_id === "memory").map(step => [step.state, step.error]), [["complete", null]]);
+  const executor = new MolisWorkLocalHost({ homeDirectory: home });
+  t.after(() => executor.close());
+  await ensureSystemAgentService(executor, home, withMolisWorkProjectCatalog).ready;
+  assert.deepEqual(catalog.listProjectDeletions(), [], "starting an executor cannot turn an unaccepted request into a receipt");
+  const finished = await catalog.deleteProject(deletion(project.project_id));
+  assert.equal(finished.replayed, false);
+  assert.equal(finished.deletion.cleanup_state, "complete");
+  assert.deepEqual(finished.deletion.owner_steps.filter(step => step.owner_id === "memory").map(step => [step.state, step.error]), [["complete", null]]);
 });
 
-test("the stdio MCP launcher's server deletes a project through its tool, leaves memory to the resident Host, and leaves the Agent runtime free", { timeout: 180_000 }, async t => {
+test("the forwarding stdio MCP tool refuses an unprepared deletion and leaves the Agent runtime free", { timeout: 180_000 }, async t => {
   const { home, catalog } = await scratchHome(t);
   ranBefore(home);
   const project = await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" });
@@ -112,34 +105,32 @@ test("the stdio MCP launcher's server deletes a project through its tool, leaves
   const bound = await call("molis_work_v1_context_bind", { project_id: project.project_id, user_confirmed: true });
   assert.equal(bound.isError, false, bound.content[0]?.text);
   const deleted = await call("molis_work_v1_project_delete", { project_id: project.project_id, delete_confirmed: true, idempotency_key: "mcp-forwarding-delete" });
-  assert.equal(deleted.isError, false, deleted.content[0]?.text);
-
-  const receipt = (JSON.parse(deleted.content[0]!.text) as { deletion: { cleanup_state: string; owner_steps: Array<{ owner_id: string; state: string }> } }).deletion;
-  assert.equal(receipt.cleanup_state, "pending");
-  assert.deepEqual(pendingOwners(receipt), ["memory"], "the other owners finished; the resident Host runs the memory step");
+  assert.equal(deleted.isError, true, deleted.content[0]?.text);
+  assert.match(deleted.content[0]!.text, /运行中的 Molis Work/);
+  assert.deepEqual(catalog.listProjectDeletions(), []);
+  assert.equal(catalog.getProject(project.project_id).database_path, project.database_path);
+  assert.equal(existsSync(project.database_path), true);
   const free = await holdAgentRuntime(home).catch((error: Error) => error);
   assert.ok(!(free instanceof Error), `the tool call did not take the Agent runtime from the resident Host (${free instanceof Error ? free.message.slice(0, 200) : ""})`);
   if (!(free instanceof Error)) await free.release();
 });
 
-test("an executor whose Agent runtime another process holds defers the memory step, and the receipt finishes once the runtime is free", { timeout: 180_000 }, async t => {
+test("an executor cannot accept deletion while another process holds its runtime, and can accept it once free", { timeout: 180_000 }, async t => {
   const { home, catalog } = await scratchHome(t);
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   ensureSystemAgentService(host, home, withMolisWorkProjectCatalog);
   const held = await holdAgentRuntime(home);
   t.after(async () => { await held.release(); await host.close(); });
-  const gone = (await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" })).project_id;
+  const project = await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" });
 
-  const deferred = await catalog.deleteProject(deletion(gone));
-  assert.equal(deferred.deletion.cleanup_state, "pending");
-  assert.deepEqual(pendingOwners(deferred.deletion), ["memory"], "the other owners finished; memory waits for the process that has the runtime");
-  const step = deferred.deletion.owner_steps.find(item => item.owner_id === "memory");
-  assert.match(step?.error ?? "", /另一个 Molis Work 进程.*接着清理/, "the step says the process that owns the runtime finishes it");
-  assert.equal(catalog.listProjects().some(project => project.project_id === gone), false);
+  await assert.rejects(() => catalog.deleteProject(deletion(project.project_id)), /另一个 Molis Work 进程/);
+  assert.deepEqual(catalog.listProjectDeletions(), []);
+  assert.equal(catalog.getProject(project.project_id).database_path, project.database_path);
+  assert.equal(existsSync(project.database_path), true);
 
   await held.release();
-  const finished = await catalog.deleteProject(deletion(gone));
-  assert.equal(finished.replayed, true);
+  const finished = await catalog.deleteProject(deletion(project.project_id));
+  assert.equal(finished.replayed, false, "the first request never committed a decision");
   assert.equal(finished.deletion.cleanup_state, "complete");
   assert.deepEqual(finished.deletion.owner_steps.filter(item => item.owner_id === "memory").map(item => [item.state, item.error]), [["complete", null]]);
 });
@@ -173,7 +164,7 @@ test("a Host whose runtime has already started clears the memory step itself, wh
   } finally { await host.close(); }
 });
 
-test("a Host in a Home that never ran an Agent clears the project's notes in the ledger without starting a runtime", { timeout: 60_000 }, async t => {
+test("a Host without a runtime refuses unknown ledger notes without accepting deletion or discarding them", { timeout: 60_000 }, async t => {
   const { home, catalog } = await scratchHome(t);
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   t.after(() => host.close());
@@ -183,11 +174,11 @@ test("a Host in a Home that never ran an Agent clears the project's notes in the
   ledger.setMarker("web-user", `tidy:project:${gone}`, { seen: true }, new Date().toISOString());
   assert.ok(ledger.marker("web-user", `tidy:project:${gone}`));
 
-  const result = await catalog.deleteProject(deletion(gone));
-
-  assert.equal(result.deletion.cleanup_state, "complete");
-  assert.equal(ledger.marker("web-user", `tidy:project:${gone}`), null, "the ledger forgot the project");
-  assert.equal(existsSync(join(home, "agent-runtime")), false, "no Agent runtime was started to find there was nothing in it");
+  await assert.rejects(() => catalog.deleteProject(deletion(gone)), /已有记忆账注/);
+  assert.deepEqual(catalog.listProjectDeletions(), []);
+  assert.equal(catalog.getProject(gone).project_id, gone);
+  assert.deepEqual(ledger.marker("web-user", `tidy:project:${gone}`)?.body, { seen: true });
+  assert.equal(existsSync(join(home, "agent-runtime")), false, "the refusal does not start a runtime or pretend the notes prove emptiness");
 });
 
 test("with the Agent runtime held by another process a demo is still made the first time, and a rebuild refuses before it clears anything", { timeout: 180_000 }, async t => {
@@ -234,57 +225,81 @@ test("a process without the Agent runtime rebuilds the demo, clears what it can,
   assert.equal(existsSync(rebuilt.project.database_path), true);
 });
 
-test("a catalog-only process leaves the memory and search steps pending for the next Host, and the demo is not made again until they are done", async t => {
+test("a catalog-only process cannot accept runtime cleanup; an accepted executor plan stays pending until its remaining owner completes", async t => {
   const { home, catalog } = await scratchHome(t);
   ranBefore(home);
-  await catalog.ensureDemoProject(input);
+  const demo = await catalog.ensureDemoProject(input);
+  const request = { project_id: DEMO_PROJECT_ID, actor_id: "test-user", delete_confirmed: true, idempotency_key: "demo-remove-1" };
+  await assert.rejects(() => catalog.removeDemoProject(request), /运行中的 Molis Work/);
+  assert.deepEqual(catalog.listProjectDeletions(), []);
+  assert.equal(existsSync(demo.project.database_path), true);
 
-  const removed = await catalog.removeDemoProject({ project_id: DEMO_PROJECT_ID, actor_id: "test-user", delete_confirmed: true, idempotency_key: "demo-remove-1" });
-  assert.equal(removed.deletion.cleanup_state, "pending", "the receipt is not complete while memory and search are still there");
-  assert.deepEqual(pendingOwners(removed.deletion), ["memory", "search"]);
-  assert.ok(removed.deletion.owner_steps.filter(step => step.state === "complete").length >= 1, "the file-level owners cleared their part");
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  t.after(() => host.close());
+  await ensureSystemAgentService(host, home, withMolisWorkProjectCatalog).ready;
+  const search = recorder("search");
+  let ready = false;
+  const dispose = projectDeletedHooksFor(home).register({ ...search.owner, clear(projectId) {
+    search.calls.push(projectId);
+    if (!ready) throw new Error("搜索主人尚未完成");
+  } });
+  t.after(dispose);
+  const removed = await catalog.removeDemoProject(request);
+  assert.equal(removed.deletion.cleanup_state, "pending");
+  assert.deepEqual(pendingOwners(removed.deletion), ["search"]);
+  assert.equal(removed.deletion.owner_steps.find(step => step.owner_id === "memory")?.state, "complete");
   await assert.rejects(() => catalog.ensureDemoProject(input), /清理/);
-  assert.equal(catalog.listProjects().some(project => project.project_id === DEMO_PROJECT_ID), false, "no demo is made over memories that are still there");
+  assert.equal(catalog.listProjects().some(project => project.project_id === DEMO_PROJECT_ID), false);
+  assert.equal(existsSync(demo.project.database_path), true, "the original directory remains until all owners complete");
 
-  // The next Host has both services: its owners take the steps over.
-  const memory = recorder("memory"), search = recorder("search");
-  const disposers = [projectDeletedHooksFor(home).register(memory.owner), projectDeletedHooksFor(home).register(search.owner)];
-  try {
-    assert.equal((await catalog.ensureDemoProject(input)).status, "created");
-    assert.deepEqual([memory.calls, search.calls], [[DEMO_PROJECT_ID, DEMO_PROJECT_ID], [DEMO_PROJECT_ID, DEMO_PROJECT_ID]], "each ran the pending step of the receipt, then cleared again for the new demo");
-    assert.equal(catalog.listProjectDeletions().find(item => item.deletion_id === removed.deletion.deletion_id)?.cleanup_state, "complete");
-  } finally { for (const dispose of disposers) dispose(); }
+  ready = true;
+  assert.equal((await catalog.ensureDemoProject(input)).status, "created");
+  assert.equal(catalog.listProjectDeletions().find(item => item.deletion_id === removed.deletion.deletion_id)?.cleanup_state, "complete");
+  assert.equal(search.calls.length, 3, "the two failed attempts resume the same remaining owner exactly once");
+  const next = catalog.getProject(DEMO_PROJECT_ID);
+  const store = openLingguangStore(home); store.create({ project_id: DEMO_PROJECT_ID, title: "后继实例的记录", body: "保留" }); store.close();
+  assert.equal((await catalog.ensureDemoProject(input)).status, "existing");
+  assert.equal((await catalog.removeDemoProject(request)).replayed, true);
+  assert.equal(existsSync(next.database_path), true);
+  const reopened = openLingguangStore(home);
+  try { assert.deepEqual(reopened.list(DEMO_PROJECT_ID).map(item => item.title), ["后继实例的记录"]); } finally { reopened.close(); }
 });
 
-test("a catalog-only process makes the demo again over a deletion whose owner steps a Host finished, but not over one recorded before owner steps", async t => {
+test("a catalog-only process recreates the demo after recorded owner completion, but cannot trust a receipt with no owner steps", async t => {
   const { home, catalog } = await scratchHome(t);
   ranBefore(home);
   await catalog.ensureDemoProject(input);
-  // A Host (memory and search owners of its own) deletes the demo; every step of the receipt is complete.
-  const memory = recorder("memory"), search = recorder("search");
-  const hostOwners = [projectDeletedHooksFor(home).register(memory.owner), projectDeletedHooksFor(home).register(search.owner)];
-  try {
-    const removed = await catalog.removeDemoProject({ project_id: DEMO_PROJECT_ID, actor_id: "test-user", delete_confirmed: true, idempotency_key: "demo-remove-1" });
-    assert.equal(removed.deletion.cleanup_state, "complete");
-  } finally { for (const dispose of hostOwners) dispose(); }
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  t.after(() => host.close());
+  await ensureSystemAgentService(host, home, withMolisWorkProjectCatalog).ready;
+  const removed = await catalog.removeDemoProject({ project_id: DEMO_PROJECT_ID, actor_id: "test-user", delete_confirmed: true, idempotency_key: "demo-remove-1" });
+  assert.equal(removed.deletion.cleanup_state, "complete");
+  await host.close();
 
-  // Back in a catalog-only process: the receipt says memory and search already ran, so they need not run again.
   assert.equal((await catalog.ensureDemoProject(input)).status, "created");
-  await catalog.removeDemoProject({ project_id: DEMO_PROJECT_ID, actor_id: "test-user", delete_confirmed: true, idempotency_key: "demo-remove-2" })
-    .then(result => assert.equal(result.deletion.cleanup_state, "pending"));
-  // A receipt from before owner steps proves nothing about them: with no Host to clear them, no demo is made.
+  const nextHost = new MolisWorkLocalHost({ homeDirectory: home });
+  t.after(() => nextHost.close());
+  await ensureSystemAgentService(nextHost, home, withMolisWorkProjectCatalog).ready;
+  const next = await catalog.removeDemoProject({ project_id: DEMO_PROJECT_ID, actor_id: "test-user", delete_confirmed: true, idempotency_key: "demo-remove-2" });
+  assert.equal(next.deletion.cleanup_state, "complete");
+  await nextHost.close();
+  // A pre-plan receipt without owner results is not proof that Memory has been cleared.
   const receipts = new DatabaseSync(join(home, "projects", "catalog.db"));
-  try { receipts.exec("PRAGMA busy_timeout = 5000; DELETE FROM project_deletion_steps; UPDATE project_deletions SET cleanup_state = 'complete', cleanup_error = NULL"); } finally { receipts.close(); }
+  try { receipts.exec("PRAGMA busy_timeout = 5000; DELETE FROM project_deletion_steps; UPDATE project_deletions SET recovery_plan = NULL"); } finally { receipts.close(); }
   await assert.rejects(() => catalog.ensureDemoProject(input), /Molis Work/);
   assert.equal(catalog.listProjects().some(project => project.project_id === DEMO_PROJECT_ID), false);
 });
 
 test("a catalog-only process in a Home that never ran the app has no memory or search to wait for", async t => {
   const { catalog } = await scratchHome(t);
-  await catalog.ensureDemoProject(input);
+  const original = await catalog.ensureDemoProject(input);
   const removed = await catalog.removeDemoProject({ project_id: DEMO_PROJECT_ID, actor_id: "test-user", delete_confirmed: true, idempotency_key: "demo-remove-1" });
   assert.equal(removed.deletion.cleanup_state, "complete");
   assert.deepEqual(removed.deletion.owner_steps.filter(step => step.owner_id === "memory" || step.owner_id === "search").map(step => step.state), ["complete", "complete"]);
+  mkdirSync(dirname(original.project.database_path));
+  await assert.rejects(catalog.ensureDemoProject(input), { code: "catalog.project_storage_invalid" });
+  assert.equal(existsSync(dirname(original.project.database_path)), true, "an unexplained directory is not covered by an old complete receipt");
+  await rm(dirname(original.project.database_path), { recursive: true });
   assert.equal((await catalog.ensureDemoProject(input)).status, "created");
   const rebuilt = await catalog.resetDemoProject(input);
   assert.equal(rebuilt.status, "reset");
@@ -323,7 +338,7 @@ test("a Host finishes the deletions other processes left pending, as it starts a
   assert.deepEqual([...new Set(late.calls)].sort(), [...projects].sort());
 });
 
-test("the public CLI removes the demo, says what waits for a running Molis Work, and does not make the demo again until that is done", { timeout: 180_000 }, async t => {
+test("the public CLI refuses an unprepared runtime deletion and retains the original demo with no receipt", { timeout: 180_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), "molis-project-deletion-cli-"));
   const home = join(directory, "home");
   t.after(() => rm(directory, { recursive: true, force: true }));
@@ -335,18 +350,17 @@ test("the public CLI removes the demo, says what waits for a running Molis Work,
   const created = demo("create", "--json");
   assert.equal(created.status, 0, created.stderr);
   const removed = demo("remove");
-  assert.equal(removed.status, 0, removed.stderr);
-  assert.match(removed.stdout, /memory、search/, "it says which data is left for a running Molis Work");
-  const again = demo("create");
-  assert.notEqual(again.status, 0, "no demo over memories that are still there");
-  assert.match(again.stderr + again.stdout, /清理/);
+  assert.notEqual(removed.status, 0, "the CLI cannot accept a plan owned by a runtime it does not run");
+  assert.match(removed.stderr + removed.stdout, /运行中的 Molis Work/);
+  const again = demo("create", "--json");
+  assert.equal(again.status, 0, again.stderr);
+  assert.equal(JSON.parse(again.stdout).status, "existing", "the original demo was never removed");
 
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   try {
-    const receipt = catalog.listProjectDeletions()[0]!;
-    assert.equal(receipt.cleanup_state, "pending");
-    assert.deepEqual(pendingOwners(receipt), ["memory", "search"]);
-    assert.equal(catalog.listProjects().some(project => project.project_id === DEMO_PROJECT_ID), false);
+    assert.deepEqual(catalog.listProjectDeletions(), []);
+    assert.equal(catalog.listProjects().some(project => project.project_id === DEMO_PROJECT_ID), true);
+    assert.equal(existsSync(catalog.getProject(DEMO_PROJECT_ID).database_path), true);
   } finally { catalog.close(); }
 });
 

@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
-import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
+import type { AgentHost, PrologueProjectDeletion } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentMemoryUseReceipt, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ActionError, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -46,6 +46,13 @@ export { prologueMemoryBackend } from "./memory-backend.js";
 /** This Home's person. Agents, plugins and external clients act on their behalf, so personal memories are theirs. */
 const LOCAL_PERSON = LOCAL_PERSON_ACTOR_ID;
 const RUNTIME = "prologue";
+const input = <T>(value: unknown) => (value ?? {}) as T;
+
+function memoryRuntimeEffect(agentHost: AgentHost) {
+  const effect = agentHost.adapter(RUNTIME).withEffect;
+  if (!effect) throw memoryErrors.unavailable("当前运行时缺少最终清理控制");
+  return effect;
+}
 
 interface MemoryHost {
   readonly service: MemoryService;
@@ -88,6 +95,7 @@ interface MemoryHostPorts {
   localHost: MolisWorkLocalHost;
   homeDirectory: string;
   agentHost: AgentHost;
+  projectDeletion?(): PrologueProjectDeletion;
   /** Starts the runtime when needed; memory lives in it. */
   ready(): Promise<void>;
   /** Settles once the runtime started because something needed it (never starts it). */
@@ -139,7 +147,6 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const service = new MemoryService(servicePorts);
   const forCall = (context: ActionExecutionContext) => memoryCallService(context, servicePorts,
     control => prologueMemoryBackend(store, control), () => !closed);
-  const input = <T>(value: unknown) => (value ?? {}) as T;
   // Internal Agent identity follows memoryCaller; external MCP runtime Sessions keep their granted non-Run reads.
   const read = async (context: ActionExecutionContext, request: { list: MemoryListRequest } | { recall: MemoryRecallRequest }) => {
     if (context.actor_id.startsWith("agent:")) {
@@ -235,7 +242,8 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   };
   void ports.started?.().then(attachQueue).catch(() => undefined);
   let closed = false;
-  const deletion = registerMemoryProjectDeletion({ ...ports, backend, ledger, alive: () => !closed });
+  const deletion = registerMemoryProjectDeletion({ ...ports, backend, ledger, alive: () => !closed && ports.localHost.lifecycle() === "running",
+    withEffect: (control, work) => memoryRuntimeEffect(ports.agentHost)(control, work), controlledBackend: control => prologueMemoryBackend(store, control) });
   const host: MemoryHost = {
     service,
     withExecution: (control, bindChangeTarget) => controlledMemoryService({ ...servicePorts, bindChangeTarget },
@@ -250,7 +258,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
       owners: projectId => ledger.owners(projectId),
       candidateOwners: projectId => ledger.candidateOwners(projectId),
       projectExists: projectId => ports.projectExists?.(projectId) ?? Promise.resolve(null),
-      deletingProject: deletion.deletingProject,
+      ...deletion,
     },
     caller: memoryCaller,
     learnLater: async request => {

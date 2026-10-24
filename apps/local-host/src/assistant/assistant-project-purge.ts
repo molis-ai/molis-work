@@ -2,6 +2,21 @@ import { existsSync } from "node:fs";
 import { homeSqlitePath, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { AssistantRelations } from "./assistant-relations.js";
 import { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, type StoredWork } from "./assistant-store.js";
+import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AgentSessionOwner, AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { ownerOf } from "./assistant-round-start.js";
+
+/** Full owner query, including archived Works; project association never changes the Session's actual owner. */
+export function assistantProjectSessions(home: string, projectId: string): Array<{ session: AgentSessionRef; owner: AgentSessionOwner }> {
+  if (!existsSync(homeSqlitePath(home, ASSISTANT_STORE_NAME))) return [];
+  const db = openBaselineHomeSqlite(home, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE);
+  try {
+    return (db.prepare("SELECT body FROM assistant_works WHERE json_extract(body, '$.project_ref.project_id') = ? OR json_extract(body, '$.scope.project_id') = ?")
+      .all(projectId, projectId) as Array<{ body: string }>).map(row => JSON.parse(row.body) as StoredWork)
+      .filter(work => work.session_id !== null).map(work => ({ session: { runtime_id: "prologue", session_id: work.session_id! },
+        owner: { project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: work.actor_id } }));
+  } finally { db.close(); }
+}
 
 /** What only a running Assistant can do for a work that is going away. */
 interface AssistantProjectLive {
@@ -19,7 +34,7 @@ const WORK_TABLES = ["assistant_rounds", "assistant_cards", "assistant_notices",
  * The project is deleted: the Assistant's works that belong to it go, with their rounds, cards, notices, follow-ups,
  * background jobs (a job nobody follows is looked at no more), undo steps and the relations they recorded. A running
  * Assistant also stops the round a work is still running and cancels the timed rounds the runtime queued for it. The
- * conversation itself is the runtime's session record, which the Agent Host offers no way to delete. Works on the
+ * conversation itself is the runtime's session record, cleared by the fixed project-deletion plan first. Works on the
  * library's file, so a process without the Assistant clears the rows too; running it again finds nothing.
  * Returns how many works went.
  */

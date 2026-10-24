@@ -301,19 +301,25 @@ test("only the real deletion hook clears a missing project, keeping unrelated sc
   const { projectDeletedHooksFor } = await import("@molis-ai/molis-work-app-local-host");
   const f = await fixture(t), original = await f.save("clear-original");
   const other = await f.bound({ ...person, project_id: "b" }).write({ scope: "project", owner: "b", text: "Other project", origin: "person", meta, operation_id: "other-project" });
-  const receipt = { deletion_id: "confirmed-deletion", project_id: "a" };
-  let release!: () => void, entered!: () => void, first = true;
+  const hooks = projectDeletedHooksFor(f.home);
+  let release!: () => void, entered!: () => void, first = true, armed = false;
   const gate = new Promise<void>(done => { release = done; }), pending = new Promise<void>(done => { entered = done; });
-  const backend = prologueMemoryBackend(async () => f.adapter.memory!, {
-    beforeEffect: async () => { if (first) { first = false; entered(); await gate; } }, assert_current: () => undefined });
+  const backend = prologueMemoryBackend(async () => f.adapter.memory!);
   const deletion = registerMemoryProjectDeletion({ homeDirectory: f.home, backend, ledger: f.ledger,
-    alive: f.owner.alive, executes: () => true, ready: async () => undefined, projectExists: f.owner.projectExists });
-  f.owner.deletingProject = deletion.deletingProject;
-  f.projects.delete("a");
-  await assert.rejects(projectDeletedHooksFor(f.home).clear("memory", "a"), { code: "memory.forbidden" });
-  await assert.rejects(projectDeletedHooksFor(f.home).clear("memory", "a", { ...receipt, project_id: "b" }), { code: "memory.forbidden" });
+    alive: f.owner.alive, executes: () => true, ready: async () => undefined, projectExists: f.owner.projectExists,
+    projectDeletion: () => f.adapter.projectDeletion, withEffect: (control, work) => f.adapter.withEffect(control, work),
+    controlledBackend: control => prologueMemoryBackend(async () => f.adapter.memory!, {
+      beforeEffect: async () => { if (armed && first) { first = false; entered(); await gate; } await control.beforeEffect(); }, assert_current: control.assert_current }) });
+  Object.assign(f.owner, deletion);
+  let receipt!: NonNullable<Parameters<typeof hooks.clear>[2]>;
   f.service.savePrefs({ ...person, consumer: "ui" }, "project", "off");
-  const clearing = projectDeletedHooksFor(f.home).clear("memory", "a", receipt); await pending;
+  const clearing = hooks.withRecovery({ project_id: "a", operation_id: "confirmed-deletion" }, async recovery => {
+    receipt = { deletion_id: "confirmed-deletion", project_id: "a", recovery };
+    f.projects.delete("a"); armed = true;
+    return hooks.clear("memory", "a", receipt);
+  }); await pending;
+  await assert.rejects(hooks.clear("memory", "a"), { code: "memory.forbidden" });
+  await assert.rejects(hooks.clear("memory", "a", { ...receipt, project_id: "b" }), { code: "memory.forbidden" });
   assert.equal(deletion.deletingProject(), undefined, "the in-flight clear does not grant its scope to another invocation");
   await assert.rejects(f.bound(task).remove({ scope: "project", owner: "a", memory_id: original.memory_id, expected_version: original.version, operation_id: "task-delete" }));
   release(); assert.equal(await clearing, true);
@@ -321,7 +327,8 @@ test("only the real deletion hook clears a missing project, keeping unrelated sc
   f.projects.add("a"); f.service.savePrefs({ ...person, consumer: "ui" }, "project", "reviewed");
   assert.deepEqual(await f.bound().list("project", "a"), []);
   const later = await f.save("after-original-preview");
-  f.projects.delete("a"); await projectDeletedHooksFor(f.home).clear("memory", "a", receipt);
+  f.projects.delete("a");
+  await hooks.withRecovery({ project_id: "a", operation_id: receipt.deletion_id, original: receipt.recovery }, () => hooks.clear("memory", "a", receipt));
   f.projects.add("a");
   assert.deepEqual((await f.bound().list("project", "a")).map(item => item.memory_id), [later.memory_id]);
   assert.deepEqual((await f.bound({ ...person, project_id: "b" }).list("project", "b")).map(item => item.memory_id), [other.memory_id]);

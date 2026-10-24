@@ -53,7 +53,8 @@ export function createSessionLifecycle(deps: LifecycleDeps): AgentSessionLifecyc
     action: "archive" | "unarchive" | "purge", submitted?: AgentSessionPurgePreview): Promise<AgentSessionLifecycleReceipt> => {
     const { session, owner } = request(sessionInput, ownerInput), decision = structuredClone(decisionInput), preview = submitted && structuredClone(submitted);
     validate(decision);
-    return deps.index.lifecycle(session.session_id, async (index, save) => {
+    const mutation = { action, operation_id: decision.operation_id };
+    return deps.index.lifecycle(session.session_id, (index, save) => deps.effects.admit(() => deps.index.assertLifecycle(session.session_id, mutation), async () => {
       owned(index, session, owner); await deps.effects.beforeEffect(); deps.effects.assertCurrent();
       let held = index.lifecycle;
       const same = held?.action === action && isDeepStrictEqual(held.decision, decision)
@@ -103,7 +104,7 @@ export function createSessionLifecycle(deps: LifecycleDeps): AgentSessionLifecyc
       }
       held.phase = "complete"; await save(index);
       deps.effects.assertCurrent(); return structuredClone(held.receipt);
-    });
+    }), mutation);
   };
   return {
     async read(sessionInput, ownerInput) {

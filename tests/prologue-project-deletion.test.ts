@@ -59,6 +59,33 @@ async function fixture(t: TestContext) {
   };
 }
 
+test("project hold and persisted pending reject ordinary lifecycle mutations while the exact original purge remains usable", async t => {
+  const f = await fixture(t), active = await f.create(), archived = await f.create(), personal = await f.create("personal");
+  const life = f.adapter.sessionLifecycle!;
+  const archivedBefore = await life.read(archived, owner);
+  await life.archive(archived, { operation_id: "prior-archive", expected_version: archivedBefore.version!, expected_state: "active" }, owner);
+  const activeBefore = await life.read(active, owner), archivedNow = await life.read(archived, owner);
+  const preview = await life.previewPurge(active, owner), personalBefore = await life.read(personal, { ...owner, project_id: "personal" });
+  const mutations = () => [
+    () => f.adapter.sessionLifecycle!.archive(active, { operation_id: "outside-archive", expected_version: activeBefore.version!, expected_state: "active" }, owner),
+    () => f.adapter.sessionLifecycle!.unarchive(archived, { operation_id: "outside-unarchive", expected_version: archivedNow.version!, expected_state: "archived" }, owner),
+    () => f.adapter.sessionLifecycle!.purge(active, { operation_id: "outside-purge", expected_version: preview.version, expected_state: preview.state }, preview, owner),
+    () => f.adapter.sessionLifecycle!.archive(personal, { operation_id: "outside-personal", expected_version: personalBefore.version!, expected_state: "active" }, { ...owner, project_id: "personal" }),
+  ];
+  const scope = f.scope([{ session: personal, owner: { ...owner, project_id: "personal" } }]);
+  let plan!: ProjectSessionDeletionPlan;
+  await f.adapter.projectDeletion.withHold(scope, async held => {
+    plan = await held.preview("held-original");
+    for (const mutation of mutations()) await assert.rejects(mutation, { code: "agent.session_busy" });
+    assert.equal((await life.read(active, owner)).version, activeBefore.version);
+  });
+  f.pending.add(owner.project_id); f.pendingSessions.add(personal.session_id);
+  await f.reopen();
+  for (const mutation of mutations()) await assert.rejects(mutation, { code: "agent.session_busy" });
+  await f.adapter.withEffect(control, () => f.adapter.projectDeletion.withHold(scope, held => held.purge(plan)));
+  for (const item of plan.sessions) assert.equal((await f.adapter.sessionLifecycle!.read(item.session, item.owner)).state, "purged");
+});
+
 test("project preview enumerates archived/unbound own indexes, binds associated personal owner, and purges only its fixed set", async t => {
   const f = await fixture(t), active = await f.create(), archived = await f.create(), other = await f.create("other"), personal = await f.create("personal");
   const before = await f.adapter.sessionLifecycle!.read(archived, owner);

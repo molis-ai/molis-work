@@ -60,7 +60,7 @@ export function createProjectDeletion(deps: Deps): PrologueProjectDeletion {
     async withHold(input, work) {
       const scope = structuredClone(input);
       if (!scope.project_id || scope.associated_sessions.some(item => item.session.runtime_id !== "prologue")) throw denied();
-      return deps.index.holdProject(scope.project_id, scope.associated_sessions.map(item => item.session.session_id), async () => {
+      return deps.index.holdProject(scope.project_id, scope.associated_sessions.map(item => item.session.session_id), async hold => {
         let active = true;
         const assertHeld = () => { if (!active) throw denied(); };
         const current = () => { assertHeld(); deps.effects.assertCurrent(); };
@@ -109,6 +109,7 @@ export function createProjectDeletion(deps: Deps): PrologueProjectDeletion {
               };
               for (const root of roots) visit(root.ref.id);
               for (const id of included.keys()) visit(id);
+              hold.include(ordered);
               const sessions: ProjectSessionDeletionPlan["sessions"] = [];
               for (const id of ordered) {
                 const item = included.get(id)!, saved = indexed.get(id), session = view(id);
@@ -153,9 +154,11 @@ export function createProjectDeletion(deps: Deps): PrologueProjectDeletion {
                 if (!item.parent_run) { if (!saved) throw denied(); checkRoot(saved); }
                 seen.set(id, item.owner);
               }
+              hold.include([...seen.keys()]);
               for (const item of plan.sessions) {
                 await deps.effects.beforeEffect(); current();
-                if (item.indexed) await deps.lifecycle.purge(item.session, item.decision, item.preview, item.owner);
+                if (item.indexed) await hold.purge(item.session.session_id, item.decision.operation_id,
+                  () => deps.lifecycle.purge(item.session, item.decision, item.preview, item.owner));
                 else await deps.runtime.sessions.purge({ sessionRef: exact(item.session), atVersion: item.preview.version,
                   runs: item.preview.runs, resources: item.preview.resources, destroysKey: item.preview.destroys_key });
                 current();

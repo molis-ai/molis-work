@@ -1412,6 +1412,7 @@ export interface AgentRuntimeAdapter {
     readonly schedule?: AgentScheduleCapability;
     readonly memory?: AgentMemoryCapability;
     readonly documents?: AgentDocumentCapability;
+    readonly sessionLifecycle?: AgentSessionLifecycle;
     readonly descriptor: AgentRuntimeDescriptor;
     health(): Promise<AgentRuntimeHealth>;
     createSession(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<AgentSessionRef>;
@@ -1528,6 +1529,42 @@ export interface AgentScheduledTask {
     last_failure?: string;
 }
 
+export interface AgentSessionDecision {
+    operation_id: string;
+    expected_version: number;
+    expected_state: "active" | "archived";
+}
+
+export interface AgentSessionLifecycle {
+    read(session: AgentSessionRef, owner: AgentSessionOwner): Promise<AgentSessionLifecycleView>;
+    archive(session: AgentSessionRef, decision: AgentSessionDecision, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
+    unarchive(session: AgentSessionRef, decision: AgentSessionDecision, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
+    previewPurge(session: AgentSessionRef, owner: AgentSessionOwner): Promise<AgentSessionPurgePreview>;
+    purge(session: AgentSessionRef, decision: AgentSessionDecision, preview: AgentSessionPurgePreview, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
+}
+
+export interface AgentSessionLifecycleReceipt {
+    scope: "agent-host-session";
+    session: AgentSessionRef;
+    operation_id: string;
+    action: "archive" | "unarchive" | "purge";
+    state: "active" | "archived" | "purged";
+    version: number;
+}
+
+export interface AgentSessionLifecycleView {
+    session: AgentSessionRef;
+    state: "active" | "archived" | "purged" | "unknown";
+    version: number | null;
+    operation?: {
+        action: "archive" | "unarchive" | "purge";
+        decision: AgentSessionDecision;
+        completed: boolean;
+        preview?: AgentSessionPurgePreview;
+        receipt?: AgentSessionLifecycleReceipt;
+    };
+}
+
 export interface AgentSessionMessage {
     message_id: string;
     from_session: string;
@@ -1574,6 +1611,15 @@ export interface AgentSessionOwner {
     plugin_id: string;
     install_id: string;
     actor_id: string;
+}
+
+export interface AgentSessionPurgePreview {
+    session: AgentSessionRef;
+    version: number;
+    state: "active" | "archived";
+    runs: number;
+    resources: number;
+    destroys_key: boolean;
 }
 
 export interface AgentSessionRef {
@@ -2046,6 +2092,16 @@ export declare const agentOfferActions: {
     }>;
 };
 
+export declare const agentSessionLifecycleActions: {
+    readonly read: ActionDefinition<Target, AgentSessionLifecycleView>;
+    readonly previewPurge: ActionDefinition<Target, AgentSessionPurgePreview>;
+    readonly archive: ActionDefinition<Change, AgentSessionLifecycleReceipt>;
+    readonly unarchive: ActionDefinition<Change, AgentSessionLifecycleReceipt>;
+    readonly purge: ActionDefinition<Change & {
+        preview: AgentSessionPurgePreview;
+    }, AgentSessionLifecycleReceipt>;
+};
+
 export declare function agentTextMaterialContent(material: AgentTextMaterial): string;
 
 export declare const agentWriteCheckerActions: {
@@ -2172,3 +2228,11 @@ interface AgentStartInputFields {
     mcp_sources?: AgentMcpSourceRef[];
     budget?: AgentRunBudget;
 }
+
+type Change = Target & {
+    decision: AgentSessionDecision;
+};
+
+type Target = {
+    session: AgentSessionRef;
+};

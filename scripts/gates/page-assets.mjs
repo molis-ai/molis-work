@@ -238,9 +238,12 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // Explicit expiry renewal retains only its original +1680 B approval.
-  // Exact parent c10c22ac3 freezes 1145353 B; measure the integrated build before updating its budget.
-  "/assets/molis-work-workbench.js": [1145353, 1147033],
+  // Aggregate the 14 already approved Memory slices against exact parent 1c2ddcbe.
+  // Actual integrated bodies only: WB +28826 (approved maximum +28830), CSS +680 each, Coding +570.
+  "/assets/molis-work-workbench.js": [1133257, 1162083],
+  "/assets/molis-work-settings.css": [983223, 983903],
+  "/assets/molis-work-workbench.css": [1552477, 1553157],
+  "/assets/molis-work-plugins/coding.js": [377944, 378514],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

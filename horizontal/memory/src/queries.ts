@@ -54,8 +54,9 @@ export class MemoryQueries {
       .slice(0, filter.limit ?? 50).map(changeView);
   }
 
-  async list(caller: MemoryCaller, request: MemoryListRequest = {}): Promise<MemoryListResponse> {
-    const scopes = this.ports.scopes.scopesFor(caller, request.scope === "all" || !request.scope ? undefined : [request.scope]);
+  async list(caller: MemoryCaller, request: MemoryListRequest = {}, allowedScopes?: readonly MemoryScope[]): Promise<MemoryListResponse> {
+    const scopes = this.ports.scopes.scopesFor(caller, request.scope === "all" || !request.scope ? undefined : [request.scope])
+      .filter(where => !allowedScopes || allowedScopes.includes(where.scope));
     const items: MemoryItem[] = [], readScopes: typeof scopes = [];
     const readTargets: Array<{ where: typeof scopes[number]; target: MemoryBackendEntry["meta"] }> = [];
     let personal = 0, project = 0;
@@ -106,7 +107,7 @@ export class MemoryQueries {
       if (!scopes.length) return [];
       const items = "recall" in request
         ? (await this.recall(reader, { ...request.recall, scopes: scopes.map(where => where.scope) }, { readMode: "explicit", selectionOnly: true })).items
-        : (await Promise.all(scopes.map(where => this.list(reader, { ...request.list, scope: where.scope })))).flatMap(page => page.items);
+        : (await this.list(reader, request.list, scopes.map(where => where.scope))).items;
       await this.ports.beforeEffect?.();
       reader.signal?.throwIfAborted();
       // Recheck the exact selected scopes after the asynchronous reads; SDK rechecks every ref/version again.

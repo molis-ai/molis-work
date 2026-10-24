@@ -1850,3 +1850,13 @@ Coding 归档交付前统筹复核（2026-10-24）：已独立核真实 backend/
 写入范围：LocalHost memory HTTP 组合、Workbench 现候选渲染、两包 README、现候选故障/浏览器用例。验收：真实 SDK/SQLite before-finish 故障、关闭重开、跨等待 TTL 后 overview 仍返回正式页；候选明确不可读，原 candidate 与正式版本/原决定保持；正常空候选不显示错误，浏览器能继续分页和管理正式条目并显式重试。复用现样式/翻译，资源实测，原额度不擅自扩用。当前为短合同，未运行不计通过。
 
 聚合健康门复核：现设置页已同时包含完整服务端页面渲染与浏览器控制，合并后达到812行。按这两个实际职责将服务器 markup/prefRow 原样移到 settings-memory-view.ts，原入口继续重导出；不挤空行或增加例外。浏览器控制与现导入/分类组件保持原组合。另删除 registerMemoryHost 对 memoryCaller 的重复局部别名，直接复用原可信身份函数；没有修改身份语义。等价复用三处相同读取失败文案与现可空字段检查，原文件减少136 B；最终产物仍以构建后的资源门实测为准。
+
+聚合首轮验证与注册收口（2026-10-25）：固定运行时离线安装成功；整体build首两次分别发现重复AgentSessionOwner导出、查询职责迁移后unused MemoryRevision import，复用新父唯一Owner并清理未使用导入后通过；根/工作区类型、boundary及生成API/Action通过。候选overview两新增场景先在旧产品真实失败，产品修复后17+26例通过；日志统一 `/private/tmp/molis-memory-p0-aggregate-20261025`，红/绿分别`-overview-red`/`-overview-green`。29核心非浏览器首轮28文件通过，memory-list-revocation原6例全部未到旧list拦点，待迁移现Run expansion合同；不计为通过。
+
+精确父health首败为registerMemoryHost151、新settings-memory812及registerAgentHostCapabilities346→347；资源实测WB+28965比原组合额度多135B，未登记扩大。root等价复用和完整服务端view抽取保持文案及client语义；AgentHost把现lifecycle注册纳入已有registerSessionActions的Session注册职责，复用已校验project caller和adapter，外层不再重复注册；不增抽象、版本、权限或写主人。后续仅对受影响入口补验，原有效核心文件不机械重跑。
+
+聚合资源实际冻结（2026-10-25）：root等价复用后准确父1c2实测WB1,133,257→1,162,083（+28,826，低于原合计28,830）；settings.css983,223→983,903、workbench.css1,552,477→1,553,157（各+680）；Coding377,944→378,514（+570）；其余23完全相同，27项总7,641,818→7,672,574。只按实际四项登记一次性额度，剩余4B不登记；无新增资源。首测WB+28,965超135B的日志保留；本次是原授权组合，未扩大批准。精确父health修复通过，含0缺英文，新settings-memory-view已进入全源码翻译扫描。
+
+跨scope扩展撤权收口短合同（2026-10-25）：旧6场景迁至现expand入口后真实复现：个人scope已读完而项目scope仍等待时，class撤权被后续SDK过滤成none；消费者撤权则正确显式抛错。根因是expand用Promise.all分开调用list，各scope的readTargets最终检查在各自结束时已完成，失去原list共同等待后的复核。复用现完整list：内部allowedScopes仅与caller正常scopesFor求交，不能换owner或扩大范围；expand列表分支一次调用它，保留过滤前targets、beforeEffect及SDK ref/version最终复核，不复制权限算法。recall分支保持。允许queries.ts、原六场景测试和本spec；拒绝必须是明确读取权限变化error，不把none当拒绝；首个真实模型请求不含正文，允许场景后续收到，撤权场景后续不得收到，原正式持久记忆完全不变。失败/取消仍原合同，无新SDK/API/资源。
+
+聚合收口定向结果（2026-10-25）：初次迁移夹具3/6通过，暴露上述真实class撤权none及夹具错误假设SDK必返failed；保留`-core-repair.log`，不接受空结果替代拒绝。完整list收口后7文件82例通过（含六交错、Run扩展、分类、runtime policy、Actions与MCP）；同源码整体build及根/工作区类型、boundary、实际资源、准确父health均通过，health按实际生成快照、翻译无缺失。35个唯一文件已有本候选有效证据，剩余186非browser（含资源脚本回归）+19browser按`-remaining.plan.json`继续，未运行部分不计通过。日志索引为`-final-gates.results.json`、`-list-authority.results.json`；完整共享全量及用户验收仍由统筹负责。

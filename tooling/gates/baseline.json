@@ -39,7 +39,7 @@
     "file apps/workbench/src/i18n/en.ts": 3308,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 284,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2031,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2028,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 955,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1948,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
@@ -47,15 +47,15 @@
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 440,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
-    "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
+    "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 217,
     "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 185,
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 217,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 958,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 942,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
-      "lines": 589,
-      "methods": 19
+      "lines": 582,
+      "methods": 18
     },
     "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 346,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
@@ -67,9 +67,9 @@
       "lines": 361,
       "methods": 18
     },
-    "file horizontal/memory/src/service.ts": 1082,
+    "file horizontal/memory/src/service.ts": 957,
     "class horizontal/memory/src/service.ts#MemoryService": {
-      "lines": 934,
+      "lines": 809,
       "methods": 47
     },
     "class horizontal/placement/src/index.ts#PlacementService": {
@@ -152,7 +152,7 @@
       "lines": 343,
       "methods": 19
     },
-    "file plugins/native/coding/src/client.ts": 1580,
+    "file plugins/native/coding/src/client.ts": 1574,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 209,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {

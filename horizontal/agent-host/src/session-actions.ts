@@ -1,3 +1,4 @@
+import { registerSessionLifecycleActions } from "./session-lifecycle-actions.js";
 import { actionDigest } from "./action-digest.js";
 import { agentErrors } from "./errors.js";
 import { checkOrigin } from "./input-origin.js";
@@ -15,7 +16,7 @@ type Register<C extends Call> = <Input, Output>(definition: ActionDefinition<Inp
 
 /** What the Agent Host's registration already resolves for every call: who calls, in which project, through which runtime. */
 interface SessionActionPorts<C extends Call> {
-  pluginFor(call: C): HostPluginCaller | undefined;
+  pluginFor(call: C): (HostPluginCaller & { project_id: string }) | undefined;
   adapter(call: C, runtimeId: string): AgentRuntimeAdapter;
   projectId(call: C): string;
   /** The session is in the caller's project and is the caller's own (its plugin, installation and person). */
@@ -37,6 +38,7 @@ const sameReference = (a: ExactActionReference, b: ExactActionReference) => a.ca
 export function registerSessionActions<C extends Call>(register: Register<C>, ports: SessionActionPorts<C>): Array<() => void> {
   const fresh = async (call: C) => { await call.invocation.beforeEffect(); call.invocation.assertAuthorityCurrent(); };
   return [
+    ...registerSessionLifecycleActions(register, { pluginFor: ports.pluginFor, projectId: ports.projectId, lifecycle: (call, id) => ports.adapter(call, id).sessionLifecycle }),
     // The task graph keeps the waits and continuations; these only read and ask it, for the caller's own sessions alone (R8 rules 3, 4).
     register(agentCollaborationActions.read, async (call, input) => {
       const adapter = ports.adapter(call, input.runtime_id);
